@@ -9749,17 +9749,15 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
         { name: 'conversation.view', id: 'workbench', order: 50, label: WORKBENCH_LABEL },
         Workbench,
       ))
-      if (typeof window.agentPiDesktop?.codexAuthStatus === 'function') {
-        ctx.slots.inject('settings.section', () => ctx.slots.register(
-          {
-            name: 'settings.section',
-            id: 'agent-pi-codex',
-            order: 15,
-            label: () => langState.lang === 'en' ? 'Codex Agent' : 'Codex 智能体',
-          },
-          CodexSettingsSection,
-        ))
-      }
+      ctx.slots.inject('settings.section', () => ctx.slots.register(
+        {
+          name: 'settings.section',
+          id: 'agent-pi-codex',
+          order: 15,
+          label: () => langState.lang === 'en' ? 'Codex Agent' : 'Codex 智能体',
+        },
+        CodexSettingsSection,
+      ))
       ctx.slots.inject('shell.overlay', () => ctx.slots.register(
         { name: 'shell.overlay', id: 'tender-workbench', order: 5, label: WORKBENCH_LABEL },
         WorkbenchOverlay,

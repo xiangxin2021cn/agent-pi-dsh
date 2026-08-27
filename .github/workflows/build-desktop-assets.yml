@@ -74,12 +74,9 @@ jobs:
         run: |
           (cd payload/product/packages/business-core && npm install --omit=dev --no-fund --no-audit)
           (cd payload/product/bundles/tender-host && npm install --omit=dev --no-fund --no-audit)
-          # vision-router is retired from the factory; do not cd into it.
-          # dsh-univer-office ships Gateway/Viewer/Worker in artifacts/. A
-          # full npm install still pulls @univer-cli/* insiders packages that
-          # are not on registry.npmjs.org (failed run 32619205147). Skip it
-          # here, same as the Windows pack. First boot installs the public
-          # marketplace copy with OS-correct natives.
+          # Install only the public production graph. The plugin's full manifest
+          # also names short-lived insiders dev packages that npm cannot resolve.
+          node payload/product/scripts/install-univer-runtime-deps.mjs payload/product/vendor/dsh-univer-office
 
       - name: Download Node runtime binary
         run: |

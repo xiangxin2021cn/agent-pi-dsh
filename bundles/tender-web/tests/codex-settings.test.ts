@@ -13,5 +13,6 @@ test('desktop settings expose ChatGPT login without treating Codex as a model pr
   assert.match(client, /codexAuthLogout/)
   assert.match(client, /id: 'agent-pi-codex'/)
   assert.match(client, /subagent_codex/)
+  assert.doesNotMatch(client, /if \(typeof window\.agentPiDesktop\?\.codexAuthStatus === 'function'\)/)
   assert.doesNotMatch(client, /OPENAI_API_KEY/)
 })

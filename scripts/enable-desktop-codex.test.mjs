@@ -20,6 +20,7 @@ test('tender profile installs the provider and packaging enables the Codex tool'
   const pack = readFileSync(join(root, 'scripts/pack-win.ps1'), 'utf8')
   const verify = readFileSync(join(root, 'scripts/verify-profile.ps1'), 'utf8')
   const desktopPackage = readFileSync(join(root, 'apps/desktop/package.json'), 'utf8')
+  const runtimePayload = readFileSync(join(root, 'scripts/pack-runtime-payload.mjs'), 'utf8')
   assert.match(init, /@deepseek-ai\/dsh-subagent-codex/)
   assert.match(init, /function wireCodexRuntimeDeps/)
   assert.match(init, /node_modules', '\.pnpm'/)
@@ -29,4 +30,5 @@ test('tender profile installs the provider and packaging enables the Codex tool'
   assert.match(verify, /@deepseek-ai\/dsh-subagent-codex/)
   assert.match(verify, /tool-subagent-codex/)
   assert.match(desktopPackage, /codex-auth\.mjs/)
+  assert.match(runtimePayload, /'codex-auth\.mjs'/)
 })
