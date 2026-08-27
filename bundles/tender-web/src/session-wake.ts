@@ -19,9 +19,19 @@ type WakeSnap = {
   queue?: ReadonlyArray<{ id?: string; placement?: string } | null> | undefined
   nodes?: WakeNode[] | undefined
   chat?: { legacy?: { nodes?: WakeNode[] | undefined } | undefined } | undefined
+  subagent?: { address?: { parentSessionId?: string } | undefined } | null | undefined
 }
 
-const CHILD_RETURN_RE = /(ACCEPT_AND_PROCEED|REVISE_AND_RETRY|\bDONE\b|Background subagent\s+\S+\s+(?:reported|finished))/i
+type SessionListSnap = {
+  byId?: Readonly<Record<string, {
+    id?: string
+    origin?: string
+    parentId?: string
+    running?: boolean
+  } | undefined>> | undefined
+}
+
+const CHILD_RETURN_RE = /(ACCEPT_AND_PROCEED|REVISE_AND_RETRY|\bDONE\b|Background subagent\s+\S+\s+(?:reported|finished|was stopped|ran out of room|declined the task|failed before it finished))/i
 
 /** Parent is in an open turn. Queue-only is not running. */
 export function snapshotIsRunning(snap: WakeSnap | null | undefined): boolean {
@@ -43,6 +53,69 @@ export function queuedMessages(snap: WakeSnap | null | undefined): Array<{ id: s
 /** Busy for crash-resume / UI: running or a waiting queue. */
 export function snapshotIsBusy(snap: WakeSnap | null | undefined): boolean {
   return snapshotIsRunning(snap) || queuedMessages(snap).length > 0
+}
+
+/** Root main-session routing target for a workbench action opened from any descendant. */
+export function parentSessionTarget(
+  activeId: string,
+  snap: WakeSnap | null | undefined,
+  list?: SessionListSnap | null,
+): string {
+  const byId = list?.byId ?? {}
+  let target = snap?.subagent?.address?.parentSessionId || activeId
+  const seen = new Set<string>()
+  while (target && !seen.has(target)) {
+    seen.add(target)
+    const row = byId[target]
+    if (!row || row.origin !== 'subagent' || !row.parentId) break
+    target = row.parentId
+  }
+  return target
+}
+
+/** Live parent/descendant activity shown beside the disk-backed stage board. */
+export function sessionActivity(list: SessionListSnap | null | undefined, parentId: string): {
+  parentRunning: boolean
+  childCount: number
+  runningChildCount: number
+} {
+  const byId = list?.byId ?? {}
+  let childCount = 0
+  let runningChildCount = 0
+  if (parentId) {
+    for (const child of Object.values(byId)) {
+      if (!child || child.origin !== 'subagent' || !child.id) continue
+      const seen = new Set<string>()
+      let cursor: typeof child | undefined = child
+      let belongs = false
+      while (cursor?.origin === 'subagent' && cursor.parentId && !seen.has(cursor.id || '')) {
+        if (cursor.id) seen.add(cursor.id)
+        if (cursor.parentId === parentId) {
+          belongs = true
+          break
+        }
+        cursor = byId[cursor.parentId]
+      }
+      if (!belongs) continue
+      childCount += 1
+      if (child.running) runningChildCount += 1
+    }
+  }
+  return {
+    parentRunning: Boolean(parentId && byId[parentId]?.running),
+    childCount,
+    runningChildCount,
+  }
+}
+
+/** A disk-stage must not auto-resume while its parent or any descendant is executing. */
+export function sessionExecutionActive(
+  parentSnap: WakeSnap | null | undefined,
+  list: SessionListSnap | null | undefined,
+  parentId: string,
+): boolean {
+  const activity = sessionActivity(list, parentId)
+  return snapshotIsRunning(parentSnap) || activity.parentRunning || activity.runningChildCount > 0
 }
 
 export function nodeText(node: WakeNode | null | undefined): string {
@@ -79,8 +152,11 @@ function nodeLists(snap: WakeSnap | null | undefined): WakeNode[][] {
 export function lastChildReturn(snap: WakeSnap | null | undefined): string {
   for (const list of nodeLists(snap)) {
     for (let i = list.length - 1; i >= 0; i -= 1) {
-      const text = nodeText(list[i])
-      if (isChildReturnText(text)) return text.trim()
+      const node = list[i]
+      const text = nodeText(node).trim()
+      if (!text && node?.kind === 'assistant') continue
+      if (!text && !node?.kind) continue
+      return isChildReturnText(text) ? text : ''
     }
   }
   return ''
@@ -96,6 +172,9 @@ export function inboundNeedsParentWake(snap: WakeSnap | null | undefined): Sessi
       const node = list[i]
       if (!node) continue
       const text = nodeText(node).trim()
+      if (node.kind === 'context' && text && isChildReturnText(text)) {
+        return { kind: 'child-return', text }
+      }
       if (node.kind === 'user' && text) {
         if (isWorkbenchWakeText(text)) return null
         return { kind: isChildReturnText(text) ? 'child-return' : 'user', text }

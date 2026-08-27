@@ -1600,9 +1600,55 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 
     function pinParentSessionId() {
       const sid = activeSessionId()
-      const snap = snapshotOf(sid)
-      const parentId = snap && snap.subagent && snap.subagent.address && snap.subagent.address.parentSessionId
-      return parentId || sid
+      return parentSessionTarget(sid, snapshotOf(sid), readSessionListSnap())
+    }
+
+    function parentSessionTarget(activeId, snap, list) {
+      const byId = list && list.byId || {}
+      let target = snap && snap.subagent && snap.subagent.address && snap.subagent.address.parentSessionId || activeId
+      const seen = new Set()
+      while (target && !seen.has(target)) {
+        seen.add(target)
+        const row = byId[target]
+        if (!row || row.origin !== 'subagent' || !row.parentId) break
+        target = row.parentId
+      }
+      return target
+    }
+
+    function sessionActivity(list, parentId) {
+      const byId = list && list.byId || {}
+      let childCount = 0
+      let runningChildCount = 0
+      if (parentId) {
+        Object.values(byId).forEach((child) => {
+          if (!child || child.origin !== 'subagent' || !child.id) return
+          const seen = new Set()
+          let cursor = child
+          let belongs = false
+          while (cursor && cursor.origin === 'subagent' && cursor.parentId && !seen.has(cursor.id || '')) {
+            if (cursor.id) seen.add(cursor.id)
+            if (cursor.parentId === parentId) {
+              belongs = true
+              break
+            }
+            cursor = byId[cursor.parentId]
+          }
+          if (!belongs) return
+          childCount += 1
+          if (child.running) runningChildCount += 1
+        })
+      }
+      return {
+        parentRunning: !!(parentId && byId[parentId] && byId[parentId].running),
+        childCount,
+        runningChildCount,
+      }
+    }
+
+    function sessionExecutionActive(parentSnap, list, parentId) {
+      const activity = sessionActivity(list, parentId)
+      return snapshotIsRunning(parentSnap) || activity.parentRunning || activity.runningChildCount > 0
     }
 
     function assistantBlocksText(node) {
@@ -1631,7 +1677,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
     }
 
     function isChildReturnText(text) {
-      return /(ACCEPT_AND_PROCEED|REVISE_AND_RETRY|\bDONE\b|Background subagent\s+\S+\s+(?:reported|finished))/i.test(String(text || ''))
+      return /(ACCEPT_AND_PROCEED|REVISE_AND_RETRY|\bDONE\b|Background subagent\s+\S+\s+(?:reported|finished|was stopped|ran out of room|declined the task|failed before it finished))/i.test(String(text || ''))
     }
 
     function isWorkbenchWakeText(text) {
@@ -1645,8 +1691,11 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
     function lastChildReturn(snap) {
       for (const list of nodeLists(snap)) {
         for (let i = list.length - 1; i >= 0; i -= 1) {
-          const text = nodeText(list[i])
-          if (isChildReturnText(text)) return text.trim()
+          const node = list[i]
+          const text = nodeText(node).trim()
+          if (!text && node && node.kind === 'assistant') continue
+          if (!text && !(node && node.kind)) continue
+          return isChildReturnText(text) ? text : ''
         }
       }
       return ''
@@ -1658,6 +1707,9 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
           const node = list[i]
           if (!node) continue
           const text = nodeText(node).trim()
+          if (node.kind === 'context' && text && isChildReturnText(text)) {
+            return { kind: 'child-return', text }
+          }
           if (node.kind === 'user' && text) {
             if (isWorkbenchWakeText(text)) return null
             return { kind: isChildReturnText(text) ? 'child-return' : 'user', text }
@@ -1807,11 +1859,14 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
         const parentId = st.parentSessionId
         const parentSnap = snapshotOf(parentId)
         const parentRunning = snapshotIsRunning(parentSnap)
+        const sessionList = readSessionListSnap()
+        const executionActive = sessionExecutionActive(parentSnap, sessionList, parentId)
+        const runningChildren = sessionActivity(sessionList, parentId).runningChildCount
         const queued = queuedMessages(parentSnap)
         const viewedId = activeSessionId()
         const viewedSnap = viewedId && viewedId !== parentId ? snapshotOf(viewedId) : null
         const viewedBusy = snapshotIsBusy(viewedSnap)
-        st.wasBusy = parentRunning || queued.length > 0
+        st.wasBusy = executionActive || queued.length > 0
         st.lastCheck = Date.now()
         if (queued.length && !this.steeringQueue && !this.sending) {
           this.steeringQueue = true
@@ -1864,7 +1919,8 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
             return
           }
         }
-        if (parentRunning) {
+        if (executionActive) {
+          if (!parentRunning && runningChildren > 0) st.note = runningChildren + ' 个子智能体仍在执行，监控等待回推。'
           this.emit()
           return
         }
@@ -5712,6 +5768,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
         try { return sessionStorage.getItem('ap-wb-project') || '' } catch { return '' }
       })
       const [monitorState, setMonitorState] = React.useState(() => Object.assign({}, monitorEngine.state))
+      const [, setSessionPulse] = React.useState(0)
       const [notice, setNotice] = React.useState('')
       const [lastCheck, setLastCheck] = React.useState(null)
       const [picking, setPicking] = React.useState(false)
@@ -5829,6 +5886,11 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
         return () => window.removeEventListener('agent-pi-monitor-changed', onMonitor)
       }, [refresh])
       React.useEffect(() => {
+        const list = runtime.sessions && runtime.sessions.list
+        if (!list || typeof list.subscribe !== 'function') return undefined
+        return list.subscribe(() => setSessionPulse((value) => value + 1))
+      }, [])
+      React.useEffect(() => {
         if (module === 'archive' || module === 'kb' || module === 'modules') return
         const id = setInterval(() => { refresh(true) }, LIVE_POLL_MS)
         return () => clearInterval(id)
@@ -5848,6 +5910,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
       }
 
       const runStage = (project, stageId, action, submit, closeWorkbench) => {
+        const parentId = pinParentSessionId()
         setBusy(action + ':' + (stageId || ''))
         setError('')
         setNotice('')
@@ -5858,7 +5921,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
             module: project.module,
             projectId: project.projectId,
             stageId,
-            sessionId: resolveSessionId(props) || runtime.sessionId || 'active',
+            sessionId: parentId || resolveSessionId(props) || runtime.sessionId || 'active',
           }),
         }).then((result) => {
           if (result.blocked) {
@@ -5883,10 +5946,17 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
           }
           setDraft(result.draft)
           if (!submit) {
+            const activeId = resolveSessionId(props) || runtime.sessionId || ''
+            if (!result.closed && parentId && activeId && parentId !== activeId) {
+              return dispatchToConversation({}, result.draft, parentId).then((ok) => {
+                if (ok) setNotice('已把待处理稿直接送回主对话。')
+                return refresh()
+              })
+            }
             if (!result.closed) fillComposer(props, result.draft)
             return refresh()
           }
-          return dispatchToConversation(props, result.draft).then((ok) => {
+          return dispatchToConversation(props, result.draft, parentId).then((ok) => {
             if (ok && result.dispatch) {
               api('/api/agent-pi/stage', cwd, {
                 method: 'POST',
@@ -5934,6 +6004,10 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
         && row && row.project
         && monitorState.projectId === row.project.projectId
         && monitorState.cwd === cwd
+      const liveActivity = sessionActivity(readSessionListSnap(), monitorState.parentSessionId)
+      const liveActivityText = liveActivity.runningChildCount > 0
+        ? (liveActivity.runningChildCount + ' 个子智能体执行中')
+        : liveActivity.parentRunning ? '主对话执行中' : ''
 
       const addFiles = () => {
         if (!row) return
@@ -6052,10 +6126,10 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
               ),
               h('div', { className: 'ap-mon-tools' },
                 h('span', { className: 'ap-row' },
-                  h('i', { className: 'ap-dot' + (monitoringHere && !monitorState.paused ? ' on' : '') }),
+                  h('i', { className: 'ap-dot' + ((monitoringHere && !monitorState.paused) || liveActivityText ? ' on' : '') }),
                   !monitoringHere
-                    ? (monitorState.monitoring ? '自动下一步在另一项目' : '点继续推进后会自动下一步')
-                    : monitorState.paused ? '已暂停自动下一步' : '空闲自动下一步',
+                    ? (liveActivityText || (monitorState.monitoring ? '自动下一步在另一项目' : '点继续推进后会自动下一步'))
+                    : (monitorState.paused ? '已暂停自动下一步' : '空闲自动下一步') + (liveActivityText ? ' · ' + liveActivityText : ''),
                 ),
                 h('span', null, '检查于 ' + (monitorState.lastCheck ? formatClock(new Date(monitorState.lastCheck).toISOString()) : (lastCheck ? formatClock(new Date(lastCheck).toISOString()) : '—'))),
                 h('button', {
@@ -6399,7 +6473,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
           : null,
         error ? h('div', { className: 'ap-err', style: { padding: '8px 24px 0' } }, error) : null,
         module === 'kb'
-          ? h(KnowledgeBasePanel, { cwd, sessionId: resolveSessionId(props) || runtime.sessionId || '' })
+          ? h(KnowledgeBasePanel, { cwd, sessionId: pinParentSessionId() || resolveSessionId(props) || runtime.sessionId || '' })
           : module === 'archive'
           ? h(ArchivePanel, { onClose: props.onClose })
           : module === 'modules'

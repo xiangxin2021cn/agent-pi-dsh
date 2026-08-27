@@ -9,7 +9,10 @@ import {
   isChildReturnText,
   isWorkbenchWakeText,
   lastChildReturn,
+  parentSessionTarget,
   queuedMessages,
+  sessionActivity,
+  sessionExecutionActive,
   snapshotIsBusy,
   snapshotIsRunning,
 } from '../src/session-wake.ts'
@@ -30,6 +33,13 @@ test('child return matches DONE, settlement, and review verdicts', () => {
   assert.equal(isChildReturnText('还缺地质情况分析'), false)
 })
 
+test('child return recognizes every DSH settlement outcome', () => {
+  assert.equal(isChildReturnText('Background subagent abc was stopped before it finished.'), true)
+  assert.equal(isChildReturnText('Background subagent abc ran out of room before it finished.'), true)
+  assert.equal(isChildReturnText('Background subagent abc declined the task.'), true)
+  assert.equal(isChildReturnText('Background subagent abc failed before it finished.'), true)
+})
+
 test('lastChildReturn reads the newest matching user node', () => {
   const snap = {
     nodes: [
@@ -38,6 +48,17 @@ test('lastChildReturn reads the newest matching user node', () => {
     ],
   }
   assert.match(lastChildReturn(snap), /工程量清单分析/)
+})
+
+test('lastChildReturn ignores a stale return after later child activity', () => {
+  const snap = {
+    nodes: [
+      { kind: 'assistant', blocks: [{ kind: 'text', text: 'DONE 初稿.md md行数=120' }] },
+      { kind: 'user', blocks: [{ kind: 'text', text: '请继续修订第二章' }] },
+      { kind: 'assistant', blocks: [{ kind: 'text', text: '正在修订，尚未交付' }] },
+    ],
+  }
+  assert.equal(lastChildReturn(snap), '')
 })
 
 test('inboundNeedsParentWake is null when tools already ran after the inbound', () => {
@@ -74,6 +95,61 @@ test('inboundNeedsParentWake fires when a child return is last', () => {
   assert.match(buildParentWakePrompt(hit), /不要再空等/)
 })
 
+test('inboundNeedsParentWake recognizes DSH subagent context nodes', () => {
+  const snap = {
+    nodes: [
+      { kind: 'assistant', blocks: [{ kind: 'text', text: '等待后台分析' }] },
+      {
+        kind: 'context',
+        blocks: [{ kind: 'text', text: 'Background subagent child-1 reported:\nDONE 招标文件总结.md md行数=315' }],
+      },
+    ],
+  }
+  const hit = inboundNeedsParentWake(snap)
+  assert.ok(hit)
+  assert.equal(hit.kind, 'child-return')
+})
+
+test('parentSessionTarget routes workbench actions from a child back to its parent', () => {
+  assert.equal(parentSessionTarget('child-1', {
+    subagent: { address: { parentSessionId: 'parent-1' } },
+  }), 'parent-1')
+  assert.equal(parentSessionTarget('parent-1', { subagent: null }), 'parent-1')
+})
+
+test('parentSessionTarget climbs from a nested worker to the main session', () => {
+  const list = {
+    byId: {
+      parent: { id: 'parent', running: false },
+      child: { id: 'child', origin: 'subagent', parentId: 'parent', running: false },
+      grandchild: { id: 'grandchild', origin: 'subagent', parentId: 'child', running: true },
+    },
+  }
+  assert.equal(parentSessionTarget('grandchild', {
+    subagent: { address: { parentSessionId: 'child' } },
+  }, list), 'parent')
+})
+
+test('sessionActivity projects nested DSH subagent execution under the main session', () => {
+  const list = {
+    byId: {
+      parent: { id: 'parent', running: false },
+      child1: { id: 'child1', origin: 'subagent', parentId: 'parent', running: true },
+      child2: { id: 'child2', origin: 'subagent', parentId: 'parent', running: false },
+      grandchild: { id: 'grandchild', origin: 'subagent', parentId: 'child1', running: true },
+      fork: { id: 'fork', parentId: 'parent', running: true },
+    },
+  }
+  assert.deepEqual(sessionActivity(list, 'parent'), {
+    parentRunning: false,
+    childCount: 3,
+    runningChildCount: 2,
+  })
+  assert.equal(sessionExecutionActive({ running: false }, list, 'parent'), true)
+  assert.equal(sessionExecutionActive(null, { byId: { parent: { id: 'parent', running: true } } }, 'parent'), true)
+  assert.equal(sessionExecutionActive({ running: false }, { byId: {} }, 'parent'), false)
+})
+
 test('workbench wake text is not treated as another unanswered inbound', () => {
   assert.equal(isWorkbenchWakeText('【子代理回推】子智能体已 report/settled。\n\nDONE a.md md行数=10'), true)
   const snap = {
@@ -108,7 +184,13 @@ test('client monitor wires queue steer and parent wake', () => {
   assert.match(page, /updateQueue/)
   assert.match(page, /snapshotIsRunning\(snapshotOf\(targetId\)\) \? 'steer' : 'queue'/)
   assert.match(page, /action: 'resume', module: st\.module, projectId: st\.projectId, sessionId: parentId/)
-  assert.match(page, /sessionId: resolveSessionId\(props\) \|\| runtime\.sessionId \|\| 'active'/)
+  assert.match(page, /const parentId = pinParentSessionId\(\)/)
+  assert.match(page, /dispatchToConversation\(props, result\.draft, parentId\)/)
+  assert.match(page, /sessionExecutionActive\(parentSnap, sessionList, parentId\)/)
+  assert.match(page, /dispatchToConversation\(\{\}, result\.draft, parentId\)/)
+  assert.match(page, /sessionActivity\(readSessionListSnap\(\), monitorState\.parentSessionId\)/)
+  assert.match(page, /h\(KnowledgeBasePanel, \{ cwd, sessionId: pinParentSessionId\(\) \|\| resolveSessionId\(props\)/)
+  assert.match(page, /sessionId: parentId \|\| resolveSessionId\(props\) \|\| runtime\.sessionId \|\| 'active'/)
   const runtimeAt = page.indexOf('const runtime = {')
   const loadAt = page.indexOf('parentWakeEngine.load()')
   assert.ok(runtimeAt >= 0 && loadAt > runtimeAt, 'parentWakeEngine.load() must run after const runtime')

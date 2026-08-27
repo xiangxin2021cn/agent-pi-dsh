@@ -557,16 +557,34 @@ wireAnysearchPeers()
 function ensureUniverRuntimeDeps() {
   if (!univerReady) return
   if (process.env.AGENT_PI_SKIP_UNIVER_INSTALL === '1') return
-  if (existsSync(join(univerDir, 'node_modules/puppeteer-core'))) return
+  const runtimeDependencies = JSON.parse(readFileSync(join(univerDir, 'package.json'), 'utf8')).dependencies ?? {}
+  const runtimeReady = Object.keys(runtimeDependencies).every((name) => (
+    existsSync(join(univerDir, 'node_modules', ...name.split('/'), 'package.json'))
+  ))
+  if (runtimeReady) return
+
+  // The published plugin manifest also contains short-lived insiders devDependencies.
+  // npm resolves those even with --omit=dev, so install from a production-only
+  // manifest and then materialize the result beside the vendored plugin.
+  const installDir = join(home, '.runtime-install', UNIVER_NAME)
+  rmSync(installDir, { recursive: true, force: true })
+  mkdirSync(installDir, { recursive: true })
+  writeFileSync(join(installDir, 'package.json'), `${JSON.stringify({
+    name: 'agent-pi-univer-runtime',
+    private: true,
+    dependencies: runtimeDependencies,
+  }, null, 2)}\n`)
   const result = spawnSync('npm', ['install', '--omit=dev', '--no-fund', '--no-audit'], {
-    cwd: univerDir,
+    cwd: installDir,
     encoding: 'utf8',
     shell: true,
     windowsHide: true,
   })
   if (result.status !== 0) {
-    process.stderr.write(`univer npm install skipped: ${result.stderr || result.status}\n`)
+    throw new Error(`univer runtime dependency install failed: ${result.stderr || result.status}`)
   }
+  cpSync(join(installDir, 'node_modules'), join(univerDir, 'node_modules'), { recursive: true, force: true })
+  rmSync(installDir, { recursive: true, force: true })
 }
 
 function wireUniverPeers() {
