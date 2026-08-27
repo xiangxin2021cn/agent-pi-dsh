@@ -1,0 +1,4 @@
+interface:
+  display_name: "Project Delivery Controls"
+  short_description: "Create an independent evidence-controlled delivery workspace"
+  default_prompt: "Use $project-delivery-controls-core to initialize and validate a Delivery Workspace from my selected implementation records."

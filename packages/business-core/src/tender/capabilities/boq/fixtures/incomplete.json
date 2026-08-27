@@ -1,0 +1,28 @@
+{
+  "items": [
+    {
+      "id": "boq-5201",
+      "source": { "documentId": "boq", "sheet": "Drainage" },
+      "code": "52.01",
+      "description": "Concrete side drain",
+      "unit": "m",
+      "quantity": "1250.5",
+      "quantityBasis": "boq",
+      "quantityStatus": "sourced",
+      "quantityRefs": [{ "documentId": "boq", "sheet": "Drainage", "cell": "F18" }]
+    }
+  ],
+  "scopeLinks": [
+    {
+      "boqItemId": "boq-5201",
+      "requirementIds": ["req-drainage"],
+      "specificationRefs": [],
+      "drawingRefs": [],
+      "measurementRuleRefs": [],
+      "inclusions": [],
+      "exclusions": [],
+      "assumptions": [],
+      "gapStatus": "clear"
+    }
+  ]
+}

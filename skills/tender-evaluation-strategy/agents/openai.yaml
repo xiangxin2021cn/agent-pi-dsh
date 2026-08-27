@@ -1,0 +1,4 @@
+interface:
+  display_name: "Tender Evaluation Strategy"
+  short_description: "Build evidence-backed tender scoring strategies"
+  default_prompt: "Use $tender-evaluation-strategy to create and validate an evidence-backed response strategy for the registered tender criteria."

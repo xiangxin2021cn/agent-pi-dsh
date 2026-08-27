@@ -1,0 +1,27 @@
+{
+  "programmeStatus": "draft",
+  "dataDate": "2026-07-12",
+  "calendars": [
+    { "id": "cal-5d", "name": "Five day", "workingDays": [1, 2, 3, 4, 5], "exceptions": [] }
+  ],
+  "activities": [
+    {
+      "id": "drainage-works",
+      "scopeItemId": "drainage",
+      "name": "Drainage works",
+      "calendarId": "cal-5d",
+      "baselineStart": "2026-07-01",
+      "baselineFinish": "2026-07-20",
+      "remainingDurationDays": 0,
+      "forecastStart": "2026-07-01",
+      "forecastFinish": "2026-07-20",
+      "percentComplete": 80,
+      "predecessors": [{ "activityId": "drainage-works", "type": "FS", "lagDays": 0 }],
+      "progressEvidenceRefs": [],
+      "status": "completed",
+      "confidence": "unverified"
+    }
+  ],
+  "milestones": [],
+  "recoveryScenarios": []
+}

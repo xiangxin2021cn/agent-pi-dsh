@@ -1,0 +1,3 @@
+0.8.7
+https://github.com/omdsh-dev/dsh-genui
+source + built lib/; do not re-run prepare

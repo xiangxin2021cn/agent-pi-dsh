@@ -1,0 +1,29 @@
+{
+  "controlStatus": "draft",
+  "dataDate": "2026-07-12",
+  "resources": [
+    {
+      "id": "pipes",
+      "category": "material",
+      "name": "Concrete pipes",
+      "unit": "m",
+      "availableQuantity": 100,
+      "evidenceRefs": [],
+      "status": "draft"
+    }
+  ],
+  "allocations": [
+    {
+      "id": "pipes-drainage",
+      "resourceId": "pipes",
+      "activityId": "drainage-works",
+      "plannedStart": "2026-07-10",
+      "plannedFinish": "2026-07-22",
+      "requiredQuantity": 400,
+      "evidenceRefs": [],
+      "status": "draft"
+    }
+  ],
+  "procurementPackages": [],
+  "constraints": []
+}

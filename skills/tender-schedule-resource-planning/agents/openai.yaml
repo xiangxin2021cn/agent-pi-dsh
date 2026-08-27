@@ -1,0 +1,4 @@
+interface:
+  display_name: "Tender Schedule and Resources"
+  short_description: "Build validated CPM and resource-loaded tender plans"
+  default_prompt: "Use $tender-schedule-resource-planning to build and validate a source-traced CPM programme and resource plan for the registered tender."

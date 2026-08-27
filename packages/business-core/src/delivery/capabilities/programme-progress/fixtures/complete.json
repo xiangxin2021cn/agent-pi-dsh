@@ -1,0 +1,38 @@
+{
+  "programmeStatus": "reviewed",
+  "dataDate": "2026-07-12",
+  "calendars": [
+    { "id": "cal-5d", "name": "Five day", "workingDays": [1, 2, 3, 4, 5], "exceptions": [] }
+  ],
+  "activities": [
+    {
+      "id": "drainage-works",
+      "scopeItemId": "drainage",
+      "name": "Drainage works",
+      "calendarId": "cal-5d",
+      "baselineStart": "2026-07-01",
+      "baselineFinish": "2026-07-20",
+      "actualStart": "2026-07-01",
+      "remainingDurationDays": 5,
+      "forecastStart": "2026-07-01",
+      "forecastFinish": "2026-07-22",
+      "percentComplete": 60,
+      "predecessors": [],
+      "progressEvidenceRefs": [{ "kind": "source", "sourceId": "progress", "sheet": "July", "cell": "B2:H2" }],
+      "status": "in_progress",
+      "confidence": "confirmed"
+    }
+  ],
+  "milestones": [
+    {
+      "id": "drainage-complete",
+      "title": "Drainage complete",
+      "activityId": "drainage-works",
+      "kind": "internal",
+      "baselineDate": "2026-07-20",
+      "forecastDate": "2026-07-22",
+      "evidenceRefs": [{ "kind": "source", "sourceId": "programme" }]
+    }
+  ],
+  "recoveryScenarios": []
+}

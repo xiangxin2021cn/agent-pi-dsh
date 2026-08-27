@@ -1,0 +1,3163 @@
+// dsh-vision-router browser half: the 设置 > 插件 > 插件配置 card that edits
+// the `vision-router` settings section owned by the host half. Self-contained
+// by hand (no bundler in this repo): the client module system wraps it in a
+// CJS factory and the kernel adopts { apply, inject } as a client plugin.
+window.__ModuleLoader__.load({
+  id: 'dsh-vision-router',
+  factory: (require) => {
+    const module = { exports: {} }
+    const exports = module.exports
+    Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' })
+    const React = require('react')
+    const { useState, useMemo } = React
+    const { ImageGallery } = require('@deepseek-ai/dsh-client-ui-attachment')
+
+    // ── locale dictionaries (follow the app's language setting) ─────────────
+    const NS = 'vision-router'
+    const zh = {
+      nav: '视觉路由（自动识图）',
+      desc: '会话模型负责聊天，视觉后端负责看图；两者分开设置 · 面板 v8',
+      quickStartTitle: '聊天与看图分别设置',
+      quickStartBody: '① 会话/文字模型：在聊天页右下角选择；发图时选带「+ 自动识图」的模型组。② 视觉模型：在本卡片的「视觉后端链」里选择，只负责看图。',
+      quickStartLive: '只想换识图模型，就改下面的「视觉后端链」；不会改变聊天页右下角的会话模型。',
+      quickStartGuide: '重新查看模型引导',
+      onboardingTitle: 'Vision Router 已准备好 🎉',
+      onboardingBody: 'Vision Router 把“谁负责聊天”和“谁负责看图”拆成了两处设置。按下面 3 步就不会选错。',
+      onboardingStep1Title: '1 · 会话 / 文字模型',
+      onboardingStep1Body: '在聊天页右下角选择。发图片时，请选带「+ 自动识图」的模型组；组里的 DeepSeek / opencode 模型仍负责聊天、思考和调用工具。',
+      onboardingStep2Title: '2 · 视觉模型',
+      onboardingStep2Body: '打开「设置 → 插件 → Vision Router」，在「视觉后端链」里选择。它只负责看图，不会替换你的聊天模型。',
+      onboardingStep3Title: '3 · 主视觉模型与备用模型',
+      onboardingStep3Body: '视觉后端链每一行都是你自己的视觉模型，从上到下依次尝试；可以全部留空。内置 OVH 匿名免费链固定在最后自动兜底。',
+      onboardingGuide: '带我设置视觉模型',
+      onboardingLater: '稍后',
+      onboardingClose: '关闭',
+      guideStep1Title: '第 1 步 · 会话 / 文字模型',
+      guideStep1Body: '聊天页右下角、输入框旁的模型选择器已经被高亮圈出。发图片时请选带「+ 自动识图」的模型组；组里的模型仍负责聊天、思考和调用工具。选好后点击「下一步」。',
+      guideStepNext: '下一步',
+      guidePromptTitle: '第 2 步 · 视觉模型',
+      guidePromptGearBody: '点击侧边栏左下角被高亮圈出的「设置」齿轮打开设置面板；也可以直接点「下一步」帮你打开。',
+      guidePromptNavBody: '在设置面板左侧的导航里，点击被高亮的「插件」入口（或点「下一步」自动进入）。进入插件页后，我会自动展开 Vision Router 并定位到「视觉后端链」。',
+      guidePromptCancel: '结束引导',
+      guideChainTitle: '第 3 步 · 这里就是视觉模型',
+      guideChainBody: '上面的每一行都是你选择的视觉后端候选，从上到下依次实际尝试；可以全部留空。DSH 的图片能力声明现在只作提示，不再决定能不能选。内置 OVH 免费链固定在最后自动兜底。选好后点击页面底部「保存」。',
+      guideDone: '完成引导',
+      pending: '未保存',
+      readOnly: '当前设置提供方只读。',
+      overridden: '已覆盖',
+      reset: '恢复默认',
+      invalidProviders: '每行需为「provider/model」，例如 openrouter/qwen3-vl-235b',
+      invalidTextProvider: '格式为「provider/model」，例如 deepseek-official/deepseek-v4-pro',
+      invalidTimeout: '需为 ≥1000 的整数（毫秒）',
+      invalidGeneric: '输入无效',
+      selectProvider: '选择供应商…',
+      selectModel: '选择模型…',
+      pickProviderFirst: '先选供应商',
+      freeTag: '（免费）',
+      builtinFreeTag: '（内置免费模型）',
+      builtinFallbackLabel: '内置免费兜底（自动）',
+      builtinFallbackEnabled: '已启用',
+      builtinFallbackDisabled: '已关闭',
+      builtinFallbackBody: 'OVHcloud 匿名视觉链共 {count} 个模型，首选 {primary}。匿名限额为每 IP、每模型 2 次/分钟；5 个模型独立限额，理论合计约 10 次/分钟，实际以 OVH 限流为准。它固定在上面用户模型之后尝试，免注册、免 Key。',
+      chainLabel: '视觉后端链（给识图工具用）',
+      chainHint: '每行可选择「设置 → 模型」中的任意可调用生成式模型；DSH 的图片能力声明只用于提示。调用时优先走该供应商已注册的 DSH adapter（包括 WebSocket / RPC / 私有协议），失败自动尝试下一行；只有明确识别为 http(s) OpenAI Chat Completions 时才会尝试 HTTP 直连兼容兜底。',
+      addFallback: '+ 添加备用视觉模型',
+      remove: '移除',
+      removeTitle: '移除这一行',
+      textModelLabel: '文本模型（文字轮走它）',
+      textModelHint: '通常无需设置；见上方说明，留空即恢复默认。',
+      defaultChainNote:
+        '这里配置识图工具真正调用的“眼睛”，不是聊天页右下角的“脑子/会话模型”。上面的行只选你自己的视觉模型；内置 OVH 匿名免费链固定显示在最下方，不需要选择 Vision HTTP。',
+      catalogLoading: '正在加载模型目录（与「设置 > 模型」同源）…',
+      catalogUnavailable: '连接服务不可用（拿不到模型目录），退回手动输入。',
+      catalogTimeout: '目录请求超时（15 秒）',
+      catalogEmpty: '模型目录为空：',
+      catalogErrorEnvelope: '模型目录接口返回失败',
+      catalogError: '模型目录不可用（',
+      catalogFallback: '），模型字段已退回手动输入。',
+      visionCapsLoading: '正在读取模型图片能力声明（仅用于提示，不影响可选模型）…',
+      visionCapsError: '视觉能力元数据暂时不可用；模型仍可选择，实际可用性将由供应商已注册的 DSH adapter 在调用时验证。',
+      visionCapsFiltered: '模型能力声明只用于提示，不再作为准入条件；未声明图片能力或标成仅文本的生成式模型也可选择，调用失败会自动回退。',
+      visionCapabilityUndeclaredWarning: '⚠️ DSH 未声明此模型支持图片输入。Vision Router 会先通过该供应商已注册的适配器实际尝试；失败后自动切换到下一视觉后端。',
+      visionCapabilityTextOnlyWarning: '⚠️ DSH 将此模型标记为仅文本。仍可尝试；如果底层实际上不支持图片，调用失败后会自动切换到下一视觉后端。',
+      visionCapabilityUnknownWarning: '⚠️ 无法读取此模型的图片能力声明。仍会优先通过 DSH 已注册的适配器实际尝试；失败后自动回退。',
+      visionCapsEmptyTitle: '没有可选的用户视觉模型',
+      visionCapsEmptyBody: '检测到 {count} 个用户模型，但它们都没有被 DSH 明确标记为支持图片，因此已被安全隐藏。',
+      visionCapsHiddenPrefix: '被隐藏的模型：',
+      visionCapsReasonMissingImage: '未声明 image',
+      visionCapsReasonUnverified: '无法验证图片能力',
+      visionCapsHiddenMore: '另有 {count} 个模型未显示',
+      visionCapsMissingImageHint: '如果这里有你刚在「设置 → 模型 → 添加自定义提供方」中添加的视觉模型：可以在高级设置「额外视觉模型」的下拉里选中它直接启用；或按 DSH 的方式在 $DSH_HOME/settings.yaml 为该模型补上 input: [text, image]（或为整个提供方补 defaultInput: [text, image]）。DSH 当前 Web 表单不会写入这个字段。',
+      visionCapsRetry: '重新检测模型',
+      chainInvalidCurrent: '当前保存的后端已不在可调用模型目录中，或属于非生成式/递归路由，运行时会跳过：',
+      retryCatalog: '重试加载目录',
+      advanced: '高级设置',
+      groupTextModel: '文本模型（仅特殊场景）',
+      textModelGroupHint:
+        '平时文字轮直接使用右下角选择的会话模型，无需设置；此字段仅在开启' +
+        '「图片轮整轮自动路由」且会话入口为视觉路由时，作为文字轮的回退模型。',
+      groupBehavior: '行为开关',
+      groupParams: '参数',
+      groupVisionOverrides: '视觉能力标记（可选）',
+      extraVisionModelsLabel: '额外视觉模型（仅覆盖能力标记，可选）',
+      extraVisionModelsHint:
+        '这个设置不再用于“解锁”下拉或允许调用；所有可调用生成式模型本来就能被选择。' +
+        '只有当你希望把某个未声明图片能力的模型明确标记为视觉模型时才需要填写。' +
+        '实际调用仍优先走 DSH adapter；只有明确的 http(s) OpenAI Chat Completions 渠道才可能使用直连兼容兜底。',
+      groupRoutes: '路由名',
+      groupProxy: '代理',
+      proxyLabel: '代理地址',
+      proxyHint: '如 http://127.0.0.1:10808 或 socks5h://127.0.0.1:10808；留空关闭。修改即时生效。',
+      proxyHostsLabel: '走代理的域名（每行一个）',
+      proxyHostsHint: '仅这些域名经代理，其余直连；留空清除覆盖。修改即时生效。',
+      saveFailed: '保存失败：部分配置未写入。未写入的修改已保留，请重试。',
+      discard: '放弃修改',
+      testConnection: '测试连接',
+      testConnecting: '测试中…',
+      testOk: '连接正常',
+      testFailed: '连接失败',
+      openLogFolder: '打开日志文件夹',
+      openLogFolderFailed: '无法打开日志文件夹',
+      updateTitle: '版本更新',
+      checkUpdate: '检查更新',
+      updateChecking: '检查中…',
+      updateAvailable: '发现新版本 v{latest}（当前 v{current}）',
+      updateCurrent: '已是最新版本 v{current}',
+      updateAhead: '当前 v{current} 高于 registry 最新 v{latest}；可能是源码或预发布构建，不会建议降级。',
+      updateFailed: '更新检查失败：{error}',
+      updateInstallHint: '已安全识别当前 DSH CLI，可直接用这套 DSH 更新插件；完成后需要重启 DSH 才会加载新版本。',
+      updateAutoUnavailable: '当前 DSH CLI 无法被安全识别，因此不执行自动更新。请沿用你原来安装 DSH / 插件的方式手动更新。',
+      updateNow: '一键更新到 v{latest}',
+      updateRunning: '正在更新…',
+      updateConfirm: '将通过当前正在运行的 DSH 更新 Vision Router。更新完成后需要重启 DSH。继续吗？',
+      updateSuccess: '更新命令已完成（目标 v{latest}）。请重启 DSH；重启后新版本才会生效。',
+      updateSuccessVerified: '更新命令已完成（目标 v{latest}，已确认安装 v{installed}）。请重启 DSH；重启后新版本才会生效。',
+      updateActionFailed: '一键更新失败：{error}',
+      updateReleaseNotes: '查看更新说明',
+      updateRegistryFallback: '当前配置的 registry 不可用，已自动改用 npm 官方源完成检查。',
+      updateManualTitle: '手动更新',
+      updateManualSource: '源码仓库 / pnpm DSH：',
+      updateManualNpx: '普通 npm / npx DSH：',
+      updateManualAgeHint: '若执行后版本仍未变化：pnpm 11 默认在新版本发布 24 小时内静默拦截更新（minimumReleaseAge 策略，但命令仍显示成功）。请使用上方带版本号的安装命令，或运行 npx dsh-vision-router repair 清理过期的版本钉住豁免后重试。',
+      updateProject: '项目主页',
+      updateReleases: 'Releases',
+      save: '保存',
+      saving: '保存中…',
+      renderFailed: '设置卡渲染失败：',
+      toggleRouting: '图片轮整轮自动路由',
+      toggleReverseRouting: '文字轮反向路由',
+      toggleTool: '识图工具',
+      toggleAutoWrapProviders: '自动创建「+ 自动识图」模型组',
+      toggleRewriteImages: '图片块改写',
+      toggleDownscale: '图片自动压缩',
+      toggleCache: '识图答案缓存',
+      toggleFreeFallback: '免费兜底',
+      toggleStealth: '隐身模式',
+      hintRouting:
+        '默认关闭：图片轮不整轮切到视觉模型，而是像普通文本轮一样由会话模型调用 ' +
+        'vision_describe 等工具看图，可连续多步操作（定位→裁剪→对比…）。' +
+        '开启后恢复旧的整轮一次性自动识图行为；注意：开启时降级链只包含 ' +
+        '「视觉后端链」里的 provider+fallbacks，httpProviders（含免费兜底端点）不参与。',
+      hintReverseRouting: '开启图片轮整轮路由时，把纯文字轮反向路由回文本模型；默认开启。',
+      hintTool: 'vision_describe / vision_ground 等像素级视觉工具；关闭后这些工具不可用。',
+      hintAutoWrapProviders: '推荐保持开启。插件会自动发现「设置 → 模型」里已启用的路由，并额外创建同名的「+ 自动识图」模型组；发图时请在聊天页右下角选择这个新组。原模型组完全不变。模型增删与包装范围会热更新，无需重启。',
+      hintRewriteImages:
+        '把消息里的图片块替换为文字：已有视觉记录就给出记录，否则给出附件标记，' +
+        '文本模型始终不会收到它看不懂的图片内容。',
+      hintDownscale: '超过像素预算的图片先缩放再送视觉模型，降低延迟与成本；默认开启。',
+      hintCache: '缓存识图答案（按图片内容 + 问题）；默认开启。',
+      hintFreeFallback: '启用内置 OVH 匿名视觉链作为最终兜底：免注册、免 Key，并在你选择的用户视觉模型之后尝试；默认开启。',
+      hintStealth:
+        '只作用于官方 DeepSeek 路由：接管后模型选择器保持原样。需在 profile 补丁层 ' +
+        '（cordis.patch.yml）禁用官方 llm-deepseek 行后才真正接管；官方行还在时 ' +
+        '插件自动回退为选择器里的「自动识图」包装路由。opencode 等自定义路由与隐身模式无关，' +
+        '它们默认由「自动创建 + 自动识图模型组」处理；只有要限制范围时才用下方手动包装。改动后需重启 dsh 生效。',
+      stealthOfficialDeadHint:
+        '提示：检测到官方 DeepSeek 行当前被禁用（profile 补丁层），所以即使关闭隐身模式，' +
+        '本插件仍会接管 deepseek-official 路由，否则 DeepSeek 模型会从选择器消失。' +
+        '如需完全恢复官方原生行，请先把 cordis.patch.yml 里 llm-deepseek 的 disabled 改回 false 再重启。',
+      numTimeoutMs: '视觉请求超时（毫秒）',
+      numVisionTaskTimeoutMs: '单次视觉任务总预算（毫秒）',
+      numOcrTimeoutMs: '单次 OCR 任务总预算（毫秒）',
+      numDownscaleMaxPixels: '图片像素预算',
+      numCacheTtlSeconds: '缓存有效期（秒）',
+      numCacheMaxEntries: '缓存条目上限',
+      numHintTimeoutMs: '单个视觉请求超时；默认 120000。',
+      numHintVisionTaskTimeoutMs: '一次识图任务（含全部 provider、回退与重试）共享的总时限；默认 45000。认证失败/限流会立即熔断对应后端。',
+      numHintOcrTimeoutMs: '一次 OCR 任务的总时限；本地 tesseract 最多用 12 秒，视觉模型回退只用剩余部分；默认 30000。',
+      numHintDownscaleMaxPixels: '约 8MP = 8000000；超过的图先缩放再送视觉模型。',
+      numHintCacheTtlSeconds: '视觉答案缓存有效期；0 = 永久；默认 3600。',
+      numHintCacheMaxEntries: '缓存 LRU 容量；默认 200。',
+      textWrapperRoute: '包装路由名',
+      textChainRoute: '视觉链路由名',
+      textHintWrapperRoute: '模型选择器里显示的「自动识图」入口路由名。',
+      textHintChainRoute: '视觉链的挂载路由名（识图工具经由真实 provider 直接调用，不经过它）。',
+      textWrappedProviders: '手动包装模型（可选）',
+      groupWrappers: '手动限定自动识图范围（可选）',
+      textHintWrappedProviders: '通常不用配置。只有关闭自动创建，或只想让某些模型出现在「+ 自动识图」组时才使用：每行 `provider` 包装全部模型，或 `provider/model1,model2` 只包装指定模型。改动即时生效，无需重启。',
+      wrapHint: '通常无需配置：默认会自动发现并包装「设置 → 模型」里已启用的模型。只有想限制某个 provider 的自动识图范围，或关闭上方自动创建后手动指定时才在这里添加；模型留空 = 该路由全部模型。原模型组始终保留不变。改动即时生效，无需重启。',
+      wrapAllModels: '全部模型（不选 = 包装全部）',
+      addWrapper: '+ 添加手动包装',
+      textProviders: '视觉后端链',
+      textProvidersHint: '每行一个可调用生成式「provider/model」，从上到下失败回退。图片能力声明只作提示；运行时先走 DSH adapter，失败自动回退。留空清除用户覆盖。',
+      textTextProvider: '文本模型',
+      textTextProviderHint: '格式「provider/model」。',
+      presentingImage: '正在准备图片…',
+      presentedImage: '图片',
+      openPresentedImage: '点击查看原图',
+      openNamedImage: '查看原图：{name}',
+      loadingPresentedImage: '图片加载中…',
+      retryPresentedImage: '加载失败，点击重试',
+      imagePreviewDialog: '图片预览',
+      closeImagePreview: '关闭预览',
+    }
+    const en = {
+      nav: 'Vision Router (auto image understanding)',
+      desc: 'The session model chats; the vision backend sees images. They are configured separately · panel v8',
+      quickStartTitle: 'Chat and vision are configured separately',
+      quickStartBody: '① Session/text model: choose it from the lower-right chat selector; for image turns use a group marked “+ Auto Vision”. ② Vision model: choose it in this card under “Vision backend chain”; it only handles image understanding.',
+      quickStartLive: 'To change only image understanding, edit “Vision backend chain” below; your lower-right session model is not changed.',
+      quickStartGuide: 'Show model guide again',
+      onboardingTitle: 'Vision Router is ready 🎉',
+      onboardingBody: 'Vision Router separates “who chats and reasons” from “who sees the image”. These 3 steps make the distinction explicit.',
+      onboardingStep1Title: '1 · Session / text model',
+      onboardingStep1Body: 'Choose it from the lower-right chat selector. For images, use a group marked “+ Auto Vision”; the DeepSeek/opencode model inside still handles chat, reasoning, and tool calls.',
+      onboardingStep2Title: '2 · Vision model',
+      onboardingStep2Body: 'Open Settings → Plugins → Vision Router and choose it under “Vision backend chain”. It only sees images and does not replace your chat model.',
+      onboardingStep3Title: '3 · Primary and fallback vision models',
+      onboardingStep3Body: 'Each row in the vision backend chain is one of your own vision models and is tried top to bottom. You may leave every row empty; the built-in anonymous OVH chain remains the automatic final fallback.',
+      onboardingGuide: 'Guide me to vision settings',
+      onboardingLater: 'Later',
+      onboardingClose: 'Close',
+      guideStep1Title: 'Step 1 · Session / text model',
+      guideStep1Body: 'The model selector next to the chat input in the lower-right corner is now highlighted. For image turns, pick a group marked “+ Auto Vision”; the model inside still handles chat, reasoning, and tool calls. Click “Next” when done.',
+      guideStepNext: 'Next',
+      guidePromptTitle: 'Step 2 · Vision model',
+      guidePromptGearBody: 'Click the highlighted Settings gear at the bottom-left of the sidebar, or press “Next” and I will open it for you.',
+      guidePromptNavBody: 'In the settings panel’s left navigation, click the highlighted “Plugins” entry (or press “Next”). Once that page is open, I will expand Vision Router and take you to “Vision backend chain”.',
+      guidePromptCancel: 'End guide',
+      guideChainTitle: 'Step 3 · This is the vision model',
+      guideChainBody: 'Each row is a vision-backend candidate you chose and will be tried in order. Rows may all stay empty. DSH image-capability metadata is advisory only and no longer decides what you may select. The built-in OVH free chain remains the final fallback. Save when done.',
+      guideDone: 'Finish guide',
+      pending: 'Unsaved',
+      readOnly: 'The active settings provider is read-only.',
+      overridden: 'Overridden',
+      reset: 'Reset',
+      invalidProviders: 'Each line must be "provider/model", e.g. openrouter/qwen3-vl-235b',
+      invalidTextProvider: 'Format "provider/model", e.g. deepseek-official/deepseek-v4-pro',
+      invalidTimeout: 'Must be an integer ≥ 1000 (milliseconds)',
+      invalidGeneric: 'Invalid input',
+      selectProvider: 'Select provider…',
+      selectModel: 'Select model…',
+      pickProviderFirst: 'Pick a provider first',
+      freeTag: ' (free)',
+      builtinFreeTag: ' (built-in free model)',
+      builtinFallbackLabel: 'Built-in free fallback (automatic)',
+      builtinFallbackEnabled: 'Enabled',
+      builtinFallbackDisabled: 'Disabled',
+      builtinFallbackBody: 'The anonymous OVHcloud vision chain contains {count} models, starting with {primary}. Anonymous limits are 2 requests/minute per IP per model; five independent model buckets are about 10 RPM in theory, subject to OVH rate limiting. It always runs after your user models and needs no signup or API key.',
+      chainLabel: 'Vision backend chain (used by the vision tools)',
+      chainHint: 'Each row may select any callable generative model from Settings → Models; DSH image-capability metadata is advisory only. Calls always go through the registered DSH adapter first (including WebSocket, RPC, or private transports), then fail over to the next row. The direct HTTP compatibility bridge is considered only for a positively identified http(s) OpenAI Chat Completions endpoint.',
+      addFallback: '+ Add vision fallback',
+      remove: 'Remove',
+      removeTitle: 'Remove this row',
+      textModelLabel: 'Text model (text turns use it)',
+      textModelHint: 'Usually unneeded; leave empty to restore the default.',
+      defaultChainNote:
+        'This section configures the “eyes” used by the vision tools, not the brain/conversation model in the lower-right picker. The rows above are only your own vision models; the built-in anonymous OVH chain is fixed at the bottom and never requires selecting Vision HTTP.',
+      catalogLoading: 'Loading the model catalog (same source as Settings → Models)…',
+      catalogUnavailable: 'Connection service unavailable (no model catalog); falling back to free-text input.',
+      catalogTimeout: 'Catalog request timed out (15s)',
+      catalogEmpty: 'Model catalog is empty: ',
+      catalogErrorEnvelope: 'The model catalog endpoint failed',
+      catalogError: 'Model catalog unavailable (',
+      catalogFallback: '); model fields fell back to free-text input.',
+      visionCapsLoading: 'Reading model image-capability metadata (advisory only; it does not hide selectable models)…',
+      visionCapsError: 'Vision capability metadata is temporarily unavailable; models remain selectable and the registered DSH adapter will verify actual support when called.',
+      visionCapsFiltered: 'Capability metadata is advisory, not an admission gate. Generative models with undeclared or text-only metadata remain selectable and failures automatically fall through.',
+      visionCapabilityUndeclaredWarning: '⚠️ DSH does not declare image input for this model. Vision Router will try the provider\'s registered adapter first and automatically fall through on failure.',
+      visionCapabilityTextOnlyWarning: '⚠️ DSH marks this model as text-only. You may still try it; if the underlying model rejects images, Vision Router automatically falls through.',
+      visionCapabilityUnknownWarning: '⚠️ Image-capability metadata is unavailable for this model. Vision Router will still try the registered DSH adapter first and fall through on failure.',
+      visionCapsEmptyTitle: 'No selectable user vision models',
+      visionCapsEmptyBody: 'DSH reported {count} user models, but none are explicitly marked as accepting images, so Vision Router hid them safely.',
+      visionCapsHiddenPrefix: 'Hidden models:',
+      visionCapsReasonMissingImage: 'image input not declared',
+      visionCapsReasonUnverified: 'image capability could not be verified',
+      visionCapsHiddenMore: '{count} more models not shown',
+      visionCapsMissingImageHint: 'If one of these is a vision model you just added through Settings → Models → Add custom provider: select it in the “Extra vision models” dropdown under Advanced to enable it directly; or follow the DSH way and add input: [text, image] to that model in $DSH_HOME/settings.yaml (or defaultInput: [text, image] to the provider). The current DSH Web form does not write this field.',
+      visionCapsRetry: 'Re-detect models',
+      chainInvalidCurrent: 'This saved backend is no longer callable, or is a non-generative/recursive route, so runtime will skip it: ',
+      retryCatalog: 'Retry catalog',
+      advanced: 'Advanced settings',
+      groupTextModel: 'Text model (special cases only)',
+      textModelGroupHint:
+        'Text turns normally use the session model picked in the composer; this field only acts as the ' +
+        'text-turn fallback when whole-turn routing is on and the session entry is a vision route.',
+      groupBehavior: 'Behavior',
+      groupParams: 'Parameters',
+      groupVisionOverrides: 'Vision capability labels (optional)',
+      extraVisionModelsLabel: 'Extra vision models (capability-label override, optional)',
+      extraVisionModelsHint:
+        'This setting no longer unlocks the picker or admission: every callable generative model is selectable already. ' +
+        'Use it only when you want to explicitly label an undeclared model as visual. ' +
+        'Runtime still tries the DSH adapter first; only a confirmed http(s) OpenAI Chat Completions channel may use the direct compatibility bridge.',
+      groupRoutes: 'Route names',
+      groupProxy: 'Proxy',
+      proxyLabel: 'Proxy URL',
+      proxyHint: 'e.g. http://127.0.0.1:10808 or socks5h://127.0.0.1:10808; empty disables. Applies immediately.',
+      proxyHostsLabel: 'Proxied hosts (one per line)',
+      proxyHostsHint: 'Only these hosts go through the proxy; everything else stays direct. Empty clears the override. Applies immediately.',
+      saveFailed: 'Save failed: some changes were not written. Unwritten changes were kept; please retry.',
+      discard: 'Discard',
+      testConnection: 'Test connection',
+      testConnecting: 'Testing…',
+      testOk: 'Connected',
+      testFailed: 'Connection failed',
+      openLogFolder: 'Open logs folder',
+      openLogFolderFailed: 'Could not open logs folder',
+      updateTitle: 'Updates',
+      checkUpdate: 'Check for updates',
+      updateChecking: 'Checking…',
+      updateAvailable: 'Update available: v{latest} (current v{current})',
+      updateCurrent: 'Up to date: v{current}',
+      updateAhead: 'Current v{current} is ahead of registry v{latest}; this may be a source or prerelease build, so no downgrade is suggested.',
+      updateFailed: 'Update check failed: {error}',
+      updateInstallHint: 'The current DSH CLI was verified, so Vision Router can update through this same DSH installation. Restart DSH after the update to load the new plugin bundle.',
+      updateAutoUnavailable: 'The current DSH CLI could not be verified safely, so automatic update is disabled. Update through the same DSH/plugin installation path you originally used.',
+      updateNow: 'Update to v{latest}',
+      updateRunning: 'Updating…',
+      updateConfirm: 'Vision Router will update through the DSH CLI that is currently running. You will need to restart DSH afterward. Continue?',
+      updateSuccess: 'The update command completed (target v{latest}). Restart DSH to load the new version.',
+      updateSuccessVerified: 'The update command completed (target v{latest}, installed v{installed} verified). Restart DSH to load the new version.',
+      updateActionFailed: 'One-click update failed: {error}',
+      updateReleaseNotes: 'View release notes',
+      updateRegistryFallback: 'The configured registry failed; the check succeeded through the official npm registry.',
+      updateManualTitle: 'Manual update',
+      updateManualSource: 'DSH source checkout / pnpm:',
+      updateManualNpx: 'Normal npm / npx DSH:',
+      updateManualAgeHint: 'If the version still has not changed after running this: pnpm 11 silently withholds releases younger than 24h (minimumReleaseAge policy, default 1440 minutes) while the command still reports success. Use the versioned install command above, or run npx dsh-vision-router repair to clean up a stale version-pinned exemption, then retry.',
+      updateProject: 'Project',
+      updateReleases: 'Releases',
+      save: 'Save',
+      saving: 'Saving…',
+      renderFailed: 'Settings card failed to render: ',
+      toggleRouting: 'Whole-turn vision routing',
+      toggleReverseRouting: 'Reverse routing for text turns',
+      toggleTool: 'Vision tools',
+      toggleAutoWrapProviders: 'Auto-create “+ Auto Vision” model groups',
+      toggleRewriteImages: 'Image-block rewriting',
+      toggleDownscale: 'Auto downscale',
+      toggleCache: 'Vision answer cache',
+      toggleFreeFallback: 'Free fallback',
+      toggleStealth: 'Stealth mode',
+      hintRouting:
+        'Off by default: image turns are not switched to the vision model as a whole; instead the ' +
+        'session model looks at images through vision_describe and friends like any tool call, enabling ' +
+        'continuous multi-step work (ground → crop → diff → …). Turning it on restores the legacy one-shot ' +
+        'whole-turn behavior. Note: with routing on, the fallback chain only contains provider+fallbacks ' +
+        'from the vision backend chain; httpProviders (including the free fallback) do not participate.',
+      hintReverseRouting: 'With whole-turn routing on, route plain text turns back to the text model; on by default.',
+      hintTool: 'Pixel-level vision tools such as vision_describe / vision_ground; turning this off disables them.',
+      hintAutoWrapProviders: 'Recommended on. The plugin discovers routes enabled in Settings → Models and creates an additional same-name “+ Auto Vision” model group. Choose that new group from the lower-right chat model selector when sending images; the original group is never changed. Model and wrapper changes hot-update without a restart.',
+      hintRewriteImages:
+        'Replaces image blocks in the model input with text: a recorded vision description when one exists, ' +
+        'otherwise an attachment marker — a text-only model never receives image content it cannot handle.',
+      hintDownscale: 'Images beyond the pixel budget are resized before the vision call, cutting latency and cost; on by default.',
+      hintCache: 'Caches vision answers (keyed by image content + question); on by default.',
+      hintFreeFallback: 'Keeps the built-in anonymous OVH vision chain as the final fallback after your user-selected vision models; no signup or API key required. On by default.',
+      hintStealth:
+        'Only affects the official DeepSeek route: takes it over while the model picker looks exactly like stock. Requires the ' +
+        'official llm-deepseek row to be disabled in your profile patch layer (cordis.patch.yml); while the ' +
+        'stock row is present the plugin falls back to the visible auto-vision wrapper entry. Custom routes like opencode ' +
+        'are auto-wrapped by default; use the manual wrapper section below only when you want to restrict their scope. ' +
+        'Restart dsh after changing stealth/profile takeover.',
+      stealthOfficialDeadHint:
+        'Notice: the official DeepSeek row is currently disabled (profile patch layer), so this plugin keeps ' +
+        'serving the deepseek-official route even with stealth mode off — otherwise the DeepSeek models would ' +
+        'vanish from the picker. To restore the fully official route, re-enable the llm-deepseek row in ' +
+        'cordis.patch.yml first, then restart.',
+      numTimeoutMs: 'Vision request timeout (ms)',
+      numVisionTaskTimeoutMs: 'Vision task budget (ms)',
+      numOcrTimeoutMs: 'OCR task budget (ms)',
+      numDownscaleMaxPixels: 'Image pixel budget',
+      numCacheTtlSeconds: 'Cache TTL (seconds)',
+      numCacheMaxEntries: 'Cache entry limit',
+      numHintTimeoutMs: 'Per vision-call deadline; default 120000.',
+      numHintVisionTaskTimeoutMs: 'One vision task (all providers, fallbacks and retries) shares this wall-clock budget; default 45000. Auth failures and rate limits trip their backend immediately.',
+      numHintOcrTimeoutMs: 'Total budget for one OCR task: tesseract gets at most 12s, the vision fallback only the remainder; default 30000.',
+      numHintDownscaleMaxPixels: 'About 8MP = 8000000; larger images are resized before the vision call.',
+      numHintCacheTtlSeconds: 'Vision answer cache lifetime; 0 = forever; default 3600.',
+      numHintCacheMaxEntries: 'Cache LRU capacity; default 200.',
+      textWrapperRoute: 'Wrapper route name',
+      textChainRoute: 'Chain route name',
+      textHintWrapperRoute: 'The auto-vision entry route shown in the model picker.',
+      textHintChainRoute: 'The fallback chain mount route (vision tools call real providers directly, not through it).',
+      textWrappedProviders: 'Manual model wrappers (optional)',
+      groupWrappers: 'Limit auto-vision scope manually (optional)',
+      textHintWrappedProviders: 'Usually leave this alone. Use it only after disabling automatic creation, or when only selected models should appear in a “+ Auto Vision” group: one `provider` wraps all models, while `provider/model1,model2` limits the set. Applies immediately; no restart.',
+      wrapHint: 'Usually no configuration is needed: enabled models from Settings → Models are discovered and wrapped automatically. Add rows here only to restrict one provider’s auto-vision scope, or after turning off automatic creation above. Empty model = every model on that route. The original model group always remains untouched. Applies immediately; no restart.',
+      wrapAllModels: 'All models (empty = wrap all)',
+      addWrapper: '+ Add manual wrapper',
+      textProviders: 'Vision backend chain',
+      textProvidersHint: 'One callable generative "provider/model" per line, top-down failover. Image-capability metadata is advisory; the registered DSH adapter is tried first and failures fall through. Empty clears the override.',
+      textTextProvider: 'Text model',
+      textTextProviderHint: 'Format "provider/model".',
+      presentingImage: 'Preparing image…',
+      presentedImage: 'Image',
+      openPresentedImage: 'Open original image',
+      openNamedImage: 'Open original image: {name}',
+      loadingPresentedImage: 'Loading image…',
+      retryPresentedImage: 'Load failed, click to retry',
+      imagePreviewDialog: 'Image preview',
+      closeImagePreview: 'Close preview',
+    }
+
+    /**
+     * Unwrap the client RPC envelope the `connection` api returns for unary
+     * calls: { rpcId, result: { ok, value } }. The catalog fields live in
+     * `result.value`, NOT on the envelope itself.
+     */
+    function unwrapModelsResult(body, t) {
+      if (body && typeof body === 'object' && body.result && typeof body.result === 'object') {
+        if (body.result.ok !== true) {
+          const message =
+            body.result.error && body.result.error.message
+              ? body.result.error.message
+              : t('catalogErrorEnvelope')
+          throw new Error(message)
+        }
+        return body.result.value
+      }
+      return body
+    }
+
+    function filterVisionBackendGroups(groups, capabilities) {
+      const caps = capabilities && typeof capabilities === 'object' ? capabilities : {}
+      return (Array.isArray(groups) ? groups : [])
+        .filter((group) =>
+          group &&
+          typeof group.id === 'string' &&
+          group.id !== 'vision-http' &&
+          group.id !== 'vision-chain' &&
+          !group.id.endsWith('-vision'),
+        )
+        .map((group) => {
+          const models = (Array.isArray(group.models) ? group.models : []).filter((model) => {
+            if (!model || typeof model.id !== 'string' || model.id === '') return false
+            const capability = caps[group.id] && caps[group.id][model.id]
+            // Missing/negative image metadata is advisory. Only a positive
+            // structural rejection (non-generative endpoint, generated wrapper,
+            // missing adapter) removes an entry from the picker.
+            return !(capability && capability.attemptable === false)
+          })
+          return { ...group, models }
+        })
+        .filter((group) => group.models.length > 0)
+    }
+
+    // Retained for the optional capability-label override editor. These models
+    // are no longer hidden from the backend chain; they merely lack a positive
+    // image declaration/inference and can be explicitly relabelled by experts.
+    function collectFilteredVisionBackends(groups, capabilities) {
+      const caps = capabilities && typeof capabilities === 'object' ? capabilities : {}
+      const uncertain = []
+      for (const group of filterVisionBackendGroups(groups, caps)) {
+        for (const model of Array.isArray(group.models) ? group.models : []) {
+          const capability = caps[group.id] && caps[group.id][model.id]
+          if (capability && capability.attemptable === false) continue
+          if (capability && capability.image === true) continue
+          uncertain.push({
+            provider: group.id,
+            model: model.id,
+            reason: capability && typeof capability.reason === 'string' ? capability.reason : undefined,
+            missingImageDeclaration:
+              !!capability && capability.reason === 'model metadata does not declare image input',
+          })
+        }
+      }
+      return uncertain
+    }
+
+    function visionCapabilityWarningKey(capability, status) {
+      if (status === 'loading' || status === 'idle') return undefined
+      if (status === 'error' || !capability) return 'visionCapabilityUnknownWarning'
+      if (capability.attemptable === false || capability.image === true) return undefined
+      const modalities = Array.isArray(capability.inputModalities) ? capability.inputModalities : []
+      return modalities.length > 0 && !modalities.includes('image')
+        ? 'visionCapabilityTextOnlyWarning'
+        : 'visionCapabilityUndeclaredWarning'
+    }
+
+    // ── field specs ──────────────────────────────────────────────────────────
+    const TOGGLE_KEYS = ['routing', 'tool', 'autoWrapProviders', 'stealth']
+    const ADVANCED_TOGGLE_KEYS = ['reverseRouting', 'rewriteImages', 'downscale', 'cache', 'freeFallback']
+    const ALL_TOGGLE_KEYS = [...TOGGLE_KEYS, ...ADVANCED_TOGGLE_KEYS]
+    const NUMBER_KEYS = ['timeoutMs', 'visionTaskTimeoutMs', 'ocrTimeoutMs', 'downscaleMaxPixels', 'cacheTtlSeconds', 'cacheMaxEntries']
+    const NUMBER_META = {
+      timeoutMs: { min: 1000 },
+      visionTaskTimeoutMs: { min: 1000 },
+      ocrTimeoutMs: { min: 1000 },
+      downscaleMaxPixels: { min: 1000 },
+      cacheTtlSeconds: { min: 0 },
+      cacheMaxEntries: { min: 1 },
+    }
+    const TEXT_KEYS = ['wrapperRoute', 'chainRoute']
+
+    function readValue(snapshot, key) {
+      const value = snapshot && snapshot.value
+      return value && typeof value === 'object' ? value[key] : undefined
+    }
+    function userHas(snapshot, key) {
+      const user = snapshot && snapshot.user
+      return !!user && typeof user === 'object' && Object.prototype.hasOwnProperty.call(user, key)
+    }
+
+    /** Compare the JSON-shaped values accepted by SettingsScope. */
+    function jsonValueEqual(left, right) {
+      if (left === right) return true
+      if (left === null || right === null || typeof left !== 'object' || typeof right !== 'object') return false
+      if (Array.isArray(left) || Array.isArray(right)) {
+        if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false
+        return left.every((value, index) => jsonValueEqual(value, right[index]))
+      }
+      const leftKeys = Object.keys(left)
+      const rightKeys = Object.keys(right)
+      if (leftKeys.length !== rightKeys.length) return false
+      return leftKeys.every(
+        (key) => Object.prototype.hasOwnProperty.call(right, key) && jsonValueEqual(left[key], right[key]),
+      )
+    }
+
+    function settingsSaveErrorMessage(error) {
+      return error && error.message ? error.message : String(error)
+    }
+
+    /**
+     * Write a settings plan and verify the raw user layer after every settled
+     * operation. SettingsScope intentionally resolves after a rejected Host
+     * mutation once its recovery read finishes, so Promise settlement alone is
+     * not evidence that a write landed.
+     */
+    async function commitSettingsPlan(scope, plan, drafts = {}) {
+      const failures = []
+      const landedFields = []
+      const inspectReadback = (item) => {
+        let snapshot
+        try {
+          snapshot = scope.getSnapshot()
+        } catch (error) {
+          return { error: {
+            field: item.key,
+            operation: item.run.clear ? 'unset' : 'set',
+            reason: 'readback-error',
+            detail: settingsSaveErrorMessage(error),
+          } }
+        }
+        const user = snapshot && snapshot.user
+        const stored = !!user && typeof user === 'object' && Object.prototype.hasOwnProperty.call(user, item.key)
+        const ok = item.run.clear
+          ? !stored
+          : stored && jsonValueEqual(user[item.key], item.run.value)
+        return { ok, stored }
+      }
+      const writeItem = async (item) => {
+        if (item.run.clear) await scope.unset(item.key)
+        else await scope.set(item.key, item.run.value)
+      }
+      for (const item of plan) {
+        const operation = item.run.clear ? 'unset' : 'set'
+        let success = false
+        let terminalFailure
+        for (let attempt = 0; attempt < 2 && !success; attempt++) {
+          try {
+            await writeItem(item)
+          } catch (error) {
+            terminalFailure = {
+              field: item.key,
+              operation,
+              reason: 'write-error',
+              detail: settingsSaveErrorMessage(error),
+            }
+            break
+          }
+
+          let check = inspectReadback(item)
+          if (check.error) {
+            terminalFailure = check.error
+            break
+          }
+          if (check.ok) {
+            success = true
+            break
+          }
+
+          if (attempt === 0 && typeof scope.load === 'function') {
+            try {
+              await scope.load()
+            } catch {
+              // The idempotent retry below is still safe.
+            }
+            check = inspectReadback(item)
+            if (check.error) {
+              terminalFailure = check.error
+              break
+            }
+            if (check.ok) {
+              success = true
+              break
+            }
+          }
+
+          terminalFailure = {
+            field: item.key,
+            operation,
+            reason: 'readback-mismatch',
+            detail: item.run.clear
+              ? 'field remained present in the user layer'
+              : check.stored
+                ? 'stored user-layer value differs from the requested value'
+                : 'field is absent from the user layer',
+          }
+        }
+        if (success) landedFields.push(item.key)
+        else failures.push(terminalFailure ?? {
+          field: item.key,
+          operation,
+          reason: 'readback-mismatch',
+          detail: 'write did not become visible in the user layer',
+        })
+      }
+      const landed = failures.length === 0
+      const nextDrafts = landedFields.length === 0 ? drafts : { ...drafts }
+      for (const field of landedFields) delete nextDrafts[field]
+      return {
+        landed,
+        failed: !landed,
+        landedFields,
+        nextDrafts,
+        failures,
+      }
+    }
+
+    function reportSettingsSaveFailures(failures) {
+      if (!Array.isArray(failures) || failures.length === 0 || typeof fetch !== 'function') return
+      try {
+        void fetch('/_dsh/vision-router/settings-save-diagnostics', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ failures }),
+        }).catch(() => {})
+      } catch {
+        // Diagnostics are best-effort and must never mask the visible failure.
+      }
+    }
+
+    function normalizeVisionChainRows(value) {
+      if (!Array.isArray(value)) return []
+      const rows = []
+      for (const row of value) {
+        if (!row || typeof row !== 'object') continue
+        const provider = typeof row.provider === 'string' ? row.provider.trim() : ''
+        const model = typeof row.model === 'string' ? row.model.trim() : ''
+        if (provider === 'vision-http' || (provider === '' && model === '')) continue
+        rows.push({ ...row, provider, model })
+      }
+      return rows
+    }
+
+    function providersToText(value) {
+      if (!Array.isArray(value)) return ''
+      return value
+        .map((pair) => (pair && pair.provider ? `${pair.provider}/${pair.model ?? ''}` : ''))
+        .join('\n')
+    }
+    function parseProviders(text) {
+      const list = []
+      for (const raw of String(text ?? '').split('\n')) {
+        const line = raw.trim()
+        if (line === '') continue
+        const idx = line.indexOf('/')
+        if (idx <= 0) return undefined
+        const provider = line.slice(0, idx).trim()
+        const model = line.slice(idx + 1).trim()
+        if (provider === '' || model === '') return undefined
+        list.push({ provider, model })
+      }
+      return list
+    }
+    function textProviderToText(value) {
+      if (!value || typeof value !== 'object') return ''
+      return `${value.provider ?? ''}/${value.model ?? ''}`
+    }
+    function parseTextProvider(text) {
+      const idx = String(text ?? '').indexOf('/')
+      if (idx <= 0) return undefined
+      const provider = String(text).slice(0, idx).trim()
+      const model = String(text).slice(idx + 1).trim()
+      if (provider === '' || model === '') return undefined
+      return { provider, model }
+    }
+    function parseNumber(text, min) {
+      const trimmed = String(text ?? '').trim()
+      if (trimmed === '') return { clear: true }
+      const parsed = Number(trimmed)
+      return Number.isInteger(parsed) && parsed >= min ? { value: parsed } : undefined
+    }
+
+    // ── styles: mirrors the built-in plugin cards (same design tokens) ──────
+    const CSS =
+      '.vr-card{border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-3);border-radius:12px;list-style:none;transition:border-color .16s,background .16s}' +
+      '.vr-card:hover{border-color:var(--dsw-alias-label-dimmed)}' +
+      '.vr-card-open{background:var(--dsw-alias-bg-layer-2);border-color:var(--dsw-alias-label-dimmed)}' +
+      '.vr-header{appearance:none;width:100%;font:inherit;color:inherit;text-align:left;cursor:pointer;background:0 0;border:0;border-radius:12px;align-items:center;gap:12px;padding:14px 16px;display:flex}' +
+      '.vr-header:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-2px}' +
+      '.vr-headText{flex-direction:column;flex:1;gap:4px;min-width:0;display:flex}' +
+      '.vr-name{color:var(--dsw-alias-label-primary);font-size:15px;font-weight:600;line-height:1.4}' +
+      '.vr-desc{color:var(--dsw-alias-label-tertiary);font-size:13px;line-height:1.5}' +
+      '.vr-pending{white-space:nowrap;background:var(--dsw-alias-bg-module-platform);color:var(--dsw-alias-label-secondary);border-radius:999px;flex:none;padding:1px 8px;font-size:11px;font-weight:500;line-height:17px}' +
+      '.vr-chevron{color:var(--dsw-alias-label-tertiary);flex:none;transition:transform .16s;font-size:12px;line-height:1}' +
+      '.vr-chevron-open{transform:rotate(180deg)}' +
+      '.vr-body{border-top:1px solid var(--dsw-alias-border-l2);margin:0 16px;padding-bottom:8px}' +
+      '.vr-readOnly{color:var(--dsw-alias-label-tertiary);margin:12px 0 0;font-size:12px;line-height:1.5}' +
+      '.vr-quickstart{margin:12px 0 2px;padding:12px 14px;border:1px solid var(--dsw-alias-brand-primary);border-radius:10px;background:var(--dsw-alias-bg-module-platform);display:flex;flex-direction:column;gap:5px}' +
+      '.vr-quickstart-title{color:var(--dsw-alias-label-primary);font-size:13px;font-weight:650;line-height:1.5}' +
+      '.vr-quickstart-body,.vr-quickstart-live{margin:0;font-size:12px;line-height:1.6}' +
+      '.vr-quickstart-body{color:var(--dsw-alias-label-secondary)}' +
+      '.vr-quickstart-live{color:var(--dsw-alias-brand-primary)}' +
+      '.vr-field{content-visibility:auto;contain-intrinsic-size:auto 96px;flex-direction:column;gap:6px;padding:12px 0;display:flex}' +
+      '.vr-field + .vr-field{border-top:1px solid var(--dsw-alias-border-l2)}' +
+      '.vr-field-head{align-items:center;gap:8px;display:flex}' +
+      '.vr-label{min-width:0;color:var(--dsw-alias-label-primary);flex:1;font-size:13px;font-weight:500;line-height:1.5}' +
+      '.vr-badges{align-items:center;gap:8px;display:inline-flex}' +
+      '.vr-badge{white-space:nowrap;background:var(--dsw-alias-bg-module-platform);color:var(--dsw-alias-label-secondary);border-radius:999px;padding:1px 8px;font-size:11px;font-weight:500;line-height:17px}' +
+      '.vr-reset{font:inherit;color:var(--dsw-alias-label-secondary);cursor:pointer;background:0 0;border:none;padding:0;font-size:12px;line-height:1.5}' +
+      '.vr-reset:hover:not(:disabled){color:var(--dsw-alias-label-primary)}' +
+      '.vr-reset:disabled{cursor:default}' +
+      '.vr-input{border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-3);min-height:34px;font:inherit;color:var(--dsw-alias-label-primary);border-radius:8px;padding:6px 12px;font-size:13px;line-height:1.5;width:100%;box-sizing:border-box}' +
+      '.vr-input:focus-visible{border-color:var(--dsw-alias-brand-primary);outline:none}' +
+      '.vr-input:disabled{color:var(--dsw-alias-label-tertiary);cursor:default}' +
+      '.vr-input-invalid{border-color:var(--dsw-alias-label-error)}' +
+      '.vr-area{resize:vertical;min-height:84px;font-family:monospace}' +
+      '.vr-check{width:16px;height:16px;accent-color:var(--dsw-alias-brand-primary);cursor:pointer;margin:0}' +
+      '.vr-chain-row{display:flex;align-items:center;gap:8px;margin:6px 0}' +
+      '.vr-stealth-notice{color:var(--dsw-alias-label-warning,var(--dsw-alias-label-secondary))}' +
+      '.vr-catalog-error{display:flex;align-items:center;gap:10px;flex-wrap:wrap}' +
+      '.vr-update-manual{width:100%;box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);border-radius:10px;background:var(--dsw-alias-bg-module-platform);padding:11px 12px;display:flex;flex-direction:column;gap:10px}' +
+      '.vr-update-manual-title{font-size:12px;font-weight:650;color:var(--dsw-alias-label-primary);line-height:1.5}' +
+      '.vr-update-command{display:flex;flex-direction:column;gap:5px;min-width:0}' +
+      '.vr-update-command-label{font-size:11px;font-weight:500;color:var(--dsw-alias-label-tertiary);line-height:1.4}' +
+      '.vr-update-code{display:block;width:100%;box-sizing:border-box;overflow-x:auto;white-space:pre;padding:9px 11px;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:12px;line-height:1.55}' +
+      '.vr-update-note{margin:0;padding:7px 9px;border-left:2px solid var(--dsw-alias-label-dimmed);background:var(--dsw-alias-bg-layer-3);border-radius:0 7px 7px 0;color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:1.55}' +
+      '.vr-update-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:1px}' +
+      '.vr-vision-empty{margin:8px 0 2px;padding:11px 12px;border:1px solid var(--dsw-alias-label-warning,var(--dsw-alias-border-l2));border-radius:9px;background:var(--dsw-alias-bg-module-platform);display:flex;flex-direction:column;gap:7px}' +
+      '.vr-vision-empty-title{font-size:12px;font-weight:650;color:var(--dsw-alias-label-primary);margin:0}' +
+      '.vr-vision-empty-list{margin:0;padding-left:18px;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.6;word-break:break-word}' +
+      '.vr-vision-empty-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}' +
+      '.vr-subheader{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:8px 0;border:none;background:none;cursor:pointer;font:inherit;color:var(--dsw-alias-label-primary);text-align:left}' +
+      '.vr-group{content-visibility:auto;contain-intrinsic-size:auto 96px;border-top:1px solid var(--dsw-alias-border-l2);padding:10px 0 2px;display:flex;flex-direction:column;gap:8px}' +
+      '.vr-group-title{font-size:12px;font-weight:600;color:var(--dsw-alias-label-tertiary);margin:0}' +
+      '.vr-select{flex:1;min-width:0;font:inherit}' +
+      '.vr-invalid{color:var(--dsw-alias-label-error);margin:0;font-size:12px;line-height:1.5}' +
+      '.vr-hint{color:var(--dsw-alias-label-tertiary);margin:0;font-size:12px;line-height:1.5}' +
+      '.vr-toggle{display:flex;align-items:center;gap:10px;justify-content:space-between;width:100%}' +
+      '.vr-footer{border-top:1px solid var(--dsw-alias-border-l2);justify-content:flex-end;align-items:center;gap:8px;padding:12px 0 4px;display:flex}' +
+      '.vr-failed{min-width:0;color:var(--dsw-alias-label-error);flex:1;margin:0;font-size:12px;line-height:1.5}' +
+      '.vr-btn{appearance:none;font:inherit;cursor:pointer;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;padding:5px 14px;font-size:13px;line-height:1.5;color:var(--dsw-alias-label-secondary);background:0 0}' +
+      '.vr-btn:hover:not(:disabled){color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-dimmed)}' +
+      '.vr-btn-save{background:var(--dsw-alias-label-primary);color:var(--dsw-alias-bg-layer-3);border-color:#0000}' +
+      '.vr-btn:disabled{opacity:.4;cursor:default}' +
+      '.vr-btn:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}' +
+      '.vr-onboarding-backdrop{position:fixed;inset:0;z-index:10000;background:#0006;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box}' +
+      '.vr-onboarding-dialog{position:relative;width:min(480px,100%);box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);border-radius:16px;background:var(--dsw-alias-bg-layer-2);box-shadow:0 18px 60px #0005;padding:22px;display:flex;flex-direction:column;gap:12px;color:var(--dsw-alias-label-primary)}' +
+      '.vr-onboarding-title{margin:0;padding-right:32px;font-size:18px;font-weight:700;line-height:1.4}' +
+      '.vr-onboarding-text{margin:0;color:var(--dsw-alias-label-secondary);font-size:14px;line-height:1.65}' +
+      '.vr-onboarding-example{display:flex;align-items:center;gap:9px;flex-wrap:wrap;border:1px solid var(--dsw-alias-border-l2);border-radius:10px;background:var(--dsw-alias-bg-layer-3);padding:10px 12px;font-size:13px}' +
+      '.vr-onboarding-example-label{color:var(--dsw-alias-label-tertiary)}' +
+      '.vr-onboarding-example-value{font-weight:650;color:var(--dsw-alias-brand-primary)}' +
+      '.vr-onboarding-close{position:absolute;top:12px;right:12px;appearance:none;border:0;background:none;color:var(--dsw-alias-label-tertiary);font:inherit;font-size:22px;line-height:1;cursor:pointer;padding:5px 8px;border-radius:8px}' +
+      '.vr-onboarding-close:hover{background:var(--dsw-alias-bg-module-platform);color:var(--dsw-alias-label-primary)}' +
+      '.vr-onboarding-steps{display:flex;flex-direction:column;gap:8px}' +
+      '.vr-onboarding-step{border:1px solid var(--dsw-alias-border-l2);border-radius:10px;background:var(--dsw-alias-bg-layer-3);padding:10px 12px;display:flex;flex-direction:column;gap:3px}' +
+      '.vr-onboarding-step-title{font-size:13px;font-weight:650;color:var(--dsw-alias-label-primary);line-height:1.5}' +
+      '.vr-onboarding-step-body{margin:0;font-size:12px;line-height:1.6;color:var(--dsw-alias-label-secondary)}' +
+      '.vr-onboarding-actions{display:flex;justify-content:flex-end;gap:8px;padding-top:2px;flex-wrap:wrap}' +
+      '.vr-onboarding-primary,.vr-onboarding-secondary{appearance:none;border-radius:9px;font:inherit;font-size:14px;font-weight:600;cursor:pointer;padding:8px 18px}' +
+      '.vr-onboarding-primary{border:0;background:var(--dsw-alias-label-primary);color:var(--dsw-alias-bg-layer-3)}' +
+      '.vr-onboarding-secondary{border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-secondary)}' +
+      '.vr-onboarding-primary:focus-visible,.vr-onboarding-secondary:focus-visible,.vr-onboarding-close:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}' +
+      '.vr-guide-prompt{position:fixed;z-index:10002;width:min(360px,calc(100vw - 24px));box-sizing:border-box;border:1px solid var(--dsw-alias-brand-primary);border-radius:12px;background:var(--dsw-alias-bg-layer-2);box-shadow:0 12px 40px #0006;padding:14px;display:flex;flex-direction:column;gap:7px;color:var(--dsw-alias-label-primary);transition:left .22s ease,top .22s ease,opacity .18s ease,transform .18s ease}' +
+      '.vr-guide-prompt-title{font-size:13px;font-weight:700;line-height:1.5}' +
+      '.vr-guide-prompt-body{margin:0;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.6}' +
+      '.vr-guide-prompt-actions{display:flex;justify-content:flex-end;align-items:center;gap:8px;flex-wrap:wrap}' +
+      '.vr-guide-prompt-veiled{opacity:0;transform:translateY(10px);pointer-events:none}' +
+      '.vr-guide-arrow{position:absolute;width:20px;height:20px;pointer-events:none}' +
+      '.vr-guide-arrow::before{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border:9px solid #0000}' +
+      '.vr-guide-arrow::after{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border:8px solid #0000}' +
+      '.vr-guide-arrow-bottom{bottom:-11px;left:var(--vr-arrow-pos)}' +
+      '.vr-guide-arrow-bottom::before{border-bottom-width:0;border-top-color:var(--dsw-alias-brand-primary)}' +
+      '.vr-guide-arrow-bottom::after{border-bottom-width:0;border-top-color:var(--dsw-alias-bg-layer-2);margin-top:1px}' +
+      '.vr-guide-arrow-top{top:-11px;left:var(--vr-arrow-pos)}' +
+      '.vr-guide-arrow-top::before{border-top-width:0;border-bottom-color:var(--dsw-alias-brand-primary)}' +
+      '.vr-guide-arrow-top::after{border-top-width:0;border-bottom-color:var(--dsw-alias-bg-layer-2);margin-top:-1px}' +
+      '.vr-guide-arrow-left{left:-11px;top:var(--vr-arrow-pos)}' +
+      '.vr-guide-arrow-left::before{border-left-width:0;border-right-color:var(--dsw-alias-brand-primary)}' +
+      '.vr-guide-arrow-left::after{border-left-width:0;border-right-color:var(--dsw-alias-bg-layer-2);margin-left:1px}' +
+      '.vr-guide-arrow-right{right:-11px;top:var(--vr-arrow-pos)}' +
+      '.vr-guide-arrow-right::before{border-right-width:0;border-left-color:var(--dsw-alias-brand-primary)}' +
+      '.vr-guide-arrow-right::after{border-right-width:0;border-left-color:var(--dsw-alias-bg-layer-2);margin-left:-1px}' +
+      '.vr-guide-arrow-corner-se{bottom:-10px;right:0;transform:rotate(-45deg)}' +
+      '.vr-guide-arrow-corner-sw{bottom:-10px;left:0;transform:rotate(45deg)}' +
+      '.vr-guide-arrow-corner-se::before,.vr-guide-arrow-corner-sw::before{border-bottom-width:0;border-top-color:var(--dsw-alias-brand-primary)}' +
+      '.vr-guide-arrow-corner-se::after,.vr-guide-arrow-corner-sw::after{border-bottom-width:0;border-top-color:var(--dsw-alias-bg-layer-2);margin-top:1px}' +
+      '.vr-guide-spot{position:fixed;inset:0;z-index:10000;pointer-events:none}' +
+      '.vr-guide-spot-hole{position:fixed;border-radius:14px;box-shadow:0 0 0 9999px #10101499;transition:left .22s ease,top .22s ease,width .22s ease,height .22s ease}' +
+      '.vr-guide-spot-ring{position:fixed;border:2px solid var(--dsw-alias-brand-primary);border-radius:16px;animation:vr-guide-pulse 1.6s ease-in-out infinite;transition:left .22s ease,top .22s ease,width .22s ease,height .22s ease}' +
+      '@keyframes vr-guide-pulse{0%,100%{box-shadow:0 0 0 4px color-mix(in srgb,var(--dsw-alias-brand-primary) 16%,#0000),0 0 18px color-mix(in srgb,var(--dsw-alias-brand-primary) 30%,#0000)}50%{box-shadow:0 0 0 9px color-mix(in srgb,var(--dsw-alias-brand-primary) 26%,#0000),0 0 30px color-mix(in srgb,var(--dsw-alias-brand-primary) 55%,#0000)}}' +
+      '.vr-guide-target{border:2px solid var(--dsw-alias-brand-primary)!important;border-radius:12px;padding:12px!important;margin:8px -12px!important;background:var(--dsw-alias-bg-module-platform);animation:vr-guide-target-pulse 1.6s ease-in-out infinite}' +
+      '@keyframes vr-guide-target-pulse{0%,100%{box-shadow:0 0 0 4px color-mix(in srgb,var(--dsw-alias-brand-primary) 12%,#0000)}50%{box-shadow:0 0 0 9px color-mix(in srgb,var(--dsw-alias-brand-primary) 24%,#0000)}}' +
+      '.vr-guide-callout{border-radius:9px;background:var(--dsw-alias-bg-layer-3);padding:10px 12px;display:flex;flex-direction:column;align-items:flex-start;gap:5px;margin-bottom:4px}' +
+      '.vr-guide-callout-title{font-size:13px;font-weight:700;color:var(--dsw-alias-brand-primary)}' +
+      '.vr-guide-callout-body{margin:0;font-size:12px;line-height:1.6;color:var(--dsw-alias-label-secondary)}' +
+      '@media(prefers-reduced-motion:reduce){.vr-guide-spot-ring,.vr-guide-target{animation:none}.vr-guide-prompt{transition:none}}' +
+      '@media(max-width:640px){.vr-onboarding-backdrop{align-items:flex-end;padding:0}.vr-onboarding-dialog{width:100%;border-radius:16px 16px 0 0;padding:20px 18px max(20px,env(safe-area-inset-bottom))}.vr-guide-arrow{display:none}.vr-guide-prompt{left:12px!important;right:12px!important;bottom:max(12px,env(safe-area-inset-bottom))!important;top:auto!important;width:auto}}'
+
+    let stylesInstalled = false
+    function installStyles() {
+      if (stylesInstalled || typeof document === 'undefined') return
+      stylesInstalled = true
+      const tag = document.createElement('style')
+      tag.dataset.plugin = 'dsh-vision-router'
+      tag.dataset.pluginCss = 'dsh-vision-router/plugin-card'
+      tag.textContent = CSS
+      document.head.appendChild(tag)
+      return () => {
+        tag.remove()
+        stylesInstalled = false
+      }
+    }
+
+    const ONBOARDING_STORAGE_KEY = 'dsh-vision-router:onboarding:model-guide-v2'
+    // issue #78: DSH Desktop serves the Web UI from a random port on every
+    // launch (--port 0), so origin-scoped localStorage forgets everything
+    // between restarts and the first-run dialog re-appeared on every boot.
+    // The durable source of truth is now the `vision-router` settings section
+    // (the profile settings file, synced through ctx.settingsScope);
+    // localStorage survives only as a legacy/migration fallback for
+    // pre-v1.2.3 browsers and as a best-effort downgrade channel.
+    const ONBOARDING_SETTINGS_KEY = 'onboardingSeen'
+    // The walkthrough has three steps: step1 (the session/text model selector
+    // on the chat page), step2 (open Settings → Plugins → Vision Router), and
+    // step3 (the highlighted vision chain, rendered by the settings card as a
+    // callout). Only step1/step2 need persistence; step3 re-derives from the
+    // card being on screen.
+    const VISION_GUIDE_STORAGE_KEY = 'dsh-vision-router:guide:vision-backend-v2'
+    const VISION_GUIDE_SETTINGS_KEY = 'visionGuideStep'
+    const VISION_GUIDE_EVENT = 'dsh-vision-router:vision-settings-guide'
+    let visionGuidePrompt
+    let visionGuideSpotlight
+    let visionGuideSyncTimer
+    let onboardingSeenMemory = false
+    let visionGuideStepMemory
+    let visionGuideMemoryAuthoritative = false
+    // Whether the app-owned settings modal has been seen open during this
+    // walkthrough round, plus a grace timer so a host re-render that rebuilds
+    // the dialog in place is not mistaken for the user closing it.
+    let visionGuidePanelSeen = false
+    let visionGuidePanelCloseTimer
+    // Installed by apply(): a narrow, defensive view of the settings scope.
+    // { get, set, unset } never throw, and subscribe returns a disposer (or
+    // undefined when the scope is unavailable — the legacy paths take over).
+    let settingsPersistence
+    function installSettingsPersistence(scope) {
+      const pending = new Map()
+      let flushing = false
+      const readSnapshot = () => {
+        try {
+          return scope && typeof scope.getSnapshot === 'function' ? scope.getSnapshot() : undefined
+        } catch {
+          return undefined
+        }
+      }
+      const readSection = () => {
+        const snapshot = readSnapshot()
+        return snapshot && snapshot.value ? snapshot.value : undefined
+      }
+      const queue = (field, operation, value) => {
+        const previous = pending.get(field)
+        if (
+          previous && previous.operation === operation &&
+          (operation === 'unset' || jsonValueEqual(previous.value, value))
+        ) {
+          return
+        }
+        pending.set(field, { operation, value, attempted: false })
+        void flush()
+      }
+      const landed = (field, entry) => {
+        const snapshot = readSnapshot()
+        const user = snapshot && snapshot.user
+        const stored = !!user && typeof user === 'object' && Object.prototype.hasOwnProperty.call(user, field)
+        return entry.operation === 'unset'
+          ? !stored
+          : stored && jsonValueEqual(user[field], entry.value)
+      }
+      const flush = async () => {
+        if (flushing) return
+        const snapshot = readSnapshot()
+        if (!snapshot || snapshot.status !== 'ready' || !snapshot.writable) return
+        const work = [...pending.entries()].filter(([, entry]) => !entry.attempted)
+        if (work.length === 0) return
+        flushing = true
+        try {
+          for (const [field, entry] of work) {
+            if (pending.get(field) !== entry) continue
+            entry.attempted = true
+            try {
+              if (entry.operation === 'unset') {
+                if (typeof scope.unset !== 'function') continue
+                await scope.unset(field)
+              } else {
+                if (typeof scope.set !== 'function') continue
+                await scope.set(field, entry.value)
+              }
+            } catch {
+              continue
+            }
+            if (pending.get(field) === entry && landed(field, entry)) pending.delete(field)
+          }
+        } finally {
+          flushing = false
+        }
+      }
+      settingsPersistence = {
+        get(field) {
+          const section = readSection()
+          return section ? section[field] : undefined
+        },
+        set(field, value) {
+          queue(field, 'set', value)
+        },
+        unset(field) {
+          queue(field, 'unset')
+        },
+        subscribe(listener) {
+          try {
+            if (!scope || typeof scope.subscribe !== 'function') return undefined
+            return scope.subscribe(() => {
+              void flush()
+              listener()
+            })
+          } catch {
+            return undefined
+          }
+        },
+      }
+      void flush()
+    }
+
+    function readOnboardingSeen() {
+      if (onboardingSeenMemory) return true
+      try {
+        if (settingsPersistence && settingsPersistence.get(ONBOARDING_SETTINGS_KEY) === true) return true
+      } catch {
+        // Fall through to the legacy origin-scoped marker.
+      }
+      try {
+        if (window.localStorage && window.localStorage.getItem(ONBOARDING_STORAGE_KEY) === 'seen') {
+          // Legacy value from before the settings-backed flag: migrate it so
+          // it survives desktop restarts, then honor it for this load.
+          if (settingsPersistence) settingsPersistence.set(ONBOARDING_SETTINGS_KEY, true)
+          return true
+        }
+      } catch {
+        // Best effort only.
+      }
+      return false
+    }
+    function rememberOnboardingSeen() {
+      onboardingSeenMemory = true
+      try {
+        if (settingsPersistence) settingsPersistence.set(ONBOARDING_SETTINGS_KEY, true)
+      } catch {
+        // The dialog can still be dismissed for this page load.
+      }
+      try {
+        if (window.localStorage) window.localStorage.setItem(ONBOARDING_STORAGE_KEY, 'seen')
+      } catch {
+        // Best effort: the dialog can still be dismissed for this page load.
+      }
+    }
+
+    function readVisionGuideStep() {
+      if (visionGuideMemoryAuthoritative) return visionGuideStepMemory
+      try {
+        const value = settingsPersistence && settingsPersistence.get(VISION_GUIDE_SETTINGS_KEY)
+        if (value === 'step1' || value === 'step2') return value
+      } catch {
+        // Fall through to the legacy origin-scoped marker.
+      }
+      try {
+        const value = window.localStorage && window.localStorage.getItem(VISION_GUIDE_STORAGE_KEY)
+        if (value === 'step1' || value === 'step2') {
+          // Legacy value: migrate into settings for desktop durability.
+          if (settingsPersistence) settingsPersistence.set(VISION_GUIDE_SETTINGS_KEY, value)
+          return value
+        }
+      } catch {
+        // Fall through to page-memory state when storage access is blocked.
+      }
+      return visionGuideStepMemory
+    }
+    function writeVisionGuideStep(step) {
+      visionGuideMemoryAuthoritative = true
+      visionGuideStepMemory = step === 'step1' || step === 'step2' ? step : undefined
+      try {
+        if (settingsPersistence) {
+          if (visionGuideStepMemory) settingsPersistence.set(VISION_GUIDE_SETTINGS_KEY, visionGuideStepMemory)
+          else settingsPersistence.unset(VISION_GUIDE_SETTINGS_KEY)
+        }
+      } catch {
+        // Page-memory state still keeps the guide functional for this load.
+      }
+      try {
+        if (!window.localStorage) return
+        if (visionGuideStepMemory) window.localStorage.setItem(VISION_GUIDE_STORAGE_KEY, visionGuideStepMemory)
+        else window.localStorage.removeItem(VISION_GUIDE_STORAGE_KEY)
+      } catch {
+        // Page-memory state still keeps the guide functional for this load.
+      }
+    }
+    function clearGuidePromptUI() {
+      if (visionGuidePrompt) visionGuidePrompt.remove()
+      visionGuidePrompt = undefined
+      removeGuideSpotlight()
+    }
+    function removeVisionGuidePrompt() {
+      clearGuidePromptUI()
+      stopGuideSync()
+    }
+    function removeGuideSpotlight() {
+      if (visionGuideSpotlight) {
+        visionGuideSpotlight.root.remove()
+        visionGuideSpotlight = undefined
+      }
+    }
+    function stopGuideSync() {
+      if (visionGuideSyncTimer !== undefined) {
+        window.clearInterval(visionGuideSyncTimer)
+        visionGuideSyncTimer = undefined
+      }
+    }
+    function notifyVisionGuideChanged() {
+      if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') return
+      const EventCtor = window.Event
+      if (typeof EventCtor === 'function') window.dispatchEvent(new EventCtor(VISION_GUIDE_EVENT))
+    }
+    // The settings modal is an app-owned overlay; plugins cannot close it via
+    // a public API. Its panel closes on the Escape key through a native
+    // document listener, so replaying the guide "leaves the settings" by
+    // dispatching the same standard keydown the user would press.
+    function closeSettingsShell() {
+      if (typeof document === 'undefined' || typeof window === 'undefined') return
+      try {
+        document.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),
+        )
+      } catch {
+        // KeyboardEvent constructor unavailable: degrade to staying put.
+      }
+    }
+
+    // ── walkthrough spotlight: highlight the real UI targets ────────────────
+    // The walkthrough overlays are plain DOM: a dimmed backdrop with a "hole"
+    // over the current target (classic box-shadow spotlight), a pulsing ring
+    // around it, and the prompt card anchored beside the target with an arrow
+    // pointing at it. Everything is pointer-events:none except the prompt, so
+    // the real controls stay clickable the whole time.
+    //
+    // DSH web hashes its CSS-module class names (unstable across builds), so
+    // the targets are addressed through the stable surface instead: slot
+    // wrappers (data-slot), data-composer-card and aria-haspopup/aria-label
+    // attributes. Each step keeps a fallback chain, and when nothing matches
+    // the prompt degrades to a corner card with a directional arrow.
+    const GUIDE_SELECTOR_TARGETS = [
+      '[data-slot="conversation.input.model"] button[aria-haspopup="menu"]',
+      '[aria-label^="选择模型"], [aria-label^="Select model"]',
+      '[data-composer-card] button[aria-haspopup="menu"]',
+    ]
+    // Settings is a modal, not a URL route: detect it purely by DOM. Exclude
+    // our own onboarding dialog (also aria-modal) from the panel lookup.
+    function guideSettingsPanel() {
+      if (typeof document === 'undefined') return undefined
+      const dialogs = Array.from(document.querySelectorAll('[role="dialog"][aria-modal="true"]'))
+      return dialogs.find((dialog) => !dialog.closest || !dialog.closest('.vr-onboarding-dialog'))
+    }
+    // The settings modal can close by unmounting or by the host hiding it in
+    // place; a panel that is gone or not visibly rendered counts as closed.
+    function guideSettingsPanelOpen() {
+      return guideElementUsable(guideSettingsPanel())
+    }
+    function guideElementUsable(el) {
+      if (!el || typeof el.getBoundingClientRect !== 'function') return false
+      const rect = el.getBoundingClientRect()
+      if (!rect || rect.width < 6 || rect.height < 6) return false
+      const vw = window.innerWidth || 1
+      const vh = window.innerHeight || 1
+      return rect.right > 0 && rect.bottom > 0 && rect.left < vw && rect.top < vh
+    }
+    function guideFindFirstUsable(selectors) {
+      if (typeof document === 'undefined') return undefined
+      for (const selector of selectors) {
+        let list
+        try {
+          list = Array.from(document.querySelectorAll(selector))
+        } catch {
+          continue
+        }
+        // Walk backwards: among ambiguous matches (e.g. several menu buttons
+        // inside the composer) the trailing row holds the model seat and is
+        // the safest pick.
+        for (let index = list.length - 1; index >= 0; index--) {
+          if (guideElementUsable(list[index])) return list[index]
+        }
+      }
+      return undefined
+    }
+    // The sidebar settings gear: aria-haspopup="dialog" also appears on the
+    // composer's context meter, so exclude anything inside the composer card.
+    function guideGearButton() {
+      if (typeof document === 'undefined') return undefined
+      const list = Array.from(document.querySelectorAll('button[aria-haspopup="dialog"]')).filter(
+        (el) => !el.closest || !el.closest('[data-composer-card]'),
+      )
+      return list.find(guideElementUsable)
+    }
+    // The settings panel's "Plugins" nav row; when the row label is in a
+    // locale we don't match, degrade to the whole nav column.
+    function guidePluginsNav() {
+      const panel = guideSettingsPanel()
+      if (!panel) return undefined
+      const nav = panel.querySelector('nav')
+      if (!nav) return undefined
+      const rows = Array.from(nav.querySelectorAll('button'))
+      const match = rows.find((row) => /^(插件|Plugins)$/.test((row.textContent || '').trim()))
+      return match || nav
+    }
+    // step1 phases: 'selector' (composer model seat found) or 'corner'
+    // (fallback). step2 phases: 'gear' (sidebar), 'nav' (plugins row inside
+    // the panel), 'done' (the vision chain target exists — the in-card step-3
+    // callout takes over). 'suspend' hides the floating layer while our own
+    // onboarding overview dialog is open.
+    function guidePhase(step) {
+      if (step === undefined) return 'none'
+      if (onboardingOverlay) return 'suspend'
+      if (step === 'step1') return guideFindFirstUsable(GUIDE_SELECTOR_TARGETS) ? 'selector' : 'corner'
+      if (typeof document === 'undefined') return 'gear'
+      if (document.querySelector('[data-vr-guide-target="vision-backend"]')) return 'done'
+      if (guideSettingsPanel()) return 'nav'
+      return 'gear'
+    }
+    function guideTarget(step, phase) {
+      if (step === 'step1') return guideFindFirstUsable(GUIDE_SELECTOR_TARGETS)
+      if (phase === 'nav') return guidePluginsNav()
+      return guideGearButton()
+    }
+    function ensureGuideSpotlight() {
+      if (visionGuideSpotlight) return visionGuideSpotlight
+      if (typeof document === 'undefined' || !document.body) return undefined
+      const root = document.createElement('div')
+      root.className = 'vr-guide-spot'
+      root.setAttribute('aria-hidden', 'true')
+      const hole = document.createElement('div')
+      hole.className = 'vr-guide-spot-hole'
+      const ring = document.createElement('div')
+      ring.className = 'vr-guide-spot-ring'
+      root.append(hole, ring)
+      document.body.appendChild(root)
+      visionGuideSpotlight = { root, hole, ring }
+      return visionGuideSpotlight
+    }
+    function applyGuideSpotlight(rect) {
+      const spot = ensureGuideSpotlight()
+      if (!spot) return
+      if (!rect) {
+        spot.root.style.display = 'none'
+        return
+      }
+      spot.root.style.display = ''
+      const parts = [
+        [spot.hole, 9, 14],
+        [spot.ring, 5, 16],
+      ]
+      for (const [el, pad, radius] of parts) {
+        el.style.left = Math.max(0, rect.x - pad) + 'px'
+        el.style.top = Math.max(0, rect.y - pad) + 'px'
+        el.style.width = rect.width + pad * 2 + 'px'
+        el.style.height = rect.height + pad * 2 + 'px'
+        el.style.borderRadius = radius + 'px'
+      }
+    }
+    function guidePromptText(t, step, phase) {
+      if (step === 'step1') return { title: t('guideStep1Title'), body: t('guideStep1Body') }
+      return {
+        title: t('guidePromptTitle'),
+        body: phase === 'nav' ? t('guidePromptNavBody') : t('guidePromptGearBody'),
+      }
+    }
+    function buildGuidePrompt(t, step, phase) {
+      const prompt = document.createElement('div')
+      prompt.className = 'vr-guide-prompt'
+      prompt.setAttribute('role', 'dialog')
+      prompt.setAttribute('aria-modal', 'false')
+      prompt.dataset.vrStep = step
+      prompt.dataset.vrPhase = phase
+      const title = document.createElement('div')
+      title.className = 'vr-guide-prompt-title'
+      const body = document.createElement('p')
+      body.className = 'vr-guide-prompt-body'
+      const actions = document.createElement('div')
+      actions.className = 'vr-guide-prompt-actions'
+      const cancel = document.createElement('button')
+      cancel.type = 'button'
+      cancel.className = 'vr-btn'
+      cancel.textContent = t('guidePromptCancel')
+      cancel.addEventListener('click', () => {
+        finishVisionSettingsGuide()
+      })
+      actions.append(cancel)
+      // Every step that is not the last one gets a Next button, so the two
+      // floating prompts stay symmetric. Step 1's Next advances the stored
+      // step; step 2's Next performs the current phase's action for the
+      // user — opening the settings panel, then entering the Plugins
+      // section — so the walkthrough can be driven entirely from the prompt
+      // without touching the real controls.
+      const next = document.createElement('button')
+      next.type = 'button'
+      next.className = 'vr-btn vr-btn-save'
+      next.textContent = t('guideStepNext')
+      next.addEventListener('click', () => {
+        if (step === 'step1') {
+          writeVisionGuideStep('step2')
+        } else {
+          const currentPhase = guidePhase('step2')
+          if (currentPhase === 'gear') {
+            const gear = guideGearButton()
+            if (gear && typeof gear.click === 'function') gear.click()
+          } else if (currentPhase === 'nav') {
+            const row = guidePluginsNav()
+            if (row && row.tagName === 'BUTTON' && typeof row.click === 'function') row.click()
+          }
+        }
+        clearGuidePromptUI()
+        syncVisionGuidePrompt(t)
+        notifyVisionGuideChanged()
+      })
+      actions.append(next)
+      const arrow = document.createElement('div')
+      arrow.className = 'vr-guide-arrow'
+      arrow.setAttribute('aria-hidden', 'true')
+      const text = guidePromptText(t, step, phase)
+      title.textContent = text.title
+      body.textContent = text.body
+      prompt.append(title, body, actions, arrow)
+      return prompt
+    }
+    function updateGuidePrompt(prompt, t, step, phase) {
+      const text = guidePromptText(t, step, phase)
+      const title = prompt.querySelector('.vr-guide-prompt-title')
+      const body = prompt.querySelector('.vr-guide-prompt-body')
+      if (title) title.textContent = text.title
+      if (body) body.textContent = text.body
+      prompt.dataset.vrStep = step
+      prompt.dataset.vrPhase = phase
+    }
+    function guideAnchorCandidate(side, rect, pw, ph, gap) {
+      if (side === 'top') return { side, left: rect.x + rect.width / 2 - pw / 2, top: rect.y - ph - gap }
+      if (side === 'bottom') return { side, left: rect.x + rect.width / 2 - pw / 2, top: rect.y + rect.height + gap }
+      if (side === 'right') return { side, left: rect.x + rect.width + gap, top: rect.y + rect.height / 2 - ph / 2 }
+      return { side, left: rect.x - pw - gap, top: rect.y + rect.height / 2 - ph / 2 }
+    }
+    function anchorGuidePrompt(prompt, step, phase, rect, veil) {
+      prompt.classList.toggle('vr-guide-prompt-veiled', !!veil)
+      const arrow = prompt.querySelector('.vr-guide-arrow')
+      const arrowSides = ['vr-guide-arrow-bottom', 'vr-guide-arrow-top', 'vr-guide-arrow-left', 'vr-guide-arrow-right', 'vr-guide-arrow-corner-se', 'vr-guide-arrow-corner-sw']
+      if (arrow) {
+        for (const cls of arrowSides) arrow.classList.remove(cls)
+        arrow.style.removeProperty('--vr-arrow-pos')
+      }
+      const margin = 12
+      const gap = 16
+      const vw = window.innerWidth || 1
+      const vh = window.innerHeight || 1
+      const pw = prompt.offsetWidth || 360
+      const ph = prompt.offsetHeight || 160
+      if (!rect) {
+        // No target found: park the prompt in a corner with an arrow pointing
+        // toward where the control normally lives.
+        prompt.style.left = step === 'step1' ? margin + 'px' : 'auto'
+        prompt.style.right = step === 'step1' ? 'auto' : margin + 'px'
+        prompt.style.top = 'auto'
+        prompt.style.bottom = margin + 'px'
+        if (arrow) arrow.classList.add(step === 'step1' ? 'vr-guide-arrow-corner-se' : 'vr-guide-arrow-corner-sw')
+        return
+      }
+      // The gear sits at the bottom-left: land above it first. Everywhere
+      // else prefer the side so the card reads naturally left-to-right.
+      const prefer = phase === 'gear' ? ['top', 'right', 'bottom', 'left'] : ['right', 'top', 'bottom', 'left']
+      const clampX = (value) => Math.min(Math.max(value, margin), Math.max(margin, vw - pw - margin))
+      const clampY = (value) => Math.min(Math.max(value, margin), Math.max(margin, vh - ph - margin))
+      // Keep a small halo around the target clear so the prompt never sits
+      // flush against (or on top of) the highlighted control.
+      const halo = 10
+      const hx = rect.x - halo
+      const hy = rect.y - halo
+      const hw = rect.width + halo * 2
+      const hh = rect.height + halo * 2
+      let picked
+      for (const side of prefer) {
+        const candidate = guideAnchorCandidate(side, rect, pw, ph, gap)
+        const left = clampX(candidate.left)
+        const top = clampY(candidate.top)
+        // Judge coverage on the CLAMPED box: clamping next to a viewport edge
+        // can push a prompt back over the target, which is exactly how step 1
+        // used to hide the model selector.
+        const covers = left < hx + hw && left + pw > hx && top < hy + hh && top + ph > hy
+        if (!covers) {
+          picked = { side, left, top }
+          break
+        }
+      }
+      if (!picked) {
+        const fallback = guideAnchorCandidate(prefer[0], rect, pw, ph, gap)
+        picked = { side: fallback.side, left: clampX(fallback.left), top: clampY(fallback.top) }
+      }
+      prompt.style.left = picked.left + 'px'
+      prompt.style.top = picked.top + 'px'
+      prompt.style.right = 'auto'
+      prompt.style.bottom = 'auto'
+      if (arrow) {
+        // The arrow lives on the prompt's edge that FACES the target: a
+        // prompt placed above the target shows a bottom arrow pointing down,
+        // a prompt to the right of the target shows a left arrow, and so on.
+        const arrowSide = { top: 'bottom', bottom: 'top', left: 'right', right: 'left' }[picked.side]
+        arrow.classList.add('vr-guide-arrow-' + arrowSide)
+        const pos =
+          picked.side === 'top' || picked.side === 'bottom'
+            ? Math.min(Math.max(rect.x + rect.width / 2 - picked.left, 16), pw - 16)
+            : Math.min(Math.max(rect.y + rect.height / 2 - picked.top, 16), ph - 16)
+        arrow.style.setProperty('--vr-arrow-pos', pos + 'px')
+      }
+    }
+    function syncVisionGuidePrompt(t) {
+      if (typeof document === 'undefined' || typeof window === 'undefined' || !document.body) return
+      const step = readVisionGuideStep()
+      const panelOpen = guideSettingsPanelOpen()
+      if (step !== undefined && visionGuidePanelSeen && !panelOpen) {
+        // The settings panel was open during this walkthrough round and the
+        // user has just closed it: honor the close by ending the round
+        // instead of re-pointing the prompt at the gear and nagging again.
+        // A short grace period absorbs SPA re-renders that rebuild the dialog
+        // in place; if the panel is still gone afterwards, the guide finishes
+        // for good and can never pop back up for this round.
+        clearGuidePromptUI()
+        if (visionGuidePanelCloseTimer === undefined) {
+          visionGuidePanelCloseTimer = window.setTimeout(() => {
+            visionGuidePanelCloseTimer = undefined
+            if (readVisionGuideStep() !== undefined && !guideSettingsPanelOpen()) {
+              finishVisionSettingsGuide()
+            }
+          }, 400)
+        }
+        return
+      }
+      if (panelOpen) {
+        visionGuidePanelSeen = true
+        if (visionGuidePanelCloseTimer !== undefined) {
+          window.clearTimeout(visionGuidePanelCloseTimer)
+          visionGuidePanelCloseTimer = undefined
+        }
+      }
+      const phase = guidePhase(step)
+      if (phase === 'none' || phase === 'done' || phase === 'suspend') {
+        // No floating layer: the walkthrough is over, the in-card callout
+        // (step 3) has taken over, or the onboarding overview dialog covers
+        // the page.
+        clearGuidePromptUI()
+        if (phase === 'none') stopGuideSync()
+        return
+      }
+      // Keep the light re-sync tick alive while any step is active; it is the
+      // only thing that follows targets through SPA renders and menus.
+      if (visionGuideSyncTimer === undefined) {
+        visionGuideSyncTimer = window.setInterval(() => syncVisionGuidePrompt(t), 600)
+      }
+      if (!visionGuidePrompt || visionGuidePrompt.dataset.vrStep !== step) {
+        if (visionGuidePrompt) visionGuidePrompt.remove()
+        removeGuideSpotlight()
+        visionGuidePrompt = buildGuidePrompt(t, step, phase)
+        document.body.appendChild(visionGuidePrompt)
+      } else if (visionGuidePrompt.dataset.vrPhase !== phase) {
+        updateGuidePrompt(visionGuidePrompt, t, step, phase)
+      }
+      const target = guideTarget(step, phase)
+      const rect =
+        target && typeof target.getBoundingClientRect === 'function' ? target.getBoundingClientRect() : undefined
+      applyGuideSpotlight(rect)
+      // Step 1's menu opens right over the spot where the prompt sits: veil
+      // the prompt while the user picks, and bring it back when they close
+      // the menu.
+      const menuOpen =
+        phase === 'selector' &&
+        typeof target !== 'undefined' &&
+        typeof target.getAttribute === 'function' &&
+        target.getAttribute('aria-expanded') === 'true'
+      anchorGuidePrompt(visionGuidePrompt, step, phase, rect, menuOpen)
+    }
+    function startVisionSettingsGuide(t) {
+      visionGuidePanelSeen = false
+      if (visionGuidePanelCloseTimer !== undefined) {
+        window.clearTimeout(visionGuidePanelCloseTimer)
+        visionGuidePanelCloseTimer = undefined
+      }
+      writeVisionGuideStep('step1')
+      syncVisionGuidePrompt(t)
+      notifyVisionGuideChanged()
+    }
+    function finishVisionSettingsGuide() {
+      visionGuidePanelSeen = false
+      if (visionGuidePanelCloseTimer !== undefined) {
+        window.clearTimeout(visionGuidePanelCloseTimer)
+        visionGuidePanelCloseTimer = undefined
+      }
+      writeVisionGuideStep(undefined)
+      removeVisionGuidePrompt()
+      notifyVisionGuideChanged()
+    }
+    function installVisionSettingsGuide(t) {
+      if (typeof document === 'undefined' || typeof window === 'undefined') return
+      const sync = () => window.setTimeout(() => syncVisionGuidePrompt(t), 0)
+      syncVisionGuidePrompt(t)
+      window.addEventListener(VISION_GUIDE_EVENT, sync)
+      window.addEventListener('popstate', sync)
+      window.addEventListener('resize', sync)
+      // Inner scrollers (message list, settings content) don't bubble;
+      // capture keeps the spotlight glued to its target while anything
+      // scrolls. The interval below covers the rest (menus, SPA renders).
+      document.addEventListener('scroll', sync, true)
+      // The durable step now lives in the settings section; re-sync when its
+      // snapshot changes (e.g. the first read resolves after page load).
+      const unsubscribe = settingsPersistence && settingsPersistence.subscribe(sync)
+      return () => {
+        visionGuidePanelSeen = false
+        if (visionGuidePanelCloseTimer !== undefined) {
+          window.clearTimeout(visionGuidePanelCloseTimer)
+          visionGuidePanelCloseTimer = undefined
+        }
+        window.removeEventListener(VISION_GUIDE_EVENT, sync)
+        window.removeEventListener('popstate', sync)
+        window.removeEventListener('resize', sync)
+        document.removeEventListener('scroll', sync, true)
+        stopGuideSync()
+        if (typeof unsubscribe === 'function') unsubscribe()
+        removeVisionGuidePrompt()
+      }
+    }
+
+    let onboardingOverlay
+    let onboardingKeyDown
+
+    function dismissOnboarding(remember = true) {
+      if (remember) rememberOnboardingSeen()
+      if (typeof document !== 'undefined' && onboardingKeyDown) {
+        document.removeEventListener('keydown', onboardingKeyDown)
+      }
+      onboardingKeyDown = undefined
+      if (onboardingOverlay) onboardingOverlay.remove()
+      onboardingOverlay = undefined
+    }
+    function showOnboarding(t) {
+      if (typeof document === 'undefined' || !document.body) return
+      if (onboardingOverlay) return // Already open: never stack a second dialog.
+
+      const onKeyDown = (event) => {
+        if (event && event.key === 'Escape') dismissOnboarding()
+      }
+      onboardingKeyDown = onKeyDown
+
+      const overlay = document.createElement('div')
+      overlay.className = 'vr-onboarding-backdrop'
+      overlay.setAttribute('role', 'presentation')
+
+      const dialog = document.createElement('div')
+      dialog.className = 'vr-onboarding-dialog'
+      dialog.setAttribute('role', 'dialog')
+      dialog.setAttribute('aria-modal', 'true')
+      dialog.setAttribute('aria-labelledby', 'vr-onboarding-title')
+
+      const title = document.createElement('h2')
+      title.id = 'vr-onboarding-title'
+      title.className = 'vr-onboarding-title'
+      title.textContent = t('onboardingTitle')
+
+      const body = document.createElement('p')
+      body.className = 'vr-onboarding-text'
+      body.textContent = t('onboardingBody')
+
+      const steps = document.createElement('div')
+      steps.className = 'vr-onboarding-steps'
+      for (const index of [1, 2, 3]) {
+        const step = document.createElement('div')
+        step.className = 'vr-onboarding-step'
+        const stepTitle = document.createElement('div')
+        stepTitle.className = 'vr-onboarding-step-title'
+        stepTitle.textContent = t('onboardingStep' + index + 'Title')
+        const stepBody = document.createElement('p')
+        stepBody.className = 'vr-onboarding-step-body'
+        stepBody.textContent = t('onboardingStep' + index + 'Body')
+        step.append(stepTitle, stepBody)
+        steps.appendChild(step)
+      }
+
+      const close = document.createElement('button')
+      close.type = 'button'
+      close.className = 'vr-onboarding-close'
+      close.setAttribute('aria-label', t('onboardingClose'))
+      close.textContent = '×'
+      close.addEventListener('click', dismissOnboarding)
+
+      const actions = document.createElement('div')
+      actions.className = 'vr-onboarding-actions'
+      const secondary = document.createElement('button')
+      secondary.type = 'button'
+      secondary.className = 'vr-onboarding-secondary'
+      secondary.textContent = t('onboardingLater')
+      secondary.addEventListener('click', dismissOnboarding)
+      const primary = document.createElement('button')
+      primary.type = 'button'
+      primary.className = 'vr-onboarding-primary'
+      primary.textContent = t('onboardingGuide')
+      primary.addEventListener('click', () => {
+        startVisionSettingsGuide(t)
+        dismissOnboarding()
+      })
+      actions.append(secondary, primary)
+
+      dialog.append(title, body, steps, close, actions)
+      overlay.appendChild(dialog)
+      document.body.appendChild(overlay)
+      document.addEventListener('keydown', onKeyDown)
+      onboardingOverlay = overlay
+      primary.focus()
+    }
+    function installOnboarding(t) {
+      if (typeof document === 'undefined' || typeof window === 'undefined') return
+      let timer
+      const clearTimer = () => {
+        if (timer !== undefined) window.clearTimeout(timer)
+        timer = undefined
+      }
+      // Reactive against the settings scope: the settings snapshot arrives
+      // asynchronously on a cold page load, so a one-shot localStorage check
+      // could show the dialog before the durable "seen" flag lands. Re-sync
+      // on every snapshot change and dismiss the overlay if the flag appears.
+      const sync = () => {
+        if (readOnboardingSeen()) {
+          clearTimer()
+          if (onboardingOverlay) dismissOnboarding(false)
+          return
+        }
+        if (timer === undefined && !onboardingOverlay) {
+          timer = window.setTimeout(() => {
+            timer = undefined
+            if (!readOnboardingSeen()) showOnboarding(t)
+          }, 650)
+        }
+      }
+      sync()
+      const unsubscribe = settingsPersistence && settingsPersistence.subscribe(sync)
+      return () => {
+        clearTimer()
+        if (typeof unsubscribe === 'function') unsubscribe()
+        // Unmounting is not a user choice: drop the dialog without marking
+        // the guide seen, so the first-run overview can still auto-open.
+        if (onboardingOverlay) dismissOnboarding(false)
+      }
+    }
+
+    const LABEL_KEY = {
+      routing: 'toggleRouting',
+      reverseRouting: 'toggleReverseRouting',
+      tool: 'toggleTool',
+      autoWrapProviders: 'toggleAutoWrapProviders',
+      rewriteImages: 'toggleRewriteImages',
+      downscale: 'toggleDownscale',
+      cache: 'toggleCache',
+      freeFallback: 'toggleFreeFallback',
+      stealth: 'toggleStealth',
+      timeoutMs: 'numTimeoutMs',
+      visionTaskTimeoutMs: 'numVisionTaskTimeoutMs',
+      ocrTimeoutMs: 'numOcrTimeoutMs',
+      downscaleMaxPixels: 'numDownscaleMaxPixels',
+      cacheTtlSeconds: 'numCacheTtlSeconds',
+      cacheMaxEntries: 'numCacheMaxEntries',
+      wrapperRoute: 'textWrapperRoute',
+      chainRoute: 'textChainRoute',
+      extraVisionModels: 'extraVisionModelsLabel',
+    }
+    const HINT_KEY = {
+      routing: 'hintRouting',
+      reverseRouting: 'hintReverseRouting',
+      tool: 'hintTool',
+      autoWrapProviders: 'hintAutoWrapProviders',
+      rewriteImages: 'hintRewriteImages',
+      downscale: 'hintDownscale',
+      cache: 'hintCache',
+      freeFallback: 'hintFreeFallback',
+      stealth: 'hintStealth',
+      timeoutMs: 'numHintTimeoutMs',
+      visionTaskTimeoutMs: 'numHintVisionTaskTimeoutMs',
+      ocrTimeoutMs: 'numHintOcrTimeoutMs',
+      downscaleMaxPixels: 'numHintDownscaleMaxPixels',
+      cacheTtlSeconds: 'numHintCacheTtlSeconds',
+      cacheMaxEntries: 'numHintCacheMaxEntries',
+      wrapperRoute: 'textHintWrapperRoute',
+      chainRoute: 'textHintChainRoute',
+      extraVisionModels: 'extraVisionModelsHint',
+    }
+
+    function VisionRouterCard(props) {
+      const scope = props.scope
+      const t = props.t
+      const locale = props.locale
+      // Re-render on language switches: t() re-reads the active dictionary.
+      // The locale face's subscribe/getSnapshot are prototype methods using
+      // `this` exactly like the settings binder — bind them before handing
+      // them to useSyncExternalStore, or the card crashes with "Cannot read
+      // properties of undefined" and gets abdicated.
+      const localeSubscribe = useMemo(
+        () => (locale && typeof locale.subscribe === 'function' ? locale.subscribe.bind(locale) : () => () => {}),
+        [locale],
+      )
+      const localeGetSnapshot = useMemo(
+        () => (locale && typeof locale.getSnapshot === 'function' ? locale.getSnapshot.bind(locale) : () => undefined),
+        [locale],
+      )
+      React.useSyncExternalStore(localeSubscribe, localeGetSnapshot)
+      // The binder's getSnapshot/subscribe are prototype methods using `this`:
+      // passing them bare to useSyncExternalStore detaches the receiver and
+      // crashes with "Cannot read properties of undefined (reading 'store')".
+      // Bind them so a crash can never abdicate the card again.
+      const subscribe = useMemo(() => scope.subscribe.bind(scope), [scope])
+      const getSnapshot = useMemo(() => scope.getSnapshot.bind(scope), [scope])
+      const [drafts, setDrafts] = useState({})
+      const [saving, setSaving] = useState(false)
+      const [failed, setFailed] = useState(false)
+      const [failedFields, setFailedFields] = useState([])
+      const [open, setOpen] = useState(false)
+      const [testState, setTestState] = useState({ status: 'idle' })
+      const [updateState, setUpdateState] = useState({ status: 'idle', result: undefined })
+      const [selfUpdateState, setSelfUpdateState] = useState({ status: 'idle', result: undefined })
+      const [guideStep, setGuideStep] = useState(() => readVisionGuideStep())
+      const guideActive = guideStep !== undefined
+      const [showAdvanced, setShowAdvanced] = useState(false)
+      const [catalog, setCatalog] = useState({ status: 'idle', groups: [], error: undefined })
+      const [visionCaps, setVisionCaps] = useState({ status: 'idle', capabilities: {}, builtinFallback: [], anonymousRpmPerModel: 2, error: undefined })
+      const catalogReady = catalog.status === 'ready' && catalog.groups.length > 0
+      const visionGroups = filterVisionBackendGroups(catalog.groups, visionCaps.capabilities)
+      // Memoized: recomputing this on every render (draft keystrokes,
+      // scroll-adjacent re-renders) walks every group × model of the catalog —
+      // hundreds of entries — and regressed the settings card's smoothness.
+      const hiddenVisionBackends = useMemo(
+        () => collectFilteredVisionBackends(catalog.groups, visionCaps.capabilities),
+        [catalog.groups, visionCaps.capabilities],
+      )
+      // Hooks must live at the component top level — the editor below is a
+      // conditionally rendered plain function, so it must NOT call hooks
+      // (a changing hook count across renders crashes React and takes the
+      // whole settings card down). Derive the editor's option sets here.
+      const hiddenVisionProviders = useMemo(
+        () => [...new Set(hiddenVisionBackends.map((entry) => entry.provider))].sort(),
+        [hiddenVisionBackends],
+      )
+      const hiddenVisionModelsOf = useMemo(() => {
+        const byProvider = new Map()
+        for (const entry of hiddenVisionBackends) {
+          if (!byProvider.has(entry.provider)) byProvider.set(entry.provider, [])
+          byProvider.get(entry.provider).push(entry.model)
+        }
+        return byProvider
+      }, [hiddenVisionBackends])
+      const visionModelsFor = (providerId) => {
+        const group = visionGroups.find((entry) => entry.id === providerId)
+        return group && Array.isArray(group.models) ? group.models : []
+      }
+      const visionProviderVisible = (providerId) =>
+        typeof providerId === 'string' && visionGroups.some((entry) => entry.id === providerId)
+      const visionModelVisible = (providerId, modelId) =>
+        typeof modelId === 'string' && visionModelsFor(providerId).some((entry) => entry.id === modelId)
+      React.useEffect(() => {
+        const refreshGuide = () => setGuideStep(readVisionGuideStep())
+        window.addEventListener(VISION_GUIDE_EVENT, refreshGuide)
+        refreshGuide()
+        return () => window.removeEventListener(VISION_GUIDE_EVENT, refreshGuide)
+      }, [])
+      React.useEffect(() => {
+        if (!guideActive) return
+        if (!open) setOpen(true)
+        const timer = window.setTimeout(() => {
+          const target = document.getElementById('vr-vision-backend-chain')
+          if (!target) return
+          removeVisionGuidePrompt()
+          if (typeof target.scrollIntoView === 'function') {
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          }
+          if (typeof target.focus === 'function') target.focus({ preventScroll: true })
+        }, 220)
+        return () => window.clearTimeout(timer)
+      }, [guideActive, open, catalog.status, visionCaps.status])
+      const loadCatalog = (force = false) => {
+        if (!force && (catalog.status === 'loading' || catalog.status === 'ready')) return
+        setCatalog({ status: 'loading', groups: [], error: undefined })
+        try {
+          const connection = props.getConnection ? props.getConnection() : undefined
+          const api = connection && connection.api
+          const modelsFn = api && api.llm && typeof api.llm.models === 'function' ? api.llm.models : undefined
+          if (modelsFn === undefined) {
+            setCatalog({ status: 'error', groups: [], error: t('catalogUnavailable') })
+            return
+          }
+          const timeout = new Promise((_resolve, reject) => {
+            setTimeout(() => reject(new Error(t('catalogTimeout'))), 15000)
+          })
+          Promise.race([
+            modelsFn({}).catch((error) => {
+              throw error && error.message ? error : new Error(String(error))
+            }),
+            timeout,
+          ]).then((body) => unwrapModelsResult(body, t)).then(
+            (value) => {
+              const groups = (value && value.groups) || []
+              const failures = (value && value.failures) || []
+              if (groups.length === 0 && failures.length > 0) {
+                const detail = failures
+                  .map((f) => (f && f.name ? f.name + '：' : '') + ((f && f.message) || ''))
+                  .join('；').slice(0, 300)
+                setCatalog({ status: 'error', groups: [], error: t('catalogEmpty') + detail })
+                return
+              }
+              setCatalog({ status: 'ready', groups, error: undefined })
+            },
+            (error) => {
+              setCatalog({
+                status: 'error',
+                groups: [],
+                error: error && error.message ? error.message : String(error),
+              })
+            },
+          )
+        } catch (error) {
+          setCatalog({
+            status: 'error',
+            groups: [],
+            error: error && error.message ? error.message : String(error),
+          })
+        }
+      }
+      const loadVisionCapabilities = (force = false, silent = false) => {
+        if (!force && (visionCaps.status === 'loading' || visionCaps.status === 'ready')) return
+        // Silent refresh (after saving/resetting the extraVisionModels
+        // override) keeps the current capabilities on screen while the new
+        // snapshot is fetched — a visible loading state here blanks the
+        // dropdown and the hidden-models panel, which reads as a full page
+        // refresh and churns the scroll.
+        if (!silent) {
+          setVisionCaps({ status: 'loading', capabilities: {}, builtinFallback: [], anonymousRpmPerModel: 2, error: undefined })
+        }
+        fetch('/_dsh/vision-router/model-capabilities')
+          .then(async (response) => {
+            const body = await response.json().catch(() => undefined)
+            if (!response.ok) {
+              throw new Error(body && body.error ? body.error : `HTTP ${response.status}`)
+            }
+            return body
+          })
+          .then(
+            (body) =>
+              setVisionCaps({
+                status: 'ready',
+                capabilities: body && body.capabilities && typeof body.capabilities === 'object' ? body.capabilities : {},
+                builtinFallback: body && Array.isArray(body.builtinFallback) ? body.builtinFallback : [],
+                anonymousRpmPerModel: body && Number.isFinite(body.anonymousRpmPerModel) ? body.anonymousRpmPerModel : 2,
+                error: undefined,
+              }),
+            (error) =>
+              setVisionCaps({
+                status: 'error',
+                capabilities: {},
+                builtinFallback: [],
+                anonymousRpmPerModel: 2,
+                error: error && error.message ? error.message : String(error),
+              }),
+          )
+      }
+      const retryVisionModels = () => {
+        setCatalog({ status: 'idle', groups: [], error: undefined })
+        setVisionCaps({ status: 'idle', capabilities: {}, builtinFallback: [], anonymousRpmPerModel: 2, error: undefined })
+        loadCatalog(true)
+        loadVisionCapabilities(true)
+      }
+      let snapshot
+      let renderError
+      try {
+        snapshot = React.useSyncExternalStore(subscribe, getSnapshot)
+      } catch (error) {
+        renderError = error
+      }
+      const h = React.createElement
+      // The model catalog can carry hundreds of models per provider (e.g.
+      // openrouter), so the option vnode lists are built once per catalog /
+      // selection instead of on every render, and the per-provider model
+      // lists are cached by the models-array identity.
+      const modelOptionCache = React.useRef(new Map())
+      const modelOptionsOf = (models) => {
+        if (!Array.isArray(models) || models.length === 0) return []
+        let list = modelOptionCache.current.get(models)
+        if (list === undefined) {
+          list = models.map((model) =>
+            h('option', { value: model.id, key: model.id },
+              (model.name && model.name !== model.id ? model.name + ' (' + model.id + ')' : model.id)),
+          )
+          modelOptionCache.current.set(models, list)
+        }
+        return list
+      }
+      const groupOptions = useMemo(
+        () => catalog.groups
+          .filter((group) => group.id !== 'vision-http')
+          .map((group) => h('option', { value: group.id, key: group.id },
+            (group.name && group.name !== group.id ? group.name + ' (' + group.id + ')' : group.id))),
+        [catalog.groups],
+      )
+      const visionGroupOptions = useMemo(
+        () => filterVisionBackendGroups(catalog.groups, visionCaps.capabilities)
+          .map((group) => h('option', { value: group.id, key: group.id },
+            (group.name && group.name !== group.id ? group.name + ' (' + group.id + ')' : group.id))),
+        [catalog.groups, visionCaps.capabilities],
+      )
+      const wrapGroupOptions = useMemo(
+        () => {
+          const chainValue = readValue(snapshot, 'chainRoute')
+          const wrapperValue = readValue(snapshot, 'wrapperRoute')
+          const excluded = new Set([
+            'vision-http',
+            typeof chainValue === 'string' && chainValue !== '' ? chainValue : 'vision-chain',
+            typeof wrapperValue === 'string' && wrapperValue !== '' ? wrapperValue : 'deepseek-vision',
+          ])
+          return catalog.groups
+            .filter((group) => {
+              if (group.id === 'deepseek-official') return true
+              if (excluded.has(group.id)) return false
+              if (group.id.endsWith('-vision')) return false
+              return true
+            })
+            .map((group) => h('option', { value: group.id, key: group.id },
+              (group.name && group.name !== group.id ? group.name + ' (' + group.id + ')' : group.id)))
+        },
+        [catalog.groups, snapshot],
+      )
+      if (renderError !== undefined) {
+        return React.createElement(
+          'li',
+          { className: 'vr-card' },
+          React.createElement(
+            'div',
+            { style: { padding: '14px 16px', fontSize: 12, color: 'var(--dsw-alias-label-error)' } },
+            t('renderFailed') + (renderError && renderError.message ? renderError.message : String(renderError)),
+          ),
+        )
+      }
+      if (!snapshot || snapshot.status !== 'ready') {
+        // Match the built-in cards: render nothing while the namespace is
+        // unavailable rather than a disabled card the user cannot act on.
+        return null
+      }
+      const writable = snapshot.writable
+      const editBlocked = !writable || saving
+
+      const format = (key) => {
+        if (key in drafts) return drafts[key]
+        const value = readValue(snapshot, key)
+        if (key === 'providers') {
+          if (catalogReady) return normalizeVisionChainRows(value)
+          return providersToText(value)
+        }
+        if (key === 'textProvider') {
+          if (catalogReady) {
+            return value && typeof value === 'object' ? value : { provider: '', model: '' }
+          }
+          return textProviderToText(value)
+        }
+        if (key === 'proxyHosts') return Array.isArray(value) ? value.join('\n') : ''
+        if (key === 'extraVisionModels') {
+          if (!Array.isArray(value)) return ''
+          return value
+            .map((entry) =>
+              entry && typeof entry === 'object'
+                ? entry.provider && entry.model
+                  ? `${entry.provider}/${entry.model}`
+                  : ''
+                : String(entry ?? '').trim(),
+            )
+            .filter((entry) => entry !== '')
+            .join('\n')
+        }
+        if (key === 'wrappedProviders') {
+          if (catalogReady) {
+            // Expand the persisted { provider, models[] } entries into one
+            // editor row per selected model ('' = wrap all models).
+            const rows = []
+            for (const entry of Array.isArray(value) ? value : []) {
+              if (!entry || typeof entry.provider !== 'string' || entry.provider === '') continue
+              const models = Array.isArray(entry.models) ? entry.models : []
+              if (models.length === 0) rows.push({ provider: entry.provider, model: '' })
+              else for (const model of models) rows.push({ provider: entry.provider, model })
+            }
+            return rows
+          }
+          if (!Array.isArray(value)) return ''
+          return value
+            .map((entry) =>
+              entry && entry.provider
+                ? entry.models && entry.models.length > 0
+                  ? `${entry.provider}/${entry.models.join(',')}`
+                  : entry.provider
+                : '',
+            )
+            .join('\n')
+        }
+        if (NUMBER_KEYS.includes(key)) return typeof value === 'number' ? String(value) : ''
+        if (ALL_TOGGLE_KEYS.includes(key)) return value === true
+        return typeof value === 'string' ? value : ''
+      }
+      const parse = (key, text) => {
+        if (ALL_TOGGLE_KEYS.includes(key)) return { value: text === true }
+        if (key === 'providers') {
+          if (catalogReady) {
+            const rows = normalizeVisionChainRows(text)
+            const half = rows.some((row) => row && (row.provider ? !row.model : !!row.model))
+            if (half) return undefined
+            const filled = rows.filter((row) => row && row.provider && row.model)
+            return filled.length > 0 ? { value: filled } : { clear: true }
+          }
+          const value = parseProviders(text)
+          return value === undefined ? undefined : { value }
+        }
+        if (key === 'textProvider') {
+          if (catalogReady) {
+            const pair = text && typeof text === 'object' ? text : { provider: '', model: '' }
+            if (pair.provider && pair.model) return { value: { provider: pair.provider, model: pair.model } }
+            if (!pair.provider && !pair.model) return { clear: true }
+            return undefined
+          }
+          const value = parseTextProvider(text)
+          return value === undefined ? undefined : { value }
+        }
+        if (NUMBER_KEYS.includes(key)) return parseNumber(text, NUMBER_META[key].min)
+        if (key === 'proxyHosts') {
+          const list = String(text ?? '')
+            .split('\n')
+            .map((host) => host.trim())
+            .filter((host) => host !== '')
+          return list.length > 0 ? { value: list } : { clear: true }
+        }
+        if (key === 'extraVisionModels') {
+          // The dropdown editor drafts rows of { provider, model } objects
+          // (an incomplete row stays visible until the user picks both);
+          // string entries are the legacy/free-text shape. Both are accepted.
+          if (Array.isArray(text)) {
+            const half = text.some((row) => {
+              if (!row || typeof row !== 'object') return false
+              return row.provider ? !row.model : !!row.model
+            })
+            if (half) return undefined
+            const list = text
+              .map((row) => {
+                if (row && typeof row === 'object') {
+                  return row.provider && row.model ? `${row.provider}/${row.model}` : ''
+                }
+                return String(row ?? '').trim()
+              })
+              .filter((entry) => entry !== '')
+            return list.length > 0 ? { value: list } : { clear: true }
+          }
+          const list = String(text ?? '')
+            .split(/[\n,]+/)
+            .map((entry) => entry.trim())
+            .filter((entry) => entry !== '')
+          return list.length > 0 ? { value: list } : { clear: true }
+        }
+        if (key === 'wrappedProviders') {
+          if (catalogReady) {
+            // Merge the editor rows back into { provider, models[] }: one
+            // entry per provider; a row without a model means wrap all of the
+            // provider's models and wins over any specific selections.
+            const rows = Array.isArray(text) ? text : []
+            const merged = new Map() // provider -> null (all) | Set(model ids)
+            for (const row of rows) {
+              if (row === undefined || row === null || typeof row !== 'object') return undefined
+              const provider = typeof row.provider === 'string' ? row.provider.trim() : ''
+              const model = typeof row.model === 'string' ? row.model.trim() : ''
+              if (provider === '') {
+                // the empty template row is fine only without a model picked
+                if (model !== '') return undefined
+                continue
+              }
+              if (!merged.has(provider)) merged.set(provider, new Set())
+              const set = merged.get(provider)
+              if (set === null) continue
+              if (model === '') merged.set(provider, null)
+              else set.add(model)
+            }
+            const cleaned = [...merged.entries()].map(([provider, set]) => ({
+              provider,
+              models: set === null ? [] : [...set],
+            }))
+            return cleaned.length > 0 ? { value: cleaned } : { clear: true }
+          }
+          const list = []
+          for (const raw of String(text ?? '').split('\n')) {
+            const line = raw.trim()
+            if (line === '') continue
+            const slash = line.indexOf('/')
+            const provider = (slash === -1 ? line : line.slice(0, slash)).trim()
+            if (provider === '') return undefined
+            const models =
+              slash === -1
+                ? []
+                : line
+                    .slice(slash + 1)
+                    .split(',')
+                    .map((model) => model.trim())
+                    .filter((model) => model !== '')
+            if (slash !== -1 && models.length === 0) return undefined
+            list.push({ provider, models })
+          }
+          return list.length > 0 ? { value: list } : { clear: true }
+        }
+        const trimmed = String(text ?? '').trim()
+        return trimmed === '' ? { clear: true } : { value: trimmed }
+      }
+      const plan = Object.keys(drafts)
+        .map((key) => ({ key, run: parse(key, drafts[key]) }))
+        .filter((item) => item.run !== undefined)
+      const dirty = Object.keys(drafts).length > 0
+      const invalid = plan.length !== Object.keys(drafts).length
+      const blocked = !dirty || invalid || saving || !writable
+
+      const setDraft = (key, text) => {
+        setFailed(false)
+        setFailedFields([])
+        setDrafts((prev) => ({ ...prev, [key]: text }))
+      }
+      const clearDrafts = () => {
+        setDrafts({})
+        setFailed(false)
+        setFailedFields([])
+      }
+      const save = async () => {
+        if (blocked) return
+        // Saving ends the walkthrough: the user has reached the settings card
+        // and acted, so the guide must never nag again afterwards — even when
+        // a hidden write is rejected (dismissal stays page-authoritative).
+        finishGuide()
+        setSaving(true)
+        setFailed(false)
+        setFailedFields([])
+        try {
+          const outcome = await commitSettingsPlan(scope, plan, drafts)
+          if (outcome.landedFields.length > 0) setDrafts(outcome.nextDrafts)
+          if (outcome.failed) reportSettingsSaveFailures(outcome.failures)
+          setFailed(outcome.failed)
+          setFailedFields(outcome.failed ? [...new Set(outcome.failures.map((failure) => failure.field))] : [])
+          // The extraVisionModels override changes which models count as vision
+          // backends: refresh the capability map so the dropdown reflects the
+          // saved override immediately.
+          if (outcome.landedFields.includes('extraVisionModels')) {
+            loadVisionCapabilities(true, true)
+          }
+        } catch (error) {
+          reportSettingsSaveFailures([{
+            field: 'settings-plan',
+            operation: 'set',
+            reason: 'write-error',
+            detail: settingsSaveErrorMessage(error),
+          }])
+          setFailed(true)
+          setFailedFields(['settings-plan'])
+        } finally {
+          setSaving(false)
+        }
+      }
+      const resetField = async (key) => {
+        if (editBlocked) return
+        setFailed(false)
+        setFailedFields([])
+        setSaving(true)
+        try {
+          const outcome = await commitSettingsPlan(scope, [{ key, run: { clear: true } }], drafts)
+          if (!outcome.landed) {
+            reportSettingsSaveFailures(outcome.failures)
+            setFailed(true)
+            setFailedFields([...new Set(outcome.failures.map((failure) => failure.field))])
+            return
+          }
+          setDrafts((prev) => {
+            const next = { ...prev }
+            delete next[key]
+            return next
+          })
+          if (key === 'extraVisionModels') loadVisionCapabilities(true, true)
+        } catch (error) {
+          reportSettingsSaveFailures([{
+            field: key,
+            operation: 'unset',
+            reason: 'write-error',
+            detail: settingsSaveErrorMessage(error),
+          }])
+          setFailed(true)
+          setFailedFields([key])
+        } finally {
+          setSaving(false)
+        }
+      }
+
+      const runTestConnection = async () => {
+        if (testState.status === 'running') return
+        setTestState({ status: 'running' })
+        try {
+          const response = await fetch('/_dsh/vision-router/test-connection')
+          const result = await response.json().catch(() => undefined)
+          setTestState({ status: 'done', result })
+        } catch (error) {
+          setTestState({ status: 'done', result: { ok: false, error: error && error.message ? error.message : String(error) } })
+        }
+      }
+
+      const runUpdateCheck = async (force = false) => {
+        if (updateState.status === 'running') return
+        setUpdateState({ status: 'running', result: updateState.result })
+        try {
+          const response = await fetch(
+            '/_dsh/vision-router/update-check' + (force ? '?force=1' : ''),
+            { cache: 'no-store' },
+          )
+          const result = await response.json().catch(() => undefined)
+          if (!response.ok) {
+            throw new Error(result && result.error ? result.error : `HTTP ${response.status}`)
+          }
+          setUpdateState({ status: 'done', result })
+        } catch (error) {
+          setUpdateState({
+            status: 'done',
+            result: {
+              ok: false,
+              error: error && error.message ? error.message : String(error),
+            },
+          })
+        }
+      }
+
+      const runSelfUpdate = async () => {
+        if (selfUpdateState.status === 'running') return
+        const checked = updateState.result
+        const auto = checked && checked.autoUpdate
+        if (!checked || checked.ok !== true || checked.updateAvailable !== true || !auto || !auto.token) return
+        if (typeof window.confirm === 'function' && !window.confirm(t('updateConfirm'))) return
+        setSelfUpdateState({ status: 'running', result: undefined })
+        try {
+          const response = await fetch('/_dsh/vision-router/self-update', {
+            method: 'POST',
+            cache: 'no-store',
+            headers: { 'x-dsh-vision-router-update-token': auto.token },
+          })
+          const result = await response.json().catch(() => undefined)
+          if (!response.ok) {
+            throw new Error(result && result.error ? result.error : `HTTP ${response.status}`)
+          }
+          setSelfUpdateState({ status: 'done', result })
+        } catch (error) {
+          setSelfUpdateState({
+            status: 'error',
+            result: { ok: false, error: error && error.message ? error.message : String(error) },
+          })
+        }
+      }
+
+      const overriddenBadge = (key) =>
+        userHas(snapshot, key)
+          ? h('span', { className: 'vr-badges' },
+              h('span', { className: 'vr-badge' }, t('overridden')),
+              h('button', {
+                type: 'button', className: 'vr-reset', disabled: editBlocked,
+                onClick: () => resetField(key),
+              }, t('reset')))
+          : null
+      const toggleField = (key) =>
+        h('div', { className: 'vr-field', key },
+          h('div', { className: 'vr-field-head' },
+            h('div', { className: 'vr-toggle' },
+              h('span', { className: 'vr-label' }, t(LABEL_KEY[key])),
+              h('input', {
+                type: 'checkbox', className: 'vr-check', checked: format(key),
+                disabled: editBlocked,
+                onChange: (event) => setDraft(key, event.target.checked),
+              }),
+            ),
+            overriddenBadge(key),
+          ),
+          HINT_KEY[key]
+            ? h('p', { className: 'vr-hint' }, t(HINT_KEY[key]))
+            : null,
+        )
+      const textField = (key, label, hint, multi) => {
+        const invalidField = key in drafts && parse(key, drafts[key]) === undefined
+        return h('div', { className: 'vr-field', key },
+          h('div', { className: 'vr-field-head' },
+            h('label', { className: 'vr-label' }, label),
+            overriddenBadge(key),
+          ),
+          h(multi ? 'textarea' : 'input', {
+            className: 'vr-input' + (multi ? ' vr-area' : '') + (invalidField ? ' vr-input-invalid' : ''),
+            value: format(key), disabled: editBlocked,
+            placeholder: '',
+            onChange: (event) => setDraft(key, event.target.value),
+          }),
+          invalidField
+            ? h('p', { className: 'vr-invalid' },
+                key === 'providers'
+                  ? t('invalidProviders')
+                  : key === 'textProvider'
+                    ? t('invalidTextProvider')
+                    : key === 'timeoutMs'
+                      ? t('invalidTimeout')
+                      : t('invalidGeneric'))
+            : hint
+              ? h('p', { className: 'vr-hint' }, hint)
+              : null,
+        )
+      }
+
+      const modelsOf = (providerId) => {
+        const group = catalog.groups.find((entry) => entry.id === providerId)
+        return group && Array.isArray(group.models) ? group.models : []
+      }
+      const finishGuide = () => {
+        finishVisionSettingsGuide()
+        setGuideStep(undefined)
+      }
+      const guideCallout = () =>
+        guideStep === 'step2'
+          ? h('div', { className: 'vr-guide-callout' },
+              h('div', { className: 'vr-guide-callout-title' }, t('guideChainTitle')),
+              h('p', { className: 'vr-guide-callout-body' }, t('guideChainBody')),
+              h('button', { type: 'button', className: 'vr-btn vr-btn-save', onClick: finishGuide }, t('guideDone')),
+            )
+          : null
+      const chainEditor = () => {
+        const value = format('providers')
+        const rows = Array.isArray(value) && value.length > 0 ? value : [{ provider: '', model: '' }]
+        const invalidRows = catalogReady
+          ? rows.filter((row) => row && row.provider && row.model && !visionModelVisible(row.provider, row.model))
+          : []
+        const advisoryRows = rows
+          .filter((row) => row && row.provider && row.model && visionModelVisible(row.provider, row.model))
+          .map((row) => {
+            const capability =
+              visionCaps.capabilities && visionCaps.capabilities[row.provider]
+                ? visionCaps.capabilities[row.provider][row.model]
+                : undefined
+            const warningKey = visionCapabilityWarningKey(capability, visionCaps.status)
+            return warningKey ? { ...row, warningKey } : undefined
+          })
+          .filter(Boolean)
+        const updateChain = (index, next) => {
+          const list = rows.map((row) => ({ ...row }))
+          list[index] = next
+          setDraft('providers', list)
+        }
+        const removeChain = (index) => {
+          const list = rows.filter((_row, i) => i !== index)
+          setDraft('providers', list.length > 0 ? list : [{ provider: '', model: '' }])
+        }
+        return h('div', {
+          className: 'vr-field' + (guideStep === 'step2' ? ' vr-guide-target' : ''),
+          id: 'vr-vision-backend-chain',
+          'data-vr-guide-target': 'vision-backend',
+          tabIndex: guideStep === 'step2' ? -1 : undefined,
+        },
+          guideCallout(),
+          h('div', { className: 'vr-field-head' },
+            h('label', { className: 'vr-label' }, t('chainLabel')),
+            overriddenBadge('providers'),
+          ),
+          rows.map((row, index) =>
+            h('div', { className: 'vr-chain-row', key: index },
+              h('select', {
+                className: 'vr-input vr-select', value: visionProviderVisible(row.provider) ? row.provider : '', disabled: editBlocked,
+                onChange: (event) => updateChain(index, { provider: event.target.value, model: '' }),
+              },
+                h('option', { value: '' }, t('selectProvider')),
+                visionGroupOptions,
+              ),
+              h('select', {
+                className: 'vr-input vr-select', value: visionModelVisible(row.provider, row.model) ? row.model : '',
+                disabled: editBlocked || !visionProviderVisible(row.provider),
+                onChange: (event) => {
+                  updateChain(index, { provider: row.provider, model: event.target.value })
+                  // Picking a real vision model is an active backend choice:
+                  // the walkthrough has done its job, so end it right away
+                  // instead of waiting for the in-card button. Picking only a
+                  // provider (model still empty) does not finish it.
+                  if (row.provider && event.target.value) finishGuide()
+                },
+              },
+                h('option', { value: '' }, visionProviderVisible(row.provider) ? t('selectModel') : t('pickProviderFirst')),
+                modelOptionsOf(visionModelsFor(row.provider)),
+              ),
+              h('button', {
+                type: 'button', className: 'vr-reset', disabled: editBlocked, title: t('removeTitle'),
+                onClick: () => removeChain(index),
+              }, t('remove')),
+            ),
+          ),
+          advisoryRows.map((row) =>
+            h('p', { className: 'vr-hint vr-stealth-notice', key: `cap-${row.provider}/${row.model}` },
+              `${row.provider}/${row.model} — ${t(row.warningKey)}`,
+            ),
+          ),
+          invalidRows.length > 0
+            ? h('p', { className: 'vr-invalid' },
+                t('chainInvalidCurrent') + ' ' + invalidRows.map((row) => row.provider + '/' + row.model).join('、'))
+            : null,
+          h('button', {
+            type: 'button', className: 'vr-btn', disabled: editBlocked,
+            onClick: () => setDraft('providers', [...rows, { provider: '', model: '' }]),
+          }, t('addFallback')),
+          h('p', { className: 'vr-hint' }, t('chainHint')),
+        )
+      }
+      const emptyVisionModelsPanel = () => {
+        if (!(catalogReady && visionCaps.status === 'ready' && visionGroups.length === 0 && hiddenVisionBackends.length > 0)) {
+          return null
+        }
+        const preview = hiddenVisionBackends.slice(0, 8)
+        const remaining = hiddenVisionBackends.length - preview.length
+        const hasMissingDeclaration = hiddenVisionBackends.some((entry) => entry.missingImageDeclaration)
+        return h('div', { className: 'vr-vision-empty' },
+          h('p', { className: 'vr-vision-empty-title' }, t('visionCapsEmptyTitle')),
+          h('p', { className: 'vr-hint' }, t('visionCapsEmptyBody', { count: hiddenVisionBackends.length })),
+          h('p', { className: 'vr-hint' }, t('visionCapsHiddenPrefix')),
+          h('ul', { className: 'vr-vision-empty-list' },
+            preview.map((entry) =>
+              h('li', { key: entry.provider + '/' + entry.model },
+                entry.provider + '/' + entry.model + ' — ' +
+                  t(entry.missingImageDeclaration ? 'visionCapsReasonMissingImage' : 'visionCapsReasonUnverified')),
+            ),
+            remaining > 0 ? h('li', { key: 'more' }, t('visionCapsHiddenMore', { count: remaining })) : null,
+          ),
+          hasMissingDeclaration
+            ? h('p', { className: 'vr-hint vr-stealth-notice' }, t('visionCapsMissingImageHint'))
+            : null,
+          h('div', { className: 'vr-vision-empty-actions' },
+            h('button', {
+              type: 'button', className: 'vr-btn',
+              disabled: catalog.status === 'loading' || visionCaps.status === 'loading',
+              onClick: retryVisionModels,
+            }, t('visionCapsRetry')),
+          ),
+        )
+      }
+      const extraVisionModelsEditor = () => {
+        const raw = 'extraVisionModels' in drafts
+          ? drafts['extraVisionModels']
+          : readValue(snapshot, 'extraVisionModels')
+        // Rows persist as { provider, model } objects while editing — an
+        // incomplete row (provider picked, model pending) stays visible
+        // instead of collapsing, which is what made the provider dropdown
+        // feel unselectable before. Like the vision backend chain above, an
+        // empty configuration still renders one blank row ready to fill.
+        const rows = (Array.isArray(raw) && raw.length > 0 ? raw : [{ provider: '', model: '' }]).map(
+          (entry) => {
+            if (entry && typeof entry === 'object') {
+              return {
+                provider: String(entry.provider ?? '').trim(),
+                model: String(entry.model ?? '').trim(),
+              }
+            }
+            const text = String(entry ?? '').trim()
+            const slash = text.indexOf('/')
+            return slash === -1
+              ? { provider: '', model: text }
+              : { provider: text.slice(0, slash), model: text.slice(slash + 1) }
+          },
+        )
+        // Same two-select row shape as the vision backend chain above: a
+        // provider dropdown (providers that have excluded models) and a model
+        // dropdown (that provider's excluded models). A row the user already
+        // selected elsewhere stays disabled in the other rows. Option sets
+        // come from the memoized top-level hooks (this function is plain
+        // render code and must stay hook-free).
+        const hiddenProviders = hiddenVisionProviders
+        const hiddenModelsOf = hiddenVisionModelsOf
+        const used = new Set(
+          rows
+            .filter((row) => row.provider !== '' && row.model !== '')
+            .map((row) => `${row.provider}/${row.model}`),
+        )
+        // Never merge the empty current value into the option list: that
+        // produced a duplicate blank option right below the placeholder.
+        const providerOptions = (current) => {
+          const options =
+            current !== '' && !hiddenProviders.includes(current)
+              ? [...hiddenProviders, current].sort()
+              : hiddenProviders
+          return options.map((provider) => h('option', { value: provider, key: provider }, provider))
+        }
+        const modelOptions = (row) => {
+          const listed = hiddenModelsOf.get(row.provider) ?? []
+          const options =
+            row.model !== '' && !listed.includes(row.model)
+              ? [...listed, row.model].sort()
+              : listed
+          return options.map((model) => {
+            const key = `${row.provider}/${model}`
+            return h('option', {
+              value: model,
+              key,
+              disabled: key !== `${row.provider}/${row.model}` && used.has(key),
+            }, model)
+          })
+        }
+        const update = (index, next) => {
+          const list = rows.map((row, i) => (i === index ? next : row))
+          setDraft('extraVisionModels', list)
+        }
+        const removeRow = (index) => {
+          const list = rows.filter((_row, i) => i !== index)
+          setDraft('extraVisionModels', list)
+        }
+        // A half-filled row (provider picked, model pending) keeps the field
+        // invalid — same rule as the vision backend chain above.
+        const hasHalfRow = rows.some((row) => (row.provider ? !row.model : !!row.model))
+        return h('div', { className: 'vr-field' },
+          h('div', { className: 'vr-field-head' },
+            h('label', { className: 'vr-label' }, t('extraVisionModelsLabel')),
+            overriddenBadge('extraVisionModels'),
+          ),
+          rows.map((row, index) =>
+            h('div', { className: 'vr-chain-row', key: index },
+              h('select', {
+                className: 'vr-input vr-select',
+                value: row.provider,
+                disabled: editBlocked,
+                onChange: (event) => update(index, { provider: event.target.value, model: '' }),
+              },
+                h('option', { value: '' }, t('selectProvider')),
+                providerOptions(row.provider),
+              ),
+              h('select', {
+                className: 'vr-input vr-select',
+                value: row.model,
+                disabled: editBlocked || row.provider === '',
+                onChange: (event) => update(index, { provider: row.provider, model: event.target.value }),
+              },
+                h('option', { value: '' }, row.provider === '' ? t('pickProviderFirst') : t('selectModel')),
+                modelOptions(row),
+              ),
+              h('button', {
+                type: 'button', className: 'vr-reset', disabled: editBlocked, title: t('removeTitle'),
+                onClick: () => removeRow(index),
+              }, t('remove')),
+            ),
+          ),
+          h('button', {
+            type: 'button', className: 'vr-btn', disabled: editBlocked || hiddenProviders.length === 0,
+            onClick: () => setDraft('extraVisionModels', [...rows, { provider: '', model: '' }]),
+          }, t('addFallback')),
+          hasHalfRow
+            ? h('p', { className: 'vr-invalid' }, t('invalidGeneric'))
+            : h('p', { className: 'vr-hint' }, t('extraVisionModelsHint')),
+        )
+      }
+      const builtinFallbackPanel = () => {
+        const list = Array.isArray(visionCaps.builtinFallback) ? visionCaps.builtinFallback : []
+        const enabled = format('freeFallback') !== false
+        const primary = list[0] && list[0].model ? list[0].model : 'Qwen3.5-397B-A17B'
+        const count = list.length > 0 ? list.length : 5
+        return h('div', { className: 'vr-field' },
+          h('div', { className: 'vr-field-head' },
+            h('span', { className: 'vr-label' }, t('builtinFallbackLabel')),
+            h('span', { className: 'vr-badge' }, enabled ? t('builtinFallbackEnabled') : t('builtinFallbackDisabled')),
+          ),
+          h('p', { className: 'vr-hint' }, t('builtinFallbackBody', { count, primary })),
+        )
+      }
+      const textProviderEditor = () => {
+        const value = format('textProvider')
+        const pair = value && typeof value === 'object' ? value : { provider: '', model: '' }
+        const setPair = (next) => setDraft('textProvider', next)
+        return h('div', { className: 'vr-field' },
+          h('div', { className: 'vr-field-head' },
+            h('label', { className: 'vr-label' }, t('textModelLabel')),
+            overriddenBadge('textProvider'),
+          ),
+          h('div', { className: 'vr-chain-row' },
+            h('select', {
+              className: 'vr-input vr-select', value: pair.provider ?? '', disabled: editBlocked,
+              onChange: (event) => setPair({ provider: event.target.value, model: '' }),
+            },
+              h('option', { value: '' }, t('selectProvider')),
+              groupOptions,
+            ),
+            h('select', {
+              className: 'vr-input vr-select', value: pair.model ?? '',
+              disabled: editBlocked || !pair.provider,
+              onChange: (event) => setPair({ provider: pair.provider, model: event.target.value }),
+            },
+              h('option', { value: '' }, pair.provider ? t('selectModel') : t('pickProviderFirst')),
+              modelOptionsOf(modelsOf(pair.provider)),
+            ),
+          ),
+          h('p', { className: 'vr-hint' }, t('textModelHint')),
+        )
+      }
+      const wrappersEditor = () => {
+        const value = format('wrappedProviders')
+        const rows = Array.isArray(value) && value.length > 0 ? value : [{ provider: '', model: '' }]
+        const updateWrap = (index, next) => {
+          const list = rows.map((row) => ({ ...row }))
+          list[index] = next
+          setDraft('wrappedProviders', list)
+        }
+        const removeWrap = (index) => {
+          const list = rows.filter((_row, i) => i !== index)
+          setDraft('wrappedProviders', list.length > 0 ? list : [{ provider: '', model: '' }])
+        }
+        return h('div', { className: 'vr-field' },
+          h('div', { className: 'vr-field-head' },
+            h('label', { className: 'vr-label' }, t('textWrappedProviders')),
+            overriddenBadge('wrappedProviders'),
+          ),
+          rows.map((row, index) =>
+            h('div', { className: 'vr-chain-row', key: index },
+              h('select', {
+                className: 'vr-input vr-select', value: row.provider ?? '', disabled: editBlocked,
+                onChange: (event) => updateWrap(index, { provider: event.target.value, model: '' }),
+              },
+                h('option', { value: '' }, t('selectProvider')),
+                wrapGroupOptions,
+              ),
+              h('select', {
+                className: 'vr-input vr-select', value: row.model ?? '',
+                disabled: editBlocked || !row.provider,
+                onChange: (event) => updateWrap(index, { provider: row.provider, model: event.target.value }),
+              },
+                h('option', { value: '' }, row.provider ? t('wrapAllModels') : t('pickProviderFirst')),
+                modelOptionsOf(modelsOf(row.provider)),
+              ),
+              h('button', {
+                type: 'button', className: 'vr-reset', disabled: editBlocked, title: t('removeTitle'),
+                onClick: () => removeWrap(index),
+              }, t('remove')),
+            ),
+          ),
+          h('button', {
+            type: 'button', className: 'vr-btn', disabled: editBlocked,
+            onClick: () => setDraft('wrappedProviders', [...rows, { provider: '', model: '' }]),
+          }, t('addWrapper')),
+          h('p', { className: 'vr-hint' }, t('wrapHint')),
+        )
+      }
+
+      // Render-phase kick: whenever the body is open and the catalog was never
+      // fetched (including after a remount that reset the state), start the
+      // fetch. React supports setState during render for the same component,
+      // and the status flips to 'loading' so this cannot loop. The same kick
+      // runs the cheap test-connection probe once so the stealth keep-alive
+      // notice (official row disabled) can render without a button click.
+      if (open && catalog.status === 'idle') {
+        loadCatalog()
+      }
+      if (open && visionCaps.status === 'idle') {
+        loadVisionCapabilities()
+      }
+      if (open && testState.status === 'idle') {
+        runTestConnection()
+      }
+      if (open && updateState.status === 'idle') {
+        runUpdateCheck(false)
+      }
+
+      const updatePanel = () => {
+        const result = updateState.result
+        const auto = result && result.autoUpdate
+        const profile = auto && typeof auto.profile === 'string' && auto.profile ? auto.profile : 'web'
+        const projectUrl = 'https://github.com/ysr666/dsh-vision-router'
+        const releasesUrl =
+          result && typeof result.releasesUrl === 'string' && result.releasesUrl
+            ? result.releasesUrl
+            : projectUrl + '/releases/latest'
+        // When a newer version is known, the manual commands install it
+        // explicitly: plain `update` can be silently withheld by pnpm 11's
+        // minimumReleaseAge policy while still reporting success.
+        const manualAction =
+          result && typeof result.latestVersion === 'string' && result.latestVersion
+            ? 'add dsh-vision-router@' + result.latestVersion
+            : 'update dsh-vision-router'
+        const pnpmCommand = 'pnpm dsh plugin --profile ' + profile + ' ' + manualAction
+        const npxCommand = 'npx @deepseek-ai/dsh plugin --profile ' + profile + ' ' + manualAction
+        let status
+        let failedUpdate = false
+        if (updateState.status === 'running') {
+          status = t('updateChecking')
+        } else if (result && result.ok === true) {
+          if (result.updateAvailable === true) {
+            status = t('updateAvailable', { current: result.currentVersion, latest: result.latestVersion })
+          } else if (result.aheadOfRegistry === true) {
+            status = t('updateAhead', { current: result.currentVersion, latest: result.latestVersion })
+          } else {
+            status = t('updateCurrent', { current: result.currentVersion })
+          }
+        } else if (updateState.status === 'done') {
+          failedUpdate = true
+          status = t('updateFailed', { error: result && result.error ? result.error : 'unknown' })
+        }
+        let selfUpdateStatus
+        let selfUpdateFailed = false
+        if (selfUpdateState.status === 'running') {
+          selfUpdateStatus = t('updateRunning')
+        } else if (selfUpdateState.status === 'done' && selfUpdateState.result && selfUpdateState.result.ok === true) {
+          const updateResult = selfUpdateState.result
+          const latest = updateResult.targetVersion || (result && result.latestVersion) || ''
+          if (updateResult.installedVersion) {
+            selfUpdateStatus = t('updateSuccessVerified', {
+              latest,
+              installed: updateResult.installedVersion,
+            })
+          } else {
+            selfUpdateStatus = t('updateSuccess', { latest })
+          }
+        } else if (selfUpdateState.status === 'error') {
+          selfUpdateFailed = true
+          selfUpdateStatus = t('updateActionFailed', {
+            error: selfUpdateState.result && selfUpdateState.result.error ? selfUpdateState.result.error : 'unknown',
+          })
+        }
+        const showManualHelp =
+          failedUpdate ||
+          selfUpdateState.status === 'error' ||
+          (result && result.ok === true && result.updateAvailable === true && (!auto || auto.supported !== true))
+        const commandBlock = (label, command) =>
+          h('div', { className: 'vr-update-command' },
+            h('div', { className: 'vr-update-command-label' }, label),
+            h('code', { className: 'vr-update-code' }, command),
+          )
+        const manualHelp = showManualHelp
+          ? h('div', { className: 'vr-update-manual' },
+              h('div', { className: 'vr-update-manual-title' }, t('updateManualTitle')),
+              auto && auto.reason === 'source-cli-needs-loader'
+                ? commandBlock(t('updateManualSource'), pnpmCommand)
+                : null,
+              commandBlock(t('updateManualNpx'), npxCommand),
+              h('p', { className: 'vr-update-note' }, t('updateManualAgeHint')),
+              h('div', { className: 'vr-update-actions' },
+                h('button', {
+                  type: 'button', className: 'vr-btn',
+                  onClick: () => window.open(projectUrl, '_blank', 'noopener,noreferrer'),
+                }, t('updateProject')),
+                h('button', {
+                  type: 'button', className: 'vr-btn',
+                  onClick: () => window.open(releasesUrl, '_blank', 'noopener,noreferrer'),
+                }, t('updateReleases')),
+              ),
+            )
+          : null
+        return h('div', { className: 'vr-field' },
+          h('div', { className: 'vr-field-head' },
+            h('span', { className: 'vr-label' }, t('updateTitle')),
+            h('button', {
+              type: 'button', className: 'vr-btn',
+              disabled: updateState.status === 'running' || selfUpdateState.status === 'running',
+              onClick: () => runUpdateCheck(true),
+            }, updateState.status === 'running' ? t('updateChecking') : t('checkUpdate')),
+          ),
+          status ? h('p', { className: failedUpdate ? 'vr-failed' : 'vr-hint' }, status) : null,
+          result && result.ok === true && result.registryFallbackFrom
+            ? h('p', { className: 'vr-hint' }, t('updateRegistryFallback'))
+            : null,
+          result && result.ok === true && result.updateAvailable === true
+            ? h('div', { className: 'vr-catalog-error' },
+                h('p', { className: 'vr-hint' }, auto && auto.supported === true ? t('updateInstallHint') : t('updateAutoUnavailable')),
+                auto && auto.supported === true && auto.token
+                  ? h('button', {
+                      type: 'button', className: 'vr-btn vr-btn-save',
+                      disabled: selfUpdateState.status === 'running',
+                      onClick: runSelfUpdate,
+                    }, selfUpdateState.status === 'running'
+                      ? t('updateRunning')
+                      : t('updateNow', { latest: result.latestVersion }))
+                  : null,
+                releasesUrl
+                  ? h('button', {
+                      type: 'button', className: 'vr-btn',
+                      disabled: selfUpdateState.status === 'running',
+                      onClick: () => window.open(releasesUrl, '_blank', 'noopener,noreferrer'),
+                    }, t('updateReleaseNotes'))
+                  : null,
+                selfUpdateStatus
+                  ? h('p', { className: selfUpdateFailed ? 'vr-failed' : 'vr-hint' }, selfUpdateStatus)
+                  : null,
+              )
+            : selfUpdateStatus
+              ? h('p', { className: selfUpdateFailed ? 'vr-failed' : 'vr-hint' }, selfUpdateStatus)
+              : null,
+          manualHelp,
+        )
+      }
+
+      const stealthNotice = () => {
+        if (testState.status !== 'done') return null
+        const state = testState.result && testState.result.stealth
+        if (!state || state.active !== true || state.reason !== 'official-unavailable') return null
+        return h('p', { className: 'vr-hint vr-stealth-notice' }, t('stealthOfficialDeadHint'))
+      }
+
+      return h('li', { className: 'vr-card' + (open ? ' vr-card-open' : '') },
+        h('button', {
+          type: 'button', className: 'vr-header', 'aria-expanded': open,
+          onClick: () => {
+            if (!open) {
+              loadCatalog()
+              loadVisionCapabilities()
+              runUpdateCheck(false)
+            }
+            setOpen(!open)
+          },
+        },
+          h('span', { className: 'vr-headText' },
+            h('span', { className: 'vr-name' }, t('nav')),
+            h('span', { className: 'vr-desc' }, t('desc')),
+          ),
+          dirty ? h('span', { className: 'vr-pending' }, t('pending')) : null,
+          h('span', { className: 'vr-chevron' + (open ? ' vr-chevron-open' : '') }, '▾'),
+        ),
+        open
+          ? h('div', { className: 'vr-body' },
+              !writable ? h('p', { className: 'vr-readOnly' }, t('readOnly')) : null,
+              h('div', { className: 'vr-quickstart' },
+                h('div', { className: 'vr-quickstart-title' }, t('quickStartTitle')),
+                h('p', { className: 'vr-quickstart-body' }, t('quickStartBody')),
+                h('p', { className: 'vr-quickstart-live' }, t('quickStartLive')),
+                h('div', { className: 'vr-quickstart-actions' },
+                  h('button', {
+                    type: 'button', className: 'vr-btn',
+                    // Re-viewing the guide replays it from the beginning:
+                    // leave the settings modal first (its panel closes on
+                    // Escape), show the overview (steps 1-3), and then walk
+                    // through step 1 on the chat page — starting in place
+                    // would skip the session/text-model step entirely.
+                    onClick: () => {
+                      closeSettingsShell()
+                      showOnboarding(t)
+                    },
+                  }, t('quickStartGuide')),
+                ),
+              ),
+              updatePanel(),
+              TOGGLE_KEYS.map((key) => toggleField(key)),
+              stealthNotice(),
+              h('div', { className: 'vr-group' },
+                h('p', { className: 'vr-group-title' }, t('groupWrappers')),
+                catalogReady
+                  ? wrappersEditor()
+                  : textField('wrappedProviders', t('textWrappedProviders'), t('textHintWrappedProviders'), true),
+              ),
+              h('p', { className: 'vr-hint' }, t('defaultChainNote')),
+              visionCaps.status === 'loading'
+                ? h('p', { className: 'vr-hint' }, t('visionCapsLoading'))
+                : visionCaps.status === 'error'
+                  ? h('p', { className: 'vr-hint vr-stealth-notice' }, t('visionCapsError'))
+                  : visionCaps.status === 'ready'
+                    ? h('p', { className: 'vr-hint' }, t('visionCapsFiltered'))
+                    : null,
+              catalogReady
+                ? chainEditor()
+                : h('div', {
+                    className: guideStep === 'step2' ? 'vr-guide-target' : '',
+                    id: 'vr-vision-backend-chain',
+                    'data-vr-guide-target': 'vision-backend',
+                    tabIndex: guideStep === 'step2' ? -1 : undefined,
+                  },
+                    guideCallout(),
+                    textField('providers', t('textProviders'), t('textProvidersHint'), true),
+                  ),
+              builtinFallbackPanel(),
+              catalog.status === 'loading'
+                ? h('p', { className: 'vr-hint' }, t('catalogLoading'))
+                : catalog.status === 'error'
+                  ? h('div', { className: 'vr-catalog-error' },
+                      h('p', { className: 'vr-hint' }, t('catalogError') + catalog.error + t('catalogFallback')),
+                      h('button', {
+                        type: 'button', className: 'vr-btn',
+                        onClick: () => {
+                          setCatalog({ status: 'idle', groups: [], error: undefined })
+                          loadCatalog()
+                        },
+                      }, t('retryCatalog')),
+                    )
+                  : null,
+              h('button', {
+                type: 'button', className: 'vr-subheader', 'aria-expanded': showAdvanced,
+                onClick: () => setShowAdvanced(!showAdvanced),
+              },
+                h('span', { className: 'vr-label' }, t('advanced')),
+                h('span', { className: 'vr-chevron' + (showAdvanced ? ' vr-chevron-open' : '') }, '▾'),
+              ),
+              showAdvanced
+                ? h('div', { className: 'vr-advanced' },
+                    h('div', { className: 'vr-group' },
+                      h('p', { className: 'vr-group-title' }, t('groupTextModel')),
+                      catalogReady
+                        ? textProviderEditor()
+                        : textField('textProvider', t('textTextProvider'), t('textTextProviderHint'), false),
+                      h('p', { className: 'vr-hint' }, t('textModelGroupHint')),
+                    ),
+                    h('div', { className: 'vr-group' },
+                      h('p', { className: 'vr-group-title' }, t('groupBehavior')),
+                      ADVANCED_TOGGLE_KEYS.map((key) => toggleField(key)),
+                    ),
+                    h('div', { className: 'vr-group' },
+                      h('p', { className: 'vr-group-title' }, t('groupParams')),
+                      NUMBER_KEYS.map((key) => textField(key, t(LABEL_KEY[key]), t(HINT_KEY[key]), false)),
+                    ),
+                    h('div', { className: 'vr-group' },
+                      h('p', { className: 'vr-group-title' }, t('groupVisionOverrides')),
+                      catalogReady && hiddenVisionBackends.length > 0
+                        ? extraVisionModelsEditor()
+                        : textField('extraVisionModels', t('extraVisionModelsLabel'), t('extraVisionModelsHint'), true),
+                    ),
+                    h('div', { className: 'vr-group' },
+                      h('p', { className: 'vr-group-title' }, t('groupRoutes')),
+                      TEXT_KEYS.map((key) => textField(key, t(LABEL_KEY[key]), t(HINT_KEY[key]), false)),
+                    ),
+                    h('div', { className: 'vr-group' },
+                      h('p', { className: 'vr-group-title' }, t('groupProxy')),
+                      textField('proxy', t('proxyLabel'), t('proxyHint'), false),
+                      textField('proxyHosts', t('proxyHostsLabel'), t('proxyHostsHint'), true),
+                    ),
+                  )
+                : null,
+              h('div', { className: 'vr-footer' },
+                testState.status !== 'idle'
+                  ? h('p', {
+                      className: testState.result && testState.result.ok ? 'vr-hint' : 'vr-failed',
+                      style: { margin: 0 },
+                    },
+                      testState.status === 'running'
+                        ? t('testConnecting')
+                        : testState.result && testState.result.ok
+                          ? `${t('testOk')}（${typeof testState.result.latencyMs === 'number' ? testState.result.latencyMs + 'ms' : 'ok'}）`
+                          : `${t('testFailed')}：${testState.result && testState.result.error ? testState.result.error : 'unknown'}`)
+                  : null,
+                h('button', {
+                  type: 'button', className: 'vr-btn',
+                  onClick: async () => {
+                    try {
+                      const response = await fetch('/_dsh/vision-router/logs', {
+                        method: 'POST',
+                        cache: 'no-store',
+                      })
+                      const result = await response.json().catch(() => undefined)
+                      if (!response.ok || !result || result.ok !== true) {
+                        throw new Error(result && result.error ? result.error : `HTTP ${response.status}`)
+                      }
+                    } catch (error) {
+                      if (typeof window.alert === 'function') {
+                        window.alert(
+                          t('openLogFolderFailed') + '：' +
+                            (error && error.message ? error.message : String(error)),
+                        )
+                      }
+                    }
+                  },
+                }, t('openLogFolder')),
+                h('button', {
+                  type: 'button', className: 'vr-btn', disabled: testState.status === 'running',
+                  onClick: runTestConnection,
+                }, t('testConnection')),
+                failed ? h('p', { className: 'vr-failed', role: 'alert' },
+                  t('saveFailed') + (failedFields.length > 0 ? `（${failedFields.join('、')}）` : '')) : null,
+                h('button', {
+                  type: 'button', className: 'vr-btn', disabled: !dirty || saving,
+                  onClick: clearDrafts,
+                }, t('discard')),
+                h('button', {
+                  type: 'button', className: 'vr-btn vr-btn-save', disabled: blocked,
+                  onClick: save,
+                }, saving ? t('saving') : t('save')),
+              ),
+            )
+          : null,
+      )
+    }
+
+    // Skip re-renders when the app re-renders the settings panel for unrelated
+    // reasons (tab switches, other cards' stores): the card's props come from
+    // a stable inject object, so a shallow memo keeps the heavy field/select
+    // DOM untouched until its own state or the settings scope changes.
+    const VisionRouterCardMemoized =
+      typeof React.memo === 'function' ? React.memo(VisionRouterCard) : VisionRouterCard
+
+    const ARTIFACT_TOOL_KEYS = [
+      'vision_crop',
+      'vision_pixel_diff',
+      'vision_trace',
+      'vision_extract_foreground',
+      'vision_html_screenshot',
+      'vision_long_screenshot_ocr',
+      'vision_ground',
+    ]
+    const ARTIFACT_PATH_KEYS = ['path', 'annotatedPath', 'markdownPath', 'manifestPath', 'heatmapPath', 'reportPath']
+
+    function textOf(block) {
+      if (!block) return undefined
+      if (typeof block === 'string') return block
+      if (typeof block.text === 'string') return block.text
+      if (Array.isArray(block.content)) {
+        return block.content.map((child) => textOf(child)).filter((part) => part !== undefined).join('\n')
+      }
+      if (block.result !== undefined && block.result !== null) return textOf(block.result)
+      return undefined
+    }
+
+    function ArtifactCard(props) {
+      const { toolName, block, openFile } = props
+      const raw = textOf(block)
+      let parsed
+      if (raw !== undefined && raw !== '') {
+        try {
+          parsed = JSON.parse(raw)
+        } catch {
+          parsed = undefined
+        }
+      }
+      const paths =
+        parsed && typeof parsed === 'object'
+          ? ARTIFACT_PATH_KEYS.filter((key) => typeof parsed[key] === 'string' && parsed[key] !== '')
+          : []
+      const facts =
+        parsed && typeof parsed === 'object'
+          ? Object.entries(parsed)
+              .filter(([key]) => !ARTIFACT_PATH_KEYS.includes(key) && key !== 'text')
+              .slice(0, 6)
+          : []
+      if (paths.length === 0 && facts.length === 0) {
+        return React.createElement(
+          'div',
+          { style: { fontSize: 12, fontFamily: 'monospace', whiteSpace: 'pre-wrap', padding: '4px 0' } },
+          raw ?? '',
+        )
+      }
+      return React.createElement(
+        'div',
+        { style: { display: 'flex', flexDirection: 'column', gap: 6, padding: '4px 0' } },
+        facts.map(([key, value]) =>
+          React.createElement(
+            'div',
+            { key, style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary)', display: 'flex', gap: 8 } },
+            React.createElement('span', { style: { minWidth: 90, color: 'var(--dsw-alias-label-tertiary)' } }, key),
+            React.createElement('span', { style: { fontFamily: 'monospace' } }, typeof value === 'object' ? JSON.stringify(value) : String(value)),
+          ),
+        ),
+        paths.map((key) =>
+          React.createElement(
+            'button',
+            {
+              key,
+              type: 'button',
+              onClick: () => (typeof openFile === 'function' ? openFile(parsed[key]) : undefined),
+              style: {
+                alignSelf: 'flex-start',
+                font: 'inherit',
+                fontSize: 12,
+                cursor: 'pointer',
+                color: 'var(--dsw-alias-brand-primary, #4c8bf5)',
+                background: 'none',
+                border: 'none',
+                padding: 0,
+              },
+            },
+            `打开 ${key}: ${parsed[key]}`,
+          ),
+        ),
+      )
+    }
+
+    function apply(ctx) {
+      const scope = ctx.settingsScope.bind({ namespace: 'vision-router' })
+      // issue #78: route the onboarding/guide durability through the settings
+      // section (profile settings file) so it survives DSH Desktop's random
+      // per-launch port. Installed before the effects below run.
+      installSettingsPersistence(scope)
+      const presentedImageUrls = new Map()
+      const createdImageUrls = new Set()
+      const loadPresentedImage = (sessionId, attachment) => {
+        const key = `${String(sessionId)}:${String(attachment.attachmentId)}`
+        const cached = presentedImageUrls.get(key)
+        if (cached !== undefined) return cached
+        const pending = (async () => {
+          const binding = ctx.sessions.binding(sessionId)
+          if (binding === undefined) throw new Error(`vision_present: unknown session ${String(sessionId)}`)
+          const result = await binding.session.readAttachment(attachment.attachmentId)
+          if (!result.ok) {
+            throw new Error(`vision_present: ${result.error.code}: ${result.error.message}`)
+          }
+          const ref = result.value.attachment
+          const data = result.value.data
+          if (typeof URL.createObjectURL === 'function') {
+            const url = URL.createObjectURL(new Blob([data], { type: ref.mediaType }))
+            createdImageUrls.add(url)
+            return url
+          }
+          let binary = ''
+          const chunk = 0x8000
+          for (let offset = 0; offset < data.length; offset += chunk) {
+            binary += String.fromCharCode(...data.subarray(offset, offset + chunk))
+          }
+          return `data:${ref.mediaType};base64,${btoa(binary)}`
+        })().catch((error) => {
+          presentedImageUrls.delete(key)
+          throw error
+        })
+        presentedImageUrls.set(key, pending)
+        return pending
+      }
+      // Follow the app language: register our dictionaries and re-read them
+      // whenever the user switches the locale in Settings → General.
+      ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'vision-router: card locale')
+      const t = ctx.locale.bind(NS)
+      const VisionPresentCard = (props) => {
+        const { block, sessionId } = props
+        const content = block && Array.isArray(block.content) ? block.content : []
+        const images = content
+          .filter((item) => item && item.type === 'image' && item.attachment)
+          .map((item) => ({ attachment: item.attachment }))
+        if (images.length === 0) {
+          return React.createElement(
+            'div',
+            { style: { fontSize: 12, color: 'var(--dsw-alias-label-tertiary)', padding: '4px 0' } },
+            t('presentingImage'),
+          )
+        }
+        let parsed
+        const raw = textOf(block)
+        if (raw) {
+          try { parsed = JSON.parse(raw) } catch { parsed = undefined }
+        }
+        const labels = {
+          image: t('presentedImage'),
+          open: t('openPresentedImage'),
+          openNamed: (name) => t('openNamedImage', { name }),
+          loading: t('loadingPresentedImage'),
+          loadFailed: t('retryPresentedImage'),
+          lightbox: { dialog: t('imagePreviewDialog'), close: t('closeImagePreview') },
+        }
+        return React.createElement(
+          'div',
+          { style: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, padding: '4px 0' } },
+          parsed && typeof parsed.label === 'string' && parsed.label !== 'image'
+            ? React.createElement(
+                'div',
+                { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary)' } },
+                parsed.label,
+              )
+            : null,
+          React.createElement(ImageGallery, {
+            images,
+            align: 'start',
+            labels,
+            load: (attachment) => loadPresentedImage(sessionId, attachment),
+          }),
+        )
+      }
+      ctx.effect(
+        () => () => {
+          for (const url of createdImageUrls) URL.revokeObjectURL(url)
+          createdImageUrls.clear()
+          presentedImageUrls.clear()
+        },
+        'vision-router: presented image URL cache',
+      )
+      // Lazily reach the client `connection` service for the model catalog.
+      // Never a hard inject (a parked inject would keep the card from
+      // registering); absence degrades to the free-text inputs.
+      const getConnection = () => {
+        try {
+          return ctx.get('connection')
+        } catch {
+          return undefined
+        }
+      }
+      ctx.effect(installStyles, 'vision-router: card styles')
+      ctx.effect(() => installVisionSettingsGuide(t), 'vision-router: model selection guide')
+      ctx.effect(() => installOnboarding(t), 'vision-router: first-run onboarding')
+      // A stable props object: the memoized card skips re-renders only when
+      // this identity stays fixed across slot renders.
+      const cardInject = { scope, getConnection, t, locale: ctx.locale }
+      ctx.effect(
+        () =>
+          ctx.slots.inject('settings.plugin.item', function* () {
+            yield ctx.slots.register(
+              {
+                name: 'settings.plugin.item',
+                key: 'vision-router',
+                id: 'vision-router',
+                order: 30,
+                label: () => t('nav'),
+                inject: () => cardInject,
+              },
+              VisionRouterCardMemoized,
+            )
+          }),
+        'vision-router: settings card',
+      )
+      ctx.effect(
+        () =>
+          ctx.slots.inject('tool.call.toolview', function* () {
+            yield ctx.slots.register(
+              { name: 'tool.call.toolview', key: 'vision_present', priority: -10, inject: () => ({}) },
+              VisionPresentCard,
+            )
+            for (const key of ARTIFACT_TOOL_KEYS) {
+              yield ctx.slots.register(
+                { name: 'tool.call.toolview', key, priority: -10, inject: () => ({}) },
+                ArtifactCard,
+              )
+            }
+          }),
+        'vision-router: artifact tool cards',
+      )
+    }
+
+    exports.apply = apply
+    exports.inject = ['settingsScope', 'slots', 'locale', 'sessions', 'connection', 'remote']
+    exports.unwrapModelsResult = unwrapModelsResult
+    exports.filterVisionBackendGroups = filterVisionBackendGroups
+    exports.collectFilteredVisionBackends = collectFilteredVisionBackends
+    exports.visionCapabilityWarningKey = visionCapabilityWarningKey
+    exports.normalizeVisionChainRows = normalizeVisionChainRows
+    exports.jsonValueEqual = jsonValueEqual
+    exports.commitSettingsPlan = commitSettingsPlan
+    return module.exports
+  },
+})

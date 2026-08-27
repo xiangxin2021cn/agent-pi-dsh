@@ -1,0 +1,94 @@
+{
+  "workspace": {
+    "schemaVersion": 1,
+    "revision": 4,
+    "project": {
+      "id": "n3-upgrade",
+      "title": "Synthetic N3 Upgrade",
+      "status": "active"
+    },
+    "documents": [
+      {
+        "id": "tender-data",
+        "name": "Synthetic Tender Data",
+        "path": "C:/synthetic/tender-data.pdf",
+        "kind": "tender_data",
+        "status": "active"
+      }
+    ],
+    "requirements": [
+      {
+        "id": "req-method",
+        "title": "Technical methodology",
+        "text": "Submit the project methodology.",
+        "type": "evaluated",
+        "criticality": "high",
+        "source": { "documentId": "tender-data", "page": 12 },
+        "evidenceNeeded": ["Relevant project record"],
+        "status": "planned"
+      },
+      {
+        "id": "req-safety",
+        "title": "Safety threshold",
+        "text": "Meet the minimum safety threshold.",
+        "type": "mandatory",
+        "criticality": "critical",
+        "source": { "documentId": "tender-data", "page": 13 },
+        "evidenceNeeded": ["Safety statistics"],
+        "status": "planned"
+      }
+    ],
+    "criteria": [
+      {
+        "id": "criterion-method",
+        "title": "Methodology quality",
+        "method": "weighted",
+        "weight": 20,
+        "requirementIds": ["req-method"],
+        "source": { "documentId": "tender-data", "page": 12 },
+        "evidenceNeeded": ["Method statement"],
+        "status": "planned"
+      },
+      {
+        "id": "criterion-safety",
+        "title": "Safety compliance",
+        "method": "pass_fail",
+        "requirementIds": ["req-safety"],
+        "source": { "documentId": "tender-data", "page": 13 },
+        "evidenceNeeded": ["Safety statistics"],
+        "status": "planned"
+      }
+    ],
+    "deliverables": [],
+    "responses": []
+  },
+  "data": {
+    "strategies": [
+      {
+        "criterionId": "criterion-method",
+        "priority": "high",
+        "targetScore": 17,
+        "responseOwner": "Technical Manager",
+        "responseTheme": "A buildable methodology with verified controls.",
+        "evidencePlan": ["Cite the approved method statement and relevant experience."],
+        "evidenceRefs": [{ "documentId": "tender-data", "page": 12 }],
+        "evidenceArtifactPaths": [],
+        "differentiators": ["Verified comparable-project evidence"],
+        "risks": ["Method statement approval remains pending"],
+        "status": "reviewed"
+      },
+      {
+        "criterionId": "criterion-safety",
+        "priority": "must_pass",
+        "responseOwner": "HSE Manager",
+        "responseTheme": "Demonstrate the stated threshold with current evidence.",
+        "evidencePlan": ["Cite current safety statistics."],
+        "evidenceRefs": [{ "documentId": "tender-data", "page": 13 }],
+        "evidenceArtifactPaths": [],
+        "differentiators": [],
+        "risks": [],
+        "status": "reviewed"
+      }
+    ]
+  }
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Delivery Cash Flow"
+  short_description: "Control exact planned, actual and forecast cash flow"
+  default_prompt: "Use $project-delivery-cashflow to build and validate implementation cash flow from my selected project records."

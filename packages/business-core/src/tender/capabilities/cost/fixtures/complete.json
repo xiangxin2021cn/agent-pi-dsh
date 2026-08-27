@@ -1,0 +1,41 @@
+{
+  "currency": "ZAR",
+  "costStatus": "reviewed",
+  "rateSources": [
+    {
+      "id": "rate-concrete",
+      "description": "Synthetic supplier quote",
+      "sourceRef": { "documentId": "quote", "page": 1 },
+      "currency": "ZAR",
+      "effectiveAt": "2026-07-01"
+    }
+  ],
+  "components": [
+    {
+      "id": "component-concrete",
+      "kind": "material",
+      "description": "Concrete supply allowance",
+      "quantity": "1250.5",
+      "unit": "m",
+      "rate": "10.25",
+      "rateSourceId": "rate-concrete",
+      "assumptionStatus": "sourced"
+    }
+  ],
+  "buildUps": [
+    {
+      "boqItemId": "boq-5201",
+      "componentIds": ["component-concrete"],
+      "total": "12817.625"
+    }
+  ],
+  "cashFlow": [
+    {
+      "period": "2026-08",
+      "activityIds": ["concrete"],
+      "plannedCost": "12817.625",
+      "cumulativeCost": "12817.625"
+    }
+  ],
+  "scenarios": []
+}

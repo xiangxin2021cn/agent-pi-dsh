@@ -1,0 +1,2241 @@
+diff --git a/apps/cli/config/agent-presets/code/agent.cordis.yml b/apps/cli/config/agent-presets/code/agent.cordis.yml
+index eedabe4cd7..b5d4683665 100644
+--- a/apps/cli/config/agent-presets/code/agent.cordis.yml
++++ b/apps/cli/config/agent-presets/code/agent.cordis.yml
+@@ -204,7 +204,6 @@
+     # alone grants no tool.
+     - id: tool-subagent-codex
+       name: '@deepseek-ai/dsh-tool-subagent'
+-      disabled: true
+       config:
+         provider: codex
+         toolName: subagent_codex
+@@ -249,7 +248,7 @@
+ - id: tool-web
+   name: '@deepseek-ai/dsh-tool-web'
+   config:
+-    fetch: false
++    fetch: true
+     searchTimeoutMs: 60000
+ 
+ # ── presentation ────────────────────────────────────────────────────────────
+diff --git a/apps/cli/config/agent-presets/cordis/agent.cordis.yml b/apps/cli/config/agent-presets/cordis/agent.cordis.yml
+index aef4a250e4..5209cfbe32 100644
+--- a/apps/cli/config/agent-presets/cordis/agent.cordis.yml
++++ b/apps/cli/config/agent-presets/cordis/agent.cordis.yml
+@@ -191,7 +191,6 @@
+     # alone grants no tool.
+     - id: tool-subagent-codex
+       name: '@deepseek-ai/dsh-tool-subagent'
+-      disabled: true
+       config:
+         provider: codex
+         toolName: subagent_codex
+@@ -236,7 +235,7 @@
+ - id: tool-web
+   name: '@deepseek-ai/dsh-tool-web'
+   config:
+-    fetch: false
++    fetch: true
+     searchTimeoutMs: 60000
+ 
+ # ── self-modification ───────────────────────────────────────────────────────
+diff --git a/apps/cli/config/agent-presets/standard/agent.cordis.yml b/apps/cli/config/agent-presets/standard/agent.cordis.yml
+index 3bccbc7365..81271d8bf0 100644
+--- a/apps/cli/config/agent-presets/standard/agent.cordis.yml
++++ b/apps/cli/config/agent-presets/standard/agent.cordis.yml
+@@ -203,7 +203,6 @@
+     # alone grants no tool.
+     - id: tool-subagent-codex
+       name: '@deepseek-ai/dsh-tool-subagent'
+-      disabled: true
+       config:
+         provider: codex
+         toolName: subagent_codex
+@@ -248,5 +247,5 @@
+ - id: tool-web
+   name: '@deepseek-ai/dsh-tool-web'
+   config:
+-    fetch: false
++    fetch: true
+     searchTimeoutMs: 60000
+diff --git a/packages/client/runtime/src/client/contract/session.ts b/packages/client/runtime/src/client/contract/session.ts
+index e07267d487..49a44de33a 100644
+--- a/packages/client/runtime/src/client/contract/session.ts
++++ b/packages/client/runtime/src/client/contract/session.ts
+@@ -76,6 +76,12 @@ export interface ISession {
+    * @returns completion; failures land in snapshot.openState/loadingOlder.
+    */
+   loadOlder(): Promise<void>
++  /**
++   * Retry a failed history open. No-ops when the window is already open;
++   * shares an in-flight open.
++   * @returns completion; failures land in snapshot.openState/openError.
++   */
++  reload(): Promise<void>
+   /**
+    * Execute one slash-command line against this session's agent — pure
+    * admission semantics (the host executor durably logs the lifecycle).
+diff --git a/packages/client/runtime/src/client/sessions/manager.ts b/packages/client/runtime/src/client/sessions/manager.ts
+index 13aa20d1c8..c4543b5840 100644
+--- a/packages/client/runtime/src/client/sessions/manager.ts
++++ b/packages/client/runtime/src/client/sessions/manager.ts
+@@ -317,6 +317,9 @@ export class SessionManager {
+       onEngaged: (engaged) => {
+         this.recordMutation({ kind: 'engaged', sessionId: engaged.sessionId })
+       },
++      onInteractionSettled: (sessionId, interactionKey) => {
++        this.resolvePending(sessionId, interactionKey)
++      },
+       projections: this.projectionStore(sessionId),
+       ...this.conversation === undefined ? {} : { conversation: this.conversation },
+     })
+diff --git a/packages/client/runtime/src/client/sessions/service.ts b/packages/client/runtime/src/client/sessions/service.ts
+index c66da4e0d3..885b1cba6c 100644
+--- a/packages/client/runtime/src/client/sessions/service.ts
++++ b/packages/client/runtime/src/client/sessions/service.ts
+@@ -609,7 +609,14 @@ export class SessionRuntime implements ISessions {
+     // A masked gap (current blanked while the selection's session is
+     // transiently absent) holds the stage: tearing down on the gap would
+     // destroy exactly the frozen scope the mask exists to preserve.
+-    if (current === undefined || snapshot.byId[current] === undefined || current === this.watched) return
++    if (current === undefined || snapshot.byId[current] === undefined) return
++    if (current === this.watched) {
++      const resident = this.scopes.get(current)
++      if (resident !== undefined && resident.session.getSnapshot().openState === 'error') {
++        void resident.session.reload()
++      }
++      return
++    }
+     this.watched = current
+     this.sweepDeferred()
+     const record = this.resolve(current)
+diff --git a/packages/client/runtime/src/client/sessions/session.ts b/packages/client/runtime/src/client/sessions/session.ts
+index 02939cf28f..cbd10215f9 100644
+--- a/packages/client/runtime/src/client/sessions/session.ts
++++ b/packages/client/runtime/src/client/sessions/session.ts
+@@ -4,8 +4,8 @@ import type { Context } from '@deepseek-ai/cordis'
+ import type { AttachmentIdType, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
+ import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
+ import type {
+-  HistoryEntry, IApiClient, MessageId, MuxFrame, PromptContentPart, QueueAction, RpcError,
+-  RpcId, RpcResponse, RpcResult, SessionId, SubagentAddress, ToolEventView,
++  ClientResponse, HistoryEntry, IApiClient, MessageId, MuxFrame, PromptContentPart, QueueAction,
++  RpcError, RpcId, RpcReceipt, RpcResponse, RpcResult, SessionId, SubagentAddress, ToolEventView,
+ } from '@deepseek-ai/dsh-api-remotes/client'
+ // Value import from the inline-safe wire layer (not the connection plugin):
+ // plugin-to-plugin value imports are a bundle purity error.
+@@ -31,6 +31,11 @@ import { SessionQueueMirror } from './queue-mirror.ts'
+ /** Messages requested per history page. */
+ export const PAGE_MESSAGES = 50
+ 
++/** List-row pending-interaction key: approval uses the audit id, question uses the wait key. */
++function listInteractionKey(wait: PendingInteraction): string {
++  return wait.kind === 'approval' ? `a:${wait.payload.approvalId}` : wait.key
++}
++
+ /** Manager-owned observers of a Session object's local state edges. */
+ export interface SessionOptions {
+   /** Catalog-discovered address selecting non-activating subagent transport. */
+@@ -46,6 +51,13 @@ export interface SessionOptions {
+    * (hidden, still reusable by connectWorkspace).
+    */
+   onEngaged?(session: Session): void
++  /**
++   * Local settlement of one answerable wait (accepted respond or resolved
++   * frame). The manager clears the matching list-row pendingInteraction key.
++   * @param sessionId - owning session.
++   * @param interactionKey - list-row key (`a:<approvalId>` or `q:<rpcId>`).
++   */
++  onInteractionSettled?(sessionId: SessionId, interactionKey: string): void
+   /**
+    * Manager-owned projection value store to adopt (frames route through the
+    * manager and values outlive instantiation); omitted, the Session owns a
+@@ -377,6 +389,12 @@ export class Session implements SessionFace {
+     return promise
+   }
+ 
++  /** Retry a failed history open. No-ops when already open; shares an in-flight open. */
++  reload(): Promise<void> {
++    if (this.openState === 'open') return Promise.resolve()
++    return this.open()
++  }
++
+   /** Page up: pull one earlier page with the window's first seq as beforeSeq and prepend. */
+   async loadOlder(): Promise<void> {
+     if (this.openState !== 'open' || !this.hasMore || this.loadingOlder) return
+@@ -490,7 +508,10 @@ export class Session implements SessionFace {
+       }
+       case 'approval/requested': {
+         const { type: _type, sessionId: _sid, ...payload } = frame
+-        this.mint(new PendingWait('approval', rpcId, this.sessionId, payload, m => this.api.respond(m)))
++        const wait: PendingWait<'approval'> = new PendingWait(
++          'approval', rpcId, this.sessionId, payload,
++          (message): Promise<RpcReceipt> => this.respondWait(wait, message))
++        this.mint(wait)
+         this.notifier.markDirty()
+         return
+       }
+@@ -503,7 +524,10 @@ export class Session implements SessionFace {
+       }
+       case 'question/requested': {
+         const { type: _type, sessionId: _sid, ...payload } = frame
+-        this.mint(new PendingWait('question', rpcId, this.sessionId, payload, m => this.api.respond(m)))
++        const wait: PendingWait<'question'> = new PendingWait(
++          'question', rpcId, this.sessionId, payload,
++          (message): Promise<RpcReceipt> => this.respondWait(wait, message))
++        this.mint(wait)
+         this.notifier.markDirty()
+         return
+       }
+@@ -606,11 +630,34 @@ export class Session implements SessionFace {
+     this.pendingRev++
+   }
+ 
+-  /** Authoritative resolved-frame settlement: mark, then drop from the pending map. */
++  /**
++   * Drop one wait after the host accepted the answer or the resolved frame landed.
++   * @param wait - the wait still in this Session's pending map.
++   */
+   private settle(wait: PendingInteraction): void {
+     wait.markSettled()
+     this.pending.delete(wait.key)
+     this.pendingRev++
++    this.options.onInteractionSettled?.(this.sessionId, listInteractionKey(wait))
++  }
++
++  /**
++   * Send the client-response and, on an accepted receipt, drop the wait without
++   * waiting for the mux resolved frame (SSE can stall behind a busy host).
++   * @param wait - the wait whose rpcId the envelope echoes.
++   * @param message - the client-response envelope.
++   * @returns the carrier receipt.
++   */
++  private async respondWait(wait: PendingInteraction, message: ClientResponse): Promise<RpcReceipt> {
++    const receipt = await this.api.respond(message)
++    if (receipt.accepted) {
++      const current = this.pending.get(wait.key)
++      if (current !== undefined) {
++        this.settle(current)
++        this.notifier.markDirty()
++      }
++    }
++    return receipt
+   }
+ 
+   /** @param generation - openGeneration at launch; every await re-checks it and a stale pass
+diff --git a/packages/client/runtime/tests/manager.client.spec.ts b/packages/client/runtime/tests/manager.client.spec.ts
+index d0594032df..4c78d26f28 100644
+--- a/packages/client/runtime/tests/manager.client.spec.ts
++++ b/packages/client/runtime/tests/manager.client.spec.ts
+@@ -928,6 +928,25 @@ describe('pending-interaction list status', () => {
+     expect(manager.getListSnapshot().items[0]?.pendingInteraction).toBeUndefined()
+   })
+ 
++  it('clears list pendingInteraction when an instantiated session accepts respond', async () => {
++    const api = new FakeApiClient()
++    const manager = new SessionManager(api, fakeRemote())
++    manager.handleHostEnvelope({ rpcId: 'h1' as never, payload: { type: 'host/session-added', sessionId: S1, blank: false } })
++    const session = manager.get(S1)
++    manager.handleMuxEnvelope({
++      rpcId: 'ra' as never,
++      payload: { type: 'approval/requested', sessionId: S1, approvalId: 'ap-live' as never, toolName: 'rm' },
++    })
++    expect(manager.getListSnapshot().items[0]?.pendingInteraction).toBe('approval')
++    const wait = session.getSnapshot().pending[0]!
++    await wait.respond({
++      ok: true,
++      value: { sessionId: S1, approvalId: 'ap-live', outcome: 'allowed-once' },
++    })
++    expect(session.getSnapshot().pending).toEqual([])
++    expect(manager.getListSnapshot().items[0]?.pendingInteraction).toBeUndefined()
++  })
++
+   it('classifies ordinary questions and renderable plan reviews, then clears by question rpcId', () => {
+     const manager = new SessionManager(new FakeApiClient(), fakeRemote())
+     manager.handleHostEnvelope({ rpcId: 'h1' as never, payload: { type: 'host/session-added', sessionId: S1, blank: false } })
+diff --git a/packages/client/runtime/tests/session.client.spec.ts b/packages/client/runtime/tests/session.client.spec.ts
+index 19e80dfd5b..a63f87e1e4 100644
+--- a/packages/client/runtime/tests/session.client.spec.ts
++++ b/packages/client/runtime/tests/session.client.spec.ts
+@@ -227,6 +227,21 @@ describe('open', () => {
+     expect(session.getSnapshot().openError).toMatchObject({ code: 'internal', message: 'socket died' })
+   })
+ 
++  it('reload retries a failed open and no-ops once the window is open', async () => {
++    const { api, session } = makeSession()
++    api.onHistory = () => Promise.reject(new DOMException('signal timed out', 'TimeoutError'))
++    await session.open()
++    expect(session.getSnapshot().openError).toMatchObject({ code: 'internal', message: 'request timed out' })
++    api.onHistory = () => histResponse([])
++    const retrying = session.reload()
++    expect(session.reload()).toBe(retrying)
++    await retrying
++    expect(session.getSnapshot().openState).toBe('open')
++    const calls = api.callsOf('session.history').length
++    await session.reload()
++    expect(api.callsOf('session.history')).toHaveLength(calls)
++  })
++
+   it('stitches live frames arriving while history is pending, dropping the page overlap', async () => {
+     const { api, session } = makeSession()
+     const gate = deferred<Awaited<ReturnType<FakeApiClient['onHistory']>>>()
+@@ -632,6 +647,45 @@ describe('pending interactions', () => {
+         value: { sessionId: SID, answer: { answers: [{ id: 'mode', selected: ['Fast'] }] } },
+       },
+     }])
++    expect(session.getSnapshot().pending).toEqual([])
++  })
++
++  it('drops an approval wait on an accepted respond without a resolved frame', async () => {
++    const settled = vi.fn()
++    const api = new FakeApiClient()
++    const watched = new Session(SID, api, fakeRemote(), {
++      conversation: TEST_CONVERSATION,
++      onInteractionSettled: settled,
++    })
++    watched.handleMuxEnvelope('ra' as never, {
++      type: 'approval/requested', sessionId: SID, approvalId: 'ap-live' as never, toolName: 'bash',
++    })
++    const wait = watched.getSnapshot().pending[0]!
++    api.onRespond = () => Promise.resolve({ accepted: true })
++    await wait.respond({
++      ok: true,
++      value: { sessionId: SID, approvalId: 'ap-live', outcome: 'allowed-once' },
++    })
++    expect(watched.getSnapshot().pending).toEqual([])
++    expect(settled).toHaveBeenCalledWith(SID, 'a:ap-live')
++    watched.handleMuxEnvelope('rx' as never, {
++      type: 'approval/resolved', sessionId: SID, approvalId: 'ap-live' as never, outcome: 'allowed-once' as never,
++    })
++    expect(watched.getSnapshot().pending).toEqual([])
++  })
++
++  it('keeps the wait when the respond receipt is rejected', async () => {
++    const { api, session } = makeSession()
++    session.handleMuxEnvelope('ra' as never, {
++      type: 'approval/requested', sessionId: SID, approvalId: 'ap-keep' as never, toolName: 'bash',
++    })
++    const wait = session.getSnapshot().pending[0]!
++    api.onRespond = () => Promise.resolve({ accepted: false, reason: 'not-pending' })
++    await expect(wait.respond({
++      ok: true,
++      value: { sessionId: SID, approvalId: 'ap-keep', outcome: 'rejected' },
++    })).resolves.toEqual({ accepted: false, reason: 'not-pending' })
++    expect(session.getSnapshot().pending).toHaveLength(1)
+   })
+ 
+   it('settles the wait on the authoritative resolved frame: respond() then throws synchronously', async () => {
+diff --git a/packages/client/runtime/tests/sessions-service.client.spec.ts b/packages/client/runtime/tests/sessions-service.client.spec.ts
+index b135b56ebe..e2fa1d733d 100644
+--- a/packages/client/runtime/tests/sessions-service.client.spec.ts
++++ b/packages/client/runtime/tests/sessions-service.client.spec.ts
+@@ -332,6 +332,25 @@ describe('cell (render-layer session kit)', () => {
+     expect(historyCalls().map(c => (c.payload as { sessionId: string }).sessionId)).toEqual(['s1', 's2'])
+   })
+ 
++  it('re-selecting the current session retries a failed history open', async () => {
++    const b = bench()
++    b.api.onHistory = () => Promise.resolve(err({
++      code: 'internal', message: 'request timed out', details: {},
++    }))
++    await feedList(b, [{ id: 's1' }])
++    b.svc.open(sid('s1'))
++    await vi.waitFor(() => {
++      expect(b.svc.binding(sid('s1'))?.session.getSnapshot().openState).toBe('error')
++    })
++    const failed = b.api.calls.filter(c => c.method === 'session.history').length
++    b.api.onHistory = () => Promise.resolve(ok({ events: [], hasMore: false }))
++    b.svc.open(sid('s1'))
++    await vi.waitFor(() => {
++      expect(b.svc.binding(sid('s1'))?.session.getSnapshot().openState).toBe('open')
++    })
++    expect(b.api.calls.filter(c => c.method === 'session.history').length).toBeGreaterThan(failed)
++  })
++
+   it('startup restore: a persisted selection validated by the first projection opens its window unprompted', async () => {
+     const storage = new Map<string, string>([
+       ['dsh.sessions.current', JSON.stringify({ sessionId: 's1' })],
+diff --git a/packages/client/ui-conversation/src/client/apply.ts b/packages/client/ui-conversation/src/client/apply.ts
+index 7920104d68..047c01a175 100644
+--- a/packages/client/ui-conversation/src/client/apply.ts
++++ b/packages/client/ui-conversation/src/client/apply.ts
+@@ -402,6 +402,7 @@ export function apply(ctx: Context): void {
+           return workspaces.openPath(resolveWorkspacePath(cwd, path))
+         },
+         loadOlder: () => { void scoped.loadOlder() },
++        reload: () => { void scoped.reload() },
+         loadImage: attachment => conversation.resolveImage(sessionId, attachment),
+         // Unregistered 'trajectory' id is safe: the tab ring falls back to
+         // the first view, and the untouched inspect target stays inert.
+diff --git a/packages/client/ui-conversation/src/client/chat/ChatView.module.css b/packages/client/ui-conversation/src/client/chat/ChatView.module.css
+index 73fa688f95..efba852d0b 100644
+--- a/packages/client/ui-conversation/src/client/chat/ChatView.module.css
++++ b/packages/client/ui-conversation/src/client/chat/ChatView.module.css
+@@ -126,17 +126,20 @@
+ }
+ 
+ .openError {
++  display: flex;
++  flex-direction: column;
++  align-items: flex-start;
++  gap: 8px;
+   color: var(--dsw-alias-state-error-primary);
+   font-size: 12px;
+   line-height: 18px;
+ }
+ 
+-.older {
+-  display: flex;
+-  justify-content: center;
++.openError p {
++  margin: 0;
+ }
+ 
+-.older button {
++.openError button {
+   border: none;
+   border-radius: 14px;
+   padding: 4px 12px;
+@@ -146,9 +149,32 @@
+   cursor: pointer;
+ }
+ 
+-.older button:disabled {
+-  cursor: default;
+-  opacity: 0.6;
++.openError button:hover {
++  color: var(--dsw-alias-label-primary);
++}
++
++.older {
++  display: flex;
++  justify-content: center;
++  position: relative;
++}
++
++.olderStatus {
++  font-size: 12px;
++  color: var(--dsw-alias-label-secondary);
++}
++
++/* Keep an accessible paging control without a visible "load earlier" pill. */
++.olderTrigger {
++  position: absolute;
++  width: 1px;
++  height: 1px;
++  padding: 0;
++  margin: -1px;
++  overflow: hidden;
++  clip: rect(0 0 0 0);
++  border: 0;
++  white-space: nowrap;
+ }
+ 
+ /* Back-to-bottom: zero-height sticky slot so the control does not extend
+diff --git a/packages/client/ui-conversation/src/client/chat/ChatView.tsx b/packages/client/ui-conversation/src/client/chat/ChatView.tsx
+index 80f9bc2d73..868785520a 100644
+--- a/packages/client/ui-conversation/src/client/chat/ChatView.tsx
++++ b/packages/client/ui-conversation/src/client/chat/ChatView.tsx
+@@ -1,5 +1,7 @@
+ // ChatView: the default conversation view — one stable keyed parent list over
+ // final business Nodes, plus paging, pending steering and bottom-follow.
++// Older pages load when the reader scrolls or wheels toward the head; the
++// accessible control stays for keyboard and existing e2e, not as a visible pill.
+ // Each row dispatches through 'conversation.chat.node'; ui-tool owns the
+ // tool-call renderer and its recursive root/subcall composition. A Host
+ // open-path refusal from the injected opener is an in-page dialog here.
+@@ -23,6 +25,13 @@ import { formatRunDuration } from './message-chrome.ts'
+ import css from './ChatView.module.css'
+ 
+ const FOLLOW_THRESHOLD = 24
++/** Reader is at the history head: an upward gesture loads the next older page. */
++const LOAD_OLDER_EDGE = 96
++
++/** Transport timeouts fold to `internal` + a timed-out message; keep that copy off the product string. */
++function isHistoryTimeout(error: { code: string; message: string }): boolean {
++  return error.code === 'internal' && /timed out/i.test(error.message)
++}
+ 
+ /** Active column host when present; otherwise the view-local scroller. */
+ function scrollerOf(from: HTMLElement): HTMLElement {
+@@ -156,7 +165,7 @@ function TurnStatus({ startTime, t }: {
+  * ordered business Node crosses the keyed renderer seat.
+  */
+ export function ChatView({
+-  useSession, useSessions, useStore, renderSlot, sessionId, openFile, loadOlder, loadImage, inspectCall, chatScroll, forkAt,
++  useSession, useSessions, useStore, renderSlot, sessionId, openFile, loadOlder, reload, loadImage, inspectCall, chatScroll, forkAt,
+   fileMentions, t,
+ }: ChatViewSlotProps) {
+   const order = useSession(s => s.chat.order)
+@@ -311,6 +320,28 @@ export function ChatView({
+     if (appendedUser || appendedSteering || (tipMoved && atBottomRef.current)) toBottom(el)
+   })
+ 
++  const loadOlderAnchored = (): void => {
++    const local = listRef.current
++    /* v8 ignore next -- ref-null guard: paging runs while the list is mounted. */
++    if (local !== null) {
++      const el = scrollerOf(local)
++      const row = pagingAnchor(local, el)
++      if (row !== null && row.dataset.chatAnchorKey !== undefined) {
++        anchorRef.current = {
++          key: row.dataset.chatAnchorKey,
++          top: flowTop(row, el),
++        }
++      }
++    }
++    loadOlder()
++  }
++
++  const requestOlderRef = useRef(() => {})
++  requestOlderRef.current = () => {
++    if (!hasMore || loadingOlder) return
++    loadOlderAnchored()
++  }
++
+   const onScrollRef = useRef(() => {})
+   onScrollRef.current = () => {
+     const local = listRef.current
+@@ -325,7 +356,8 @@ export function ChatView({
+     // programmatic deliveries land on the ledger itself, so both preserve
+     // the current ownership state.
+     const floor = Math.max(0, el.scrollHeight - el.clientHeight)
+-    const movedByReader = Math.abs(el.scrollTop - Math.min(observedTopRef.current, floor)) > 0.5
++    const previousTop = observedTopRef.current
++    const movedByReader = Math.abs(el.scrollTop - Math.min(previousTop, floor)) > 0.5
+     const isAtBottom = movedByReader
+       ? floor - el.scrollTop <= FOLLOW_THRESHOLD + 1
+       : atBottomRef.current
+@@ -345,6 +377,9 @@ export function ChatView({
+     // too late); pinned-to-bottom clears so a remount keeps following.
+     if (isAtBottom) chatScroll.save(null)
+     else if (position !== null) chatScroll.save(position)
++    if (movedByReader && el.scrollTop < previousTop - 0.5 && el.scrollTop <= LOAD_OLDER_EDGE) {
++      requestOlderRef.current()
++    }
+     observedTopRef.current = el.scrollTop
+   }
+ 
+@@ -357,9 +392,16 @@ export function ChatView({
+     if (local === null) return
+     const el = scrollerOf(local)
+     const onScroll = (): void => { onScrollRef.current() }
++    const onWheel = (event: WheelEvent): void => {
++      if (event.deltaY >= 0) return
++      if (el.scrollTop > LOAD_OLDER_EDGE) return
++      requestOlderRef.current()
++    }
+     el.addEventListener('scroll', onScroll, { passive: true })
++    el.addEventListener('wheel', onWheel, { passive: true })
+     return () => {
+       el.removeEventListener('scroll', onScroll)
++      el.removeEventListener('wheel', onWheel)
+     }
+   }, [])
+ 
+@@ -396,22 +438,6 @@ export function ChatView({
+     if (!loadingOlder) anchorRef.current = null
+   }, [loadingOlder])
+ 
+-  const loadOlderAnchored = (): void => {
+-    const local = listRef.current
+-    /* v8 ignore next -- ref-null guard: the paging button renders inside the list tree. */
+-    if (local !== null) {
+-      const el = scrollerOf(local)
+-      const row = pagingAnchor(local, el)
+-      if (row !== null && row.dataset.chatAnchorKey !== undefined) {
+-        anchorRef.current = {
+-          key: row.dataset.chatAnchorKey,
+-          top: flowTop(row, el),
+-        }
+-      }
+-    }
+-    loadOlder()
+-  }
+-
+   return (
+     <div className={css.root}>
+       <div ref={listRef} className={css.scroll}>
+@@ -419,14 +445,30 @@ export function ChatView({
+           {openState === 'loading' && <div className={css.hint}>{t('chat.loadingHistory')}</div>}
+           {openState === 'error' && openError !== null && (
+             <div className={css.openError}>
+-              {t('chat.loadError', { message: openError.message, code: openError.code })}
++              <p>
++                {isHistoryTimeout(openError)
++                  ? t('chat.loadError.timeout')
++                  : t('chat.loadError', { message: openError.message, code: openError.code })}
++              </p>
++              <button type="button" onClick={() => { reload() }}>
++                {t('chat.retryLoad')}
++              </button>
+             </div>
+           )}
+           {hasMore && (
+             <div className={css.older}>
+-              <button type="button" disabled={loadingOlder} onClick={loadOlderAnchored}>
+-                {loadingOlder ? t('loading') : t('chat.loadOlder')}
+-              </button>
++              {loadingOlder && (
++                <span className={css.olderStatus} role="status" aria-live="polite">
++                  {t('loading')}
++                </span>
++              )}
++              <button
++                type="button"
++                className={css.olderTrigger}
++                disabled={loadingOlder}
++                onClick={loadOlderAnchored}
++                aria-label={t('chat.loadOlder')}
++              />
+             </div>
+           )}
+           {order.map(nodeKey => (
+diff --git a/packages/client/ui-conversation/src/client/contract/slots.ts b/packages/client/ui-conversation/src/client/contract/slots.ts
+index 307ac38482..b4b0a560b7 100644
+--- a/packages/client/ui-conversation/src/client/contract/slots.ts
++++ b/packages/client/ui-conversation/src/client/contract/slots.ts
+@@ -706,9 +706,9 @@ export class PendingApproval {
+   }
+ 
+   /**
+-   * Deliver the user's decision; a rejected carrier receipt throws. Panel
+-   * removal stays frame-driven: the broadcast `approval/resolved` settles the
+-   * wait and drops it from the pending list.
++   * Deliver the user's decision; a rejected carrier receipt throws. An
++   * accepted receipt drops the wait on the Session; a later `approval/resolved`
++   * frame is then a no-op.
+    * @param outcome - the only two client-answerable outcomes.
+    */
+   async answer(outcome: 'allowed-once' | 'rejected'): Promise<void> {
+@@ -758,6 +758,8 @@ export interface ChatViewInjected {
+    */
+   openFile: (path: string) => Promise<void>
+   loadOlder: () => void
++  /** Retry a failed history open without leaving the session. */
++  reload: () => void
+   /** Resolve a session-authorized historical image for inline display. */
+   loadImage: (attachment: ImageAttachmentRef) => Promise<string>
+   /** Hand a call off to the trajectory view: write the one-shot inspect target and switch tabs. */
+diff --git a/packages/client/ui-conversation/src/client/locales.ts b/packages/client/ui-conversation/src/client/locales.ts
+index f4e7a7c59a..785c0d7383 100644
+--- a/packages/client/ui-conversation/src/client/locales.ts
++++ b/packages/client/ui-conversation/src/client/locales.ts
+@@ -90,6 +90,8 @@ export const zh = {
+   'todo.completed': '{done}/{total} 已完成',
+   'chat.loadingHistory': '载入历史…',
+   'chat.loadError': '历史加载失败：{message}（{code}）',
++  'chat.loadError.timeout': '历史加载超时。子代理仍在运行，可稍后重试，不会中断后台任务。',
++  'chat.retryLoad': '重新加载',
+   'chat.loadOlder': '加载更早',
+   'chat.toBottom': '回到底部',
+   'fileOpen.title': '无法打开文件',
+@@ -146,6 +148,7 @@ export const zh = {
+   'approval.escalation': '工具 {toolName} 请求越权执行',
+   'approval.reject': '拒绝',
+   'approval.allowOnce': '允许一次',
++  'approval.submitting': '提交中…',
+   'ask.rowTitle': '提问',
+   'ask.waiting': '等待回答',
+   'ask.cancelled': '已取消',
+@@ -267,6 +270,8 @@ export const en = {
+   'todo.completed': '{done}/{total} completed',
+   'chat.loadingHistory': 'Loading history…',
+   'chat.loadError': 'Failed to load history: {message} ({code})',
++  'chat.loadError.timeout': 'History load timed out. The subagent is still running; retry later without stopping it.',
++  'chat.retryLoad': 'Reload',
+   'chat.loadOlder': 'Load earlier',
+   'chat.toBottom': 'Back to bottom',
+   'fileOpen.title': 'Couldn’t open file',
+@@ -323,6 +328,7 @@ export const en = {
+   'approval.escalation': 'Tool {toolName} requests privileged execution',
+   'approval.reject': 'Reject',
+   'approval.allowOnce': 'Allow once',
++  'approval.submitting': 'Submitting…',
+   'ask.rowTitle': 'Ask question',
+   'ask.waiting': 'waiting',
+   'ask.cancelled': 'cancelled',
+diff --git a/packages/client/ui-conversation/src/client/service.ts b/packages/client/ui-conversation/src/client/service.ts
+index a37816472c..d3241971b1 100644
+--- a/packages/client/ui-conversation/src/client/service.ts
++++ b/packages/client/ui-conversation/src/client/service.ts
+@@ -57,6 +57,11 @@ export interface IConversation {
+    * @returns completion of the page pull.
+    */
+   loadOlder(): Promise<void>
++  /**
++   * Retry a failed history open for the scoped session.
++   * @returns completion of the retry.
++   */
++  reload(): Promise<void>
+ }
+ 
+ /** Create one browser-only draft descriptor; only its id enters input state. */
+@@ -307,6 +312,11 @@ export class ConversationController extends Service implements IConversation {
+     await this.scopedSession('loadOlder').loadOlder()
+   }
+ 
++  /** Retry a failed history open for the scoped Session. */
++  async reload(): Promise<void> {
++    await this.scopedSession('reload').reload()
++  }
++
+   /** Resolve the caller scope's session face or throw on root contexts. */
+   private scopedSession(op: string): SessionFace {
+     const id = this.scopeId(op)
+diff --git a/packages/client/ui-conversation/src/client/skeleton/ApprovalPanel.module.css b/packages/client/ui-conversation/src/client/skeleton/ApprovalPanel.module.css
+index 87cdc07a0c..c838a90a05 100644
+--- a/packages/client/ui-conversation/src/client/skeleton/ApprovalPanel.module.css
++++ b/packages/client/ui-conversation/src/client/skeleton/ApprovalPanel.module.css
+@@ -89,6 +89,13 @@
+    bottom pad below, so the resting card is unchanged. Buttons are the shared
+    outline/primary capsules (Button atom, matching QuestionComposer's footer);
+    only the reject's danger hover is local. */
++.error {
++  padding: 8px 16px 0;
++  color: var(--dsw-alias-state-error-primary);
++  font-size: 13px;
++  line-height: 18px;
++}
++
+ .actionRow {
+   display: flex;
+   justify-content: flex-end;
+diff --git a/packages/client/ui-conversation/src/client/skeleton/ApprovalPanel.tsx b/packages/client/ui-conversation/src/client/skeleton/ApprovalPanel.tsx
+index e700b112b4..59c380babd 100644
+--- a/packages/client/ui-conversation/src/client/skeleton/ApprovalPanel.tsx
++++ b/packages/client/ui-conversation/src/client/skeleton/ApprovalPanel.tsx
+@@ -9,10 +9,10 @@
+ // cap (`data-approval-scroll`) and the action row stays outside it — the
+ // buttons must be reachable no matter how long the command is.
+ // One-shot: the buttons disable
+-// after a click and the panel leaves (the InputBar returns) on the broadcast
+-// resolved frame.
++// after a click. An accepted respond drops the wait locally; a rejected
++// receipt or transport failure re-arms them and shows the error.
+ 
+-import { useMemo, useState } from 'react'
++import { useEffect, useMemo, useState } from 'react'
+ import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
+ import type { RunningToolCall } from '@deepseek-ai/dsh-client-runtime/client'
+ import { PendingApproval, type ApprovalComposerProps } from '../contract/slots.ts'
+@@ -54,13 +54,22 @@ function ApprovalFlow({ pending, command, t }: {
+   command?: string
+   t: ApprovalComposerProps['t']
+ }) {
+-  // Local one-shot latch: the panel leaves only when the resolved frame
+-  // lands; until then the buttons must not re-fire. An answer failure
+-  // (rejected receipt / transport) re-arms them for retry.
+-  const [answered, setAnswered] = useState(false)
++  // Local one-shot latch: an accepted respond drops the wait and unmounts
++  // this flow. A reminted carrier (mux replay of the same key) must not
++  // inherit a stuck latch. Transport / rejected-receipt failures re-arm.
++  const [busy, setBusy] = useState(false)
++  const [error, setError] = useState<string | null>(null)
++  useEffect(() => {
++    setBusy(false)
++    setError(null)
++  }, [pending])
+   const answer = (outcome: 'allowed-once' | 'rejected'): void => {
+-    setAnswered(true)
+-    void pending.answer(outcome).catch(() => { setAnswered(false) })
++    setBusy(true)
++    setError(null)
++    void pending.answer(outcome).catch((cause: unknown) => {
++      setBusy(false)
++      setError(cause instanceof Error ? cause.message : String(cause))
++    })
+   }
+   return (
+     <div className={css.root} data-approval-key={pending.key}>
+@@ -73,12 +82,13 @@ function ApprovalFlow({ pending, command, t }: {
+           <div className={css.headline}>{pending.reason ?? t('approval.escalation', { toolName: pending.toolName })}</div>
+           {command !== undefined && <div className={css.command}>{command}</div>}
+         </div>
++        {error !== null && <div className={css.error} role="alert">{error}</div>}
+         <div className={css.actionRow}>
+-          <Button variant="outline" className={css.reject} disabled={answered} onClick={() => { answer('rejected') }}>
++          <Button variant="outline" className={css.reject} disabled={busy} onClick={() => { answer('rejected') }}>
+             {t('approval.reject')}
+           </Button>
+-          <Button variant="primary" disabled={answered} onClick={() => { answer('allowed-once') }}>
+-            {t('approval.allowOnce')}
++          <Button variant="primary" disabled={busy} onClick={() => { answer('allowed-once') }}>
++            {busy ? t('approval.submitting') : t('approval.allowOnce')}
+           </Button>
+         </div>
+       </div>
+diff --git a/packages/client/ui-conversation/tests/apply-inject.client.spec.tsx b/packages/client/ui-conversation/tests/apply-inject.client.spec.tsx
+index 1f61399fda..a77aea3634 100644
+--- a/packages/client/ui-conversation/tests/apply-inject.client.spec.tsx
++++ b/packages/client/ui-conversation/tests/apply-inject.client.spec.tsx
+@@ -40,6 +40,7 @@ function sessionFakeFor() {
+   return {
+     open: vi.fn(() => Promise.resolve()),
+     loadOlder: vi.fn<ISession['loadOlder']>(() => Promise.resolve()),
++    reload: vi.fn<ISession['reload']>(() => Promise.resolve()),
+     prompt: vi.fn<ISession['prompt']>(() => Promise.resolve({ ok: true, value: { accepted: true } })),
+     cancel: vi.fn<ISession['cancel']>(() => Promise.resolve({ ok: true, value: { accepted: true } })),
+   } satisfies SessionBehaviorOverrides
+@@ -140,6 +141,8 @@ describe('conversation slot inject API', () => {
+     const chatView = b.chatViewApi(ROOT)
+     chatView.injected.loadOlder()
+     expect(b.sessionFake.loadOlder).toHaveBeenCalledTimes(1)
++    chatView.injected.reload()
++    expect(b.sessionFake.reload).toHaveBeenCalledTimes(1)
+     chatView.injected.forkAt(17)
+     await vi.waitFor(() => {
+       expect(b.runtime.sessions.calls).toContainEqual({ method: 'open', args: [ROOT] })
+diff --git a/packages/client/ui-conversation/tests/chat-view.client.spec.tsx b/packages/client/ui-conversation/tests/chat-view.client.spec.tsx
+index b81dff8e6e..2c91c9f768 100644
+--- a/packages/client/ui-conversation/tests/chat-view.client.spec.tsx
++++ b/packages/client/ui-conversation/tests/chat-view.client.spec.tsx
+@@ -154,6 +154,7 @@ function makeHarness(init?: Partial<ConversationSnapshot>) {
+   const openDetails = vi.fn<(t: SelectionTarget) => void>()
+   const openFile = vi.fn<(path: string) => Promise<void>>().mockResolvedValue(undefined)
+   const loadOlder = vi.fn()
++  const reload = vi.fn()
+   const inspectCall = vi.fn<(callId: string) => void>()
+   // In-memory scroll memory matching the apply.ts per-session map contract.
+   let savedScroll: ReturnType<ChatViewSlotProps['chatScroll']['read']> = null
+@@ -283,6 +284,7 @@ function makeHarness(init?: Partial<ConversationSnapshot>) {
+     openDetails,
+     openFile,
+     loadOlder,
++    reload,
+     loadImage: vi.fn(() => Promise.reject(new Error('not used'))),
+     inspectCall,
+     chatScroll,
+@@ -294,7 +296,7 @@ function makeHarness(init?: Partial<ConversationSnapshot>) {
+   }
+   const setSelection = (next: SelectionTarget | null): void => { chat.actions.select(next) }
+   return {
+-    set, ChatView, props, openDetails, openFile, loadOlder, inspectCall,
++    set, ChatView, props, openDetails, openFile, loadOlder, reload, inspectCall,
+     chatScroll, forkAt, setSelection, toolOwners,
+   }
+ }
+@@ -306,6 +308,11 @@ function readerScroll(element: HTMLElement, top: number): void {
+   fireEvent.scroll(element)
+ }
+ 
++/** Reader gesture at the history head: wheel-up loads the next older page. */
++function requestOlderByWheel(element: HTMLElement): void {
++  fireEvent.wheel(element, { deltaY: -80 })
++}
++
+ function installScrollMetrics(element: HTMLElement, initialHeight: number, clientHeight: number) {
+   let scrollHeight = initialHeight
+   let scrollTop = 0
+@@ -406,7 +413,7 @@ describe('ChatView', () => {
+     Object.defineProperty(scroller, 'scrollHeight', { value: 800, writable: true })
+     Object.defineProperty(scroller, 'clientHeight', { value: 200, writable: true })
+     readerScroll(scroller, 50)
+-    fireEvent.click(view.getByText('加载更早'))
++    requestOlderByWheel(scroller)
+     // The reader moves after the request starts; this, not the click-time
+     // row, is the intent the arriving page must preserve.
+     firstTop = -200
+@@ -1088,7 +1095,7 @@ describe('ChatView', () => {
+     )
+     readerScroll(scroller, 80)
+     // Arm the paging anchor, then deliver an older page (head seq decreases).
+-    fireEvent.click(view.getByText('加载更早'))
++    requestOlderByWheel(scroller)
+     Object.defineProperty(scroller, 'scrollHeight', { value: 1600, writable: true })
+     anchoredTop = 700
+     act(() => { h.set({ nodes: [user(1, 'old'), assistant(2, 'b'), user(5, 'later'), assistant(6, 'a')] }) })
+@@ -1105,7 +1112,7 @@ describe('ChatView', () => {
+     Object.defineProperty(scroller, 'scrollHeight', { value: 800, writable: true })
+     Object.defineProperty(scroller, 'clientHeight', { value: 200, writable: true })
+     readerScroll(scroller, 50)
+-    fireEvent.click(view.getByText('加载更早'))
++    requestOlderByWheel(scroller)
+     fireEvent.click(view.getByLabelText('回到底部'))
+     Object.defineProperty(scroller, 'scrollHeight', { value: 1_300, writable: true })
+     act(() => { h.set({ nodes: [assistant(2, 'older'), user(9, 'late')] }) })
+@@ -1324,13 +1331,51 @@ describe('ChatView', () => {
+     }
+   })
+ 
+-  it('paging button loads older and shows its busy label', () => {
++  it('scrolling up at the head loads older and shows a busy status', () => {
+     const h = makeHarness({ nodes: [user(5, 'later')], hasMore: true })
+     const view = render(<h.ChatView {...h.props} />)
+-    fireEvent.click(view.getByText('加载更早'))
++    const scroller = view.container.querySelector('[class*="scroll"]') as HTMLDivElement
++    Object.defineProperty(scroller, 'scrollHeight', { value: 800, writable: true })
++    Object.defineProperty(scroller, 'clientHeight', { value: 200, writable: true })
++    readerScroll(scroller, 200)
++    expect(h.loadOlder).not.toHaveBeenCalled()
++    readerScroll(scroller, 20)
+     expect(h.loadOlder).toHaveBeenCalledTimes(1)
+     act(() => { h.set({ loadingOlder: true }) })
+     expect(view.getByText('加载中…')).toBeTruthy()
++    expect(view.queryByRole('button', { name: '加载更早' })).toBeTruthy()
++  })
++
++  it('wheel-up at the head loads older without a visible paging pill', () => {
++    const h = makeHarness({ nodes: [user(5, 'later')], hasMore: true })
++    const view = render(<h.ChatView {...h.props} />)
++    const scroller = view.container.querySelector('[class*="scroll"]') as HTMLDivElement
++    expect(view.queryByText('加载更早')).toBeNull()
++    requestOlderByWheel(scroller)
++    expect(h.loadOlder).toHaveBeenCalledTimes(1)
++  })
++
++  it('does not page on downward wheel or when already away from the head', () => {
++    const h = makeHarness({ nodes: [user(5, 'later')], hasMore: true })
++    const view = render(<h.ChatView {...h.props} />)
++    const scroller = view.container.querySelector('[class*="scroll"]') as HTMLDivElement
++    Object.defineProperty(scroller, 'scrollHeight', { value: 800, writable: true })
++    Object.defineProperty(scroller, 'clientHeight', { value: 200, writable: true })
++    readerScroll(scroller, 200)
++    fireEvent.wheel(scroller, { deltaY: 80 })
++    fireEvent.wheel(scroller, { deltaY: -80 })
++    expect(h.loadOlder).not.toHaveBeenCalled()
++    act(() => { h.set({ loadingOlder: true }) })
++    readerScroll(scroller, 10)
++    expect(h.loadOlder).not.toHaveBeenCalled()
++  })
++
++  it('does not page when the window already has the oldest events', () => {
++    const h = makeHarness({ nodes: [user(5, 'later')], hasMore: false })
++    const view = render(<h.ChatView {...h.props} />)
++    const scroller = view.container.querySelector('[class*="scroll"]') as HTMLDivElement
++    requestOlderByWheel(scroller)
++    expect(h.loadOlder).not.toHaveBeenCalled()
+   })
+ 
+   it('shows open error and loading states', () => {
+@@ -1340,6 +1385,14 @@ describe('ChatView', () => {
+     })
+     const view = render(<h.ChatView {...h.props} />)
+     expect(view.getByText(/历史加载失败：boom/)).toBeTruthy()
++    fireEvent.click(view.getByText('重新加载'))
++    expect(h.reload).toHaveBeenCalledTimes(1)
++    const timedOut = makeHarness({
++      openState: 'error',
++      openError: { code: 'internal', message: 'request timed out' } as never,
++    })
++    const timeoutView = render(<timedOut.ChatView {...timedOut.props} />)
++    expect(timeoutView.getByText(/历史加载超时/)).toBeTruthy()
+     const loading = makeHarness({ openState: 'loading' })
+     const lv = render(<loading.ChatView {...loading.props} />)
+     expect(lv.getByText('载入历史…')).toBeTruthy()
+diff --git a/packages/client/ui-conversation/tests/service-orchestration.client.spec.ts b/packages/client/ui-conversation/tests/service-orchestration.client.spec.ts
+index 38522771c0..a61623ff23 100644
+--- a/packages/client/ui-conversation/tests/service-orchestration.client.spec.ts
++++ b/packages/client/ui-conversation/tests/service-orchestration.client.spec.ts
+@@ -19,9 +19,10 @@ async function bench(readAttachment?: SessionFace['readAttachment']) {
+   const updateQueue = vi.fn(() => Promise.resolve({ ok: true as const, value: { accepted: true as const } }))
+   const cancel = vi.fn(() => Promise.resolve({ ok: true as const, value: { accepted: true as const } }))
+   const loadOlder = vi.fn(() => Promise.resolve())
++  const reload = vi.fn(() => Promise.resolve())
+   await runtime.sessions.add({
+     id: 's1',
+-    session: { prompt, updateQueue, cancel, loadOlder, ...(readAttachment === undefined ? {} : { readAttachment }) },
++    session: { prompt, updateQueue, cancel, loadOlder, reload, ...(readAttachment === undefined ? {} : { readAttachment }) },
+   })
+   // config.input is required (the apply shares its hub with the inject
+   // factories); the bench passes its own instance explicitly.
+@@ -34,7 +35,7 @@ async function bench(readAttachment?: SessionFace['readAttachment']) {
+   const root = runtime.ctx.get('conversation') as ConversationController
+   const scoped = runtime.sessions.scope('s1')!.get('conversation') as ConversationController
+   const shell = hub.shellFor(runtime.sessions.binding('s1')!)
+-  return { runtime, fiber, root, scoped, hub, shell, prompt, updateQueue, cancel, loadOlder }
++  return { runtime, fiber, root, scoped, hub, shell, prompt, updateQueue, cancel, loadOlder, reload }
+ }
+ 
+ describe('ConversationController', () => {
+@@ -44,10 +45,12 @@ describe('ConversationController', () => {
+     await b.scoped.updateQueue('item-1' as never, { kind: 'remove' })
+     await b.scoped.cancel()
+     await b.scoped.loadOlder()
++    await b.scoped.reload()
+     expect(b.prompt).toHaveBeenCalledWith([{ type: 'text', text: 'hello' }], 'queue')
+     expect(b.updateQueue).toHaveBeenCalledWith('item-1', { kind: 'remove' })
+     expect(b.cancel).toHaveBeenCalledOnce()
+     expect(b.loadOlder).toHaveBeenCalledOnce()
++    expect(b.reload).toHaveBeenCalledOnce()
+     await b.runtime.dispose()
+   })
+ 
+diff --git a/packages/client/ui-settings-models/src/client/store.ts b/packages/client/ui-settings-models/src/client/store.ts
+index 5b688db919..a8cffd5e8a 100644
+--- a/packages/client/ui-settings-models/src/client/store.ts
++++ b/packages/client/ui-settings-models/src/client/store.ts
+@@ -220,6 +220,11 @@ export class ModelsSettingsStore {
+  */
+ export function providerUsable(row: ProviderRow): boolean {
+   if (!row.entry.active) return false
++  // Internal adapters (vision-http, wrapper aliases) register a live route
++  // with no settings address. They are not a conversation provider the user
++  // can talk to, and must not end first-run onboarding or hide the DeepSeek
++  // setup card.
++  if (row.entry.settingsNs === '') return false
+   if (row.apiKeyEnv === undefined) return true
+   return row.credential?.configured === true
+ }
+diff --git a/packages/client/ui-settings-models/tests/readiness.client.spec.ts b/packages/client/ui-settings-models/tests/readiness.client.spec.ts
+index f01e821767..2684c19b1f 100644
+--- a/packages/client/ui-settings-models/tests/readiness.client.spec.ts
++++ b/packages/client/ui-settings-models/tests/readiness.client.spec.ts
+@@ -64,6 +64,14 @@ describe('providerUsable', () => {
+   it('treats a reference-free registered route as provider-native authentication', () => {
+     expect(providerUsable(otherRow({ apiKeyEnv: undefined, credential: undefined }))).toBe(true)
+   })
++
++  it('does not treat an internal route with no settings address as usable', () => {
++    expect(providerUsable(otherRow({
++      entry: { ...otherRow().entry, settingsNs: '', settingsPath: [] },
++      apiKeyEnv: undefined,
++      credential: undefined,
++    }))).toBe(false)
++  })
+ })
+ 
+ describe('onboardingReadiness', () => {
+diff --git a/packages/host/apiproxy/src/api-proxy.ts b/packages/host/apiproxy/src/api-proxy.ts
+index ba354e1173..83b33fa1ba 100644
+--- a/packages/host/apiproxy/src/api-proxy.ts
++++ b/packages/host/apiproxy/src/api-proxy.ts
+@@ -22,7 +22,10 @@ import type { JsonValue, Session, SessionEvent, SessionEventMap, SessionHeader,
+ import type { SessionPersistence } from '@deepseek-ai/dsh-session-persistence'
+ import { SessionQueryError, type SessionSearchCursor } from '@deepseek-ai/dsh-session-query'
+ import { SubagentError } from '@deepseek-ai/dsh-subagent'
+-import type { SubagentListEntry as CatalogSubagentListEntry } from '@deepseek-ai/dsh-subagent'
++import type {
++  SubagentIdentityProjection,
++  SubagentListEntry as CatalogSubagentListEntry,
++} from '@deepseek-ai/dsh-subagent'
+ import { isUserInvocable } from '@deepseek-ai/dsh-skill'
+ import type { Workspace, WorkspaceRecord } from '@deepseek-ai/dsh-workspace'
+ import {
+@@ -114,6 +117,23 @@ import { canOpenNativePath, openNativePath, openNativeTextFile } from './native-
+ /** Page size when history is called without maxMessages. */
+ const DEFAULT_MAX_MESSAGES = 50
+ 
++/**
++ * Hard cap on raw events in one history page. A tender parent turn can
++ * append hundreds of subagent tool events between two messages; a
++ * message-only cut then serializes a page large enough for
++ * `Response.json` to throw (`Invalid string length`) and the carrier
++ * answers HTTP 500.
++ */
++export const HISTORY_PAGE_EVENT_CAP = 800
++
++/** Longest string kept on a history-page event copy. The live log is unchanged. */
++export const HISTORY_EVENT_STRING_BUDGET = 4_096
++
++/** Upper bound on `JSON.stringify` of the shipped history entries. */
++export const HISTORY_PAGE_JSON_BUDGET = 1_500_000
++
++const HISTORY_TRUNCATION_MARK = '\n…[truncated]'
++
+ /** Provider work budget: at most 100 calls and 2,000 inspected hits. */
+ const SESSION_SEARCH_PROVIDER_CALL_LIMIT = 100
+ 
+@@ -224,17 +244,37 @@ function isAborted(signal: AbortSignal): boolean {
+  * replacement. The cut is the starting seq of the oldest message group (chunks
+  * group via sourceEventSeqs — never cut mid-message). The tail page naturally
+  * includes the in-progress partial.
++ *
++ * A second cap ({@link HISTORY_PAGE_EVENT_CAP}) stops a single page from
++ * carrying every tool event between those messages. The window is a `slice`
++ * of the live array, never a `filter` over the whole log.
+  */
++function lowerBoundSeq(events: readonly SessionEvent[], end: number, target: number): number {
++  let lo = 0
++  let hi = end
++  while (lo < hi) {
++    const mid = (lo + hi) >> 1
++    if ((events[mid] as SessionEvent).seq < target) lo = mid + 1
++    else hi = mid
++  }
++  return lo
++}
++
+ function paginate(
+   events: readonly SessionEvent[],
+   beforeSeq: number | undefined,
+   maxMessages: number,
+ ): { events: SessionEvent[]; hasMore: boolean } {
+-  const window = beforeSeq === undefined ? [...events] : events.filter(event => event.seq < beforeSeq)
++  const end = beforeSeq === undefined ? events.length : lowerBoundSeq(events, events.length, beforeSeq)
++  if (end === 0) return { events: [], hasMore: false }
++  let start = 0
+   let count = 0
+-  let cut = 0
+-  for (let i = window.length - 1; i >= 0; i--) {
+-    const event = window[i] as SessionEvent
++  for (let i = end - 1; i >= 0; i--) {
++    if (end - i >= HISTORY_PAGE_EVENT_CAP) {
++      start = i
++      break
++    }
++    const event = events[i] as SessionEvent
+     if (!MESSAGE_TYPES.has(event.type) || !isAppendSurfaceEvent(event)) continue
+     count++
+     const sources = (event as { sourceEventSeqs?: number[] }).sourceEventSeqs
+@@ -245,12 +285,66 @@ function paginate(
+       }
+     }
+     if (count >= maxMessages) {
+-      cut = groupStart
++      start = lowerBoundSeq(events, end, groupStart)
++      if (end - start > HISTORY_PAGE_EVENT_CAP) start = end - HISTORY_PAGE_EVENT_CAP
+       break
+     }
+   }
+-  const page = window.filter(event => event.seq >= cut)
+-  return { events: page, hasMore: cut > 0 }
++  return { events: events.slice(start, end), hasMore: start > 0 }
++}
++
++/** Truncate one string for a history-page copy. */
++function slimHistoryString(value: string, budget: number): string {
++  if (value.length <= budget) return value
++  return `${value.slice(0, budget)}${HISTORY_TRUNCATION_MARK}`
++}
++
++/**
++ * Deep-copy JSON-compatible values, truncating every string. Used only for
++ * the history wire copy so presenters and `Response.json` never see the live
++ * tool-result bodies.
++ */
++function slimHistoryValue(value: unknown, budget: number): unknown {
++  if (typeof value === 'string') return slimHistoryString(value, budget)
++  if (Array.isArray(value)) return value.map(item => slimHistoryValue(item, budget))
++  if (value !== null && typeof value === 'object') {
++    const copy: Record<string, unknown> = {}
++    for (const [key, item] of Object.entries(value)) copy[key] = slimHistoryValue(item, budget)
++    return copy
++  }
++  return value
++}
++
++/** Shallow-copy one event and slim its data. The live log object is not reused. */
++function slimHistoryEvent(event: SessionEvent): SessionEvent {
++  return {
++    ...event,
++    data: slimHistoryValue(event.data, HISTORY_EVENT_STRING_BUDGET),
++  } as SessionEvent
++}
++
++/**
++ * Keep the newest history entries whose JSON stays under the page budget.
++ * A single oversize entry still ships so the client can show something.
++ */
++function fitHistoryEntries(
++  entries: HistoryEntry[],
++  hasMore: boolean,
++): { events: HistoryEntry[]; hasMore: boolean } {
++  const kept: HistoryEntry[] = []
++  let used = 2
++  for (let i = entries.length - 1; i >= 0; i--) {
++    const entry = entries[i] as HistoryEntry
++    const extra = JSON.stringify(entry).length + (kept.length > 0 ? 1 : 0)
++    if (kept.length > 0 && used + extra > HISTORY_PAGE_JSON_BUDGET) {
++      kept.reverse()
++      return { events: kept, hasMore: true }
++    }
++    kept.push(entry)
++    used += extra
++  }
++  kept.reverse()
++  return { events: kept, hasMore }
+ }
+ 
+ /** Wrap an ok result echoing the request's rpcId. */
+@@ -624,6 +718,8 @@ interface PendingApproval {
+   toolName: string
+   callId?: CallId
+   reason?: string
++  signal?: AbortSignal
++  onAbort?: () => void
+   resolve(outcome: ApprovalOutcome): void
+ }
+ 
+@@ -653,6 +749,17 @@ interface PendingQuestion {
+   onAbort?: () => void
+ }
+ 
++/**
++ * Accept a client-response and resume the asker on the next event-loop turn.
++ * The HTTP receipt must leave this turn before tool or question work continues.
++ * @param commit - asker settlement (resolve/reject) scheduled after the receipt.
++ * @returns the accepted receipt returned to the answerer on this turn.
++ */
++function releaseAcceptedReceipt(commit: () => void): Promise<RpcReceipt> {
++  setImmediate(commit)
++  return Promise.resolve({ accepted: true })
++}
++
+ /** Validate one answer batch against the exact question request it resolves. */
+ function matchesQuestions(payload: QuestionResponsePayload, pending: PendingQuestion): boolean {
+   if (payload.sessionId !== pending.sessionId) return false
+@@ -751,13 +858,12 @@ function historyPage(
+   scope?: ScopeKey,
+ ): { events: HistoryEntry[]; hasMore: boolean } {
+   const page = paginate(events, beforeSeq, maxMessages ?? DEFAULT_MAX_MESSAGES)
+-  return {
+-    events: page.events.map((event) => {
+-      const view = viewFor(ctx, event, callId => backscanArgs(page.events, callId), scope)
+-      return { event, ...view === undefined ? {} : { view } }
+-    }),
+-    hasMore: page.hasMore,
+-  }
++  const slimmed = page.events.map(slimHistoryEvent)
++  const entries = slimmed.map((event) => {
++    const view = viewFor(ctx, event, callId => backscanArgs(slimmed, callId), scope)
++    return { event, ...view === undefined ? {} : { view } }
++  })
++  return fitHistoryEntries(entries, page.hasMore)
+ }
+ 
+ /**
+@@ -888,6 +994,52 @@ function projectionsUnavailableError(): RpcError {
+   }
+ }
+ 
++/**
++ * Admit one child for a transcript read from that child's own header and
++ * identity. Authorization does not inspect siblings: a parent catalog listing
++ * loads every cold brother and can exceed the browser unary timeout.
++ * @param header - the live or inspected child header.
++ * @param address - the requested parent, child, and mode.
++ * @param readIdentity - live watermark or detached restore; a throw is fail-soft.
++ * @returns a wire error, or undefined when this child's log may be paged.
++ */
++function admitChildTranscript(
++  header: SessionHeader,
++  address: SubagentAddress,
++  readIdentity: () => SubagentIdentityProjection | null | undefined,
++): RpcError | undefined {
++  if (header.origin !== 'subagent') {
++    return {
++      code: 'subagent-not-found',
++      message: `session "${address.childSessionId}" is not a ${address.mode} direct child of "${address.parentSessionId}"`,
++      details: { parentSessionId: address.parentSessionId, childSessionId: address.childSessionId },
++    }
++  }
++  if (header.parentSession !== address.parentSessionId) {
++    return {
++      code: 'subagent-unauthorized',
++      message: 'subagent parent changed during history read',
++      details: { childSessionId: address.childSessionId },
++    }
++  }
++  let identity: SubagentIdentityProjection | null | undefined
++  try {
++    identity = readIdentity()
++  } catch {
++    // A hostile unit must not block the transcript; mode is checked only
++    // when the fold served an identity.
++    identity = undefined
++  }
++  if (identity !== undefined && identity !== null && identity.mode !== address.mode) {
++    return {
++      code: 'subagent-not-found',
++      message: `session "${address.childSessionId}" is not a ${address.mode} direct child of "${address.parentSessionId}"`,
++      details: { parentSessionId: address.parentSessionId, childSessionId: address.childSessionId },
++    }
++  }
++  return undefined
++}
++
+ /** Verify one address and mode against the complete direct-child catalog. */
+ async function catalogChild(
+   ctx: Context,
+@@ -1419,6 +1571,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
+           toolName: req.toolName,
+           ...req.callId === undefined ? {} : { callId: req.callId },
+           ...req.reason === undefined ? {} : { reason: req.reason },
++          ...req.signal === undefined ? {} : { signal: req.signal, onAbort },
+           resolve: settle,
+         }
+         pendingApprovals.set(pending.rpcId, pending)
+@@ -1504,12 +1657,12 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
+   function historyCutOf(
+     source: HistorySource,
+     includeProjections: boolean,
+-  ): { events: SessionEvent[]; projections?: SessionProjectionsBlock } {
++  ): { events: readonly SessionEvent[]; projections?: SessionProjectionsBlock } {
+     if (source.kind === 'detached') {
+       const projections = includeProjections ? detachedProjectionsFor(ctx, source.events) : undefined
+       return { events: source.events, ...projections === undefined ? {} : { projections } }
+     }
+-    const events = [...source.session.events]
++    const events = source.session.events
+     const projections = includeProjections ? projectionsFor(ctx, source.session) : undefined
+     return { events, ...projections === undefined ? {} : { projections } }
+   }
+@@ -2569,39 +2722,31 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
+         const {
+           parentSessionId, childSessionId, mode, beforeSeq, maxMessages,
+         } = request.payload
+-        const verified = await catalogChild(ctx, {
+-          parentSessionId, childSessionId, mode,
+-        }, signal)
+-        if (verified.error !== undefined) return err(request, verified.error)
+-        // The generic-history data plane: an attached child serves its
+-        // in-memory snapshot and the registry's live watermark projections; a
+-        // cold child is one persistence inspection plus a detached fold.
+-        let header: SessionHeader
+-        let events: SessionEvent[]
+-        let projections: SessionProjectionsBlock | undefined
++        const address = { parentSessionId, childSessionId, mode }
++        const cancelled = (): RpcResponse<never> => err(request, {
++          code: 'cancelled',
++          message: 'subagent history read was cancelled',
++          details: {},
++        })
++        if (signal?.aborted) return cancelled()
+         const attached = ctx.sessions.get(childSessionId)
++        let events: readonly SessionEvent[]
++        let projections: SessionProjectionsBlock | undefined
+         if (attached !== undefined) {
+-          header = attached.header
+-          events = [...attached.events]
++          const admission = admitChildTranscript(attached.header, address, () =>
++            ctx.get('sessionProjections')?.snapshot(attached).values.subagent)
++          if (admission !== undefined) return err(request, admission)
++          if (signal?.aborted) return cancelled()
++          events = attached.events
+           projections = beforeSeq === undefined
+             ? subagentHistoryProjections(ctx, childSessionId, () => projectionsFor(ctx, attached))
+             : undefined
+         } else {
++          let inspected: { meta: SessionHeader; events: SessionEvent[] }
+           try {
+-            const inspected = await inspectServable(childSessionId)
+-            header = inspected.meta
+-            events = inspected.events
+-            projections = beforeSeq === undefined
+-              ? subagentHistoryProjections(ctx, childSessionId, () => detachedProjectionsFor(ctx, inspected.events))
+-              : undefined
++            inspected = await inspectServable(childSessionId)
+           } catch (error: unknown) {
+-            if (signal?.aborted) {
+-              return err(request, {
+-                code: 'cancelled',
+-                message: 'subagent history read was cancelled',
+-                details: {},
+-              })
+-            }
++            if (signal?.aborted) return cancelled()
+             if (error instanceof SessionNotFound) {
+               return err(request, {
+                 code: 'subagent-not-found',
+@@ -2615,20 +2760,14 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
+               details: {},
+             })
+           }
+-        }
+-        if (signal?.aborted) {
+-          return err(request, {
+-            code: 'cancelled',
+-            message: 'subagent history read was cancelled',
+-            details: {},
+-          })
+-        }
+-        if (header.parentSession !== parentSessionId) {
+-          return err(request, {
+-            code: 'subagent-unauthorized',
+-            message: 'subagent parent changed during history read',
+-            details: { childSessionId },
+-          })
++          const admission = admitChildTranscript(inspected.meta, address, () =>
++            ctx.get('sessionProjections')?.restore({}, inspected.events, 0).snapshot.values.subagent)
++          if (admission !== undefined) return err(request, admission)
++          if (signal?.aborted) return cancelled()
++          events = inspected.events
++          projections = beforeSeq === undefined
++            ? subagentHistoryProjections(ctx, childSessionId, () => detachedProjectionsFor(ctx, inspected.events))
++            : undefined
+         }
+         const page = historyPage(ctx, events, beforeSeq, maxMessages)
+         return ok(request, { ...page, ...projections === undefined ? {} : { projections } })
+@@ -3603,8 +3742,8 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
+         if (!parsed.success || parsed.data.approvalId !== approval.approvalId || parsed.data.sessionId !== approval.sessionId) {
+           return Promise.resolve({ accepted: false, reason: 'bad-response' })
+         }
+-        approval.resolve(parsed.data.outcome)
+-        return Promise.resolve({ accepted: true })
++        const outcome = parsed.data.outcome
++        return releaseAcceptedReceipt(() => { approval.resolve(outcome) })
+       }
+       const pending = pendingQuestions.get(message.rpcId)
+       if (pending === undefined) return Promise.resolve({ accepted: false, reason: 'not-pending' })
+@@ -3613,9 +3752,10 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
+           return Promise.resolve({ accepted: false, reason: 'bad-response' })
+         }
+         claimQuestion(pending, 'cancelled')
+-        pending.reject(new UserQuestionError(
+-          'the user cancelled ask_user_question', 'ASK_CANCELLED'))
+-        return Promise.resolve({ accepted: true })
++        return releaseAcceptedReceipt(() => {
++          pending.reject(new UserQuestionError(
++            'the user cancelled ask_user_question', 'ASK_CANCELLED'))
++        })
+       }
+       const parsed = questionResponsePayloadSchema.safeParse(message.result.value)
+       if (!parsed.success) {
+@@ -3635,8 +3775,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
+         return Promise.resolve({ accepted: false, reason: 'bad-response' })
+       }
+       claimQuestion(pending, 'answered')
+-      pending.resolve(payload.answer)
+-      return Promise.resolve({ accepted: true })
++      return releaseAcceptedReceipt(() => { pending.resolve(payload.answer) })
+     },
+   }
+ }
+diff --git a/packages/host/apiproxy/src/api/rpc.ts b/packages/host/apiproxy/src/api/rpc.ts
+index 0b5506b6b6..f1eeec9f5e 100644
+--- a/packages/host/apiproxy/src/api/rpc.ts
++++ b/packages/host/apiproxy/src/api/rpc.ts
+@@ -119,10 +119,20 @@ export type RpcResult<T> = { ok: true; value: T } | { ok: false; error: RpcError
+ export function transportError<T>(error: unknown): RpcResult<T> {
+   return {
+     ok: false,
+-    error: { code: 'internal', message: error instanceof Error ? error.message : String(error), details: {} },
++    error: { code: 'internal', message: transportErrorMessage(error), details: {} },
+   }
+ }
+ 
++/** Collapse AbortSignal timeout text so the UI can retry without leaking the DOMException name. */
++function transportErrorMessage(error: unknown): string {
++  if (error instanceof DOMException && error.name === 'TimeoutError') return 'request timed out'
++  if (error instanceof Error) {
++    if (error.name === 'TimeoutError' || error.message === 'signal timed out') return 'request timed out'
++    return error.message
++  }
++  return String(error)
++}
++
+ /**
+  * Signature-layer narrow form, request side (domain-interface view, shared by
+  * both directions): rpcId is explicit in the signature, never mixed into the
+diff --git a/packages/host/apiproxy/src/api/subagents.ts b/packages/host/apiproxy/src/api/subagents.ts
+index 751d48215c..8d3d1a5abf 100644
+--- a/packages/host/apiproxy/src/api/subagents.ts
++++ b/packages/host/apiproxy/src/api/subagents.ts
+@@ -75,9 +75,11 @@ export interface SubagentsApi {
+   ): Promise<RpcResponse<SubagentCatalog>>
+ 
+   /**
+-   * Reads one healthy catalog child's transcript — the in-memory snapshot of
+-   * a live child, the persisted log of a cold one — with ordinary
+-   * message-aligned pagination and render intents, without Agent activation.
++   * Reads one healthy child's transcript — the in-memory snapshot of a live
++   * `origin=subagent` child, or one persistence inspection of a cold one —
++   * from that child's own header and identity, without enumerating siblings,
++   * with ordinary message-aligned pagination and render intents, and without
++   * Agent activation.
+    */
+   history(
+     request: RpcRequest<SubagentAddress & { beforeSeq?: number; maxMessages?: number }>,
+diff --git a/packages/host/apiproxy/src/index.ts b/packages/host/apiproxy/src/index.ts
+index ac6c770801..bf54307df6 100644
+--- a/packages/host/apiproxy/src/index.ts
++++ b/packages/host/apiproxy/src/index.ts
+@@ -27,7 +27,12 @@ export { RpcId } from './api/rpc.ts'
+ export { toFetchHandler } from './fetch/handler.ts'
+ export { AbstractApiClient, InProcessApiClient } from './fetch/client.ts'
+ export type { IApiClient } from './fetch/client.ts'
+-export { createApiProxy } from './api-proxy.ts'
++export {
++  createApiProxy,
++  HISTORY_EVENT_STRING_BUDGET,
++  HISTORY_PAGE_EVENT_CAP,
++  HISTORY_PAGE_JSON_BUDGET,
++} from './api-proxy.ts'
+ export type { ApiProxyDefaults } from './api-proxy.ts'
+ 
+ declare module '@deepseek-ai/cordis' {
+diff --git a/packages/host/apiproxy/src/native-path-opener.ts b/packages/host/apiproxy/src/native-path-opener.ts
+index f8a065c8e2..41612199a1 100644
+--- a/packages/host/apiproxy/src/native-path-opener.ts
++++ b/packages/host/apiproxy/src/native-path-opener.ts
+@@ -8,8 +8,9 @@
+  * GUI. The text-editor intent never consults the browser.
+  */
+ 
++import { lstatSync } from 'node:fs'
+ import { release as osRelease } from 'node:os'
+-import { extname } from 'node:path'
++import { extname, join } from 'node:path'
+ import { runNativeCommand, type NativeCommandRunner } from '@deepseek-ai/dsh-native-command'
+ 
+ /** Testable command boundary; native implementations never invoke a shell. */
+@@ -22,6 +23,8 @@ export interface PathOpenerInternals {
+   osRelease?: string
+   /** Environment used for WSL markers and the desktop Linux browser convention. */
+   env?: NodeJS.ProcessEnv
++  /** Override Windows shell existence checks so tests do not read the host disk. */
++  fileExists?: (path: string) => boolean
+   run?: PathOpenerRunner
+ }
+ 
+@@ -97,9 +100,50 @@ function isWsl(internals: PathOpenerInternals): boolean {
+   return (internals.osRelease ?? osRelease()).toLowerCase().includes('microsoft')
+ }
+ 
++/**
++ * Whether a Windows shell candidate can be spawned. `lstat` sees Store
++ * execution aliases that `stat` cannot open.
++ */
++function windowsShellExists(path: string): boolean {
++  try {
++    const stat = lstatSync(path)
++    return stat.isFile() || stat.isSymbolicLink()
++  } catch {
++    return false
++  }
++}
++
++/**
++ * Packaged Electron PATH often has System32 but neither PowerShell 7 nor
++ * Windows PowerShell 5.1, so a bare `powershell.exe` / `pwsh.exe` spawn
++ * returns ENOENT. Prefer the PowerShell 7 install, then 5.1. WSL interop
++ * still uses the bare `powershell.exe` name for the Windows side.
++ */
++function windowsOpenShellCandidates(env: NodeJS.ProcessEnv): string[] {
++  const programFiles = env.ProgramFiles || 'C:\\Program Files'
++  const root = env.SystemRoot || env.WINDIR || 'C:\\Windows'
++  return [
++    join(programFiles, 'PowerShell', '7', 'pwsh.exe'),
++    join(root, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
++  ]
++}
++
++function windowsOpenShellBin(
++  env: NodeJS.ProcessEnv,
++  exists: (path: string) => boolean = windowsShellExists,
++): string {
++  const candidates = windowsOpenShellCandidates(env)
++  return candidates.find((path) => exists(path)) ?? candidates[0]!
++}
++
+ /** Open one Windows-resolvable path through its registered desktop application. */
+-async function openWindowsPath(path: string, signal: AbortSignal, run: PathOpenerRunner): Promise<void> {
+-  await run('powershell.exe', [
++async function openWindowsPath(
++  path: string,
++  signal: AbortSignal,
++  run: PathOpenerRunner,
++  command = 'powershell.exe',
++): Promise<void> {
++  await run(command, [
+     '-NoProfile',
+     '-Command',
+     `Invoke-Item -LiteralPath ${powershellLiteral(path)}`,
+@@ -136,7 +180,7 @@ async function openNativePathWithIntent(
+   }
+ 
+   if (platform === 'win32') {
+-    await openWindowsPath(path, signal, run)
++    await openWindowsPath(path, signal, run, windowsOpenShellBin(env, internals.fileExists))
+     return
+   }
+ 
+diff --git a/packages/host/apiproxy/tests/api-proxy-approval.spec.ts b/packages/host/apiproxy/tests/api-proxy-approval.spec.ts
+index 88ab5ede42..5a4cad5edd 100644
+--- a/packages/host/apiproxy/tests/api-proxy-approval.spec.ts
++++ b/packages/host/apiproxy/tests/api-proxy-approval.spec.ts
+@@ -109,6 +109,39 @@ describe('approval pending registry', () => {
+     abort.abort()
+   })
+ 
++  it('returns the respond receipt before the asker promise settles', async () => {
++    const { ctx, api } = await harness()
++    const abort = new AbortController()
++    const mux = openMux(api, abort)
++    const agent = agentOf(ctx)
++    const asked = ctx.approval.request({ agent, toolName: 'bash' })
++    const requested = requestedOf(await mux.waitFor('approval/requested'))
++    const envelope = mux.envelopes.find(e => e.payload.type === 'approval/requested') as RpcRequest<MuxFrame>
++    let askedSettled = false
++    void asked.then(() => { askedSettled = true })
++    const receipt = await api.respond(answer(envelope.rpcId, requested.sessionId, requested.approvalId, 'allowed-once'))
++    expect(receipt).toEqual({ accepted: true })
++    expect(askedSettled).toBe(false)
++    await expect(asked).resolves.toBe('allowed-once')
++    abort.abort()
++  })
++
++  it('accepts an answer while the ask still carries a live abort signal', async () => {
++    const { ctx, api } = await harness()
++    const abort = new AbortController()
++    const mux = openMux(api, abort)
++    const agent = agentOf(ctx)
++    const cancel = new AbortController()
++    const asked = ctx.approval.request({ agent, toolName: 'bash', signal: cancel.signal })
++    const requested = requestedOf(await mux.waitFor('approval/requested'))
++    const envelope = mux.envelopes.find(e => e.payload.type === 'approval/requested') as RpcRequest<MuxFrame>
++    const receipt = await api.respond(answer(envelope.rpcId, requested.sessionId, requested.approvalId, 'allowed-once'))
++    expect(receipt).toEqual({ accepted: true })
++    await expect(asked).resolves.toBe('allowed-once')
++    cancel.abort()
++    abort.abort()
++  })
++
+   it('replays a still-pending requested frame (same rpcId) on a later mux open', async () => {
+     const { ctx, api } = await harness()
+     const first = new AbortController()
+diff --git a/packages/host/apiproxy/tests/api-proxy-projections.spec.ts b/packages/host/apiproxy/tests/api-proxy-projections.spec.ts
+index 6d9c53a6f8..e397cab5ce 100644
+--- a/packages/host/apiproxy/tests/api-proxy-projections.spec.ts
++++ b/packages/host/apiproxy/tests/api-proxy-projections.spec.ts
+@@ -148,6 +148,21 @@ describe('session.history projections block', () => {
+     expect('imageLimits' in (response.result.value.projections?.values ?? {})).toBe(false)
+   })
+ 
++  it('pages an attached tail from the live log without cloning it', async () => {
++    const { ctx, session } = await harness(true)
++    seedMessages(session, 80)
++    const live = session.events
++    const response = await api(ctx).sessions.history(request({ sessionId: session.id, maxMessages: 50 }))
++    expect(response.result.ok).toBe(true)
++    if (!response.result.ok) throw new Error('unreachable')
++    expect(response.result.value.hasMore).toBe(true)
++    const messages = response.result.value.events.filter(entry => entry.event.type === 'user/message')
++    expect(messages).toHaveLength(50)
++    expect((messages.at(-1)?.event.data as { content: { text: string }[] }).content[0]?.text).toBe('m79')
++    expect(session.events).toBe(live)
++    expect(session.events).toHaveLength(80)
++  })
++
+   it('never carries the block on loadOlder pages (beforeSeq present)', async () => {
+     const { ctx, session } = await harness(true)
+     ctx.sessionProjections.register(lastUserUnit())
+diff --git a/packages/host/apiproxy/tests/api-proxy-subagents.spec.ts b/packages/host/apiproxy/tests/api-proxy-subagents.spec.ts
+index a11e2a0416..77d606ed43 100644
+--- a/packages/host/apiproxy/tests/api-proxy-subagents.spec.ts
++++ b/packages/host/apiproxy/tests/api-proxy-subagents.spec.ts
+@@ -25,6 +25,10 @@ function bench(options: {
+   storedChild?: false
+   /** Attach the child to the live session store instead of persistence only. */
+   liveChild?: true
++  /** Durable origin on the child header. Default `subagent`; `false` omits it. */
++  childOrigin?: 'subagent' | false
++  /** Watermark identity served for a live child; omitted means no identity yet. */
++  identity?: { mode: 'one-shot' | 'continuable'; label?: string; seq: number }
+   /** Every registered projection unit throws on this child's payloads. */
+   projectionsThrow?: true
+   historyParent?: SessionId
+@@ -65,6 +69,7 @@ function bench(options: {
+   })
+   const childHeader = {
+     version: 0, id: CHILD, createdAt: 1, cwd: '/proj', parentSession: options.historyParent ?? PARENT,
++    ...options.childOrigin === false ? {} : { origin: 'subagent' as const },
+   } satisfies SessionHeader
+   const childEvents = [
+     { type: 'user/message', seq: 0, time: 1, data: { content: [{ type: 'text', text: 'work' }], source: { kind: 'user' } } },
+@@ -74,11 +79,15 @@ function bench(options: {
+   const coldBlock = { values: {}, asOfSeq: 0 }
+   const snapshot = vi.fn(() => {
+     if (options.projectionsThrow === true) throw new Error('hostile unit')
+-    return liveBlock
++    return options.identity === undefined
++      ? liveBlock
++      : { values: { subagent: options.identity }, asOfSeq: liveBlock.asOfSeq }
+   })
+   const restore = vi.fn(() => {
+     if (options.projectionsThrow === true) throw new Error('hostile unit')
+-    return { snapshot: coldBlock }
++    return options.identity === undefined
++      ? { snapshot: coldBlock }
++      : { snapshot: { values: { subagent: options.identity }, asOfSeq: coldBlock.asOfSeq } }
+   })
+   const ctx = new Context()
+   ctx.provide('agents', { get: getAgent })
+@@ -151,7 +160,7 @@ describe('subagent gateway', () => {
+   })
+ 
+   it('reads a healthy direct child without looking up or activating any Agent', async () => {
+-    const { api, getAgent, inspect, restore } = bench()
++    const { api, getAgent, inspect, restore, listChildren } = bench()
+     const response = await api.subagents.history(request({
+       parentSessionId: PARENT, childSessionId: CHILD, mode: 'continuable', maxMessages: 10,
+     }))
+@@ -160,12 +169,13 @@ describe('subagent gateway', () => {
+       value: { hasMore: false, events: [{ event: { type: 'user/message', seq: 0 } }] },
+     })
+     expect(inspect).toHaveBeenCalledWith(CHILD)
+-    expect(restore).toHaveBeenCalledTimes(1)
++    expect(restore).toHaveBeenCalledTimes(2)
+     expect(getAgent).not.toHaveBeenCalled()
++    expect(listChildren).not.toHaveBeenCalled()
+   })
+ 
+   it('serves a live child from the in-memory snapshot and the watermark projections', async () => {
+-    const { api, inspect, snapshot, restore } = bench({ liveChild: true })
++    const { api, inspect, snapshot, restore, listChildren } = bench({ liveChild: true })
+     const response = await api.subagents.history(request({
+       parentSessionId: PARENT, childSessionId: CHILD, mode: 'continuable',
+     }))
+@@ -173,9 +183,80 @@ describe('subagent gateway', () => {
+       ok: true,
+       value: { hasMore: false, projections: { asOfSeq: 3 } },
+     })
+-    expect(snapshot).toHaveBeenCalledTimes(1)
++    expect(snapshot).toHaveBeenCalled()
+     expect(restore).not.toHaveBeenCalled()
+     expect(inspect).not.toHaveBeenCalled()
++    expect(listChildren).not.toHaveBeenCalled()
++  })
++
++  it('pages an attached origin=subagent child without enumerating the parent catalog', async () => {
++    const hung = bench({
++      liveChild: true,
++      childOrigin: 'subagent',
++      listError: new Error('catalog hung'),
++    })
++    const response = await hung.api.subagents.history(request({
++      parentSessionId: PARENT, childSessionId: CHILD, mode: 'continuable',
++    }))
++    expect(response.result).toMatchObject({
++      ok: true,
++      value: { hasMore: false, projections: { asOfSeq: 3 } },
++    })
++    expect(hung.listChildren).not.toHaveBeenCalled()
++    expect(hung.inspect).not.toHaveBeenCalled()
++
++    const matched = bench({
++      liveChild: true,
++      childOrigin: 'subagent',
++      identity: { mode: 'continuable', label: 'Price sheet C1.3', seq: 1 },
++    })
++    expect((await matched.api.subagents.history(request({
++      parentSessionId: PARENT, childSessionId: CHILD, mode: 'continuable',
++    }))).result).toMatchObject({ ok: true, value: { hasMore: false } })
++    expect(matched.listChildren).not.toHaveBeenCalled()
++
++    const wrongMode = bench({
++      liveChild: true,
++      childOrigin: 'subagent',
++      identity: { mode: 'one-shot', seq: 1 },
++    })
++    expect((await wrongMode.api.subagents.history(request({
++      parentSessionId: PARENT, childSessionId: CHILD, mode: 'continuable',
++    }))).result).toMatchObject({ ok: false, error: { code: 'subagent-not-found' } })
++    expect(wrongMode.listChildren).not.toHaveBeenCalled()
++    expect(wrongMode.inspect).not.toHaveBeenCalled()
++
++    const drifted = bench({
++      liveChild: true,
++      childOrigin: 'subagent',
++      historyParent: sid('other-parent'),
++    })
++    expect((await drifted.api.subagents.history(request({
++      parentSessionId: PARENT, childSessionId: CHILD, mode: 'continuable',
++    }))).result).toMatchObject({ ok: false, error: { code: 'subagent-unauthorized' } })
++    expect(drifted.listChildren).not.toHaveBeenCalled()
++
++    const cancelled = bench({ liveChild: true, childOrigin: 'subagent' })
++    const abort = new AbortController()
++    abort.abort()
++    expect((await cancelled.api.subagents.history(request({
++      parentSessionId: PARENT, childSessionId: CHILD, mode: 'continuable',
++    }), abort.signal)).result).toMatchObject({ ok: false, error: { code: 'cancelled' } })
++
++    const hostile = bench({
++      liveChild: true,
++      childOrigin: 'subagent',
++      projectionsThrow: true,
++    })
++    const hostileResponse = await hostile.api.subagents.history(request({
++      parentSessionId: PARENT, childSessionId: CHILD, mode: 'continuable',
++    }))
++    expect(hostileResponse.result).toMatchObject({
++      ok: true,
++      value: { hasMore: false, events: [{ event: { type: 'user/message', seq: 0 } }] },
++    })
++    if (hostileResponse.result.ok) expect('projections' in hostileResponse.result.value).toBe(false)
++    expect(hostile.listChildren).not.toHaveBeenCalled()
+   })
+ 
+   it('serves the page without projections when a hostile unit breaks the fold', async () => {
+@@ -198,42 +279,64 @@ describe('subagent gateway', () => {
+       value: { hasMore: false, events: [{ event: { type: 'user/message', seq: 0 } }] },
+     })
+     if (liveResponse.result.ok) expect('projections' in liveResponse.result.value).toBe(false)
+-    expect(live.snapshot).toHaveBeenCalledTimes(1)
++    expect(live.snapshot).toHaveBeenCalled()
+   })
+ 
+   it('reads one-shot history and rejects an address with the wrong mode', async () => {
+-    const oneShot = {
+-      kind: 'child', id: CHILD, mode: 'one-shot', label: 'batch',
+-      activity: 'inactive', hasChildren: false,
+-    }
+-    const { api, inspect } = bench({ entries: [oneShot] })
++    const { api, inspect, listChildren } = bench({
++      identity: { mode: 'one-shot', label: 'batch', seq: 0 },
++    })
+     expect((await api.subagents.history(request({
+       parentSessionId: PARENT, childSessionId: CHILD, mode: 'one-shot',
+     }))).result).toMatchObject({ ok: true })
+     expect((await api.subagents.history(request({
+       parentSessionId: PARENT, childSessionId: CHILD, mode: 'continuable',
+     }))).result).toMatchObject({ ok: false, error: { code: 'subagent-not-found' } })
+-    expect(inspect).toHaveBeenCalledTimes(1)
++    expect(inspect).toHaveBeenCalledTimes(2)
++    expect(listChildren).not.toHaveBeenCalled()
+   })
+ 
+-  it('rejects a diagnostic address before reading history', async () => {
+-    const { api, inspect } = bench({ entries: [
++  it('pages a readable child log even when the parent catalog would mark it diagnostic', async () => {
++    const { api, inspect, listChildren } = bench({ entries: [
+       { kind: 'diagnostic', id: CHILD, reason: 'unsupported' },
+     ] })
+     const response = await api.subagents.history(request({
+       parentSessionId: PARENT, childSessionId: CHILD, mode: 'continuable',
+     }))
+     expect(response.result).toMatchObject({
+-      ok: false,
+-      error: {
+-        code: 'subagent-catalog-diagnostic',
+-        details: { parentSessionId: PARENT, childSessionId: CHILD, reason: 'unsupported' },
+-      },
++      ok: true,
++      value: { hasMore: false, events: [{ event: { type: 'user/message', seq: 0 } }] },
+     })
+-    expect(inspect).not.toHaveBeenCalled()
++    expect(inspect).toHaveBeenCalledWith(CHILD)
++    expect(listChildren).not.toHaveBeenCalled()
+   })
+ 
+-  it('maps the missing projections capability to one wire face on list, history, and prompt', async () => {
++  it('pages a cold child without enumerating the parent catalog', async () => {
++    const hung = bench({ listError: new Error('catalog hung') })
++    const response = await hung.api.subagents.history(request({
++      parentSessionId: PARENT, childSessionId: CHILD, mode: 'continuable',
++    }))
++    expect(response.result).toMatchObject({
++      ok: true,
++      value: { hasMore: false, events: [{ event: { type: 'user/message', seq: 0 } }] },
++    })
++    expect(hung.listChildren).not.toHaveBeenCalled()
++    expect(hung.inspect).toHaveBeenCalledWith(CHILD)
++
++    const drifted = bench({ historyParent: sid('other-parent') })
++    expect((await drifted.api.subagents.history(request({
++      parentSessionId: PARENT, childSessionId: CHILD, mode: 'continuable',
++    }))).result).toMatchObject({ ok: false, error: { code: 'subagent-unauthorized' } })
++    expect(drifted.listChildren).not.toHaveBeenCalled()
++
++    const missingOrigin = bench({ childOrigin: false })
++    expect((await missingOrigin.api.subagents.history(request({
++      parentSessionId: PARENT, childSessionId: CHILD, mode: 'continuable',
++    }))).result).toMatchObject({ ok: false, error: { code: 'subagent-not-found' } })
++    expect(missingOrigin.listChildren).not.toHaveBeenCalled()
++  })
++
++  it('maps the missing projections capability on list and prompt, not history', async () => {
+     const listError = () => new SubagentError(
+       'listing subagents requires the sessionProjections registry (load @deepseek-ai/dsh-session-projection)',
+       'SUBAGENT_CONTROL_PROJECTIONS_UNAVAILABLE',
+@@ -250,8 +353,12 @@ describe('subagent gateway', () => {
+     const history = bench({ listError: listError() })
+     expect((await history.api.subagents.history(request({
+       parentSessionId: PARENT, childSessionId: CHILD, mode: 'continuable',
+-    }))).result).toMatchObject({ ok: false, error: expected })
+-    expect(history.inspect).not.toHaveBeenCalled()
++    }))).result).toMatchObject({
++      ok: true,
++      value: { hasMore: false, events: [{ event: { type: 'user/message', seq: 0 } }] },
++    })
++    expect(history.listChildren).not.toHaveBeenCalled()
++    expect(history.inspect).toHaveBeenCalledWith(CHILD)
+ 
+     const prompt = bench({ listError: listError() })
+     expect((await prompt.api.subagents.prompt(request({
+diff --git a/packages/host/apiproxy/tests/api-proxy-view.spec.ts b/packages/host/apiproxy/tests/api-proxy-view.spec.ts
+index 6955b9416c..d0f9367ce4 100644
+--- a/packages/host/apiproxy/tests/api-proxy-view.spec.ts
++++ b/packages/host/apiproxy/tests/api-proxy-view.spec.ts
+@@ -21,7 +21,11 @@ import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+ import UserQuestionService from '@deepseek-ai/dsh-user-questions'
+ import type { MuxFrame, RpcRequest } from '@deepseek-ai/dsh-host-apiproxy/api'
+ import { RpcId } from '@deepseek-ai/dsh-host-apiproxy/api/rpc'
+-import { createApiProxy } from '@deepseek-ai/dsh-host-apiproxy'
++import {
++  createApiProxy,
++  HISTORY_EVENT_STRING_BUDGET,
++  HISTORY_PAGE_EVENT_CAP,
++} from '@deepseek-ai/dsh-host-apiproxy'
+ 
+ const reply = (text: string): Promise<ContentBlock[]> => Promise.resolve([{ type: 'text', text }])
+ 
+@@ -324,6 +328,60 @@ describe('mux live view computation', () => {
+     }
+   })
+ 
++  it('caps a history page by event count so a subagent-wave parent still serializes', async () => {
++    const { ctx } = await harness()
++    const api = createApiProxy(ctx, { defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/tmp' })
++    const session = ctx.sessions.create()
++    ctx.agents.register({ id: session.id, session, status: 'idle', ctx } as Agent)
++    appendUserText(session, 'dispatch wave')
++    const extra = 50
++    for (let i = 0; i < HISTORY_PAGE_EVENT_CAP + extra; i++) {
++      session.append('tool/call', {
++        turn: 1, step: 1, callId: CallId(`wave-${i}`), name: 'plain', arguments: '{}',
++      })
++    }
++    appendAssistantText(session, 'wave done', 1)
++    const live = session.events
++    const response = await api.sessions.history({
++      rpcId: RpcId('t-hist-event-cap'),
++      payload: { sessionId: session.id },
++    })
++    if (!response.result.ok) throw new Error('unreachable')
++    expect(response.result.value.events.length).toBeLessThanOrEqual(HISTORY_PAGE_EVENT_CAP)
++    expect(response.result.value.hasMore).toBe(true)
++    expect(session.events).toBe(live)
++    expect(session.events.length).toBe(HISTORY_PAGE_EVENT_CAP + extra + 2)
++  })
++
++  it('truncates oversized tool bodies on the history wire copy only', async () => {
++    const { ctx } = await harness()
++    const api = createApiProxy(ctx, { defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/tmp' })
++    const session = ctx.sessions.create()
++    ctx.agents.register({ id: session.id, session, status: 'idle', ctx } as Agent)
++    const huge = `HUGE_TOOL_BODY:${'x'.repeat(HISTORY_EVENT_STRING_BUDGET + 2048)}`
++    session.append('tool/call', {
++      turn: 1, step: 1, callId: CallId('h-huge'), name: 'plain', arguments: JSON.stringify({ body: huge }),
++    })
++    session.append('tool/result', {
++      turn: 1, step: 1,
++      message: createToolResultMessage({
++        callId: CallId('h-huge'),
++        content: [{ type: 'text', text: huge }],
++        isError: false,
++      }),
++    }, { surfaceOp: 'append' })
++    const response = await api.sessions.history({
++      rpcId: RpcId('t-hist-slim'),
++      payload: { sessionId: session.id },
++    })
++    if (!response.result.ok) throw new Error('unreachable')
++    const shipped = JSON.stringify(response.result.value.events)
++    expect(shipped.includes(huge)).toBe(false)
++    expect(shipped.includes('[truncated]')).toBe(true)
++    const liveCall = session.events.find(event => event.type === 'tool/call')
++    expect((liveCall?.data as { arguments: string }).arguments.includes(huge)).toBe(true)
++  })
++
+   it('drops a disposed session from the live open-call table (result after dispose gets no view)', async () => {
+     const { ctx } = await harness()
+     const api = createApiProxy(ctx, { defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/tmp' })
+diff --git a/packages/host/apiproxy/tests/native-path-opener.spec.ts b/packages/host/apiproxy/tests/native-path-opener.spec.ts
+index e1904cbcf1..442eaea9a2 100644
+--- a/packages/host/apiproxy/tests/native-path-opener.spec.ts
++++ b/packages/host/apiproxy/tests/native-path-opener.spec.ts
+@@ -14,10 +14,22 @@ const { execFileMock } = vi.hoisted(() => ({ execFileMock: vi.fn<ExecFileMock>()
+ 
+ vi.mock('node:child_process', () => ({ execFile: execFileMock }))
+ 
++import { existsSync } from 'node:fs'
+ import { release as osRelease } from 'node:os'
++import { join } from 'node:path'
+ import { describe, expect, it, vi } from 'vitest'
+ import { canOpenNativePath, openNativePath, openNativeTextFile, type PathOpenerRunner } from '../src/native-path-opener.ts'
+ 
++const WIN_ENV = { ProgramFiles: 'C:\\Program Files', SystemRoot: 'C:\\Windows' }
++const PWSH7 = join(WIN_ENV.ProgramFiles, 'PowerShell', '7', 'pwsh.exe')
++const WINPS51 = join(WIN_ENV.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
++
++function windowsOpenFacts(
++  exists: (path: string) => boolean = (path) => path === PWSH7,
++): { platform: 'win32'; env: typeof WIN_ENV; fileExists: (path: string) => boolean } {
++  return { platform: 'win32', env: WIN_ENV, fileExists: exists }
++}
++
+ const signal = () => new AbortController().signal
+ 
+ describe('native path opener', () => {
+@@ -89,9 +101,9 @@ describe('native path opener', () => {
+ 
+   it('opens with Windows Invoke-Item and escapes single quotes', async () => {
+     const run = vi.fn<PathOpenerRunner>(async () => ({ stdout: '', stderr: '' }))
+-    await openNativePath("C:\\work\\o'reilly.txt", signal(), { platform: 'win32', run })
++    await openNativePath("C:\\work\\o'reilly.txt", signal(), { ...windowsOpenFacts(), run })
+     expect(run).toHaveBeenCalledWith(
+-      'powershell.exe',
++      PWSH7,
+       ['-NoProfile', '-Command', "Invoke-Item -LiteralPath 'C:\\work\\o''reilly.txt'"],
+       expect.any(AbortSignal),
+     )
+@@ -99,14 +111,32 @@ describe('native path opener', () => {
+ 
+   it('uses the Windows desktop association for text documents', async () => {
+     const run = vi.fn<PathOpenerRunner>(async () => ({ stdout: '', stderr: '' }))
+-    await openNativeTextFile('C:\\work\\settings.yaml', signal(), { platform: 'win32', run })
++    await openNativeTextFile('C:\\work\\settings.yaml', signal(), { ...windowsOpenFacts(), run })
+     expect(run).toHaveBeenCalledWith(
+-      'powershell.exe',
++      PWSH7,
+       ['-NoProfile', '-Command', "Invoke-Item -LiteralPath 'C:\\work\\settings.yaml'"],
+       expect.any(AbortSignal),
+     )
+   })
+ 
++  it('prefers PowerShell 7 over Windows PowerShell 5.1', async () => {
++    const run = vi.fn<PathOpenerRunner>(async () => ({ stdout: '', stderr: '' }))
++    await openNativePath('C:\\work\\doc.pdf', signal(), {
++      ...windowsOpenFacts((path) => path === PWSH7 || path === WINPS51),
++      run,
++    })
++    expect(run.mock.calls[0]?.[0]).toBe(PWSH7)
++  })
++
++  it('falls back to Windows PowerShell 5.1 when PowerShell 7 is absent', async () => {
++    const run = vi.fn<PathOpenerRunner>(async () => ({ stdout: '', stderr: '' }))
++    await openNativePath('C:\\work\\doc.pdf', signal(), {
++      ...windowsOpenFacts((path) => path === WINPS51),
++      run,
++    })
++    expect(run.mock.calls[0]?.[0]).toBe(WINPS51)
++  })
++
+   it('opens with Linux xdg-open', async () => {
+     const run = vi.fn<PathOpenerRunner>(async () => ({ stdout: '', stderr: '' }))
+     await openNativePath('/tmp/a.txt', signal(), {
+@@ -127,7 +157,7 @@ describe('native path opener', () => {
+       osRelease: '6.8.0-generic', env: {}, run,
+     })
+     const expected = process.platform === 'win32'
+-      ? 'powershell.exe'
++      ? (existsSync(PWSH7) ? PWSH7 : WINPS51)
+       : process.platform === 'linux'
+         ? 'xdg-open'
+         : 'open'
+@@ -256,10 +286,10 @@ describe('browser-renderable documents', () => {
+     // Windows names no browser without the UserChoice registry.
+     const win: string[][] = []
+     await openNativePath('C:\\w\\page.html', new AbortController().signal, {
+-      platform: 'win32',
++      ...windowsOpenFacts(),
+       run: async (command, args) => { win.push([command, ...args]); return { stdout: '', stderr: '' } },
+     })
+-    expect(win[0]?.[0]).toBe('powershell.exe')
++    expect(win[0]?.[0]).toBe(PWSH7)
+   })
+ 
+   it('hands browser-renderable WSL paths to the Windows desktop', async () => {
+diff --git a/packages/host/apiproxy/tests/rpc-schemas.spec.ts b/packages/host/apiproxy/tests/rpc-schemas.spec.ts
+index 62d1a371da..93ab6ea9f5 100644
+--- a/packages/host/apiproxy/tests/rpc-schemas.spec.ts
++++ b/packages/host/apiproxy/tests/rpc-schemas.spec.ts
+@@ -52,6 +52,15 @@ describe('transportError', () => {
+   it('folds Error and non-Error throws into the internal error branch', () => {
+     expect(transportError(new Error('wire down'))).toEqual({ ok: false, error: { code: 'internal', message: 'wire down', details: {} } })
+     expect(transportError('raw')).toMatchObject({ ok: false, error: { code: 'internal', message: 'raw' } })
++    expect(transportError(new DOMException('signal timed out', 'TimeoutError'))).toEqual({
++      ok: false, error: { code: 'internal', message: 'request timed out', details: {} },
++    })
++    const named = new Error('signal timed out')
++    named.name = 'TimeoutError'
++    expect(transportError(named)).toMatchObject({ ok: false, error: { message: 'request timed out' } })
++    expect(transportError(new Error('signal timed out'))).toMatchObject({
++      ok: false, error: { message: 'request timed out' },
++    })
+   })
+ })
+ 
+diff --git a/packages/test-support/client-runtime/src/sessions.ts b/packages/test-support/client-runtime/src/sessions.ts
+index c014d6f002..28324b0f0b 100644
+--- a/packages/test-support/client-runtime/src/sessions.ts
++++ b/packages/test-support/client-runtime/src/sessions.ts
+@@ -130,6 +130,14 @@ export class FixtureSession implements SessionFace {
+     throw new Error(`test session "${this.sessionId}": loadOlder is not stubbed — supply it on the fixture's session face`)
+   }
+ 
++  /**
++   * Fail-loud stub; supply `reload` on the fixture's session face to exercise it.
++   * @returns never — always throws.
++   */
++  reload(): never {
++    throw new Error(`test session "${this.sessionId}": reload is not stubbed — supply it on the fixture's session face`)
++  }
++
+   /**
+    * Fail-loud stub; supply `rename` on the fixture's session face to exercise it.
+    * @returns never — always throws.
+diff --git a/packages/client/ui-conversation/tests/approval-panel.client.spec.tsx b/packages/client/ui-conversation/tests/approval-panel.client.spec.tsx
+new file mode 100644
+index 0000000000..8da342ded2
+--- /dev/null
++++ b/packages/client/ui-conversation/tests/approval-panel.client.spec.tsx
+@@ -0,0 +1,163 @@
++// @vitest-environment jsdom
++import { afterEach, describe, expect, it, vi } from 'vitest'
++import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
++import type {
++  ChatConversationViewNode, ConversationSnapshot, RunningToolCall, SessionId, SessionListState,
++  ToolCallBlock, WorkspaceListState,
++} from '@deepseek-ai/dsh-client-runtime/client'
++import {
++  conversationContextKey, EMPTY_CHAT_SNAPSHOT, EMPTY_CONVERSATION_VIEWS, PendingWait,
++} from '@deepseek-ai/dsh-client-runtime/client'
++import type { RpcReceipt } from '@deepseek-ai/dsh-api-remotes/client'
++import { RpcId } from '@deepseek-ai/dsh-client-connection/client'
++import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
++import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
++import { ApprovalPanel, commandOf } from '../src/client/skeleton/ApprovalPanel.tsx'
++import type { ApprovalComposerProps } from '../src/client/contract/slots.ts'
++import { en, zh } from '../src/client/locales.ts'
++import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
++import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
++
++afterEach(cleanup)
++
++const SID = 's1' as SessionId
++
++function snapshotBase(chat: ConversationSnapshot['chat'] = EMPTY_CHAT_SNAPSHOT): ConversationSnapshot {
++  return {
++    sessionId: SID, views: EMPTY_CONVERSATION_VIEWS, chat, nodes: [],
++    turnTimings: new Map(), turnEnds: new Map(), partial: null, runningCalls: [],
++    pending: [], queue: [], running: false, composerPhase: 'active', removed: false, openState: 'open', openError: null,
++    hasMore: false, loadingOlder: false, promptError: null, blank: false, subagent: null, lastAgentError: null,
++  }
++}
++
++function kit(snapshot: ConversationSnapshot = snapshotBase()) {
++  return {
++    session: undefined,
++    sessionId: SID,
++    useSession: ((sel: (s: ConversationSnapshot) => unknown) => sel(snapshot)) as unknown as SnapshotSelectorHook<ConversationSnapshot>,
++    useSessions: (() => { throw new Error('unused') }) as unknown as SnapshotSelectorHook<SessionListState>,
++    useWorkspaces: (() => { throw new Error('unused') }) as unknown as SnapshotSelectorHook<WorkspaceListState>,
++    useProjection: (() => undefined) as never,
++    useInput: (() => { throw new Error('unused') }) as never,
++    inputActions: { setDraft: () => { throw new Error('unused') }, submit: () => { throw new Error('unused') } } as never,
++    t: makeTranslate(zh, commonZh) as ApprovalComposerProps['t'],
++  }
++}
++
++function wait(
++  rpcId = 'approval-1',
++  payload: ConstructorParameters<typeof PendingWait<'approval'>>[3] = { toolName: 'bash', approvalId: 'ap1' as never, reason: 'escalate sandbox' },
++  respond = vi.fn(() => Promise.resolve<RpcReceipt>({ accepted: true })),
++) {
++  const carrier = new PendingWait('approval', RpcId(rpcId), SID, payload, respond)
++  return { carrier, respond }
++}
++
++function runningCall(over: Partial<RunningToolCall> = {}): RunningToolCall {
++  return {
++    callId: 'c1', name: 'bash', argsRaw: JSON.stringify({ command: 'ls' }),
++    turn: 1, step: 1, time: 0, callView: null, subCalls: [],
++    ...over,
++  }
++}
++
++function snapshotWithRoot(callId: string, root: ToolCallBlock): ConversationSnapshot {
++  const key = conversationContextKey('tool-call', callId)
++  const node = {
++    kind: 'tool-call', key, id: callId, target: 'chat', data: { root },
++    anchorSeq: 1, location: { kind: 'unresolved' }, visibility: 'visible',
++  } as ChatConversationViewNode
++  return snapshotBase({
++    ...EMPTY_CHAT_SNAPSHOT,
++    nodes: {
++      get: (lookup: string) => lookup === key ? node : undefined,
++      values: () => [node],
++    },
++  })
++}
++
++describe('commandOf', () => {
++  it('reads a bash-family command and hides unparseable or command-less args', () => {
++    expect(commandOf(undefined)).toBeUndefined()
++    expect(commandOf(runningCall({ argsRaw: '{' }))).toBeUndefined()
++    expect(commandOf(runningCall({ argsRaw: JSON.stringify({ path: 'x' }) }))).toBeUndefined()
++    expect(commandOf(runningCall())).toBe('ls')
++  })
++})
++
++describe('ApprovalPanel', () => {
++  it('renders the waiting strip, reason, and both actions', () => {
++    const { carrier } = wait()
++    render(<ApprovalPanel matched={carrier} interactions={[carrier]} {...kit()} />)
++    expect(screen.getByText('等待审批')).toBeTruthy()
++    expect(screen.getByText('escalate sandbox')).toBeTruthy()
++    expect(screen.getByRole('button', { name: '拒绝' })).toBeTruthy()
++    expect(screen.getByRole('button', { name: '允许一次' })).toBeTruthy()
++  })
++
++  it('falls back to the tool-name headline when the ask carries no reason', () => {
++    const { carrier } = wait('approval-2', { toolName: 'pwsh', approvalId: 'ap2' as never })
++    render(<ApprovalPanel matched={carrier} interactions={[carrier]} {...kit()} />)
++    expect(screen.getByText('工具 pwsh 请求越权执行')).toBeTruthy()
++  })
++
++  it('shows submitting while the answer is in flight and re-arms with the error on failure', async () => {
++    let reject!: (error: Error) => void
++    const respond = vi.fn(() => new Promise<RpcReceipt>((_, fail) => { reject = fail }))
++    const { carrier } = wait('approval-3', { toolName: 'bash', approvalId: 'ap3' as never, reason: 'why' }, respond)
++    render(<ApprovalPanel matched={carrier} interactions={[carrier]} {...kit()} />)
++    fireEvent.click(screen.getByRole('button', { name: '允许一次' }))
++    expect(screen.getByRole('button', { name: '提交中…' })).toHaveProperty('disabled', true)
++    expect(screen.getByRole('button', { name: '拒绝' })).toHaveProperty('disabled', true)
++    await act(async () => { reject(new Error('approval response rejected: not-pending')) })
++    expect(screen.getByRole('alert').textContent).toBe('approval response rejected: not-pending')
++    expect(screen.getByRole('button', { name: '允许一次' })).toHaveProperty('disabled', false)
++  })
++
++  it('re-arms after a rejected receipt and shows the paired command for a running call', async () => {
++    const respond = vi.fn(() => Promise.resolve<RpcReceipt>({ accepted: false, reason: 'not-pending' }))
++    const { carrier } = wait(
++      'approval-4',
++      { toolName: 'bash', approvalId: 'ap4' as never, callId: 'c1' as never, reason: 'why' },
++      respond,
++    )
++    render(<ApprovalPanel matched={carrier} interactions={[carrier]} {...kit(snapshotWithRoot('c1', runningCall()))} />)
++    expect(screen.getByText('ls')).toBeTruthy()
++    fireEvent.click(screen.getByRole('button', { name: '拒绝' }))
++    await act(async () => undefined)
++    expect(screen.getByRole('alert').textContent).toContain('not-pending')
++    expect(screen.getByRole('button', { name: '拒绝' })).toHaveProperty('disabled', false)
++  })
++
++  it('hides the command line when the paired root is missing, settled, or a different call', () => {
++    const payload = { toolName: 'bash', approvalId: 'ap5' as never, callId: 'c1' as never, reason: 'why' }
++    const { carrier: missing } = wait('a-missing', payload)
++    const { container: missingView } = render(
++      <ApprovalPanel matched={missing} interactions={[missing]} {...kit()} />)
++    expect(missingView.querySelector('[class*="command"]')).toBeNull()
++
++    const settled: ToolCallBlock = {
++      kind: 'tool-result', seq: 1, time: 0, callId: 'c1', call: { name: 'bash', argsRaw: '{"command":"ls"}' },
++      callTime: 0, content: [], isError: false, callView: null, resultView: null, subCalls: [],
++    }
++    const { carrier: done } = wait('a-done', payload)
++    const { container: doneView } = render(
++      <ApprovalPanel matched={done} interactions={[done]} {...kit(snapshotWithRoot('c1', settled))} />)
++    expect(doneView.querySelector('[class*="command"]')).toBeNull()
++
++    const { carrier: other } = wait('a-other', payload)
++    const { container: otherView } = render(
++      <ApprovalPanel matched={other} interactions={[other]} {...kit(snapshotWithRoot('c1', runningCall({ callId: 'other' })))} />)
++    expect(otherView.querySelector('[class*="command"]')).toBeNull()
++  })
++
++  it('uses the English submitting label when the seat is English', () => {
++    const respond = vi.fn(() => new Promise<RpcReceipt>(() => undefined))
++    const { carrier } = wait('approval-en', { toolName: 'bash', approvalId: 'ap-en' as never }, respond)
++    const english = { ...kit(), t: makeTranslate(en, commonEn) as ApprovalComposerProps['t'] }
++    render(<ApprovalPanel matched={carrier} interactions={[carrier]} {...english} />)
++    fireEvent.click(screen.getByRole('button', { name: 'Allow once' }))
++    expect(screen.getByRole('button', { name: 'Submitting…' })).toHaveProperty('disabled', true)
++  })
++})
+

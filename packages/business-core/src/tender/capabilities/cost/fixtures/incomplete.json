@@ -1,0 +1,32 @@
+{
+  "currency": "ZAR",
+  "costStatus": "draft",
+  "rateSources": [],
+  "components": [
+    {
+      "id": "component-concrete",
+      "kind": "material",
+      "description": "Unverified concrete allowance",
+      "quantity": "1250.5",
+      "unit": "m",
+      "rate": "10.25",
+      "assumptionStatus": "unverified"
+    }
+  ],
+  "buildUps": [
+    {
+      "boqItemId": "boq-5201",
+      "componentIds": ["component-concrete"],
+      "total": "12817.62"
+    }
+  ],
+  "cashFlow": [
+    {
+      "period": "2026-08",
+      "activityIds": ["unknown-activity"],
+      "plannedCost": "12000",
+      "cumulativeCost": "12000"
+    }
+  ],
+  "scenarios": []
+}

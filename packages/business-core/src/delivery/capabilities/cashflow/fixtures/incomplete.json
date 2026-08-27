@@ -1,0 +1,16 @@
+{
+  "controlStatus": "draft",
+  "dataDate": "2026-07-12",
+  "currency": "ZAR",
+  "periods": [
+    {
+      "period": "2026-08",
+      "planned": { "openingBalance": "100", "inflow": "0", "outflow": "50", "closingBalance": "60" },
+      "actual": { "openingBalance": "100", "inflow": "0", "outflow": "0", "closingBalance": "100" },
+      "forecast": { "openingBalance": "100", "inflow": "0", "outflow": "50", "closingBalance": "50" },
+      "evidenceRefs": [],
+      "status": "draft"
+    }
+  ],
+  "fundingConstraints": []
+}

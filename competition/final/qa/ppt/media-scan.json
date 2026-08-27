@@ -1,0 +1,72 @@
+[
+  {
+    "Name": "image-1-1.jpg",
+    "Length": 80198,
+    "SHA256": "CD3333EFF46346B750B02F6877847E651C660D5F53ADDAE792616AB692D5A001",
+    "MatchesOriginal": false,
+    "MatchesRedacted": false
+  },
+  {
+    "Name": "image-4-1.png",
+    "Length": 299482,
+    "SHA256": "3A97DABC25F72A6CC3D9711D9D8C1F05960F602A042BBD2AFF178148B15D8C67",
+    "MatchesOriginal": false,
+    "MatchesRedacted": false
+  },
+  {
+    "Name": "image-4-2.png",
+    "Length": 276058,
+    "SHA256": "ABF84657BB9AD038A94BD5613B56937A0D66C855102C0D4DACD3EDE24D0A3579",
+    "MatchesOriginal": false,
+    "MatchesRedacted": false
+  },
+  {
+    "Name": "image-4-3.png",
+    "Length": 330021,
+    "SHA256": "6D03038870F44A8530C8DDCBDD0E66699C32AC2E759FCE060ECB39CD3F70BDD6",
+    "MatchesOriginal": false,
+    "MatchesRedacted": false
+  },
+  {
+    "Name": "image-4-4.png",
+    "Length": 280104,
+    "SHA256": "61AEBB6049086AB9DFBFDD23E567D8040BBE48B00A07A19F550097B57155DAD5",
+    "MatchesOriginal": false,
+    "MatchesRedacted": false
+  },
+  {
+    "Name": "image-8-1.png",
+    "Length": 102081,
+    "SHA256": "35B620FF61AEFB662CE64F7697C8B47EF31B18CCDE88B7391922814B515C7637",
+    "MatchesOriginal": false,
+    "MatchesRedacted": true
+  },
+  {
+    "Name": "image-8-2.png",
+    "Length": 299482,
+    "SHA256": "3A97DABC25F72A6CC3D9711D9D8C1F05960F602A042BBD2AFF178148B15D8C67",
+    "MatchesOriginal": false,
+    "MatchesRedacted": false
+  },
+  {
+    "Name": "image-8-3.png",
+    "Length": 276058,
+    "SHA256": "ABF84657BB9AD038A94BD5613B56937A0D66C855102C0D4DACD3EDE24D0A3579",
+    "MatchesOriginal": false,
+    "MatchesRedacted": false
+  },
+  {
+    "Name": "image-8-4.png",
+    "Length": 330021,
+    "SHA256": "6D03038870F44A8530C8DDCBDD0E66699C32AC2E759FCE060ECB39CD3F70BDD6",
+    "MatchesOriginal": false,
+    "MatchesRedacted": false
+  },
+  {
+    "Name": "image-8-5.png",
+    "Length": 100413,
+    "SHA256": "91FBD6B3144EB0DC5C528D32D91BA4F1B681C2D512F7B3C65DD3B95B5E89C64E",
+    "MatchesOriginal": false,
+    "MatchesRedacted": false
+  }
+]

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<link rel="stylesheet" href="board.css" />
+<style>
+  .content { gap: 32px; }
+  .sec-title { font-size: 31px; }
+  .sec-title small { font-size: 17px; }
+  .steps { gap: 20px; }
+  .step { padding: 26px 26px; }
+  .step h4 { font-size: 22px; }
+  .step p { font-size: 17.5px; line-height: 1.8; }
+  .step .no { font-size: 18px; }
+  .grid { gap: 22px; }
+  .card { padding: 28px 30px; }
+  .card h3 { font-size: 23px; }
+  .card p, .card li { font-size: 18.5px; line-height: 1.85; }
+  .card .num { font-size: 15px; }
+  .callout { font-size: 19.5px; padding: 22px 28px; }
+  .diagram { padding: 26px; }
+</style>
+</head>
+<body>
+
+<div class="hd">
+  <div class="hd-l">
+    <img src="img/company.png" alt="中国建筑第二工程局有限公司" />
+    <span class="jz">建 证 未 来</span>
+  </div>
+  <div class="hd-r">
+    <span class="n">2</span>
+    <span class="t"><b>中国建筑第二届青年设计师创新大赛</b><span>The Second Young Designer Innovation Competition Of CSCEC</span></span>
+  </div>
+</div>
+
+<div class="fields">
+  <div class="f"><b>参赛人员：</b><span>向鑫</span></div>
+  <div class="f"><b>申报类型：</b><span>海外业务赛道</span></div>
+  <div class="f title"><b>作品名称：</b><span>海外工程投标及商业调研全流程 AI 智能 Agent 作业系统</span></div>
+</div>
+
+<div class="content">
+
+  <div>
+    <div class="sec-title">核心流程：一次长程任务，从标书到标稿 <small>WORKFLOW</small></div>
+    <div class="steps" style="margin-top:14px">
+      <div class="step"><span class="no">01</span><h4>标书全量解析，规范入库</h4><p>一次任务读完所有标书文件；规范、FIDIC 条款进入本地知识库，与特别条款修订逐条对照总结——过程材料全程不丢，产出详细分析文档。</p></div>
+      <div class="step"><span class="no">02</span><h4>数千条 BOQ，逐项界定范围</h4><p>庞大 BOQ 清单逐条引用规范、标书特别条款、FIDIC 修订，为每一个条目界定工作范围——不靠印象，每条都有出处芯片。</p></div>
+      <div class="step"><span class="no">03</span><h4>五步推导，算出每条单价</h4><p>依据工作范围，结合企业数据与网络验证的工法、工效、资源实时实地价格，对每条 BOQ 做详尽的五步推导。</p></div>
+      <div class="step"><span class="no">04</span><h4>资源汇总与成本推定</h4><p>所有推导汇总成资源清单与成本推定，带公式的 BOQ 组价测算表可直接改——施工组织策划可验证的最坚实基础。</p></div>
+      <div class="step"><span class="no">05</span><h4>按项目特征施工推演</h4><p>根据标书文件的项目特征进行施工推演，建立一整套可执行的施工策划稿，不是空话套话。</p></div>
+      <div class="step"><span class="no">06</span><h4>照企业模板编制标稿</h4><p>依照企业常用投标格式与内容深度模板编制投标文档——用户模板复刻版式、大纲与深度，项目事实永远来自本项目资料。</p></div>
+    </div>
+  </div>
+
+  <div>
+    <div class="sec-title">三个深思熟虑的架构决策 <small>DESIGN DECISIONS</small></div>
+    <div class="grid g3" style="margin-top:14px">
+      <div class="card">
+        <span class="num">决策 01</span>
+        <h3>知识库不堆 RAG<span class="en">普通电脑就跑得动</span></h3>
+        <p>一套像样的 RAG 要嵌入模型、向量库、GPU 与 Docker 编排——太重、用不起；且向量检索是「相似度猜测」，检索到 ≠ 证据对。本系统按文档自身章 / 节 / 条切分条款，MiniSearch BM25 检索：零重型依赖，每条命中精确定位到 Clause，出处当场可核。</p>
+      </div>
+      <div class="card">
+        <span class="num">决策 02</span>
+        <h3>百万上下文<span class="en">任务全程不失忆</span></h3>
+        <p>DeepSeek V4 全系支持 1M tokens 上下文（约 800 页 PDF）——整套标书、规范、数千条 BOQ 与全部中间稿全程驻留上下文。模型不靠检索「猜」该看什么，而是在完整事实面前工作：任务始终围绕目标推进，不因截断而偏离。</p>
+      </div>
+      <div class="card">
+        <span class="num">决策 03</span>
+        <h3>换到 DSH 架构<span class="en">实测优于双架构</span></h3>
+        <p>全程跑下来最难的 BOQ 逐条分析，DeepSeek Harness 架构运行效果明显优于 Claude Agent SDK + Pi 双架构——内核原生并行工人、持久 Bash 不再卡顿、长任务崩溃只救未完工部分。3.0 果断换芯：回合更短、token 更省、目标更稳。</p>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="sec-title">BOQ 五步推导详解 <small>FIVE-STEP PRICING</small></div>
+    <div class="steps" style="margin-top:14px; grid-template-columns: repeat(5, 1fr)">
+      <div class="step"><span class="no">1</span><h4>范围界定</h4><p>逐条引用规范、特别条款、FIDIC 修订，界定每条 BOQ 的工作范围。</p></div>
+      <div class="step"><span class="no">2</span><h4>工法选定</h4><p>结合企业历史数据与网络验证的成熟工法，确定施工方案。</p></div>
+      <div class="step"><span class="no">3</span><h4>工效测定</h4><p>按工法与项目条件测定人工、机械工效，过程留痕可复核。</p></div>
+      <div class="step"><span class="no">4</span><h4>资源取价</h4><p>资源实时实地价格：当地人工、材料、设备、运输逐一取定。</p></div>
+      <div class="step"><span class="no">5</span><h4>单价合成</h4><p>五步合成单价并汇总成本推定，带公式测算表可直接改。</p></div>
+    </div>
+  </div>
+
+  <div>
+    <div class="sec-title">知识库与证据链 <small>KNOWLEDGE & EVIDENCE</small></div>
+    <div class="grid g2" style="margin-top:14px; grid-template-columns: 1.05fr 0.95fr">
+      <div class="diagram">
+        <svg viewBox="0 0 720 420" role="img" aria-label="知识库流程">
+          <defs>
+            <linearGradient id="gradStrokeB" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stop-color="#2f6df0"/><stop offset="1" stop-color="#0fb5c9"/>
+            </linearGradient>
+            <marker id="arrK" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0L10 5L0 10z" class="d-accent"/>
+            </marker>
+          </defs>
+          <rect x="20" y="24" width="300" height="76" rx="12" class="d-box"/>
+          <text x="170" y="56" text-anchor="middle" class="d-text" font-size="20">原始文档区</text>
+          <text x="170" y="82" text-anchor="middle" class="d-mono" font-size="14">originals/ 先落盘</text>
+          <rect x="400" y="24" width="300" height="76" rx="12" class="d-box"/>
+          <text x="550" y="56" text-anchor="middle" class="d-text" font-size="20">对话知识包</text>
+          <text x="550" y="82" text-anchor="middle" class="d-mono" font-size="14">整理成知识包再入库</text>
+          <rect x="210" y="160" width="300" height="76" rx="12" class="d-box-accent"/>
+          <text x="360" y="192" text-anchor="middle" class="d-text" font-size="20">解析入库</text>
+          <text x="360" y="218" text-anchor="middle" class="d-dim" font-size="15">MinerU · 按章节切条</text>
+          <rect x="20" y="300" width="200" height="76" rx="12" class="d-box"/>
+          <text x="120" y="332" text-anchor="middle" class="d-text" font-size="19">BM25 检索</text>
+          <text x="120" y="358" text-anchor="middle" class="d-dim" font-size="14">MiniSearch</text>
+          <rect x="260" y="300" width="200" height="76" rx="12" class="d-box"/>
+          <text x="360" y="332" text-anchor="middle" class="d-text" font-size="19">分类 / 子目录</text>
+          <text x="360" y="358" text-anchor="middle" class="d-dim" font-size="14">用户模板复刻版式</text>
+          <rect x="500" y="300" width="200" height="76" rx="12" class="d-box"/>
+          <text x="600" y="332" text-anchor="middle" class="d-mono" font-size="17">.apkb</text>
+          <text x="600" y="358" text-anchor="middle" class="d-dim" font-size="14">传递包</text>
+          <line x1="170" y1="100" x2="320" y2="154" class="d-line" stroke-width="2" marker-end="url(#arrK)"/>
+          <line x1="550" y1="100" x2="400" y2="154" class="d-line" stroke-width="2" marker-end="url(#arrK)"/>
+          <line x1="320" y1="236" x2="150" y2="294" class="d-line-accent" stroke-width="2" marker-end="url(#arrK)"/>
+          <line x1="360" y1="236" x2="360" y2="292" class="d-line-accent" stroke-width="2" marker-end="url(#arrK)"/>
+          <line x1="400" y1="236" x2="570" y2="294" class="d-line-accent" stroke-width="2" marker-end="url(#arrK)"/>
+        </svg>
+      </div>
+      <div class="card soft">
+        <h3>证据链：引用是出处，不是摘抄</h3>
+        <ul>
+          <li><b>证据门禁</b>：项目特征缺口不能用模型记忆填——要么找到出处，要么由人尽调后授权放行，基本杜绝幻觉；</li>
+          <li><b>出处芯片</b>：稿中引用只显示源文件、页或行、题目或段落，点击即达原文；证据正文绝不贴进正式稿；</li>
+          <li><b>成果落盘</b>：统一成果树写回项目目录，崩溃重启不重做；正式稿上的人工修改留在原处；</li>
+          <li><b>规范即检索</b>：规范、合同、图纸说明按自身章节切条入库，BOQ 每一行都能回指到具体条款。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <b>对企业生产力的解放：</b>同样的标一旦中标，投标阶段的全部详尽基础资料直接服务实施阶段——成本策划有据可依，落地即有据可查。
+  </div>
+
+</div>
+
+<div class="ft">
+  <span>中 / 国 / 建 / 筑 / 第 / 二 / 届 / 青 / 年 / 设 / 计 / 师 / 创 / 新 / 大 / 赛</span>
+  <span class="pg">02</span>
+</div>
+
+</body>
+</html>

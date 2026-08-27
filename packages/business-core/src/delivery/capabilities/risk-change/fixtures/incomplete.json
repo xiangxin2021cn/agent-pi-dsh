@@ -1,0 +1,13 @@
+{
+  "controlStatus": "draft",
+  "dataDate": "2026-07-12",
+  "currency": "ZAR",
+  "risks": [
+    { "id": "risk-1", "type": "risk", "title": "Utility conflict", "scopeItemIds": ["missing"], "cause": "Unknown utility", "effect": "Delay", "probability": 2, "impact": 3, "rating": 5, "owner": "Construction Manager", "dueDate": "2026-07-01", "response": "None", "evidenceRefs": [], "status": "open", "confidence": "unverified" }
+  ],
+  "issues": [],
+  "notices": [],
+  "changes": [],
+  "claims": [],
+  "decisions": []
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Delivery Reporting and Audit"
+  short_description: "Close periods with approved reports and audit history"
+  default_prompt: "Use $project-delivery-reporting-audit to validate enabled delivery controls and close the requested reporting period."

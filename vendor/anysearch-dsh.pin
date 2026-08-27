@@ -1,0 +1,3 @@
+0.1.1
+https://github.com/anysearch-team/anysearch-dsh
+source + built lib/; do not re-run prepare

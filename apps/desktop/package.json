@@ -1,0 +1,115 @@
+{
+  "name": "agent-pi-dsh-desktop",
+  "version": "3.3.5",
+  "private": true,
+  "author": "agent-pi-DSH",
+  "homepage": "https://github.com/xiangxin2021cn/agent-pi-dsh",
+  "description": "Thin Electron shell over dsh web --profile tender",
+  "main": "main.mjs",
+  "type": "module",
+  "scripts": {
+    "start": "electron .",
+    "prepare-runtime": "powershell -File ../../scripts/prepare-win-runtime.ps1",
+    "measure-runtime": "powershell -File ../../scripts/measure-dsh-size.ps1",
+    "pack:win": "powershell -File ../../scripts/pack-win.ps1"
+  },
+  "devDependencies": {
+    "electron": "^43.4.1",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "do.agentpi.dsh",
+    "productName": "Agent Pi DSH",
+    "asar": true,
+    "compression": "normal",
+    "electronDist": "node_modules/electron/dist",
+    "afterPack": "./after-pack.cjs",
+    "publish": [],
+    "directories": {
+      "output": "dist-unpacked",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.mjs",
+      "codex-auth.mjs",
+      "preload.mjs",
+      "boot.html",
+      "brand/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "brand/app-icon.png",
+        "to": "app-icon.png"
+      }
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": "nsis",
+      "artifactName": "Agent-Pi-DSH-${version}-x64.${ext}",
+      "executableName": "agent-pi-DSH",
+      "signExecutable": false,
+      "extraResources": [
+        {
+          "from": "build/icon.ico",
+          "to": "app-icon.ico"
+        }
+      ]
+    },
+    "mac": {
+      "icon": "build/icon.png",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.productivity",
+      "identity": null,
+      "artifactName": "Agent-Pi-DSH-${version}-mac-${arch}.${ext}"
+    },
+    "linux": {
+      "icon": "build/icon.png",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Office",
+      "executableName": "agent-pi-dsh",
+      "artifactName": "Agent-Pi-DSH-${version}-linux-${arch}.${ext}",
+      "maintainer": "agent-pi-DSH"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Agent Pi DSH",
+      "uninstallDisplayName": "Agent Pi DSH",
+      "include": "build/installer.nsh",
+      "installerLanguages": [
+        "zh_CN",
+        "en_US"
+      ],
+      "displayLanguageSelector": true
+    }
+  }
+}

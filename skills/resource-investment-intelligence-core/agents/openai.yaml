@@ -1,0 +1,4 @@
+interface:
+  display_name: "Resource Investment Intelligence"
+  short_description: "Establish an independent investment evidence workspace"
+  default_prompt: "Use $resource-investment-intelligence-core to establish and validate an investment workspace from my selected records."

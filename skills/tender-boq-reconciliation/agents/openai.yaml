@@ -1,0 +1,4 @@
+interface:
+  display_name: "Tender BOQ Reconciliation"
+  short_description: "Reconcile BOQ items with specifications and drawings"
+  default_prompt: "Use $tender-boq-reconciliation to build and validate exact BOQ-to-specification-to-drawing scope links for the registered tender."

@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-lang="zh" data-theme="light"
+      data-title-zh="Agent Pi DSH — 工程企业的垂直智能体：投标、实施、投资"
+      data-title-en="Agent Pi DSH — The vertical agent for engineering enterprises">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Agent Pi DSH — 工程企业的垂直智能体：投标、实施、投资</title>
+<meta name="description" content="Agent Pi DSH 是面向工程企业的垂直智能体工作台：长程任务一次跑完、目标不偏离、证据门禁杜绝幻觉。数十份标书一次解析，数千条 BOQ 逐项引用规范五步推导，成果落盘为正式投标文档。A vertical agent workbench for tendering, delivery and investment." />
+<meta property="og:title" content="Agent Pi DSH" />
+<meta property="og:description" content="A desktop workbench for tender, delivery, and investment jobs — parallel workers, evidence gates, Official Outputs, clickable citations." />
+<meta property="og:image" content="assets/img/hero-dark.jpg" />
+<link rel="icon" type="image/png" href="assets/img/logo.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+<noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" /></noscript>
+<link rel="stylesheet" href="assets/css/main.css?v=24" />
+</head>
+<body>
+
+<!-- ===================== NAV ===================== -->
+<header class="nav">
+  <div class="nav-inner">
+    <img class="company-logo" src="assets/img/company.png?v=24" alt="中国建筑第二工程局有限公司" />
+    <a class="brand" href="index.html">
+      <img src="assets/img/logo.png" alt="Agent Pi" />
+      <span>Agent Pi <small>DSH</small></span>
+    </a>
+    <nav class="nav-links">
+      <a href="#compare" data-lang="zh">对比</a>
+      <a href="#compare" data-lang="en">Why</a>
+      <a href="#tender" data-lang="zh">投标全流程</a>
+      <a href="#tender" data-lang="en">Tender flow</a>
+      <a href="#showcase" data-lang="zh">成果</a>
+      <a href="#showcase" data-lang="en">Showcase</a>
+      <a href="#architecture" data-lang="zh">架构</a>
+      <a href="#architecture" data-lang="en">Architecture</a>
+      <a href="docs.html" data-lang="zh">文档</a>
+      <a href="docs.html" data-lang="en">Docs</a>
+      <a href="https://github.com/xiangxin2021cn/agent-pi-dsh" target="_blank" rel="noopener">GitHub</a>
+      <button class="icon-btn lang-btn" data-toggle-lang aria-label="Switch language">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        <span>EN</span>
+      </button>
+      <button class="icon-btn" data-toggle-theme aria-label="Toggle theme">
+        <svg data-theme-icon="dark" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <svg data-theme-icon="light" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      </button>
+    </nav>
+    <button class="icon-btn hamburger" style="margin-left:auto" aria-label="Menu">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
+  </div>
+</header>
+
+<!-- ===================== HERO ===================== -->
+<section class="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-grid"></div>
+  <video class="hero-video hero-video--dark" autoplay muted loop playsinline preload="metadata" poster="assets/img/hero-dark-v2.jpg">
+    <source src="assets/video/flow-banner.mp4?v=24" type="video/mp4" />
+  </video>
+  <video class="hero-video hero-video--light" autoplay muted loop playsinline preload="metadata" poster="assets/img/hero-light-v2.jpg">
+    <source src="assets/video/flow-banner-light-v2.mp4?v=24" type="video/mp4" />
+  </video>
+  <div class="hero-veil"></div>
+  <div class="container hero-inner">
+    <img class="hero-logo reveal" src="assets/img/hero-logo.png?v=24" alt="Agent Pi DSH logo" />
+    <div class="hero-eyebrow reveal">
+      <span class="dot"></span>
+      <span data-lang="zh"><span data-rel-version>v3.3.5</span> · 内核 DeepSeek Harness dsh-v0.1.1-rc.2</span>
+      <span data-lang="en"><span data-rel-version>v3.3.5</span> · DeepSeek Harness dsh-v0.1.1-rc.2 kernel</span>
+    </div>
+    <h1 class="reveal">
+      <span data-lang="zh">工程企业的垂直智能体<br /><span class="grad-text">长程任务，一次跑完</span></span>
+      <span data-lang="en">The vertical agent for engineering firms<br /><span class="grad-text">Long-horizon jobs, finished in one run</span></span>
+    </h1>
+    <p class="lead reveal">
+      <span data-lang="zh">通用办公助手陪你聊天，Agent Pi DSH 替你干活：吃透投标、实施、投资的垂直作业系统。长程任务不断档、目标不偏离、证据可追溯——数十份标书文件一次搞定，数千条 BOQ 逐项推导，成果直接落盘为正式文档。</span>
+      <span data-lang="en">Generic assistants chat. Agent Pi DSH does the job — a vertical workbench for tendering, delivery and investment. Long-horizon runs that never drift, evidence at every step: dozens of tender files in one run, thousands of BOQ items derived line by line, deliverables written to disk as official documents.</span>
+    </p>
+    <div class="hero-cta reveal">
+      <a class="btn btn-primary" id="hero-dl" href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/latest" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        <span data-lang="zh">下载 Windows x64</span><span data-lang="en">Download for Windows</span>
+      </a>
+      <a class="btn btn-ghost" href="docs.html">
+        <span data-lang="zh">阅读文档</span><span data-lang="en">Read the Docs</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </a>
+    </div>
+    <p class="hero-meta reveal">
+      <span data-lang="zh">未签名安装包：SmartScreen 选「仍要运行」 · 可与 2.6.5 经典版并存 · 新会话默认</span>
+      <span data-lang="en">Unsigned installer: choose “Run anyway” in SmartScreen · Side-by-side with Classic 2.6.5 · New sessions default to</span>
+      <code>deepseek-v4-flash-vision-exp</code>
+    </p>
+  </div>
+</section>
+
+<!-- ===================== STATS ===================== -->
+<section class="section tight">
+  <div class="container">
+    <div class="stats reveal">
+      <div class="stat"><b><em>3</em></b><span data-lang="zh">业务域：投标 / 实施 / 投资</span><span data-lang="en">Domains: tender / delivery / investment</span></div>
+      <div class="stat"><b><em>34</em></b><span data-lang="zh">出厂领域技能，开箱即用</span><span data-lang="en">Domain skills shipped out of the box</span></div>
+      <div class="stat"><b><em>100+</em></b><span data-lang="zh">并行工人同场作业不卡窗</span><span data-lang="en">Parallel workers without freezing the window</span></div>
+      <div class="stat"><b><em>1</em></b><span data-lang="zh">扇窗：对话、证据、成果、出处</span><span data-lang="en">Window: chat, evidence, outputs, citations</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== ARCHITECTURE ADVANTAGE ===================== -->
+<section class="section" id="why" style="background:var(--bg-elev)">
+  <div class="container">
+    <div class="section-head reveal">
+      <span class="kicker" data-lang="zh">架构先进性</span>
+      <span class="kicker" data-lang="en">Architecture first</span>
+      <h2 data-lang="zh">不用 RAG，不是做不到，是想清楚了</h2>
+      <h2 data-lang="en">No RAG — not because we can't, because we thought it through</h2>
+      <p data-lang="zh">市面上流行把知识库堆在 RAG（向量检索）上。Agent Pi DSH 做了两个反向取舍，再加一次果断的换芯——所有决定都围绕一个问题：普通工程企业的普通电脑，能不能把最难的投标任务跑到底。</p>
+      <p data-lang="en">The mainstream answer is to pile the knowledge base onto RAG (vector retrieval). Agent Pi DSH made two deliberate counter-choices and one decisive engine swap — all around a single question: can an ordinary office PC finish the hardest tender job end to end.</p>
+    </div>
+    <div class="grid cols-3">
+      <div class="card reveal">
+        <span class="tag">01</span>
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+        <h3 data-lang="zh">知识库不堆 RAG：普通电脑就跑得动</h3>
+        <h3 data-lang="en">Knowledge base without RAG: runs on any office PC</h3>
+        <p data-lang="zh">一套像样的 RAG 要嵌入模型、向量数据库、GPU 显存和 Docker 编排——对普通用户太重、用不起；而且向量检索本质是「相似度猜测」，检索到 ≠ 证据对，在高证据化的投标场景里，错一条引用就是废标风险。本应用改走另一条路：按文档自身章 / 节 / 条切分条款，MiniSearch BM25 检索——零重型依赖，普通办公电脑即可运行，每条命中都精确定位到 Clause，出处可当场打开核对。</p>
+        <p data-lang="en">A serious RAG stack means embedding models, a vector database, GPU memory and Docker orchestration — too heavy for ordinary users. And vector search is fundamentally a similarity guess: retrieved ≠ evidenced. In high-evidence tendering, one wrong citation can void a bid. We chose another path: clauses split by each document's own chapters / sections / clauses, retrieved with MiniSearch BM25 — zero heavy dependencies, runs on any office PC, and every hit locates the exact clause for on-the-spot verification.</p>
+      </div>
+      <div class="card reveal">
+        <span class="tag">02</span>
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 1 7 7c0 2.4-1.2 4.5-3 5.7V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.3C6.2 13.5 5 11.4 5 9a7 7 0 0 1 7-7z"/><path d="M9 22h6"/></svg></div>
+        <h3 data-lang="zh">百万上下文：任务全程不失忆</h3>
+        <h3 data-lang="en">A million tokens of context: the task never forgets</h3>
+        <p data-lang="zh">DeepSeek V4 全系支持 1M tokens 上下文（约 800 页 PDF）——整套标书文件、规范条款、数千条 BOQ 和全部中间稿可以全程驻留上下文。模型不需要靠检索「猜」该看什么，而是在完整事实面前工作：任务始终围绕目标推进，不因截断而偏离。公开评测也印证了这条路线：在文档级理解上，长上下文方案已优于传统 RAG。</p>
+        <p data-lang="en">Every DeepSeek V4 model supports a 1M-token context (≈800 pages of PDF) — the full tender set, specs, thousands of BOQ lines and all intermediate drafts stay in context for the whole run. The model never has to "guess" what to look at; it works in front of complete facts, so the job stays on goal instead of drifting after truncation. Public benchmarks back this route: for document-level understanding, long-context now beats classic RAG.</p>
+      </div>
+      <div class="card reveal">
+        <span class="tag">03</span>
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+        <h3 data-lang="zh">为什么从 Claude SDK + Pi 换到 DSH</h3>
+        <h3 data-lang="en">Why we swapped Claude SDK + Pi for DSH</h3>
+        <p data-lang="zh">经过实测：全程跑下来最难的 BOQ 逐条分析，DeepSeek Harness 架构的运行效果明显优于 Claude Agent SDK + Pi 双架构——内核原生并行工人拆活、持久 Bash 不再卡三秒、长任务崩溃只救未完工部分。所以 3.0 果断换芯：同样的投标任务，回合更短、token 更省、目标更稳。这不是界面改版，是发动机整机更换。</p>
+        <p data-lang="en">Verified in practice: on the hardest part of the whole run — line-by-line BOQ analysis — the DeepSeek Harness architecture clearly outperforms the Claude Agent SDK + Pi dual stack. Native parallel workers, persistent Bash without multi-second stalls, crash recovery that rescues only unfinished work. So 3.0 swapped the engine decisively: the same tender job finishes in fewer turns, with fewer tokens and a steadier goal. Not a reskin — a full engine replacement.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== COMPARISON ===================== -->
+<section class="section" id="compare">
+  <div class="container">
+    <div class="section-head reveal">
+      <span class="kicker" data-lang="zh">横向对比</span>
+      <span class="kicker" data-lang="en">Why Agent Pi</span>
+      <h2 data-lang="zh">不是又一个聊天助手</h2>
+      <h2 data-lang="en">Not another chat assistant</h2>
+      <p data-lang="zh">豆包、通义办公、WorkBuddy 这类通用助手面向所有人的日常事务；Agent Pi DSH 只为工程企业的重活而生——从底层就不是一类产品。</p>
+      <p data-lang="en">General assistants like Doubao, Tongyi or WorkBuddy serve everyone's daily chores. Agent Pi DSH is built only for the heavy jobs of engineering enterprises — a different category from the ground up.</p>
+    </div>
+    <div class="reveal" style="overflow-x:auto">
+      <table class="tbl vs">
+        <thead>
+          <tr>
+            <th data-lang="zh">维度</th><th data-lang="en">Dimension</th>
+            <th data-lang="zh">通用办公助手（豆包 · 通义 · WorkBuddy）</th><th data-lang="en">Generic assistants (Doubao · Tongyi · WorkBuddy)</th>
+            <th>Agent Pi DSH</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td data-lang="zh">任务尺度</td><td data-lang="en">Task scale</td>
+            <td data-lang="zh">几十轮对话就断片、跑题</td><td data-lang="en">Loses the thread after a few dozen turns</td>
+            <td data-lang="zh">小时级长程任务一次跑完；崩溃只救未完工的部分，不做无用功</td>
+            <td data-lang="en">Hour-long jobs finished in one run; crashes rescue only undelivered work</td>
+          </tr>
+          <tr>
+            <td data-lang="zh">目标控制</td><td data-lang="en">Goal control</td>
+            <td data-lang="zh">聊到哪算哪，越聊越偏</td><td data-lang="en">Drifts wherever the chat goes</td>
+            <td data-lang="zh">阶段门禁 + 成果树锁定目标，任务不偏离</td>
+            <td data-lang="en">Stage gates and an output tree lock the goal — no drift</td>
+          </tr>
+          <tr>
+            <td data-lang="zh">事实可靠性</td><td data-lang="en">Reliability</td>
+            <td data-lang="zh">凭模型记忆编，幻觉频发</td><td data-lang="en">Fills gaps from model memory — hallucinations</td>
+            <td data-lang="zh">证据门禁：查不到出处就不放行，基本杜绝幻觉</td>
+            <td data-lang="en">Evidence gates: no source, no pass — hallucinations fenced out</td>
+          </tr>
+          <tr>
+            <td data-lang="zh">专业深度</td><td data-lang="en">Depth</td>
+            <td data-lang="zh">通用模板，不懂行业</td><td data-lang="en">Generic templates, no industry knowledge</td>
+            <td data-lang="zh">投标 / 实施 / 投资垂直技能；规范、FIDIC 条款进知识库逐条调用</td>
+            <td data-lang="en">Vertical skills for tender / delivery / investment; specs and FIDIC clauses in the knowledge base</td>
+          </tr>
+          <tr>
+            <td data-lang="zh">数据处理</td><td data-lang="en">Data volume</td>
+            <td data-lang="zh">长文档读不动，大表格丢行漏项</td><td data-lang="en">Chokes on long documents, drops rows in big tables</td>
+            <td data-lang="zh">数千条 BOQ 逐项处理，每一项都带规范出处</td>
+            <td data-lang="en">Thousands of BOQ items processed line by line, each with its spec citation</td>
+          </tr>
+          <tr>
+            <td data-lang="zh">成果形态</td><td data-lang="en">Deliverable</td>
+            <td data-lang="zh">一段聊天记录，复制粘贴再排版</td><td data-lang="en">A chat transcript you reformat by hand</td>
+            <td data-lang="zh">落盘的正式成果：漂亮版式、带公式报表、出处芯片，中标后直接服务实施</td>
+            <td data-lang="en">Official outputs on disk — polished layout, formula-carrying workbooks, citation chips; reusable into delivery after award</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== TENDER DEEP DIVE ===================== -->
+<section class="section" id="tender" style="background:var(--bg-elev)">
+  <div class="container">
+    <div class="section-head reveal">
+      <span class="kicker" data-lang="zh">投标全流程</span>
+      <span class="kicker" data-lang="en">The tender flow</span>
+      <h2 data-lang="zh">一次长程任务，从标书到标稿</h2>
+      <h2 data-lang="en">One long-horizon run, from tender documents to bid</h2>
+      <p data-lang="zh">以投标模块为例，看什么叫垂直深度：中间材料全程不丢，每一步都可核对出处。</p>
+      <p data-lang="en">Take the tender module: this is what vertical depth means — every intermediate kept, every step checkable against its source.</p>
+    </div>
+    <div class="steps reveal">
+      <div class="step">
+        <div>
+          <h3 data-lang="zh">标书全量解析，规范入库存起来</h3>
+          <h3 data-lang="en">Full tender parse, specs into the KB</h3>
+          <p data-lang="zh">一次任务读完所有标书文件。规范、FIDIC 条款进入本地知识库，与标书特别条款的修订逐条对照、全部总结进去——过程材料全程不丢，产出详细的分析文档。</p>
+          <p data-lang="en">One run reads every tender file. Specs and FIDIC clauses enter the local knowledge base, reconciled line by line against the particular conditions — nothing is lost along the way, and the analysis lands as detailed documents.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div>
+          <h3 data-lang="zh">数千条 BOQ，逐项界定工作范围</h3>
+          <h3 data-lang="en">Thousands of BOQ items, scope defined item by item</h3>
+          <p data-lang="zh">庞大的 BOQ 清单逐条引用规范、标书特别条款、FIDIC 修订，为每一个条目界定工作范围——不靠印象，每条都有出处芯片。</p>
+          <p data-lang="en">Every BOQ line cites the specs, particular conditions and FIDIC amendments to define its scope of work — no impressions, every item carries a citation chip.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div>
+          <h3 data-lang="zh">五步推导，算出每一条单价</h3>
+          <h3 data-lang="en">Five-step derivation for every unit rate</h3>
+          <p data-lang="zh">依据工作范围，结合你的企业数据，与网络验证的工法、工效、资源实时实地价格，对每条 BOQ 做详尽的五步推导。</p>
+          <p data-lang="en">From the defined scope, combining your company data with web-verified methods, productivity and live local resource prices, every BOQ item goes through a detailed five-step derivation.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div>
+          <h3 data-lang="zh">资源汇总与成本推定</h3>
+          <h3 data-lang="en">Resource roll-up and cost estimation</h3>
+          <p data-lang="zh">所有推导汇总成资源清单与成本推定，带公式的 BOQ 组价测算表可以直接改——这是施工组织策划可验证的最坚实基础。</p>
+          <p data-lang="en">All derivations roll up into resource schedules and cost estimates, with a formula-carrying pricing workbook you can edit directly — the most solid, verifiable foundation for construction planning.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div>
+          <h3 data-lang="zh">按项目特征做施工推演</h3>
+          <h3 data-lang="en">Construction simulation on project characteristics</h3>
+          <p data-lang="zh">根据标书文件对项目特征进行施工推演，建立起一整套可执行的施工策划稿，不是空话套话。</p>
+          <p data-lang="en">The works are simulated against the project characteristics in the tender documents, producing an executable construction plan — no boilerplate.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div>
+          <h3 data-lang="zh">照你的模板，编制正式投标文档</h3>
+          <h3 data-lang="en">The bid, written in your house style</h3>
+          <p data-lang="zh">依照企业常用投标格式与内容深度模板编制投标文档——用户模板复刻版式、大纲与深度，项目事实永远来自本项目资料。</p>
+          <p data-lang="en">The bid document follows your usual format and depth templates — layout, outline and depth mirrored from your own documents, while project facts always come from this project's files.</p>
+        </div>
+      </div>
+    </div>
+    <div class="callout reveal" style="max-width:800px;margin:34px auto 0">
+      <p>
+        <span data-lang="zh"><b>对企业生产力的解放：</b>同样的标一旦中标，投标阶段的全部详尽基础资料直接服务实施阶段——成本策划有据可依，落地即有据可查。</span>
+        <span data-lang="en"><b>A productivity unlock:</b> when the bid wins, the entire detailed foundation flows straight into the delivery phase — cost planning with evidence behind every number.</span>
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== FEATURES ===================== -->
+<section class="section" id="features">
+  <div class="container">
+    <div class="section-head reveal">
+      <span class="kicker" data-lang="zh">核心能力</span>
+      <span class="kicker" data-lang="en">Capabilities</span>
+      <h2 data-lang="zh">为真实作业而生，不是演示玩具</h2>
+      <h2 data-lang="en">Built for real jobs, not demo reels</h2>
+      <p data-lang="zh">工作台是加速器，不是闸门：默认路径仍是选工作区、直接说任务。复杂活由内核原生拆给并行工人，证据与成果全程可追溯。</p>
+      <p data-lang="en">The workbench accelerates, it does not gate: pick a workspace and talk. Heavy jobs fan out to native parallel workers, with evidence and outputs traceable end to end.</p>
+    </div>
+    <div class="grid cols-3">
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+        <h3 data-lang="zh">内核原生并行工人</h3>
+        <h3 data-lang="en">Native parallel workers</h3>
+        <p data-lang="zh">工具、并行子任务、会话、权限由 DeepSeek Harness 直接跑，不再隔一层自研调度器。同样的长任务，回合更短，token 更省。</p>
+        <p data-lang="en">Tools, sub-tasks, sessions and permissions run in the DeepSeek Harness engine — no second scheduler in the way. Same long jobs, fewer turns, fewer tokens.</p>
+      </div>
+      <div class="card reveal">
+        <span class="tag">3.3.5</span>
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 1 7 7v3a7 7 0 0 1-14 0V9a7 7 0 0 1 7-7z"/><path d="M8 22h8M12 19v3"/></svg></div>
+        <h3 data-lang="zh">ChatGPT 登录 · Codex 子智能体</h3>
+        <h3 data-lang="en">ChatGPT sign-in · Codex subagent</h3>
+        <p data-lang="zh">无需 API Key。DeepSeek DSH 继续掌控投标流程，在设置页登录 ChatGPT 后按需调用 <code>subagent_codex</code>；凭据不进入网页层。</p>
+        <p data-lang="en">No API key required. DeepSeek DSH keeps control of tender execution and delegates to <code>subagent_codex</code> after ChatGPT sign-in; credentials never enter the web layer.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg></div>
+        <h3 data-lang="zh">证据门禁</h3>
+        <h3 data-lang="en">Evidence gates</h3>
+        <p data-lang="zh">项目特征缺口不能用模型记忆填：要么找到出处，要么由你尽调后授权放行。每一阶段先备 brief 和文件清单再开工。</p>
+        <p data-lang="en">Project-fact gaps are never filled from model memory — either a source is found, or you authorize a pass after diligence. Every stage starts from a prepared brief and file list.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg></div>
+        <h3 data-lang="zh">Official Outputs 正式成果</h3>
+        <h3 data-lang="en">Official Outputs</h3>
+        <p data-lang="zh">统一成果树与阶段总报告，写回 Agent Pi Outputs。已落盘的成果在重启后不再重做；你在正式稿上的修改留在原处。</p>
+        <p data-lang="en">A unified output tree and stage reports written back to Agent Pi Outputs. Delivered work is never redone after a restart; your edits to official drafts stay put.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>
+        <h3 data-lang="zh">可点击出处芯片</h3>
+        <h3 data-lang="en">Clickable citation chips</h3>
+        <p data-lang="zh">引用是出处，不是摘抄：芯片只显示源文件、页或行、题目或段落，需要时再打开源文件。证据正文绝不贴进正式稿。</p>
+        <p data-lang="en">Citations locate, they do not dump: chips show the file, page or lines, and heading — open the source only when needed. Evidence text never leaks into the draft.</p>
+      </div>
+      <div class="card reveal">
+        <span class="tag">3.3.5</span>
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h8M8 17h5"/></svg></div>
+        <h3 data-lang="zh">投标执行链收紧</h3>
+        <h3 data-lang="en">Tender execution hardened</h3>
+        <p data-lang="zh">阶段必须按顺序完成，能力包必须真实就绪；BOQ 解析按恢复后的源表核对全量行，抽样三行不能再误过关。子代理回推或用户追加消息后，父会话自动继续收口。</p>
+        <p data-lang="en">Stages finish in order, capability packs must truly be ready, and BOQ coverage is checked against every restored source row. Child returns and new user messages wake the parent to finish the stage.</p>
+      </div>
+      <div class="card reveal">
+        <span class="tag">3.3.2</span>
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>
+        <h3 data-lang="zh">本地知识库</h3>
+        <h3 data-lang="en">Local knowledge base</h3>
+        <p data-lang="zh">两条入库路、按文档自身章节切条款、MinerU 表格转可读 Markdown、用户模板复刻稿面、分类子目录、.apkb 传递包。</p>
+        <p data-lang="en">Two import paths, clause-level indexing by the document's own structure, MinerU tables as readable Markdown, user templates, sub-folders, and .apkb transfer packs.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></div>
+        <h3 data-lang="zh">崩溃只救没递交的工人</h3>
+        <h3 data-lang="en">Crash-smart recovery</h3>
+        <p data-lang="zh">父会话崩溃或重启后，已完工任务不重读、不重派、不重新解析；只找回还没递交成果的工人，能续跑就续跑。</p>
+        <p data-lang="en">After a crash or restart, delivered tasks are never re-read, re-dispatched or re-parsed — only undelivered workers are resumed where possible.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></div>
+        <h3 data-lang="zh">企业级插件扩展</h3>
+        <h3 data-lang="en">Enterprise plugins</h3>
+        <p data-lang="zh">业务要什么就做成插件：技能、工具、工作台页、验收门禁。投标三件套是第一批，合同、分包、物资、尽调随业务往上叠。</p>
+        <p data-lang="en">Whatever the business needs becomes a plugin: skills, tools, workbench views, gates. The tender suite is the first set; contracts, subcontracting and diligence stack on the same assembly.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>
+        <h3 data-lang="zh">官方视觉管道</h3>
+        <h3 data-lang="en">Official vision pipe</h3>
+        <p data-lang="zh">贴图规范化后走 Files API，失败再 inline；工作区图片用官方 read_image。PDF 当文件读，图纸照片交给视觉模型。</p>
+        <p data-lang="en">Pasted images normalize into the Files API with inline fallback; workspace images use the official read_image. PDFs are read as files; drawings and photos go to the vision model.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 1 7 7c0 2.4-1.2 4.5-3 5.7V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.3C6.2 13.5 5 11.4 5 9a7 7 0 0 1 7-7z"/><path d="M9 22h6"/></svg></div>
+        <h3 data-lang="zh">一句话蒸馏领域模块</h3>
+        <h3 data-lang="en">One-sentence module distillation</h3>
+        <p data-lang="zh">把本单活的打法蒸馏成可复用的领域模块，沉淀为企业自己的经验和工作环，让智能体越用越像你们项目上的人。</p>
+        <p data-lang="en">Distill the playbook of each job into a reusable domain module — your corrections become project experience, so the agent starts to feel like someone on your job.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== ARCHITECTURE ===================== -->
+<section class="section" id="architecture" style="background:var(--bg-elev)">
+  <div class="container">
+    <div class="section-head reveal">
+      <span class="kicker" data-lang="zh">架构</span>
+      <span class="kicker" data-lang="en">Architecture</span>
+      <h2 data-lang="zh">发动机是 DeepSeek Harness，工作台是 Agent Pi</h2>
+      <h2 data-lang="en">DeepSeek Harness is the engine. Agent Pi is the workbench.</h2>
+      <p data-lang="zh">从 3.0 起，智能体循环交给内核：工具、并行子任务、会话、权限都在引擎里跑。投标 / 实施 / 投资、证据门禁、正式成果仍是 Agent Pi DSH 的工作台。</p>
+      <p data-lang="en">Since 3.0 the agent loop belongs to the kernel: tools, parallel sub-tasks, sessions and permissions run in the engine. Tender / delivery / investment, evidence gates and Official Outputs remain the Agent Pi DSH workbench.</p>
+    </div>
+    <div class="diagram-wrap reveal">
+      <svg viewBox="0 0 1120 400" role="img" aria-label="Agent Pi DSH architecture">
+        <defs>
+          <linearGradient id="gradStroke" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#4f8dff"/><stop offset="1" stop-color="#3ad6e8"/>
+          </linearGradient>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0L10 5L0 10z" class="d-accent"/>
+          </marker>
+        </defs>
+
+        <!-- row 1: main flow -->
+        <g>
+          <rect x="20" y="60" width="180" height="76" rx="14" class="d-box"/>
+          <text x="110" y="92" text-anchor="middle" class="d-text" font-size="15">
+            <tspan data-lang="zh">打开项目下任务</tspan><tspan data-lang="en">Open a project</tspan>
+          </text>
+          <text x="110" y="114" text-anchor="middle" class="d-dim" font-size="12">Workspace</text>
+
+          <rect x="262" y="60" width="180" height="76" rx="14" class="d-box"/>
+          <text x="352" y="92" text-anchor="middle" class="d-text" font-size="15">
+            <tspan data-lang="zh">工作台</tspan><tspan data-lang="en">Workbench</tspan>
+          </text>
+          <text x="352" y="114" text-anchor="middle" class="d-dim" font-size="12">tender-host · Web UI</text>
+
+          <rect x="504" y="48" width="212" height="100" rx="16" class="d-box-accent"/>
+          <text x="610" y="86" text-anchor="middle" class="d-text" font-size="16">DeepSeek Harness</text>
+          <text x="610" y="110" text-anchor="middle" class="d-dim" font-size="12">
+            <tspan data-lang="zh">内核 · 工具 / 会话 / 权限</tspan><tspan data-lang="en">Kernel · tools / sessions / ACL</tspan>
+          </text>
+          <text x="610" y="130" text-anchor="middle" class="d-mono" font-size="11">dsh-v0.1.1-rc.2</text>
+
+          <rect x="928" y="60" width="172" height="76" rx="14" class="d-box"/>
+          <text x="1014" y="92" text-anchor="middle" class="d-text" font-size="15">Official Outputs</text>
+          <text x="1014" y="114" text-anchor="middle" class="d-dim" font-size="12">
+            <tspan data-lang="zh">统一成果树 · 总报告</tspan><tspan data-lang="en">Output tree · reports</tspan>
+          </text>
+
+          <line x1="200" y1="98" x2="254" y2="98" class="d-line" stroke-width="1.6" marker-end="url(#arr)"/>
+          <line x1="442" y1="98" x2="496" y2="98" class="d-line" stroke-width="1.6" marker-end="url(#arr)"/>
+        </g>
+
+        <!-- fan-out workers -->
+        <g>
+          <path d="M 716 78 C 780 78 780 40 838 40" fill="none" class="d-line-accent" stroke-width="1.8" marker-end="url(#arr)"/>
+          <path d="M 716 98 L 830 98" fill="none" class="d-line-accent" stroke-width="1.8" marker-end="url(#arr)"/>
+          <path d="M 716 118 C 780 118 780 156 838 156" fill="none" class="d-line-accent" stroke-width="1.8" marker-end="url(#arr)"/>
+
+          <rect x="838" y="16" width="90" height="46" rx="11" class="d-box"/>
+          <text x="883" y="44" text-anchor="middle" class="d-mono" font-size="11.5">subagent</text>
+          <rect x="838" y="75" width="90" height="46" rx="11" class="d-box"/>
+          <text x="883" y="103" text-anchor="middle" class="d-mono" font-size="11.5">subagent</text>
+          <rect x="838" y="134" width="90" height="46" rx="11" class="d-box"/>
+          <text x="883" y="162" text-anchor="middle" class="d-mono" font-size="11.5">workflow</text>
+          <text x="883" y="200" text-anchor="middle" class="d-dim" font-size="11.5">
+            <tspan data-lang="zh">内核原生并行扇出</tspan><tspan data-lang="en">native fan-out</tspan>
+          </text>
+
+          <path d="M 928 98 L 920 98" fill="none" class="d-line" stroke-width="1.6"/>
+          <line x1="928" y1="98" x2="920" y2="98" class="d-line" stroke-width="1.6" marker-end="url(#arr)"/>
+        </g>
+
+        <!-- row 2: gates & citations -->
+        <g>
+          <rect x="262" y="262" width="180" height="76" rx="14" class="d-box"/>
+          <text x="352" y="294" text-anchor="middle" class="d-text" font-size="15">
+            <tspan data-lang="zh">证据门禁</tspan><tspan data-lang="en">Evidence gate</tspan>
+          </text>
+          <text x="352" y="316" text-anchor="middle" class="d-dim" font-size="12">
+            <tspan data-lang="zh">brief · 文件清单 · 授权</tspan><tspan data-lang="en">brief · file list · pass</tspan>
+          </text>
+
+          <rect x="504" y="262" width="212" height="76" rx="14" class="d-box"/>
+          <text x="610" y="294" text-anchor="middle" class="d-text" font-size="15">
+            <tspan data-lang="zh">本地知识库</tspan><tspan data-lang="en">Knowledge base</tspan>
+          </text>
+          <text x="610" y="316" text-anchor="middle" class="d-dim" font-size="12">
+            <tspan data-lang="zh">章节索引 · 用户模板 · .apkb</tspan><tspan data-lang="en">clauses · templates · .apkb</tspan>
+          </text>
+
+          <rect x="928" y="262" width="172" height="76" rx="14" class="d-box"/>
+          <text x="1014" y="294" text-anchor="middle" class="d-text" font-size="15">
+            <tspan data-lang="zh">出处芯片</tspan><tspan data-lang="en">Citation chips</tspan>
+          </text>
+          <text x="1014" y="316" text-anchor="middle" class="d-dim" font-size="12">
+            <tspan data-lang="zh">源文件 · 页 / 行 · 题目</tspan><tspan data-lang="en">file · page/line · head</tspan>
+          </text>
+
+          <line x1="352" y1="136" x2="352" y2="254" class="d-line" stroke-width="1.6" stroke-dasharray="5 5" marker-end="url(#arr)"/>
+          <line x1="610" y1="148" x2="610" y2="254" class="d-line" stroke-width="1.6" stroke-dasharray="5 5" marker-end="url(#arr)"/>
+          <line x1="1014" y1="136" x2="1014" y2="254" class="d-line" stroke-width="1.6" stroke-dasharray="5 5" marker-end="url(#arr)"/>
+        </g>
+
+        <!-- bottom band -->
+        <g>
+          <rect x="20" y="356" width="1080" height="34" rx="10" class="d-box" opacity="0.6"/>
+          <text x="560" y="378" text-anchor="middle" class="d-dim" font-size="12.5">
+            <tspan data-lang="zh">阶段准备 · 证据门禁 · 成果树 = tender-host 插件　｜　并行拆活 = 内核原生 subagent / workflow　｜　桌面壳 = Electron</tspan>
+            <tspan data-lang="en">Stage prep · evidence gates · output tree = tender-host plugin　|　Fan-out = native subagent / workflow　|　Shell = Electron</tspan>
+          </text>
+        </g>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== DOMAINS ===================== -->
+<section class="section" id="domains">
+  <div class="container">
+    <div class="section-head reveal">
+      <span class="kicker" data-lang="zh">业务域</span>
+      <span class="kicker" data-lang="en">Domains</span>
+      <h2 data-lang="zh">三个业务域，一套工作台</h2>
+      <h2 data-lang="en">Three domains, one workbench</h2>
+    </div>
+    <div class="grid cols-3">
+      <div class="card domain reveal">
+        <span class="num">01 / TENDER</span>
+        <h3 data-lang="zh">投标</h3>
+        <h3 data-lang="en">Tender</h3>
+        <p data-lang="zh">招标解析与组价，从招标文件到可递交标书。</p>
+        <p data-lang="en">Bid parse and pricing, from tender documents to a submittable bid.</p>
+        <ul>
+          <li data-lang="zh">招标文件解析 · 项目边界</li>
+          <li data-lang="en">Document parsing · project boundary</li>
+          <li data-lang="zh">BOQ 五步组价 · 量价核对</li>
+          <li data-lang="en">Five-step BOQ pricing · reconciliation</li>
+          <li data-lang="zh">评审策略 · 承诺书与正式写作</li>
+          <li data-lang="en">Evaluation strategy · formal writing</li>
+          <li data-lang="zh">递交文件与递交前审计</li>
+          <li data-lang="en">Submission documents &amp; audit</li>
+        </ul>
+      </div>
+      <div class="card domain reveal">
+        <span class="num">02 / DELIVERY</span>
+        <h3 data-lang="zh">实施交付</h3>
+        <h3 data-lang="en">Delivery</h3>
+        <p data-lang="zh">实施策划与项目控制，成果同样落盘可追溯。</p>
+        <p data-lang="en">Delivery planning and project controls, outputs on disk and traceable.</p>
+        <ul>
+          <li data-lang="zh">合同范围 · 计划与进度</li>
+          <li data-lang="en">Contract scope · programme &amp; progress</li>
+          <li data-lang="zh">成本商务 · 现金流</li>
+          <li data-lang="en">Cost &amp; commercial · cashflow</li>
+          <li data-lang="zh">资源采购 · 风险变更</li>
+          <li data-lang="en">Resource procurement · risk &amp; change</li>
+          <li data-lang="zh">报告审计 · 工期计划器</li>
+          <li data-lang="en">Reporting audit · schedule planner</li>
+        </ul>
+      </div>
+      <div class="card domain reveal">
+        <span class="num">03 / INVESTMENT</span>
+        <h3 data-lang="zh">投资研究</h3>
+        <h3 data-lang="en">Investment</h3>
+        <p data-lang="zh">资源类投资的情报、尽调与交易决策。</p>
+        <p data-lang="en">Intelligence, diligence and transaction decisions for resource investment.</p>
+        <ul>
+          <li data-lang="zh">任务筛选 · 市场与承购</li>
+          <li data-lang="en">Mandate screening · market &amp; offtake</li>
+          <li data-lang="zh">技术尽调 · 法务 ESG</li>
+          <li data-lang="en">Technical diligence · legal &amp; ESG</li>
+          <li data-lang="zh">财务估值</li>
+          <li data-lang="en">Financial valuation</li>
+          <li data-lang="zh">交易决策</li>
+          <li data-lang="en">Transaction decision</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== KNOWLEDGE BASE ===================== -->
+<section class="section" style="background:var(--bg-elev)">
+  <div class="container split">
+    <div class="reveal">
+      <span class="kicker" data-lang="zh">知识库 · 3.3.2</span>
+      <span class="kicker" data-lang="en">Knowledge Base · 3.3.2</span>
+      <h2 data-lang="zh">把项目经验变成可检索的资产</h2>
+      <h2 data-lang="en">Turn project experience into a searchable asset</h2>
+      <p data-lang="zh" style="color:var(--text-dim)">索引按文档自己的编排切条款——章 / 节 / 条、Clause / Article / Section。检索是 MiniSearch BM25，不是向量库，出处可核对。</p>
+      <p data-lang="en" style="color:var(--text-dim)">Indexing follows each document's own structure — chapters, sections, clauses. Retrieval is MiniSearch BM25, not a vector store, so every hit stays auditable.</p>
+      <ul class="checklist">
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg><span data-lang="zh"><b>两条入库路</b>：本页导入先落盘再解析；对话里「整理成知识包再入库」</span><span data-lang="en"><b>Two import paths</b>: stage-then-parse on the page, or “organize into a knowledge pack” in chat</span></li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg><span data-lang="zh"><b>用户模板</b>：入库你的好文档，本轮稿复刻格式、大纲与深度，不抄项目事实</span><span data-lang="en"><b>User templates</b>: your best documents shape format, outline and depth — never the project facts</span></li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg><span data-lang="zh"><b>MinerU 表格能看</b>：HTML 表收成 GitHub 风格 Markdown 表</span><span data-lang="en"><b>Readable MinerU tables</b>: HTML tables folded into GitHub-style Markdown</span></li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg><span data-lang="zh"><b>.apkb 传递包</b>：条目、子目录、本机技能一键导出，对方导入回到原分类</span><span data-lang="en"><b>.apkb transfer packs</b>: export entries, folders and local skills; import restores the original structure</span></li>
+      </ul>
+    </div>
+    <div class="diagram-wrap reveal">
+      <svg viewBox="0 0 520 340" role="img" aria-label="Knowledge base flow">
+        <g>
+          <rect x="20" y="20" width="200" height="64" rx="12" class="d-box"/>
+          <text x="120" y="46" text-anchor="middle" class="d-text" font-size="13.5"><tspan data-lang="zh">原始文档区</tspan><tspan data-lang="en">Originals</tspan></text>
+          <text x="120" y="66" text-anchor="middle" class="d-mono" font-size="10.5">originals/</text>
+
+          <rect x="300" y="20" width="200" height="64" rx="12" class="d-box"/>
+          <text x="400" y="46" text-anchor="middle" class="d-text" font-size="13.5"><tspan data-lang="zh">对话知识包</tspan><tspan data-lang="en">Chat knowledge pack</tspan></text>
+          <text x="400" y="66" text-anchor="middle" class="d-mono" font-size="10.5">…-知识包/pack.json</text>
+
+          <rect x="160" y="138" width="200" height="64" rx="12" class="d-box-accent"/>
+          <text x="260" y="164" text-anchor="middle" class="d-text" font-size="13.5"><tspan data-lang="zh">解析入库</tspan><tspan data-lang="en">Parse &amp; index</tspan></text>
+          <text x="260" y="184" text-anchor="middle" class="d-dim" font-size="11">MinerU · <tspan data-lang="zh">章节切条</tspan><tspan data-lang="en">clause split</tspan></text>
+
+          <rect x="20" y="256" width="146" height="64" rx="12" class="d-box"/>
+          <text x="93" y="282" text-anchor="middle" class="d-text" font-size="13">BM25</text>
+          <text x="93" y="302" text-anchor="middle" class="d-dim" font-size="10.5">MiniSearch</text>
+
+          <rect x="187" y="256" width="146" height="64" rx="12" class="d-box"/>
+          <text x="260" y="282" text-anchor="middle" class="d-text" font-size="13"><tspan data-lang="zh">分类 / 子目录</tspan><tspan data-lang="en">Folders</tspan></text>
+          <text x="260" y="302" text-anchor="middle" class="d-dim" font-size="10.5"><tspan data-lang="zh">用户模板</tspan><tspan data-lang="en">Templates</tspan></text>
+
+          <rect x="354" y="256" width="146" height="64" rx="12" class="d-box"/>
+          <text x="427" y="282" text-anchor="middle" class="d-mono" font-size="12.5">.apkb</text>
+          <text x="427" y="302" text-anchor="middle" class="d-dim" font-size="10.5"><tspan data-lang="zh">传递包</tspan><tspan data-lang="en">Transfer</tspan></text>
+
+          <line x1="120" y1="84" x2="232" y2="132" class="d-line" stroke-width="1.6" marker-end="url(#arr)"/>
+          <line x1="400" y1="84" x2="288" y2="132" class="d-line" stroke-width="1.6" marker-end="url(#arr)"/>
+          <line x1="232" y1="202" x2="115" y2="250" class="d-line-accent" stroke-width="1.6" marker-end="url(#arr)"/>
+          <line x1="260" y1="202" x2="260" y2="248" class="d-line-accent" stroke-width="1.6" marker-end="url(#arr)"/>
+          <line x1="288" y1="202" x2="405" y2="250" class="d-line-accent" stroke-width="1.6" marker-end="url(#arr)"/>
+        </g>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== PLUGIN MARKET ===================== -->
+<section class="section">
+  <div class="container split">
+    <div class="reveal shot">
+      <img src="assets/img/screenshot-market.png" alt="Agent Pi DSH plugin market" loading="lazy" />
+    </div>
+    <div class="reveal">
+      <span class="kicker" data-lang="zh">生态</span>
+      <span class="kicker" data-lang="en">Ecosystem</span>
+      <h2 data-lang="zh">插件市场与企业自定义</h2>
+      <h2 data-lang="en">A plugin market, and your own assembly</h2>
+      <p data-lang="zh" style="color:var(--text-dim)">社区能力一键安装：记忆、编码代理、虚拟工作区……企业缺哪一段作业，就按自己的制度做成插件——技能、工具、工作台页、验收门禁都可以加，不必为了新工序换一套产品。</p>
+      <p data-lang="en" style="color:var(--text-dim)">Install community capabilities in one click — memory, coding agents, virtual workspaces. Missing a procedure at your company? Build it as a plugin: skills, tools, workbench views, gates. No need to replace the product for every new process.</p>
+      <ul class="checklist">
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg><span data-lang="zh">web_fetch 取页面和图片地址，AnySearch 网络搜索</span><span data-lang="en">web_fetch for pages and image URLs, AnySearch for web search</span></li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg><span data-lang="zh">对话里创造的模块与后装插件，重启后保留</span><span data-lang="en">Chat-created modules and later installs survive restarts</span></li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg><span data-lang="zh">预置 Univer：BOQ 组价测算表可预览、可改公式</span><span data-lang="en">Univer built in: preview and edit BOQ pricing spreadsheets with formulas</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== SHOWCASE ===================== -->
+<section class="section" id="showcase">
+  <div class="container">
+    <div class="section-head reveal">
+      <span class="kicker" data-lang="zh">真实产出</span>
+      <span class="kicker" data-lang="en">From real jobs</span>
+      <h2 data-lang="zh">智能体亲手做出的成果</h2>
+      <h2 data-lang="en">Outputs the agent actually produced</h2>
+      <p data-lang="zh">以下来自真实项目作业，不是演示摆拍。幻觉围栏 + 长程不断档，让施工过程仿真、市场尽调这类巨量数据处理完成质的飞跃。</p>
+      <p data-lang="en">Everything below came out of real project work, not staged demos. Hallucination fences plus unbroken long-horizon runs take heavy jobs like construction simulation and market diligence to a different level.</p>
+    </div>
+
+    <div class="reveal">
+      <div class="sim-frame">
+        <iframe src="showcase/arch-lift-sim.html" title="EB Cloete S0153-2 钢拱吊装仿真" loading="lazy"></iframe>
+      </div>
+      <div class="sim-cap">
+        <span data-lang="zh"><b>EB Cloete S0153-2 钢拱吊装仿真</b> — 施工过程仿真：Three.js 交互模型、应力热力图、吊装工序推演，一次任务直接生成。</span>
+        <span data-lang="en"><b>EB Cloete S0153-2 steel arch erection simulation</b> — construction process simulation: an interactive Three.js model with stress heatmaps and lift sequencing, generated in a single run.</span>
+        <a href="showcase/arch-lift-sim.html" target="_blank" rel="noopener" data-lang="zh">打开完整演示 ↗</a>
+        <a href="showcase/arch-lift-sim.html" target="_blank" rel="noopener" data-lang="en">Open full demo ↗</a>
+      </div>
+    </div>
+
+    <div class="sc-grid">
+      <div class="sc-card reveal">
+        <img src="assets/img/showcase/kb-workbench.png?v=24" alt="知识库工作台" loading="lazy" onerror="this.closest('.sc-card').style.display='none'" />
+        <div class="sc-cap">
+          <span data-lang="zh"><b>知识库工作台</b>规范、FIDIC 条款、特别条款修订入库，右侧 BOQ 组价成果树逐条落盘。</span>
+          <span data-lang="en"><b>Knowledge base workbench</b>Specs, FIDIC clauses and particular conditions indexed; the BOQ pricing output tree lands on disk item by item.</span>
+        </div>
+      </div>
+      <div class="sc-card reveal">
+        <img src="assets/img/showcase/report-equity.png?v=24" alt="投资尽调报告" loading="lazy" onerror="this.closest('.sc-card').style.display='none'" />
+        <div class="sc-cap">
+          <span data-lang="zh"><b>投资尽调报告</b>股权结构与战略含义分析，咨询级版式一次成稿。</span>
+          <span data-lang="en"><b>Investment diligence report</b>Ownership structures and strategic implications, consulting-grade layout in one pass.</span>
+        </div>
+      </div>
+      <div class="sc-card reveal">
+        <img src="assets/img/showcase/report-stages.png?v=24" alt="项目阶段图表" loading="lazy" onerror="this.closest('.sc-card').style.display='none'" />
+        <div class="sc-cap">
+          <span data-lang="zh"><b>市场尽调图表</b>关键矿产项目开发阶段全景，来源逐条标注。</span>
+          <span data-lang="en"><b>Market diligence charts</b>Development stages of critical mineral projects, sources annotated line by line.</span>
+        </div>
+      </div>
+      <div class="sc-card reveal">
+        <img src="assets/img/showcase/report-map.png?v=24" alt="矿区交通走廊地图" loading="lazy" onerror="this.closest('.sc-card').style.display='none'" />
+        <div class="sc-cap">
+          <span data-lang="zh"><b>矿区交通走廊地图</b>矿产项目与港口、铁路、跨境走廊的原创改绘示意图。</span>
+          <span data-lang="en"><b>Corridor map</b>Mineral projects with ports, rail and cross-border corridors, redrawn as an original schematic.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== PRIVATE DEPLOYMENT ===================== -->
+<section class="section" id="enterprise">
+  <div class="container">
+    <div class="section-head reveal">
+      <span class="kicker" data-lang="zh">下一站 · 企业级</span>
+      <span class="kicker" data-lang="en">Next stop · enterprise</span>
+      <h2 data-lang="zh">私有化部署：把 Agent Pi 架到企业自己的服务器上</h2>
+      <h2 data-lang="en">Private deployment: Agent Pi on your own servers</h2>
+      <p data-lang="zh">桌面版解决的是「一个人把活干完」；企业版要解的是「整个组织的事都有人盯着」。同一套 DSH 内核与工作台，部署到企业服务器，成为常驻的业务中枢。</p>
+      <p data-lang="en">The desktop lets one person finish the job; the enterprise edition keeps watch over the whole organization. The same DSH kernel and workbench, hosted on company servers as a resident business hub.</p>
+    </div>
+    <div class="grid cols-4">
+      <div class="card reveal">
+        <span class="tag" data-lang="zh">方向</span><span class="tag" data-lang="en">Direction</span>
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><path d="M6 6h.01M6 18h.01"/></svg></div>
+        <h3 data-lang="zh">服务端 Web 版 · 多用户</h3>
+        <h3 data-lang="en">Server-hosted Web, multi-user</h3>
+        <p data-lang="zh">Web 版 Agent Pi DSH 部署在企业服务器，多用户登录、按人隔离工作区与会话，浏览器直达，不再每人装一台桌面端。</p>
+        <p data-lang="en">Agent Pi DSH Web hosted on company servers: multi-user login, per-user workspaces and sessions, straight from the browser — no per-seat desktop installs.</p>
+      </div>
+      <div class="card reveal">
+        <span class="tag" data-lang="zh">方向</span><span class="tag" data-lang="en">Direction</span>
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div>
+        <h3 data-lang="zh">IM 总线：微信 / 飞书 / 钉钉 / QQ</h3>
+        <h3 data-lang="en">IM bus: WeChat / Feishu / DingTalk / QQ</h3>
+        <p data-lang="zh">通过各平台官方机器人通道接入，员工在群里直接下任务；待办提醒、注意事项、业务运行报告按注册平台主动推送到人。</p>
+        <p data-lang="en">Connected through the platforms' official bot channels: staff assign jobs right in group chats; to-dos, notices and business reports are pushed proactively to each person's registered platform.</p>
+      </div>
+      <div class="card reveal">
+        <span class="tag" data-lang="zh">方向</span><span class="tag" data-lang="en">Direction</span>
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+        <h3 data-lang="zh">OA 流程插件 · 常驻处理</h3>
+        <h3 data-lang="en">OA process plugins, always on</h3>
+        <p data-lang="zh">常见事务做成企业 OA 插件：流程查询、待办流转、定时例行任务由常驻 Agent 自动处理，高并发接入走异步队列，重活仍交给内核并行工人。</p>
+        <p data-lang="en">Routine affairs become OA plugins: process queries, to-do flows and scheduled jobs handled by the resident agent. High-concurrency intake rides async queues; heavy lifting still goes to native parallel workers.</p>
+      </div>
+      <div class="card reveal">
+        <span class="tag" data-lang="zh">方向</span><span class="tag" data-lang="en">Direction</span>
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9zM9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/></svg></div>
+        <h3 data-lang="zh">私有模型栈 · 数据不出域</h3>
+        <h3 data-lang="en">Private model stack, data in-house</h3>
+        <p data-lang="zh">服务器侧部署 MinerU 私有 OCR、Qwen3 级低成本本地模型与私密知识库，与 DeepSeek 混合路由——敏感文档不出企业内网，重活仍可调云端大模型。</p>
+        <p data-lang="en">Server-side MinerU for private OCR, low-cost local models of the Qwen3 class and a private knowledge base, hybrid-routed with DeepSeek — sensitive documents never leave the intranet, heavy jobs can still call the cloud.</p>
+      </div>
+    </div>
+
+      <div class="reveal" style="margin-top:56px">
+        <div class="section-head" style="margin-bottom:36px">
+          <h3 data-lang="zh" style="font-size:1.45rem">从信息化到智能化的跃迁，可以从一台服务器开始</h3>
+          <h3 data-lang="en" style="font-size:1.45rem">The leap from digitization to intelligence can start with one server</h3>
+          <p data-lang="zh">不需要一步到位，也不需要专业 IT 团队。先把业务中枢跑起来，看到价值再扩大——这是 2026 年 8 月市场行情下的真实账本：</p>
+          <p data-lang="en">No big-bang rollout, no dedicated IT crew. Get the hub running first, scale when the value shows — the real numbers at August 2026 market prices:</p>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="tbl vs cost">
+            <thead>
+              <tr>
+                <th data-lang="zh">方案</th><th data-lang="en">Plan</th>
+                <th data-lang="zh">需要的设备</th><th data-lang="en">What you need</th>
+                <th data-lang="zh">投入（一次性）</th><th data-lang="en">Cost (one-time)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-lang="zh">起步型<br /><small style="font-weight:400;color:var(--text-faint)" data-lang="zh">10–20 人团队</small></td>
+                <td data-lang="en">Starter<br /><small style="font-weight:400;color:var(--text-faint)" data-lang="en">10–20 people</small></td>
+                <td data-lang="zh">一台高配工作站：一张 24GB 主流显卡（RTX 4090 级）、64GB 内存、2TB 固态硬盘。放公司机房或办公室角落即可，接入内网就能用。</td>
+                <td data-lang="en">One high-end workstation: a mainstream 24GB GPU (RTX 4090 class), 64GB RAM, 2TB SSD. Sits in a corner of the server room or office, on the LAN.</td>
+                <td data-lang="zh">约 3 万元</td><td data-lang="en">≈ ¥30,000</td>
+              </tr>
+              <tr>
+                <td data-lang="zh">标准型<br /><small style="font-weight:400;color:var(--text-faint)" data-lang="zh">30–80 人团队</small></td>
+                <td data-lang="en">Standard<br /><small style="font-weight:400;color:var(--text-faint)" data-lang="en">30–80 people</small></td>
+                <td data-lang="zh">双显卡服务器 + 128GB 内存 + 万兆内网。本地模型承担日常问答与文档处理，全部业务流程常驻运行。</td>
+                <td data-lang="en">A dual-GPU server with 128GB RAM and 10GbE. The local model covers daily Q&A and document work; every process stays resident.</td>
+                <td data-lang="zh">约 7–10 万元</td><td data-lang="en">≈ ¥70,000–100,000</td>
+              </tr>
+              <tr>
+                <td data-lang="zh">软件</td><td data-lang="en">Software</td>
+                <td data-lang="zh">Agent Pi DSH 服务端、Qwen3.8-27B 本地多模态模型、MinerU 文档解析、Docker——<b>全部开源</b>，没有软件许可费，没有按人头订阅费。</td>
+                <td data-lang="en">Agent Pi DSH server, the Qwen3.8-27B local multimodal model, MinerU document parsing, Docker — <b>all open source</b>. No license fees, no per-seat subscriptions.</td>
+                <td data-lang="zh">0 元</td><td data-lang="en">¥0</td>
+              </tr>
+              <tr>
+                <td data-lang="zh">网络</td><td data-lang="en">Network</td>
+                <td data-lang="zh">公司内部局域网即可运行，数据不出内网；需要向微信 / 飞书 / 钉钉推送消息时，只需允许服务器访问互联网（出站）。</td>
+                <td data-lang="en">Runs entirely on the company LAN — data never leaves it. Pushing to WeChat / Feishu / DingTalk only needs outbound internet from the server.</td>
+                <td data-lang="zh">0 元</td><td data-lang="en">¥0</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="rl-note" data-lang="zh" style="margin-top:18px">约 3 万元的一次性投入：数据不出公司内网，员工在微信 / 飞书 / 钉钉里直接给 Agent 下任务，待办与业务报告主动推送到人——这就是落地的样子。</p>
+        <p class="rl-note" data-lang="en" style="margin-top:18px">A one-time ≈¥30,000: data stays on your intranet, staff assign jobs to the agent right inside WeChat / Feishu / DingTalk, and to-dos and business reports arrive proactively. That is what landing looks like.</p>
+      </div>
+  </div>
+</section>
+
+<!-- ===================== ROADMAP ===================== -->
+<section class="section" id="roadmap" style="background:var(--bg-elev)">
+  <div class="container">
+    <div class="section-head reveal">
+      <span class="kicker" data-lang="zh">路线图</span>
+      <span class="kicker" data-lang="en">Roadmap</span>
+      <h2 data-lang="zh">沿着基建垂直领域，继续深挖</h2>
+      <h2 data-lang="en">Deeper into infrastructure</h2>
+    </div>
+    <div class="grid cols-4">
+      <div class="card reveal">
+        <span class="tag" data-lang="zh">进行中</span><span class="tag" data-lang="en">In progress</span>
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15l2 2 4-4"/></svg></div>
+        <h3 data-lang="zh">PDF 图纸工程量核算</h3>
+        <h3 data-lang="en">Quantity takeoff from PDF drawings</h3>
+        <p data-lang="zh">直接读 PDF 图纸，核算工程量并与 BOQ 对照。</p>
+        <p data-lang="en">Read PDF drawings directly, compute quantities and reconcile against the BOQ.</p>
+      </div>
+      <div class="card reveal">
+        <span class="tag" data-lang="zh">规划中</span><span class="tag" data-lang="en">Planned</span>
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.93 0 1.65-.75 1.65-1.69 0-.44-.17-.84-.44-1.14-.26-.29-.43-.7-.43-1.13a1.68 1.68 0 0 1 1.68-1.68h2.01A5.53 5.53 0 0 0 22 10.83C22 5.97 17.5 2 12 2z"/></svg></div>
+        <h3 data-lang="zh">建筑概念图</h3>
+        <h3 data-lang="en">Architectural concept imagery</h3>
+        <p data-lang="zh">发挥内核多模态特点，从策划走向概念表达。</p>
+        <p data-lang="en">Multimodal kernel strengths, from planning into concept expression.</p>
+      </div>
+      <div class="card reveal">
+        <span class="tag" data-lang="zh">规划中</span><span class="tag" data-lang="en">Planned</span>
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/></svg></div>
+        <h3 data-lang="zh">3D 建模</h3>
+        <h3 data-lang="en">3D modeling</h3>
+        <p data-lang="zh">参数化生成三维模型，衔接仿真与展示。</p>
+        <p data-lang="en">Parametric 3D generation, feeding simulation and presentation.</p>
+      </div>
+      <div class="card reveal">
+        <span class="tag" data-lang="zh">规划中</span><span class="tag" data-lang="en">Planned</span>
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.8H20l-4.9 3.6 1.9 5.8-5-3.6-5 3.6 1.9-5.8L4 8.8h6.1z"/></svg></div>
+        <h3 data-lang="zh">BIM 信息化</h3>
+        <h3 data-lang="en">BIM</h3>
+        <p data-lang="zh">模型与工程数据贯通，服务全生命周期。</p>
+        <p data-lang="en">Models connected with engineering data across the lifecycle.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== DOWNLOAD CTA ===================== -->
+<section class="flow-band" id="download">
+  <canvas class="flow-canvas" data-flow="band"></canvas>
+  <div class="container">
+    <div class="cta-banner on-flow reveal">
+      <span class="kicker" data-lang="zh">开始使用</span>
+      <span class="kicker" data-lang="en">Get started</span>
+      <h2 data-lang="zh">打开项目，直接下任务</h2>
+      <h2 data-lang="en">Open a project. Give it the job.</h2>
+      <p data-lang="zh" style="color:var(--text-dim);max-width:560px;margin:0 auto 30px">下载 3.3.5 Windows x64 安装包，选择工作区并配置 DeepSeek；还可在设置中用 ChatGPT 登录 Codex，无需 API Key。</p>
+      <p data-lang="en" style="color:var(--text-dim);max-width:560px;margin:0 auto 30px">Download the 3.3.5 Windows x64 installer, pick a workspace and connect DeepSeek; optionally sign in to Codex with ChatGPT, no API key required.</p>
+      <div id="release-static">
+        <div class="hero-cta">
+          <a class="btn btn-primary" href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/latest" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            Agent-Pi-DSH-3.3.5-x64.exe
+          </a>
+          <a class="btn btn-ghost" href="https://github.com/xiangxin2021cn/agent-pi/releases/tag/v2.6.5" target="_blank" rel="noopener">
+            <span data-lang="zh">2.6.5 经典版</span><span data-lang="en">Classic 2.6.5</span>
+          </a>
+        </div>
+        <p class="hero-meta">
+          <span data-lang="zh">国内镜像：</span><span data-lang="en">China mirrors:</span>
+          <a href="https://gh-proxy.com/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.3.5/Agent-Pi-DSH-3.3.5-x64.exe" target="_blank" rel="noopener">gh-proxy.com</a>
+          ·
+          <a href="https://ghfast.top/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.3.5/Agent-Pi-DSH-3.3.5-x64.exe" target="_blank" rel="noopener">ghfast.top</a>
+        </p>
+        <p class="hero-meta">
+          <span data-lang="zh">SHA256 校验（经镜像下载请务必核对）：</span><span data-lang="en">SHA256 (verify after mirror downloads):</span><br />
+          <code style="user-select:all;word-break:break-all">3581435F4844BBB573EA6F0D8C752B37C1C2EFD5F7763CE95B3491FA878ED447</code>
+        </p>
+      </div>
+      <div id="release-panel" class="rl-panel" hidden></div>
+      <p class="hero-meta" data-lang="zh">未签名：SmartScreen 选「仍要运行」 · 覆盖安装前请完全退出（不要只关到托盘） · 镜像是第三方服务，下载后请核对 .sha256 校验文件</p>
+      <p class="hero-meta" data-lang="en">Unsigned: SmartScreen → “Run anyway” · Quit fully before upgrading — closing to the tray is not enough · Mirrors are third-party services, verify the .sha256 checksum file after downloading</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== FOOTER ===================== -->
+<footer class="footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div>
+        <a class="brand" href="index.html" style="margin-bottom:14px">
+          <img src="assets/img/logo.png" alt="Agent Pi" width="34" height="34" />
+          <span>Agent Pi <small>DSH</small></span>
+        </a>
+        <p style="color:var(--text-faint);font-size:0.9rem;max-width:300px" data-lang="zh">工程企业的垂直智能体：投标、实施、投资，长程任务一次跑完。Always π AI Studio。</p>
+        <p style="color:var(--text-faint);font-size:0.9rem;max-width:300px" data-lang="en">The vertical agent for engineering firms: tender, delivery, investment — long-horizon jobs in one run. Always π AI Studio.</p>
+      </div>
+      <div>
+        <h4 data-lang="zh">产品</h4><h4 data-lang="en">Product</h4>
+        <a href="#features" data-lang="zh">功能</a><a href="#features" data-lang="en">Features</a>
+        <a href="#architecture" data-lang="zh">架构</a><a href="#architecture" data-lang="en">Architecture</a>
+        <a href="#download" data-lang="zh">下载</a><a href="#download" data-lang="en">Download</a>
+      </div>
+      <div>
+        <h4 data-lang="zh">资源</h4><h4 data-lang="en">Resources</h4>
+        <a href="docs.html" data-lang="zh">文档</a><a href="docs.html" data-lang="en">Docs</a>
+        <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases" target="_blank" rel="noopener" data-lang="zh">发版说明</a>
+        <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases" target="_blank" rel="noopener" data-lang="en">Release notes</a>
+        <a href="https://github.com/xiangxin2021cn/agent-pi-dsh" target="_blank" rel="noopener">DSH GitHub</a>
+        <a href="https://github.com/xiangxin2021cn/agent-pi" target="_blank" rel="noopener" data-lang="zh">经典版源码</a>
+        <a href="https://github.com/xiangxin2021cn/agent-pi" target="_blank" rel="noopener" data-lang="en">Classic source</a>
+        <a href="privacy-policy.html" data-lang="zh">隐私政策</a><a href="privacy-policy.html" data-lang="en">Privacy</a>
+        <a href="code-signing-policy.html" data-lang="zh">代码签名</a><a href="code-signing-policy.html" data-lang="en">Code signing</a>
+      </div>
+      <div>
+        <h4 data-lang="zh">版本</h4><h4 data-lang="en">Versions</h4>
+        <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/tag/v3.3.5" target="_blank" rel="noopener">v3.3.5</a>
+        <a href="https://github.com/xiangxin2021cn/agent-pi/releases/tag/v2.6.5" target="_blank" rel="noopener" data-lang="zh">v2.6.5 经典版</a>
+        <a href="https://github.com/xiangxin2021cn/agent-pi/releases/tag/v2.6.5" target="_blank" rel="noopener" data-lang="en">v2.6.5 Classic</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© <span data-year></span> Agent Pi · Always π AI Studio</span>
+      <img class="studio-logo" src="assets/img/studio-logo.png?v=24" alt="Always π AI Studio" />
+      <span class="mono" style="font-size:0.8rem">pinned: dsh-v0.1.1-rc.2 · Electron 43.4.1</span>
+    </div>
+    <p style="margin:14px 0 0;color:var(--text-faint);font-size:0.82rem">Free code signing provided by <a href="https://signpath.io" target="_blank" rel="noopener" style="display:inline;padding:0">SignPath.io</a>, certificate by <a href="https://signpath.org" target="_blank" rel="noopener" style="display:inline;padding:0">SignPath Foundation</a>.</p>
+  </div>
+</footer>
+
+<script src="assets/js/flow.js?v=24"></script>
+<script src="assets/js/main.js?v=25"></script>
+</body>
+</html>

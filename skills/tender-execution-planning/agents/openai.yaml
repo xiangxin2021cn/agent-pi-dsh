@@ -1,0 +1,4 @@
+interface:
+  display_name: "Tender Execution Planning"
+  short_description: "Build controlled tender work packages and methods"
+  default_prompt: "Use $tender-execution-planning to build and validate source-traced tender work packages and construction methods."

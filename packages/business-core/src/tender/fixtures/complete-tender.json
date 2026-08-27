@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "revision": 6,
+  "project": {
+    "id": "synthetic-road-upgrade",
+    "title": "Synthetic Road Upgrade Tender",
+    "reference": "SYN-ROAD-001",
+    "currency": "ZAR",
+    "status": "active"
+  },
+  "documents": [
+    {
+      "id": "tender-book-1",
+      "name": "Synthetic Tender Book 1",
+      "path": "C:/synthetic/tender-book-1.pdf",
+      "kind": "tender_data",
+      "revision": "R0",
+      "status": "active"
+    }
+  ],
+  "requirements": [
+    {
+      "id": "req-compulsory-briefing",
+      "title": "Compulsory briefing attendance",
+      "text": "Provide evidence of attendance at the compulsory briefing.",
+      "type": "mandatory",
+      "criticality": "critical",
+      "source": {
+        "documentId": "tender-book-1",
+        "page": 12,
+        "clause": "C.2.7",
+        "excerpt": "Synthetic requirement excerpt."
+      },
+      "evidenceNeeded": ["Attendance certificate"],
+      "status": "compliant"
+    }
+  ],
+  "criteria": [
+    {
+      "id": "crit-methodology",
+      "title": "Construction methodology",
+      "method": "weighted",
+      "weight": 30,
+      "requirementIds": ["req-compulsory-briefing"],
+      "source": {
+        "documentId": "tender-book-1",
+        "page": 18,
+        "section": "Functionality"
+      },
+      "evidenceNeeded": ["Methodology narrative"],
+      "status": "verified"
+    }
+  ],
+  "deliverables": [
+    {
+      "id": "del-technical-proposal",
+      "title": "Technical proposal",
+      "format": "pdf",
+      "submissionSection": "Volume 2",
+      "requirementIds": ["req-compulsory-briefing"],
+      "status": "ready"
+    }
+  ],
+  "responses": [
+    {
+      "id": "resp-methodology",
+      "title": "Methodology response",
+      "requirementIds": ["req-compulsory-briefing"],
+      "criterionIds": ["crit-methodology"],
+      "deliverableId": "del-technical-proposal",
+      "responseSection": "4. Construction Methodology",
+      "evidenceRefs": [
+        {
+          "documentId": "tender-book-1",
+          "page": 18
+        }
+      ],
+      "evidenceArtifacts": ["evidence/attendance-certificate.pdf"],
+      "status": "verified"
+    }
+  ]
+}

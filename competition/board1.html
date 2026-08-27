@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<link rel="stylesheet" href="board.css" />
+<style>
+  .content { gap: 30px; }
+  .hero-band { height: 420px; background: #eef4fb; }
+  .hero-band .in { color: #0d1830; }
+  .hero-band .in .kick { color: #1b6fc4; }
+  .hero-band .in p { color: #45567a; }
+  .hero-band .in h1 { font-size: 62px; }
+  .hero-band .in p { font-size: 21px; max-width: 1150px; }
+  .hero-band .in .kick { font-size: 19px; }
+  .metric { padding: 26px 20px; }
+  .metric b { font-size: 50px; }
+  .metric span { font-size: 17px; }
+  .sec-title { font-size: 31px; }
+  .sec-title small { font-size: 17px; }
+  .card { padding: 28px 30px; }
+  .card h3 { font-size: 23px; }
+  .card p, .card li { font-size: 18.5px; line-height: 1.85; }
+  .card .num { font-size: 15px; }
+  .callout { font-size: 19.5px; padding: 22px 28px; }
+</style>
+</head>
+<body>
+
+<div class="hd">
+  <div class="hd-l">
+    <img src="img/company.png" alt="中国建筑第二工程局有限公司" />
+    <span class="jz">建 证 未 来</span>
+  </div>
+  <div class="hd-r">
+    <span class="n">1</span>
+    <span class="t"><b>中国建筑第二届青年设计师创新大赛</b><span>The Second Young Designer Innovation Competition Of CSCEC</span></span>
+  </div>
+</div>
+
+<div class="fields">
+  <div class="f"><b>参赛人员：</b><span>向鑫</span></div>
+  <div class="f"><b>申报类型：</b><span>海外业务赛道</span></div>
+  <div class="f title"><b>作品名称：</b><span>海外工程投标及商业调研全流程 AI 智能 Agent 作业系统</span></div>
+</div>
+
+<div class="content">
+
+  <div class="hero-band">
+    <img class="bg" src="img/hero-light-v2.jpg" alt="" />
+    <div class="in">
+      <div class="kick">海外业务赛道 · 全流程 AI 智能 Agent 作业系统</div>
+      <h1>把海外投标这盘硬活<br /><em>一次长程任务，从头到尾跑完</em></h1>
+      <p>Agent Pi DSH：面向工程企业的垂直智能体作业系统。读标书、建知识库、BOQ 逐条推导、施工推演、按模板成稿——证据全程可追溯，成果直接落盘为正式投标文档。</p>
+    </div>
+  </div>
+
+  <div class="metric-row">
+    <div class="metric"><b>3</b><span>业务域：投标 / 实施 / 投资</span></div>
+    <div class="metric"><b>34</b><span>出厂领域技能，开箱即用</span></div>
+    <div class="metric"><b>1M</b><span>tokens 上下文，任务不失忆</span></div>
+    <div class="metric"><b>数千条</b><span>BOQ 逐项引用规范推导</span></div>
+  </div>
+
+  <div>
+    <div class="sec-title">问题提出 <small>PROBLEM</small></div>
+    <div class="grid g3" style="margin-top:14px">
+      <div class="card soft">
+        <span class="num">痛点 01</span>
+        <h3>标书浩瀚，人工读不完</h3>
+        <p>海外标段招标文件动辄数十份、上千页，规范、FIDIC 条款与特别条款修订相互交织。人工通读周期长、遗漏多，关键条款理解偏差直接导致废标风险。</p>
+      </div>
+      <div class="card soft">
+        <span class="num">痛点 02</span>
+        <h3>BOQ 组价靠经验拍脑袋</h3>
+        <p>数千条清单逐条组价：工作范围界定、工法工效选择、资源实地价格取定，长期依赖少数骨干个人经验，不可校验、不可复用，人走经验走。</p>
+      </div>
+      <div class="card soft">
+        <span class="num">痛点 03</span>
+        <h3>通用 AI 助手不堪大用</h3>
+        <p>通用办公助手几十轮对话就断片跑题、凭模型记忆编造事实（幻觉）、长文档读不动、成果只是聊天记录——在高证据化的投标场景里无法交付正式成果。</p>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="sec-title">总体方案：发动机是 DeepSeek Harness，工作台是 Agent Pi <small>SYSTEM OVERVIEW</small></div>
+    <div class="diagram" style="margin-top:14px">
+      <svg viewBox="0 0 1560 430" role="img" aria-label="系统架构">
+        <defs>
+          <linearGradient id="gradStrokeB" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#2f6df0"/><stop offset="1" stop-color="#0fb5c9"/>
+          </linearGradient>
+          <marker id="arrB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0L10 5L0 10z" class="d-accent"/>
+          </marker>
+        </defs>
+        <g>
+          <rect x="20" y="60" width="250" height="96" rx="14" class="d-box"/>
+          <text x="145" y="100" text-anchor="middle" class="d-text" font-size="24">打开项目下任务</text>
+          <text x="145" y="132" text-anchor="middle" class="d-dim" font-size="17">投标资料所在工作区</text>
+
+          <rect x="360" y="60" width="250" height="96" rx="14" class="d-box"/>
+          <text x="485" y="100" text-anchor="middle" class="d-text" font-size="24">工作台</text>
+          <text x="485" y="132" text-anchor="middle" class="d-dim" font-size="17">投标 / 实施 / 投资 · 知识库</text>
+
+          <rect x="700" y="44" width="300" height="128" rx="16" class="d-box-accent"/>
+          <text x="850" y="92" text-anchor="middle" class="d-text" font-size="26">DeepSeek Harness</text>
+          <text x="850" y="124" text-anchor="middle" class="d-dim" font-size="17">内核 · 工具 / 会话 / 权限</text>
+          <text x="850" y="150" text-anchor="middle" class="d-mono" font-size="15">dsh-v0.1.1-rc.2</text>
+
+          <rect x="1290" y="60" width="250" height="96" rx="14" class="d-box"/>
+          <text x="1415" y="100" text-anchor="middle" class="d-text" font-size="22">Official Outputs</text>
+          <text x="1415" y="132" text-anchor="middle" class="d-dim" font-size="17">统一成果树 · 阶段总报告</text>
+
+          <line x1="270" y1="108" x2="352" y2="108" class="d-line" stroke-width="2" marker-end="url(#arrB)"/>
+          <line x1="610" y1="108" x2="692" y2="108" class="d-line" stroke-width="2" marker-end="url(#arrB)"/>
+        </g>
+        <g>
+          <path d="M 1000 84 C 1080 84 1080 30 1140 30" fill="none" class="d-line-accent" stroke-width="2.4" marker-end="url(#arrB)"/>
+          <path d="M 1000 108 L 1132 108" fill="none" class="d-line-accent" stroke-width="2.4" marker-end="url(#arrB)"/>
+          <path d="M 1000 132 C 1080 132 1080 186 1140 186" fill="none" class="d-line-accent" stroke-width="2.4" marker-end="url(#arrB)"/>
+          <rect x="1140" y="8" width="130" height="44" rx="10" class="d-box"/>
+          <text x="1205" y="37" text-anchor="middle" class="d-mono" font-size="16">subagent</text>
+          <rect x="1140" y="86" width="130" height="44" rx="10" class="d-box"/>
+          <text x="1205" y="115" text-anchor="middle" class="d-mono" font-size="16">subagent</text>
+          <rect x="1140" y="164" width="130" height="44" rx="10" class="d-box"/>
+          <text x="1205" y="193" text-anchor="middle" class="d-mono" font-size="16">workflow</text>
+          <text x="1205" y="236" text-anchor="middle" class="d-dim" font-size="15">内核原生并行扇出</text>
+          <line x1="1270" y1="108" x2="1282" y2="108" class="d-line" stroke-width="2" marker-end="url(#arrB)"/>
+        </g>
+        <g>
+          <rect x="360" y="272" width="250" height="88" rx="14" class="d-box"/>
+          <text x="485" y="306" text-anchor="middle" class="d-text" font-size="22">证据门禁</text>
+          <text x="485" y="336" text-anchor="middle" class="d-dim" font-size="16">查不到出处不放行</text>
+          <rect x="700" y="272" width="300" height="88" rx="14" class="d-box"/>
+          <text x="850" y="306" text-anchor="middle" class="d-text" font-size="22">本地知识库</text>
+          <text x="850" y="336" text-anchor="middle" class="d-dim" font-size="16">章节索引 · 用户模板 · .apkb</text>
+          <rect x="1290" y="272" width="250" height="88" rx="14" class="d-box"/>
+          <text x="1415" y="306" text-anchor="middle" class="d-text" font-size="22">出处芯片</text>
+          <text x="1415" y="336" text-anchor="middle" class="d-dim" font-size="16">源文件 · 页/行 · 题目</text>
+          <line x1="485" y1="156" x2="485" y2="264" class="d-line" stroke-width="2" stroke-dasharray="6 6" marker-end="url(#arrB)"/>
+          <line x1="850" y1="172" x2="850" y2="264" class="d-line" stroke-width="2" stroke-dasharray="6 6" marker-end="url(#arrB)"/>
+          <line x1="1415" y1="156" x2="1415" y2="264" class="d-line" stroke-width="2" stroke-dasharray="6 6" marker-end="url(#arrB)"/>
+        </g>
+        <g>
+          <rect x="20" y="384" width="1520" height="36" rx="10" class="d-box" opacity="0.7"/>
+          <text x="780" y="408" text-anchor="middle" class="d-dim" font-size="16">阶段准备 · 证据门禁 · 成果树 = tender-host 插件　｜　并行拆活 = 内核原生 subagent / workflow　｜　桌面壳 = Electron（私有化部署 = 服务端 Web）</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+
+  <div>
+    <div class="sec-title">与通用 AI 助手的本质区别 <small>WHY DIFFERENT</small></div>
+    <div style="overflow:hidden; margin-top:14px">
+      <table class="tbl">
+        <thead>
+          <tr><th style="width:14%">维度</th><th style="width:43%">通用办公助手（豆包 · 通义 · WorkBuddy）</th><th style="width:43%">本系统 Agent Pi DSH</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>任务尺度</td><td>几十轮对话就断片、跑题</td><td>小时级长程任务一次跑完；崩溃只救未完工的部分，不做无用功</td></tr>
+          <tr><td>目标控制</td><td>聊到哪算哪，越聊越偏</td><td>阶段门禁 + 成果树锁定目标，任务不偏离</td></tr>
+          <tr><td>事实可靠性</td><td>凭模型记忆编，幻觉频发</td><td>证据门禁：查不到出处就不放行，基本杜绝幻觉</td></tr>
+          <tr><td>数据处理</td><td>长文档读不动，大表格丢行漏项</td><td>数千条 BOQ 逐项处理，每一项都带规范出处</td></tr>
+          <tr><td>成果形态</td><td>一段聊天记录，复制粘贴再排版</td><td>落盘的正式成果：漂亮版式、带公式报表、出处芯片，中标后直接服务实施</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="callout">
+    <b>一句话方案：</b>把智能体放进真实项目作业——打开工作区直接下任务；复杂活由内核原生拆给并行工人，证据门禁杜绝幻觉，正式成果带出处芯片落盘，中标后全部基础资料直接服务实施阶段。
+  </div>
+
+</div>
+
+<div class="ft">
+  <span>中 / 国 / 建 / 筑 / 第 / 二 / 届 / 青 / 年 / 设 / 计 / 师 / 创 / 新 / 大 / 赛</span>
+  <span class="pg">01</span>
+</div>
+
+</body>
+</html>

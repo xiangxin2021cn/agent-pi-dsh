@@ -1,0 +1,65 @@
+{
+  "controlStatus": "reviewed",
+  "dataDate": "2026-07-12",
+  "resources": [
+    {
+      "id": "crew",
+      "category": "labour",
+      "name": "Drainage crew",
+      "unit": "crew",
+      "availableQuantity": 1,
+      "capacityPerDay": 20,
+      "evidenceRefs": [{ "kind": "source", "sourceId": "resource-plan", "sheet": "Labour", "cell": "B2:H2" }],
+      "status": "confirmed"
+    },
+    {
+      "id": "pipes",
+      "category": "material",
+      "name": "Concrete pipes",
+      "unit": "m",
+      "availableQuantity": 500,
+      "evidenceRefs": [{ "kind": "source", "sourceId": "procurement", "sheet": "Materials", "cell": "B4:H4" }],
+      "status": "confirmed"
+    }
+  ],
+  "allocations": [
+    {
+      "id": "crew-drainage",
+      "resourceId": "crew",
+      "activityId": "drainage-works",
+      "plannedStart": "2026-07-01",
+      "plannedFinish": "2026-07-22",
+      "requiredQuantity": 1,
+      "demandPerDay": 20,
+      "evidenceRefs": [{ "kind": "source", "sourceId": "resource-plan", "sheet": "Allocations", "cell": "B2:H2" }],
+      "status": "reviewed"
+    },
+    {
+      "id": "pipes-drainage",
+      "resourceId": "pipes",
+      "activityId": "drainage-works",
+      "plannedStart": "2026-07-10",
+      "plannedFinish": "2026-07-22",
+      "requiredQuantity": 400,
+      "evidenceRefs": [{ "kind": "source", "sourceId": "resource-plan", "sheet": "Materials", "cell": "B4:H4" }],
+      "status": "reviewed"
+    }
+  ],
+  "procurementPackages": [
+    {
+      "id": "pipes-package",
+      "title": "Concrete pipes",
+      "category": "material",
+      "resourceIds": ["pipes"],
+      "activityIds": ["drainage-works"],
+      "requiredOnSiteDate": "2026-07-15",
+      "forecastDeliveryDate": "2026-07-14",
+      "leadTimeDays": 21,
+      "supplier": "Approved Supplier",
+      "evidenceRefs": [{ "kind": "source", "sourceId": "procurement", "sheet": "Packages", "cell": "B2:H2" }],
+      "status": "ordered",
+      "confidence": "confirmed"
+    }
+  ],
+  "constraints": []
+}

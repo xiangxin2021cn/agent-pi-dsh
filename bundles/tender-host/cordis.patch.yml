@@ -1,0 +1,24 @@
+- insert:
+    - id: tender-host
+      name: dsh-tender-host
+      inject: [tools, systemPrompt]
+
+# Do not disable `goal`. Every shipped agent preset (code / standard / cordis)
+# mounts its own `tool-goal`, which injects the host `goals` service. Turning
+# `goal` off makes `sessions.create` fail with agent-preset-invalid
+# ("tool-goal … waiting for goals"). ConversationRoot.selectWorkspace then
+# catches and rolls the chip back, so the UI stays on the splash after a
+# folder pick. Keep the Goal Loop / slash command / host-plane copies off so
+# they do not fight tender stage gates; the agent-plane tool-goal still mounts.
+- id: tool-goal
+  disabled: true
+- id: command-goal
+  disabled: true
+- id: goal-round-driver
+  disabled: true
+- id: plan-mode
+  disabled: true
+- id: tool-todo
+  disabled: true
+# read_image stays registered (drawings can be sources) but is downgraded in the
+# host system-prompt: never fill project-characteristic facts from pixels/memory.

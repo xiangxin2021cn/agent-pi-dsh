@@ -1,0 +1,6455 @@
+[
+  {
+    "slide": 1,
+    "kind": "image",
+    "label": "engineering hero",
+    "x": 7.28,
+    "y": 0,
+    "w": 6.053,
+    "h": 7.5
+  },
+  {
+    "slide": 1,
+    "kind": "shape",
+    "label": "cover dark field",
+    "x": 0,
+    "y": 0,
+    "w": 7.95,
+    "h": 7.5
+  },
+  {
+    "slide": 1,
+    "kind": "shape",
+    "label": "cover fade",
+    "x": 7.4,
+    "y": 0,
+    "w": 1.25,
+    "h": 7.5
+  },
+  {
+    "slide": 1,
+    "kind": "text",
+    "label": "cover kicker",
+    "x": 0.68,
+    "y": 0.62,
+    "w": 5.5,
+    "h": 0.3
+  },
+  {
+    "slide": 1,
+    "kind": "text",
+    "label": "cover title",
+    "x": 0.68,
+    "y": 1.25,
+    "w": 6.6,
+    "h": 1.65
+  },
+  {
+    "slide": 1,
+    "kind": "text",
+    "label": "cover subtitle",
+    "x": 0.68,
+    "y": 3.05,
+    "w": 6.35,
+    "h": 0.72
+  },
+  {
+    "slide": 1,
+    "kind": "text",
+    "label": "cover promise",
+    "x": 0.68,
+    "y": 4.03,
+    "w": 5.9,
+    "h": 0.86
+  },
+  {
+    "slide": 1,
+    "kind": "shape",
+    "label": "pill",
+    "x": 0.68,
+    "y": 5.27,
+    "w": 1.42,
+    "h": 0.34
+  },
+  {
+    "slide": 1,
+    "kind": "text",
+    "label": "pill 商业调研轨",
+    "x": 0.76,
+    "y": 5.279999999999999,
+    "w": 1.26,
+    "h": 0.32
+  },
+  {
+    "slide": 1,
+    "kind": "shape",
+    "label": "pill",
+    "x": 2.24,
+    "y": 5.27,
+    "w": 1.42,
+    "h": 0.34
+  },
+  {
+    "slide": 1,
+    "kind": "text",
+    "label": "pill 工程投标轨",
+    "x": 2.3200000000000003,
+    "y": 5.279999999999999,
+    "w": 1.26,
+    "h": 0.32
+  },
+  {
+    "slide": 1,
+    "kind": "shape",
+    "label": "pill",
+    "x": 3.8,
+    "y": 5.27,
+    "w": 1.3,
+    "h": 0.34
+  },
+  {
+    "slide": 1,
+    "kind": "text",
+    "label": "pill 证据门禁",
+    "x": 3.88,
+    "y": 5.279999999999999,
+    "w": 1.1400000000000001,
+    "h": 0.32
+  },
+  {
+    "slide": 1,
+    "kind": "line",
+    "label": "commercial lane",
+    "x": 7.82,
+    "y": 2,
+    "w": 2.03,
+    "h": 0
+  },
+  {
+    "slide": 1,
+    "kind": "line",
+    "label": "tender lane",
+    "x": 7.82,
+    "y": 4.86,
+    "w": 2.03,
+    "h": 0
+  },
+  {
+    "slide": 1,
+    "kind": "line",
+    "label": "commercial merge",
+    "x": 9.85,
+    "y": 2,
+    "w": 1.52,
+    "h": 1.43
+  },
+  {
+    "slide": 1,
+    "kind": "line",
+    "label": "tender merge",
+    "x": 9.85,
+    "y": 4.86,
+    "w": 1.52,
+    "h": -1.43
+  },
+  {
+    "slide": 1,
+    "kind": "shape",
+    "label": "official node halo",
+    "x": 11.16,
+    "y": 3.2,
+    "w": 0.48,
+    "h": 0.48
+  },
+  {
+    "slide": 1,
+    "kind": "shape",
+    "label": "official node",
+    "x": 11.26,
+    "y": 3.3,
+    "w": 0.28,
+    "h": 0.28
+  },
+  {
+    "slide": 1,
+    "kind": "text",
+    "label": "official outputs",
+    "x": 10.6,
+    "y": 3.82,
+    "w": 1.65,
+    "h": 0.58
+  },
+  {
+    "slide": 1,
+    "kind": "text",
+    "label": "competition",
+    "x": 0.68,
+    "y": 6.39,
+    "w": 7.3,
+    "h": 0.24
+  },
+  {
+    "slide": 1,
+    "kind": "text",
+    "label": "participant",
+    "x": 0.68,
+    "y": 6.7,
+    "w": 2.5,
+    "h": 0.24
+  },
+  {
+    "slide": 2,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 1.24,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 2,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 1.96,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 2,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 2.6799999999999997,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 2,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 3.4000000000000004,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 2,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 4.12,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 2,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 4.84,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 2,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 5.5600000000000005,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 2,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 6.28,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 2,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 2,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 1.49,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 2,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 2.4299999999999997,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 2,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 3.37,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 2,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 4.31,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 2,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 5.249999999999999,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 2,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 6.1899999999999995,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 2,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 7.13,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 2,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 8.07,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 2,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 9.01,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 2,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 9.95,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 2,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 10.89,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 2,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 11.83,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 2,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 12.77,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 2,
+    "kind": "text",
+    "label": "kicker",
+    "x": 0.55,
+    "y": 0.51,
+    "w": 5.5,
+    "h": 0.18
+  },
+  {
+    "slide": 2,
+    "kind": "text",
+    "label": "title",
+    "x": 0.55,
+    "y": 0.73,
+    "w": 10.7,
+    "h": 0.48
+  },
+  {
+    "slide": 2,
+    "kind": "text",
+    "label": "page",
+    "x": 12.05,
+    "y": 0.51,
+    "w": 0.72,
+    "h": 0.3
+  },
+  {
+    "slide": 2,
+    "kind": "text",
+    "label": "footer",
+    "x": 0.55,
+    "y": 6.79,
+    "w": 8.8,
+    "h": 0.18
+  },
+  {
+    "slide": 2,
+    "kind": "text",
+    "label": "footer identity",
+    "x": 10.5,
+    "y": 6.79,
+    "w": 2.28,
+    "h": 0.18
+  },
+  {
+    "slide": 2,
+    "kind": "text",
+    "label": "pain thesis",
+    "x": 0.57,
+    "y": 1.29,
+    "w": 8.3,
+    "h": 0.42
+  },
+  {
+    "slide": 2,
+    "kind": "shape",
+    "label": "pain 长文件",
+    "x": 0.62,
+    "y": 2.04,
+    "w": 3.63,
+    "h": 3.18
+  },
+  {
+    "slide": 2,
+    "kind": "text",
+    "label": "pain number 01",
+    "x": 0.86,
+    "y": 2.26,
+    "w": 0.62,
+    "h": 0.34
+  },
+  {
+    "slide": 2,
+    "kind": "shape",
+    "label": "pain icon 01",
+    "x": 3.45,
+    "y": 2.22,
+    "w": 0.45,
+    "h": 0.45
+  },
+  {
+    "slide": 2,
+    "kind": "text",
+    "label": "pain icon text 01",
+    "x": 3.45,
+    "y": 2.24,
+    "w": 0.45,
+    "h": 0.36
+  },
+  {
+    "slide": 2,
+    "kind": "text",
+    "label": "pain title 长文件",
+    "x": 0.86,
+    "y": 2.93,
+    "w": 2.85,
+    "h": 0.48
+  },
+  {
+    "slide": 2,
+    "kind": "text",
+    "label": "pain detail 长文件",
+    "x": 0.86,
+    "y": 3.68,
+    "w": 3.08,
+    "h": 0.78
+  },
+  {
+    "slide": 2,
+    "kind": "line",
+    "label": "pain trace 01",
+    "x": 0.86,
+    "y": 4.68,
+    "w": 3.02,
+    "h": 0
+  },
+  {
+    "slide": 2,
+    "kind": "shape",
+    "label": "pain 散情报",
+    "x": 4.7,
+    "y": 2.04,
+    "w": 3.63,
+    "h": 3.18
+  },
+  {
+    "slide": 2,
+    "kind": "text",
+    "label": "pain number 02",
+    "x": 4.94,
+    "y": 2.26,
+    "w": 0.62,
+    "h": 0.34
+  },
+  {
+    "slide": 2,
+    "kind": "shape",
+    "label": "pain icon 02",
+    "x": 7.53,
+    "y": 2.22,
+    "w": 0.45,
+    "h": 0.45
+  },
+  {
+    "slide": 2,
+    "kind": "text",
+    "label": "pain icon text 02",
+    "x": 7.53,
+    "y": 2.24,
+    "w": 0.45,
+    "h": 0.36
+  },
+  {
+    "slide": 2,
+    "kind": "text",
+    "label": "pain title 散情报",
+    "x": 4.94,
+    "y": 2.93,
+    "w": 2.85,
+    "h": 0.48
+  },
+  {
+    "slide": 2,
+    "kind": "text",
+    "label": "pain detail 散情报",
+    "x": 4.94,
+    "y": 3.68,
+    "w": 3.08,
+    "h": 0.78
+  },
+  {
+    "slide": 2,
+    "kind": "line",
+    "label": "pain trace 02",
+    "x": 4.94,
+    "y": 4.68,
+    "w": 3.02,
+    "h": 0
+  },
+  {
+    "slide": 2,
+    "kind": "shape",
+    "label": "pain 经验组价",
+    "x": 8.78,
+    "y": 2.04,
+    "w": 3.63,
+    "h": 3.18
+  },
+  {
+    "slide": 2,
+    "kind": "text",
+    "label": "pain number 03",
+    "x": 9.02,
+    "y": 2.26,
+    "w": 0.62,
+    "h": 0.34
+  },
+  {
+    "slide": 2,
+    "kind": "shape",
+    "label": "pain icon 03",
+    "x": 11.61,
+    "y": 2.22,
+    "w": 0.45,
+    "h": 0.45
+  },
+  {
+    "slide": 2,
+    "kind": "text",
+    "label": "pain icon text 03",
+    "x": 11.61,
+    "y": 2.24,
+    "w": 0.45,
+    "h": 0.36
+  },
+  {
+    "slide": 2,
+    "kind": "text",
+    "label": "pain title 经验组价",
+    "x": 9.02,
+    "y": 2.93,
+    "w": 2.85,
+    "h": 0.48
+  },
+  {
+    "slide": 2,
+    "kind": "text",
+    "label": "pain detail 经验组价",
+    "x": 9.02,
+    "y": 3.68,
+    "w": 3.08,
+    "h": 0.78
+  },
+  {
+    "slide": 2,
+    "kind": "line",
+    "label": "pain trace 03",
+    "x": 9.02,
+    "y": 4.68,
+    "w": 3.02,
+    "h": 0
+  },
+  {
+    "slide": 2,
+    "kind": "shape",
+    "label": "pain result band",
+    "x": 1.38,
+    "y": 5.76,
+    "w": 10.56,
+    "h": 0.78
+  },
+  {
+    "slide": 2,
+    "kind": "text",
+    "label": "碎片输入",
+    "x": 1.72,
+    "y": 5.96,
+    "w": 1.4,
+    "h": 0.28
+  },
+  {
+    "slide": 2,
+    "kind": "text",
+    "label": "→",
+    "x": 3.36,
+    "y": 5.95,
+    "w": 0.5,
+    "h": 0.28
+  },
+  {
+    "slide": 2,
+    "kind": "text",
+    "label": "判断失真",
+    "x": 4.04,
+    "y": 5.96,
+    "w": 1.55,
+    "h": 0.28
+  },
+  {
+    "slide": 2,
+    "kind": "text",
+    "label": "→",
+    "x": 5.83,
+    "y": 5.95,
+    "w": 0.5,
+    "h": 0.28
+  },
+  {
+    "slide": 2,
+    "kind": "text",
+    "label": "重复返工",
+    "x": 6.48,
+    "y": 5.96,
+    "w": 1.55,
+    "h": 0.28
+  },
+  {
+    "slide": 2,
+    "kind": "text",
+    "label": "→",
+    "x": 8.27,
+    "y": 5.95,
+    "w": 0.5,
+    "h": 0.28
+  },
+  {
+    "slide": 2,
+    "kind": "text",
+    "label": "递交风险",
+    "x": 8.94,
+    "y": 5.96,
+    "w": 1.55,
+    "h": 0.28
+  },
+  {
+    "slide": 3,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 1.24,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 3,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 1.96,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 3,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 2.6799999999999997,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 3,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 3.4000000000000004,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 3,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 4.12,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 3,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 4.84,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 3,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 5.5600000000000005,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 3,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 6.28,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 3,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 3,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 1.49,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 3,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 2.4299999999999997,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 3,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 3.37,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 3,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 4.31,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 3,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 5.249999999999999,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 3,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 6.1899999999999995,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 3,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 7.13,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 3,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 8.07,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 3,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 9.01,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 3,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 9.95,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 3,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 10.89,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 3,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 11.83,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 3,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 12.77,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 3,
+    "kind": "text",
+    "label": "kicker",
+    "x": 0.55,
+    "y": 0.51,
+    "w": 5.5,
+    "h": 0.18
+  },
+  {
+    "slide": 3,
+    "kind": "text",
+    "label": "title",
+    "x": 0.55,
+    "y": 0.73,
+    "w": 10.7,
+    "h": 0.48
+  },
+  {
+    "slide": 3,
+    "kind": "text",
+    "label": "page",
+    "x": 12.05,
+    "y": 0.51,
+    "w": 0.72,
+    "h": 0.3
+  },
+  {
+    "slide": 3,
+    "kind": "text",
+    "label": "footer",
+    "x": 0.55,
+    "y": 6.79,
+    "w": 8.8,
+    "h": 0.18
+  },
+  {
+    "slide": 3,
+    "kind": "text",
+    "label": "footer identity",
+    "x": 10.5,
+    "y": 6.79,
+    "w": 2.28,
+    "h": 0.18
+  },
+  {
+    "slide": 3,
+    "kind": "text",
+    "label": "overview facts",
+    "x": 0.58,
+    "y": 1.28,
+    "w": 5.7,
+    "h": 0.34
+  },
+  {
+    "slide": 3,
+    "kind": "shape",
+    "label": "pill",
+    "x": 0.62,
+    "y": 1.88,
+    "w": 2.28,
+    "h": 0.38
+  },
+  {
+    "slide": 3,
+    "kind": "text",
+    "label": "pill TRACK A  商业调研",
+    "x": 0.7,
+    "y": 1.89,
+    "w": 2.1199999999999997,
+    "h": 0.36
+  },
+  {
+    "slide": 3,
+    "kind": "shape",
+    "label": "pill",
+    "x": 0.62,
+    "y": 4.42,
+    "w": 2.28,
+    "h": 0.38
+  },
+  {
+    "slide": 3,
+    "kind": "text",
+    "label": "pill TRACK B  工程投标",
+    "x": 0.7,
+    "y": 4.43,
+    "w": 2.1199999999999997,
+    "h": 0.36
+  },
+  {
+    "slide": 3,
+    "kind": "shape",
+    "label": "node 01",
+    "x": 0.72,
+    "y": 2.56,
+    "w": 1.47,
+    "h": 0.62
+  },
+  {
+    "slide": 3,
+    "kind": "text",
+    "label": "node 01 index",
+    "x": 0.84,
+    "y": 2.66,
+    "w": 0.28,
+    "h": 0.18
+  },
+  {
+    "slide": 3,
+    "kind": "text",
+    "label": "node 项目机会",
+    "x": 0.84,
+    "y": 2.85,
+    "w": 1.23,
+    "h": 0.22
+  },
+  {
+    "slide": 3,
+    "kind": "shape",
+    "label": "node 02",
+    "x": 2.45,
+    "y": 2.56,
+    "w": 1.47,
+    "h": 0.62
+  },
+  {
+    "slide": 3,
+    "kind": "text",
+    "label": "node 02 index",
+    "x": 2.5700000000000003,
+    "y": 2.66,
+    "w": 0.28,
+    "h": 0.18
+  },
+  {
+    "slide": 3,
+    "kind": "text",
+    "label": "node 国别市场",
+    "x": 2.5700000000000003,
+    "y": 2.85,
+    "w": 1.23,
+    "h": 0.22
+  },
+  {
+    "slide": 3,
+    "kind": "shape",
+    "label": "node 03",
+    "x": 4.18,
+    "y": 2.56,
+    "w": 1.47,
+    "h": 0.62
+  },
+  {
+    "slide": 3,
+    "kind": "text",
+    "label": "node 03 index",
+    "x": 4.3,
+    "y": 2.66,
+    "w": 0.28,
+    "h": 0.18
+  },
+  {
+    "slide": 3,
+    "kind": "text",
+    "label": "node 业主伙伴",
+    "x": 4.3,
+    "y": 2.85,
+    "w": 1.23,
+    "h": 0.22
+  },
+  {
+    "slide": 3,
+    "kind": "shape",
+    "label": "node 04",
+    "x": 5.909999999999999,
+    "y": 2.56,
+    "w": 1.47,
+    "h": 0.62
+  },
+  {
+    "slide": 3,
+    "kind": "text",
+    "label": "node 04 index",
+    "x": 6.029999999999999,
+    "y": 2.66,
+    "w": 0.28,
+    "h": 0.18
+  },
+  {
+    "slide": 3,
+    "kind": "text",
+    "label": "node 风险决策",
+    "x": 6.029999999999999,
+    "y": 2.85,
+    "w": 1.23,
+    "h": 0.22
+  },
+  {
+    "slide": 3,
+    "kind": "shape",
+    "label": "node 01",
+    "x": 0.72,
+    "y": 5.08,
+    "w": 1.47,
+    "h": 0.62
+  },
+  {
+    "slide": 3,
+    "kind": "text",
+    "label": "node 01 index",
+    "x": 0.84,
+    "y": 5.18,
+    "w": 0.28,
+    "h": 0.18
+  },
+  {
+    "slide": 3,
+    "kind": "text",
+    "label": "node 全量解析",
+    "x": 0.84,
+    "y": 5.37,
+    "w": 1.23,
+    "h": 0.22
+  },
+  {
+    "slide": 3,
+    "kind": "shape",
+    "label": "node 02",
+    "x": 2.45,
+    "y": 5.08,
+    "w": 1.47,
+    "h": 0.62
+  },
+  {
+    "slide": 3,
+    "kind": "text",
+    "label": "node 02 index",
+    "x": 2.5700000000000003,
+    "y": 5.18,
+    "w": 0.28,
+    "h": 0.18
+  },
+  {
+    "slide": 3,
+    "kind": "text",
+    "label": "node 条款知识库",
+    "x": 2.5700000000000003,
+    "y": 5.37,
+    "w": 1.23,
+    "h": 0.22
+  },
+  {
+    "slide": 3,
+    "kind": "shape",
+    "label": "node 03",
+    "x": 4.18,
+    "y": 5.08,
+    "w": 1.47,
+    "h": 0.62
+  },
+  {
+    "slide": 3,
+    "kind": "text",
+    "label": "node 03 index",
+    "x": 4.3,
+    "y": 5.18,
+    "w": 0.28,
+    "h": 0.18
+  },
+  {
+    "slide": 3,
+    "kind": "text",
+    "label": "node BOQ 组价",
+    "x": 4.3,
+    "y": 5.37,
+    "w": 1.23,
+    "h": 0.22
+  },
+  {
+    "slide": 3,
+    "kind": "shape",
+    "label": "node 04",
+    "x": 5.909999999999999,
+    "y": 5.08,
+    "w": 1.47,
+    "h": 0.62
+  },
+  {
+    "slide": 3,
+    "kind": "text",
+    "label": "node 04 index",
+    "x": 6.029999999999999,
+    "y": 5.18,
+    "w": 0.28,
+    "h": 0.18
+  },
+  {
+    "slide": 3,
+    "kind": "text",
+    "label": "node 策划标稿",
+    "x": 6.029999999999999,
+    "y": 5.37,
+    "w": 1.23,
+    "h": 0.22
+  },
+  {
+    "slide": 3,
+    "kind": "line",
+    "label": "commercial connector",
+    "x": 2.19,
+    "y": 2.87,
+    "w": 0.26,
+    "h": 0
+  },
+  {
+    "slide": 3,
+    "kind": "line",
+    "label": "tender connector",
+    "x": 2.19,
+    "y": 5.39,
+    "w": 0.26,
+    "h": 0
+  },
+  {
+    "slide": 3,
+    "kind": "line",
+    "label": "commercial connector",
+    "x": 3.92,
+    "y": 2.87,
+    "w": 0.26,
+    "h": 0
+  },
+  {
+    "slide": 3,
+    "kind": "line",
+    "label": "tender connector",
+    "x": 3.92,
+    "y": 5.39,
+    "w": 0.26,
+    "h": 0
+  },
+  {
+    "slide": 3,
+    "kind": "line",
+    "label": "commercial connector",
+    "x": 5.65,
+    "y": 2.87,
+    "w": 0.26,
+    "h": 0
+  },
+  {
+    "slide": 3,
+    "kind": "line",
+    "label": "tender connector",
+    "x": 5.65,
+    "y": 5.39,
+    "w": 0.26,
+    "h": 0
+  },
+  {
+    "slide": 3,
+    "kind": "line",
+    "label": "commercial merge",
+    "x": 7.38,
+    "y": 2.87,
+    "w": 1.22,
+    "h": 0.95
+  },
+  {
+    "slide": 3,
+    "kind": "line",
+    "label": "tender merge",
+    "x": 7.38,
+    "y": 5.39,
+    "w": 1.22,
+    "h": -1.57
+  },
+  {
+    "slide": 3,
+    "kind": "shape",
+    "label": "evidence gate",
+    "x": 8.47,
+    "y": 2.78,
+    "w": 1.62,
+    "h": 2.12
+  },
+  {
+    "slide": 3,
+    "kind": "text",
+    "label": "evidence gate english",
+    "x": 8.67,
+    "y": 3.05,
+    "w": 1.22,
+    "h": 0.56
+  },
+  {
+    "slide": 3,
+    "kind": "text",
+    "label": "evidence gate title",
+    "x": 8.67,
+    "y": 3.69,
+    "w": 1.22,
+    "h": 0.38
+  },
+  {
+    "slide": 3,
+    "kind": "text",
+    "label": "gate checks",
+    "x": 8.67,
+    "y": 4.16,
+    "w": 1.22,
+    "h": 0.44
+  },
+  {
+    "slide": 3,
+    "kind": "line",
+    "label": "gate to output",
+    "x": 10.09,
+    "y": 3.84,
+    "w": 0.55,
+    "h": 0
+  },
+  {
+    "slide": 3,
+    "kind": "shape",
+    "label": "official outputs",
+    "x": 10.72,
+    "y": 2.35,
+    "w": 1.98,
+    "h": 3
+  },
+  {
+    "slide": 3,
+    "kind": "shape",
+    "label": "output halo",
+    "x": 11.36,
+    "y": 2.67,
+    "w": 0.68,
+    "h": 0.68
+  },
+  {
+    "slide": 3,
+    "kind": "text",
+    "label": "output check",
+    "x": 11.36,
+    "y": 2.69,
+    "w": 0.68,
+    "h": 0.46
+  },
+  {
+    "slide": 3,
+    "kind": "text",
+    "label": "official outputs title",
+    "x": 10.94,
+    "y": 3.54,
+    "w": 1.54,
+    "h": 0.35
+  },
+  {
+    "slide": 3,
+    "kind": "text",
+    "label": "official outputs list",
+    "x": 10.94,
+    "y": 4.03,
+    "w": 1.54,
+    "h": 0.86
+  },
+  {
+    "slide": 3,
+    "kind": "shape",
+    "label": "pill",
+    "x": 10.89,
+    "y": 5.68,
+    "w": 0.98,
+    "h": 0.34
+  },
+  {
+    "slide": 3,
+    "kind": "text",
+    "label": "pill 可追溯",
+    "x": 10.97,
+    "y": 5.6899999999999995,
+    "w": 0.82,
+    "h": 0.32
+  },
+  {
+    "slide": 3,
+    "kind": "shape",
+    "label": "pill",
+    "x": 11.96,
+    "y": 5.68,
+    "w": 0.72,
+    "h": 0.34
+  },
+  {
+    "slide": 3,
+    "kind": "text",
+    "label": "pill 可复核",
+    "x": 12.040000000000001,
+    "y": 5.6899999999999995,
+    "w": 0.5599999999999999,
+    "h": 0.32
+  },
+  {
+    "slide": 4,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 1.24,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 4,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 1.96,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 4,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 2.6799999999999997,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 4,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 3.4000000000000004,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 4,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 4.12,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 4,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 4.84,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 4,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 5.5600000000000005,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 4,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 6.28,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 4,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 4,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 1.49,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 4,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 2.4299999999999997,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 4,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 3.37,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 4,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 4.31,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 4,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 5.249999999999999,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 4,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 6.1899999999999995,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 4,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 7.13,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 4,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 8.07,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 4,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 9.01,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 4,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 9.95,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 4,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 10.89,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 4,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 11.83,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 4,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 12.77,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 4,
+    "kind": "text",
+    "label": "kicker",
+    "x": 0.55,
+    "y": 0.51,
+    "w": 5.5,
+    "h": 0.18
+  },
+  {
+    "slide": 4,
+    "kind": "text",
+    "label": "title",
+    "x": 0.55,
+    "y": 0.73,
+    "w": 10.7,
+    "h": 0.48
+  },
+  {
+    "slide": 4,
+    "kind": "text",
+    "label": "page",
+    "x": 12.05,
+    "y": 0.51,
+    "w": 0.72,
+    "h": 0.3
+  },
+  {
+    "slide": 4,
+    "kind": "text",
+    "label": "footer",
+    "x": 0.55,
+    "y": 6.79,
+    "w": 8.8,
+    "h": 0.18
+  },
+  {
+    "slide": 4,
+    "kind": "text",
+    "label": "footer identity",
+    "x": 10.5,
+    "y": 6.79,
+    "w": 2.28,
+    "h": 0.18
+  },
+  {
+    "slide": 4,
+    "kind": "text",
+    "label": "commercial workflow",
+    "x": 0.58,
+    "y": 1.29,
+    "w": 8.9,
+    "h": 0.32
+  },
+  {
+    "slide": 4,
+    "kind": "shape",
+    "label": "commercial step 1",
+    "x": 0.78,
+    "y": 2.12,
+    "w": 0.54,
+    "h": 0.54
+  },
+  {
+    "slide": 4,
+    "kind": "text",
+    "label": "commercial step number",
+    "x": 0.78,
+    "y": 2.19,
+    "w": 0.54,
+    "h": 0.24
+  },
+  {
+    "slide": 4,
+    "kind": "text",
+    "label": "commercial step 找信号",
+    "x": 0.57,
+    "y": 2.81,
+    "w": 0.95,
+    "h": 0.32
+  },
+  {
+    "slide": 4,
+    "kind": "line",
+    "label": "commercial step connector",
+    "x": 1.32,
+    "y": 2.39,
+    "w": 0.81,
+    "h": 0
+  },
+  {
+    "slide": 4,
+    "kind": "shape",
+    "label": "commercial step 2",
+    "x": 2.13,
+    "y": 2.12,
+    "w": 0.54,
+    "h": 0.54
+  },
+  {
+    "slide": 4,
+    "kind": "text",
+    "label": "commercial step number",
+    "x": 2.13,
+    "y": 2.19,
+    "w": 0.54,
+    "h": 0.24
+  },
+  {
+    "slide": 4,
+    "kind": "text",
+    "label": "commercial step 核时点",
+    "x": 1.92,
+    "y": 2.81,
+    "w": 0.95,
+    "h": 0.32
+  },
+  {
+    "slide": 4,
+    "kind": "line",
+    "label": "commercial step connector",
+    "x": 2.67,
+    "y": 2.39,
+    "w": 0.81,
+    "h": 0
+  },
+  {
+    "slide": 4,
+    "kind": "shape",
+    "label": "commercial step 3",
+    "x": 3.4800000000000004,
+    "y": 2.12,
+    "w": 0.54,
+    "h": 0.54
+  },
+  {
+    "slide": 4,
+    "kind": "text",
+    "label": "commercial step number",
+    "x": 3.4800000000000004,
+    "y": 2.19,
+    "w": 0.54,
+    "h": 0.24
+  },
+  {
+    "slide": 4,
+    "kind": "text",
+    "label": "commercial step 串关系",
+    "x": 3.27,
+    "y": 2.81,
+    "w": 0.95,
+    "h": 0.32
+  },
+  {
+    "slide": 4,
+    "kind": "line",
+    "label": "commercial step connector",
+    "x": 4.0200000000000005,
+    "y": 2.39,
+    "w": 0.81,
+    "h": 0
+  },
+  {
+    "slide": 4,
+    "kind": "shape",
+    "label": "commercial step 4",
+    "x": 4.830000000000001,
+    "y": 2.12,
+    "w": 0.54,
+    "h": 0.54
+  },
+  {
+    "slide": 4,
+    "kind": "text",
+    "label": "commercial step number",
+    "x": 4.830000000000001,
+    "y": 2.19,
+    "w": 0.54,
+    "h": 0.24
+  },
+  {
+    "slide": 4,
+    "kind": "text",
+    "label": "commercial step 写结论",
+    "x": 4.620000000000001,
+    "y": 2.81,
+    "w": 0.95,
+    "h": 0.32
+  },
+  {
+    "slide": 4,
+    "kind": "shape",
+    "label": "commercial transformation",
+    "x": 0.6,
+    "y": 3.54,
+    "w": 4.95,
+    "h": 2.34
+  },
+  {
+    "slide": 4,
+    "kind": "text",
+    "label": "commercial not search",
+    "x": 0.92,
+    "y": 3.85,
+    "w": 4.3,
+    "h": 0.4
+  },
+  {
+    "slide": 4,
+    "kind": "text",
+    "label": "commercial evidence copy",
+    "x": 0.92,
+    "y": 4.52,
+    "w": 4.14,
+    "h": 0.8
+  },
+  {
+    "slide": 4,
+    "kind": "shape",
+    "label": "pill",
+    "x": 0.92,
+    "y": 5.36,
+    "w": 1.08,
+    "h": 0.34
+  },
+  {
+    "slide": 4,
+    "kind": "text",
+    "label": "pill 公司公告",
+    "x": 1,
+    "y": 5.37,
+    "w": 0.92,
+    "h": 0.32
+  },
+  {
+    "slide": 4,
+    "kind": "shape",
+    "label": "pill",
+    "x": 2.12,
+    "y": 5.36,
+    "w": 1.08,
+    "h": 0.34
+  },
+  {
+    "slide": 4,
+    "kind": "text",
+    "label": "pill 业主官网",
+    "x": 2.2,
+    "y": 5.37,
+    "w": 0.92,
+    "h": 0.32
+  },
+  {
+    "slide": 4,
+    "kind": "shape",
+    "label": "pill",
+    "x": 3.32,
+    "y": 5.36,
+    "w": 1.08,
+    "h": 0.34
+  },
+  {
+    "slide": 4,
+    "kind": "text",
+    "label": "pill 项目阶段",
+    "x": 3.4,
+    "y": 5.37,
+    "w": 0.92,
+    "h": 0.32
+  },
+  {
+    "slide": 4,
+    "kind": "shape",
+    "label": "equity visualization frame",
+    "x": 5.94,
+    "y": 1.73,
+    "w": 3.17,
+    "h": 2.37
+  },
+  {
+    "slide": 4,
+    "kind": "image",
+    "label": "equity visualization",
+    "x": 6.0200000000000005,
+    "y": 1.81,
+    "w": 3.01,
+    "h": 2.21
+  },
+  {
+    "slide": 4,
+    "kind": "shape",
+    "label": "stage visualization frame",
+    "x": 9.35,
+    "y": 1.73,
+    "w": 3.36,
+    "h": 2.37
+  },
+  {
+    "slide": 4,
+    "kind": "image",
+    "label": "stage visualization",
+    "x": 9.43,
+    "y": 1.81,
+    "w": 3.1999999999999997,
+    "h": 2.21
+  },
+  {
+    "slide": 4,
+    "kind": "shape",
+    "label": "corridor map frame",
+    "x": 5.94,
+    "y": 4.36,
+    "w": 3.17,
+    "h": 2.28
+  },
+  {
+    "slide": 4,
+    "kind": "image",
+    "label": "corridor map",
+    "x": 6.0200000000000005,
+    "y": 4.44,
+    "w": 3.01,
+    "h": 2.1199999999999997
+  },
+  {
+    "slide": 4,
+    "kind": "shape",
+    "label": "research workbench frame",
+    "x": 9.35,
+    "y": 4.36,
+    "w": 3.36,
+    "h": 2.28
+  },
+  {
+    "slide": 4,
+    "kind": "image",
+    "label": "research workbench",
+    "x": 9.43,
+    "y": 4.44,
+    "w": 3.1999999999999997,
+    "h": 2.1199999999999997
+  },
+  {
+    "slide": 4,
+    "kind": "shape",
+    "label": "pill",
+    "x": 6.08,
+    "y": 3.65,
+    "w": 0.9,
+    "h": 0.34
+  },
+  {
+    "slide": 4,
+    "kind": "text",
+    "label": "pill 股权关系",
+    "x": 6.16,
+    "y": 3.6599999999999997,
+    "w": 0.74,
+    "h": 0.32
+  },
+  {
+    "slide": 4,
+    "kind": "shape",
+    "label": "pill",
+    "x": 9.49,
+    "y": 3.65,
+    "w": 0.9,
+    "h": 0.34
+  },
+  {
+    "slide": 4,
+    "kind": "text",
+    "label": "pill 项目阶段",
+    "x": 9.57,
+    "y": 3.6599999999999997,
+    "w": 0.74,
+    "h": 0.32
+  },
+  {
+    "slide": 4,
+    "kind": "shape",
+    "label": "pill",
+    "x": 6.08,
+    "y": 6.18,
+    "w": 0.9,
+    "h": 0.34
+  },
+  {
+    "slide": 4,
+    "kind": "text",
+    "label": "pill 区域走廊",
+    "x": 6.16,
+    "y": 6.1899999999999995,
+    "w": 0.74,
+    "h": 0.32
+  },
+  {
+    "slide": 4,
+    "kind": "shape",
+    "label": "pill",
+    "x": 9.49,
+    "y": 6.18,
+    "w": 1.02,
+    "h": 0.34
+  },
+  {
+    "slide": 4,
+    "kind": "text",
+    "label": "pill 调研工作台",
+    "x": 9.57,
+    "y": 6.1899999999999995,
+    "w": 0.86,
+    "h": 0.32
+  },
+  {
+    "slide": 5,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 1.24,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 5,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 1.96,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 5,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 2.6799999999999997,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 5,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 3.4000000000000004,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 5,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 4.12,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 5,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 4.84,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 5,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 5.5600000000000005,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 5,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 6.28,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 5,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 5,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 1.49,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 5,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 2.4299999999999997,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 5,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 3.37,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 5,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 4.31,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 5,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 5.249999999999999,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 5,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 6.1899999999999995,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 5,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 7.13,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 5,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 8.07,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 5,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 9.01,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 5,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 9.95,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 5,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 10.89,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 5,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 11.83,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 5,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 12.77,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "kicker",
+    "x": 0.55,
+    "y": 0.51,
+    "w": 5.5,
+    "h": 0.18
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "title",
+    "x": 0.55,
+    "y": 0.73,
+    "w": 10.7,
+    "h": 0.48
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "page",
+    "x": 12.05,
+    "y": 0.51,
+    "w": 0.72,
+    "h": 0.3
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "footer",
+    "x": 0.55,
+    "y": 6.79,
+    "w": 8.8,
+    "h": 0.18
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "footer identity",
+    "x": 10.5,
+    "y": 6.79,
+    "w": 2.28,
+    "h": 0.18
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "tender input thesis",
+    "x": 0.58,
+    "y": 1.29,
+    "w": 8.8,
+    "h": 0.34
+  },
+  {
+    "slide": 5,
+    "kind": "shape",
+    "label": "tender inputs",
+    "x": 0.58,
+    "y": 1.89,
+    "w": 2.08,
+    "h": 4.62
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "input label",
+    "x": 0.86,
+    "y": 2.18,
+    "w": 1.45,
+    "h": 0.25
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "input title",
+    "x": 0.86,
+    "y": 2.6,
+    "w": 1.45,
+    "h": 0.44
+  },
+  {
+    "slide": 5,
+    "kind": "shape",
+    "label": "pill",
+    "x": 0.84,
+    "y": 3.31,
+    "w": 1.53,
+    "h": 0.38
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "pill 招标书 / 规范",
+    "x": 0.9199999999999999,
+    "y": 3.32,
+    "w": 1.37,
+    "h": 0.36
+  },
+  {
+    "slide": 5,
+    "kind": "shape",
+    "label": "pill",
+    "x": 0.84,
+    "y": 3.89,
+    "w": 1.53,
+    "h": 0.38
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "pill BOQ / 图纸",
+    "x": 0.9199999999999999,
+    "y": 3.9,
+    "w": 1.37,
+    "h": 0.36
+  },
+  {
+    "slide": 5,
+    "kind": "shape",
+    "label": "pill",
+    "x": 0.84,
+    "y": 4.47,
+    "w": 1.53,
+    "h": 0.38
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "pill 补遗 / 澄清",
+    "x": 0.9199999999999999,
+    "y": 4.4799999999999995,
+    "w": 1.37,
+    "h": 0.36
+  },
+  {
+    "slide": 5,
+    "kind": "shape",
+    "label": "pill",
+    "x": 0.84,
+    "y": 5.05,
+    "w": 1.53,
+    "h": 0.38
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "pill 企业模板",
+    "x": 0.9199999999999999,
+    "y": 5.06,
+    "w": 1.37,
+    "h": 0.36
+  },
+  {
+    "slide": 5,
+    "kind": "shape",
+    "label": "tender step 01",
+    "x": 3.06,
+    "y": 1.95,
+    "w": 1.91,
+    "h": 1.78
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "step 01 number",
+    "x": 3.24,
+    "y": 2.13,
+    "w": 0.43,
+    "h": 0.25
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "step 01 title",
+    "x": 3.24,
+    "y": 2.53,
+    "w": 1.48,
+    "h": 0.4
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "step 01 detail",
+    "x": 3.24,
+    "y": 3.09,
+    "w": 1.5,
+    "h": 0.3
+  },
+  {
+    "slide": 5,
+    "kind": "line",
+    "label": "tender connector",
+    "x": 4.97,
+    "y": 2.84,
+    "w": 0.34,
+    "h": 0
+  },
+  {
+    "slide": 5,
+    "kind": "shape",
+    "label": "tender step 02",
+    "x": 5.3100000000000005,
+    "y": 1.95,
+    "w": 1.91,
+    "h": 1.78
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "step 02 number",
+    "x": 5.49,
+    "y": 2.13,
+    "w": 0.43,
+    "h": 0.25
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "step 02 title",
+    "x": 5.49,
+    "y": 2.53,
+    "w": 1.48,
+    "h": 0.4
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "step 02 detail",
+    "x": 5.49,
+    "y": 3.09,
+    "w": 1.5,
+    "h": 0.3
+  },
+  {
+    "slide": 5,
+    "kind": "line",
+    "label": "tender connector",
+    "x": 7.220000000000001,
+    "y": 2.84,
+    "w": 0.34,
+    "h": 0
+  },
+  {
+    "slide": 5,
+    "kind": "shape",
+    "label": "tender step 03",
+    "x": 7.5600000000000005,
+    "y": 1.95,
+    "w": 1.91,
+    "h": 1.78
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "step 03 number",
+    "x": 7.74,
+    "y": 2.13,
+    "w": 0.43,
+    "h": 0.25
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "step 03 title",
+    "x": 7.74,
+    "y": 2.53,
+    "w": 1.48,
+    "h": 0.4
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "step 03 detail",
+    "x": 7.74,
+    "y": 3.09,
+    "w": 1.5,
+    "h": 0.3
+  },
+  {
+    "slide": 5,
+    "kind": "shape",
+    "label": "tender step 04",
+    "x": 3.06,
+    "y": 4.24,
+    "w": 1.91,
+    "h": 1.78
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "step 04 number",
+    "x": 3.24,
+    "y": 4.42,
+    "w": 0.43,
+    "h": 0.25
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "step 04 title",
+    "x": 3.24,
+    "y": 4.82,
+    "w": 1.48,
+    "h": 0.4
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "step 04 detail",
+    "x": 3.24,
+    "y": 5.38,
+    "w": 1.5,
+    "h": 0.3
+  },
+  {
+    "slide": 5,
+    "kind": "line",
+    "label": "tender connector",
+    "x": 4.97,
+    "y": 5.13,
+    "w": 0.34,
+    "h": 0
+  },
+  {
+    "slide": 5,
+    "kind": "shape",
+    "label": "tender step 05",
+    "x": 5.3100000000000005,
+    "y": 4.24,
+    "w": 1.91,
+    "h": 1.78
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "step 05 number",
+    "x": 5.49,
+    "y": 4.42,
+    "w": 0.43,
+    "h": 0.25
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "step 05 title",
+    "x": 5.49,
+    "y": 4.82,
+    "w": 1.48,
+    "h": 0.4
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "step 05 detail",
+    "x": 5.49,
+    "y": 5.38,
+    "w": 1.5,
+    "h": 0.3
+  },
+  {
+    "slide": 5,
+    "kind": "line",
+    "label": "tender connector",
+    "x": 7.220000000000001,
+    "y": 5.13,
+    "w": 0.34,
+    "h": 0
+  },
+  {
+    "slide": 5,
+    "kind": "shape",
+    "label": "tender step 06",
+    "x": 7.5600000000000005,
+    "y": 4.24,
+    "w": 1.91,
+    "h": 1.78
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "step 06 number",
+    "x": 7.74,
+    "y": 4.42,
+    "w": 0.43,
+    "h": 0.25
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "step 06 title",
+    "x": 7.74,
+    "y": 4.82,
+    "w": 1.48,
+    "h": 0.4
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "step 06 detail",
+    "x": 7.74,
+    "y": 5.38,
+    "w": 1.5,
+    "h": 0.3
+  },
+  {
+    "slide": 5,
+    "kind": "line",
+    "label": "tender row turn",
+    "x": 7.49,
+    "y": 3.73,
+    "w": -4.43,
+    "h": 0.5
+  },
+  {
+    "slide": 5,
+    "kind": "shape",
+    "label": "tender outputs",
+    "x": 10.08,
+    "y": 1.89,
+    "w": 2.64,
+    "h": 4.62
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "output label",
+    "x": 10.38,
+    "y": 2.18,
+    "w": 1.82,
+    "h": 0.25
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "output title",
+    "x": 10.38,
+    "y": 2.6,
+    "w": 1.82,
+    "h": 0.44
+  },
+  {
+    "slide": 5,
+    "kind": "shape",
+    "label": "output dot",
+    "x": 10.39,
+    "y": 3.33,
+    "w": 0.28,
+    "h": 0.28
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "output check",
+    "x": 10.39,
+    "y": 3.34,
+    "w": 0.28,
+    "h": 0.2
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "output 条款与风险清单",
+    "x": 10.83,
+    "y": 3.28,
+    "w": 1.52,
+    "h": 0.36
+  },
+  {
+    "slide": 5,
+    "kind": "shape",
+    "label": "output dot",
+    "x": 10.39,
+    "y": 3.99,
+    "w": 0.28,
+    "h": 0.28
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "output check",
+    "x": 10.39,
+    "y": 4,
+    "w": 0.28,
+    "h": 0.2
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "output BOQ 组价工作簿",
+    "x": 10.83,
+    "y": 3.94,
+    "w": 1.52,
+    "h": 0.36
+  },
+  {
+    "slide": 5,
+    "kind": "shape",
+    "label": "output dot",
+    "x": 10.39,
+    "y": 4.65,
+    "w": 0.28,
+    "h": 0.28
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "output check",
+    "x": 10.39,
+    "y": 4.66,
+    "w": 0.28,
+    "h": 0.2
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "output 施工策划",
+    "x": 10.83,
+    "y": 4.6,
+    "w": 1.52,
+    "h": 0.36
+  },
+  {
+    "slide": 5,
+    "kind": "shape",
+    "label": "output dot",
+    "x": 10.39,
+    "y": 5.3100000000000005,
+    "w": 0.28,
+    "h": 0.28
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "output check",
+    "x": 10.39,
+    "y": 5.32,
+    "w": 0.28,
+    "h": 0.2
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "output 企业模板标稿",
+    "x": 10.83,
+    "y": 5.26,
+    "w": 1.52,
+    "h": 0.36
+  },
+  {
+    "slide": 5,
+    "kind": "shape",
+    "label": "pill",
+    "x": 10.37,
+    "y": 5.98,
+    "w": 1.98,
+    "h": 0.38
+  },
+  {
+    "slide": 5,
+    "kind": "text",
+    "label": "pill 核验点：源文件 / 页 / 条款 / 行",
+    "x": 10.45,
+    "y": 5.99,
+    "w": 1.82,
+    "h": 0.36
+  },
+  {
+    "slide": 6,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 1.24,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 6,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 1.96,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 6,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 2.6799999999999997,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 6,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 3.4000000000000004,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 6,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 4.12,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 6,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 4.84,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 6,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 5.5600000000000005,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 6,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 6.28,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 6,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 6,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 1.49,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 6,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 2.4299999999999997,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 6,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 3.37,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 6,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 4.31,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 6,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 5.249999999999999,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 6,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 6.1899999999999995,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 6,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 7.13,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 6,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 8.07,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 6,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 9.01,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 6,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 9.95,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 6,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 10.89,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 6,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 11.83,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 6,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 12.77,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "kicker",
+    "x": 0.55,
+    "y": 0.51,
+    "w": 5.5,
+    "h": 0.18
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "title",
+    "x": 0.55,
+    "y": 0.73,
+    "w": 10.7,
+    "h": 0.48
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "page",
+    "x": 12.05,
+    "y": 0.51,
+    "w": 0.72,
+    "h": 0.3
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "footer",
+    "x": 0.55,
+    "y": 6.79,
+    "w": 8.8,
+    "h": 0.18
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "footer identity",
+    "x": 10.5,
+    "y": 6.79,
+    "w": 2.28,
+    "h": 0.18
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "boq chain",
+    "x": 0.58,
+    "y": 1.29,
+    "w": 7,
+    "h": 0.34
+  },
+  {
+    "slide": 6,
+    "kind": "shape",
+    "label": "boq step 01",
+    "x": 0.62,
+    "y": 2.05,
+    "w": 2.45,
+    "h": 0.94
+  },
+  {
+    "slide": 6,
+    "kind": "shape",
+    "label": "pill",
+    "x": 0.78,
+    "y": 2.21,
+    "w": 0.44,
+    "h": 0.28
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "pill 01",
+    "x": 0.86,
+    "y": 2.2199999999999998,
+    "w": 0.28,
+    "h": 0.26
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "boq 范围界定",
+    "x": 1.3399999999999999,
+    "y": 2.1999999999999997,
+    "w": 1.45,
+    "h": 0.28
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "boq 计量规则 / 包含项",
+    "x": 1.3399999999999999,
+    "y": 2.5599999999999996,
+    "w": 1.5,
+    "h": 0.22
+  },
+  {
+    "slide": 6,
+    "kind": "shape",
+    "label": "boq step 02",
+    "x": 1.7999999999999998,
+    "y": 2.6799999999999997,
+    "w": 2.45,
+    "h": 0.94
+  },
+  {
+    "slide": 6,
+    "kind": "shape",
+    "label": "pill",
+    "x": 1.9599999999999997,
+    "y": 2.84,
+    "w": 0.44,
+    "h": 0.28
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "pill 02",
+    "x": 2.0399999999999996,
+    "y": 2.8499999999999996,
+    "w": 0.28,
+    "h": 0.26
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "boq 工法选定",
+    "x": 2.5199999999999996,
+    "y": 2.8299999999999996,
+    "w": 1.45,
+    "h": 0.28
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "boq 施工序列 / 约束",
+    "x": 2.5199999999999996,
+    "y": 3.1899999999999995,
+    "w": 1.5,
+    "h": 0.22
+  },
+  {
+    "slide": 6,
+    "kind": "shape",
+    "label": "boq step 03",
+    "x": 2.98,
+    "y": 3.3099999999999996,
+    "w": 2.45,
+    "h": 0.94
+  },
+  {
+    "slide": 6,
+    "kind": "shape",
+    "label": "pill",
+    "x": 3.14,
+    "y": 3.4699999999999998,
+    "w": 0.44,
+    "h": 0.28
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "pill 03",
+    "x": 3.22,
+    "y": 3.4799999999999995,
+    "w": 0.28,
+    "h": 0.26
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "boq 工效测定",
+    "x": 3.7,
+    "y": 3.4599999999999995,
+    "w": 1.45,
+    "h": 0.28
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "boq 班组 / 工时 / 瓶颈",
+    "x": 3.7,
+    "y": 3.8199999999999994,
+    "w": 1.5,
+    "h": 0.22
+  },
+  {
+    "slide": 6,
+    "kind": "shape",
+    "label": "boq step 04",
+    "x": 4.16,
+    "y": 3.94,
+    "w": 2.45,
+    "h": 0.94
+  },
+  {
+    "slide": 6,
+    "kind": "shape",
+    "label": "pill",
+    "x": 4.32,
+    "y": 4.1,
+    "w": 0.44,
+    "h": 0.28
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "pill 04",
+    "x": 4.4,
+    "y": 4.109999999999999,
+    "w": 0.28,
+    "h": 0.26
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "boq 资源取价",
+    "x": 4.88,
+    "y": 4.09,
+    "w": 1.45,
+    "h": 0.28
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "boq 地点 / 日期 / 来源",
+    "x": 4.88,
+    "y": 4.45,
+    "w": 1.5,
+    "h": 0.22
+  },
+  {
+    "slide": 6,
+    "kind": "shape",
+    "label": "boq step 05",
+    "x": 5.34,
+    "y": 4.57,
+    "w": 2.45,
+    "h": 0.94
+  },
+  {
+    "slide": 6,
+    "kind": "shape",
+    "label": "pill",
+    "x": 5.5,
+    "y": 4.73,
+    "w": 0.44,
+    "h": 0.28
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "pill 05",
+    "x": 5.58,
+    "y": 4.74,
+    "w": 0.28,
+    "h": 0.26
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "boq 单价合成",
+    "x": 6.06,
+    "y": 4.720000000000001,
+    "w": 1.45,
+    "h": 0.28
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "boq 消耗 × 费率",
+    "x": 6.06,
+    "y": 5.08,
+    "w": 1.5,
+    "h": 0.22
+  },
+  {
+    "slide": 6,
+    "kind": "shape",
+    "label": "boq workpaper",
+    "x": 7.86,
+    "y": 1.73,
+    "w": 4.85,
+    "h": 4.82
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "workpaper title",
+    "x": 8.16,
+    "y": 1.99,
+    "w": 2.6,
+    "h": 0.34
+  },
+  {
+    "slide": 6,
+    "kind": "shape",
+    "label": "pill",
+    "x": 11.28,
+    "y": 2,
+    "w": 1.08,
+    "h": 0.34
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "pill 旧项目示例",
+    "x": 11.36,
+    "y": 2.01,
+    "w": 0.92,
+    "h": 0.32
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "workpaper meta",
+    "x": 8.16,
+    "y": 2.45,
+    "w": 4.14,
+    "h": 0.24
+  },
+  {
+    "slide": 6,
+    "kind": "shape",
+    "label": "workpaper row 0",
+    "x": 8.14,
+    "y": 2.94,
+    "w": 4.28,
+    "h": 0.46
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "workpaper 成本项",
+    "x": 8.28,
+    "y": 2.9699999999999998,
+    "w": 1.15,
+    "h": 0.33
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "workpaper calculation",
+    "x": 9.38,
+    "y": 2.9699999999999998,
+    "w": 1.91,
+    "h": 0.33
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "workpaper amount",
+    "x": 11.4,
+    "y": 2.9699999999999998,
+    "w": 0.82,
+    "h": 0.33
+  },
+  {
+    "slide": 6,
+    "kind": "shape",
+    "label": "workpaper row 1",
+    "x": 8.14,
+    "y": 3.46,
+    "w": 4.28,
+    "h": 0.46
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "workpaper 人工",
+    "x": 8.28,
+    "y": 3.4899999999999998,
+    "w": 1.15,
+    "h": 0.33
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "workpaper calculation",
+    "x": 9.38,
+    "y": 3.4899999999999998,
+    "w": 1.91,
+    "h": 0.33
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "workpaper amount",
+    "x": 11.4,
+    "y": 3.4899999999999998,
+    "w": 0.82,
+    "h": 0.33
+  },
+  {
+    "slide": 6,
+    "kind": "shape",
+    "label": "workpaper row 2",
+    "x": 8.14,
+    "y": 3.98,
+    "w": 4.28,
+    "h": 0.46
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "workpaper 机械",
+    "x": 8.28,
+    "y": 4.01,
+    "w": 1.15,
+    "h": 0.33
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "workpaper calculation",
+    "x": 9.38,
+    "y": 4.01,
+    "w": 1.91,
+    "h": 0.33
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "workpaper amount",
+    "x": 11.4,
+    "y": 4.01,
+    "w": 0.82,
+    "h": 0.33
+  },
+  {
+    "slide": 6,
+    "kind": "shape",
+    "label": "workpaper row 3",
+    "x": 8.14,
+    "y": 4.5,
+    "w": 4.28,
+    "h": 0.46
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "workpaper 材料（水）",
+    "x": 8.28,
+    "y": 4.53,
+    "w": 1.15,
+    "h": 0.33
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "workpaper calculation",
+    "x": 9.38,
+    "y": 4.53,
+    "w": 1.91,
+    "h": 0.33
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "workpaper amount",
+    "x": 11.4,
+    "y": 4.53,
+    "w": 0.82,
+    "h": 0.33
+  },
+  {
+    "slide": 6,
+    "kind": "shape",
+    "label": "workpaper row 4",
+    "x": 8.14,
+    "y": 5.02,
+    "w": 4.28,
+    "h": 0.46
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "workpaper 纯直接费单价",
+    "x": 8.28,
+    "y": 5.05,
+    "w": 1.15,
+    "h": 0.33
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "workpaper calculation",
+    "x": 9.38,
+    "y": 5.05,
+    "w": 1.91,
+    "h": 0.33
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "workpaper amount",
+    "x": 11.4,
+    "y": 5.05,
+    "w": 0.82,
+    "h": 0.33
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "boq caveat",
+    "x": 8.16,
+    "y": 5.74,
+    "w": 4.12,
+    "h": 0.48
+  },
+  {
+    "slide": 6,
+    "kind": "shape",
+    "label": "pill",
+    "x": 0.72,
+    "y": 6.17,
+    "w": 1.46,
+    "h": 0.34
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "pill 来源页 / 条款 / 行",
+    "x": 0.7999999999999999,
+    "y": 6.18,
+    "w": 1.3,
+    "h": 0.32
+  },
+  {
+    "slide": 6,
+    "kind": "shape",
+    "label": "pill",
+    "x": 2.33,
+    "y": 6.17,
+    "w": 1.64,
+    "h": 0.34
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "pill 资源价：地点 + 日期",
+    "x": 2.41,
+    "y": 6.18,
+    "w": 1.48,
+    "h": 0.32
+  },
+  {
+    "slide": 6,
+    "kind": "shape",
+    "label": "pill",
+    "x": 4.13,
+    "y": 6.17,
+    "w": 1.3,
+    "h": 0.34
+  },
+  {
+    "slide": 6,
+    "kind": "text",
+    "label": "pill 人工复核状态",
+    "x": 4.21,
+    "y": 6.18,
+    "w": 1.1400000000000001,
+    "h": 0.32
+  },
+  {
+    "slide": 7,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 1.24,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 7,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 1.96,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 7,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 2.6799999999999997,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 7,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 3.4000000000000004,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 7,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 4.12,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 7,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 4.84,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 7,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 5.5600000000000005,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 7,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 6.28,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 7,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 7,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 1.49,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 7,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 2.4299999999999997,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 7,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 3.37,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 7,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 4.31,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 7,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 5.249999999999999,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 7,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 6.1899999999999995,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 7,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 7.13,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 7,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 8.07,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 7,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 9.01,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 7,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 9.95,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 7,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 10.89,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 7,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 11.83,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 7,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 12.77,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "kicker",
+    "x": 0.55,
+    "y": 0.51,
+    "w": 5.5,
+    "h": 0.18
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "title",
+    "x": 0.55,
+    "y": 0.73,
+    "w": 10.7,
+    "h": 0.48
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "page",
+    "x": 12.05,
+    "y": 0.51,
+    "w": 0.72,
+    "h": 0.3
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "footer",
+    "x": 0.55,
+    "y": 6.79,
+    "w": 8.8,
+    "h": 0.18
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "footer identity",
+    "x": 10.5,
+    "y": 6.79,
+    "w": 2.28,
+    "h": 0.18
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "gate thesis",
+    "x": 0.58,
+    "y": 1.29,
+    "w": 7.8,
+    "h": 0.34
+  },
+  {
+    "slide": 7,
+    "kind": "shape",
+    "label": "gate check 来源",
+    "x": 0.62,
+    "y": 1.86,
+    "w": 3.33,
+    "h": 0.65
+  },
+  {
+    "slide": 7,
+    "kind": "shape",
+    "label": "gate check dot",
+    "x": 0.82,
+    "y": 2.0100000000000002,
+    "w": 0.34,
+    "h": 0.34
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "gate check number",
+    "x": 0.82,
+    "y": 2.0300000000000002,
+    "w": 0.34,
+    "h": 0.2
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "gate check 来源 title",
+    "x": 1.34,
+    "y": 1.9600000000000002,
+    "w": 0.84,
+    "h": 0.25
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "gate check 来源 detail",
+    "x": 2.18,
+    "y": 1.9600000000000002,
+    "w": 1.48,
+    "h": 0.34
+  },
+  {
+    "slide": 7,
+    "kind": "shape",
+    "label": "gate check 日期",
+    "x": 0.62,
+    "y": 2.72,
+    "w": 3.33,
+    "h": 0.65
+  },
+  {
+    "slide": 7,
+    "kind": "shape",
+    "label": "gate check dot",
+    "x": 0.82,
+    "y": 2.87,
+    "w": 0.34,
+    "h": 0.34
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "gate check number",
+    "x": 0.82,
+    "y": 2.89,
+    "w": 0.34,
+    "h": 0.2
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "gate check 日期 title",
+    "x": 1.34,
+    "y": 2.8200000000000003,
+    "w": 0.84,
+    "h": 0.25
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "gate check 日期 detail",
+    "x": 2.18,
+    "y": 2.8200000000000003,
+    "w": 1.48,
+    "h": 0.34
+  },
+  {
+    "slide": 7,
+    "kind": "shape",
+    "label": "gate check 口径",
+    "x": 0.62,
+    "y": 3.58,
+    "w": 3.33,
+    "h": 0.65
+  },
+  {
+    "slide": 7,
+    "kind": "shape",
+    "label": "gate check dot",
+    "x": 0.82,
+    "y": 3.73,
+    "w": 0.34,
+    "h": 0.34
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "gate check number",
+    "x": 0.82,
+    "y": 3.75,
+    "w": 0.34,
+    "h": 0.2
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "gate check 口径 title",
+    "x": 1.34,
+    "y": 3.68,
+    "w": 0.84,
+    "h": 0.25
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "gate check 口径 detail",
+    "x": 2.18,
+    "y": 3.68,
+    "w": 1.48,
+    "h": 0.34
+  },
+  {
+    "slide": 7,
+    "kind": "shape",
+    "label": "gate check 冲突",
+    "x": 0.62,
+    "y": 4.44,
+    "w": 3.33,
+    "h": 0.65
+  },
+  {
+    "slide": 7,
+    "kind": "shape",
+    "label": "gate check dot",
+    "x": 0.82,
+    "y": 4.590000000000001,
+    "w": 0.34,
+    "h": 0.34
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "gate check number",
+    "x": 0.82,
+    "y": 4.61,
+    "w": 0.34,
+    "h": 0.2
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "gate check 冲突 title",
+    "x": 1.34,
+    "y": 4.54,
+    "w": 0.84,
+    "h": 0.25
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "gate check 冲突 detail",
+    "x": 2.18,
+    "y": 4.54,
+    "w": 1.48,
+    "h": 0.34
+  },
+  {
+    "slide": 7,
+    "kind": "shape",
+    "label": "gate check 人工复核",
+    "x": 0.62,
+    "y": 5.3,
+    "w": 3.33,
+    "h": 0.65
+  },
+  {
+    "slide": 7,
+    "kind": "shape",
+    "label": "gate check dot",
+    "x": 0.82,
+    "y": 5.45,
+    "w": 0.34,
+    "h": 0.34
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "gate check number",
+    "x": 0.82,
+    "y": 5.47,
+    "w": 0.34,
+    "h": 0.2
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "gate check 人工复核 title",
+    "x": 1.34,
+    "y": 5.3999999999999995,
+    "w": 0.84,
+    "h": 0.25
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "gate check 人工复核 detail",
+    "x": 2.18,
+    "y": 5.3999999999999995,
+    "w": 1.48,
+    "h": 0.34
+  },
+  {
+    "slide": 7,
+    "kind": "line",
+    "label": "checks to gate",
+    "x": 4.08,
+    "y": 3.94,
+    "w": 0.7,
+    "h": 0
+  },
+  {
+    "slide": 7,
+    "kind": "shape",
+    "label": "gate core",
+    "x": 4.87,
+    "y": 2.02,
+    "w": 3.3,
+    "h": 3.93
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "BM25",
+    "x": 5.24,
+    "y": 2.39,
+    "w": 1,
+    "h": 0.32
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "BM25 purpose",
+    "x": 6.23,
+    "y": 2.43,
+    "w": 1.5,
+    "h": 0.24
+  },
+  {
+    "slide": 7,
+    "kind": "line",
+    "label": "gate divider",
+    "x": 5.24,
+    "y": 2.9,
+    "w": 2.5,
+    "h": 0
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "gate title",
+    "x": 5.24,
+    "y": 3.23,
+    "w": 2.5,
+    "h": 0.54
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "gate rules",
+    "x": 5.4,
+    "y": 4.08,
+    "w": 2.18,
+    "h": 1.05
+  },
+  {
+    "slide": 7,
+    "kind": "shape",
+    "label": "pill",
+    "x": 5.78,
+    "y": 5.34,
+    "w": 1.47,
+    "h": 0.38
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "pill PASS / HOLD",
+    "x": 5.86,
+    "y": 5.35,
+    "w": 1.31,
+    "h": 0.36
+  },
+  {
+    "slide": 7,
+    "kind": "line",
+    "label": "gate to references",
+    "x": 8.17,
+    "y": 3.94,
+    "w": 0.7,
+    "h": 0
+  },
+  {
+    "slide": 7,
+    "kind": "shape",
+    "label": "clickable references",
+    "x": 8.97,
+    "y": 1.85,
+    "w": 3.74,
+    "h": 4.27
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "clickable references title",
+    "x": 9.28,
+    "y": 2.16,
+    "w": 2.72,
+    "h": 0.4
+  },
+  {
+    "slide": 7,
+    "kind": "shape",
+    "label": "pill",
+    "x": 9.27,
+    "y": 2.9,
+    "w": 2.45,
+    "h": 0.37
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "pill 源文件：Tender Data",
+    "x": 9.35,
+    "y": 2.9099999999999997,
+    "w": 2.29,
+    "h": 0.35
+  },
+  {
+    "slide": 7,
+    "kind": "shape",
+    "label": "pill",
+    "x": 9.27,
+    "y": 3.46,
+    "w": 2.45,
+    "h": 0.37
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "pill 页码：p.126",
+    "x": 9.35,
+    "y": 3.4699999999999998,
+    "w": 2.29,
+    "h": 0.35
+  },
+  {
+    "slide": 7,
+    "kind": "shape",
+    "label": "pill",
+    "x": 9.27,
+    "y": 4.02,
+    "w": 2.45,
+    "h": 0.37
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "pill 条款：COTO A5.1.3",
+    "x": 9.35,
+    "y": 4.029999999999999,
+    "w": 2.29,
+    "h": 0.35
+  },
+  {
+    "slide": 7,
+    "kind": "shape",
+    "label": "pill",
+    "x": 9.27,
+    "y": 4.58,
+    "w": 2.45,
+    "h": 0.37
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "pill 时点：2026-08",
+    "x": 9.35,
+    "y": 4.59,
+    "w": 2.29,
+    "h": 0.35
+  },
+  {
+    "slide": 7,
+    "kind": "shape",
+    "label": "pill",
+    "x": 9.27,
+    "y": 5.140000000000001,
+    "w": 2.45,
+    "h": 0.37
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "pill 状态：人工复核",
+    "x": 9.35,
+    "y": 5.15,
+    "w": 2.29,
+    "h": 0.35
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "click hint",
+    "x": 9.29,
+    "y": 5.67,
+    "w": 2.4,
+    "h": 0.24
+  },
+  {
+    "slide": 7,
+    "kind": "text",
+    "label": "static reference note",
+    "x": 9.29,
+    "y": 5.91,
+    "w": 2.4,
+    "h": 0.2
+  },
+  {
+    "slide": 8,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 1.24,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 8,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 1.96,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 8,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 2.6799999999999997,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 8,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 3.4000000000000004,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 8,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 4.12,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 8,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 4.84,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 8,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 5.5600000000000005,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 8,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 6.28,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 8,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 8,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 1.49,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 8,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 2.4299999999999997,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 8,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 3.37,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 8,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 4.31,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 8,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 5.249999999999999,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 8,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 6.1899999999999995,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 8,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 7.13,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 8,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 8.07,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 8,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 9.01,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 8,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 9.95,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 8,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 10.89,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 8,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 11.83,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 8,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 12.77,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 8,
+    "kind": "text",
+    "label": "kicker",
+    "x": 0.55,
+    "y": 0.51,
+    "w": 5.5,
+    "h": 0.18
+  },
+  {
+    "slide": 8,
+    "kind": "text",
+    "label": "title",
+    "x": 0.55,
+    "y": 0.73,
+    "w": 10.7,
+    "h": 0.48
+  },
+  {
+    "slide": 8,
+    "kind": "text",
+    "label": "page",
+    "x": 12.05,
+    "y": 0.51,
+    "w": 0.72,
+    "h": 0.3
+  },
+  {
+    "slide": 8,
+    "kind": "text",
+    "label": "footer",
+    "x": 0.55,
+    "y": 6.79,
+    "w": 8.8,
+    "h": 0.18
+  },
+  {
+    "slide": 8,
+    "kind": "text",
+    "label": "footer identity",
+    "x": 10.5,
+    "y": 6.79,
+    "w": 2.28,
+    "h": 0.18
+  },
+  {
+    "slide": 8,
+    "kind": "text",
+    "label": "real outputs thesis",
+    "x": 0.58,
+    "y": 1.29,
+    "w": 9.5,
+    "h": 0.34
+  },
+  {
+    "slide": 8,
+    "kind": "shape",
+    "label": "knowledge workbench redacted pixels frame",
+    "x": 0.61,
+    "y": 1.8,
+    "w": 6.38,
+    "h": 3.57
+  },
+  {
+    "slide": 8,
+    "kind": "image",
+    "label": "knowledge workbench redacted pixels",
+    "x": 0.69,
+    "y": 1.8800000000000001,
+    "w": 6.22,
+    "h": 3.4099999999999997
+  },
+  {
+    "slide": 8,
+    "kind": "shape",
+    "label": "knowledge caption",
+    "x": 0.82,
+    "y": 4.72,
+    "w": 5.92,
+    "h": 0.47
+  },
+  {
+    "slide": 8,
+    "kind": "text",
+    "label": "knowledge caption text",
+    "x": 1.02,
+    "y": 4.81,
+    "w": 4.94,
+    "h": 0.24
+  },
+  {
+    "slide": 8,
+    "kind": "shape",
+    "label": "equity result frame",
+    "x": 7.3,
+    "y": 1.8,
+    "w": 2.5,
+    "h": 1.74
+  },
+  {
+    "slide": 8,
+    "kind": "image",
+    "label": "equity result",
+    "x": 7.38,
+    "y": 1.8800000000000001,
+    "w": 2.34,
+    "h": 1.58
+  },
+  {
+    "slide": 8,
+    "kind": "shape",
+    "label": "stages result frame",
+    "x": 10.13,
+    "y": 1.8,
+    "w": 2.58,
+    "h": 1.74
+  },
+  {
+    "slide": 8,
+    "kind": "image",
+    "label": "stages result",
+    "x": 10.21,
+    "y": 1.8800000000000001,
+    "w": 2.42,
+    "h": 1.58
+  },
+  {
+    "slide": 8,
+    "kind": "shape",
+    "label": "map result frame",
+    "x": 7.3,
+    "y": 3.86,
+    "w": 2.5,
+    "h": 2.03
+  },
+  {
+    "slide": 8,
+    "kind": "image",
+    "label": "map result",
+    "x": 7.38,
+    "y": 3.94,
+    "w": 2.34,
+    "h": 1.8699999999999999
+  },
+  {
+    "slide": 8,
+    "kind": "shape",
+    "label": "simulation result frame",
+    "x": 10.13,
+    "y": 3.86,
+    "w": 2.58,
+    "h": 2.03
+  },
+  {
+    "slide": 8,
+    "kind": "image",
+    "label": "simulation result",
+    "x": 10.21,
+    "y": 3.94,
+    "w": 2.42,
+    "h": 1.8699999999999999
+  },
+  {
+    "slide": 8,
+    "kind": "shape",
+    "label": "pill",
+    "x": 7.44,
+    "y": 3.12,
+    "w": 0.64,
+    "h": 0.34
+  },
+  {
+    "slide": 8,
+    "kind": "text",
+    "label": "pill 股权",
+    "x": 7.5200000000000005,
+    "y": 3.13,
+    "w": 0.48,
+    "h": 0.32
+  },
+  {
+    "slide": 8,
+    "kind": "shape",
+    "label": "pill",
+    "x": 10.27,
+    "y": 3.12,
+    "w": 0.64,
+    "h": 0.34
+  },
+  {
+    "slide": 8,
+    "kind": "text",
+    "label": "pill 阶段",
+    "x": 10.35,
+    "y": 3.13,
+    "w": 0.48,
+    "h": 0.32
+  },
+  {
+    "slide": 8,
+    "kind": "shape",
+    "label": "pill",
+    "x": 7.44,
+    "y": 5.46,
+    "w": 0.64,
+    "h": 0.34
+  },
+  {
+    "slide": 8,
+    "kind": "text",
+    "label": "pill 区域",
+    "x": 7.5200000000000005,
+    "y": 5.47,
+    "w": 0.48,
+    "h": 0.32
+  },
+  {
+    "slide": 8,
+    "kind": "shape",
+    "label": "pill",
+    "x": 10.27,
+    "y": 5.46,
+    "w": 0.9,
+    "h": 0.34
+  },
+  {
+    "slide": 8,
+    "kind": "text",
+    "label": "pill 模拟辅助",
+    "x": 10.35,
+    "y": 5.47,
+    "w": 0.74,
+    "h": 0.32
+  },
+  {
+    "slide": 8,
+    "kind": "shape",
+    "label": "pill",
+    "x": 0.8,
+    "y": 5.73,
+    "w": 1.22,
+    "h": 0.4
+  },
+  {
+    "slide": 8,
+    "kind": "text",
+    "label": "pill 原始文件",
+    "x": 0.88,
+    "y": 5.74,
+    "w": 1.06,
+    "h": 0.38
+  },
+  {
+    "slide": 8,
+    "kind": "shape",
+    "label": "pill",
+    "x": 2.26,
+    "y": 5.73,
+    "w": 1.22,
+    "h": 0.4
+  },
+  {
+    "slide": 8,
+    "kind": "text",
+    "label": "pill 章节条款",
+    "x": 2.34,
+    "y": 5.74,
+    "w": 1.06,
+    "h": 0.38
+  },
+  {
+    "slide": 8,
+    "kind": "shape",
+    "label": "pill",
+    "x": 3.7199999999999998,
+    "y": 5.73,
+    "w": 1.22,
+    "h": 0.4
+  },
+  {
+    "slide": 8,
+    "kind": "text",
+    "label": "pill BOQ 底稿",
+    "x": 3.8,
+    "y": 5.74,
+    "w": 1.06,
+    "h": 0.38
+  },
+  {
+    "slide": 8,
+    "kind": "shape",
+    "label": "pill",
+    "x": 5.18,
+    "y": 5.73,
+    "w": 1.22,
+    "h": 0.4
+  },
+  {
+    "slide": 8,
+    "kind": "text",
+    "label": "pill 正式标稿",
+    "x": 5.26,
+    "y": 5.74,
+    "w": 1.06,
+    "h": 0.38
+  },
+  {
+    "slide": 8,
+    "kind": "text",
+    "label": "privacy note",
+    "x": 0.82,
+    "y": 6.31,
+    "w": 3.6,
+    "h": 0.23
+  },
+  {
+    "slide": 8,
+    "kind": "text",
+    "label": "simulation boundary",
+    "x": 9.03,
+    "y": 6.28,
+    "w": 3.68,
+    "h": 0.3
+  },
+  {
+    "slide": 9,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 1.24,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 9,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 1.96,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 9,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 2.6799999999999997,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 9,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 3.4000000000000004,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 9,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 4.12,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 9,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 4.84,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 9,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 5.5600000000000005,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 9,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 6.28,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 9,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 9,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 1.49,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 9,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 2.4299999999999997,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 9,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 3.37,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 9,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 4.31,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 9,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 5.249999999999999,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 9,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 6.1899999999999995,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 9,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 7.13,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 9,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 8.07,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 9,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 9.01,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 9,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 9.95,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 9,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 10.89,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 9,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 11.83,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 9,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 12.77,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 9,
+    "kind": "text",
+    "label": "kicker",
+    "x": 0.55,
+    "y": 0.51,
+    "w": 5.5,
+    "h": 0.18
+  },
+  {
+    "slide": 9,
+    "kind": "text",
+    "label": "title",
+    "x": 0.55,
+    "y": 0.73,
+    "w": 10.7,
+    "h": 0.48
+  },
+  {
+    "slide": 9,
+    "kind": "text",
+    "label": "page",
+    "x": 12.05,
+    "y": 0.51,
+    "w": 0.72,
+    "h": 0.3
+  },
+  {
+    "slide": 9,
+    "kind": "text",
+    "label": "footer",
+    "x": 0.55,
+    "y": 6.79,
+    "w": 8.8,
+    "h": 0.18
+  },
+  {
+    "slide": 9,
+    "kind": "text",
+    "label": "footer identity",
+    "x": 10.5,
+    "y": 6.79,
+    "w": 2.28,
+    "h": 0.18
+  },
+  {
+    "slide": 9,
+    "kind": "text",
+    "label": "value thesis",
+    "x": 0.58,
+    "y": 1.29,
+    "w": 7.3,
+    "h": 0.34
+  },
+  {
+    "slide": 9,
+    "kind": "shape",
+    "label": "value RESEARCH",
+    "x": 0.64,
+    "y": 2.02,
+    "w": 3.62,
+    "h": 3.5
+  },
+  {
+    "slide": 9,
+    "kind": "text",
+    "label": "phase number",
+    "x": 0.9,
+    "y": 2.31,
+    "w": 0.62,
+    "h": 0.35
+  },
+  {
+    "slide": 9,
+    "kind": "text",
+    "label": "phase english",
+    "x": 2.23,
+    "y": 2.36,
+    "w": 1.62,
+    "h": 0.23
+  },
+  {
+    "slide": 9,
+    "kind": "text",
+    "label": "phase 调研支撑决策",
+    "x": 0.9,
+    "y": 3.04,
+    "w": 2.96,
+    "h": 0.5
+  },
+  {
+    "slide": 9,
+    "kind": "text",
+    "label": "phase 机会、市场、业主、伙伴、风险",
+    "x": 0.9,
+    "y": 3.86,
+    "w": 2.94,
+    "h": 0.6
+  },
+  {
+    "slide": 9,
+    "kind": "line",
+    "label": "phase trace",
+    "x": 0.91,
+    "y": 4.78,
+    "w": 2.95,
+    "h": 0
+  },
+  {
+    "slide": 9,
+    "kind": "line",
+    "label": "phase connector",
+    "x": 4.26,
+    "y": 3.75,
+    "w": 0.48,
+    "h": 0
+  },
+  {
+    "slide": 9,
+    "kind": "shape",
+    "label": "value TENDER",
+    "x": 4.739999999999999,
+    "y": 2.02,
+    "w": 3.62,
+    "h": 3.5
+  },
+  {
+    "slide": 9,
+    "kind": "text",
+    "label": "phase number",
+    "x": 4.999999999999999,
+    "y": 2.31,
+    "w": 0.62,
+    "h": 0.35
+  },
+  {
+    "slide": 9,
+    "kind": "text",
+    "label": "phase english",
+    "x": 6.329999999999999,
+    "y": 2.36,
+    "w": 1.62,
+    "h": 0.23
+  },
+  {
+    "slide": 9,
+    "kind": "text",
+    "label": "phase 投标形成标稿",
+    "x": 4.999999999999999,
+    "y": 3.04,
+    "w": 2.96,
+    "h": 0.5
+  },
+  {
+    "slide": 9,
+    "kind": "text",
+    "label": "phase 条款、BOQ、工法、施工策划",
+    "x": 4.999999999999999,
+    "y": 3.86,
+    "w": 2.94,
+    "h": 0.6
+  },
+  {
+    "slide": 9,
+    "kind": "line",
+    "label": "phase trace",
+    "x": 5.01,
+    "y": 4.78,
+    "w": 2.95,
+    "h": 0
+  },
+  {
+    "slide": 9,
+    "kind": "line",
+    "label": "phase connector",
+    "x": 8.36,
+    "y": 3.75,
+    "w": 0.48,
+    "h": 0
+  },
+  {
+    "slide": 9,
+    "kind": "shape",
+    "label": "value DELIVERY",
+    "x": 8.84,
+    "y": 2.02,
+    "w": 3.62,
+    "h": 3.5
+  },
+  {
+    "slide": 9,
+    "kind": "text",
+    "label": "phase number",
+    "x": 9.1,
+    "y": 2.31,
+    "w": 0.62,
+    "h": 0.35
+  },
+  {
+    "slide": 9,
+    "kind": "text",
+    "label": "phase english",
+    "x": 10.43,
+    "y": 2.36,
+    "w": 1.62,
+    "h": 0.23
+  },
+  {
+    "slide": 9,
+    "kind": "text",
+    "label": "phase 中标后复用",
+    "x": 9.1,
+    "y": 3.04,
+    "w": 2.96,
+    "h": 0.5
+  },
+  {
+    "slide": 9,
+    "kind": "text",
+    "label": "phase 知识库、参数、计划与交底",
+    "x": 9.1,
+    "y": 3.86,
+    "w": 2.94,
+    "h": 0.6
+  },
+  {
+    "slide": 9,
+    "kind": "line",
+    "label": "phase trace",
+    "x": 9.11,
+    "y": 4.78,
+    "w": 2.95,
+    "h": 0
+  },
+  {
+    "slide": 9,
+    "kind": "shape",
+    "label": "reuse band",
+    "x": 1.2,
+    "y": 5.95,
+    "w": 10.93,
+    "h": 0.58
+  },
+  {
+    "slide": 9,
+    "kind": "text",
+    "label": "reuse statement",
+    "x": 1.5,
+    "y": 6.1,
+    "w": 10.3,
+    "h": 0.27
+  },
+  {
+    "slide": 10,
+    "kind": "line",
+    "label": "closing grid",
+    "x": 0.54,
+    "y": 0.55,
+    "w": 0,
+    "h": 6.4
+  },
+  {
+    "slide": 10,
+    "kind": "line",
+    "label": "closing grid",
+    "x": 1.72,
+    "y": 0.55,
+    "w": 0,
+    "h": 6.4
+  },
+  {
+    "slide": 10,
+    "kind": "line",
+    "label": "closing grid",
+    "x": 2.9,
+    "y": 0.55,
+    "w": 0,
+    "h": 6.4
+  },
+  {
+    "slide": 10,
+    "kind": "line",
+    "label": "closing grid",
+    "x": 4.08,
+    "y": 0.55,
+    "w": 0,
+    "h": 6.4
+  },
+  {
+    "slide": 10,
+    "kind": "line",
+    "label": "closing grid",
+    "x": 5.26,
+    "y": 0.55,
+    "w": 0,
+    "h": 6.4
+  },
+  {
+    "slide": 10,
+    "kind": "line",
+    "label": "closing grid",
+    "x": 6.4399999999999995,
+    "y": 0.55,
+    "w": 0,
+    "h": 6.4
+  },
+  {
+    "slide": 10,
+    "kind": "line",
+    "label": "closing grid",
+    "x": 7.62,
+    "y": 0.55,
+    "w": 0,
+    "h": 6.4
+  },
+  {
+    "slide": 10,
+    "kind": "line",
+    "label": "closing grid",
+    "x": 8.8,
+    "y": 0.55,
+    "w": 0,
+    "h": 6.4
+  },
+  {
+    "slide": 10,
+    "kind": "line",
+    "label": "closing grid",
+    "x": 9.98,
+    "y": 0.55,
+    "w": 0,
+    "h": 6.4
+  },
+  {
+    "slide": 10,
+    "kind": "line",
+    "label": "closing grid",
+    "x": 11.16,
+    "y": 0.55,
+    "w": 0,
+    "h": 6.4
+  },
+  {
+    "slide": 10,
+    "kind": "line",
+    "label": "closing grid",
+    "x": 12.34,
+    "y": 0.55,
+    "w": 0,
+    "h": 6.4
+  },
+  {
+    "slide": 10,
+    "kind": "line",
+    "label": "closing grid",
+    "x": 0.54,
+    "y": 0.62,
+    "w": 12.22,
+    "h": 0
+  },
+  {
+    "slide": 10,
+    "kind": "line",
+    "label": "closing grid",
+    "x": 0.54,
+    "y": 1.6,
+    "w": 12.22,
+    "h": 0
+  },
+  {
+    "slide": 10,
+    "kind": "line",
+    "label": "closing grid",
+    "x": 0.54,
+    "y": 2.58,
+    "w": 12.22,
+    "h": 0
+  },
+  {
+    "slide": 10,
+    "kind": "line",
+    "label": "closing grid",
+    "x": 0.54,
+    "y": 3.56,
+    "w": 12.22,
+    "h": 0
+  },
+  {
+    "slide": 10,
+    "kind": "line",
+    "label": "closing grid",
+    "x": 0.54,
+    "y": 4.54,
+    "w": 12.22,
+    "h": 0
+  },
+  {
+    "slide": 10,
+    "kind": "line",
+    "label": "closing grid",
+    "x": 0.54,
+    "y": 5.5200000000000005,
+    "w": 12.22,
+    "h": 0
+  },
+  {
+    "slide": 10,
+    "kind": "line",
+    "label": "closing grid",
+    "x": 0.54,
+    "y": 6.5,
+    "w": 12.22,
+    "h": 0
+  },
+  {
+    "slide": 10,
+    "kind": "text",
+    "label": "closing kicker",
+    "x": 0.68,
+    "y": 0.65,
+    "w": 5.1,
+    "h": 0.28
+  },
+  {
+    "slide": 10,
+    "kind": "text",
+    "label": "closing claim",
+    "x": 1.28,
+    "y": 1.72,
+    "w": 10.78,
+    "h": 1.72
+  },
+  {
+    "slide": 10,
+    "kind": "line",
+    "label": "closing commercial",
+    "x": 2.03,
+    "y": 4.41,
+    "w": 3.25,
+    "h": 0
+  },
+  {
+    "slide": 10,
+    "kind": "line",
+    "label": "closing tender",
+    "x": 2.03,
+    "y": 5.23,
+    "w": 3.25,
+    "h": 0
+  },
+  {
+    "slide": 10,
+    "kind": "line",
+    "label": "closing commercial merge",
+    "x": 5.28,
+    "y": 4.41,
+    "w": 1.48,
+    "h": 0.4
+  },
+  {
+    "slide": 10,
+    "kind": "line",
+    "label": "closing tender merge",
+    "x": 5.28,
+    "y": 5.23,
+    "w": 1.48,
+    "h": -0.4
+  },
+  {
+    "slide": 10,
+    "kind": "shape",
+    "label": "closing gate",
+    "x": 6.79,
+    "y": 4.36,
+    "w": 1.36,
+    "h": 0.92
+  },
+  {
+    "slide": 10,
+    "kind": "text",
+    "label": "closing gate title",
+    "x": 6.91,
+    "y": 4.61,
+    "w": 1.12,
+    "h": 0.3
+  },
+  {
+    "slide": 10,
+    "kind": "line",
+    "label": "closing output arrow",
+    "x": 8.15,
+    "y": 4.82,
+    "w": 1.05,
+    "h": 0
+  },
+  {
+    "slide": 10,
+    "kind": "shape",
+    "label": "closing official outputs",
+    "x": 9.3,
+    "y": 4.33,
+    "w": 2.38,
+    "h": 1.02
+  },
+  {
+    "slide": 10,
+    "kind": "text",
+    "label": "closing official title",
+    "x": 9.57,
+    "y": 4.55,
+    "w": 1.82,
+    "h": 0.3
+  },
+  {
+    "slide": 10,
+    "kind": "text",
+    "label": "thanks",
+    "x": 3.82,
+    "y": 6.38,
+    "w": 5.7,
+    "h": 0.36
+  },
+  {
+    "slide": 10,
+    "kind": "text",
+    "label": "closing footer",
+    "x": 10.4,
+    "y": 6.79,
+    "w": 2.3,
+    "h": 0.2
+  },
+  {
+    "slide": 11,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 1.24,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 11,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 1.96,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 11,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 2.6799999999999997,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 11,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 3.4000000000000004,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 11,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 4.12,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 11,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 4.84,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 11,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 5.5600000000000005,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 11,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 6.28,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 11,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 11,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 1.49,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 11,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 2.4299999999999997,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 11,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 3.37,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 11,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 4.31,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 11,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 5.249999999999999,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 11,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 6.1899999999999995,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 11,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 7.13,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 11,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 8.07,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 11,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 9.01,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 11,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 9.95,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 11,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 10.89,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 11,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 11.83,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 11,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 12.77,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 11,
+    "kind": "text",
+    "label": "kicker",
+    "x": 0.55,
+    "y": 0.51,
+    "w": 5.5,
+    "h": 0.18
+  },
+  {
+    "slide": 11,
+    "kind": "text",
+    "label": "title",
+    "x": 0.55,
+    "y": 0.73,
+    "w": 10.7,
+    "h": 0.48
+  },
+  {
+    "slide": 11,
+    "kind": "text",
+    "label": "page",
+    "x": 12.05,
+    "y": 0.51,
+    "w": 0.72,
+    "h": 0.3
+  },
+  {
+    "slide": 11,
+    "kind": "text",
+    "label": "footer",
+    "x": 0.55,
+    "y": 6.79,
+    "w": 8.8,
+    "h": 0.18
+  },
+  {
+    "slide": 11,
+    "kind": "text",
+    "label": "footer identity",
+    "x": 10.5,
+    "y": 6.79,
+    "w": 2.28,
+    "h": 0.18
+  },
+  {
+    "slide": 11,
+    "kind": "shape",
+    "label": "design note",
+    "x": 0.62,
+    "y": 1.5,
+    "w": 7.62,
+    "h": 5.22
+  },
+  {
+    "slide": 11,
+    "kind": "text",
+    "label": "design section",
+    "x": 0.94,
+    "y": 1.86,
+    "w": 1.3,
+    "h": 0.35
+  },
+  {
+    "slide": 11,
+    "kind": "text",
+    "label": "creative concept",
+    "x": 0.94,
+    "y": 2.28,
+    "w": 6.96,
+    "h": 1.02
+  },
+  {
+    "slide": 11,
+    "kind": "text",
+    "label": "design section",
+    "x": 0.94,
+    "y": 3.48,
+    "w": 1.3,
+    "h": 0.35
+  },
+  {
+    "slide": 11,
+    "kind": "text",
+    "label": "work highlights",
+    "x": 0.94,
+    "y": 3.9,
+    "w": 6.96,
+    "h": 1.02
+  },
+  {
+    "slide": 11,
+    "kind": "text",
+    "label": "design section",
+    "x": 0.94,
+    "y": 5.1,
+    "w": 1.3,
+    "h": 0.35
+  },
+  {
+    "slide": 11,
+    "kind": "text",
+    "label": "formation process",
+    "x": 0.94,
+    "y": 5.52,
+    "w": 6.96,
+    "h": 0.84
+  },
+  {
+    "slide": 11,
+    "kind": "shape",
+    "label": "participant role",
+    "x": 8.62,
+    "y": 1.5,
+    "w": 4.09,
+    "h": 5.22
+  },
+  {
+    "slide": 11,
+    "kind": "text",
+    "label": "role kicker",
+    "x": 8.97,
+    "y": 1.88,
+    "w": 2.24,
+    "h": 0.3
+  },
+  {
+    "slide": 11,
+    "kind": "text",
+    "label": "participant name",
+    "x": 8.97,
+    "y": 2.43,
+    "w": 2.44,
+    "h": 0.66
+  },
+  {
+    "slide": 11,
+    "kind": "shape",
+    "label": "role dot",
+    "x": 8.99,
+    "y": 3.42,
+    "w": 0.27,
+    "h": 0.27
+  },
+  {
+    "slide": 11,
+    "kind": "text",
+    "label": "role 系统架构",
+    "x": 9.43,
+    "y": 3.35,
+    "w": 2.65,
+    "h": 0.36
+  },
+  {
+    "slide": 11,
+    "kind": "shape",
+    "label": "role dot",
+    "x": 8.99,
+    "y": 4.04,
+    "w": 0.27,
+    "h": 0.27
+  },
+  {
+    "slide": 11,
+    "kind": "text",
+    "label": "role 工作流设计",
+    "x": 9.43,
+    "y": 3.97,
+    "w": 2.65,
+    "h": 0.36
+  },
+  {
+    "slide": 11,
+    "kind": "shape",
+    "label": "role dot",
+    "x": 8.99,
+    "y": 4.66,
+    "w": 0.27,
+    "h": 0.27
+  },
+  {
+    "slide": 11,
+    "kind": "text",
+    "label": "role 领域技能与知识库建设",
+    "x": 9.43,
+    "y": 4.59,
+    "w": 2.65,
+    "h": 0.36
+  },
+  {
+    "slide": 11,
+    "kind": "shape",
+    "label": "role dot",
+    "x": 8.99,
+    "y": 5.279999999999999,
+    "w": 0.27,
+    "h": 0.27
+  },
+  {
+    "slide": 11,
+    "kind": "text",
+    "label": "role 真实项目验证",
+    "x": 9.43,
+    "y": 5.21,
+    "w": 2.65,
+    "h": 0.36
+  },
+  {
+    "slide": 11,
+    "kind": "text",
+    "label": "design count note",
+    "x": 8.98,
+    "y": 6.16,
+    "w": 3.22,
+    "h": 0.27
+  },
+  {
+    "slide": 12,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 1.24,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 12,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 1.96,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 12,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 2.6799999999999997,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 12,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 3.4000000000000004,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 12,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 4.12,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 12,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 4.84,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 12,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 5.5600000000000005,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 12,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 6.28,
+    "w": 12.23,
+    "h": 0
+  },
+  {
+    "slide": 12,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 0.55,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 12,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 1.49,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 12,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 2.4299999999999997,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 12,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 3.37,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 12,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 4.31,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 12,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 5.249999999999999,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 12,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 6.1899999999999995,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 12,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 7.13,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 12,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 8.07,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 12,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 9.01,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 12,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 9.95,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 12,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 10.89,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 12,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 11.83,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 12,
+    "kind": "line",
+    "label": "blueprint grid",
+    "x": 12.77,
+    "y": 1.24,
+    "w": 0,
+    "h": 5.58
+  },
+  {
+    "slide": 12,
+    "kind": "text",
+    "label": "kicker",
+    "x": 0.55,
+    "y": 0.51,
+    "w": 5.5,
+    "h": 0.18
+  },
+  {
+    "slide": 12,
+    "kind": "text",
+    "label": "title",
+    "x": 0.55,
+    "y": 0.73,
+    "w": 10.7,
+    "h": 0.48
+  },
+  {
+    "slide": 12,
+    "kind": "text",
+    "label": "page",
+    "x": 12.05,
+    "y": 0.51,
+    "w": 0.72,
+    "h": 0.3
+  },
+  {
+    "slide": 12,
+    "kind": "text",
+    "label": "footer",
+    "x": 0.55,
+    "y": 6.79,
+    "w": 8.8,
+    "h": 0.18
+  },
+  {
+    "slide": 12,
+    "kind": "text",
+    "label": "footer identity",
+    "x": 10.5,
+    "y": 6.79,
+    "w": 2.28,
+    "h": 0.18
+  },
+  {
+    "slide": 12,
+    "kind": "text",
+    "label": "boundary thesis",
+    "x": 0.58,
+    "y": 1.28,
+    "w": 10.3,
+    "h": 0.36
+  },
+  {
+    "slide": 12,
+    "kind": "shape",
+    "label": "boundary row 0",
+    "x": 0.62,
+    "y": 1.86,
+    "w": 12.08,
+    "h": 0.64
+  },
+  {
+    "slide": 12,
+    "kind": "text",
+    "label": "boundary 内容类型",
+    "x": 0.64,
+    "y": 1.9300000000000002,
+    "w": 1.84,
+    "h": 0.46
+  },
+  {
+    "slide": 12,
+    "kind": "text",
+    "label": "boundary 系统可完成",
+    "x": 2.55,
+    "y": 1.9300000000000002,
+    "w": 3.25,
+    "h": 0.46
+  },
+  {
+    "slide": 12,
+    "kind": "text",
+    "label": "boundary 必须人工复核",
+    "x": 5.89,
+    "y": 1.9300000000000002,
+    "w": 3.02,
+    "h": 0.46
+  },
+  {
+    "slide": 12,
+    "kind": "text",
+    "label": "boundary 进入正式成果的条件",
+    "x": 9,
+    "y": 1.9300000000000002,
+    "w": 3.68,
+    "h": 0.46
+  },
+  {
+    "slide": 12,
+    "kind": "shape",
+    "label": "boundary row 1",
+    "x": 0.62,
+    "y": 2.58,
+    "w": 12.08,
+    "h": 0.64
+  },
+  {
+    "slide": 12,
+    "kind": "text",
+    "label": "boundary 商业事实",
+    "x": 0.64,
+    "y": 2.65,
+    "w": 1.84,
+    "h": 0.46
+  },
+  {
+    "slide": 12,
+    "kind": "text",
+    "label": "boundary 检索、聚合、形成引用卡片",
+    "x": 2.55,
+    "y": 2.65,
+    "w": 3.25,
+    "h": 0.46
+  },
+  {
+    "slide": 12,
+    "kind": "text",
+    "label": "boundary 时点、主体、冲突来源",
+    "x": 5.89,
+    "y": 2.65,
+    "w": 3.02,
+    "h": 0.46
+  },
+  {
+    "slide": 12,
+    "kind": "text",
+    "label": "boundary 来源与日期可定位",
+    "x": 9,
+    "y": 2.65,
+    "w": 3.68,
+    "h": 0.46
+  },
+  {
+    "slide": 12,
+    "kind": "shape",
+    "label": "boundary row 2",
+    "x": 0.62,
+    "y": 3.3,
+    "w": 12.08,
+    "h": 0.64
+  },
+  {
+    "slide": 12,
+    "kind": "text",
+    "label": "boundary 条款范围",
+    "x": 0.64,
+    "y": 3.3699999999999997,
+    "w": 1.84,
+    "h": 0.46
+  },
+  {
+    "slide": 12,
+    "kind": "text",
+    "label": "boundary 按章 / 节 / Clause 索引",
+    "x": 2.55,
+    "y": 3.3699999999999997,
+    "w": 3.25,
+    "h": 0.46
+  },
+  {
+    "slide": 12,
+    "kind": "text",
+    "label": "boundary 适用性、合同解释",
+    "x": 5.89,
+    "y": 3.3699999999999997,
+    "w": 3.02,
+    "h": 0.46
+  },
+  {
+    "slide": 12,
+    "kind": "text",
+    "label": "boundary 原文回指 + 责任人确认",
+    "x": 9,
+    "y": 3.3699999999999997,
+    "w": 3.68,
+    "h": 0.46
+  },
+  {
+    "slide": 12,
+    "kind": "shape",
+    "label": "boundary row 3",
+    "x": 0.62,
+    "y": 4.0200000000000005,
+    "w": 12.08,
+    "h": 0.64
+  },
+  {
+    "slide": 12,
+    "kind": "text",
+    "label": "boundary BOQ 定价",
+    "x": 0.64,
+    "y": 4.090000000000001,
+    "w": 1.84,
+    "h": 0.46
+  },
+  {
+    "slide": 12,
+    "kind": "text",
+    "label": "boundary 形成五步推导与底稿",
+    "x": 2.55,
+    "y": 4.090000000000001,
+    "w": 3.25,
+    "h": 0.46
+  },
+  {
+    "slide": 12,
+    "kind": "text",
+    "label": "boundary 工程量、工效、资源价",
+    "x": 5.89,
+    "y": 4.090000000000001,
+    "w": 3.02,
+    "h": 0.46
+  },
+  {
+    "slide": 12,
+    "kind": "text",
+    "label": "boundary 项目化核价 + 专业复核",
+    "x": 9,
+    "y": 4.090000000000001,
+    "w": 3.68,
+    "h": 0.46
+  },
+  {
+    "slide": 12,
+    "kind": "shape",
+    "label": "boundary row 4",
+    "x": 0.62,
+    "y": 4.74,
+    "w": 12.08,
+    "h": 0.64
+  },
+  {
+    "slide": 12,
+    "kind": "text",
+    "label": "boundary 施工策划",
+    "x": 0.64,
+    "y": 4.8100000000000005,
+    "w": 1.84,
+    "h": 0.46
+  },
+  {
+    "slide": 12,
+    "kind": "text",
+    "label": "boundary 组织参数与阶段草案",
+    "x": 2.55,
+    "y": 4.8100000000000005,
+    "w": 3.25,
+    "h": 0.46
+  },
+  {
+    "slide": 12,
+    "kind": "text",
+    "label": "boundary 安全、工况、可实施性",
+    "x": 5.89,
+    "y": 4.8100000000000005,
+    "w": 3.02,
+    "h": 0.46
+  },
+  {
+    "slide": 12,
+    "kind": "text",
+    "label": "boundary 项目团队审查批准",
+    "x": 9,
+    "y": 4.8100000000000005,
+    "w": 3.68,
+    "h": 0.46
+  },
+  {
+    "slide": 12,
+    "kind": "shape",
+    "label": "boundary row 5",
+    "x": 0.62,
+    "y": 5.46,
+    "w": 12.08,
+    "h": 0.64
+  },
+  {
+    "slide": 12,
+    "kind": "text",
+    "label": "boundary EB 仿真",
+    "x": 0.64,
+    "y": 5.53,
+    "w": 1.84,
+    "h": 0.46
+  },
+  {
+    "slide": 12,
+    "kind": "text",
+    "label": "boundary 辅助表达工序与场景",
+    "x": 2.55,
+    "y": 5.53,
+    "w": 3.25,
+    "h": 0.46
+  },
+  {
+    "slide": 12,
+    "kind": "text",
+    "label": "boundary 模型假设、参数、最终结论",
+    "x": 5.89,
+    "y": 5.53,
+    "w": 3.02,
+    "h": 0.46
+  },
+  {
+    "slide": 12,
+    "kind": "text",
+    "label": "boundary 明确“模拟辅助”标识",
+    "x": 9,
+    "y": 5.53,
+    "w": 3.68,
+    "h": 0.46
+  },
+  {
+    "slide": 12,
+    "kind": "shape",
+    "label": "boundary bottom note",
+    "x": 0.64,
+    "y": 6.23,
+    "w": 12.04,
+    "h": 0.46
+  },
+  {
+    "slide": 12,
+    "kind": "text",
+    "label": "boundary principle",
+    "x": 0.93,
+    "y": 6.3,
+    "w": 11.47,
+    "h": 0.25
+  }
+]

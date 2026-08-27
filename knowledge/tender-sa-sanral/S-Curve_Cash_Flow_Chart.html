@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>N2 Section 18 — S-Curve Cash Flow Forecast</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; padding: 20px; }
+.chart-container { max-width: 1200px; margin: 0 auto; border: 2px solid #1a3a5c; padding: 30px; }
+.title-block { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #1a3a5c; padding-bottom: 15px; }
+.title-block h1 { font-size: 18px; color: #1a3a5c; font-weight: 700; letter-spacing: 1px; }
+.title-block h2 { font-size: 14px; color: #333; font-weight: 400; margin-top: 5px; }
+.title-block .contract-ref { font-size: 11px; color: #666; margin-top: 8px; }
+.chart-area { position: relative; width: 100%; height: 500px; margin: 20px 0; }
+canvas { width: 100% !important; height: 100% !important; }
+.legend { display: flex; justify-content: center; gap: 30px; margin-top: 15px; flex-wrap: wrap; }
+.legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #333; }
+.legend-color { width: 20px; height: 12px; border-radius: 2px; }
+.summary-table { width: 100%; border-collapse: collapse; margin-top: 25px; font-size: 12px; }
+.summary-table th { background: #1a3a5c; color: #fff; padding: 8px 12px; text-align: center; font-weight: 600; }
+.summary-table td { padding: 6px 12px; text-align: center; border: 1px solid #ddd; }
+.summary-table tr:nth-child(even) { background: #f5f8fc; }
+.summary-table .highlight { background: #e8f0e8; font-weight: 600; }
+.notes { margin-top: 20px; padding: 12px; background: #f9f9f9; border-left: 3px solid #1a3a5c; font-size: 11px; color: #555; line-height: 1.6; }
+.footer { margin-top: 15px; text-align: right; font-size: 10px; color: #999; }
+.annual-summary { display: flex; justify-content: space-between; margin-top: 20px; gap: 10px; }
+.annual-box { flex: 1; text-align: center; padding: 12px 8px; border: 1px solid #ddd; border-radius: 4px; }
+.annual-box .year { font-size: 13px; font-weight: 600; color: #1a3a5c; }
+.annual-box .pct { font-size: 22px; font-weight: 700; color: #2c5f2d; margin: 4px 0; }
+.annual-box .desc { font-size: 10px; color: #666; }
+@media print {
+  body { padding: 10px; }
+  .chart-container { border: 1px solid #000; }
+}
+</style>
+</head>
+<body>
+<div class="chart-container">
+  <div class="title-block">
+    <h1>EXPENDITURE S-CURVE &amp; MONTHLY CASH FLOW FORECAST</h1>
+    <h2>SANRAL N2 Section 18 — Upgrade of National Route 2 (KM 65.6 to KM 85.0)</h2>
+    <div class="contract-ref">Contract: N.002-180-2018/1R &nbsp;|&nbsp; NRA Reference: NRA 2025/0069 &nbsp;|&nbsp; Duration: 53 Months &nbsp;|&nbsp; FIDIC 1999 Red Book</div>
+  </div>
+
+  <div class="chart-area">
+    <canvas id="scurveChart"></canvas>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-color" style="background:#4a90d9;"></div>Monthly Expenditure (%)</div>
+    <div class="legend-item"><div class="legend-color" style="background:#c0392b;"></div>Cumulative S-Curve (%)</div>
+    <div class="legend-item"><div class="legend-color" style="background:rgba(46,204,113,0.3); border:1px solid #27ae60;"></div>Advance Payment Balance (%)</div>
+    <div class="legend-item"><div class="legend-color" style="background:#f39c12; width:20px; height:3px;"></div>Linear Reference</div>
+  </div>
+
+  <div class="annual-summary">
+    <div class="annual-box">
+      <div class="year">2027</div>
+      <div class="pct">18%</div>
+      <div class="desc">Mobilisation &amp;<br>Earthworks Ramp-up</div>
+    </div>
+    <div class="annual-box" style="border-color:#2c5f2d;">
+      <div class="year">2028</div>
+      <div class="pct" style="color:#c0392b;">39%</div>
+      <div class="desc">Peak Construction<br>(Earthworks + Structures)</div>
+    </div>
+    <div class="annual-box">
+      <div class="year">2029</div>
+      <div class="pct">29%</div>
+      <div class="desc">Layerworks &amp;<br>Surfacing</div>
+    </div>
+    <div class="annual-box">
+      <div class="year">2030–31</div>
+      <div class="pct">14%</div>
+      <div class="desc">Finishing Works &amp;<br>Close-out</div>
+    </div>
+  </div>
+
+  <table class="summary-table">
+    <thead>
+      <tr>
+        <th>Parameter</th>
+        <th>Month 6</th>
+        <th>Month 12</th>
+        <th>Month 18</th>
+        <th>Month 24 (Peak)</th>
+        <th>Month 36</th>
+        <th>Month 48</th>
+        <th>Month 53 (End)</th>
+      </tr>
+    </thead>
+    <tbody id="summaryBody">
+    </tbody>
+  </table>
+
+  <div class="notes">
+    <strong>Notes:</strong><br>
+    1. All values expressed as percentage of Contract Value (excl. VAT) per CMS R13 Section 13.2.<br>
+    2. Peak monthly expenditure ~3.6% at Month 24 (Q3 2028) — concurrent earthworks, structures &amp; urban works.<br>
+    3. 20% Advance Payment received Month 1, amortised at 20% per IPC. Neutral cash position reached ~Month 18.<br>
+    4. Working capital requirement: 7–9% of contract value during initial 6-month ramp-up period.<br>
+    5. Final Rand-value cash-flow tables derived from signed Schedule of Quantities Version 11.
+  </div>
+
+  <div class="footer">
+    CMS R13 — Construction Methodology Statement &nbsp;|&nbsp; Chapter 13: Commercial Management, Risk and Claims &nbsp;|&nbsp; Rev. Final
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+// Monthly expenditure data (% of contract value) — 53 months
+// Modelled to match CMS R13 constraints:
+//   2027 (M1-12): ~18%, 2028 (M13-24): ~39%, 2029 (M25-36): ~29%, 2030-31 (M37-53): ~14%
+//   Peak M24: 3.6%, Mobilisation <2%/month for first ~6 months
+const monthlyExp = [
+  // 2027: Mobilisation & Earthworks Ramp-up (M1-M12) = 18.0%
+  0.3, 0.5, 0.8, 1.0, 1.3, 1.5,   // M1-6: mobilisation phase (<2%)
+  1.7, 1.9, 2.1, 2.2, 2.3, 2.4,   // M7-12: earthworks ramp-up
+  // 2028: Peak Construction (M13-M24) = 39.0%
+  2.5, 2.7, 3.1, 3.2, 3.2, 3.3,   // M13-18: accelerating
+  3.4, 3.5, 3.5, 3.5, 3.5, 3.6,   // M19-24: peak at M24=3.6%
+  // 2029: Layerworks & Surfacing (M25-M36) = 29.0%
+  3.5, 3.5, 3.2, 3.0, 2.8, 2.5,   // M25-30: gradual decline from peak
+  2.3, 2.1, 1.9, 1.7, 1.4, 1.1,   // M31-36: transition to finishing
+  // 2030-2031: Finishing & Close-out (M37-M53) = 14.0%
+  1.3, 1.1, 1.1, 1.0, 1.0, 0.9,   // M37-42
+  0.9, 0.9, 0.8, 0.8, 0.8, 0.7,   // M43-48
+  0.7, 0.6, 0.5, 0.5, 0.4          // M49-53: snagging & close-out
+];
+
+// Verify totals
+const total = monthlyExp.reduce((a,b) => a+b, 0);
+const y2027 = monthlyExp.slice(0,12).reduce((a,b)=>a+b,0);
+const y2028 = monthlyExp.slice(12,24).reduce((a,b)=>a+b,0);
+const y2029 = monthlyExp.slice(24,36).reduce((a,b)=>a+b,0);
+const y2030 = monthlyExp.slice(36).reduce((a,b)=>a+b,0);
+
+// Compute cumulative
+const cumulative = [];
+let cum = 0;
+for (let i = 0; i < monthlyExp.length; i++) {
+  cum += monthlyExp[i];
+  cumulative.push(Math.round(cum * 10) / 10);
+}
+
+// Advance payment balance (20% received M1, amortised 20% per IPC starting M2)
+const advancePayment = [];
+let apBalance = 20.0;
+for (let i = 0; i < monthlyExp.length; i++) {
+  if (i === 0) {
+    advancePayment.push(apBalance);
+  } else {
+    // Amortise 20% of each IPC value
+    apBalance -= monthlyExp[i] * 0.20;
+    if (apBalance < 0) apBalance = 0;
+    advancePayment.push(Math.round(apBalance * 100) / 100);
+  }
+}
+
+// Linear reference line
+const linearRef = monthlyExp.map((_, i) => Math.round(((i + 1) / 53) * 100 * 10) / 10);
+
+// Labels
+const labels = monthlyExp.map((_, i) => i + 1);
+
+// Chart
+const ctx = document.getElementById('scurveChart').getContext('2d');
+new Chart(ctx, {
+  type: 'bar',
+  data: {
+    labels: labels,
+    datasets: [
+      {
+        type: 'bar',
+        label: 'Monthly Expenditure (%)',
+        data: monthlyExp,
+        backgroundColor: 'rgba(74, 144, 217, 0.7)',
+        borderColor: '#2c6fad',
+        borderWidth: 1,
+        yAxisID: 'y1',
+        order: 3
+      },
+      {
+        type: 'line',
+        label: 'Cumulative S-Curve (%)',
+        data: cumulative,
+        borderColor: '#c0392b',
+        backgroundColor: 'rgba(192, 57, 43, 0.05)',
+        borderWidth: 2.5,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        tension: 0.3,
+        fill: false,
+        yAxisID: 'y2',
+        order: 1
+      },
+      {
+        type: 'line',
+        label: 'Linear Reference (%)',
+        data: linearRef,
+        borderColor: '#f39c12',
+        borderWidth: 1.5,
+        borderDash: [6, 4],
+        pointRadius: 0,
+        fill: false,
+        yAxisID: 'y2',
+        order: 2
+      },
+      {
+        type: 'line',
+        label: 'Advance Payment Balance (%)',
+        data: advancePayment,
+        borderColor: '#27ae60',
+        backgroundColor: 'rgba(46, 204, 113, 0.15)',
+        borderWidth: 1.5,
+        pointRadius: 0,
+        fill: true,
+        yAxisID: 'y1',
+        order: 4
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: 'rgba(26,58,92,0.95)',
+        titleFont: { size: 12 },
+        bodyFont: { size: 11 },
+        callbacks: {
+          title: function(items) {
+            const m = items[0].dataIndex + 1;
+            const yr = m <= 12 ? 2027 : m <= 24 ? 2028 : m <= 36 ? 2029 : m <= 48 ? 2030 : 2031;
+            const qtr = Math.ceil(((m - 1) % 12 + 1) / 3);
+            return `Month ${m} (Q${qtr} ${yr})`;
+          },
+          label: function(context) {
+            return `${context.dataset.label}: ${context.parsed.y.toFixed(1)}%`;
+          }
+        }
+      },
+      annotation: {}
+    },
+    scales: {
+      x: {
+        title: { display: true, text: 'Contract Month', font: { size: 12, weight: 'bold' }, color: '#1a3a5c' },
+        grid: { display: false },
+        ticks: {
+          font: { size: 9 },
+          callback: function(val, idx) {
+            const m = idx + 1;
+            if (m === 1 || m === 6 || m === 12 || m === 18 || m === 24 || m === 30 || m === 36 || m === 42 || m === 48 || m === 53) return m;
+            return '';
+          }
+        }
+      },
+      y1: {
+        type: 'linear',
+        position: 'left',
+        title: { display: true, text: 'Monthly Expenditure / AP Balance (%)', font: { size: 11, weight: 'bold' }, color: '#1a3a5c' },
+        min: 0,
+        max: 22,
+        ticks: { stepSize: 2, font: { size: 10 } },
+        grid: { color: 'rgba(0,0,0,0.06)' }
+      },
+      y2: {
+        type: 'linear',
+        position: 'right',
+        title: { display: true, text: 'Cumulative Expenditure (%)', font: { size: 11, weight: 'bold' }, color: '#c0392b' },
+        min: 0,
+        max: 100,
+        ticks: { stepSize: 10, font: { size: 10 }, color: '#c0392b' },
+        grid: { display: false }
+      }
+    }
+  },
+  plugins: [{
+    id: 'yearBands',
+    beforeDraw: function(chart) {
+      const { ctx, chartArea, scales } = chart;
+      const xScale = scales.x;
+      const bands = [
+        { start: 0, end: 11, color: 'rgba(74,144,217,0.04)', label: '2027' },
+        { start: 12, end: 23, color: 'rgba(192,57,43,0.04)', label: '2028' },
+        { start: 24, end: 35, color: 'rgba(46,204,113,0.04)', label: '2029' },
+        { start: 36, end: 52, color: 'rgba(243,156,18,0.04)', label: '2030-31' }
+      ];
+      ctx.save();
+      bands.forEach(band => {
+        const x1 = xScale.getPixelForValue(band.start) - (xScale.getPixelForValue(1) - xScale.getPixelForValue(0)) / 2;
+        const x2 = xScale.getPixelForValue(band.end) + (xScale.getPixelForValue(1) - xScale.getPixelForValue(0)) / 2;
+        ctx.fillStyle = band.color;
+        ctx.fillRect(x1, chartArea.top, x2 - x1, chartArea.bottom - chartArea.top);
+        // Year label at top
+        ctx.fillStyle = '#999';
+        ctx.font = '10px Segoe UI';
+        ctx.textAlign = 'center';
+        ctx.fillText(band.label, (x1 + x2) / 2, chartArea.top + 12);
+      });
+      // Peak marker at M24
+      const peakX = xScale.getPixelForValue(23);
+      ctx.strokeStyle = '#c0392b';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(peakX, chartArea.top);
+      ctx.lineTo(peakX, chartArea.bottom);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#c0392b';
+      ctx.font = 'bold 10px Segoe UI';
+      ctx.textAlign = 'center';
+      ctx.fillText('PEAK M24', peakX, chartArea.top + 25);
+      ctx.fillText('3.6%/month', peakX, chartArea.top + 37);
+      ctx.restore();
+    }
+  }]
+});
+
+// Populate summary table
+const milestones = [5, 11, 17, 23, 35, 47, 52]; // 0-indexed for M6, M12, M18, M24, M36, M48, M53
+const tbody = document.getElementById('summaryBody');
+const rows = [
+  { label: 'Monthly Expenditure (%)', data: milestones.map(i => monthlyExp[i].toFixed(1)) },
+  { label: 'Cumulative Expenditure (%)', data: milestones.map(i => cumulative[i].toFixed(1)), highlight: true },
+  { label: 'Advance Payment Balance (%)', data: milestones.map(i => advancePayment[i].toFixed(1)) },
+  { label: 'Linear Reference (%)', data: milestones.map(i => linearRef[i].toFixed(1)) }
+];
+rows.forEach(row => {
+  const tr = document.createElement('tr');
+  if (row.highlight) tr.className = 'highlight';
+  tr.innerHTML = `<td style="text-align:left;font-weight:600;">${row.label}</td>` + row.data.map(v => `<td>${v}%</td>`).join('');
+  tbody.appendChild(tr);
+});
+</script>
+</body>
+</html>

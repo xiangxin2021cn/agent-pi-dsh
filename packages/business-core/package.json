@@ -1,0 +1,26 @@
+{
+  "name": "@agent-pi/business-core",
+  "version": "2.2.4",
+  "license": "Apache-2.0",
+  "description": "Pure enterprise business models and deterministic audits for Agent Pi",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tender": "./src/tender/index.ts",
+    "./delivery": "./src/delivery/index.ts",
+    "./investment": "./src/investment/index.ts"
+  },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.8.2"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "agent-pi-dsh",
+  "version": "3.3.5",
+  "private": true,
+  "type": "module",
+  "description": "Agent Pi DSH workbench on DeepSeek Harness",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "scripts": {
+    "dev": "powershell -File scripts/dev.ps1",
+    "init-profile": "powershell -File scripts/init-tender-profile.ps1",
+    "dump-config": "powershell -File scripts/dev.ps1 -DumpOnly",
+    "verify-profile": "powershell -File scripts/verify-profile.ps1",
+    "smoke": "powershell -File scripts/run-smoke.ps1",
+    "desktop": "npm --prefix apps/desktop start",
+    "measure-runtime": "powershell -File scripts/measure-dsh-size.ps1",
+    "vendor-plugins": "powershell -File scripts/vendor-dsh-plugins.ps1",
+    "pack:win": "powershell -File scripts/pack-win.ps1"
+  }
+}

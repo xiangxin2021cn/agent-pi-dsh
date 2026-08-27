@@ -1,0 +1,16 @@
+{
+  "projectId": "synthetic-stale-tender",
+  "supersededSourceId": "specification-rev-a",
+  "replacementSourceId": "specification-rev-b",
+  "expectedReadiness": "not_ready",
+  "expectedStaleCapabilities": [
+    "document_analysis",
+    "boq_reconciliation",
+    "boq_five_step_pricing",
+    "execution_plan",
+    "schedule_resources",
+    "cost_cashflow",
+    "submission_documents",
+    "submission_audit"
+  ]
+}

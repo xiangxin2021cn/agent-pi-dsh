@@ -1,0 +1,65 @@
+{
+  "programmeStart": "2026-08-03",
+  "programmeStatus": "reviewed",
+  "calendars": [
+    { "id": "cal-1", "name": "Tender calendar", "workingDays": [1, 2, 3, 4, 5], "exceptions": [] }
+  ],
+  "activities": [
+    {
+      "id": "setout",
+      "workPackageId": "wp-drainage-01",
+      "name": "Set out drainage works",
+      "durationDays": 1,
+      "durationBasis": "Unresolved logic fixture.",
+      "calendarId": "cal-1",
+      "predecessors": [{ "activityId": "concrete", "type": "FS", "lagDays": 0 }],
+      "requirementIds": ["req-completion"],
+      "sourceRefs": [{ "documentId": "spec", "page": 20 }],
+      "confidence": "confirmed"
+    },
+    {
+      "id": "excavate",
+      "workPackageId": "wp-drainage-01",
+      "name": "Excavate drainage",
+      "durationDays": 2,
+      "durationBasis": "Unresolved logic fixture.",
+      "calendarId": "cal-1",
+      "predecessors": [
+        { "activityId": "setout", "type": "FS", "lagDays": 0 },
+        { "activityId": "missing", "type": "FS", "lagDays": 0 }
+      ],
+      "requirementIds": ["req-completion"],
+      "sourceRefs": [{ "documentId": "spec", "page": 20 }],
+      "confidence": "confirmed"
+    },
+    {
+      "id": "concrete",
+      "workPackageId": "wp-drainage-01",
+      "name": "Construct concrete drain",
+      "durationDays": 3,
+      "durationBasis": "Unresolved logic fixture.",
+      "calendarId": "cal-1",
+      "predecessors": [{ "activityId": "excavate", "type": "FS", "lagDays": 0 }],
+      "requirementIds": ["req-completion"],
+      "sourceRefs": [{ "documentId": "spec", "page": 20 }],
+      "confidence": "confirmed"
+    }
+  ],
+  "resources": [
+    { "id": "crew", "class": "drainage-crew", "capacity": "1", "unit": "crew", "calendarId": "cal-1" }
+  ],
+  "assignments": [
+    { "activityId": "setout", "resourceId": "crew", "demand": "1" },
+    { "activityId": "excavate", "resourceId": "crew", "demand": "1" },
+    { "activityId": "concrete", "resourceId": "crew", "demand": "1" }
+  ],
+  "milestones": [
+    {
+      "id": "milestone-completion",
+      "name": "Drainage package complete",
+      "activityId": "concrete",
+      "kind": "contractual",
+      "requirementIds": ["req-completion"]
+    }
+  ]
+}

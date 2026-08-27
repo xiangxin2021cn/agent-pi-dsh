@@ -1,0 +1,40 @@
+{
+  "baselineStatus": "reviewed",
+  "obligations": [
+    {
+      "id": "notice-28d",
+      "title": "Notice within 28 days",
+      "type": "notice",
+      "owner": "Commercial Manager",
+      "evidenceRefs": [{ "kind": "source", "sourceId": "contract", "clause": "20.1" }],
+      "status": "compliant"
+    }
+  ],
+  "scopeItems": [
+    {
+      "id": "drainage",
+      "wbsCode": "1.2.1",
+      "title": "Drainage works",
+      "inclusionStatus": "included",
+      "owner": "Construction Manager",
+      "acceptanceCriteria": ["Approved inspection and test records"],
+      "evidenceRefs": [
+        { "kind": "source", "sourceId": "scope", "page": 20 },
+        { "kind": "snapshot", "snapshotId": "tender-method" }
+      ],
+      "status": "reviewed"
+    }
+  ],
+  "responsibilityAssignments": [
+    {
+      "id": "resp-drainage",
+      "scopeItemIds": ["drainage"],
+      "responsible": ["Construction Manager"],
+      "accountable": "Project Manager",
+      "consulted": ["Quality Manager"],
+      "informed": ["Client Representative"],
+      "interfaces": ["Traffic accommodation"],
+      "status": "reviewed"
+    }
+  ]
+}

@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "defaultProfileId": "generic-international",
+  "profiles": {
+    "generic-international": {
+      "id": "generic-international",
+      "label": "Generic international",
+      "labelZh": "通用国际",
+      "pricingStandard": "generic_direct_cost_v1",
+      "currencyHint": "USD",
+      "knowledgePack": "knowledge/tender-generic",
+      "bindings": {
+        "schemaVersion": 1,
+        "profileId": "generic-international",
+        "analysis": {
+          "projectBoundaryTemplate": {
+            "title": "Project boundary register template",
+            "path": "knowledge/tender-generic/project_boundary_template.md",
+            "role": "boundary_template"
+          },
+          "analysisSuiteDepth": {
+            "title": "Tender analysis suite depth bar (five memos)",
+            "path": "knowledge/tender-generic/analysis_suite_depth.md",
+            "role": "method_and_depth_standard"
+          }
+        },
+        "pricing": {
+          "methodStandard": {
+            "title": "Generic five-step direct-cost method depth",
+            "path": "knowledge/tender-generic/generic_direct_cost_five_step.md",
+            "role": "method_and_depth_standard"
+          },
+          "workbookLayout": {
+            "title": "BOQ unit-cost analysis workbook layout",
+            "path": "knowledge/tender-generic/boq_unit_cost_workbook_notes.md",
+            "role": "workbook_layout_standard"
+          }
+        },
+        "planning": {
+          "methodologyDepthTemplate": {
+            "path": "knowledge/tender-generic/methodology_depth_guide.md",
+            "role": "depth_and_toc_standard"
+          },
+          "workPlanDocxTemplate": {
+            "path": "knowledge/tender-generic/work_plan_template_notes.md",
+            "role": "formal_submission_template"
+          },
+          "cashflowHtmlTemplate": {
+            "path": "knowledge/tender-generic/cashflow_chart_notes.md",
+            "role": "cashflow_chart_template"
+          },
+          "plantHistogramStyleRef": {
+            "path": "knowledge/tender-generic/histogram_style_notes.md",
+            "role": "style_reference"
+          },
+          "labourHistogramStyleRef": {
+            "path": "knowledge/tender-generic/histogram_style_notes.md",
+            "role": "style_reference"
+          }
+        }
+      }
+    },
+    "sa-sanral-highway": {
+      "id": "sa-sanral-highway",
+      "label": "South Africa SANRAL highway",
+      "labelZh": "南非 SANRAL 公路",
+      "pricingStandard": "c51_pure_direct_cost_v1",
+      "currencyHint": "ZAR",
+      "knowledgePack": "knowledge/tender-sa-sanral",
+      "bindings": {
+        "schemaVersion": 1,
+        "profileId": "sa-sanral-highway",
+        "analysis": {
+          "analysisSuiteDepth": {
+            "title": "Tender analysis suite depth bar (five memos)",
+            "path": "knowledge/tender-generic/analysis_suite_depth.md",
+            "role": "method_and_depth_standard"
+          }
+        },
+        "pricing": {
+          "methodStandard": {
+            "title": "C5.1 路床单价推导（五步法对标）",
+            "path": "knowledge/tender-sa-sanral/C5.1_路床_单价推导.md",
+            "role": "method_and_depth_standard"
+          },
+          "workbookLayout": {
+            "title": "BOQ unit-cost analysis workbook layout",
+            "path": "knowledge/tender-generic/boq_unit_cost_workbook_notes.md",
+            "role": "workbook_layout_standard"
+          }
+        },
+        "planning": {
+          "methodologyDepthTemplate": {
+            "path": "knowledge/tender-sa-sanral/N2-18施工策划报告_R05修订版.md",
+            "role": "depth_and_toc_standard"
+          },
+          "workPlanDocxTemplate": {
+            "path": "knowledge/tender-sa-sanral/N2-18-Work_Plan_and_Proposed_Methodology.docx",
+            "role": "formal_submission_template"
+          },
+          "cashflowHtmlTemplate": {
+            "path": "knowledge/tender-sa-sanral/S-Curve_Cash_Flow_Chart.html",
+            "role": "cashflow_chart_template"
+          },
+          "plantHistogramStyleRef": {
+            "path": "knowledge/tender-sa-sanral/Attachment2_Plant_Histogram_R00.pdf",
+            "role": "style_reference"
+          },
+          "labourHistogramStyleRef": {
+            "path": "knowledge/tender-sa-sanral/Attachment3_Labour_Histogram_R00.pdf",
+            "role": "style_reference"
+          }
+        }
+      }
+    }
+  }
+}

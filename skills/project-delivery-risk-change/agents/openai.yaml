@@ -1,0 +1,4 @@
+interface:
+  display_name: "Delivery Risk, Change and Decision"
+  short_description: "Control risks, notices, changes, claims and decisions"
+  default_prompt: "Use $project-delivery-risk-change to build and validate implementation risks, changes, claims, and decisions from my selected project records."

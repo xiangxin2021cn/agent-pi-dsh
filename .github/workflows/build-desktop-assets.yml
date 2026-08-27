@@ -1,0 +1,132 @@
+# Builds macOS / Linux desktop packages from the runtime payload attached to a
+# GitHub release. The repository pins DSH as a submodule plus an Agent Pi
+# patch; the payload (runtime-payload-<version>.tar.gz, uploaded from the Windows build
+# machine by scripts/pack-runtime-payload.mjs) carries everything needed:
+# the Electron shell, the product trees, and the DeepSeek Harness source with
+# built lib/ + web dist. Each runner installs platform-correct dependencies
+# (pnpm --prod), compiles node-pty where no prebuild exists (Linux), stages
+# the runtime, and lets electron-builder produce native packages.
+name: build-desktop-assets
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag that holds runtime-payload-*.tar.gz (e.g. v3.1.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  NODE_RUNTIME_VERSION: '22.20.0'
+
+jobs:
+  build:
+    name: ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            node_dist: linux-x64
+            node_ext: tar.xz
+          - os: macos-latest
+            platform: mac
+            node_dist: darwin-arm64
+            node_ext: tar.gz
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Download runtime payload
+        run: |
+          gh release download "${{ inputs.tag }}" \
+            --repo "${{ github.repository }}" \
+            --pattern "runtime-payload-*.tar.gz" \
+            --output payload.tar.gz
+          mkdir -p payload
+          tar -xzf payload.tar.gz -C payload
+          ls payload
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable pnpm via corepack
+        run: corepack enable
+
+      - name: Install DSH production dependencies
+        working-directory: payload/deepseek-harness
+        run: |
+          # --ignore-scripts: the repo postinstall imports a devDependency
+          # (lefthook) that --prod does not install. Native modules that need
+          # a local build are rebuilt explicitly below.
+          pnpm install --prod --frozen-lockfile --ignore-scripts
+
+      - name: Rebuild node-pty (no Linux prebuilds ship in the package)
+        working-directory: payload/deepseek-harness
+        run: pnpm rebuild node-pty
+
+      - name: Install bundle dependencies
+        run: |
+          (cd payload/product/packages/business-core && npm install --omit=dev --no-fund --no-audit)
+          (cd payload/product/bundles/tender-host && npm install --omit=dev --no-fund --no-audit)
+          # vision-router is retired from the factory; do not cd into it.
+          # dsh-univer-office ships Gateway/Viewer/Worker in artifacts/. A
+          # full npm install still pulls @univer-cli/* insiders packages that
+          # are not on registry.npmjs.org (failed run 32619205147). Skip it
+          # here, same as the Windows pack. First boot installs the public
+          # marketplace copy with OS-correct natives.
+
+      - name: Download Node runtime binary
+        run: |
+          curl -fsSL "https://nodejs.org/dist/v${NODE_RUNTIME_VERSION}/node-v${NODE_RUNTIME_VERSION}-${{ matrix.node_dist }}.${{ matrix.node_ext }}" -o node-runtime.archive
+          mkdir -p node-runtime
+          tar -xf node-runtime.archive -C node-runtime --strip-components=1
+          node-runtime/bin/node --version
+
+      - name: Stage runtime
+        run: |
+          node payload/product/scripts/prepare-runtime.mjs \
+            --dsh payload/deepseek-harness \
+            --product payload/product \
+            --node-bin node-runtime/bin/node \
+            --out payload/desktop/runtime
+
+      - name: Install desktop shell dependencies
+        working-directory: payload/desktop
+        run: |
+          npm install --no-fund --no-audit
+          # package.json pins electronDist to node_modules/electron/dist.
+          # npm install on CI often skips the Electron zip (run 32699235307
+          # added 284 packages in 7s and left dist/ missing). Force it.
+          node node_modules/electron/install.js
+          test -d node_modules/electron/dist
+
+      - name: Build desktop package
+        working-directory: payload/desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        # --publish never: GH_TOKEN in the environment flips electron-builder
+        # into publish mode, which fails because the payload is not a git repo.
+        run: npx electron-builder --${{ matrix.platform }} --publish never
+
+      - name: Upload release assets
+        run: |
+          shopt -s nullglob
+          assets=(
+            payload/desktop/dist-unpacked/*.AppImage
+            payload/desktop/dist-unpacked/*.deb
+            payload/desktop/dist-unpacked/*.dmg
+            payload/desktop/dist-unpacked/*-mac-*.zip
+          )
+          if [ ${#assets[@]} -eq 0 ]; then
+            echo "no assets produced" >&2
+            exit 1
+          fi
+          printf '%s\n' "${assets[@]}"
+          gh release upload "${{ inputs.tag }}" "${assets[@]}" \
+            --repo "${{ github.repository }}" --clobber

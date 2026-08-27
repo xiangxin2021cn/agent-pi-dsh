@@ -1,0 +1,4 @@
+interface:
+  display_name: "Tender Cost and Cash Flow"
+  short_description: "Build exact sourced tender cost and cash-flow plans"
+  default_prompt: "Use $tender-cost-cashflow-planning to build and validate source-traced tender cost build-ups and schedule-linked cash flow."

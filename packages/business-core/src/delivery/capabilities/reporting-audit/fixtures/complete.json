@@ -1,0 +1,24 @@
+{
+  "controlStatus": "reviewed",
+  "period": "2026-07",
+  "dataDate": "2026-07-12",
+  "capabilityAttestations": [
+    { "capability": "contract_scope", "status": "reviewed", "note": "Reviewed for period close" },
+    { "capability": "programme_progress", "status": "reviewed", "note": "Reviewed for period close" },
+    { "capability": "resource_procurement", "status": "reviewed", "note": "Reviewed for period close" },
+    { "capability": "cost_commercial", "status": "reviewed", "note": "Reviewed for period close" },
+    { "capability": "cashflow", "status": "reviewed", "note": "Reviewed for period close" },
+    { "capability": "risk_change", "status": "reviewed", "note": "Reviewed for period close" }
+  ],
+  "varianceExplanations": [
+    { "id": "schedule-variance", "capability": "programme_progress", "metric": "Forecast finish", "baseline": "2026-07-20", "actual": "2026-07-22", "variance": "2 days", "explanation": "Utility interface", "owner": "Project Manager", "evidenceRefs": [{ "kind": "source", "sourceId": "period-report", "sheet": "Summary", "cell": "B2:H2" }], "status": "reviewed" }
+  ],
+  "managementReports": [
+    { "id": "monthly-report", "title": "Monthly Management Report", "format": "docx", "artifactPath": "reports/2026-07.docx", "contentSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "capabilityIds": ["contract_scope", "programme_progress", "resource_procurement", "cost_commercial", "cashflow", "risk_change"], "evidenceRefs": [{ "kind": "source", "sourceId": "period-report", "sheet": "Summary", "cell": "B2:H2" }], "status": "approved" }
+  ],
+  "closeApproval": { "status": "approved", "approvedBy": "Project Director", "approvedAt": "2026-07-13", "evidenceRefs": [{ "kind": "source", "sourceId": "period-report", "sheet": "Summary", "cell": "B2:H2" }] },
+  "auditHistory": [
+    { "id": "event-1", "action": "prepared", "actor": "Project Controls Manager", "at": "2026-07-12T10:00:00.000Z", "contentHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" },
+    { "id": "event-2", "action": "approved", "actor": "Project Director", "at": "2026-07-13T10:00:00.000Z", "previousHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "contentHash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd" }
+  ]
+}

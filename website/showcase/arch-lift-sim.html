@@ -1,0 +1,2024 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EB Cloete S0153-2 钢拱吊装仿真 | Steel Arch Erection Simulation</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root { --bg:#0b1220; --panel:rgba(15,23,42,.82); --line:rgba(148,163,184,.18); --txt:#e2e8f0; --dim:#94a3b8; --acc:#38bdf8; --amber:#f59e0b; }
+  html,body { height:100%; background:var(--bg); color:var(--txt); font-family:"Segoe UI",system-ui,"Microsoft YaHei",sans-serif; overflow:hidden; }
+  header { display:flex; align-items:center; gap:16px; padding:10px 18px; border-bottom:1px solid var(--line);
+    background:linear-gradient(90deg,rgba(56,189,248,.12),rgba(245,158,11,.08)); }
+  header h1 { font-size:17px; font-weight:700; letter-spacing:.3px; }
+  header .sub { font-size:12px; color:var(--dim); }
+  header .spacer { flex:1; }
+  .badge { font-size:11px; color:#0b1220; background:linear-gradient(90deg,#38bdf8,#4ade80); padding:3px 10px; border-radius:99px; font-weight:700; }
+  #btnLang { background:transparent; border:1px solid var(--acc); color:var(--acc); padding:5px 14px; border-radius:8px; cursor:pointer; font-weight:600; }
+  #btnLang:hover { background:rgba(56,189,248,.15); }
+  nav { display:flex; gap:6px; padding:8px 18px 0; }
+  .tab { background:transparent; border:1px solid var(--line); border-bottom:none; color:var(--dim); padding:8px 18px;
+    border-radius:10px 10px 0 0; cursor:pointer; font-size:13px; font-weight:600; }
+  .tab.active { color:var(--txt); background:var(--panel); border-color:var(--acc); box-shadow:0 -2px 12px rgba(56,189,248,.15); }
+  main { display:flex; height:calc(100% - 96px); border-top:1px solid var(--line); }
+  #viewport { flex:1; position:relative; min-width:0; }
+  #viewport canvas { display:block; }
+  .hud { position:absolute; left:14px; top:12px; background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    padding:10px 14px; font-size:12px; color:var(--dim); pointer-events:none; backdrop-filter:blur(6px); max-width:46%; }
+  .hud b { color:var(--txt); }
+  aside { width:430px; border-left:1px solid var(--line); background:var(--panel); overflow-y:auto; padding:14px; }
+  .panel { display:none; } .panel.active { display:block; }
+  .card { border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:12px; background:rgba(2,6,23,.35); }
+  .card h3 { font-size:13px; color:var(--acc); margin-bottom:8px; letter-spacing:.4px; }
+  .controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  button.ctl { background:rgba(56,189,248,.1); border:1px solid rgba(56,189,248,.4); color:var(--txt); padding:7px 14px;
+    border-radius:8px; cursor:pointer; font-size:13px; font-weight:600; }
+  button.ctl:hover { background:rgba(56,189,248,.25); }
+  button.ctl.active { background:var(--amber); border-color:var(--amber); color:#0b1220; }
+  button.view { padding:5px 10px; font-size:12px; }
+  input[type=range] { width:100%; accent-color:var(--acc); }
+  select { background:#0f172a; color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:6px 10px; font-size:12px; }
+  #stepNum { font-size:15px; font-weight:700; color:var(--amber); }
+  #stepDesc { font-size:12.5px; line-height:1.7; color:var(--txt); }
+  .grid5 { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; text-align:center; }
+  .grid5 .v { font-size:14px; font-weight:700; color:var(--acc); }
+  .grid5 .k { font-size:10.5px; color:var(--dim); }
+  canvas.chart { width:100%; height:180px; }
+  table { width:100%; border-collapse:collapse; font-size:11.5px; }
+  th,td { border:1px solid var(--line); padding:4px 6px; text-align:left; }
+  th { background:rgba(56,189,248,.12); color:var(--acc); position:sticky; top:0; }
+  .tblwrap { max-height:260px; overflow:auto; border-radius:8px; }
+  .note { font-size:11px; color:var(--dim); line-height:1.6; }
+  .src { color:#4ade80; font-size:10.5px; }
+  .est { color:#fbbf24; font-size:10.5px; }
+  ul.qa { padding-left:16px; font-size:12px; line-height:1.8; }
+  ::-webkit-scrollbar { width:8px; } ::-webkit-scrollbar-thumb { background:#334155; border-radius:4px; }
+  #stressLegend { position:absolute; left:14px; bottom:14px; background:rgba(2,6,23,.75); border:1px solid #1e293b; border-radius:8px; padding:8px 12px; font-size:11px; color:#cbd5e1; pointer-events:none; z-index:5; }
+  #stressLegend .bar { width:160px; height:9px; border-radius:4px; margin:5px 0 3px; background:linear-gradient(90deg,hsl(240,85%,50%),hsl(198,85%,50%) 28.9%,hsl(141,85%,50%) 57.7%,hsl(0,85%,50%)); }
+  #stressLegend .est { margin-top:5px; color:#94a3b8; }
+  #stressLegend .est i { display:inline-block; width:10px; height:10px; background:hsl(141,50%,66%); border-radius:2px; margin-right:5px; vertical-align:-1px; }
+  #stressLegend .ticks { display:flex; justify-content:space-between; width:160px; color:#94a3b8; font-size:10px; }
+  #stressLegend .nd { margin-top:5px; color:#94a3b8; }
+  #stressLegend .nd i { display:inline-block; width:10px; height:10px; background:#7c8aa5; border-radius:2px; margin-right:5px; vertical-align:-1px; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "./vendor/three.module.js",
+  "three/addons/": "./vendor/addons/"
+} }
+</script>
+</head>
+<body>
+<header>
+  <div>
+    <h1 data-i18n="title">EB Cloete 立交 S0153-2 钢拱吊装仿真</h1>
+    <div class="sub" data-i18n="subtitle">第1~10节段分节吊装 · 三维动态模拟 · 数据源自施工方案/图纸</div>
+  </div>
+  <div class="spacer"></div>
+  <span class="badge">S355JR · 110m · 804t</span>
+  <button id="btnLang">EN</button>
+</header>
+<nav>
+  <button class="tab active" data-tab="panel-erect" data-i18n="tab1">分节吊装动画</button>
+  <button class="tab" data-tab="panel-posture" data-i18n="tab2">整体吊装姿态</button>
+  <button class="tab" data-tab="panel-charts" data-i18n="tab3">受力数据可视化</button>
+  <button class="tab" data-tab="panel-params" data-i18n="tab4">参数与图纸对照</button>
+  <button class="tab" data-tab="panel-calc" data-i18n="tab5">计算书</button>
+</nav>
+<main>
+  <div id="viewport">
+    <div class="hud">
+      <b>跨径 Span 110m · 矢高 Rise 33.5m</b><br>
+      <span id="hudNote">4拱腿 X形平面 / 4 legs X-plan · 箱高 3.25→2.75m · 对称吊装</span><br>
+      <span class="est">※ 拱轴线形为估算抛物线 (arch curve: assumed parabola, TBC)</span><br>
+      <span class="est" id="hudFe">FE v3.2/v4 · <label>方案 <select id="schemeSel"><option value="A">A·零弯矩基线 Baseline</option><option value="B" selected>B·约束优化(推荐) Constrained</option></select></label> · <label>变形放大 <select id="defMag"><option value="0">关 Off</option><option value="1">1×</option><option value="10" selected>10×</option><option value="30">30×</option><option value="100">100×</option></select></label></span>
+    </div>
+    <div id="stressLegend">
+      <span data-i18n="legendStress">节段应力 σ (MPa) · 色阶0–160 · 分阶段FE模型(已按MS FEM校验)</span>
+      <div class="bar"></div>
+      <div class="ticks"><span>0</span><span>80</span><span>160</span></div>
+      <div class="est"><i></i><span data-i18n="legendEst">变形=FE节点位移×放大倍数 · 扣索索力见“计算书”页签</span></div>
+    </div>
+  </div>
+  <aside>
+    <!-- Panel 1: erection animation -->
+    <div class="panel active" id="panel-erect">
+      <div class="card">
+        <h3 data-i18n="step">步骤</h3>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span id="stepNum">步骤 0/25</span>
+          <select id="speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select>
+        </div>
+        <input type="range" id="stepSlider" min="0" max="25" value="0" step="1">
+        <div class="controls" style="margin-top:8px">
+          <button class="ctl" id="btnPrev" data-i18n="prev">上一步</button>
+          <button class="ctl" id="btnPlay" data-i18n="play">播放</button>
+          <button class="ctl" id="btnNext" data-i18n="next">下一步</button>
+          <button class="ctl" id="btnReset" data-i18n="reset">复位</button>
+        </div>
+        <div class="controls" style="margin-top:8px">
+          <span class="note" data-i18n="view">视角</span>
+          <button class="ctl view" data-view="iso" data-i18n="viewFree">自由</button>
+          <button class="ctl view" data-view="side" data-i18n="viewSide">侧视</button>
+          <button class="ctl view" data-view="plan" data-i18n="viewPlan">俯视</button>
+          <button class="ctl view" data-view="front" data-i18n="viewFront">正视</button>
+        </div>
+      </div>
+      <div class="card"><h3 data-i18n="events">本步事件</h3><div id="stepDesc">—</div></div>
+      <div class="card">
+        <h3 data-i18n="currentBox">当前节段</h3>
+        <div class="grid5">
+          <div><div class="v" id="dWeight">—</div><div class="k" data-i18n="weight">重量</div></div>
+          <div><div class="v" id="dLen">—</div><div class="k" data-i18n="len">长度</div></div>
+          <div><div class="v" id="dStress">—</div><div class="k" data-i18n="stress">应力</div></div>
+          <div><div class="v" id="dShear">—</div><div class="k" data-i18n="shear">剪应力</div></div>
+          <div><div class="v" id="dDisp">—</div><div class="k" data-i18n="disp">位移</div></div>
+          <div><div class="v" id="dCables" style="font-size:12px">—</div><div class="k" data-i18n="cableF">扣索力</div></div>
+          <div><div class="v" id="dCrane" style="font-size:13px">—</div><div class="k" data-i18n="craneCfg">吊车配置</div></div>
+        </div>
+        <div class="note" style="margin-top:6px"><span class="src">[v8 FE分阶段模型 · 箱1-10经MS FEM校验 · 索力校验vs MS/DWG最大值]</span></div>
+      </div>
+      <div class="card"><h3 data-i18n="femTitle">逐节段受力 (FEM)</h3>
+        <canvas class="chart" id="chartStress"></canvas>
+        <canvas class="chart" id="chartDisp" style="height:150px;margin-top:8px"></canvas>
+        <div class="note">[MS] FEM per-box max values; 支架最大应力 40.65MPa、屈曲特征值&gt;4 ✓</div>
+      </div>
+    </div>
+    <!-- Panel 2: posture -->
+    <div class="panel" id="panel-posture">
+      <div class="card">
+        <h3 data-i18n="postureTitle">节段空中姿态模拟</h3>
+        <label class="note" data-i18n="selectSeg">选择节段</label><br>
+        <select id="postureSeg" style="width:100%;margin:6px 0"></select>
+        <div id="postureInfo" class="note" style="line-height:1.7"></div>
+      </div>
+      <div class="card">
+        <h3 data-i18n="overallTitle">整体吊装布置</h3>
+        <div class="note" style="line-height:1.8">
+          吊装站位 Crane positions [DWG p3-6]：<br>
+          · P1：A/B拱座内侧之间 +95m（节段1-6，130t，R≤16.6m）<br>
+          · P2：A拱座外侧 +89m（节段7-14，130t/550t，R≤19.7m）<br>
+          · P3：C/D拱座内侧之间 +92m（节段1-6）<br>
+          · P4：D拱座外侧 +89m（节段7-14）<br>
+          · 130t 支腿 467kN/2×2m → 116.75kPa；SF2.5 → 需 291.88kPa [DWG p4]<br>
+          · 550t 支腿 1835kN/2.5×3m → 244.66kPa；SF2.5 → 需 611.65kPa<br>
+          <span class="est">※ MS 为 400kN / 150kPa，口径不同需确认</span>
+        </div>
+      </div>
+      <div class="card">
+        <h3>姿态微调 Fine-tuning [DWG p19]</h3>
+        <div class="note" style="line-height:1.8">
+          · 2×20t 倒链空中姿态微调，拱肋低侧调整量 ≤5cm<br>
+          · 吊索角度：20°/10° 与 15°/7° 两种工况<br>
+          · G100 4腿16mm链条 WLL 21t；30t 圆形吊带（S-16）<br>
+          · 吊耳设计力：S1-14=100kN，S16=200kN，扣索耳板=600kN
+        </div>
+      </div>
+    </div>
+    <!-- Panel 3: charts -->
+    <div class="panel" id="panel-charts">
+      <div class="card"><h3 data-i18n="slingTitle">吊索力</h3>
+        <canvas class="chart" id="chartSling"></canvas>
+        <div class="tblwrap" style="margin-top:8px"><table id="tblSling"></table></div>
+        <div class="note"><span class="src">[MS 索具验算]</span> <span class="est">S-18 等未给值 → 需确认</span></div>
+      </div>
+      <div class="card"><h3 data-i18n="staysTitle">扣索最大索力 (kN)</h3>
+        <canvas class="chart" id="chartStay"></canvas>
+        <div class="tblwrap" style="margin-top:8px"><table id="tblStay"></table></div>
+        <div class="note"><span class="src">[DWG p1 斜拉扣挂拉索工程数量表 2025.09.15]</span><br>
+        MS 后期初算：1#425 / 2#455 / 3#558 / 4#486 kN（口径不同，并列展示）</div>
+      </div>
+      <div class="card"><h3 data-i18n="craneTitle">吊装验算</h3>
+        <div class="tblwrap"><table id="tblStages"></table></div>
+        <canvas class="chart" id="chartCrane"></canvas>
+        <div class="tblwrap" style="margin-top:8px"><table id="tblCrane"></table></div>
+        <div class="note"><span class="src">[DWG p4/p6 负荷率表 + MS 吊装验算]</span></div>
+      </div>
+    </div>
+    <!-- Panel 5: calc book (v8) -->
+    <div class="panel" id="panel-calc">
+      <div class="card"><h3 data-i18n="calcModel">模型与方法 Model</h3><div id="calcMethod" class="note" style="line-height:1.6"></div></div>
+      <div class="card"><h3 data-i18n="calcAsm">假设与来源 Assumptions</h3><div id="calcAssume" class="note"></div></div>
+      <div class="card"><h3 data-i18n="calcStages">分阶段结果 Stage results (FE)</h3>
+        <div class="tblwrap"><table id="tblCalcStages"></table></div>
+      </div>
+      <div class="card"><h3 data-i18n="calcV1">校验① vs MS FEM (B1-10)</h3>
+        <div class="tblwrap"><table id="tblCalcValid"></table></div>
+        <div class="note" id="calcValidNote" style="margin-top:4px"></div>
+      </div>
+      <div class="card"><h3 data-i18n="calcV2">校验② 索力 vs MS/DWG</h3>
+        <div class="tblwrap"><table id="tblCalcCable"></table></div>
+        <div class="note" id="calcCableNote" style="margin-top:4px"></div>
+      </div>
+      <div class="card"><h3 data-i18n="calcDesignT">形变约束反推 v4 (方案B·推荐)</h3>
+        <div class="note" id="calcDesignNote"></div>
+        <div class="tblwrap"><table id="tblCalcDesign"></table></div>
+        <div class="tblwrap" style="margin-top:6px"><table id="tblCalcSens"></table></div>
+      </div>
+    </div>
+    <!-- Panel 4: params -->
+    <div class="panel" id="panel-params">
+      <div class="card"><h3 data-i18n="tab4">参数与图纸对照</h3>
+        <div class="tblwrap"><table id="tblCompare"></table></div>
+      </div>
+      <div class="card"><h3>设计参数 Design [GA]</h3>
+        <div class="tblwrap"><table id="tblDesign"></table></div>
+      </div>
+      <div class="card"><h3>节段重量表 Weights [MS Table 1-1]</h3>
+        <div class="tblwrap"><table id="tblWeights"></table></div>
+      </div>
+      <div class="card">
+        <h3>待确认问题 Open questions</h3>
+        <ul class="qa">
+          <li>拱轴线形方程未在文件中给出 → 仿真采用估算抛物线</li>
+          <li>支腿荷载/地基承载力：MS(400kN/150kPa) vs DWG(467kN/291.88kPa)</li>
+          <li>S-16 重量：MS 42.03t(含楼梯) vs DWG 36.47t</li>
+          <li>锚碇B 位置待确定 [DWG p2]</li>
+          <li>S-02~S-14 吊索力明细未逐一给出（仅S-01/15/16/18/25/横梁）</li>
+        </ul>
+        <div class="note" style="margin-top:6px">
+          <span class="src">数据来源 Sources: Method Statement (226p) · 南非项目图纸汇总-路桥华东 (28p) · S0153-2 Arch Structure GA (43 sheets)</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+</main>
+<script type="module">
+// js/i18n.js
+var I18N = {
+  zh: {
+    title: "EB Cloete \u7ACB\u4EA4 S0153-2 \u94A2\u62F1\u540A\u88C5\u4EFF\u771F",
+    subtitle: "\u7B2C1~10\u8282\u6BB5\u5206\u8282\u540A\u88C5 \xB7 \u4E09\u7EF4\u52A8\u6001\u6A21\u62DF \xB7 \u6570\u636E\u6E90\u81EA\u65BD\u5DE5\u65B9\u6848/\u56FE\u7EB8",
+    tab1: "\u5206\u8282\u540A\u88C5\u52A8\u753B",
+    tab2: "\u6574\u4F53\u540A\u88C5\u59FF\u6001",
+    tab3: "\u53D7\u529B\u6570\u636E\u53EF\u89C6\u5316",
+    tab4: "\u53C2\u6570\u4E0E\u56FE\u7EB8\u5BF9\u7167",
+    tab5: "\u8BA1\u7B97\u4E66",
+    play: "\u64AD\u653E",
+    pause: "\u6682\u505C",
+    prev: "\u4E0A\u4E00\u6B65",
+    next: "\u4E0B\u4E00\u6B65",
+    reset: "\u590D\u4F4D",
+    step: "\u6B65\u9AA4",
+    speed: "\u901F\u5EA6",
+    view: "\u89C6\u89D2",
+    viewFree: "\u81EA\u7531",
+    viewSide: "\u4FA7\u89C6",
+    viewPlan: "\u4FEF\u89C6",
+    viewFront: "\u6B63\u89C6",
+    currentBox: "\u5F53\u524D\u8282\u6BB5",
+    weight: "\u91CD\u91CF(\u542B\u697C\u68AF)",
+    len: "\u957F\u5EA6",
+    stress: "\u6700\u5927\u5E94\u529B",
+    shear: "\u526A\u5E94\u529B",
+    disp: "\u6700\u5927\u4F4D\u79FB",
+    craneCfg: "\u540A\u8F66\u914D\u7F6E",
+    erected: "\u5DF2\u5B89\u88C5",
+    support: "\u4E34\u65F6\u652F\u67B6",
+    stayCable: "\u6263\u7D22",
+    tempTie: "\u4E34\u65F6\u6A2A\u6491",
+    events: "\u672C\u6B65\u4E8B\u4EF6",
+    femTitle: "\u9010\u8282\u6BB5\u53D7\u529B (FEM)",
+    slingTitle: "\u540A\u7D22\u529B",
+    craneTitle: "\u540A\u88C5\u9A8C\u7B97",
+    allowStress: "\u8BB8\u7528\u5E94\u529B 275MPa",
+    allowShear: "\u8BB8\u7528\u526A\u5E94\u529B 160MPa",
+    srcNote: "\u6570\u636E\u6765\u6E90",
+    estNote: "\u4F30\u7B97/\u9700\u786E\u8BA4",
+    postureTitle: "\u8282\u6BB5\u7A7A\u4E2D\u59FF\u6001\u6A21\u62DF",
+    selectSeg: "\u9009\u62E9\u8282\u6BB5",
+    slingAngle: "\u540A\u7D22\u89D2\u5EA6",
+    overallTitle: "\u6574\u4F53\u540A\u88C5\u5E03\u7F6E",
+    staysTitle: "\u6263\u7D22\u6700\u5927\u7D22\u529B (kN)",
+    box10done: "\u7B2C10\u8282\u6BB5\u5B89\u88C5\u5B8C\u6210 \u2014 Box 1~10 \u9636\u6BB5\u7ED3\u675F",
+    cableAfter4: "\u8282\u6BB54\u5B8C\u6210 \u2192 \u5B89\u88C5\u652F\u67B61\u5E76\u5F20\u62C91#\u6263\u7D22\u3001\u8BBE\u03C6400\u4E34\u65F6\u6A2A\u6491",
+    cableAfter8: "\u8282\u6BB58\u5B8C\u6210 \u2192 \u5B89\u88C5\u652F\u67B62\u5E76\u5F20\u62C92#\u6263\u7D22\u3001\u8BBE\u4E0B\u4E34\u65F6\u6A2A\u6491",
+    symNote: "\u4E24\u5CB8\u53CA\u5DE6\u53F3\u5E45130t\u540A\u8F66\u5BF9\u79F0\u540A\u88C5 [DWG]",
+    legend: "\u56FE\u4F8B",
+    legA: "\u5317\u5CB8(A/B)",
+    legS: "\u5357\u5CB8(C/D)",
+    legendStress: "\u8282\u6BB5\u5E94\u529B \u03C3 (MPa) \xB7 \u8272\u96360\u2013160 \xB7 \u5206\u9636\u6BB5FE\u6A21\u578B(\u5DF2\u6309MS FEM\u6821\u9A8C)",
+    legendEst: "\u53D8\u5F62=FE\u8282\u70B9\u4F4D\u79FB\xD7\u653E\u5927\u500D\u6570 \xB7 \u7D22\u529B/\u5185\u529B\u89C1\u201C\u8BA1\u7B97\u4E66\u201D\u9875\u7B7E \xB7 v8\u96F6\u5F2F\u77E9\u8C03\u7D22\u6A21\u578B",
+    cableF: "\u6263\u7D22\u529B",
+    calcModel: "\u6A21\u578B\u4E0E\u65B9\u6CD5 Model",
+    calcAsm: "\u5047\u8BBE\u4E0E\u6765\u6E90 Assumptions",
+    calcStages: "\u5206\u9636\u6BB5\u7ED3\u679C Stage results (FE)",
+    calcV1: "\u6821\u9A8C\u2460 vs MS FEM (B1-10)",
+    calcV2: "\u6821\u9A8C\u2461 \u7D22\u529B vs MS/DWG",
+    calcDesignT: "\u5F62\u53D8\u7EA6\u675F\u53CD\u63A8 v4 (\u65B9\u6848B\xB7\u63A8\u8350)"
+  },
+  en: {
+    title: "EB Cloete Interchange S0153-2 Steel Arch Erection Simulation",
+    subtitle: "Segmental erection Boxes 1\u201310 \xB7 3D dynamic simulation \xB7 Data from Method Statement & Drawings",
+    tab1: "Erection Animation",
+    tab2: "Lifting Posture",
+    tab3: "Force Data Visualisation",
+    tab4: "Parameters vs Drawings",
+    tab5: "Calc Book",
+    play: "Play",
+    pause: "Pause",
+    prev: "Prev",
+    next: "Next",
+    reset: "Reset",
+    step: "Step",
+    speed: "Speed",
+    view: "View",
+    viewFree: "Free",
+    viewSide: "Side",
+    viewPlan: "Plan",
+    viewFront: "Front",
+    currentBox: "Current box",
+    weight: "Weight (incl. stair)",
+    len: "Length",
+    stress: "Max stress",
+    shear: "Shear",
+    disp: "Max disp.",
+    craneCfg: "Crane config",
+    erected: "Erected",
+    support: "Temp support",
+    stayCable: "Stay cable",
+    tempTie: "Temp tie",
+    events: "Events",
+    femTitle: "Stage FEM results",
+    slingTitle: "Sling forces",
+    craneTitle: "Crane check",
+    allowStress: "Allowable 275MPa",
+    allowShear: "Allowable shear 160MPa",
+    srcNote: "Data source",
+    estNote: "Estimate / TBC",
+    postureTitle: "In-air segment posture",
+    selectSeg: "Select segment",
+    slingAngle: "Sling angle",
+    overallTitle: "Overall lifting arrangement",
+    staysTitle: "Stay-cable max forces (kN)",
+    box10done: "Box 10 erected \u2014 Stage Boxes 1\u201310 complete",
+    cableAfter4: "After box 4 \u2192 support 1 + tension cable 1 + \u03C6400 temp tie",
+    cableAfter8: "After box 8 \u2192 support 2 + tension cable 2 + lower temp tie",
+    symNote: "Symmetric lifting both banks & ribs by 130t cranes [DWG]",
+    legend: "Legend",
+    legA: "North bank (A/B)",
+    legS: "South bank (C/D)",
+    legendStress: "Segment stress \u03C3 (MPa) \xB7 scale 0\u2013160 \xB7 staged FE model (validated vs MS FEM)",
+    legendEst: "Deformation = FE node disp \xD7 magnification \xB7 cable forces in Calc Book tab \xB7 v8 zero-moment model",
+    cableF: "Cable force",
+    calcModel: "Model & Method",
+    calcAsm: "Assumptions & Sources",
+    calcStages: "Stage results (FE)",
+    calcV1: "Check \u2460 vs MS FEM (B1-10)",
+    calcV2: "Check \u2461 Cable forces vs MS/DWG",
+    calcDesignT: "Deformation Constraint Back-Design v4 (Scheme B, recommended)"
+  }
+};
+
+// js/scene.js
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+// js/fe_data.js
+var FE = { "meta": { "title": "EB Cloete S0153-2 \u94A2\u62F1\u5206\u9636\u6BB5\u65BD\u5DE5FE\u8BA1\u7B97\u4E66 v3 (\u4F4D\u79FB\u63A7\u5236\u8C03\u7D22\u6CD5)", "method": "\u5E73\u9762Euler-Bernoulli\u6746\u7CFB; \u6BCF\u65BD\u5DE5\u6B65(\u5408\u9F99\u524D)\u4EE5\u6263\u7D22\u5F20\u62C9\u529B\u589E\u91CF\u4F7F\u62F1\u811A\u622A\u9762\u5F2F\u77E9\u5F520(\u96F6\u5F2F\u77E9\u8C03\u7D22\u51C6\u5219, ASSUMPTION\u2014\u2014MS/DWG\u672A\u53D1\u5E03\u5F20\u62C9\u7A0B\u5E8F); \u6700\u5C0F\u6539\u53D8\u91CF\u89E3(\u7D22\u529B\u9010\u6B65\u9501\u5B9A); \u5408\u9F99\u540E\u9501\u5B9A; \u652F\u67B6\u53EA\u538B\u63A5\u89E6\u8FED\u4EE3", "units": "kN, m, MPa, mm", "E": "200GPa", "allowStress": 275, "allowShear": 160, "assumptions": ["\u62F1\u8F74\u7EBF\u4E3A\u629B\u7269\u7EBF\uFF08\u6587\u4EF6\u672A\u7ED9\u7EBF\u5F62\u65B9\u7A0B\uFF09", "\u6263\u7D221#2#3#\u81EA\u8282\u6BB511\u30014#\u81EA\u8282\u6BB514\u8D77\u5F20\u62C9\u53C2\u4E0E\uFF08MS Section-5: box1-10\u4EC5\u7528\u94A2\u652F\u67B6\u652F\u6491\uFF09", "\u4F53\u7CFB\u8F6C\u6362: \u7BB11~10\u8377\u8F7D\u7531\u4E34\u65F6\u94A2\u7BA1\u652F\u67B6\u627F\u62C5; \u7BB111\u6263\u7D22\u6FC0\u6D3B\u8D77\u652F\u67B6\u6C38\u4E45\u9000\u51FA(MS: during erection of box 1 to box 10, only steel structure supports are adopted), \u540E\u7EED\u60AC\u81C2\u8377\u8F7D\u5168\u90E8\u7531\u6263\u7D22+\u62F1\u808B\u81EA\u8EAB\u627F\u62C5(ASSUMPTION\u2014\u2014MS\u672A\u660E\u786E\u652F\u67B6\u62C6\u9664/\u5378\u8F7D\u65F6\u673A)", "\u8C03\u7D22\u51C6\u5219: \u6BCF\u6B65\u5F20\u62C9\u4F7F\u62F1\u811A\u622A\u9762\u5F2F\u77E9=0(\u96F6\u5F2F\u77E9\u6CD5, ASSUMPTION), \u53D6\u76F8\u5BF9\u4E0A\u4E00\u6B65\u7684\u6700\u5C0F\u7D22\u529B\u6539\u53D8\u91CF; \u7EBF\u5F62(\u4F4D\u79FB)\u4E3A\u8BA1\u7B97\u8F93\u51FA\u800C\u975E\u63A7\u5236\u76EE\u6807\u2014\u2014\u5B9E\u9645\u65BD\u5DE5\u6309\u76D1\u6D4B\u504F\u5DEE\u5FAE\u8C03(MS Section-5/ DWG p1\u8BF4\u660E6); MS/DWG\u5168\u8FC7\u7A0B\u6700\u5927\u7D22\u529B\u4F5C\u6C42\u89E3\u7ED3\u679C\u6821\u9A8C", "\u6263\u7D22\u65B9\u5411: 1#/3#\u7D22\u7531MS p192\u8033\u677FN/V\u5206\u91CF\u53CD\u63A8(\u6C34\u5E73\u4E0B\u503E5.2\xB0/13.1\xB0), \u53CD\u63A8\u951A\u70B9\u6807\u9AD8101.4/103.9m\u4E00\u81F4; 2#/4#\u6309\u951A\u7887\u5F20\u62C9\u9762\u4E2D\u5FC3(x=-76.95, \u6807\u9AD8102.65m)\u51E0\u4F55\u5185\u63D2(ASSUMPTION)", "S16\u8D77\u6309\u53CC\u817F\u5408\u5E76\u53CC\u7BB1\u622A\u9762 A,I\xD72\uFF1BS25\u5408\u9F99\u6BB5\u534A\u62F1\u53D6\u91CD incl/2", "\u4E34\u65F6\u652F\u67B6\u63094\xD7\u03C6325\xD710\u5F39\u6027\u67F1\u7B49\u6548\u7AD6\u5411\u5F39\u7C27(\u53EA\u538B\u63A5\u89E6)\uFF0C\u67F1\u9AD8\u6309\u5DE6\u5CB8\u5E73\u53F090.802\u4F30\u7B97", "\u4EC5\u81EA\u91CD\u6052\u8F7D\uFF0C\u672A\u542B\u98CE\u8F7D/\u540A\u5177\u51B2\u51FB/\u6E29\u5EA6\uFF08MS FEM\u5DE5\u51B5\u7EC4\u5408\u7EC6\u8282\u672A\u53D1\u5E03\uFF09", "\u9636\u6BB526\u6263\u7D22\u5378\u8F7D\u5047\u5B9A\u4E00\u6B21\u6027\u540C\u6B65\u62C6\u9664", "MS\u4F4D\u79FB\u503C(0.01-1.04mm)\u4E3A\u7279\u6027\u7EC4\u5408\u4E0B3D FEM\u7ED3\u679C(\u652F\u5EA7\u5047\u5B9A\u4E0D\u540C), \u4EC5\u4F5C\u91CF\u7EA7\u5BF9\u7167"], "sources": ["[MS] Table 1-1\u8282\u6BB5\u91CD\u91CF; FEM\u5206\u6790\u8868B1-10\u5E94\u529B; 3.2.x\u4F4D\u79FB0.01-1.04mm; p191\u7D22\u529B\u8868425/455/558/486kN(\u6BCF\u7D22\u9762); p192\u6263\u7D22-\u8282\u6BB5\u5BF9\u5E94; Section-5\u76D1\u6D4B\u4E0E\u7EBF\u5F62\u52A8\u6001\u8C03\u6574", "[DWG] \u56FE\u7EB8\u6C47\u603B p1 \u659C\u62C9\u6263\u6302\u5E03\u7F6E/\u951A\u7887\u5C3A\u5BF8\u94FE; p27 \u4E34\u65F6\u652F\u67B6/\u5E73\u53F0\u6807\u9AD8; \u6263\u7D22\u5DE5\u7A0B\u6570\u91CF\u8868(\u62F1\u817FA 201.87/395/658.44/490.75kN)", "[GA] S0153-2 \u7BB1\u5F62\u622A\u9762 b=2.2 h=3.25\u21922.75 t=20; \u62F1\u811A\u9AD8\u7A0B92.384"] }, "nodeCoords": [{ "n": { "x": -55, "y": 0 }, "i": 0, "x": -55, "y": 0, "elev": 92.384 }, { "n": { "x": -53.076521951262905, "y": 2.302173351458872 }, "i": 1, "x": -53.077, "y": 2.302, "elev": 94.686 }, { "n": { "x": -51.111733772382024, "y": 4.569185940882081 }, "i": 2, "x": -51.112, "y": 4.569, "elev": 96.953 }, { "n": { "x": -49.10358646661004, "y": 6.797873114013573 }, "i": 3, "x": -49.104, "y": 6.798, "elev": 99.182 }, { "n": { "x": -47.04993152475396, "y": 8.984688300094144 }, "i": 4, "x": -47.05, "y": 8.985, "elev": 101.369 }, { "n": { "x": -44.94852992139073, "y": 11.12565075697379 }, "i": 5, "x": -44.949, "y": 11.126, "elev": 103.51 }, { "n": { "x": -42.7970677246565, "y": 13.216287042887283 }, "i": 6, "x": -42.797, "y": 13.216, "elev": 105.6 }, { "n": { "x": -40.59318073074422, "y": 15.251566353189437 }, "i": 7, "x": -40.593, "y": 15.252, "elev": 107.636 }, { "n": { "x": -38.33449121304197, "y": 17.225830494263292 }, "i": 8, "x": -38.334, "y": 17.226, "elev": 109.61 }, { "n": { "x": -36.01866064764198, "y": 19.132720281826522 }, "i": 9, "x": -36.019, "y": 19.133, "elev": 111.517 }, { "n": { "x": -33.64346307434715, "y": 20.965101700571513 }, "i": 10, "x": -33.643, "y": 20.965, "elev": 113.349 }, { "n": { "x": -31.20688442657837, "y": 22.71499742378084 }, "i": 11, "x": -31.207, "y": 22.715, "elev": 115.099 }, { "n": { "x": -28.707253436374742, "y": 24.37353243129972 }, "i": 12, "x": -28.707, "y": 24.374, "elev": 116.758 }, { "n": { "x": -26.143409127848734, "y": 25.93090655614088 }, "i": 13, "x": -26.143, "y": 25.931, "elev": 118.315 }, { "n": { "x": -23.514907760423682, "y": 27.376411664835924 }, "i": 14, "x": -23.515, "y": 27.376, "elev": 119.76 }, { "n": { "x": -19.544191746646852, "y": 29.26985886297689 }, "i": 15, "x": -19.544, "y": 29.27, "elev": 121.654 }, { "n": { "x": -14.398024259125744, "y": 31.204246632736027 }, "i": 16, "x": -14.398, "y": 31.204, "elev": 123.588 }, { "n": { "x": -13.058616066555405, "y": 31.611514150506142 }, "i": 17, "x": -13.059, "y": 31.612, "elev": 123.996 }, { "n": { "x": -11.611700196587126, "y": 32.0068238086755 }, "i": 18, "x": -11.612, "y": 32.007, "elev": 124.391 }, { "n": { "x": -9.958302239963768, "y": 32.401778265344575 }, "i": 19, "x": -9.958, "y": 32.402, "elev": 124.786 }, { "n": { "x": -8.292081567046385, "y": 32.73854093886366 }, "i": 20, "x": -8.292, "y": 32.739, "elev": 125.123 }, { "n": { "x": -6.812698882095088, "y": 32.986006276711954 }, "i": 21, "x": -6.813, "y": 32.986, "elev": 125.37 }, { "n": { "x": -5.32613530052625, "y": 33.185845114868215 }, "i": 22, "x": -5.326, "y": 33.186, "elev": 125.57 }, { "n": { "x": -3.8338594821229286, "y": 33.33722346092223 }, "i": 23, "x": -3.834, "y": 33.337, "elev": 125.721 }, { "n": { "x": -2.337417056397218, "y": 33.43949491914034 }, "i": 24, "x": -2.337, "y": 33.439, "elev": 125.823 }, { "n": { "x": -23852447794681098e-33, "y": 33.5 }, "i": 25, "x": 0, "y": 33.5, "elev": 125.884 }], "anchor": { "x": -76.952, "y": 10.266000000000005 }, "cablesGeom": [{ "id": 1, "node": 4, "fromStage": 11, "strands": 3, "L": 30.14, "kc": 2717, "msMax": 212.5, "dwgMax": 201.87 }, { "id": 2, "node": 8, "fromStage": 11, "strands": 4, "L": 39.24, "kc": 2783, "msMax": 227.5, "dwgMax": 395 }, { "id": 3, "node": 11, "fromStage": 11, "strands": 7, "L": 47.03, "kc": 4063, "msMax": 279, "dwgMax": 658.44 }, { "id": 4, "node": 14, "fromStage": 14, "strands": 5, "L": 56.11, "kc": 2433, "msMax": 243, "dwgMax": 490.75 }], "validation": [{ "k": 1, "ms": 0.67, "fe": 1.11, "ratio": 1.66, "msDisp": 0.01, "feDisp": 6e-3 }, { "k": 2, "ms": 1.96, "fe": 2.44, "ratio": 1.24, "msDisp": 0.05, "feDisp": 0.045 }, { "k": 3, "ms": 3.99, "fe": 4.49, "ratio": 1.13, "msDisp": 0.15, "feDisp": 0.21 }, { "k": 4, "ms": 8.42, "fe": 7.24, "ratio": 0.86, "msDisp": 0.2, "feDisp": 0.652 }, { "k": 5, "ms": 10.63, "fe": 10.69, "ratio": 1.01, "msDisp": 0.24, "feDisp": 1.585 }, { "k": 6, "ms": 13.47, "fe": 14.87, "ratio": 1.1, "msDisp": 0.37, "feDisp": 3.296 }, { "k": 7, "ms": 16.91, "fe": 19.88, "ratio": 1.18, "msDisp": 0.79, "feDisp": 6.19 }, { "k": 8, "ms": 23.23, "fe": 26.55, "ratio": 1.14, "msDisp": 0.95, "feDisp": 11.194 }, { "k": 9, "ms": 24.23, "fe": 33.03, "ratio": 1.36, "msDisp": 1, "feDisp": 17.858 }, { "k": 10, "ms": 26.83, "fe": 40.36, "ratio": 1.5, "msDisp": 1.04, "feDisp": 27.306 }], "cableCheck": [{ "id": 1, "node": 4, "solvedMax": 826.3, "msMax": 212.5, "dwgMax": 201.87 }, { "id": 2, "node": 8, "solvedMax": 1327.5, "msMax": 227.5, "dwgMax": 395 }, { "id": 3, "node": 11, "solvedMax": 1508.4, "msMax": 279, "dwgMax": 658.44 }, { "id": 4, "node": 14, "solvedMax": 1046.2, "msMax": 243, "dwgMax": 490.75 }], "stages": [{ "k": 1, "box": "S-01", "wKn": 135.6, "sigMax": 1.11, "sigMaxElem": 1, "tauMax": 0.67, "dispMax": 0.01, "dispMaxNode": 1, "tipV": -0.01, "springM": -130, "springV": 87, "springN": -104.1, "cables": [], "supports": [], "sig": [1.11], "N": [-104.1], "Mmid": [32.6], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, 0, -1e-5]] }, { "k": 2, "box": "S-02", "wKn": 75.9, "sigMax": 2.44, "sigMaxElem": 1, "tauMax": 1.05, "dispMax": 0.04, "dispMaxNode": 2, "tipV": -0.04, "springM": -351, "springV": 135.6, "springN": -162.3, "cables": [], "supports": [], "sig": [2.44, 0.63], "N": [-162.3, -57.4], "Mmid": [180.2, 18.6], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, 1e-5, -2e-5], [-51.112, 4.569, 3e-5, -4e-5]] }, { "k": 3, "box": "S-03", "wKn": 75.9, "sigMax": 4.49, "sigMaxElem": 1, "tauMax": 1.42, "dispMax": 0.21, "dispMaxNode": 3, "tipV": -0.15, "springM": -722, "springV": 184.3, "springN": -220.6, "cables": [], "supports": [], "sig": [4.49, 1.99, 0.64], "N": [-220.6, -114.7, -56.4], "Mmid": [478.5, 169.4, 19], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, 2e-5, -3e-5], [-51.112, 4.569, 8e-5, -9e-5], [-49.104, 6.798, 14e-5, -15e-5]] }, { "k": 4, "box": "S-04", "wKn": 74.7, "sigMax": 7.24, "sigMaxElem": 1, "tauMax": 1.79, "dispMax": 0.65, "dispMaxNode": 4, "tipV": -0.46, "springM": -1239, "springV": 232.2, "springN": -277.9, "cables": [], "supports": [], "sig": [7.24, 4.06, 2, 0.63], "N": [-277.9, -171.1, -111.8, -54.4], "Mmid": [923.5, 469.3, 170.7, 19.2], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, 4e-5, -6e-5], [-51.112, 4.569, 16e-5, -17e-5], [-49.104, 6.798, 31e-5, -31e-5], [-47.05, 8.985, 46e-5, -46e-5]] }, { "k": 5, "box": "S-05", "wKn": 73.7, "sigMax": 10.69, "sigMaxElem": 1, "tauMax": 2.16, "dispMax": 1.58, "dispMaxNode": 5, "tipV": -1.11, "springM": -1903, "springV": 279.4, "springN": -334.5, "cables": [], "supports": [], "sig": [10.69, 6.85, 4.11, 2.02, 0.63], "N": [-334.5, -226.9, -166.6, -108.2, -52.6], "Mmid": [1516.3, 918.7, 473.6, 172.4, 19.4], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, 7e-5, -9e-5], [-51.112, 4.569, 27e-5, -27e-5], [-49.104, 6.798, 53e-5, -53e-5], [-47.05, 8.985, 83e-5, -81e-5], [-44.949, 11.126, 113e-5, -111e-5]] }, { "k": 6, "box": "S-06", "wKn": 73.2, "sigMax": 14.87, "sigMaxElem": 1, "tauMax": 2.52, "dispMax": 3.3, "dispMaxNode": 6, "tipV": -2.32, "springM": -2718, "springV": 326.4, "springN": -390.7, "cables": [], "supports": [], "sig": [14.87, 10.38, 6.95, 4.16, 2.04, 0.64], "N": [-390.7, -282.2, -221, -161.6, -104.9, -51], "Mmid": [2260.7, 1520.8, 930.2, 480.2, 175.1, 19.7], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, 11e-5, -12e-5], [-51.112, 4.569, 41e-5, -41e-5], [-49.104, 6.798, 83e-5, -81e-5], [-47.05, 8.985, 132e-5, -128e-5], [-44.949, 11.126, 183e-5, -179e-5], [-42.797, 13.216, 235e-5, -232e-5]] }, { "k": 7, "box": "S-07", "wKn": 74.4, "sigMax": 19.88, "sigMaxElem": 1, "tauMax": 2.89, "dispMax": 6.19, "dispMaxNode": 7, "tipV": -4.38, "springM": -3707, "springV": 374.1, "springN": -447.7, "cables": [], "supports": [], "sig": [19.88, 14.74, 10.64, 7.14, 4.28, 2.1, 0.66], "N": [-447.7, -338.4, -276.3, -215.7, -158, -102.8, -50.4], "Mmid": [3178.5, 2294, 1555.7, 954.7, 495.1, 181.6, 20.5], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, 15e-5, -16e-5], [-51.112, 4.569, 59e-5, -57e-5], [-49.104, 6.798, 121e-5, -115e-5], [-47.05, 8.985, 195e-5, -186e-5], [-44.949, 11.126, 275e-5, -266e-5], [-42.797, 13.216, 356e-5, -351e-5], [-40.593, 15.252, 437e-5, -439e-5]] }, { "k": 8, "box": "S-08", "wKn": 85.2, "sigMax": 26.55, "sigMaxElem": 1, "tauMax": 3.31, "dispMax": 11.19, "dispMaxNode": 8, "tipV": -8.02, "springM": -5031, "springV": 428.7, "springN": -513.1, "cables": [], "supports": [], "sig": [26.55, 20.67, 15.8, 11.49, 7.79, 4.74, 2.38, 0.76], "N": [-513.1, -402.8, -339.6, -277.9, -218.8, -162.3, -108.3, -56.1], "Mmid": [4420.8, 3370.5, 2462.9, 1688.8, 1052.2, 557.4, 210.7, 24.1], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, 22e-5, -22e-5], [-51.112, 4.569, 83e-5, -79e-5], [-49.104, 6.798, 173e-5, -163e-5], [-47.05, 8.985, 282e-5, -268e-5], [-44.949, 11.126, 403e-5, -389e-5], [-42.797, 13.216, 53e-4, -52e-4], [-40.593, 15.252, 657e-5, -659e-5], [-38.334, 17.226, 781e-5, -802e-5]] }, { "k": 9, "box": "S-09", "wKn": 72.6, "sigMax": 33.03, "sigMaxElem": 1, "tauMax": 3.67, "dispMax": 17.86, "dispMaxNode": 9, "tipV": -12.95, "springM": -6325, "springV": 475.3, "springN": -568.8, "cables": [], "supports": [], "sig": [33.03, 26.52, 21, 16.01, 11.61, 7.82, 4.68, 2.26, 0.66], "N": [-568.8, -457.7, -393.5, -330.8, -270.6, -212.9, -157.5, -103.9, -46.2], "Mmid": [5645.1, 4453.7, 3401.9, 2480.3, 1692.8, 1043.6, 538.8, 190.1, 21], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, 28e-5, -28e-5], [-51.112, 4.569, 107e-5, -1e-3], [-49.104, 6.798, 224e-5, -21e-4], [-47.05, 8.985, 37e-4, -349e-5], [-44.949, 11.126, 533e-5, -512e-5], [-42.797, 13.216, 707e-5, -693e-5], [-40.593, 15.252, 884e-5, -886e-5], [-38.334, 17.226, 0.01059, -0.01087], [-36.019, 19.133, 0.0123, -0.01295]] }, { "k": 10, "box": "S-10", "wKn": 73, "sigMax": 40.36, "sigMaxElem": 1, "tauMax": 4.03, "dispMax": 27.31, "dispMaxNode": 10, "tipV": -20.07, "springM": -7799, "springV": 522.1, "springN": -624.9, "cables": [], "supports": [], "sig": [40.36, 33.24, 27.07, 21.42, 16.31, 11.78, 7.88, 4.65, 2.21, 0.67], "N": [-624.9, -512.9, -447.8, -384.1, -322.7, -263.8, -207.1, -152, -92.6, -44.6], "Mmid": [7048.1, 5714.7, 4517.8, 3447.9, 2508.6, 1704.1, 1040.2, 528.5, 192.3, 21.7], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, 35e-5, -34e-5], [-51.112, 4.569, 134e-5, -125e-5], [-49.104, 6.798, 284e-5, -264e-5], [-47.05, 8.985, 472e-5, -443e-5], [-44.949, 11.126, 686e-5, -656e-5], [-42.797, 13.216, 915e-5, -895e-5], [-40.593, 15.252, 0.01153, -0.01155], [-38.334, 17.226, 0.01392, -0.01429], [-36.019, 19.133, 0.01626, -0.01714], [-33.643, 20.965, 0.01852, -0.02007]] }, { "k": 11, "box": "S-11", "wKn": 73.3, "sigMax": 7.05, "sigMaxElem": 2, "tauMax": 1.02, "dispMax": 3.15, "dispMaxNode": 11, "tipV": 1.98, "springM": 0, "springV": 132.6, "springN": -1215.2, "cables": [{ "id": 1, "node": 4, "T": 157.1 }, { "id": 2, "node": 8, "T": 258.5 }, { "id": 3, "node": 11, "T": 299.8 }], "supports": [], "sig": [6.91, 7.05, 6.99, 6.76, 6.37, 6.35, 6.14, 5.58, 3.56, 3.36, 2.71], "N": [-1215.2, -1110.1, -1052.2, -995.9, -820.8, -767.5, -716.6, -667.3, -394.5, -348.5, -305.7], "Mmid": [-166.3, -347.3, -425.3, -412.5, -452.2, -539.4, -523.1, -394.8, -319.3, -299.8, -139.1], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, -6e-5, -6e-5], [-51.112, 4.569, -14e-5, -9e-5], [-49.104, 6.798, -26e-5, -8e-5], [-47.05, 8.985, -42e-5, -2e-5], [-44.949, 11.126, -61e-5, 9e-5], [-42.797, 13.216, -84e-5, 26e-5], [-40.593, 15.252, -112e-5, 49e-5], [-38.334, 17.226, -144e-5, 78e-5], [-36.019, 19.133, -177e-5, 113e-5], [-33.643, 20.965, -211e-5, 154e-5], [-31.207, 22.715, -245e-5, 198e-5]] }, { "k": 12, "box": "S-12", "wKn": 71.3, "sigMax": 7.11, "sigMaxElem": 1, "tauMax": 0.75, "dispMax": 1.14, "dispMaxNode": 12, "tipV": 0.26, "springM": 0, "springV": 96.6, "springN": -1370.2, "cables": [{ "id": 1, "node": 4, "T": 184.4 }, { "id": 2, "node": 8, "T": 302.1 }, { "id": 3, "node": 11, "T": 347.5 }], "supports": [], "sig": [7.11, 6.8, 6.54, 6.02, 5.02, 4.96, 4.71, 4.44, 2.96, 2.39, 2.4, 0.67], "N": [-1370.2, -1265.7, -1208.5, -1152.8, -956.5, -903.3, -852.4, -803.1, -489.5, -442.6, -398.6, -39.4], "Mmid": [-112.3, -189.6, -172.6, -74.1, -64, -137.1, -116.8, 4.9, 28.1, -49.2, 5.4, 22.3], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, -6e-5, -7e-5], [-51.112, 4.569, -14e-5, -12e-5], [-49.104, 6.798, -23e-5, -14e-5], [-47.05, 8.985, -34e-5, -15e-5], [-44.949, 11.126, -43e-5, -15e-5], [-42.797, 13.216, -54e-5, -13e-5], [-40.593, 15.252, -65e-5, -9e-5], [-38.334, 17.226, -77e-5, -4e-5], [-36.019, 19.133, -87e-5, 2e-5], [-33.643, 20.965, -96e-5, 9e-5], [-31.207, 22.715, -105e-5, 17e-5], [-28.707, 24.374, -111e-5, 26e-5]] }, { "k": 13, "box": "S-13", "wKn": 71.5, "sigMax": 8.61, "sigMaxElem": 4, "tauMax": 0.99, "dispMax": 3.43, "dispMaxNode": 13, "tipV": -3.14, "springM": 0, "springV": 52.4, "springN": -1535.6, "cables": [{ "id": 1, "node": 4, "T": 214.3 }, { "id": 2, "node": 8, "T": 349.4 }, { "id": 3, "node": 11, "T": 398.7 }], "supports": [], "sig": [7.33, 7.02, 7.62, 8.61, 7.62, 7, 7.22, 7.98, 6.32, 4.95, 4.3, 2.3, 0.67], "N": [-1535.6, -1431.9, -1375.4, -1320.4, -1101.1, -1048.1, -997.4, -948.2, -590.1, -542.2, -497, -78.9, -37.1], "Mmid": [-46, 4.8, 140.6, 347.9, 427.8, 385.7, 426.4, 556.9, 539.3, 372.6, 327.9, 203.2, 22.9], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, -7e-5, -8e-5], [-51.112, 4.569, -14e-5, -15e-5], [-49.104, 6.798, -19e-5, -22e-5], [-47.05, 8.985, -23e-5, -32e-5], [-44.949, 11.126, -21e-5, -44e-5], [-42.797, 13.216, -15e-5, -6e-4], [-40.593, 15.252, -6e-5, -81e-5], [-38.334, 17.226, 8e-5, -107e-5], [-36.019, 19.133, 29e-5, -139e-5], [-33.643, 20.965, 54e-5, -176e-5], [-31.207, 22.715, 8e-4, -219e-5], [-28.707, 24.374, 11e-4, -265e-5], [-26.143, 25.931, 139e-5, -314e-5]] }, { "k": 14, "box": "S-14", "wKn": 83.4, "sigMax": 12.31, "sigMaxElem": 8, "tauMax": 1.46, "dispMax": 10, "dispMaxNode": 14, "tipV": -8.59, "springM": 0, "springV": 1.8, "springN": -1736.8, "cables": [{ "id": 1, "node": 4, "T": 240 }, { "id": 2, "node": 8, "T": 388.5 }, { "id": 3, "node": 11, "T": 439.2 }, { "id": 4, "node": 14, "T": 39.6 }], "supports": [], "sig": [8.64, 9.37, 10.64, 12.22, 11.17, 11.06, 11.46, 12.31, 10.51, 8.82, 7.67, 5.03, 2.52, 0.88], "N": [-1736.8, -1633.9, -1578.3, -1524.2, -1285.1, -1232.5, -1182.1, -1133, -737.2, -688.4, -642.3, -173.7, -129.6, -89.8], "Mmid": [29.9, 227.1, 497.9, 828, 993.4, 998.9, 1073.7, 1223.7, 1178, 936.3, 802.2, 545.5, 192.5, 12.8], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, -7e-5, -9e-5], [-51.112, 4.569, -13e-5, -19e-5], [-49.104, 6.798, -15e-5, -31e-5], [-47.05, 8.985, -11e-5, -5e-4], [-44.949, 11.126, 4e-5, -77e-5], [-42.797, 13.216, 28e-5, -114e-5], [-40.593, 15.252, 62e-5, -163e-5], [-38.334, 17.226, 106e-5, -226e-5], [-36.019, 19.133, 163e-5, -302e-5], [-33.643, 20.965, 227e-5, -394e-5], [-31.207, 22.715, 296e-5, -497e-5], [-28.707, 24.374, 37e-4, -611e-5], [-26.143, 25.931, 443e-5, -733e-5], [-23.515, 27.376, 512e-5, -859e-5]] }, { "k": 15, "box": "S-15", "wKn": 129.9, "sigMax": 20.98, "sigMaxElem": 8, "tauMax": 2.17, "dispMax": 27.37, "dispMaxNode": 15, "tipV": -23.29, "springM": 0, "springV": -94.7, "springN": -2073.4, "cables": [{ "id": 1, "node": 4, "T": 284.1 }, { "id": 2, "node": 8, "T": 455.2 }, { "id": 3, "node": 11, "T": 507.1 }, { "id": 4, "node": 14, "T": 108.1 }], "supports": [], "sig": [11.59, 13.67, 16.2, 18.98, 18.3, 18.91, 19.78, 20.98, 18.94, 16.88, 15.23, 11.53, 7.69, 4.59, 1.7], "N": [-2073.4, -1972.3, -1918.3, -1865.9, -1593, -1541.3, -1491.6, -1443.1, -982.3, -932.5, -885, -328.6, -281, -237.2, -55.9], "Mmid": [174.7, 652.4, 1184.7, 1756, 2098.6, 2217.2, 2382.2, 2597.9, 2536.6, 2199, 1944.7, 1494.7, 878.4, 416.6, 64.5], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, -8e-5, -11e-5], [-51.112, 4.569, -13e-5, -26e-5], [-49.104, 6.798, -7e-5, -48e-5], [-47.05, 8.985, 13e-5, -85e-5], [-44.949, 11.126, 53e-5, -14e-4], [-42.797, 13.216, 114e-5, -218e-5], [-40.593, 15.252, 196e-5, -322e-5], [-38.334, 17.226, 3e-3, -456e-5], [-36.019, 19.133, 427e-5, -622e-5], [-33.643, 20.965, 572e-5, -82e-4], [-31.207, 22.715, 729e-5, -0.01049], [-28.707, 24.374, 896e-5, -0.01305], [-26.143, 25.931, 0.01063, -0.01584], [-23.515, 27.376, 0.01223, -0.01879], [-19.544, 29.27, 0.01438, -0.02329]] }, { "k": 16, "box": "S-16", "wKn": 412.3, "sigMax": 56.82, "sigMaxElem": 8, "tauMax": 4.32, "dispMax": 116.08, "dispMaxNode": 16, "tipV": -100.31, "springM": 0, "springV": -477.7, "springN": -3243.6, "cables": [{ "id": 1, "node": 4, "T": 440.4 }, { "id": 2, "node": 8, "T": 689.4 }, { "id": 3, "node": 11, "T": 740.5 }, { "id": 4, "node": 14, "T": 345.1 }], "supports": [], "sig": [22.53, 29.98, 37.64, 45.29, 47.09, 50.43, 53.67, 56.82, 53.99, 51.35, 48.67, 41.94, 34.15, 26.68, 17.45, 3.33], "N": [-3243.6, -3149.3, -3102.1, -3056.3, -2664.1, -2616.5, -2570.7, -2525.5, -1833.2, -1781.2, -1730.3, -857.3, -798.9, -742.5, -233.4, -145.1], "Mmid": [749.2, 2343.9, 3927.3, 5478.8, 6575.9, 7222, 7835.4, 8414.1, 8427, 7878.5, 7329.4, 6322.5, 4899.6, 3566.8, 1944, 265.2], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, -12e-5, -19e-5], [-51.112, 4.569, -8e-5, -52e-5], [-49.104, 6.798, 28e-5, -113e-5], [-47.05, 8.985, 11e-4, -219e-5], [-44.949, 11.126, 254e-5, -386e-5], [-42.797, 13.216, 463e-5, -627e-5], [-40.593, 15.252, 74e-4, -955e-5], [-38.334, 17.226, 0.01089, -0.0138], [-36.019, 19.133, 0.0151, -0.01912], [-33.643, 20.965, 0.01991, -0.02557], [-31.207, 22.715, 0.02519, -0.03314], [-28.707, 24.374, 0.03085, -0.04178], [-26.143, 25.931, 0.03664, -0.05141], [-23.515, 27.376, 0.04234, -0.06189], [-19.544, 29.27, 0.05021, -0.07844], [-14.398, 31.204, 0.05842, -0.10031]] }, { "k": 17, "box": "S-17", "wKn": 84.7, "sigMax": 65.4, "sigMaxElem": 8, "tauMax": 4.84, "dispMax": 143.32, "dispMaxNode": 17, "tipV": -124.64, "springM": 0, "springV": -567.6, "springN": -3498.9, "cables": [{ "id": 1, "node": 4, "T": 474.9 }, { "id": 2, "node": 8, "T": 740.8 }, { "id": 3, "node": 11, "T": 791.1 }, { "id": 4, "node": 14, "T": 396.6 }], "supports": [], "sig": [25.01, 33.72, 42.6, 51.4, 53.84, 57.87, 61.72, 65.4, 62.4, 59.73, 56.92, 49.61, 41.06, 32.73, 22.2, 4.79, 0.22], "N": [-3498.9, -3406, -3360.5, -3316.3, -2897.8, -2851.3, -2806.4, -2762.1, -2018.7, -1966.4, -1914.9, -971.2, -910.7, -851.9, -269.8, -174.9, -24.6], "Mmid": [883.9, 2741.2, 4572.8, 6357, 7637.2, 8416.4, 9145.5, 9821.3, 9867.6, 9289.5, 8692.4, 7579.4, 5995.1, 4487, 2604.8, 539.9, 14.2], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, -12e-5, -21e-5], [-51.112, 4.569, -6e-5, -57e-5], [-49.104, 6.798, 37e-5, -127e-5], [-47.05, 8.985, 134e-5, -25e-4], [-44.949, 11.126, 302e-5, -443e-5], [-42.797, 13.216, 545e-5, -723e-5], [-40.593, 15.252, 87e-4, -0.01103], [-38.334, 17.226, 0.01276, -0.01598], [-36.019, 19.133, 0.01768, -0.02218], [-33.643, 20.965, 0.0233, -0.02969], [-31.207, 22.715, 0.02948, -0.03854], [-28.707, 24.374, 0.03611, -0.04866], [-26.143, 25.931, 0.04291, -0.05997], [-23.515, 27.376, 0.04963, -0.07231], [-19.544, 29.27, 0.05894, -0.0919], [-14.398, 31.204, 0.06869, -0.11786], [-13.059, 31.612, 0.07075, -0.12464]] }, { "k": 18, "box": "S-18", "wKn": 135.8, "sigMax": 79.98, "sigMaxElem": 8, "tauMax": 5.89, "dispMax": 189.56, "dispMaxNode": 18, "tipV": -166.03, "springM": 0, "springV": -719.2, "springN": -3918.1, "cables": [{ "id": 1, "node": 4, "T": 531.7 }, { "id": 2, "node": 8, "T": 825.5 }, { "id": 3, "node": 11, "T": 874.1 }, { "id": 4, "node": 14, "T": 481.1 }], "supports": [], "sig": [29.14, 39.98, 50.92, 61.69, 65.23, 70.46, 75.37, 79.98, 76.71, 74.05, 71.09, 62.9, 53.14, 43.45, 30.85, 7.65, 1.12, 0.37], "N": [-3918.1, -3828, -3785.1, -3743.7, -3281.8, -3237.2, -3194, -3151.3, -2323.2, -2270.5, -2218.3, -1157.7, -1093.7, -1030.9, -328.3, -222.6, -64.1, -35.8], "Mmid": [1111.5, 3412.4, 5664, 7842.8, 9435.7, 10445.1, 11376.1, 12223.1, 12335.2, 11719, 11053.8, 9776.6, 7936.5, 6149.7, 3852.9, 1169.2, 203.3, 24.6], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, -13e-5, -24e-5], [-51.112, 4.569, -4e-5, -67e-5], [-49.104, 6.798, 51e-5, -152e-5], [-47.05, 8.985, 173e-5, -303e-5], [-44.949, 11.126, 383e-5, -54e-4], [-42.797, 13.216, 686e-5, -885e-5], [-40.593, 15.252, 0.01089, -0.01355], [-38.334, 17.226, 0.01595, -0.01967], [-36.019, 19.133, 0.02206, -0.02736], [-33.643, 20.965, 0.02906, -0.03669], [-31.207, 22.715, 0.03677, -0.04771], [-28.707, 24.374, 0.04506, -0.06035], [-26.143, 25.931, 0.05359, -0.07454], [-23.515, 27.376, 0.06206, -0.0901], [-19.544, 29.27, 0.07386, -0.11492], [-14.398, 31.204, 0.0863, -0.14803], [-13.059, 31.612, 0.08893, -0.15668], [-11.612, 32.007, 0.09148, -0.16603]] }, { "k": 19, "box": "S-19", "wKn": 97.5, "sigMax": 91.12, "sigMaxElem": 8, "tauMax": 6.64, "dispMax": 232.03, "dispMaxNode": 19, "tipV": -204.88, "springM": 0, "springV": -834.3, "springN": -4227.3, "cables": [{ "id": 1, "node": 4, "T": 573.8 }, { "id": 2, "node": 8, "T": 888.1 }, { "id": 3, "node": 11, "T": 935.1 }, { "id": 4, "node": 14, "T": 543.3 }], "supports": [], "sig": [32.23, 44.69, 57.2, 69.47, 73.86, 80.02, 85.78, 91.12, 87.65, 85.04, 82.02, 73.23, 62.62, 51.97, 37.9, 10.13, 2.18, 1.07, 0.29], "N": [-4227.3, -4139.2, -4098.4, -4059, -3565.1, -3521.9, -3480.1, -3438.5, -2547.8, -2494.9, -2442.2, -1294.5, -1228.1, -1162.4, -370.2, -256.9, -92.5, -61.5, -22.6], "Mmid": [1284.1, 3921.8, 6492.7, 8972, 10804.8, 11993.1, 13082.1, 14064.4, 14233.7, 13597.8, 12890.6, 11500, 9478.6, 7493.8, 4900.2, 1772.2, 490.2, 175.6, 20.1], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, -14e-5, -26e-5], [-51.112, 4.569, -2e-5, -74e-5], [-49.104, 6.798, 63e-5, -171e-5], [-47.05, 8.985, 204e-5, -342e-5], [-44.949, 11.126, 444e-5, -614e-5], [-42.797, 13.216, 793e-5, -0.01008], [-40.593, 15.252, 0.01256, -0.01546], [-38.334, 17.226, 0.01837, -0.02248], [-36.019, 19.133, 0.0254, -0.0313], [-33.643, 20.965, 0.03345, -0.04202], [-31.207, 22.715, 0.04234, -0.0547], [-28.707, 24.374, 0.05191, -0.06929], [-26.143, 25.931, 0.06177, -0.0857], [-23.515, 27.376, 0.07159, -0.10373], [-19.544, 29.27, 0.08533, -0.13263], [-14.398, 31.204, 0.09986, -0.17131], [-13.059, 31.612, 0.10293, -0.18143], [-11.612, 32.007, 0.10592, -0.19238], [-9.958, 32.402, 0.10891, -0.20488]] }, { "k": 20, "box": "S-20", "wKn": 98.4, "sigMax": 103.09, "sigMaxElem": 8, "tauMax": 7.49, "dispMax": 281.02, "dispMaxNode": 20, "tipV": -250.17, "springM": 0, "springV": -957.1, "springN": -4548.3, "cables": [{ "id": 1, "node": 4, "T": 617.8 }, { "id": 2, "node": 8, "T": 953.3 }, { "id": 3, "node": 11, "T": 998.2 }, { "id": 4, "node": 14, "T": 607.9 }], "supports": [], "sig": [35.48, 49.69, 63.87, 77.74, 83.08, 90.26, 96.94, 103.09, 99.42, 96.91, 93.88, 84.5, 73.06, 61.48, 45.92, 13.09, 3.73, 2.23, 1.05, 0.29], "N": [-4548.3, -4462.4, -4423.7, -4386.6, -3859.3, -3817.6, -3777.3, -3737.1, -2780.8, -2727.8, -2674.7, -1435.8, -1367.1, -1298.6, -412.6, -291.6, -121.1, -87.4, -45.5, -19.5], "Mmid": [1468.3, 4465.7, 7378.2, 10179.7, 12271.4, 13655, 14917.6, 16049.9, 16287.8, 15640, 14897.9, 13397.8, 11195.9, 9013.3, 6120.9, 2544.3, 943.2, 491.5, 183.5, 20.5], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, -15e-5, -28e-5], [-51.112, 4.569, 0, -82e-5], [-49.104, 6.798, 75e-5, -191e-5], [-47.05, 8.985, 236e-5, -385e-5], [-44.949, 11.126, 51e-4, -692e-5], [-42.797, 13.216, 907e-5, -0.01139], [-40.593, 15.252, 0.01435, -0.0175], [-38.334, 17.226, 0.02098, -0.02548], [-36.019, 19.133, 0.02898, -0.03551], [-33.643, 20.965, 0.03817, -0.04774], [-31.207, 22.715, 0.04833, -0.06222], [-28.707, 24.374, 0.05927, -0.0789], [-26.143, 25.931, 0.07058, -0.0977], [-23.515, 27.376, 0.08187, -0.11843], [-19.544, 29.27, 0.09772, -0.15176], [-14.398, 31.204, 0.11455, -0.19656], [-13.059, 31.612, 0.11811, -0.20831], [-11.612, 32.007, 0.12158, -0.22101], [-9.958, 32.402, 0.12505, -0.23553], [-8.292, 32.739, 0.12801, -0.25017]] }, { "k": 21, "box": "S-21", "wKn": 121.6, "sigMax": 118.73, "sigMaxElem": 8, "tauMax": 8.67, "dispMax": 344.34, "dispMaxNode": 21, "tipV": -308.78, "springM": 0, "springV": -1116.7, "springN": -4955.4, "cables": [{ "id": 1, "node": 4, "T": 673.7 }, { "id": 2, "node": 8, "T": 1036.2 }, { "id": 3, "node": 11, "T": 1078.2 }, { "id": 4, "node": 14, "T": 689.6 }], "supports": [], "sig": [39.67, 56.13, 72.49, 88.46, 95.04, 103.58, 111.49, 118.73, 114.8, 112.48, 109.49, 99.44, 87, 74.27, 56.88, 17.29, 6.18, 4.22, 2.53, 1.19, 0.31], "N": [-4955.4, -4872.3, -4836.5, -4802.3, -4232.5, -4192.8, -4154.4, -4116.1, -3076.3, -3023.2, -2969.7, -1614.3, -1542.6, -1470.6, -464.9, -334.4, -156.5, -119.5, -73.8, -43.6, -20.1], "Mmid": [1707.7, 5172.8, 8530, 11751.5, 14182.7, 15825, 17318.5, 18652, 18987.2, 18334.4, 17557.9, 15928.3, 13506.2, 11081.6, 7821.1, 3690, 1694.4, 1073.3, 576.7, 211.8, 22.5], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, -16e-5, -31e-5], [-51.112, 4.569, 3e-5, -92e-5], [-49.104, 6.798, 9e-4, -216e-5], [-47.05, 8.985, 279e-5, -439e-5], [-44.949, 11.126, 597e-5, -793e-5], [-42.797, 13.216, 0.01057, -0.01309], [-40.593, 15.252, 0.01669, -0.02015], [-38.334, 17.226, 0.02437, -0.02938], [-36.019, 19.133, 0.03366, -0.04101], [-33.643, 20.965, 0.04433, -0.0552], [-31.207, 22.715, 0.05615, -0.07202], [-28.707, 24.374, 0.06891, -0.09145], [-26.143, 25.931, 0.08211, -0.11341], [-23.515, 27.376, 0.09535, -0.1377], [-19.544, 29.27, 0.11399, -0.1769], [-14.398, 31.204, 0.13387, -0.22983], [-13.059, 31.612, 0.13809, -0.24373], [-11.612, 32.007, 0.1422, -0.25878], [-9.958, 32.402, 0.14631, -0.276], [-8.292, 32.739, 0.14982, -0.29336], [-6.813, 32.986, 0.1524, -0.30878]] }, { "k": 22, "box": "S-22", "wKn": 82.6, "sigMax": 129.89, "sigMaxElem": 8, "tauMax": 9.51, "dispMax": 397.44, "dispMaxNode": 22, "tipV": -358.92, "springM": 0, "springV": -1230, "springN": -5238.4, "cables": [{ "id": 1, "node": 4, "T": 712.8 }, { "id": 2, "node": 8, "T": 1093.9 }, { "id": 3, "node": 11, "T": 1133.6 }, { "id": 4, "node": 14, "T": 746.4 }], "supports": [], "sig": [42.61, 60.68, 78.59, 96.06, 103.54, 113.05, 121.85, 129.89, 125.78, 123.63, 120.71, 110.21, 97.11, 83.63, 65, 20.48, 8.19, 5.92, 3.89, 2.16, 0.88, 0.21], "N": [-5238.4, -5157.3, -5123.5, -5091.3, -4491.9, -4453.7, -4416.7, -4379.7, -3281.6, -3228.6, -3174.9, -1737.9, -1664.2, -1589.9, -500.5, -363.4, -180.5, -141.2, -93, -60, -33.7, -11], "Mmid": [1877.6, 5675, 9348.5, 12869.1, 15543.3, 17372.2, 19033.1, 20513.2, 20922.5, 20272.3, 19478.1, 17764.3, 15194.6, 12607.3, 9097.6, 4590.2, 2326.8, 1590.7, 966.1, 464.1, 144.9, 15.3], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, -17e-5, -33e-5], [-51.112, 4.569, 5e-5, -99e-5], [-49.104, 6.798, 102e-5, -234e-5], [-47.05, 8.985, 309e-5, -478e-5], [-44.949, 11.126, 658e-5, -865e-5], [-42.797, 13.216, 0.01163, -0.0143], [-40.593, 15.252, 0.01835, -0.02203], [-38.334, 17.226, 0.02679, -0.03216], [-36.019, 19.133, 0.03699, -0.04492], [-33.643, 20.965, 0.04873, -0.06051], [-31.207, 22.715, 0.06173, -0.07901], [-28.707, 24.374, 0.07578, -0.10041], [-26.143, 25.931, 0.09036, -0.12464], [-23.515, 27.376, 0.10498, -0.15147], [-19.544, 29.27, 0.12564, -0.19491], [-14.398, 31.204, 0.14772, -0.25372], [-13.059, 31.612, 0.15243, -0.26919], [-11.612, 32.007, 0.157, -0.28594], [-9.958, 32.402, 0.16158, -0.30512], [-8.292, 32.739, 0.16549, -0.32446], [-6.813, 32.986, 0.16836, -0.34165], [-5.326, 33.186, 0.17068, -0.35892]] }, { "k": 23, "box": "S-23", "wKn": 78.1, "sigMax": 140.96, "sigMaxElem": 8, "tauMax": 10.36, "dispMax": 453.89, "dispMaxNode": 23, "tipV": -412.76, "springM": 0, "springV": -1341.9, "springN": -5512.2, "cables": [{ "id": 1, "node": 4, "T": 750.7 }, { "id": 2, "node": 8, "T": 1149.9 }, { "id": 3, "node": 11, "T": 1187.2 }, { "id": 4, "node": 14, "T": 801.3 }], "supports": [], "sig": [45.49, 65.14, 84.59, 103.54, 111.93, 122.41, 132.11, 140.96, 136.68, 134.73, 131.9, 121.01, 107.3, 93.11, 73.32, 23.82, 10.42, 7.86, 5.51, 3.41, 1.75, 0.74, 0.19], "N": [-5512.2, -5433.1, -5401.4, -5371.2, -4743, -4706.3, -4670.7, -4635.1, -3480.3, -3427.4, -3373.5, -1857, -1781.5, -1705, -534.1, -390.9, -203.2, -161.8, -111.1, -75.4, -46.6, -21.4, -7.9], "Mmid": [2045.5, 6171.1, 10157.3, 13974, 16889.9, 18905.6, 20734.8, 22363.1, 22850.1, 22208.3, 21402.7, 19612.8, 16905.3, 14165.7, 10421.1, 5557.7, 3041.2, 2196.2, 1450.6, 819, 377, 131.6, 14.6], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, -17e-5, -35e-5], [-51.112, 4.569, 7e-5, -106e-5], [-49.104, 6.798, 113e-5, -252e-5], [-47.05, 8.985, 339e-5, -516e-5], [-44.949, 11.126, 719e-5, -936e-5], [-42.797, 13.216, 0.01269, -0.01549], [-40.593, 15.252, 0.02, -0.02389], [-38.334, 17.226, 0.02918, -0.0349], [-36.019, 19.133, 0.0403, -0.04879], [-33.643, 20.965, 0.05308, -0.06576], [-31.207, 22.715, 0.06727, -0.08593], [-28.707, 24.374, 0.08261, -0.1093], [-26.143, 25.931, 0.09855, -0.13578], [-23.515, 27.376, 0.11456, -0.16516], [-19.544, 29.27, 0.13724, -0.21284], [-14.398, 31.204, 0.16154, -0.27756], [-13.059, 31.612, 0.16672, -0.29461], [-11.612, 32.007, 0.17176, -0.31307], [-9.958, 32.402, 0.17681, -0.33423], [-8.292, 32.739, 0.18113, -0.35558], [-6.813, 32.986, 0.1843, -0.37455], [-5.326, 33.186, 0.18686, -0.39361], [-3.834, 33.337, 0.18881, -0.41276]] }, { "k": 24, "box": "S-24", "wKn": 88.7, "sigMax": 154.12, "sigMaxElem": 8, "tauMax": 11.38, "dispMax": 522.02, "dispMaxNode": 24, "tipV": -477.98, "springM": 0, "springV": -1474.5, "springN": -5830.6, "cables": [{ "id": 1, "node": 4, "T": 794.9 }, { "id": 2, "node": 8, "T": 1215.1 }, { "id": 3, "node": 11, "T": 1249.3 }, { "id": 4, "node": 14, "T": 865 }], "supports": [], "sig": [48.88, 70.41, 91.68, 112.38, 121.86, 133.52, 144.3, 154.12, 149.65, 147.96, 145.28, 133.96, 119.58, 104.62, 83.5, 27.99, 13.33, 10.44, 7.73, 5.21, 3.13, 1.73, 0.8, 0.21], "N": [-5830.6, -5753.8, -5724.4, -5696.7, -5035, -5e3, -4966.2, -4932.2, -3711.2, -3658.4, -3604.5, -1995, -1917.4, -1838.5, -572.3, -422.1, -229.1, -185.2, -131.7, -93, -61.2, -33.2, -16.8, -6], "Mmid": [2244.3, 6758.8, 11116, 15284.3, 18488.3, 20728.3, 22760.2, 24567.8, 25151.9, 24526.1, 23713.7, 21841.3, 18979.4, 16068.4, 12057.6, 6789.7, 3985.5, 3016.9, 2133.7, 1354.9, 773.4, 396.4, 147.2, 16.6], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, -18e-5, -37e-5], [-51.112, 4.569, 9e-5, -114e-5], [-49.104, 6.798, 127e-5, -273e-5], [-47.05, 8.985, 375e-5, -561e-5], [-44.949, 11.126, 791e-5, -0.01019], [-42.797, 13.216, 0.01394, -0.0169], [-40.593, 15.252, 0.02195, -0.0261], [-38.334, 17.226, 0.03203, -0.03816], [-36.019, 19.133, 0.04422, -0.05338], [-33.643, 20.965, 0.05826, -0.07201], [-31.207, 22.715, 0.07386, -0.09417], [-28.707, 24.374, 0.09073, -0.11987], [-26.143, 25.931, 0.10829, -0.14904], [-23.515, 27.376, 0.12598, -0.18148], [-19.544, 29.27, 0.15107, -0.23424], [-14.398, 31.204, 0.17805, -0.30607], [-13.059, 31.612, 0.1838, -0.32501], [-11.612, 32.007, 0.18941, -0.34556], [-9.958, 32.402, 0.19503, -0.3691], [-8.292, 32.739, 0.19984, -0.39287], [-6.813, 32.986, 0.20337, -0.414], [-5.326, 33.186, 0.20623, -0.43525], [-3.834, 33.337, 0.20839, -0.45658], [-2.337, 33.439, 0.20985, -0.47798]] }, { "k": 25, "box": "S-25", "wKn": 63.4, "sigMax": 105.66, "sigMaxElem": 1, "tauMax": 11.47, "dispMax": 32.04, "dispMaxNode": 25, "tipV": -32.04, "springM": 16457, "springV": -1486.1, "springN": -5741.4, "cables": [{ "id": 1, "node": 4, "T": 826.3 }, { "id": 2, "node": 8, "T": 1327.5 }, { "id": 3, "node": 11, "T": 1508.4 }, { "id": 4, "node": 14, "T": 1046.2 }], "supports": [], "sig": [105.66, 83.9, 62.45, 41.46, 40.89, 52.38, 63.01, 72.72, 67.93, 67.01, 65.11, 55.75, 43.59, 30.71, 21.95, 23.23, 25.5, 27.82, 30.01, 31.91, 33.24, 34.21, 34.95, 35.42, 35.8], "N": [-5741.4, -5664.9, -5635.8, -5608.4, -4971.7, -4937.6, -4904.8, -4872, -3750.3, -3700.7, -3650.1, -2287.4, -2217, -2145.1, -1067.1, -929.3, -743.1, -701.6, -650.3, -613.3, -582.6, -555.1, -538.6, -527.2, -519.5], "Mmid": [-14195.2, -9643.4, -5243.9, -1028.1, 2258.4, 4615.2, 6768.4, 8702.1, 9499.9, 9170.9, 8651.1, 7200.1, 4873.1, 2459.8, -947.4, -5512.8, -7916.1, -8765.1, -9541.8, -10236.3, -10766.2, -11121.3, -11374, -11533.6, -11611], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, -102e-5, 34e-5], [-51.112, 4.569, -324e-5, 174e-5], [-49.104, 6.798, -619e-5, 387e-5], [-47.05, 8.985, -94e-4, 635e-5], [-44.949, 11.126, -0.01246, 886e-5], [-42.797, 13.216, -0.0151, 0.01108], [-40.593, 15.252, -0.01712, 0.01275], [-38.334, 17.226, -0.01833, 0.01361], [-36.019, 19.133, -0.01857, 0.01348], [-33.643, 20.965, -0.01792, 0.01221], [-31.207, 22.715, -0.01651, 979e-5], [-28.707, 24.374, -0.01439, 63e-4], [-26.143, 25.931, -0.0119, 19e-4], [-23.515, 27.376, -931e-5, -314e-5], [-19.544, 29.27, -575e-5, -0.01087], [-14.398, 31.204, -244e-5, -0.01986], [-13.059, 31.612, -183e-5, -0.0219], [-11.612, 32.007, -129e-5, -0.02393], [-9.958, 32.402, -8e-4, -0.02601], [-8.292, 32.739, -45e-5, -0.02782], [-6.813, 32.986, -24e-5, -0.02917], [-5.326, 33.186, -1e-4, -0.03027], [-3.834, 33.337, -2e-5, -0.03112], [-2.337, 33.439, 1e-5, -0.03169], [0, 33.5, 0, -0.03204]] }, { "k": 25, "box": "S-25", "wKn": 63.4, "sigMax": 23.75, "sigMaxElem": 1, "tauMax": 3.39, "dispMax": 10.52, "dispMaxNode": 25, "tipV": -10.52, "springM": 1699, "springV": -118.9, "springN": -3365.8, "cables": [], "supports": [], "sig": [23.75, 21.06, 18.4, 15.9, 17.65, 19.15, 20.33, 21.21, 21.68, 21.68, 21.6, 21, 19.69, 17.56, 16.9, 11.38, 11.58, 11.89, 12.05, 12.19, 12.24, 12.17, 12.06, 11.93, 11.78], "N": [-3365.8, -3264.9, -3210.7, -3157.5, -3106.1, -3056.3, -3007.7, -2959.3, -2904.8, -2859.3, -2814.2, -2769.4, -2726, -2682.3, -2629.8, -2549.9, -2399.5, -2371.7, -2334.2, -2310.3, -2290.1, -2270.9, -2261, -2254.4, -2250.2], "Mmid": [-1488.5, -973.4, -476.2, -17.4, 394.5, 750.3, 1041, 1262.5, 1420.2, 1485.3, 1443, 1280.1, 978.8, 527.7, -276.3, -1528.1, -1904.4, -2058.6, -2151.3, -2212.4, -2236.6, -2204.5, -2153.1, -2093.1, -2029.7], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, -23e-5, -11e-5], [-51.112, 4.569, -58e-5, -1e-4], [-49.104, 6.798, -1e-3, -3e-5], [-47.05, 8.985, -144e-5, 9e-5], [-44.949, 11.126, -186e-5, 19e-5], [-42.797, 13.216, -221e-5, 25e-5], [-40.593, 15.252, -247e-5, 22e-5], [-38.334, 17.226, -262e-5, 7e-5], [-36.019, 19.133, -264e-5, -24e-5], [-33.643, 20.965, -252e-5, -72e-5], [-31.207, 22.715, -229e-5, -139e-5], [-28.707, 24.374, -196e-5, -225e-5], [-26.143, 25.931, -156e-5, -329e-5], [-23.515, 27.376, -115e-5, -444e-5], [-19.544, 29.27, -62e-5, -621e-5], [-14.398, 31.204, -8e-5, -813e-5], [-13.059, 31.612, 1e-5, -855e-5], [-11.612, 32.007, 7e-5, -897e-5], [-9.958, 32.402, 12e-5, -938e-5], [-8.292, 32.739, 14e-5, -973e-5], [-6.813, 32.986, 14e-5, -999e-5], [-5.326, 33.186, 13e-5, -0.0102], [-3.834, 33.337, 1e-4, -0.01035], [-2.337, 33.439, 7e-5, -0.01046], [0, 33.5, 0, -0.01052]] }] };
+
+// js/fe2_data.js
+var FE2 = { "meta": { "title": "EB Cloete S0153-2 \u94A2\u62F1\u540A\u88C5 \u5F62\u53D8\u7EA6\u675F\u53CD\u63A8\u8BA1\u7B97 v5", "method": "\u9006\u95EE\u9898: \u6BCF\u6B65\u4EE5\u6263\u7D22\u5F20\u529B(\u754C\u4E8EDWG\u6700\u5927\u503C\u5185)+\u8D2A\u5FC3\u589E\u8BBE\u6C38\u4E45\u94A2\u652F\u67B6, \u4F7F\u5168\u8FC7\u7A0B\u8282\u70B9\u7AD6\u5411\u504F\u5DEE\u2264\u5BB9\u5DEE; \u652F\u67B6\u4E00\u65E6\u5B89\u88C5\u4E0D\u62C6\u9664; \u652F\u67B6\u4E3A\u521A\u6027\u7AD6\u5411\u652F\u5EA7, \u53CD\u529B\u7531\u5E73\u8861\u63D0\u53D6; \u6263\u7D22\u8FBE\u5230DWG\u4E0A\u9650\u5373\u9501\u5B9A(\u6807\u8BB0maxed)", "units": "kN, m, MPa, mm", "tol": "\xB110mm(ASSUMPTION, \u654F\u611F\u6027\xB15/\xB115/\xB120/\xB130mm)", "assumptions": ['\u5F62\u53D8\u5BB9\u5DEE\u4E3AASSUMPTION: MS/DWG\u4EC5\u8981\u6C42"\u76D1\u6D4B-\u5206\u6790-\u8C03\u6574"\u52A8\u6001\u95ED\u73AF(MS Section-5)\u4E0E\u5408\u9F99\u53E3\u914D\u5207, \u672A\u53D1\u5E03\u6570\u503C\u5BB9\u5DEE; \u672C\u7248\u53D6\u5168\u8FC7\u7A0B\u8282\u70B9\u7AD6\u5411\u504F\u5DEE\u2264\xB110mm(\u2248\u534A\u8DE855m/5500), \u5E76\u7ED9\u51FA\xB15/\xB115/\xB120/\xB130mm\u654F\u611F\u6027', "\u6263\u7D22\u5F20\u529B\u4E0A\u9650=DWG\u5404\u7D22\u5168\u8FC7\u7A0B\u6700\u5927\u503C(\u5355\u808B): 1#201.87 2#395 3#658.44 4#490.75 kN (ASSUMPTION\u2014\u2014\u4F5C\u4E3A\u8BBE\u8BA1/\u8BBE\u5907\u4E0A\u9650)", "\u652F\u67B6\u4E3A\u6C38\u4E45\u7AD6\u5411\u521A\u6027\u652F\u5EA7, \u4E00\u65E6\u5B89\u88C5\u4E0D\u62C6\u9664; \u521D\u59CB=MS\u539F\u94A2\u7BA1\u652F\u67B6(4\xD7\u03C6325\xD710\u683C\u6784\u67F1, MS Appendix-2 \u817F\u8377\u8F7D\u7EA6400~467kN)", "\u652F\u67B6\u53EA\u80FD\u8BBE\u4E8E\u5DF2\u5C31\u4F4D\u8282\u6BB5(\u2264k-1), \u540A\u88C5\u4E2D\u7684\u60AC\u81C2\u7AEF\u8282\u6BB5\u7531\u540A\u8F66\u5B9A\u4F4D", "\u652F\u67B6N8\u5728S21\u51FA\u73B0\u77ED\u6682\u4E0A\u62D4\u7EA6-114kN, \u9700\u951A\u56FA\u6216\u5141\u8BB8\u9000\u51FA(\u9700\u786E\u8BA4)", "\u62F1\u8F74\u7EBF\u629B\u7269\u7EBF/\u5355\u808B\u5E73\u9762\u6A21\u578B/\u4EC5\u81EA\u91CD\u2014\u2014\u540Cv3"] }, "summary": { "TOLmm": 10, "finalProps": [4, 8, 15, 21], "maxReaction": { "node": 15, "R": 1606.4, "stage": 21 }, "cableUtil": { "1": { "maxT": 5, "Tmax": 201.87, "ratio": 0.02 }, "2": { "maxT": 5, "Tmax": 395, "ratio": 0.01 }, "3": { "maxT": 183.4, "Tmax": 658.44, "ratio": 0.28 }, "4": { "maxT": 320.9, "Tmax": 490.75, "ratio": 0.65 } }, "release": { "sigMax": 23.75, "dispMax": 10.518 }, "sensitivity": { "5": { "finalProps": [4, 8, 14, 16], "maxReaction": { "node": 16, "R": 1616.4, "stage": 24 }, "maxStageV": 4.71, "cableUtil": { "1": 0.02, "2": 0.01, "3": 0.1, "4": 0.24 } }, "10": { "finalProps": [4, 8, 15, 21], "maxReaction": { "node": 15, "R": 1606.4, "stage": 21 }, "maxStageV": 9.62, "cableUtil": { "1": 0.02, "2": 0.01, "3": 0.28, "4": 0.65 } }, "15": { "finalProps": [4, 8, 15, 22], "maxReaction": { "node": 15, "R": 1768.5, "stage": 22 }, "maxStageV": 12.91, "cableUtil": { "1": 0.02, "2": 0.01, "3": 0.28, "4": 0.65 } }, "20": { "finalProps": [4, 8, 15, 23], "maxReaction": { "node": 15, "R": 1930.1, "stage": 23 }, "maxStageV": 17.37, "cableUtil": { "1": 0.03, "2": 0.01, "3": 0.28, "4": 0.65 } }, "30": { "finalProps": [4, 8, 15], "maxReaction": { "node": 15, "R": 2123.3, "stage": 24 }, "maxStageV": 23.4, "cableUtil": { "1": 0.04, "2": 0.01, "3": 0.28, "4": 0.65 } } }, "stageBrief": [{ "k": 1, "maxVmm": 0.01, "tipVmm": -6e-3, "sigMax": 1.11, "added": [], "cables": [], "props": [] }, { "k": 2, "maxVmm": 0.04, "tipVmm": -0.036, "sigMax": 2.44, "added": [], "cables": [], "props": [] }, { "k": 3, "maxVmm": 0.15, "tipVmm": -0.153, "sigMax": 4.49, "added": [], "cables": [], "props": [] }, { "k": 4, "maxVmm": 0.03, "tipVmm": 0, "sigMax": 2.47, "added": [], "cables": [], "props": [{ "node": 4, "R": 114.3 }] }, { "k": 5, "maxVmm": 0.02, "tipVmm": 0.011, "sigMax": 2.26, "added": [], "cables": [], "props": [{ "node": 4, "R": 202 }] }, { "k": 6, "maxVmm": 0.06, "tipVmm": -0.058, "sigMax": 2.04, "added": [], "cables": [], "props": [{ "node": 4, "R": 317.4 }] }, { "k": 7, "maxVmm": 0.34, "tipVmm": -0.341, "sigMax": 4.28, "added": [], "cables": [], "props": [{ "node": 4, "R": 463.7 }] }, { "k": 8, "maxVmm": 0.03, "tipVmm": 0, "sigMax": 1.97, "added": [], "cables": [], "props": [{ "node": 4, "R": 345.6 }, { "node": 8, "R": 124.3 }] }, { "k": 9, "maxVmm": 0.03, "tipVmm": 0.015, "sigMax": 1.82, "added": [], "cables": [], "props": [{ "node": 4, "R": 329.5 }, { "node": 8, "R": 209.1 }] }, { "k": 10, "maxVmm": 0.08, "tipVmm": -0.077, "sigMax": 2.21, "added": [], "cables": [], "props": [{ "node": 4, "R": 280.5 }, { "node": 8, "R": 319.1 }] }, { "k": 11, "maxVmm": 0.43, "tipVmm": -0.435, "sigMax": 4.59, "added": [], "cables": [{ "id": 1, "T": 5 }, { "id": 2, "T": 5 }, { "id": 3, "T": 5 }], "props": [{ "node": 4, "R": 197.1 }, { "node": 8, "R": 443.8 }] }, { "k": 12, "maxVmm": 1.3, "tipVmm": -1.304, "sigMax": 7.83, "added": [], "cables": [{ "id": 1, "T": 5 }, { "id": 2, "T": 5 }, { "id": 3, "T": 9 }], "props": [{ "node": 4, "R": 85.9 }, { "node": 8, "R": 595.5 }] }, { "k": 13, "maxVmm": 2.94, "tipVmm": -2.938, "sigMax": 11.75, "added": [], "cables": [{ "id": 1, "T": 5 }, { "id": 2, "T": 5 }, { "id": 3, "T": 30.7 }], "props": [{ "node": 4, "R": -48.7 }, { "node": 8, "R": 751.6 }] }, { "k": 14, "maxVmm": 4.71, "tipVmm": -4.714, "sigMax": 14.62, "added": [], "cables": [{ "id": 1, "T": 5 }, { "id": 2, "T": 5 }, { "id": 3, "T": 69 }, { "id": 4, "T": 116.6 }], "props": [{ "node": 4, "R": -129.4 }, { "node": 8, "R": 790.3 }] }, { "k": 15, "maxVmm": 9.62, "tipVmm": -9.621, "sigMax": 20.08, "added": [], "cables": [{ "id": 1, "T": 5 }, { "id": 2, "T": 5 }, { "id": 3, "T": 183.4 }, { "id": 4, "T": 320.9 }], "props": [{ "node": 4, "R": -284.7 }, { "node": 8, "R": 820.1 }] }, { "k": 16, "maxVmm": 0.25, "tipVmm": -0.104, "sigMax": 6.24, "added": [15], "cables": [{ "id": 1, "T": 5 }, { "id": 2, "T": 5 }, { "id": 3, "T": 5 }, { "id": 4, "T": 5 }], "props": [{ "node": 4, "R": 224.6 }, { "node": 8, "R": 464 }, { "node": 15, "R": 724.6 }] }, { "k": 17, "maxVmm": 0.56, "tipVmm": -0.556, "sigMax": 9.03, "added": [], "cables": [{ "id": 1, "T": 5 }, { "id": 2, "T": 5 }, { "id": 3, "T": 5 }, { "id": 4, "T": 5 }], "props": [{ "node": 4, "R": 256.7 }, { "node": 8, "R": 404.8 }, { "node": 15, "R": 844.5 }] }, { "k": 18, "maxVmm": 1.75, "tipVmm": -1.747, "sigMax": 14.57, "added": [], "cables": [{ "id": 1, "T": 5 }, { "id": 2, "T": 5 }, { "id": 3, "T": 5 }, { "id": 4, "T": 5 }], "props": [{ "node": 4, "R": 320.5 }, { "node": 8, "R": 287.2 }, { "node": 15, "R": 1050.2 }] }, { "k": 19, "maxVmm": 3.3, "tipVmm": -3.298, "sigMax": 19.41, "added": [], "cables": [{ "id": 1, "T": 5 }, { "id": 2, "T": 5 }, { "id": 3, "T": 5 }, { "id": 4, "T": 5 }], "props": [{ "node": 4, "R": 376.2 }, { "node": 8, "R": 184.6 }, { "node": 15, "R": 1208.7 }] }, { "k": 20, "maxVmm": 5.61, "tipVmm": -5.614, "sigMax": 25.22, "added": [], "cables": [{ "id": 1, "T": 5 }, { "id": 2, "T": 5 }, { "id": 3, "T": 5 }, { "id": 4, "T": 5 }], "props": [{ "node": 4, "R": 443.1 }, { "node": 8, "R": 61.3 }, { "node": 15, "R": 1380.4 }] }, { "k": 21, "maxVmm": 9.24, "tipVmm": -9.242, "sigMax": 33.48, "added": [], "cables": [{ "id": 1, "T": 5 }, { "id": 2, "T": 5 }, { "id": 3, "T": 5 }, { "id": 4, "T": 5 }], "props": [{ "node": 4, "R": 538.2 }, { "node": 8, "R": -114 }, { "node": 15, "R": 1606.4 }] }, { "k": 22, "maxVmm": 0.22, "tipVmm": 0.055, "sigMax": 6.7, "added": [21], "cables": [{ "id": 1, "T": 5 }, { "id": 2, "T": 5 }, { "id": 3, "T": 5 }, { "id": 4, "T": 5 }], "props": [{ "node": 4, "R": 229.9 }, { "node": 8, "R": 454.2 }, { "node": 15, "R": 892.3 }, { "node": 21, "R": 458.7 }] }, { "k": 23, "maxVmm": 0.23, "tipVmm": 0.085, "sigMax": 6.56, "added": [], "cables": [{ "id": 1, "T": 5 }, { "id": 2, "T": 5 }, { "id": 3, "T": 5 }, { "id": 4, "T": 5 }], "props": [{ "node": 4, "R": 228.3 }, { "node": 8, "R": 457.1 }, { "node": 15, "R": 874.9 }, { "node": 21, "R": 552.4 }] }, { "k": 24, "maxVmm": 0.25, "tipVmm": 0.045, "sigMax": 6.29, "added": [], "cables": [{ "id": 1, "T": 5 }, { "id": 2, "T": 5 }, { "id": 3, "T": 5 }, { "id": 4, "T": 5 }], "props": [{ "node": 4, "R": 225.2 }, { "node": 8, "R": 462.8 }, { "node": 15, "R": 841.9 }, { "node": 21, "R": 670.8 }] }, { "k": 25, "maxVmm": 0.25, "tipVmm": -7e-3, "sigMax": 5.96, "added": [], "cables": [{ "id": 1, "T": 5 }, { "id": 2, "T": 5 }, { "id": 3, "T": 5 }, { "id": 4, "T": 5 }], "props": [{ "node": 4, "R": 223.9 }, { "node": 8, "R": 458.9 }, { "node": 15, "R": 814.4 }, { "node": 21, "R": 747 }] }] }, "stages": [{ "k": 1, "box": "S-01", "wKn": 135.6, "sigMax": 1.11, "sigMaxElem": 1, "tauMax": 0.67, "dispMax": 6e-3, "dispMaxNode": 1, "tipV": -6e-3, "springM": -130.4, "springV": 87, "springN": -104.1, "cables": [], "supports": [], "sig": [1.11], "N": [-104.1], "Mmid": [32.6], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, 1e-6, -6e-6]] }, { "k": 2, "box": "S-02", "wKn": 75.9, "sigMax": 2.44, "sigMaxElem": 1, "tauMax": 1.05, "dispMax": 0.045, "dispMaxNode": 2, "tipV": -0.036, "springM": -351.1, "springV": 135.6, "springN": -162.3, "cables": [], "supports": [], "sig": [2.44, 0.63], "N": [-162.3, -57.4], "Mmid": [180.2, 18.6], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, 7e-6, -16e-6], [-51.112, 4.569, 27e-6, -35999999999999994e-21]] }, { "k": 3, "box": "S-03", "wKn": 75.9, "sigMax": 4.49, "sigMaxElem": 1, "tauMax": 1.42, "dispMax": 0.21, "dispMaxNode": 3, "tipV": -0.153, "springM": -722.3, "springV": 184.3, "springN": -220.6, "cables": [], "supports": [], "sig": [4.49, 1.99, 0.64], "N": [-220.6, -114.7, -56.4], "Mmid": [478.5, 169.4, 19], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, 21000000000000002e-21, -33e-6], [-51.112, 4.569, 78e-6, -8999999999999999e-20], [-49.104, 6.798, 14399999999999998e-20, -153e-6]] }, { "k": 4, "box": "S-04", "wKn": 74.7, "sigMax": 2.47, "sigMaxElem": 1, "tauMax": 1.23, "dispMax": 0.029, "dispMaxNode": 2, "tipV": 0, "springM": -330.5, "springV": 158.9, "springN": -190.2, "cables": [], "supports": [{ "id": 0, "node": 4, "R": 114.3 }], "sig": [2.47, 1.18, 1, 0.92], "N": [-190.2, -84.8, -26.9, 28.9], "Mmid": [124.8, -107.3, -178.8, -98.2], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, 4e-6, -16e-6], [-51.112, 4.569, 11e-6, -27e-6], [-49.104, 6.798, 5e-6, -22e-6], [-47.05, 8.985, -12e-6, 0]] }, { "k": 5, "box": "S-05", "wKn": 73.7, "sigMax": 2.26, "sigMaxElem": 1, "tauMax": 1.16, "dispMax": 0.025, "dispMaxNode": 2, "tipV": 0.011, "springM": -296.6, "springV": 149.9, "springN": -179.4, "cables": [], "supports": [{ "id": 0, "node": 4, "R": 202 }], "sig": [2.26, 1.03, 0.78, 0.72, 0.63], "N": [-179.4, -74.2, -16.5, 39.1, -52.6], "Mmid": [104.4, -100.4, -144.2, -35.1, 19.4], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, 3e-6, -14e-6], [-51.112, 4.569, 8999999999999999e-21, -23e-6], [-49.104, 6.798, 4e-6, -17999999999999997e-21], [-47.05, 8.985, -8e-6, 0], [-44.949, 11.126, -22e-6, 11e-6]] }, { "k": 6, "box": "S-06", "wKn": 73.2, "sigMax": 2.04, "sigMaxElem": 5, "tauMax": 0.95, "dispMax": 0.078, "dispMaxNode": 6, "tipV": -0.058, "springM": -194.7, "springV": 122.9, "springN": -147.1, "cables": [], "supports": [{ "id": 0, "node": 4, "R": 317.4 }], "sig": [1.62, 0.59, 0.46, 1.86, 2.04, 0.64], "N": [-147.1, -42.4, 14.7, 69.8, -104.9, -51], "Mmid": [42.9, -80, -40.2, 154.3, 175.1, 19.7], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, 1e-6, -8999999999999999e-21], [-51.112, 4.569, 2e-6, -11e-6], [-49.104, 6.798, -1e-6, -5e-6], [-47.05, 8.985, 4e-6, 0], [-44.949, 11.126, 22e-6, -26e-6], [-42.797, 13.216, 51e-6, -58e-6]] }, { "k": 7, "box": "S-07", "wKn": 74.4, "sigMax": 4.28, "sigMaxElem": 5, "tauMax": 1.23, "dispMax": 0.475, "dispMaxNode": 7, "tipV": -0.341, "springM": -20.2, "springV": 76.7, "springN": -91.8, "cables": [], "supports": [{ "id": 0, "node": 4, "R": 463.7 }], "sig": [0.81, 0.44, 1.72, 4.07, 4.28, 2.1, 0.66], "N": [-91.8, 12.1, 68.3, 122.3, -158, -102.8, -50.4], "Mmid": [-62.3, -45.2, 137.7, 478.5, 495.1, 181.6, 20.5], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, -4e-6, -1e-6], [-51.112, 4.569, -1e-5, 8999999999999999e-21], [-49.104, 6.798, -8999999999999999e-21, 17e-6], [-47.05, 8.985, 25e-6, 0], [-44.949, 11.126, 101e-6, -88e-6], [-42.797, 13.216, 211e-6, -20999999999999998e-20], [-40.593, 15.252, 33e-5, -34100000000000005e-20]] }, { "k": 8, "box": "S-08", "wKn": 85.2, "sigMax": 1.97, "sigMaxElem": 5, "tauMax": 1.01, "dispMax": 0.04, "dispMaxNode": 6, "tipV": 0, "springM": -211.8, "springV": 127.4, "springN": -152.5, "cables": [], "supports": [{ "id": 0, "node": 4, "R": 345.6 }, { "id": 0, "node": 8, "R": 124.3 }], "sig": [1.72, 0.66, 0.48, 1.64, 1.97, 1.31, 1.17, 1.07], "N": [-152.5, -47.7, 9.5, 64.7, -130.1, -75.6, -23.9, 25.7], "Mmid": [53.3, -83.4, -57.5, 122.8, 99.2, -131.1, -207.1, -116.3], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, 1e-6, -1e-5], [-51.112, 4.569, 3e-6, -13e-6], [-49.104, 6.798, 0, -7e-6], [-47.05, 8.985, 2e-6, 0], [-44.949, 11.126, 12e-6, -2e-5], [-42.797, 13.216, 21000000000000002e-21, -35000000000000004e-21], [-40.593, 15.252, 14999999999999999e-21, -28e-6], [-38.334, 17.226, -4e-6, 0]] }, { "k": 9, "box": "S-09", "wKn": 72.6, "sigMax": 1.82, "sigMaxElem": 5, "tauMax": 1, "dispMax": 0.032, "dispMaxNode": 6, "tipV": 0.015, "springM": -221.3, "springV": 129.9, "springN": -155.5, "cables": [], "supports": [{ "id": 0, "node": 4, "R": 329.5 }, { "id": 0, "node": 8, "R": 209.1 }], "sig": [1.78, 0.7, 0.5, 1.52, 1.82, 1.12, 0.91, 0.82, 0.66], "N": [-155.5, -50.7, 6.6, 61.8, -121.4, -67.1, -15.7, 33.7, -46.2], "Mmid": [59, -85.3, -67.2, 105, 90.2, -114.3, -163.9, -46, 21], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, 1e-6, -1e-5], [-51.112, 4.569, 4e-6, -14999999999999999e-21], [-49.104, 6.798, 0, -8e-6], [-47.05, 8.985, 1e-6, 0], [-44.949, 11.126, 8e-6, -16e-6], [-42.797, 13.216, 14999999999999999e-21, -28e-6], [-40.593, 15.252, 1e-5, -22e-6], [-38.334, 17.226, -3e-6, 0], [-36.019, 19.133, -17999999999999997e-21, 14999999999999999e-21]] }, { "k": 10, "box": "S-10", "wKn": 73, "sigMax": 2.21, "sigMaxElem": 9, "tauMax": 1.06, "dispMax": 0.093, "dispMaxNode": 10, "tipV": -0.077, "springM": -250.4, "springV": 137.6, "springN": -164.8, "cables": [], "supports": [{ "id": 0, "node": 4, "R": 280.5 }, { "id": 0, "node": 8, "R": 319.1 }], "sig": [1.97, 0.83, 0.56, 1.15, 1.36, 0.54, 0.39, 2.02, 2.21, 0.67], "N": [-164.8, -59.7, -2.3, 53, -95, -41.4, 9.4, 58.1, -92.6, -44.6], "Mmid": [76.5, -91.1, -96.9, 50.9, 62.6, -63.3, -32.3, 168.2, 192.3, 21.7], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, 2e-6, -12e-6], [-51.112, 4.569, 6e-6, -17999999999999997e-21], [-49.104, 6.798, 2e-6, -12e-6], [-47.05, 8.985, -2e-6, 0], [-44.949, 11.126, -4e-6, -6e-6], [-42.797, 13.216, -3e-6, -8e-6], [-40.593, 15.252, -5e-6, -2e-6], [-38.334, 17.226, 1e-6, 0], [-36.019, 19.133, 22e-6, -33e-6], [-33.643, 20.965, 53e-6, -77e-6]] }, { "k": 11, "box": "S-11", "wKn": 73.3, "sigMax": 4.59, "sigMaxElem": 9, "tauMax": 1.36, "dispMax": 0.531, "dispMaxNode": 11, "tipV": -0.435, "springM": -283.8, "springV": 148.1, "springN": -201.3, "cables": [{ "id": 1, "node": 4, "T": 5, "Ttension": 5 }, { "id": 2, "node": 8, "T": 5, "Ttension": 5 }, { "id": 3, "node": 11, "T": 4.2, "Ttension": 5 }], "supports": [{ "id": 0, "node": 4, "R": 197.1 }, { "id": 0, "node": 8, "R": 443.8 }], "sig": [2.3, 1.15, 0.89, 0.62, 0.71, 0.48, 1.81, 4.25, 4.59, 2.22, 0.67], "N": [-201.3, -96.1, -38.5, 17.1, -67.2, -14.6, 35.1, 82.5, -144.4, -94.7, -48.1], "Mmid": [94.3, -105.6, -145.7, -34.4, 21.6, 22.6, 182.5, 513.9, 523, 187.9, 19], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, 1e-6, -14999999999999999e-21], [-51.112, 4.569, 5e-6, -24e-6], [-49.104, 6.798, -3e-6, -17999999999999997e-21], [-47.05, 8.985, -17e-6, 0], [-44.949, 11.126, -33e-6, 12e-6], [-42.797, 13.216, -44999999999999996e-21, 25e-6], [-40.593, 15.252, -44e-6, 29999999999999997e-21], [-38.334, 17.226, -7e-6, 0], [-36.019, 19.133, 74e-6, -112e-6], [-33.643, 20.965, 186e-6, -266e-6], [-31.207, 22.715, 305e-6, -435e-6]] }, { "k": 12, "box": "S-12", "wKn": 71.3, "sigMax": 7.83, "sigMaxElem": 9, "tauMax": 1.79, "dispMax": 1.594, "dispMaxNode": 12, "tipV": -1.304, "springM": -345.9, "springV": 165, "springN": -229, "cables": [{ "id": 1, "node": 4, "T": 5.1, "Ttension": 5 }, { "id": 2, "node": 8, "T": 5, "Ttension": 5 }, { "id": 3, "node": 11, "T": 7.2, "Ttension": 9 }], "supports": [{ "id": 0, "node": 4, "R": 85.9 }, { "id": 0, "node": 8, "R": 595.5 }], "sig": [2.72, 1.47, 1.35, 1.05, 0.42, 1.63, 4.04, 7.46, 7.83, 4.65, 2.25, 0.67], "N": [-229, -123.5, -65.5, -9.5, -14.1, 37.1, 85.3, 131, -194.1, -142.7, -94.3, -39.4], "Mmid": [131, -120.4, -213.6, -156.9, -40.4, 139.2, 481.5, 999.2, 1023.1, 526.9, 192.3, 22.3], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, 2e-6, -17999999999999997e-21], [-51.112, 4.569, 8e-6, -32e-6], [-49.104, 6.798, -2e-6, -26e-6], [-47.05, 8.985, -28e-6, 0], [-44.949, 11.126, -63e-6, 35000000000000004e-21], [-42.797, 13.216, -8999999999999999e-20, 7000000000000001e-20], [-40.593, 15.252, -8400000000000001e-20, 75e-6], [-38.334, 17.226, -3e-6, -1e-6], [-36.019, 19.133, 165e-6, -224e-6], [-33.643, 20.965, 4e-4, -5430000000000001e-19], [-31.207, 22.715, 66e-5, -9130000000000001e-19], [-28.707, 24.374, 9170000000000001e-19, -1304e-6]] }, { "k": 13, "box": "S-13", "wKn": 71.5, "sigMax": 11.75, "sigMaxElem": 9, "tauMax": 2.16, "dispMax": 3.544, "dispMaxNode": 13, "tipV": -2.938, "springM": -407, "springV": 183.4, "springN": -285.6, "cables": [{ "id": 1, "node": 4, "T": 5.1, "Ttension": 5 }, { "id": 2, "node": 8, "T": 5, "Ttension": 5 }, { "id": 3, "node": 11, "T": 27.8, "Ttension": 30.7 }], "supports": [{ "id": 0, "node": 4, "R": -48.7 }, { "id": 0, "node": 8, "R": 751.6 }], "sig": [3.28, 1.99, 2.13, 1.88, 1.38, 3.09, 6.62, 11.2, 11.75, 7.89, 4.77, 2.3, 0.67], "N": [-285.6, -179.8, -121.4, -65, 27, 76.5, 122.8, 166.5, -260.1, -207.2, -157.1, -78.9, -37.1], "Mmid": [164.4, -143.8, -297, -303.6, -112.4, 282.9, 843.7, 1583, 1650.8, 1016.1, 536.6, 203.2, 22.9], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, 2e-6, -23e-6], [-51.112, 4.569, 8e-6, -42000000000000004e-21], [-49.104, 6.798, -7e-6, -37e-6], [-47.05, 8.985, -51e-6, 0], [-44.949, 11.126, -111e-6, 6500000000000001e-20], [-42.797, 13.216, -15900000000000002e-20, 125e-6], [-40.593, 15.252, -149e-6, 129e-6], [-38.334, 17.226, -17e-6, -1e-6], [-36.019, 19.133, 255e-6, -358e-6], [-33.643, 20.965, 643e-6, -883e-6], [-31.207, 22.715, 0.0010860000000000002, -1517e-6], [-28.707, 24.374, 0.0015429999999999999, -2212e-6], [-26.143, 25.931, 1982e-6, -2938e-6]] }, { "k": 14, "box": "S-14", "wKn": 83.4, "sigMax": 14.62, "sigMaxElem": 9, "tauMax": 2.26, "dispMax": 5.488, "dispMaxNode": 14, "tipV": -4.714, "springM": -327.2, "springV": 177.5, "springN": -512.9, "cables": [{ "id": 1, "node": 4, "T": 5.4, "Ttension": 5 }, { "id": 2, "node": 8, "T": 5.5, "Ttension": 5 }, { "id": 3, "node": 11, "T": 66.2, "Ttension": 69 }, { "id": 4, "node": 14, "T": 113.6, "Ttension": 116.6 }], "supports": [{ "id": 0, "node": 4, "R": -129.4 }, { "id": 0, "node": 8, "R": 790.3 }], "sig": [3.95, 3.32, 3.5, 3.26, 2.35, 4.02, 7.67, 12.33, 14.62, 10.73, 7.47, 4.59, 2.37, 0.99], "N": [-512.9, -407.1, -348.7, -292.2, -142.6, -94.1, -48.8, -6, -458.4, -405.4, -354.8, -240.1, -196.7, -157.5], "Mmid": [93.5, -203.2, -357.5, -378.8, -132, 390.4, 1065.9, 1906.1, 2015.8, 1361.4, 842.7, 429.3, 128.7, -7], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, -12e-6, -32e-6], [-51.112, 4.569, -27e-6, -54e-6], [-49.104, 6.798, -68e-6, -46e-6], [-47.05, 8.985, -145e-6, 0], [-44.949, 11.126, -242e-6, 8400000000000001e-20], [-42.797, 13.216, -322e-6, 15900000000000002e-20], [-40.593, 15.252, -326e-6, 161e-6], [-38.334, 17.226, -183e-6, -1e-6], [-36.019, 19.133, 133e-6, -433e-6], [-33.643, 20.965, 5949999999999999e-19, -1078e-6], [-31.207, 22.715, 1139e-6, -0.0018759999999999998], [-28.707, 24.374, 0.0017150000000000002, -0.0027730000000000003], [-26.143, 25.931, 228e-5, -0.0037280000000000004], [-23.515, 27.376, 281e-5, -4714e-6]] }, { "k": 15, "box": "S-15", "wKn": 129.9, "sigMax": 20.08, "sigMaxElem": 9, "tauMax": 2.74, "dispMax": 10.866, "dispMaxNode": 15, "tipV": -9.621, "springM": -160.2, "springV": 164.2, "springN": -972.4, "cables": [{ "id": 1, "node": 4, "T": 5.9, "Ttension": 5 }, { "id": 2, "node": 8, "T": 6.4, "Ttension": 5 }, { "id": 3, "node": 11, "T": 180.9, "Ttension": 183.4 }, { "id": 4, "node": 14, "T": 317.2, "Ttension": 320.9 }], "supports": [{ "id": 0, "node": 4, "R": -284.7 }, { "id": 0, "node": 8, "R": 820.1 }], "sig": [5.47, 6, 6.25, 6.11, 4.81, 7.31, 12.05, 17.65, 20.08, 16.64, 13.65, 10.31, 7.29, 4.91, 1.7], "N": [-972.4, -866.8, -808.4, -751.7, -491.4, -444.8, -401.3, -360.3, -834, -781.6, -731.3, -509.2, -463.4, -421.3, -55.9], "Mmid": [-53.4, -322.6, -475.1, -522.2, -167, 599.9, 1493.9, 2524.8, 2761.1, 2166, 1669.2, 1178.5, 704.7, 362.6, 64.5], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, -4e-5, -5e-5], [-51.112, 4.569, -97e-6, -78e-6], [-49.104, 6.798, -193e-6, -6500000000000001e-20], [-47.05, 8.985, -337e-6, 0], [-44.949, 11.126, -506e-6, 121e-6], [-42.797, 13.216, -6490000000000001e-19, 225e-6], [-40.593, 15.252, -684e-6, 223e-6], [-38.334, 17.226, -5200000000000001e-19, -1e-6], [-36.019, 19.133, -11999999999999999e-20, -578e-6], [-33.643, 20.965, 495e-6, -1464e-6], [-31.207, 22.715, 1256e-6, -2613e-6], [-28.707, 24.374, 2114e-6, -3971e-6], [-26.143, 25.931, 2999e-6, -549e-5], [-23.515, 27.376, 3862e-6, -0.0071200000000000005], [-19.544, 29.27, 5051e-6, -0.009621000000000001]] }, { "k": 16, "box": "S-16", "wKn": 412.3, "sigMax": 6.24, "sigMaxElem": 15, "tauMax": 3.35, "dispMax": 0.292, "dispMaxNode": 12, "tipV": -0.104, "springM": -263.8, "springV": 143.2, "springN": -202.4, "cables": [{ "id": 1, "node": 4, "T": 5, "Ttension": 5 }, { "id": 2, "node": 8, "T": 5, "Ttension": 5 }, { "id": 3, "node": 11, "T": 4.7, "Ttension": 5 }, { "id": 4, "node": 14, "T": 4.9, "Ttension": 5 }], "supports": [{ "id": 0, "node": 4, "R": 224.6 }, { "id": 0, "node": 8, "R": 464 }, { "id": 0, "node": 15, "R": 724.6 }], "sig": [2.2, 1.11, 0.85, 0.65, 1, 0.33, 1.23, 3.42, 3.99, 1.95, 2.72, 2.67, 2.52, 1.81, 6.24, 3.33], "N": [-202.4, -97.2, -39.7, 15.8, -88.2, -35.3, 14.8, 62.7, -176.6, -125.8, -78.1, -29.1, 9.3, 42.7, 78.5, -145.1], "Mmid": [81.6, -103.8, -129.4, -3.6, 37.8, -5.2, 109.2, 393.4, 330.3, -102.8, -372.7, -473.4, -399.4, -134.7, 505.5, 265.2], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, 1e-6, -14e-6], [-51.112, 4.569, 3e-6, -22e-6], [-49.104, 6.798, -5e-6, -16e-6], [-47.05, 8.985, -17999999999999997e-21, 0], [-44.949, 11.126, -29999999999999997e-21, 6e-6], [-42.797, 13.216, -39e-6, 13e-6], [-40.593, 15.252, -4e-5, 19e-6], [-38.334, 17.226, -14e-6, 0], [-36.019, 19.133, 4e-5, -83e-6], [-33.643, 20.965, 104e-6, -179e-6], [-31.207, 22.715, 145e-6, -244e-6], [-28.707, 24.374, 149e-6, -251e-6], [-26.143, 25.931, 118e-6, -195e-6], [-23.515, 27.376, 6900000000000001e-20, -97e-6], [-19.544, 29.27, 35999999999999994e-21, -1e-6], [-14.398, 31.204, 7000000000000001e-20, -104e-6]] }, { "k": 17, "box": "S-17", "wKn": 84.7, "sigMax": 9.03, "sigMaxElem": 15, "tauMax": 4.03, "dispMax": 0.59, "dispMaxNode": 17, "tipV": -0.556, "springM": -245.1, "springV": 138.2, "springN": -195.8, "cables": [{ "id": 1, "node": 4, "T": 5, "Ttension": 5 }, { "id": 2, "node": 8, "T": 5, "Ttension": 5 }, { "id": 3, "node": 11, "T": 4.9, "Ttension": 5 }, { "id": 4, "node": 14, "T": 5, "Ttension": 5 }], "supports": [{ "id": 0, "node": 4, "R": 256.7 }, { "id": 0, "node": 8, "R": 404.8 }, { "id": 0, "node": 15, "R": 844.5 }], "sig": [2.08, 1.02, 0.76, 0.9, 1.29, 0.44, 0.59, 2.48, 3.01, 1.87, 2.18, 1.97, 1.69, 2.64, 9.03, 4.79, 0.22], "N": [-195.8, -90.8, -33.4, 22, -105, -51.7, -1.1, 47.2, -153.8, -104, -57.2, -9.5, 27.7, 59.8, 93.6, -174.9, -24.6], "Mmid": [70.3, -99.8, -109.9, 31.8, 55.8, -38.7, 22.8, 253, 203.2, -147.8, -333.3, -347.4, -184.2, 171.8, 928.2, 539.9, 14.2], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, 0, -13e-6], [-51.112, 4.569, 1e-6, -2e-5], [-49.104, 6.798, -6e-6, -14e-6], [-47.05, 8.985, -14999999999999999e-21, 0], [-44.949, 11.126, -22e-6, -1e-6], [-42.797, 13.216, -26e-6, 0], [-40.593, 15.252, -29e-6, 6e-6], [-38.334, 17.226, -17e-6, 0], [-36.019, 19.133, 13e-6, -51e-6], [-33.643, 20.965, 46e-6, -104e-6], [-31.207, 22.715, 57e-6, -124e-6], [-28.707, 24.374, 4e-5, -96e-6], [-26.143, 25.931, 3e-6, -29e-6], [-23.515, 27.376, -29999999999999997e-21, 42999999999999995e-21], [-19.544, 29.27, 6e-6, -1e-6], [-14.398, 31.204, 16e-5, -431e-6], [-13.059, 31.612, 19800000000000002e-20, -5560000000000001e-19]] }, { "k": 18, "box": "S-18", "wKn": 135.8, "sigMax": 14.57, "sigMaxElem": 15, "tauMax": 5.13, "dispMax": 1.827, "dispMaxNode": 18, "tipV": -1.747, "springM": -207.7, "springV": 128.3, "springN": -182.8, "cables": [{ "id": 1, "node": 4, "T": 5, "Ttension": 5 }, { "id": 2, "node": 8, "T": 5.1, "Ttension": 5 }, { "id": 3, "node": 11, "T": 5.4, "Ttension": 5 }, { "id": 4, "node": 14, "T": 5.3, "Ttension": 5 }], "supports": [{ "id": 0, "node": 4, "R": 320.5 }, { "id": 0, "node": 8, "R": 287.2 }, { "id": 0, "node": 15, "R": 1050.2 }], "sig": [1.84, 0.85, 0.59, 1.38, 1.88, 1.14, 0.91, 0.64, 1.37, 1.69, 1.49, 1.2, 2.92, 6.63, 14.57, 7.65, 1.12, 0.37], "N": [-182.8, -78, -20.7, 34.4, -138.4, -84.2, -32.8, 16.5, -108.7, -60.6, -15.7, 29.4, 64.3, 93.8, 123.8, -222.6, -64.1, -35.8], "Mmid": [48, -92, -71.2, 102.3, 91.7, -105.3, -148.6, -25.8, -49.4, -237.1, -255.1, -96.9, 243.2, 780.7, 1767.9, 1169.2, 203.3, 24.6], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, -1e-6, -11e-6], [-51.112, 4.569, -1e-6, -16e-6], [-49.104, 6.798, -7e-6, -8999999999999999e-21], [-47.05, 8.985, -1e-5, 0], [-44.949, 11.126, -7e-6, -14999999999999999e-21], [-42.797, 13.216, -2e-6, -26e-6], [-40.593, 15.252, -8999999999999999e-21, -2e-5], [-38.334, 17.226, -21000000000000002e-21, 0], [-36.019, 19.133, -39e-6, 12e-6], [-33.643, 20.965, -6900000000000001e-20, 46e-6], [-31.207, 22.715, -11700000000000001e-20, 114e-6], [-28.707, 24.374, -177e-6, 20999999999999998e-20], [-26.143, 25.931, -225e-6, 301e-6], [-23.515, 27.376, -22700000000000002e-20, 322e-6], [-19.544, 29.27, -55e-6, -1e-6], [-14.398, 31.204, 34300000000000004e-20, -0.0010869999999999999], [-13.059, 31.612, 438e-6, -0.0014039999999999999], [-11.612, 32.007, 532e-6, -1747e-6]] }, { "k": 19, "box": "S-19", "wKn": 97.5, "sigMax": 19.41, "sigMaxElem": 15, "tauMax": 5.92, "dispMax": 3.43, "dispMaxNode": 19, "tipV": -3.298, "springM": -175.2, "springV": 119.6, "springN": -171.5, "cables": [{ "id": 1, "node": 4, "T": 5, "Ttension": 5 }, { "id": 2, "node": 8, "T": 5.1, "Ttension": 5 }, { "id": 3, "node": 11, "T": 5.8, "Ttension": 5 }, { "id": 4, "node": 14, "T": 5.5, "Ttension": 5 }], "supports": [{ "id": 0, "node": 4, "R": 376.2 }, { "id": 0, "node": 8, "R": 184.6 }, { "id": 0, "node": 15, "R": 1208.7 }], "sig": [1.64, 0.72, 0.44, 1.81, 2.4, 1.79, 1.84, 1.62, 1.96, 1.76, 1.54, 2.14, 5.51, 10.1, 19.41, 10.13, 2.18, 1.07, 0.29], "N": [-171.5, -66.8, -9.7, 45.2, -167.6, -112.7, -60.5, -10.3, -69.3, -22.7, 20.5, 63.3, 96.2, 123.4, 150, -256.9, -92.5, -61.5, -22.6], "Mmid": [28.5, -85.2, -37.3, 163.7, 122.9, -163.5, -298.2, -269, -269.7, -315, -186.8, 121.6, 616.1, 1311.9, 2500.5, 1772.2, 490.2, 175.6, 20.1], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, -1e-6, -1e-5], [-51.112, 4.569, -3e-6, -12e-6], [-49.104, 6.798, -8999999999999999e-21, -5e-6], [-47.05, 8.985, -6e-6, 0], [-44.949, 11.126, 7e-6, -27e-6], [-42.797, 13.216, 19e-6, -48e-6], [-40.593, 15.252, 8999999999999999e-21, -42000000000000004e-21], [-38.334, 17.226, -25e-6, 0], [-36.019, 19.133, -85e-6, 68e-6], [-33.643, 20.965, -16900000000000002e-20, 176e-6], [-31.207, 22.715, -27e-5, 321e-6], [-28.707, 24.374, -366e-6, 477e-6], [-26.143, 25.931, -424e-6, 588e-6], [-23.515, 27.376, -399e-6, 565e-6], [-19.544, 29.27, -107e-6, -1e-6], [-14.398, 31.204, 505e-6, -1665e-6], [-13.059, 31.612, 651e-6, -2153e-6], [-11.612, 32.007, 796e-6, -2686e-6], [-9.958, 32.402, 9419999999999999e-19, -3298e-6]] }, { "k": 20, "box": "S-20", "wKn": 98.4, "sigMax": 25.22, "sigMaxElem": 15, "tauMax": 6.72, "dispMax": 5.814, "dispMaxNode": 20, "tipV": -5.614, "springM": -136.1, "springV": 109.1, "springN": -157.9, "cables": [{ "id": 1, "node": 4, "T": 5, "Ttension": 5 }, { "id": 2, "node": 8, "T": 5.1, "Ttension": 5 }, { "id": 3, "node": 11, "T": 6.3, "Ttension": 5 }, { "id": 4, "node": 14, "T": 5.8, "Ttension": 5 }], "supports": [{ "id": 0, "node": 4, "R": 443.1 }, { "id": 0, "node": 8, "R": 61.3 }, { "id": 0, "node": 15, "R": 1380.4 }], "sig": [1.39, 0.62, 0.51, 2.31, 3.01, 2.58, 3.2, 3.08, 2.88, 2.69, 1.79, 4.23, 8.62, 14.27, 25.22, 13.09, 3.73, 2.23, 1.05, 0.29], "N": [-157.9, -53.4, 3.5, 58.2, -202.5, -146.8, -93.7, -42.5, -22.1, 22.8, 63.9, 104.1, 134.5, 159, 181.6, -291.6, -121.1, -87.4, -45.5, -19.5], "Mmid": [5, -77, 3.3, 237.5, 160.5, -233.3, -477.9, -561.2, -534.4, -408.6, -104.9, 384, 1063.9, 1949.9, 3380.3, 2544.3, 943.2, 491.5, 183.5, 20.5], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, -2e-6, -8e-6], [-51.112, 4.569, -5e-6, -7e-6], [-49.104, 6.798, -1e-5, 0], [-47.05, 8.985, -1e-6, 0], [-44.949, 11.126, 23e-6, -41e-6], [-42.797, 13.216, 44e-6, -75e-6], [-40.593, 15.252, 31e-6, -6900000000000001e-20], [-38.334, 17.226, -29999999999999997e-21, 0], [-36.019, 19.133, -14099999999999998e-20, 134e-6], [-33.643, 20.965, -289e-6, 332e-6], [-31.207, 22.715, -453e-6, 571e-6], [-28.707, 24.374, -593e-6, 799e-6], [-26.143, 25.931, -662e-6, 934e-6], [-23.515, 27.376, -605e-6, 857e-6], [-19.544, 29.27, -171e-6, -1e-6], [-14.398, 31.204, 7009999999999999e-19, -2362e-6], [-13.059, 31.612, 911e-6, -3061e-6], [-11.612, 32.007, 0.0011200000000000001, -383e-5], [-9.958, 32.402, 1331e-6, -4717e-6], [-8.292, 32.739, 1512e-6, -5614e-6]] }, { "k": 21, "box": "S-21", "wKn": 121.6, "sigMax": 33.48, "sigMaxElem": 15, "tauMax": 7.71, "dispMax": 9.537, "dispMaxNode": 21, "tipV": -9.242, "springM": -80.5, "springV": 94.3, "springN": -138.5, "cables": [{ "id": 1, "node": 4, "T": 5, "Ttension": 5 }, { "id": 2, "node": 8, "T": 5.1, "Ttension": 5 }, { "id": 3, "node": 11, "T": 6.9, "Ttension": 5 }, { "id": 4, "node": 14, "T": 6.1, "Ttension": 5 }], "supports": [{ "id": 0, "node": 4, "R": 538.2 }, { "id": 0, "node": 8, "R": -114 }, { "id": 0, "node": 15, "R": 1606.4 }], "sig": [1.03, 0.51, 0.99, 3.04, 3.89, 3.7, 5.12, 5.71, 5.55, 4.35, 2.5, 7.2, 13.04, 20.21, 33.48, 17.29, 6.18, 4.22, 2.53, 1.19, 0.31], "N": [-138.5, -34.3, 22.3, 76.7, -252.3, -195.4, -140.9, -88.2, 45.2, 87.5, 125.8, 162.2, 189, 209.6, 226.5, -334.4, -156.5, -119.5, -73.8, -43.6, -20.1], "Mmid": [-28.3, -65.3, 61.1, 342.5, 213.9, -332.5, -733.4, -976.8, -910.8, -541.7, 11.7, 757.3, 1700.9, 2857.5, 4631.9, 3690, 1694.4, 1073.3, 576.7, 211.8, 22.5], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, -3e-6, -5e-6], [-51.112, 4.569, -8999999999999999e-21, -1e-6], [-49.104, 6.798, -13e-6, 7e-6], [-47.05, 8.985, 6e-6, -1e-6], [-44.949, 11.126, 46e-6, -62e-6], [-42.797, 13.216, 8e-5, -114e-6], [-40.593, 15.252, 62e-6, -107e-6], [-38.334, 17.226, -37e-6, 0], [-36.019, 19.133, -219e-6, 229e-6], [-33.643, 20.965, -46100000000000004e-20, 555e-6], [-31.207, 22.715, -713e-6, 925e-6], [-28.707, 24.374, -9170000000000001e-19, 0.0012549999999999998], [-26.143, 25.931, -1002e-6, 1426e-6], [-23.515, 27.376, -8990000000000001e-19, 0.0012720000000000001], [-19.544, 29.27, -261e-6, -2e-6], [-14.398, 31.204, 982e-6, -3359e-6], [-13.059, 31.612, 1284e-6, -0.004360999999999999], [-11.612, 32.007, 0.0015860000000000002, -5472e-6], [-9.958, 32.402, 1893e-6, -6763e-6], [-8.292, 32.739, 2157e-6, -0.008074999999999999], [-6.813, 32.986, 2352e-6, -9242e-6]] }, { "k": 22, "box": "S-22", "wKn": 82.6, "sigMax": 6.7, "sigMaxElem": 15, "tauMax": 4.66, "dispMax": 0.26, "dispMaxNode": 12, "tipV": 0.055, "springM": -260.7, "springV": 142.4, "springN": -201.3, "cables": [{ "id": 1, "node": 4, "T": 5, "Ttension": 5 }, { "id": 2, "node": 8, "T": 5, "Ttension": 5 }, { "id": 3, "node": 11, "T": 4.7, "Ttension": 5 }, { "id": 4, "node": 14, "T": 4.9, "Ttension": 5 }], "supports": [{ "id": 0, "node": 4, "R": 229.9 }, { "id": 0, "node": 8, "R": 454.2 }, { "id": 0, "node": 15, "R": 892.3 }, { "id": 0, "node": 21, "R": 458.7 }], "sig": [2.18, 1.09, 0.83, 0.69, 1.05, 0.29, 1.12, 3.26, 3.83, 1.94, 2.63, 2.54, 2.38, 1.59, 6.7, 3.71, 2.7, 2.74, 2.68, 2.23, 1.28, 0.21], "N": [-201.3, -96.2, -38.6, 16.8, -91, -38, 12.2, 60.1, -172.8, -122.2, -74.6, -25.9, 12.4, 45.5, 81, -202, -47.1, -20.3, 13.6, 30.9, 42, -11], "Mmid": [79.7, -103.1, -126.2, 2.3, 40.8, -10.8, 94.8, 370, 309.1, -110.3, -366.1, -452.4, -363.4, -83.5, 576.1, -69.1, -845.1, -942.2, -855.9, -596.5, -194.3, 15.3], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, 1e-6, -14e-6], [-51.112, 4.569, 2e-6, -22e-6], [-49.104, 6.798, -5e-6, -16e-6], [-47.05, 8.985, -17e-6, 0], [-44.949, 11.126, -29e-6, 5e-6], [-42.797, 13.216, -37e-6, 11e-6], [-40.593, 15.252, -38e-6, 17e-6], [-38.334, 17.226, -14999999999999999e-21, 0], [-36.019, 19.133, 35000000000000004e-21, -78e-6], [-33.643, 20.965, 94e-6, -166e-6], [-31.207, 22.715, 131e-6, -224e-6], [-28.707, 24.374, 131e-6, -225e-6], [-26.143, 25.931, 9900000000000001e-20, -16700000000000002e-20], [-23.515, 27.376, 53e-6, -74e-6], [-19.544, 29.27, 31e-6, -1e-6], [-14.398, 31.204, 6900000000000001e-20, -126e-6], [-13.059, 31.612, 7199999999999999e-20, -13900000000000002e-20], [-11.612, 32.007, 7099999999999999e-20, -135e-6], [-9.958, 32.402, 64e-6, -106e-6], [-8.292, 32.739, 55e-6, -55e-6], [-6.813, 32.986, 47e-6, 0], [-5.326, 33.186, 39e-6, 55e-6]] }, { "k": 23, "box": "S-23", "wKn": 78.1, "sigMax": 6.56, "sigMaxElem": 15, "tauMax": 4.53, "dispMax": 0.27, "dispMaxNode": 12, "tipV": 0.085, "springM": -261.6, "springV": 142.6, "springN": -201.6, "cables": [{ "id": 1, "node": 4, "T": 5, "Ttension": 5 }, { "id": 2, "node": 8, "T": 5, "Ttension": 5 }, { "id": 3, "node": 11, "T": 4.7, "Ttension": 5 }, { "id": 4, "node": 14, "T": 4.9, "Ttension": 5 }], "supports": [{ "id": 0, "node": 4, "R": 228.3 }, { "id": 0, "node": 8, "R": 457.1 }, { "id": 0, "node": 15, "R": 874.9 }, { "id": 0, "node": 21, "R": 552.4 }], "sig": [2.19, 1.1, 0.84, 0.68, 1.03, 0.3, 1.15, 3.31, 3.88, 1.94, 2.66, 2.58, 2.43, 1.65, 6.56, 3.62, 2.47, 2.48, 2.41, 1.88, 0.85, 0.74, 0.19], "N": [-201.6, -96.5, -39, 16.5, -90.2, -37.2, 13, 60.9, -173.9, -123.3, -75.7, -26.8, 11.5, 44.7, 80.3, -196.5, -42.5, -16.2, 17.2, 34, 44.6, -21.4, -7.9], "Mmid": [80.3, -103.3, -127.2, 0.5, 39.9, -9.1, 99.1, 377, 315.5, -108.1, -368.1, -458.7, -374.3, -99, 554.8, -53.6, -778.9, -854.3, -743.7, -458.3, -31.6, 131.6, 14.6], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, 1e-6, -14e-6], [-51.112, 4.569, 3e-6, -22e-6], [-49.104, 6.798, -5e-6, -16e-6], [-47.05, 8.985, -17999999999999997e-21, 0], [-44.949, 11.126, -29e-6, 5e-6], [-42.797, 13.216, -37e-6, 12e-6], [-40.593, 15.252, -39e-6, 17e-6], [-38.334, 17.226, -14e-6, 0], [-36.019, 19.133, 37e-6, -8e-5], [-33.643, 20.965, 97e-6, -17e-5], [-31.207, 22.715, 135e-6, -23e-5], [-28.707, 24.374, 13700000000000002e-20, -23300000000000003e-20], [-26.143, 25.931, 10499999999999999e-20, -176e-6], [-23.515, 27.376, 58e-6, -81e-6], [-19.544, 29.27, 33e-6, -1e-6], [-14.398, 31.204, 6500000000000001e-20, -112e-6], [-13.059, 31.612, 68e-6, -123e-6], [-11.612, 32.007, 67e-6, -118e-6], [-9.958, 32.402, 61e-6, -91e-6], [-8.292, 32.739, 53e-6, -47e-6], [-6.813, 32.986, 46e-6, -1e-6], [-5.326, 33.186, 4e-5, 42999999999999995e-21], [-3.834, 33.337, 35999999999999994e-21, 85e-6]] }, { "k": 24, "box": "S-24", "wKn": 88.7, "sigMax": 6.29, "sigMaxElem": 15, "tauMax": 4.29, "dispMax": 0.288, "dispMaxNode": 12, "tipV": 0.045, "springM": -263.4, "springV": 143.1, "springN": -202.2, "cables": [{ "id": 1, "node": 4, "T": 5, "Ttension": 5 }, { "id": 2, "node": 8, "T": 5, "Ttension": 5 }, { "id": 3, "node": 11, "T": 4.7, "Ttension": 5 }, { "id": 4, "node": 14, "T": 4.9, "Ttension": 5 }], "supports": [{ "id": 0, "node": 4, "R": 225.2 }, { "id": 0, "node": 8, "R": 462.8 }, { "id": 0, "node": 15, "R": 841.9 }, { "id": 0, "node": 21, "R": 670.8 }], "sig": [2.2, 1.1, 0.84, 0.66, 1, 0.32, 1.21, 3.4, 3.97, 1.95, 2.71, 2.65, 2.5, 1.78, 6.29, 3.46, 2.04, 1.99, 1.89, 1.21, 1.77, 1.73, 0.8, 0.21], "N": [-202.2, -97.1, -39.6, 15.9, -88.6, -35.6, 14.5, 62.4, -176.1, -125.4, -77.7, -28.7, 9.7, 43, 78.8, -186.1, -33.9, -8.4, 24.1, 39.9, 49.5, -33.2, -16.8, -6], "Mmid": [81.4, -103.7, -129, -2.9, 38.2, -5.9, 107.4, 390.5, 327.7, -103.8, -371.9, -470.8, -394.8, -128.3, 514.4, -24.4, -653.4, -687.5, -530.8, -196.3, 277.2, 396.4, 147.2, 16.6], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, 1e-6, -14e-6], [-51.112, 4.569, 3e-6, -22e-6], [-49.104, 6.798, -5e-6, -16e-6], [-47.05, 8.985, -17999999999999997e-21, 0], [-44.949, 11.126, -29999999999999997e-21, 6e-6], [-42.797, 13.216, -38e-6, 13e-6], [-40.593, 15.252, -4e-5, 19e-6], [-38.334, 17.226, -14e-6, 0], [-36.019, 19.133, 39e-6, -83e-6], [-33.643, 20.965, 103e-6, -177e-6], [-31.207, 22.715, 14399999999999998e-20, -241e-6], [-28.707, 24.374, 147e-6, -247e-6], [-26.143, 25.931, 116e-6, -192e-6], [-23.515, 27.376, 67e-6, -94e-6], [-19.544, 29.27, 35999999999999994e-21, -1e-6], [-14.398, 31.204, 59e-6, -85e-6], [-13.059, 31.612, 61e-6, -93e-6], [-11.612, 32.007, 59999999999999995e-21, -87e-6], [-9.958, 32.402, 55e-6, -64e-6], [-8.292, 32.739, 49000000000000005e-21, -29999999999999997e-21], [-6.813, 32.986, 44999999999999996e-21, -1e-6], [-5.326, 33.186, 42000000000000004e-21, 19e-6], [-3.834, 33.337, 4e-5, 33e-6], [-2.337, 33.439, 4e-5, 44999999999999996e-21]] }, { "k": 25, "box": "S-25", "wKn": 63.4, "sigMax": 5.96, "sigMaxElem": 15, "tauMax": 4.13, "dispMax": 0.278, "dispMaxNode": 12, "tipV": -7e-3, "springM": -247.8, "springV": 140.9, "springN": -229.7, "cables": [{ "id": 1, "node": 4, "T": 5.1, "Ttension": 5 }, { "id": 2, "node": 8, "T": 5.1, "Ttension": 5 }, { "id": 3, "node": 11, "T": 4.8, "Ttension": 5 }, { "id": 4, "node": 14, "T": 5, "Ttension": 5 }], "supports": [{ "id": 0, "node": 4, "R": 223.9 }, { "id": 0, "node": 8, "R": 458.9 }, { "id": 0, "node": 15, "R": 814.4 }, { "id": 0, "node": 21, "R": 747 }], "sig": [2.25, 1.25, 0.99, 0.64, 1.14, 0.47, 1.22, 3.27, 4.09, 2.04, 2.81, 2.76, 2.53, 1.71, 5.96, 3.39, 1.82, 1.77, 1.51, 0.75, 2.3, 2.38, 1.18, 0.32, 0.5], "N": [-229.7, -124.6, -67.1, -11.6, -115.2, -62.2, -12.1, 35.8, -200.2, -149.5, -101.9, -53, -14.5, 19, 54.9, -199.9, -48.9, -23.9, 8.1, 23.3, 32.3, -61, -42.7, -29.9, -21.2], "Mmid": [69, -110.2, -131.3, -2.6, 40.8, -1.5, 111.6, 392.4, 329.5, -99.7, -368, -469.7, -399.2, -141.2, 486, -11.1, -575.6, -583.9, -399.6, -36.5, 462.9, 548.8, 208.6, -14.2, -132.1], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, -1e-6, -14999999999999999e-21], [-51.112, 4.569, -2e-6, -23e-6], [-49.104, 6.798, -13e-6, -17e-6], [-47.05, 8.985, -29e-6, 0], [-44.949, 11.126, -44999999999999996e-21, 6e-6], [-42.797, 13.216, -56e-6, 14e-6], [-40.593, 15.252, -59999999999999995e-21, 19e-6], [-38.334, 17.226, -35999999999999994e-21, 0], [-36.019, 19.133, 14999999999999999e-21, -83e-6], [-33.643, 20.965, 77e-6, -179e-6], [-31.207, 22.715, 11700000000000001e-20, -244e-6], [-28.707, 24.374, 11899999999999999e-20, -252e-6], [-26.143, 25.931, 87e-6, -19700000000000002e-20], [-23.515, 27.376, 35999999999999994e-21, -1e-4], [-19.544, 29.27, -1e-6, -1e-6], [-14.398, 31.204, 16e-6, -6900000000000001e-20], [-13.059, 31.612, 17e-6, -75e-6], [-11.612, 32.007, 14999999999999999e-21, -68e-6], [-9.958, 32.402, 1e-5, -48e-6], [-8.292, 32.739, 5e-6, -2e-5], [-6.813, 32.986, 3e-6, -1e-6], [-5.326, 33.186, 1e-6, 5e-6], [-3.834, 33.337, 1e-6, 2e-6], [-2.337, 33.439, 0, -3e-6], [0, 33.5, 0, -7e-6]] }, { "k": 25, "box": "S-25", "wKn": 63.4, "sigMax": 23.75, "sigMaxElem": 1, "tauMax": 3.39, "dispMax": 10.518, "dispMaxNode": 25, "tipV": -10.518, "springM": 1699.4, "springV": -118.9, "springN": -3365.8, "cables": [], "supports": [], "sig": [23.75, 21.06, 18.4, 15.9, 17.65, 19.15, 20.33, 21.21, 21.68, 21.68, 21.6, 21, 19.69, 17.56, 16.9, 11.38, 11.58, 11.89, 12.05, 12.19, 12.24, 12.17, 12.06, 11.93, 11.78], "N": [-3365.8, -3264.9, -3210.7, -3157.5, -3106.1, -3056.3, -3007.7, -2959.3, -2904.8, -2859.3, -2814.2, -2769.4, -2726, -2682.3, -2629.8, -2549.9, -2399.5, -2371.7, -2334.2, -2310.3, -2290.1, -2270.9, -2261, -2254.4, -2250.2], "Mmid": [-1488.5, -973.4, -476.2, -17.4, 394.5, 750.3, 1041, 1262.5, 1420.2, 1485.3, 1443, 1280.1, 978.8, 527.7, -276.3, -1528.1, -1904.4, -2058.6, -2151.3, -2212.4, -2236.6, -2204.5, -2153.1, -2093.1, -2029.7], "nodes": [[-55, 0, 0, 0], [-53.077, 2.302, -22700000000000002e-20, -11e-5], [-51.112, 4.569, -578e-6, -104e-6], [-49.104, 6.798, -1e-3, -25e-6], [-47.05, 8.985, -1441e-6, 88e-6], [-44.949, 11.126, -1859e-6, 193e-6], [-42.797, 13.216, -2213e-6, 248e-6], [-40.593, 15.252, -2473e-6, 217e-6], [-38.334, 17.226, -0.0026179999999999997, 6500000000000001e-20], [-36.019, 19.133, -0.0026360000000000003, -23999999999999998e-20], [-33.643, 20.965, -2523e-6, -721e-6], [-31.207, 22.715, -229e-5, -1392e-6], [-28.707, 24.374, -1958e-6, -2254e-6], [-26.143, 25.931, -1563e-6, -3285e-6], [-23.515, 27.376, -1149e-6, -4443e-6], [-19.544, 29.27, -62e-5, -6207e-6], [-14.398, 31.204, -77e-6, -0.008131000000000001], [-13.059, 31.612, 8e-6, -0.008553000000000002], [-11.612, 32.007, 75e-6, -8966e-6], [-9.958, 32.402, 123e-6, -9381e-6], [-8.292, 32.739, 14399999999999998e-20, -9734e-6], [-6.813, 32.986, 14399999999999998e-20, -9991e-6], [-5.326, 33.186, 128e-6, -0.010198], [-3.834, 33.337, 101e-6, -0.010353], [-2.337, 33.439, 6500000000000001e-20, -0.010457000000000001], [0, 33.5, 0, -0.010518000000000001]] }] };
+
+// js/data.js
+var PROJECT = {
+  name: "E.B. Cloete Interchange (N2 km17.21) \u2014 Structure S0153-2 Steel Arch",
+  nameZh: "\u5357\u975E EB Cloete \u7ACB\u4EA4\u6865 S0153-2 \u94A2\u62F1",
+  span: 110,
+  // m [MS][GA] 主跨
+  rise: 33.5,
+  // m [MS][GA] 矢高
+  legSpacing: 20,
+  // m [MS][GA] 同岸两拱腿拱脚间距
+  boxDepthSpring: 3.25,
+  // m [MS][GA] 拱脚箱高
+  boxDepthCrown: 2.75,
+  // m [MS][GA] 拱顶箱高
+  boxWidthLeg: 2.2,
+  // m [MS][GA] 拱腿箱宽
+  boxWidthCrown: 4.64,
+  // m [MS][GA] 拱顶(合并后)箱宽
+  totalSteel: 804.262,
+  // t [MS Table1-1] 含楼梯更新后总重
+  legs: ["A", "B", "C", "D"],
+  legNote: {
+    zh: "4\u6761\u62F1\u817F(A/B\u5317\u5CB8\u3001C/D\u5357\u5CB8)\uFF0C\u5E73\u9762\u5448X\u5F62\u3001\u4E0E\u652F\u67B6\u6808\u6865\u544845\xB0\uFF1B\u62F1\u817FS1-S15\uFF0C\u8DE8\u4E2DS16-S24\uFF0CS25\u5408\u9F99\u6BB5",
+    en: "4 legs (A/B north, C/D south), X-plan at 45\xB0 to trestle; legs S1-S15, mid-span S16-S24, S25 closure"
+  },
+  springElev: 92.384,
+  // m [GA] 拱脚设定点高程 (WG Lo31 坐标系)
+  platformElevL: 90.802,
+  // m [DWG p27] 左岸吊装平台
+  platformElevR: 89.714,
+  // m [DWG p27] 右岸吊装平台
+  crownChordHalf: 39.144,
+  // m [GA p3] 半拱弦长
+  arcCurve: { zh: "\u62F1\u8F74\u7EBF\u4E3A\u4F30\u7B97\u629B\u7269\u7EBF(\u6587\u4EF6\u672A\u7ED9\u51FA\u7EBF\u5F62\u65B9\u7A0B)\uFF0C\u534A\u62F1\u5F26\u957F39.144m", en: "Arch axis assumed parabolic (curve equation not issued); half-arch chord 39.144m", est: true }
+};
+var SEGMENTS = [
+  { id: "S-01", len: 3, bare: 11729.4, incl: 13825.6, qty: 4 },
+  { id: "S-02", len: 3, bare: 6722.1, incl: 7739.5, qty: 4 },
+  { id: "S-03", len: 3, bare: 6684.9, incl: 7735.4, qty: 4 },
+  { id: "S-04", len: 3, bare: 6643.9, incl: 7609.7, qty: 4 },
+  { id: "S-05", len: 3, bare: 6795, incl: 7516.9, qty: 4 },
+  { id: "S-06", len: 3, bare: 7119.6, incl: 7464.7, qty: 4 },
+  { id: "S-07", len: 3, bare: 6521.2, incl: 7579.2, qty: 4 },
+  { id: "S-08", len: 3, bare: 7853.5, incl: 8688.9, qty: 4 },
+  { id: "S-09", len: 3, bare: 6457.8, incl: 7401.6, qty: 4 },
+  { id: "S-10", len: 3, bare: 6636.8, incl: 7446.1, qty: 4 },
+  { id: "S-11", len: 3, bare: 6355, incl: 7470.5, qty: 4 },
+  { id: "S-12", len: 3, bare: 6983.4, incl: 7271, qty: 4 },
+  { id: "S-13", len: 3, bare: 6350.4, incl: 7284.8, qty: 4 },
+  { id: "S-14", len: 3, bare: 7417, incl: 8499.8, qty: 4 },
+  { id: "S-15", len: 4.4, bare: 12340, incl: 13240.5, qty: 4 },
+  { id: "S-16", len: 5.5, bare: 38084, incl: 42030.9, qty: 2 },
+  { id: "S-17", len: 1.4, bare: 8275.7, incl: 8633.9, qty: 2 },
+  { id: "S-18", len: 1.5, bare: 12340, incl: 13838, qty: 2 },
+  { id: "S-19", len: 1.7, bare: 8290, incl: 9935.7, qty: 2 },
+  { id: "S-20", len: 1.7, bare: 7950, incl: 10031.7, qty: 2 },
+  { id: "S-21", len: 1.5, bare: 11688.5, incl: 12399.4, qty: 2 },
+  { id: "S-22", len: 1.5, bare: 7e3, incl: 8417.2, qty: 2 },
+  { id: "S-23", len: 1.5, bare: 7e3, incl: 7959.5, qty: 2 },
+  { id: "S-24", len: 1.5, bare: 9800, incl: 9044.7, qty: 2 },
+  { id: "S-25", len: 3, bare: 10300, incl: 12921.6, qty: 1 }
+];
+var CROSS_TIES = [
+  { id: "lower", nameZh: "\u4E0B\u6A2A\u6881", nameEn: "Lower Cross Tie Beam", bare: 12600, incl: 13131.6, qty: 2 },
+  { id: "upper", nameZh: "\u4E0A\u6A2A\u6881", nameEn: "Upper Cross Tie Beam", bare: 6700, incl: 6699.4, qty: 2 }
+];
+var LIFT_STAGES = [
+  { boxes: [1, 6], cranes: "2\xD7130t", type: 130, pos: "P1/P3", R: 16.6, src: "DWG p3-4", est: false },
+  { boxes: [7, 11], cranes: "2\xD7130t", type: 130, pos: "P2/P4", R: 19.7, src: "DWG p5-8", est: false },
+  { boxes: [12, 14], cranes: "2\xD7550t", type: 550, pos: "P2/P4", R: 23.9, src: "DWG p12\u63D2\u503C", est: true },
+  { boxes: [15, 16], cranes: "2\xD7550t", type: 550, pos: "P2/P4", R: 26.5, src: "DWG p11-12", est: false },
+  { boxes: [17, 20], cranes: "2\xD7550t", type: 550, pos: "P2/P4", R: 31.7, src: "DWG p12\u63D2\u503C", est: true },
+  { boxes: [21, 25], cranes: "2\xD7550t", type: 550, pos: "P2/P4", R: 38.2, src: "DWG p12/p14-18", est: false }
+];
+function stageOf(box) {
+  return LIFT_STAGES.find((s) => box >= s.boxes[0] && box <= s.boxes[1]);
+}
+var MILESTONES = [
+  { after: 4, cable: 0, tie: "\u03C6400", tieAt: 4, zh: "\u5B89\u88C5\u652F\u67B61\u3001\u5F20\u62C91#\u6263\u7D22\u3001\u8BBE\u03C6400\u4E34\u65F6\u6A2A\u6491", en: "Support 1 + cable 1 + \u03C6400 temp tie" },
+  { after: 8, cable: 1, tie: "lower", tieAt: 8, zh: "\u5B89\u88C5\u652F\u67B62\u3001\u5F20\u62C92#\u6263\u7D22\u3001\u8BBE\u4E0B\u4E34\u65F6\u6A2A\u6491", en: "Support 2 + cable 2 + lower temp tie" },
+  { after: 11, cable: 2, tie: "3rd", tieAt: 10, zh: "\u5F20\u62C93#\u6263\u7D22\u3001\u8BBE\u7B2C3\u9053\u4E34\u65F6\u6A2A\u6491(10#\u95F4)", en: "Cable 3 + 3rd temp tie (between box-10s)" },
+  { after: 14, cable: 3, tie: "4th", tieAt: 14, zh: "\u5F20\u62C94#\u6263\u7D22\u3001\u8BBE\u7B2C4\u9053\u4E34\u65F6\u6A2A\u6491", en: "Cable 4 + 4th temp tie" }
+];
+var FEM = [
+  { box: 1, stress: 0.67, shear: 0.14, disp: 0.01 },
+  { box: 2, stress: 1.96, shear: 0.24, disp: 0.05 },
+  { box: 3, stress: 3.99, shear: 0.35, disp: 0.15 },
+  { box: 4, stress: 8.42, shear: 0.37, disp: 0.2 },
+  { box: 5, stress: 10.63, shear: 0.36, disp: 0.24 },
+  { box: 6, stress: 13.47, shear: 0.49, disp: 0.37 },
+  { box: 7, stress: 16.91, shear: 0.91, disp: 0.79 },
+  { box: 8, stress: 23.23, shear: 1.24, disp: 0.95 },
+  { box: 9, stress: 24.23, shear: 1.33, disp: 1 },
+  { box: 10, stress: 26.83, shear: 1.46, disp: 1.04 }
+];
+var FEM_ALLOW = { stress: 275, shear: 160, src: "MS" };
+var FEM_EST = [
+  { box: 11, stress: 6.7, shear: 0.37 },
+  { box: 12, stress: 9, shear: 0.5 },
+  { box: 13, stress: 11.8, shear: 0.65 },
+  { box: 14, stress: 15, shear: 0.83 },
+  { box: 15, stress: 9.5, shear: 0.52 },
+  { box: 16, stress: 15.5, shear: 0.85 },
+  { box: 17, stress: 19.5, shear: 1.07 },
+  { box: 18, stress: 24, shear: 1.32 },
+  { box: 19, stress: 28.5, shear: 1.57 },
+  { box: 20, stress: 33.5, shear: 1.84 },
+  { box: 21, stress: 38.5, shear: 2.12 },
+  { box: 22, stress: 43.5, shear: 2.39 },
+  { box: 23, stress: 48.5, shear: 2.67 },
+  { box: 24, stress: 54, shear: 2.97 },
+  { box: 25, stress: 60, shear: 3.3 }
+];
+var ANCHORAGE = {
+  block: { len: 8.2, wid: 4, hgt: 3.2, concrete: "C30", vol: 78.31, chambers: "2\xD72 \u62C9\u7D22\u951A\u70B9\u8154(\u62C9\u7D221-4)" },
+  // 1-1/3-3断面
+  rearBeam: { type: "\u53CC\u62FCHN700\xD7300", len: 2.7, wid: 0.75, hgt: 0.7, steel: "Q355B", weight: 1671.42, qty: "32.4m" },
+  // p21
+  rockAnchor: {
+    anchor: "OVM.M15-8",
+    holeDia: 150,
+    strands: "8\xD7\u03C615.2\u94A2\u7EDE\u7EBF",
+    bondLen: 10,
+    minRockLen: 20,
+    angle: 10,
+    prestress: 800,
+    layers: 3,
+    strandTotal: 2102.4
+  },
+  // p20/p22
+  archBox: { h: 595, w: 325, plates: "N1 t24\xD72/N2 t12/N3 t30/N4 t12\xD75/N5 t12\xD74", pinDia: 125, weight: 132.81 },
+  // p23 拱肋端扣锚箱
+  tilt: 15,
+  // 块体倾角°：顶倾向【岸坡/背拱】侧(现场照片2026-06确认方向)；幅值按2-2断面量取≈15.6°取整 [汇总图p20，需确认]
+  // 分锚碇标高 [汇总图p11 12-14#吊装立面]：左岸A、B共用一锚块(顶97.775[结构图p8])；
+  // 右岸C、D为两个独立锚块，基底标高C=92.384 / D=97.377(相差≈5m，p11标注)；base未给者=顶-3.2
+  anchors: [
+    { id: "A", x: 88, z: -10, bank: 1, topElev: 97.775 },
+    { id: "B", x: 88, z: 10, bank: 1, topElev: 97.775 },
+    { id: "C", x: -88, z: -10, bank: -1, baseElev: 92.384 },
+    { id: "D", x: -88, z: 10, bank: -1, baseElev: 97.377 }
+  ],
+  posNoteZh: "\u951AA/B\u5171\u7528\u5757\u9876\u6807\u9AD897.775[\u7ED3\u6784\u56FEp8]\uFF1B\u53F3\u5CB8C/D\u72EC\u7ACB\u951A\u5757\u57FA\u5E9592.384/97.377[\u6C47\u603B\u56FEp11]\uFF1B\u5757\u4F53\u503E\u659C\u224815\xB0(\u9876\u503E\u5411\u5CB8\u5761\u4FA7,\u73B0\u573A\u7167\u7247\u786E\u8BA4\u65B9\u5411,\u5E45\u503C\u9700\u786E\u8BA4)\uFF1B\u951A\u7887\u4F4D\u4E8E\u62F1\u5EA7\u540E\u65B9\u7EA622+13.5m",
+  posNoteEn: "A/B share one block top +97.775 [Struct p8]; C/D separate blocks base +92.384/+97.377 [DWG p11]; block tilted \u224815\xB0 top toward arch (scaled from 2-2 sect., TBC); \u224822+13.5m behind abutments"
+};
+var SPRINGING_BASE = {
+  planLen: 5.458,
+  planWTop: 3.25,
+  topElev: { A: 94.2, B: 94.22, C: 94.22, D: 94.2 },
+  settingOut: 92.384,
+  step: 1.265,
+  steps: 4,
+  tread: 0.93,
+  bottomElev: [87.301, 87.883],
+  // A-A/B-B: 4级×1.265双面踏步0.93/0.945，基底最低86.105(A)/82.135(D)
+  grout: 50,
+  sleeves: "3\xD7110\xD8@\xB150mm",
+  concrete: "40/20 MPa",
+  chamfer: "25\xD725mm",
+  noteZh: "\u68AF\u5F62\u5E73\u97625.458\xD73.25m\uFF0C\u9876\u9762+94.2\uFF0C\u4E09\u7EA7\u53F0\u9636(1.265m)\u81F3\u2248+87.3\uFF0C50mm\u65E0\u6536\u7F29\u704C\u6D46\uFF0C3\xD7110\xD8\u5957\u7BA1\uFF1B\u5927\u4F53\u79EF\u6DF7\u51DD\u571F\u56DE\u586B(\u8303\u56F4\u793A\u610F)",
+  noteEn: "Trapezoidal plinth 5.458\xD73.25m, top +94.2, 3 steps (1.265m) to \u2248+87.3, 50mm non-shrink grout, 3\xD7110\xD8 sleeves; mass concrete fill (indicative)"
+};
+var CRANE_CHECKS_DWG = [
+  { seg: "S1", radius: 10.3, height: 9.6, cap: 46.4, load: 11.9, rig: 4, ratio: 0.34, pos: "A (S1-S6)" },
+  { seg: "S6", radius: 16.6, height: 18.5, cap: 31.9, load: 6.9, rig: 4, ratio: 0.34, pos: "A (S1-S6)" },
+  { seg: "S11", radius: 19.7, height: 30.2, cap: 18, load: 6.6, rig: 4, ratio: 0.59, pos: "B (S7-S11)" },
+  { seg: "S16", radius: 26.5, height: 39.5, cap: 53, load: 36.47, rig: 4, ratio: 0.76, pos: "B (S12-S25) 550t" },
+  { seg: "S25", radius: 38.2, height: 46.6, cap: 26.7, load: 10.49, rig: 4, ratio: 0.54, pos: "B (S12-S25) 550t" }
+];
+var CRANE_CHECKS_MS = [
+  { seg: "Box1", radius: 12.09, cap: 32.5, load: 16.9, sf: 1.92 },
+  { seg: "Box2", radius: 15.99, cap: 22.6, load: 10.5, sf: 2.15 }
+];
+var SLING_CALCS = [
+  { seg: "S-01", G: 13.83, Ftotal: 186.36, FLa: 68.43, FLb: 121.28, chain: "74/49kN", note: "4\u817F\u94FE\u6761" },
+  { seg: "S-15", G: 13.25, Ftotal: null, FLa: 89.94, FLb: 97.06, chain: null, note: "" },
+  { seg: "S-16", G: 42.03, Ftotal: 566.35, FLa: 214.5, FLb: 222.4, chain: null, note: "30t\u5706\u5F62\u540A\u5E26" },
+  { seg: "S-18", G: 13.84, Ftotal: null, FLa: null, FLb: null, chain: null, note: "\u9700\u786E\u8BA4" },
+  { seg: "S-25", G: 12.93, Ftotal: null, FLa: 45.71, FLb: 45.71, chain: null, note: "4\u70B9\u540A" },
+  { seg: "\u4E0B\u6A2A\u6881", G: 13.14, Ftotal: null, FLa: 95.61, FLb: 84.37, chain: null, note: "" }
+];
+var RIGGING = {
+  chain: { spec: "G100 4\u817F 16mm \u94FE\u6761\u7D22\u5177", wll: 21, src: "MS" },
+  roundSling: { spec: "30t \u5706\u5F62\u540A\u88C5\u5E26", wll: 30, src: "MS" },
+  lugs: { s1_14: 100, s16: 200, stay: 600, src: "MS" },
+  // kN 设计吊耳
+  fineTune: { blocks: "2\xD720t \u5012\u94FE", range: "\u22645cm", angles: "20\xB0/10\xB0, 15\xB0/7\xB0", src: "DWG p19" }
+};
+var STAY_CABLES = {
+  A: [{ c: "1-1", f: 201.87, n: 3, sf: 3.72 }, { c: "2-1", f: 395, n: 4, sf: 2.53 }, { c: "3-1", f: 658.44, n: 7, sf: 2.66 }, { c: "4-1", f: 490.75, n: 5, sf: 2.55 }],
+  B: [{ c: "1-1", f: 202.08, n: 3, sf: 3.71 }, { c: "2-1", f: 395.11, n: 4, sf: 2.53 }, { c: "3-1", f: 658.5, n: 7, sf: 2.66 }, { c: "4-1", f: 492.41, n: 5, sf: 2.54 }],
+  C: [{ c: "1-1", f: 227.66, n: 3, sf: 3.29 }, { c: "2-1", f: 349.62, n: 4, sf: 2.86 }, { c: "3-1", f: 499.91, n: 5, sf: 2.5 }, { c: "4-1", f: 332.14, n: 4, sf: 3.01 }],
+  D: [{ c: "1-1", f: 214.8, n: 3, sf: 3.49 }, { c: "2-1", f: 318.74, n: 4, sf: 3.14 }, { c: "3-1", f: 498.51, n: 5, sf: 2.51 }, { c: "4-1", f: 332.48, n: 4, sf: 3.01 }],
+  noteZh: "\u5168\u8FC7\u7A0B\u6700\u5927\u7D22\u529B(\u5355\u4F4DkN)\uFF0C\u6458\u81EA\u659C\u62C9\u6263\u6302\u62C9\u7D22\u5DE5\u7A0B\u6570\u91CF\u8868(2025.09.15)",
+  noteEn: "Max cable force over full erection process (kN), from stay-cable schedule (2025.09.15)"
+};
+var DESIGN = {
+  steel: "S355JR (SANS 50025-2)",
+  E: "200 GPa",
+  density: "7700 kg/m\xB3",
+  codes: "TMH7 Parts 1&2 (1991) + BS5400-3; Live load SNABC",
+  plates: { walls: "20mm (\u9876/\u5E95/\u8179\u677F)", base: "80mm \u5E95\u677F(\u62F1\u811A)", stiffeners: "100\xD720 & 700\xD720 \u6241\u94A2\u52A0\u52B2", cornerBrace: "2\xD7150\xD716 \u5168\u957F\u89D2\u90E8\u7F00\u677F" },
+  joints: {
+    field: "M36 HSFG Gr10.9HR (40mm\u5B54)",
+    anchor: "M48 Gr10.9 HDG \u5730\u811A\u87BA\u6813 + 250\xD7250\xD730\u951A\u677F + 50mm\u65E0\u6536\u7F29\u704C\u6D46",
+    torque: "M48: 4640Nm+90\xB0\uFF1BM36: 1935Nm+60\xB0 (EN 1090-2) [MS]"
+  },
+  prestress: { cables: 6, strands: 55, strandType: "15.7mm ST1620/1860", jacking: "6900 kN (45% GUTS)", note: "\u62F1\u4E0E\u6808\u6865\u95F4\u9884\u5E94\u529B\u7CFB\u6746" },
+  camber: "\u4EC5\u5BF9\u81EA\u91CD\u9884\u62F1\u5EA6 / Pre-camber against self-weight only",
+  bearing: "\u7802\u5CA9\u5730\u57FA\uFF0C\u5141\u8BB8\u627F\u8F7D\u529B\u22651000kPa\uFF1B\u57FA\u7840\u6DF7\u51DD\u571F W40/20",
+  welds: "8mm\u8FDE\u7EED\u89D2\u710A\u7F1D(\u672A\u6CE8\u660E\u5904)\uFF1B100%\u78C1\u7C89+50%X\u5C04\u7EBF\uFF1BAWS D1.1\uFF1BE70XX"
+};
+
+// js/scene.js
+var P = PROJECT;
+var HALF_SPAN = P.span / 2;
+var RISE = P.rise;
+function axisY(x) {
+  return RISE * (1 - (x / HALF_SPAN) ** 2);
+}
+function arcLen(x0, x1) {
+  const n = 200, dx = (x1 - x0) / n;
+  let s = 0;
+  for (let i = 0; i < n; i++) {
+    const xa = x0 + dx * i, xb = xa + dx;
+    s += Math.hypot(dx, axisY(xb) - axisY(xa));
+  }
+  return Math.abs(s);
+}
+var HALF_ARC_REAL = arcLen(0, HALF_SPAN);
+var MAX_S = HALF_ARC_REAL - 1.5;
+function xFromArc(s) {
+  s = Math.min(Math.max(s, 0), MAX_S + 1.5);
+  let lo = 0, hi = HALF_SPAN;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    arcLen(mid, HALF_SPAN) < s ? hi = mid : lo = mid;
+  }
+  return (lo + hi) / 2;
+}
+var SEG_ARC = [];
+{
+  let acc = 0;
+  SEGMENTS.forEach((s, i) => {
+    SEG_ARC.push({ start: acc, end: acc + s.len, mid: acc + s.len / 2, len: s.len });
+    acc += s.len;
+  });
+}
+var LEG_CONV_S = SEG_ARC[14].end;
+function legOffset(s) {
+  return 10 * Math.max(0, 1 - s / LEG_CONV_S);
+}
+function boxDepthAt(s) {
+  return P.boxDepthSpring + (P.boxDepthCrown - P.boxDepthSpring) * Math.min(s / HALF_ARC_REAL, 1);
+}
+function boxWidthAt(s) {
+  if (s <= LEG_CONV_S) return P.boxWidthLeg;
+  return P.boxWidthLeg + (P.boxWidthCrown - P.boxWidthLeg) * Math.min(1, (s - LEG_CONV_S) / 16);
+}
+var STRESS_SCALE_FE = 160;
+var NO_DATA_COLOR = 8161957;
+function stressColor(sigma) {
+  const t = Math.min(Math.max(sigma / STRESS_SCALE_FE, 0), 1);
+  return new THREE.Color().setHSL(2 / 3 * (1 - t), 0.85, 0.5);
+}
+function makeLabel(text, { size = 44, color = "#e2e8f0", scale = 1 } = {}) {
+  const cv = document.createElement("canvas");
+  const ctx = cv.getContext("2d");
+  ctx.font = `bold ${size}px system-ui`;
+  const w = Math.ceil(ctx.measureText(text).width) + 20;
+  cv.width = w;
+  cv.height = size + 20;
+  const c2 = cv.getContext("2d");
+  c2.font = `bold ${size}px system-ui`;
+  c2.fillStyle = "rgba(2,6,23,.72)";
+  c2.fillRect(0, 0, w, size + 20);
+  c2.fillStyle = color;
+  c2.textBaseline = "middle";
+  c2.fillText(text, 10, (size + 20) / 2);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+  sp.scale.set(w / 60 * scale, (size + 20) / 60 * scale, 1);
+  sp.renderOrder = 999;
+  return sp;
+}
+function buildBox(len, depth, width, color) {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color, metalness: 0.55, roughness: 0.4 });
+  const m = new THREE.Mesh(new THREE.BoxGeometry(len, depth, width), mat);
+  g.add(m);
+  const edges = new THREE.LineSegments(
+    new THREE.EdgesGeometry(m.geometry),
+    new THREE.LineBasicMaterial({ color: 988970, transparent: true, opacity: 0.6 })
+  );
+  g.add(edges);
+  return g;
+}
+function buildSupport(height) {
+  const g = new THREE.Group();
+  const matPost = new THREE.MeshStandardMaterial({ color: 16096779, metalness: 0.4, roughness: 0.5 });
+  const a = 0.8, r = 0.1625;
+  [[-a, -a], [a, -a], [-a, a], [a, a]].forEach(([px, pz]) => {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(r, r, height, 8), matPost);
+    post.position.set(px, height / 2, pz);
+    g.add(post);
+  });
+  const brMat = new THREE.MeshStandardMaterial({ color: 14251782, metalness: 0.4, roughness: 0.6 });
+  for (let y = 1.5; y < height; y += 3) {
+    const mk = (len, px, pz, ry, rz) => {
+      const b = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, len, 6), brMat);
+      b.position.set(px, y, pz);
+      b.rotation.set(0, ry, rz);
+      g.add(b);
+    };
+    mk(2 * a, 0, -a, 0, Math.PI / 2);
+    mk(2 * a, 0, a, 0, Math.PI / 2);
+    mk(2 * a, -a, 0, Math.PI / 2, 0);
+    mk(2 * a, a, 0, Math.PI / 2, 0);
+    const dl = Math.hypot(2 * a, 3);
+    const d1 = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, dl, 6), brMat);
+    d1.position.set(0, y + 1.5, -a);
+    d1.rotation.z = Math.atan2(2 * a, 3);
+    g.add(d1);
+    const d2 = d1.clone();
+    d2.position.z = a;
+    g.add(d2);
+  }
+  const found = new THREE.Mesh(
+    new THREE.BoxGeometry(3.5, 0.6, 3.5),
+    new THREE.MeshStandardMaterial({ color: 9741240, roughness: 0.9 })
+  );
+  found.position.y = -0.3;
+  g.add(found);
+  return g;
+}
+function buildCrane(type = 130) {
+  const g = new THREE.Group();
+  const big = type === 550;
+  const color = big ? 15680580 : 16498468;
+  const mat = new THREE.MeshStandardMaterial({ color, metalness: 0.5, roughness: 0.5 });
+  const dark = new THREE.MeshStandardMaterial({ color: 3359061, roughness: 0.7 });
+  const cw = big ? 14 : 11;
+  const carrier = new THREE.Mesh(new THREE.BoxGeometry(cw, 1.6, 3.2), mat);
+  carrier.position.y = 1.4;
+  g.add(carrier);
+  const wheels = new THREE.Mesh(new THREE.BoxGeometry(cw + 0.4, 1, 3.6), dark);
+  wheels.position.y = 0.5;
+  g.add(wheels);
+  const cab = new THREE.Mesh(new THREE.BoxGeometry(3.2, 2.2, 2.8), dark);
+  cab.position.set(cw / 2 - 2, 3.2, 0);
+  g.add(cab);
+  const turret = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.6, 1.2, 12), mat);
+  turret.position.set(-1, 3, 0);
+  g.add(turret);
+  const boomGrp = new THREE.Group();
+  boomGrp.position.set(-1, 3.6, 0);
+  const bl = big ? 55 : 33;
+  const boom = new THREE.Mesh(new THREE.BoxGeometry(bl, 1, 0.9), mat);
+  boom.position.x = bl / 2;
+  boomGrp.add(boom);
+  const tip = new THREE.Mesh(new THREE.BoxGeometry(big ? 8 : 6, 0.7, 0.7), dark);
+  tip.position.x = bl + 2;
+  boomGrp.add(tip);
+  if (big) {
+    const cwt = new THREE.Mesh(new THREE.BoxGeometry(3, 2.4, 3.4), dark);
+    cwt.position.set(-4.5, 2.6, 0);
+    g.add(cwt);
+  }
+  g.add(boomGrp);
+  const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+  const line = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: 14870768 }));
+  line.frustumCulled = false;
+  g.add(line);
+  const hook = new THREE.Mesh(new THREE.SphereGeometry(0.5, 10, 8), new THREE.MeshStandardMaterial({ color: 15680580 }));
+  g.add(hook);
+  [[-cw / 2 + 1, -2.8], [-cw / 2 + 1, 2.8], [cw / 2 - 1, -2.8], [cw / 2 - 1, 2.8]].forEach(([px, pz]) => {
+    const pad = new THREE.Mesh(new THREE.BoxGeometry(big ? 2.5 : 2, 0.3, big ? 3 : 2), dark);
+    pad.position.set(px, 0.15, pz);
+    g.add(pad);
+  });
+  const deck = new THREE.Mesh(
+    new THREE.BoxGeometry(15, 0.22, 10),
+    new THREE.MeshStandardMaterial({ color: 9078136, roughness: 1 })
+  );
+  deck.position.y = -0.08;
+  deck.receiveShadow = true;
+  g.add(deck);
+  return { group: g, boomGrp, line, hook, type, tipLen: bl + 5 };
+}
+function cableLine(color = 2282478) {
+  const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+  const l = new THREE.Line(geo, new THREE.LineBasicMaterial({ color, linewidth: 2 }));
+  l.frustumCulled = false;
+  return l;
+}
+var LEGS = [
+  { id: "A", bank: 1, sign: -1, color: 6333946 },
+  { id: "B", bank: 1, sign: 1, color: 3718648 },
+  { id: "C", bank: -1, sign: -1, color: 16498468 },
+  { id: "D", bank: -1, sign: 1, color: 16096779 }
+];
+var CRANE_POS = {
+  inner: { "1": { x: 62, y: -1.3, z: 0 }, "-1": { x: -62, y: -2.4, z: 0 } },
+  outer: { "1": { x: 69, y: -3.4, z: -16 }, "-1": { x: -69, y: -3.4, z: 16 } }
+};
+function craneRadiusFor(step) {
+  if (step <= 6) return 10.3 + (step - 1) * 1.26;
+  if (step <= 11) return 16.6 + (step - 6) * 0.62;
+  return 26.5 + (step - 16) * 1.3;
+}
+var CRANE_PAD_Y = { inner: { "1": 2.62, "-1": -0.38 }, outer: { "1": -3.38, "-1": -3.38 } };
+function cranePosForStep(step, bank, tx, tz) {
+  const R = craneRadiusFor(step);
+  const inner = step <= 6;
+  const y = CRANE_PAD_Y[inner ? "inner" : "outer"][String(bank)];
+  if (inner) {
+    const dx = Math.sqrt(Math.max(R * R - tz * tz, 1));
+    return new THREE.Vector3(tx + bank * dx, y, 0);
+  }
+  const oz = tz !== 0 ? Math.sign(tz) : bank > 0 ? -1 : 1;
+  return new THREE.Vector3(tx + bank * 0.45 * R, y, tz + oz * 0.89 * R);
+}
+var RIB_COLOR = { "1": 3718648, "-1": 16096779 };
+var ArchScene = class {
+  constructor(container) {
+    this.container = container;
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    this.renderer.shadowMap.enabled = true;
+    container.appendChild(this.renderer.domElement);
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color(725536);
+    this.scene.fog = new THREE.Fog(725536, 260, 620);
+    this.camera = new THREE.PerspectiveCamera(50, 1, 0.1, 2e3);
+    this.camera.position.set(95, 58, 118);
+    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+    this.controls.target.set(0, 15, 0);
+    this.controls.enableDamping = true;
+    this.scene.add(new THREE.HemisphereLight(9684477, 1976635, 1.15));
+    const sun = new THREE.DirectionalLight(16775149, 1.6);
+    sun.position.set(80, 140, 60);
+    sun.castShadow = true;
+    Object.assign(sun.shadow.camera, { left: -130, right: 130, top: 130, bottom: -130 });
+    sun.shadow.mapSize.set(2048, 2048);
+    this.scene.add(sun);
+    this.erected = [];
+    this.tempFx = [];
+    this.flying = null;
+    this.step = 0;
+    this.t = 1;
+    this.stepDur = 3.2;
+    this.playing = false;
+    this.mode = "erect";
+    this.onStepDone = null;
+    this.defMag = 10;
+    this.schemeDS = FE;
+    this.buildEnvironment();
+    this.buildCranes();
+    this.buildSpringingLabels();
+    this.buildPostureGroup();
+    this.buildOverallGroup();
+    this.resize();
+  }
+  resize() {
+    const w = this.container.clientWidth, h = this.container.clientHeight;
+    this.renderer.setSize(w, h);
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+  }
+  buildEnvironment() {
+    const G = this.GROUND_Y = -8.4;
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(460, 240),
+      new THREE.MeshStandardMaterial({ color: 2109482, roughness: 1 })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = G;
+    ground.receiveShadow = true;
+    this.scene.add(ground);
+    const roadMat = new THREE.MeshStandardMaterial({ color: 2831424, roughness: 0.95 });
+    const r1 = new THREE.Mesh(new THREE.PlaneGeometry(300, 12), roadMat);
+    r1.rotation.x = -Math.PI / 2;
+    r1.rotation.z = Math.PI / 6;
+    r1.position.set(0, G + 0.03, 0);
+    r1.receiveShadow = true;
+    this.scene.add(r1);
+    const r2 = new THREE.Mesh(new THREE.PlaneGeometry(260, 9), roadMat);
+    r2.rotation.x = -Math.PI / 2;
+    r2.rotation.z = -Math.PI / 4;
+    r2.position.set(6, G + 0.04, 4);
+    r2.receiveShadow = true;
+    this.scene.add(r2);
+    const pad = (x, topY, z, w, d, color = 5595250) => {
+      const h = topY - G;
+      const m = new THREE.Mesh(
+        new THREE.BoxGeometry(w, h, d),
+        new THREE.MeshStandardMaterial({ color, roughness: 0.95 })
+      );
+      m.position.set(x, G + h / 2, z);
+      m.castShadow = true;
+      m.receiveShadow = true;
+      this.scene.add(m);
+    };
+    pad(62, -1.3, 0, 16, 20);
+    pad(-62, -2.4, 0, 16, 20);
+    pad(69, -3.4, -16, 16, 18);
+    pad(-69, -3.4, 16, 16, 18);
+    [[55, -1.58, "90.802"], [-55, -2.67, "89.714"]].forEach(([x, y, lbl]) => {
+      pad(x, y, 0, 15, 26, 6583435);
+      const l = makeLabel(`\u5E73\u53F0 Platform +${lbl}`, { scale: 0.85 });
+      l.position.set(x, y + 3, 15);
+      this.scene.add(l);
+    });
+    this.anchorPts = [];
+    const BH = ANCHORAGE.block.hgt, EL0 = 92.384;
+    const ANCH = ANCHORAGE.anchors.map((a) => {
+      const base = (a.baseElev !== void 0 ? a.baseElev : a.topElev - BH) - EL0;
+      return { ...a, base, top: base + BH };
+    });
+    ANCH.forEach((a) => {
+      pad(a.x, a.base, a.z, 7, 11, 5595250);
+      this.buildAnchorage(a);
+      const tilt = -(ANCHORAGE.tilt || 0) * Math.PI / 180 * a.bank;
+      const lp = new THREE.Vector3(-a.bank * (ANCHORAGE.block.wid / 2 + 0.1), BH / 2 - 0.85, 0);
+      lp.applyAxisAngle(new THREE.Vector3(0, 0, 1), tilt);
+      this.anchorPts.push(new THREE.Vector3(a.x + lp.x, a.base + BH / 2 + lp.y, a.z));
+    });
+    [[86, 20], [-86, -20]].forEach(([x, z]) => {
+      pad(x, -1.4, z, 22, 12, 4146770);
+      const l = makeLabel("\u8282\u6BB5\u5806\u653E\u533A Storage", { scale: 0.7 });
+      l.position.set(x, 1.4, z);
+      this.scene.add(l);
+    });
+  }
+  // 单个锚碇：C30锚块 8.2(横桥向)×4.0×3.2m，块体倾斜≈15°(顶倾向岸坡/背拱侧, 2-2断面量取/需确认)
+  // + 迎拱面2×2拉索锚板 + 迎拱面3层双拼HN700后锚梁(张拉端) + 岩锚索穿块体自背拱面穿出(世界系10°俯角向外下方入岩, OVM.M15-8, 800kN) [DWG p20-22]
+  buildAnchorage({ x, z, id, base, top, bank }) {
+    const B = ANCHORAGE.block, g = new THREE.Group();
+    const conc = new THREE.MeshStandardMaterial({ color: 9081763, roughness: 0.95 });
+    const steel = new THREE.MeshStandardMaterial({ color: 4674921, metalness: 0.4, roughness: 0.6 });
+    const tilt = -(ANCHORAGE.tilt || 0) * Math.PI / 180 * bank;
+    const cy = base + B.hgt / 2;
+    const tg = new THREE.Group();
+    tg.position.set(x, cy, z);
+    tg.rotation.z = tilt;
+    tg.add(new THREE.Mesh(new THREE.BoxGeometry(B.wid, B.hgt, B.len), conc));
+    for (const dy of [-0.75, 0.75]) for (const dz of [-1.9, 1.9]) {
+      const pl = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.6, 0.6), steel);
+      pl.position.set(-bank * (B.wid / 2 + 0.09), dy, dz);
+      tg.add(pl);
+    }
+    const beamLocalY = [];
+    for (let lyr = 0; lyr < 3; lyr++) {
+      const by = B.hgt / 2 - 0.7 - lyr * 1;
+      const beam = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.7, 2.7), steel);
+      beam.position.set(-bank * (B.wid / 2 + 0.38), by, 0);
+      tg.add(beam);
+      beamLocalY.push(by);
+    }
+    g.add(tg);
+    const cs = Math.cos(tilt), sn = Math.sin(tilt), a = 0.1745;
+    for (const by of beamLocalY) {
+      const lx = bank * (B.wid / 2), wx = x + lx * cs - by * sn, wy = cy + lx * sn + by * cs;
+      for (const dz of [-3.2, -0.9, 0.9, 3.2]) {
+        const L = 9;
+        const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, L, 6), steel);
+        rod.position.set(wx + bank * L / 2 * Math.cos(a), wy - L / 2 * Math.sin(a), z + dz);
+        rod.rotation.z = bank > 0 ? Math.PI / 2 - a : Math.PI / 2 + a;
+        g.add(rod);
+      }
+    }
+    g.traverse((o) => {
+      if (o.isMesh) {
+        o.castShadow = true;
+        o.receiveShadow = true;
+      }
+    });
+    this.scene.add(g);
+    const l = makeLabel(`\u951A\u7887${id} Anchorage +${(92.384 + top).toFixed(2)}`, { scale: 0.68, color: "#c4b5fd" });
+    l.position.set(x - bank * 1.2, top + 1.8, z);
+    this.scene.add(l);
+  }
+  // ---- 双吊车系统：每岸 130t/550t 各一台模型，按阶段切换显隐与站位 ----
+  buildCranes() {
+    this.bankCranes = {};
+    for (const bank of [1, -1]) {
+      const c130 = buildCrane(130), c550 = buildCrane(550);
+      const p = CRANE_POS.inner[String(bank)];
+      [c130, c550].forEach((c) => {
+        c.group.position.set(p.x, p.y, p.z);
+        c.group.rotation.y = bank > 0 ? -Math.PI / 2 : Math.PI / 2;
+        c.group.traverse((o) => {
+          if (o.isMesh) o.castShadow = true;
+        });
+        this.scene.add(c.group);
+      });
+      c550.group.visible = false;
+      const label = makeLabel("", { scale: 0.8 });
+      label.position.set(p.x, p.y + 9, p.z);
+      this.scene.add(label);
+      const bc = { c130, c550, label, type: 130, posKey: "inner", target: new THREE.Vector3(p.x, p.y, p.z), aim: new THREE.Vector3(bank * 55, 22, 0) };
+      this.bankCranes[bank] = bc;
+      this.aimCrane(c130, bc.aim);
+      this.aimCrane(c550, bc.aim);
+    }
+    this.setCraneConfig(1, 130, "inner", "130t @ P1");
+    this.setCraneConfig(-1, 130, "inner", "130t @ P3");
+  }
+  // 臂架解算 v6（物理约束）：吊绳始终铅垂 —— 臂尖水平投影必须落在吊钩 x,z 上。
+  // 由水平距离反求俯仰角 cos(pitch)=horiz/L，限位 15°–80°（实机履带吊≈83°）；
+  // 回转使臂架对准负载方位，吊钩 y=负载上方；臂尖低于目标时吊绳自动收短，吊钩贴臂尖下方。
+  aimCrane(crane, targetWorld) {
+    const g = crane.group;
+    g.updateMatrixWorld(true);
+    const local = g.worldToLocal(targetWorld.clone());
+    const pivot = crane.boomGrp.position;
+    const d = local.clone().sub(pivot);
+    const yaw = Math.atan2(-d.z, d.x);
+    const horiz = Math.hypot(d.x, d.z);
+    const L = crane.tipLen;
+    let pitch = Math.acos(Math.min(Math.max(horiz / L, 0), 1));
+    pitch = Math.min(Math.max(pitch, 0.26), 1.4);
+    crane.boomGrp.rotation.set(0, yaw, pitch);
+    const dir = new THREE.Vector3(1, 0, 0).applyEuler(crane.boomGrp.rotation);
+    const tip = pivot.clone().add(dir.multiplyScalar(L));
+    const hook = new THREE.Vector3(tip.x, Math.min(local.y, tip.y - 1), tip.z);
+    crane.hook.position.copy(hook);
+    crane.line.geometry.setFromPoints([tip, hook]);
+  }
+  setCraneConfig(bank, type, posKey, text, pos = null) {
+    const bc = this.bankCranes[bank];
+    bc.type = type;
+    bc.posKey = posKey;
+    bc.c130.group.visible = type === 130;
+    bc.c550.group.visible = type === 550;
+    const p = pos || CRANE_POS[posKey][String(bank)];
+    bc.target.set(p.x, p.y, p.z);
+    if (pos) [bc.c130, bc.c550].forEach((c) => c.group.position.copy(bc.target));
+    if (bc.label) this.scene.remove(bc.label);
+    bc.label = makeLabel(text, { scale: 0.8, color: type === 550 ? "#fca5a5" : "#fde68a" });
+    bc.label.position.set(p.x, p.y + 9.5, p.z);
+    this.scene.add(bc.label);
+  }
+  activeCrane(bank) {
+    const bc = this.bankCranes[bank];
+    return bc.type === 550 ? bc.c550 : bc.c130;
+  }
+  buildSpringingLabels() {
+    LEGS.forEach((leg) => {
+      const l = makeLabel(`\u62F1\u811A ${leg.id}`, { scale: 0.65, color: "#bae6fd" });
+      l.position.set(leg.bank * HALF_SPAN, 3.4, leg.sign * 10);
+      this.scene.add(l);
+      this.buildSpringingBase(leg);
+    });
+  }
+  // 拱脚基础 [现场照片2026-06 + S0153-2 p6 A-A]：大体积混凝土楔形块，顶面为倾斜基座面
+  // (⊥拱肋轴线, 拱脚斜率1.219→面倾角≈39.4°)，基座面上埋拱肋底板锚栓群；阶梯扩大基础埋于平台以下不外露
+  buildSpringingBase(leg) {
+    const SB = SPRINGING_BASE, cx = leg.bank * HALF_SPAN, cz = leg.sign * 10;
+    const conc = new THREE.MeshStandardMaterial({ color: 10068656, roughness: 0.95 });
+    const fill = new THREE.MeshStandardMaterial({ color: 6581885, roughness: 1 });
+    const dark = new THREE.MeshStandardMaterial({ color: 3094080, metalness: 0.3, roughness: 0.7 });
+    const g = new THREE.Group();
+    const bank = leg.bank;
+    const phi = Math.atan(1.219);
+    const sf = Math.sin(phi), cf = Math.cos(phi);
+    const prof = [
+      [-2.24, -1.83],
+      // 基座面下端(跨中侧趾)
+      [2.23, 1.82],
+      // 基座面上端(岸侧, ≈elev94.2 顶标高)
+      [3.1, 1.82],
+      // 背顶
+      [3.1, -2.3],
+      // 背底(埋入平台以下)
+      [-2.9, -2.3]
+      // 前底
+    ];
+    const shape = new THREE.Shape();
+    prof.forEach(([px, py], i) => i ? shape.lineTo(px, py) : shape.moveTo(px, py));
+    shape.closePath();
+    const W = 3.6;
+    const block = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: W, bevelEnabled: false }), conc);
+    if (bank < 0) {
+      block.rotation.y = Math.PI;
+      block.position.set(cx, 0, cz + W / 2);
+    } else block.position.set(cx, 0, cz - W / 2);
+    g.add(block);
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.1, 2.6), dark);
+    plate.position.set(cx - bank * cf * 0.05, sf * 0.05, cz);
+    plate.rotation.z = bank * (Math.PI / 2 - phi);
+    g.add(plate);
+    for (const s of [-0.85, 0, 0.85]) for (const dz of [-1.05, 0, 1.05]) {
+      const stud = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.34, 6), dark);
+      stud.position.set(cx + bank * s * sf - bank * cf * 0.22, s * cf + sf * 0.22, cz + dz);
+      stud.rotation.z = bank * (Math.PI / 2 - phi);
+      g.add(stud);
+    }
+    const coreH = -2.3 - this.GROUND_Y;
+    if (coreH > 0.2) {
+      const core = new THREE.Mesh(new THREE.BoxGeometry(7.4, coreH, W + 1.6), fill);
+      core.position.set(cx + bank * 0.1, this.GROUND_Y + coreH / 2, cz);
+      g.add(core);
+    }
+    g.traverse((o) => {
+      if (o.isMesh) {
+        o.castShadow = true;
+        o.receiveShadow = true;
+      }
+    });
+    this.scene.add(g);
+  }
+  // ---------- 已装节段 ----------
+  clearGroup(arr) {
+    arr.forEach((o) => this.scene.remove(o));
+    arr.length = 0;
+  }
+  setDefMag(v) {
+    this.defMag = v;
+    if (this.step > 0) this.syncErected(this.flying ? this.step : this.step + 1);
+  }
+  setScheme(id) {
+    this.schemeDS = id === "B" ? FE2 : FE;
+    if (this.step > 0) this.syncErected(this.flying ? this.step : this.step + 1);
+  }
+  addErectedBox(box, feStage = null, mag = 0) {
+    const a = SEG_ARC[box - 1];
+    const depth = boxDepthAt(a.mid), width = boxWidthAt(a.mid);
+    const colHex = feStage && feStage.sig[box - 1] != null ? stressColor(feStage.sig[box - 1]).getHex() : NO_DATA_COLOR;
+    const na = feStage ? feStage.nodes[box - 1] : null, nb = feStage ? feStage.nodes[box] : null;
+    const place = (bank, sign, color) => {
+      const g = buildBox(a.len, depth, width, color);
+      let p, e;
+      if (na && nb) {
+        const mx = bank < 0 ? 1 : -1;
+        const ax = na[0] + mag * na[2], ay = na[1] + mag * na[3];
+        const bx = nb[0] + mag * nb[2], by = nb[1] + mag * nb[3];
+        const p2 = new THREE.Vector3(mx * (ax + bx) / 2, (ay + by) / 2, sign * legOffset(a.mid));
+        const dd = new THREE.Vector3(mx * (bx - ax), by - ay, sign * (legOffset(a.end) - legOffset(a.mid))).normalize();
+        g.position.copy(p2);
+        g.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), dd);
+        g.traverse((o) => {
+          if (o.isMesh) {
+            o.castShadow = true;
+            o.receiveShadow = true;
+          }
+        });
+        this.scene.add(g);
+        this.erected.push(g);
+        return;
+      }
+      const xm = bank * xFromArc(a.mid), xe = bank * xFromArc(a.end);
+      p = new THREE.Vector3(xm, axisY(Math.abs(xm)), sign * legOffset(a.mid));
+      e = new THREE.Vector3(xe, axisY(Math.abs(xe)), sign * legOffset(a.end));
+      g.position.copy(p);
+      const d = e.clone().sub(p).normalize();
+      g.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), d);
+      g.traverse((o) => {
+        if (o.isMesh) {
+          o.castShadow = true;
+          o.receiveShadow = true;
+        }
+      });
+      this.scene.add(g);
+      this.erected.push(g);
+    };
+    if (box <= 15) {
+      LEGS.forEach((leg) => place(leg.bank, leg.sign, colHex));
+    } else if (box <= 24) {
+      [1, -1].forEach((bank) => place(bank, 0, colHex));
+    } else {
+      const g = buildBox(a.len, boxDepthAt(MAX_S + 1.5), boxWidthAt(MAX_S), 4906624);
+      g.position.set(0, RISE, 0);
+      g.traverse((o) => {
+        if (o.isMesh) o.castShadow = true;
+      });
+      this.scene.add(g);
+      this.erected.push(g);
+      const l = makeLabel("S25 \u5408\u9F99\u6BB5 Closure", { scale: 0.8, color: "#86efac" });
+      l.position.set(0, RISE + 3.5, 0);
+      this.scene.add(l);
+      this.erected.push(l);
+    }
+  }
+  // ---------- 里程碑：支架 / 扣索 / 临时横撑 ----------
+  applyMilestone(m) {
+    if (m.after === 4 || m.after === 8) {
+      const s = SEG_ARC[m.after - 1].mid;
+      LEGS.forEach((leg) => {
+        const x2 = leg.bank * xFromArc(s), y = axisY(Math.abs(x2)), z = leg.sign * legOffset(s);
+        const h = y - boxDepthAt(s) / 2 + 1.6;
+        const sup = buildSupport(h);
+        sup.position.set(x2, -1.6, z);
+        this.scene.add(sup);
+        this.tempFx.push(sup);
+        const stemH = -1.6 - this.GROUND_Y;
+        const stem = new THREE.Mesh(
+          new THREE.BoxGeometry(3.8, stemH, 3.8),
+          new THREE.MeshStandardMaterial({ color: 5595250, roughness: 0.95 })
+        );
+        stem.position.set(x2, -1.6 - stemH / 2, z);
+        this.scene.add(stem);
+        this.tempFx.push(stem);
+      });
+      const lbl = makeLabel(m.after === 4 ? "\u652F\u67B61 Support 1" : "\u652F\u67B62 Support 2", { scale: 0.75, color: "#fcd34d" });
+      const x = xFromArc(s);
+      lbl.position.set(x, axisY(x) + 4, -legOffset(s) - 4);
+      this.scene.add(lbl);
+      this.tempFx.push(lbl);
+    }
+    if (m.cable !== void 0) {
+      const sEnd = SEG_ARC[m.after - 1].end;
+      LEGS.forEach((leg, li) => {
+        const x = leg.bank * xFromArc(sEnd), y = axisY(Math.abs(x)) + boxDepthAt(sEnd) / 2, z = leg.sign * legOffset(sEnd);
+        const line = cableLine(2282478);
+        const pts = [this.anchorPts[li], new THREE.Vector3(x, y, z)];
+        line.geometry.setFromPoints(pts);
+        this.scene.add(line);
+        this.tempFx.push(line);
+        const cab = STAY_CABLES[leg.id] && STAY_CABLES[leg.id][m.cable];
+        if (cab) {
+          const mid = pts[0].clone().lerp(pts[1], 0.5);
+          const l = makeLabel(`${m.cable + 1}# ${cab.f}kN`, { scale: 0.62, color: "#67e8f9" });
+          l.position.copy(mid);
+          this.scene.add(l);
+          this.tempFx.push(l);
+        }
+      });
+    }
+    if (m.tieAt) {
+      const s = SEG_ARC[m.tieAt - 1].mid;
+      [1, -1].forEach((bank) => {
+        const x = bank * xFromArc(s), y = axisY(Math.abs(x)), off = legOffset(s);
+        const yy = m.tie === "lower" ? y - boxDepthAt(s) * 0.3 : y;
+        const tie = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.2, 0.2, Math.max(2 * off, 0.5), 8),
+          new THREE.MeshStandardMaterial({ color: 16281969, roughness: 0.5 })
+        );
+        tie.position.set(x, yy, 0);
+        tie.rotation.x = Math.PI / 2;
+        this.scene.add(tie);
+        this.tempFx.push(tie);
+      });
+    }
+  }
+  // ---------- 复位 / 同步 ----------
+  reset() {
+    this.clearGroup(this.erected);
+    this.clearGroup(this.tempFx);
+    if (this.flying) {
+      this.flying.items.forEach((it) => {
+        this.scene.remove(it.mesh);
+        it.slings.forEach((s) => this.scene.remove(s));
+      });
+      this.flying = null;
+    }
+    this.step = 0;
+    this.t = 1;
+    this.playing = false;
+    this.setCraneConfig(1, 130, "inner", "130t @ P1");
+    this.setCraneConfig(-1, 130, "inner", "130t @ P3");
+  }
+  syncErected(step) {
+    this.clearGroup(this.erected);
+    this.clearGroup(this.tempFx);
+    const feIdx = Math.min(Math.max(step - 2, -1), 24);
+    const feStage = feIdx >= 0 ? this.schemeDS.stages[feIdx] : null;
+    for (let b = 1; b < step; b++) this.addErectedBox(b, feStage, this.defMag);
+    MILESTONES.forEach((m) => {
+      if (step > m.after) this.applyMilestone(m);
+    });
+  }
+  // ---------- 吊装动画 ----------
+  startStep(step) {
+    if (this.flying) {
+      this.flying.items.forEach((it) => {
+        this.scene.remove(it.mesh);
+        it.slings.forEach((s) => this.scene.remove(s));
+      });
+    }
+    this.step = step;
+    this.t = 0;
+    const stage = stageOf(step);
+    const posKey = stage.pos === "P1/P3" ? "inner" : "outer";
+    const seg = SEGMENTS[step - 1], a = SEG_ARC[step - 1];
+    const depth = boxDepthAt(a.mid), width = boxWidthAt(a.mid);
+    const banks = step === 25 ? [1] : [1, -1];
+    const R = craneRadiusFor(step);
+    banks.forEach((bank) => {
+      const tx = step === 25 ? 0 : bank * xFromArc(a.mid);
+      const tz = step <= 15 ? -legOffset(a.mid) : 0;
+      const pos = cranePosForStep(step, bank, tx, tz);
+      const pl = stage.pos.split("/")[bank > 0 ? 0 : 1];
+      this.setCraneConfig(bank, stage.type, posKey, `${stage.type}t @ ${pl} R${R.toFixed(1)}m`, pos);
+    });
+    const items = banks.map((bank) => {
+      const mesh = buildBox(a.len, depth, width, 4906624);
+      mesh.traverse((o) => {
+        if (o.isMesh) o.castShadow = true;
+      });
+      const bc0 = this.bankCranes[bank], cp = bc0.target;
+      const zSide = cp.z !== 0 ? Math.sign(cp.z) : bank > 0 ? 1 : -1;
+      const start = new THREE.Vector3(cp.x + bank * 9, cp.y + 4.5, cp.z + zSide * 11);
+      mesh.position.copy(start);
+      this.scene.add(mesh);
+      const slings = [cableLine(16557477), cableLine(16557477)];
+      slings.forEach((s) => this.scene.add(s));
+      let target, targetQ = new THREE.Quaternion();
+      if (step <= 15) {
+        const xm = bank * xFromArc(a.mid), xe = bank * xFromArc(a.end), off = legOffset(a.mid);
+        target = new THREE.Vector3(xm, axisY(Math.abs(xm)), -off);
+        const e = new THREE.Vector3(xe, axisY(Math.abs(xe)), -legOffset(a.end));
+        targetQ.setFromUnitVectors(new THREE.Vector3(1, 0, 0), e.clone().sub(target).normalize());
+      } else if (step <= 24) {
+        const xm = bank * xFromArc(a.mid), xe = bank * xFromArc(a.end);
+        target = new THREE.Vector3(xm, axisY(Math.abs(xm)), 0);
+        const e = new THREE.Vector3(xe, axisY(Math.abs(xe)), 0);
+        targetQ.setFromUnitVectors(new THREE.Vector3(1, 0, 0), e.clone().sub(target).normalize());
+      } else {
+        target = new THREE.Vector3(0, RISE, 0);
+      }
+      return { mesh, bank, slings, start, target, targetQ, startQ: new THREE.Quaternion() };
+    });
+    this.flying = { box: step, seg, items };
+    this.updateFlying();
+  }
+  updateFlying() {
+    const f = this.flying;
+    if (!f) return;
+    const e = this.t < 0.5 ? 2 * this.t * this.t : 1 - (-2 * this.t + 2) ** 2 / 2;
+    f.items.forEach((it) => {
+      const p = it.start.clone().lerp(it.target, e);
+      p.y += Math.sin(e * Math.PI) * 7;
+      it.mesh.position.copy(p);
+      it.mesh.quaternion.slerpQuaternions(it.startQ, it.targetQ, e);
+      const crane = this.activeCrane(it.bank);
+      const hookPos = p.clone();
+      hookPos.y += 7;
+      this.bankCranes[it.bank].aim.copy(hookPos);
+      this.aimCrane(crane, hookPos);
+      const lugA = p.clone().add(new THREE.Vector3(-f.seg.len * 0.3, boxDepthAt(SEG_ARC[f.box - 1].mid) / 2, 0));
+      const lugB = p.clone().add(new THREE.Vector3(f.seg.len * 0.3, boxDepthAt(SEG_ARC[f.box - 1].mid) / 2, 0));
+      const tipWorld = new THREE.Vector3();
+      crane.hook.getWorldPosition(tipWorld);
+      it.slings[0].geometry.setFromPoints([tipWorld, lugA]);
+      it.slings[1].geometry.setFromPoints([tipWorld, lugB]);
+    });
+  }
+  completeStep() {
+    if (this.flying) {
+      this.flying.items.forEach((it) => {
+        this.scene.remove(it.mesh);
+        it.slings.forEach((s) => this.scene.remove(s));
+      });
+      this.flying = null;
+    }
+    this.syncErected(this.step + 1);
+    if (this.onStepDone) this.onStepDone(this.step);
+  }
+  // ---------- 姿态模拟组 ----------
+  buildPostureGroup() {
+    this.postureGroup = new THREE.Group();
+    this.postureGroup.visible = false;
+    this.scene.add(this.postureGroup);
+    const mast = new THREE.Mesh(
+      new THREE.BoxGeometry(1.2, 14, 1.2),
+      new THREE.MeshStandardMaterial({ color: 16498468 })
+    );
+    mast.position.set(-8, 7, 0);
+    this.postureGroup.add(mast);
+    const jib = new THREE.Mesh(
+      new THREE.BoxGeometry(12, 1, 1),
+      new THREE.MeshStandardMaterial({ color: 16498468 })
+    );
+    jib.position.set(-2.5, 13.5, 0);
+    this.postureGroup.add(jib);
+    const hook = new THREE.Mesh(
+      new THREE.SphereGeometry(0.45, 10, 8),
+      new THREE.MeshStandardMaterial({ color: 15680580 })
+    );
+    hook.position.set(0, 12.6, 0);
+    this.postureGroup.add(hook);
+    this.postureHookY = 12.6;
+    const note = makeLabel("2\xD720t \u5012\u94FE\u5FAE\u8C03 Chain blocks \u22645cm", { scale: 0.8, color: "#fca5a5" });
+    note.position.set(0, 1.2, 0);
+    this.postureGroup.add(note);
+  }
+  updatePosture(segData, lang2) {
+    (this.postureItems || []).forEach((o) => this.postureGroup.remove(o));
+    this.postureItems = [];
+    const segLen = segData.len, w = (segData.incl / 1e3).toFixed(2);
+    const box = buildBox(segLen, 3, 2.2, 3718648);
+    box.position.set(0, 8, 0);
+    this.postureGroup.add(box);
+    this.postureItems.push(box);
+    [[-segLen * 0.3, -1], [-segLen * 0.3, 1], [segLen * 0.3, -1], [segLen * 0.3, 1]].forEach(([dx, dz]) => {
+      const l = cableLine(16557477);
+      l.geometry.setFromPoints([new THREE.Vector3(0, this.postureHookY, 0), new THREE.Vector3(dx, 9.5, dz * 0.8)]);
+      this.postureGroup.add(l);
+      this.postureItems.push(l);
+    });
+    const la = makeLabel(`FLa=${segData.FLa}kN`, { scale: 0.8, color: "#fca5a5" });
+    la.position.set(-segLen * 0.9, 10, 0);
+    const lb = makeLabel(`FLb=${segData.FLb}kN`, { scale: 0.8, color: "#fca5a5" });
+    lb.position.set(segLen * 0.9, 8, 0);
+    const lw = makeLabel(`${segData.id} ${w}t`, { scale: 0.85 });
+    lw.position.set(0, 6, 0);
+    [la, lb, lw].forEach((o) => {
+      this.postureGroup.add(o);
+      this.postureItems.push(o);
+    });
+  }
+  // ---------- 总体布置组 ----------
+  buildOverallGroup() {
+    this.overallGroup = new THREE.Group();
+    this.overallGroup.visible = false;
+    this.scene.add(this.overallGroup);
+    for (const bank of [1, -1]) {
+      for (const sign of [-1, 1]) {
+        const pts = [];
+        for (let s = 0; s <= LEG_CONV_S; s += 1) {
+          const x = bank * xFromArc(s);
+          pts.push(new THREE.Vector3(x, axisY(Math.abs(x)), sign * legOffset(s)));
+        }
+        for (let s = LEG_CONV_S; s <= MAX_S + 1.5; s += 1) {
+          const x = bank * xFromArc(s);
+          pts.push(new THREE.Vector3(x, axisY(Math.abs(x)), 0));
+        }
+        const tube = new THREE.Mesh(
+          new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 80, 0.35, 6, false),
+          new THREE.MeshStandardMaterial({ color: RIB_COLOR[String(bank)], transparent: true, opacity: 0.35 })
+        );
+        this.overallGroup.add(tube);
+      }
+    }
+    const circle = (x, y, z, r, color) => {
+      const pts = [];
+      for (let a = 0; a <= Math.PI * 2 + 0.01; a += 0.1) pts.push(new THREE.Vector3(x + Math.cos(a) * r, y, z + Math.sin(a) * r));
+      const l = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(pts),
+        new THREE.LineDashedMaterial({ color, dashSize: 1.2, gapSize: 0.8 })
+      );
+      l.computeLineDistances();
+      this.overallGroup.add(l);
+    };
+    circle(62, -1, 0, 16.6, 16498468);
+    circle(-62, -2.1, 0, 16.6, 16498468);
+    circle(69, -3.1, -16, 19.7, 15680580);
+    circle(-69, -3.1, 16, 19.7, 15680580);
+    const l1 = makeLabel("R\u226416.6m (S1-6)", { scale: 0.7, color: "#fde68a" });
+    l1.position.set(62, 1, 16.6);
+    this.overallGroup.add(l1);
+    const l2 = makeLabel("R\u226419.7m (S7-11)", { scale: 0.7, color: "#fca5a5" });
+    l2.position.set(69, -1, -35);
+    this.overallGroup.add(l2);
+  }
+  // ---------- 模式 / 视角 / 主循环 ----------
+  setMode(mode) {
+    this.mode = mode;
+    this.postureGroup.visible = mode === "posture";
+    this.overallGroup.visible = mode === "overall";
+    if (mode === "posture") {
+      this.camera.position.set(0, 10, 26);
+      this.controls.target.set(0, 8, 0);
+    } else if (mode === "overall") {
+      this.camera.position.set(0, 130, 60);
+      this.controls.target.set(0, 5, 0);
+    } else {
+      this.camera.position.set(95, 58, 118);
+      this.controls.target.set(0, 15, 0);
+    }
+  }
+  setView(name) {
+    if (name === "side") {
+      this.camera.position.set(0, 30, 205);
+      this.controls.target.set(0, 12, 0);
+    } else if (name === "plan") {
+      this.camera.position.set(0, 170, 1);
+      this.controls.target.set(0, 0, 0);
+    } else if (name === "front") {
+      this.camera.position.set(205, 30, 0);
+      this.controls.target.set(0, 12, 0);
+    } else {
+      this.camera.position.set(95, 58, 118);
+      this.controls.target.set(0, 15, 0);
+    }
+  }
+  tick(dt) {
+    for (const bank of [1, -1]) {
+      const bc = this.bankCranes[bank];
+      [bc.c130, bc.c550].forEach((c) => c.group.position.lerp(bc.target, Math.min(1, dt * 2.2)));
+      bc.label.position.lerp(bc.target.clone().add(new THREE.Vector3(0, 9.5, 0)), Math.min(1, dt * 2.2));
+      if (!this.flying) this.aimCrane(bc.type === 550 ? bc.c550 : bc.c130, bc.aim);
+    }
+    if (this.playing && this.mode === "erect" && this.flying) {
+      this.t += dt / this.stepDur;
+      if (this.t >= 1) {
+        this.t = 1;
+        this.updateFlying();
+        this.completeStep();
+      } else this.updateFlying();
+    }
+    this.controls.update();
+    this.renderer.render(this.scene, this.camera);
+  }
+};
+
+// js/charts.js
+function drawBarChart(canvas, opts) {
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.clientWidth, H = canvas.clientHeight;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+  const { labels, series, refLines = [], highlight = -1, colors } = opts;
+  const padL = 46, padR = 10, padT = 26, padB = 34;
+  const cw = W - padL - padR, ch = H - padT - padB;
+  let maxV = 0;
+  series.forEach((s) => s.data.forEach((v) => {
+    if (v != null && v > maxV) maxV = v;
+  }));
+  refLines.forEach((r) => {
+    if (r.value > maxV) maxV = r.value;
+  });
+  maxV *= 1.12;
+  ctx.strokeStyle = "rgba(148,163,184,.35)";
+  ctx.fillStyle = "#94a3b8";
+  ctx.lineWidth = 1;
+  ctx.font = "10px system-ui";
+  ctx.beginPath();
+  ctx.moveTo(padL, padT);
+  ctx.lineTo(padL, padT + ch);
+  ctx.lineTo(padL + cw, padT + ch);
+  ctx.stroke();
+  const ticks = 4;
+  for (let i = 0; i <= ticks; i++) {
+    const v = maxV * i / ticks, y = padT + ch - ch * i / ticks;
+    ctx.fillText(v.toFixed(v >= 100 ? 0 : 1), 6, y + 3);
+    ctx.strokeStyle = "rgba(148,163,184,.12)";
+    ctx.beginPath();
+    ctx.moveTo(padL, y);
+    ctx.lineTo(padL + cw, y);
+    ctx.stroke();
+  }
+  const n = labels.length, groupW = cw / n, barW = Math.min(22, groupW * 0.7 / series.length);
+  series.forEach((s, si) => {
+    s.data.forEach((v, i) => {
+      if (v == null) return;
+      const x = padL + groupW * i + groupW / 2 + (si - (series.length - 1) / 2) * (barW + 2) - barW / 2;
+      const h = ch * v / maxV, y = padT + ch - h;
+      const base = colors ? colors[si] : ["#38bdf8", "#f59e0b", "#a78bfa"][si % 3];
+      ctx.fillStyle = i === highlight ? "#f472b6" : base;
+      ctx.globalAlpha = i === highlight || highlight < 0 ? 1 : 0.55;
+      ctx.fillRect(x, y, barW, h);
+      ctx.globalAlpha = 1;
+      if (i === highlight) {
+        ctx.fillStyle = "#f8fafc";
+        ctx.fillText(String(v), x - 4, y - 4);
+      }
+    });
+  });
+  ctx.fillStyle = "#94a3b8";
+  ctx.textAlign = "center";
+  labels.forEach((l, i) => ctx.fillText(l, padL + groupW * i + groupW / 2, padT + ch + 14));
+  ctx.textAlign = "left";
+  refLines.forEach((r) => {
+    const y = padT + ch - ch * r.value / maxV;
+    ctx.strokeStyle = r.color || "#ef4444";
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(padL, y);
+    ctx.lineTo(padL + cw, y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = r.color || "#ef4444";
+    ctx.fillText(r.label, padL + 6, y - 4);
+  });
+  let lx = padL + 6;
+  series.forEach((s, si) => {
+    ctx.fillStyle = colors ? colors[si] : ["#38bdf8", "#f59e0b", "#a78bfa"][si % 3];
+    ctx.fillRect(lx, 8, 10, 10);
+    ctx.fillStyle = "#cbd5e1";
+    ctx.fillText(s.name, lx + 14, 17);
+    lx += 14 + ctx.measureText(s.name).width + 18;
+  });
+}
+function drawLineChart(canvas, opts) {
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.clientWidth, H = canvas.clientHeight;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+  const { labels, series, highlight = -1, unit = "" } = opts;
+  const padL = 46, padR = 10, padT = 26, padB = 34;
+  const cw = W - padL - padR, ch = H - padT - padB;
+  let maxV = 0;
+  series.forEach((s) => s.data.forEach((v) => {
+    if (v != null && v > maxV) maxV = v;
+  }));
+  maxV *= 1.15;
+  ctx.strokeStyle = "rgba(148,163,184,.35)";
+  ctx.fillStyle = "#94a3b8";
+  ctx.font = "10px system-ui";
+  ctx.beginPath();
+  ctx.moveTo(padL, padT);
+  ctx.lineTo(padL, padT + ch);
+  ctx.lineTo(padL + cw, padT + ch);
+  ctx.stroke();
+  for (let i = 0; i <= 4; i++) {
+    const v = maxV * i / 4, y = padT + ch - ch * i / 4;
+    ctx.fillText(v.toFixed(2), 4, y + 3);
+    ctx.strokeStyle = "rgba(148,163,184,.12)";
+    ctx.beginPath();
+    ctx.moveTo(padL, y);
+    ctx.lineTo(padL + cw, y);
+    ctx.stroke();
+  }
+  const n = labels.length, stepX = cw / (n - 1);
+  series.forEach((s, si) => {
+    ctx.strokeStyle = s.color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    s.data.forEach((v, i) => {
+      const x = padL + stepX * i, y = padT + ch - ch * v / maxV;
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    });
+    ctx.stroke();
+    s.data.forEach((v, i) => {
+      const x = padL + stepX * i, y = padT + ch - ch * v / maxV;
+      ctx.fillStyle = i === highlight ? "#f472b6" : s.color;
+      ctx.beginPath();
+      ctx.arc(x, y, i === highlight ? 5 : 3, 0, 7);
+      ctx.fill();
+      if (i === highlight) {
+        ctx.fillStyle = "#f8fafc";
+        ctx.fillText(v + unit, x + 7, y - 6);
+      }
+    });
+  });
+  ctx.fillStyle = "#94a3b8";
+  ctx.textAlign = "center";
+  labels.forEach((l, i) => ctx.fillText(l, padL + stepX * i, padT + ch + 14));
+  ctx.textAlign = "left";
+}
+
+// js/main.js
+window.addEventListener("error", (e) => {
+  window.__err = (e.message || "") + " @" + (e.filename || "").split("/").pop() + ":" + e.lineno;
+});
+var DS = FE2;
+var MAX_STEP = 25;
+var lang = "zh";
+var $ = (s) => document.querySelector(s);
+var T = () => I18N[lang];
+function stepInfo(n) {
+  if (n === 0) return {
+    zh: "\u573A\u5730\u51C6\u5907\uFF1A\u540A\u88C5\u5E73\u53F0 10\xD715m\uFF08\u5DE6+90.802 / \u53F3+89.714\uFF09\u3001\u652F\u67B6\u4E0E\u951A\u7887\u65BD\u5DE5\u3001\u62F1\u5EA7\u9A8C\u6536",
+    en: "Site prep: 10\xD715m crane platforms (+90.802/+89.714), support foundations, anchors, abutment survey"
+  };
+  const s = SEGMENTS[n - 1], st = stageOf(n);
+  const craneZh = `\u540A\u8F66\uFF1A${st.cranes} @ ${st.pos}${st.R ? "\uFF0CR\u2264" + st.R + "m" : ""}${st.est ? "\uFF08\u4F30\u7B97\uFF09" : ""}`;
+  const craneEn = `Cranes: ${st.cranes} @ ${st.pos}${st.R ? ", R\u2264" + st.R + "m" : ""}${st.est ? " (est.)" : ""}`;
+  let base;
+  if (n <= 10) {
+    const f = FEM[n - 1];
+    base = {
+      zh: `\u540A\u88C5\u7B2C${n}\u8282\u6BB5 ${s.id}\uFF08\u957F${s.len}m\uFF0C\u91CD${(s.incl / 1e3).toFixed(2)}t \u542B\u697C\u68AF\uFF09\uFF5C${craneZh}\uFF5CFEM\uFF1A\u03C3=${f.stress}MPa, \u03C4=${f.shear}MPa, \u0394=${f.disp}mm`,
+      en: `Lift box ${n} ${s.id} (${s.len}m, ${(s.incl / 1e3).toFixed(2)}t incl. stair) | ${craneEn} | FEM: \u03C3=${f.stress}MPa, \u03C4=${f.shear}MPa, \u0394=${f.disp}mm`
+    };
+  } else {
+    const fe = FEM_EST.find((e) => e.box === n);
+    const estNote = fe ? { zh: `\uFF5C\u5E94\u529B\u4F30\u7B97\uFF1A\u03C3\u2248${fe.stress}MPa, \u03C4\u2248${fe.shear}MPa\uFF08\u5F3A\u5378\u8F7D\u6263\u7D22\u4F30\u7B97v2\xB7\u987B\u6B63\u5F0FFEM\u590D\u6838\uFF09`, en: ` | Stress est.: \u03C3\u2248${fe.stress}MPa, \u03C4\u2248${fe.shear}MPa (strong stay-relief est. v2, formal FEM req.)` } : { zh: "", en: "" };
+    const note = n === 25 ? { zh: "\uFF5C\u5408\u9F99\u6BB5\uFF1A\u4E24\u5CB8\u5BF9\u79F0\u5B89\u88C5\u540E\u5D4C\u5165\u5408\u9F99" + estNote.zh, en: " | Closure: inserted after both halves complete" + estNote.en } : estNote;
+    base = {
+      zh: `\u540A\u88C5\u7B2C${n}\u8282\u6BB5 ${s.id}\uFF08\u957F${s.len}m\uFF0C\u91CD${(s.incl / 1e3).toFixed(2)}t\uFF09\uFF5C${craneZh}${note.zh}`,
+      en: `Lift box ${n} ${s.id} (${s.len}m, ${(s.incl / 1e3).toFixed(2)}t) | ${craneEn}${note.en}`
+    };
+  }
+  MILESTONES.forEach((m) => {
+    if (m.after === n) {
+      base.zh += "\uFF5C" + m.zh;
+      base.en += " | " + m.en;
+    }
+  });
+  if (n === 10) {
+    base.zh += "\uFF5C" + T().box10done;
+    base.en += " | " + I18N.en.box10done;
+  }
+  return base;
+}
+var scene = window.__arch = new ArchScene($("#viewport"));
+scene.setScheme("B");
+scene.onStepDone = (step) => {
+  refreshPanel();
+  if (playing && step < MAX_STEP) setTimeout(() => gotoStep(step + 1, true), 450);
+  else setPlaying(false);
+};
+var playing = false;
+function setPlaying(p) {
+  playing = p;
+  scene.playing = p;
+  $("#btnPlay").textContent = p ? T().pause : T().play;
+  $("#btnPlay").classList.toggle("active", p);
+}
+function gotoStep(n, autoplay = false) {
+  if (n < 0 || n > MAX_STEP) return;
+  $("#stepSlider").value = n;
+  if (n === 0) {
+    scene.reset();
+    refreshPanel();
+    return;
+  }
+  scene.syncErected(n);
+  scene.startStep(n);
+  refreshPanel();
+  if (autoplay || playing) {
+    scene.playing = true;
+    playing = true;
+    $("#btnPlay").textContent = T().pause;
+    $("#btnPlay").classList.add("active");
+  }
+}
+function refreshPanel() {
+  const n = scene.step;
+  $("#stepDesc").textContent = stepInfo(n)[lang];
+  $("#stepNum").textContent = `${T().step} ${n}/${MAX_STEP}`;
+  if (n >= 1) {
+    const s = SEGMENTS[n - 1], st = stageOf(n);
+    $("#dWeight").textContent = (s.incl / 1e3).toFixed(2) + " t";
+    $("#dLen").textContent = s.len + " m";
+    $("#dCrane").textContent = `${st.cranes} @ ${st.pos}`;
+    const feS = n >= 2 ? DS.stages[Math.min(n - 2, 24)] : null;
+    $("#dStress").textContent = feS ? feS.sigMax + " MPa" : lang === "zh" ? "\u2014" : "\u2014";
+    $("#dShear").textContent = feS ? feS.tauMax + " MPa" : "\u2014";
+    $("#dDisp").textContent = feS ? feS.dispMax + " mm" : "\u2014";
+    $("#dCables").textContent = feS && feS.cables.length ? feS.cables.map((c) => c.id + "#" + Math.round(c.T)).join(" / ") + " kN" : n >= 11 ? lang === "zh" ? "\u2014" : "\u2014" : lang === "zh" ? "\u672A\u6FC0\u6D3B(\u7BB111\u8D77)" : "inactive (from B11)";
+  } else ["dWeight", "dLen", "dStress", "dShear", "dDisp", "dCrane", "dCables"].forEach((id) => $("#" + id).textContent = "\u2014");
+  drawFemCharts(n >= 2 ? n - 2 : -1);
+}
+function drawFemCharts(hl) {
+  const labels = DS.stages.map((s, i) => i === 25 ? "R" : "S" + s.k);
+  drawBarChart($("#chartStress"), {
+    labels,
+    series: [{ name: "\u03C3max FE (MPa)", data: DS.stages.map((s) => s.sigMax) }],
+    refLines: [{ value: FEM_ALLOW.stress, label: T().allowStress, color: "#ef4444" }],
+    colors: ["#38bdf8"],
+    highlight: hl
+  });
+  drawLineChart($("#chartDisp"), {
+    labels,
+    unit: "mm",
+    series: [
+      { name: "\u03B4max", data: DS.stages.map((s) => s.dispMax), color: "#a78bfa" },
+      { name: lang === "zh" ? "\u60AC\u81C2\u7AEFv" : "tip v", data: DS.stages.map((s) => -s.tipV), color: "#4ade80" }
+    ],
+    highlight: hl
+  });
+}
+function drawSlingChart() {
+  drawBarChart($("#chartSling"), {
+    labels: SLING_CALCS.map((s) => s.seg),
+    series: [
+      { name: "FLa (kN)", data: SLING_CALCS.map((s) => s.FLa) },
+      { name: "FLb (kN)", data: SLING_CALCS.map((s) => s.FLb) }
+    ],
+    refLines: [{ value: RIGGING.chain.wll * 9.8, label: `\u94FE\u6761WLL ${RIGGING.chain.wll}t \u2248 ${(RIGGING.chain.wll * 9.8).toFixed(0)}kN`, color: "#ef4444" }]
+  });
+}
+function drawStayChart() {
+  const st = DS.stages.filter((s, i) => s.k >= 11 && i < 25);
+  const labels = st.map((s) => "S" + s.k);
+  const ids = [1, 2, 3, 4], colors = ["#22d3ee", "#4ade80", "#f59e0b", "#f472b6"];
+  const series = ids.map((id, i) => ({
+    name: id + "#" + (lang === "zh" ? "\u7D22" : " cable"),
+    color: colors[i],
+    data: st.map((s) => {
+      const c = (s.cables || []).find((x) => x.id === id);
+      return c ? c.T : null;
+    })
+  }));
+  drawLineChart($("#chartStay"), { labels, unit: "kN", series, highlight: -1 });
+}
+function drawCraneChart() {
+  drawBarChart($("#chartCrane"), {
+    labels: CRANE_CHECKS_DWG.map((c) => c.seg),
+    series: [
+      { name: lang === "zh" ? "\u989D\u5B9A\u80FD\u529B(t)" : "Capacity(t)", data: CRANE_CHECKS_DWG.map((c) => c.cap) },
+      { name: lang === "zh" ? "\u540A\u91CD+\u540A\u5177(t)" : "Load+rig(t)", data: CRANE_CHECKS_DWG.map((c) => c.load + c.rig) }
+    ],
+    colors: ["#64748b", "#f59e0b"]
+  });
+}
+function table(el, heads, rows) {
+  el.innerHTML = "<thead><tr>" + heads.map((h) => `<th>${h}</th>`).join("") + "</tr></thead><tbody>" + rows.map((r) => "<tr>" + r.map((c) => `<td>${c ?? "\u2014"}</td>`).join("") + "</tr>").join("") + "</tbody>";
+}
+function buildTables() {
+  const zh = lang === "zh";
+  table(
+    $("#tblStages"),
+    [zh ? "\u8282\u6BB5\u8303\u56F4" : "Boxes", zh ? "\u540A\u8F66\u914D\u7F6E" : "Cranes", zh ? "\u7AD9\u4F4D" : "Position", "R\u2264(m)", zh ? "\u6765\u6E90" : "Src"],
+    LIFT_STAGES.map((s) => [`S${s.boxes[0]}\u2013S${s.boxes[1]}`, s.cranes + (s.est ? zh ? "\uFF08\u4F30\u7B97\uFF09" : " (est.)" : ""), s.pos, s.R ?? "\u2014", s.src])
+  );
+  table(
+    $("#tblWeights"),
+    [zh ? "\u8282\u6BB5" : "Seg", zh ? "\u957F(m)" : "Len(m)", zh ? "\u51C0\u91CD(t)" : "Bare(t)", zh ? "\u542B\u697C\u68AF(t)" : "Incl(t)", zh ? "\u6570\u91CF" : "Qty"],
+    SEGMENTS.map((s) => [s.id, s.len, (s.bare / 1e3).toFixed(2), (s.incl / 1e3).toFixed(2), s.qty]).concat(CROSS_TIES.map((c) => [zh ? c.nameZh : c.nameEn, "\u2014", (c.bare / 1e3).toFixed(2), (c.incl / 1e3).toFixed(2), c.qty]))
+  );
+  table(
+    $("#tblCrane"),
+    [zh ? "\u8282\u6BB5" : "Seg", "R(m)", "H(m)", zh ? "\u80FD\u529B(t)" : "Cap(t)", zh ? "\u540A\u91CD+\u540A\u5177(t)" : "Load+rig(t)", zh ? "\u8D1F\u8377\u7387" : "Ratio"],
+    CRANE_CHECKS_DWG.map((c) => [c.seg, c.radius, c.height, c.cap, `${c.load}+${c.rig}`, c.ratio]).concat(CRANE_CHECKS_MS.map((c) => [c.seg + " [MS]", c.radius, "\u2014", c.cap, c.load, `SF ${c.sf}`]))
+  );
+  table(
+    $("#tblSling"),
+    [zh ? "\u8282\u6BB5" : "Seg", "G(t)", "F\u5408\u8BA1(kN)", "FLa(kN)", "FLb(kN)", zh ? "\u5907\u6CE8" : "Note"],
+    SLING_CALCS.map((s) => [s.seg, s.G, s.Ftotal, s.FLa, s.FLb, s.note || (s.FLa ? "" : zh ? "\u9700\u786E\u8BA4" : "TBC")])
+  );
+  const rows = [];
+  ["A", "B", "C", "D"].forEach((k) => STAY_CABLES[k].forEach((c) => rows.push([zh ? `\u951A\u7887${k}` : `Anchor ${k}`, c.c, c.f, c.n, c.sf])));
+  table($("#tblStay"), [zh ? "\u951A\u7887" : "Anchor", zh ? "\u62C9\u7D22" : "Cable", zh ? "\u6700\u5927\u7D22\u529B(kN)" : "Max force(kN)", zh ? "\u6839\u6570" : "Qty", zh ? "\u5B89\u5168\u7CFB\u6570" : "SF"], rows);
+  table(
+    $("#tblCompare"),
+    [zh ? "\u9879\u76EE" : "Item", "Method Statement", zh ? "\u56FE\u7EB8\u6C47\u603B/\u8BBE\u8BA1\u56FE" : "DWG/GA", zh ? "\u7ED3\u8BBA" : "Remark"],
+    [
+      [zh ? "\u652F\u817F\u6700\u5927\u8377\u8F7D" : "Outrigger load", "400 kN", "467 kN [DWG p4]", zh ? "\u53E3\u5F84\u4E0D\u540C\uFF0C\u9700\u786E\u8BA4" : "Discrepancy, TBC"],
+      [zh ? "\u5730\u57FA\u627F\u8F7D\u529B\u8981\u6C42" : "Bearing req.", "150 kPa", "291.88 kPa (SF2.5, 2\xD72m) [DWG p4]", zh ? "\u9700\u786E\u8BA4" : "TBC"],
+      ["S-16 " + (zh ? "\u91CD\u91CF" : "weight"), "42.03 t (\u542B\u697C\u68AF)", "36.47 t [DWG p19]", zh ? "\u7248\u672C\u5DEE\u5F02" : "Version diff"],
+      [zh ? "\u951A\u7887B\u4F4D\u7F6E" : "Anchor B position", "\u2014", zh ? "\u5F85\u786E\u5B9A [DWG p2]" : "TBD [DWG p2]", zh ? "\u5F85\u8BBE\u8BA1\u786E\u8BA4" : "Awaiting design"],
+      [zh ? "\u540A\u88C5\u7AD9\u4F4D" : "Crane positions", zh ? "\u672A\u8BE6\u5217" : "Not detailed", "4\u7AD9\u4F4D P1-P4 [DWG p3-6]", "OK"],
+      [zh ? "\u4E34\u65F6\u652F\u67B6\u4F4D\u7F6E" : "Support location", "Box4 & Box8", "9.5m / +9.56m [DWG p27]", zh ? "\u4E00\u81F4" : "Consistent"]
+    ]
+  );
+  table(
+    $("#tblDesign"),
+    [zh ? "\u8BBE\u8BA1\u53C2\u6570" : "Parameter", zh ? "\u6570\u503C" : "Value", zh ? "\u6765\u6E90" : "Src"],
+    [
+      [zh ? "\u94A2\u6750" : "Steel", DESIGN.steel, "GA p3"],
+      [zh ? "\u8BBE\u8BA1\u89C4\u8303" : "Codes", DESIGN.codes, "GA p3"],
+      [zh ? "\u7BB1\u5BA4\u677F\u539A" : "Box plates", DESIGN.plates.walls, "GA p14"],
+      [zh ? "\u62F1\u811A\u5E95\u677F" : "Base plate", DESIGN.plates.base, "GA p7"],
+      [zh ? "\u52A0\u52B2\u808B" : "Stiffeners", DESIGN.plates.stiffeners, "GA p14"],
+      [zh ? "\u73B0\u573A\u62FC\u63A5" : "Field splice", DESIGN.joints.field, "GA p14"],
+      [zh ? "\u5730\u811A\u951A\u56FA" : "Anchorage", DESIGN.joints.anchor, "GA p7"],
+      [zh ? "\u9AD8\u5F3A\u87BA\u6813\u65BD\u62E7" : "HSFG torque", DESIGN.joints.torque, "MS"],
+      [zh ? "\u9884\u5E94\u529B\u7CFB\u6746" : "Prestress ties", `6\xD755\xD715.7mm, ${DESIGN.prestress.jacking}`, "GA p3"],
+      [zh ? "\u9884\u62F1\u5EA6" : "Pre-camber", DESIGN.camber, "GA p3"],
+      [zh ? "\u5730\u57FA/\u57FA\u7840" : "Bearing/found.", DESIGN.bearing, "GA p3"]
+    ]
+  );
+}
+function initPosture() {
+  const sel = $("#postureSeg");
+  sel.innerHTML = SLING_CALCS.map((s, i) => `<option value="${i}">${s.seg} (${s.G}t)</option>`).join("");
+  const upd = () => {
+    const s = SLING_CALCS[+sel.value];
+    scene.updatePosture({ len: s.seg === "S-16" ? 5.5 : s.seg === "S-25" ? 3 : 3, FLa: s.FLa, FLb: s.FLb }, lang);
+    $("#postureInfo").textContent = lang === "zh" ? `${s.seg}\uFF1A\u81EA\u91CD ${s.G}t${s.Ftotal ? "\uFF0C\u540A\u7D22\u5408\u529B " + s.Ftotal + "kN" : ""}\uFF0CFLa=${s.FLa ?? "\u9700\u786E\u8BA4"}kN\uFF0CFLb=${s.FLb ?? "\u9700\u786E\u8BA4"}kN\u3002\u540A\u8033\u8BBE\u8BA1\uFF1AS1-14=100kN / S16=200kN / \u6263\u7D22\u8033\u677F=600kN\u3002` : `${s.seg}: self-weight ${s.G}t${s.Ftotal ? ", total sling " + s.Ftotal + "kN" : ""}, FLa=${s.FLa ?? "TBC"}kN, FLb=${s.FLb ?? "TBC"}kN. Lugs: S1-14=100kN / S16=200kN / stay=600kN.`;
+  };
+  sel.onchange = upd;
+  upd();
+}
+function buildCalcBook() {
+  const zh = lang === "zh";
+  $("#calcMethod").innerHTML = `<b>${zh ? "\u6A21\u578B\u65B9\u6CD5" : "Method"}</b><br>${FE.meta.method}<br><br><b>${zh ? "\u5355\u4F4D/\u6750\u6599" : "Units/Material"}</b>: ${FE.meta.units} \xB7 ${zh ? "\u8BB8\u7528\u5E94\u529B" : "Allowable"} \u03C3=${FE.meta.allowStress}MPa, \u03C4=${FE.meta.allowShear}MPa`;
+  $("#calcAssume").innerHTML = "<b>" + (zh ? "\u5047\u8BBE\u4E0E\u6570\u636E\u6765\u6E90(\u5168\u90E8\u53EF\u6EAF)" : "Assumptions & sources") + '</b><ul class="qa">' + FE.meta.assumptions.map((a) => `<li>${a}</li>`).join("") + "</ul>";
+  const rows = FE.stages.map((s, i) => [
+    i === 25 ? zh ? "\u62C6\u6491" : "Rels" : "S" + s.k,
+    s.box,
+    s.wKn,
+    s.sigMax + " @E" + s.sigMaxElem,
+    s.tauMax,
+    s.dispMax + " @N" + s.dispMaxNode,
+    s.tipV,
+    s.cables.length ? s.cables.map((c) => c.id + "#" + Math.round(c.T)).join(" ") : "\u2014",
+    s.supports.length ? s.supports.map((sp) => "N" + sp.node + ":" + Math.round(sp.R)).join(" ") : "\u2014",
+    s.springM
+  ]);
+  table($("#tblCalcStages"), [
+    zh ? "\u9636\u6BB5" : "Stage",
+    zh ? "\u8282\u6BB5" : "Box",
+    zh ? "\u91CD\u91CFkN" : "W kN",
+    "\u03C3max MPa",
+    "\u03C4max MPa",
+    "\u03B4max mm",
+    zh ? "\u60AC\u81C2\u7AEFv mm" : "tip v mm",
+    zh ? "\u7D22\u529BkN(\u6C42\u89E3)" : "Cable kN (solved)",
+    zh ? "\u652F\u53CDkN" : "Prop kN",
+    zh ? "\u62F1\u811AM kN\xB7m" : "Spring M"
+  ], rows);
+  const v = FE.validation;
+  table($("#tblCalcValid"), [
+    zh ? "\u9636\u6BB5" : "Stage",
+    "\u03C3 MS",
+    "\u03C3 FE",
+    zh ? "\u6BD4\u503C" : "Ratio",
+    "\u03B4 MS mm",
+    "\u03B4 FE mm"
+  ], v.map((r) => ["S" + r.k, r.ms, r.fe, r.ratio, r.msDisp, r.feDisp]));
+  $("#calcValidNote").textContent = zh ? "\u6821\u9A8C\u2460: FE\u6A21\u578B vs MS FEM\u5206\u6790\u8868(\u7BB11~10, \u540C\u4E00\u6A21\u578B\u53E3\u5F84) \u2014 \u5E94\u529B\u6BD4\u503C0.86~1.66, \u540C\u91CF\u7EA7 \u2713" : "Check \u2460: FE model vs MS FEM table (boxes 1-10) \u2014 stress ratio 0.86-1.66, same order \u2713";
+  table($("#tblCalcCable"), [
+    zh ? "\u6263\u7D22" : "Cable",
+    zh ? "\u6C42\u89E3\u6700\u5927kN" : "Solved max kN",
+    "MS kN/\u808B",
+    "DWG kN(\u817FA)"
+  ], FE.cableCheck.map((c) => [c.id + "#@S" + c.node, c.solvedMax, c.msMax, c.dwgMax]));
+  $("#calcCableNote").textContent = zh ? "\u6821\u9A8C\u2461: \u6C42\u89E3\u6700\u5927\u7D22\u529B\u4E3AMS/DWG\u5168\u8FC7\u7A0B\u6700\u5927\u503C\u76842~4\u500D\u2014\u2014\u540C\u4E00\u91CF\u7EA7\u3001\u53D8\u5316\u89C4\u5F8B\u4E00\u81F4(3#>4#>2#>1#)\u3002\u5DEE\u5F02\u4E3B\u56E0: \u4E8C\u7EF4\u5355\u808B\u6A21\u578B vs \u5B9E\u9645\u53CC\u808B+\u6A2A\u6491\u7A7A\u95F4\u4F53\u7CFB\u3001\u951A\u70B9\u6807\u9AD8\u4E3A\u53CD\u63A8\u4F30\u7B97\u3001\u771F\u5B9E\u5F20\u62C9\u7A0B\u5E8F\u672A\u53D1\u5E03\u3002MS: 425/455/558/486 kN\u6BCF\u7D22\u9762(\u5355\u808B\u51CF\u534A); DWG p1: \u817FA 201.87/395/658.44/490.75 kN\u3002" : "Check \u2461: solved max cable forces are 2-4\xD7 MS/DWG all-stage maxima \u2014 same order, same pattern (3#>4#>2#>1#). Differences: 2D single-rib model vs real twin-rib spatial system, back-figured anchor elevation, unpublished tensioning program.";
+  const S2 = FE2.summary, u4 = S2.cableUtil["4"];
+  $("#calcDesignNote").innerHTML = zh ? `<b>\u53CD\u63A8\u7ED3\u8BBA(\u5BB9\u5DEE\xB110mm, ASSUMPTION):</b> MS\u539F\u652F\u67B6(\u8282\u70B94\u30018)<u>\u4FDD\u7559\u81F3\u5408\u9F99</u> + <b>\u589E\u8BBE\u8282\u70B915\u3001\u8282\u70B921\u4E24\u5EA7\u5854\u67B6</b>(\u5404\u9AD8\u7EA631/32m, \u6700\u5927\u53CD\u529B ${S2.maxReaction.R} kN @N15\xB7S21), \u5168\u8FC7\u7A0B\u7EBF\u5F62\u504F\u5DEE\u5373\u538B\u81F3 <b>\u22649.62mm</b>(S15); \u6263\u7D22\u6700\u9AD8\u5229\u7528\u7387\u4EC5 ${Math.round(u4.ratio * 100)}%(4#\u7D22 ${u4.maxT}/${u4.Tmax} kN)\u2014\u2014DWG\u7D22\u529B\u4E0A\u9650\u5B8C\u5168\u591F\u7528\u3002\u652F\u67B6N8\u5728S21\u77ED\u6682\u4E0A\u62D4\u7EA6-114kN, \u9700\u951A\u56FA\u6216\u5141\u8BB8\u9000\u51FA(\u9700\u786E\u8BA4)\u3002\u654F\u611F\u6027: \xB15mm\u9700N4/8/14/16\u56DB\u5EA7(\u03B4\u22644.7mm); \xB115mm\u9700N4/8/15/22; \xB130mm\u4EC5\u9700N4/8/15(\u03B4\u226423.4mm)\u3002<br><b>\u5DE5\u7A0B\u89E3\u8BFB:</b> \u57FA\u7EBF(v3/\u65B9\u6848A)522mm\u4E0B\u6320\u6E90\u4E8E"\u7BB111\u8D77\u652F\u67B6\u5168\u90E8\u9000\u51FA"\u5047\u5B9A; DWG\u7D22\u529B\u91CF\u7EA7(\u2264658kN)\u53EA\u4E0E"\u652F\u67B6\u6301\u7EED\u627F\u8F7D+\u6263\u7D22\u7CBE\u8C03\u7EBF\u5F62"\u7684\u4F53\u7CFB\u81EA\u6D3D\u2014\u2014\u4E0EMS"full closure\u524D\u5168\u90E8\u8282\u6BB5\u4F9D\u8D56\u94A2\u7ED3\u6784\u652F\u6491\u4F53\u7CFB"\u4E00\u81F4\u3002` : `<b>Back-design (\xB110mm tol, ASSUMPTION):</b> keep MS props (nodes 4, 8) until closure + add TWO towers at nodes 15 & 21 (~31/32m tall, max reaction ${S2.maxReaction.R} kN @N15\xB7S21) \u2192 all-stage alignment deviation <b>\u22649.62mm</b> (S15); max cable utilization only ${Math.round(u4.ratio * 100)}% (cable 4: ${u4.maxT}/${u4.Tmax} kN) \u2014 DWG cable maxima are sufficient. Prop N8 shows transient uplift (~-114kN) at S21 \u2014 anchor or allow lift-off (TBC). Sensitivity: \xB15mm needs N4/8/14/16 (\u03B4\u22644.7mm); \xB115mm needs N4/8/15/22; \xB130mm needs only N4/8/15 (\u03B4\u226423.4mm).<br><b>Reading:</b> the 522mm sag of baseline (scheme A) stems from the "props retire at box 11" assumption; DWG-scale cable forces (\u2264658kN) are only self-consistent with props carrying through + stays fine-tuning alignment \u2014 consistent with MS ("before full closure all boxes rely on the steel support system").`;
+  table($("#tblCalcDesign"), [
+    zh ? "\u9636\u6BB5" : "Stage",
+    "\u03B4max mm",
+    zh ? "\u7D22\u529BkN" : "Cables kN",
+    zh ? "\u65B0\u589E\u652F\u67B6" : "Added prop",
+    zh ? "\u652F\u53CDkN(\u8D1F=\u4E0A\u62D4)" : "Reactions kN (neg=uplift)"
+  ], S2.stageBrief.map((d) => [
+    "S" + d.k,
+    d.maxVmm,
+    d.cables.length ? d.cables.map((c) => c.id + "#" + Math.round(c.T)).join(" ") : "\u2014",
+    d.added.length ? "+" + d.added.map((n2) => "N" + n2).join(",") : "\u2014",
+    d.props.filter((p) => Math.abs(p.R) > 1).map((p) => "N" + p.node + ":" + Math.round(p.R)).join(" ") || "\u2014"
+  ]));
+  table($("#tblCalcSens"), [
+    zh ? "\u5BB9\u5DEE" : "Tol",
+    zh ? "\u6700\u7EC8\u652F\u67B6\u8282\u70B9" : "Final props",
+    zh ? "\u6700\u5927\u53CD\u529BkN" : "Max R kN",
+    zh ? "\u6700\u5927\u9636\u6BB5\u03B4mm" : "Max stage \u03B4mm",
+    zh ? "\u7D22\u529B\u5229\u7528\u73871-4#" : "Cable util 1-4#"
+  ], Object.entries(S2.sensitivity).map(([tol, s]) => [
+    "\xB1" + tol + "mm",
+    s.finalProps.map((n2) => "N" + n2).join(" "),
+    s.maxReaction.R,
+    s.maxStageV,
+    Object.values(s.cableUtil).join(" / ")
+  ]));
+}
+function applyLang() {
+  document.querySelectorAll("[data-i18n]").forEach((el) => {
+    const k = el.getAttribute("data-i18n");
+    if (T()[k]) el.textContent = T()[k];
+  });
+  $("#btnLang").textContent = lang === "zh" ? "EN" : "\u4E2D\u6587";
+  refreshPanel();
+  drawSlingChart();
+  drawStayChart();
+  drawCraneChart();
+  buildTables();
+  initPosture();
+  buildCalcBook();
+}
+$("#btnLang").onclick = () => {
+  lang = lang === "zh" ? "en" : "zh";
+  applyLang();
+};
+document.querySelectorAll(".tab").forEach((tab) => {
+  tab.onclick = () => {
+    document.querySelectorAll(".tab").forEach((x) => x.classList.remove("active"));
+    tab.classList.add("active");
+    const id = tab.dataset.tab;
+    document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("active", p.id === id));
+    if (id === "panel-erect") scene.setMode("erect");
+    if (id === "panel-posture") {
+      scene.setMode("posture");
+      initPosture();
+    }
+    if (id === "panel-charts") {
+      scene.setMode("overall");
+      drawSlingChart();
+      drawStayChart();
+      drawCraneChart();
+    }
+    if (id === "panel-calc") {
+      scene.setMode("overall");
+      buildCalcBook();
+    }
+    if (id === "panel-params") scene.setMode("overall");
+    scene.resize();
+  };
+});
+$("#btnPlay").onclick = () => {
+  if (playing) {
+    setPlaying(false);
+    return;
+  }
+  if (scene.step >= MAX_STEP || scene.step === 0) {
+    scene.reset();
+    gotoStep(1, true);
+  } else if (scene.flying) setPlaying(true);
+  else gotoStep(scene.step + 1, true);
+};
+$("#btnNext").onclick = () => {
+  setPlaying(false);
+  gotoStep(Math.min(MAX_STEP, scene.step + 1));
+};
+$("#btnPrev").onclick = () => {
+  setPlaying(false);
+  gotoStep(Math.max(0, scene.step - 1));
+};
+$("#btnReset").onclick = () => {
+  setPlaying(false);
+  scene.reset();
+  refreshPanel();
+};
+$("#stepSlider").oninput = (e) => {
+  setPlaying(false);
+  gotoStep(+e.target.value);
+};
+$("#speed").onchange = (e) => {
+  scene.stepDur = { "0.5": 6.4, "1": 3.2, "2": 1.6 }[e.target.value] || 3.2;
+};
+$("#defMag").onchange = (e) => scene.setDefMag(+e.target.value);
+$("#schemeSel").onchange = (e) => {
+  DS = e.target.value === "B" ? FE2 : FE;
+  scene.setScheme(e.target.value);
+  refreshPanel();
+  drawStayChart();
+};
+document.querySelectorAll("[data-view]").forEach((b) => b.onclick = () => scene.setView(b.dataset.view));
+window.addEventListener("resize", () => {
+  scene.resize();
+  drawFemCharts(scene.step - 1);
+});
+var last = performance.now();
+(function loop(now) {
+  requestAnimationFrame(loop);
+  const dt = Math.min(0.05, (now - last) / 1e3);
+  last = now;
+  scene.tick(dt);
+})(last);
+applyLang();
+var hashStep = parseInt((location.hash.match(/step=(\d+)/) || [])[1]);
+if (hashStep >= 1) gotoStep(Math.min(MAX_STEP, hashStep));
+var hashView = (location.hash.match(/view=(\w+)/) || [])[1];
+if (hashView) scene.setView(hashView);
+
+</script>
+</body>
+</html>

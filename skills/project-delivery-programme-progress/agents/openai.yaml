@@ -1,0 +1,4 @@
+interface:
+  display_name: "Delivery Programme and Progress"
+  short_description: "Control baseline programme, progress, logic and forecasts"
+  default_prompt: "Use $project-delivery-programme-progress to build and validate the implementation programme and progress update from my selected project records."

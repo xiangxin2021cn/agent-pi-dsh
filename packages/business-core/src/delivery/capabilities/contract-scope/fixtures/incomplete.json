@@ -1,0 +1,26 @@
+{
+  "baselineStatus": "draft",
+  "obligations": [
+    {
+      "id": "notice-28d",
+      "title": "Notice within 28 days",
+      "type": "notice",
+      "owner": "Commercial Manager",
+      "evidenceRefs": [],
+      "status": "open"
+    }
+  ],
+  "scopeItems": [
+    {
+      "id": "drainage",
+      "wbsCode": "1.2.1",
+      "title": "Drainage works",
+      "inclusionStatus": "clarification",
+      "owner": "Construction Manager",
+      "acceptanceCriteria": [],
+      "evidenceRefs": [{ "kind": "snapshot", "snapshotId": "tender-method" }],
+      "status": "draft"
+    }
+  ],
+  "responsibilityAssignments": []
+}

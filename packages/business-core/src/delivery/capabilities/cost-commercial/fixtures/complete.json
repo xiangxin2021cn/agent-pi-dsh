@@ -1,0 +1,67 @@
+{
+  "controlStatus": "reviewed",
+  "dataDate": "2026-07-12",
+  "currency": "ZAR",
+  "budgetLines": [
+    {
+      "id": "drainage-cost",
+      "scopeItemId": "drainage",
+      "activityIds": ["drainage-works"],
+      "title": "Drainage",
+      "approvedBudget": "1000.10",
+      "approvedVariationAmount": "100.20",
+      "currentBudget": "1100.30",
+      "evidenceRefs": [{ "kind": "source", "sourceId": "budget", "sheet": "Budget", "cell": "B2:H2" }],
+      "status": "reviewed"
+    }
+  ],
+  "commitments": [
+    {
+      "id": "po-1",
+      "costCodeId": "drainage-cost",
+      "supplier": "Supplier",
+      "committedAmount": "600.10",
+      "evidenceRefs": [{ "kind": "source", "sourceId": "commercial", "sheet": "Commitments", "cell": "B2:H2" }],
+      "status": "confirmed"
+    }
+  ],
+  "actualCosts": [
+    {
+      "id": "actual-1",
+      "costCodeId": "drainage-cost",
+      "period": "2026-07",
+      "amount": "200.10",
+      "evidenceRefs": [{ "kind": "source", "sourceId": "commercial", "sheet": "Actuals", "cell": "B2:H2" }],
+      "status": "posted"
+    }
+  ],
+  "accruals": [
+    {
+      "id": "accrual-1",
+      "costCodeId": "drainage-cost",
+      "period": "2026-07",
+      "amount": "50.20",
+      "evidenceRefs": [{ "kind": "source", "sourceId": "commercial", "sheet": "Accruals", "cell": "B2:H2" }],
+      "status": "posted"
+    }
+  ],
+  "variations": [
+    {
+      "id": "vo-1",
+      "costCodeId": "drainage-cost",
+      "title": "Approved change",
+      "amount": "100.20",
+      "evidenceRefs": [{ "kind": "source", "sourceId": "commercial", "sheet": "Variations", "cell": "B2:H2" }],
+      "status": "approved"
+    }
+  ],
+  "forecasts": [
+    {
+      "costCodeId": "drainage-cost",
+      "forecastToComplete": "700.20",
+      "estimateAtCompletion": "950.50",
+      "evidenceRefs": [{ "kind": "source", "sourceId": "commercial", "sheet": "Forecast", "cell": "B2:H2" }],
+      "confidence": "confirmed"
+    }
+  ]
+}

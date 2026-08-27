@@ -1,0 +1,20 @@
+{
+  "workPackages": [
+    {
+      "id": "wp-drainage-01",
+      "title": "Construct concrete side drains",
+      "boqItemIds": ["boq-5201"],
+      "requirementIds": ["req-drainage"],
+      "methodSteps": ["Construct the side drain."],
+      "resourceNeeds": [],
+      "holdPoints": [],
+      "interfaces": ["Traffic accommodation"],
+      "constraints": ["Live traffic"],
+      "temporaryWorks": [],
+      "hseControls": [],
+      "environmentalControls": [],
+      "sourceRefs": [],
+      "status": "reviewed"
+    }
+  ]
+}

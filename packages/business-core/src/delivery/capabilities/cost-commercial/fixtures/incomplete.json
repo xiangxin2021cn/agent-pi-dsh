@@ -1,0 +1,20 @@
+{
+  "controlStatus": "draft",
+  "dataDate": "2026-07-12",
+  "currency": "ZAR",
+  "budgetLines": [],
+  "commitments": [],
+  "actualCosts": [
+    {
+      "id": "actual-1",
+      "costCodeId": "missing-cost-code",
+      "period": "2026-07",
+      "amount": "200.10",
+      "evidenceRefs": [],
+      "status": "posted"
+    }
+  ],
+  "accruals": [],
+  "variations": [],
+  "forecasts": []
+}

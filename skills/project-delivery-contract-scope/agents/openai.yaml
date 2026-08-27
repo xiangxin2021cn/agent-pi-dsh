@@ -1,0 +1,4 @@
+interface:
+  display_name: "Delivery Contract and Scope"
+  short_description: "Control approved obligations, scope, WBS and RACI"
+  default_prompt: "Use $project-delivery-contract-scope to build and validate the implementation contract and scope baseline from my selected project records."

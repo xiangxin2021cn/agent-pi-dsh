@@ -1,0 +1,4 @@
+interface:
+  display_name: "Delivery Resource and Procurement"
+  short_description: "Control execution resources, procurement and capacity"
+  default_prompt: "Use $project-delivery-resource-procurement to build and validate implementation resources and procurement from my selected project records."

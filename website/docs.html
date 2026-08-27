@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-lang="zh" data-theme="light"
+      data-title-zh="文档 — Agent Pi DSH"
+      data-title-en="Docs — Agent Pi DSH">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>文档 — Agent Pi DSH</title>
+<meta name="description" content="Agent Pi DSH 使用文档：安装、工作台、并行工人、证据门禁、知识库、插件、模型与视觉。Agent Pi DSH documentation." />
+<link rel="icon" type="image/png" href="assets/img/logo.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+<noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" /></noscript>
+<link rel="stylesheet" href="assets/css/main.css?v=24" />
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-inner">
+    <img class="company-logo" src="assets/img/company.png?v=24" alt="中国建筑第二工程局有限公司" />
+    <a class="brand" href="index.html">
+      <img src="assets/img/logo.png" alt="Agent Pi" />
+      <span>Agent Pi <small>DSH</small></span>
+    </a>
+    <nav class="nav-links">
+      <a href="index.html#features" data-lang="zh">功能</a>
+      <a href="index.html#features" data-lang="en">Features</a>
+      <a href="index.html#architecture" data-lang="zh">架构</a>
+      <a href="index.html#architecture" data-lang="en">Architecture</a>
+      <a href="docs.html" class="active" data-lang="zh">文档</a>
+      <a href="docs.html" class="active" data-lang="en">Docs</a>
+      <a href="https://github.com/xiangxin2021cn/agent-pi-dsh" target="_blank" rel="noopener">GitHub</a>
+      <button class="icon-btn lang-btn" data-toggle-lang aria-label="Switch language">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        <span>EN</span>
+      </button>
+      <button class="icon-btn" data-toggle-theme aria-label="Toggle theme">
+        <svg data-theme-icon="dark" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <svg data-theme-icon="light" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      </button>
+    </nav>
+    <button class="icon-btn hamburger" style="margin-left:auto" aria-label="Menu">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="docs-mobile-toc">
+  <select aria-label="Docs navigation">
+    <optgroup label="开始 / Getting started">
+      <option value="#quickstart" data-lang="zh">快速上手</option><option value="#quickstart" data-lang="en">Quickstart</option>
+      <option value="#install" data-lang="zh">安装与升级</option><option value="#install" data-lang="en">Install &amp; upgrade</option>
+    </optgroup>
+    <optgroup label="工作台 / Workbench">
+      <option value="#workbench" data-lang="zh">工作台与业务域</option><option value="#workbench" data-lang="en">Workbench &amp; domains</option>
+      <option value="#workers" data-lang="zh">并行工人与长任务</option><option value="#workers" data-lang="en">Workers &amp; long jobs</option>
+      <option value="#evidence" data-lang="zh">证据门禁与正式成果</option><option value="#evidence" data-lang="en">Evidence &amp; outputs</option>
+    </optgroup>
+    <optgroup label="知识库 / Knowledge">
+      <option value="#kb" data-lang="zh">知识库</option><option value="#kb" data-lang="en">Knowledge base</option>
+    </optgroup>
+    <optgroup label="扩展 / Extensibility">
+      <option value="#plugins" data-lang="zh">插件、模块与市场</option><option value="#plugins" data-lang="en">Plugins &amp; market</option>
+      <option value="#models" data-lang="zh">模型、视觉与 Codex</option><option value="#models" data-lang="en">Models, vision &amp; Codex</option>
+    </optgroup>
+    <optgroup label="参考 / Reference">
+      <option value="#versions" data-lang="zh">版本沿革</option><option value="#versions" data-lang="en">Version lineage</option>
+      <option value="#faq" data-lang="zh">故障排查</option><option value="#faq" data-lang="en">Troubleshooting</option>
+    </optgroup>
+  </select>
+</div>
+
+<div class="container docs-layout">
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="docs-side">
+    <div class="side-group">
+      <p class="side-title" data-lang="zh">开始</p><p class="side-title" data-lang="en">Getting started</p>
+      <a class="side-link" href="#quickstart" data-lang="zh">快速上手</a>
+      <a class="side-link" href="#quickstart" data-lang="en">Quickstart</a>
+      <a class="side-link" href="#install" data-lang="zh">安装与升级</a>
+      <a class="side-link" href="#install" data-lang="en">Install &amp; upgrade</a>
+    </div>
+    <div class="side-group">
+      <p class="side-title" data-lang="zh">工作台</p><p class="side-title" data-lang="en">Workbench</p>
+      <a class="side-link" href="#workbench" data-lang="zh">工作台与业务域</a>
+      <a class="side-link" href="#workbench" data-lang="en">Workbench &amp; domains</a>
+      <a class="side-link" href="#workers" data-lang="zh">并行工人与长任务</a>
+      <a class="side-link" href="#workers" data-lang="en">Workers &amp; long jobs</a>
+      <a class="side-link" href="#evidence" data-lang="zh">证据门禁与正式成果</a>
+      <a class="side-link" href="#evidence" data-lang="en">Evidence &amp; outputs</a>
+    </div>
+    <div class="side-group">
+      <p class="side-title" data-lang="zh">知识库</p><p class="side-title" data-lang="en">Knowledge</p>
+      <a class="side-link" href="#kb" data-lang="zh">知识库</a>
+      <a class="side-link" href="#kb" data-lang="en">Knowledge base</a>
+    </div>
+    <div class="side-group">
+      <p class="side-title" data-lang="zh">扩展</p><p class="side-title" data-lang="en">Extensibility</p>
+      <a class="side-link" href="#plugins" data-lang="zh">插件、模块与市场</a>
+      <a class="side-link" href="#plugins" data-lang="en">Plugins &amp; market</a>
+      <a class="side-link" href="#models" data-lang="zh">模型、视觉与 Codex</a>
+      <a class="side-link" href="#models" data-lang="en">Models, vision &amp; Codex</a>
+    </div>
+    <div class="side-group">
+      <p class="side-title" data-lang="zh">参考</p><p class="side-title" data-lang="en">Reference</p>
+      <a class="side-link" href="#versions" data-lang="zh">版本沿革</a>
+      <a class="side-link" href="#versions" data-lang="en">Version lineage</a>
+      <a class="side-link" href="#faq" data-lang="zh">故障排查</a>
+      <a class="side-link" href="#faq" data-lang="en">Troubleshooting</a>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <main class="docs-main">
+
+    <!-- ========== QUICKSTART ========== -->
+    <section class="doc" id="quickstart">
+      <h2 data-lang="zh">快速上手</h2>
+      <h2 data-lang="en">Quickstart</h2>
+      <div data-lang="zh">
+        <p><b>当前 DSH 3.x 源码：</b><a href="https://github.com/xiangxin2021cn/agent-pi-dsh" target="_blank" rel="noopener">agent-pi-dsh</a>；<b>Craft Agents OSS 2.x 经典版：</b><a href="https://github.com/xiangxin2021cn/agent-pi" target="_blank" rel="noopener">agent-pi</a>。两个仓库、内核和更新通道完全分开。</p>
+        <p>Agent Pi DSH 的默认路径只有一条：<b>打开工作区，直接说任务</b>。工作台是加速器，不是闸门。</p>
+        <ol>
+          <li>下载并安装 <code>Agent-Pi-DSH-3.3.5-x64.exe</code>（<a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/tag/v3.3.5" target="_blank" rel="noopener">GitHub Releases</a>）。</li>
+          <li>打开 <b>Agent Pi DSH</b>，选择项目工作区（投标资料所在目录）。</li>
+          <li>配置 DeepSeek。新会话默认 <code>deepseek-v4-flash-vision-exp</code>。</li>
+          <li>可选：设置 → Codex 智能体 → 使用 ChatGPT 登录；无需 API Key。</li>
+          <li>用回形针上传资料后直接下任务：解析招标、对 BOQ、做策划、写正式成果。</li>
+          <li>成果写回 <code>Agent Pi Outputs</code>，出处以芯片标注，可点击定位到源文件。</li>
+        </ol>
+        <div class="callout"><p><b>提示：</b>PDF 当文件读（能抽文本的不先转图）；图纸和照片交给官方视觉模型。</p></div>
+      </div>
+      <div data-lang="en">
+        <p><b>Current DSH 3.x source:</b> <a href="https://github.com/xiangxin2021cn/agent-pi-dsh" target="_blank" rel="noopener">agent-pi-dsh</a>; <b>Craft Agents OSS 2.x Classic:</b> <a href="https://github.com/xiangxin2021cn/agent-pi" target="_blank" rel="noopener">agent-pi</a>. Their repositories, engines, and update channels are separate.</p>
+        <p>The default path in Agent Pi DSH is a single one: <b>pick a workspace and talk</b>. The workbench accelerates work; it does not gate it.</p>
+        <ol>
+          <li>Download and install <code>Agent-Pi-DSH-3.3.5-x64.exe</code> from <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/tag/v3.3.5" target="_blank" rel="noopener">GitHub Releases</a>.</li>
+          <li>Open <b>Agent Pi DSH</b> and pick the project workspace (the folder with the bid files).</li>
+          <li>Connect DeepSeek. New sessions default to <code>deepseek-v4-flash-vision-exp</code>.</li>
+          <li>Optional: Settings → Codex Agent → Sign in with ChatGPT. No API key is required.</li>
+          <li>Attach files with the paperclip and give the job: parse the tender, reconcile the BOQ, plan the works, write Official Outputs.</li>
+          <li>Deliverables are written back to <code>Agent Pi Outputs</code>, with clickable citation chips locating every source.</li>
+        </ol>
+        <div class="callout"><p><b>Tip:</b> PDFs are read as files (no image conversion when text is extractable); drawings and photos go to the official vision model.</p></div>
+      </div>
+    </section>
+
+    <!-- ========== INSTALL ========== -->
+    <section class="doc" id="install">
+      <h2 data-lang="zh">安装与升级</h2>
+      <h2 data-lang="en">Install &amp; upgrade</h2>
+      <div data-lang="zh">
+        <p>安装包未签名：Windows SmartScreen 可能拦截，选<b>「仍要运行」</b>。覆盖安装前请<b>完全退出</b>——关到托盘不算退出。</p>
+        <table class="tbl">
+          <tr><th>事项</th><th>说明</th></tr>
+          <tr><td>不会自动升级</td><td>2.x 停在 2.6.5，避免把旧引擎静默换成新内核；3.x 请手动下载安装。</td></tr>
+          <tr><td>项目还在</td><td>工作目录和 <code>Agent Pi Outputs</code> 接着用。</td></tr>
+          <tr><td>会话不迁移</td><td>2.x 的旧聊天、旧模型连接不会进 3.x。</td></tr>
+          <tr><td>可并存</td><td>3.x 与 <a href="https://github.com/xiangxin2021cn/agent-pi/releases/tag/v2.6.5" target="_blank" rel="noopener">v2.6.5 经典版</a> 可同时安装。</td></tr>
+          <tr><td>数据目录</td><td><code>%APPDATA%\agent-pi-dsh-desktop</code>（首次启动写入可写 <code>dsh-home</code> 并组装 tender profile）。</td></tr>
+        </table>
+        <div class="callout warn"><p><b>若提示 <code>app.asar</code> 被占用：</b>退出 Agent Pi DSH（含托盘），并暂时关掉占用安装目录的编辑器，再重新安装。覆盖安装不会改动已有知识库。</p></div>
+        <p>macOS arm64 / Linux x64 由同一 Release 上的 CI 回传。</p>
+        <p>国内下载较慢时可用镜像：<a href="https://gh-proxy.com/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.3.5/Agent-Pi-DSH-3.3.5-x64.exe" target="_blank" rel="noopener">gh-proxy.com</a> · <a href="https://ghfast.top/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.3.5/Agent-Pi-DSH-3.3.5-x64.exe" target="_blank" rel="noopener">ghfast.top</a>。镜像为第三方服务，下载后请核对 SHA256：<code>3581435F4844BBB573EA6F0D8C752B37C1C2EFD5F7763CE95B3491FA878ED447</code>。</p>
+      </div>
+      <div data-lang="en">
+        <p>The installer is unsigned: if SmartScreen blocks it, choose <b>“Run anyway”</b>. Before an in-place upgrade, <b>quit fully</b> — closing to the tray is not enough.</p>
+        <table class="tbl">
+          <tr><th>Topic</th><th>Detail</th></tr>
+          <tr><td>No auto-update</td><td>2.x stays at 2.6.5 so the old engine is never silently swapped; install 3.x manually.</td></tr>
+          <tr><td>Projects stay</td><td>Your working directory and <code>Agent Pi Outputs</code> carry over.</td></tr>
+          <tr><td>Sessions stay</td><td>Old 2.x chats and model connections do not migrate into 3.x.</td></tr>
+          <tr><td>Side by side</td><td>3.x and <a href="https://github.com/xiangxin2021cn/agent-pi/releases/tag/v2.6.5" target="_blank" rel="noopener">Classic 2.6.5</a> can be installed together.</td></tr>
+          <tr><td>Data directory</td><td><code>%APPDATA%\agent-pi-dsh-desktop</code> (first launch writes a writable <code>dsh-home</code> and assembles the tender profile).</td></tr>
+        </table>
+        <div class="callout warn"><p><b>If <code>app.asar</code> is locked:</b> quit Agent Pi DSH (including the tray) and close any editor holding the install directory, then reinstall. In-place upgrades never touch your existing knowledge base.</p></div>
+        <p>macOS arm64 / Linux x64 builds are uploaded by CI onto the same Release.</p>
+        <p>If downloads are slow from mainland China, use a mirror: <a href="https://gh-proxy.com/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.3.5/Agent-Pi-DSH-3.3.5-x64.exe" target="_blank" rel="noopener">gh-proxy.com</a> · <a href="https://ghfast.top/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.3.5/Agent-Pi-DSH-3.3.5-x64.exe" target="_blank" rel="noopener">ghfast.top</a>. Mirrors are third-party services — verify the SHA256 after downloading: <code>3581435F4844BBB573EA6F0D8C752B37C1C2EFD5F7763CE95B3491FA878ED447</code>.</p>
+      </div>
+    </section>
+
+    <!-- ========== WORKBENCH ========== -->
+    <section class="doc" id="workbench">
+      <h2 data-lang="zh">工作台与业务域</h2>
+      <h2 data-lang="en">Workbench &amp; domains</h2>
+      <div data-lang="zh">
+        <p>Agent Pi DSH 不是聊天壳。它把智能体放进真实项目作业：<b>投标解析与组价、实施策划、投资研究</b>。工作台挂在对话页页签上，默认路径仍然是打开工作区说话。</p>
+        <table class="tbl">
+          <tr><th>层</th><th>做什么</th></tr>
+          <tr><td>对话、模型、权限、技能目录</td><td>dsh Web</td></tr>
+          <tr><td>投标 / 实施 / 投资工作台</td><td>对话页页签 + 建项目</td></tr>
+          <tr><td>阶段准备、证据门禁、成果树</td><td><code>tender-host</code> 插件</td></tr>
+          <tr><td>并行拆活</td><td>内核原生 <code>subagent</code> / <code>workflow</code>，不再自研调度器</td></tr>
+        </table>
+        <p>实施 / 投资与投标走同一套规则：落盘写成果，工作台不自建阶段运行器。阶段只准备 brief 和文件清单，并行扇出交给内核。</p>
+      </div>
+      <div data-lang="en">
+        <p>Agent Pi DSH is not a chat skin. It runs real jobs — <b>bid parse and pricing, delivery planning, investment research</b>. The workbench lives on chat-page tabs; the default path is still to open a workspace and talk.</p>
+        <table class="tbl">
+          <tr><th>Layer</th><th>Role</th></tr>
+          <tr><td>Chat, models, permissions, skill catalog</td><td>dsh Web</td></tr>
+          <tr><td>Tender / delivery / investment workbench</td><td>Chat tabs + project creation</td></tr>
+          <tr><td>Stage prep, evidence gates, output tree</td><td><code>tender-host</code> plugin</td></tr>
+          <tr><td>Parallel fan-out</td><td>Native <code>subagent</code> / <code>workflow</code> — no in-house scheduler</td></tr>
+        </table>
+        <p>Delivery and investment follow the same rules as tender: outputs land on disk, and the workbench never builds its own stage runner. Stages only prepare the brief and file list; fan-out belongs to the kernel.</p>
+      </div>
+    </section>
+
+    <!-- ========== WORKERS ========== -->
+    <section class="doc" id="workers">
+      <h2 data-lang="zh">并行工人与长任务</h2>
+      <h2 data-lang="en">Workers &amp; long jobs</h2>
+      <div data-lang="zh">
+        <p>从 3.0 起，智能体循环交给 DeepSeek Harness：工具、并行子任务、会话、权限由内核直接跑。投标场景里大量持久 Bash 不再先卡三秒多才出字；推理强度可调到 <code>low</code> 省成本。</p>
+        <h3>崩溃恢复：只救没递交的工人</h3>
+        <p>工人正常写完并回推，父会话照常收口——这条路不加约束。父会话崩溃或应用重启后：</p>
+        <ul>
+          <li><b>已经落到 Official Outputs 的任务</b>不再重读 JSON、不再重派、不再重解析源文件；</li>
+          <li>只找回还没递交成果的工人：能续跑就续跑，续不上再下派这一条；</li>
+          <li>不会把整个阶段当新任务重开；</li>
+          <li>你在正式稿上改的字留在父会话里，不会把已完工工人叫醒。</li>
+        </ul>
+        <div class="callout"><p><b>原则：</b>已完工任务的 JSON 不是权威——重启只根据 Official Outputs 判断是否还要救工人。</p></div>
+        <h3>大历史不卡窗</h3>
+        <p>上百个工人的父会话：点开某一个孩子的历史不应把整窗打死；冷子代理历史不再扫全部兄弟目录；大历史分页不再栈溢出；主对话上滚到头部自动「加载更早」。</p>
+      </div>
+      <div data-lang="en">
+        <p>Since 3.0 the loop belongs to DeepSeek Harness: tools, parallel sub-tasks, sessions and permissions run in the engine. Persistent Bash in tender jobs no longer stalls seconds per call; reasoning effort can be set to <code>low</code> to save cost.</p>
+        <h3>Crash recovery: rescue only undelivered workers</h3>
+        <p>A live worker that finishes is handled normally. After a parent crash or app restart:</p>
+        <ul>
+          <li><b>Tasks already in Official Outputs</b> are never re-read, re-dispatched, or re-parsed;</li>
+          <li>only undelivered workers are located — resumed when possible, re-dispatched otherwise;</li>
+          <li>the stage is never restarted as a brand-new task;</li>
+          <li>your edits to Official Outputs stay put and never wake finished workers.</li>
+        </ul>
+        <div class="callout"><p><b>Rule:</b> a finished task's JSON is not authoritative — after restart, only Official Outputs decide whether a worker still needs rescuing.</p></div>
+        <h3>Large histories stay responsive</h3>
+        <p>Parent sessions with a hundred workers: opening one child's history should not freeze the window; cold subagent histories no longer scan every sibling; large-history pagination no longer overflows; scrolling to the top of the main chat auto-loads earlier messages.</p>
+      </div>
+    </section>
+
+    <!-- ========== EVIDENCE ========== -->
+    <section class="doc" id="evidence">
+      <h2 data-lang="zh">证据门禁、正式成果与出处</h2>
+      <h2 data-lang="en">Evidence gates, Official Outputs &amp; citations</h2>
+      <div data-lang="zh">
+        <h3>证据门禁</h3>
+        <p>项目特征缺口<b>不能用模型记忆填</b>。要么在资料里找到出处，要么由你尽调后调用 <code>tender_evidence force_pass</code> 授权放行。每一阶段开工前，先备 brief 和文件清单。</p>
+        <h3>Official Outputs</h3>
+        <p>统一成果树与阶段总报告写回 <code>Agent Pi Outputs</code>。BOQ 逐页组价阶段在 Markdown 总报告之外，还会出一份带公式的 <code>BOQ 组价测算.xlsx</code>（出厂预置 Univer，可在对话里预览、改公式）。</p>
+        <h3>引用是出处，不是摘抄</h3>
+        <p>Markdown 里的引用令牌显示成短芯片。点一下只看到：<b>源文件、页或行、题目或段落</b>，需要时再打开源文件。写作合同禁止把证据正文贴进稿里——芯片是标注，原文在库里。</p>
+        <h3>右侧资源文件栏</h3>
+        <p>「资源文件」挂在根 overlay 上：单击打开预览，右键或回形针「注入对话」，可一路收到窗口右缘只留下图标轨。对话框旁边的文件夹芯片只提供地址——模型按路径自己列目录、按需读文件。聊天里的文档链接优先用本机 <code>pwsh.exe</code>（PowerShell 7）打开。</p>
+      </div>
+      <div data-lang="en">
+        <h3>Evidence gates</h3>
+        <p>Project-fact gaps <b>are never filled from model memory</b>. Either a source is found in the materials, or you authorize a pass after diligence via <code>tender_evidence force_pass</code>. Every stage starts from a prepared brief and file list.</p>
+        <h3>Official Outputs</h3>
+        <p>A unified output tree and stage reports are written back to <code>Agent Pi Outputs</code>. The page-by-page BOQ pricing stage also produces a formula-carrying <code>BOQ pricing workbook.xlsx</code> (Univer is preinstalled — preview and edit formulas right in chat).</p>
+        <h3>Citations locate, they do not dump</h3>
+        <p>Citation tokens in Markdown render as short chips. One click shows only the <b>source file, page or lines, heading or paragraph</b> — open the source when needed. The writing contract forbids pasting evidence text into the draft: the chip is a locator, the original stays in the library.</p>
+        <h3>The files rail</h3>
+        <p>The files rail hangs on the root overlay: click to preview, right-click or paperclip to “inject into chat”, and it collapses to the window edge as an icon track. The folder chip in the composer only hands over a path — the model lists the directory and reads files on demand. Document links in chat prefer the local <code>pwsh.exe</code> (PowerShell 7).</p>
+      </div>
+    </section>
+
+    <!-- ========== KNOWLEDGE BASE ========== -->
+    <section class="doc" id="kb">
+      <h2 data-lang="zh">知识库</h2>
+      <h2 data-lang="en">Knowledge base</h2>
+      <div data-lang="zh">
+        <p>入口在左侧栏「专业化工作台」下面的<b>知识库</b>按钮（工作台顶栏入口是同一页）。索引按<b>文档自己的编排</b>切条款：章 / 节 / 条、<code>Clause</code> / <code>Article</code> / <code>Section</code>、<code>A1.2.3</code>。检索是 MiniSearch BM25，不是向量库。</p>
+        <h3>两条入库路，同一套索引</h3>
+        <ul>
+          <li><b>本页导入</b>：选择文件或拖入，先落入 <code>knowledge-base/originals/</code> 原始文档区，点「解析入库」才抽文本或走 MinerU（有进度条）。也可以贴路径：原文件、知识包文件夹、MinerU 产物文件夹。</li>
+          <li><b>对话导入</b>：贴上文件后发送 <em>「把这个 PDF 准确整理完整内容，做成知识包再入库。」</em>对话只生成 <code>…-知识包/</code>；写好后在右侧对该文件夹或 <code>pack.json</code> 右键「一键导入知识包」。普通文件可右键「一键导入知识库」。</li>
+        </ul>
+        <div class="callout warn"><p><b>注意：</b>只贴文件不说话不会进库——对话导入必须带上那句提示词（或提到知识库 / 入库 / 知识包 / 准确整理 / 完整内容 / 全文转录）。</p></div>
+        <h3>对话里由模型自己出图再建知识包</h3>
+        <p>宿主不先转 PDF。模型必须自己调 <code>kb_prepare_document</code>，再用官方 <code>read_image</code> 按印刷页复刻。不要用 <code>vision_*</code>，也不要自己截页。</p>
+        <h3>用户模板</h3>
+        <p>把你编好的较好文档入库为<b>用户模板</b>并勾选「本次任务选用」后，本轮业务稿复刻它的格式、大纲、章节顺序、标题语域和内容深度；数字、地名、合同号仍走规范、合同和本项目资料。文件名以「模板」结尾或带 <code>template</code> 时，右侧一键入库自动归入此类。</p>
+        <h3>分类子目录与 <code>.apkb</code> 传递包</h3>
+        <p>分类下可建子目录（如 规范 → COTO 2020）；已入库且文件名能认出的章节自动挂上。已入库条目、有文件的子目录、本机技能（不含出厂捆绑技能）都可导出 <code>.apkb</code>——这不是 zip，对方在同一页导入后，条目回到原分类和子目录，技能写入本机技能目录。</p>
+        <h3>MinerU 表格能看</h3>
+        <p>官方 MinerU 把表写成 HTML；入库落稿会把 <code>&lt;table&gt;</code> 收成 GitHub 风格 Markdown 表。旧稿点「全部重建」即可转表；预览对未重建的稿做兜底渲染。</p>
+      </div>
+      <div data-lang="en">
+        <p>The entry is the <b>Knowledge Base</b> button under “专业化工作台” in the left rail (the workbench header opens the same page). Indexing follows <b>each document's own structure</b>: chapters / sections / clauses, <code>Clause</code> / <code>Article</code> / <code>Section</code>, <code>A1.2.3</code>. Retrieval is MiniSearch BM25, not a vector store.</p>
+        <h3>Two import paths, one index</h3>
+        <ul>
+          <li><b>On-page import</b>: pick or drop files — they land in <code>knowledge-base/originals/</code> first, and only “Parse into KB” extracts text or runs MinerU (with a progress bar). You can also paste a path: a file, a knowledge-pack folder, or a MinerU output folder.</li>
+          <li><b>Chat import</b>: attach the file and send <em>“把这个 PDF 准确整理完整内容，做成知识包再入库。”</em> Chat produces only a <code>…-知识包/</code> folder; then right-click it (or its <code>pack.json</code>) on the files rail → “Import knowledge pack”. Plain files get “Import into KB”.</li>
+        </ul>
+        <div class="callout warn"><p><b>Note:</b> attaching a file without the prompt does not import anything — chat import requires the instruction (or a mention of 知识库 / 入库 / 知识包 / 准确整理 / 完整内容 / 全文转录).</p></div>
+        <h3>The model prepares its own pages</h3>
+        <p>The host never pre-converts the PDF. The model must call <code>kb_prepare_document</code> itself, then use the official <code>read_image</code> to transcribe printed pages. Do not use <code>vision_*</code>, and do not screenshot pages yourself.</p>
+        <h3>User templates</h3>
+        <p>Import a well-crafted document as a <b>user template</b> and tick “use for this task”: the next deliverable mirrors its format, outline, section order, heading register and depth — while figures, place names and contract numbers still come from the specs, the contract and this project's files. Files ending in “模板” or containing <code>template</code> auto-classify on one-click import.</p>
+        <h3>Sub-folders and <code>.apkb</code> transfer packs</h3>
+        <p>Categories can hold sub-folders (e.g. Specs → COTO 2020); imported chapters with recognizable filenames attach automatically. Entries, populated sub-folders and local skills (not factory-bundled ones) export as <code>.apkb</code> — not a zip; importing on the same page restores the original category and sub-folder, and skills land in the local skill directory.</p>
+        <h3>Readable MinerU tables</h3>
+        <p>Stock MinerU emits HTML tables; on import they are folded into GitHub-style Markdown tables. Rebuild older entries with “Rebuild all”; the preview falls back to rendering raw <code>&lt;table&gt;</code> for entries not yet rebuilt.</p>
+      </div>
+    </section>
+
+    <!-- ========== PLUGINS ========== -->
+    <section class="doc" id="plugins">
+      <h2 data-lang="zh">插件、模块与市场</h2>
+      <h2 data-lang="en">Plugins, modules &amp; the market</h2>
+      <div data-lang="zh">
+        <p>Harness 的企业能力：业务要什么，就按企业所需做成插件——技能、工具、工作台页、验收门禁都可以加。投标 / 实施 / 投资是第一批；合同、分包、物资、财务尽调用同一套装配方式往上叠，不必为了新工序换一套产品。</p>
+        <h3>一句话蒸馏领域模块</h3>
+        <p>模块管理的主按钮是<b>「去对话里创造」</b>：把本单活的打法一句话蒸馏成领域模块（<code>workbench-domain-builder</code>），沉淀为可复用的企业经验。JSON 粘贴收在高级里。</p>
+        <h3>插件市场</h3>
+        <p>设置 → 插件市场：发现社区为 Agent Pi 打造的能力，一键安装。从 GitHub 装插件时，点确认会预写正确的 pnpm 构建放行键。对话里后来装的 bundle 插件，重启后保留。</p>
+        <h3>内置能力</h3>
+        <ul>
+          <li><code>web_fetch</code>：模型可取页面和图片地址，写成 Markdown 图；</li>
+          <li>AnySearch 网络搜索；</li>
+          <li>出厂预置 Univer：表格在对话里可预览、可改公式；</li>
+          <li><code>dsh-genui</code> 3.3.2 起不再出厂预装（已装的请在设置里卸载）。</li>
+        </ul>
+      </div>
+      <div data-lang="en">
+        <p>The enterprise property of Harness: whatever the business needs becomes a plugin — skills, tools, workbench views, acceptance gates. Tender / delivery / investment are the first set; contracts, subcontracting, materials and financial diligence stack on the same assembly. You do not replace the product for every new procedure.</p>
+        <h3>One-sentence module distillation</h3>
+        <p>The main button in module management is <b>“create in chat”</b>: distill the playbook of the current job into a domain module in one sentence (<code>workbench-domain-builder</code>) and keep it as reusable company experience. Raw JSON paste lives under Advanced.</p>
+        <h3>Plugin market</h3>
+        <p>Settings → Plugin market: discover community capabilities for Agent Pi and install in one click. When installing from GitHub, confirming pre-writes the correct pnpm build-approval keys. Bundle plugins installed later in chat survive restarts.</p>
+        <h3>Built-ins</h3>
+        <ul>
+          <li><code>web_fetch</code>: the model fetches pages and image URLs into Markdown images;</li>
+          <li>AnySearch for web search;</li>
+          <li>Univer preinstalled: preview and edit spreadsheets with formulas in chat;</li>
+          <li><code>dsh-genui</code> is no longer factory-preinstalled since 3.3.2 (uninstall in Settings if present).</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ========== MODELS ========== -->
+    <section class="doc" id="models">
+      <h2 data-lang="zh">模型、视觉与 Codex</h2>
+      <h2 data-lang="en">Models, vision &amp; Codex</h2>
+      <div data-lang="zh">
+        <p>内核钉在 DeepSeek Harness <a href="https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.1-rc.2" target="_blank" rel="noopener"><code>dsh-v0.1.1-rc.2</code></a>（<code>b150a551b8</code>），桌面壳 Electron 43.4.1。</p>
+        <ul>
+          <li>新会话默认 <b>DeepSeek-V4-Flash-Vision-Exp</b>；Flash / Pro 仍是纯文本——只选它们<b>看不见图片</b>。已有会话沿用当时记在日志里的模型。</li>
+          <li>贴图：规范化 → Files API，失败再 inline。工作区图片用官方 <code>read_image</code>。系统提示不再点名已卸掉的 <code>vision_*</code>。</li>
+          <li>PDF 当文件读，能抽文本的不先转图；图纸和照片交给视觉模型。</li>
+          <li><b>Codex 是子智能体，不是普通模型 Provider：</b>设置页用 ChatGPT 登录后，DSH 主智能体通过 <code>subagent_codex</code> 委派独立任务；凭据只在 Agent Pi 专属本机目录。</li>
+        </ul>
+        <div class="callout"><p><b>选模型口诀：</b>要识图，选 Vision-Exp；只跑文本长任务，Flash / Pro 更省。推理强度可调到 <code>low</code> 进一步降本。</p></div>
+      </div>
+      <div data-lang="en">
+        <p>The kernel is pinned to DeepSeek Harness <a href="https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.1-rc.2" target="_blank" rel="noopener"><code>dsh-v0.1.1-rc.2</code></a> (<code>b150a551b8</code>), on an Electron 43.4.1 shell.</p>
+        <ul>
+          <li>New sessions default to <b>DeepSeek-V4-Flash-Vision-Exp</b>; Flash / Pro are text-only — with those, <b>images are invisible</b>. Existing sessions keep the model recorded in their logs.</li>
+          <li>Pasted images: normalize → Files API, inline as fallback. Workspace images use the official <code>read_image</code>. The system prompt no longer names the removed <code>vision_*</code> tools.</li>
+          <li>PDFs are read as files — no image conversion when text is extractable; drawings and photos go to the vision model.</li>
+          <li><b>Codex is a subagent, not a regular model provider:</b> sign in with ChatGPT in Settings, then the DSH parent delegates self-contained tasks through <code>subagent_codex</code>. Credentials stay in Agent Pi’s private local directory.</li>
+        </ul>
+        <div class="callout"><p><b>Rule of thumb:</b> pick Vision-Exp when images matter; Flash / Pro is cheaper for long text jobs. Set reasoning effort to <code>low</code> to cut cost further.</p></div>
+      </div>
+    </section>
+
+    <!-- ========== VERSIONS ========== -->
+    <section class="doc" id="versions">
+      <h2 data-lang="zh">版本沿革</h2>
+      <h2 data-lang="en">Version lineage</h2>
+      <div data-lang="zh">
+        <table class="tbl">
+          <tr><th>版本</th><th>一句话</th></tr>
+          <tr><td>3.3.5</td><td>投标执行链收紧；BOQ 全量覆盖；ChatGPT/Codex 登录；父会话自动接续</td></tr>
+          <tr><td>3.3.4</td><td>解析必须抽出实际 BOQ；企业工效优先；预览改价全局重算</td></tr>
+          <tr><td>3.3.3</td><td>南非道路投标五份深度分析稿；右侧多格式预览；Univer 软件内编辑</td></tr>
+          <tr><td>3.3.2</td><td>知识库完善（独立入口、知识包、用户模板、子目录、.apkb、MinerU 转表）；内核 0.1.1-rc.2；不再预装 GenUI</td></tr>
+          <tr><td>3.3.1</td><td>内核 0.1.1-rc.1；官方视觉模型；卸 vision-router</td></tr>
+          <tr><td>3.3.0</td><td>内核 0.1.0-rc.8；关 stealth，识图只留工具</td></tr>
+          <tr><td>3.2.3</td><td>对话框文件夹只给路径；右键恢复注入对话</td></tr>
+          <tr><td>3.2.2</td><td>卸掉 J-Space 出厂技能；不再劫持 DSH 循环</td></tr>
+          <tr><td>3.2.1</td><td>预装 dsh-genui、web_fetch、AnySearch；市场放行写对 pnpm 包名</td></tr>
+          <tr><td>3.2.0</td><td>内核 0.1.0-rc.7；崩溃只救未递交工人；引用变出处芯片；资源文件栏不再丢</td></tr>
+          <tr><td>3.1.0–3.1.3</td><td>蒸馏模块、知识库、成果树、质检；子代理历史加载热修</td></tr>
+          <tr><td>3.0.0</td><td>发动机换成 DeepSeek Harness</td></tr>
+          <tr><td>2.6.5</td><td>经典版（Craft Agents OSS / Goal Loop），可并存</td></tr>
+        </table>
+        <h3>3.0 vs 2.x</h3>
+        <table class="tbl">
+          <tr><th></th><th>2.x 经典版</th><th>3.x</th></tr>
+          <tr><td>内核</td><td>Claude Agent SDK + Pi + 自研控制面</td><td><b>DeepSeek Harness</b></td></tr>
+          <tr><td>企业扩展</td><td>改控制面才能加流程</td><td>按企业所需做插件，流程随业务增长可高度定制</td></tr>
+          <tr><td>长任务</td><td>Goal Loop 审查回合</td><td>内核原生 subagent / workflow，少绕一层</td></tr>
+          <tr><td>费用</td><td>控制面和循环更容易空转</td><td>同样活，回合更短，token 更省</td></tr>
+          <tr><td>图片</td><td>先识图再塞进对话</td><td>视觉模型走原生多模态；PDF 当文件读</td></tr>
+          <tr><td>数据目录</td><td><code>~/.agent-pi</code></td><td><code>%APPDATA%\agent-pi-dsh-desktop</code></td></tr>
+        </table>
+      </div>
+      <div data-lang="en">
+        <table class="tbl">
+          <tr><th>Version</th><th>In one line</th></tr>
+          <tr><td>3.3.5</td><td>Hardened tender execution, full BOQ coverage, ChatGPT/Codex sign-in, and automatic parent wake</td></tr>
+          <tr><td>3.3.4</td><td>Analysis must extract the real BOQ; enterprise productivity first; reviewed rates recalculate</td></tr>
+          <tr><td>3.3.3</td><td>Five-manuscript SA road-tender analysis depth; multi-format right rail; in-app Univer editing</td></tr>
+          <tr><td>3.3.2</td><td>Knowledge base polish (own entry, knowledge packs, user templates, sub-folders, .apkb, MinerU tables); kernel 0.1.1-rc.2; GenUI no longer preinstalled</td></tr>
+          <tr><td>3.3.1</td><td>Kernel 0.1.1-rc.1; official vision model; vision-router removed</td></tr>
+          <tr><td>3.3.0</td><td>Kernel 0.1.0-rc.8; stealth off, vision via tools only</td></tr>
+          <tr><td>3.2.3</td><td>Composer folder hands over a path; right-click inject restored</td></tr>
+          <tr><td>3.2.2</td><td>J-Space removed; no more hijacking the DSH loop</td></tr>
+          <tr><td>3.2.1</td><td>Preinstalled dsh-genui, web_fetch, AnySearch; correct pnpm allow keys</td></tr>
+          <tr><td>3.2.0</td><td>Kernel 0.1.0-rc.7; crash rescues only undelivered workers; citations become locator chips; files rail fixed</td></tr>
+          <tr><td>3.1.0–3.1.3</td><td>Module distillation, knowledge base, output tree, QC; subagent history hotfixes</td></tr>
+          <tr><td>3.0.0</td><td>Engine swapped to DeepSeek Harness</td></tr>
+          <tr><td>2.6.5</td><td>Classic (Craft Agents OSS / Goal Loop), side-by-side install</td></tr>
+        </table>
+        <h3>3.0 vs 2.x</h3>
+        <table class="tbl">
+          <tr><th></th><th>2.x Classic</th><th>3.x</th></tr>
+          <tr><td>Engine</td><td>Claude Agent SDK + Pi + in-house control plane</td><td><b>DeepSeek Harness</b></td></tr>
+          <tr><td>Extensibility</td><td>New flows require control-plane changes</td><td>Plugins per company needs; workflows customizable as the business grows</td></tr>
+          <tr><td>Long jobs</td><td>Goal Loop review rounds</td><td>Native subagent / workflow, one less layer</td></tr>
+          <tr><td>Cost</td><td>Control plane idles more</td><td>Same job, fewer turns, fewer tokens</td></tr>
+          <tr><td>Images</td><td>OCR first, then into chat</td><td>Native multimodal vision; PDFs read as files</td></tr>
+          <tr><td>Data dir</td><td><code>~/.agent-pi</code></td><td><code>%APPDATA%\agent-pi-dsh-desktop</code></td></tr>
+        </table>
+      </div>
+    </section>
+
+    <!-- ========== FAQ ========== -->
+    <section class="doc" id="faq">
+      <h2 data-lang="zh">故障排查</h2>
+      <h2 data-lang="en">Troubleshooting</h2>
+      <div data-lang="zh">
+        <h3>SmartScreen 拦截安装</h3>
+        <p>安装包未签名。选「更多信息」→「仍要运行」。</p>
+        <h3>升级后行为没变 / <code>app.asar</code> 被占用</h3>
+        <p>覆盖安装前没有完全退出——关到托盘不算。退出托盘里的 Agent Pi DSH，关掉占用安装目录的编辑器，再装一次。</p>
+        <h3>贴了图但模型「看不见」</h3>
+        <p>当前会话模型是 Flash / Pro（纯文本）。新开会话选 <code>deepseek-v4-flash-vision-exp</code>；已有会话沿用建会话时记下的模型。</p>
+        <h3>对话导入没进知识库</h3>
+        <p>只贴文件不说话不会入库。发送时带上「把这个 PDF 准确整理完整内容，做成知识包再入库。」，然后在右侧对 <code>…-知识包/</code> 右键一键导入。</p>
+        <h3>知识库预览里表格是 HTML</h3>
+        <p>那是旧稿。在知识库点「全部重建」（或对该条再解析一次），<code>&lt;table&gt;</code> 会收成 Markdown 表。</p>
+        <h3>目录菜单有点慢</h3>
+        <p>上百工人的父会话里目录菜单仍可能慢，这是已知项；历史窗口本身不会卡死。</p>
+      </div>
+      <div data-lang="en">
+        <h3>SmartScreen blocks the installer</h3>
+        <p>The installer is unsigned. Choose “More info” → “Run anyway”.</p>
+        <h3>Upgrade seems not to apply / <code>app.asar</code> locked</h3>
+        <p>The app was not fully quit — closing to the tray is not enough. Quit Agent Pi DSH from the tray, close editors holding the install directory, and reinstall.</p>
+        <h3>The model “can't see” pasted images</h3>
+        <p>The session is on Flash / Pro (text-only). Start a new session with <code>deepseek-v4-flash-vision-exp</code>; existing sessions keep the model they were created with.</p>
+        <h3>Chat import never reached the KB</h3>
+        <p>Attaching a file without the prompt imports nothing. Send “把这个 PDF 准确整理完整内容，做成知识包再入库。”, then right-click the <code>…-知识包/</code> folder on the files rail to import.</p>
+        <h3>KB preview shows HTML tables</h3>
+        <p>That's an older entry. Hit “Rebuild all” in the KB (or re-parse the entry) and <code>&lt;table&gt;</code> becomes a Markdown table.</p>
+        <h3>The catalog menu feels slow</h3>
+        <p>In parent sessions with a hundred workers the catalog menu can still be slow — a known trade-off; the history window itself will not freeze.</p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <div class="footer-bottom" style="border-top:0;margin-top:0;padding-top:0">
+      <span>© <span data-year></span> Agent Pi · Always π AI Studio</span>
+      <span>
+        <a href="privacy-policy.html" data-lang="zh">隐私政策</a><a href="privacy-policy.html" data-lang="en">Privacy</a>
+        · <a href="code-signing-policy.html" data-lang="zh">代码签名</a><a href="code-signing-policy.html" data-lang="en">Code signing</a>
+        · <a href="index.html" data-lang="zh">返回首页</a><a href="index.html" data-lang="en">Home</a>
+      </span>
+    </div>
+    <p style="margin:14px 0 0;color:var(--text-faint);font-size:0.82rem">Free code signing provided by <a href="https://signpath.io" target="_blank" rel="noopener" style="display:inline;padding:0">SignPath.io</a>, certificate by <a href="https://signpath.org" target="_blank" rel="noopener" style="display:inline;padding:0">SignPath Foundation</a>.</p>
+  </div>
+</footer>
+
+<script src="assets/js/main.js?v=25"></script>
+</body>
+</html>

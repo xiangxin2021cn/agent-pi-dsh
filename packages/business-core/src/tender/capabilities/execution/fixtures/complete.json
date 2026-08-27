@@ -1,0 +1,35 @@
+{
+  "workPackages": [
+    {
+      "id": "wp-drainage-01",
+      "title": "Construct concrete side drains",
+      "boqItemIds": ["boq-5201"],
+      "requirementIds": ["req-drainage"],
+      "methodSteps": [
+        "Confirm setting-out and service clearances.",
+        "Excavate and prepare the founding surface.",
+        "Place, finish, cure, and inspect the concrete drain."
+      ],
+      "resourceNeeds": [
+        {
+          "resourceClass": "excavator",
+          "quantity": "1",
+          "unit": "item",
+          "basis": "One active drainage workfront",
+          "status": "verified"
+        }
+      ],
+      "holdPoints": ["Founding surface acceptance before concrete placement"],
+      "interfaces": ["Traffic accommodation and adjacent earthworks"],
+      "constraints": ["Maintain access through the live work zone"],
+      "temporaryWorks": [],
+      "hseControls": ["Approved excavation and plant-pedestrian controls"],
+      "environmentalControls": ["Prevent sediment discharge from excavation"],
+      "sourceRefs": [
+        { "documentId": "spec", "page": 20, "clause": "5.2" },
+        { "documentId": "drawing", "page": 3, "section": "DRAIN-01" }
+      ],
+      "status": "reviewed"
+    }
+  ]
+}

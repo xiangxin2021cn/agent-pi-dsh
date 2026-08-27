@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "revision": 3,
+  "project": {
+    "id": "synthetic-incomplete-tender",
+    "title": "Synthetic Incomplete Tender",
+    "status": "active"
+  },
+  "documents": [
+    {
+      "id": "tender-book-1",
+      "name": "Synthetic Tender Book 1",
+      "path": "C:/synthetic/tender-book-1.pdf",
+      "kind": "tender_data",
+      "status": "active"
+    }
+  ],
+  "requirements": [
+    {
+      "id": "req-returnable-schedule",
+      "title": "Returnable schedule",
+      "text": "Submit the required synthetic returnable schedule.",
+      "type": "mandatory",
+      "criticality": "critical",
+      "source": {
+        "documentId": "tender-book-1",
+        "page": 9,
+        "clause": "C.2.3"
+      },
+      "evidenceNeeded": ["Completed schedule"],
+      "status": "open"
+    }
+  ],
+  "criteria": [
+    {
+      "id": "crit-programme",
+      "title": "Project programme",
+      "method": "weighted",
+      "weight": 20,
+      "requirementIds": ["req-returnable-schedule"],
+      "source": {
+        "documentId": "tender-book-1",
+        "page": 21,
+        "section": "Functionality"
+      },
+      "evidenceNeeded": ["Tender programme"],
+      "status": "open"
+    }
+  ],
+  "deliverables": [
+    {
+      "id": "del-unlinked-appendix",
+      "title": "Unlinked appendix",
+      "requirementIds": [],
+      "status": "planned"
+    }
+  ],
+  "responses": []
+}

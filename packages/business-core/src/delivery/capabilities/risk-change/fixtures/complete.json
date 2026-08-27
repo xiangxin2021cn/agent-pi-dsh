@@ -1,0 +1,23 @@
+{
+  "controlStatus": "reviewed",
+  "dataDate": "2026-07-12",
+  "currency": "ZAR",
+  "risks": [
+    { "id": "risk-1", "type": "risk", "title": "Utility conflict", "scopeItemIds": ["drainage"], "cause": "Unknown utility", "effect": "Delay", "probability": 2, "impact": 3, "rating": 6, "owner": "Construction Manager", "dueDate": "2026-07-20", "response": "Trial holes complete", "evidenceRefs": [{ "kind": "source", "sourceId": "risk-register", "sheet": "Risks", "cell": "B2:N2" }], "status": "mitigated", "confidence": "confirmed" }
+  ],
+  "issues": [
+    { "id": "issue-1", "title": "Utility exposed", "scopeItemIds": ["drainage"], "owner": "Construction Manager", "dueDate": "2026-07-10", "resolution": "Rerouted", "evidenceRefs": [{ "kind": "source", "sourceId": "risk-register", "sheet": "Risks", "cell": "B3:N3" }], "status": "resolved" }
+  ],
+  "notices": [
+    { "id": "notice-1", "type": "contractual", "obligationId": "notice-28d", "title": "Utility notice", "dueDate": "2026-07-05", "sentDate": "2026-07-04", "evidenceRefs": [{ "kind": "source", "sourceId": "change-register", "sheet": "Notices", "cell": "B2:N2" }], "status": "acknowledged" }
+  ],
+  "changes": [
+    { "id": "change-1", "title": "Utility reroute", "scopeItemIds": ["drainage"], "noticeIds": ["notice-1"], "costImpact": "100.20", "scheduleImpactDays": 2, "evidenceRefs": [{ "kind": "source", "sourceId": "change-register", "sheet": "Changes", "cell": "B2:N2" }], "status": "approved", "confidence": "confirmed" }
+  ],
+  "claims": [
+    { "id": "claim-1", "title": "Utility reroute claim", "changeIds": ["change-1"], "noticeIds": ["notice-1"], "amount": "100.20", "extensionDays": 2, "evidenceRefs": [{ "kind": "source", "sourceId": "change-register", "sheet": "Claims", "cell": "B2:N2" }], "status": "agreed" }
+  ],
+  "decisions": [
+    { "id": "decision-1", "title": "Approve reroute", "relatedEntityIds": ["change-1"], "owner": "Project Manager", "dueDate": "2026-07-06", "decidedAt": "2026-07-06", "decision": "Approved", "evidenceRefs": [{ "kind": "source", "sourceId": "change-register", "sheet": "Decisions", "cell": "B2:N2" }], "status": "approved" }
+  ]
+}

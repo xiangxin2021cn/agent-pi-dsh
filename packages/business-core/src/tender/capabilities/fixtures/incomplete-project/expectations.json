@@ -1,0 +1,13 @@
+{
+  "projectId": "synthetic-incomplete-tender",
+  "expectedReadiness": "not_ready",
+  "expectedIssueCodes": [
+    "evaluation_criterion_uncovered",
+    "scope_support_missing",
+    "activity_logic_cycle",
+    "project_currency_mismatch",
+    "submission_signature_missing",
+    "submission_format_mismatch"
+  ],
+  "unverifiedConclusionPolicy": "conditional_only"
+}

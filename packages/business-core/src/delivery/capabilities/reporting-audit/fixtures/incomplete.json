@@ -1,0 +1,10 @@
+{
+  "controlStatus": "draft",
+  "period": "2026-07",
+  "dataDate": "2026-07-12",
+  "capabilityAttestations": [],
+  "varianceExplanations": [],
+  "managementReports": [],
+  "closeApproval": { "status": "pending", "evidenceRefs": [] },
+  "auditHistory": []
+}

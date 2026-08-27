@@ -1,0 +1,16 @@
+{
+  "controlStatus": "reviewed",
+  "dataDate": "2026-07-12",
+  "currency": "ZAR",
+  "periods": [
+    {
+      "period": "2026-07",
+      "planned": { "openingBalance": "2000.00", "inflow": "100.30", "outflow": "1100.30", "closingBalance": "1000.00" },
+      "actual": { "openingBalance": "2000.00", "inflow": "50.00", "outflow": "200.00", "closingBalance": "1850.00" },
+      "forecast": { "openingBalance": "2000.00", "inflow": "100.50", "outflow": "950.50", "closingBalance": "1150.00" },
+      "evidenceRefs": [{ "kind": "source", "sourceId": "cashflow", "sheet": "Monthly", "cell": "B2:M2" }],
+      "status": "reviewed"
+    }
+  ],
+  "fundingConstraints": []
+}

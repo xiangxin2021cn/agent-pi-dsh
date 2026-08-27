@@ -1,0 +1,4 @@
+interface:
+  display_name: "Tender Submission Audit"
+  short_description: "Assemble and red-team a submission-ready tender package"
+  default_prompt: "Use $tender-submission-audit to assemble and validate the registered tender deliverables before any submission-ready claim."

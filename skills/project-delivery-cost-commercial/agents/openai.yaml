@@ -1,0 +1,4 @@
+interface:
+  display_name: "Delivery Cost and Commercial"
+  short_description: "Control budget, actuals, accruals and EAC exactly"
+  default_prompt: "Use $project-delivery-cost-commercial to build and validate implementation cost and commercial control from my selected project records."
