@@ -26,28 +26,32 @@ test('DSH patch application is safe and idempotent', () => {
   assert.equal(applyDshPatch({ dshRoot: dir, patchPath }), 'already-applied')
 })
 
-test('DSH patch recognizes an already-applied CRLF checkout', () => {
+test('DSH patch recognizes an already-applied CRLF checkout with real Git', () => {
   const dir = mkdtempSync(join(tmpdir(), 'agent-pi-dsh-patch-crlf-'))
   const patchPath = join(dir, 'change.patch')
   spawnSync('git', ['init', '-q'], { cwd: dir })
-  writeFileSync(join(dir, 'sample.txt'), 'first\r\nafter\r\nlast\r\n')
+  const filePath = join(dir, 'sample.txt')
+  const before = Buffer.from('first\tvalue\r\n  after\r\nlast\r\n')
+  writeFileSync(filePath, before)
   writeFileSync(patchPath, [
     'diff --git a/sample.txt b/sample.txt',
     '--- a/sample.txt',
     '+++ b/sample.txt',
     '@@ -1,3 +1,3 @@',
-    ' first',
-    '-before',
-    '+after',
+    ' first value',
+    '-  before',
+    '+  after',
     ' last',
     '',
   ].join('\n'))
 
-  const run = (_command, args) => ({
-    status: args.includes('--reverse') && args.includes('--ignore-space-change') ? 0 : 1,
-    stderr: 'CRLF context mismatch',
+  const strict = spawnSync('git', ['-C', dir, 'apply', '--reverse', '--check', patchPath], {
+    encoding: 'utf8',
+    windowsHide: true,
   })
-  assert.equal(applyDshPatch({ dshRoot: dir, patchPath, run }), 'already-applied')
+  assert.notEqual(strict.status, 0)
+  assert.equal(applyDshPatch({ dshRoot: dir, patchPath }), 'already-applied')
+  assert.deepEqual(readFileSync(filePath), before)
 })
 
 test('DSH patch refuses a mismatched checkout without changing it', () => {
