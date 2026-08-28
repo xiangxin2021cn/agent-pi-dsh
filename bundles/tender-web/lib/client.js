@@ -271,6 +271,8 @@ html.ap-simple-nav [data-slot="sidebar"] button[class*="brand"] svg[viewBox="0 0
 .ap-toolbtn:hover{background:color-mix(in srgb, var(--dsw-alias-label-primary) 8%, transparent);color:var(--ap-accent)}
 .ap-toolbtn.on{color:var(--ap-accent, #0f8a8a);background:color-mix(in srgb, var(--ap-accent, #0f8a8a) 14%, transparent)}
 .ap-toolbtn:disabled{opacity:.4;cursor:default}
+.ap-codex-turn{display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 8px;border:1px solid var(--dsw-alias-border-l2);border-radius:7px;background:transparent;color:var(--dsw-alias-label-secondary);font-size:11px;cursor:pointer}
+.ap-codex-turn:hover,.ap-codex-turn.on{color:var(--ap-accent);border-color:color-mix(in srgb,var(--ap-accent) 45%,var(--dsw-alias-border-l2));background:color-mix(in srgb,var(--ap-accent) 12%,transparent)}
 .ap-header-tool{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:32px;height:32px;min-width:32px;padding:0;border:1px solid var(--dsw-alias-border-l2);border-radius:18px;background:transparent;color:var(--dsw-alias-label-primary);cursor:pointer}
 .ap-header-tool:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}
 .ap-header-tool:disabled{opacity:.4;cursor:default}
@@ -1444,6 +1446,35 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 
     function sessionHint(props) {
       return (props && (props.sessionId || (props.session && props.session.sessionId))) || ''
+    }
+
+    const codexTurnState = window.__apCodexTurnState || (window.__apCodexTurnState = {
+      armed: new Set(),
+      listeners: new Set(),
+      submitting: new Set(),
+    })
+    function codexTurnKey(props) {
+      return sessionHint(props) || runtime.sessionId || 'active'
+    }
+    function notifyCodexTurn() {
+      codexTurnState.listeners.forEach((listener) => {
+        try { listener() } catch { /* stale composer */ }
+      })
+    }
+    function codexTurnArmed(props) {
+      return codexTurnState.armed.has(codexTurnKey(props))
+    }
+    function setCodexTurnArmed(props, armed) {
+      const key = codexTurnKey(props)
+      if (armed) codexTurnState.armed.add(key)
+      else codexTurnState.armed.delete(key)
+      notifyCodexTurn()
+    }
+    function clearCodexTurnAfterSubmit(props) {
+      const key = codexTurnKey(props)
+      codexTurnState.armed.delete(key)
+      codexTurnState.submitting.delete(key)
+      notifyCodexTurn()
     }
 
     const composerPropsRef = { current: null }
@@ -3593,7 +3624,17 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
       }
     }
 
-    function submitAfterFold(props, submit) {
+    function buildCodexTurnDelegation(task) {
+      const original = String(task || '').trim()
+      if (!original) throw new Error('Codex delegation requires a non-empty task')
+      return `【Codex 执行模式】
+你是 DSH 主智能体。必须立即调用 subagent_codex，将 run_in_background=false；不要先自行完成任务。请把下方用户任务、明确文件路径、必要上下文和验收目标整理成独立委派，等待 Codex 完成，核验实际结果后再向用户汇报。
+
+【用户原始任务】
+${original}`
+    }
+
+    function submitAfterFold(props, submit, transform, afterSubmit) {
       const sid = sessionHint(props) || runtime.sessionId || 'active'
       const clean = stripMentionArtifacts(currentDraft(props))
       const items = attachItemsOf(attachSessionId(props))
@@ -3604,17 +3645,19 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
       const text = block
         ? (body ? block + '\n\n' + body : block + (fallback ? '\n\n' + fallback : ''))
         : (body || fallback)
+      const finalText = typeof transform === 'function' ? transform(text) : text
       attachSubmitLock = true
-      if (!text) {
+      if (!finalText) {
         const send = typeof submit === 'function'
           ? submit
           : (props && props.inputActions && props.inputActions.__apOrigSubmit)
         if (typeof send === 'function') send()
         attachSubmitLock = false
         setAttachItems([], props)
+        if (typeof afterSubmit === 'function') afterSubmit()
         return
       }
-      setComposerDraft(props, text)
+      setComposerDraft(props, finalText)
       requestAnimationFrame(() => {
         const send = typeof submit === 'function'
           ? submit
@@ -3623,6 +3666,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
         window.setTimeout(() => {
           attachSubmitLock = false
           setAttachItems([], props)
+          if (typeof afterSubmit === 'function') afterSubmit()
         }, 280)
       })
     }
@@ -3633,12 +3677,47 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
       }).catch(() => {})
     }
 
+    async function submitCodexTurn(props, orig) {
+      const key = codexTurnKey(props)
+      if (codexTurnState.submitting.has(key)) return
+      codexTurnState.submitting.add(key)
+      const desktop = window.agentPiDesktop
+      try {
+        const status = !desktop || typeof desktop.codexAuthStatus !== 'function'
+          ? null
+          : await desktop.codexAuthStatus()
+        if (!status || status.available !== true || status.state !== 'logged-in') throw new Error('Codex unavailable')
+      } catch {
+        codexTurnState.submitting.delete(key)
+        showToast('Codex 尚未登录或运行时不可用，请到设置 → Codex 智能体完成登录。')
+        return
+      }
+      const submit = () => submitAfterFold(
+        props,
+        orig,
+        buildCodexTurnDelegation,
+        () => clearCodexTurnAfterSubmit(props),
+      )
+      if (attachItemsOf(attachSessionId(props)).length) {
+        foldAttachmentsIntoDraft(props).then((folded) => {
+          if (folded) submit()
+          else codexTurnState.submitting.delete(key)
+        }).catch(() => { codexTurnState.submitting.delete(key) })
+        return
+      }
+      submit()
+    }
+
     function wrapComposerSubmit(props) {
       const actions = props && props.inputActions
       if (!actions || typeof actions.submit !== 'function' || actions.__apFoldWrapped) return
       const orig = actions.submit.bind(actions)
       actions.__apOrigSubmit = orig
       actions.submit = () => {
+        if (codexTurnArmed(props)) {
+          void submitCodexTurn(props, orig)
+          return
+        }
         const before = currentDraft(props)
         restoreCleanDraft(props)
         const sid = sessionHint(props) || runtime.sessionId || 'active'
@@ -8107,6 +8186,13 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
       React.useEffect(() => { if (items.length) stripComposerMentions(items) }, [items.length])
       const propsRef = React.useRef(live)
       propsRef.current = live
+      const [, setCodexTurnTick] = React.useState(0)
+      React.useEffect(() => {
+        const sync = () => setCodexTurnTick((tick) => tick + 1)
+        codexTurnState.listeners.add(sync)
+        return () => { codexTurnState.listeners.delete(sync) }
+      }, [])
+      const armed = codexTurnArmed(live)
       const sessionId = live.sessionId
       React.useEffect(() => {
         const onFill = (event) => {
@@ -8133,6 +8219,11 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
           if (!isSendButton(event.target.closest('button'))) return
           event.preventDefault()
           event.stopPropagation()
+          if (codexTurnArmed(propsRef.current)) {
+            const submit = propsRef.current && propsRef.current.inputActions && propsRef.current.inputActions.submit
+            if (typeof submit === 'function') submit()
+            return
+          }
           foldAndSubmit(propsRef.current)
         }
         const onKeyDown = (event) => {
@@ -8142,6 +8233,11 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
           if (!ta || ta.tagName !== 'TEXTAREA' || !ta.closest('[data-composer-card]')) return
           event.preventDefault()
           event.stopPropagation()
+          if (codexTurnArmed(propsRef.current)) {
+            const submit = propsRef.current && propsRef.current.inputActions && propsRef.current.inputActions.submit
+            if (typeof submit === 'function') submit()
+            return
+          }
           foldAndSubmit(propsRef.current)
         }
         document.addEventListener('click', onClick, true)
@@ -8185,6 +8281,16 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
             onMouseDown: (e) => e.preventDefault(),
             onClick: polish,
           }, Icon('sparkles', 15, busy ? 'ap-spin' : '')),
+          h('button', {
+            type: 'button',
+            className: 'ap-codex-turn' + (armed ? ' on' : ''),
+            'aria-pressed': armed ? 'true' : 'false',
+            title: armed
+              ? '下一条消息将由 Codex 子智能体执行'
+              : '仅将下一条消息交给 Codex 子智能体',
+            onMouseDown: (event) => event.preventDefault(),
+            onClick: () => setCodexTurnArmed(propsRef.current, !armed),
+          }, Icon('sparkles', 14), 'Codex 执行'),
           h('button', {
             type: 'button',
             className: 'ap-toolbtn',
