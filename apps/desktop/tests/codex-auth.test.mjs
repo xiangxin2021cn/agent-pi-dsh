@@ -97,6 +97,34 @@ test('Codex auth controller enriches a logged-in status with the active model', 
   })
 })
 
+test('Codex auth controller keeps logged-in status when the model probe fails', () => {
+  const codexHome = join(process.cwd(), '.tmp', 'codex-auth-model-failure-test')
+  const controller = createCodexAuthController({
+    nodePath: 'node.exe',
+    wrapperPath: 'codex.js',
+    codexHome,
+    baseEnv: { PATH: 'C:\\Windows' },
+    spawnSync(_command, args) {
+      if (args.slice(-2).join(' ') === 'login status') {
+        return { status: 0, stdout: 'Logged in using ChatGPT\n', stderr: '' }
+      }
+      if (args.includes('app-server')) {
+        return { status: 1, stdout: '', stderr: 'app-server failed' }
+      }
+      throw new Error('unexpected command')
+    },
+  })
+
+  const status = controller.status()
+
+  assert.deepEqual(status, {
+    available: true,
+    state: 'logged-in',
+    method: 'chatgpt',
+  })
+  assert.equal('model' in status, false)
+})
+
 test('Electron exposes only normalized Codex auth operations to the renderer', () => {
   const desktop = join(import.meta.dirname, '..')
   const main = readFileSync(join(desktop, 'main.mjs'), 'utf8')
