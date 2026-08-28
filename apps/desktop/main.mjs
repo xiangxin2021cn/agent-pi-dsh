@@ -9,6 +9,11 @@ import { pipeline } from 'node:stream/promises'
 import { delimiter, dirname, isAbsolute, join, normalize, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createCodexAuthController, resolveCodexWrapper } from './codex-auth.mjs'
+import {
+  applyCompactionFallbackEnv,
+  createCompactionFallbackPreferenceUpdate,
+  normalizeCompactionFallbackPreference,
+} from './compaction-preferences.mjs'
 
 const APP_NAME = 'agent-pi-DSH'
 const here = dirname(fileURLToPath(import.meta.url))
@@ -171,14 +176,14 @@ function reapPackagedPort(port) {
 
 function runtimeEnv() {
   const sysRoot = process.env.SystemRoot || process.env.WINDIR || (process.platform === 'win32' ? 'C:\\Windows' : '')
-  const env = {
+  const env = applyCompactionFallbackEnv({
     ...process.env,
     DSH_HOME: dshHome,
     DSH_CHECKOUT: dshRoot,
     DSH_BUNDLED_SKILL_DIR: join(productRoot, 'skills'),
     AGENT_PI_DESKTOP: '1',
     CODEX_HOME: codexHome,
-  }
+  }, readPrefs())
   // Official Models onboarding treats a process-environment DEEPSEEK_API_KEY
   // as a ready, read-only credential. The desktop stores the key through the
   // DSH credential file so first-run users get the official dialog and can
@@ -919,6 +924,14 @@ ipcMain.handle('app-relaunch', () => {
   return true
 })
 ipcMain.handle('app-version', () => app.getVersion())
+ipcMain.handle('compaction-fallback-status', () => (
+  normalizeCompactionFallbackPreference(readPrefs())
+))
+ipcMain.handle('set-compaction-fallback', (_event, enabled) => {
+  const update = createCompactionFallbackPreferenceUpdate(enabled)
+  writePrefs(update)
+  return { enabled: update.compactionFallbackEnabled, restartRequired: true }
+})
 ipcMain.handle('codex-auth-status', () => (
   getCodexAuthController()?.status() ?? { available: false, state: 'unavailable' }
 ))

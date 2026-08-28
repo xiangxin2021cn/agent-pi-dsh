@@ -10060,6 +10060,13 @@ ${original}`
       const zh = lang !== 'en'
       const [auth, setAuth] = React.useState({ available: true, state: 'checking' })
       const [busy, setBusy] = React.useState(false)
+      const compactionBridgeAvailable = !!desktop
+        && typeof desktop.compactionFallbackStatus === 'function'
+        && typeof desktop.setCompactionFallback === 'function'
+      const [compactionEnabled, setCompactionEnabled] = React.useState(true)
+      const lastConfirmedCompaction = React.useRef(true)
+      const [compactionBusy, setCompactionBusy] = React.useState(compactionBridgeAvailable)
+      const [compactionMessage, setCompactionMessage] = React.useState('')
 
       const refresh = React.useCallback(async () => {
         if (!desktop || typeof desktop.codexAuthStatus !== 'function') {
@@ -10080,6 +10087,28 @@ ${original}`
         return () => clearInterval(timer)
       }, [auth.state, refresh])
 
+      const loadCompaction = React.useCallback(async () => {
+        if (!compactionBridgeAvailable) {
+          setCompactionBusy(false)
+          return
+        }
+        setCompactionBusy(true)
+        setCompactionMessage('')
+        try {
+          const result = await desktop.compactionFallbackStatus()
+          if (!result || typeof result.enabled !== 'boolean') throw new Error('Invalid compaction preference')
+          lastConfirmedCompaction.current = result.enabled
+          setCompactionEnabled(result.enabled)
+        } catch {
+          setCompactionEnabled(lastConfirmedCompaction.current)
+          setCompactionMessage(zh ? '无法读取自动压缩设置，请重试。' : 'Could not load the compaction setting. Please retry.')
+        } finally {
+          setCompactionBusy(false)
+        }
+      }, [compactionBridgeAvailable, desktop, zh])
+
+      React.useEffect(() => { void loadCompaction() }, [loadCompaction])
+
       const invoke = async (method) => {
         setBusy(true)
         try {
@@ -10088,6 +10117,28 @@ ${original}`
           setAuth({ available: true, state: 'error' })
         } finally {
           setBusy(false)
+        }
+      }
+
+      const saveCompaction = async () => {
+        if (!compactionBridgeAvailable || compactionBusy) return
+        const nextEnabled = !compactionEnabled
+        setCompactionBusy(true)
+        setCompactionEnabled(nextEnabled)
+        setCompactionMessage('')
+        try {
+          const result = await desktop.setCompactionFallback(nextEnabled)
+          if (!result || typeof result.enabled !== 'boolean' || typeof result.restartRequired !== 'boolean') {
+            throw new Error('Invalid compaction preference')
+          }
+          lastConfirmedCompaction.current = result.enabled
+          setCompactionEnabled(result.enabled)
+          setCompactionMessage(result.restartRequired ? (zh ? '重启应用后生效' : 'Restart the app to apply') : '')
+        } catch {
+          setCompactionEnabled(lastConfirmedCompaction.current)
+          setCompactionMessage(zh ? '保存失败，请重试。' : 'Could not save the setting. Please retry.')
+        } finally {
+          setCompactionBusy(false)
         }
       }
 
@@ -10178,6 +10229,27 @@ ${original}`
               ? '。Codex 不会自动继承父对话或知识库，父智能体会把所需文件路径、知识和交付目标整理成独立任务。'
               : '. Codex does not inherit parent conversation or knowledge automatically, so the parent provides a self-contained brief.',
           ),
+        ),
+        h('div', { className: 'ap-codex-card', style: { marginTop: 14 } },
+          h('div', { className: 'ap-codex-status' },
+            h('strong', null, zh ? '对话自动压缩' : 'Automatic conversation compaction'),
+            h('button', {
+              type: 'button',
+              role: 'switch',
+              className: 'ap-switch' + (compactionEnabled ? ' on' : ''),
+              'aria-label': zh ? 'DeepSeek 摘要兜底' : 'DeepSeek summary fallback',
+              'aria-checked': compactionEnabled ? 'true' : 'false',
+              disabled: compactionBusy || !compactionBridgeAvailable,
+              onClick: () => { void saveCompaction() },
+            }, h('span', { className: 'ap-switch-knob' })),
+          ),
+          h('p', { className: 'ap-sub' }, zh
+            ? '当上下文用量达到约 72% 时自动压缩，先尝试当前会话模型。启用兜底后，如果主摘要发生可兜底的失败，旧对话历史可能会发送给 deepseek-v4-flash-vision-exp；这可能产生一次 DeepSeek 调用费用，并会跨供应商处理该段历史。'
+            : 'Automatic compaction starts near 72% context usage and tries the current session model first. When fallback is enabled and the primary summary has an eligible failure, older conversation history may be sent to deepseek-v4-flash-vision-exp. This may create one DeepSeek charge and processes that history across provider boundaries.'),
+          !compactionBridgeAvailable && h('p', { className: 'ap-sub' }, zh
+            ? '此设置仅在打包的桌面应用中可用。'
+            : 'This setting is available only in the packaged desktop app.'),
+          compactionMessage && h('p', { className: 'ap-sub' }, compactionMessage),
         ),
       )
     }

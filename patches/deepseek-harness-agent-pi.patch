@@ -15,27 +15,27 @@ index ca898acefa..4691fa10c2 100644
 --- a/.agents/notes/implemented/architecture/2026-07-20-routed-model-context-and-compaction-policy.md
 +++ b/.agents/notes/implemented/architecture/2026-07-20-routed-model-context-and-compaction-policy.md
 @@ -16,7 +16,7 @@ Neither obvious configuration owner is sufficient. Compact-basic is optional and
- 
+
  `LlmAdapter.resolveModel(provider, model, signal?)` returns aggregate metadata for one exact route, with optional `LlmModelContext` under its `context` field. `LlmRuntime.resolveModelInfo()` selects the registered route owner, validates a positive integer `contextWindow`, and returns detached metadata. The query is independent of `listModels()`: an unlisted dynamic model may have capacity metadata, and an absent `context` means only that the adapter cannot describe capacity.
- 
+
 -The hand-rolled DeepSeek adapter accepts optional `contextWindow` on each configured model plus an adapter-wide `defaultContextWindow`. Exact model capacity wins; an entry without capacity and an unlisted pass-through id inherit the adapter default, or omit `context` when it is absent. The two built-in model entries each publish an exact 256,000-token capacity. The pi-ai adapter resolves capacity from the same catalog descriptor that authoritatively resolves the request model.
 +The hand-rolled DeepSeek adapter accepts optional `contextWindow` on each configured model plus an adapter-wide `defaultContextWindow`. Exact model capacity wins; an entry without capacity and an unlisted pass-through id inherit the adapter default, or omit `context` when it is absent. The three built-in V4 entries each publish an exact 1,000,000-token capacity. The pi-ai adapter resolves capacity from the same catalog descriptor that authoritatively resolves the request model. The [per-field model capacity provenance Agent Note](2026-08-28-model-capacity-provenance.md) amends the shipped model values and pi-ai provenance mechanics; adapter ownership and compaction policy here remain unchanged.
- 
+
  ### Token measurement remains model-agnostic
- 
+
 diff --git a/.agents/notes/implemented/architecture/2026-07-20-routed-model-context-and-compaction-policy.zh.md b/.agents/notes/implemented/architecture/2026-07-20-routed-model-context-and-compaction-policy.zh.md
 index 7eddcd6d9c..73c6212237 100644
 --- a/.agents/notes/implemented/architecture/2026-07-20-routed-model-context-and-compaction-policy.zh.md
 +++ b/.agents/notes/implemented/architecture/2026-07-20-routed-model-context-and-compaction-policy.zh.md
 @@ -16,7 +16,7 @@ Status: implemented
- 
+
  `LlmAdapter.resolveModel(provider, model, signal?)` 返回一条精确路由的聚合元数据，其中可选的 `LlmModelContext` 位于 `context` 字段下。`LlmRuntime.resolveModelInfo()` 选择已注册的路由所属方，验证 `contextWindow` 为正整数，并返回与适配器内部状态分离的元数据。该查询独立于 `listModels()`：不在目录中的动态模型也可以拥有容量元数据，而缺少 `context` 只表示适配器无法描述容量。
- 
+
 -手写 DeepSeek 适配器允许每个已配置模型提供可选 `contextWindow`，并支持适配器级 `defaultContextWindow`。精确模型容量优先；未提供容量的模型项与未列出的透传 id 会继承适配器默认值，若默认值也不存在则省略 `context`。两个内置模型项都公开精确的 256,000 token 容量。pi-ai 适配器从同一个目录描述符解析容量，该描述符也用于权威解析请求模型。
 +手写 DeepSeek 适配器允许每个已配置模型提供可选 `contextWindow`，并支持适配器级 `defaultContextWindow`。精确模型容量优先；未提供容量的模型项与未列出的透传 id 会继承适配器默认值，若默认值也不存在则省略 `context`。三个内置 V4 配置项均公布精确的 1,000,000 token 容量。pi-ai 适配器从同一个目录描述符解析容量，该描述符也用于权威解析请求模型。[逐字段模型容量来源 Agent Note](2026-08-28-model-capacity-provenance.zh.md) 修订已交付模型值与 pi-ai 来源机制；本记录的适配器归属和压缩策略保持不变。
- 
+
  ### Token 计量保持模型无关
- 
+
 diff --git a/.agents/notes/implemented/architecture/2026-07-30-adapter-owned-max-token-defaults.i18n.yaml b/.agents/notes/implemented/architecture/2026-07-30-adapter-owned-max-token-defaults.i18n.yaml
 index b025f076f0..16e318bc91 100644
 --- a/.agents/notes/implemented/architecture/2026-07-30-adapter-owned-max-token-defaults.i18n.yaml
@@ -53,29 +53,29 @@ index ec6a68b74d..091e04f06a 100644
 --- a/.agents/notes/implemented/architecture/2026-07-30-adapter-owned-max-token-defaults.md
 +++ b/.agents/notes/implemented/architecture/2026-07-30-adapter-owned-max-token-defaults.md
 @@ -14,7 +14,7 @@ An LLM adapter could serialize an explicit `GenerateOptions.maxTokens`, but its
- 
+
  The agent loop continues to prepare calls before logging `request/header`, so the effective config and markers for fields supplied by adapter defaults become durable request facts before dispatch. Before the next `agent/request` waterfall, the loop removes marked fields from the proposal; exact-model resolution then materializes the current route's defaults again. A provider/model switch therefore cannot mistake a previous adapter's default for an explicit override, while explicit conversation values persist. Direct `LlmRuntime.stream()` calls resolve the same default at the final adapter boundary. The field is a request default rather than a hard model output limit; adapters that preserve provider-owned defaults omit it.
- 
+
 -The native DeepSeek adapter exposes `maxTokens` in Cordis config with a 256,000-token default and maps the effective value to `max_tokens`. Its default context capacity is 1,000,000 tokens: both built-in V4 entries publish that exact capacity, while configured entries without capacity and unlisted pass-through ids inherit the same adapter-wide fallback.
 +The native DeepSeek adapter exposes `maxTokens` in Cordis config with a 256,000-token adapter-wide fallback and maps the effective value to `max_tokens`. Its three built-in V4 entries publish exact 1,000,000-token context capacities and 384,000-token output limits. A configured entry without its own output limit and an unlisted pass-through id inherit the 256,000-token output fallback; an entry without context capacity and an unlisted id inherit the 1,000,000-token context fallback. The [per-field model capacity provenance Agent Note](2026-08-28-model-capacity-provenance.md) owns the verified built-in values and provenance while preserving this adapter-default materialization decision.
- 
+
  ## Alternatives considered
- 
+
 @@ -22,12 +22,12 @@ The native DeepSeek adapter exposes `maxTokens` in Cordis config with a 256,000-
- 
+
  **Set `AgentOptions.maxTokens` in every shipped application.** Rejected because applications would duplicate adapter deployment policy, direct LLM calls would behave differently, and selecting another provider would retain a DeepSeek-specific cap.
- 
+
 -**Represent 256,000 as a hard per-model maximum.** Rejected because the configured value is the desired request budget, not evidence that every configured endpoint rejects larger outputs. Explicit callers remain authoritative.
 +**Represent the 256,000 adapter fallback as a hard per-model maximum.** Rejected because the configured value is the desired request budget, not evidence that every configured endpoint rejects larger outputs. Explicit callers remain authoritative.
- 
+
 -**Leave the provider default in control.** Rejected for the native DeepSeek deployment because the product requires a stable 256,000-token conversation budget across compatible endpoints.
 +**Leave the provider default in control.** Rejected for the native DeepSeek deployment because unlisted or output-limit-omitting routes require a stable 256,000-token conversation fallback instead of an endpoint-dependent budget.
- 
+
  ## Consequences
- 
+
 -DeepSeek conversations send `max_tokens: 256000` by default, and the session request header records both the value and that the adapter supplied it. Deployments can change the adapter default through `llm-deepseek.config.maxTokens`; per-agent and per-request values override it. Changing the route rematerializes the new exact adapter's default instead of carrying DeepSeek's derived value forward. Other adapters retain their existing behavior until they intentionally publish `defaultMaxTokens`.
 +The three listed DeepSeek V4 models send `max_tokens: 384000` by default; unlisted models and configured entries without their own output limit use the adapter's 256,000-token fallback. The session request header records both the effective value and that the adapter supplied it. Deployments can change the fallback through `llm-deepseek.config.maxTokens`, a model entry can set its own limit, and per-agent or per-request values override either. Changing the route rematerializes the new exact adapter's default instead of carrying DeepSeek's derived value forward. Other adapters retain their existing behavior until they intentionally publish `defaultMaxTokens`.
- 
+
 -The 256,000-token output budget reserves a large part of the one-million-token context on endpoints that pre-allocate requested output. Deployments whose gateway or model supports a smaller budget must lower `maxTokens`; the explicit configuration is preferable to an undocumented provider fallback.
 +The adapter-wide 256,000-token output fallback reserves a large part of the one-million-token context on endpoints that pre-allocate requested output. Deployments whose gateway or model supports a smaller budget must lower `maxTokens`; the explicit configuration is preferable to an undocumented provider fallback.
 diff --git a/.agents/notes/implemented/architecture/2026-07-30-adapter-owned-max-token-defaults.zh.md b/.agents/notes/implemented/architecture/2026-07-30-adapter-owned-max-token-defaults.zh.md
@@ -83,29 +83,29 @@ index 700d90125c..0873834f8f 100644
 --- a/.agents/notes/implemented/architecture/2026-07-30-adapter-owned-max-token-defaults.zh.md
 +++ b/.agents/notes/implemented/architecture/2026-07-30-adapter-owned-max-token-defaults.zh.md
 @@ -14,7 +14,7 @@ LLM（大语言模型）适配器可以序列化显式的 `GenerateOptions.maxTo
- 
+
  agent loop 仍在记录 `request/header` 前准备调用，因此生效配置和标明哪些字段由适配器默认值填入的标记，会在分派前成为持久请求事实。下一次 `agent/request` waterfall（瀑布式事件）前，agent loop 会从提议中移除带标记字段，随后精确模型解析会再次填入当前路由的默认值。因此，切换提供方／模型不会把前一个适配器的默认值误当成显式覆盖，而显式对话值则会保留。直接调用 `LlmRuntime.stream()` 时，也会在最终适配器边界解析同一默认值。该字段是请求默认值，而非模型输出硬上限；沿用提供方自有默认值的适配器会省略它。
- 
+
 -原生 DeepSeek 适配器在 Cordis 配置中公开 `maxTokens`，默认值为 256,000 token，并将生效值映射为 `max_tokens`。其默认上下文容量为 1,000,000 token：两个内置 V4 配置项均公布这一精确容量；不含容量的已配置项和未列出的原样传递 id 则继承同一个适配器级回退值。
 +原生 DeepSeek 适配器在 Cordis 配置中公开 `maxTokens`，提供 256,000 token 的适配器级回退值，并将生效值映射为 `max_tokens`。其三个内置 V4 配置项均公布精确的 1,000,000 token 上下文容量和 384,000 token 输出上限。未设置自身输出上限的已配置项和未列出的原样传递 id 会继承 256,000 token 输出回退值；未设置上下文容量的配置项和未列出 id 会继承 1,000,000 token 上下文回退值。[逐字段模型容量来源 Agent Note](2026-08-28-model-capacity-provenance.zh.md) 负责记录已核实的内置值与来源，同时保留本记录的适配器默认值填入决策。
- 
+
  ## Alternatives considered
- 
+
 @@ -22,12 +22,12 @@ agent loop 仍在记录 `request/header` 前准备调用，因此生效配置和
- 
+
  **在每个已发布应用中设置 `AgentOptions.maxTokens`。** 不予采纳，因为应用会重复适配器部署策略，直接 LLM 调用的行为将不同，而且选择另一个提供方后仍会保留 DeepSeek 专用上限。
- 
+
 -**将 256,000 表示为每模型硬上限。** 不予采纳，因为配置值是所需请求预算，无法证明每个已配置端点都会拒绝更大的输出。显式调用方仍具有最终决定权。
 +**将 256,000 适配器回退值表示为每模型硬上限。** 不予采纳，因为配置值是所需请求预算，无法证明每个已配置端点都会拒绝更大的输出。显式调用方仍具有最终决定权。
- 
+
 -**由提供方默认值控制。** 对原生 DeepSeek 部署不予采纳，因为产品要求各兼容端点都采用稳定的 256,000 token 对话预算。
 +**由提供方默认值控制。** 对原生 DeepSeek 部署不予采纳，因为未列出模型或省略输出上限的路由需要稳定的 256,000 token 对话回退值，而不能使用随端点变化的预算。
- 
+
  ## Consequences
- 
+
 -DeepSeek 对话默认发送 `max_tokens: 256000`，会话请求 header 会记录该值，并记录该值由适配器提供。部署可以通过 `llm-deepseek.config.maxTokens` 更改适配器默认值；每个 agent 和每次请求的值都会覆盖它。更改路由会重新填入新路由精确匹配到的适配器默认值，而不是继续沿用 DeepSeek 派生出的值。其他适配器会保留现有行为，直至主动公布 `defaultMaxTokens`。
 +三个已列出 DeepSeek V4 模型默认发送 `max_tokens: 384000`；未列出模型和未设置自身输出上限的已配置项使用适配器的 256,000 token 回退值。会话请求 header 会记录生效值，并记录该值由适配器提供。部署可以通过 `llm-deepseek.config.maxTokens` 更改回退值，模型配置项可以设置自身上限，每个 agent 或每次请求的值则会覆盖两者。更改路由会重新填入新路由精确匹配到的适配器默认值，而不是继续沿用 DeepSeek 派生出的值。其他适配器会保留现有行为，直至主动公布 `defaultMaxTokens`。
- 
+
 -对于预分配请求输出的端点，256,000 token 的输出预算会占用 1,000,000 token 上下文中的很大部分。如果部署使用的 gateway 或模型仅支持较小预算，则必须调低 `maxTokens`；显式配置优于无文档说明的提供方回退值。
 +对于预分配请求输出的端点，适配器级 256,000 token 输出回退值会占用 1,000,000 token 上下文中的很大部分。如果部署使用的 gateway 或模型仅支持较小预算，则必须调低 `maxTokens`；显式配置优于无文档说明的提供方回退值。
 diff --git a/.agents/notes/implemented/architecture/2026-08-28-model-capacity-provenance.i18n.yaml b/.agents/notes/implemented/architecture/2026-08-28-model-capacity-provenance.i18n.yaml
@@ -214,6 +214,130 @@ index 0000000000..b469b410b1
 +## Consequences
 +
 +配置和协议格式增加可选来源字段，同时旧的纯数值设置继续有效并归用户所有。即使列表省略容量，发现结果仍可使用；但估算值始终是明确的猜测，用户或提供方后续响应可以替换它。pi-ai 发现估算与 `llm-deepseek` 适配器回退值保持分离是有意设计：两者服务不同入口并分别记录，避免把 32,768 或 256,000 误当成官方 DeepSeek V4 输出上限。
+diff --git a/.agents/notes/implemented/feature/2026-08-28-compaction-fallback.i18n.yaml b/.agents/notes/implemented/feature/2026-08-28-compaction-fallback.i18n.yaml
+new file mode 100644
+index 0000000000..fce459c4bd
+--- /dev/null
++++ b/.agents/notes/implemented/feature/2026-08-28-compaction-fallback.i18n.yaml
+@@ -0,0 +1,6 @@
++# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
++# side as of the last confirmed-consistent state. Both languages carry equal authority;
++# after editing either side, bring the other along and re-record with:
++#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-28-compaction-fallback.md
++2026-08-28-compaction-fallback.md: 4f358df0bb6afc9e5997fb976242ef6fa999e2a9
++2026-08-28-compaction-fallback.zh.md: 240a1b4413819985eb3bae3ea2a821664c57b8d8
+diff --git a/.agents/notes/implemented/feature/2026-08-28-compaction-fallback.md b/.agents/notes/implemented/feature/2026-08-28-compaction-fallback.md
+new file mode 100644
+index 0000000000..4f358df0bb
+--- /dev/null
++++ b/.agents/notes/implemented/feature/2026-08-28-compaction-fallback.md
+@@ -0,0 +1,50 @@
++# Agent Note: Ordered compaction summarizer fallback
++
++Status: implemented
++
++English | [中文](2026-08-28-compaction-fallback.zh.md)
++
++## Problem
++
++Automatic compaction can fail even when the conversation model remains usable: the configured or routed summarizer may exhaust capacity, hit a transient provider failure, or become unavailable. Retrying the conversation request does not provide a second summarization route, while routing every failure to another provider would forward private conversation history after cancellation, policy, or safety denial.
++
++The compaction transaction also permits only one durable checkpoint. A failed primary or fallback attempt must not leave partial summary content or a replacement that later attempts inherit.
++
++## Decision
++
++`BasicCompactionConfig.summarizationFallbacks` is an ordered global list of `{ provider, model, maxTokens? }` targets. The package default is an empty list, so existing consumers retain single-target behavior. The primary remains the explicitly configured summarizer or, when that pair is empty, the latest logged request target and then the agent target. A fallback entry without `maxTokens` inherits the resolved primary summarization cap; exact `modelPolicies` cannot replace the global list.
++
++The primary call and its configured retries settle before fallback routing starts. Operational failures, including capacity, rate-limit, timeout, and provider failures, are eligible. Abort or cancellation, shutdown, policy, safety, and content-filter signals deny fallback. A fallback missing a valid credential or adapter route, or naming an unresolved provider/model, stops the chain so later targets cannot bypass deployment intent. The same signal reaches every attempt, and cancellation checked between attempts remains authoritative.
++
++Every target receives the same replayed system prompt, tool schemas, shadowed messages, and final compaction instruction. A successful fallback therefore produces the same safe-text validation result as the primary. The region transaction commits no summary or replacement for failed attempts; after one target succeeds it appends exactly one `compaction/summary` and one adjacent replacement, and the summary records the winning provider, model, cap, output, and usage.
++
++### Migration considerations
++
++Omitting `summarizationFallbacks` preserves the prior behavior. A deployment opts in by adding the ordered list at the top-level compaction policy; route-specific policy entries continue to select primary limits but do not create separate fallback chains. The Agent Pi default target is `deepseek-official/deepseek-v4-flash-vision-exp` with `maxTokens: 32768`; the package itself does not silently add that route.
++
++Selecting a different provider forwards the replayed conversation across that provider's privacy and data-handling boundary and can incur an additional model charge. Deployments must provision and authorize every target before enabling it.
++
++### Keyless evidence
++
++The assembled headless compaction-recovery snapshot uses `@deepseek-ai/dsh-llm-replay`. Its sidecar makes the primary summarizer fail with `CONTEXT_WINDOW_EXCEEDED`, then supplies a deterministic complete response for `deepseek-official/deepseek-v4-flash-vision-exp`. Full sidecar consumption proves the failed call and fallback call both occurred without a credential or network request. The persisted and stream snapshots contain one fallback-provenance `compaction/summary`, one replacement, and no primary partial summary before the original turn resumes with `COMPACTION RECOVERED`.
++
++## Alternatives considered
++
++**Leave fallback to adapter retries.** Adapter retries stay within one provider/model route and cannot express an ordered deployment-level route change or attach the winning target's provenance to the compaction transaction.
++
++**Fallback after every failure.** Rejected because cancellation, shutdown, policy, safety, and content-filter outcomes are authority decisions, not availability failures. Crossing providers after any of them would bypass the decision and disclose the replayed conversation.
++
++**Commit each attempt as a partial summary.** Rejected because later attempts would inherit untrusted or incomplete model output and consumers could observe more than one checkpoint. Failed attempts remain call failures; only the winner reaches the durable summary and replacement pair.
++
++## Verification
++
++- `pnpm run test:snapshot -- examples/headless-agent/tests/headless.snapshot.ts -t "recovers from context overflow through an assembled compaction"`
++- `pnpm exec vitest run packages/compaction/compaction-basic/tests/config.spec.ts packages/compaction/compaction-basic/tests/fallback.spec.ts packages/compaction/compaction-basic/tests/compaction-basic.spec.ts -t fallback`
++- `pnpm run verify-agent-note-format`
++- `pnpm run verify-md-wrap && pnpm run verify-md-links && pnpm run verify-package-readme-model-experience && pnpm run verify-package-readme-limitations`
++
++## Consequences
++
++Compaction survives eligible primary failures when an authorized target succeeds, while denial and cancellation remain authoritative. Existing configurations do not change unless they add a fallback list. Successful snapshots and consumers see one atomic checkpoint with truthful winning-target provenance.
++
++Fallback resilience spends another model call and may move private history to another provider. Missing fallback deployment prerequisites fail the transaction instead of silently skipping to a later route, and diagnostics retain sanitized target/outcome facts without provider response text.
+diff --git a/.agents/notes/implemented/feature/2026-08-28-compaction-fallback.zh.md b/.agents/notes/implemented/feature/2026-08-28-compaction-fallback.zh.md
+new file mode 100644
+index 0000000000..240a1b4413
+--- /dev/null
++++ b/.agents/notes/implemented/feature/2026-08-28-compaction-fallback.zh.md
+@@ -0,0 +1,50 @@
++# Agent Note: 有序的压缩摘要器回退
++
++Status: implemented
++
++[English](2026-08-28-compaction-fallback.md) | 中文
++
++## 问题
++
++即使会话模型仍然可用，自动压缩也可能失败：已配置或已路由的摘要器可能耗尽容量、遇到瞬态提供方故障或变得不可用。重试会话请求并不会提供第二条摘要路由，而把每一种失败都路由给其他提供方，会在取消、策略或安全拒绝之后转发私有会话历史。
++
++压缩事务也只允许一个持久检查点。失败的 primary（主）或 fallback（回退）尝试不得留下供后续尝试继承的部分摘要内容或替换。
++
++## 决策
++
++`BasicCompactionConfig.summarizationFallbacks` 是全局有序的 `{ provider, model, maxTokens? }` 目标列表。包默认使用空列表，因此现有 consumer（消费方）保留单目标行为。primary 仍是显式配置的摘要器；当该配置对为空时，则依次使用最新已记录请求目标与 agent 目标。fallback 配置项省略 `maxTokens` 时，会继承已解析的 primary 摘要上限；精确 `modelPolicies` 不能替换该全局列表。
++
++primary 调用及其已配置重试全部结束后，才开始 fallback 路由。容量、限流、超时与提供方故障等运行故障符合回退条件。中止或取消、关闭、策略、安全与内容过滤信号会拒绝 fallback。fallback 缺少有效凭据或适配器路由，或者命名了无法解析的提供方／模型时，链会停止，后续目标不能绕过部署意图。每次尝试都收到同一个 signal（信号），尝试之间检查到取消时，取消仍具有最终决定权。
++
++每个目标都会收到相同的已回放系统提示词、工具 schema、已遮蔽消息与最终压缩指令。因此，成功 fallback 与 primary 经过相同的安全文本验证。区域事务不会为失败尝试提交摘要或替换；一个目标成功后，它会恰好追加一条 `compaction/summary` 和一条相邻替换，并在摘要中记录获胜提供方、模型、上限、输出与 usage。
++
++### 迁移考虑
++
++省略 `summarizationFallbacks` 会保留原有行为。部署通过在顶层压缩策略中添加有序列表来启用回退；路由特定策略配置项仍可选择 primary 上限，但不会创建独立的 fallback 链。Agent Pi 默认目标是 `deepseek-official/deepseek-v4-flash-vision-exp`，`maxTokens: 32768`；包本身不会静默添加该路由。
++
++选择其他提供方会把已回放会话转发到该提供方的隐私与数据处理边界，并可能产生额外模型费用。部署必须先配置并授权每个目标，再启用它。
++
++### 无密钥证据
++
++组装后的 headless 压缩恢复快照使用 `@deepseek-ai/dsh-llm-replay`。其 sidecar（伴随文件）让 primary 摘要器以 `CONTEXT_WINDOW_EXCEEDED` 失败，再为 `deepseek-official/deepseek-v4-flash-vision-exp` 提供确定性的完整响应。完整消费 sidecar 证明失败调用与 fallback 调用都已发生，且不需要凭据或网络请求。持久快照与 stream 快照仅包含一条带 fallback 来源的 `compaction/summary`、一条替换，并且在原始轮次以 `COMPACTION RECOVERED` 恢复之前没有 primary 部分摘要。
++
++## 已考虑的替代方案
++
++**把 fallback 留给适配器重试。** 适配器重试停留在一个提供方／模型路由内，无法表达部署层有序路由切换，也无法把获胜目标来源附加到压缩事务。
++
++**在每一种失败后 fallback。** 已拒绝，因为取消、关闭、策略、安全与内容过滤结果是权限决定，不是可用性故障。在这些结果后跨提供方会绕过决定并泄露已回放会话。
++
++**把每次尝试提交为部分摘要。** 已拒绝，因为后续尝试会继承不受信任或不完整的模型输出，consumer 也可能观察到多个检查点。失败尝试仍是调用失败；只有获胜者进入持久摘要与替换对。
++
++## 验证
++
++- `pnpm run test:snapshot -- examples/headless-agent/tests/headless.snapshot.ts -t "recovers from context overflow through an assembled compaction"`
++- `pnpm exec vitest run packages/compaction/compaction-basic/tests/config.spec.ts packages/compaction/compaction-basic/tests/fallback.spec.ts packages/compaction/compaction-basic/tests/compaction-basic.spec.ts -t fallback`
++- `pnpm run verify-agent-note-format`
++- `pnpm run verify-md-wrap && pnpm run verify-md-links && pnpm run verify-package-readme-model-experience && pnpm run verify-package-readme-limitations`
++
++## 后果
++
++当已授权目标成功时，压缩可以从符合条件的 primary 失败中恢复，同时拒绝与取消仍具有最终决定权。现有配置只有添加 fallback 列表后才会改变。成功快照与 consumer 只看到一个原子检查点，其中带有真实的获胜目标来源。
++
++fallback 韧性会多消耗一次模型调用，并可能把私有历史移交给其他提供方。缺少 fallback 部署前提时，事务会失败，而不会静默跳到后续路由；诊断保留经过清理的目标／结果事实，不含提供方响应文本。
 diff --git a/apps/cli/config/agent-presets/code/agent.cordis.yml b/apps/cli/config/agent-presets/code/agent.cordis.yml
 index eedabe4cd7..b5d4683665 100644
 --- a/apps/cli/config/agent-presets/code/agent.cordis.yml
@@ -233,7 +357,7 @@ index eedabe4cd7..b5d4683665 100644
 -    fetch: false
 +    fetch: true
      searchTimeoutMs: 60000
- 
+
  # ── presentation ────────────────────────────────────────────────────────────
 diff --git a/apps/cli/config/agent-presets/cordis/agent.cordis.yml b/apps/cli/config/agent-presets/cordis/agent.cordis.yml
 index aef4a250e4..5209cfbe32 100644
@@ -254,7 +378,7 @@ index aef4a250e4..5209cfbe32 100644
 -    fetch: false
 +    fetch: true
      searchTimeoutMs: 60000
- 
+
  # ── self-modification ───────────────────────────────────────────────────────
 diff --git a/apps/cli/config/agent-presets/standard/agent.cordis.yml b/apps/cli/config/agent-presets/standard/agent.cordis.yml
 index 3bccbc7365..81271d8bf0 100644
@@ -276,7 +400,7 @@ index 3bccbc7365..81271d8bf0 100644
 +    fetch: true
      searchTimeoutMs: 60000
 diff --git a/docs/config-catalog.i18n.yaml b/docs/config-catalog.i18n.yaml
-index d0665a143e..a35baf68b2 100644
+index d0665a143e..8d3dd97d6e 100644
 --- a/docs/config-catalog.i18n.yaml
 +++ b/docs/config-catalog.i18n.yaml
 @@ -2,5 +2,5 @@
@@ -285,31 +409,71 @@ index d0665a143e..a35baf68b2 100644
  #   pnpm run verify-translation-pairing --write docs/config-catalog.md
 -config-catalog.md: de340b7ffade528301b4538b0553bc11ec969985
 -config-catalog.zh.md: eb17ee89fd7860cc0774073bea542aca315ce652
-+config-catalog.md: 46aafccc18dca6d836929c0680807e7ff253d7e0
-+config-catalog.zh.md: 53e041a7dbe53c457898e9c79ce45355db8833cb
++config-catalog.md: 5e6a12aaecd9ce2bfdc18aac0ee5a8ada656bbfc
++config-catalog.zh.md: 4c91ecc236597e05b7325b1c9474249d6d489b0e
 diff --git a/docs/config-catalog.md b/docs/config-catalog.md
-index de340b7ffa..46aafccc18 100644
+index de340b7ffa..5e6a12aaec 100644
 --- a/docs/config-catalog.md
 +++ b/docs/config-catalog.md
-@@ -823,7 +823,7 @@ export interface Config {
+@@ -502,6 +502,8 @@ export interface CompactionPolicyConfig {
+   summarizationModel?: string
+   /** Provider generation cap for summarization. Defaults to `8192`. */
+   maxTokens?: number
++  /** Ordered global targets attempted after primary summarization fails. */
++  summarizationFallbacks?: SummarizationFallbackConfig[]
+   /** Extra attempts after the first compaction when pressure remains above threshold. Defaults to `1`. */
+   compactionRetries?: number
+   /** Maximum retries after canonical context overflow; `0` disables recovery. Defaults to `1`. */
+@@ -509,15 +511,28 @@ export interface CompactionPolicyConfig {
+ }
+
+ /** Exact provider/model override merged over the default compaction policy. */
+-export interface ModelCompactPolicyConfig extends CompactionPolicyConfig {
++export interface ModelCompactPolicyConfig extends Omit<
++  CompactionPolicyConfig,
++  'summarizationFallbacks'
++> {
+   /** Registered provider route to match. */
+   provider: string
+   /** Exact routed model id to match within `provider`. */
+   model: string
+ }
++
++/** One ordered summarization target used after the primary target fails. */
++export interface SummarizationFallbackConfig {
++  /** Registered provider route. */
++  provider: string
++  /** Exact routed model id within `provider`. */
++  model: string
++  /** Provider generation cap; defaults to the configured summarization maximum. */
++  maxTokens?: number
++}
+ ```
+
+-Source: [`packages/compaction/compaction-basic/src/types.ts:38`](../packages/compaction/compaction-basic/src/types.ts)
++Source: [`packages/compaction/compaction-basic/src/types.ts:63`](../packages/compaction/compaction-basic/src/types.ts)
+
+ <a id="deepseek-aidsh-compaction-tool-result-pruner"></a>
+
+@@ -823,7 +838,7 @@ export interface Config {
  }
  ```
- 
+
 -Source: [`packages/host/apiproxy/src/index.ts:41`](../packages/host/apiproxy/src/index.ts)
 +Source: [`packages/host/apiproxy/src/index.ts:46`](../packages/host/apiproxy/src/index.ts)
- 
+
  <a id="deepseek-aidsh-host-directory-picker-browse"></a>
- 
-@@ -987,7 +987,7 @@ export interface DeepSeekCatalogModel {
- 
+
+@@ -987,7 +1002,7 @@ export interface DeepSeekCatalogModel {
+
  Depends on: [`ModelModality`](../packages/llm/llm/src/index.ts) · [`RetryPolicyConfig`](../packages/llm/llm/src/index.ts)
- 
+
 -Source: [`packages/llm/llm-deepseek/src/index.ts:106`](../packages/llm/llm-deepseek/src/index.ts)
 +Source: [`packages/llm/llm-deepseek/src/index.ts:107`](../packages/llm/llm-deepseek/src/index.ts)
- 
+
  <a id="deepseek-aidsh-llm-pi-ai"></a>
- 
-@@ -1105,6 +1105,8 @@ export interface PiAiModelProfile {
+
+@@ -1105,6 +1120,8 @@ export interface PiAiModelProfile {
    name?: string
    /** Maximum combined request and response context in tokens. */
    contextWindow?: number
@@ -318,7 +482,7 @@ index de340b7ffa..46aafccc18 100644
    /**
     * Maximum output tokens. Configuring one also makes it this model's
     * per-request default; a value inherited from the installed catalog, or the
-@@ -1112,6 +1114,8 @@ export interface PiAiModelProfile {
+@@ -1112,6 +1129,8 @@ export interface PiAiModelProfile {
     * default on its own.
     */
    maxTokens?: number
@@ -327,48 +491,88 @@ index de340b7ffa..46aafccc18 100644
    /**
     * Request modalities this model accepts. Absent — or empty, which describes
     * a model that accepts nothing and so states no answer either — keeps the
-@@ -1225,6 +1229,9 @@ export interface PiAiCompatProfile {
+@@ -1225,6 +1244,9 @@ export interface PiAiCompatProfile {
  /** One request modality a pi-ai model may accept. */
  export type PiAiModality = Model<Api>['input'][number]
- 
+
 +/** Persisted origin of one configured model capacity. */
 +export type PiAiCapacitySource = 'user' | 'provider' | 'official' | 'estimated'
 +
  /**
   * Selectable reasoning efforts for one model: each key is a level the model
   * offers (and selectors show), and its value is the wire spelling dispatch
-@@ -1241,7 +1248,7 @@ export type PiAiThinkingFormat = NonNullable<OpenAICompletionsCompat['thinkingFo
- 
+@@ -1241,7 +1263,7 @@ export type PiAiThinkingFormat = NonNullable<OpenAICompletionsCompat['thinkingFo
+
  Depends on: `Api` (`@earendil-works/pi-ai`) · `CacheRetention` (`@earendil-works/pi-ai`) · `Model` (`@earendil-works/pi-ai`) · `ModelThinkingLevel` (`@earendil-works/pi-ai`) · `OpenAICompletionsCompat` (`@earendil-works/pi-ai`) · [`RetryPolicyConfig`](../packages/llm/llm/src/index.ts) · `ThinkingBudgets` (`@earendil-works/pi-ai`) · `Transport` (`@earendil-works/pi-ai`)
- 
+
 -Source: [`packages/llm/llm-pi-ai/src/config.ts:213`](../packages/llm/llm-pi-ai/src/config.ts)
 +Source: [`packages/llm/llm-pi-ai/src/config.ts:215`](../packages/llm/llm-pi-ai/src/config.ts)
- 
+
  <a id="deepseek-aidsh-llm-replay"></a>
- 
+
 diff --git a/docs/config-catalog.zh.md b/docs/config-catalog.zh.md
-index eb17ee89fd..53e041a7db 100644
+index eb17ee89fd..4c91ecc236 100644
 --- a/docs/config-catalog.zh.md
 +++ b/docs/config-catalog.zh.md
-@@ -825,7 +825,7 @@ export interface Config {
+@@ -504,6 +504,8 @@ export interface CompactionPolicyConfig {
+   summarizationModel?: string
+   /** Provider generation cap for summarization. Defaults to `8192`. */
+   maxTokens?: number
++  /** Ordered global targets attempted after primary summarization fails. */
++  summarizationFallbacks?: SummarizationFallbackConfig[]
+   /** Extra attempts after the first compaction when pressure remains above threshold. Defaults to `1`. */
+   compactionRetries?: number
+   /** Maximum retries after canonical context overflow; `0` disables recovery. Defaults to `1`. */
+@@ -511,15 +513,28 @@ export interface CompactionPolicyConfig {
+ }
+
+ /** Exact provider/model override merged over the default compaction policy. */
+-export interface ModelCompactPolicyConfig extends CompactionPolicyConfig {
++export interface ModelCompactPolicyConfig extends Omit<
++  CompactionPolicyConfig,
++  'summarizationFallbacks'
++> {
+   /** Registered provider route to match. */
+   provider: string
+   /** Exact routed model id to match within `provider`. */
+   model: string
+ }
++
++/** One ordered summarization target used after the primary target fails. */
++export interface SummarizationFallbackConfig {
++  /** Registered provider route. */
++  provider: string
++  /** Exact routed model id within `provider`. */
++  model: string
++  /** Provider generation cap; defaults to the configured summarization maximum. */
++  maxTokens?: number
++}
+ ```
+
+-来源：[`packages/compaction/compaction-basic/src/types.ts:38`](../packages/compaction/compaction-basic/src/types.ts)
++来源：[`packages/compaction/compaction-basic/src/types.ts:63`](../packages/compaction/compaction-basic/src/types.ts)
+
+ <a id="deepseek-aidsh-compaction-tool-result-pruner"></a>
+
+@@ -825,7 +840,7 @@ export interface Config {
  }
  ```
- 
+
 -来源：[`packages/host/apiproxy/src/index.ts:41`](../packages/host/apiproxy/src/index.ts)
 +来源：[`packages/host/apiproxy/src/index.ts:46`](../packages/host/apiproxy/src/index.ts)
- 
+
  <a id="deepseek-aidsh-host-directory-picker-browse"></a>
- 
-@@ -989,7 +989,7 @@ export interface DeepSeekCatalogModel {
- 
+
+@@ -989,7 +1004,7 @@ export interface DeepSeekCatalogModel {
+
  依赖：[`ModelModality`](../packages/llm/llm/src/index.ts) · [`RetryPolicyConfig`](../packages/llm/llm/src/index.ts)
- 
+
 -来源：[`packages/llm/llm-deepseek/src/index.ts:106`](../packages/llm/llm-deepseek/src/index.ts)
 +来源：[`packages/llm/llm-deepseek/src/index.ts:107`](../packages/llm/llm-deepseek/src/index.ts)
- 
+
  <a id="deepseek-aidsh-llm-pi-ai"></a>
- 
-@@ -1107,6 +1107,8 @@ export interface PiAiModelProfile {
+
+@@ -1107,6 +1122,8 @@ export interface PiAiModelProfile {
    name?: string
    /** Maximum combined request and response context in tokens. */
    contextWindow?: number
@@ -377,7 +581,7 @@ index eb17ee89fd..53e041a7db 100644
    /**
     * Maximum output tokens. Configuring one also makes it this model's
     * per-request default; a value inherited from the installed catalog, or the
-@@ -1114,6 +1116,8 @@ export interface PiAiModelProfile {
+@@ -1114,6 +1131,8 @@ export interface PiAiModelProfile {
     * default on its own.
     */
    maxTokens?: number
@@ -386,25 +590,25 @@ index eb17ee89fd..53e041a7db 100644
    /**
     * Request modalities this model accepts. Absent — or empty, which describes
     * a model that accepts nothing and so states no answer either — keeps the
-@@ -1227,6 +1231,9 @@ export interface PiAiCompatProfile {
+@@ -1227,6 +1246,9 @@ export interface PiAiCompatProfile {
  /** One request modality a pi-ai model may accept. */
  export type PiAiModality = Model<Api>['input'][number]
- 
+
 +/** Persisted origin of one configured model capacity. */
 +export type PiAiCapacitySource = 'user' | 'provider' | 'official' | 'estimated'
 +
  /**
   * Selectable reasoning efforts for one model: each key is a level the model
   * offers (and selectors show), and its value is the wire spelling dispatch
-@@ -1243,7 +1250,7 @@ export type PiAiThinkingFormat = NonNullable<OpenAICompletionsCompat['thinkingFo
- 
+@@ -1243,7 +1265,7 @@ export type PiAiThinkingFormat = NonNullable<OpenAICompletionsCompat['thinkingFo
+
  依赖：`Api`（`@earendil-works/pi-ai`）· `CacheRetention`（`@earendil-works/pi-ai`）· `Model`（`@earendil-works/pi-ai`）· `ModelThinkingLevel`（`@earendil-works/pi-ai`）· `OpenAICompletionsCompat`（`@earendil-works/pi-ai`）· [`RetryPolicyConfig`](../packages/llm/llm/src/index.ts) · `ThinkingBudgets`（`@earendil-works/pi-ai`）· `Transport`（`@earendil-works/pi-ai`)
- 
+
 -来源：[`packages/llm/llm-pi-ai/src/config.ts:213`](../packages/llm/llm-pi-ai/src/config.ts)
 +来源：[`packages/llm/llm-pi-ai/src/config.ts:215`](../packages/llm/llm-pi-ai/src/config.ts)
- 
+
  <a id="deepseek-aidsh-llm-replay"></a>
- 
+
 diff --git a/docs/subsystems/llm-streaming.i18n.yaml b/docs/subsystems/llm-streaming.i18n.yaml
 index cd1adacbe3..3a193908ae 100644
 --- a/docs/subsystems/llm-streaming.i18n.yaml
@@ -433,7 +637,7 @@ index 1b2356983b..a030d03f58 100644
 +  maxTokensSource?: LlmCapacitySource
  }
  ```
- 
+
 diff --git a/docs/subsystems/llm-streaming.zh.md b/docs/subsystems/llm-streaming.zh.md
 index 0c2b64830d..ebd443dc7c 100644
 --- a/docs/subsystems/llm-streaming.zh.md
@@ -450,7 +654,222 @@ index 0c2b64830d..ebd443dc7c 100644
 +  maxTokensSource?: LlmCapacitySource
  }
  ```
- 
+
+diff --git a/examples/headless-agent/compaction.cordis.snapshot.yml b/examples/headless-agent/compaction.cordis.snapshot.yml
+index e97e43d7d9..27e0992703 100644
+--- a/examples/headless-agent/compaction.cordis.snapshot.yml
++++ b/examples/headless-agent/compaction.cordis.snapshot.yml
+@@ -13,6 +13,10 @@
+           thresholdRatio: 0.99
+           retainTokens: 20
+           maxTokens: 32
++          summarizationFallbacks:
++            - provider: deepseek-official
++              model: deepseek-v4-flash-vision-exp
++              maxTokens: 32768
+       - insert:
+           - id: llm-replay
+             name: '@deepseek-ai/dsh-llm-replay'
+@@ -22,3 +26,5 @@
+                   models:
+                     - id: deepseek-v4-flash
+                       contextWindow: 128000
++                    - id: deepseek-v4-flash-vision-exp
++                      contextWindow: 128000
+diff --git a/examples/headless-agent/tests/headless.snapshot.ts b/examples/headless-agent/tests/headless.snapshot.ts
+index 5a55493233..89c3392e8b 100644
+--- a/examples/headless-agent/tests/headless.snapshot.ts
++++ b/examples/headless-agent/tests/headless.snapshot.ts
+@@ -36,6 +36,7 @@ const retryScenarioDir = join(snapshotsDir, 'provider-retry')
+ const retryConfigPath = fileURLToPath(new URL('../retry.cordis.snapshot.yml', import.meta.url))
+ const compactionScenarioDir = join(snapshotsDir, 'compaction-recovery')
+ const compactionSessionFixture = join(compactionScenarioDir, 'session.jsonl')
++const compactionOverrideFixture = join(compactionScenarioDir, 'replay.override.json')
+ const compactionStreamExpected = join(compactionScenarioDir, 'stream-json.expected.jsonl')
+ const compactionConfigPath = fileURLToPath(new URL('../compaction.cordis.snapshot.yml', import.meta.url))
+ const credentialsScenarioDir = join(snapshotsDir, 'missing-credential')
+@@ -355,6 +356,18 @@ describe('headless stream-json snapshots', () => {
+
+   it('recovers from context overflow through an assembled compaction', async () => {
+     const prompt = await scenarioPrompt(compactionScenarioDir, 'compaction-recovery')
++    const replayOverride = JSON.parse(await readFile(compactionOverrideFixture, 'utf8')) as JsonObject
++    expect(replayOverride.patches).toEqual(expect.arrayContaining([
++      expect.objectContaining({
++        at: 2,
++        entry: {
++          kind: 'throw',
++          chunks: [],
++          message: 'snapshot primary summarizer capacity exhausted',
++          code: 'CONTEXT_WINDOW_EXCEEDED',
++        },
++      }),
++    ]))
+     let expectedSession = await readFile(compactionSessionFixture, 'utf8')
+     let runCwd = ''
+     const result = await runLoaderSmoke({
+@@ -368,6 +381,7 @@ describe('headless stream-json snapshots', () => {
+       env: {
+         DSH_SNAPSHOT: 'replay',
+         DSH_SNAPSHOT_FILE: compactionSessionFixture,
++        DSH_SNAPSHOT_OVERRIDE: compactionOverrideFixture,
+         NODE_OPTIONS: [process.env.NODE_OPTIONS, '--disable-warning=ExperimentalWarning'].filter(Boolean).join(' '),
+       },
+       prepare: (cwd) => { runCwd = cwd },
+@@ -379,21 +393,34 @@ describe('headless stream-json snapshots', () => {
+         const records = parseJsonl(actual.content)
+         const types = records.map(record => record.type)
+         expect(types.filter(type => type === 'compaction/start')).toHaveLength(1)
+-        expect(types.filter(type => type === 'compaction/summary')).toHaveLength(1)
+         expect(types.filter(type => type === 'compaction/end')).toHaveLength(1)
+         const start = types.indexOf('compaction/start')
++        const summaryRecords = records.filter(record => record.type === 'compaction/summary')
++        expect(summaryRecords).toHaveLength(1)
+         const summary = types.indexOf('compaction/summary')
+-        const replacement = records.findIndex((record) => {
++        const replacements = records.filter((record) => {
+           if (record.type !== 'user/message') return false
+           const surfaceOp = record.surfaceOp as JsonObject | undefined
+           return surfaceOp?.op === 'replace'
+         })
++        expect(replacements).toHaveLength(1)
++        const replacement = records.indexOf(replacements[0]!)
+         const end = types.indexOf('compaction/end')
+         expect(start).toBeLessThan(summary)
+         expect(summary).toBeLessThan(replacement)
+         expect(replacement).toBeLessThan(end)
+         const summaryRecord = records[summary]
+         const summaryData = summaryRecord?.data as JsonObject | undefined
++        expect(summaryData).toMatchObject({
++          provider: 'deepseek-official',
++          model: 'deepseek-v4-flash-vision-exp',
++          maxTokens: 32_768,
++        })
++        const primarySummary = summaryRecords.find((record) => {
++          const data = record.data as JsonObject | undefined
++          return data?.provider === 'deepseek-official' && data.model === 'deepseek-v4-flash'
++        })
++        expect(primarySummary).toBeUndefined()
+         expect(summaryData?.shadowedSeqs).toEqual(expect.arrayContaining([expect.any(Number)]))
+         const final = [...records].reverse().find(record => record.type === 'assistant/message')
+         expect(JSON.stringify(final)).toContain('COMPACTION RECOVERED')
+diff --git a/examples/headless-agent/tests/snapshots/compaction-recovery/replay.override.json b/examples/headless-agent/tests/snapshots/compaction-recovery/replay.override.json
+new file mode 100644
+index 0000000000..7d0e174d25
+--- /dev/null
++++ b/examples/headless-agent/tests/snapshots/compaction-recovery/replay.override.json
+@@ -0,0 +1,86 @@
++{
++  "patches": [
++    {
++      "at": 2,
++      "entry": {
++        "kind": "throw",
++        "chunks": [],
++        "message": "snapshot primary summarizer capacity exhausted",
++        "code": "CONTEXT_WINDOW_EXCEEDED"
++      }
++    },
++    {
++      "at": 3,
++      "entry": {
++        "kind": "chunks",
++        "chunks": [
++          {
++            "type": "block-start",
++            "index": 0,
++            "blockType": "text"
++          },
++          {
++            "type": "block-end",
++            "index": 0,
++            "block": {
++              "type": "text",
++              "text": "The request established a durable compaction premise."
++            }
++          },
++          {
++            "type": "usage",
++            "usage": {
++              "inputTokens": 20,
++              "outputTokens": 4
++            }
++          },
++          {
++            "type": "finish",
++            "reason": {
++              "kind": "stop"
++            }
++          }
++        ]
++      }
++    },
++    {
++      "at": 4,
++      "entry": {
++        "kind": "chunks",
++        "chunks": [
++          {
++            "type": "block-start",
++            "index": 0,
++            "blockType": "text"
++          },
++          {
++            "type": "text-delta",
++            "index": 0,
++            "text": "COMPACTION RECOVERED"
++          },
++          {
++            "type": "block-end",
++            "index": 0,
++            "block": {
++              "type": "text",
++              "text": "COMPACTION RECOVERED"
++            }
++          },
++          {
++            "type": "usage",
++            "usage": {
++              "inputTokens": 20,
++              "outputTokens": 4
++            }
++          },
++          {
++            "type": "finish",
++            "reason": {
++              "kind": "stop"
++            }
++          }
++        ]
++      }
++    }
++  ]
++}
+diff --git a/examples/headless-agent/tests/snapshots/compaction-recovery/session.jsonl b/examples/headless-agent/tests/snapshots/compaction-recovery/session.jsonl
+index 575bbc5dfa..f7cc7787d2 100644
+--- a/examples/headless-agent/tests/snapshots/compaction-recovery/session.jsonl
++++ b/examples/headless-agent/tests/snapshots/compaction-recovery/session.jsonl
+@@ -19,7 +19,7 @@
+ {"type":"step/start","data":{"turn":1,"step":2}}
+ {"type":"assistant/chunk","data":{"turn":1,"step":2,"chunk":{"type":"finish","reason":{"kind":"error","failure":{"message":"snapshot request exceeded the model context window","code":"CONTEXT_WINDOW_EXCEEDED"}}}}}
+ {"type":"compaction/start","data":{"compactionId":"338e88fa-e78b-4d49-bd38-8f919e85f5e1","turn":1}}
+-{"type":"compaction/summary","data":{"compactionId":"338e88fa-e78b-4d49-bd38-8f919e85f5e1","summary":[{"type":"text","text":"The request established a durable compaction premise."}],"rawOutput":[{"type":"text","text":"The request established a durable compaction premise."}],"llmStreamCall":true,"shadowedRange":{"start":4,"end":4},"shadowedSeqs":[4],"shadowedTokenCount":266,"provider":"deepseek-official","model":"deepseek-v4-flash","maxTokens":32,"usage":{"inputTokens":20,"outputTokens":4}}}
++{"type":"compaction/summary","data":{"compactionId":"338e88fa-e78b-4d49-bd38-8f919e85f5e1","summary":[{"type":"text","text":"The request established a durable compaction premise."}],"rawOutput":[{"type":"text","text":"The request established a durable compaction premise."}],"llmStreamCall":true,"shadowedRange":{"start":4,"end":4},"shadowedSeqs":[4],"shadowedTokenCount":266,"provider":"deepseek-official","model":"deepseek-v4-flash-vision-exp","maxTokens":32768,"usage":{"inputTokens":20,"outputTokens":4}}}
+ {"type":"user/message","data":{"content":[{"type":"text","text":"This is an automatically generated checkpoint condensing an earlier span of the conversation to free up context. Treat the captured context as established background and build on it without restating it. Continue the task directly from the messages that follow, without acknowledging this checkpoint.\n\n<compacted-summary>"},{"type":"text","text":"The request established a durable compaction premise."},{"type":"text","text":"</compacted-summary>"}],"source":{"kind":"plugin","plugin":"compact","compactionId":"338e88fa-e78b-4d49-bd38-8f919e85f5e1"},"role":"user","id":"3668b957-07a2-4cb7-96b1-98a23ac8cdb8"},"sourceEventSeqs":[19,20,4],"surfaceOp":{"op":"replace","start":4,"end":4}}
+ {"type":"compaction/end","data":{"compactionId":"338e88fa-e78b-4d49-bd38-8f919e85f5e1","turn":1}}
+ {"type":"assistant/chunk","data":{"turn":1,"step":2,"chunk":{"type":"block-start","index":0,"blockType":"text"}}}
+diff --git a/examples/headless-agent/tests/snapshots/compaction-recovery/stream-json.expected.jsonl b/examples/headless-agent/tests/snapshots/compaction-recovery/stream-json.expected.jsonl
+index 73e5bbd130..d4531c86b1 100644
+--- a/examples/headless-agent/tests/snapshots/compaction-recovery/stream-json.expected.jsonl
++++ b/examples/headless-agent/tests/snapshots/compaction-recovery/stream-json.expected.jsonl
+@@ -18,7 +18,7 @@
+ {"type":"session_event","sessionId":"{{sessionId}}","event":{"type":"step/start","seq":17,"time":0,"data":{"turn":1,"step":2}}}
+ {"type":"session_event","sessionId":"{{sessionId}}","event":{"type":"assistant/chunk","seq":18,"time":0,"data":{"turn":1,"step":2,"chunk":{"type":"finish","reason":{"kind":"error","failure":{"message":"snapshot request exceeded the model context window","code":"CONTEXT_WINDOW_EXCEEDED"}}}}}}
+ {"type":"session_event","sessionId":"{{sessionId}}","event":{"type":"compaction/start","seq":19,"time":0,"data":{"compactionId":"{{sessionId}}","turn":1}}}
+-{"type":"session_event","sessionId":"{{sessionId}}","event":{"type":"compaction/summary","seq":20,"time":0,"data":{"compactionId":"{{sessionId}}","summary":[{"type":"text","text":"The request established a durable compaction premise."}],"rawOutput":[{"type":"text","text":"The request established a durable compaction premise."}],"llmStreamCall":true,"shadowedRange":{"start":4,"end":4},"shadowedSeqs":[4],"shadowedTokenCount":266,"provider":"deepseek-official","model":"deepseek-v4-flash","maxTokens":32,"usage":{"inputTokens":20,"outputTokens":4}}}}
++{"type":"session_event","sessionId":"{{sessionId}}","event":{"type":"compaction/summary","seq":20,"time":0,"data":{"compactionId":"{{sessionId}}","summary":[{"type":"text","text":"The request established a durable compaction premise."}],"rawOutput":[{"type":"text","text":"The request established a durable compaction premise."}],"llmStreamCall":true,"shadowedRange":{"start":4,"end":4},"shadowedSeqs":[4],"shadowedTokenCount":266,"provider":"deepseek-official","model":"deepseek-v4-flash-vision-exp","maxTokens":32768,"usage":{"inputTokens":20,"outputTokens":4}}}}
+ {"type":"session_event","sessionId":"{{sessionId}}","event":{"type":"user/message","seq":21,"time":0,"data":{"content":[{"type":"text","text":"This is an automatically generated checkpoint condensing an earlier span of the conversation to free up context. Treat the captured context as established background and build on it without restating it. Continue the task directly from the messages that follow, without acknowledging this checkpoint.\n\n<compacted-summary>"},{"type":"text","text":"The request established a durable compaction premise."},{"type":"text","text":"</compacted-summary>"}],"source":{"kind":"plugin","plugin":"compact","compactionId":"{{sessionId}}"},"role":"user","id":"{{sessionId}}"},"sourceEventSeqs":[19,20,4],"surfaceOp":{"op":"replace","start":4,"end":4}}}
+ {"type":"session_event","sessionId":"{{sessionId}}","event":{"type":"compaction/end","seq":22,"time":0,"data":{"compactionId":"{{sessionId}}","turn":1}}}
+ {"type":"session_event","sessionId":"{{sessionId}}","event":{"type":"assistant/chunk","seq":23,"time":0,"data":{"turn":1,"step":2,"chunk":{"type":"block-start","index":0,"blockType":"text"}}}}
 diff --git a/packages/client/runtime/src/client/contract/session.ts b/packages/client/runtime/src/client/contract/session.ts
 index e07267d487..49a44de33a 100644
 --- a/packages/client/runtime/src/client/contract/session.ts
@@ -520,7 +939,7 @@ index 02939cf28f..cbd10215f9 100644
 @@ -31,6 +31,11 @@ import { SessionQueueMirror } from './queue-mirror.ts'
  /** Messages requested per history page. */
  export const PAGE_MESSAGES = 50
- 
+
 +/** List-row pending-interaction key: approval uses the audit id, question uses the wait key. */
 +function listInteractionKey(wait: PendingInteraction): string {
 +  return wait.kind === 'approval' ? `a:${wait.payload.approvalId}` : wait.key
@@ -546,7 +965,7 @@ index 02939cf28f..cbd10215f9 100644
 @@ -377,6 +389,12 @@ export class Session implements SessionFace {
      return promise
    }
- 
+
 +  /** Retry a failed history open. No-ops when already open; shares an in-flight open. */
 +  reload(): Promise<void> {
 +    if (this.openState === 'open') return Promise.resolve()
@@ -583,7 +1002,7 @@ index 02939cf28f..cbd10215f9 100644
 @@ -606,11 +630,34 @@ export class Session implements SessionFace {
      this.pendingRev++
    }
- 
+
 -  /** Authoritative resolved-frame settlement: mark, then drop from the pending map. */
 +  /**
 +   * Drop one wait after the host accepted the answer or the resolved frame landed.
@@ -614,7 +1033,7 @@ index 02939cf28f..cbd10215f9 100644
 +    }
 +    return receipt
    }
- 
+
    /** @param generation - openGeneration at launch; every await re-checks it and a stale pass
 diff --git a/packages/client/runtime/tests/manager.client.spec.ts b/packages/client/runtime/tests/manager.client.spec.ts
 index d0594032df..4c78d26f28 100644
@@ -623,7 +1042,7 @@ index d0594032df..4c78d26f28 100644
 @@ -928,6 +928,25 @@ describe('pending-interaction list status', () => {
      expect(manager.getListSnapshot().items[0]?.pendingInteraction).toBeUndefined()
    })
- 
+
 +  it('clears list pendingInteraction when an instantiated session accepts respond', async () => {
 +    const api = new FakeApiClient()
 +    const manager = new SessionManager(api, fakeRemote())
@@ -653,7 +1072,7 @@ index 19e80dfd5b..a63f87e1e4 100644
 @@ -227,6 +227,21 @@ describe('open', () => {
      expect(session.getSnapshot().openError).toMatchObject({ code: 'internal', message: 'socket died' })
    })
- 
+
 +  it('reload retries a failed open and no-ops once the window is open', async () => {
 +    const { api, session } = makeSession()
 +    api.onHistory = () => Promise.reject(new DOMException('signal timed out', 'TimeoutError'))
@@ -716,7 +1135,7 @@ index 19e80dfd5b..a63f87e1e4 100644
 +    })).resolves.toEqual({ accepted: false, reason: 'not-pending' })
 +    expect(session.getSnapshot().pending).toHaveLength(1)
    })
- 
+
    it('settles the wait on the authoritative resolved frame: respond() then throws synchronously', async () => {
 diff --git a/packages/client/runtime/tests/sessions-service.client.spec.ts b/packages/client/runtime/tests/sessions-service.client.spec.ts
 index b135b56ebe..e2fa1d733d 100644
@@ -725,7 +1144,7 @@ index b135b56ebe..e2fa1d733d 100644
 @@ -332,6 +332,25 @@ describe('cell (render-layer session kit)', () => {
      expect(historyCalls().map(c => (c.payload as { sessionId: string }).sessionId)).toEqual(['s1', 's2'])
    })
- 
+
 +  it('re-selecting the current session retries a failed history open', async () => {
 +    const b = bench()
 +    b.api.onHistory = () => Promise.resolve(err({
@@ -766,7 +1185,7 @@ index 73fa688f95..efba852d0b 100644
 +++ b/packages/client/ui-conversation/src/client/chat/ChatView.module.css
 @@ -126,17 +126,20 @@
  }
- 
+
  .openError {
 +  display: flex;
 +  flex-direction: column;
@@ -776,14 +1195,14 @@ index 73fa688f95..efba852d0b 100644
    font-size: 12px;
    line-height: 18px;
  }
- 
+
 -.older {
 -  display: flex;
 -  justify-content: center;
 +.openError p {
 +  margin: 0;
  }
- 
+
 -.older button {
 +.openError button {
    border: none;
@@ -792,7 +1211,7 @@ index 73fa688f95..efba852d0b 100644
 @@ -146,9 +149,32 @@
    cursor: pointer;
  }
- 
+
 -.older button:disabled {
 -  cursor: default;
 -  opacity: 0.6;
@@ -823,7 +1242,7 @@ index 73fa688f95..efba852d0b 100644
 +  border: 0;
 +  white-space: nowrap;
  }
- 
+
  /* Back-to-bottom: zero-height sticky slot so the control does not extend
 diff --git a/packages/client/ui-conversation/src/client/chat/ChatView.tsx b/packages/client/ui-conversation/src/client/chat/ChatView.tsx
 index 80f9bc2d73..868785520a 100644
@@ -839,7 +1258,7 @@ index 80f9bc2d73..868785520a 100644
  // open-path refusal from the injected opener is an in-page dialog here.
 @@ -23,6 +25,13 @@ import { formatRunDuration } from './message-chrome.ts'
  import css from './ChatView.module.css'
- 
+
  const FOLLOW_THRESHOLD = 24
 +/** Reader is at the history head: an upward gesture loads the next older page. */
 +const LOAD_OLDER_EDGE = 96
@@ -848,7 +1267,7 @@ index 80f9bc2d73..868785520a 100644
 +function isHistoryTimeout(error: { code: string; message: string }): boolean {
 +  return error.code === 'internal' && /timed out/i.test(error.message)
 +}
- 
+
  /** Active column host when present; otherwise the view-local scroller. */
  function scrollerOf(from: HTMLElement): HTMLElement {
 @@ -156,7 +165,7 @@ function TurnStatus({ startTime, t }: {
@@ -863,7 +1282,7 @@ index 80f9bc2d73..868785520a 100644
 @@ -311,6 +320,28 @@ export function ChatView({
      if (appendedUser || appendedSteering || (tipMoved && atBottomRef.current)) toBottom(el)
    })
- 
+
 +  const loadOlderAnchored = (): void => {
 +    const local = listRef.current
 +    /* v8 ignore next -- ref-null guard: paging runs while the list is mounted. */
@@ -908,7 +1327,7 @@ index 80f9bc2d73..868785520a 100644
 +    }
      observedTopRef.current = el.scrollTop
    }
- 
+
 @@ -357,9 +392,16 @@ export function ChatView({
      if (local === null) return
      const el = scrollerOf(local)
@@ -925,11 +1344,11 @@ index 80f9bc2d73..868785520a 100644
 +      el.removeEventListener('wheel', onWheel)
      }
    }, [])
- 
+
 @@ -396,22 +438,6 @@ export function ChatView({
      if (!loadingOlder) anchorRef.current = null
    }, [loadingOlder])
- 
+
 -  const loadOlderAnchored = (): void => {
 -    const local = listRef.current
 -    /* v8 ignore next -- ref-null guard: the paging button renders inside the list tree. */
@@ -990,7 +1409,7 @@ index 307ac38482..b4b0a560b7 100644
 +++ b/packages/client/ui-conversation/src/client/contract/slots.ts
 @@ -706,9 +706,9 @@ export class PendingApproval {
    }
- 
+
    /**
 -   * Deliver the user's decision; a rejected carrier receipt throws. Panel
 -   * removal stays frame-driven: the broadcast `approval/resolved` settles the
@@ -1062,12 +1481,12 @@ index a37816472c..d3241971b1 100644
 +   */
 +  reload(): Promise<void>
  }
- 
+
  /** Create one browser-only draft descriptor; only its id enters input state. */
 @@ -307,6 +312,11 @@ export class ConversationController extends Service implements IConversation {
      await this.scopedSession('loadOlder').loadOlder()
    }
- 
+
 +  /** Retry a failed history open for the scoped Session. */
 +  async reload(): Promise<void> {
 +    await this.scopedSession('reload').reload()
@@ -1106,7 +1525,7 @@ index e700b112b4..59c380babd 100644
 -// resolved frame.
 +// after a click. An accepted respond drops the wait locally; a rejected
 +// receipt or transport failure re-arms them and shows the error.
- 
+
 -import { useMemo, useState } from 'react'
 +import { useEffect, useMemo, useState } from 'react'
  import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -1380,7 +1799,7 @@ index b81dff8e6e..2c91c9f768 100644
 @@ -306,6 +308,11 @@ function readerScroll(element: HTMLElement, top: number): void {
    fireEvent.scroll(element)
  }
- 
+
 +/** Reader gesture at the history head: wheel-up loads the next older page. */
 +function requestOlderByWheel(element: HTMLElement): void {
 +  fireEvent.wheel(element, { deltaY: -80 })
@@ -1419,7 +1838,7 @@ index b81dff8e6e..2c91c9f768 100644
 @@ -1324,13 +1331,51 @@ describe('ChatView', () => {
      }
    })
- 
+
 -  it('paging button loads older and shows its busy label', () => {
 +  it('scrolling up at the head loads older and shows a busy status', () => {
      const h = makeHarness({ nodes: [user(5, 'later')], hasMore: true })
@@ -1468,7 +1887,7 @@ index b81dff8e6e..2c91c9f768 100644
 +    requestOlderByWheel(scroller)
 +    expect(h.loadOlder).not.toHaveBeenCalled()
    })
- 
+
    it('shows open error and loading states', () => {
 @@ -1340,6 +1385,14 @@ describe('ChatView', () => {
      })
@@ -1508,7 +1927,7 @@ index 38522771c0..a61623ff23 100644
 -  return { runtime, fiber, root, scoped, hub, shell, prompt, updateQueue, cancel, loadOlder }
 +  return { runtime, fiber, root, scoped, hub, shell, prompt, updateQueue, cancel, loadOlder, reload }
  }
- 
+
  describe('ConversationController', () => {
 @@ -44,10 +45,12 @@ describe('ConversationController', () => {
      await b.scoped.updateQueue('item-1' as never, { kind: 'remove' })
@@ -1522,7 +1941,7 @@ index 38522771c0..a61623ff23 100644
 +    expect(b.reload).toHaveBeenCalledOnce()
      await b.runtime.dispose()
    })
- 
+
 diff --git a/packages/client/ui-settings-models/src/client/ModelListEditor.tsx b/packages/client/ui-settings-models/src/client/ModelListEditor.tsx
 index a4b80f52a0..da0592e015 100644
 --- a/packages/client/ui-settings-models/src/client/ModelListEditor.tsx
@@ -1536,11 +1955,11 @@ index a4b80f52a0..da0592e015 100644
 +import type { ModelCapacitySource } from './store.ts'
  import type { en } from './locales.ts'
  import styles from './ModelsSection.module.css'
- 
+
 @@ -116,6 +117,26 @@ function IconTrash(): ReactNode {
  /** The two token counts edited as K/M-suffixed text behind a row's disclosure. */
  type CapacityField = 'contextWindow' | 'maxTokens'
- 
+
 +/** Locale key for the compact provenance copy beside each capacity label. */
 +const CAPACITY_SOURCE_LABEL: Readonly<Record<ModelCapacitySource, keyof typeof en>> = {
 +  user: 'modelCapacitySourceUser',
@@ -1567,7 +1986,7 @@ index a4b80f52a0..da0592e015 100644
 @@ -143,16 +164,6 @@ function capacitySpelling(value: number | undefined): string {
    return value === undefined ? '' : formatCapacity(value)
  }
- 
+
 -/** Adopt a candidate, keeping whatever capacities the provider disclosed. */
 -function adopt(candidate: DiscoveredModelView): ModelDraft {
 -  return {
@@ -1582,7 +2001,7 @@ index a4b80f52a0..da0592e015 100644
   * Render the model list with its fetch action.
   * @param props - the drafted rows, probe target, wire face, and copy.
 @@ -180,7 +191,11 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
- 
+
    const editCapacity = (index: number, field: CapacityField, text: string): void => {
      setEditing(current => new Map(current).set(bufferKey(index, field), text))
 -    patch(index, { [field]: parseCapacity(text) })
@@ -1592,7 +2011,7 @@ index a4b80f52a0..da0592e015 100644
 +      [`${field}Source`]: value === undefined ? undefined : 'user',
 +    })
    }
- 
+
    /** What a capacity field shows: the buffer while typing, else the stored count. */
 @@ -272,11 +287,12 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
      const byId = new Map(models.map(model => [textOf(model, 'id'), model]))
@@ -1665,7 +2084,7 @@ index 5b688db919..4ad918b0f2 100644
 +++ b/packages/client/ui-settings-models/src/client/store.ts
 @@ -7,7 +7,7 @@
   */
- 
+
  import type {
 -  ConfigurableProviderView, CredentialView, IApiClient, SettingsNamespaceView,
 +  ConfigurableProviderView, CredentialView, DiscoveredModelView, IApiClient, SettingsNamespaceView,
@@ -1675,7 +2094,7 @@ index 5b688db919..4ad918b0f2 100644
 @@ -71,6 +71,66 @@ export function deriveKeyRef(provider: string): string {
    return `${provider.toUpperCase().replace(/[^A-Z0-9]+/g, '_')}_API_KEY`
  }
- 
+
 +/** Capacity fields that carry independent values and provenance. */
 +export type ModelCapacityField = 'contextWindow' | 'maxTokens'
 +
@@ -1762,14 +2181,14 @@ index 8d7e7f2d3c..14a5a2b36f 100644
 -import { en } from '../src/client/locales.ts'
 +import { en, zh } from '../src/client/locales.ts'
  import { settingsSchema } from './settings-schema.client.ts'
- 
+
  afterEach(cleanup)
 @@ -19,6 +19,7 @@ afterEach(cleanup)
  const t: ModelsSectionInjected['t'] = key => en[key]
- 
+
  const PROTOCOLS = ['openai-completions', 'openai-responses', 'anthropic-messages']
 +const CAPACITY_SOURCES = ['user', 'provider', 'official', 'estimated']
- 
+
  /** The pi-ai profile shape as the host serializes it, including the layer-1 fields. */
  const PiAiConfig = Schema.object({
 @@ -32,7 +33,9 @@ const PiAiConfig = Schema.object({
@@ -1795,7 +2214,7 @@ index 8d7e7f2d3c..14a5a2b36f 100644
 +        maxTokensSource: 'user',
 +      }])
    })
- 
+
    it('refuses to apply while a capacity is unreadable', async () => {
 @@ -309,10 +318,39 @@ describe('model list editing', () => {
      await waitFor(() => { expect(mutate).toHaveBeenCalled() })
@@ -1805,7 +2224,7 @@ index 8d7e7f2d3c..14a5a2b36f 100644
 +      { id: 'second', name: 'Second', maxTokens: 2048, maxTokensSource: 'user' },
      ])
    })
- 
+
 +  it('removes a stored capacity and its paired source when cleared', async () => {
 +    const { mutate } = await mountSection({
 +      providers: {
@@ -1899,7 +2318,7 @@ index 8d7e7f2d3c..14a5a2b36f 100644
 +      },
      ])
    })
- 
+
 +  it('marks only the manually edited capacity as user-owned', async () => {
 +    const { mutate } = await mountSection({
 +      providers: {
@@ -1984,7 +2403,7 @@ index 8d7e7f2d3c..14a5a2b36f 100644
      const discover = vi.fn(() => Promise.resolve(
        fail('https://proxy.example/v1/models answered 401; check the API key', 'model-discovery-failed'),
 @@ -605,7 +776,10 @@ describe('endpoint interrogation', () => {
- 
+
      await waitFor(() => { expect(mutate).toHaveBeenCalled() })
      // A disclosed output cap rides along with the candidate that has one.
 -    expect(firstMutate(mutate).ops[0]?.value).toEqual([{ id: 'a' }, { id: 'b', maxTokens: 2048 }])
@@ -1993,7 +2412,7 @@ index 8d7e7f2d3c..14a5a2b36f 100644
 +      { id: 'b', maxTokens: 2048, maxTokensSource: 'estimated' },
 +    ])
    })
- 
+
    it('selects and clears every discovered candidate in one action', async () => {
 @@ -725,7 +899,7 @@ describe('hand-declared providers', () => {
            apiKeyEnv: 'ACME_GATEWAY_API_KEY',
@@ -2021,8 +2440,2054 @@ index f01e821767..2684c19b1f 100644
 +    }))).toBe(false)
 +  })
  })
- 
+
  describe('onboardingReadiness', () => {
+diff --git a/packages/compaction/compaction-basic/README.i18n.yaml b/packages/compaction/compaction-basic/README.i18n.yaml
+index 382d77a367..25f14b8356 100644
+--- a/packages/compaction/compaction-basic/README.i18n.yaml
++++ b/packages/compaction/compaction-basic/README.i18n.yaml
+@@ -2,5 +2,5 @@
+ # side as of the last confirmed-consistent state. Both languages carry equal authority;
+ # after editing either side, bring the other along and re-record with:
+ #   pnpm run verify-translation-pairing --write packages/compaction/compaction-basic/README.md
+-README.md: 82df7b7e399cef80d92611819e9e58f13babf175
+-README.zh.md: d79ea39ad8db7e2ab7f0a5b2ef52b61ab054d01b
++README.md: fbbfd83b9dfea2f447e985e06afeb9bffa8a6eff
++README.zh.md: 145fa03ded7a5a5c96912178533e9f44ec0ce607
+diff --git a/packages/compaction/compaction-basic/README.md b/packages/compaction/compaction-basic/README.md
+index 82df7b7e39..fbbfd83b9d 100644
+--- a/packages/compaction/compaction-basic/README.md
++++ b/packages/compaction/compaction-basic/README.md
+@@ -16,8 +16,9 @@ This backend owns the compaction policy:
+ - **Retention** — compact the oldest whole surface units while preserving a recent tail and balanced tool-call/result cuts through the [`dsh-compaction` boundary helpers](../compaction/README.md#tool-pairing-boundaries). Turn boundaries do not protect old steps inside a runaway turn. An open indivisible tail declines until it closes. The optional pruner can repair an oversized closed tool unit when its text-bearing result is the removable bulk; indivisible non-tool units and non-prunable tool remainders remain out of scope.
+ - **Convergence** — retry head-checkpoint compaction up to `compactionRetries`; reject a summary that does not shrink its source, and throw if retries cannot return below threshold.
+ - **Summarization** — a direct `llm/stream` call uses the configured provider/model pair and cap, falling back to the latest logged request target and then the agent target, without running the loop-only `agent/request` extension point. The call replays the conversation's own system prompt, tools, and shadowed-region messages verbatim, including image references, and appends the compaction instruction as the final user message, so it reuses the provider's warm prefix cache instead of invalidating it. The selected adapter must resolve or explicitly reject those images. It sets `GenerateOptions.purpose` to `compaction`, which adapters may forward as request attribution (the DeepSeek adapter sends `x-deepseek-harness-compact: 1`) without touching the model-visible body. Only returned text enters the checkpoint, excluding reasoning and tool calls that would leak private reasoning or create an orphaned call; image output fails with `UNSUPPORTED_CONTENT` rather than disappearing.
++- **Fallback routing** — after the primary summarizer and its configured retries settle unsuccessfully, operational failures such as capacity, rate-limit, timeout, and provider errors enter the ordered global `summarizationFallbacks` list. Abort or cancellation, shutdown, policy, safety, and content-filter signals prohibit cross-provider routing. A fallback with a missing or invalid credential, no adapter, or an unresolved provider/model stops the chain instead of advancing to later targets. Cancellation checked before and after each attempt remains authoritative. Every fallback receives the same replayed conversation, so choosing another provider crosses that provider's privacy and data-handling boundary and may incur an additional charge.
+ - **Framing** — the replacement user message marks established checkpoint context with `<compacted-summary>` tags. The raw summary remains on the `compaction/summary` event, and later automatic cycles merge the prior checkpoint.
+-- **Lifecycle** — all entry points share one bracket-first region transaction. It validates the range and live lock, appends `compaction/start` synchronously, prepares and awaits the summary, revalidates, appends `compaction/summary` plus the replacement, and makes exactly one closing attempt. Automatic and explicit-region calls require a numeric open-turn owner and whole-surface stability; the serial `agent/pre-step` listener checks pressure before request derivation, while canonical provider overflow enters through `agent/request-error` and authorizes retry only after durable surface progress. `compactNow()` reserves idle admission, uses `turn: null`, accepts append-only context outside its selected span, flushes every closed attempt, and releases admission in `finally`.
++- **Lifecycle** — all entry points share one bracket-first region transaction. It validates the range and live lock, appends `compaction/start` synchronously, prepares and awaits the summary, revalidates, appends `compaction/summary` plus the replacement, and makes exactly one closing attempt. Failed primary or fallback calls append neither a partial summary nor a replacement. One successful target commits exactly one `compaction/summary` and one replacement, with provider/model provenance from that target. Automatic and explicit-region calls require a numeric open-turn owner and whole-surface stability; the serial `agent/pre-step` listener checks pressure before request derivation, while canonical provider overflow enters through `agent/request-error` and authorizes retry only after durable surface progress. `compactNow()` reserves idle admission, uses `turn: null`, accepts append-only context outside its selected span, flushes every closed attempt, and releases admission in `finally`.
+ - **Overflow recovery** — provider-confirmed overflow needs no capacity metadata: it bypasses normal pressure and retention, prunes, then attempts one maximal balanced head reduction while leaving the newest indivisible unit. Retry is authorized whenever `surface.replaceGeneration` advances, including when pruning lands before later summary work throws. No replacement, an exhausted target-specific cap, cancellation, or an unknown/noncanonical error preserves the original provider failure.
+ - **Failure handling** — a live unmatched `compaction/start` is the durable lock. An unmatched marker before a newer `session/end-seed` is stale evidence from a prior lifecycle and does not block; one after that boundary reports `busy`. Summary and changed-span failures close with an error and leave the conversation surface untouched, though the attempt remains in the log. A failed close deliberately leaves a blocking orphan. Operational pressure failures warn and continue, while overflow-recovery failure preserves the original provider error only when no earlier replacement advanced the surface. Cancellation remains authoritative after cleanup and durability.
+
+@@ -35,12 +36,13 @@ Every setting is optional. Top-level policy fields are defaults for every routed
+ | `summarizationProvider` | no (default `''`) | Set together with `summarizationModel`; an empty pair resolves the latest logged request target, then the `AgentOptions` pair. |
+ | `summarizationModel` | no (default `''`) | Set together with `summarizationProvider`; an empty pair resolves the latest logged request target, then the `AgentOptions` pair. |
+ | `maxTokens` | no (default `8192`) | Provider generation cap for the summarization call; may include reasoning tokens. |
++| `summarizationFallbacks` | no (default `[]`) | Ordered global `{ provider, model, maxTokens? }` targets tried after an eligible primary failure; omitted `maxTokens` inherits the resolved primary summarization cap. |
+ | `compactionRetries` | no (default `1`) | Extra attempts after the first when pressure remains above threshold. |
+ | `maxOverflowRetries` | no (default `1`) | Maximum retries after canonical context-window overflow; `0` disables recovery only. |
+ | `modelPolicies` | no (default `[]`) | Exact `{ provider, model, ...partialPolicy }` overrides; matching uses both fields and does not depend on `listModels()`. |
+ | `auto` | no (default `true`) | Register step-boundary pressure and overflow-recovery listeners. Set `false` for manual-only. |
+
+-Every `modelPolicies` entry accepts the policy fields above except `auto` and `modelPolicies` itself. If an entry supplies either retention field, it replaces the default policy's retention choice; otherwise retention is inherited. Summarization provider/model remain a pair inside each entry.
++Every `modelPolicies` entry accepts the policy fields above except `auto`, `modelPolicies`, and `summarizationFallbacks`. Fallback order is global rather than route-specific. If an entry supplies either retention field, it replaces the default policy's retention choice; otherwise retention is inherited. Summarization provider/model remain a pair inside each entry.
+
+ An adapter may return no capacity for a valid dynamic route, and resolved capacity may expose an invalid absolute retention budget. Manual pressure checks then throw a target-specific configuration error; the automatic listener warns once for that exact target and continues with full history. Unrelated operational failures remain independently visible. Canonical provider overflow still attempts recovery because the provider has already established that compaction is necessary.
+
+@@ -106,7 +108,7 @@ Replacing rather than append-only. Each checkpoint invalidates reuse from the fi
+
+ #### What the model sees
+
+-The summarization model receives the conversation replayed verbatim — the same system prompt, tool schemas, and messages the last routed request sent for the shadowed region — followed by one final user message: the compaction instruction below. The conversation model never sees this private request or its reasoning; only returned text is stored.
++The primary or winning fallback summarization model receives the conversation replayed verbatim — the same system prompt, tool schemas, and messages the last routed request sent for the shadowed region — followed by one final user message: the compaction instruction below. The conversation model never sees this private request or its reasoning; only returned text is stored.
+
+ ##### Compaction instruction (final user message)
+
+diff --git a/packages/compaction/compaction-basic/README.zh.md b/packages/compaction/compaction-basic/README.zh.md
+index d79ea39ad8..145fa03ded 100644
+--- a/packages/compaction/compaction-basic/README.zh.md
++++ b/packages/compaction/compaction-basic/README.zh.md
+@@ -16,8 +16,9 @@
+ - **保留**：压缩最旧的完整表层单元，同时保留近期尾部，并通过 [`dsh-compaction` 边界 helper](../compaction/README.zh.md#tool-pairing-boundaries) 将切分点调整到工具调用／结果配对平衡的位置。轮次边界不会保护失控轮次内的旧步骤。尚未闭合且不可分的尾部会在闭合前拒绝压缩。当闭合的超大工具单元以文本型结果为可移除主体时，可选 pruner 可以修复它；不可分的非工具单元与不可剪枝的工具剩余部分不在范围内。
+ - **收敛**：最多按 `compactionRetries` 重试头部检查点压缩；拒绝不能缩小源内容的摘要，如果重试仍无法回到阈值以下，则抛出异常。
+ - **摘要**：直接 `llm/stream` 调用使用已配置的提供方／模型对与上限，回退到最新已记录请求目标，然后再回退到 agent（智能体）目标，而不运行仅用于 agent loop 的 `agent/request` 扩展点。该调用会逐字回放会话自身的系统提示词、工具与已遮蔽区域消息（包括图片引用），并将压缩指令作为最后一条 user 消息追加，从而复用提供方的热前缀 cache，而非使它失效。所选适配器必须解析或明确拒绝这些图片。它将 `GenerateOptions.purpose` 设为 `compaction`，适配器可将其作为请求归因转发（DeepSeek 适配器发送 `x-deepseek-harness-compact: 1`），但不会触碰模型可见的请求体。只有返回的文本会进入检查点；推理（reasoning）和工具调用都会被排除，以免泄露私有推理或产生遗留调用；图片输出会以 `UNSUPPORTED_CONTENT` 失败，而不是消失。
++- **回退路由**：primary 摘要器及其已配置重试全部失败后，容量、限流、超时与提供方错误等运行故障会进入全局有序 `summarizationFallbacks` 列表。中止或取消、关闭、策略、安全与内容过滤信号禁止跨提供方路由。fallback 缺少或使用无效凭据、没有适配器，或者提供方／模型无法解析时，链会停止，而不会前进到后续目标。每次尝试前后检查到取消时，取消仍具有最终决定权。每个 fallback 都接收相同的已回放会话，因此选择其他提供方会跨越该提供方的隐私与数据处理边界，并可能产生额外费用。
+ - **框定**：替换 user 消息使用 `<compacted-summary>` 标签标记已建立的检查点上下文。原始摘要保留在 `compaction/summary` 事件上，后续自动周期会合并之前的检查点。
+-- **生命周期**：所有入口点共享一个先记录标记的区域事务。它会验证范围与活动锁，同步追加 `compaction/start`，准备并等待摘要，重新验证，再追加 `compaction/summary` 和替换，最后恰好进行一次闭合尝试。自动调用和显式范围调用要求数字标识的开放轮次归属，并要求整个表层保持稳定；串行 `agent/pre-step` listener 会在派生请求之前检查压力，而规范提供方溢出则经由 `agent/request-error` 进入，并且只在表层取得持久进展后才允许重试。`compactNow()` 会预留空闲接纳，使用 `turn: null`，允许所选 span 之外追加仅追加上下文，flush 每次已闭合尝试，并在 `finally` 中释放接纳预留。
++- **生命周期**：所有入口点共享一个先记录标记的区域事务。它会验证范围与活动锁，同步追加 `compaction/start`，准备并等待摘要，重新验证，再追加 `compaction/summary` 和替换，最后恰好进行一次闭合尝试。失败的 primary 或 fallback 调用不会追加部分摘要或替换。一个目标成功后，会恰好提交一条 `compaction/summary` 和一条替换，其中提供方／模型来源来自该目标。自动调用和显式范围调用要求数字标识的开放轮次归属，并要求整个表层保持稳定；串行 `agent/pre-step` listener 会在派生请求之前检查压力，而规范提供方溢出则经由 `agent/request-error` 进入，并且只在表层取得持久进展后才允许重试。`compactNow()` 会预留空闲接纳，使用 `turn: null`，允许所选 span 之外追加仅追加上下文，flush 每次已闭合尝试，并在 `finally` 中释放接纳预留。
+ - **溢出恢复**：提供方已确认的溢出不需容量元数据。它会绕过常规压力与保留，执行剪枝，再尝试一次最大平衡头部缩减，并留下最新不可分单元。只要 `surface.replaceGeneration` 前进，就允许重试，包括剪枝在后续摘要工作抛出异常前已落地的情况。如果没有替换、目标特定上限已耗尽、已取消，或遇到未知／非规范错误，则保留原始提供方失败。
+ - **失败处理**：活动的未匹配 `compaction/start` 是持久锁。位于较新 `session/end-seed` 之前的未匹配标记，是先前生命周期留下的陈旧证据，不会阻塞；位于该边界之后的标记报告 `busy`。摘要和 span 变更失败会以错误闭合，并保持会话表层不变，但日志中仍保留该尝试。闭合失败会有意留下阻塞性的未匹配标记。压力检查中的运行故障会发出警告并继续；只有此前没有替换推进表层时，溢出恢复失败才保留原始提供方错误。完成清理与持久化后，取消仍具有最终决定权。
+
+@@ -35,12 +36,13 @@
+ | `summarizationProvider` | 否（默认 `''`） | 与 `summarizationModel` 一起设置；空对会解析为最新已记录请求目标，再回退到 `AgentOptions` 对。 |
+ | `summarizationModel` | 否（默认 `''`） | 与 `summarizationProvider` 一起设置；空对会解析为最新已记录请求目标，再回退到 `AgentOptions` 对。 |
+ | `maxTokens` | 否（默认 `8192`） | 摘要调用的提供方生成上限；可包含推理 token。 |
++| `summarizationFallbacks` | 否（默认 `[]`） | 符合条件的 primary 失败后尝试的全局有序 `{ provider, model, maxTokens? }` 目标；省略的 `maxTokens` 继承已解析的 primary 摘要上限。 |
+ | `compactionRetries` | 否（默认 `1`） | 压力仍高于阈值时，在首次尝试后进行的额外尝试次数。 |
+ | `maxOverflowRetries` | 否（默认 `1`） | 规范上下文窗口溢出后的最大重试次数；`0` 只禁用恢复。 |
+ | `modelPolicies` | 否（默认 `[]`） | 精确的 `{ provider, model, ...partialPolicy }` 覆盖；匹配使用两个字段，不依赖 `listModels()`。 |
+ | `auto` | 否（默认 `true`） | 注册步骤边界压力与溢出恢复 listener。设为 `false` 则仅手动执行。 |
+
+-每个 `modelPolicies` 配置项都接受上述策略字段，但不接受 `auto` 和 `modelPolicies` 自身。如果配置项提供任意一个保留字段，就替换默认策略的保留选择；否则继承保留设置。摘要提供方／模型在每个配置项内仍然成对。
++每个 `modelPolicies` 配置项都接受上述策略字段，但不接受 `auto`、`modelPolicies` 和 `summarizationFallbacks`。fallback 顺序是全局的，而不是路由特定配置。如果配置项提供任意一个保留字段，就替换默认策略的保留选择；否则继承保留设置。摘要提供方／模型在每个配置项内仍然成对。
+
+ 适配器可能无法为有效动态路由返回容量，已解析容量也可能暴露无效的绝对保留预算。此时手动压力检查会抛出目标特定配置错误；自动 listener 会对该精确目标警告一次，并携带完整历史继续。不相关的操作性失败仍会独立可见。规范提供方溢出仍会尝试恢复，因为提供方已确立压缩的必要性。
+
+@@ -106,7 +108,7 @@ This is an automatically generated checkpoint condensing an earlier span of the
+
+ #### 模型看到的内容
+
+-摘要模型会接收逐字回放的会话：与上次已路由请求为已遮蔽区域发送的相同系统提示词、工具 schema 与消息，后面跟随一条最终 user 消息，即下方压缩指令。会话模型绝不会看到该私有请求或其推理；只有返回文本会被存储。
++primary 或获胜 fallback 摘要模型会接收逐字回放的会话：与上次已路由请求为已遮蔽区域发送的相同系统提示词、工具 schema 与消息，后面跟随一条最终 user 消息，即下方压缩指令。会话模型绝不会看到该私有请求或其推理；只有返回文本会被存储。
+
+ ##### 压缩指令（最终 user 消息）
+
+diff --git a/packages/compaction/compaction-basic/src/config.ts b/packages/compaction/compaction-basic/src/config.ts
+index 1c9c428c1f..bf8c61a6c2 100644
+--- a/packages/compaction/compaction-basic/src/config.ts
++++ b/packages/compaction/compaction-basic/src/config.ts
+@@ -13,6 +13,7 @@ import type {
+   ResolvedCompactSpec,
+   ResolvedConfig,
+   ResolvedRetention,
++  ResolvedSummarizationFallback,
+   ResolvedTargetPolicy,
+ } from './types.ts'
+
+@@ -37,6 +38,7 @@ const POLICY_CONFIG_KEYS = [
+ /** Complete public top-level configuration key set. */
+ const BASIC_COMPACT_CONFIG_KEYS: ReadonlySet<string> = new Set([
+   ...POLICY_CONFIG_KEYS,
++  'summarizationFallbacks',
+   'modelPolicies',
+   'auto',
+ ])
+@@ -48,6 +50,13 @@ const MODEL_POLICY_KEYS: ReadonlySet<string> = new Set([
+   ...POLICY_CONFIG_KEYS,
+ ])
+
++/** Complete key set for one summarization fallback entry. */
++const SUMMARIZATION_FALLBACK_KEYS: ReadonlySet<string> = new Set([
++  'provider',
++  'model',
++  'maxTokens',
++])
++
+ /** Target-specific pressure configuration failure eligible for warning suppression. */
+ export class TargetPressureConfigError extends Error {
+   /**
+@@ -72,6 +81,11 @@ export function resolveConfig(config: BasicCompactionConfig = {}): ResolvedConfi
+   }
+
+   const thresholdRatio = config.thresholdRatio ?? DEFAULT_THRESHOLD_RATIO
++  const maxTokens = config.maxTokens ?? 8192
++  const fallbackResolution = resolveSummarizationFallbacks(
++    config.summarizationFallbacks,
++    maxTokens,
++  )
+   const retention = resolveRetention(config, { retainRatio: DEFAULT_RETAIN_RATIO })
+   validateRatioRetention(thresholdRatio, retention, 'BasicCompactionConfig')
+   const modelPolicies = resolveModelPolicies(config.modelPolicies)
+@@ -88,7 +102,9 @@ export function resolveConfig(config: BasicCompactionConfig = {}): ResolvedConfi
+     ...retention,
+     summarizationProvider: config.summarizationProvider ?? '',
+     summarizationModel: config.summarizationModel ?? '',
+-    maxTokens: config.maxTokens ?? 8192,
++    maxTokens,
++    summarizationFallbacks: fallbackResolution.fallbacks,
++    summarizationFallbackMaxTokensDefaulted: fallbackResolution.maxTokensDefaulted,
+     compactionRetries: config.compactionRetries ?? 1,
+     maxOverflowRetries: config.maxOverflowRetries ?? 1,
+     modelPolicies,
+@@ -112,13 +128,23 @@ export function resolveTargetPolicy(
+   const inheritedRetention: ResolvedRetention = config.retainTokens === undefined
+     ? { retainRatio: config.retainRatio }
+     : { retainTokens: config.retainTokens }
++  const maxTokens = override?.maxTokens ?? config.maxTokens
++  if (config.summarizationFallbackMaxTokensDefaulted.includes(true)) {
++    assertPositiveSafeInteger('BasicCompactionConfig: resolved fallback maxTokens', maxTokens)
++  }
+   return deepFreeze({
+     target: { provider: target.provider, model: target.model },
+     thresholdRatio: override?.thresholdRatio ?? config.thresholdRatio,
+     ...resolveRetention(override ?? {}, inheritedRetention),
+     summarizationProvider: override?.summarizationProvider ?? config.summarizationProvider,
+     summarizationModel: override?.summarizationModel ?? config.summarizationModel,
+-    maxTokens: override?.maxTokens ?? config.maxTokens,
++    maxTokens,
++    summarizationFallbacks: config.summarizationFallbacks.map((fallback, index) => ({
++      ...fallback,
++      maxTokens: config.summarizationFallbackMaxTokensDefaulted[index]
++        ? maxTokens
++        : fallback.maxTokens,
++    })),
+     compactionRetries: override?.compactionRetries ?? config.compactionRetries,
+     maxOverflowRetries: override?.maxOverflowRetries ?? config.maxOverflowRetries,
+   })
+@@ -161,6 +187,7 @@ export function resolveCompactSpec(
+     summarizationProvider: policy.summarizationProvider,
+     summarizationModel: policy.summarizationModel,
+     maxTokens: policy.maxTokens,
++    summarizationFallbacks: policy.summarizationFallbacks,
+     compactionRetries: policy.compactionRetries,
+     maxOverflowRetries: policy.maxOverflowRetries,
+   })
+@@ -211,6 +238,33 @@ function resolveModelPolicies(configured: unknown): ModelCompactPolicyConfig[] {
+   })
+ }
+
++/** Validate and detach the ordered global summarization fallback list. */
++function resolveSummarizationFallbacks(
++  configured: unknown,
++  defaultMaxTokens: number,
++): {
++  fallbacks: ResolvedSummarizationFallback[]
++  maxTokensDefaulted: boolean[]
++} {
++  if (configured === undefined) return { fallbacks: [], maxTokensDefaulted: [] }
++  if (!Array.isArray(configured)) {
++    throw new Error('BasicCompactionConfig: summarizationFallbacks must be an array')
++  }
++  const maxTokensDefaulted: boolean[] = []
++  const fallbacks = configured.map((source: unknown, index) => {
++    const name = `BasicCompactionConfig: summarizationFallbacks[${index}]`
++    if (!isUnknownRecord(source)) throw new Error(`${name} must be an object`)
++    validateKeys(source, SUMMARIZATION_FALLBACK_KEYS, name)
++    assertNonBlankString(`${name}.provider`, source.provider)
++    assertNonBlankString(`${name}.model`, source.model)
++    maxTokensDefaulted.push(source.maxTokens === undefined)
++    const maxTokens = source.maxTokens ?? defaultMaxTokens
++    assertPositiveSafeInteger(`${name}.maxTokens`, maxTokens)
++    return { provider: source.provider, model: source.model, maxTokens }
++  })
++  return { fallbacks, maxTokensDefaulted }
++}
++
+ /** Validate one untrusted exact-target override and narrow its public type. */
+ function assertModelPolicy(
+   source: unknown,
+@@ -291,6 +345,18 @@ function assertNonEmptyString(name: string, value: unknown): asserts value is st
+   }
+ }
+
++function assertNonBlankString(name: string, value: unknown): asserts value is string {
++  if (typeof value !== 'string' || value.trim().length === 0) {
++    throw new Error(`${name} must be a non-blank string`)
++  }
++}
++
++function assertPositiveSafeInteger(name: string, value: unknown): asserts value is number {
++  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) {
++    throw new Error(`${name} (${String(value)}) must be a positive safe integer`)
++  }
++}
++
+ function assertPositiveInteger(name: string, value: unknown): asserts value is number {
+   if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+     throw new Error(`${name} (${String(value)}) must be a positive integer`)
+diff --git a/packages/compaction/compaction-basic/src/fallback.ts b/packages/compaction/compaction-basic/src/fallback.ts
+new file mode 100644
+index 0000000000..196fefc749
+--- /dev/null
++++ b/packages/compaction/compaction-basic/src/fallback.ts
+@@ -0,0 +1,68 @@
++const DENIED_WORDS = new Set([
++  'abort',
++  'aborted',
++  'aborting',
++  'cancel',
++  'canceled',
++  'canceling',
++  'cancellation',
++  'cancelled',
++  'cancelling',
++  'policy',
++  'safety',
++  'shutdown',
++])
++
++function readString(error: object, key: 'code' | 'name' | 'message'): string | undefined {
++  try {
++    const value: unknown = Reflect.get(error, key)
++    return typeof value === 'string' ? value : undefined
++  } catch {
++    return undefined
++  }
++}
++
++function normalize(value: string, splitCamelCase = false): string {
++  return (splitCamelCase ? value.replace(/([a-z0-9])([A-Z])/g, '$1 $2') : value)
++    .toLowerCase()
++    .replace(/[^a-z0-9]+/g, ' ')
++    .trim()
++}
++
++function containsDeniedSignal(value: string | undefined): boolean {
++  if (value === undefined) return false
++  return normalizedContainsDeniedSignal(normalize(value))
++    || normalizedContainsDeniedSignal(normalize(value, true))
++}
++
++function normalizedContainsDeniedSignal(normalized: string): boolean {
++  const words = normalized.split(' ')
++  return words.some(word => DENIED_WORDS.has(word))
++    || normalized.includes('shut down')
++    || normalized.includes('shutting down')
++    || normalized.includes('content filter')
++}
++
++/**
++ * Determines whether a failed primary summarization may be retried with a
++ * configured cross-provider fallback. Cancellation, shutdown, policy, safety,
++ * and content-filter signals always deny fallback; other failures remain
++ * eligible for target resolution by the compaction engine.
++ *
++ * @param error - The primary summarization failure to classify without mutation.
++ * @param signal - The primary request signal, when one is available.
++ * @returns `true` only when no cross-provider denial signal is present.
++ */
++export function shouldTrySummarizationFallback(error: unknown, signal?: AbortSignal): boolean {
++  if (signal?.aborted === true) return false
++
++  if (typeof error === 'string') return !containsDeniedSignal(error)
++  if ((typeof error !== 'object' && typeof error !== 'function') || error === null) return true
++
++  const code = readString(error, 'code')
++  const name = readString(error, 'name')
++  const message = readString(error, 'message')
++  return !containsDeniedSignal(code)
++    && !containsDeniedSignal(name)
++    && !containsDeniedSignal(message)
++}
+diff --git a/packages/compaction/compaction-basic/src/index.ts b/packages/compaction/compaction-basic/src/index.ts
+index 9a5dcca2e1..fe423d77b3 100644
+--- a/packages/compaction/compaction-basic/src/index.ts
++++ b/packages/compaction/compaction-basic/src/index.ts
+@@ -27,12 +27,19 @@ import {
+   compactSurfaceRegion,
+   selectCompactableRange,
+ } from './region.ts'
+-import { summarizeWithLlm } from './summarizer.ts'
++import { shouldTrySummarizationFallback } from './fallback.ts'
++import {
++  failedSummarizationDetails,
++  isSafeSummarizationFailure,
++  summarizeWithLlm,
++} from './summarizer.ts'
+ import type { SummarizationInput, SummaryResult } from './summarizer.ts'
+ import type {
+   BasicCompactionConfig,
+   ModelCompactPolicyConfig,
+   ResolvedConfig,
++  ResolvedSummarizationFallback,
++  SummarizationFallbackConfig,
+ } from './types.ts'
+
+ export type {
+@@ -42,12 +49,156 @@ export type {
+   ResolvedCompactSpec,
+   ResolvedConfig,
+   ResolvedRetention,
++  ResolvedSummarizationFallback,
+   ResolvedTargetPolicy,
++  SummarizationFallbackConfig,
+ } from './types.ts'
+
+ /** The region transaction's view of this service's dynamically dispatched summarizer. */
+ type RegionSummarize = (input: SummarizationInput, agent: Agent, signal?: AbortSignal) => Promise<SummaryResult>
+
++interface SummaryPolicy {
++  readonly summarizationProvider: string
++  readonly summarizationModel: string
++  readonly maxTokens: number
++  readonly summarizationFallbacks: readonly ResolvedSummarizationFallback[]
++}
++
++interface SummarizationAttempt {
++  readonly role: 'primary' | 'fallback'
++  readonly provider: string
++  readonly model: string
++  readonly outcomeCode: SummarizationOutcomeCode
++}
++
++type SummarizationOutcomeCode =
++  | 'ABORTED'
++  | 'CANCELED'
++  | 'CANCELLED'
++  | 'CONTENT_FILTER'
++  | 'CONTEXT_WINDOW_EXCEEDED'
++  | 'INVALID_CREDENTIAL'
++  | 'MAX_TOKENS'
++  | 'MISSING_CREDENTIAL'
++  | 'MODEL_NOT_FOUND'
++  | 'MODEL_UNAVAILABLE'
++  | 'NO_ADAPTER'
++  | 'POLICY'
++  | 'PROVIDER'
++  | 'SAFETY'
++  | 'SHUTDOWN'
++  | 'SUCCESS'
++  | 'UNKNOWN'
++  | 'UNKNOWN_MODEL'
++  | 'UNKNOWN_PROVIDER'
++  | 'UNSUPPORTED_CONTENT'
++
++const DIAGNOSTIC_OUTCOME_CODES = new Set<SummarizationOutcomeCode>([
++  'ABORTED',
++  'CANCELED',
++  'CANCELLED',
++  'CONTENT_FILTER',
++  'CONTEXT_WINDOW_EXCEEDED',
++  'INVALID_CREDENTIAL',
++  'MAX_TOKENS',
++  'MISSING_CREDENTIAL',
++  'MODEL_NOT_FOUND',
++  'MODEL_UNAVAILABLE',
++  'NO_ADAPTER',
++  'POLICY',
++  'PROVIDER',
++  'SAFETY',
++  'SHUTDOWN',
++  'SUCCESS',
++  'UNKNOWN',
++  'UNKNOWN_MODEL',
++  'UNKNOWN_PROVIDER',
++  'UNSUPPORTED_CONTENT',
++])
++
++const FALLBACK_UNAVAILABLE_CODES = new Set<SummarizationOutcomeCode>([
++  'INVALID_CREDENTIAL',
++  'MISSING_CREDENTIAL',
++  'MODEL_NOT_FOUND',
++  'MODEL_UNAVAILABLE',
++  'NO_ADAPTER',
++  'UNKNOWN_MODEL',
++  'UNKNOWN_PROVIDER',
++])
++
++const sanitizedCompactionFailures = new WeakSet<object>()
++
++/** Read a string property from an arbitrary failure without invoking coercion. */
++function errorString(error: unknown, key: 'code' | 'name'): string | undefined {
++  if ((typeof error !== 'object' && typeof error !== 'function') || error === null) return undefined
++  try {
++    const value: unknown = Reflect.get(error, key)
++    return typeof value === 'string' ? value : undefined
++  } catch {
++    return undefined
++  }
++}
++
++/** Collapse a provider failure into a stable diagnostic code without retaining provider text. */
++function outcomeCode(error: unknown): SummarizationOutcomeCode {
++  const code = errorString(error, 'code')
++  if (code !== undefined && code.trim().length > 0) {
++    const normalized = code.trim()
++      .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
++      .replace(/[^A-Za-z0-9]+/g, '_')
++      .replace(/^_+|_+$/g, '')
++      .toUpperCase()
++    if (DIAGNOSTIC_OUTCOME_CODES.has(normalized as SummarizationOutcomeCode)) {
++      return normalized as SummarizationOutcomeCode
++    }
++  }
++  return errorString(error, 'name') === 'AbortError' ? 'ABORTED' : 'UNKNOWN'
++}
++
++/** Test whether one failure was already reduced to a fixed compaction diagnostic. */
++function isSanitizedCompactionFailure(error: unknown): boolean {
++  return (typeof error === 'object' || typeof error === 'function')
++    && error !== null
++    && sanitizedCompactionFailures.has(error)
++}
++
++/** Describe the primary target without changing the summarizer's precedence. */
++function primaryAttemptTarget(policy: SummaryPolicy, agent: Agent): Omit<SummarizationAttempt, 'role' | 'outcomeCode'> {
++  if (policy.summarizationProvider.length > 0) {
++    return {
++      provider: policy.summarizationProvider,
++      model: policy.summarizationModel,
++    }
++  }
++  return conversationTarget(agent) ?? { provider: '<unresolved>', model: '<unresolved>' }
++}
++
++/** Build one sanitized transaction failure from the in-memory attempt ledger. */
++function summarizationFailure(
++  attempts: readonly SummarizationAttempt[],
++  category: 'primary failure' | 'fallback unavailable' | 'fallback failure',
++): Error {
++  const rendered = attempts.map((attempt) => {
++    const label = attempt.role === 'primary'
++      ? 'primary failure'
++      : FALLBACK_UNAVAILABLE_CODES.has(attempt.outcomeCode) ? 'fallback unavailable' : 'fallback failure'
++    return `${label} ${attempt.provider}/${attempt.model} (${attempt.outcomeCode})`
++  })
++  const action = category === 'fallback unavailable'
++    ? '; configure valid credentials or an adapter route for the fallback target'
++    : ''
++  const error = new Error(`compaction summarization failed: ${rendered.join('; ')}${action}`) as Error & {
++    code: string
++  }
++  error.code = category === 'primary failure'
++    ? 'COMPACTION_PRIMARY_FAILED'
++    : category === 'fallback unavailable'
++      ? 'COMPACTION_FALLBACK_UNAVAILABLE'
++      : 'COMPACTION_FALLBACK_FAILED'
++  sanitizedCompactionFailures.add(error)
++  return error
++}
++
+ /** Resolve the exact provider/model durably routed for the latest request. */
+ function routedTarget(
+   session: Session,
+@@ -79,6 +230,12 @@ const maxTokensSchema = z.number().step(1).min(1)
+ const compactionRetriesSchema = z.number().step(1).min(0)
+ const maxOverflowRetriesSchema = z.number().step(1).min(0)
+
++const summarizationFallback: z<SummarizationFallbackConfig> = z.object({
++  provider: z.string().required(),
++  model: z.string().required(),
++  maxTokens: maxTokensSchema,
++})
++
+ const modelPolicy: z<ModelCompactPolicyConfig> = z.object({
+   provider: z.string().required(),
+   model: z.string().required(),
+@@ -110,6 +267,7 @@ export class BasicCompactionEngine extends CompactionEngine {
+     summarizationProvider: summarizationProviderSchema,
+     summarizationModel: summarizationModelSchema,
+     maxTokens: maxTokensSchema,
++    summarizationFallbacks: z.array(summarizationFallback),
+     compactionRetries: compactionRetriesSchema,
+     maxOverflowRetries: maxOverflowRetriesSchema,
+     modelPolicies: z.array(modelPolicy),
+@@ -238,11 +396,73 @@ export class BasicCompactionEngine extends CompactionEngine {
+     agent: Agent,
+     signal?: AbortSignal,
+   ): Promise<SummaryResult> {
++    signal?.throwIfAborted()
+     const target = conversationTarget(agent)
+     const config = target === undefined
+       ? this.config
+       : resolveTargetPolicy(this.config, target)
+-    return summarizeWithLlm(this.ctx, config, input, agent, signal)
++    const primaryTarget = primaryAttemptTarget(config, agent)
++    const attempts: SummarizationAttempt[] = []
++    try {
++      const result = await summarizeWithLlm(this.ctx, config, input, agent, signal)
++      attempts.push({
++        role: 'primary',
++        provider: result.provider,
++        model: result.model,
++        outcomeCode: 'SUCCESS',
++      })
++      return result
++    } catch (primaryError: unknown) {
++      const details = failedSummarizationDetails(primaryError)
++      const failure = details?.failure ?? primaryError
++      const attempt: SummarizationAttempt = {
++        role: 'primary',
++        provider: details?.provider ?? primaryTarget.provider,
++        model: details?.model ?? primaryTarget.model,
++        outcomeCode: outcomeCode(failure),
++      }
++      attempts.push(attempt)
++      signal?.throwIfAborted()
++      if (config.summarizationFallbacks.length === 0) {
++        if (details?.safeToPropagate || isSafeSummarizationFailure(failure)) throw failure
++        throw summarizationFailure(attempts, 'primary failure')
++      }
++      if (!shouldTrySummarizationFallback(failure, signal)) {
++        throw summarizationFailure(attempts, 'primary failure')
++      }
++
++      for (const fallback of config.summarizationFallbacks) {
++        signal?.throwIfAborted()
++        try {
++          const result = await summarizeWithLlm(this.ctx, config, input, agent, signal, fallback)
++          attempts.push({
++            role: 'fallback',
++            provider: result.provider,
++            model: result.model,
++            outcomeCode: 'SUCCESS',
++          })
++          return result
++        } catch (fallbackError: unknown) {
++          const details = failedSummarizationDetails(fallbackError)
++          const failure = details?.failure ?? fallbackError
++          const attempt: SummarizationAttempt = {
++            role: 'fallback',
++            provider: details?.provider ?? fallback.provider,
++            model: details?.model ?? fallback.model,
++            outcomeCode: outcomeCode(failure),
++          }
++          attempts.push(attempt)
++          signal?.throwIfAborted()
++          if (FALLBACK_UNAVAILABLE_CODES.has(attempt.outcomeCode)) {
++            throw summarizationFailure(attempts, 'fallback unavailable')
++          }
++          if (!shouldTrySummarizationFallback(failure, signal)) {
++            throw summarizationFailure(attempts, 'fallback failure')
++          }
++        }
++      }
++      throw summarizationFailure(attempts, 'fallback failure')
++    }
+   }
+
+   /**
+@@ -423,7 +643,27 @@ export class BasicCompactionEngine extends CompactionEngine {
+   private regionDependencies(): { meter: TokenMeter; summarize: RegionSummarize } {
+     return {
+       meter: this.ctx.tokenMeter,
+-      summarize: (input, owner, abort) => this.summarize(input, owner, abort),
++      summarize: async (input, owner, abort) => {
++        try {
++          return await this.summarize(input, owner, abort)
++        } catch (error: unknown) {
++          abort?.throwIfAborted()
++          const code = outcomeCode(error)
++          if (
++            isSafeSummarizationFailure(error)
++            || isSanitizedCompactionFailure(error)
++          ) {
++            throw error
++          }
++          const target = conversationTarget(owner) ?? { provider: '<unresolved>', model: '<unresolved>' }
++          throw summarizationFailure([{
++            role: 'primary',
++            provider: target.provider,
++            model: target.model,
++            outcomeCode: code,
++          }], 'primary failure')
++        }
++      },
+     }
+   }
+ }
+diff --git a/packages/compaction/compaction-basic/src/summarizer.ts b/packages/compaction/compaction-basic/src/summarizer.ts
+index e77d9ec0a0..55f43a9b29 100644
+--- a/packages/compaction/compaction-basic/src/summarizer.ts
++++ b/packages/compaction/compaction-basic/src/summarizer.ts
+@@ -17,6 +17,61 @@ interface SummaryConfig {
+   readonly maxTokens: number
+ }
+
++interface SummaryTarget {
++  readonly provider: string
++  readonly model: string
++  readonly maxTokens: number
++}
++
++interface SummaryFailureDetails {
++  readonly provider: string
++  readonly model: string
++  readonly failure: unknown
++  readonly safeToPropagate: boolean
++}
++
++const safeSummarizationFailures = new WeakSet<object>()
++const summarizationFailureDetails = new WeakMap<object, SummaryFailureDetails>()
++
++/** Mark a fixed local summarization failure whose message contains no provider output. */
++function safeFailure<T extends Error>(error: T): T {
++  safeSummarizationFailures.add(error)
++  return error
++}
++
++/**
++ * Test whether one failure is fixed local text safe to expose through a region transaction.
++ * @param error - failure returned from summarization.
++ * @returns whether the failure was explicitly created by this module as safe.
++ */
++export function isSafeSummarizationFailure(error: unknown): boolean {
++  return (typeof error === 'object' || typeof error === 'function')
++    && error !== null
++    && safeSummarizationFailures.has(error)
++}
++
++/**
++ * Read dispatch metadata captured under a unique internal failure wrapper.
++ * @param error - wrapper returned by the single-request summarizer.
++ * @returns the actual dispatched target, original failure, and propagation policy.
++ */
++export function failedSummarizationDetails(error: unknown): SummaryFailureDetails | undefined {
++  if ((typeof error !== 'object' && typeof error !== 'function') || error === null) return undefined
++  return summarizationFailureDetails.get(error)
++}
++
++/** Wrap one call failure without exposing it through Error.cause or shared object identity. */
++function wrappedFailure(error: unknown, provider: string, model: string): Error {
++  const wrapper = new Error('summarization request failed')
++  summarizationFailureDetails.set(wrapper, Object.freeze({
++    provider,
++    model,
++    failure: error,
++    safeToPropagate: isSafeSummarizationFailure(error),
++  }))
++  return wrapper
++}
++
+ /** Tags wrapping the structured summary inside the landed checkpoint node. */
+ const SUMMARY_OPEN_TAG = '<compacted-summary>'
+ const SUMMARY_CLOSE_TAG = '</compacted-summary>'
+@@ -116,6 +171,7 @@ export type SummaryResult = {
+  * @param input - replayed conversation prefix (system, tools, and leading messages) to condense.
+  * @param agent - supplies routed-model history, fallback model, and session id.
+  * @param signal - optional cancellation forwarded to the adapter.
++ * @param explicitTarget - optional provider/model/cap that bypasses primary target selection.
+  * @returns safe text-only summary blocks and the exact call envelope and output.
+  */
+ export async function summarizeWithLlm(
+@@ -124,6 +180,7 @@ export async function summarizeWithLlm(
+   input: SummarizationInput,
+   agent: Agent,
+   signal?: AbortSignal,
++  explicitTarget?: SummaryTarget,
+ ): Promise<SummaryResult> {
+   const latest = agent.session.requestHeader()?.config
+   const configured = config.summarizationProvider.length === 0
+@@ -135,12 +192,13 @@ export async function summarizeWithLlm(
+     && agent.options.model.length > 0
+     ? { provider: agent.options.provider, model: agent.options.model }
+     : undefined
+-  const target = configured ?? latest ?? agentTarget
++  const target = explicitTarget ?? configured ?? latest ?? agentTarget
+   if (target === undefined) {
+-    throw new Error(
++    throw safeFailure(new Error(
+       'no provider/model available for summarization: set both BasicCompactionConfig summarization fields, route one request, or set both AgentOptions fields',
+-    )
++    ))
+   }
++  const maxTokens = explicitTarget?.maxTokens ?? config.maxTokens
+
+   const assembler = new BlockAssembler()
+   const messages: Message[] = [
+@@ -156,28 +214,32 @@ export async function summarizeWithLlm(
+     messages,
+     ...input.system === undefined ? {} : { system: input.system },
+     ...input.tools === undefined ? {} : { tools: [...input.tools] },
+-    maxTokens: config.maxTokens,
++    maxTokens,
+     sessionId: agent.session.id,
+     purpose: 'compaction',
+     ...signal === undefined ? {} : { signal },
+   }
+-  for await (const chunk of ctx.llm.stream(options)) assembler.push(chunk)
+-  const error = finishError(assembler.finish)
+-  if (error !== undefined) throw error
+-
+-  const rawOutput = assembler.blocks()
+-  const summary = summaryText(rawOutput)
+-  if (!summary.some(block => block.text.trim().length > 0)) {
+-    throw new Error('summarization produced no text summary content')
+-  }
+-  return {
+-    summary,
+-    rawOutput,
+-    llmStreamCall: true,
+-    provider: options.provider,
+-    model: options.model,
+-    maxTokens: config.maxTokens,
+-    ...(assembler.usage === undefined ? {} : { usage: assembler.usage }),
++  try {
++    for await (const chunk of ctx.llm.stream(options)) assembler.push(chunk)
++    const error = finishError(assembler.finish)
++    if (error !== undefined) throw error
++
++    const rawOutput = assembler.blocks()
++    const summary = summaryText(rawOutput)
++    if (!summary.some(block => block.text.trim().length > 0)) {
++      throw safeFailure(new Error('summarization produced no text summary content'))
++    }
++    return {
++      summary,
++      rawOutput,
++      llmStreamCall: true,
++      provider: options.provider,
++      model: options.model,
++      maxTokens,
++      ...(assembler.usage === undefined ? {} : { usage: assembler.usage }),
++    }
++  } catch (error: unknown) {
++    throw wrappedFailure(error, options.provider, options.model)
+   }
+ }
+
+@@ -206,7 +268,7 @@ function finishError(finish: FinishReason): Error | undefined {
+     case 'max-tokens': {
+       const error = new Error('summarization truncated at the token cap (incomplete checkpoint)') as Error & { code?: string }
+       error.code = 'MAX_TOKENS'
+-      return error
++      return safeFailure(error)
+     }
+     default:
+       return undefined
+@@ -218,7 +280,7 @@ function summaryText(
+   blocks: readonly ContentBlock[],
+ ): Array<Extract<ContentBlock, { type: 'text' }>> {
+   if (contentHasImage(blocks)) {
+-    throw new LlmError('compaction summary cannot contain image output', 'UNSUPPORTED_CONTENT')
++    throw safeFailure(new LlmError('compaction summary cannot contain image output', 'UNSUPPORTED_CONTENT'))
+   }
+   return blocks.filter((block): block is Extract<ContentBlock, { type: 'text' }> => block.type === 'text')
+ }
+diff --git a/packages/compaction/compaction-basic/src/types.ts b/packages/compaction/compaction-basic/src/types.ts
+index 05fc354573..c0161e5ad3 100644
+--- a/packages/compaction/compaction-basic/src/types.ts
++++ b/packages/compaction/compaction-basic/src/types.ts
+@@ -6,6 +6,26 @@
+
+ import type { LlmCallConfig } from '@deepseek-ai/dsh-llm'
+
++/** One ordered summarization target used after the primary target fails. */
++export interface SummarizationFallbackConfig {
++  /** Registered provider route. */
++  provider: string
++  /** Exact routed model id within `provider`. */
++  model: string
++  /** Provider generation cap; defaults to the configured summarization maximum. */
++  maxTokens?: number
++}
++
++/** Validated summarization fallback with a concrete generation cap. */
++export interface ResolvedSummarizationFallback {
++  /** Registered provider route. */
++  readonly provider: string
++  /** Exact routed model id within `provider`. */
++  readonly model: string
++  /** Provider generation cap. */
++  readonly maxTokens: number
++}
++
+ /** Policy fields shared by the default policy and exact model overrides. */
+ export interface CompactionPolicyConfig {
+   /** Compact at this fraction of the model's context window. Defaults to `0.8`. */
+@@ -20,6 +40,8 @@ export interface CompactionPolicyConfig {
+   summarizationModel?: string
+   /** Provider generation cap for summarization. Defaults to `8192`. */
+   maxTokens?: number
++  /** Ordered global targets attempted after primary summarization fails. */
++  summarizationFallbacks?: SummarizationFallbackConfig[]
+   /** Extra attempts after the first compaction when pressure remains above threshold. Defaults to `1`. */
+   compactionRetries?: number
+   /** Maximum retries after canonical context overflow; `0` disables recovery. Defaults to `1`. */
+@@ -27,7 +49,10 @@ export interface CompactionPolicyConfig {
+ }
+
+ /** Exact provider/model override merged over the default compaction policy. */
+-export interface ModelCompactPolicyConfig extends CompactionPolicyConfig {
++export interface ModelCompactPolicyConfig extends Omit<
++  CompactionPolicyConfig,
++  'summarizationFallbacks'
++> {
+   /** Registered provider route to match. */
+   provider: string
+   /** Exact routed model id to match within `provider`. */
+@@ -53,12 +78,15 @@ interface ResolvedPolicyFields {
+   readonly summarizationProvider: string
+   readonly summarizationModel: string
+   readonly maxTokens: number
++  readonly summarizationFallbacks: readonly ResolvedSummarizationFallback[]
+   readonly compactionRetries: number
+   readonly maxOverflowRetries: number
+ }
+
+ /** Validated immutable config whose target-specific defaults remain unresolved. */
+ export type ResolvedConfig = ResolvedPolicyFields & ResolvedRetention & {
++  /** Whether each fallback generation cap inherits the matched target policy maximum. */
++  readonly summarizationFallbackMaxTokensDefaulted: readonly boolean[]
+   readonly modelPolicies: readonly Readonly<ModelCompactPolicyConfig>[]
+   readonly auto: boolean
+ }
+diff --git a/packages/compaction/compaction-basic/tests/compaction-basic.spec.ts b/packages/compaction/compaction-basic/tests/compaction-basic.spec.ts
+index 2cf07d3f70..91f0c3a2cc 100644
+--- a/packages/compaction/compaction-basic/tests/compaction-basic.spec.ts
++++ b/packages/compaction/compaction-basic/tests/compaction-basic.spec.ts
+@@ -29,6 +29,8 @@ import ToolResultPruner from '@deepseek-ai/dsh-compaction-tool-result-pruner'
+
+ const SIGNAL = new AbortController().signal
+ const MODEL = 'test-model'
++const FALLBACK_PROVIDER = 'deepseek-official'
++const FALLBACK_MODEL = 'deepseek-v4-flash-vision-exp'
+
+ class ContextAdapter extends LlmAdapter {
+   constructor(private readonly contextWindow: number) {
+@@ -294,6 +296,8 @@ describe('compact configuration and defaults', () => {
+       summarizationProvider: '',
+       summarizationModel: '',
+       maxTokens: 8192,
++      summarizationFallbacks: [],
++      summarizationFallbackMaxTokensDefaulted: [],
+       compactionRetries: 1,
+       maxOverflowRetries: 1,
+       modelPolicies: [],
+@@ -616,6 +620,29 @@ describe('pressure measurement and retention', () => {
+     expect(session.surface.nodes.length).toBeLessThan(8)
+   })
+
++  it.each([
++    [719, false],
++    [720, true],
++  ])('applies an explicit 72%% threshold at %i estimated tokens', async (estimatedTokens, compacts) => {
++    const ctx = createContext(1_000)
++    const compact = service({
++      auto: false,
++      thresholdRatio: 0.72,
++      retainTokens: 0,
++    }, ctx)
++    const session = conversation(4)
++    const measure = ctx.tokenMeter.measure.bind(ctx.tokenMeter)
++    vi.spyOn(ctx.tokenMeter, 'measure').mockImplementationOnce(owner => ({
++      ...measure(owner),
++      totalTokens: estimatedTokens,
++    }))
++
++    const result = await compactIfNeeded(compact, session)
++
++    expect(result !== null).toBe(compacts)
++    expect(compact.calls).toHaveLength(compacts ? 1 : 0)
++  })
++
+   it('counts the durable routed request envelope without putting it on the surface', async () => {
+     const compact = service({
+       auto: false,
+@@ -1003,10 +1030,11 @@ describe('compaction region transaction', () => {
+       before[0]!,
+       before[2]!,
+       agent(session, MODEL),
+-    )).rejects.toThrow('summary unavailable')
++    )).rejects.toMatchObject({ code: 'COMPACTION_PRIMARY_FAILED' })
+     expect(session.surface.nodes).toEqual(before)
+-    expect(session.events.findLast(event => event.type === 'compaction/end')?.data)
+-      .toMatchObject({ error: 'summary unavailable' })
++    const diagnostic = session.events.findLast(event => event.type === 'compaction/end')?.data.error
++    expect(diagnostic).toContain(`primary failure ${MODEL}/${MODEL} (UNKNOWN)`)
++    expect(diagnostic).not.toContain('summary unavailable')
+   })
+
+   it('stringifies non-Error failures in the durable end bracket', async () => {
+@@ -1018,9 +1046,10 @@ describe('compaction region transaction', () => {
+       nodes[0]!,
+       nodes[2]!,
+       agent(session, MODEL),
+-    )).rejects.toBe('plain failure')
+-    expect(session.events.findLast(event => event.type === 'compaction/end')?.data)
+-      .toMatchObject({ error: 'plain failure' })
++    )).rejects.toMatchObject({ code: 'COMPACTION_PRIMARY_FAILED' })
++    const diagnostic = session.events.findLast(event => event.type === 'compaction/end')?.data.error
++    expect(diagnostic).toContain(`primary failure ${MODEL}/${MODEL} (UNKNOWN)`)
++    expect(diagnostic).not.toContain('plain failure')
+   })
+
+   it('tolerates concurrent log-only appends while the selected surface is stable', async () => {
+@@ -1111,7 +1140,9 @@ describe('compaction region transaction', () => {
+
+ class ScriptedAdapter extends LlmAdapter {
+   lastOptions: GenerateOptions | undefined
++  readonly calls: GenerateOptions[] = []
+   usage: TokenUsage | undefined
++  beforeFinish: (() => void) | undefined
+
+   constructor(
+     private readonly blocks: readonly ContentBlock[],
+@@ -1122,6 +1153,7 @@ class ScriptedAdapter extends LlmAdapter {
+
+   override async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+     this.lastOptions = options
++    this.calls.push(options)
+     for (const [index, block] of this.blocks.entries()) {
+       yield { type: 'block-start', index, blockType: block.type }
+       if (block.type === 'text') {
+@@ -1133,6 +1165,7 @@ class ScriptedAdapter extends LlmAdapter {
+       }
+     }
+     if (this.usage !== undefined) yield { type: 'usage', usage: this.usage }
++    this.beforeFinish?.()
+     yield { type: 'finish', reason: this.finish }
+   }
+ }
+@@ -1169,6 +1202,36 @@ async function summarizerHarness(
+   return { ctx, adapter, compact }
+ }
+
++async function fallbackHarness(
++  primary: ScriptedAdapter,
++  fallbacks: Array<{ provider: string; model: string; adapter: ScriptedAdapter }> = [{
++    provider: FALLBACK_PROVIDER,
++    model: FALLBACK_MODEL,
++    adapter: new ScriptedAdapter([{ type: 'text', text: 'fallback checkpoint' }]),
++  }],
++  config: BasicCompactionConfig = {},
++): Promise<{ ctx: Context; compact: ExposedCompactionEngine }> {
++  const ctx = new Context()
++  await ctx.plugin(LlmRuntime)
++  void new TokenMeter(ctx)
++  ctx.llm.registerAdapter([MODEL], primary)
++  for (const fallback of fallbacks) ctx.llm.registerAdapter([fallback.provider], fallback.adapter)
++  return {
++    ctx,
++    compact: new ExposedCompactionEngine(ctx, {
++      auto: false,
++      summarizationProvider: MODEL,
++      summarizationModel: MODEL,
++      summarizationFallbacks: fallbacks.map(({ provider, model }) => ({
++        provider,
++        model,
++        maxTokens: 32_768,
++      })),
++      ...config,
++    }),
++  }
++}
++
+ describe('default one-shot summarizer', () => {
+   it('requires complete raw output when a subclass marks one local LLM stream call', () => {
+     expectTypeOf<{
+@@ -1179,6 +1242,172 @@ describe('default one-shot summarizer', () => {
+     }>().not.toExtend<SummaryResult>()
+   })
+
++  it('stops after one successful primary request', async () => {
++    const primary = new ScriptedAdapter([{ type: 'text', text: 'primary checkpoint' }])
++    const fallback = new ScriptedAdapter([{ type: 'text', text: 'unused fallback' }])
++    const { compact } = await fallbackHarness(primary, [{
++      provider: FALLBACK_PROVIDER,
++      model: FALLBACK_MODEL,
++      adapter: fallback,
++    }])
++
++    await expect(compact.runSummarize(
++      promptInput('history'),
++      agent(conversation(1), MODEL),
++    )).resolves.toMatchObject({
++      provider: MODEL,
++      model: MODEL,
++      summary: [{ type: 'text', text: 'primary checkpoint' }],
++    })
++    expect(primary.calls).toHaveLength(1)
++    expect(fallback.calls).toHaveLength(0)
++  })
++
++  it.each([
++    ['CONTEXT_WINDOW_EXCEEDED'],
++    ['MAX_TOKENS'],
++    ['UNSUPPORTED_CONTENT'],
++    ['PROVIDER'],
++  ])('uses the configured vision fallback after eligible %s failure', async (code) => {
++    const primary = new ScriptedAdapter([], {
++      kind: 'error',
++      failure: { message: `primary ${code} detail`, code },
++    })
++    const fallback = new ScriptedAdapter([{ type: 'text', text: 'fallback checkpoint' }])
++    const { compact } = await fallbackHarness(primary, [{
++      provider: FALLBACK_PROVIDER,
++      model: FALLBACK_MODEL,
++      adapter: fallback,
++    }])
++    const imageMessage = createUserMessage({
++      content: [
++        { type: 'text', text: 'history with image' },
++        {
++          type: 'image',
++          attachment: {
++            attachmentId: AttachmentId(`sha256:${'d'.repeat(64)}`),
++            mediaType: 'image/png',
++            bytes: 1,
++            width: 1,
++            height: 1,
++          },
++        },
++      ],
++      source: { kind: 'plugin', plugin: 'test' },
++    })
++    const tools = [{ name: 'inspect_image', description: 'inspect', parameters: { type: 'object' } }]
++    const input = code === 'UNSUPPORTED_CONTENT'
++      ? { system: 'REPLAYED SYSTEM', tools, messages: [imageMessage] }
++      : promptInput('history')
++    const session = conversation(1)
++
++    await expect(compact.runSummarize(input, agent(session, MODEL), SIGNAL))
++      .resolves.toMatchObject({
++        provider: FALLBACK_PROVIDER,
++        model: FALLBACK_MODEL,
++        maxTokens: 32_768,
++      })
++    expect(primary.calls).toHaveLength(1)
++    expect(fallback.calls).toHaveLength(1)
++    expect(fallback.calls[0]).toMatchObject({
++      provider: FALLBACK_PROVIDER,
++      model: FALLBACK_MODEL,
++      maxTokens: 32_768,
++      signal: SIGNAL,
++      sessionId: session.id,
++      purpose: 'compaction',
++    })
++    if (code === 'UNSUPPORTED_CONTENT') {
++      expect(fallback.calls[0]?.messages[0]).toEqual(imageMessage)
++      expect(fallback.calls[0]?.system).toBe('REPLAYED SYSTEM')
++      expect(fallback.calls[0]?.tools).toEqual(tools)
++    }
++  })
++
++  it('consumes configured fallbacks in order after an ordinary fallback failure', async () => {
++    const primary = new ScriptedAdapter([], {
++      kind: 'error',
++      failure: { message: 'primary unavailable', code: 'PROVIDER' },
++    })
++    const first = new ScriptedAdapter([], {
++      kind: 'error',
++      failure: { message: 'first unavailable', code: 'PROVIDER' },
++    })
++    const second = new ScriptedAdapter([{ type: 'text', text: 'second checkpoint' }])
++    const { compact } = await fallbackHarness(primary, [
++      { provider: 'first-fallback', model: 'first-model', adapter: first },
++      { provider: 'second-fallback', model: 'second-model', adapter: second },
++    ])
++
++    await expect(compact.runSummarize(promptInput('history'), agent(conversation(1), MODEL)))
++      .resolves.toMatchObject({ provider: 'second-fallback', model: 'second-model' })
++    expect(first.calls).toHaveLength(1)
++    expect(second.calls).toHaveLength(1)
++  })
++
++  it.each([
++    ['POLICY'],
++    ['CONTENT_FILTER'],
++  ])('does not cross providers after %s rejection', async (code) => {
++    const marker = 'HISTORICAL-MARKER-MUST-NOT-LEAK'
++    const primary = new ScriptedAdapter([], {
++      kind: 'error',
++      failure: { message: `${code}: ${marker}`, code },
++    })
++    const fallback = new ScriptedAdapter([{ type: 'text', text: 'unused' }])
++    const { compact } = await fallbackHarness(primary, [{
++      provider: FALLBACK_PROVIDER,
++      model: FALLBACK_MODEL,
++      adapter: fallback,
++    }])
++
++    await expect(compact.runSummarize(promptInput(marker), agent(conversation(1), MODEL)))
++      .rejects.toBeDefined()
++    expect(fallback.calls).toHaveLength(0)
++  })
++
++  it('does not cross providers when the signal is already aborted', async () => {
++    const primary = new ScriptedAdapter([], {
++      kind: 'error',
++      failure: { message: 'primary stopped', code: 'PROVIDER' },
++    })
++    const fallback = new ScriptedAdapter([{ type: 'text', text: 'unused' }])
++    const { compact } = await fallbackHarness(primary, [{
++      provider: FALLBACK_PROVIDER,
++      model: FALLBACK_MODEL,
++      adapter: fallback,
++    }])
++
++    await expect(compact.runSummarize(
++      promptInput('history'),
++      agent(conversation(1), MODEL),
++      AbortSignal.abort('cancelled before compaction'),
++    )).rejects.toBeDefined()
++    expect(fallback.calls).toHaveLength(0)
++  })
++
++  it('lets cancellation win between primary failure and fallback dispatch', async () => {
++    const controller = new AbortController()
++    const primary = new ScriptedAdapter([], {
++      kind: 'error',
++      failure: { message: 'primary stopped', code: 'PROVIDER' },
++    })
++    primary.beforeFinish = () => { controller.abort('cancelled during transition') }
++    const fallback = new ScriptedAdapter([{ type: 'text', text: 'unused' }])
++    const { compact } = await fallbackHarness(primary, [{
++      provider: FALLBACK_PROVIDER,
++      model: FALLBACK_MODEL,
++      adapter: fallback,
++    }])
++
++    await expect(compact.runSummarize(
++      promptInput('history'),
++      agent(conversation(1), MODEL),
++      controller.signal,
++    )).rejects.toBe('cancelled during transition')
++    expect(fallback.calls).toHaveLength(0)
++  })
++
+   it('uses configured model/default cap, forwards cancellation, and keeps only safe text', async () => {
+     const { adapter, compact } = await summarizerHarness([
+       { type: 'reasoning', text: 'private' },
+@@ -1370,9 +1599,13 @@ describe('default one-shot summarizer', () => {
+   })
+
+   it.each([
+-    [{ kind: 'error', failure: { message: 'provider failed', code: 'PROVIDER' } }, 'PROVIDER', /provider failed/],
+-    [{ kind: 'error', failure: { message: 'opaque', code: 'UNKNOWN' } }, 'UNKNOWN', /opaque/],
+-    [{ kind: 'aborted', failure: { message: 'summarization aborted', code: 'ABORTED' } }, 'ABORTED', /aborted/],
++    [{ kind: 'error', failure: { message: 'provider failed', code: 'PROVIDER' } }, 'COMPACTION_PRIMARY_FAILED', /primary failure/],
++    [{ kind: 'error', failure: { message: 'opaque', code: 'UNKNOWN' } }, 'COMPACTION_PRIMARY_FAILED', /primary failure/],
++    [
++      { kind: 'aborted', failure: { message: 'summarization aborted', code: 'ABORTED' } },
++      'COMPACTION_PRIMARY_FAILED',
++      /primary failure/,
++    ],
+     [{ kind: 'max-tokens' }, 'MAX_TOKENS', /token cap/],
+   ] as Array<[(StreamChunk & { type: 'finish' })['reason'], string | undefined, RegExp]>) (
+     'rejects terminal finish %#',
+@@ -1434,6 +1667,557 @@ describe('default one-shot summarizer', () => {
+   })
+ })
+
++describe('summarization fallback transaction', () => {
++  it('commits exactly one winning fallback summary and one replacement', async () => {
++    const primary = new ScriptedAdapter([], {
++      kind: 'error',
++      failure: { message: 'primary capacity exhausted', code: 'CONTEXT_WINDOW_EXCEEDED' },
++    })
++    const fallback = new ScriptedAdapter([{ type: 'text', text: 'fallback checkpoint' }])
++    const { compact } = await fallbackHarness(primary, [{
++      provider: FALLBACK_PROVIDER,
++      model: FALLBACK_MODEL,
++      adapter: fallback,
++    }])
++    const session = conversation(3, 'large history '.repeat(80))
++    const nodes = session.surface.nodes
++
++    await expect(compact.compactRegion(
++      nodes[0]!,
++      nodes[3]!,
++      agent(session, MODEL),
++      SIGNAL,
++    )).resolves.toMatchObject({ shadowedSeqs: nodes.slice(0, 4) })
++
++    expect(session.events.filter(event => event.type === 'compaction/summary')).toHaveLength(1)
++    expect(session.events.filter(event =>
++      event.type === 'user/message' && event.surfaceOp !== 'append')).toHaveLength(1)
++    expect(session.events.findLast(event => event.type === 'compaction/summary')?.data)
++      .toMatchObject({
++        provider: FALLBACK_PROVIDER,
++        model: FALLBACK_MODEL,
++        maxTokens: 32_768,
++      })
++  })
++
++  it('records a denied primary failure without crossing providers or leaking history', async () => {
++    const marker = 'HISTORICAL-MARKER-MUST-NOT-LEAK'
++    const primary = new ScriptedAdapter([], {
++      kind: 'error',
++      failure: { message: `policy rejection echoed ${marker}`, code: 'POLICY' },
++    })
++    const fallback = new ScriptedAdapter([{ type: 'text', text: 'must not run' }])
++    const { compact } = await fallbackHarness(primary, [{
++      provider: FALLBACK_PROVIDER,
++      model: FALLBACK_MODEL,
++      adapter: fallback,
++    }])
++    const session = conversation(3, marker.repeat(20))
++    const before = JSON.stringify(session.deriveMessages())
++    const nodes = session.surface.nodes
++
++    await expect(compact.compactRegion(
++      nodes[0]!,
++      nodes[3]!,
++      agent(session, MODEL),
++      SIGNAL,
++    )).rejects.toMatchObject({ code: 'COMPACTION_PRIMARY_FAILED' })
++
++    expect(fallback.calls).toHaveLength(0)
++    expect(JSON.stringify(session.deriveMessages())).toBe(before)
++    expect(session.events.filter(event => event.type === 'compaction/summary')).toHaveLength(0)
++    expect(session.events.filter(event => event.type === 'compaction/end')).toHaveLength(1)
++    const diagnostic = session.events.findLast(event => event.type === 'compaction/end')?.data.error
++    expect(diagnostic).toContain('primary failure')
++    expect(diagnostic).toContain(`${MODEL}/${MODEL} (POLICY)`)
++    expect(diagnostic).not.toContain(marker)
++  })
++
++  it('sanitizes a primary provider failure when no fallback is configured', async () => {
++    const marker = 'PRIMARY-HISTORY-AND-CREDENTIAL-MARKER'
++    const primary = new ScriptedAdapter([], {
++      kind: 'error',
++      failure: { message: `provider echoed ${marker}`, code: 'PROVIDER' },
++    })
++    const { compact } = await fallbackHarness(primary, [])
++    const session = conversation(3, marker.repeat(20))
++    const before = JSON.stringify(session.deriveMessages())
++    const nodes = session.surface.nodes
++
++    let thrown: unknown
++    try {
++      await compact.compactRegion(nodes[0]!, nodes[3]!, agent(session, MODEL), SIGNAL)
++    } catch (error: unknown) {
++      thrown = error
++    }
++
++    expect(thrown).toMatchObject({ code: 'COMPACTION_PRIMARY_FAILED' })
++    expect((thrown as Error).message).toContain(`primary failure ${MODEL}/${MODEL} (PROVIDER)`)
++    expect((thrown as Error).message).not.toContain(marker)
++    expect(JSON.stringify(session.deriveMessages())).toBe(before)
++    expect(session.events.filter(event => event.type === 'compaction/summary')).toHaveLength(0)
++    const diagnostic = session.events.findLast(event => event.type === 'compaction/end')?.data.error
++    expect(diagnostic).toContain('primary failure')
++    expect(diagnostic).not.toContain(marker)
++  })
++
++  it('sanitizes a primitive llm stream failure when no fallback is configured', async () => {
++    const marker = 'PRIMITIVE-HISTORY-AND-CREDENTIAL-MARKER'
++    const primary = new ScriptedAdapter([{ type: 'text', text: 'must not run' }])
++    const { ctx, compact } = await fallbackHarness(primary, [])
++    ctx.on('llm/stream', () => (async function* fail(): AsyncGenerator<StreamChunk> {
++      throw marker
++    })())
++    const session = conversation(3, marker.repeat(20))
++    const before = JSON.stringify(session.deriveMessages())
++    const nodes = session.surface.nodes
++
++    let thrown: unknown
++    try {
++      await compact.compactRegion(nodes[0]!, nodes[3]!, agent(session, MODEL), SIGNAL)
++    } catch (error: unknown) {
++      thrown = error
++    }
++
++    expect(thrown).toMatchObject({ code: 'COMPACTION_PRIMARY_FAILED' })
++    expect((thrown as Error).message).not.toContain(marker)
++    expect(JSON.stringify(session.deriveMessages())).toBe(before)
++    expect(session.events.filter(event => event.type === 'compaction/summary')).toHaveLength(0)
++    const diagnostic = session.events.findLast(event => event.type === 'compaction/end')?.data.error
++    expect(diagnostic).toContain(`primary failure ${MODEL}/${MODEL} (UNKNOWN)`)
++    expect(diagnostic).not.toContain(marker)
++  })
++
++  it('sanitizes an untrusted summarize override at the region dependency', async () => {
++    const marker = 'CUSTOM-SUMMARIZER-HISTORY-AND-CREDENTIAL-MARKER'
++    const compact = service({ auto: false })
++    compact.error = new Error(`custom summarizer echoed ${marker}`)
++    const session = conversation(3, marker.repeat(20))
++    const before = JSON.stringify(session.deriveMessages())
++    const nodes = session.surface.nodes
++
++    let thrown: unknown
++    try {
++      await compact.compactRegion(nodes[0]!, nodes[3]!, agent(session, MODEL), SIGNAL)
++    } catch (error: unknown) {
++      thrown = error
++    }
++
++    expect(thrown).toMatchObject({ code: 'COMPACTION_PRIMARY_FAILED' })
++    expect((thrown as Error).message).not.toContain(marker)
++    expect(JSON.stringify(session.deriveMessages())).toBe(before)
++    expect(session.events.filter(event => event.type === 'compaction/summary')).toHaveLength(0)
++    const diagnostic = session.events.findLast(event => event.type === 'compaction/end')?.data.error
++    expect(diagnostic).toContain(`primary failure ${MODEL}/${MODEL} (UNKNOWN)`)
++    expect(diagnostic).not.toContain(marker)
++  })
++
++  it('maps an untrusted provider error code to a closed diagnostic outcome', async () => {
++    const marker = 'secret-credential-marker'
++    const primary = new ScriptedAdapter([], {
++      kind: 'error',
++      failure: {
++        message: `provider echoed ${marker}`,
++        code: `PROVIDER_${marker}`,
++      },
++    })
++    const { compact } = await fallbackHarness(primary, [])
++    const session = conversation(3, marker.repeat(20))
++    const before = JSON.stringify(session.deriveMessages())
++    const nodes = session.surface.nodes
++
++    await expect(compact.compactRegion(
++      nodes[0]!,
++      nodes[3]!,
++      agent(session, MODEL),
++      SIGNAL,
++    )).rejects.toMatchObject({ code: 'COMPACTION_PRIMARY_FAILED' })
++
++    expect(JSON.stringify(session.deriveMessages())).toBe(before)
++    const diagnostic = session.events.findLast(event => event.type === 'compaction/end')?.data.error
++    expect(diagnostic).toContain(`primary failure ${MODEL}/${MODEL} (UNKNOWN)`)
++    expect(diagnostic?.toLowerCase()).not.toContain(marker)
++  })
++
++  it('re-sanitizes a forged public compaction error code from a summarize override', async () => {
++    const marker = 'FORGED-COMPACTION-CODE-HISTORY-AND-CREDENTIAL-MARKER'
++    const forged = Object.assign(new Error(`custom summarizer echoed ${marker}`), {
++      code: 'COMPACTION_PRIMARY_FAILED',
++    })
++    const compact = service({ auto: false })
++    compact.error = forged
++    const session = conversation(3, marker.repeat(20))
++    const before = JSON.stringify(session.deriveMessages())
++    const nodes = session.surface.nodes
++
++    let thrown: unknown
++    try {
++      await compact.compactRegion(nodes[0]!, nodes[3]!, agent(session, MODEL), SIGNAL)
++    } catch (error: unknown) {
++      thrown = error
++    }
++
++    expect(thrown).toMatchObject({ code: 'COMPACTION_PRIMARY_FAILED' })
++    expect(thrown).not.toBe(forged)
++    expect((thrown as Error).message)
++      .toContain(`primary failure ${MODEL}/${MODEL} (UNKNOWN)`)
++    expect((thrown as Error).message).not.toContain(marker)
++    expect(JSON.stringify(session.deriveMessages())).toBe(before)
++    const diagnostic = session.events.findLast(event => event.type === 'compaction/end')?.data.error
++    expect(diagnostic).toContain(`primary failure ${MODEL}/${MODEL} (UNKNOWN)`)
++    expect(diagnostic).not.toContain(marker)
++  })
++
++  it.each(['ABORTED', 'CANCELLED'])(
++    'sanitizes provider cancellation code %s when the signal is not aborted',
++    async (code) => {
++      const marker = `UNCONFIRMED-${code}-HISTORY-AND-CREDENTIAL-MARKER`
++      const primary = new ScriptedAdapter([], {
++        kind: 'error',
++        failure: { message: `provider echoed ${marker}`, code },
++      })
++      const { compact } = await fallbackHarness(primary, [])
++      const session = conversation(3, marker.repeat(20))
++      const before = JSON.stringify(session.deriveMessages())
++      const nodes = session.surface.nodes
++
++      await expect(compact.compactRegion(
++        nodes[0]!,
++        nodes[3]!,
++        agent(session, MODEL),
++        SIGNAL,
++      )).rejects.toMatchObject({ code: 'COMPACTION_PRIMARY_FAILED' })
++
++      expect(JSON.stringify(session.deriveMessages())).toBe(before)
++      const diagnostic = session.events.findLast(event => event.type === 'compaction/end')?.data.error
++      expect(diagnostic).toContain(`primary failure ${MODEL}/${MODEL} (${code})`)
++      expect(diagnostic).not.toContain(marker)
++    },
++  )
++
++  it('sanitizes an aborted provider finish when the signal is not aborted', async () => {
++    const primary = new ScriptedAdapter([], {
++      kind: 'aborted',
++      failure: { message: 'summarization cancelled by caller', code: 'ABORTED' },
++    })
++    const { compact } = await fallbackHarness(primary, [])
++
++    await expect(compact.runSummarize(promptInput('history'), agent(conversation(1), MODEL)))
++      .rejects.toMatchObject({ code: 'COMPACTION_PRIMARY_FAILED' })
++  })
++
++  it('diagnoses a middleware-rerouted primary policy failure with the actual target', async () => {
++    const marker = 'REROUTED-PROVIDER-TEXT-MARKER'
++    const configured = new ScriptedAdapter([{ type: 'text', text: 'must not run' }])
++    const actual = new ScriptedAdapter([], {
++      kind: 'error',
++      failure: { message: `actual provider echoed ${marker}`, code: 'POLICY' },
++    })
++    const fallback = new ScriptedAdapter([{ type: 'text', text: 'must not run' }])
++    const { ctx, compact } = await fallbackHarness(configured, [{
++      provider: FALLBACK_PROVIDER,
++      model: FALLBACK_MODEL,
++      adapter: fallback,
++    }])
++    ctx.llm.registerAdapter(['actual-provider'], actual)
++    ctx.on('llm/stream', (options, next) => {
++      if (options.provider === MODEL) {
++        options.provider = 'actual-provider'
++        options.model = 'actual-model'
++      }
++      return next()
++    })
++    const session = conversation(3, marker.repeat(20))
++    const before = JSON.stringify(session.deriveMessages())
++    const nodes = session.surface.nodes
++
++    await expect(compact.compactRegion(
++      nodes[0]!,
++      nodes[3]!,
++      agent(session, MODEL),
++      SIGNAL,
++    )).rejects.toMatchObject({ code: 'COMPACTION_PRIMARY_FAILED' })
++
++    expect(configured.calls).toHaveLength(0)
++    expect(actual.calls).toHaveLength(1)
++    expect(fallback.calls).toHaveLength(0)
++    expect(JSON.stringify(session.deriveMessages())).toBe(before)
++    const diagnostic = session.events.findLast(event => event.type === 'compaction/end')?.data.error
++    expect(diagnostic).toContain('primary failure actual-provider/actual-model (POLICY)')
++    expect(diagnostic).not.toContain(`${MODEL}/${MODEL}`)
++    expect(diagnostic).not.toContain(marker)
++  })
++
++  it('isolates actual targets when concurrent calls throw the same Error instance', async () => {
++    const marker = 'SHARED-ERROR-HISTORY-MARKER'
++    const primary = new ScriptedAdapter([{ type: 'text', text: 'must not run' }])
++    const { ctx, compact } = await fallbackHarness(primary, [])
++    const firstSession = conversation(3, 'first history')
++    const secondSession = conversation(4, 'second history')
++    const sharedError = Object.assign(new Error(`middleware echoed ${marker}`), { code: 'POLICY' })
++    let arrivals = 0
++    let release!: () => void
++    const barrier = new Promise<void>((resolve) => { release = resolve })
++    ctx.on('llm/stream', (options) => {
++      const first = options.sessionId === firstSession.id
++      options.provider = first ? 'actual-provider-a' : 'actual-provider-b'
++      options.model = first ? 'actual-model-a' : 'actual-model-b'
++      return (async function* fail(): AsyncGenerator<StreamChunk> {
++        arrivals += 1
++        if (arrivals === 2) release()
++        await barrier
++        throw sharedError
++      })()
++    })
++
++    const [first, second] = await Promise.allSettled([
++      compact.runSummarize(promptInput('first'), agent(firstSession, MODEL)),
++      compact.runSummarize(promptInput('second'), agent(secondSession, MODEL)),
++    ])
++
++    expect(first.status).toBe('rejected')
++    expect(second.status).toBe('rejected')
++    if (first.status !== 'rejected' || second.status !== 'rejected') return
++    expect(first.reason).toMatchObject({ code: 'COMPACTION_PRIMARY_FAILED' })
++    expect(second.reason).toMatchObject({ code: 'COMPACTION_PRIMARY_FAILED' })
++    expect((first.reason as Error).message)
++      .toContain('primary failure actual-provider-a/actual-model-a (POLICY)')
++    expect((second.reason as Error).message)
++      .toContain('primary failure actual-provider-b/actual-model-b (POLICY)')
++    expect((first.reason as Error).message).not.toContain(marker)
++    expect((second.reason as Error).message).not.toContain(marker)
++  })
++
++  it('reports a missing fallback credential as unavailable without leaking history or trying another provider', async () => {
++    const marker = 'HISTORICAL-MARKER-MUST-NOT-LEAK'
++    const primary = new ScriptedAdapter([], {
++      kind: 'error',
++      failure: { message: `primary provider echoed ${marker}`, code: 'PROVIDER' },
++    })
++    const unavailable = new ScriptedAdapter([], {
++      kind: 'error',
++      failure: { message: `missing key near ${marker}`, code: 'MISSING_CREDENTIAL' },
++    })
++    const undeclaredAfterUnavailable = new ScriptedAdapter([{ type: 'text', text: 'must not run' }])
++    const { compact } = await fallbackHarness(primary, [
++      { provider: FALLBACK_PROVIDER, model: FALLBACK_MODEL, adapter: unavailable },
++      {
++        provider: 'later-provider',
++        model: 'later-model',
++        adapter: undeclaredAfterUnavailable,
++      },
++    ])
++    const session = conversation(3, marker.repeat(20))
++    const before = JSON.stringify(session.deriveMessages())
++    const nodes = session.surface.nodes
++
++    let thrown: unknown
++    try {
++      await compact.compactRegion(nodes[0]!, nodes[3]!, agent(session, MODEL), SIGNAL)
++    } catch (error: unknown) {
++      thrown = error
++    }
++
++    expect(thrown).toBeInstanceOf(Error)
++    expect((thrown as Error).message).toContain('fallback unavailable')
++    expect((thrown as Error).message).toContain(`${FALLBACK_PROVIDER}/${FALLBACK_MODEL}`)
++    expect((thrown as Error).message).toContain('MISSING_CREDENTIAL')
++    expect((thrown as Error).message).toContain('configure valid credentials or an adapter route')
++    expect((thrown as Error).message).not.toContain(marker)
++    expect(unavailable.calls).toHaveLength(1)
++    expect(undeclaredAfterUnavailable.calls).toHaveLength(0)
++    expect(JSON.stringify(session.deriveMessages())).toBe(before)
++    expect(session.events.filter(event => event.type === 'compaction/summary')).toHaveLength(0)
++    expect(session.events.filter(event =>
++      event.type === 'user/message' && event.surfaceOp !== 'append')).toHaveLength(0)
++    expect(session.events.filter(event => event.type === 'compaction/end')).toHaveLength(1)
++    const diagnostic = session.events.findLast(event => event.type === 'compaction/end')?.data.error
++    expect(diagnostic).toContain('primary failure')
++    expect(diagnostic).toContain('fallback unavailable')
++    expect(diagnostic).not.toContain(marker)
++  })
++
++  it('reports exhausted fallback failure atomically without provider text', async () => {
++    const marker = 'HISTORICAL-MARKER-MUST-NOT-LEAK'
++    const primary = new ScriptedAdapter([], {
++      kind: 'error',
++      failure: { message: `primary provider echoed ${marker}`, code: 'PROVIDER' },
++    })
++    const fallback = new ScriptedAdapter([], {
++      kind: 'error',
++      failure: { message: `fallback provider echoed ${marker}`, code: 'PROVIDER' },
++    })
++    const { compact } = await fallbackHarness(primary, [{
++      provider: FALLBACK_PROVIDER,
++      model: FALLBACK_MODEL,
++      adapter: fallback,
++    }])
++    const session = conversation(3, marker.repeat(20))
++    const before = JSON.stringify(session.deriveMessages())
++    const nodes = session.surface.nodes
++
++    let thrown: unknown
++    try {
++      await compact.compactRegion(nodes[0]!, nodes[3]!, agent(session, MODEL), SIGNAL)
++    } catch (error: unknown) {
++      thrown = error
++    }
++
++    expect(thrown).toBeInstanceOf(Error)
++    expect((thrown as Error).message).toContain('primary failure')
++    expect((thrown as Error).message).toContain('fallback failure')
++    expect((thrown as Error).message).toContain(`${FALLBACK_PROVIDER}/${FALLBACK_MODEL}`)
++    expect((thrown as Error).message).not.toContain(marker)
++    expect(JSON.stringify(session.deriveMessages())).toBe(before)
++    expect(session.events.filter(event => event.type === 'compaction/summary')).toHaveLength(0)
++    expect(session.events.filter(event =>
++      event.type === 'user/message' && event.surfaceOp !== 'append')).toHaveLength(0)
++    expect(session.events.filter(event => event.type === 'compaction/end')).toHaveLength(1)
++    const diagnostic = session.events.findLast(event => event.type === 'compaction/end')?.data.error
++    expect(diagnostic).toContain('primary failure')
++    expect(diagnostic).toContain('fallback failure')
++    expect(diagnostic).not.toContain(marker)
++  })
++
++  it.each(['missing-credential', 'MissingCredential'])(
++    'normalizes fallback unavailable code %s and stops the chain',
++    async (code) => {
++      const marker = `NORMALIZED-${code}-HISTORY-AND-CREDENTIAL-MARKER`
++      const primary = new ScriptedAdapter([], {
++        kind: 'error',
++        failure: { message: `primary echoed ${marker}`, code: 'PROVIDER' },
++      })
++      const unavailable = new ScriptedAdapter([], {
++        kind: 'error',
++        failure: { message: `credential failure echoed ${marker}`, code },
++      })
++      const later = new ScriptedAdapter([{ type: 'text', text: 'must not run' }])
++      const { compact } = await fallbackHarness(primary, [
++        {
++          provider: 'normalized-unavailable-provider',
++          model: 'normalized-unavailable-model',
++          adapter: unavailable,
++        },
++        { provider: 'later-provider', model: 'later-model', adapter: later },
++      ])
++      const session = conversation(3, marker.repeat(20))
++      const before = JSON.stringify(session.deriveMessages())
++      const nodes = session.surface.nodes
++
++      await expect(compact.compactRegion(
++        nodes[0]!,
++        nodes[3]!,
++        agent(session, MODEL),
++        SIGNAL,
++      )).rejects.toMatchObject({ code: 'COMPACTION_FALLBACK_UNAVAILABLE' })
++
++      expect(unavailable.calls).toHaveLength(1)
++      expect(later.calls).toHaveLength(0)
++      expect(JSON.stringify(session.deriveMessages())).toBe(before)
++      const diagnostic = session.events.findLast(event => event.type === 'compaction/end')?.data.error
++      expect(diagnostic).toContain(
++        'fallback unavailable normalized-unavailable-provider/normalized-unavailable-model (MISSING_CREDENTIAL)',
++      )
++      expect(diagnostic).not.toContain(marker)
++    },
++  )
++
++  it.each([
++    ['INVALID_CREDENTIAL', true],
++    ['NO_ADAPTER', false],
++  ])('stops after unavailable fallback %s from the real runtime path', async (code, registerUnavailable) => {
++    const marker = 'UNAVAILABLE-FALLBACK-HISTORY-MARKER'
++    const unavailableProvider = code === 'INVALID_CREDENTIAL'
++      ? 'invalid-credential-provider'
++      : 'unregistered-provider'
++    const unavailableModel = code === 'INVALID_CREDENTIAL'
++      ? 'invalid-credential-model'
++      : 'unregistered-model'
++    const ctx = new Context()
++    await ctx.plugin(LlmRuntime)
++    void new TokenMeter(ctx)
++    const primary = new ScriptedAdapter([], {
++      kind: 'error',
++      failure: { message: `primary echoed ${marker}`, code: 'PROVIDER' },
++    })
++    const unavailable = new ScriptedAdapter([], {
++      kind: 'error',
++      failure: { message: `credential failure echoed ${marker}`, code },
++    })
++    const later = new ScriptedAdapter([{ type: 'text', text: 'must not run' }])
++    ctx.llm.registerAdapter([MODEL], primary)
++    if (registerUnavailable) ctx.llm.registerAdapter([unavailableProvider], unavailable)
++    ctx.llm.registerAdapter(['later-provider'], later)
++    const compact = new ExposedCompactionEngine(ctx, {
++      auto: false,
++      summarizationProvider: MODEL,
++      summarizationModel: MODEL,
++      summarizationFallbacks: [
++        { provider: unavailableProvider, model: unavailableModel, maxTokens: 32_768 },
++        { provider: 'later-provider', model: 'later-model', maxTokens: 32_768 },
++      ],
++    })
++    const session = conversation(3, marker.repeat(20))
++    const before = JSON.stringify(session.deriveMessages())
++    const nodes = session.surface.nodes
++
++    let thrown: unknown
++    try {
++      await compact.compactRegion(nodes[0]!, nodes[3]!, agent(session, MODEL), SIGNAL)
++    } catch (error: unknown) {
++      thrown = error
++    }
++
++    expect(thrown).toMatchObject({ code: 'COMPACTION_FALLBACK_UNAVAILABLE' })
++    expect((thrown as Error).message)
++      .toContain(`fallback unavailable ${unavailableProvider}/${unavailableModel} (${code})`)
++    expect((thrown as Error).message).not.toContain(marker)
++    expect(unavailable.calls).toHaveLength(registerUnavailable ? 1 : 0)
++    expect(later.calls).toHaveLength(0)
++    expect(JSON.stringify(session.deriveMessages())).toBe(before)
++    expect(session.events.filter(event => event.type === 'compaction/summary')).toHaveLength(0)
++    const diagnostic = session.events.findLast(event => event.type === 'compaction/end')?.data.error
++    expect(diagnostic).toContain('fallback unavailable')
++    expect(diagnostic).not.toContain(marker)
++  })
++
++  it('uses the same primary-to-fallback chain for compactNow', async () => {
++    const primary = new ScriptedAdapter([], {
++      kind: 'error',
++      failure: { message: 'primary capacity exhausted', code: 'MAX_TOKENS' },
++    })
++    const fallback = new ScriptedAdapter([{ type: 'text', text: 'manual fallback checkpoint' }])
++    const { ctx, compact } = await fallbackHarness(primary, [{
++      provider: FALLBACK_PROVIDER,
++      model: FALLBACK_MODEL,
++      adapter: fallback,
++    }])
++    const store = new SessionStore(ctx)
++    const session = conversation(3, 'large manual history '.repeat(80))
++    session.append('turn/end', { turn: 4, reason: { kind: 'completed' } })
++    const detach = store.enter(session)
++    const owner = {
++      session,
++      options: { provider: MODEL, model: MODEL },
++      runMaintenance<T>(task: (signal: AbortSignal) => Promise<T>): Promise<T> {
++        return task(SIGNAL)
++      },
++    } as Agent
++
++    try {
++      await expect(compact.compactNow(owner, SIGNAL)).resolves.not.toBeNull()
++    } finally {
++      detach()
++    }
++
++    expect(primary.calls).toHaveLength(1)
++    expect(fallback.calls).toHaveLength(1)
++    expect(session.events.filter(event => event.type === 'compaction/summary')).toHaveLength(1)
++    expect(session.events.findLast(event => event.type === 'compaction/summary')?.data)
++      .toMatchObject({ provider: FALLBACK_PROVIDER, model: FALLBACK_MODEL })
++  })
++})
++
+ describe('automatic listener and loader composition', () => {
+   function preStep(ctx: Context, owner: Agent, signal = SIGNAL) {
+     return agentEvents(ctx, owner).waterfall(
+@@ -1506,7 +2290,8 @@ describe('automatic listener and loader composition', () => {
+     const session = conversation(4)
+
+     await expect(preStep(ctx, agent(session, MODEL))).resolves.toEqual({ kind: 'enter', messages: [] })
+-    expect(warnings).toContainEqual(expect.stringContaining('temporary failure'))
++    expect(warnings).toContainEqual(expect.stringContaining('primary failure'))
++    expect(warnings).not.toContainEqual(expect.stringContaining('temporary failure'))
+     expect(session.events.some(event => event.type === 'compaction/summary')).toBe(false)
+   })
+
+@@ -1627,8 +2412,9 @@ describe('automatic listener and loader composition', () => {
+     expect(await recover(ctx, agent(session, MODEL), overflow())).toBe(true)
+     expect(session.surface.replaceGeneration).toBe(1)
+     expect(session.events.filter(event => event.type === 'tool/result')).toHaveLength(2)
+-    expect(session.events.findLast(event => event.type === 'compaction/end')?.data)
+-      .toMatchObject({ error: 'summary unavailable after prune' })
++    const diagnostic = session.events.findLast(event => event.type === 'compaction/end')?.data.error
++    expect(diagnostic).toContain(`primary failure ${MODEL}/${MODEL} (UNKNOWN)`)
++    expect(diagnostic).not.toContain('summary unavailable after prune')
+     expect(warnings).toContainEqual(expect.stringContaining('retrying from the replacement surface'))
+   })
+
+@@ -1750,7 +2536,8 @@ describe('automatic listener and loader composition', () => {
+       message: 'original provider failure',
+       code: CONTEXT_WINDOW_EXCEEDED_CODE,
+     })
+-    expect(warnings).toContainEqual(expect.stringContaining('non-error recovery failure'))
++    expect(warnings).toContainEqual(expect.stringContaining('primary failure'))
++    expect(warnings).not.toContainEqual(expect.stringContaining('non-error recovery failure'))
+   })
+
+   it('recovers an overflow for an unlisted routed model', async () => {
+diff --git a/packages/compaction/compaction-basic/tests/config.spec.ts b/packages/compaction/compaction-basic/tests/config.spec.ts
+new file mode 100644
+index 0000000000..aa7f6c7662
+--- /dev/null
++++ b/packages/compaction/compaction-basic/tests/config.spec.ts
+@@ -0,0 +1,199 @@
++import { describe, expect, it } from 'vitest'
++import {
++  resolveCompactSpec,
++  resolveConfig,
++  resolveTargetPolicy,
++} from '../src/config.ts'
++import type { BasicCompactionConfig } from '../src/types.ts'
++
++const TARGET = { provider: 'conversation-provider', model: 'conversation-model' }
++
++describe('summarization fallback configuration', () => {
++  it('resolves an omitted list to an empty frozen list through every policy', () => {
++    const config = resolveConfig()
++    const target = resolveTargetPolicy(config, TARGET)
++    const spec = resolveCompactSpec(target, 100_000)
++
++    expect(config.summarizationFallbacks).toEqual([])
++    expect(target.summarizationFallbacks).toEqual([])
++    expect(spec.summarizationFallbacks).toEqual([])
++    expect(Object.isFrozen(config.summarizationFallbacks)).toBe(true)
++    expect(Object.isFrozen(target.summarizationFallbacks)).toBe(true)
++    expect(Object.isFrozen(spec.summarizationFallbacks)).toBe(true)
++  })
++
++  it('resolves one explicit fallback and freezes the array and entry', () => {
++    const config = resolveConfig({
++      summarizationFallbacks: [{
++        provider: 'fallback-provider',
++        model: 'fallback-model',
++        maxTokens: 2048,
++      }],
++    })
++
++    expect(config.summarizationFallbacks).toEqual([{
++      provider: 'fallback-provider',
++      model: 'fallback-model',
++      maxTokens: 2048,
++    }])
++    expect(Object.isFrozen(config.summarizationFallbacks)).toBe(true)
++    expect(Object.isFrozen(config.summarizationFallbacks[0])).toBe(true)
++  })
++
++  it('preserves order and defaults omitted maxTokens to the resolved summarization maximum', () => {
++    const config = resolveConfig({
++      maxTokens: 4096,
++      summarizationFallbacks: [
++        { provider: 'first-provider', model: 'first-model' },
++        { provider: 'second-provider', model: 'second-model', maxTokens: 1024 },
++      ],
++    })
++    const target = resolveTargetPolicy(config, TARGET)
++    const spec = resolveCompactSpec(target, 100_000)
++    const expected = [
++      { provider: 'first-provider', model: 'first-model', maxTokens: 4096 },
++      { provider: 'second-provider', model: 'second-model', maxTokens: 1024 },
++    ]
++
++    expect(config.summarizationFallbacks).toEqual(expected)
++    expect(target.summarizationFallbacks).toEqual(expected)
++    expect(spec.summarizationFallbacks).toEqual(expected)
++  })
++
++  it('defaults omitted maxTokens to the target policy summarization maximum', () => {
++    const config = resolveConfig({
++      maxTokens: 8192,
++      summarizationFallbacks: [{ provider: 'fallback-provider', model: 'fallback-model' }],
++      modelPolicies: [{
++        ...TARGET,
++        maxTokens: 4096,
++      }],
++    })
++    const target = resolveTargetPolicy(config, TARGET)
++    const spec = resolveCompactSpec(target, 100_000)
++
++    expect(config.summarizationFallbacks[0]?.maxTokens).toBe(8192)
++    expect(target.summarizationFallbacks[0]?.maxTokens).toBe(4096)
++    expect(spec.summarizationFallbacks[0]?.maxTokens).toBe(4096)
++    expect(Object.isFrozen(target.summarizationFallbacks)).toBe(true)
++    expect(Object.isFrozen(target.summarizationFallbacks[0])).toBe(true)
++    expect(Object.isFrozen(spec.summarizationFallbacks)).toBe(true)
++    expect(Object.isFrozen(spec.summarizationFallbacks[0])).toBe(true)
++  })
++
++  it('preserves an explicit fallback maxTokens equal to the global maximum', () => {
++    const config = resolveConfig({
++      maxTokens: 8192,
++      summarizationFallbacks: [{
++        provider: 'fallback-provider',
++        model: 'fallback-model',
++        maxTokens: 8192,
++      }],
++      modelPolicies: [{
++        ...TARGET,
++        maxTokens: 4096,
++      }],
++    })
++    const target = resolveTargetPolicy(config, TARGET)
++
++    expect(target.summarizationFallbacks[0]?.maxTokens).toBe(8192)
++  })
++
++  it('rejects an unsafe target maximum before a defaulted fallback inherits it', () => {
++    const config = resolveConfig({
++      summarizationFallbacks: [{ provider: 'fallback-provider', model: 'fallback-model' }],
++      modelPolicies: [{
++        ...TARGET,
++        maxTokens: Number.MAX_SAFE_INTEGER + 1,
++      }],
++    })
++
++    expect(() => resolveTargetPolicy(config, TARGET)).toThrow(/fallback maxTokens.*positive safe integer/)
++  })
++
++  it('does not apply fallback safe-integer validation to an explicit cap', () => {
++    const unsafePrimaryMaxTokens = Number.MAX_SAFE_INTEGER + 1
++    const config = resolveConfig({
++      summarizationFallbacks: [{
++        provider: 'fallback-provider',
++        model: 'fallback-model',
++        maxTokens: 1024,
++      }],
++      modelPolicies: [{
++        ...TARGET,
++        maxTokens: unsafePrimaryMaxTokens,
++      }],
++    })
++
++    expect(resolveTargetPolicy(config, TARGET)).toMatchObject({
++      maxTokens: unsafePrimaryMaxTokens,
++      summarizationFallbacks: [{ maxTokens: 1024 }],
++    })
++  })
++
++  it('freezes explicit maxTokens inheritance metadata alongside resolved fallbacks', () => {
++    const config = resolveConfig({
++      summarizationFallbacks: [
++        { provider: 'defaulted-provider', model: 'defaulted-model' },
++        { provider: 'explicit-provider', model: 'explicit-model', maxTokens: 8192 },
++      ],
++    })
++    const metadata = (config as unknown as {
++      summarizationFallbackMaxTokensDefaulted: readonly boolean[]
++    }).summarizationFallbackMaxTokensDefaulted
++    const target = resolveTargetPolicy(config, TARGET)
++    const spec = resolveCompactSpec(target, 100_000)
++
++    expect(metadata).toEqual([true, false])
++    expect(Object.isFrozen(metadata)).toBe(true)
++    expect(target).not.toHaveProperty('summarizationFallbackMaxTokensDefaulted')
++    expect(spec).not.toHaveProperty('summarizationFallbackMaxTokensDefaulted')
++  })
++
++  it('detaches resolved fallbacks from later source mutation', () => {
++    const source = [{
++      provider: 'fallback-provider',
++      model: 'fallback-model',
++      maxTokens: 2048,
++    }]
++    const config = resolveConfig({ summarizationFallbacks: source })
++
++    source[0]!.provider = 'mutated-provider'
++    source[0]!.maxTokens = 1
++    source.push({ provider: 'added-provider', model: 'added-model', maxTokens: 1 })
++
++    expect(config.summarizationFallbacks).toEqual([{
++      provider: 'fallback-provider',
++      model: 'fallback-model',
++      maxTokens: 2048,
++    }])
++  })
++
++  it.each([
++    [{ summarizationFallbacks: {} }, /summarizationFallbacks must be an array/],
++    [{ summarizationFallbacks: [null] }, /summarizationFallbacks\[0\] must be an object/],
++    [{ summarizationFallbacks: [{ provider: '', model: 'model' }] }, /provider must be a non-blank string/],
++    [{ summarizationFallbacks: [{ provider: ' \t', model: 'model' }] }, /provider must be a non-blank string/],
++    [{ summarizationFallbacks: [{ provider: 'provider', model: '' }] }, /model must be a non-blank string/],
++    [{ summarizationFallbacks: [{ provider: 'provider', model: '  ' }] }, /model must be a non-blank string/],
++    [{ summarizationFallbacks: [{ provider: 'provider', model: 'model', maxTokens: 0 }] }, /maxTokens.*positive safe integer/],
++    [{ summarizationFallbacks: [{ provider: 'provider', model: 'model', maxTokens: -1 }] }, /maxTokens.*positive safe integer/],
++    [{ summarizationFallbacks: [{ provider: 'provider', model: 'model', maxTokens: 1.5 }] }, /maxTokens.*positive safe integer/],
++    [{ summarizationFallbacks: [{ provider: 'provider', model: 'model', maxTokens: Number.MAX_SAFE_INTEGER + 1 }] }, /maxTokens.*positive safe integer/],
++    [{ summarizationFallbacks: [{ provider: 'provider', model: 'model', extra: true }] }, /unknown key "extra"/],
++  ] as Array<[unknown, RegExp]>)('rejects invalid fallback config %#', (input, pattern) => {
++    expect(() => resolveConfig(input as BasicCompactionConfig)).toThrow(pattern)
++  })
++
++  it('rejects fallbacks inside exact model policies', () => {
++    const input = {
++      modelPolicies: [{
++        provider: 'conversation-provider',
++        model: 'conversation-model',
++        summarizationFallbacks: [{ provider: 'fallback-provider', model: 'fallback-model' }],
++      }],
++    } as unknown as BasicCompactionConfig
++
++    expect(() => resolveConfig(input)).toThrow(/modelPolicies\[0\]: unknown key "summarizationFallbacks"/)
++  })
++})
+diff --git a/packages/compaction/compaction-basic/tests/fallback.spec.ts b/packages/compaction/compaction-basic/tests/fallback.spec.ts
+new file mode 100644
+index 0000000000..9d92528fb5
+--- /dev/null
++++ b/packages/compaction/compaction-basic/tests/fallback.spec.ts
+@@ -0,0 +1,61 @@
++import { describe, expect, it } from 'vitest'
++
++import { shouldTrySummarizationFallback } from '../src/fallback.ts'
++
++describe('shouldTrySummarizationFallback', () => {
++  it.each([
++    ['uppercase abort code', { code: 'ABORTED' }],
++    ['lowercase cancellation code', { code: 'cancelled' }],
++    ['hyphenated content-filter code', { code: 'content-filter' }],
++    ['space-separated content filter code', { code: 'CONTENT FILTER' }],
++    ['shutdown code', { code: 'SHUTDOWN' }],
++    ['underscore-separated shutdown code', { code: 'SHUT_DOWN' }],
++    ['hyphen-separated shutdown code', { code: 'shut-down' }],
++    ['camel-case shutdown name', { name: 'ShutDownError' }],
++    ['policy code', { code: 'PoLiCy' }],
++    ['safety code', { code: 'SAFETY' }],
++    ['AbortError name', Object.assign(new Error('stopped'), { name: 'AbortError' })],
++    ['message-only cancellation', new Error('Operation cancelled by the user')],
++    ['message-only shutdown', new Error('Provider is shutting down')],
++    ['message-only policy rejection', new Error('Request rejected by provider policy')],
++    ['message-only safety rejection', new Error('Response was blocked by a safety system')],
++    ['message-only content filter rejection', new Error('Content-filter rejected the response')],
++    ['string policy rejection', 'Request blocked by content filtering'],
++  ])('denies %s', (_label, error) => {
++    expect(shouldTrySummarizationFallback(error)).toBe(false)
++  })
++
++  it('denies fallback when the caller signal is already aborted', () => {
++    const controller = new AbortController()
++    controller.abort()
++
++    expect(shouldTrySummarizationFallback(new Error('ordinary failure'), controller.signal)).toBe(false)
++  })
++
++  it.each([
++    ['context window exceeded', { code: 'CONTEXT_WINDOW_EXCEEDED' }],
++    ['separator-normalized maximum tokens', { code: 'max-tokens' }],
++    ['unsupported content', { code: 'unsupported content' }],
++    ['model unavailable', { code: 'model_unavailable' }],
++    ['authentication failure', { code: 'AUTHENTICATION_ERROR' }],
++    ['authorization failure', { code: 'UNAUTHORIZED' }],
++    ['provider unavailable', { code: 'SERVICE_UNAVAILABLE' }],
++    ['exhausted transient failure', { code: 'RATE_LIMIT' }],
++    ['network failure', Object.assign(new Error('socket reset'), { code: 'ECONNRESET' })],
++    ['plain Error', new Error('ordinary execution failure')],
++    ['ordinary string', 'network connection failed'],
++    ['undefined value', undefined],
++    ['null value', null],
++    ['numeric value', 503],
++  ])('allows %s', (_label, error) => {
++    expect(shouldTrySummarizationFallback(error)).toBe(true)
++  })
++
++  it.each([
++    [{ code: 'MODEL_UNAVAILABLE', name: 'PolicyError', message: 'model unavailable' }],
++    [{ code: 'MAX_TOKENS', name: 'Error', message: 'content filter rejected the response' }],
++    [{ code: 'AUTHENTICATION_ERROR', name: 'AbortError', message: 'authentication failed' }],
++  ])('gives a denied signal precedence over an eligible code', (error) => {
++    expect(shouldTrySummarizationFallback(error)).toBe(false)
++  })
++})
 diff --git a/packages/extensions/tool-cordis/src/api-catalog.ts b/packages/extensions/tool-cordis/src/api-catalog.ts
 index 32e9ccbda6..0cd60a6849 100644
 --- a/packages/extensions/tool-cordis/src/api-catalog.ts
@@ -2065,7 +4530,7 @@ index ba354e1173..83b33fa1ba 100644
 @@ -114,6 +117,23 @@ import { canOpenNativePath, openNativePath, openNativeTextFile } from './native-
  /** Page size when history is called without maxMessages. */
  const DEFAULT_MAX_MESSAGES = 50
- 
+
 +/**
 + * Hard cap on raw events in one history page. A tender parent turn can
 + * append hundreds of subagent tool events between two messages; a
@@ -2085,7 +4550,7 @@ index ba354e1173..83b33fa1ba 100644
 +
  /** Provider work budget: at most 100 calls and 2,000 inspected hits. */
  const SESSION_SEARCH_PROVIDER_CALL_LIMIT = 100
- 
+
 @@ -224,17 +244,37 @@ function isAborted(signal: AbortSignal): boolean {
   * replacement. The cut is the starting seq of the oldest message group (chunks
   * group via sourceEventSeqs — never cut mid-message). The tail page naturally
@@ -2196,7 +4661,7 @@ index ba354e1173..83b33fa1ba 100644
 +  kept.reverse()
 +  return { events: kept, hasMore }
  }
- 
+
  /** Wrap an ok result echoing the request's rpcId. */
 @@ -624,6 +718,8 @@ interface PendingApproval {
    toolName: string
@@ -2206,11 +4671,11 @@ index ba354e1173..83b33fa1ba 100644
 +  onAbort?: () => void
    resolve(outcome: ApprovalOutcome): void
  }
- 
+
 @@ -653,6 +749,17 @@ interface PendingQuestion {
    onAbort?: () => void
  }
- 
+
 +/**
 + * Accept a client-response and resume the asker on the next event-loop turn.
 + * The HTTP receipt must leave this turn before tool or question work continues.
@@ -2243,12 +4708,12 @@ index ba354e1173..83b33fa1ba 100644
 +  })
 +  return fitHistoryEntries(entries, page.hasMore)
  }
- 
+
  /**
 @@ -888,6 +994,52 @@ function projectionsUnavailableError(): RpcError {
    }
  }
- 
+
 +/**
 + * Admit one child for a transcript read from that child's own header and
 + * identity. Authorization does not inspect siblings: a parent catalog listing
@@ -2449,7 +4914,7 @@ index 7c8b0e6397..cbc52f73dd 100644
 @@ -9,6 +9,8 @@ import type { Wire } from './rpc.schema.ts'
  import type { ConfigurableProviderView, DiscoveredModelView } from './llm.ts'
  import { modelCatalogFailureSchema, modelProviderGroupSchema } from './sessions.schema.ts'
- 
+
 +const capacitySourceSchema = z.enum(['provider', 'official', 'estimated'])
 +
  /** ConfigurableProviderView row of llm.providers. */
@@ -2463,7 +4928,7 @@ index 7c8b0e6397..cbc52f73dd 100644
    maxTokens: z.number().int().positive().optional(),
 +  maxTokensSource: capacitySourceSchema.optional(),
  }) satisfies z.ZodType<Wire<DiscoveredModelView>>
- 
+
  /** llm.discoverModels request payload. */
 diff --git a/packages/host/apiproxy/src/api/llm.ts b/packages/host/apiproxy/src/api/llm.ts
 index e9a5b52e72..145c58b3c2 100644
@@ -2472,11 +4937,11 @@ index e9a5b52e72..145c58b3c2 100644
 @@ -8,6 +8,7 @@
   * `settings/document-updated` owner events.
   */
- 
+
 +import type { LlmCapacitySource } from '@deepseek-ai/dsh-llm'
  import type { RpcRequest, RpcResponse } from './rpc.ts'
  import type { ModelCatalogFailure, ModelProviderGroup } from './sessions.ts'
- 
+
 @@ -84,6 +85,10 @@ export interface DiscoveredModelView {
    name?: string
    /** Maximum combined request and response context, when disclosed. */
@@ -2500,7 +4965,7 @@ index 0b5506b6b6..f1eeec9f5e 100644
 +    error: { code: 'internal', message: transportErrorMessage(error), details: {} },
    }
  }
- 
+
 +/** Collapse AbortSignal timeout text so the UI can retry without leaking the DOMException name. */
 +function transportErrorMessage(error: unknown): string {
 +  if (error instanceof DOMException && error.name === 'TimeoutError') return 'request timed out'
@@ -2520,7 +4985,7 @@ index 751d48215c..8d3d1a5abf 100644
 +++ b/packages/host/apiproxy/src/api/subagents.ts
 @@ -75,9 +75,11 @@ export interface SubagentsApi {
    ): Promise<RpcResponse<SubagentCatalog>>
- 
+
    /**
 -   * Reads one healthy catalog child's transcript — the in-memory snapshot of
 -   * a live child, the persisted log of a cold one — with ordinary
@@ -2549,22 +5014,22 @@ index ac6c770801..bf54307df6 100644
 +  HISTORY_PAGE_JSON_BUDGET,
 +} from './api-proxy.ts'
  export type { ApiProxyDefaults } from './api-proxy.ts'
- 
+
  declare module '@deepseek-ai/cordis' {
 diff --git a/packages/host/apiproxy/src/native-path-opener.ts b/packages/host/apiproxy/src/native-path-opener.ts
-index f8a065c8e2..41612199a1 100644
+index f8a065c8e2..ee309eb7a9 100644
 --- a/packages/host/apiproxy/src/native-path-opener.ts
 +++ b/packages/host/apiproxy/src/native-path-opener.ts
 @@ -8,8 +8,9 @@
   * GUI. The text-editor intent never consults the browser.
   */
- 
+
 +import { lstatSync } from 'node:fs'
  import { release as osRelease } from 'node:os'
 -import { extname } from 'node:path'
 +import { extname, join } from 'node:path'
  import { runNativeCommand, type NativeCommandRunner } from '@deepseek-ai/dsh-native-command'
- 
+
  /** Testable command boundary; native implementations never invoke a shell. */
 @@ -22,6 +23,8 @@ export interface PathOpenerInternals {
    osRelease?: string
@@ -2574,11 +5039,11 @@ index f8a065c8e2..41612199a1 100644
 +  fileExists?: (path: string) => boolean
    run?: PathOpenerRunner
  }
- 
+
 @@ -97,9 +100,50 @@ function isWsl(internals: PathOpenerInternals): boolean {
    return (internals.osRelease ?? osRelease()).toLowerCase().includes('microsoft')
  }
- 
+
 +/**
 + * Whether a Windows shell candidate can be spawned. `lstat` sees Store
 + * execution aliases that `stat` cannot open.
@@ -2598,7 +5063,7 @@ index f8a065c8e2..41612199a1 100644
 + * returns ENOENT. Prefer the PowerShell 7 install, then 5.1. WSL interop
 + * still uses the bare `powershell.exe` name for the Windows side.
 + */
-+function windowsOpenShellCandidates(env: NodeJS.ProcessEnv): string[] {
++function windowsOpenShellCandidates(env: NodeJS.ProcessEnv): readonly [string, string] {
 +  const programFiles = env.ProgramFiles || 'C:\\Program Files'
 +  const root = env.SystemRoot || env.WINDIR || 'C:\\Windows'
 +  return [
@@ -2612,7 +5077,7 @@ index f8a065c8e2..41612199a1 100644
 +  exists: (path: string) => boolean = windowsShellExists,
 +): string {
 +  const candidates = windowsOpenShellCandidates(env)
-+  return candidates.find((path) => exists(path)) ?? candidates[0]!
++  return candidates.find(path => exists(path)) ?? candidates[0]
 +}
 +
  /** Open one Windows-resolvable path through its registered desktop application. */
@@ -2630,13 +5095,13 @@ index f8a065c8e2..41612199a1 100644
      `Invoke-Item -LiteralPath ${powershellLiteral(path)}`,
 @@ -136,7 +180,7 @@ async function openNativePathWithIntent(
    }
- 
+
    if (platform === 'win32') {
 -    await openWindowsPath(path, signal, run)
 +    await openWindowsPath(path, signal, run, windowsOpenShellBin(env, internals.fileExists))
      return
    }
- 
+
 diff --git a/packages/host/apiproxy/tests/api-proxy-approval.spec.ts b/packages/host/apiproxy/tests/api-proxy-approval.spec.ts
 index 88ab5ede42..5a4cad5edd 100644
 --- a/packages/host/apiproxy/tests/api-proxy-approval.spec.ts
@@ -2644,7 +5109,7 @@ index 88ab5ede42..5a4cad5edd 100644
 @@ -109,6 +109,39 @@ describe('approval pending registry', () => {
      abort.abort()
    })
- 
+
 +  it('returns the respond receipt before the asker promise settles', async () => {
 +    const { ctx, api } = await harness()
 +    const abort = new AbortController()
@@ -2690,9 +5155,9 @@ index 3ba6f3a0af..46a1e5ce91 100644
  import { AGENT_DEFAULT_MODEL_SETTINGS_NAMESPACE } from '@deepseek-ai/dsh-agent-default-model'
  import { createApiProxy } from '../src/api-proxy.ts'
 +import { llmDiscoverModelsValueSchema } from '../src/api/llm.schema.ts'
- 
+
  const DEFAULTS = { defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/tmp' }
- 
+
 @@ -712,7 +713,14 @@ describe('llm.discoverModels', () => {
      ctx.llm.registerModelDiscovery('llm-pi-ai', (probe) => {
        seen.push({ baseURL: probe.baseURL, api: probe.api, apiKey: probe.apiKey })
@@ -2712,7 +5177,7 @@ index 3ba6f3a0af..46a1e5ce91 100644
 @@ -725,8 +733,16 @@ describe('llm.discoverModels', () => {
        apiKey: 'probe-key',
      })))
- 
+
 -    expect(value.models).toEqual([
 -      { id: 'acme-large', name: 'Acme Large', contextWindow: 65_536, maxTokens: 4096 },
 +    const wireValue = llmDiscoverModelsValueSchema.parse(value)
@@ -2735,7 +5200,7 @@ index 6d9c53a6f8..e397cab5ce 100644
 @@ -148,6 +148,21 @@ describe('session.history projections block', () => {
      expect('imageLimits' in (response.result.value.projections?.values ?? {})).toBe(false)
    })
- 
+
 +  it('pages an attached tail from the live log without cloning it', async () => {
 +    const { ctx, session } = await harness(true)
 +    seedMessages(session, 80)
@@ -2797,7 +5262,7 @@ index a11e2a0416..77d606ed43 100644
    ctx.provide('agents', { get: getAgent })
 @@ -151,7 +160,7 @@ describe('subagent gateway', () => {
    })
- 
+
    it('reads a healthy direct child without looking up or activating any Agent', async () => {
 -    const { api, getAgent, inspect, restore } = bench()
 +    const { api, getAgent, inspect, restore, listChildren } = bench()
@@ -2813,7 +5278,7 @@ index a11e2a0416..77d606ed43 100644
      expect(getAgent).not.toHaveBeenCalled()
 +    expect(listChildren).not.toHaveBeenCalled()
    })
- 
+
    it('serves a live child from the in-memory snapshot and the watermark projections', async () => {
 -    const { api, inspect, snapshot, restore } = bench({ liveChild: true })
 +    const { api, inspect, snapshot, restore, listChildren } = bench({ liveChild: true })
@@ -2900,7 +5365,7 @@ index a11e2a0416..77d606ed43 100644
 +    if (hostileResponse.result.ok) expect('projections' in hostileResponse.result.value).toBe(false)
 +    expect(hostile.listChildren).not.toHaveBeenCalled()
    })
- 
+
    it('serves the page without projections when a hostile unit breaks the fold', async () => {
 @@ -198,42 +279,64 @@ describe('subagent gateway', () => {
        value: { hasMore: false, events: [{ event: { type: 'user/message', seq: 0 } }] },
@@ -2909,7 +5374,7 @@ index a11e2a0416..77d606ed43 100644
 -    expect(live.snapshot).toHaveBeenCalledTimes(1)
 +    expect(live.snapshot).toHaveBeenCalled()
    })
- 
+
    it('reads one-shot history and rejects an address with the wrong mode', async () => {
 -    const oneShot = {
 -      kind: 'child', id: CHILD, mode: 'one-shot', label: 'batch',
@@ -2929,7 +5394,7 @@ index a11e2a0416..77d606ed43 100644
 +    expect(inspect).toHaveBeenCalledTimes(2)
 +    expect(listChildren).not.toHaveBeenCalled()
    })
- 
+
 -  it('rejects a diagnostic address before reading history', async () => {
 -    const { api, inspect } = bench({ entries: [
 +  it('pages a readable child log even when the parent catalog would mark it diagnostic', async () => {
@@ -2952,7 +5417,7 @@ index a11e2a0416..77d606ed43 100644
 +    expect(inspect).toHaveBeenCalledWith(CHILD)
 +    expect(listChildren).not.toHaveBeenCalled()
    })
- 
+
 -  it('maps the missing projections capability to one wire face on list, history, and prompt', async () => {
 +  it('pages a cold child without enumerating the parent catalog', async () => {
 +    const hung = bench({ listError: new Error('catalog hung') })
@@ -2995,7 +5460,7 @@ index a11e2a0416..77d606ed43 100644
 +    })
 +    expect(history.listChildren).not.toHaveBeenCalled()
 +    expect(history.inspect).toHaveBeenCalledWith(CHILD)
- 
+
      const prompt = bench({ listError: listError() })
      expect((await prompt.api.subagents.prompt(request({
 diff --git a/packages/host/apiproxy/tests/api-proxy-view.spec.ts b/packages/host/apiproxy/tests/api-proxy-view.spec.ts
@@ -3012,13 +5477,13 @@ index 6955b9416c..d0f9367ce4 100644
 +  HISTORY_EVENT_STRING_BUDGET,
 +  HISTORY_PAGE_EVENT_CAP,
 +} from '@deepseek-ai/dsh-host-apiproxy'
- 
+
  const reply = (text: string): Promise<ContentBlock[]> => Promise.resolve([{ type: 'text', text }])
- 
+
 @@ -324,6 +328,60 @@ describe('mux live view computation', () => {
      }
    })
- 
+
 +  it('caps a history page by event count so a subagent-wave parent still serializes', async () => {
 +    const { ctx } = await harness()
 +    const api = createApiProxy(ctx, { defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/tmp' })
@@ -3077,34 +5542,34 @@ index 6955b9416c..d0f9367ce4 100644
      const { ctx } = await harness()
      const api = createApiProxy(ctx, { defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/tmp' })
 diff --git a/packages/host/apiproxy/tests/native-path-opener.spec.ts b/packages/host/apiproxy/tests/native-path-opener.spec.ts
-index e1904cbcf1..442eaea9a2 100644
+index e1904cbcf1..ce4c3ddd31 100644
 --- a/packages/host/apiproxy/tests/native-path-opener.spec.ts
 +++ b/packages/host/apiproxy/tests/native-path-opener.spec.ts
 @@ -14,10 +14,22 @@ const { execFileMock } = vi.hoisted(() => ({ execFileMock: vi.fn<ExecFileMock>()
- 
+
  vi.mock('node:child_process', () => ({ execFile: execFileMock }))
- 
+
 +import { existsSync } from 'node:fs'
  import { release as osRelease } from 'node:os'
 +import { join } from 'node:path'
  import { describe, expect, it, vi } from 'vitest'
  import { canOpenNativePath, openNativePath, openNativeTextFile, type PathOpenerRunner } from '../src/native-path-opener.ts'
- 
+
 +const WIN_ENV = { ProgramFiles: 'C:\\Program Files', SystemRoot: 'C:\\Windows' }
 +const PWSH7 = join(WIN_ENV.ProgramFiles, 'PowerShell', '7', 'pwsh.exe')
 +const WINPS51 = join(WIN_ENV.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
 +
 +function windowsOpenFacts(
-+  exists: (path: string) => boolean = (path) => path === PWSH7,
++  exists: (path: string) => boolean = path => path === PWSH7,
 +): { platform: 'win32'; env: typeof WIN_ENV; fileExists: (path: string) => boolean } {
 +  return { platform: 'win32', env: WIN_ENV, fileExists: exists }
 +}
 +
  const signal = () => new AbortController().signal
- 
+
  describe('native path opener', () => {
 @@ -89,9 +101,9 @@ describe('native path opener', () => {
- 
+
    it('opens with Windows Invoke-Item and escapes single quotes', async () => {
      const run = vi.fn<PathOpenerRunner>(async () => ({ stdout: '', stderr: '' }))
 -    await openNativePath("C:\\work\\o'reilly.txt", signal(), { platform: 'win32', run })
@@ -3116,7 +5581,7 @@ index e1904cbcf1..442eaea9a2 100644
        expect.any(AbortSignal),
      )
 @@ -99,14 +111,32 @@ describe('native path opener', () => {
- 
+
    it('uses the Windows desktop association for text documents', async () => {
      const run = vi.fn<PathOpenerRunner>(async () => ({ stdout: '', stderr: '' }))
 -    await openNativeTextFile('C:\\work\\settings.yaml', signal(), { platform: 'win32', run })
@@ -3128,11 +5593,11 @@ index e1904cbcf1..442eaea9a2 100644
        expect.any(AbortSignal),
      )
    })
- 
+
 +  it('prefers PowerShell 7 over Windows PowerShell 5.1', async () => {
 +    const run = vi.fn<PathOpenerRunner>(async () => ({ stdout: '', stderr: '' }))
 +    await openNativePath('C:\\work\\doc.pdf', signal(), {
-+      ...windowsOpenFacts((path) => path === PWSH7 || path === WINPS51),
++      ...windowsOpenFacts(path => path === PWSH7 || path === WINPS51),
 +      run,
 +    })
 +    expect(run.mock.calls[0]?.[0]).toBe(PWSH7)
@@ -3141,7 +5606,7 @@ index e1904cbcf1..442eaea9a2 100644
 +  it('falls back to Windows PowerShell 5.1 when PowerShell 7 is absent', async () => {
 +    const run = vi.fn<PathOpenerRunner>(async () => ({ stdout: '', stderr: '' }))
 +    await openNativePath('C:\\work\\doc.pdf', signal(), {
-+      ...windowsOpenFacts((path) => path === WINPS51),
++      ...windowsOpenFacts(path => path === WINPS51),
 +      run,
 +    })
 +    expect(run.mock.calls[0]?.[0]).toBe(WINPS51)
@@ -3170,7 +5635,7 @@ index e1904cbcf1..442eaea9a2 100644
 -    expect(win[0]?.[0]).toBe('powershell.exe')
 +    expect(win[0]?.[0]).toBe(PWSH7)
    })
- 
+
    it('hands browser-renderable WSL paths to the Windows desktop', async () => {
 diff --git a/packages/host/apiproxy/tests/rpc-schemas.spec.ts b/packages/host/apiproxy/tests/rpc-schemas.spec.ts
 index 62d1a371da..93ab6ea9f5 100644
@@ -3191,14 +5656,14 @@ index 62d1a371da..93ab6ea9f5 100644
 +    })
    })
  })
- 
+
 diff --git a/packages/llm/llm-deepseek/src/index.ts b/packages/llm/llm-deepseek/src/index.ts
 index 3af0236d29..f4302f9973 100644
 --- a/packages/llm/llm-deepseek/src/index.ts
 +++ b/packages/llm/llm-deepseek/src/index.ts
 @@ -81,12 +81,13 @@ const DEFAULT_API_KEY_ENV = 'DEEPSEEK_API_KEY'
  const PROVIDER = 'deepseek-official'
- 
+
  const DEFAULT_MODELS: DeepSeekCatalogModel[] = [
 -  { id: 'deepseek-v4-flash', name: 'DeepSeek-V4-Flash', contextWindow: DEFAULT_CONTEXT_WINDOW },
 -  { id: 'deepseek-v4-pro', name: 'DeepSeek-V4-Pro', contextWindow: DEFAULT_CONTEXT_WINDOW },
@@ -3228,12 +5693,12 @@ index 085b35063a..604aaa289a 100644
 @@ -1024,8 +1024,8 @@ describe('DeepSeekAdapter against a mock server', () => {
      ])
      const ctx = await harness(server.url, { maxTokens: 32_000 })
- 
+
 -    await assemble(ctx, { model: 'deepseek-v4-flash', messages: [] })
 -    await assemble(ctx, { model: 'deepseek-v4-flash', messages: [], maxTokens: 8_192 })
 +    await assemble(ctx, { model: 'unlisted-pass-through', messages: [] })
 +    await assemble(ctx, { model: 'unlisted-pass-through', messages: [], maxTokens: 8_192 })
- 
+
      expect(server.requests[0]).toMatchObject({ max_tokens: 32_000 })
      expect(server.requests[1]).toMatchObject({ max_tokens: 8_192 })
 @@ -1519,7 +1519,7 @@ describe('plugin registration and config', () => {
@@ -3288,9 +5753,9 @@ index 43472de908..b8e6d818ae 100644
 --- a/packages/llm/llm-pi-ai/README.md
 +++ b/packages/llm/llm-pi-ai/README.md
 @@ -85,6 +85,12 @@ A profile's `models` list *replaces* the route's installed catalog rather than e
- 
+
  `modelOverrides` reshapes individual installed-catalog models without that cost: each key is a catalog model id, each value the same fields a `models` entry takes with the id living in the key, and the rest of the catalog keeps serving untouched — "correct one model, keep the other thirty-seven" as a three-line edit. An override becomes that catalog entry's configuration, so capacities, efforts, and compat resolve through the same path with the same diagnostics and the same request-default semantics as a `models` entry. Overrides are only meaningful on a catalog route serving its catalog: one set beside a `models` list (which already replaces the catalog), on a hand-declared route (whose models are fully spelled in `models`), or naming a model the catalog does not describe is refused rather than skipped, because a silently unchanged model is a typo someone would otherwise hunt for.
- 
+
 +### Capacity resolution and provenance
 +
 +Model discovery resolves `contextWindow` and `maxTokens` independently. For each field, a user-authored value wins over a provider-discovered value, which wins over an exact official entry, which wins over the conservative estimate. `contextWindowSource` and `maxTokensSource` preserve that provenance as `user`, `provider`, `official`, or `estimated` in configured model rows; discovery wire values use the latter three. A legacy numeric configuration with no source is treated as `user`, so refreshing discovery cannot replace it. Editing or clearing one capacity changes only that value and its paired source.
@@ -3298,16 +5763,16 @@ index 43472de908..b8e6d818ae 100644
 +The built-in correction table matches trimmed model IDs exactly and currently verifies only `deepseek-v4-flash`, `deepseek-v4-pro`, and `deepseek-v4-flash-vision-exp`, each at 1,000,000 context tokens and 384,000 output tokens. It does not infer capacities from provider names, aliases, or near matches. An unknown model whose provider discloses neither field uses the estimated 262,144 context tokens and 32,768 output tokens. These estimates belong to pi-ai discovery; the separate `llm-deepseek` adapter keeps its own unlisted-model fallback of 1,000,000 context tokens and 256,000 output tokens, while its three listed DeepSeek V4 models use 1,000,000 / 384,000.
 +
  ### Per-model reasoning efforts
- 
+
  `reasoningEfforts` declares a model's selectable thinking levels: each key is a level selectors offer, its value the spelling dispatch sends on the wire, so `high: high` passes the canonical name through while `max: ultra` renames it for a gateway with its own vocabulary. Keys come from pi-ai's level set (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`); a level not declared is not offered. Omitting the field keeps the installed catalog entry's capability (a hand-declared model has none and does not reason); `false` declares a non-reasoning model, which is how a profile strips reasoning from a catalog model its gateway cannot serve; an empty declaration is refused rather than guessing between those two meanings.
 diff --git a/packages/llm/llm-pi-ai/README.zh.md b/packages/llm/llm-pi-ai/README.zh.md
 index 76b3dc9dec..58e56e6160 100644
 --- a/packages/llm/llm-pi-ai/README.zh.md
 +++ b/packages/llm/llm-pi-ai/README.zh.md
 @@ -85,6 +85,12 @@ profile 的 `models` 列表是*替换*该路由已安装 catalog，而不是扩
- 
+
  `modelOverrides` 无需这份代价就能就地重塑单个已安装 catalog 模型：每个键是一个 catalog 模型 id，每个值可写 `models` 条目接受的同一批字段，只是 id 落在键上，而 catalog 的其余部分原样继续服务——「改一个模型、其余三十七个原样保留」只是一次三行编辑。一条覆盖会成为该 catalog 条目的配置，因此容量、档位与 compat 沿与 `models` 条目相同的路径解析，携带相同的诊断与相同的请求默认值语义。覆盖只在正服务自身 catalog 的 catalog 路由上才有意义：与 `models` 列表并存的一份（该列表本就替换了 catalog）、落在手工声明路由上的一份（其模型已在 `models` 中完整写出），或点名了 catalog 未描述模型的一份，都会被拒绝而非跳过，因为一个静默保持原样的模型，就是一个否则要有人费力追查的笔误。
- 
+
 +### 容量解析与来源
 +
 +模型发现会分别解析 `contextWindow` 与 `maxTokens`。对每个字段而言，用户写入的值优先于提供方发现值，后者优先于精确匹配的官方条目，官方条目又优先于保守估算。配置模型行中的 `contextWindowSource` 与 `maxTokensSource` 以 `user`、`provider`、`official` 或 `estimated` 保留该来源；发现协议值只使用后三种。没有来源字段的旧数值配置按 `user` 处理，因此刷新发现结果不会替换它。编辑或清空一个容量字段只改变该值及其配套来源字段。
@@ -3315,7 +5780,7 @@ index 76b3dc9dec..58e56e6160 100644
 +内置纠正表会修剪模型 id 首尾空白后再精确匹配，当前只核实 `deepseek-v4-flash`、`deepseek-v4-pro` 与 `deepseek-v4-flash-vision-exp`，三者均为 1,000,000 个上下文 token 与 384,000 个输出 token。该表不会根据提供方名称、别名或近似匹配推断容量。对于提供方两个字段都未披露的未知模型，会使用 262,144 个上下文 token 与 32,768 个输出 token 的估算值。这些估算属于 pi-ai 发现；独立的 `llm-deepseek` 适配器为未列出模型保留自己的 1,000,000 个上下文 token / 256,000 个输出 token 回退值，而其三个已列出 DeepSeek V4 模型使用 1,000,000 / 384,000。
 +
  ### 按模型的推理（reasoning）档位
- 
+
  `reasoningEfforts` 声明模型可选的思考级别：每个键是选择器提供的一个档位，其值是分派在协议中发送的拼写，因此 `high: high` 原样透传规范名称，而 `max: ultra` 则为使用自有词汇的网关改名。键取自 pi-ai 的档位集合（`off`、`minimal`、`low`、`medium`、`high`、`xhigh`、`max`）；未声明的档位不会被提供。省略该字段会保留已安装 catalog 条目的能力（手工声明的模型没有这份能力，也不推理）；`false` 声明一个不具备推理能力的模型，profile 正是以此从其网关无法服务的 catalog 模型上剥除推理；空声明会被拒绝，而不是在这两种含义之间去猜。
 diff --git a/packages/llm/llm-pi-ai/src/capacity.ts b/packages/llm/llm-pi-ai/src/capacity.ts
 new file mode 100644
@@ -3383,7 +5848,7 @@ index 1e9b126dd5..e5e95294a9 100644
 @@ -39,6 +39,9 @@ const NO_COST: ModelCost = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
  /** One request modality a pi-ai model may accept. */
  export type PiAiModality = Model<Api>['input'][number]
- 
+
 +/** Persisted origin of one configured model capacity. */
 +export type PiAiCapacitySource = 'user' | 'provider' | 'official' | 'estimated'
 +
@@ -3421,7 +5886,7 @@ index 5fdcc2cdb2..8317c37b0d 100644
    PiAiModelOverride,
    PiAiModelProfile,
 @@ -77,6 +78,7 @@ export const DEFAULT_INPUT: readonly PiAiModality[] = ['text']
- 
+
  export type {
    PiAiCompatProfile,
 +  PiAiCapacitySource,
@@ -3447,7 +5912,7 @@ index 014c9c2f3e..9c725787c6 100644
  import { attributionHeaders } from '@deepseek-ai/dsh-llm'
  import { catalogModels } from './catalog.ts'
 +import { resolveModelCapacity } from './capacity.ts'
- 
+
  /**
   * Protocols whose model listing this module can read: the two that speak
 @@ -205,7 +206,9 @@ export async function discoverModels(
@@ -3478,7 +5943,7 @@ index 846509f8c6..851be76707 100644
 --- a/packages/llm/llm-pi-ai/src/index.ts
 +++ b/packages/llm/llm-pi-ai/src/index.ts
 @@ -70,6 +70,8 @@ import { registerPiAiFlows } from './login.ts'
- 
+
  export { PiAiAdapter } from './adapter.ts'
  export type { PiAiAdapterOptions } from './adapter.ts'
 +export { resolveModelCapacity } from './capacity.ts'
@@ -3564,7 +6029,7 @@ index 61a2535a9d..12da9b06ea 100644
 @@ -18,6 +18,46 @@ const routeWith = (profile: Record<string, unknown>): (() => unknown) =>
  const configWith = (model: Record<string, unknown>): (() => unknown) =>
    routeWith({ models: [{ id: 'm', ...model }] })
- 
+
 +describe('capacity provenance schema boundary', () => {
 +  it.each(['user', 'provider', 'official', 'estimated'] as const)(
 +    'accepts %s as a persisted source for either capacity',
@@ -3620,10 +6085,10 @@ index 18793565d7..43688be58b 100644
 +      model.contextWindowSource === 'official' && model.maxTokensSource === 'official')).toBe(true)
      expect(server.paths).toEqual([])
    })
- 
+
 @@ -120,14 +122,57 @@ describe('draft-provider model discovery', () => {
      const models = await ctx.llm.discoverModels('llm-pi-ai', { baseURL: `${server.url}/v1`, apiKey: 'probe-key' })
- 
+
      expect(models).toEqual([
 -      { id: 'acme-large', name: 'Acme Large', contextWindow: 65_536, maxTokens: 4096 },
 -      { id: 'acme-small' },
@@ -3647,7 +6112,7 @@ index 18793565d7..43688be58b 100644
      expect(server.headers[0]?.authorization).toBe('Bearer probe-key')
      expect(server.headers[0]?.['user-agent']).toBe(userAgent())
    })
- 
+
 +  it('uses exact official output capacity without replacing a provider context window', async () => {
 +    const server = await listingServer({
 +      body: JSON.stringify({ data: [{ id: 'deepseek-v4-flash', context_length: 500_000 }] }),
@@ -3691,7 +6156,7 @@ index 18793565d7..43688be58b 100644
        }),
      })
      const ctx = await harness()
- 
+
      expect(await ctx.llm.discoverModels('llm-pi-ai', { baseURL: server.url }))
 -      .toEqual([{ id: 'good' }, { id: 'zero-capacity' }])
 +      .toEqual([
@@ -3731,7 +6196,7 @@ index 18793565d7..43688be58b 100644
 +      maxTokensSource: 'official',
 +    }])
    })
- 
+
    it('points at the credential for a rejected one, and only then', async () => {
 diff --git a/packages/llm/llm/src/index.ts b/packages/llm/llm/src/index.ts
 index 82b64bf4ce..d8f8f8ed21 100644
@@ -3754,7 +6219,7 @@ index 8c5be187dd..ccf1c908db 100644
 @@ -157,6 +157,9 @@ export interface ModelModalityMap {
  /** Any declared provider model modality. */
  export type ModelModality = ModelModalityMap[keyof ModelModalityMap]
- 
+
 +/** Origin of one discovered model capacity value. */
 +export type LlmCapacitySource = 'provider' | 'official' | 'estimated'
 +
@@ -3772,7 +6237,7 @@ index 8c5be187dd..ccf1c908db 100644
 +  /** Origin of {@link maxTokens}, when supplied. */
 +  maxTokensSource?: LlmCapacitySource
  }
- 
+
  /** One adapter-discovered model; catalog membership is advisory, not request validation. */
 diff --git a/packages/llm/llm/tests/topology.spec.ts b/packages/llm/llm/tests/topology.spec.ts
 index e112bf35df..dffff98e9a 100644
@@ -3795,7 +6260,7 @@ index e112bf35df..dffff98e9a 100644
        { id: 'keep' },
        { id: 'bare' },
      ] as never))
- 
+
      expect(await ctx.llm.discoverModels('llm-example', { baseURL: 'https://gateway.example/v1' })).toEqual([
 -      { id: 'keep', name: 'Keep', contextWindow: 1024, maxTokens: 256 },
 +      {
@@ -3816,7 +6281,7 @@ index c014d6f002..28324b0f0b 100644
 @@ -130,6 +130,14 @@ export class FixtureSession implements SessionFace {
      throw new Error(`test session "${this.sessionId}": loadOlder is not stubbed — supply it on the fixture's session face`)
    }
- 
+
 +  /**
 +   * Fail-loud stub; supply `reload` on the fixture's session face to exercise it.
 +   * @returns never — always throws.

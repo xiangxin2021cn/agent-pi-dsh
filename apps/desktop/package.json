@@ -33,6 +33,7 @@
       "main.mjs",
       "codex-auth.mjs",
       "codex-models.mjs",
+      "compaction-preferences.mjs",
       "preload.cjs",
       "boot.html",
       "brand/**/*"

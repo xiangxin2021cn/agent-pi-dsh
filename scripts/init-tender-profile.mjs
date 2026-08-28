@@ -238,6 +238,13 @@ function buildManagedPatch(deps) {
   const searchProvider = composeBundles(deps).includes('@anysearch/anysearch-dsh')
     ? 'anysearch'
     : 'deepseek-official'
+  const compactionFallback = process.env.AGENT_PI_COMPACTION_FALLBACK === '0'
+    ? ''
+    : `    summarizationFallbacks:
+      - provider: deepseek-official
+        model: deepseek-v4-flash-vision-exp
+        maxTokens: 32768
+`
   return `${PATCH_MANAGED_MARK}
 # Profile overlay (applied after every bundle layer). Auto-rewritten on app
 # start while the marker line above is present; delete it to customize.
@@ -268,6 +275,12 @@ function buildManagedPatch(deps) {
     provider: deepseek-official
     model: deepseek-v4-flash-vision-exp
 
+# Compact near 72% with the current session model first. When enabled, the
+# DeepSeek vision model is only an eligible-failure summary fallback.
+- id: compaction-basic
+  config:
+    thresholdRatio: 0.72
+${compactionFallback}
 # Codex is an isolated product subagent, not a replacement LLM provider.
 # Auto-review remains confined to Codex's native workspace-write sandbox.
 - id: subagent-codex
