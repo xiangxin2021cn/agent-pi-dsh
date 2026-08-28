@@ -405,7 +405,7 @@ function createWindow() {
     icon: packedBrandIcon || undefined,
     backgroundColor: '#eef2f6',
     webPreferences: {
-      preload: join(here, 'preload.mjs'),
+      preload: join(here, 'preload.cjs'),
       contextIsolation: true,
     },
   })

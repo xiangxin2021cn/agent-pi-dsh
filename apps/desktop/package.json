@@ -32,7 +32,7 @@
     "files": [
       "main.mjs",
       "codex-auth.mjs",
-      "preload.mjs",
+      "preload.cjs",
       "boot.html",
       "brand/**/*"
     ],

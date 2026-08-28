@@ -17,17 +17,22 @@ if (!unpacked || !wanted) {
 
 const archive = join(unpacked, 'resources/app.asar')
 const mainSrc = join(root, 'apps/desktop/main.mjs')
-const preloadSrc = join(root, 'apps/desktop/preload.mjs')
+const preloadSrc = join(root, 'apps/desktop/preload.cjs')
 const current = JSON.parse(asar.extractFile(archive, 'package.json').toString('utf8'))
 const currentMain = asar.extractFile(archive, 'main.mjs')
-const currentPreload = asar.extractFile(archive, 'preload.mjs')
+let currentPreload
+try {
+  currentPreload = asar.extractFile(archive, 'preload.cjs')
+} catch {
+  currentPreload = Buffer.alloc(0)
+}
 const wantedMain = readFileSync(mainSrc)
 const wantedPreload = readFileSync(preloadSrc)
 const versionOk = current.version === wanted
 const mainOk = Buffer.compare(currentMain, wantedMain) === 0
 const preloadOk = Buffer.compare(currentPreload, wantedPreload) === 0
 if (versionOk && mainOk && preloadOk) {
-  process.stdout.write(`asar already ${wanted} with current main.mjs and preload.mjs\n`)
+  process.stdout.write(`asar already ${wanted} with current main.mjs and preload.cjs\n`)
   process.exit(0)
 }
 
@@ -39,7 +44,8 @@ try {
   manifest.version = wanted
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
   writeFileSync(join(dir, 'main.mjs'), wantedMain)
-  writeFileSync(join(dir, 'preload.mjs'), wantedPreload)
+  rmSync(join(dir, 'preload.mjs'), { force: true })
+  writeFileSync(join(dir, 'preload.cjs'), wantedPreload)
   await asar.createPackage(dir, archive)
   const stamped = JSON.parse(readFileSync(manifestPath, 'utf8'))
   if (stamped.version !== wanted) {

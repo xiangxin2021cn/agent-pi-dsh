@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
 import { test } from 'node:test'
+import { runInNewContext } from 'node:vm'
 import {
   createCodexAuthController,
   parseCodexLoginStatus,
@@ -63,7 +64,7 @@ test('Codex auth controller uses browser login with isolated CODEX_HOME and no A
 test('Electron exposes only normalized Codex auth operations to the renderer', () => {
   const desktop = join(import.meta.dirname, '..')
   const main = readFileSync(join(desktop, 'main.mjs'), 'utf8')
-  const preload = readFileSync(join(desktop, 'preload.mjs'), 'utf8')
+  const preload = readFileSync(join(desktop, 'preload.cjs'), 'utf8')
   assert.match(main, /createCodexAuthController/)
   assert.match(main, /ipcMain\.handle\('codex-auth-status'/)
   assert.match(main, /ipcMain\.handle\('codex-auth-login'/)
@@ -74,4 +75,40 @@ test('Electron exposes only normalized Codex auth operations to the renderer', (
   assert.match(preload, /codexAuthLogin/)
   assert.match(preload, /codexAuthLogout/)
   assert.doesNotMatch(preload, /auth\.json|token|OPENAI_API_KEY/i)
+})
+
+test('sandboxed Electron preload executes as CommonJS and exposes the Codex bridge', () => {
+  const desktop = join(import.meta.dirname, '..')
+  const source = readFileSync(join(desktop, 'preload.cjs'), 'utf8')
+  const exposed = {}
+  const invocations = []
+
+  runInNewContext(source, {
+    require(specifier) {
+      assert.equal(specifier, 'electron')
+      return {
+        contextBridge: {
+          exposeInMainWorld(name, value) { exposed[name] = value },
+        },
+        ipcRenderer: {
+          invoke(channel) {
+            invocations.push(channel)
+            return Promise.resolve({ available: true, state: 'logged-out' })
+          },
+          on() {},
+          removeListener() {},
+        },
+        webUtils: { getPathForFile() { return '' } },
+      }
+    },
+  })
+
+  assert.equal(typeof exposed.agentPiDesktop.codexAuthStatus, 'function')
+  exposed.agentPiDesktop.codexAuthStatus()
+  assert.deepEqual(invocations, ['codex-auth-status'])
+
+  const main = readFileSync(join(desktop, 'main.mjs'), 'utf8')
+  const manifest = JSON.parse(readFileSync(join(desktop, 'package.json'), 'utf8'))
+  assert.match(main, /preload\.cjs/)
+  assert.ok(manifest.build.files.includes('preload.cjs'))
 })

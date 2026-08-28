@@ -49,7 +49,7 @@ mkdirSync(outDir, { recursive: true })
 // 1. desktop shell (whitelist: only what electron-builder needs)
 const desktopDest = join(stage, 'desktop')
 mkdirSync(join(desktopDest, 'build'), { recursive: true })
-for (const file of ['main.mjs', 'codex-auth.mjs', 'preload.mjs', 'boot.html', 'after-pack.cjs', 'package.json']) {
+for (const file of ['main.mjs', 'codex-auth.mjs', 'preload.cjs', 'boot.html', 'after-pack.cjs', 'package.json']) {
   cpSync(join(desktop, file), join(desktopDest, file))
 }
 cpSync(join(desktop, 'brand'), join(desktopDest, 'brand'), { recursive: true })
