@@ -1452,7 +1452,9 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
       armed: new Set(),
       listeners: new Set(),
       submitting: new Set(),
+      pending: new Map(),
     })
+    if (!codexTurnState.pending) codexTurnState.pending = new Map()
     function codexTurnKey(props) {
       return sessionHint(props) || runtime.sessionId || 'active'
     }
@@ -1474,7 +1476,37 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
       const key = codexTurnKey(props)
       codexTurnState.armed.delete(key)
       codexTurnState.submitting.delete(key)
+      codexTurnState.pending.delete(key)
+      attachSubmitLock = false
+      setAttachItems([], props)
       notifyCodexTurn()
+    }
+    function releaseCodexTurnLock(key) {
+      codexTurnState.submitting.delete(key)
+      codexTurnState.pending.delete(key)
+      attachSubmitLock = false
+      notifyCodexTurn()
+    }
+    function beginCodexTurnSettlement(props, clean, framed) {
+      const key = codexTurnKey(props)
+      codexTurnState.pending.set(key, { clean, framed, seenSubmitting: false })
+    }
+    function settleCodexTurn(props) {
+      const key = codexTurnKey(props)
+      const pending = codexTurnState.pending.get(key)
+      const input = props && props.input
+      if (!pending || !input) return
+      if (input.phase === 'submitting') {
+        pending.seenSubmitting = true
+        return
+      }
+      if (!pending.seenSubmitting || input.phase !== 'plain') return
+      if (input.draft === pending.framed) {
+        releaseCodexTurnLock(key)
+        setComposerDraft(props, pending.clean)
+        return
+      }
+      clearCodexTurnAfterSubmit(props)
     }
 
     const composerPropsRef = { current: null }
@@ -1543,7 +1575,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
       }
       if (typeof draft === 'string') {
         composerFace.draft = draft
-        composerFace.input = { draft: draft }
+        composerFace.input = props.input && typeof props.input.draft === 'string' ? props.input : { draft: draft }
       }
       if (props.inputActions) composerFace.inputActions = props.inputActions
       if (props.session) composerFace.session = props.session
@@ -3634,7 +3666,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 ${original}`
     }
 
-    function submitAfterFold(props, submit, transform, afterSubmit) {
+    function submitAfterFold(props, submit, transform, onSubmitted) {
       const sid = sessionHint(props) || runtime.sessionId || 'active'
       const clean = stripMentionArtifacts(currentDraft(props))
       const items = attachItemsOf(attachSessionId(props))
@@ -3653,8 +3685,11 @@ ${original}`
           : (props && props.inputActions && props.inputActions.__apOrigSubmit)
         if (typeof send === 'function') send()
         attachSubmitLock = false
+        if (typeof onSubmitted === 'function') {
+          onSubmitted(clean, finalText)
+          return
+        }
         setAttachItems([], props)
-        if (typeof afterSubmit === 'function') afterSubmit()
         return
       }
       setComposerDraft(props, finalText)
@@ -3663,10 +3698,13 @@ ${original}`
           ? submit
           : (props && props.inputActions && props.inputActions.__apOrigSubmit)
         if (typeof send === 'function') send()
+        if (typeof onSubmitted === 'function') {
+          onSubmitted(clean, finalText)
+          return
+        }
         window.setTimeout(() => {
           attachSubmitLock = false
           setAttachItems([], props)
-          if (typeof afterSubmit === 'function') afterSubmit()
         }, 280)
       })
     }
@@ -3677,7 +3715,7 @@ ${original}`
       }).catch(() => {})
     }
 
-    async function submitCodexTurn(props, orig) {
+    async function submitCodexTurn(props, orig, actions) {
       const key = codexTurnKey(props)
       if (codexTurnState.submitting.has(key)) return
       codexTurnState.submitting.add(key)
@@ -3688,49 +3726,60 @@ ${original}`
           : await desktop.codexAuthStatus()
         if (!status || status.available !== true || status.state !== 'logged-in') throw new Error('Codex unavailable')
       } catch {
-        codexTurnState.submitting.delete(key)
+        releaseCodexTurnLock(key)
         showToast('Codex 尚未登录或运行时不可用，请到设置 → Codex 智能体完成登录。')
         return
       }
-      const submit = () => submitAfterFold(
-        props,
-        orig,
-        buildCodexTurnDelegation,
-        () => clearCodexTurnAfterSubmit(props),
-      )
-      if (attachItemsOf(attachSessionId(props)).length) {
-        foldAttachmentsIntoDraft(props).then((folded) => {
-          if (folded) submit()
-          else codexTurnState.submitting.delete(key)
-        }).catch(() => { codexTurnState.submitting.delete(key) })
+      const live = actions && actions.__apLatestProps || props
+      if (codexTurnKey(live) !== key) {
+        releaseCodexTurnLock(key)
         return
       }
-      submit()
+      const originalDraft = currentDraft(live)
+      const submit = () => submitAfterFold(
+        live,
+        orig,
+        buildCodexTurnDelegation,
+        (clean, framed) => beginCodexTurnSettlement(live, clean, framed),
+      )
+      try {
+        if (attachItemsOf(attachSessionId(live)).length) {
+          const folded = await foldAttachmentsIntoDraft(live)
+          if (!folded) throw new Error('attachment fold failed')
+        }
+        submit()
+      } catch {
+        setComposerDraft(live, originalDraft)
+        releaseCodexTurnLock(key)
+      }
     }
 
     function wrapComposerSubmit(props) {
       const actions = props && props.inputActions
-      if (!actions || typeof actions.submit !== 'function' || actions.__apFoldWrapped) return
+      if (!actions || typeof actions.submit !== 'function') return
+      actions.__apLatestProps = props
+      if (actions.__apFoldWrapped) return
       const orig = actions.submit.bind(actions)
       actions.__apOrigSubmit = orig
       actions.submit = () => {
-        if (codexTurnArmed(props)) {
-          void submitCodexTurn(props, orig)
+        const live = actions.__apLatestProps || props
+        if (codexTurnArmed(live)) {
+          void submitCodexTurn(live, orig, actions)
           return
         }
-        const before = currentDraft(props)
-        restoreCleanDraft(props)
-        const sid = sessionHint(props) || runtime.sessionId || 'active'
-        const hasAttach = attachItemsOf(attachSessionId(props)).length > 0
+        const before = currentDraft(live)
+        restoreCleanDraft(live)
+        const sid = sessionHint(live) || runtime.sessionId || 'active'
+        const hasAttach = attachItemsOf(attachSessionId(live)).length > 0
         const hasKb = kbTaskOf(sid).slugs.length > 0
         if (hasAttach) {
-          foldAttachmentsIntoDraft(props).then((folded) => {
-            if (folded) submitAfterFold(props, orig)
+          foldAttachmentsIntoDraft(live).then((folded) => {
+            if (folded) submitAfterFold(live, orig)
           }).catch(() => {})
           return
         }
-        if (hasKb && stripMentionArtifacts(currentDraft(props))) {
-          submitAfterFold(props, orig)
+        if (hasKb && stripMentionArtifacts(currentDraft(live))) {
+          submitAfterFold(live, orig)
           return
         }
         if (stripMentionArtifacts(before) !== before) {
@@ -8194,6 +8243,9 @@ ${original}`
       }, [])
       const armed = codexTurnArmed(live)
       const sessionId = live.sessionId
+      React.useEffect(() => {
+        settleCodexTurn(live)
+      }, [live.sessionId, live.input && live.input.phase, live.input && live.input.draft])
       React.useEffect(() => {
         const onFill = (event) => {
           const text = event && event.detail && event.detail.text
