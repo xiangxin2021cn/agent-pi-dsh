@@ -464,7 +464,9 @@ git commit -m "refactor(codex): use per-session turn transactions"
 ### Task 6: Verify the unpacked installed path without publishing
 
 **Files:**
-- Verify only; no source change expected.
+- Modify if required by Windows verification: `scripts/apply-dsh-patches.mjs`
+- Modify if required by Windows verification: `scripts/apply-dsh-patches.test.mjs`
+- Otherwise verify only.
 
 **Interfaces:**
 - Consumes: Tasks 1-5.
@@ -478,6 +480,19 @@ node --test (Get-ChildItem bundles/tender-web/tests -Filter *.test.ts).FullName
 ```
 
 - [ ] **Step 2: Rebuild the unpacked Windows application**
+
+Before packaging, `node --test scripts/apply-dsh-patches.test.mjs` must pass. On Windows CRLF checkouts, a fully applied root DSH patch must be recognized as `already-applied`; forward/reverse checks and application must tolerate whitespace-only context differences while retaining all existing pinned-base and mismatch safeguards.
+
+If this verification exposes the CRLF idempotence defect, add the failing CRLF regression first, implement the minimal applicator fix, and commit only those two script files:
+
+```powershell
+node --test scripts/apply-dsh-patches.test.mjs
+git add -- scripts/apply-dsh-patches.mjs scripts/apply-dsh-patches.test.mjs
+git diff --cached --check
+git commit -m "fix(pack): recognize CRLF-applied DSH patches"
+```
+
+Then run the packaging command:
 
 ```powershell
 powershell -File scripts/pack-win.ps1 -DirOnly
