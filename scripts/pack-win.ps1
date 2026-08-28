@@ -1,7 +1,8 @@
 param(
   [switch]$SkipPrepare,
   [switch]$DirOnly,
-  [switch]$ReuseUnpacked
+  [switch]$ReuseUnpacked,
+  [switch]$ToolchainOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -17,6 +18,67 @@ $IconSrc = Join-Path $Desktop "brand\app-logo.png"
 if (-not (Test-Path $IconSrc)) { $IconSrc = Join-Path $Root "AgentPI-logo-2.png" }
 $IconDir = Join-Path $Desktop "build"
 $IconDest = Join-Path $IconDir "icon.png"
+
+function Get-NodeAdjacentCommand([string]$name) {
+  $node = (Get-Command node -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
+  $command = Join-Path (Split-Path -Parent $node) "$name.cmd"
+  if (-not (Test-Path $command)) {
+    throw "$name.cmd missing next to resolved node executable: $node"
+  }
+  return $command
+}
+
+function Invoke-NpmInstall([string]$dir, [string]$label) {
+  $npm = Get-NodeAdjacentCommand "npm"
+  $installExit = 1
+  Push-Location $dir
+  try {
+    & $npm install --no-fund --no-audit
+    $installExit = $LASTEXITCODE
+  } finally {
+    Pop-Location
+  }
+  if ($installExit -ne 0) { throw "$label npm install failed: $installExit" }
+}
+
+function Invoke-DesktopToolchain {
+  if (-not (Test-Path (Join-Path $Desktop "node_modules\electron-builder"))) {
+    Write-Host "Installing desktop pack dependencies..."
+    Invoke-NpmInstall $Desktop "desktop"
+  }
+
+  $electronVer = Join-Path $Desktop "node_modules\electron\dist\version"
+  if (-not (Test-Path $electronVer)) {
+    $installElectron = Join-Path $Desktop "node_modules\.bin\install-electron.cmd"
+    if (-not (Test-Path $installElectron)) { throw "local install-electron.cmd missing: $installElectron" }
+    Write-Host "electron binary missing; running local install-electron.cmd --no"
+    $electronExit = 1
+    Push-Location $Desktop
+    try {
+      & $installElectron --no
+      $electronExit = $LASTEXITCODE
+    } finally {
+      Pop-Location
+    }
+    if ($electronExit -ne 0) { throw "local install-electron.cmd --no failed: $electronExit" }
+  } else {
+    Write-Host "electron binary $((Get-Content $electronVer -Raw).Trim())"
+  }
+}
+
+function Invoke-DesktopElectronBuilder {
+  $electronBuilder = Join-Path $Desktop "node_modules\.bin\electron-builder.cmd"
+  if (-not (Test-Path $electronBuilder)) { throw "local electron-builder.cmd missing: $electronBuilder" }
+  $builderExit = 1
+  Push-Location $Desktop
+  try {
+    & $electronBuilder --win --dir | Out-Host
+    $builderExit = $LASTEXITCODE
+  } finally {
+    Pop-Location
+  }
+  return $builderExit
+}
 
 function Find-7zaDir {
   $cached = Get-ChildItem "$env:LOCALAPPDATA\electron-builder\Cache" -Recurse -Filter "7za.exe" -ErrorAction SilentlyContinue |
@@ -84,6 +146,13 @@ function Test-UnpackedApp([string]$dir) {
   return ($need | Where-Object { -not (Test-Path $_) }).Count -eq 0
 }
 
+if ($ToolchainOnly) {
+  Invoke-DesktopToolchain
+  $toolchainBuilderExit = Invoke-DesktopElectronBuilder
+  if ($toolchainBuilderExit -ne 0) { throw "local electron-builder.cmd failed: $toolchainBuilderExit" }
+  return
+}
+
 if (-not (Test-Path (Join-Path $Dsh "package.json"))) {
   throw "vendor/deepseek-harness missing"
 }
@@ -108,9 +177,7 @@ if (-not (Test-Path $NsisScript)) {
 
 if (-not (Test-Path (Join-Path $Biz "node_modules\zod"))) {
   Write-Host "Installing business-core dependencies..."
-  Push-Location $Biz
-  npm install --no-fund --no-audit
-  Pop-Location
+  Invoke-NpmInstall $Biz "business-core"
 }
 
 New-Item -ItemType Directory -Force -Path $IconDir | Out-Null
@@ -120,25 +187,7 @@ if (-not $SkipPrepare) {
   & (Join-Path $Root "scripts\prepare-win-runtime.ps1") -FullCopy
 }
 
-if (-not (Test-Path (Join-Path $Desktop "node_modules\electron-builder"))) {
-  Write-Host "Installing desktop pack dependencies..."
-  Push-Location $Desktop
-  npm install --no-fund --no-audit
-  Pop-Location
-}
-
-# Electron 42+ no longer downloads the binary in postinstall.
-$electronVer = Join-Path $Desktop "node_modules\electron\dist\version"
-if (-not (Test-Path $electronVer)) {
-  Write-Host "electron binary missing; running npx install-electron --no"
-  Push-Location $Desktop
-  npx install-electron --no
-  $electronExit = $LASTEXITCODE
-  Pop-Location
-  if ($electronExit -ne 0) { throw "npx install-electron --no failed: $electronExit" }
-} else {
-  Write-Host "electron binary $((Get-Content $electronVer -Raw).Trim())"
-}
+Invoke-DesktopToolchain
 
 $runtime = Join-Path $Desktop "runtime"
 Get-ChildItem -LiteralPath $runtime -Force -ErrorAction SilentlyContinue |
@@ -164,17 +213,14 @@ if ($ReuseUnpacked -and $existing) {
 } else {
   New-Item -ItemType Directory -Force -Path $unpackedRoot | Out-Null
   $env:CSC_IDENTITY_AUTO_DISCOVERY = "false"
-  Push-Location $Desktop
   $exit = 1
   foreach ($attempt in 1..3) {
     Write-Host "electron-builder attempt $attempt --win --dir (no NSIS 7z)"
-    npx electron-builder --win --dir
-    $exit = $LASTEXITCODE
+    $exit = Invoke-DesktopElectronBuilder
     if ($exit -eq 0 -and (Test-UnpackedApp $unpacked)) { break }
     Write-Host "electron-builder exited $exit; retrying after brief wait..."
     Start-Sleep -Seconds (3 * $attempt)
   }
-  Pop-Location
   if ($exit -ne 0 -or -not (Test-UnpackedApp $unpacked)) {
     throw "electron-builder --dir failed to produce a complete win-unpacked app"
   }
