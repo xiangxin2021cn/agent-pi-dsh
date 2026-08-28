@@ -466,6 +466,8 @@ git commit -m "refactor(codex): use per-session turn transactions"
 **Files:**
 - Modify if required by Windows verification: `scripts/apply-dsh-patches.mjs`
 - Modify if required by Windows verification: `scripts/apply-dsh-patches.test.mjs`
+- Modify if required by Windows verification: `scripts/pack-win.ps1`
+- Create if required by Windows verification: `scripts/pack-win.test.mjs`
 - Otherwise verify only.
 
 **Interfaces:**
@@ -492,10 +494,21 @@ git diff --cached --check
 git commit -m "fix(pack): recognize CRLF-applied DSH patches"
 ```
 
-Then run the packaging command:
+If packaging exposes reliance on broken global `npm`/`npx` shims, add an executable behavior regression before changing the script. The regression must prove that packaging derives `npm.cmd` from the resolved Node installation, invokes repository-local `install-electron.cmd` and `electron-builder.cmd`, and aborts immediately when dependency installation fails. Do not satisfy this requirement with source-text matching alone.
+
+After the regression is red, make the minimum packaging-script change and commit only the script and its behavior test:
 
 ```powershell
-powershell -File scripts/pack-win.ps1 -DirOnly
+node --test scripts/pack-win.test.mjs
+git add -- scripts/pack-win.ps1 scripts/pack-win.test.mjs
+git diff --cached --check
+git commit -m "fix(pack): use local Electron toolchain"
+```
+
+Then run the packaging command with PowerShell 7, which is required on this workstation because endpoint policy blocks Windows PowerShell 5.1 from staging executable files in the worktree:
+
+```powershell
+pwsh -File scripts/pack-win.ps1 -DirOnly
 ```
 
 Expected: `apps/desktop/dist-unpacked/win-unpacked/agent-pi-DSH.exe` exists and packaged resources contain `preload.cjs`, `codex-auth.mjs`, and `codex-models.mjs`.
