@@ -4488,6 +4488,32 @@ index 0000000000..9d92528fb5
 +    expect(shouldTrySummarizationFallback(error)).toBe(false)
 +  })
 +})
+diff --git a/packages/compaction/compaction-basic/tests/manual-compaction.spec.ts b/packages/compaction/compaction-basic/tests/manual-compaction.spec.ts
+index 9e400f7741..a05d3f2454 100644
+--- a/packages/compaction/compaction-basic/tests/manual-compaction.spec.ts
++++ b/packages/compaction/compaction-basic/tests/manual-compaction.spec.ts
+@@ -367,7 +367,9 @@ describe('compactNow through the real loop', () => {
+     const markers = compactEvents(agent.session)
+     expect(markers.map(event => event.type)).toEqual(['compaction/start', 'compaction/end'])
+     expect(markers[1]?.type === 'compaction/end' && markers[1].data.error)
+-      .toContain('summarizer unavailable')
++      .toContain('primary failure mock/mock (UNKNOWN)')
++    expect(markers[1]?.type === 'compaction/end' && markers[1].data.error)
++      .not.toContain('summarizer unavailable')
+
+     agent.followup(createUserMessage({
+       content: [{ type: 'text', text: 'runs after the failure' }],
+@@ -749,7 +751,9 @@ describe('compactNow transaction and failure classification', () => {
+     const events = compactEvents(session)
+     expect(events.map(event => event.type)).toEqual(['compaction/start', 'compaction/end'])
+     expect(events[1]?.type === 'compaction/end' && events[1].data.error)
+-      .toContain('summarizer aborted')
++      .toContain('cancelled by the caller')
++    expect(events[1]?.type === 'compaction/end' && events[1].data.error)
++      .not.toContain('summarizer aborted')
+   })
+
+   it('classifies agent cancellation during maintenance as an expected cancellation', async () => {
 diff --git a/packages/extensions/tool-cordis/src/api-catalog.ts b/packages/extensions/tool-cordis/src/api-catalog.ts
 index 32e9ccbda6..0cd60a6849 100644
 --- a/packages/extensions/tool-cordis/src/api-catalog.ts
