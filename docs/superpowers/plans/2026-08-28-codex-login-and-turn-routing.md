@@ -4,7 +4,7 @@
 
 **Goal:** Make the packaged ChatGPT/Codex login report the actual Codex model and let a user route exactly one main-conversation turn through `subagent_codex`.
 
-**Architecture:** Keep DSH as the only parent conversation runtime. The Electron main process probes the bundled Codex app-server inside the Agent Pi-specific `CODEX_HOME` and returns normalized model metadata through the existing auth status bridge. The tender web composer owns a per-session one-shot flag; a successful send wraps the original task in a deterministic foreground Codex delegation instruction, while an unavailable or logged-out runtime leaves the draft untouched.
+**Architecture:** Keep DSH as the only parent conversation runtime. The Electron main process probes the bundled Codex app-server inside the Agent Pi-specific `CODEX_HOME` and returns normalized model metadata through the existing auth status bridge. The tender web composer owns one explicit transaction controller per session. Its `idle → armed → preparing → submitting → idle/armed/disposed` transitions validate the public DSH session and input stores, prepare attachments without mutating user work, and reset the one-shot intent only after the host publishes the matching submitted user message.
 
 **Tech Stack:** Electron 43, Node.js ESM/CommonJS preload bridge, Codex CLI/app-server JSON-RPC, hand-authored React client bundle, Node test runner.
 
@@ -15,7 +15,7 @@
 - Product version remains exactly `3.3.5`.
 - Codex is an isolated `subagent_codex`, not a DSH model provider and not an embedded Windows Codex Desktop window.
 - ChatGPT login uses the system browser and the application-specific `CODEX_HOME`; no API key or token crosses into the renderer.
-- The “Codex 执行” control applies to one successfully submitted message and resets only after submission begins.
+- The “Codex 执行” control applies to one successfully submitted message and resets only after the host confirms that submitted message.
 - If Codex is unavailable or logged out, preserve the draft and attachments and do not silently execute with DSH.
 - Preserve unrelated root and `vendor/deepseek-harness` working-tree changes.
 
@@ -364,104 +364,101 @@ git diff --cached --check
 git commit -m "test(codex): define one-shot delegation contract"
 ```
 
-### Task 5: Wire the one-shot control into the main composer
+### Task 5: Replace the one-shot wiring with a per-session transaction controller
 
 **Files:**
-- Modify: `bundles/tender-web/lib/client.js:1459-1530`
-- Modify: `bundles/tender-web/lib/client.js:3600-3670`
-- Modify: `bundles/tender-web/lib/client.js:8098-8220`
-- Modify: `bundles/tender-web/lib/client.js:270-298`
-- Modify: `bundles/tender-web/tests/codex-settings.test.ts`
+- Modify: `bundles/tender-web/lib/client.js`
 - Modify: `bundles/tender-web/tests/codex-turn.test.ts`
+- Preserve: `bundles/tender-web/tests/codex-settings.test.ts`
 
 **Interfaces:**
-- Consumes: `window.agentPiDesktop.codexAuthStatus()` and Task 4’s framing.
-- Produces: session-keyed `codexTurnState`, a visible one-shot button, and send behavior that resets only after the original submit is called.
+- Consumes: `window.agentPiDesktop.codexAuthStatus()`, Task 4’s exact delegation framing, `runtime.sessions.scope(sessionId)`, `runtime.conversation.input.for(scope).state`, and the public session snapshot.
+- Produces: one controller per session with explicit `idle`, `armed`, `preparing`, `submitting`, and `disposed` phases; the compact `Codex 执行` button reflects the controller phase.
+- The controller is the only owner of armed intent, active attempt token, captured draft/attachment instances, settlement subscriptions, and terminal cleanup.
 
-- [ ] **Step 1: Add failing shipped-bundle assertions**
+- [ ] **Step 1: Add failing behavioral tests for the two remaining review findings**
 
-```ts
-assert.match(client, /Codex 执行/)
-assert.match(client, /run_in_background=false/)
-assert.match(client, /codexAuthStatus\(\)/)
-assert.match(client, /setCodexTurnArmed/)
-assert.match(client, /clearCodexTurnAfterSubmit/)
+Exercise the actual shipped composer through the existing VM harness with queued animation frames:
+
+1. A resident session whose public snapshot has `removed: true` is rejected before draft mutation and before the original submit.
+2. Input phases `submitting` and `adjudicating` are rejected before draft mutation and before the original submit; the controller remains armed and retryable when the input returns to `plain`.
+
+Each test must first fail for the reviewed behavior, not because of a harness error.
+
+- [ ] **Step 2: Replace scattered state with one explicit controller per session**
+
+Use a session-keyed controller map outside React mount lifetime. Each controller owns:
+
+```text
+phase: idle | armed | preparing | submitting | disposed
+latestProps
+attemptToken
+originalDraft
+framedDraft
+capturedAttachmentIds
+preSubmitUserNodeWatermark
+unsubscribeSession
+unsubscribeInput
 ```
 
-Also assert that the directive requires `subagent_codex` and the Models section still does not register Codex as a provider.
+Required transitions:
 
-- [ ] **Step 2: Run the web tests and observe the missing control**
+| From | Event | To | Required effect |
+| --- | --- | --- | --- |
+| `idle` | user arms | `armed` | notify button listeners |
+| `armed` | submit starts | `preparing` | snapshot draft and session-local attachment instance IDs |
+| `preparing` | auth/preparation/preflight fails | `armed` | preserve latest draft, images, and attachments; release attempt resources |
+| `preparing` | strict preflight passes | `submitting` | write framed draft once, register public-store settlement observers, invoke original submit |
+| `submitting` | matching new user node | `idle` | clear one-shot intent and only captured attachment instances |
+| `submitting` | send error | `armed` | restore only a still-owned framed draft; preserve newer user work |
+| any live phase | session snapshot becomes removed or scope is disposed | `disposed` | unsubscribe, release locks, delete controller from the map |
+
+No standalone `armed`, `submitting`, or `pending` sets may remain after the replacement.
+
+- [ ] **Step 3: Make asynchronous preparation non-mutating**
+
+Replace the Codex branch’s mutating attachment fold with a preparation function that returns the final folded text and captured session-local attachment IDs without changing the live draft or attachment collections while document reads are pending.
+
+After every await, reacquire the controller’s `latestProps` and public stores. Before writing the framed draft require all of the following in the same synchronous turn:
+
+- the controller and attempt token are still current and phase is `preparing`;
+- the session snapshot exists and `removed !== true`;
+- the input snapshot exists and `phase === 'plain'`;
+- the live draft still equals the captured original draft;
+- the session-local attachment instance-ID sequence still equals the captured sequence.
+
+If any check fails, return to `armed` without modifying user work or invoking the original submit.
+
+- [ ] **Step 4: Make settlement terminal, session-safe, and success-based**
+
+Immediately before the original submit, require usable `getSnapshot` and `subscribe` functions from both public stores. Register both subscriptions inside the same guarded synchronous callback and invoke the original submit inside that guard.
+
+- Success is only a new post-watermark user node whose exact text equals the framed delegation.
+- Only `promptError.op === 'send'` is a send failure; `op === 'stop'` is unrelated.
+- Setup/original-submit exceptions return the controller to `armed`, dispose partial subscriptions, and conditionally restore only a still-owned framed draft.
+- A removed/disposed session disposes the controller instead of retrying a nonexistent conversation.
+- Confirmed success removes only the captured attachment IDs from that session’s own map and never overwrites another active session’s attachment list.
+- Every terminal path disposes subscriptions exactly once. No timer or React-mounted effect may be required for correctness.
+
+- [ ] **Step 5: Preserve the compact one-shot UI and ordinary submit path**
+
+The existing `Codex 执行` button, accessibility state, exact unavailable message, and exact Task 4 delegation text remain. `preparing` and `submitting` prevent duplicate Codex submits. When the controller is not armed, the original composer submit behavior remains unchanged.
+
+- [ ] **Step 6: Run focused and full tests**
 
 ```powershell
-node --test bundles/tender-web/tests/codex-settings.test.ts bundles/tender-web/tests/codex-turn.test.ts
-```
-
-Expected: FAIL because the shipped bundle has no one-shot state or button.
-
-- [ ] **Step 3: Add session-keyed state outside React mount lifetime**
-
-```js
-const codexTurnState = window.__apCodexTurnState || (window.__apCodexTurnState = {
-  armed: new Set(),
-  listeners: new Set(),
-  submitting: new Set(),
-})
-function codexTurnKey(props) {
-  return sessionHint(props) || runtime.sessionId || 'active'
-}
-function codexTurnArmed(props) {
-  return codexTurnState.armed.has(codexTurnKey(props))
-}
-function setCodexTurnArmed(props, armed) {
-  const key = codexTurnKey(props)
-  if (armed) codexTurnState.armed.add(key)
-  else codexTurnState.armed.delete(key)
-  codexTurnState.listeners.forEach((listener) => listener())
-}
-```
-
-- [ ] **Step 4: Gate Codex send before mutating the draft**
-
-Add `submitCodexTurn(props, orig)` with this order:
-
-1. Reject a duplicate submit while the session key is in `submitting`.
-2. Await `window.agentPiDesktop.codexAuthStatus()` before changing draft or attachments.
-3. On unavailable, logged-out, or bridge failure, show `Codex 尚未登录或运行时不可用，请到设置 → Codex 智能体完成登录。`, remove the submit lock, and preserve draft, attachments, and armed state.
-4. On success, run the existing attachment/knowledge folding path, wrap the final folded text, invoke `orig()`, then clear the armed and attachment state using existing post-submit timing.
-
-The ordinary branch of `wrapComposerSubmit` must keep current behavior when `codexTurnArmed(props)` is false.
-
-- [ ] **Step 5: Render the compact one-shot button**
-
-```js
-h('button', {
-  type: 'button',
-  className: 'ap-codex-turn' + (armed ? ' on' : ''),
-  'aria-pressed': armed ? 'true' : 'false',
-  title: armed
-    ? '下一条消息将由 Codex 子智能体执行'
-    : '仅将下一条消息交给 Codex 子智能体',
-  onMouseDown: (event) => event.preventDefault(),
-  onClick: () => setCodexTurnArmed(propsRef.current, !armed),
-}, Icon('sparkles', 14), 'Codex 执行')
-```
-
-Subscribe a React counter to `codexTurnState.listeners`. Add only compact `.ap-codex-turn` styles using existing accent and border variables.
-
-- [ ] **Step 6: Run all tender web tests**
-
-```powershell
+node --test bundles/tender-web/tests/codex-turn.test.ts bundles/tender-web/tests/codex-settings.test.ts
 node --test (Get-ChildItem bundles/tender-web/tests -Filter *.test.ts).FullName
 ```
 
-Expected: all tests pass; attachment, selection rewrite, and session wake tests remain green.
+Expected: all prior Task 5 behavioral tests plus the removed-session and busy-input tests pass; attachment, selection rewrite, and session wake tests remain green.
 
-- [ ] **Step 7: Commit the composer wiring**
+- [ ] **Step 7: Commit the transaction-controller replacement**
 
 ```powershell
-git add -- bundles/tender-web/lib/client.js bundles/tender-web/tests/codex-settings.test.ts bundles/tender-web/tests/codex-turn.test.ts
+git add -- bundles/tender-web/lib/client.js bundles/tender-web/tests/codex-turn.test.ts
 git diff --cached --check
-git commit -m "feat(codex): route one main-chat turn through Codex"
+git commit -m "refactor(codex): use per-session turn transactions"
 ```
 
 ### Task 6: Verify the unpacked installed path without publishing
