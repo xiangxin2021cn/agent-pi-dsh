@@ -14,6 +14,7 @@ import {
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import { repairDeepSeekModelCapacities } from './deepseek-model-capacities.mjs'
 import { removeProductParallelCap } from './heal-agent-loop-settings.mjs'
 import { installUniverRuntimeDeps } from './install-univer-runtime-deps.mjs'
 
@@ -251,11 +252,17 @@ function buildManagedPatch(deps) {
     models:
       - id: deepseek-v4-flash-vision-exp
         name: DeepSeek-V4-Flash-Vision-Exp
+        contextWindow: 1000000
+        maxTokens: 384000
         inputModalities: [text, image]
       - id: deepseek-v4-flash
         name: DeepSeek-V4-Flash
+        contextWindow: 1000000
+        maxTokens: 384000
       - id: deepseek-v4-pro
         name: DeepSeek-V4-Pro
+        contextWindow: 1000000
+        maxTokens: 384000
 - id: agent-default-model
   config:
     provider: deepseek-official
@@ -306,6 +313,14 @@ function writeManagedPatch(deps) {
     writeFileSync(patchPath, next)
   }
   if (patchManaged) retireVisionRouterResidue()
+}
+
+function repairExistingDeepSeekModelCapacities() {
+  const settingsPath = join(home, 'settings.yaml')
+  if (!existsSync(settingsPath)) return
+  const current = readFileSync(settingsPath, 'utf8')
+  const repaired = repairDeepSeekModelCapacities(current)
+  if (repaired.changed) writeFileSync(settingsPath, repaired.yaml)
 }
 
 const OFFICIAL_VISION_MODEL = `    - id: deepseek-v4-flash-vision-exp
@@ -724,6 +739,7 @@ dropFactoryGenuiSkill()
 syncUniverSkills()
 writeManifest(dependencies)
 writeManagedPatch(dependencies)
+repairExistingDeepSeekModelCapacities()
 
 process.stdout.write(`tender profile ready at ${profileDir}\n`)
 process.stdout.write(`router-standard preset at ${routerPresetDest}\n`)

@@ -1,3 +1,219 @@
+diff --git a/.agents/notes/implemented/architecture/2026-07-20-routed-model-context-and-compaction-policy.i18n.yaml b/.agents/notes/implemented/architecture/2026-07-20-routed-model-context-and-compaction-policy.i18n.yaml
+index f328cb25c3..3e6ad28635 100644
+--- a/.agents/notes/implemented/architecture/2026-07-20-routed-model-context-and-compaction-policy.i18n.yaml
++++ b/.agents/notes/implemented/architecture/2026-07-20-routed-model-context-and-compaction-policy.i18n.yaml
+@@ -2,5 +2,5 @@
+ # side as of the last confirmed-consistent state. Both languages carry equal authority;
+ # after editing either side, bring the other along and re-record with:
+ #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-07-20-routed-model-context-and-compaction-policy.md
+-2026-07-20-routed-model-context-and-compaction-policy.md: ca898acefa4dde9190e0d17249ec07cc875d454f
+-2026-07-20-routed-model-context-and-compaction-policy.zh.md: 7eddcd6d9c71670532b7be5409439dc079ca79ca
++2026-07-20-routed-model-context-and-compaction-policy.md: 4691fa10c215b3a13e24d97ff55c5d93436e2463
++2026-07-20-routed-model-context-and-compaction-policy.zh.md: 73c62122377f8b092e97d0dd3a6fa55d09d0d27f
+diff --git a/.agents/notes/implemented/architecture/2026-07-20-routed-model-context-and-compaction-policy.md b/.agents/notes/implemented/architecture/2026-07-20-routed-model-context-and-compaction-policy.md
+index ca898acefa..4691fa10c2 100644
+--- a/.agents/notes/implemented/architecture/2026-07-20-routed-model-context-and-compaction-policy.md
++++ b/.agents/notes/implemented/architecture/2026-07-20-routed-model-context-and-compaction-policy.md
+@@ -16,7 +16,7 @@ Neither obvious configuration owner is sufficient. Compact-basic is optional and
+ 
+ `LlmAdapter.resolveModel(provider, model, signal?)` returns aggregate metadata for one exact route, with optional `LlmModelContext` under its `context` field. `LlmRuntime.resolveModelInfo()` selects the registered route owner, validates a positive integer `contextWindow`, and returns detached metadata. The query is independent of `listModels()`: an unlisted dynamic model may have capacity metadata, and an absent `context` means only that the adapter cannot describe capacity.
+ 
+-The hand-rolled DeepSeek adapter accepts optional `contextWindow` on each configured model plus an adapter-wide `defaultContextWindow`. Exact model capacity wins; an entry without capacity and an unlisted pass-through id inherit the adapter default, or omit `context` when it is absent. The two built-in model entries each publish an exact 256,000-token capacity. The pi-ai adapter resolves capacity from the same catalog descriptor that authoritatively resolves the request model.
++The hand-rolled DeepSeek adapter accepts optional `contextWindow` on each configured model plus an adapter-wide `defaultContextWindow`. Exact model capacity wins; an entry without capacity and an unlisted pass-through id inherit the adapter default, or omit `context` when it is absent. The three built-in V4 entries each publish an exact 1,000,000-token capacity. The pi-ai adapter resolves capacity from the same catalog descriptor that authoritatively resolves the request model. The [per-field model capacity provenance Agent Note](2026-08-28-model-capacity-provenance.md) amends the shipped model values and pi-ai provenance mechanics; adapter ownership and compaction policy here remain unchanged.
+ 
+ ### Token measurement remains model-agnostic
+ 
+diff --git a/.agents/notes/implemented/architecture/2026-07-20-routed-model-context-and-compaction-policy.zh.md b/.agents/notes/implemented/architecture/2026-07-20-routed-model-context-and-compaction-policy.zh.md
+index 7eddcd6d9c..73c6212237 100644
+--- a/.agents/notes/implemented/architecture/2026-07-20-routed-model-context-and-compaction-policy.zh.md
++++ b/.agents/notes/implemented/architecture/2026-07-20-routed-model-context-and-compaction-policy.zh.md
+@@ -16,7 +16,7 @@ Status: implemented
+ 
+ `LlmAdapter.resolveModel(provider, model, signal?)` 返回一条精确路由的聚合元数据，其中可选的 `LlmModelContext` 位于 `context` 字段下。`LlmRuntime.resolveModelInfo()` 选择已注册的路由所属方，验证 `contextWindow` 为正整数，并返回与适配器内部状态分离的元数据。该查询独立于 `listModels()`：不在目录中的动态模型也可以拥有容量元数据，而缺少 `context` 只表示适配器无法描述容量。
+ 
+-手写 DeepSeek 适配器允许每个已配置模型提供可选 `contextWindow`，并支持适配器级 `defaultContextWindow`。精确模型容量优先；未提供容量的模型项与未列出的透传 id 会继承适配器默认值，若默认值也不存在则省略 `context`。两个内置模型项都公开精确的 256,000 token 容量。pi-ai 适配器从同一个目录描述符解析容量，该描述符也用于权威解析请求模型。
++手写 DeepSeek 适配器允许每个已配置模型提供可选 `contextWindow`，并支持适配器级 `defaultContextWindow`。精确模型容量优先；未提供容量的模型项与未列出的透传 id 会继承适配器默认值，若默认值也不存在则省略 `context`。三个内置 V4 配置项均公布精确的 1,000,000 token 容量。pi-ai 适配器从同一个目录描述符解析容量，该描述符也用于权威解析请求模型。[逐字段模型容量来源 Agent Note](2026-08-28-model-capacity-provenance.zh.md) 修订已交付模型值与 pi-ai 来源机制；本记录的适配器归属和压缩策略保持不变。
+ 
+ ### Token 计量保持模型无关
+ 
+diff --git a/.agents/notes/implemented/architecture/2026-07-30-adapter-owned-max-token-defaults.i18n.yaml b/.agents/notes/implemented/architecture/2026-07-30-adapter-owned-max-token-defaults.i18n.yaml
+index b025f076f0..16e318bc91 100644
+--- a/.agents/notes/implemented/architecture/2026-07-30-adapter-owned-max-token-defaults.i18n.yaml
++++ b/.agents/notes/implemented/architecture/2026-07-30-adapter-owned-max-token-defaults.i18n.yaml
+@@ -2,5 +2,5 @@
+ # side as of the last confirmed-consistent state. Both languages carry equal authority;
+ # after editing either side, bring the other along and re-record with:
+ #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-07-30-adapter-owned-max-token-defaults.md
+-2026-07-30-adapter-owned-max-token-defaults.md: ec6a68b74d0cdaefcd214be98efb32377721169a
+-2026-07-30-adapter-owned-max-token-defaults.zh.md: 700d90125c125184625afc33ebf64add4ab9191c
++2026-07-30-adapter-owned-max-token-defaults.md: 091e04f06a5309fd902043539de8c5e55b43f7b4
++2026-07-30-adapter-owned-max-token-defaults.zh.md: 0873834f8fdf2af5389b796d3f95d694f58f9631
+diff --git a/.agents/notes/implemented/architecture/2026-07-30-adapter-owned-max-token-defaults.md b/.agents/notes/implemented/architecture/2026-07-30-adapter-owned-max-token-defaults.md
+index ec6a68b74d..091e04f06a 100644
+--- a/.agents/notes/implemented/architecture/2026-07-30-adapter-owned-max-token-defaults.md
++++ b/.agents/notes/implemented/architecture/2026-07-30-adapter-owned-max-token-defaults.md
+@@ -14,7 +14,7 @@ An LLM adapter could serialize an explicit `GenerateOptions.maxTokens`, but its
+ 
+ The agent loop continues to prepare calls before logging `request/header`, so the effective config and markers for fields supplied by adapter defaults become durable request facts before dispatch. Before the next `agent/request` waterfall, the loop removes marked fields from the proposal; exact-model resolution then materializes the current route's defaults again. A provider/model switch therefore cannot mistake a previous adapter's default for an explicit override, while explicit conversation values persist. Direct `LlmRuntime.stream()` calls resolve the same default at the final adapter boundary. The field is a request default rather than a hard model output limit; adapters that preserve provider-owned defaults omit it.
+ 
+-The native DeepSeek adapter exposes `maxTokens` in Cordis config with a 256,000-token default and maps the effective value to `max_tokens`. Its default context capacity is 1,000,000 tokens: both built-in V4 entries publish that exact capacity, while configured entries without capacity and unlisted pass-through ids inherit the same adapter-wide fallback.
++The native DeepSeek adapter exposes `maxTokens` in Cordis config with a 256,000-token adapter-wide fallback and maps the effective value to `max_tokens`. Its three built-in V4 entries publish exact 1,000,000-token context capacities and 384,000-token output limits. A configured entry without its own output limit and an unlisted pass-through id inherit the 256,000-token output fallback; an entry without context capacity and an unlisted id inherit the 1,000,000-token context fallback. The [per-field model capacity provenance Agent Note](2026-08-28-model-capacity-provenance.md) owns the verified built-in values and provenance while preserving this adapter-default materialization decision.
+ 
+ ## Alternatives considered
+ 
+@@ -22,12 +22,12 @@ The native DeepSeek adapter exposes `maxTokens` in Cordis config with a 256,000-
+ 
+ **Set `AgentOptions.maxTokens` in every shipped application.** Rejected because applications would duplicate adapter deployment policy, direct LLM calls would behave differently, and selecting another provider would retain a DeepSeek-specific cap.
+ 
+-**Represent 256,000 as a hard per-model maximum.** Rejected because the configured value is the desired request budget, not evidence that every configured endpoint rejects larger outputs. Explicit callers remain authoritative.
++**Represent the 256,000 adapter fallback as a hard per-model maximum.** Rejected because the configured value is the desired request budget, not evidence that every configured endpoint rejects larger outputs. Explicit callers remain authoritative.
+ 
+-**Leave the provider default in control.** Rejected for the native DeepSeek deployment because the product requires a stable 256,000-token conversation budget across compatible endpoints.
++**Leave the provider default in control.** Rejected for the native DeepSeek deployment because unlisted or output-limit-omitting routes require a stable 256,000-token conversation fallback instead of an endpoint-dependent budget.
+ 
+ ## Consequences
+ 
+-DeepSeek conversations send `max_tokens: 256000` by default, and the session request header records both the value and that the adapter supplied it. Deployments can change the adapter default through `llm-deepseek.config.maxTokens`; per-agent and per-request values override it. Changing the route rematerializes the new exact adapter's default instead of carrying DeepSeek's derived value forward. Other adapters retain their existing behavior until they intentionally publish `defaultMaxTokens`.
++The three listed DeepSeek V4 models send `max_tokens: 384000` by default; unlisted models and configured entries without their own output limit use the adapter's 256,000-token fallback. The session request header records both the effective value and that the adapter supplied it. Deployments can change the fallback through `llm-deepseek.config.maxTokens`, a model entry can set its own limit, and per-agent or per-request values override either. Changing the route rematerializes the new exact adapter's default instead of carrying DeepSeek's derived value forward. Other adapters retain their existing behavior until they intentionally publish `defaultMaxTokens`.
+ 
+-The 256,000-token output budget reserves a large part of the one-million-token context on endpoints that pre-allocate requested output. Deployments whose gateway or model supports a smaller budget must lower `maxTokens`; the explicit configuration is preferable to an undocumented provider fallback.
++The adapter-wide 256,000-token output fallback reserves a large part of the one-million-token context on endpoints that pre-allocate requested output. Deployments whose gateway or model supports a smaller budget must lower `maxTokens`; the explicit configuration is preferable to an undocumented provider fallback.
+diff --git a/.agents/notes/implemented/architecture/2026-07-30-adapter-owned-max-token-defaults.zh.md b/.agents/notes/implemented/architecture/2026-07-30-adapter-owned-max-token-defaults.zh.md
+index 700d90125c..0873834f8f 100644
+--- a/.agents/notes/implemented/architecture/2026-07-30-adapter-owned-max-token-defaults.zh.md
++++ b/.agents/notes/implemented/architecture/2026-07-30-adapter-owned-max-token-defaults.zh.md
+@@ -14,7 +14,7 @@ LLM（大语言模型）适配器可以序列化显式的 `GenerateOptions.maxTo
+ 
+ agent loop 仍在记录 `request/header` 前准备调用，因此生效配置和标明哪些字段由适配器默认值填入的标记，会在分派前成为持久请求事实。下一次 `agent/request` waterfall（瀑布式事件）前，agent loop 会从提议中移除带标记字段，随后精确模型解析会再次填入当前路由的默认值。因此，切换提供方／模型不会把前一个适配器的默认值误当成显式覆盖，而显式对话值则会保留。直接调用 `LlmRuntime.stream()` 时，也会在最终适配器边界解析同一默认值。该字段是请求默认值，而非模型输出硬上限；沿用提供方自有默认值的适配器会省略它。
+ 
+-原生 DeepSeek 适配器在 Cordis 配置中公开 `maxTokens`，默认值为 256,000 token，并将生效值映射为 `max_tokens`。其默认上下文容量为 1,000,000 token：两个内置 V4 配置项均公布这一精确容量；不含容量的已配置项和未列出的原样传递 id 则继承同一个适配器级回退值。
++原生 DeepSeek 适配器在 Cordis 配置中公开 `maxTokens`，提供 256,000 token 的适配器级回退值，并将生效值映射为 `max_tokens`。其三个内置 V4 配置项均公布精确的 1,000,000 token 上下文容量和 384,000 token 输出上限。未设置自身输出上限的已配置项和未列出的原样传递 id 会继承 256,000 token 输出回退值；未设置上下文容量的配置项和未列出 id 会继承 1,000,000 token 上下文回退值。[逐字段模型容量来源 Agent Note](2026-08-28-model-capacity-provenance.zh.md) 负责记录已核实的内置值与来源，同时保留本记录的适配器默认值填入决策。
+ 
+ ## Alternatives considered
+ 
+@@ -22,12 +22,12 @@ agent loop 仍在记录 `request/header` 前准备调用，因此生效配置和
+ 
+ **在每个已发布应用中设置 `AgentOptions.maxTokens`。** 不予采纳，因为应用会重复适配器部署策略，直接 LLM 调用的行为将不同，而且选择另一个提供方后仍会保留 DeepSeek 专用上限。
+ 
+-**将 256,000 表示为每模型硬上限。** 不予采纳，因为配置值是所需请求预算，无法证明每个已配置端点都会拒绝更大的输出。显式调用方仍具有最终决定权。
++**将 256,000 适配器回退值表示为每模型硬上限。** 不予采纳，因为配置值是所需请求预算，无法证明每个已配置端点都会拒绝更大的输出。显式调用方仍具有最终决定权。
+ 
+-**由提供方默认值控制。** 对原生 DeepSeek 部署不予采纳，因为产品要求各兼容端点都采用稳定的 256,000 token 对话预算。
++**由提供方默认值控制。** 对原生 DeepSeek 部署不予采纳，因为未列出模型或省略输出上限的路由需要稳定的 256,000 token 对话回退值，而不能使用随端点变化的预算。
+ 
+ ## Consequences
+ 
+-DeepSeek 对话默认发送 `max_tokens: 256000`，会话请求 header 会记录该值，并记录该值由适配器提供。部署可以通过 `llm-deepseek.config.maxTokens` 更改适配器默认值；每个 agent 和每次请求的值都会覆盖它。更改路由会重新填入新路由精确匹配到的适配器默认值，而不是继续沿用 DeepSeek 派生出的值。其他适配器会保留现有行为，直至主动公布 `defaultMaxTokens`。
++三个已列出 DeepSeek V4 模型默认发送 `max_tokens: 384000`；未列出模型和未设置自身输出上限的已配置项使用适配器的 256,000 token 回退值。会话请求 header 会记录生效值，并记录该值由适配器提供。部署可以通过 `llm-deepseek.config.maxTokens` 更改回退值，模型配置项可以设置自身上限，每个 agent 或每次请求的值则会覆盖两者。更改路由会重新填入新路由精确匹配到的适配器默认值，而不是继续沿用 DeepSeek 派生出的值。其他适配器会保留现有行为，直至主动公布 `defaultMaxTokens`。
+ 
+-对于预分配请求输出的端点，256,000 token 的输出预算会占用 1,000,000 token 上下文中的很大部分。如果部署使用的 gateway 或模型仅支持较小预算，则必须调低 `maxTokens`；显式配置优于无文档说明的提供方回退值。
++对于预分配请求输出的端点，适配器级 256,000 token 输出回退值会占用 1,000,000 token 上下文中的很大部分。如果部署使用的 gateway 或模型仅支持较小预算，则必须调低 `maxTokens`；显式配置优于无文档说明的提供方回退值。
+diff --git a/.agents/notes/implemented/architecture/2026-08-28-model-capacity-provenance.i18n.yaml b/.agents/notes/implemented/architecture/2026-08-28-model-capacity-provenance.i18n.yaml
+new file mode 100644
+index 0000000000..0b6f028fd3
+--- /dev/null
++++ b/.agents/notes/implemented/architecture/2026-08-28-model-capacity-provenance.i18n.yaml
+@@ -0,0 +1,6 @@
++# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
++# side as of the last confirmed-consistent state. Both languages carry equal authority;
++# after editing either side, bring the other along and re-record with:
++#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-28-model-capacity-provenance.md
++2026-08-28-model-capacity-provenance.md: 1d5ea45032a3e07542e8ac42d5b3f7c7d742bff8
++2026-08-28-model-capacity-provenance.zh.md: b469b410b13cf2eb503fc17aa1e0fad215443a3e
+diff --git a/.agents/notes/implemented/architecture/2026-08-28-model-capacity-provenance.md b/.agents/notes/implemented/architecture/2026-08-28-model-capacity-provenance.md
+new file mode 100644
+index 0000000000..1d5ea45032
+--- /dev/null
++++ b/.agents/notes/implemented/architecture/2026-08-28-model-capacity-provenance.md
+@@ -0,0 +1,41 @@
++# Agent Note: Per-field model capacity provenance
++
++Status: implemented
++
++English | [中文](2026-08-28-model-capacity-provenance.zh.md)
++
++## Problem
++
++Model-listing endpoints may omit one or both capacity fields, installed catalogs can lag provider releases, and configured users may correct either field independently. Treating one row as a single-authority block either discards useful provider metadata or overwrites deliberate user values. Older settings also carry numeric capacities without provenance and must remain authoritative without a migration rewrite.
++
++## Decision
++
++Capacity resolution and persistence are independent for `contextWindow` and `maxTokens`. Each field follows `user` > `provider` > `official` > `estimated`: explicit or legacy user values survive refresh, provider metadata replaces only a missing or non-user field, the local official table supplies only exact verified IDs, and the estimate supplies the remaining gap. `contextWindowSource` and `maxTokensSource` carry the selected origin; discovery and its wire schema allow `provider`, `official`, or `estimated`, while persisted model configuration also accepts `user`. A legacy numeric field without its paired source is interpreted as `user` and is not rewritten merely by loading settings.
++
++The exact official table contains only `deepseek-v4-flash`, `deepseek-v4-pro`, and `deepseek-v4-flash-vision-exp`, each with a 1,000,000-token context window and 384,000-token output limit. Unknown and near-match IDs use the conservative 262,144 / 32,768 estimate when the provider supplies neither field. This local correction table makes no additional capacity claim for another vendor or alias. The independent `llm-deepseek` adapter exposes 1,000,000 / 384,000 for those same three built-ins but retains its existing 1,000,000 / 256,000 fallback for an unlisted model ID.
++
++## Package ownership
++
++- `@deepseek-ai/dsh-llm` owns the provider-neutral source union and optional discovery fields and preserves them when copying discovered rows.
++- `@deepseek-ai/dsh-host-apiproxy` carries the optional fields through its API view and Zod wire validation.
++- `@deepseek-ai/dsh-llm-pi-ai` owns exact-ID resolution, provider-listing normalization, configurable source fields, and legacy numeric compatibility.
++- `@deepseek-ai/dsh-client-ui-settings-models` adopts discovery per field, preserves user-owned values, marks manual edits as `user`, clears a value with its source, and displays localized provenance labels.
++- `@deepseek-ai/dsh-llm-deepseek` publishes the verified capacities on its three listed DeepSeek V4 models without changing its unlisted fallback.
++
++## Verification
++
++- `pnpm exec vitest run packages/llm/llm-pi-ai/tests/capacity.spec.ts` passes 10/10 tests, including exact, near-match, mixed-provider, estimate, and prototype-key cases.
++- Focused discovery, core-copy, and API-schema suites pass 86/86 tests; their review coverage crosses the final discovery boundary and the Zod value schema.
++- `pnpm exec vitest run packages/llm/llm-pi-ai/tests/config.spec.ts packages/client/ui-settings-models/tests/provider-form.client.spec.tsx` passes 104/104 tests, including legacy ownership, per-field adoption/edit/clear behavior, omitted-source normalization, and localized labels.
++- `pnpm exec vitest run packages/llm/llm-deepseek/tests/adapter.spec.ts` passes 143/143 tests, including all three built-ins and the unchanged unlisted fallback.
++- Affected package no-emit checks, the settings client bundle, and the host library build pass.
++
++## Alternatives considered
++
++- **One source for the whole model row.** Rejected because a provider can disclose one capacity while the exact official table or estimate supplies the other; one label would misstate at least one field.
++- **Always replace configured values with fresh discovery.** Rejected because it would erase deliberate user corrections and reinterpret legacy numeric settings that previously behaved as authored configuration.
++- **Infer official capacity from provider names or model aliases.** Rejected because unverified aliases and third-party gateways can reuse similar names with different limits; only exact verified IDs can carry `official` provenance.
++
++## Consequences
++
++Configuration and wire formats gain optional provenance fields while old numeric-only settings remain valid and user-owned. Discovery becomes usable even when a listing omits capacity, but estimated values remain explicit guesses that a user or later provider response can replace. Maintaining separate pi-ai discovery estimates and `llm-deepseek` adapter fallbacks is intentional: they serve different entry paths and are documented separately so 32,768 and 256,000 are not mistaken for official DeepSeek V4 output limits.
+diff --git a/.agents/notes/implemented/architecture/2026-08-28-model-capacity-provenance.zh.md b/.agents/notes/implemented/architecture/2026-08-28-model-capacity-provenance.zh.md
+new file mode 100644
+index 0000000000..b469b410b1
+--- /dev/null
++++ b/.agents/notes/implemented/architecture/2026-08-28-model-capacity-provenance.zh.md
+@@ -0,0 +1,41 @@
++# Agent Note: 逐字段模型容量来源
++
++Status: implemented
++
++[English](2026-08-28-model-capacity-provenance.md) | 中文
++
++## Problem
++
++模型列表端点可能省略一个或两个容量字段，已安装 catalog 可能滞后于提供方版本，已配置用户也可能分别更正任一字段。如果把一整行当作只由单一来源掌管，就会丢弃有用的提供方元数据，或覆盖用户有意写入的值。旧设置还可能带有不含来源的数值容量；这些值必须继续作为权威值，且不能为此重写迁移文件。
++
++## Decision
++
++`contextWindow` 与 `maxTokens` 的容量解析和持久化彼此独立。每个字段遵循 `user` > `provider` > `official` > `estimated`：显式或旧版用户值在刷新后保留，提供方元数据只替换缺失或非用户字段，本地官方表只提供精确匹配且已经核实的模型 id，剩余缺口由估算值补齐。`contextWindowSource` 与 `maxTokensSource` 携带选定来源；发现及其协议 schema 接受 `provider`、`official` 或 `estimated`，持久化模型配置还接受 `user`。没有配套来源字段的旧数值字段按 `user` 解释，仅加载设置不会重写它。
++
++精确官方表只包含 `deepseek-v4-flash`、`deepseek-v4-pro` 与 `deepseek-v4-flash-vision-exp`，各自拥有 1,000,000 个 token 的上下文窗口和 384,000 个 token 的输出上限。当提供方两个字段都未给出时，未知或近似匹配的模型 id 使用 262,144 / 32,768 的保守估算。本地纠正表不会对其他提供方或别名作额外容量声明。独立的 `llm-deepseek` 适配器为同三个内置模型公开 1,000,000 / 384,000，但为未列出的模型 id 保留现有的 1,000,000 / 256,000 回退值。
++
++## 包归属
++
++- `@deepseek-ai/dsh-llm` 拥有提供方无关的来源联合类型和可选发现字段，并在复制发现行时保留这些字段。
++- `@deepseek-ai/dsh-host-apiproxy` 通过 API view 和 Zod 协议校验传递这些可选字段。
++- `@deepseek-ai/dsh-llm-pi-ai` 拥有精确 id 解析、提供方列表规范化、可配置来源字段和旧数值兼容行为。
++- `@deepseek-ai/dsh-client-ui-settings-models` 逐字段采用发现结果、保留用户值、把手工编辑标为 `user`、同时清除数值及其来源，并显示本地化来源标签。
++- `@deepseek-ai/dsh-llm-deepseek` 在三个已列出 DeepSeek V4 模型上发布已核实容量，同时保持未列出模型的回退值不变。
++
++## Verification
++
++- `pnpm exec vitest run packages/llm/llm-pi-ai/tests/capacity.spec.ts` 的 10/10 项测试通过，覆盖精确匹配、近似匹配、提供方与其他来源混合、估算和原型键。
++- 聚焦的发现、核心复制和 API schema 测试共 86/86 项通过；评审补充覆盖跨过了最终发现边界和 Zod 值 schema。
++- `pnpm exec vitest run packages/llm/llm-pi-ai/tests/config.spec.ts packages/client/ui-settings-models/tests/provider-form.client.spec.tsx` 的 104/104 项测试通过，覆盖旧值归属、逐字段采用/编辑/清除、省略来源时的规范化和本地化标签。
++- `pnpm exec vitest run packages/llm/llm-deepseek/tests/adapter.spec.ts` 的 143/143 项测试通过，覆盖全部三个内置模型和保持不变的未列出模型回退值。
++- 受影响包的 no-emit 检查、设置客户端 bundle 和 host 库构建均通过。
++
++## Alternatives considered
++
++- **整行模型只使用一个来源。** 否决，因为提供方可能只披露一个容量字段，另一个由精确官方表或估算值补齐；单个标签至少会误述其中一个字段。
++- **始终以新发现结果替换已配置值。** 否决，因为这会抹掉用户有意更正的值，并重新解释原本作为用户配置生效的旧数值设置。
++- **根据提供方名称或模型别名推断官方容量。** 否决，因为未经核实的别名和第三方网关可以复用相似名称却提供不同限制；只有精确且已核实的模型 id 才能携带 `official` 来源。
++
++## Consequences
++
++配置和协议格式增加可选来源字段，同时旧的纯数值设置继续有效并归用户所有。即使列表省略容量，发现结果仍可使用；但估算值始终是明确的猜测，用户或提供方后续响应可以替换它。pi-ai 发现估算与 `llm-deepseek` 适配器回退值保持分离是有意设计：两者服务不同入口并分别记录，避免把 32,768 或 256,000 误当成官方 DeepSeek V4 输出上限。
 diff --git a/apps/cli/config/agent-presets/code/agent.cordis.yml b/apps/cli/config/agent-presets/code/agent.cordis.yml
 index eedabe4cd7..b5d4683665 100644
 --- a/apps/cli/config/agent-presets/code/agent.cordis.yml
@@ -59,6 +275,182 @@ index 3bccbc7365..81271d8bf0 100644
 -    fetch: false
 +    fetch: true
      searchTimeoutMs: 60000
+diff --git a/docs/config-catalog.i18n.yaml b/docs/config-catalog.i18n.yaml
+index d0665a143e..a35baf68b2 100644
+--- a/docs/config-catalog.i18n.yaml
++++ b/docs/config-catalog.i18n.yaml
+@@ -2,5 +2,5 @@
+ # side as of the last confirmed-consistent state. Both languages carry equal authority;
+ # after editing either side, bring the other along and re-record with:
+ #   pnpm run verify-translation-pairing --write docs/config-catalog.md
+-config-catalog.md: de340b7ffade528301b4538b0553bc11ec969985
+-config-catalog.zh.md: eb17ee89fd7860cc0774073bea542aca315ce652
++config-catalog.md: 46aafccc18dca6d836929c0680807e7ff253d7e0
++config-catalog.zh.md: 53e041a7dbe53c457898e9c79ce45355db8833cb
+diff --git a/docs/config-catalog.md b/docs/config-catalog.md
+index de340b7ffa..46aafccc18 100644
+--- a/docs/config-catalog.md
++++ b/docs/config-catalog.md
+@@ -823,7 +823,7 @@ export interface Config {
+ }
+ ```
+ 
+-Source: [`packages/host/apiproxy/src/index.ts:41`](../packages/host/apiproxy/src/index.ts)
++Source: [`packages/host/apiproxy/src/index.ts:46`](../packages/host/apiproxy/src/index.ts)
+ 
+ <a id="deepseek-aidsh-host-directory-picker-browse"></a>
+ 
+@@ -987,7 +987,7 @@ export interface DeepSeekCatalogModel {
+ 
+ Depends on: [`ModelModality`](../packages/llm/llm/src/index.ts) · [`RetryPolicyConfig`](../packages/llm/llm/src/index.ts)
+ 
+-Source: [`packages/llm/llm-deepseek/src/index.ts:106`](../packages/llm/llm-deepseek/src/index.ts)
++Source: [`packages/llm/llm-deepseek/src/index.ts:107`](../packages/llm/llm-deepseek/src/index.ts)
+ 
+ <a id="deepseek-aidsh-llm-pi-ai"></a>
+ 
+@@ -1105,6 +1105,8 @@ export interface PiAiModelProfile {
+   name?: string
+   /** Maximum combined request and response context in tokens. */
+   contextWindow?: number
++  /** Origin of {@link contextWindow}; an absent source beside a value is a legacy user setting. */
++  contextWindowSource?: PiAiCapacitySource
+   /**
+    * Maximum output tokens. Configuring one also makes it this model's
+    * per-request default; a value inherited from the installed catalog, or the
+@@ -1112,6 +1114,8 @@ export interface PiAiModelProfile {
+    * default on its own.
+    */
+   maxTokens?: number
++  /** Origin of {@link maxTokens}; an absent source beside a value is a legacy user setting. */
++  maxTokensSource?: PiAiCapacitySource
+   /**
+    * Request modalities this model accepts. Absent — or empty, which describes
+    * a model that accepts nothing and so states no answer either — keeps the
+@@ -1225,6 +1229,9 @@ export interface PiAiCompatProfile {
+ /** One request modality a pi-ai model may accept. */
+ export type PiAiModality = Model<Api>['input'][number]
+ 
++/** Persisted origin of one configured model capacity. */
++export type PiAiCapacitySource = 'user' | 'provider' | 'official' | 'estimated'
++
+ /**
+  * Selectable reasoning efforts for one model: each key is a level the model
+  * offers (and selectors show), and its value is the wire spelling dispatch
+@@ -1241,7 +1248,7 @@ export type PiAiThinkingFormat = NonNullable<OpenAICompletionsCompat['thinkingFo
+ 
+ Depends on: `Api` (`@earendil-works/pi-ai`) · `CacheRetention` (`@earendil-works/pi-ai`) · `Model` (`@earendil-works/pi-ai`) · `ModelThinkingLevel` (`@earendil-works/pi-ai`) · `OpenAICompletionsCompat` (`@earendil-works/pi-ai`) · [`RetryPolicyConfig`](../packages/llm/llm/src/index.ts) · `ThinkingBudgets` (`@earendil-works/pi-ai`) · `Transport` (`@earendil-works/pi-ai`)
+ 
+-Source: [`packages/llm/llm-pi-ai/src/config.ts:213`](../packages/llm/llm-pi-ai/src/config.ts)
++Source: [`packages/llm/llm-pi-ai/src/config.ts:215`](../packages/llm/llm-pi-ai/src/config.ts)
+ 
+ <a id="deepseek-aidsh-llm-replay"></a>
+ 
+diff --git a/docs/config-catalog.zh.md b/docs/config-catalog.zh.md
+index eb17ee89fd..53e041a7db 100644
+--- a/docs/config-catalog.zh.md
++++ b/docs/config-catalog.zh.md
+@@ -825,7 +825,7 @@ export interface Config {
+ }
+ ```
+ 
+-来源：[`packages/host/apiproxy/src/index.ts:41`](../packages/host/apiproxy/src/index.ts)
++来源：[`packages/host/apiproxy/src/index.ts:46`](../packages/host/apiproxy/src/index.ts)
+ 
+ <a id="deepseek-aidsh-host-directory-picker-browse"></a>
+ 
+@@ -989,7 +989,7 @@ export interface DeepSeekCatalogModel {
+ 
+ 依赖：[`ModelModality`](../packages/llm/llm/src/index.ts) · [`RetryPolicyConfig`](../packages/llm/llm/src/index.ts)
+ 
+-来源：[`packages/llm/llm-deepseek/src/index.ts:106`](../packages/llm/llm-deepseek/src/index.ts)
++来源：[`packages/llm/llm-deepseek/src/index.ts:107`](../packages/llm/llm-deepseek/src/index.ts)
+ 
+ <a id="deepseek-aidsh-llm-pi-ai"></a>
+ 
+@@ -1107,6 +1107,8 @@ export interface PiAiModelProfile {
+   name?: string
+   /** Maximum combined request and response context in tokens. */
+   contextWindow?: number
++  /** Origin of {@link contextWindow}; an absent source beside a value is a legacy user setting. */
++  contextWindowSource?: PiAiCapacitySource
+   /**
+    * Maximum output tokens. Configuring one also makes it this model's
+    * per-request default; a value inherited from the installed catalog, or the
+@@ -1114,6 +1116,8 @@ export interface PiAiModelProfile {
+    * default on its own.
+    */
+   maxTokens?: number
++  /** Origin of {@link maxTokens}; an absent source beside a value is a legacy user setting. */
++  maxTokensSource?: PiAiCapacitySource
+   /**
+    * Request modalities this model accepts. Absent — or empty, which describes
+    * a model that accepts nothing and so states no answer either — keeps the
+@@ -1227,6 +1231,9 @@ export interface PiAiCompatProfile {
+ /** One request modality a pi-ai model may accept. */
+ export type PiAiModality = Model<Api>['input'][number]
+ 
++/** Persisted origin of one configured model capacity. */
++export type PiAiCapacitySource = 'user' | 'provider' | 'official' | 'estimated'
++
+ /**
+  * Selectable reasoning efforts for one model: each key is a level the model
+  * offers (and selectors show), and its value is the wire spelling dispatch
+@@ -1243,7 +1250,7 @@ export type PiAiThinkingFormat = NonNullable<OpenAICompletionsCompat['thinkingFo
+ 
+ 依赖：`Api`（`@earendil-works/pi-ai`）· `CacheRetention`（`@earendil-works/pi-ai`）· `Model`（`@earendil-works/pi-ai`）· `ModelThinkingLevel`（`@earendil-works/pi-ai`）· `OpenAICompletionsCompat`（`@earendil-works/pi-ai`）· [`RetryPolicyConfig`](../packages/llm/llm/src/index.ts) · `ThinkingBudgets`（`@earendil-works/pi-ai`）· `Transport`（`@earendil-works/pi-ai`)
+ 
+-来源：[`packages/llm/llm-pi-ai/src/config.ts:213`](../packages/llm/llm-pi-ai/src/config.ts)
++来源：[`packages/llm/llm-pi-ai/src/config.ts:215`](../packages/llm/llm-pi-ai/src/config.ts)
+ 
+ <a id="deepseek-aidsh-llm-replay"></a>
+ 
+diff --git a/docs/subsystems/llm-streaming.i18n.yaml b/docs/subsystems/llm-streaming.i18n.yaml
+index cd1adacbe3..3a193908ae 100644
+--- a/docs/subsystems/llm-streaming.i18n.yaml
++++ b/docs/subsystems/llm-streaming.i18n.yaml
+@@ -2,5 +2,5 @@
+ # side as of the last confirmed-consistent state. Both languages carry equal authority;
+ # after editing either side, bring the other along and re-record with:
+ #   pnpm run verify-translation-pairing --write docs/subsystems/llm-streaming.md
+-llm-streaming.md: 1b2356983be4045666f7a9d40d8d191bdb4910a2
+-llm-streaming.zh.md: 0c2b64830dda74595deac7797c759be1970ccb32
++llm-streaming.md: a030d03f58ad81bb399ee0742ed8d6d6a60efd56
++llm-streaming.zh.md: ebd443dc7c709204a9b50847c67e706309c3b80a
+diff --git a/docs/subsystems/llm-streaming.md b/docs/subsystems/llm-streaming.md
+index 1b2356983b..a030d03f58 100644
+--- a/docs/subsystems/llm-streaming.md
++++ b/docs/subsystems/llm-streaming.md
+@@ -619,8 +619,12 @@ interface LlmDiscoveredModel {
+   name?: string
+   /** Maximum combined request and response context, when disclosed. */
+   contextWindow?: number
++  /** Origin of {@link contextWindow}, when supplied. */
++  contextWindowSource?: LlmCapacitySource
+   /** Maximum output tokens, when disclosed. */
+   maxTokens?: number
++  /** Origin of {@link maxTokens}, when supplied. */
++  maxTokensSource?: LlmCapacitySource
+ }
+ ```
+ 
+diff --git a/docs/subsystems/llm-streaming.zh.md b/docs/subsystems/llm-streaming.zh.md
+index 0c2b64830d..ebd443dc7c 100644
+--- a/docs/subsystems/llm-streaming.zh.md
++++ b/docs/subsystems/llm-streaming.zh.md
+@@ -625,8 +625,12 @@ interface LlmDiscoveredModel {
+   name?: string
+   /** Maximum combined request and response context, when disclosed. */
+   contextWindow?: number
++  /** Origin of {@link contextWindow}, when supplied. */
++  contextWindowSource?: LlmCapacitySource
+   /** Maximum output tokens, when disclosed. */
+   maxTokens?: number
++  /** Origin of {@link maxTokens}, when supplied. */
++  maxTokensSource?: LlmCapacitySource
+ }
+ ```
+ 
 diff --git a/packages/client/runtime/src/client/contract/session.ts b/packages/client/runtime/src/client/contract/session.ts
 index e07267d487..49a44de33a 100644
 --- a/packages/client/runtime/src/client/contract/session.ts
@@ -787,6 +1179,175 @@ index 1f61399fda..a77aea3634 100644
      chatView.injected.forkAt(17)
      await vi.waitFor(() => {
        expect(b.runtime.sessions.calls).toContainEqual({ method: 'open', args: [ROOT] })
+diff --git a/packages/client/ui-conversation/tests/approval-panel.client.spec.tsx b/packages/client/ui-conversation/tests/approval-panel.client.spec.tsx
+new file mode 100644
+index 0000000000..8da342ded2
+--- /dev/null
++++ b/packages/client/ui-conversation/tests/approval-panel.client.spec.tsx
+@@ -0,0 +1,163 @@
++// @vitest-environment jsdom
++import { afterEach, describe, expect, it, vi } from 'vitest'
++import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
++import type {
++  ChatConversationViewNode, ConversationSnapshot, RunningToolCall, SessionId, SessionListState,
++  ToolCallBlock, WorkspaceListState,
++} from '@deepseek-ai/dsh-client-runtime/client'
++import {
++  conversationContextKey, EMPTY_CHAT_SNAPSHOT, EMPTY_CONVERSATION_VIEWS, PendingWait,
++} from '@deepseek-ai/dsh-client-runtime/client'
++import type { RpcReceipt } from '@deepseek-ai/dsh-api-remotes/client'
++import { RpcId } from '@deepseek-ai/dsh-client-connection/client'
++import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
++import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
++import { ApprovalPanel, commandOf } from '../src/client/skeleton/ApprovalPanel.tsx'
++import type { ApprovalComposerProps } from '../src/client/contract/slots.ts'
++import { en, zh } from '../src/client/locales.ts'
++import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
++import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
++
++afterEach(cleanup)
++
++const SID = 's1' as SessionId
++
++function snapshotBase(chat: ConversationSnapshot['chat'] = EMPTY_CHAT_SNAPSHOT): ConversationSnapshot {
++  return {
++    sessionId: SID, views: EMPTY_CONVERSATION_VIEWS, chat, nodes: [],
++    turnTimings: new Map(), turnEnds: new Map(), partial: null, runningCalls: [],
++    pending: [], queue: [], running: false, composerPhase: 'active', removed: false, openState: 'open', openError: null,
++    hasMore: false, loadingOlder: false, promptError: null, blank: false, subagent: null, lastAgentError: null,
++  }
++}
++
++function kit(snapshot: ConversationSnapshot = snapshotBase()) {
++  return {
++    session: undefined,
++    sessionId: SID,
++    useSession: ((sel: (s: ConversationSnapshot) => unknown) => sel(snapshot)) as unknown as SnapshotSelectorHook<ConversationSnapshot>,
++    useSessions: (() => { throw new Error('unused') }) as unknown as SnapshotSelectorHook<SessionListState>,
++    useWorkspaces: (() => { throw new Error('unused') }) as unknown as SnapshotSelectorHook<WorkspaceListState>,
++    useProjection: (() => undefined) as never,
++    useInput: (() => { throw new Error('unused') }) as never,
++    inputActions: { setDraft: () => { throw new Error('unused') }, submit: () => { throw new Error('unused') } } as never,
++    t: makeTranslate(zh, commonZh) as ApprovalComposerProps['t'],
++  }
++}
++
++function wait(
++  rpcId = 'approval-1',
++  payload: ConstructorParameters<typeof PendingWait<'approval'>>[3] = { toolName: 'bash', approvalId: 'ap1' as never, reason: 'escalate sandbox' },
++  respond = vi.fn(() => Promise.resolve<RpcReceipt>({ accepted: true })),
++) {
++  const carrier = new PendingWait('approval', RpcId(rpcId), SID, payload, respond)
++  return { carrier, respond }
++}
++
++function runningCall(over: Partial<RunningToolCall> = {}): RunningToolCall {
++  return {
++    callId: 'c1', name: 'bash', argsRaw: JSON.stringify({ command: 'ls' }),
++    turn: 1, step: 1, time: 0, callView: null, subCalls: [],
++    ...over,
++  }
++}
++
++function snapshotWithRoot(callId: string, root: ToolCallBlock): ConversationSnapshot {
++  const key = conversationContextKey('tool-call', callId)
++  const node = {
++    kind: 'tool-call', key, id: callId, target: 'chat', data: { root },
++    anchorSeq: 1, location: { kind: 'unresolved' }, visibility: 'visible',
++  } as ChatConversationViewNode
++  return snapshotBase({
++    ...EMPTY_CHAT_SNAPSHOT,
++    nodes: {
++      get: (lookup: string) => lookup === key ? node : undefined,
++      values: () => [node],
++    },
++  })
++}
++
++describe('commandOf', () => {
++  it('reads a bash-family command and hides unparseable or command-less args', () => {
++    expect(commandOf(undefined)).toBeUndefined()
++    expect(commandOf(runningCall({ argsRaw: '{' }))).toBeUndefined()
++    expect(commandOf(runningCall({ argsRaw: JSON.stringify({ path: 'x' }) }))).toBeUndefined()
++    expect(commandOf(runningCall())).toBe('ls')
++  })
++})
++
++describe('ApprovalPanel', () => {
++  it('renders the waiting strip, reason, and both actions', () => {
++    const { carrier } = wait()
++    render(<ApprovalPanel matched={carrier} interactions={[carrier]} {...kit()} />)
++    expect(screen.getByText('等待审批')).toBeTruthy()
++    expect(screen.getByText('escalate sandbox')).toBeTruthy()
++    expect(screen.getByRole('button', { name: '拒绝' })).toBeTruthy()
++    expect(screen.getByRole('button', { name: '允许一次' })).toBeTruthy()
++  })
++
++  it('falls back to the tool-name headline when the ask carries no reason', () => {
++    const { carrier } = wait('approval-2', { toolName: 'pwsh', approvalId: 'ap2' as never })
++    render(<ApprovalPanel matched={carrier} interactions={[carrier]} {...kit()} />)
++    expect(screen.getByText('工具 pwsh 请求越权执行')).toBeTruthy()
++  })
++
++  it('shows submitting while the answer is in flight and re-arms with the error on failure', async () => {
++    let reject!: (error: Error) => void
++    const respond = vi.fn(() => new Promise<RpcReceipt>((_, fail) => { reject = fail }))
++    const { carrier } = wait('approval-3', { toolName: 'bash', approvalId: 'ap3' as never, reason: 'why' }, respond)
++    render(<ApprovalPanel matched={carrier} interactions={[carrier]} {...kit()} />)
++    fireEvent.click(screen.getByRole('button', { name: '允许一次' }))
++    expect(screen.getByRole('button', { name: '提交中…' })).toHaveProperty('disabled', true)
++    expect(screen.getByRole('button', { name: '拒绝' })).toHaveProperty('disabled', true)
++    await act(async () => { reject(new Error('approval response rejected: not-pending')) })
++    expect(screen.getByRole('alert').textContent).toBe('approval response rejected: not-pending')
++    expect(screen.getByRole('button', { name: '允许一次' })).toHaveProperty('disabled', false)
++  })
++
++  it('re-arms after a rejected receipt and shows the paired command for a running call', async () => {
++    const respond = vi.fn(() => Promise.resolve<RpcReceipt>({ accepted: false, reason: 'not-pending' }))
++    const { carrier } = wait(
++      'approval-4',
++      { toolName: 'bash', approvalId: 'ap4' as never, callId: 'c1' as never, reason: 'why' },
++      respond,
++    )
++    render(<ApprovalPanel matched={carrier} interactions={[carrier]} {...kit(snapshotWithRoot('c1', runningCall()))} />)
++    expect(screen.getByText('ls')).toBeTruthy()
++    fireEvent.click(screen.getByRole('button', { name: '拒绝' }))
++    await act(async () => undefined)
++    expect(screen.getByRole('alert').textContent).toContain('not-pending')
++    expect(screen.getByRole('button', { name: '拒绝' })).toHaveProperty('disabled', false)
++  })
++
++  it('hides the command line when the paired root is missing, settled, or a different call', () => {
++    const payload = { toolName: 'bash', approvalId: 'ap5' as never, callId: 'c1' as never, reason: 'why' }
++    const { carrier: missing } = wait('a-missing', payload)
++    const { container: missingView } = render(
++      <ApprovalPanel matched={missing} interactions={[missing]} {...kit()} />)
++    expect(missingView.querySelector('[class*="command"]')).toBeNull()
++
++    const settled: ToolCallBlock = {
++      kind: 'tool-result', seq: 1, time: 0, callId: 'c1', call: { name: 'bash', argsRaw: '{"command":"ls"}' },
++      callTime: 0, content: [], isError: false, callView: null, resultView: null, subCalls: [],
++    }
++    const { carrier: done } = wait('a-done', payload)
++    const { container: doneView } = render(
++      <ApprovalPanel matched={done} interactions={[done]} {...kit(snapshotWithRoot('c1', settled))} />)
++    expect(doneView.querySelector('[class*="command"]')).toBeNull()
++
++    const { carrier: other } = wait('a-other', payload)
++    const { container: otherView } = render(
++      <ApprovalPanel matched={other} interactions={[other]} {...kit(snapshotWithRoot('c1', runningCall({ callId: 'other' })))} />)
++    expect(otherView.querySelector('[class*="command"]')).toBeNull()
++  })
++
++  it('uses the English submitting label when the seat is English', () => {
++    const respond = vi.fn(() => new Promise<RpcReceipt>(() => undefined))
++    const { carrier } = wait('approval-en', { toolName: 'bash', approvalId: 'ap-en' as never }, respond)
++    const english = { ...kit(), t: makeTranslate(en, commonEn) as ApprovalComposerProps['t'] }
++    render(<ApprovalPanel matched={carrier} interactions={[carrier]} {...english} />)
++    fireEvent.click(screen.getByRole('button', { name: 'Allow once' }))
++    expect(screen.getByRole('button', { name: 'Submitting…' })).toHaveProperty('disabled', true)
++  })
++})
 diff --git a/packages/client/ui-conversation/tests/chat-view.client.spec.tsx b/packages/client/ui-conversation/tests/chat-view.client.spec.tsx
 index b81dff8e6e..2c91c9f768 100644
 --- a/packages/client/ui-conversation/tests/chat-view.client.spec.tsx
@@ -962,11 +1523,223 @@ index 38522771c0..a61623ff23 100644
      await b.runtime.dispose()
    })
  
+diff --git a/packages/client/ui-settings-models/src/client/ModelListEditor.tsx b/packages/client/ui-settings-models/src/client/ModelListEditor.tsx
+index a4b80f52a0..da0592e015 100644
+--- a/packages/client/ui-settings-models/src/client/ModelListEditor.tsx
++++ b/packages/client/ui-settings-models/src/client/ModelListEditor.tsx
+@@ -20,7 +20,8 @@ import type { DiscoveredModelView, IApiClient } from '@deepseek-ai/dsh-api-remot
+ import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
+ import { formatCapacity, parseCapacity } from './DeepSeekModelsEditor.tsx'
+ import type { DeepSeekModelDraft } from './DeepSeekModelsEditor.tsx'
+-import { messageOf } from './store.ts'
++import { adoptDiscoveredModel, messageOf, modelCapacitySource } from './store.ts'
++import type { ModelCapacitySource } from './store.ts'
+ import type { en } from './locales.ts'
+ import styles from './ModelsSection.module.css'
+ 
+@@ -116,6 +117,26 @@ function IconTrash(): ReactNode {
+ /** The two token counts edited as K/M-suffixed text behind a row's disclosure. */
+ type CapacityField = 'contextWindow' | 'maxTokens'
+ 
++/** Locale key for the compact provenance copy beside each capacity label. */
++const CAPACITY_SOURCE_LABEL: Readonly<Record<ModelCapacitySource, keyof typeof en>> = {
++  user: 'modelCapacitySourceUser',
++  provider: 'modelCapacitySourceProvider',
++  official: 'modelCapacitySourceOfficial',
++  estimated: 'modelCapacitySourceEstimated',
++}
++
++/** A capacity field's provenance badge, absent when the capacity is unset. */
++function capacitySourceBadge(
++  model: ModelDraft,
++  field: CapacityField,
++  t: (key: keyof typeof en) => string,
++): ReactNode {
++  const source = modelCapacitySource(model, field)
++  return source === undefined
++    ? null
++    : <span className={styles['modelCatalogMeta']}> {' '}{t(CAPACITY_SOURCE_LABEL[source])}</span>
++}
++
+ /**
+  * What an empty capacity field is worth, shown as its placeholder so a row left
+  * blank does not read as a model with no capacity at all.
+@@ -143,16 +164,6 @@ function capacitySpelling(value: number | undefined): string {
+   return value === undefined ? '' : formatCapacity(value)
+ }
+ 
+-/** Adopt a candidate, keeping whatever capacities the provider disclosed. */
+-function adopt(candidate: DiscoveredModelView): ModelDraft {
+-  return {
+-    id: candidate.id,
+-    ...candidate.name === undefined ? {} : { name: candidate.name },
+-    ...candidate.contextWindow === undefined ? {} : { contextWindow: candidate.contextWindow },
+-    ...candidate.maxTokens === undefined ? {} : { maxTokens: candidate.maxTokens },
+-  }
+-}
+-
+ /**
+  * Render the model list with its fetch action.
+  * @param props - the drafted rows, probe target, wire face, and copy.
+@@ -180,7 +191,11 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
+ 
+   const editCapacity = (index: number, field: CapacityField, text: string): void => {
+     setEditing(current => new Map(current).set(bufferKey(index, field), text))
+-    patch(index, { [field]: parseCapacity(text) })
++    const value = parseCapacity(text)
++    patch(index, {
++      [field]: value,
++      [`${field}Source`]: value === undefined ? undefined : 'user',
++    })
+   }
+ 
+   /** What a capacity field shows: the buffer while typing, else the stored count. */
+@@ -272,11 +287,12 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
+     const byId = new Map(models.map(model => [textOf(model, 'id'), model]))
+     for (const candidate of candidates) {
+       if (!picked.has(candidate.id)) continue
+-      // A row the user already tuned wins over the provider's own numbers.
++      // Each user-owned number wins independently; missing and non-user
++      // fields take the discovered values and their provenance.
+       // Keyed by id, so a half-typed row whose id is still empty is not a
+       // match and the candidate joins as its own row — correct, since a row
+       // without an id is not yet a model and the create/apply gates refuse it.
+-      byId.set(candidate.id, byId.get(candidate.id) ?? adopt(candidate))
++      byId.set(candidate.id, adoptDiscoveredModel(byId.get(candidate.id), candidate))
+     }
+     onChange([...byId.values()])
+     closePicker()
+@@ -404,7 +420,10 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
+             ? (
+               <div className={styles['modelAdvanced']}>
+                 <label className={styles['modelField']}>
+-                  <span className={styles['modelFieldLabel']}>{t('modelContextWindow')}</span>
++                  <span className={styles['modelFieldLabel']}>
++                    {t('modelContextWindow')}
++                    {capacitySourceBadge(model, 'contextWindow', t)}
++                  </span>
+                   <input
+                     className={styles['input']}
+                     type="text"
+@@ -417,7 +436,10 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
+                   />
+                 </label>
+                 <label className={styles['modelField']}>
+-                  <span className={styles['modelFieldLabel']}>{t('modelMaxTokens')}</span>
++                  <span className={styles['modelFieldLabel']}>
++                    {t('modelMaxTokens')}
++                    {capacitySourceBadge(model, 'maxTokens', t)}
++                  </span>
+                   <input
+                     className={styles['input']}
+                     type="text"
+diff --git a/packages/client/ui-settings-models/src/client/locales.ts b/packages/client/ui-settings-models/src/client/locales.ts
+index 856ef64c7b..0761e43ada 100644
+--- a/packages/client/ui-settings-models/src/client/locales.ts
++++ b/packages/client/ui-settings-models/src/client/locales.ts
+@@ -66,6 +66,10 @@ export const en = {
+   modelDuplicate: 'Each model ID may appear once.',
+   modelContextWindow: 'Context window',
+   modelMaxTokens: 'Max output tokens',
++  modelCapacitySourceUser: 'User setting',
++  modelCapacitySourceProvider: 'Provider response',
++  modelCapacitySourceOfficial: 'Official catalog',
++  modelCapacitySourceEstimated: 'Estimated',
+   fetchModels: 'Fetch available models',
+   fetching: 'Asking the provider\u2026',
+   fetchNeedsBaseUrl: 'Enter the base URL first, then fetch.',
+@@ -168,6 +172,10 @@ export const zh: { [Key in keyof typeof en]: string } = {
+   modelDuplicate: '每个模型 ID 只能出现一次。',
+   modelContextWindow: '上下文窗口',
+   modelMaxTokens: '最大输出 token',
++  modelCapacitySourceUser: '用户设置',
++  modelCapacitySourceProvider: '供应商返回',
++  modelCapacitySourceOfficial: '官方目录',
++  modelCapacitySourceEstimated: '估算',
+   fetchModels: '获取可用模型',
+   fetching: '正在询问提供方\u2026',
+   fetchNeedsBaseUrl: '请先填写 API 地址，再获取。',
 diff --git a/packages/client/ui-settings-models/src/client/store.ts b/packages/client/ui-settings-models/src/client/store.ts
-index 5b688db919..a8cffd5e8a 100644
+index 5b688db919..4ad918b0f2 100644
 --- a/packages/client/ui-settings-models/src/client/store.ts
 +++ b/packages/client/ui-settings-models/src/client/store.ts
-@@ -220,6 +220,11 @@ export class ModelsSettingsStore {
+@@ -7,7 +7,7 @@
+  */
+ 
+ import type {
+-  ConfigurableProviderView, CredentialView, IApiClient, SettingsNamespaceView,
++  ConfigurableProviderView, CredentialView, DiscoveredModelView, IApiClient, SettingsNamespaceView,
+ } from '@deepseek-ai/dsh-api-remotes/client'
+ import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+ import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+@@ -71,6 +71,66 @@ export function deriveKeyRef(provider: string): string {
+   return `${provider.toUpperCase().replace(/[^A-Z0-9]+/g, '_')}_API_KEY`
+ }
+ 
++/** Capacity fields that carry independent values and provenance. */
++export type ModelCapacityField = 'contextWindow' | 'maxTokens'
++
++/** Persisted capacity provenance, including a value typed by the user. */
++export type ModelCapacitySource = NonNullable<DiscoveredModelView['contextWindowSource']> | 'user'
++
++/** Source key paired with each capacity field. */
++const CAPACITY_SOURCE_FIELD: Readonly<Record<ModelCapacityField, 'contextWindowSource' | 'maxTokensSource'>> = {
++  contextWindow: 'contextWindowSource',
++  maxTokens: 'maxTokensSource',
++}
++
++/** Whether a settings value names one accepted capacity source. */
++function isCapacitySource(value: unknown): value is ModelCapacitySource {
++  return value === 'user' || value === 'provider' || value === 'official' || value === 'estimated'
++}
++
++/**
++ * Read one configured capacity's provenance. A legacy numeric value without a
++ * source was necessarily typed or authored by the user and remains authoritative.
++ * @param model - structurally open configured model row.
++ * @param field - capacity whose source to read.
++ * @returns the explicit source, legacy `user`, or no source when the value is absent.
++ */
++export function modelCapacitySource(
++  model: Readonly<Record<string, unknown>>,
++  field: ModelCapacityField,
++): ModelCapacitySource | undefined {
++  if (typeof model[field] !== 'number') return undefined
++  const source = model[CAPACITY_SOURCE_FIELD[field]]
++  if (source === undefined) return 'user'
++  return isCapacitySource(source) ? source : undefined
++}
++
++/**
++ * Adopt one discovered row without replacing a numeric user setting. Each
++ * capacity is independent: a missing or non-user field takes the discovered
++ * value and source while an implicit or explicit user value remains unchanged.
++ * @param existing - configured row of the same id, when one exists.
++ * @param candidate - discovered model to adopt or refresh.
++ * @returns a detached configured row.
++ */
++export function adoptDiscoveredModel(
++  existing: Readonly<Record<string, unknown>> | undefined,
++  candidate: DiscoveredModelView,
++): Record<string, unknown> {
++  const adopted: Record<string, unknown> = existing === undefined
++    ? { id: candidate.id, ...(candidate.name === undefined ? {} : { name: candidate.name }) }
++    : { ...existing }
++  for (const field of ['contextWindow', 'maxTokens'] as const) {
++    const value = candidate[field]
++    if (value === undefined) continue
++    if (existing !== undefined && modelCapacitySource(existing, field) === 'user') continue
++    adopted[field] = value
++    const sourceField = CAPACITY_SOURCE_FIELD[field]
++    adopted[sourceField] = candidate[sourceField] ?? 'estimated'
++  }
++  return adopted
++}
++
+ /**
+  * The wire protocols a hand-declared route may name, read out of the owning
+  * namespace's own schema. This stays a schema read rather than a wire field so
+@@ -220,6 +280,11 @@ export class ModelsSettingsStore {
   */
  export function providerUsable(row: ProviderRow): boolean {
    if (!row.entry.active) return false
@@ -978,6 +1751,259 @@ index 5b688db919..a8cffd5e8a 100644
    if (row.apiKeyEnv === undefined) return true
    return row.credential?.configured === true
  }
+diff --git a/packages/client/ui-settings-models/tests/provider-form.client.spec.tsx b/packages/client/ui-settings-models/tests/provider-form.client.spec.tsx
+index 8d7e7f2d3c..14a5a2b36f 100644
+--- a/packages/client/ui-settings-models/tests/provider-form.client.spec.tsx
++++ b/packages/client/ui-settings-models/tests/provider-form.client.spec.tsx
+@@ -11,7 +11,7 @@ import { CustomProviderCard } from '../src/client/CustomProviderCard.tsx'
+ import { formatCapacity, parseCapacity } from '../src/client/DeepSeekModelsEditor.tsx'
+ import { SettingsDescribeMirror } from '@deepseek-ai/dsh-client-ui-settings/src/client/settings-mirror.ts'
+ import { ModelsSettingsStore, deriveKeyRef, protocolChoices } from '../src/client/store.ts'
+-import { en } from '../src/client/locales.ts'
++import { en, zh } from '../src/client/locales.ts'
+ import { settingsSchema } from './settings-schema.client.ts'
+ 
+ afterEach(cleanup)
+@@ -19,6 +19,7 @@ afterEach(cleanup)
+ const t: ModelsSectionInjected['t'] = key => en[key]
+ 
+ const PROTOCOLS = ['openai-completions', 'openai-responses', 'anthropic-messages']
++const CAPACITY_SOURCES = ['user', 'provider', 'official', 'estimated']
+ 
+ /** The pi-ai profile shape as the host serializes it, including the layer-1 fields. */
+ const PiAiConfig = Schema.object({
+@@ -32,7 +33,9 @@ const PiAiConfig = Schema.object({
+       id: Schema.string().required(),
+       name: Schema.string(),
+       contextWindow: Schema.number(),
++      contextWindowSource: Schema.union(CAPACITY_SOURCES),
+       maxTokens: Schema.number(),
++      maxTokensSource: Schema.union(CAPACITY_SOURCES),
+     })),
+     reasoning: Schema.union(['off', 'high']),
+   })),
+@@ -253,7 +256,13 @@ describe('model list editing', () => {
+     await waitFor(() => { expect(mutate).toHaveBeenCalled() })
+     // What lands in settings is always a plain token count.
+     expect(firstMutate(mutate).ops[0]?.value)
+-      .toEqual([{ id: 'm', contextWindow: 1_000_000, maxTokens: 1000 }])
++      .toEqual([{
++        id: 'm',
++        contextWindow: 1_000_000,
++        contextWindowSource: 'user',
++        maxTokens: 1000,
++        maxTokensSource: 'user',
++      }])
+   })
+ 
+   it('refuses to apply while a capacity is unreadable', async () => {
+@@ -309,10 +318,39 @@ describe('model list editing', () => {
+     await waitFor(() => { expect(mutate).toHaveBeenCalled() })
+     expect(firstMutate(mutate).ops[0]?.value).toEqual([
+       { id: 'first' },
+-      { id: 'second', name: 'Second', maxTokens: 2048 },
++      { id: 'second', name: 'Second', maxTokens: 2048, maxTokensSource: 'user' },
+     ])
+   })
+ 
++  it('removes a stored capacity and its paired source when cleared', async () => {
++    const { mutate } = await mountSection({
++      providers: {
++        openai: {
++          baseURL: 'https://proxy.example/v1',
++          models: [{
++            id: 'm',
++            contextWindow: 65_536,
++            contextWindowSource: 'official',
++            maxTokens: 4096,
++            maxTokensSource: 'provider',
++          }],
++        },
++      },
++    })
++    openEditor('openai')
++    expandModel(1)
++
++    fireEvent.change(screen.getByLabelText(`${en.modelContextWindow} 1`), { target: { value: '' } })
++    fireEvent.click(screen.getByText(en.apply))
++
++    await waitFor(() => { expect(mutate).toHaveBeenCalled() })
++    expect(firstMutate(mutate).ops[0]?.value).toEqual([{
++      id: 'm',
++      maxTokens: 4096,
++      maxTokensSource: 'provider',
++    }])
++  })
++
+   it('shows the adapter defaults as inherited until an edit takes them over', async () => {
+     await mountSection({ providers: { openai: { baseURL: 'https://proxy.example/v1' } } })
+     openEditor('openai')
+@@ -488,10 +526,143 @@ describe('endpoint interrogation', () => {
+     await waitFor(() => { expect(mutate).toHaveBeenCalled() })
+     expect(firstMutate(mutate).ops[0]?.value).toEqual([
+       { id: 'kept', contextWindow: 111 },
+-      { id: 'fresh', contextWindow: 4096, name: 'Fresh' },
++      { id: 'fresh', contextWindow: 4096, contextWindowSource: 'estimated', name: 'Fresh' },
++    ])
++  })
++
++  it('preserves implicit and explicit user capacities while refreshing every other field', async () => {
++    const discover = vi.fn(() => Promise.resolve(ok({
++      models: [
++        {
++          id: 'kept',
++          contextWindow: 999,
++          contextWindowSource: 'provider',
++          maxTokens: 888,
++          maxTokensSource: 'official',
++        },
++        {
++          id: 'refreshed',
++          contextWindow: 444,
++          maxTokens: 555,
++          maxTokensSource: 'official',
++        },
++      ],
++    })))
++    const { mutate } = await mountSection({
++      discover,
++      providers: {
++        openai: {
++          baseURL: 'https://proxy.example/v1',
++          models: [
++            { id: 'kept', contextWindow: 111, maxTokens: 222, maxTokensSource: 'user' },
++            { id: 'refreshed', contextWindow: 333, contextWindowSource: 'official' },
++          ],
++        },
++      },
++    })
++    openEditor('openai')
++
++    fireEvent.click(screen.getByText(en.fetchModels))
++    const dialog = await screen.findByRole('dialog')
++    for (const box of dialog.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) {
++      fireEvent.click(box)
++    }
++    fireEvent.click(within_(dialog, en.fetchAdopt))
++    fireEvent.click(screen.getByText(en.apply))
++
++    await waitFor(() => { expect(mutate).toHaveBeenCalled() })
++    expect(firstMutate(mutate).ops[0]?.value).toEqual([
++      { id: 'kept', contextWindow: 111, maxTokens: 222, maxTokensSource: 'user' },
++      {
++        id: 'refreshed',
++        contextWindow: 444,
++        contextWindowSource: 'estimated',
++        maxTokens: 555,
++        maxTokensSource: 'official',
++      },
+     ])
+   })
+ 
++  it('marks only the manually edited capacity as user-owned', async () => {
++    const { mutate } = await mountSection({
++      providers: {
++        openai: {
++          baseURL: 'https://proxy.example/v1',
++          models: [{
++            id: 'm',
++            contextWindow: 65_536,
++            contextWindowSource: 'official',
++            maxTokens: 4096,
++            maxTokensSource: 'provider',
++          }],
++        },
++      },
++    })
++    openEditor('openai')
++    expandModel(1)
++
++    fireEvent.change(screen.getByLabelText(`${en.modelContextWindow} 1`), { target: { value: '128K' } })
++    fireEvent.click(screen.getByText(en.apply))
++
++    await waitFor(() => { expect(mutate).toHaveBeenCalled() })
++    expect(firstMutate(mutate).ops[0]?.value).toEqual([{
++      id: 'm',
++      contextWindow: 128_000,
++      contextWindowSource: 'user',
++      maxTokens: 4096,
++      maxTokensSource: 'provider',
++    }])
++  })
++
++  it('uses locale provenance labels beside each capacity field', async () => {
++    await mountSection({
++      providers: {
++        openai: {
++          baseURL: 'https://proxy.example/v1',
++          models: [
++            { id: 'a', contextWindow: 1000, contextWindowSource: 'user', maxTokens: 2000, maxTokensSource: 'provider' },
++            { id: 'b', contextWindow: 3000, contextWindowSource: 'official', maxTokens: 4000, maxTokensSource: 'estimated' },
++          ],
++        },
++      },
++    })
++    openEditor('openai')
++    expandModel(1)
++    expandModel(2)
++
++    expect(screen.getByText('User setting')).toBeTruthy()
++    expect(screen.getByText('Provider response')).toBeTruthy()
++    expect(screen.getByText('Official catalog')).toBeTruthy()
++    expect(screen.getByText('Estimated')).toBeTruthy()
++    expect(zh).toMatchObject({
++      modelCapacitySourceUser: '用户设置',
++      modelCapacitySourceProvider: '供应商返回',
++      modelCapacitySourceOfficial: '官方目录',
++      modelCapacitySourceEstimated: '估算',
++    })
++  })
++
++  it('shows estimated provenance for an adopted unknown model', async () => {
++    const discover = vi.fn(() => Promise.resolve(ok({
++      models: [{
++        id: 'unknown-model',
++        contextWindow: 262_144,
++        contextWindowSource: 'estimated',
++        maxTokens: 32_768,
++        maxTokensSource: 'estimated',
++      }],
++    })))
++    await mountSection({ discover })
++    openEditor('openai')
++
++    fireEvent.click(screen.getByText(en.fetchModels))
++    await screen.findByRole('dialog')
++    fireEvent.click(screen.getByText(en.fetchAdopt))
++    expandModel(1)
++
++    expect(screen.getAllByText('Estimated')).toHaveLength(2)
++  })
++
+   it('keeps the rows editable when the provider cannot be interrogated', async () => {
+     const discover = vi.fn(() => Promise.resolve(
+       fail('https://proxy.example/v1/models answered 401; check the API key', 'model-discovery-failed'),
+@@ -605,7 +776,10 @@ describe('endpoint interrogation', () => {
+ 
+     await waitFor(() => { expect(mutate).toHaveBeenCalled() })
+     // A disclosed output cap rides along with the candidate that has one.
+-    expect(firstMutate(mutate).ops[0]?.value).toEqual([{ id: 'a' }, { id: 'b', maxTokens: 2048 }])
++    expect(firstMutate(mutate).ops[0]?.value).toEqual([
++      { id: 'a' },
++      { id: 'b', maxTokens: 2048, maxTokensSource: 'estimated' },
++    ])
+   })
+ 
+   it('selects and clears every discovered candidate in one action', async () => {
+@@ -725,7 +899,7 @@ describe('hand-declared providers', () => {
+           apiKeyEnv: 'ACME_GATEWAY_API_KEY',
+           api: 'openai-completions',
+           baseURL: 'https://gateway.acme.example/v1',
+-          models: [{ id: 'acme-large', contextWindow: 65_536 }],
++          models: [{ id: 'acme-large', contextWindow: 65_536, contextWindowSource: 'user' }],
+         },
+       }],
+       // The section this card was drafted over: a route another tab declared
 diff --git a/packages/client/ui-settings-models/tests/readiness.client.spec.ts b/packages/client/ui-settings-models/tests/readiness.client.spec.ts
 index f01e821767..2684c19b1f 100644
 --- a/packages/client/ui-settings-models/tests/readiness.client.spec.ts
@@ -997,6 +2023,29 @@ index f01e821767..2684c19b1f 100644
  })
  
  describe('onboardingReadiness', () => {
+diff --git a/packages/extensions/tool-cordis/src/api-catalog.ts b/packages/extensions/tool-cordis/src/api-catalog.ts
+index 32e9ccbda6..0cd60a6849 100644
+--- a/packages/extensions/tool-cordis/src/api-catalog.ts
++++ b/packages/extensions/tool-cordis/src/api-catalog.ts
+@@ -3605,13 +3605,17 @@ export const TYPE_API: readonly TypeApiEntry[] = [
+     name: 'LlmCallConfigAdapterDefaults',
+     declaration: 'export interface LlmCallConfigAdapterDefaults {\n    reasoningEffort?: true;\n    maxTokens?: true;\n}',
+   },
++  {
++    name: 'LlmCapacitySource',
++    declaration: 'export type LlmCapacitySource = \'provider\' | \'official\' | \'estimated\';',
++  },
+   {
+     name: 'LlmConfigurableProvider',
+     declaration: 'export interface LlmConfigurableProvider {\n    provider: string;\n    displayName: string;\n    settingsNs: string;\n    settingsPath: readonly string[];\n    declared?: boolean;\n}',
+   },
+   {
+     name: 'LlmDiscoveredModel',
+-    declaration: 'export interface LlmDiscoveredModel {\n    id: string;\n    name?: string;\n    contextWindow?: number;\n    maxTokens?: number;\n}',
++    declaration: 'export interface LlmDiscoveredModel {\n    id: string;\n    name?: string;\n    contextWindow?: number;\n    contextWindowSource?: LlmCapacitySource;\n    maxTokens?: number;\n    maxTokensSource?: LlmCapacitySource;\n}',
+   },
+   {
+     name: 'LlmFailure',
 diff --git a/packages/host/apiproxy/src/api-proxy.ts b/packages/host/apiproxy/src/api-proxy.ts
 index ba354e1173..83b33fa1ba 100644
 --- a/packages/host/apiproxy/src/api-proxy.ts
@@ -1393,6 +2442,52 @@ index ba354e1173..83b33fa1ba 100644
      },
    }
  }
+diff --git a/packages/host/apiproxy/src/api/llm.schema.ts b/packages/host/apiproxy/src/api/llm.schema.ts
+index 7c8b0e6397..cbc52f73dd 100644
+--- a/packages/host/apiproxy/src/api/llm.schema.ts
++++ b/packages/host/apiproxy/src/api/llm.schema.ts
+@@ -9,6 +9,8 @@ import type { Wire } from './rpc.schema.ts'
+ import type { ConfigurableProviderView, DiscoveredModelView } from './llm.ts'
+ import { modelCatalogFailureSchema, modelProviderGroupSchema } from './sessions.schema.ts'
+ 
++const capacitySourceSchema = z.enum(['provider', 'official', 'estimated'])
++
+ /** ConfigurableProviderView row of llm.providers. */
+ export const configurableProviderViewSchema = z.object({
+   provider: z.string().min(1),
+@@ -41,7 +43,9 @@ export const discoveredModelViewSchema = z.object({
+   id: z.string().min(1),
+   name: z.string().min(1).optional(),
+   contextWindow: z.number().int().positive().optional(),
++  contextWindowSource: capacitySourceSchema.optional(),
+   maxTokens: z.number().int().positive().optional(),
++  maxTokensSource: capacitySourceSchema.optional(),
+ }) satisfies z.ZodType<Wire<DiscoveredModelView>>
+ 
+ /** llm.discoverModels request payload. */
+diff --git a/packages/host/apiproxy/src/api/llm.ts b/packages/host/apiproxy/src/api/llm.ts
+index e9a5b52e72..145c58b3c2 100644
+--- a/packages/host/apiproxy/src/api/llm.ts
++++ b/packages/host/apiproxy/src/api/llm.ts
+@@ -8,6 +8,7 @@
+  * `settings/document-updated` owner events.
+  */
+ 
++import type { LlmCapacitySource } from '@deepseek-ai/dsh-llm'
+ import type { RpcRequest, RpcResponse } from './rpc.ts'
+ import type { ModelCatalogFailure, ModelProviderGroup } from './sessions.ts'
+ 
+@@ -84,6 +85,10 @@ export interface DiscoveredModelView {
+   name?: string
+   /** Maximum combined request and response context, when disclosed. */
+   contextWindow?: number
++  /** Origin of `contextWindow`, when supplied. */
++  contextWindowSource?: LlmCapacitySource
+   /** Maximum output tokens, when disclosed. */
+   maxTokens?: number
++  /** Origin of `maxTokens`, when supplied. */
++  maxTokensSource?: LlmCapacitySource
+ }
 diff --git a/packages/host/apiproxy/src/api/rpc.ts b/packages/host/apiproxy/src/api/rpc.ts
 index 0b5506b6b6..f1eeec9f5e 100644
 --- a/packages/host/apiproxy/src/api/rpc.ts
@@ -1586,6 +2681,53 @@ index 88ab5ede42..5a4cad5edd 100644
    it('replays a still-pending requested frame (same rpcId) on a later mux open', async () => {
      const { ctx, api } = await harness()
      const first = new AbortController()
+diff --git a/packages/host/apiproxy/tests/api-proxy-config.spec.ts b/packages/host/apiproxy/tests/api-proxy-config.spec.ts
+index 3ba6f3a0af..46a1e5ce91 100644
+--- a/packages/host/apiproxy/tests/api-proxy-config.spec.ts
++++ b/packages/host/apiproxy/tests/api-proxy-config.spec.ts
+@@ -32,6 +32,7 @@ import type { RpcRequest, RpcResponse } from '../src/api/rpc.ts'
+ import { RpcId } from '../src/api/rpc.ts'
+ import { AGENT_DEFAULT_MODEL_SETTINGS_NAMESPACE } from '@deepseek-ai/dsh-agent-default-model'
+ import { createApiProxy } from '../src/api-proxy.ts'
++import { llmDiscoverModelsValueSchema } from '../src/api/llm.schema.ts'
+ 
+ const DEFAULTS = { defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/tmp' }
+ 
+@@ -712,7 +713,14 @@ describe('llm.discoverModels', () => {
+     ctx.llm.registerModelDiscovery('llm-pi-ai', (probe) => {
+       seen.push({ baseURL: probe.baseURL, api: probe.api, apiKey: probe.apiKey })
+       return Promise.resolve([
+-        { id: 'acme-large', name: 'Acme Large', contextWindow: 65_536, maxTokens: 4096 },
++        {
++          id: 'acme-large',
++          name: 'Acme Large',
++          contextWindow: 65_536,
++          contextWindowSource: 'official',
++          maxTokens: 4096,
++          maxTokensSource: 'provider',
++        },
+         { id: 'acme-small' },
+       ])
+     })
+@@ -725,8 +733,16 @@ describe('llm.discoverModels', () => {
+       apiKey: 'probe-key',
+     })))
+ 
+-    expect(value.models).toEqual([
+-      { id: 'acme-large', name: 'Acme Large', contextWindow: 65_536, maxTokens: 4096 },
++    const wireValue = llmDiscoverModelsValueSchema.parse(value)
++    expect(wireValue.models).toEqual([
++      {
++        id: 'acme-large',
++        name: 'Acme Large',
++        contextWindow: 65_536,
++        contextWindowSource: 'official',
++        maxTokens: 4096,
++        maxTokensSource: 'provider',
++      },
+       { id: 'acme-small' },
+     ])
+     expect(seen).toEqual([{
 diff --git a/packages/host/apiproxy/tests/api-proxy-projections.spec.ts b/packages/host/apiproxy/tests/api-proxy-projections.spec.ts
 index 6d9c53a6f8..e397cab5ce 100644
 --- a/packages/host/apiproxy/tests/api-proxy-projections.spec.ts
@@ -2050,6 +3192,623 @@ index 62d1a371da..93ab6ea9f5 100644
    })
  })
  
+diff --git a/packages/llm/llm-deepseek/src/index.ts b/packages/llm/llm-deepseek/src/index.ts
+index 3af0236d29..f4302f9973 100644
+--- a/packages/llm/llm-deepseek/src/index.ts
++++ b/packages/llm/llm-deepseek/src/index.ts
+@@ -81,12 +81,13 @@ const DEFAULT_API_KEY_ENV = 'DEEPSEEK_API_KEY'
+ const PROVIDER = 'deepseek-official'
+ 
+ const DEFAULT_MODELS: DeepSeekCatalogModel[] = [
+-  { id: 'deepseek-v4-flash', name: 'DeepSeek-V4-Flash', contextWindow: DEFAULT_CONTEXT_WINDOW },
+-  { id: 'deepseek-v4-pro', name: 'DeepSeek-V4-Pro', contextWindow: DEFAULT_CONTEXT_WINDOW },
++  { id: 'deepseek-v4-flash', name: 'DeepSeek-V4-Flash', contextWindow: DEFAULT_CONTEXT_WINDOW, maxTokens: 384_000 },
++  { id: 'deepseek-v4-pro', name: 'DeepSeek-V4-Pro', contextWindow: DEFAULT_CONTEXT_WINDOW, maxTokens: 384_000 },
+   {
+     id: 'deepseek-v4-flash-vision-exp',
+     name: 'DeepSeek-V4-Flash-Vision-Exp',
+     contextWindow: DEFAULT_CONTEXT_WINDOW,
++    maxTokens: 384_000,
+     inputModalities: ['text', 'image'],
+     imagePixelBudget: DEFAULT_REQUEST_IMAGE_PIXEL_BUDGET,
+     imageMaxBytes: DEFAULT_REQUEST_IMAGE_MAX_BYTES,
+diff --git a/packages/llm/llm-deepseek/tests/adapter.spec.ts b/packages/llm/llm-deepseek/tests/adapter.spec.ts
+index 085b35063a..604aaa289a 100644
+--- a/packages/llm/llm-deepseek/tests/adapter.spec.ts
++++ b/packages/llm/llm-deepseek/tests/adapter.spec.ts
+@@ -169,7 +169,7 @@ describe('DeepSeekAdapter against a mock server', () => {
+     // The wire request carried the auth header contents we configured.
+     expect(server.requests[0]).toMatchObject({
+       model: 'deepseek-v4-flash',
+-      max_tokens: 256_000,
++      max_tokens: 384_000,
+       reasoning_effort: 'high',
+       stream: true,
+       stream_options: { include_usage: true },
+@@ -1024,8 +1024,8 @@ describe('DeepSeekAdapter against a mock server', () => {
+     ])
+     const ctx = await harness(server.url, { maxTokens: 32_000 })
+ 
+-    await assemble(ctx, { model: 'deepseek-v4-flash', messages: [] })
+-    await assemble(ctx, { model: 'deepseek-v4-flash', messages: [], maxTokens: 8_192 })
++    await assemble(ctx, { model: 'unlisted-pass-through', messages: [] })
++    await assemble(ctx, { model: 'unlisted-pass-through', messages: [], maxTokens: 8_192 })
+ 
+     expect(server.requests[0]).toMatchObject({ max_tokens: 32_000 })
+     expect(server.requests[1]).toMatchObject({ max_tokens: 8_192 })
+@@ -1519,7 +1519,7 @@ describe('plugin registration and config', () => {
+         id: 'deepseek-v4-flash',
+         name: 'DeepSeek-V4-Flash',
+         context: { contextWindow: 1_000_000 },
+-        defaultMaxTokens: 256_000,
++        defaultMaxTokens: 384_000,
+         reasoning: {
+           efforts: [
+             { id: ReasoningEffortId('off'), name: 'Off' },
+@@ -1530,12 +1530,25 @@ describe('plugin registration and config', () => {
+           defaultEffort: ReasoningEffortId('high'),
+         },
+       })
++    await expect(ctx.llm.resolveModelInfo('deepseek-official', 'deepseek-v4-pro'))
++      .resolves.toMatchObject({
++        provider: 'deepseek-official',
++        id: 'deepseek-v4-pro',
++        name: 'DeepSeek-V4-Pro',
++        context: { contextWindow: 1_000_000 },
++        defaultMaxTokens: 384_000,
++      })
+     await expect(ctx.llm.resolveModelInfo('deepseek-official', 'deepseek-v4-flash-vision-exp'))
+       .resolves.toMatchObject({
+         provider: 'deepseek-official',
+         id: 'deepseek-v4-flash-vision-exp',
+         name: 'DeepSeek-V4-Flash-Vision-Exp',
+         inputModalities: ['text', 'image'],
++        context: { contextWindow: 1_000_000 },
++        defaultMaxTokens: 384_000,
++      })
++    await expect(ctx.llm.resolveModelInfo('deepseek-official', 'unlisted-pass-through'))
++      .resolves.toMatchObject({
+         context: { contextWindow: 1_000_000 },
+         defaultMaxTokens: 256_000,
+       })
+diff --git a/packages/llm/llm-pi-ai/README.i18n.yaml b/packages/llm/llm-pi-ai/README.i18n.yaml
+index 42364c1d5c..d292332844 100644
+--- a/packages/llm/llm-pi-ai/README.i18n.yaml
++++ b/packages/llm/llm-pi-ai/README.i18n.yaml
+@@ -2,5 +2,5 @@
+ # side as of the last confirmed-consistent state. Both languages carry equal authority;
+ # after editing either side, bring the other along and re-record with:
+ #   pnpm run verify-translation-pairing --write packages/llm/llm-pi-ai/README.md
+-README.md: 43472de90803481deebb9bc91586a4b85e443db5
+-README.zh.md: 76b3dc9dec2a4bf83933319aa065954a191e595b
++README.md: b8e6d818aed6c7e2a4e6ed6b5ec0b986a1962a98
++README.zh.md: 58e56e61600e8563d66f88448470f8f3e1197272
+diff --git a/packages/llm/llm-pi-ai/README.md b/packages/llm/llm-pi-ai/README.md
+index 43472de908..b8e6d818ae 100644
+--- a/packages/llm/llm-pi-ai/README.md
++++ b/packages/llm/llm-pi-ai/README.md
+@@ -85,6 +85,12 @@ A profile's `models` list *replaces* the route's installed catalog rather than e
+ 
+ `modelOverrides` reshapes individual installed-catalog models without that cost: each key is a catalog model id, each value the same fields a `models` entry takes with the id living in the key, and the rest of the catalog keeps serving untouched — "correct one model, keep the other thirty-seven" as a three-line edit. An override becomes that catalog entry's configuration, so capacities, efforts, and compat resolve through the same path with the same diagnostics and the same request-default semantics as a `models` entry. Overrides are only meaningful on a catalog route serving its catalog: one set beside a `models` list (which already replaces the catalog), on a hand-declared route (whose models are fully spelled in `models`), or naming a model the catalog does not describe is refused rather than skipped, because a silently unchanged model is a typo someone would otherwise hunt for.
+ 
++### Capacity resolution and provenance
++
++Model discovery resolves `contextWindow` and `maxTokens` independently. For each field, a user-authored value wins over a provider-discovered value, which wins over an exact official entry, which wins over the conservative estimate. `contextWindowSource` and `maxTokensSource` preserve that provenance as `user`, `provider`, `official`, or `estimated` in configured model rows; discovery wire values use the latter three. A legacy numeric configuration with no source is treated as `user`, so refreshing discovery cannot replace it. Editing or clearing one capacity changes only that value and its paired source.
++
++The built-in correction table matches trimmed model IDs exactly and currently verifies only `deepseek-v4-flash`, `deepseek-v4-pro`, and `deepseek-v4-flash-vision-exp`, each at 1,000,000 context tokens and 384,000 output tokens. It does not infer capacities from provider names, aliases, or near matches. An unknown model whose provider discloses neither field uses the estimated 262,144 context tokens and 32,768 output tokens. These estimates belong to pi-ai discovery; the separate `llm-deepseek` adapter keeps its own unlisted-model fallback of 1,000,000 context tokens and 256,000 output tokens, while its three listed DeepSeek V4 models use 1,000,000 / 384,000.
++
+ ### Per-model reasoning efforts
+ 
+ `reasoningEfforts` declares a model's selectable thinking levels: each key is a level selectors offer, its value the spelling dispatch sends on the wire, so `high: high` passes the canonical name through while `max: ultra` renames it for a gateway with its own vocabulary. Keys come from pi-ai's level set (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`); a level not declared is not offered. Omitting the field keeps the installed catalog entry's capability (a hand-declared model has none and does not reason); `false` declares a non-reasoning model, which is how a profile strips reasoning from a catalog model its gateway cannot serve; an empty declaration is refused rather than guessing between those two meanings.
+diff --git a/packages/llm/llm-pi-ai/README.zh.md b/packages/llm/llm-pi-ai/README.zh.md
+index 76b3dc9dec..58e56e6160 100644
+--- a/packages/llm/llm-pi-ai/README.zh.md
++++ b/packages/llm/llm-pi-ai/README.zh.md
+@@ -85,6 +85,12 @@ profile 的 `models` 列表是*替换*该路由已安装 catalog，而不是扩
+ 
+ `modelOverrides` 无需这份代价就能就地重塑单个已安装 catalog 模型：每个键是一个 catalog 模型 id，每个值可写 `models` 条目接受的同一批字段，只是 id 落在键上，而 catalog 的其余部分原样继续服务——「改一个模型、其余三十七个原样保留」只是一次三行编辑。一条覆盖会成为该 catalog 条目的配置，因此容量、档位与 compat 沿与 `models` 条目相同的路径解析，携带相同的诊断与相同的请求默认值语义。覆盖只在正服务自身 catalog 的 catalog 路由上才有意义：与 `models` 列表并存的一份（该列表本就替换了 catalog）、落在手工声明路由上的一份（其模型已在 `models` 中完整写出），或点名了 catalog 未描述模型的一份，都会被拒绝而非跳过，因为一个静默保持原样的模型，就是一个否则要有人费力追查的笔误。
+ 
++### 容量解析与来源
++
++模型发现会分别解析 `contextWindow` 与 `maxTokens`。对每个字段而言，用户写入的值优先于提供方发现值，后者优先于精确匹配的官方条目，官方条目又优先于保守估算。配置模型行中的 `contextWindowSource` 与 `maxTokensSource` 以 `user`、`provider`、`official` 或 `estimated` 保留该来源；发现协议值只使用后三种。没有来源字段的旧数值配置按 `user` 处理，因此刷新发现结果不会替换它。编辑或清空一个容量字段只改变该值及其配套来源字段。
++
++内置纠正表会修剪模型 id 首尾空白后再精确匹配，当前只核实 `deepseek-v4-flash`、`deepseek-v4-pro` 与 `deepseek-v4-flash-vision-exp`，三者均为 1,000,000 个上下文 token 与 384,000 个输出 token。该表不会根据提供方名称、别名或近似匹配推断容量。对于提供方两个字段都未披露的未知模型，会使用 262,144 个上下文 token 与 32,768 个输出 token 的估算值。这些估算属于 pi-ai 发现；独立的 `llm-deepseek` 适配器为未列出模型保留自己的 1,000,000 个上下文 token / 256,000 个输出 token 回退值，而其三个已列出 DeepSeek V4 模型使用 1,000,000 / 384,000。
++
+ ### 按模型的推理（reasoning）档位
+ 
+ `reasoningEfforts` 声明模型可选的思考级别：每个键是选择器提供的一个档位，其值是分派在协议中发送的拼写，因此 `high: high` 原样透传规范名称，而 `max: ultra` 则为使用自有词汇的网关改名。键取自 pi-ai 的档位集合（`off`、`minimal`、`low`、`medium`、`high`、`xhigh`、`max`）；未声明的档位不会被提供。省略该字段会保留已安装 catalog 条目的能力（手工声明的模型没有这份能力，也不推理）；`false` 声明一个不具备推理能力的模型，profile 正是以此从其网关无法服务的 catalog 模型上剥除推理；空声明会被拒绝，而不是在这两种含义之间去猜。
+diff --git a/packages/llm/llm-pi-ai/src/capacity.ts b/packages/llm/llm-pi-ai/src/capacity.ts
+new file mode 100644
+index 0000000000..d6a6824ed8
+--- /dev/null
++++ b/packages/llm/llm-pi-ai/src/capacity.ts
+@@ -0,0 +1,53 @@
++import type { LlmCapacitySource } from '@deepseek-ai/dsh-llm'
++
++/** Provenance of a resolved model capacity value. */
++export type CapacitySource = LlmCapacitySource
++
++/** Capacity values resolved for a model together with per-field provenance. */
++export interface ResolvedModelCapacity {
++  contextWindow: number
++  maxTokens: number
++  contextWindowSource: CapacitySource
++  maxTokensSource: CapacitySource
++}
++
++interface ModelCapacity {
++  contextWindow: number
++  maxTokens: number
++}
++
++const OFFICIAL_CAPACITIES: Readonly<Record<string, ModelCapacity>> = Object.freeze({
++  'deepseek-v4-flash': { contextWindow: 1_000_000, maxTokens: 384_000 },
++  'deepseek-v4-pro': { contextWindow: 1_000_000, maxTokens: 384_000 },
++  'deepseek-v4-flash-vision-exp': { contextWindow: 1_000_000, maxTokens: 384_000 },
++})
++
++const ESTIMATED_CAPACITY: ModelCapacity = {
++  contextWindow: 262_144,
++  maxTokens: 32_768,
++}
++
++/**
++ * Resolves model capacity, preferring provider values over official or estimated fallbacks.
++ * @param modelId Model id to resolve after trimming surrounding whitespace.
++ * @param providerCapacity Capacity fields reported by the provider, when available.
++ * @returns Resolved capacity values together with per-field provenance.
++ */
++export function resolveModelCapacity(
++  modelId: string,
++  providerCapacity: { contextWindow?: number; maxTokens?: number },
++): ResolvedModelCapacity {
++  const normalizedId = modelId.trim()
++  const official = Object.hasOwn(OFFICIAL_CAPACITIES, normalizedId)
++    ? OFFICIAL_CAPACITIES[normalizedId]
++    : undefined
++  const fallback = official ?? ESTIMATED_CAPACITY
++  const fallbackSource: CapacitySource = official === undefined ? 'estimated' : 'official'
++
++  return {
++    contextWindow: providerCapacity.contextWindow ?? fallback.contextWindow,
++    maxTokens: providerCapacity.maxTokens ?? fallback.maxTokens,
++    contextWindowSource: providerCapacity.contextWindow === undefined ? fallbackSource : 'provider',
++    maxTokensSource: providerCapacity.maxTokens === undefined ? fallbackSource : 'provider',
++  }
++}
+diff --git a/packages/llm/llm-pi-ai/src/catalog.ts b/packages/llm/llm-pi-ai/src/catalog.ts
+index 1e9b126dd5..e5e95294a9 100644
+--- a/packages/llm/llm-pi-ai/src/catalog.ts
++++ b/packages/llm/llm-pi-ai/src/catalog.ts
+@@ -39,6 +39,9 @@ const NO_COST: ModelCost = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
+ /** One request modality a pi-ai model may accept. */
+ export type PiAiModality = Model<Api>['input'][number]
+ 
++/** Persisted origin of one configured model capacity. */
++export type PiAiCapacitySource = 'user' | 'provider' | 'official' | 'estimated'
++
+ /**
+  * Every pi-ai request modality. The `Record` key type is a drift gate: a pi-ai
+  * upgrade that adds or removes a modality fails compilation here naming the
+@@ -538,6 +541,8 @@ export interface PiAiModelProfile {
+   name?: string
+   /** Maximum combined request and response context in tokens. */
+   contextWindow?: number
++  /** Origin of {@link contextWindow}; an absent source beside a value is a legacy user setting. */
++  contextWindowSource?: PiAiCapacitySource
+   /**
+    * Maximum output tokens. Configuring one also makes it this model's
+    * per-request default; a value inherited from the installed catalog, or the
+@@ -545,6 +550,8 @@ export interface PiAiModelProfile {
+    * default on its own.
+    */
+   maxTokens?: number
++  /** Origin of {@link maxTokens}; an absent source beside a value is a legacy user setting. */
++  maxTokensSource?: PiAiCapacitySource
+   /**
+    * Request modalities this model accepts. Absent — or empty, which describes
+    * a model that accepts nothing and so states no answer either — keeps the
+diff --git a/packages/llm/llm-pi-ai/src/config.ts b/packages/llm/llm-pi-ai/src/config.ts
+index 5fdcc2cdb2..8317c37b0d 100644
+--- a/packages/llm/llm-pi-ai/src/config.ts
++++ b/packages/llm/llm-pi-ai/src/config.ts
+@@ -32,6 +32,7 @@ import {
+ } from './catalog.ts'
+ import type {
+   PiAiCompatProfile,
++  PiAiCapacitySource,
+   PiAiModality,
+   PiAiModelOverride,
+   PiAiModelProfile,
+@@ -77,6 +78,7 @@ export const DEFAULT_INPUT: readonly PiAiModality[] = ['text']
+ 
+ export type {
+   PiAiCompatProfile,
++  PiAiCapacitySource,
+   PiAiModality,
+   PiAiModelOverride,
+   PiAiModelProfile,
+@@ -284,7 +286,9 @@ const reasoningEfforts = z.dict(
+ const modelFields = {
+   name: z.string(),
+   contextWindow: z.number().step(1).min(1),
++  contextWindowSource: z.union(['user', 'provider', 'official', 'estimated']) as z<PiAiCapacitySource>,
+   maxTokens: z.number().step(1).min(1),
++  maxTokensSource: z.union(['user', 'provider', 'official', 'estimated']) as z<PiAiCapacitySource>,
+   // No explicit default, unlike the route's `defaultInput`: schemastery
+   // materializes `[]` for an absent array, and resolution reads that as "no
+   // answer here" so the catalog entry below still applies.
+diff --git a/packages/llm/llm-pi-ai/src/discovery.ts b/packages/llm/llm-pi-ai/src/discovery.ts
+index 014c9c2f3e..9c725787c6 100644
+--- a/packages/llm/llm-pi-ai/src/discovery.ts
++++ b/packages/llm/llm-pi-ai/src/discovery.ts
+@@ -26,6 +26,7 @@ import { INVALID_CREDENTIAL_CODE, LlmError, normalizeApiKey } from '@deepseek-ai
+ import type { LlmDiscoveredModel, LlmModelDiscoveryRequest } from '@deepseek-ai/dsh-llm'
+ import { attributionHeaders } from '@deepseek-ai/dsh-llm'
+ import { catalogModels } from './catalog.ts'
++import { resolveModelCapacity } from './capacity.ts'
+ 
+ /**
+  * Protocols whose model listing this module can read: the two that speak
+@@ -205,7 +206,9 @@ export async function discoverModels(
+         id: model.id,
+         name: model.name,
+         contextWindow: model.contextWindow,
++        contextWindowSource: 'official',
+         maxTokens: model.maxTokens,
++        maxTokensSource: 'official',
+       }))
+     }
+   }
+@@ -280,5 +283,11 @@ export async function discoverModels(
+   } catch (error: unknown) {
+     throw new LlmError(`${url} did not answer with JSON`, 'DISCOVERY_FAILED', { cause: error })
+   }
+-  return readListing(body)
++  return readListing(body).map((model) => {
++    const resolved = resolveModelCapacity(model.id, {
++      ...model.contextWindow === undefined ? {} : { contextWindow: model.contextWindow },
++      ...model.maxTokens === undefined ? {} : { maxTokens: model.maxTokens },
++    })
++    return { ...model, ...resolved }
++  })
+ }
+diff --git a/packages/llm/llm-pi-ai/src/index.ts b/packages/llm/llm-pi-ai/src/index.ts
+index 846509f8c6..851be76707 100644
+--- a/packages/llm/llm-pi-ai/src/index.ts
++++ b/packages/llm/llm-pi-ai/src/index.ts
+@@ -70,6 +70,8 @@ import { registerPiAiFlows } from './login.ts'
+ 
+ export { PiAiAdapter } from './adapter.ts'
+ export type { PiAiAdapterOptions } from './adapter.ts'
++export { resolveModelCapacity } from './capacity.ts'
++export type { CapacitySource, ResolvedModelCapacity } from './capacity.ts'
+ export { Config } from './config.ts'
+ export type {
+   PiAiCompatProfile,
+diff --git a/packages/llm/llm-pi-ai/tests/capacity.spec.ts b/packages/llm/llm-pi-ai/tests/capacity.spec.ts
+new file mode 100644
+index 0000000000..9d8cd0e7cb
+--- /dev/null
++++ b/packages/llm/llm-pi-ai/tests/capacity.spec.ts
+@@ -0,0 +1,65 @@
++import { describe, expect, it } from 'vitest'
++import { resolveModelCapacity } from '../src/index.ts'
++
++describe('resolveModelCapacity', () => {
++  it.each([
++    'deepseek-v4-flash',
++    'deepseek-v4-pro',
++    'deepseek-v4-flash-vision-exp',
++  ])('uses official capacity for the exact trimmed ID %s', (modelId) => {
++    expect(resolveModelCapacity(`  ${modelId}  `, {})).toEqual({
++      contextWindow: 1_000_000,
++      maxTokens: 384_000,
++      contextWindowSource: 'official',
++      maxTokensSource: 'official',
++    })
++  })
++
++  it('keeps a provider context window while resolving the missing output limit', () => {
++    expect(resolveModelCapacity('deepseek-v4-flash', { contextWindow: 500_000 })).toEqual({
++      contextWindow: 500_000,
++      maxTokens: 384_000,
++      contextWindowSource: 'provider',
++      maxTokensSource: 'official',
++    })
++  })
++
++  it('keeps a provider output limit while estimating the missing context window', () => {
++    expect(resolveModelCapacity('unknown-model', { maxTokens: 16_384 })).toEqual({
++      contextWindow: 262_144,
++      maxTokens: 16_384,
++      contextWindowSource: 'estimated',
++      maxTokensSource: 'provider',
++    })
++  })
++
++  it('estimates both fields for an unknown model ID', () => {
++    expect(resolveModelCapacity('unknown-model', {})).toEqual({
++      contextWindow: 262_144,
++      maxTokens: 32_768,
++      contextWindowSource: 'estimated',
++      maxTokensSource: 'estimated',
++    })
++  })
++
++  it('does not treat a near-match model ID as official', () => {
++    expect(resolveModelCapacity('deepseek-v4-flash-preview', {})).toEqual({
++      contextWindow: 262_144,
++      maxTokens: 32_768,
++      contextWindowSource: 'estimated',
++      maxTokensSource: 'estimated',
++    })
++  })
++
++  it.each(['__proto__', 'constructor', 'toString'])(
++    'does not treat the inherited Object prototype key %s as official',
++    (modelId) => {
++      expect(resolveModelCapacity(modelId, {})).toEqual({
++        contextWindow: 262_144,
++        maxTokens: 32_768,
++        contextWindowSource: 'estimated',
++        maxTokensSource: 'estimated',
++      })
++    },
++  )
++})
+diff --git a/packages/llm/llm-pi-ai/tests/config.spec.ts b/packages/llm/llm-pi-ai/tests/config.spec.ts
+index 61a2535a9d..12da9b06ea 100644
+--- a/packages/llm/llm-pi-ai/tests/config.spec.ts
++++ b/packages/llm/llm-pi-ai/tests/config.spec.ts
+@@ -18,6 +18,46 @@ const routeWith = (profile: Record<string, unknown>): (() => unknown) =>
+ const configWith = (model: Record<string, unknown>): (() => unknown) =>
+   routeWith({ models: [{ id: 'm', ...model }] })
+ 
++describe('capacity provenance schema boundary', () => {
++  it.each(['user', 'provider', 'official', 'estimated'] as const)(
++    'accepts %s as a persisted source for either capacity',
++    (source) => {
++      type Materialized = {
++        providers: Record<string, { models?: Record<string, unknown>[] }>
++      }
++      const parsed = configWith({
++        contextWindow: 65_536,
++        contextWindowSource: source,
++        maxTokens: 4096,
++        maxTokensSource: source,
++      })() as Materialized
++
++      expect(parsed.providers['acme-gateway']?.models?.[0]).toMatchObject({
++        contextWindowSource: source,
++        maxTokensSource: source,
++      })
++    },
++  )
++
++  it.each(['contextWindowSource', 'maxTokensSource'] as const)(
++    'rejects an unknown %s at the schema boundary',
++    (field) => {
++      expect(configWith({ [field]: 'guessed' })).toThrow(/expected/)
++    },
++  )
++
++  it('keeps legacy numeric capacities source-less when loading them', () => {
++    type Materialized = {
++      providers: Record<string, { models?: Record<string, unknown>[] }>
++    }
++    const parsed = configWith({ contextWindow: 65_536, maxTokens: 4096 })() as Materialized
++    const model = parsed.providers['acme-gateway']?.models?.[0]
++
++    expect(model).not.toHaveProperty('contextWindowSource')
++    expect(model).not.toHaveProperty('maxTokensSource')
++  })
++})
++
+ describe('reasoning schema boundary', () => {
+   it('rejects a level pi-ai does not know at the write that produced it', () => {
+     expect(configWith({ reasoningEfforts: { ultra: 'x' } })).toThrow(/"off"/)
+diff --git a/packages/llm/llm-pi-ai/tests/discovery.spec.ts b/packages/llm/llm-pi-ai/tests/discovery.spec.ts
+index 18793565d7..43688be58b 100644
+--- a/packages/llm/llm-pi-ai/tests/discovery.spec.ts
++++ b/packages/llm/llm-pi-ai/tests/discovery.spec.ts
+@@ -84,6 +84,8 @@ describe('catalog-route model discovery', () => {
+     expect(models.map(model => model.id).sort())
+       .toEqual(getBuiltinModels('deepseek').map(model => model.id).sort())
+     expect(models.every(model => (model.contextWindow ?? 0) > 0 && (model.maxTokens ?? 0) > 0)).toBe(true)
++    expect(models.every(model =>
++      model.contextWindowSource === 'official' && model.maxTokensSource === 'official')).toBe(true)
+     expect(server.paths).toEqual([])
+   })
+ 
+@@ -120,14 +122,57 @@ describe('draft-provider model discovery', () => {
+     const models = await ctx.llm.discoverModels('llm-pi-ai', { baseURL: `${server.url}/v1`, apiKey: 'probe-key' })
+ 
+     expect(models).toEqual([
+-      { id: 'acme-large', name: 'Acme Large', contextWindow: 65_536, maxTokens: 4096 },
+-      { id: 'acme-small' },
++      {
++        id: 'acme-large',
++        name: 'Acme Large',
++        contextWindow: 65_536,
++        contextWindowSource: 'provider',
++        maxTokens: 4096,
++        maxTokensSource: 'provider',
++      },
++      {
++        id: 'acme-small',
++        contextWindow: 262_144,
++        contextWindowSource: 'estimated',
++        maxTokens: 32_768,
++        maxTokensSource: 'estimated',
++      },
+     ])
+     expect(server.paths).toEqual(['/v1/models'])
+     expect(server.headers[0]?.authorization).toBe('Bearer probe-key')
+     expect(server.headers[0]?.['user-agent']).toBe(userAgent())
+   })
+ 
++  it('uses exact official output capacity without replacing a provider context window', async () => {
++    const server = await listingServer({
++      body: JSON.stringify({ data: [{ id: 'deepseek-v4-flash', context_length: 500_000 }] }),
++    })
++    const ctx = await harness()
++
++    expect(await ctx.llm.discoverModels('llm-pi-ai', { baseURL: server.url })).toEqual([{
++      id: 'deepseek-v4-flash',
++      contextWindow: 500_000,
++      contextWindowSource: 'provider',
++      maxTokens: 384_000,
++      maxTokensSource: 'official',
++    }])
++  })
++
++  it('uses exact official capacity when a custom listing discloses neither field', async () => {
++    const server = await listingServer({
++      body: JSON.stringify({ data: [{ id: 'deepseek-v4-flash' }] }),
++    })
++    const ctx = await harness()
++
++    expect(await ctx.llm.discoverModels('llm-pi-ai', { baseURL: server.url })).toEqual([{
++      id: 'deepseek-v4-flash',
++      contextWindow: 1_000_000,
++      contextWindowSource: 'official',
++      maxTokens: 384_000,
++      maxTokensSource: 'official',
++    }])
++  })
++
+   it('keeps a deployment path instead of resolving it away', async () => {
+     const server = await listingServer({ body: JSON.stringify({ data: [{ id: 'm' }] }) })
+     const ctx = await harness()
+@@ -199,14 +244,49 @@ describe('draft-provider model discovery', () => {
+           { name: 'no id at all' },
+           null,
+           { id: 'good' },
+-          { id: 'zero-capacity', context_length: 0, max_tokens: -1 },
++          { id: 'zero-capacity', context_length: 0, max_tokens: 2048 },
+         ],
+       }),
+     })
+     const ctx = await harness()
+ 
+     expect(await ctx.llm.discoverModels('llm-pi-ai', { baseURL: server.url }))
+-      .toEqual([{ id: 'good' }, { id: 'zero-capacity' }])
++      .toEqual([
++        {
++          id: 'good',
++          contextWindow: 262_144,
++          contextWindowSource: 'estimated',
++          maxTokens: 32_768,
++          maxTokensSource: 'estimated',
++        },
++        {
++          id: 'zero-capacity',
++          contextWindow: 262_144,
++          contextWindowSource: 'estimated',
++          maxTokens: 2048,
++          maxTokensSource: 'provider',
++        },
++      ])
++  })
++
++  it('keeps the first duplicate model capacity and its resolved sources', async () => {
++    const server = await listingServer({
++      body: JSON.stringify({
++        data: [
++          { id: 'deepseek-v4-flash', context_length: 500_000 },
++          { id: 'deepseek-v4-flash', max_output_tokens: 1024 },
++        ],
++      }),
++    })
++    const ctx = await harness()
++
++    expect(await ctx.llm.discoverModels('llm-pi-ai', { baseURL: server.url })).toEqual([{
++      id: 'deepseek-v4-flash',
++      contextWindow: 500_000,
++      contextWindowSource: 'provider',
++      maxTokens: 384_000,
++      maxTokensSource: 'official',
++    }])
+   })
+ 
+   it('points at the credential for a rejected one, and only then', async () => {
+diff --git a/packages/llm/llm/src/index.ts b/packages/llm/llm/src/index.ts
+index 82b64bf4ce..d8f8f8ed21 100644
+--- a/packages/llm/llm/src/index.ts
++++ b/packages/llm/llm/src/index.ts
+@@ -579,7 +579,9 @@ export class LlmRuntime extends Service {
+         id: model.id,
+         ...model.name === undefined ? {} : { name: model.name },
+         ...model.contextWindow === undefined ? {} : { contextWindow: model.contextWindow },
++        ...model.contextWindowSource === undefined ? {} : { contextWindowSource: model.contextWindowSource },
+         ...model.maxTokens === undefined ? {} : { maxTokens: model.maxTokens },
++        ...model.maxTokensSource === undefined ? {} : { maxTokensSource: model.maxTokensSource },
+       })
+     }
+     return models
+diff --git a/packages/llm/llm/src/types.ts b/packages/llm/llm/src/types.ts
+index 8c5be187dd..ccf1c908db 100644
+--- a/packages/llm/llm/src/types.ts
++++ b/packages/llm/llm/src/types.ts
+@@ -157,6 +157,9 @@ export interface ModelModalityMap {
+ /** Any declared provider model modality. */
+ export type ModelModality = ModelModalityMap[keyof ModelModalityMap]
+ 
++/** Origin of one discovered model capacity value. */
++export type LlmCapacitySource = 'provider' | 'official' | 'estimated'
++
+ /**
+  * One provider route an adapter plugin can activate through configuration,
+  * whether or not the route is currently registered. Configuration surfaces
+@@ -225,8 +228,12 @@ export interface LlmDiscoveredModel {
+   name?: string
+   /** Maximum combined request and response context, when disclosed. */
+   contextWindow?: number
++  /** Origin of {@link contextWindow}, when supplied. */
++  contextWindowSource?: LlmCapacitySource
+   /** Maximum output tokens, when disclosed. */
+   maxTokens?: number
++  /** Origin of {@link maxTokens}, when supplied. */
++  maxTokensSource?: LlmCapacitySource
+ }
+ 
+ /** One adapter-discovered model; catalog membership is advisory, not request validation. */
+diff --git a/packages/llm/llm/tests/topology.spec.ts b/packages/llm/llm/tests/topology.spec.ts
+index e112bf35df..dffff98e9a 100644
+--- a/packages/llm/llm/tests/topology.spec.ts
++++ b/packages/llm/llm/tests/topology.spec.ts
+@@ -238,14 +238,28 @@ describe('model discovery registry', () => {
+   it('normalizes what an interrogation returns without inventing capacities', async () => {
+     const ctx = await setup()
+     ctx.llm.registerModelDiscovery('llm-example', () => Promise.resolve([
+-      { id: 'keep', name: 'Keep', contextWindow: 1024, maxTokens: 256 },
++      {
++        id: 'keep',
++        name: 'Keep',
++        contextWindow: 1024,
++        contextWindowSource: 'official',
++        maxTokens: 256,
++        maxTokensSource: 'provider',
++      },
+       { id: '' },
+       { id: 'keep' },
+       { id: 'bare' },
+     ] as never))
+ 
+     expect(await ctx.llm.discoverModels('llm-example', { baseURL: 'https://gateway.example/v1' })).toEqual([
+-      { id: 'keep', name: 'Keep', contextWindow: 1024, maxTokens: 256 },
++      {
++        id: 'keep',
++        name: 'Keep',
++        contextWindow: 1024,
++        contextWindowSource: 'official',
++        maxTokens: 256,
++        maxTokensSource: 'provider',
++      },
+       { id: 'bare' },
+     ])
+   })
 diff --git a/packages/test-support/client-runtime/src/sessions.ts b/packages/test-support/client-runtime/src/sessions.ts
 index c014d6f002..28324b0f0b 100644
 --- a/packages/test-support/client-runtime/src/sessions.ts
@@ -2069,173 +3828,3 @@ index c014d6f002..28324b0f0b 100644
    /**
     * Fail-loud stub; supply `rename` on the fixture's session face to exercise it.
     * @returns never — always throws.
-diff --git a/packages/client/ui-conversation/tests/approval-panel.client.spec.tsx b/packages/client/ui-conversation/tests/approval-panel.client.spec.tsx
-new file mode 100644
-index 0000000000..8da342ded2
---- /dev/null
-+++ b/packages/client/ui-conversation/tests/approval-panel.client.spec.tsx
-@@ -0,0 +1,163 @@
-+// @vitest-environment jsdom
-+import { afterEach, describe, expect, it, vi } from 'vitest'
-+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-+import type {
-+  ChatConversationViewNode, ConversationSnapshot, RunningToolCall, SessionId, SessionListState,
-+  ToolCallBlock, WorkspaceListState,
-+} from '@deepseek-ai/dsh-client-runtime/client'
-+import {
-+  conversationContextKey, EMPTY_CHAT_SNAPSHOT, EMPTY_CONVERSATION_VIEWS, PendingWait,
-+} from '@deepseek-ai/dsh-client-runtime/client'
-+import type { RpcReceipt } from '@deepseek-ai/dsh-api-remotes/client'
-+import { RpcId } from '@deepseek-ai/dsh-client-connection/client'
-+import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
-+import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
-+import { ApprovalPanel, commandOf } from '../src/client/skeleton/ApprovalPanel.tsx'
-+import type { ApprovalComposerProps } from '../src/client/contract/slots.ts'
-+import { en, zh } from '../src/client/locales.ts'
-+import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
-+import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
-+
-+afterEach(cleanup)
-+
-+const SID = 's1' as SessionId
-+
-+function snapshotBase(chat: ConversationSnapshot['chat'] = EMPTY_CHAT_SNAPSHOT): ConversationSnapshot {
-+  return {
-+    sessionId: SID, views: EMPTY_CONVERSATION_VIEWS, chat, nodes: [],
-+    turnTimings: new Map(), turnEnds: new Map(), partial: null, runningCalls: [],
-+    pending: [], queue: [], running: false, composerPhase: 'active', removed: false, openState: 'open', openError: null,
-+    hasMore: false, loadingOlder: false, promptError: null, blank: false, subagent: null, lastAgentError: null,
-+  }
-+}
-+
-+function kit(snapshot: ConversationSnapshot = snapshotBase()) {
-+  return {
-+    session: undefined,
-+    sessionId: SID,
-+    useSession: ((sel: (s: ConversationSnapshot) => unknown) => sel(snapshot)) as unknown as SnapshotSelectorHook<ConversationSnapshot>,
-+    useSessions: (() => { throw new Error('unused') }) as unknown as SnapshotSelectorHook<SessionListState>,
-+    useWorkspaces: (() => { throw new Error('unused') }) as unknown as SnapshotSelectorHook<WorkspaceListState>,
-+    useProjection: (() => undefined) as never,
-+    useInput: (() => { throw new Error('unused') }) as never,
-+    inputActions: { setDraft: () => { throw new Error('unused') }, submit: () => { throw new Error('unused') } } as never,
-+    t: makeTranslate(zh, commonZh) as ApprovalComposerProps['t'],
-+  }
-+}
-+
-+function wait(
-+  rpcId = 'approval-1',
-+  payload: ConstructorParameters<typeof PendingWait<'approval'>>[3] = { toolName: 'bash', approvalId: 'ap1' as never, reason: 'escalate sandbox' },
-+  respond = vi.fn(() => Promise.resolve<RpcReceipt>({ accepted: true })),
-+) {
-+  const carrier = new PendingWait('approval', RpcId(rpcId), SID, payload, respond)
-+  return { carrier, respond }
-+}
-+
-+function runningCall(over: Partial<RunningToolCall> = {}): RunningToolCall {
-+  return {
-+    callId: 'c1', name: 'bash', argsRaw: JSON.stringify({ command: 'ls' }),
-+    turn: 1, step: 1, time: 0, callView: null, subCalls: [],
-+    ...over,
-+  }
-+}
-+
-+function snapshotWithRoot(callId: string, root: ToolCallBlock): ConversationSnapshot {
-+  const key = conversationContextKey('tool-call', callId)
-+  const node = {
-+    kind: 'tool-call', key, id: callId, target: 'chat', data: { root },
-+    anchorSeq: 1, location: { kind: 'unresolved' }, visibility: 'visible',
-+  } as ChatConversationViewNode
-+  return snapshotBase({
-+    ...EMPTY_CHAT_SNAPSHOT,
-+    nodes: {
-+      get: (lookup: string) => lookup === key ? node : undefined,
-+      values: () => [node],
-+    },
-+  })
-+}
-+
-+describe('commandOf', () => {
-+  it('reads a bash-family command and hides unparseable or command-less args', () => {
-+    expect(commandOf(undefined)).toBeUndefined()
-+    expect(commandOf(runningCall({ argsRaw: '{' }))).toBeUndefined()
-+    expect(commandOf(runningCall({ argsRaw: JSON.stringify({ path: 'x' }) }))).toBeUndefined()
-+    expect(commandOf(runningCall())).toBe('ls')
-+  })
-+})
-+
-+describe('ApprovalPanel', () => {
-+  it('renders the waiting strip, reason, and both actions', () => {
-+    const { carrier } = wait()
-+    render(<ApprovalPanel matched={carrier} interactions={[carrier]} {...kit()} />)
-+    expect(screen.getByText('等待审批')).toBeTruthy()
-+    expect(screen.getByText('escalate sandbox')).toBeTruthy()
-+    expect(screen.getByRole('button', { name: '拒绝' })).toBeTruthy()
-+    expect(screen.getByRole('button', { name: '允许一次' })).toBeTruthy()
-+  })
-+
-+  it('falls back to the tool-name headline when the ask carries no reason', () => {
-+    const { carrier } = wait('approval-2', { toolName: 'pwsh', approvalId: 'ap2' as never })
-+    render(<ApprovalPanel matched={carrier} interactions={[carrier]} {...kit()} />)
-+    expect(screen.getByText('工具 pwsh 请求越权执行')).toBeTruthy()
-+  })
-+
-+  it('shows submitting while the answer is in flight and re-arms with the error on failure', async () => {
-+    let reject!: (error: Error) => void
-+    const respond = vi.fn(() => new Promise<RpcReceipt>((_, fail) => { reject = fail }))
-+    const { carrier } = wait('approval-3', { toolName: 'bash', approvalId: 'ap3' as never, reason: 'why' }, respond)
-+    render(<ApprovalPanel matched={carrier} interactions={[carrier]} {...kit()} />)
-+    fireEvent.click(screen.getByRole('button', { name: '允许一次' }))
-+    expect(screen.getByRole('button', { name: '提交中…' })).toHaveProperty('disabled', true)
-+    expect(screen.getByRole('button', { name: '拒绝' })).toHaveProperty('disabled', true)
-+    await act(async () => { reject(new Error('approval response rejected: not-pending')) })
-+    expect(screen.getByRole('alert').textContent).toBe('approval response rejected: not-pending')
-+    expect(screen.getByRole('button', { name: '允许一次' })).toHaveProperty('disabled', false)
-+  })
-+
-+  it('re-arms after a rejected receipt and shows the paired command for a running call', async () => {
-+    const respond = vi.fn(() => Promise.resolve<RpcReceipt>({ accepted: false, reason: 'not-pending' }))
-+    const { carrier } = wait(
-+      'approval-4',
-+      { toolName: 'bash', approvalId: 'ap4' as never, callId: 'c1' as never, reason: 'why' },
-+      respond,
-+    )
-+    render(<ApprovalPanel matched={carrier} interactions={[carrier]} {...kit(snapshotWithRoot('c1', runningCall()))} />)
-+    expect(screen.getByText('ls')).toBeTruthy()
-+    fireEvent.click(screen.getByRole('button', { name: '拒绝' }))
-+    await act(async () => undefined)
-+    expect(screen.getByRole('alert').textContent).toContain('not-pending')
-+    expect(screen.getByRole('button', { name: '拒绝' })).toHaveProperty('disabled', false)
-+  })
-+
-+  it('hides the command line when the paired root is missing, settled, or a different call', () => {
-+    const payload = { toolName: 'bash', approvalId: 'ap5' as never, callId: 'c1' as never, reason: 'why' }
-+    const { carrier: missing } = wait('a-missing', payload)
-+    const { container: missingView } = render(
-+      <ApprovalPanel matched={missing} interactions={[missing]} {...kit()} />)
-+    expect(missingView.querySelector('[class*="command"]')).toBeNull()
-+
-+    const settled: ToolCallBlock = {
-+      kind: 'tool-result', seq: 1, time: 0, callId: 'c1', call: { name: 'bash', argsRaw: '{"command":"ls"}' },
-+      callTime: 0, content: [], isError: false, callView: null, resultView: null, subCalls: [],
-+    }
-+    const { carrier: done } = wait('a-done', payload)
-+    const { container: doneView } = render(
-+      <ApprovalPanel matched={done} interactions={[done]} {...kit(snapshotWithRoot('c1', settled))} />)
-+    expect(doneView.querySelector('[class*="command"]')).toBeNull()
-+
-+    const { carrier: other } = wait('a-other', payload)
-+    const { container: otherView } = render(
-+      <ApprovalPanel matched={other} interactions={[other]} {...kit(snapshotWithRoot('c1', runningCall({ callId: 'other' })))} />)
-+    expect(otherView.querySelector('[class*="command"]')).toBeNull()
-+  })
-+
-+  it('uses the English submitting label when the seat is English', () => {
-+    const respond = vi.fn(() => new Promise<RpcReceipt>(() => undefined))
-+    const { carrier } = wait('approval-en', { toolName: 'bash', approvalId: 'ap-en' as never }, respond)
-+    const english = { ...kit(), t: makeTranslate(en, commonEn) as ApprovalComposerProps['t'] }
-+    render(<ApprovalPanel matched={carrier} interactions={[carrier]} {...english} />)
-+    fireEvent.click(screen.getByRole('button', { name: 'Allow once' }))
-+    expect(screen.getByRole('button', { name: 'Submitting…' })).toHaveProperty('disabled', true)
-+  })
-+})
-
