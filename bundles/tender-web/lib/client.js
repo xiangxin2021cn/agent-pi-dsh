@@ -9630,6 +9630,13 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
       const loggedIn = auth.state === 'logged-in'
       const pending = auth.state === 'pending'
       const statusClass = loggedIn ? 'ap-chip ok' : pending ? 'ap-chip live' : 'ap-chip warn'
+      const model = loggedIn && auth.model
+      const formatCapacity = (value) => Number(value).toLocaleString()
+      const capacitySource = {
+        provider: '供应商返回',
+        official: '官方参数',
+        estimated: '估算参数',
+      }
 
       return h('section', { className: 'ap-codex-settings' },
         h('h1', null, zh ? 'Codex 智能体' : 'Codex Agent'),
@@ -9644,6 +9651,21 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
           h('p', { className: 'ap-sub' }, zh
             ? '使用 ChatGPT 账号在系统浏览器中授权，无需 API Key。凭据仅保存在本机 Agent Pi 专属 Codex 目录。'
             : 'Authorize with your ChatGPT account in the system browser. No API key is required; credentials stay in Agent Pi’s private local Codex directory.'),
+          loggedIn && h('p', { className: 'ap-sub' }, model
+            ? [
+                h('strong', { key: 'id' }, model.id),
+                h('br', { key: 'break' }),
+                zh ? '上下文窗口：' : 'Context window: ',
+                formatCapacity(model.contextWindow),
+                ' · ',
+                capacitySource[model.contextWindowSource],
+                h('br', { key: 'output-break' }),
+                zh ? '最大输出：' : 'Maximum output: ',
+                formatCapacity(model.maxTokens),
+                ' · ',
+                capacitySource[model.maxTokensSource],
+              ]
+            : (zh ? '模型信息暂不可用' : 'Model information is temporarily unavailable')),
           h('div', { className: 'ap-row', style: { marginTop: 14 } },
             !loggedIn && h('button', {
               type: 'button',

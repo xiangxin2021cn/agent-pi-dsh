@@ -61,6 +61,42 @@ test('Codex auth controller uses browser login with isolated CODEX_HOME and no A
   controller.dispose()
 })
 
+test('Codex auth controller enriches a logged-in status with the active model', () => {
+  const codexHome = join(process.cwd(), '.tmp', 'codex-auth-model-test')
+  const appServerReply = JSON.stringify({
+    id: 2,
+    result: { data: [{ id: 'gpt-5.6-sol', isDefault: true }] },
+  })
+  const controller = createCodexAuthController({
+    nodePath: 'node.exe',
+    wrapperPath: 'codex.js',
+    codexHome,
+    baseEnv: { PATH: 'C:\\Windows', OPENAI_API_KEY: 'must-not-cross' },
+    spawnSync(_command, args) {
+      if (args.slice(-2).join(' ') === 'login status') {
+        return { status: 0, stdout: 'Logged in using ChatGPT\n', stderr: '' }
+      }
+      if (args.includes('app-server')) {
+        return { status: 0, stdout: appServerReply, stderr: '' }
+      }
+      throw new Error('unexpected command')
+    },
+  })
+
+  assert.deepEqual(controller.status(), {
+    available: true,
+    state: 'logged-in',
+    method: 'chatgpt',
+    model: {
+      id: 'gpt-5.6-sol',
+      contextWindow: 1_050_000,
+      maxTokens: 128_000,
+      contextWindowSource: 'official',
+      maxTokensSource: 'official',
+    },
+  })
+})
+
 test('Electron exposes only normalized Codex auth operations to the renderer', () => {
   const desktop = join(import.meta.dirname, '..')
   const main = readFileSync(join(desktop, 'main.mjs'), 'utf8')
