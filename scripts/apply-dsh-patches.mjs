@@ -13,7 +13,7 @@ export function applyDshPatch({ dshRoot, patchPath, run = spawnSync }) {
 
   const gitApply = (args) => run(
     'git',
-    ['-C', dshRoot, 'apply', ...args, patchPath],
+    ['-C', dshRoot, 'apply', '--ignore-space-change', ...args, patchPath],
     { encoding: 'utf8', windowsHide: true },
   )
   if (gitApply(['--reverse', '--check']).status === 0) return 'already-applied'
