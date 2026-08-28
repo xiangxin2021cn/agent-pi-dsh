@@ -132,12 +132,15 @@ function observable(snapshot) {
 }
 
 function publicComposer(sessionId, draft) {
-  const input = observable({ draft, phase: 'plain', imageIds: [] })
+  const input = observable({ draft, phase: 'plain', imageIds: [], draftRev: 0 })
   const session = Object.assign(observable({ nodes: [], promptError: null }), { prompt() {} })
   const scope = { sessionId }
   const sent = []
   const actions = {
-    setDraft(text) { input.set({ ...input.getSnapshot(), draft: text }) },
+    setDraft(text) {
+      const current = input.getSnapshot()
+      input.set({ ...current, draft: text, draftRev: current.draftRev + 1 })
+    },
     submit() {
       const framed = input.getSnapshot().draft
       sent.push(framed)
@@ -387,7 +390,12 @@ test('shipped composer settles successful public stores after ComposerTools unmo
   composer.actions.submit()
   await flush()
   const framed = composer.sent[0]
-  composer.input.set({ ...composer.input.getSnapshot(), phase: 'plain', draft: '' })
+  composer.input.set({
+    ...composer.input.getSnapshot(),
+    phase: 'plain',
+    draft: '',
+    draftRev: composer.input.getSnapshot().draftRev + 1,
+  })
   composer.session.set({ nodes: [userNode(1, framed)], promptError: null })
   assert.equal(api.codexTurnArmed(composer.props()), false)
   assert.equal(api.attachItemsOf('background').length, 0)
@@ -412,6 +420,102 @@ test('shipped composer retains later draft work after public host failure', asyn
   assert.equal(api.codexTurnArmed(composer.props()), true)
   assert.equal(api.attachItemsOf('late-failure').length, 1)
   assert.equal(controllerPhase(api, 'late-failure'), 'armed')
+  assert.equal(composer.input.subscriberCount, 0)
+  assert.equal(composer.session.subscriberCount, 0)
+})
+
+test('shipped composer rearms after a local pre-prompt rejection without promptError', async () => {
+  const composer = publicComposer('local-pre-prompt', 'retry local task')
+  composer.input.set({ ...composer.input.getSnapshot(), imageIds: ['missing-host-image'] })
+  const { api } = loadShippedComposer({ runtime: publicRuntime(composer) })
+  const attachment = { id: 'local-doc', name: 'scope.pdf', kind: 'image', path: 'C:/workspace/scope.pdf' }
+  api.ComposerTools(composer.props())
+  api.setAttachItems([attachment], composer.props())
+  api.setCodexTurnArmed(composer.props(), true)
+  composer.actions.submit()
+  await flush()
+
+  const submitting = composer.input.getSnapshot()
+  assert.equal(submitting.phase, 'submitting')
+  assert.match(submitting.draft, /retry local task$/)
+  composer.input.set({ ...submitting, phase: 'plain' })
+
+  assert.equal(controllerPhase(api, 'local-pre-prompt'), 'armed')
+  assert.equal(composer.input.getSnapshot().draft, 'retry local task')
+  assert.deepEqual(composer.input.getSnapshot().imageIds, ['missing-host-image'])
+  assert.deepEqual(api.attachState.bySession.get('local-pre-prompt'), [attachment])
+  assert.equal(composer.input.subscriberCount, 0)
+  assert.equal(composer.session.subscriberCount, 0)
+})
+
+test('shipped composer rearms a local rejection without overwriting a concurrent edit', async () => {
+  const composer = publicComposer('local-edit-rejection', 'original local task')
+  const { api } = loadShippedComposer({ runtime: publicRuntime(composer) })
+  const attachment = { id: 'edit-doc', name: 'scope.pdf', kind: 'image', path: 'C:/workspace/scope.pdf' }
+  api.ComposerTools(composer.props())
+  api.setAttachItems([attachment], composer.props())
+  api.setCodexTurnArmed(composer.props(), true)
+  composer.actions.submit()
+  await flush()
+
+  const framed = composer.input.getSnapshot().draft
+  composer.actions.setDraft(framed + '\nnewer user work')
+  const edited = composer.input.getSnapshot()
+  assert.equal(edited.phase, 'submitting')
+  composer.input.set({ ...edited, phase: 'plain' })
+
+  assert.equal(controllerPhase(api, 'local-edit-rejection'), 'armed')
+  assert.equal(composer.input.getSnapshot().draft, framed + '\nnewer user work')
+  assert.deepEqual(api.attachState.bySession.get('local-edit-rejection'), [attachment])
+  assert.equal(composer.input.subscriberCount, 0)
+  assert.equal(composer.session.subscriberCount, 0)
+})
+
+test('shipped composer waits for its matching node after accepted input settlement', async () => {
+  const composer = publicComposer('accepted-before-node', 'accepted local task')
+  const { api } = loadShippedComposer({ runtime: publicRuntime(composer) })
+  const attachment = { id: 'accepted-doc', name: 'scope.pdf', kind: 'image', path: 'C:/workspace/scope.pdf' }
+  api.ComposerTools(composer.props())
+  api.setAttachItems([attachment], composer.props())
+  api.setCodexTurnArmed(composer.props(), true)
+  composer.actions.submit()
+  await flush()
+
+  const framed = composer.sent[0]
+  const submitting = composer.input.getSnapshot()
+  composer.input.set({ ...submitting, phase: 'plain', draft: '', draftRev: submitting.draftRev + 1 })
+  assert.equal(controllerPhase(api, 'accepted-before-node'), 'submitting')
+  assert.deepEqual(api.attachState.bySession.get('accepted-before-node'), [attachment])
+
+  composer.session.set({ nodes: [userNode(1, framed)], promptError: null })
+  assert.equal(controllerPhase(api, 'accepted-before-node'), 'idle')
+  assert.deepEqual(api.attachState.bySession.get('accepted-before-node'), [])
+  assert.equal(composer.input.subscriberCount, 0)
+  assert.equal(composer.session.subscriberCount, 0)
+})
+
+test('shipped composer ignores a stale send error until the current input attempt settles', async () => {
+  const composer = publicComposer('stale-send-error', 'retry after stale error')
+  composer.session.set({ nodes: [], promptError: { op: 'send', error: { code: 'old-rejection' } } })
+  const { api } = loadShippedComposer({ runtime: publicRuntime(composer) })
+  const attachment = { id: 'stale-doc', name: 'scope.pdf', kind: 'image', path: 'C:/workspace/scope.pdf' }
+  api.ComposerTools(composer.props())
+  api.setAttachItems([attachment], composer.props())
+  api.setCodexTurnArmed(composer.props(), true)
+  composer.actions.submit()
+  await flush()
+
+  assert.equal(controllerPhase(api, 'stale-send-error'), 'submitting')
+  const framed = composer.sent[0]
+  assert.equal(composer.input.getSnapshot().draft, framed)
+  composer.session.set({ nodes: [], promptError: null })
+  composer.session.set({ nodes: [], promptError: { op: 'send', error: { code: 'current-rejection' } } })
+  assert.equal(controllerPhase(api, 'stale-send-error'), 'submitting')
+  composer.input.set({ ...composer.input.getSnapshot(), phase: 'plain' })
+
+  assert.equal(controllerPhase(api, 'stale-send-error'), 'armed')
+  assert.equal(composer.input.getSnapshot().draft, 'retry after stale error')
+  assert.deepEqual(api.attachState.bySession.get('stale-send-error'), [attachment])
   assert.equal(composer.input.subscriberCount, 0)
   assert.equal(composer.session.subscriberCount, 0)
 })
@@ -566,7 +670,12 @@ test('shipped composer preserves a re-added same-path attachment with a new id',
   await flush()
   const framed = composer.sent[0]
   api.setAttachItems([newItem], composer.props())
-  composer.input.set({ ...composer.input.getSnapshot(), phase: 'plain', draft: '' })
+  composer.input.set({
+    ...composer.input.getSnapshot(),
+    phase: 'plain',
+    draft: '',
+    draftRev: composer.input.getSnapshot().draftRev + 1,
+  })
   composer.session.set({ nodes: [userNode(1, framed)], promptError: null })
   assert.deepEqual(api.attachState.bySession.get('same-path-readd'), [newItem])
   assert.equal(api.codexTurnArmed(composer.props()), false)
@@ -586,7 +695,12 @@ test('shipped composer cleans A without overwriting active B attachments', async
   left.actions.submit()
   await flush()
   const framed = left.sent[0]
-  left.input.set({ ...left.input.getSnapshot(), phase: 'plain', draft: '' })
+  left.input.set({
+    ...left.input.getSnapshot(),
+    phase: 'plain',
+    draft: '',
+    draftRev: left.input.getSnapshot().draftRev + 1,
+  })
   left.session.set({ nodes: [userNode(1, framed)], promptError: null })
   assert.deepEqual(api.attachState.bySession.get('attachment-left'), [])
   assert.deepEqual(api.attachState.bySession.get('attachment-right'), [rightItem])

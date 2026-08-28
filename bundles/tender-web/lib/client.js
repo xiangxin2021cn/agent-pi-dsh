@@ -1468,6 +1468,9 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
         capturedAttachmentIds: [],
         capturedAttachments: [],
         preSubmitUserNodeWatermark: -1,
+        lastInputPhase: null,
+        lastInputDraftRev: null,
+        sawSubmitting: false,
         unsubscribeSession: null,
         unsubscribeInput: null,
       }
@@ -1524,6 +1527,9 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
       controller.capturedAttachmentIds = []
       controller.capturedAttachments = []
       controller.preSubmitUserNodeWatermark = -1
+      controller.lastInputPhase = null
+      controller.lastInputDraftRev = null
+      controller.sawSubmitting = false
     }
     function rearmCodexTurn(key, controller) {
       if (codexTurnControllers.get(key) !== controller || controller.phase === 'disposed') return
@@ -1662,13 +1668,15 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
       const session = authorities.session
       const inputStore = authorities.inputStore
       let snapshot
+      let inputSnapshot
       try {
         snapshot = session && typeof session.getSnapshot === 'function' ? session.getSnapshot() : null
+        inputSnapshot = inputStore && typeof inputStore.getSnapshot === 'function' ? inputStore.getSnapshot() : null
       } catch {
         failCodexTurn(key, controller, inputStore)
         return
       }
-      if (!snapshot) {
+      if (!snapshot || !inputSnapshot) {
         failCodexTurn(key, controller, inputStore)
         return
       }
@@ -1676,11 +1684,26 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
         disposeCodexTurn(key, controller)
         return
       }
-      if (snapshot.promptError && snapshot.promptError.op === 'send') {
-        failCodexTurn(key, controller, inputStore)
+      if (codexUserNode(snapshot, controller)) {
+        clearCodexTurnAfterSubmit(key, controller)
         return
       }
-      if (codexUserNode(snapshot, controller)) clearCodexTurnAfterSubmit(key, controller)
+      const previousInputPhase = controller.lastInputPhase
+      const previousInputDraftRev = controller.lastInputDraftRev
+      const inputPhase = inputSnapshot.phase
+      const inputDraftRev = typeof inputSnapshot.draftRev === 'number' ? inputSnapshot.draftRev : null
+      if (inputPhase === 'submitting') controller.sawSubmitting = true
+      controller.lastInputPhase = inputPhase
+      controller.lastInputDraftRev = inputDraftRev
+      if (inputPhase === 'submitting') return
+      if (controller.sawSubmitting && previousInputPhase === 'submitting' && inputPhase === 'plain'
+        && inputDraftRev !== null && previousInputDraftRev !== null) {
+        if (inputDraftRev === previousInputDraftRev) failCodexTurn(key, controller, inputStore)
+        return
+      }
+      if (snapshot.promptError && snapshot.promptError.op === 'send') {
+        failCodexTurn(key, controller, inputStore)
+      }
     }
 
     const composerPropsRef = { current: null }
@@ -3990,6 +4013,10 @@ ${original}`
         controller.preSubmitUserNodeWatermark = codexUserNodeWatermark(prepared.sessionSnapshot)
         controller.phase = 'submitting'
         setComposerDraft(prepared.live, controller.framedDraft)
+        const inputSnapshot = inputStore.getSnapshot()
+        controller.lastInputPhase = inputSnapshot && inputSnapshot.phase
+        controller.lastInputDraftRev = inputSnapshot && typeof inputSnapshot.draftRev === 'number' ? inputSnapshot.draftRev : null
+        controller.sawSubmitting = controller.lastInputPhase === 'submitting'
         notifyCodexTurn()
         token.settlementReady = false
         token.settlementQueued = false
