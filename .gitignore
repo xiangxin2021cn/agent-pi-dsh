@@ -18,6 +18,7 @@ apps/desktop/.asar-patch.asar
 vendor/dsh-univer-office/
 .agent-pi/
 .knox-debug/
+.worktrees/
 release/*.exe
 release/*.tar.gz
 release/vr-144/
