@@ -1497,30 +1497,37 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
       return phase === 'armed' || phase === 'preparing' || phase === 'submitting'
     }
     function setCodexTurnArmed(props, armed) {
+      const key = codexTurnKey(props)
       const controller = codexTurnController(props, armed)
       if (!controller) return
       controller.latestProps = props
-      if (armed && controller.phase === 'idle') controller.phase = 'armed'
+      if (armed && controller.phase === 'idle') {
+        controller.phase = 'armed'
+        watchCodexTurnSession(key, controller)
+      }
       else if (!armed && controller.phase === 'armed') {
         resetCodexTurnAttempt(controller)
+        disposeCodexTurnSessionSubscription(controller)
         controller.phase = 'idle'
       } else return
       notifyCodexTurn()
     }
-    function disposeCodexTurnSubscriptions(controller) {
+    function disposeCodexTurnInputSubscription(controller) {
       const unsubscribeInput = controller.unsubscribeInput
-      const unsubscribeSession = controller.unsubscribeSession
       controller.unsubscribeInput = null
-      controller.unsubscribeSession = null
       if (typeof unsubscribeInput === 'function') {
         try { unsubscribeInput() } catch {}
       }
+    }
+    function disposeCodexTurnSessionSubscription(controller) {
+      const unsubscribeSession = controller.unsubscribeSession
+      controller.unsubscribeSession = null
       if (typeof unsubscribeSession === 'function') {
         try { unsubscribeSession() } catch {}
       }
     }
     function resetCodexTurnAttempt(controller) {
-      disposeCodexTurnSubscriptions(controller)
+      disposeCodexTurnInputSubscription(controller)
       controller.attemptToken = null
       controller.originalDraft = ''
       controller.framedDraft = ''
@@ -1540,6 +1547,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
     function disposeCodexTurn(key, controller) {
       if (codexTurnControllers.get(key) !== controller) return
       resetCodexTurnAttempt(controller)
+      disposeCodexTurnSessionSubscription(controller)
       controller.phase = 'disposed'
       codexTurnControllers.delete(key)
       notifyCodexTurn()
@@ -1554,6 +1562,47 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
       const session = typeof sessions.sessionOf === 'function' ? sessions.sessionOf(scope) : binding && binding.session
       const input = conversation.input.for(scope)
       return { scope, session, inputStore: input && input.state }
+    }
+    function watchCodexTurnSession(key, controller) {
+      if (typeof controller.unsubscribeSession === 'function') return true
+      let authorities
+      try {
+        authorities = codexTurnAuthorities(key)
+      } catch {
+        return false
+      }
+      const session = authorities && authorities.session
+      if (!session || typeof session.getSnapshot !== 'function' || typeof session.subscribe !== 'function') return false
+      const onSession = () => {
+        if (codexTurnControllers.get(key) !== controller || controller.phase === 'disposed') return
+        let snapshot
+        try {
+          snapshot = session.getSnapshot()
+        } catch {
+          return
+        }
+        if (snapshot && snapshot.removed === true) {
+          disposeCodexTurn(key, controller)
+          return
+        }
+        const token = controller.attemptToken
+        if (controller.phase !== 'submitting' || !token) return
+        if (!token.settlementReady) token.settlementQueued = true
+        else settleCodexTurn(key, token)
+      }
+      let unsubscribe
+      try {
+        unsubscribe = session.subscribe(onSession)
+      } catch {
+        return false
+      }
+      if (typeof unsubscribe !== 'function') return false
+      if (codexTurnControllers.get(key) !== controller || controller.phase === 'disposed') {
+        try { unsubscribe() } catch {}
+        return false
+      }
+      controller.unsubscribeSession = unsubscribe
+      return true
     }
     function codexUserNode(snapshot, controller) {
       const nodes = snapshot && snapshot.nodes || []
@@ -1647,6 +1696,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
         return false
       })
       resetCodexTurnAttempt(controller)
+      disposeCodexTurnSessionSubscription(controller)
       controller.phase = 'idle'
       if (capturedIds.length) setCodexAttachItems(key, remaining)
       notifyCodexTurn()
@@ -4006,7 +4056,7 @@ ${original}`
       const controller = prepared.controller
       const inputStore = prepared.inputStore
       try {
-        if (typeof inputStore.subscribe !== 'function' || typeof prepared.session.subscribe !== 'function') throw new Error('Codex settlement subscriptions unavailable')
+        if (typeof inputStore.subscribe !== 'function' || !watchCodexTurnSession(key, controller)) throw new Error('Codex settlement subscriptions unavailable')
         const actions = prepared.live && prepared.live.inputActions
         const submit = actions && actions.__apOrigSubmit
         if (typeof submit !== 'function') throw new Error('Codex original submit unavailable')
@@ -4030,9 +4080,6 @@ ${original}`
         const unsubscribeInput = inputStore.subscribe(onSettlement)
         if (typeof unsubscribeInput !== 'function') throw new Error('Codex input settlement subscription unavailable')
         controller.unsubscribeInput = unsubscribeInput
-        const unsubscribeSession = prepared.session.subscribe(onSettlement)
-        if (typeof unsubscribeSession !== 'function') throw new Error('Codex session settlement subscription unavailable')
-        controller.unsubscribeSession = unsubscribeSession
         token.settlementReady = true
         submit()
         if (token.settlementQueued) settleCodexTurn(key, token)
@@ -10164,11 +10211,17 @@ ${original}`
       const statusClass = loggedIn ? 'ap-chip ok' : pending ? 'ap-chip live' : 'ap-chip warn'
       const model = loggedIn && auth.model
       const formatCapacity = (value) => Number(value).toLocaleString()
-      const capacitySource = {
-        provider: '供应商返回',
-        official: '官方参数',
-        estimated: '估算参数',
-      }
+      const capacitySource = zh
+        ? {
+            provider: '供应商返回',
+            official: '官方参数',
+            estimated: '估算参数',
+          }
+        : {
+            provider: 'Provider metadata',
+            official: 'Verified catalog',
+            estimated: 'Conservative estimate',
+          }
 
       return h('section', { className: 'ap-codex-settings' },
         h('h1', null, zh ? 'Codex 智能体' : 'Codex Agent'),

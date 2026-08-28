@@ -170,6 +170,7 @@ function publicComposer(sessionId, draft) {
 function publicRuntime(...composers) {
   const byId = new Map(composers.map((composer) => [composer.sessionId, composer]))
   return {
+    add(composer) { byId.set(composer.sessionId, composer) },
     remove(sessionId) { byId.delete(sessionId) },
     sessions: {
       scope(sessionId) { return byId.get(sessionId)?.scope },
@@ -421,7 +422,7 @@ test('shipped composer retains later draft work after public host failure', asyn
   assert.equal(api.attachItemsOf('late-failure').length, 1)
   assert.equal(controllerPhase(api, 'late-failure'), 'armed')
   assert.equal(composer.input.subscriberCount, 0)
-  assert.equal(composer.session.subscriberCount, 0)
+  assert.equal(composer.session.subscriberCount, 1)
 })
 
 test('shipped composer rearms after a local pre-prompt rejection without promptError', async () => {
@@ -445,7 +446,7 @@ test('shipped composer rearms after a local pre-prompt rejection without promptE
   assert.deepEqual(composer.input.getSnapshot().imageIds, ['missing-host-image'])
   assert.deepEqual(api.attachState.bySession.get('local-pre-prompt'), [attachment])
   assert.equal(composer.input.subscriberCount, 0)
-  assert.equal(composer.session.subscriberCount, 0)
+  assert.equal(composer.session.subscriberCount, 1)
 })
 
 test('shipped composer rearms a local rejection without overwriting a concurrent edit', async () => {
@@ -468,7 +469,7 @@ test('shipped composer rearms a local rejection without overwriting a concurrent
   assert.equal(composer.input.getSnapshot().draft, framed + '\nnewer user work')
   assert.deepEqual(api.attachState.bySession.get('local-edit-rejection'), [attachment])
   assert.equal(composer.input.subscriberCount, 0)
-  assert.equal(composer.session.subscriberCount, 0)
+  assert.equal(composer.session.subscriberCount, 1)
 })
 
 test('shipped composer waits for its matching node after accepted input settlement', async () => {
@@ -517,7 +518,7 @@ test('shipped composer ignores a stale send error until the current input attemp
   assert.equal(composer.input.getSnapshot().draft, 'retry after stale error')
   assert.deepEqual(api.attachState.bySession.get('stale-send-error'), [attachment])
   assert.equal(composer.input.subscriberCount, 0)
-  assert.equal(composer.session.subscriberCount, 0)
+  assert.equal(composer.session.subscriberCount, 1)
 })
 
 test('shipped composer waits for a matching new user node and isolates sessions', async () => {
@@ -539,6 +540,30 @@ test('shipped composer waits for a matching new user node and isolates sessions'
   left.session.set({ nodes: [userNode(1, 'unrelated'), userNode(2, left.sent[0])], promptError: null })
   assert.equal(api.codexTurnArmed(left.props()), false)
   assert.equal(api.codexTurnArmed(right.props()), true)
+})
+
+test('shipped composer disposes an armed turn when its session is removed before submit', () => {
+  const removed = publicComposer('recreated-before-submit', 'old one-shot task')
+  const runtime = publicRuntime(removed)
+  const { api } = loadShippedComposer({ runtime })
+  api.ComposerTools(removed.props())
+  api.setCodexTurnArmed(removed.props(), true)
+  api.setCodexTurnArmed(removed.props(), true)
+  assert.equal(removed.session.subscriberCount, 1)
+
+  removed.session.set({ ...removed.session.getSnapshot(), removed: true })
+  runtime.remove('recreated-before-submit')
+
+  assert.equal(api.codexTurnControllers.has('recreated-before-submit'), false)
+  assert.equal(removed.session.subscriberCount, 0)
+
+  const replacement = publicComposer('recreated-before-submit', 'new ordinary task')
+  runtime.add(replacement)
+  api.ComposerTools(replacement.props())
+  assert.equal(api.codexTurnArmed(replacement.props()), false)
+  replacement.actions.submit()
+  assert.deepEqual(replacement.sent, ['new ordinary task'])
+  assert.equal(api.codexTurnControllers.size, 0)
 })
 
 test('shipped composer aborts before queued RAF when its session authority disappears', async () => {
@@ -655,7 +680,7 @@ test('shipped composer contains an original submit failure inside queued RAF', a
   assert.equal(api.codexTurnArmed(composer.props()), true)
   assert.equal(controllerPhase(api, 'original-throws'), 'armed')
   assert.equal(composer.input.subscriberCount, 0)
-  assert.equal(composer.session.subscriberCount, 0)
+  assert.equal(composer.session.subscriberCount, 1)
 })
 
 test('shipped composer preserves a re-added same-path attachment with a new id', async () => {
