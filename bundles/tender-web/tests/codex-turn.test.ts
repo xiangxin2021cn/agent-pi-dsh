@@ -10,6 +10,15 @@ const client = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../li
 
 function loadShippedComposer(options = {}) {
   const timers = []
+  const frames = []
+  const requestFrame = (fn) => {
+    if (options.queuedRaf) {
+      frames.push(fn)
+      return frames.length
+    }
+    fn()
+    return 1
+  }
   let definition
   const document = {
     addEventListener() {},
@@ -27,7 +36,7 @@ function loadShippedComposer(options = {}) {
     removeEventListener() {},
     dispatchEvent() {},
     setTimeout(fn) { timers.push(fn); return timers.length },
-    requestAnimationFrame(fn) { fn() },
+    requestAnimationFrame: requestFrame,
   }
   const React = {
     createElement(type, props, ...children) { return { type, props, children } },
@@ -36,14 +45,19 @@ function loadShippedComposer(options = {}) {
     useRef(value) { return { current: value } },
     useCallback(fn) { return fn },
   }
-  const source = client.replace(
-    "    exports.name = 'tender-web'",
-    "    window.__apCodexTurnTest = { ComposerTools, codexTurnState, codexTurnArmed, setCodexTurnArmed, setAttachItems, attachItemsOf };\n\n    exports.name = 'tender-web'",
-  )
+  const source = client
+    .replace(
+      '      actions.__apLatestProps = props',
+      "      actions.__apLatestProps = props\n      ;(window.__apCodexTurnProps || (window.__apCodexTurnProps = new Map())).set(codexTurnKey(props), props)",
+    )
+    .replace(
+      "    exports.name = 'tender-web'",
+      "    window.__apCodexTurnTest = { ComposerTools, codexTurnState, codexTurnArmed, setCodexTurnArmed, setAttachItems, attachItemsOf, attachState };\n\n    exports.name = 'tender-web'",
+    )
   vm.runInNewContext(source, {
     window,
     document,
-    requestAnimationFrame: (fn) => fn(),
+    requestAnimationFrame: requestFrame,
     setInterval: () => 1,
     clearInterval() {},
     CustomEvent: class { constructor(type, init) { this.type = type; this.detail = init?.detail } },
@@ -55,18 +69,44 @@ function loadShippedComposer(options = {}) {
     console,
   })
   const bundle = definition.factory((name) => name === 'react' ? React : {})
-  if (options.runtime) {
-    bundle.apply({
-      slots: { inject() {} },
-      inject(names, install) {
-        if (names.includes('sessions')) install({ sessions: options.runtime.sessions })
-        if (names.includes('conversation')) install({ conversation: options.runtime.conversation })
-      },
-    })
+  const fallbackSessions = new Map()
+  const fallbackSessionFor = (sessionId) => {
+    let session = fallbackSessions.get(sessionId)
+    if (!session) {
+      session = Object.assign(observable({ nodes: [], promptError: null }), { prompt() {} })
+      fallbackSessions.set(sessionId, session)
+    }
+    return session
   }
+  const fallbackRuntime = {
+    sessions: {
+      scope(sessionId) { return window.__apCodexTurnProps?.has(sessionId) ? { sessionId } : undefined },
+      binding(sessionId) { return window.__apCodexTurnProps?.has(sessionId) ? { session: fallbackSessionFor(sessionId) } : undefined },
+    },
+    conversation: {
+      input: {
+        for(scope) {
+          return { state: {
+            getSnapshot() { return window.__apCodexTurnProps?.get(scope.sessionId)?.input },
+            subscribe() { return () => {} },
+          } }
+        },
+      },
+    },
+  }
+  const runtime = options.runtime || fallbackRuntime
+  bundle.apply({
+    slots: { inject() {} },
+    inject(names, install) {
+      if (names.includes('sessions')) install({ sessions: runtime.sessions })
+      if (names.includes('conversation')) install({ conversation: runtime.conversation })
+    },
+  })
   return {
     api: window.__apCodexTurnTest,
     runTimers() { timers.splice(0).forEach((fn) => fn()) },
+    runFrames() { frames.splice(0).forEach((fn) => fn()) },
+    publishFallbackSession(sessionId, snapshot) { fallbackSessionFor(sessionId).set(snapshot) },
   }
 }
 
@@ -127,6 +167,7 @@ function publicComposer(sessionId, draft) {
 function publicRuntime(...composers) {
   const byId = new Map(composers.map((composer) => [composer.sessionId, composer]))
   return {
+    remove(sessionId) { byId.delete(sessionId) },
     sessions: {
       scope(sessionId) { return byId.get(sessionId)?.scope },
       binding(sessionId) {
@@ -164,7 +205,7 @@ async function flush() {
 }
 
 test('shipped composer uses latest props for a stable action and releases its lock', async () => {
-  const { api, runTimers } = loadShippedComposer()
+  const { api, runTimers, publishFallbackSession } = loadShippedComposer()
   const state = { draft: 'stale first render', phase: 'plain', imageIds: [] }
   const sent = []
   const actions = {
@@ -182,6 +223,7 @@ test('shipped composer uses latest props for a stable action and releases its lo
   state.draft = ''
   state.phase = 'plain'
   api.ComposerTools(composerProps('one', state, actions))
+  publishFallbackSession('one', { nodes: [userNode(1, sent[0])], promptError: null })
   runTimers()
   assert.equal(api.codexTurnState.submitting.has('one'), false)
 })
@@ -230,7 +272,7 @@ test('shipped composer restores a failed Codex submission for retry without nest
 })
 
 test('shipped composer clears only after a successful submitting to plain settlement', async () => {
-  const { api, runTimers } = loadShippedComposer()
+  const { api, runTimers, publishFallbackSession } = loadShippedComposer()
   const state = { draft: 'successful task', phase: 'plain', imageIds: [] }
   const actions = {
     setDraft(text) { state.draft = text },
@@ -244,10 +286,12 @@ test('shipped composer clears only after a successful submitting to plain settle
   await flush()
   runTimers()
   assert.equal(api.codexTurnArmed(props), true)
+  const framed = state.draft
   api.ComposerTools(props)
   state.draft = ''
   state.phase = 'plain'
   api.ComposerTools(props)
+  publishFallbackSession('success', { nodes: [userNode(1, framed)], promptError: null })
   assert.equal(api.codexTurnArmed(props), false)
   assert.equal(api.attachItemsOf('success').length, 0)
   assert.equal(api.codexTurnState.submitting.has('success'), false)
@@ -388,6 +432,160 @@ test('shipped composer waits for a matching new user node and isolates sessions'
   left.session.set({ nodes: [userNode(1, 'unrelated'), userNode(2, left.sent[0])], promptError: null })
   assert.equal(api.codexTurnArmed(left.props()), false)
   assert.equal(api.codexTurnArmed(right.props()), true)
+})
+
+test('shipped composer aborts before queued RAF when its session authority disappears', async () => {
+  const composer = publicComposer('removed-before-raf', 'keep this task')
+  composer.input.set({ ...composer.input.getSnapshot(), imageIds: ['host-image'] })
+  const runtime = publicRuntime(composer)
+  const { api, runFrames } = loadShippedComposer({ runtime, queuedRaf: true })
+  const doc = { id: 'doc-old', name: 'scope.pdf', kind: 'image', path: 'C:/workspace/scope.pdf' }
+  api.ComposerTools(composer.props())
+  api.setAttachItems([doc], composer.props())
+  api.setCodexTurnArmed(composer.props(), true)
+  composer.actions.submit()
+  await flush()
+  runtime.remove('removed-before-raf')
+  assert.doesNotThrow(() => runFrames())
+  assert.equal(composer.sent.length, 0)
+  assert.equal(composer.input.getSnapshot().draft, 'keep this task')
+  assert.deepEqual(composer.input.getSnapshot().imageIds, ['host-image'])
+  assert.equal(api.codexTurnArmed(composer.props()), true)
+  assert.deepEqual(api.attachState.bySession.get('removed-before-raf'), [doc])
+  assert.equal(api.codexTurnState.pending.has('removed-before-raf'), false)
+  assert.equal(api.codexTurnState.submitting.has('removed-before-raf'), false)
+  assert.equal(composer.input.subscriberCount, 0)
+  assert.equal(composer.session.subscriberCount, 0)
+})
+
+test('shipped composer contains an input subscription failure inside queued RAF', async () => {
+  const composer = publicComposer('input-subscribe-throws', 'restore me')
+  const runtime = publicRuntime(composer)
+  composer.input.subscribe = () => { throw new Error('input subscription failed') }
+  const { api, runFrames } = loadShippedComposer({ runtime, queuedRaf: true })
+  api.ComposerTools(composer.props())
+  api.setCodexTurnArmed(composer.props(), true)
+  composer.actions.submit()
+  await flush()
+  assert.doesNotThrow(() => runFrames())
+  assert.equal(composer.sent.length, 0)
+  assert.equal(composer.input.getSnapshot().draft, 'restore me')
+  assert.equal(api.codexTurnArmed(composer.props()), true)
+  assert.equal(api.codexTurnState.pending.has('input-subscribe-throws'), false)
+  assert.equal(api.codexTurnState.submitting.has('input-subscribe-throws'), false)
+})
+
+test('shipped composer disposes a partial input subscription when session setup throws', async () => {
+  const composer = publicComposer('session-subscribe-throws', 'restore me too')
+  const runtime = publicRuntime(composer)
+  composer.session.subscribe = () => { throw new Error('session subscription failed') }
+  const { api, runFrames } = loadShippedComposer({ runtime, queuedRaf: true })
+  api.ComposerTools(composer.props())
+  api.setCodexTurnArmed(composer.props(), true)
+  composer.actions.submit()
+  await flush()
+  assert.doesNotThrow(() => runFrames())
+  assert.equal(composer.sent.length, 0)
+  assert.equal(composer.input.getSnapshot().draft, 'restore me too')
+  assert.equal(api.codexTurnArmed(composer.props()), true)
+  assert.equal(api.codexTurnState.pending.has('session-subscribe-throws'), false)
+  assert.equal(api.codexTurnState.submitting.has('session-subscribe-throws'), false)
+  assert.equal(composer.input.subscriberCount, 0)
+})
+
+test('shipped composer contains an original submit failure inside queued RAF', async () => {
+  const composer = publicComposer('original-throws', 'retry original')
+  composer.actions.submit = () => { throw new Error('original submit failed') }
+  const { api, runFrames } = loadShippedComposer({ runtime: publicRuntime(composer), queuedRaf: true })
+  api.ComposerTools(composer.props())
+  api.setCodexTurnArmed(composer.props(), true)
+  composer.actions.submit()
+  await flush()
+  assert.doesNotThrow(() => runFrames())
+  assert.equal(composer.input.getSnapshot().draft, 'retry original')
+  assert.equal(api.codexTurnArmed(composer.props()), true)
+  assert.equal(api.codexTurnState.pending.has('original-throws'), false)
+  assert.equal(api.codexTurnState.submitting.has('original-throws'), false)
+  assert.equal(composer.input.subscriberCount, 0)
+  assert.equal(composer.session.subscriberCount, 0)
+})
+
+test('shipped composer preserves a re-added same-path attachment with a new id', async () => {
+  const composer = publicComposer('same-path-readd', 'send this')
+  const { api } = loadShippedComposer({ runtime: publicRuntime(composer) })
+  const oldItem = { id: 'old', name: 'scope.pdf', kind: 'image', path: 'C:/workspace/scope.pdf' }
+  const newItem = { id: 'new', name: 'scope.pdf', kind: 'image', path: 'C:/workspace/scope.pdf' }
+  api.ComposerTools(composer.props())
+  api.setAttachItems([oldItem], composer.props())
+  api.setCodexTurnArmed(composer.props(), true)
+  composer.actions.submit()
+  await flush()
+  const framed = composer.sent[0]
+  api.setAttachItems([newItem], composer.props())
+  composer.input.set({ ...composer.input.getSnapshot(), phase: 'plain', draft: '' })
+  composer.session.set({ nodes: [userNode(1, framed)], promptError: null })
+  assert.deepEqual(api.attachState.bySession.get('same-path-readd'), [newItem])
+  assert.equal(api.codexTurnArmed(composer.props()), false)
+})
+
+test('shipped composer cleans A without overwriting active B attachments', async () => {
+  const left = publicComposer('attachment-left', 'left task')
+  const right = publicComposer('attachment-right', 'right task')
+  const { api } = loadShippedComposer({ runtime: publicRuntime(left, right) })
+  const leftItem = { id: 'left-old', name: 'scope.pdf', kind: 'image', path: 'C:/workspace/scope.pdf' }
+  const rightItem = { id: 'right-live', name: 'scope.pdf', kind: 'image', path: 'C:/workspace/scope.pdf' }
+  api.ComposerTools(left.props())
+  api.ComposerTools(right.props())
+  api.setAttachItems([leftItem], left.props())
+  api.setAttachItems([rightItem], right.props())
+  api.setCodexTurnArmed(left.props(), true)
+  left.actions.submit()
+  await flush()
+  const framed = left.sent[0]
+  left.input.set({ ...left.input.getSnapshot(), phase: 'plain', draft: '' })
+  left.session.set({ nodes: [userNode(1, framed)], promptError: null })
+  assert.deepEqual(api.attachState.bySession.get('attachment-left'), [])
+  assert.deepEqual(api.attachState.bySession.get('attachment-right'), [rightItem])
+  assert.deepEqual(api.attachState.items, [rightItem])
+})
+
+test('shipped composer aborts document folding when a same-path attachment instance changes', async () => {
+  const read = deferred()
+  const composer = publicComposer('same-path-fold', 'read this document')
+  const { api } = loadShippedComposer({ runtime: publicRuntime(composer), fetch: async () => read.promise })
+  const oldItem = { id: 'old-doc', name: 'scope.pdf', kind: 'file', path: 'C:/workspace/scope.pdf', relativePath: 'scope.pdf' }
+  const newItem = { id: 'new-doc', name: 'scope.pdf', kind: 'file', path: 'C:/workspace/scope.pdf', relativePath: 'scope.pdf' }
+  api.ComposerTools(composer.props())
+  api.setAttachItems([oldItem], composer.props())
+  api.setCodexTurnArmed(composer.props(), true)
+  composer.actions.submit()
+  await flush()
+  api.setAttachItems([newItem], composer.props())
+  read.resolve({ ok: true, json: async () => ({}) })
+  await flush()
+  await flush()
+  assert.equal(composer.sent.length, 0)
+  assert.equal(composer.input.getSnapshot().draft, 'read this document')
+  assert.deepEqual(api.attachState.bySession.get('same-path-fold'), [newItem])
+  assert.equal(api.codexTurnArmed(composer.props()), true)
+  assert.equal(api.codexTurnState.submitting.has('same-path-fold'), false)
+})
+
+test('shipped composer ignores a stop prompt error until a matching user node confirms success', async () => {
+  const composer = publicComposer('stop-race', 'accepted task')
+  const { api } = loadShippedComposer({ runtime: publicRuntime(composer) })
+  api.ComposerTools(composer.props())
+  api.setAttachItems([{ id: 'stop-doc', name: 'scope.pdf', kind: 'image', path: 'C:/workspace/scope.pdf' }], composer.props())
+  api.setCodexTurnArmed(composer.props(), true)
+  composer.actions.submit()
+  await flush()
+  const framed = composer.sent[0]
+  composer.session.set({ nodes: [], promptError: { op: 'stop', error: { code: 'stop-failed' } } })
+  assert.equal(api.codexTurnArmed(composer.props()), true)
+  assert.equal(api.codexTurnState.pending.has('stop-race'), true)
+  composer.session.set({ nodes: [userNode(1, framed)], promptError: { op: 'stop', error: { code: 'stop-failed' } } })
+  assert.equal(api.codexTurnArmed(composer.props()), false)
+  assert.equal(api.codexTurnState.pending.has('stop-race'), false)
 })
 
 test('builds a foreground one-shot delegation without changing the task', () => {
