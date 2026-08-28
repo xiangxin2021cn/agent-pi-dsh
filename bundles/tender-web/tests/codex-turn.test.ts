@@ -52,7 +52,7 @@ function loadShippedComposer(options = {}) {
     )
     .replace(
       "    exports.name = 'tender-web'",
-      "    window.__apCodexTurnTest = { ComposerTools, codexTurnState, codexTurnArmed, setCodexTurnArmed, setAttachItems, attachItemsOf, attachState };\n\n    exports.name = 'tender-web'",
+      "    window.__apCodexTurnTest = { ComposerTools, codexTurnControllers, codexTurnArmed, setCodexTurnArmed, setAttachItems, attachItemsOf, attachState };\n\n    exports.name = 'tender-web'",
     )
   vm.runInNewContext(source, {
     window,
@@ -193,6 +193,10 @@ function composerProps(sessionId, state, actions) {
   return { sessionId, input: state, inputActions: actions }
 }
 
+function controllerPhase(api, sessionId) {
+  return api.codexTurnControllers.get(sessionId)?.phase
+}
+
 async function flush() {
   await Promise.resolve()
   await Promise.resolve()
@@ -225,10 +229,10 @@ test('shipped composer uses latest props for a stable action and releases its lo
   api.ComposerTools(composerProps('one', state, actions))
   publishFallbackSession('one', { nodes: [userNode(1, sent[0])], promptError: null })
   runTimers()
-  assert.equal(api.codexTurnState.submitting.has('one'), false)
+  assert.equal(controllerPhase(api, 'one'), 'idle')
 })
 
-test('shipped composer does not clear a pending Codex turn after 280ms', async () => {
+test('shipped composer does not clear an unsettled Codex turn after 280ms', async () => {
   const { api, runTimers } = loadShippedComposer()
   const state = { draft: 'deferred task', phase: 'plain', imageIds: ['host-image'] }
   const actions = {
@@ -243,12 +247,12 @@ test('shipped composer does not clear a pending Codex turn after 280ms', async (
   await flush()
   runTimers()
   assert.equal(api.codexTurnArmed(props), true)
-  assert.equal(api.codexTurnState.submitting.has('deferred'), true)
+  assert.equal(controllerPhase(api, 'deferred'), 'submitting')
   assert.equal(api.attachItemsOf('deferred').length, 1)
 })
 
 test('shipped composer restores a failed Codex submission for retry without nesting', async () => {
-  const { api, runTimers } = loadShippedComposer()
+  const { api, runTimers, publishFallbackSession } = loadShippedComposer()
   const state = { draft: 'retry task', phase: 'plain', imageIds: ['host-image'] }
   const actions = {
     setDraft(text) { state.draft = text },
@@ -263,15 +267,16 @@ test('shipped composer restores a failed Codex submission for retry without nest
   api.ComposerTools(props)
   state.phase = 'plain'
   api.ComposerTools(props)
+  publishFallbackSession('failure', { nodes: [], promptError: { op: 'send', error: { code: 'rejected' } } })
   runTimers()
+  assert.equal(controllerPhase(api, 'failure'), 'armed')
   assert.equal(state.draft, 'retry task')
   assert.equal(api.codexTurnArmed(props), true)
   assert.equal(api.attachItemsOf('failure').length, 1)
   assert.deepEqual(state.imageIds, ['host-image'])
-  assert.equal(api.codexTurnState.submitting.has('failure'), false)
 })
 
-test('shipped composer clears only after a successful submitting to plain settlement', async () => {
+test('shipped composer clears only after a matching user node confirms success', async () => {
   const { api, runTimers, publishFallbackSession } = loadShippedComposer()
   const state = { draft: 'successful task', phase: 'plain', imageIds: [] }
   const actions = {
@@ -294,7 +299,7 @@ test('shipped composer clears only after a successful submitting to plain settle
   publishFallbackSession('success', { nodes: [userNode(1, framed)], promptError: null })
   assert.equal(api.codexTurnArmed(props), false)
   assert.equal(api.attachItemsOf('success').length, 0)
-  assert.equal(api.codexTurnState.submitting.has('success'), false)
+  assert.equal(controllerPhase(api, 'success'), 'idle')
 })
 
 test('shipped composer keeps remounted stable actions isolated by session', async () => {
@@ -344,7 +349,7 @@ test('shipped composer aborts a deferred document fold after draft and attachmen
   assert.equal(composer.input.getSnapshot().draft, 'user changed this')
   assert.equal(api.codexTurnArmed(composer.props()), true)
   assert.equal(api.attachItemsOf('fold-edit').length, 2)
-  assert.equal(api.codexTurnState.submitting.has('fold-edit'), false)
+  assert.equal(controllerPhase(api, 'fold-edit'), 'armed')
 })
 
 test('shipped composer preserves latest work when deferred document folding rejects', async () => {
@@ -370,7 +375,7 @@ test('shipped composer preserves latest work when deferred document folding reje
   assert.equal(composer.input.getSnapshot().draft, 'newer wording')
   assert.equal(api.codexTurnArmed(composer.props()), true)
   assert.equal(api.attachItemsOf('fold-error').length, 2)
-  assert.equal(api.codexTurnState.submitting.has('fold-error'), false)
+  assert.equal(controllerPhase(api, 'fold-error'), 'armed')
 })
 
 test('shipped composer settles successful public stores after ComposerTools unmounts', async () => {
@@ -386,8 +391,7 @@ test('shipped composer settles successful public stores after ComposerTools unmo
   composer.session.set({ nodes: [userNode(1, framed)], promptError: null })
   assert.equal(api.codexTurnArmed(composer.props()), false)
   assert.equal(api.attachItemsOf('background').length, 0)
-  assert.equal(api.codexTurnState.submitting.has('background'), false)
-  assert.equal(api.codexTurnState.pending.has('background'), false)
+  assert.equal(controllerPhase(api, 'background'), 'idle')
   assert.equal(composer.input.subscriberCount, 0)
   assert.equal(composer.session.subscriberCount, 0)
 })
@@ -407,8 +411,7 @@ test('shipped composer retains later draft work after public host failure', asyn
   assert.equal(composer.input.getSnapshot().draft, 'latest user work')
   assert.equal(api.codexTurnArmed(composer.props()), true)
   assert.equal(api.attachItemsOf('late-failure').length, 1)
-  assert.equal(api.codexTurnState.submitting.has('late-failure'), false)
-  assert.equal(api.codexTurnState.pending.has('late-failure'), false)
+  assert.equal(controllerPhase(api, 'late-failure'), 'armed')
   assert.equal(composer.input.subscriberCount, 0)
   assert.equal(composer.session.subscriberCount, 0)
 })
@@ -450,12 +453,56 @@ test('shipped composer aborts before queued RAF when its session authority disap
   assert.equal(composer.sent.length, 0)
   assert.equal(composer.input.getSnapshot().draft, 'keep this task')
   assert.deepEqual(composer.input.getSnapshot().imageIds, ['host-image'])
-  assert.equal(api.codexTurnArmed(composer.props()), true)
+  assert.equal(api.codexTurnArmed(composer.props()), false)
   assert.deepEqual(api.attachState.bySession.get('removed-before-raf'), [doc])
-  assert.equal(api.codexTurnState.pending.has('removed-before-raf'), false)
-  assert.equal(api.codexTurnState.submitting.has('removed-before-raf'), false)
+  assert.equal(controllerPhase(api, 'removed-before-raf'), undefined)
   assert.equal(composer.input.subscriberCount, 0)
   assert.equal(composer.session.subscriberCount, 0)
+})
+
+test('shipped composer rejects a resident removed session before draft mutation or submit', async () => {
+  const composer = publicComposer('resident-removed', 'keep resident draft')
+  composer.session.set({ nodes: [], promptError: null, removed: true })
+  const { api, runFrames } = loadShippedComposer({ runtime: publicRuntime(composer), queuedRaf: true })
+  api.ComposerTools(composer.props())
+  api.setCodexTurnArmed(composer.props(), true)
+  composer.actions.submit()
+  await flush()
+  assert.equal(composer.input.getSnapshot().draft, 'keep resident draft')
+  assert.equal(composer.sent.length, 0)
+  assert.doesNotThrow(() => runFrames())
+  assert.equal(composer.input.getSnapshot().draft, 'keep resident draft')
+  assert.equal(composer.sent.length, 0)
+  assert.equal(api.codexTurnArmed(composer.props()), false)
+  assert.equal(composer.input.subscriberCount, 0)
+  assert.equal(composer.session.subscriberCount, 0)
+})
+
+test('shipped composer keeps busy input armed and retries only after it returns to plain', async (t) => {
+  for (const phase of ['submitting', 'adjudicating']) {
+    await t.test(phase, async () => {
+      const composer = publicComposer('busy-' + phase, phase + ' draft')
+      composer.input.set({ ...composer.input.getSnapshot(), phase })
+      const { api, runFrames } = loadShippedComposer({ runtime: publicRuntime(composer), queuedRaf: true })
+      api.ComposerTools(composer.props())
+      api.setCodexTurnArmed(composer.props(), true)
+      composer.actions.submit()
+      await flush()
+      assert.equal(composer.input.getSnapshot().draft, phase + ' draft')
+      assert.doesNotThrow(() => runFrames())
+      assert.equal(composer.input.getSnapshot().draft, phase + ' draft')
+      assert.equal(composer.sent.length, 0)
+      assert.equal(api.codexTurnArmed(composer.props()), true)
+
+      composer.input.set({ ...composer.input.getSnapshot(), phase: 'plain' })
+      api.ComposerTools(composer.props())
+      composer.actions.submit()
+      await flush()
+      assert.doesNotThrow(() => runFrames())
+      assert.equal(composer.sent.length, 1)
+      assert.match(composer.sent[0], new RegExp(phase + ' draft$'))
+    })
+  }
 })
 
 test('shipped composer contains an input subscription failure inside queued RAF', async () => {
@@ -471,8 +518,7 @@ test('shipped composer contains an input subscription failure inside queued RAF'
   assert.equal(composer.sent.length, 0)
   assert.equal(composer.input.getSnapshot().draft, 'restore me')
   assert.equal(api.codexTurnArmed(composer.props()), true)
-  assert.equal(api.codexTurnState.pending.has('input-subscribe-throws'), false)
-  assert.equal(api.codexTurnState.submitting.has('input-subscribe-throws'), false)
+  assert.equal(controllerPhase(api, 'input-subscribe-throws'), 'armed')
 })
 
 test('shipped composer disposes a partial input subscription when session setup throws', async () => {
@@ -488,8 +534,7 @@ test('shipped composer disposes a partial input subscription when session setup 
   assert.equal(composer.sent.length, 0)
   assert.equal(composer.input.getSnapshot().draft, 'restore me too')
   assert.equal(api.codexTurnArmed(composer.props()), true)
-  assert.equal(api.codexTurnState.pending.has('session-subscribe-throws'), false)
-  assert.equal(api.codexTurnState.submitting.has('session-subscribe-throws'), false)
+  assert.equal(controllerPhase(api, 'session-subscribe-throws'), 'armed')
   assert.equal(composer.input.subscriberCount, 0)
 })
 
@@ -504,8 +549,7 @@ test('shipped composer contains an original submit failure inside queued RAF', a
   assert.doesNotThrow(() => runFrames())
   assert.equal(composer.input.getSnapshot().draft, 'retry original')
   assert.equal(api.codexTurnArmed(composer.props()), true)
-  assert.equal(api.codexTurnState.pending.has('original-throws'), false)
-  assert.equal(api.codexTurnState.submitting.has('original-throws'), false)
+  assert.equal(controllerPhase(api, 'original-throws'), 'armed')
   assert.equal(composer.input.subscriberCount, 0)
   assert.equal(composer.session.subscriberCount, 0)
 })
@@ -568,7 +612,7 @@ test('shipped composer aborts document folding when a same-path attachment insta
   assert.equal(composer.input.getSnapshot().draft, 'read this document')
   assert.deepEqual(api.attachState.bySession.get('same-path-fold'), [newItem])
   assert.equal(api.codexTurnArmed(composer.props()), true)
-  assert.equal(api.codexTurnState.submitting.has('same-path-fold'), false)
+  assert.equal(controllerPhase(api, 'same-path-fold'), 'armed')
 })
 
 test('shipped composer ignores a stop prompt error until a matching user node confirms success', async () => {
@@ -582,10 +626,10 @@ test('shipped composer ignores a stop prompt error until a matching user node co
   const framed = composer.sent[0]
   composer.session.set({ nodes: [], promptError: { op: 'stop', error: { code: 'stop-failed' } } })
   assert.equal(api.codexTurnArmed(composer.props()), true)
-  assert.equal(api.codexTurnState.pending.has('stop-race'), true)
+  assert.equal(controllerPhase(api, 'stop-race'), 'submitting')
   composer.session.set({ nodes: [userNode(1, framed)], promptError: { op: 'stop', error: { code: 'stop-failed' } } })
   assert.equal(api.codexTurnArmed(composer.props()), false)
-  assert.equal(api.codexTurnState.pending.has('stop-race'), false)
+  assert.equal(controllerPhase(api, 'stop-race'), 'idle')
 })
 
 test('builds a foreground one-shot delegation without changing the task', () => {

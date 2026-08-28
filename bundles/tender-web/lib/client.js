@@ -1448,149 +1448,239 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
       return (props && (props.sessionId || (props.session && props.session.sessionId))) || ''
     }
 
-    const codexTurnState = window.__apCodexTurnState || (window.__apCodexTurnState = {
-      armed: new Set(),
-      listeners: new Set(),
-      submitting: new Set(),
-      pending: new Map(),
-    })
-    if (!codexTurnState.pending) codexTurnState.pending = new Map()
+    const codexTurnControllers = window.__apCodexTurnControllers || (window.__apCodexTurnControllers = new Map())
+    const codexTurnListeners = window.__apCodexTurnListeners || (window.__apCodexTurnListeners = new Set())
     function codexTurnKey(props) {
       return sessionHint(props) || runtime.sessionId || 'active'
     }
     function notifyCodexTurn() {
-      codexTurnState.listeners.forEach((listener) => {
+      codexTurnListeners.forEach((listener) => {
         try { listener() } catch { /* stale composer */ }
       })
     }
+    function createCodexTurnController(latestProps) {
+      return {
+        phase: 'idle',
+        latestProps: latestProps || null,
+        attemptToken: null,
+        originalDraft: '',
+        framedDraft: '',
+        capturedAttachmentIds: [],
+        capturedAttachments: [],
+        preSubmitUserNodeWatermark: -1,
+        unsubscribeSession: null,
+        unsubscribeInput: null,
+      }
+    }
+    function codexTurnController(props, create) {
+      const key = codexTurnKey(props)
+      let controller = codexTurnControllers.get(key)
+      if (!controller && create) {
+        controller = createCodexTurnController(props)
+        codexTurnControllers.set(key, controller)
+      }
+      return controller || null
+    }
+    function trackCodexTurnProps(props) {
+      const controller = codexTurnControllers.get(codexTurnKey(props))
+      if (controller && controller.phase !== 'disposed') controller.latestProps = props
+    }
+    function codexTurnPhase(props) {
+      const controller = codexTurnController(props, false)
+      return controller ? controller.phase : 'idle'
+    }
     function codexTurnArmed(props) {
-      return codexTurnState.armed.has(codexTurnKey(props))
+      const phase = codexTurnPhase(props)
+      return phase === 'armed' || phase === 'preparing' || phase === 'submitting'
     }
     function setCodexTurnArmed(props, armed) {
-      const key = codexTurnKey(props)
-      if (armed) codexTurnState.armed.add(key)
-      else codexTurnState.armed.delete(key)
+      const controller = codexTurnController(props, armed)
+      if (!controller) return
+      controller.latestProps = props
+      if (armed && controller.phase === 'idle') controller.phase = 'armed'
+      else if (!armed && controller.phase === 'armed') {
+        resetCodexTurnAttempt(controller)
+        controller.phase = 'idle'
+      } else return
       notifyCodexTurn()
     }
-    function clearCodexTurnAfterSubmit(props) {
-      const key = codexTurnKey(props)
-      const pending = codexTurnState.pending.get(key)
-      if (pending) {
-        disposeCodexTurnPending(pending)
-        const remaining = codexAttachItems(pending.attachSessionId).filter((item) => !pending.itemTokens.has(codexAttachmentToken(item)))
-        setCodexAttachItems(pending.attachSessionId, remaining)
+    function disposeCodexTurnSubscriptions(controller) {
+      const unsubscribeInput = controller.unsubscribeInput
+      const unsubscribeSession = controller.unsubscribeSession
+      controller.unsubscribeInput = null
+      controller.unsubscribeSession = null
+      if (typeof unsubscribeInput === 'function') {
+        try { unsubscribeInput() } catch {}
       }
-      codexTurnState.armed.delete(key)
-      codexTurnState.submitting.delete(key)
-      codexTurnState.pending.delete(key)
-      attachSubmitLock = false
+      if (typeof unsubscribeSession === 'function') {
+        try { unsubscribeSession() } catch {}
+      }
+    }
+    function resetCodexTurnAttempt(controller) {
+      disposeCodexTurnSubscriptions(controller)
+      controller.attemptToken = null
+      controller.originalDraft = ''
+      controller.framedDraft = ''
+      controller.capturedAttachmentIds = []
+      controller.capturedAttachments = []
+      controller.preSubmitUserNodeWatermark = -1
+    }
+    function rearmCodexTurn(key, controller) {
+      if (codexTurnControllers.get(key) !== controller || controller.phase === 'disposed') return
+      resetCodexTurnAttempt(controller)
+      controller.phase = 'armed'
       notifyCodexTurn()
     }
-    function releaseCodexTurnLock(key) {
-      const pending = codexTurnState.pending.get(key)
-      if (pending) disposeCodexTurnPending(pending)
-      codexTurnState.submitting.delete(key)
-      codexTurnState.pending.delete(key)
-      attachSubmitLock = false
+    function disposeCodexTurn(key, controller) {
+      if (codexTurnControllers.get(key) !== controller) return
+      resetCodexTurnAttempt(controller)
+      controller.phase = 'disposed'
+      codexTurnControllers.delete(key)
       notifyCodexTurn()
     }
-    function disposeCodexTurnPending(pending) {
-      if (typeof pending.offInput === 'function') {
-        try { pending.offInput() } catch {}
-        pending.offInput = null
-      }
-      if (typeof pending.offSession === 'function') {
-        try { pending.offSession() } catch {}
-        pending.offSession = null
-      }
-    }
-    function inputStoreFor(sessionId) {
+    function codexTurnAuthorities(sessionId) {
       const sessions = runtime.sessions
       const conversation = runtime.conversation
-      if (!sessions || !conversation || !conversation.input || typeof sessions.scope !== 'function' || typeof conversation.input.for !== 'function') return null
-      try {
-        const scope = sessions.scope(sessionId)
-        const input = scope && conversation.input.for(scope)
-        return input && input.state && typeof input.state.getSnapshot === 'function' && typeof input.state.subscribe === 'function' ? input.state : null
-      } catch {
-        return null
-      }
+      if (!sessions || !conversation || !conversation.input || typeof sessions.scope !== 'function' || typeof conversation.input.for !== 'function') throw new Error('Codex public stores unavailable')
+      const scope = sessions.scope(sessionId)
+      if (!scope) return null
+      const binding = typeof sessions.binding === 'function' ? sessions.binding(sessionId) : null
+      const session = typeof sessions.sessionOf === 'function' ? sessions.sessionOf(scope) : binding && binding.session
+      const input = conversation.input.for(scope)
+      return { scope, session, inputStore: input && input.state }
     }
-    function codexUserNode(snapshot, pending) {
+    function codexUserNode(snapshot, controller) {
       const nodes = snapshot && snapshot.nodes || []
       for (const node of nodes) {
-        if (!node || node.kind !== 'user' || typeof node.seq !== 'number' || node.seq <= pending.userSeq) continue
+        if (!node || node.kind !== 'user' || typeof node.seq !== 'number' || node.seq <= controller.preSubmitUserNodeWatermark) continue
         const text = (node.content || []).filter((part) => part && part.type === 'text').map((part) => part.text).join('')
-        if (text === pending.framed) return true
+        if (text === controller.framedDraft) return true
       }
       return false
     }
-    function codexLatestProps(pending) {
-      return pending.actions && pending.actions.__apLatestProps || pending.props
+    function codexUserNodeWatermark(snapshot) {
+      let watermark = -1
+      for (const node of snapshot && snapshot.nodes || []) {
+        if (node && node.kind === 'user' && typeof node.seq === 'number') watermark = Math.max(watermark, node.seq)
+      }
+      return watermark
     }
-    function restoreCodexTurn(props, pending, input) {
-      const live = codexLatestProps(pending) || props
-      const current = input && typeof input.draft === 'string' ? input.draft : currentDraft(live)
-      releaseCodexTurnLock(pending.key)
-      if (current === pending.framed) setComposerDraft(live, pending.clean)
+    function codexAttachmentIds(items) {
+      return (items || []).map(codexAttachmentToken)
     }
-    function abortCodexTurnBeforeSubmit(props, clean, framed, recoveryStore) {
-      const key = codexTurnKey(props)
-      const pending = codexTurnState.pending.get(key)
-      const live = pending ? codexLatestProps(pending) : (props && props.inputActions && props.inputActions.__apLatestProps) || props
-      let current = currentDraft(live)
-      const store = inputStoreFor(key) || recoveryStore
+    function sameCodexAttachmentIds(left, right) {
+      if (left.length !== right.length) return false
+      for (let i = 0; i < left.length; i++) if (left[i] !== right[i]) return false
+      return true
+    }
+    function preparingCodexTurn(key, token) {
+      const controller = codexTurnControllers.get(key)
+      if (!controller || controller.phase !== 'preparing' || controller.attemptToken !== token) return null
+      let authorities
       try {
-        const input = store && store.getSnapshot()
-        if (input && typeof input.draft === 'string') current = input.draft
+        authorities = codexTurnAuthorities(key)
+      } catch {
+        rearmCodexTurn(key, controller)
+        return null
+      }
+      if (!authorities) {
+        disposeCodexTurn(key, controller)
+        return null
+      }
+      const session = authorities.session
+      const inputStore = authorities.inputStore
+      if (!session || typeof session.getSnapshot !== 'function' || !inputStore || typeof inputStore.getSnapshot !== 'function') {
+        rearmCodexTurn(key, controller)
+        return null
+      }
+      let sessionSnapshot
+      let inputSnapshot
+      try {
+        sessionSnapshot = session.getSnapshot()
+        inputSnapshot = inputStore.getSnapshot()
+      } catch {
+        rearmCodexTurn(key, controller)
+        return null
+      }
+      if (sessionSnapshot && sessionSnapshot.removed === true) {
+        disposeCodexTurn(key, controller)
+        return null
+      }
+      const live = controller.latestProps
+      const attachmentIds = codexAttachmentIds(codexAttachItems(key))
+      if (!sessionSnapshot || !inputSnapshot || inputSnapshot.phase !== 'plain' || typeof inputSnapshot.draft !== 'string'
+        || inputSnapshot.draft !== controller.originalDraft || !live || codexTurnKey(live) !== key
+        || !sameCodexAttachmentIds(attachmentIds, controller.capturedAttachmentIds)) {
+        rearmCodexTurn(key, controller)
+        return null
+      }
+      return { controller, live, session, sessionSnapshot, inputStore, inputSnapshot }
+    }
+    function failCodexTurn(key, controller, inputStore) {
+      if (codexTurnControllers.get(key) !== controller || controller.phase === 'disposed') return
+      let ownsFramedDraft = false
+      try {
+        const input = inputStore && inputStore.getSnapshot()
+        ownsFramedDraft = Boolean(input && input.draft === controller.framedDraft)
       } catch {}
-      releaseCodexTurnLock(key)
-      if (current === framed) {
-        try { setComposerDraft(live, clean) } catch {}
+      const originalDraft = controller.originalDraft
+      const live = controller.latestProps
+      rearmCodexTurn(key, controller)
+      if (ownsFramedDraft) {
+        try { setComposerDraft(live, originalDraft) } catch {}
       }
     }
-    function settleCodexInput(key, input) {
-      const pending = codexTurnState.pending.get(key)
-      if (!pending || !input) return
-      if (input.phase === 'submitting') {
-        pending.seenSubmitting = true
+    function clearCodexTurnAfterSubmit(key, controller) {
+      if (codexTurnControllers.get(key) !== controller || controller.phase !== 'submitting') return
+      const capturedIds = controller.capturedAttachmentIds.slice()
+      const remainingIds = capturedIds.slice()
+      const remaining = codexAttachItems(key).filter((item) => {
+        const index = remainingIds.indexOf(codexAttachmentToken(item))
+        if (index < 0) return true
+        remainingIds.splice(index, 1)
+        return false
+      })
+      resetCodexTurnAttempt(controller)
+      controller.phase = 'idle'
+      if (capturedIds.length) setCodexAttachItems(key, remaining)
+      notifyCodexTurn()
+    }
+    function settleCodexTurn(key, token) {
+      const controller = codexTurnControllers.get(key)
+      if (!controller || controller.phase !== 'submitting' || controller.attemptToken !== token) return
+      let authorities
+      try {
+        authorities = codexTurnAuthorities(key)
+      } catch {
+        failCodexTurn(key, controller, null)
         return
       }
-      if (!pending.seenSubmitting || input.phase !== 'plain') return
-      if (input.draft === pending.framed) restoreCodexTurn(codexLatestProps(pending), pending, input)
-      else if (!pending.offSession) clearCodexTurnAfterSubmit(codexLatestProps(pending))
-    }
-    function settleCodexSession(key, snapshot) {
-      const pending = codexTurnState.pending.get(key)
-      if (!pending) return
-      if (snapshot && snapshot.promptError && snapshot.promptError.op === 'send') {
-        const store = inputStoreFor(key)
-        restoreCodexTurn(codexLatestProps(pending), pending, store && store.getSnapshot())
+      if (!authorities) {
+        disposeCodexTurn(key, controller)
         return
       }
-      if (codexUserNode(snapshot, pending)) clearCodexTurnAfterSubmit(codexLatestProps(pending))
-    }
-    function beginCodexTurnSettlement(props, clean, framed, items) {
-      const key = codexTurnKey(props)
-      const session = sessionFaceById(key)
-      const store = inputStoreFor(key)
-      if (!session || typeof session.getSnapshot !== 'function' || typeof session.subscribe !== 'function' || !store || typeof store.getSnapshot !== 'function' || typeof store.subscribe !== 'function') return null
-      const snapshot = session.getSnapshot()
-      const input = store.getSnapshot()
-      if (!snapshot || !input || input.draft !== framed) return null
-      const attachmentSessionId = attachSessionId(props)
-      const pending = { key, props, actions: props && props.inputActions, clean, framed, items: (items || []).slice(), itemTokens: new Set((items || []).map(codexAttachmentToken)), attachSessionId: attachmentSessionId, seenSubmitting: false, userSeq: -1, offInput: null, offSession: null }
-      for (const node of snapshot && snapshot.nodes || []) if (node && node.kind === 'user' && typeof node.seq === 'number') pending.userSeq = Math.max(pending.userSeq, node.seq)
-      codexTurnState.pending.set(key, pending)
-      pending.offInput = store.subscribe(() => settleCodexInput(key, store.getSnapshot()))
-      if (typeof pending.offInput !== 'function') throw new Error('Codex input settlement subscription unavailable')
-      pending.offSession = session.subscribe(() => settleCodexSession(key, session.getSnapshot()))
-      if (typeof pending.offSession !== 'function') throw new Error('Codex session settlement subscription unavailable')
-      return pending
-    }
-    function settleCodexTurn(props) {
-      const key = codexTurnKey(props)
-      settleCodexInput(key, props && props.input)
+      const session = authorities.session
+      const inputStore = authorities.inputStore
+      let snapshot
+      try {
+        snapshot = session && typeof session.getSnapshot === 'function' ? session.getSnapshot() : null
+      } catch {
+        failCodexTurn(key, controller, inputStore)
+        return
+      }
+      if (!snapshot) {
+        failCodexTurn(key, controller, inputStore)
+        return
+      }
+      if (snapshot.removed === true) {
+        disposeCodexTurn(key, controller)
+        return
+      }
+      if (snapshot.promptError && snapshot.promptError.op === 'send') {
+        failCodexTurn(key, controller, inputStore)
+        return
+      }
+      if (codexUserNode(snapshot, controller)) clearCodexTurnAfterSubmit(key, controller)
     }
 
     const composerPropsRef = { current: null }
@@ -3602,6 +3692,8 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
     function stripComposerMentions(files) {
       if (attachSubmitLock) return
       const live = composerPropsRef.current
+      const codexPhase = codexTurnPhase(live)
+      if (codexPhase === 'preparing' || codexPhase === 'submitting') return
       let draft = currentDraft(live)
       if (!draft) {
         const ta = document.querySelector('[data-composer-card] textarea, [data-phase] textarea')
@@ -3769,10 +3861,10 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 ${original}`
     }
 
-    function submitAfterFold(props, submit, transform, onBeforeSubmit, capturedItems, recoveryStore) {
+    function submitAfterFold(props, submit) {
       const sid = sessionHint(props) || runtime.sessionId || 'active'
       const clean = stripMentionArtifacts(currentDraft(props))
-      const items = capturedItems || attachItemsOf(attachSessionId(props))
+      const items = attachItemsOf(attachSessionId(props))
       const attachLine = formatAttachVisible(items)
       const block = formatKbTaskBlock(sid)
       const fallback = items.length ? '请结合附件作答。' : ''
@@ -3780,38 +3872,18 @@ ${original}`
       const text = block
         ? (body ? block + '\n\n' + body : block + (fallback ? '\n\n' + fallback : ''))
         : (body || fallback)
-      const finalText = typeof transform === 'function' ? transform(text) : text
       attachSubmitLock = true
-      if (!finalText) {
+      if (!text) {
         const send = typeof submit === 'function'
           ? submit
           : (props && props.inputActions && props.inputActions.__apOrigSubmit)
-        if (typeof onBeforeSubmit === 'function') onBeforeSubmit(clean, finalText, items)
         if (typeof send === 'function') send()
         attachSubmitLock = false
-        if (typeof onBeforeSubmit === 'function') {
-          return
-        }
         setAttachItems([], props)
         return
       }
-      setComposerDraft(props, finalText)
+      setComposerDraft(props, text)
       requestAnimationFrame(() => {
-        if (typeof onBeforeSubmit === 'function') {
-          try {
-            const send = typeof submit === 'function'
-              ? submit
-              : (props && props.inputActions && props.inputActions.__apOrigSubmit)
-            if (!onBeforeSubmit(clean, finalText, items)) {
-              abortCodexTurnBeforeSubmit(props, clean, finalText, recoveryStore)
-              return
-            }
-            if (typeof send === 'function') send()
-          } catch {
-            abortCodexTurnBeforeSubmit(props, clean, finalText, recoveryStore)
-          }
-          return
-        }
         const send = typeof submit === 'function'
           ? submit
           : (props && props.inputActions && props.inputActions.__apOrigSubmit)
@@ -3829,26 +3901,27 @@ ${original}`
       }).catch(() => {})
     }
 
-    function sameCodexAttachments(left, right) {
-      if (left.length !== right.length) return false
-      const counts = new Map()
-      for (const item of left) {
-        const key = codexAttachmentToken(item)
-        counts.set(key, (counts.get(key) || 0) + 1)
-      }
-      for (const item of right) {
-        const key = codexAttachmentToken(item)
-        const count = counts.get(key) || 0
-        if (!count) return false
-        counts.set(key, count - 1)
-      }
-      return true
+    function failCodexPreparation(key, token, message) {
+      const controller = codexTurnControllers.get(key)
+      if (!controller || controller.phase !== 'preparing' || controller.attemptToken !== token) return
+      rearmCodexTurn(key, controller)
+      if (message) showToast(message)
     }
 
-    async function submitCodexTurn(props, orig, actions) {
-      const key = codexTurnKey(props)
-      if (codexTurnState.submitting.has(key)) return
-      codexTurnState.submitting.add(key)
+    function codexPreparedDraft(key, controller) {
+      const clean = stripMentionArtifacts(controller.originalDraft)
+      const items = controller.capturedAttachments
+      const attachLine = formatAttachVisible(items)
+      const block = formatKbTaskBlock(key)
+      const fallback = items.length ? '请结合附件作答。' : ''
+      const body = [clean, attachLine].filter(Boolean).join('\n\n')
+      const text = block
+        ? (body ? block + '\n\n' + body : block + (fallback ? '\n\n' + fallback : ''))
+        : (body || fallback)
+      return buildCodexTurnDelegation(text)
+    }
+
+    async function prepareCodexTurn(key, token) {
       const desktop = window.agentPiDesktop
       try {
         const status = !desktop || typeof desktop.codexAuthStatus !== 'function'
@@ -3856,57 +3929,142 @@ ${original}`
           : await desktop.codexAuthStatus()
         if (!status || status.available !== true || status.state !== 'logged-in') throw new Error('Codex unavailable')
       } catch {
-        releaseCodexTurnLock(key)
-        showToast('Codex 尚未登录或运行时不可用，请到设置 → Codex 智能体完成登录。')
+        failCodexPreparation(key, token, 'Codex 尚未登录或运行时不可用，请到设置 → Codex 智能体完成登录。')
         return
       }
-      const live = actions && actions.__apLatestProps || props
-      if (codexTurnKey(live) !== key) {
-        releaseCodexTurnLock(key)
-        return
-      }
-      const originalDraft = currentDraft(live)
-      const cleanDraft = stripMentionArtifacts(originalDraft)
-      const attachmentSessionId = attachSessionId(live)
-      const foldItems = codexAttachItems(attachmentSessionId).slice()
-      const submit = (current) => submitAfterFold(
-        current,
-        orig,
-        buildCodexTurnDelegation,
-        (clean, framed, items) => beginCodexTurnSettlement(current, clean, framed, items),
-        foldItems,
-        inputStoreFor(key),
-      )
-      try {
-        if (foldItems.length) {
-          const folded = await foldAttachmentsIntoDraft(live, foldItems)
-          if (!folded) throw new Error('attachment fold failed')
-        }
-        const current = actions && actions.__apLatestProps || live
-        const currentItems = codexAttachItems(attachmentSessionId).slice()
-        if (codexTurnKey(current) !== key || currentDraft(current) !== cleanDraft || !sameCodexAttachments(foldItems, currentItems)) {
-          releaseCodexTurnLock(key)
+      let prepared = preparingCodexTurn(key, token)
+      if (!prepared) return
+      const items = prepared.controller.capturedAttachments
+      const cwd = prepared.live && prepared.live.cwd || workspaceCwd(prepared.live)
+      const files = items.filter((item) => item.kind !== 'image' && item.kind !== 'folder' && (item.path || item.relativePath || item.name))
+      const folders = items.filter((item) => item.kind === 'folder' && (item.path || item.relativePath))
+      if (files.length || folders.length) {
+        if (!isLiveSessionId(key) || !cwd) {
+          failCodexPreparation(key, token, '当前会话没有工作区，无法把附件交给模型')
           return
         }
-        submit(current)
-      } catch {
-        const current = actions && actions.__apLatestProps || live
-        if (codexTurnKey(current) === key && currentDraft(current) === cleanDraft) setComposerDraft(current, originalDraft)
-        releaseCodexTurnLock(key)
+        try {
+          await api('/api/agent-pi/llm/vision/read?sessionId=' + encodeURIComponent(key), cwd, {
+            method: 'POST',
+            body: JSON.stringify({
+              sessionId: key,
+              cwd,
+              files: files.map((item) => ({
+                name: item.name,
+                path: item.path || item.relativePath,
+                relativePath: item.relativePath || item.path,
+                kind: 'file',
+              })),
+              folders: folders.map((item) => ({
+                name: item.name,
+                path: item.path || item.relativePath,
+              })),
+              images: [],
+            }),
+          })
+        } catch (err) {
+          failCodexPreparation(key, token, String(err && err.message || err))
+          return
+        }
+        prepared = preparingCodexTurn(key, token)
+        if (!prepared) return
       }
+      try {
+        prepared.controller.framedDraft = codexPreparedDraft(key, prepared.controller)
+        requestAnimationFrame(() => commitCodexTurn(key, token))
+      } catch {
+        failCodexPreparation(key, token)
+      }
+    }
+
+    function commitCodexTurn(key, token) {
+      const prepared = preparingCodexTurn(key, token)
+      if (!prepared) return
+      const controller = prepared.controller
+      const inputStore = prepared.inputStore
+      try {
+        if (typeof inputStore.subscribe !== 'function' || typeof prepared.session.subscribe !== 'function') throw new Error('Codex settlement subscriptions unavailable')
+        const actions = prepared.live && prepared.live.inputActions
+        const submit = actions && actions.__apOrigSubmit
+        if (typeof submit !== 'function') throw new Error('Codex original submit unavailable')
+        controller.preSubmitUserNodeWatermark = codexUserNodeWatermark(prepared.sessionSnapshot)
+        controller.phase = 'submitting'
+        setComposerDraft(prepared.live, controller.framedDraft)
+        notifyCodexTurn()
+        token.settlementReady = false
+        token.settlementQueued = false
+        const onSettlement = () => {
+          if (!token.settlementReady) {
+            token.settlementQueued = true
+            return
+          }
+          settleCodexTurn(key, token)
+        }
+        const unsubscribeInput = inputStore.subscribe(onSettlement)
+        if (typeof unsubscribeInput !== 'function') throw new Error('Codex input settlement subscription unavailable')
+        controller.unsubscribeInput = unsubscribeInput
+        const unsubscribeSession = prepared.session.subscribe(onSettlement)
+        if (typeof unsubscribeSession !== 'function') throw new Error('Codex session settlement subscription unavailable')
+        controller.unsubscribeSession = unsubscribeSession
+        token.settlementReady = true
+        submit()
+        if (token.settlementQueued) settleCodexTurn(key, token)
+      } catch {
+        failCodexTurn(key, controller, inputStore)
+      }
+    }
+
+    function submitCodexTurn(props) {
+      const key = codexTurnKey(props)
+      const controller = codexTurnControllers.get(key)
+      if (!controller || controller.phase !== 'armed') return
+      controller.latestProps = props
+      let authorities
+      let sessionSnapshot
+      let inputSnapshot
+      try {
+        authorities = codexTurnAuthorities(key)
+        if (!authorities) {
+          disposeCodexTurn(key, controller)
+          return
+        }
+        if (!authorities.session || typeof authorities.session.getSnapshot !== 'function'
+          || !authorities.inputStore || typeof authorities.inputStore.getSnapshot !== 'function') return
+        sessionSnapshot = authorities.session.getSnapshot()
+        inputSnapshot = authorities.inputStore.getSnapshot()
+      } catch {
+        return
+      }
+      if (sessionSnapshot && sessionSnapshot.removed === true) {
+        disposeCodexTurn(key, controller)
+        return
+      }
+      if (!sessionSnapshot || !inputSnapshot || inputSnapshot.phase !== 'plain' || typeof inputSnapshot.draft !== 'string') return
+      const attachments = codexAttachItems(key).slice()
+      const token = {}
+      controller.phase = 'preparing'
+      controller.attemptToken = token
+      controller.originalDraft = inputSnapshot.draft
+      controller.framedDraft = ''
+      controller.capturedAttachments = attachments
+      controller.capturedAttachmentIds = codexAttachmentIds(attachments)
+      controller.preSubmitUserNodeWatermark = -1
+      notifyCodexTurn()
+      void prepareCodexTurn(key, token)
     }
 
     function wrapComposerSubmit(props) {
       const actions = props && props.inputActions
       if (!actions || typeof actions.submit !== 'function') return
       actions.__apLatestProps = props
+      trackCodexTurnProps(props)
       if (actions.__apFoldWrapped) return
       const orig = actions.submit.bind(actions)
       actions.__apOrigSubmit = orig
       actions.submit = () => {
         const live = actions.__apLatestProps || props
         if (codexTurnArmed(live)) {
-          void submitCodexTurn(live, orig, actions)
+          submitCodexTurn(live)
           return
         }
         const before = currentDraft(live)
@@ -8380,14 +8538,10 @@ ${original}`
       const [, setCodexTurnTick] = React.useState(0)
       React.useEffect(() => {
         const sync = () => setCodexTurnTick((tick) => tick + 1)
-        codexTurnState.listeners.add(sync)
-        return () => { codexTurnState.listeners.delete(sync) }
+        codexTurnListeners.add(sync)
+        return () => { codexTurnListeners.delete(sync) }
       }, [])
       const armed = codexTurnArmed(live)
-      const sessionId = live.sessionId
-      React.useEffect(() => {
-        settleCodexTurn(live)
-      }, [live.sessionId, live.input && live.input.phase, live.input && live.input.draft])
       React.useEffect(() => {
         const onFill = (event) => {
           const text = event && event.detail && event.detail.text
