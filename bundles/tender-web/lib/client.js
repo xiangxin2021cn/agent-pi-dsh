@@ -1474,39 +1474,99 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
     }
     function clearCodexTurnAfterSubmit(props) {
       const key = codexTurnKey(props)
+      const pending = codexTurnState.pending.get(key)
+      if (pending) {
+        if (typeof pending.offInput === 'function') pending.offInput()
+        if (typeof pending.offSession === 'function') pending.offSession()
+        const remaining = (attachItemsOf(attachSessionId(props)) || []).slice()
+        for (const item of pending.items || []) {
+          const index = remaining.findIndex((row) => attachKey(row) === attachKey(item))
+          if (index >= 0) remaining.splice(index, 1)
+        }
+        setAttachItems(remaining, props)
+      }
       codexTurnState.armed.delete(key)
       codexTurnState.submitting.delete(key)
       codexTurnState.pending.delete(key)
       attachSubmitLock = false
-      setAttachItems([], props)
       notifyCodexTurn()
     }
     function releaseCodexTurnLock(key) {
+      const pending = codexTurnState.pending.get(key)
+      if (pending) {
+        if (typeof pending.offInput === 'function') pending.offInput()
+        if (typeof pending.offSession === 'function') pending.offSession()
+      }
       codexTurnState.submitting.delete(key)
       codexTurnState.pending.delete(key)
       attachSubmitLock = false
       notifyCodexTurn()
     }
-    function beginCodexTurnSettlement(props, clean, framed) {
-      const key = codexTurnKey(props)
-      codexTurnState.pending.set(key, { clean, framed, seenSubmitting: false })
+    function inputStoreFor(sessionId) {
+      const sessions = runtime.sessions
+      const conversation = runtime.conversation
+      if (!sessions || !conversation || !conversation.input || typeof sessions.scope !== 'function' || typeof conversation.input.for !== 'function') return null
+      try {
+        const scope = sessions.scope(sessionId)
+        const input = scope && conversation.input.for(scope)
+        return input && input.state && typeof input.state.getSnapshot === 'function' && typeof input.state.subscribe === 'function' ? input.state : null
+      } catch {
+        return null
+      }
     }
-    function settleCodexTurn(props) {
-      const key = codexTurnKey(props)
+    function codexUserNode(snapshot, pending) {
+      const nodes = snapshot && snapshot.nodes || []
+      for (const node of nodes) {
+        if (!node || node.kind !== 'user' || typeof node.seq !== 'number' || node.seq <= pending.userSeq) continue
+        const text = (node.content || []).filter((part) => part && part.type === 'text').map((part) => part.text).join('')
+        if (text === pending.framed) return true
+      }
+      return false
+    }
+    function codexLatestProps(pending) {
+      return pending.actions && pending.actions.__apLatestProps || pending.props
+    }
+    function restoreCodexTurn(props, pending, input) {
+      const live = codexLatestProps(pending) || props
+      const current = input && typeof input.draft === 'string' ? input.draft : currentDraft(live)
+      releaseCodexTurnLock(pending.key)
+      if (current === pending.framed) setComposerDraft(live, pending.clean)
+    }
+    function settleCodexInput(key, input) {
       const pending = codexTurnState.pending.get(key)
-      const input = props && props.input
       if (!pending || !input) return
       if (input.phase === 'submitting') {
         pending.seenSubmitting = true
         return
       }
       if (!pending.seenSubmitting || input.phase !== 'plain') return
-      if (input.draft === pending.framed) {
-        releaseCodexTurnLock(key)
-        setComposerDraft(props, pending.clean)
+      if (input.draft === pending.framed) restoreCodexTurn(codexLatestProps(pending), pending, input)
+      else if (!pending.offSession) clearCodexTurnAfterSubmit(codexLatestProps(pending))
+    }
+    function settleCodexSession(key, snapshot) {
+      const pending = codexTurnState.pending.get(key)
+      if (!pending) return
+      if (snapshot && snapshot.promptError) {
+        const store = inputStoreFor(key)
+        restoreCodexTurn(codexLatestProps(pending), pending, store && store.getSnapshot())
         return
       }
-      clearCodexTurnAfterSubmit(props)
+      if (codexUserNode(snapshot, pending)) clearCodexTurnAfterSubmit(codexLatestProps(pending))
+    }
+    function beginCodexTurnSettlement(props, clean, framed, items) {
+      const key = codexTurnKey(props)
+      const pending = { key, props, actions: props && props.inputActions, clean, framed, items: (items || []).slice(), seenSubmitting: false, userSeq: -1, offInput: null, offSession: null }
+      const session = sessionFaceById(key)
+      const snapshot = session && typeof session.getSnapshot === 'function' ? session.getSnapshot() : null
+      for (const node of snapshot && snapshot.nodes || []) if (node && node.kind === 'user' && typeof node.seq === 'number') pending.userSeq = Math.max(pending.userSeq, node.seq)
+      const store = inputStoreFor(key)
+      if (store) pending.offInput = store.subscribe(() => settleCodexInput(key, store.getSnapshot()))
+      if (session && typeof session.subscribe === 'function') pending.offSession = session.subscribe(() => settleCodexSession(key, session.getSnapshot()))
+      codexTurnState.pending.set(key, pending)
+    }
+    function settleCodexTurn(props) {
+      const key = codexTurnKey(props)
+      settleCodexInput(key, props && props.input)
     }
 
     const composerPropsRef = { current: null }
@@ -3666,7 +3726,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 ${original}`
     }
 
-    function submitAfterFold(props, submit, transform, onSubmitted) {
+    function submitAfterFold(props, submit, transform, onBeforeSubmit) {
       const sid = sessionHint(props) || runtime.sessionId || 'active'
       const clean = stripMentionArtifacts(currentDraft(props))
       const items = attachItemsOf(attachSessionId(props))
@@ -3683,10 +3743,10 @@ ${original}`
         const send = typeof submit === 'function'
           ? submit
           : (props && props.inputActions && props.inputActions.__apOrigSubmit)
+        if (typeof onBeforeSubmit === 'function') onBeforeSubmit(clean, finalText, items)
         if (typeof send === 'function') send()
         attachSubmitLock = false
-        if (typeof onSubmitted === 'function') {
-          onSubmitted(clean, finalText)
+        if (typeof onBeforeSubmit === 'function') {
           return
         }
         setAttachItems([], props)
@@ -3697,9 +3757,9 @@ ${original}`
         const send = typeof submit === 'function'
           ? submit
           : (props && props.inputActions && props.inputActions.__apOrigSubmit)
+        if (typeof onBeforeSubmit === 'function') onBeforeSubmit(clean, finalText, items)
         if (typeof send === 'function') send()
-        if (typeof onSubmitted === 'function') {
-          onSubmitted(clean, finalText)
+        if (typeof onBeforeSubmit === 'function') {
           return
         }
         window.setTimeout(() => {
@@ -3713,6 +3773,22 @@ ${original}`
       foldAttachmentsIntoDraft(props).then((folded) => {
         if (folded) submitAfterFold(props)
       }).catch(() => {})
+    }
+
+    function sameCodexAttachments(left, right) {
+      if (left.length !== right.length) return false
+      const counts = new Map()
+      for (const item of left) {
+        const key = attachKey(item)
+        counts.set(key, (counts.get(key) || 0) + 1)
+      }
+      for (const item of right) {
+        const key = attachKey(item)
+        const count = counts.get(key) || 0
+        if (!count) return false
+        counts.set(key, count - 1)
+      }
+      return true
     }
 
     async function submitCodexTurn(props, orig, actions) {
@@ -3736,20 +3812,29 @@ ${original}`
         return
       }
       const originalDraft = currentDraft(live)
-      const submit = () => submitAfterFold(
-        live,
+      const cleanDraft = stripMentionArtifacts(originalDraft)
+      const foldItems = attachItemsOf(attachSessionId(live)).slice()
+      const submit = (current) => submitAfterFold(
+        current,
         orig,
         buildCodexTurnDelegation,
-        (clean, framed) => beginCodexTurnSettlement(live, clean, framed),
+        (clean, framed, items) => beginCodexTurnSettlement(current, clean, framed, items),
       )
       try {
-        if (attachItemsOf(attachSessionId(live)).length) {
+        if (foldItems.length) {
           const folded = await foldAttachmentsIntoDraft(live)
           if (!folded) throw new Error('attachment fold failed')
         }
-        submit()
+        const current = actions && actions.__apLatestProps || live
+        const currentItems = attachItemsOf(attachSessionId(current)).slice()
+        if (codexTurnKey(current) !== key || currentDraft(current) !== cleanDraft || !sameCodexAttachments(foldItems, currentItems)) {
+          releaseCodexTurnLock(key)
+          return
+        }
+        submit(current)
       } catch {
-        setComposerDraft(live, originalDraft)
+        const current = actions && actions.__apLatestProps || live
+        if (codexTurnKey(current) === key && currentDraft(current) === cleanDraft) setComposerDraft(current, originalDraft)
         releaseCodexTurnLock(key)
       }
     }
