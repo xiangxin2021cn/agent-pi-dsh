@@ -12,21 +12,21 @@ import {
   fixtureAnalysisSuiteMarkdown,
 } from '../src/analysis-suite.ts'
 
-test('empty official folder fails the analysis suite', () => {
+test('empty official folder fails the canonical analysis base', () => {
   const dir = mkdtempSync(join(tmpdir(), 'ap-suite-empty-'))
   const status = assessAnalysisSuite(dir)
   assert.equal(status.ok, false)
   assert.equal(status.missing.length, ANALYSIS_SUITE.length)
-  assert.match(status.shortGaps, /缺《招标文件总结\.md》/)
-  assert.match(analysisSuiteRejectReason(status), /不能代替这五份/)
+  assert.match(status.shortGaps, /缺《投标分析底稿\.md》/)
+  assert.match(analysisSuiteRejectReason(status), /投标分析底稿未达标/)
 })
 
-test('a lone summary-sized file does not satisfy the suite', () => {
+test('a legacy summary file does not replace the canonical analysis base', () => {
   const dir = mkdtempSync(join(tmpdir(), 'ap-suite-summary-'))
   writeFileSync(join(dir, '招标文件解析总报告.md'), '# 总报告\n' + '综述 '.repeat(400))
   const status = assessAnalysisSuite(dir)
   assert.equal(status.ok, false)
-  assert.ok(status.missing.includes('招标文件总结.md'))
+  assert.ok(status.missing.includes('投标分析底稿.md'))
 })
 
 test('short or chapter-thin memos fail', () => {
@@ -38,16 +38,16 @@ test('short or chapter-thin memos fail', () => {
   assert.equal(short.ok, false)
   assert.equal(short.short.length, ANALYSIS_SUITE.length)
 
-  writeFileSync(join(dir, '招标文件总结.md'), `# 招标文件总结\n\n${'占位文字。'.repeat(ANALYSIS_SUITE_MIN_CHARS)}\n`)
+  writeFileSync(join(dir, '投标分析底稿.md'), `# 投标分析底稿\n\n${'占位文字。'.repeat(ANALYSIS_SUITE_MIN_CHARS)}\n`)
   const thin = assessAnalysisSuite(dir)
-  const summary = thin.files.find((file) => file.fileName === '招标文件总结.md')
+  const summary = thin.files.find((file) => file.fileName === '投标分析底稿.md')
   assert.ok(summary)
   assert.equal(summary.longEnough, true)
   assert.ok(summary.missingTerms.length > 0)
   assert.equal(thin.ok, false)
 })
 
-test('five fixture memos clear the mechanical bar', () => {
+test('one source-indexed fixture clears the structural bar', () => {
   const dir = mkdtempSync(join(tmpdir(), 'ap-suite-ok-'))
   for (const spec of ANALYSIS_SUITE) {
     const body = fixtureAnalysisSuiteMarkdown(spec.fileName)
@@ -60,11 +60,11 @@ test('five fixture memos clear the mechanical bar', () => {
   assert.ok(status.files.every((file) => file.ok))
 })
 
-test('workbench client lists the suite on the check panel', () => {
-  const page = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../tender-web/lib/client.js'), 'utf8')
-  assert.match(page, /深度套件已齐/)
+test('workbench client lists the analysis base on the check panel', () => {
+  const page = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../tender-web/src/client/index.js'), 'utf8')
+  assert.match(page, /投标分析底稿已齐/)
   assert.match(page, /st\.suite\.shortGaps/)
-  assert.match(page, /分析深度套件/)
+  assert.match(page, /投标分析底稿/)
   assert.match(page, /st\.boqInventory/)
   assert.match(page, /工程量清单已抽出/)
   assert.match(page, /action: 'check'/)

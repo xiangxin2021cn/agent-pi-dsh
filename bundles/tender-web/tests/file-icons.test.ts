@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 import { fileIconClass, fileIconName } from '../src/file-icons.ts'
+import { clientSource } from './client-source.ts'
 
 test('file icons distinguish markdown, sheets, word, slides, and pdf', () => {
   assert.equal(fileIconName({ name: 'notes.md', type: 'file' }), 'fileMd')
@@ -19,7 +20,7 @@ test('file icons distinguish markdown, sheets, word, slides, and pdf', () => {
 })
 
 test('client bundle copies the distinct office icons', () => {
-  const page = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../lib/client.js'), 'utf8')
+  const page = clientSource
   assert.match(page, /fileSheet/)
   assert.match(page, /fileWord/)
   assert.match(page, /fileMd/)

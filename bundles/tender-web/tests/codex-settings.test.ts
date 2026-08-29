@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 import vm from 'node:vm'
+import { clientSource } from './client-source.ts'
 
 const client = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../lib/client.js'), 'utf8')
 
@@ -51,8 +52,8 @@ function renderedCodexSettings(locale, source) {
     useCallback(fn) { return fn },
   }
   const sourceCode = client.replace(
-    "    exports.name = 'tender-web'",
-    "    window.__apCodexSettingsTest = { CodexSettingsSection, setApLang };\n\n    exports.name = 'tender-web'",
+    /(\s*return module\.exports;)/,
+    "\n    window.__apCodexSettingsTest = { CodexSettingsSection, setApLang };\n$1",
   )
   vm.runInNewContext(sourceCode, {
     window,
@@ -81,24 +82,24 @@ function renderedText(node) {
 }
 
 test('desktop settings expose ChatGPT login without treating Codex as a model provider', () => {
-  assert.match(client, /function CodexSettingsSection/)
-  assert.match(client, /codexAuthStatus/)
-  assert.match(client, /codexAuthLogin/)
-  assert.match(client, /codexAuthLogout/)
-  assert.match(client, /id: 'agent-pi-codex'/)
-  assert.match(client, /subagent_codex/)
-  assert.match(client, /模型信息暂不可用/)
-  assert.match(client, /供应商返回/)
-  assert.match(client, /官方参数/)
-  assert.match(client, /估算参数/)
-  assert.match(client, /Codex 执行/)
-  assert.match(client, /run_in_background=false/)
-  assert.match(client, /codexAuthStatus\(\)/)
-  assert.match(client, /setCodexTurnArmed/)
-  assert.match(client, /clearCodexTurnAfterSubmit/)
-  assert.doesNotMatch(client, /if \(typeof window\.agentPiDesktop\?\.codexAuthStatus === 'function'\)/)
-  assert.doesNotMatch(client, /id: 'codex'/)
-  assert.doesNotMatch(client, /OPENAI_API_KEY/)
+  assert.match(clientSource, /function CodexSettingsSection/)
+  assert.match(clientSource, /codexAuthStatus/)
+  assert.match(clientSource, /codexAuthLogin/)
+  assert.match(clientSource, /codexAuthLogout/)
+  assert.match(clientSource, /id: 'agent-pi-codex'/)
+  assert.match(clientSource, /subagent_codex/)
+  assert.match(clientSource, /模型信息暂不可用/)
+  assert.match(clientSource, /供应商返回/)
+  assert.match(clientSource, /官方参数/)
+  assert.match(clientSource, /估算参数/)
+  assert.match(clientSource, /Codex 执行/)
+  assert.match(clientSource, /run_in_background=false/)
+  assert.match(clientSource, /codexAuthStatus\(\)/)
+  assert.match(clientSource, /setCodexTurnArmed/)
+  assert.match(clientSource, /clearCodexTurnAfterSubmit/)
+  assert.doesNotMatch(clientSource, /if \(typeof window\.agentPiDesktop\?\.codexAuthStatus === 'function'\)/)
+  assert.doesNotMatch(clientSource, /id: 'codex'/)
+  assert.doesNotMatch(clientSource, /OPENAI_API_KEY/)
 })
 
 test('capacity provenance labels render in the active locale', () => {

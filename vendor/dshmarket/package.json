@@ -64,6 +64,7 @@
     "lib",
     "src",
     "client",
+    "compatibility.js",
     "data",
     "cordis.patch.yml",
     "LICENSE"

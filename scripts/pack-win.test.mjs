@@ -10,6 +10,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const packScript = join(root, 'scripts', 'pack-win.ps1')
 const nsisScript = join(root, 'scripts', 'nsis', 'setup.nsi')
 const nsisSource = readFileSync(nsisScript, 'utf8')
+const packSource = readFileSync(packScript, 'utf8')
 const makensis = [
   join(process.env['ProgramFiles(x86)'] ?? '', 'NSIS', 'makensis.exe'),
   join(process.env.ProgramFiles ?? '', 'NSIS', 'makensis.exe'),
@@ -113,4 +114,19 @@ test('installer commits a separately extracted app.asar or restores the previous
     nsisSource,
     /Rename "\$PLUGINSDIR\\app\.asar" "\$INSTDIR\\resources\\app\.asar"/,
   )
+})
+
+test('portable runtime requires the Agent Pi preset compaction plugin', () => {
+  assert.match(packSource, /product\\bundles\\agent-pi-compaction\\lib\\index\.js/)
+  assert.match(packSource, /bundles\\agent-pi-compaction\\lib\\index\.js/)
+})
+
+test('installer branding is generated from the desktop app logo and passed to NSIS', () => {
+  assert.match(packSource, /brand\\app-logo\.png/)
+  assert.match(packSource, /make-installer-brand\.py/)
+  assert.match(packSource, /Copy-Item -Force \$InstallerIcon .*app-icon\.ico/)
+  assert.match(packSource, /DAPP_ICON=app-icon\.ico/)
+  assert.match(packSource, /DINSTALLER_HEADER=installer-header\.bmp/)
+  assert.match(nsisSource, /Icon "\$\{APP_ICON\}"/)
+  assert.match(nsisSource, /!define MUI_HEADERIMAGE_BITMAP "\$\{INSTALLER_HEADER\}"/)
 })

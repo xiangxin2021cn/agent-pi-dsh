@@ -84,10 +84,10 @@ test('prepare and complete reject a stage whose predecessor is unfinished', () =
   boardWithDoneStages(cwd, record, ['project-setup'])
 
   const prepared = prepareStage(cwd, record, 'planning-and-submission')
-  assert.match(prepared.blocked ?? '', /前序阶段.*招标文件解析/)
+  assert.match(prepared.blocked ?? '', /前序阶段.*投标决策与重大风险/)
   assert.throws(
     () => completeStage(cwd, record, 'planning-and-submission'),
-    /前序阶段.*招标文件解析/,
+    /前序阶段.*投标决策与重大风险/,
   )
 })
 
@@ -123,14 +123,14 @@ test('analysis summary must contain substantive content', () => {
   const cwd = mkdtempSync(join(tmpdir(), 'ap-stage-summary-'))
   const record = project(cwd)
   initializeTender(cwd)
-  boardWithDoneStages(cwd, record, ['project-setup'])
+  boardWithDoneStages(cwd, record, ['project-setup', 'bid-risk-decision'])
   const dir = officialStageDir(cwd, record.projectId, 'tender-document-analysis')
   mkdirSync(dir, { recursive: true })
-  writeFileSync(join(dir, '招标文件解析总报告.md'), '# 总报告\n太短。')
+  writeFileSync(join(dir, '投标分析底稿.md'), '# 投标分析底稿\n太短。')
 
   assert.throws(
     () => completeStage(cwd, record, 'tender-document-analysis'),
-    /总报告.*内容过短/,
+    /投标分析底稿.*内容过短/,
   )
 })
 
@@ -138,7 +138,10 @@ test('planning completion requires ready capability packs before output checks',
   const cwd = mkdtempSync(join(tmpdir(), 'ap-stage-capabilities-'))
   const record = project(cwd)
   initializeTender(cwd)
-  boardWithDoneStages(cwd, record, ['project-setup', 'tender-document-analysis', 'boq-five-step-pricing'])
+  boardWithDoneStages(cwd, record, ['project-setup', 'bid-risk-decision', 'tender-document-analysis', 'pricing-basis-freeze', 'boq-five-step-pricing'])
+  const dir = officialStageDir(cwd, record.projectId, 'planning-and-submission')
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(join(dir, '施工与技术方案总控.md'), '# 施工与技术方案总控\n' + '施工、进度、资源、成本、现金流和技术响应。'.repeat(20))
 
   assert.throws(
     () => completeStage(cwd, record, 'planning-and-submission'),
@@ -150,23 +153,24 @@ test('planning completion requires every skill-declared hard output', () => {
   const cwd = mkdtempSync(join(tmpdir(), 'ap-stage-outputs-'))
   const record = project(cwd)
   initializeTender(cwd)
-  boardWithDoneStages(cwd, record, ['project-setup', 'tender-document-analysis', 'boq-five-step-pricing'])
-  writeReadyCapabilities(cwd, ['execution_plan', 'schedule_resources', 'cost_cashflow', 'submission_documents'])
+  boardWithDoneStages(cwd, record, ['project-setup', 'bid-risk-decision', 'tender-document-analysis', 'pricing-basis-freeze', 'boq-five-step-pricing'])
+  writeReadyCapabilities(cwd, ['execution_plan', 'schedule_resources', 'construction_resource_schedule', 'cost_cashflow'])
+  const dir = officialStageDir(cwd, record.projectId, 'planning-and-submission')
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(join(dir, '施工与技术方案总控.md'), '# 施工与技术方案总控\n' + '施工、进度、资源、成本、现金流和技术响应。'.repeat(20))
 
   assert.throws(
     () => completeStage(cwd, record, 'planning-and-submission'),
     /施工策划报告\.md.*tender-programme\.msp\.xml.*tender-programme\.p6\.xml/s,
   )
 
-  const dir = officialStageDir(cwd, record.projectId, 'planning-and-submission')
-  mkdirSync(dir, { recursive: true })
   for (const fileName of [
+    '施工与技术方案总控.md',
     '施工策划报告.md',
     'tender-programme.msp.xml',
     'tender-programme.p6.xml',
     'S-Curve_Cash_Flow_Chart.html',
     'Work_Plan_and_Proposed_Methodology.docx',
-    'submission_audit.md',
   ]) {
     writeFileSync(join(dir, fileName), `${fileName}\n${'verified '.repeat(20)}`)
   }
@@ -182,7 +186,7 @@ test('selected knowledge slugs are written into source worker briefs', () => {
   const record = project(cwd, 'tender', [sourcePath])
   initializeTender(cwd)
   registerProjectSources(cwd, record.projectId, { title: record.name, inputPaths: record.inputPaths })
-  boardWithDoneStages(cwd, record, ['project-setup'])
+  boardWithDoneStages(cwd, record, ['project-setup', 'bid-risk-decision'])
 
   const prepared = prepareStage(cwd, record, 'tender-document-analysis', ['project-spec', 'pricing-rules'])
   const briefPath = prepared.state.tasks[0]?.briefPath

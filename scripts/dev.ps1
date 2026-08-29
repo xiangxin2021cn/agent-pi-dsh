@@ -11,7 +11,7 @@ if (-not (Test-Path (Join-Path $Dsh "package.json"))) {
   throw "vendor/deepseek-harness missing. Junction or clone DeepSeek Harness and pin DSH_PIN."
 }
 node (Join-Path $Root "scripts\apply-dsh-patches.mjs") $Dsh --development
-if ($LASTEXITCODE -ne 0) { throw "Agent Pi DSH kernel patch failed" }
+if ($LASTEXITCODE -ne 0) { throw "Agent Pi DSH clean-kernel guard failed" }
 
 $env:DSH_HOME = Join-Path $Root ".dsh-home"
 $env:DSH_CHECKOUT = $Dsh
@@ -42,6 +42,12 @@ if (-not (Test-Path (Join-Path $Dsh "node_modules"))) {
   corepack enable
   pnpm install
 }
+
+Set-Location $Root
+Write-Host "Building tender-web client from source modules..."
+node (Join-Path $Root "scripts\build-tender-client.mjs")
+if ($LASTEXITCODE -ne 0) { throw "tender-web client build failed" }
+Set-Location $Dsh
 
 if (-not $SkipInstall) {
   Write-Host "Initializing tender profile (base + web-app + injector + Agent Pi bundles)..."

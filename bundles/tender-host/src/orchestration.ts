@@ -69,6 +69,12 @@ export interface StageDispatch {
   dispatchedAt?: string
 }
 
+export interface StageApproval {
+  decision: 'approved' | 'rejected'
+  decidedAt: string
+  note?: string
+}
+
 export interface StageSlice {
   stageId: string
   status: 'idle' | 'running' | 'blocked' | 'done'
@@ -78,6 +84,7 @@ export interface StageSlice {
   completedAt?: string
   blockedReason?: string
   dispatch?: StageDispatch
+  approval?: StageApproval
 }
 
 /** Legacy single-stage file shape, still returned by loadStageState for tools. */
@@ -124,6 +131,7 @@ function asSlice(value: Partial<StageSlice> & { stageId: string }): StageSlice {
     completedAt: value.completedAt,
     blockedReason: value.blockedReason,
     dispatch: value.dispatch,
+    approval: value.approval,
   }
 }
 
@@ -211,8 +219,9 @@ const DELIVERABLE_MIN_BYTES = 80
 
 const TENDER_STAGE_REQUIRED_CAPABILITIES: Partial<Record<string, TenderCapabilityId[]>> = {
   'tender-document-analysis': ['document_analysis', 'boq_reconciliation'],
-  'boq-five-step-pricing': ['boq_five_step_pricing', 'construction_resource_schedule', 'bidder_commitments'],
-  'planning-and-submission': ['execution_plan', 'schedule_resources', 'cost_cashflow', 'submission_documents'],
+  'boq-five-step-pricing': ['boq_five_step_pricing'],
+  'planning-and-submission': ['execution_plan', 'schedule_resources', 'construction_resource_schedule', 'cost_cashflow'],
+  'submission-compliance-freeze': ['submission_documents', 'bidder_commitments'],
 }
 
 const PLANNING_REQUIRED_DELIVERABLES = [
@@ -221,7 +230,6 @@ const PLANNING_REQUIRED_DELIVERABLES = [
   'tender-programme.p6.xml',
   'S-Curve_Cash_Flow_Chart.html',
   'Work_Plan_and_Proposed_Methodology.docx',
-  'submission_audit.md',
 ]
 
 function fileExists(path?: string): boolean {
@@ -317,7 +325,7 @@ function inspectSlice(slice: StageSlice, gatesReady = true): StageSlice {
 function analysisHardGatesReady(cwd: string, projectId: string, stageId: string): boolean {
   if (!analysisSuiteApplies(stageId)) return true
   const dir = officialStageDir(cwd, projectId, stageId)
-  let summaryName = '招标文件解析总报告.md'
+  let summaryName = '投标分析底稿.md'
   try {
     const stage = workflowFor('tender').stages.find((item) => item.id === stageId)
     if (stage?.summaryDeliverable?.fileName) summaryName = stage.summaryDeliverable.fileName
@@ -604,15 +612,20 @@ export function buildStageDraft(project: BusinessProjectRecord, stage: WorkflowS
     : ''
   const returnRule = `\n- 回推：分析写手/组价工人写完必须 report「DONE 文件名 md行数=N」；评审必须 report ACCEPT_AND_PROCEED 或 REVISE_AND_RETRY。只在子对话发言不算回推。派出后不要结束本轮空等 DONE；回传或用户新指令到达后立刻继续。`
   const reviewRule = stage.reviewSkillSlugs && stage.reviewSkillSlugs.length > 0
-    ? `\n- 评审：每份成果写完后立刻派评审子智能体（${stage.reviewSkillSlugs.join('、')}）。必须等回推再往下走：优先 subagent 且 run_in_background: false（本轮工具结果就是裁决）；若已后台派出，必须等子级调用 report 把 ACCEPT_AND_PROCEED / REVISE_AND_RETRY 原文推回本主对话。子对话里自己说话不算回推，主对话不得空等。REVISE_AND_RETRY 则按清单改一稿再评，最多 2 轮；未通过不得 complete_stage。`
+    ? stage.reviewPolicy === 'all'
+      ? `\n- 评审：每份成果写完后派评审子智能体（${stage.reviewSkillSlugs.join('、')}）。REVISE_AND_RETRY 按清单修订，最多 2 轮；未通过不得 complete_stage。`
+      : `\n- 风险审查：不要逐文件机械复审。只审阶段总控成果、合同/价格/工期/资格等高风险结论、发生实质变更的成果，并对其余成果抽样。使用 ${stage.reviewSkillSlugs.join('、')}；REVISE_AND_RETRY 只修影响决策的缺口，最多 1 轮，仍有分歧交用户裁决。`
     : ''
   const stageFolder = officialStageFolder(stage.id)
   const stageOutDir = `Agent Pi Outputs/${project.projectId}/${stageFolder}/`
   const summaryRule = stage.summaryDeliverable
     ? `\n- 收阶段硬性交付《${stage.summaryDeliverable.fileName}》（放 ${stageOutDir}）：${stage.summaryDeliverable.outlineZh.join('；')}。该文件缺失时 complete_stage 会被拒绝。`
     : ''
+  const approvalRule = stage.approvalGate
+    ? `\n- 人工决策门：完成《${stage.summaryDeliverable?.fileName ?? stage.labelZh}》后停止。不要调用 complete_stage 代替用户决策；等待用户在工作台处理「${stage.approvalGate.approveLabelZh}」${stage.approvalGate.rejectLabelZh ? `或「${stage.approvalGate.rejectLabelZh}」` : ''}。`
+    : ''
   const suiteRule = analysisSuiteApplies(stage.id)
-    ? `\n- 分析深度套件（与总报告并列，总报告不能代替）必须写入 ${stageOutDir}：${ANALYSIS_SUITE.map((item) => `《${item.fileName}》`).join('、')}。每份覆盖对应大纲、至少约 3500 字；缺文件 / 过短 / 缺章节时 complete_stage 会被拒绝。只借结构，禁止抄上一单数字。已完成的源文件解析稿不要重做。\n- 必须从每份已登记的实际工程量清单抽出全部可识别清单行，tender_capability replace boq_reconciliation（packs/boq-reconciliation.json）。每行带清单号、单位、数量、sheet+cell；PC Sum / Provisional Sum / percentage 等传递项也要登记，只是不进入五步直接费组价。系统会反查 BOQ 解析稿中的显式清单号，局部样本不得过关。《工程量清单分析.md》点名代表性清单号。没有清单或覆盖不全的项目不得 complete_stage；特征门 / force_pass 不能放行这一条。`
+    ? `\n- 唯一分析底稿必须写入 ${stageOutDir}：${ANALYSIS_SUITE.map((item) => `《${item.fileName}》`).join('、')}。覆盖规定章节和来源索引；专题报告只在用户明确需要时从底稿派生，不再作为收阶段数量门。已完成的源文件解析稿不要重做。\n- 必须从每份已登记的实际工程量清单抽出全部可识别清单行，tender_capability replace boq_reconciliation（packs/boq-reconciliation.json）。每行带清单号、单位、数量、sheet+cell；PC Sum / Provisional Sum / percentage 等传递项也要登记。系统会反查 BOQ 解析稿中的显式清单号，局部样本不得过关；没有清单或覆盖不全不得 complete_stage。`
     : ''
   const workbookRule = stage.id === 'boq-five-step-pricing'
     ? `\n- 总报告之后必须再交付公式测算表《${BOQ_PRICING_WORKBOOK_FILE}》（同一目录）。调用 tender_pricing_workbook generate；表头 RATE、分块合计、PRICE 必须是公式。缺此文件时 complete_stage 会被拒绝。可用 univer_import 打开给用户改数，未经用户明确要求不要 merge worktree。\n- 组价 pack 先 tender_capability action=schema（capability=boq_five_step_pricing）。顶层只有 currency / pricingStatus / itemBuildUps / assumptions，外加可选 pricingStandard / vatTreatment / indirectCostPolicy / resourceSummary。rateBasis、planningBasis、sources 都不是顶层字段。\n- 燃油/工资/机械/水泥/骨料/沥青/分包必须 web_search 或 web_fetch 核现行市场价，写入 itemBuildUps[].costComponents[].rateBasis.webEvidence（url + accessedAt）。这与 webDiligenceAuthorized 无关；后者只挡合同/规范/地质等项目特征。\n- ${SA_LABOUR_WAGE_DRAFT_ZH}\n- ${PRICING_LOCAL_INTEL_DRAFT_ZH}`
@@ -642,7 +655,7 @@ ${bindingBlock}${priorBlock}
 - 客户可读成果写入 ${stageOutDir}；同册/同名多格式是一份任务，不要再拆成一文件一工人。
 - 并行用 dsh 原生 subagent / workflow；tender_stage 只准备 brief，不派生子智能体。
 - ${liveWorkerLimitLineZh()}
-- 只使用已登记资料和用户在本对话明确添加的数据源；项目特征缺口禁止臆造。${returnRule}${reviewRule}${summaryRule}${suiteRule}${workbookRule}
+- 只使用已登记资料和用户在本对话明确添加的数据源；项目特征缺口禁止臆造。${returnRule}${reviewRule}${summaryRule}${approvalRule}${suiteRule}${workbookRule}
 - 本阶段全部交付完成后调用 tender_stage complete_stage（projectId=${project.projectId}, stageId=${stage.id}）。
 
 请按阶段要求推进。
@@ -860,7 +873,8 @@ function listSourceTasks(
     briefBindings.review = {
       skillSlugs: stage.reviewSkillSlugs,
       verdicts: ['ACCEPT_AND_PROCEED', 'REVISE_AND_RETRY'],
-      maxRounds: 2,
+      policy: stage.reviewPolicy ?? 'all',
+      maxRounds: stage.reviewPolicy === 'risk-based' ? 1 : 2,
       returnChannel: '裁决必须用 report 工具把 ACCEPT_AND_PROCEED 或 REVISE_AND_RETRY 全文推回主对话；只在本子会话里发言，主对话不会自动承接。写手同样必须 report「DONE 文件名 md行数=N」。',
     }
   }
@@ -994,7 +1008,7 @@ export function prepareStage(
   const setupStageId = workflow.setupStageId
   if (setupStageId && stageId !== setupStageId) {
     const policy = project.module === 'tender' ? evidencePolicy(cwd, project.projectId) : null
-    if (policy && policy.blocking && stageId !== 'tender-document-analysis') {
+    if (policy && policy.blocking && stageId !== 'bid-risk-decision' && stageId !== 'tender-document-analysis') {
       const blocked = `项目特征证据门禁仍阻塞（${policy.ledger.blockingGapCount} 个缺口）。请补传资料或强制放行。`
       const slice: StageSlice = {
         stageId,
@@ -1186,6 +1200,9 @@ export function completeStage(
       throw new Error(`阶段总报告《${stage.summaryDeliverable.fileName}》内容过短，不能作为收阶段成果。请补齐：${stage.summaryDeliverable.outlineZh.join('；')}。`)
     }
   }
+  if (stage.approvalGate) {
+    throw new Error(`阶段「${stage.labelZh}」等待用户人工决策。请停止自动推进，由用户在工作台点击「${stage.approvalGate.approveLabelZh}」${stage.approvalGate.rejectLabelZh ? `或「${stage.approvalGate.rejectLabelZh}」` : ''}。`)
+  }
   if (project.module === 'tender') {
     const capabilityGaps = tenderCapabilityGaps(cwd, project.projectId, stageId)
     if (capabilityGaps.length > 0) {
@@ -1220,6 +1237,76 @@ export function completeStage(
     forcePassedAt: previous?.forcePassedAt,
     completedAt: now,
     dispatch: previous?.dispatch,
+  }
+  const nextBoard = putSlice(cwd, project, slice)
+  syncProjectOutputs(cwd, project.projectId, project.module, stageId)
+  return {
+    state: { schemaVersion: 1, projectId: project.projectId, module: project.module, ...slice },
+    board: nextBoard,
+  }
+}
+
+/**
+ * Persist a decision made through the workbench UI. Approval stages cannot be
+ * completed by the model through tender_stage complete_stage.
+ */
+export function decideApprovalStage(
+  cwd: string,
+  project: BusinessProjectRecord,
+  stageId: string,
+  decision: 'approved' | 'rejected',
+  note = '',
+): { state: StageState; board: OrchestrationBoard } {
+  const workflow = workflowFor(project.module)
+  const stage = workflow.stages.find((item) => item.id === stageId)
+  if (!stage) throw new Error(`Unknown stage ${stageId}`)
+  if (!stage.approvalGate) throw new Error(`阶段「${stage.labelZh}」不是人工决策门。`)
+  const board = loadBoard(cwd, project.projectId, project.module)
+  const stageIndex = workflow.stages.findIndex((item) => item.id === stageId)
+  const unfinishedPrior = workflow.stages
+    .slice(0, Math.max(0, stageIndex))
+    .find((item) => board.stages[item.id]?.status !== 'done')
+  if (unfinishedPrior) {
+    throw new Error(`请先完成前序阶段「${unfinishedPrior.labelZh}」（${unfinishedPrior.id}）。`)
+  }
+  const previous = board.stages[stageId] ? inspectSlice(board.stages[stageId]) : undefined
+  const pending = (previous?.tasks ?? []).filter((task) => task.status !== 'done')
+  if (pending.length > 0) {
+    throw new Error(`阶段仍有 ${pending.length} 个任务未完成，不能提交人工决策。`)
+  }
+  if (stage.summaryDeliverable) {
+    const summaryPath = join(officialStageDir(cwd, project.projectId, stageId), stage.summaryDeliverable.fileName)
+    if (!existsSync(summaryPath) || !deliverableReady(summaryPath)) {
+      throw new Error(`请先完成《${stage.summaryDeliverable.fileName}》再提交人工决策。`)
+    }
+  }
+  if (project.module === 'tender') {
+    const capabilityGaps = tenderCapabilityGaps(cwd, project.projectId, stageId)
+    if (capabilityGaps.length > 0) {
+      throw new Error(`人工决策前能力包未就绪：${capabilityGaps.join('；')}。`)
+    }
+    if (stageId === 'submission-compliance-freeze') {
+      const citationAudit = auditProjectCitations(cwd, project)
+      if (citationAudit.orphans.length > 0) {
+        throw new Error(`最终冻结前仍有 ${citationAudit.orphans.length} 个孤儿引用，请先修复并重新质检。`)
+      }
+    }
+  }
+  const now = new Date().toISOString()
+  const approved = decision === 'approved'
+  const slice: StageSlice = {
+    stageId,
+    status: approved ? 'done' : 'blocked',
+    tasks: previous?.tasks ?? [],
+    updatedAt: now,
+    completedAt: approved ? now : undefined,
+    blockedReason: approved ? undefined : (note || '用户决定暂停本项目，不进入下一阶段。'),
+    dispatch: previous?.dispatch,
+    approval: {
+      decision,
+      decidedAt: now,
+      note: note || undefined,
+    },
   }
   const nextBoard = putSlice(cwd, project, slice)
   syncProjectOutputs(cwd, project.projectId, project.module, stageId)
@@ -1513,7 +1600,7 @@ function renderRealityBlock(reality: StageReality, published: number): string {
     ? `\n- 阶段总报告：${reality.summary.exists ? `《${reality.summary.fileName}》已就位` : `缺《${reality.summary.fileName}》—— 收阶段前必须补齐`}`
     : ''
   const suiteBlock = reality.suite
-    ? `\n- 分析深度套件：${reality.suite.ok ? '五份已齐' : reality.suite.shortGaps}`
+    ? `\n- 投标分析底稿：${reality.suite.ok ? '已就位' : reality.suite.shortGaps}`
     : ''
   const workbookBlock = reality.workbook
     ? `\n- 公式测算表：${reality.workbook.exists ? `《${reality.workbook.fileName}》已就位` : `缺《${reality.workbook.fileName}》—— 总报告之后必须 tender_pricing_workbook generate`}`
@@ -1564,7 +1651,7 @@ function buildOrganizeDraft(input: {
     ? `\n阶段总报告《${stage.summaryDeliverable.fileName}》大纲（写入 Agent Pi Outputs/${project.projectId}/${reality.outputFolder}/）：\n${stage.summaryDeliverable.outlineZh.map((line) => `- ${line}`).join('\n')}\n`
     : ''
   const suiteOutline = reality.suite && !reality.suite.ok
-    ? `\n分析深度套件未齐（总报告不能代替；禁止重扫已完成源文件）：\n${ANALYSIS_SUITE.map((item) => {
+    ? `\n投标分析底稿未齐（专题视图按需派生；禁止重扫已完成源文件）：\n${ANALYSIS_SUITE.map((item) => {
       const row = reality.suite!.files.find((file) => file.fileName === item.fileName)
       const mark = !row || !row.exists ? '缺' : !row.ok ? `未达标${row.missingTerms.length ? `（${row.missingTerms.join('、')}）` : ''}` : '已齐'
       return `- 《${item.fileName}》${mark}\n${item.outlineZh.map((line) => `  - ${line}`).join('\n')}`
@@ -1594,7 +1681,7 @@ ${renderRealityBlock(reality, published)}${orphanBlock}${alignBlock}
 下列事项是「投标可提交」商务门禁，不是本阶段未完成：未询价费率、开工日期/日历/生产率待确认、标前 RFI、现金流商务层处理、submission_audit 保持 not_ready。简报必须写成两栏——阶段：已收口（写出成果目录）；投标可提交：未就绪或就绪（只列商务待办）。禁止写成「阶段没做完」或「请再点成果质检」。
 
 你的职责：
-1. 只处理上面盘面对账列出的产物/孤儿/总报告/深度套件差异；没有列出的不要重扫已完成源文件。
+1. 只处理上面盘面对账列出的产物、孤儿、阶段总控和分析底稿差异；没有列出的不要重扫已完成源文件。
 2. 盘面无差异时明确告诉用户：控制面板「已完成」是对的，无需再质检。
 3. 向用户输出「阶段实况简报」两栏，三行以内。
 禁止由主会话代写子任务成果；禁止对已通过评审的成果重复评审。`
@@ -1610,9 +1697,9 @@ ${renderRealityBlock(reality, published)}${orphanBlock}
 ${summaryOutline}${suiteOutline}${workbookOutline}${intelOutline}${alignBlock}
 你的职责是掌控与裁决，不是机械重扫：
 1. 差异逐项裁决：上面列出的每一条缺失/未完成/孤儿，判断是补做、返工还是纠正任务状态，并当场执行；补齐或删除错误成果后调用 tender_stage status 重新核对，需清空任务时使用 reset。缺产物的任务不得保持 done。没有列出的差异不要自行发明，不要重新解析已完成的源文件。
-2. 阶段总报告与深度套件：若上面显示总报告或五份分析稿缺失/过短/缺章，基于已有解析成果立即补齐（不要重扫源文件）。这是收阶段的硬性交付。BOQ 组价阶段还须 tender_pricing_workbook generate 写出《BOQ 组价测算.xlsx》，并补齐《当地供应商尽调.md》《询价单总表.md》和中英双语询价单。
-3. 评审纪律稽核：每份成果最多 2 轮修订 + 1 次终审。若发现有成果评审悬而未决或已超轮次，立即停止追加轮次，把分歧如实报给用户裁决。
-4. 裁决完成后收口：清单全部 done、孤儿为 0、总报告就位、分析深度套件就位、组价阶段公式测算表与当地供应商尽调/询价单就位时调用 tender_stage complete_stage（projectId=${project.projectId}, stageId=${stage.id}）；否则给出明确补做计划并立即执行。
+2. 阶段总控与分析底稿：若上面显示缺失/过短/缺章，基于已有解析成果补齐，不要重扫源文件；专题视图不再是数量硬门。BOQ 组价阶段还须 tender_pricing_workbook generate 写出《BOQ 组价测算.xlsx》，并补齐当地供应商尽调与询价单。
+3. 评审纪律稽核：只复核高风险、实质变更和抽样成果，最多 1 轮修订；仍有分歧交用户裁决。
+4. 裁决完成后收口：清单全部 done、孤儿为 0、阶段总控与分析底稿就位、组价阶段公式测算表及当地尽调就位时调用 tender_stage complete_stage（projectId=${project.projectId}, stageId=${stage.id}）；人工决策阶段必须停下等待工作台确认。
 5. 最后向用户输出「阶段实况简报」两栏（三行以内）：阶段（已完成什么）/ 投标可提交（商务待办，不挡阶段收口）。询价、开工确认、submission_audit not_ready 不得写成「本阶段未完成」。若系统此前处于空闲等待，请明确说出当前在等谁做什么。
 禁止由主会话代写子任务成果；禁止对已通过评审的成果重复评审。`
 }
@@ -1687,13 +1774,13 @@ function buildAnalysisBoqDraft(
 
 ${renderBoqInventoryBlock(inventory)}
 
-深度套件可以先写完，但没有摸到本标实际清单行就不得 complete_stage。不要重扫已完成的源文件解析稿。
+投标分析底稿可以先写完，但没有摸到本标实际清单行就不得 complete_stage。不要重扫已完成的源文件解析稿。
 
 规则:
 - 打开已登记的 BOQ / Bill of Quantities / Pricing Schedule / 工程量文件，按 sheet+cell 抽出真实行。
 - tender_capability replace boq_reconciliation，覆盖源表全部可识别清单行，带清单号、描述、单位、数量、sheet+cell。来源 documentId 必须是该 BOQ 文件；PC Sum / Provisional Sum / percentage 等传递项也要登记，但后续不做五步直接费组价。
 - 禁止示范行、占位行、从规范 PDF 或总报告编造清单。
-- 《工程量清单分析.md》必须点名 pack 里的代表性清单号（如 C1.1）。
+- 《投标分析底稿.md》的 BOQ 章节必须点名 pack 里的代表性清单号（如 C1.1）。
 - 系统会反查 BOQ 解析稿中的显式清单号；没有清单或只做局部样本的项目绝对不能过解析关，特征门 / force_pass 不能放行。
 
 请只补这份清单 pack 和点名清单号。`
@@ -1710,7 +1797,7 @@ function buildAnalysisSuiteDraft(
     const mark = !row || !row.exists ? '缺' : !row.ok ? `未达标${row.missingTerms.length ? `（缺 ${row.missingTerms.join('、')}）` : ''}` : '已齐'
     return `- 《${item.fileName}》${mark}\n${item.outlineZh.map((line) => `  - ${line}`).join('\n')}`
   }).join('\n')
-  return `【补齐分析深度套件 — 请在本项目主会话继续】
+  return `【补齐投标分析底稿 — 请在本项目主会话继续】
 
 [skill:tender-document-parsing]
 
@@ -1720,16 +1807,16 @@ function buildAnalysisSuiteDraft(
 
 ${renderAnalysisSuiteBlock(suite, folder)}
 
-源文件解析稿已经落地的，禁止重读 PDF / 重派工人 / 重写逐文件 MD。只根据已有解析稿、项目特征和登记资料补下面未齐的客户稿：
+源文件解析稿已经落地的，禁止重读 PDF / 重派工人 / 重写逐文件 MD。只根据已有解析稿、项目特征和登记资料补下面未齐的唯一底稿：
 
 ${outlines}
 
 规则:
-- 每份至少约 3500 字，章节词必须出现；数字、日期、罚则带来源令牌。
+- 覆盖规定章节与来源索引；数字、日期、罚则带来源令牌。不要为字数重复铺陈。
 - 只借结构与写法，禁止抄上一单合同号、金额、里程或罚款。
 - 缺原文标缺口，禁止用模型记忆填空。
-- 同时抽出实际工程量清单全部可识别行并 replace boq_reconciliation；PC / 暂定 / 百分比传递项也登记，《工程量清单分析.md》点名代表性清单号。没有清单或覆盖不全不得 complete_stage。
-- 五份与《招标文件解析总报告.md》《项目特征.md》齐套、且清单 pack 摸到真实行后，调用 tender_stage complete_stage（projectId=${project.projectId}, stageId=${stage.id}）。
+- 同时抽出实际工程量清单全部可识别行并 replace boq_reconciliation；PC / 暂定 / 百分比传递项也登记，《投标分析底稿.md》点名代表性清单号。没有清单或覆盖不全不得 complete_stage。
+- 《投标分析底稿.md》与清单 pack 摸到真实行后，调用 tender_stage complete_stage（projectId=${project.projectId}, stageId=${stage.id}）。
 
 请只补列出的缺口。`
 }
@@ -1759,6 +1846,24 @@ export function resumeUnfinished(
   })
   if (!target) {
     return { board, message: '没有未完成阶段，流程已全部完成。', done: true }
+  }
+  if (target.approvalGate) {
+    const current = board.stages[target.id]
+    const summaryPath = target.summaryDeliverable
+      ? join(officialStageDir(cwd, project.projectId, target.id), target.summaryDeliverable.fileName)
+      : ''
+    const summaryReady = Boolean(summaryPath && existsSync(summaryPath) && deliverableReady(summaryPath))
+    if (current?.approval?.decision === 'rejected' || summaryReady) {
+      const message = current?.approval?.decision === 'rejected'
+        ? (current.blockedReason || `用户已拒绝「${target.labelZh}」，流程保持暂停。`)
+        : `${target.approvalGate.promptZh} 请在工作台点击「${target.approvalGate.approveLabelZh}」${target.approvalGate.rejectLabelZh ? `或「${target.approvalGate.rejectLabelZh}」` : ''}。`
+      return {
+        board,
+        stageId: target.id,
+        blocked: message,
+        message,
+      }
+    }
   }
   const prepared = prepareStage(cwd, project, target.id, selectedKnowledgeSlugs)
   if (prepared.blocked) {
@@ -1804,7 +1909,7 @@ export function resumeUnfinished(
                 ? `${prepared.draft}\n\n${renderPricingIntelBlock(intel, officialStageFolder(target.id))}`
                 : prepared.draft
   const waitingMessage = suite && !suite.ok
-    ? `「${target.labelZh}」深度套件未齐：${suite.shortGaps}。阶段稿已写入，等待补齐这些文件，不要重扫已完成源文件。`
+    ? `「${target.labelZh}」投标分析底稿未齐：${suite.shortGaps}。阶段稿已写入，只补底稿缺口，不要重扫已完成源文件。`
     : boqGate && !boqGate.ready
       ? `「${target.labelZh}」未摸到实际工程量清单：${boqGate.shortGaps}。阶段稿已写入，只抽本标 BOQ 真实行，不要重扫已完成源文件。`
       : intelGate && !intelGate.ready
@@ -1834,7 +1939,7 @@ export function resumeUnfinished(
     stageId: target.id,
     dispatch: { stageId: target.id, key },
     message: patchSuiteOnly
-      ? `已准备「${target.labelZh}」深度套件补齐稿：${suite?.shortGaps}。写入主对话后只补缺口，不要重扫源文件。`
+      ? `已准备「${target.labelZh}」投标分析底稿补齐稿：${suite?.shortGaps}。写入主对话后只补缺口，不要重扫源文件。`
       : patchBoqOnly
         ? `已准备「${target.labelZh}」实际工程量清单补齐稿：${boqGate?.shortGaps}。写入主对话后只抽本标 BOQ 真实行，不要重扫源文件。`
         : patchWaiverOnly

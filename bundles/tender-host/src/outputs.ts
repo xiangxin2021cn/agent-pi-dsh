@@ -31,12 +31,18 @@ export function officialScanRoots(cwd: string, projectId: string): string[] {
 
 export function officialStageFolder(stageId?: string): string {
   switch (stageId) {
+    case 'bid-risk-decision':
+      return 'bid-decision'
     case 'tender-document-analysis':
       return 'document-analysis'
+    case 'pricing-basis-freeze':
+      return 'pricing-basis'
     case 'boq-five-step-pricing':
       return 'boq-pricing'
     case 'planning-and-submission':
       return 'planning'
+    case 'submission-compliance-freeze':
+      return 'submission'
     case 'project-setup':
       return 'setup'
     case 'delivery-setup':

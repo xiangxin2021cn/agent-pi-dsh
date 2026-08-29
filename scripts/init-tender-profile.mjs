@@ -17,6 +17,8 @@ import { spawnSync } from 'node:child_process'
 import { repairDeepSeekModelCapacities } from './deepseek-model-capacities.mjs'
 import { removeProductParallelCap } from './heal-agent-loop-settings.mjs'
 import { installUniverRuntimeDeps } from './install-univer-runtime-deps.mjs'
+import { migrateLegacyAgentPresetSessions } from './migrate-legacy-agent-preset-sessions.mjs'
+import { prepareKnownPluginCompatibility } from '../vendor/dshmarket/compatibility.js'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const dsh = process.env.DSH_CHECKOUT || join(root, 'vendor/deepseek-harness')
@@ -26,6 +28,8 @@ const manifestPath = join(profileDir, 'package.json')
 const injectorDir = join(root, 'vendor/dsh-super-injector')
 const routerPresetSrc = join(root, 'vendor/dsh-router-standard/preset')
 const routerPresetDest = join(home, '.agent-presets/router-standard')
+const systemPresetRoot = join(home, '.agent-pi-presets')
+const systemPresetIds = ['standard', 'ptc', 'minimal', 'cordis']
 
 const INJECTOR_NAME = '@dsh-external/dsh-super-injector'
 const GENUI_NAME = '@omdsh-dev/dsh-genui'
@@ -33,6 +37,7 @@ const ANYSEARCH_NAME = '@anysearch/anysearch-dsh'
 const UNIVER_NAME = 'dsh-univer-office'
 const WEB_FETCH_HTTP = '@deepseek-ai/dsh-web-fetch-http'
 const CODEX_SUBAGENT = '@deepseek-ai/dsh-subagent-codex'
+const AGENT_PI_COMPACTION = 'dsh-agent-pi-compaction'
 const DSH_IM_NAME = '@xmanrui/dsh-im'
 const bundles = [
   '@deepseek-ai/dsh-base',
@@ -61,6 +66,7 @@ function findDshPackage(names) {
       '@deepseek-ai/dsh-attachment': [join(dsh, 'packages/attachment/attachment')],
       '@deepseek-ai/dsh-host-webserver': [join(dsh, 'packages/host/webserver')],
       '@deepseek-ai/dsh-session': [join(dsh, 'packages/core/session')],
+      '@deepseek-ai/dsh-compaction-basic': [join(dsh, 'packages/compaction/compaction-basic')],
       '@deepseek-ai/dsh-skill': [join(dsh, 'packages/skill/skill')],
     }
     const extra = extraByName[name] ?? []
@@ -79,6 +85,19 @@ function findDshPackage(names) {
     }
   }
   return null
+}
+
+function wireAgentPiCompactionRuntimeDeps(targetDir) {
+  const deps = {
+    '@deepseek-ai/dsh-compaction-basic': ['@deepseek-ai/dsh-compaction-basic'],
+    '@deepseek-ai/dsh-llm': ['@deepseek-ai/dsh-llm'],
+    '@deepseek-ai/schemastery': ['@deepseek-ai/schemastery'],
+  }
+  for (const [destName, names] of Object.entries(deps)) {
+    const source = findDshPackage(names)
+    if (!source) throw new Error(`Agent Pi compaction cannot resolve ${destName} under ${dsh}`)
+    ensureJunction(source, join(targetDir, 'node_modules', ...destName.split('/')))
+  }
 }
 
 function wireInjectorRuntimeDeps(targetDir) {
@@ -117,10 +136,13 @@ function embedInjectorInDshCli() {
 }
 
 const embeddedInjector = embedInjectorInDshCli()
+const agentPiCompactionDir = join(root, 'bundles/agent-pi-compaction')
+wireAgentPiCompactionRuntimeDeps(agentPiCompactionDir)
 
 const localPlugins = [
   { name: 'dsh-tender-host', dir: join(root, 'bundles/tender-host') },
   { name: 'dsh-tender-web', dir: join(root, 'bundles/tender-web') },
+  { name: AGENT_PI_COMPACTION, dir: agentPiCompactionDir },
   { name: CODEX_SUBAGENT, dir: join(dsh, 'packages/subagent/subagent-codex') },
   { name: INJECTOR_NAME, dir: embeddedInjector },
   // Vendored npm tarball of the community plugin market (offline preinstall;
@@ -186,11 +208,14 @@ function isRetiredPluginName(name) {
   return isRetiredJSpaceName(name) || isRetiredVisionRouterName(name)
 }
 
-/** DSH 0.1.2-alpha.1 removed the apiProxy service required by dsh-im 3.2.0.
- * Keep the installation and its data, but do not let strict bundle activation
- * abort the entire desktop runtime. */
+/**
+ * DSH 0.1.2-alpha.1 removed apiProxy. Keep dsh-im 3.x installed but inactive;
+ * prepare dsh-im 4.x to discover Typert Gateway through Context#get before the
+ * strict bundle loader sees it. Unknown majors stay quarantined safely.
+ */
 function isAlpha1IncompatibleBundle(name) {
-  return name === DSH_IM_NAME
+  if (name !== DSH_IM_NAME) return false
+  return prepareKnownPluginCompatibility(profileDir, name).status !== 'compatible'
 }
 
 function composeBundles(deps) {
@@ -246,6 +271,7 @@ function buildManagedPatch(deps) {
   const searchProvider = composeBundles(deps).includes('@anysearch/anysearch-dsh')
     ? 'anysearch'
     : 'deepseek-official'
+  const presetRoot = JSON.stringify(systemPresetRoot.replaceAll('\\', '/'))
   return `${PATCH_MANAGED_MARK}
 # Profile overlay (applied after every bundle layer). Auto-rewritten on app
 # start while the marker line above is present; delete it to customize.
@@ -275,6 +301,18 @@ function buildManagedPatch(deps) {
   config:
     provider: deepseek-official
     model: deepseek-v4-flash-vision-exp
+
+# Agent Pi copies the shipped presets into its own system root before applying
+# product-only Codex, web-fetch and compaction configuration. The official DSH
+# checkout remains byte-clean and the user-authored preset root stays enabled.
+- id: agent-presets
+  config:
+    default: standard
+    roots:
+      - path: ${presetRoot}
+        trust: system
+    includeShippedRoot: false
+    includeUserRoot: true
 
 # Codex is an isolated product subagent, not a replacement LLM provider.
 # Auto-review remains confined to Codex's native workspace-write sandbox.
@@ -325,6 +363,20 @@ function repairExistingDeepSeekModelCapacities() {
   const current = readFileSync(settingsPath, 'utf8')
   const repaired = repairDeepSeekModelCapacities(current)
   if (repaired.changed) writeFileSync(settingsPath, repaired.yaml)
+}
+
+function repairLegacyAgentPresetDefault() {
+  const settingsPath = join(home, 'settings.yaml')
+  if (!existsSync(settingsPath)) return
+  const current = readFileSync(settingsPath, 'utf8')
+  const repaired = current.replace(
+    /(^|\n)(agent-presets:\s*\r?\n)((?:[ \t]+.*(?:\r?\n|$))*)/g,
+    (block) => block.replace(
+      /^([ \t]+default:\s*)['"]?code['"]?([ \t]*(?:#.*)?(?:\r?\n|$))/m,
+      '$1standard$2',
+    ),
+  )
+  if (repaired !== current) writeFileSync(settingsPath, repaired)
 }
 
 const OFFICIAL_VISION_MODEL = `    - id: deepseek-v4-flash-vision-exp
@@ -649,16 +701,27 @@ wireUniverPeers()
 writeManifest(dependencies)
 writeManagedPatch(dependencies)
 
+function syncSystemPresets() {
+  rmSync(systemPresetRoot, { recursive: true, force: true })
+  mkdirSync(systemPresetRoot, { recursive: true })
+  for (const id of systemPresetIds) {
+    const source = join(dsh, 'packages/preset/agent-presets/presets', id)
+    if (!existsSync(source)) throw new Error(`DSH shipped preset missing: ${id}`)
+    cpSync(source, join(systemPresetRoot, id), { recursive: true })
+  }
+}
+
+function desktopPresetFiles() {
+  return [
+    ...['standard', 'ptc', 'cordis'].map((id) => join(systemPresetRoot, id, 'agent.cordis.yml')),
+    join(routerPresetDest, 'agent.cordis.yml'),
+  ].filter((file) => existsSync(file))
+}
+
 function enableDesktopWebFetch() {
   const helper = join(root, 'scripts/enable-desktop-web-fetch.mjs')
   if (!existsSync(helper)) return
-  const files = [
-    join(dsh, 'packages/preset/agent-presets/presets/standard/agent.cordis.yml'),
-    join(dsh, 'packages/preset/agent-presets/presets/ptc/agent.cordis.yml'),
-    join(dsh, 'packages/preset/agent-presets/presets/cordis/agent.cordis.yml'),
-    join(routerPresetSrc, 'agent.cordis.yml'),
-    join(routerPresetDest, 'agent.cordis.yml'),
-  ].filter((file) => existsSync(file))
+  const files = desktopPresetFiles()
   if (files.length === 0) return
   const result = spawnSync(process.execPath, [helper, ...files], {
     encoding: 'utf8',
@@ -673,13 +736,7 @@ function enableDesktopWebFetch() {
 function enableDesktopCodex() {
   const helper = join(root, 'scripts/enable-desktop-codex.mjs')
   if (!existsSync(helper)) return
-  const files = [
-    join(dsh, 'packages/preset/agent-presets/presets/standard/agent.cordis.yml'),
-    join(dsh, 'packages/preset/agent-presets/presets/ptc/agent.cordis.yml'),
-    join(dsh, 'packages/preset/agent-presets/presets/cordis/agent.cordis.yml'),
-    join(routerPresetSrc, 'agent.cordis.yml'),
-    join(routerPresetDest, 'agent.cordis.yml'),
-  ].filter((file) => existsSync(file))
+  const files = desktopPresetFiles()
   if (files.length === 0) return
   const result = spawnSync(process.execPath, [helper, ...files], {
     encoding: 'utf8',
@@ -694,13 +751,7 @@ function enableDesktopCodex() {
 function enableDesktopCompaction() {
   const helper = join(root, 'scripts/enable-desktop-compaction.mjs')
   if (!existsSync(helper)) return
-  const files = [
-    join(dsh, 'packages/preset/agent-presets/presets/standard/agent.cordis.yml'),
-    join(dsh, 'packages/preset/agent-presets/presets/ptc/agent.cordis.yml'),
-    join(dsh, 'packages/preset/agent-presets/presets/cordis/agent.cordis.yml'),
-    join(routerPresetSrc, 'agent.cordis.yml'),
-    join(routerPresetDest, 'agent.cordis.yml'),
-  ].filter((file) => existsSync(file))
+  const files = desktopPresetFiles()
   if (files.length === 0) return
   const args = process.env.AGENT_PI_COMPACTION_FALLBACK === '0'
     ? ['--no-fallback', ...files]
@@ -773,6 +824,7 @@ function dropFactoryGenuiSkill() {
 }
 
 installRouterPreset()
+syncSystemPresets()
 enableDesktopCompaction()
 enableDesktopWebFetch()
 enableDesktopCodex()
@@ -783,6 +835,11 @@ syncUniverSkills()
 writeManifest(dependencies)
 writeManagedPatch(dependencies)
 repairExistingDeepSeekModelCapacities()
+repairLegacyAgentPresetDefault()
+const legacyPresetMigration = migrateLegacyAgentPresetSessions(home)
+if (!legacyPresetMigration.skipped && (legacyPresetMigration.migrated > 0 || legacyPresetMigration.errors > 0)) {
+  process.stdout.write(`legacy Agent preset sessions: ${JSON.stringify(legacyPresetMigration)}\n`)
+}
 
 process.stdout.write(`tender profile ready at ${profileDir}\n`)
 process.stdout.write(`router-standard preset at ${routerPresetDest}\n`)

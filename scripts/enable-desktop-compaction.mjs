@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const COMPACTION_BASIC_ROW = /(^    - id:\s*compaction-basic[ \t]*\r?\n      name:\s*['"]?@deepseek-ai\/dsh-compaction-basic['"]?[ \t]*\r?\n)(?:\r?\n)*(?:      config:\r?\n(?: {8,}.*\r?\n)*)?(?:\r?\n)*/gm
+const COMPACTION_BASIC_ROW = /(^    - id:\s*compaction-basic[ \t]*\r?\n)      name:\s*['"]?(?:@deepseek-ai\/dsh-compaction-basic|dsh-agent-pi-compaction)['"]?[ \t]*\r?\n(?:\r?\n)*(?:      config:\r?\n(?: {8,}.*\r?\n)*)?(?:\r?\n)*/gm
 
 export function configureCompactionInText(text, { fallbackEnabled = true } = {}) {
   const newline = text.includes('\r\n') ? '\r\n' : '\n'
@@ -23,7 +23,7 @@ export function configureCompactionInText(text, { fallbackEnabled = true } = {})
     '',
     '',
   ].join(newline)
-  return text.replace(COMPACTION_BASIC_ROW, `$1${config}`)
+  return text.replace(COMPACTION_BASIC_ROW, `$1      name: 'dsh-agent-pi-compaction'${newline}${config}`)
 }
 
 export function configureCompactionInFile(file, options) {

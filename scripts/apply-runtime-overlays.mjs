@@ -4,16 +4,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const scriptsDir = dirname(fileURLToPath(import.meta.url))
 
-export function runtimePresetFiles(dshRoot, productRoot) {
-  return [
-    ...['standard', 'ptc', 'cordis'].map((id) => join(
-      dshRoot,
-      'packages/preset/agent-presets/presets',
-      id,
-      'agent.cordis.yml',
-    )),
-    join(productRoot, 'vendor/dsh-router-standard/preset/agent.cordis.yml'),
-  ]
+/** Agent Pi-owned runtime presets; official DSH presets are never mutated. */
+export function runtimePresetFiles(_dshRoot, productRoot) {
+  return [join(productRoot, 'vendor/dsh-router-standard/preset/agent.cordis.yml')]
 }
 
 export function main(args = process.argv.slice(2), run = spawnSync) {

@@ -13,6 +13,7 @@ import {
   restoreCappedTables,
   slicePreviewMarkdown,
 } from '../src/md-preview.ts'
+import { clientSource } from './client-source.ts'
 
 function bigTable(rows: number): string {
   const lines = ['| Item | Rate |', '| --- | --- |']
@@ -119,7 +120,7 @@ test('slicePreviewMarkdown cuts a huge file on a line boundary', () => {
 })
 
 test('client preview copies the heavy-md slice and does not auto-fill tables', () => {
-  const page = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../lib/client.js'), 'utf8')
+  const page = clientSource
   assert.match(page, /function slicePreviewMarkdown/)
   assert.match(page, /function previewIsHeavy/)
   assert.match(page, /function restoreCappedTables/)

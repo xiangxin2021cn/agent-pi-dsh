@@ -89,6 +89,7 @@ if (process.platform === 'win32') {
 let child = null
 let mainWindow = null
 let appUrl = process.env.AGENT_PI_DSH_URL || 'http://127.0.0.1:3080'
+const forceColdStart = process.env.AGENT_PI_DSH_FORCE_COLD_START === '1'
 let launchLogStream = null
 let dshPort = 3080
 let dshRestartCount = 0
@@ -185,6 +186,8 @@ function runtimeEnv() {
     AGENT_PI_DESKTOP: '1',
     CODEX_HOME: codexHome,
   }, readPrefs())
+  const inheritedPathKey = Object.keys(env).find((key) => key.toLowerCase() === 'path')
+  const inheritedPath = inheritedPathKey ? env[inheritedPathKey] : ''
   // Official Models onboarding treats a process-environment DEEPSEEK_API_KEY
   // as a ready, read-only credential. The desktop stores the key through the
   // DSH credential file so first-run users get the official dialog and can
@@ -209,7 +212,10 @@ function runtimeEnv() {
     pathParts.push(join(sysRoot, 'System32'))
     pathParts.push(sysRoot)
   }
-  if (env.PATH) pathParts.push(env.PATH)
+  if (inheritedPath) pathParts.push(inheritedPath)
+  for (const key of Object.keys(env)) {
+    if (key.toLowerCase() === 'path') delete env[key]
+  }
   env.PATH = pathParts.join(delimiter)
   return env
 }
@@ -1284,7 +1290,7 @@ if (!gotLock) {
       ensureProfile()
       let launchedDsh = false
       if (!process.env.AGENT_PI_DSH_URL) {
-        const existing = packaged
+        const existing = packaged || forceColdStart
           ? null
           : (await urlAlive('http://127.0.0.1:3080')
             ? 'http://127.0.0.1:3080'

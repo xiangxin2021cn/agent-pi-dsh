@@ -47,12 +47,12 @@ function loadShippedComposer(options = {}) {
   }
   const source = client
     .replace(
-      '      actions.__apLatestProps = props',
-      "      actions.__apLatestProps = props\n      ;(window.__apCodexTurnProps || (window.__apCodexTurnProps = new Map())).set(codexTurnKey(props), props)",
+      /actions\.__apLatestProps\s*=\s*props;?/,
+      "$&\n      ;(window.__apCodexTurnProps || (window.__apCodexTurnProps = new Map())).set(codexTurnKey(props), props)",
     )
     .replace(
-      "    exports.name = 'tender-web'",
-      "    window.__apCodexTurnTest = { ComposerTools, codexTurnControllers, codexTurnArmed, setCodexTurnArmed, setAttachItems, attachItemsOf, attachState };\n\n    exports.name = 'tender-web'",
+      /(\s*return module\.exports;)/,
+      "\n    window.__apCodexTurnTest = { ComposerTools, codexTurnControllers, codexTurnArmed, setCodexTurnArmed, setAttachItems, attachItemsOf, attachState };\n$1",
     )
   vm.runInNewContext(source, {
     window,

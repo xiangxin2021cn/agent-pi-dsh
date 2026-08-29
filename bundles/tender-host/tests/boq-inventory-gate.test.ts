@@ -252,7 +252,7 @@ test('a genuinely one-row BOQ is judged by full coverage, not an arbitrary minim
 })
 
 test('workbench client surfaces the inventory gap', () => {
-  const page = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../tender-web/lib/client.js'), 'utf8')
+  const page = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../tender-web/src/client/index.js'), 'utf8')
   assert.match(page, /st\.boqInventory/)
   assert.match(page, /工程量清单已抽出/)
 })

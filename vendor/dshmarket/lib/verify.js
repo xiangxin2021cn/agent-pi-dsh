@@ -12,7 +12,7 @@
  * State taxonomy (IMPROVEMENT-PLAN P0-2):
  *   live    – mounted into the running composition (hot mount present)
  *   restart – installed and will activate on the next boot, but not live now
- *   inert   – installed but never a profile-layer plugin (no dsh.bundle)
+ *   inert   – installed but incompatible with the active DSH runtime
  *   broken  – installed but validation failed (no dsh surface / no entry
  *             artifact) — the next boot could fail
  *   missing – not present in node_modules
@@ -21,6 +21,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { listHotMounts, parseSimplePatch } from './hot.js';
 import { hasDshManifest, hasLoadableEntry, profileDir } from './profile.js';
+import { inspectKnownPluginCompatibility } from '../compatibility.js';
 /** The profile manifest's `dsh.profile.bundles` — what the CLI reconciled. */
 function readBundles(profile, explicitDir) {
     try {
@@ -104,6 +105,23 @@ export function verifyActivation(profile, name, live = new Set(listHotMounts()),
             hot: false,
         };
     }
+    const compatibility = inspectKnownPluginCompatibility(activeProfileDir, name);
+    if (compatibility.status === 'incompatible') {
+        return {
+            state: 'inert',
+            reasons: [compatibility.reason],
+            bundle: inBundles,
+            hot: false,
+        };
+    }
+    if (compatibility.status === 'repairable') {
+        return {
+            state: 'restart',
+            reasons: [compatibility.reason],
+            bundle: inBundles,
+            hot: false,
+        };
+    }
     if (liveIncludes(live, name)) {
         const clientOnly = dsh.bundle === undefined && dsh.client !== undefined;
         return {
@@ -133,12 +151,12 @@ export function verifyActivation(profile, name, live = new Set(listHotMounts()),
     }
     // Not a profile-layer plugin. Client-only packages never enter bundles
     // (the dsh CLI skips them), so the market shim-mounts them at boot —
-    // they still work, but "installed" never means "bundle layer".
+    // report the useful lifecycle state rather than an internal layer detail.
     if (dsh.client !== undefined) {
         return {
-            state: 'inert',
+            state: 'restart',
             reasons: [
-                '未声明 dsh.bundle,不会进入 profile bundle 层(纯客户端插件);重启后由市场自动挂载生效 / no dsh.bundle — client-only plugins never enter the bundle layer; the market shim-mounts them at the next boot',
+                '兼容的纯客户端插件，待重启后由市场自动挂载 / compatible client-only plugin; the market mounts it on the next boot',
             ],
             bundle: false,
             hot: false,
@@ -147,7 +165,7 @@ export function verifyActivation(profile, name, live = new Set(listHotMounts()),
     return {
         state: 'inert',
         reasons: [
-            '未声明 dsh.bundle,已作为普通依赖安装,不会成为 profile 层 / no dsh.bundle — installed as a plain dependency, never a profile-layer plugin',
+            '不兼容：未声明 dsh.bundle 或 dsh.client，没有可激活的 DSH 接入面 / incompatible: no dsh.bundle or dsh.client activation surface is declared',
         ],
         bundle: false,
         hot: false,

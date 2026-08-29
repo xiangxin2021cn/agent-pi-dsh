@@ -3,8 +3,9 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
+import { clientSource } from './client-source.ts'
 
-const client = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../lib/client.js'), 'utf8')
+const client = clientSource
 const start = client.indexOf('function CodexSettingsSection()')
 const end = client.indexOf('function CompanyLockup', start)
 const section = client.slice(start, end)

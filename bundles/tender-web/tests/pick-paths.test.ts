@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { KB_CHAT_IMPORT_SAY, MODULE_CREATE_PROMPTS, archiveSessionRows, archivedWorkspaceGroups, groupArchiveRows, groupKbEntries, kbCategoryHint, kbCategoryLabel, kbChatImportCopy, kbFidelityLabel, kbIngestKind, kbIngestLabel, kbLandingCardVisible, looksLikeKbPackName, looksLikeKbTransferName, looksLikeUserTemplateName, mergeKbEntries, moduleCreateCopy, normalizePickedPaths, resolveWorkspaceByTitle, restoreOpenPath, sortKbCategories, uniqueIds, visibleArchivedSessionIds, workspaceActionTitle } from '../lib/pick-paths.js'
+import { clientSource } from './client-source.ts'
 
 test('normalizePickedPaths keeps a real path list', () => {
   assert.deepEqual(
@@ -117,7 +118,7 @@ test('kbChatImportCopy tells the user the exact chat line, not just tool names',
   assert.match(copy.say, /知识包再入库/)
   assert.match(copy.after, /一键导入知识包/)
   assert.equal(copy.after.includes('kb_prepare_document'), false)
-  const page = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../lib/client.js'), 'utf8')
+  const page = clientSource
   assert.equal(page.includes(KB_CHAT_IMPORT_SAY), true)
   assert.equal(page.includes('路径二 · 对话导入知识库'), true)
   assert.equal(page.includes('新增子目录'), true)
@@ -163,7 +164,7 @@ test('moduleCreateCopy leads with conversation, not JSON import', () => {
   assert.match(MODULE_CREATE_PROMPTS['custom-steps'], /workbench-domain-builder/)
   assert.match(MODULE_CREATE_PROMPTS['custom-steps'], /不要写 cordis\.yml/)
   assert.equal(MODULE_CREATE_PROMPTS.distill.includes('schemaVersion'), false)
-  const page = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../lib/client.js'), 'utf8')
+  const page = clientSource
   assert.equal(page.includes('模块创造模式'), true)
   assert.equal(page.includes('去对话里创造'), true)
   assert.equal(page.includes('完整模块包，不是一段 JSON'), true)
@@ -266,7 +267,7 @@ test('restoreOpenPath prefers the first-stage manuscript over the original PDF',
     manuscriptPath: manuscript,
   }]), manuscript)
   assert.equal(restoreOpenPath(source, []), source)
-  const page = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../lib/client.js'), 'utf8')
+  const page = clientSource
   assert.equal(page.includes('/api/agent-pi/projects/restore'), true)
   assert.equal(page.includes('已保存并同步解析 JSON'), true)
   assert.equal(page.includes('已保存并同步知识库检索'), true)
@@ -278,7 +279,7 @@ test('restoreOpenPath prefers the first-stage manuscript over the original PDF',
 })
 
 test('English chrome copy is wired next to the Chinese product strings', () => {
-  const page = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../lib/client.js'), 'utf8')
+  const page = clientSource
   assert.equal(page.includes("'nav.kb': 'Knowledge base'"), true)
   assert.equal(page.includes("'wb.back': 'Back to chat'"), true)
   assert.equal(page.includes("'module.tender': 'Tender process'"), true)
@@ -289,7 +290,7 @@ test('English chrome copy is wired next to the Chinese product strings', () => {
 })
 
 test('archive page copy is wired into the self-contained client bundle', () => {
-  const page = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../lib/client.js'), 'utf8')
+  const page = clientSource
   assert.equal(page.includes('function ArchiveNav'), true)
   assert.equal(page.includes('function ArchivePanel'), true)
   assert.equal(page.includes('function archivedWorkspaceGroups'), true)

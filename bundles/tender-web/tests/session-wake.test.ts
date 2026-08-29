@@ -16,6 +16,7 @@ import {
   snapshotIsBusy,
   snapshotIsRunning,
 } from '../src/session-wake.ts'
+import { clientSource } from './client-source.ts'
 
 test('queue-only is busy for crash-resume but not running', () => {
   const snap = { running: false, queue: [{ id: 'q1', placement: 'queued' }] }
@@ -175,23 +176,26 @@ test('inboundNeedsParentWake fires when a human user message is last', () => {
   assert.match(buildParentWakePrompt(hit), /6个子代理都停止/)
 })
 
-test('client monitor wires queue steer and parent wake', () => {
-  const page = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../lib/client.js'), 'utf8')
+test('client monitor wakes only inside an explicit per-session transaction', () => {
+  const page = clientSource
+  assert.match(page, /createWorkbenchSessionMonitor/)
   assert.match(page, /inboundNeedsParentWake/)
   assert.match(page, /flushQueuedToParent/)
   assert.match(page, /buildParentWakePrompt/)
-  assert.match(page, /parentWakeEngine/)
+  assert.match(page, /workbenchTransactions/)
+  assert.match(page, /prepareWorkbenchTransaction/)
+  assert.match(page, /commitWorkbenchTransaction/)
+  assert.match(page, /transactionCanRun\(parentId\)/)
   assert.match(page, /updateQueue/)
   assert.match(page, /snapshotIsRunning\(snapshotOf\(targetId\)\) \? 'steer' : 'queue'/)
-  assert.match(page, /action: 'resume', module: st\.module, projectId: st\.projectId, sessionId: parentId/)
-  assert.match(page, /const parentId = pinParentSessionId\(\)/)
-  assert.match(page, /dispatchToConversation\(props, result\.draft, parentId\)/)
+  assert.match(page, /action: 'resume', module: state\.module, projectId: state\.projectId, sessionId: parentId/)
+  assert.match(page, /const parentSessionId = pinParentSessionId\(\)/)
   assert.match(page, /sessionExecutionActive\(parentSnap, sessionList, parentId\)/)
   assert.match(page, /dispatchToConversation\(\{\}, result\.draft, parentId\)/)
   assert.match(page, /sessionActivity\(readSessionListSnap\(\), monitorState\.parentSessionId\)/)
   assert.match(page, /h\(KnowledgeBasePanel, \{ cwd, sessionId: pinParentSessionId\(\) \|\| resolveSessionId\(props\)/)
   assert.match(page, /sessionId: parentId \|\| resolveSessionId\(props\) \|\| runtime\.sessionId \|\| 'active'/)
-  const runtimeAt = page.indexOf('const runtime = {')
-  const loadAt = page.indexOf('parentWakeEngine.load()')
-  assert.ok(runtimeAt >= 0 && loadAt > runtimeAt, 'parentWakeEngine.load() must run after const runtime')
+  assert.doesNotMatch(page, /monitorEngine\.load\(\)/)
+  assert.doesNotMatch(page, /crashResumeEngine\.load\(\)/)
+  assert.doesNotMatch(page, /parentWakeEngine\.load\(\)/)
 })

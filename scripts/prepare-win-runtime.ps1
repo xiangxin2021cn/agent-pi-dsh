@@ -15,7 +15,7 @@ if (-not (Test-Path $IconSrc)) { $IconSrc = Join-Path $Root "AgentPI-logo-2.png"
 $IconDest = Join-Path $Desktop "build\icon.png"
 
 node (Join-Path $Root "scripts\apply-dsh-patches.mjs") $Dsh
-if ($LASTEXITCODE -ne 0) { throw "Agent Pi DSH kernel patch failed" }
+if ($LASTEXITCODE -ne 0) { throw "Agent Pi DSH clean-kernel guard failed" }
 
 New-Item -ItemType Directory -Force -Path $NodeDir, $Product, (Split-Path $IconDest) | Out-Null
 $iconIco = Join-Path $Desktop "build\icon.ico"

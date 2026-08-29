@@ -28,18 +28,18 @@ function writePreset(file) {
   writeFileSync(file, preset)
 }
 
-test('staged alpha.1 runtime receives all Agent Pi session overlays', () => {
+test('staged runtime overlays mutate only the Agent Pi-owned router preset', () => {
   const root = mkdtempSync(join(tmpdir(), 'agent-pi-runtime-overlays-'))
   const dshRoot = join(root, 'deepseek-harness')
   const productRoot = join(root, 'product')
-  const files = ['standard', 'ptc', 'cordis'].map((id) => join(
+  const officialFiles = ['standard', 'ptc', 'cordis'].map((id) => join(
     dshRoot,
     'packages/preset/agent-presets/presets',
     id,
     'agent.cordis.yml',
   ))
-  files.push(join(productRoot, 'vendor/dsh-router-standard/preset/agent.cordis.yml'))
-  files.forEach(writePreset)
+  const productFile = join(productRoot, 'vendor/dsh-router-standard/preset/agent.cordis.yml')
+  ;[...officialFiles, productFile].forEach(writePreset)
 
   const result = spawnSync(process.execPath, [
     join(import.meta.dirname, 'apply-runtime-overlays.mjs'),
@@ -48,11 +48,12 @@ test('staged alpha.1 runtime receives all Agent Pi session overlays', () => {
   ], { encoding: 'utf8', windowsHide: true })
 
   assert.equal(result.status, 0, result.stderr || result.stdout)
-  for (const file of files) {
-    const text = readFileSync(file, 'utf8')
-    assert.match(text, /thresholdRatio: 0\.72/)
-    assert.match(text, /summarizationFallbacks:[\s\S]*deepseek-v4-flash-vision-exp/)
-    assert.doesNotMatch(text, /tool-subagent-codex[\s\S]*?disabled: true/)
-    assert.match(text, /fetch: true/)
-  }
+  for (const file of officialFiles) assert.equal(readFileSync(file, 'utf8'), preset)
+
+  const product = readFileSync(productFile, 'utf8')
+  assert.match(product, /name: ['"]?dsh-agent-pi-compaction['"]?/)
+  assert.match(product, /thresholdRatio: 0\.72/)
+  assert.match(product, /summarizationFallbacks:[\s\S]*deepseek-v4-flash-vision-exp/)
+  assert.doesNotMatch(product, /tool-subagent-codex[\s\S]*?disabled: true/)
+  assert.match(product, /fetch: true/)
 })

@@ -18,7 +18,7 @@ export function fileIconMeta(file: { name?: string; path?: string; type?: string
   if (ext === 'md' || ext === 'markdown') return { name: 'fileMd', klass: 'ap-fico-md' }
   if (ext === 'txt' || ext === 'log') return { name: 'fileText', klass: 'ap-fico-txt' }
   if (ext === 'json' || ext === 'jsonl') return { name: 'fileJson', klass: 'ap-fico-json' }
-  if (ext === 'xls' || ext === 'xlsx' || ext === 'csv' || ext === 'tsv') return { name: 'fileSheet', klass: 'ap-fico-sheet' }
+  if (ext === 'xls' || ext === 'xlsx' || ext === 'csv' || ext === 'tsv' || ext === 'univer') return { name: 'fileSheet', klass: 'ap-fico-sheet' }
   if (ext === 'doc' || ext === 'docx') return { name: 'fileWord', klass: 'ap-fico-word' }
   if (ext === 'ppt' || ext === 'pptx') return { name: 'filePpt', klass: 'ap-fico-ppt' }
   if (ext === 'pdf') return { name: 'filePdf', klass: 'ap-fico-pdf' }

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { createBusinessProject } from '../../../packages/business-projects/index.ts'
-import { completeSetup, refreshSourceBriefsAfterRestore, saveBoard, syncOrchestrationReportFromMarkdown } from '../src/orchestration.ts'
+import { completeSetup, prepareStage, refreshSourceBriefsAfterRestore, saveBoard, syncOrchestrationReportFromMarkdown } from '../src/orchestration.ts'
 import { saveWorkspaceText } from '../src/preview-export.ts'
 import { SETUP_RESTORE_KIND, isSetupAlignablePath, restoreSetupSource, restoreSetupSources } from '../src/setup-restore.ts'
 import type { MineruIngestResult } from '../src/mineru-ingest.ts'
@@ -214,8 +214,17 @@ test('completeSetup hands the restored manuscript to the analysis brief', async 
   })
   const result = completeSetup(cwd, project)
   assert.equal(result.blocked, undefined)
-  assert.equal(result.nextStageId, 'tender-document-analysis')
-  const analysis = result.board.stages['tender-document-analysis']
+  assert.equal(result.nextStageId, 'bid-risk-decision')
+  result.board.stages['bid-risk-decision'] = {
+    stageId: 'bid-risk-decision',
+    status: 'done',
+    tasks: [],
+    updatedAt: new Date().toISOString(),
+    completedAt: new Date().toISOString(),
+    approval: { decision: 'approved', decidedAt: new Date().toISOString() },
+  }
+  saveBoard(cwd, result.board)
+  const analysis = prepareStage(cwd, project, 'tender-document-analysis').board.stages['tender-document-analysis']
   assert.ok(analysis)
   const task = analysis.tasks[0]
   assert.ok(task?.briefPath)
@@ -245,7 +254,17 @@ test('a late restore rewrites already-issued analysis briefs', async () => {
     inputPaths: [pdf],
   })
   const first = completeSetup(cwd, project)
-  const briefPath = first.board.stages['tender-document-analysis']?.tasks[0]?.briefPath
+  first.board.stages['bid-risk-decision'] = {
+    stageId: 'bid-risk-decision',
+    status: 'done',
+    tasks: [],
+    updatedAt: new Date().toISOString(),
+    completedAt: new Date().toISOString(),
+    approval: { decision: 'approved', decidedAt: new Date().toISOString() },
+  }
+  saveBoard(cwd, first.board)
+  const analysis = prepareStage(cwd, project, 'tender-document-analysis')
+  const briefPath = analysis.board.stages['tender-document-analysis']?.tasks[0]?.briefPath
   assert.ok(briefPath)
   const before = JSON.parse(readFileSync(briefPath, 'utf8')) as { sourcePath: string; restoredManuscript?: string }
   assert.equal(before.sourcePath, pdf)

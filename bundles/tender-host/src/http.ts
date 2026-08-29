@@ -13,6 +13,7 @@ import {
   refreshSourceBriefsAfterRestore,
   completeSetup,
   completeStage,
+  decideApprovalStage,
   markDispatched,
   resetOrchestration,
   organizeDeliverables,
@@ -762,6 +763,8 @@ export function attachHttp(ctx: {
             stageId?: string
             key?: string
             sessionId?: string
+            decision?: 'approved' | 'rejected'
+            note?: string
           }
           const module = body.module ?? 'tender'
           const projectId = String(body.projectId ?? '')
@@ -794,6 +797,12 @@ export function attachHttp(ctx: {
           if (action === 'complete_stage') {
             const completed = completeStage(cwd, project, stageId)
             send(res, 200, { ...completed, project: projectSnapshot(cwd, project) })
+            return
+          }
+          if (action === 'approve_gate' || action === 'reject_gate') {
+            const decision = action === 'approve_gate' ? 'approved' : 'rejected'
+            const decided = decideApprovalStage(cwd, project, stageId, decision, String(body.note ?? ''))
+            send(res, 200, { ...decided, project: projectSnapshot(cwd, project) })
             return
           }
           if (action === 'mark_dispatched') {

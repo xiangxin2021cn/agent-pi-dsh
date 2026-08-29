@@ -10,6 +10,9 @@
     "./package.json": "./package.json"
   },
   "files": ["src", "lib", "cordis.patch.yml"],
+  "scripts": {
+    "build:client": "node ../../scripts/build-tender-client.mjs"
+  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"

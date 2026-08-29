@@ -2,15 +2,29 @@
 !ifndef APP_VERSION
   !define APP_VERSION "3.1.0"
 !endif
+!ifndef APP_ICON
+  !define APP_ICON "${NSISDIR}\Contrib\Graphics\Icons\modern-install.ico"
+!endif
+!ifndef INSTALLER_HEADER
+  !define INSTALLER_HEADER "${NSISDIR}\Contrib\Graphics\Header\nsis3-grey.bmp"
+!endif
 Name "Agent Pi DSH"
 OutFile "Agent-Pi-DSH-${APP_VERSION}-x64.exe"
 InstallDir "$LOCALAPPDATA\Programs\Agent Pi DSH"
 RequestExecutionLevel user
 SetCompress off
+Icon "${APP_ICON}"
+UninstallIcon "${APP_ICON}"
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
 
 !define MUI_ABORTWARNING
+!define MUI_ICON "${APP_ICON}"
+!define MUI_UNICON "${APP_ICON}"
+!define MUI_HEADERIMAGE
+!define MUI_HEADERIMAGE_RIGHT
+!define MUI_HEADERIMAGE_BITMAP "${INSTALLER_HEADER}"
+!define MUI_HEADERIMAGE_UNBITMAP "${INSTALLER_HEADER}"
 !define MUI_FINISHPAGE_RUN "$INSTDIR\agent-pi-DSH.exe"
 !define PRODUCT_NAME "Agent Pi DSH"
 !define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\AgentPiDSH"

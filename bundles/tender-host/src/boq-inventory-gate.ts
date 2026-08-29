@@ -4,7 +4,7 @@
  * Five synthesis memos can pass the mechanical word bar with filler. That let a
  * run close document analysis on the wrong (or empty) bill. This gate reads
  * `packs/boq-reconciliation.json` and requires sourced line items that point at
- * a registered BOQ file and appear by code in 《工程量清单分析.md》.
+ * a registered BOQ file and appear by code in 《投标分析底稿.md》.
  *
  * Not waivable. Feature-gate / pricing `force_pass` must not clear this.
  */
@@ -22,7 +22,7 @@ import { officialStageDir } from './outputs.ts'
 import { findSetupRestore } from './setup-restore.ts'
 import { loadWorkspace, workspacePaths } from './workspace.ts'
 
-export const BOQ_INVENTORY_MEMO = '工程量清单分析.md'
+export const BOQ_INVENTORY_MEMO = '投标分析底稿.md'
 export const BOQ_INVENTORY_MIN_ITEMS = 1
 export const BOQ_INVENTORY_MEMO_CITATIONS = 3
 export const BOQ_INVENTORY_MIN_DESC = 8
@@ -332,7 +332,7 @@ function appendCodesToMemo(analysisDir: string, data: TenderBoqReconciliationDat
     `- ${item.code} ${item.description} ${item.quantity ?? ''} ${item.unit}（${item.source.sheet} ${item.source.cell}）`
   )).join('\n')}\n`
   if (!existsSync(path)) {
-    writeFileSync(path, `# 工程量清单分析\n${extra}`)
+    writeFileSync(path, `# 投标分析底稿\n\n## 来源索引\nfixture\n\n## 项目边界与项目特征\nfixture\n\n## 资格与评分\nfixture\n\n## 合同、保函与保险\nfixture\n\n## 技术规范\nfixture\n\n## BOQ 清单\n${extra}\n\n## 提交 Form\nfixture\n\n## 风险与缺口\nfixture\n`)
     return
   }
   const current = readFileSync(path, 'utf8')

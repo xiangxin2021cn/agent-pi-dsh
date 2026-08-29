@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import {
   copyFileSync,
+  cpSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
@@ -19,6 +20,7 @@ const scriptNames = [
   'deepseek-model-capacities.mjs',
   'heal-agent-loop-settings.mjs',
   'install-univer-runtime-deps.mjs',
+  'migrate-legacy-agent-preset-sessions.mjs',
   'enable-desktop-web-fetch.mjs',
   'enable-desktop-codex.mjs',
   'enable-desktop-compaction.mjs',
@@ -47,16 +49,23 @@ function createFixture(t) {
     mkdirSync(dirname(destination), { recursive: true })
     copyFileSync(join(sourceRoot, 'scripts', name), destination)
   }
+  cpSync(
+    join(sourceRoot, 'bundles/agent-pi-compaction'),
+    join(root, 'bundles/agent-pi-compaction'),
+    { recursive: true },
+  )
 
   writePackage(root, 'bundles/tender-host', 'dsh-tender-host')
   writePackage(root, 'bundles/tender-web', 'dsh-tender-web')
   writePackage(root, 'vendor/dsh-super-injector', '@dsh-external/dsh-super-injector', { lib: true })
   writePackage(root, 'vendor/dshmarket', 'dshmarket')
+  copyFileSync(join(sourceRoot, 'vendor/dshmarket/compatibility.js'), join(root, 'vendor/dshmarket/compatibility.js'))
   writePackage(root, 'vendor/anysearch-dsh', '@anysearch/anysearch-dsh', { lib: true })
 
   const dsh = join(root, 'dsh-checkout')
   writePackage(dsh, 'packages/subagent/subagent-codex', '@deepseek-ai/dsh-subagent-codex')
   writePackage(dsh, 'packages/web/web-fetch-http', '@deepseek-ai/dsh-web-fetch-http', { lib: true })
+  writePackage(dsh, 'packages/compaction/compaction-basic', '@deepseek-ai/dsh-compaction-basic', { bundle: false, lib: true })
   for (const name of [
     '@deepseek-ai/cordis',
     '@deepseek-ai/dsh-attachment',
@@ -94,7 +103,7 @@ function createFixture(t) {
       config:
         provider: codex
 `
-  for (const id of ['standard', 'ptc', 'cordis']) {
+  for (const id of ['standard', 'ptc', 'minimal', 'cordis']) {
     writeFixtureFile(
       join(dsh, 'packages/preset/agent-presets/presets', id, 'agent.cordis.yml'),
       preset,
@@ -139,12 +148,11 @@ function runInitializer(fixture, fallbackPreference) {
 function presetTexts(fixture) {
   return [
     ...['standard', 'ptc', 'cordis'].map((id) => readFileSync(join(
-      fixture.dsh,
-      'packages/preset/agent-presets/presets',
+      fixture.home,
+      '.agent-pi-presets',
       id,
       'agent.cordis.yml',
     ), 'utf8')),
-    readFileSync(join(fixture.root, 'vendor/dsh-router-standard/preset/agent.cordis.yml'), 'utf8'),
     readFileSync(join(fixture.home, '.agent-presets/router-standard/agent.cordis.yml'), 'utf8'),
   ]
 }
@@ -159,7 +167,7 @@ test('missing preference enables one complete fallback while the session model s
   for (const preset of presetTexts(fixture)) {
     assert.match(
       preset,
-      /name: ['"]?@deepseek-ai\/dsh-compaction-basic['"]?\r?\n      config:/,
+      /name: ['"]?dsh-agent-pi-compaction['"]?\r?\n      config:/,
     )
     assert.equal((preset.match(/thresholdRatio: 0\.72/g) ?? []).length, 1)
     assert.equal((preset.match(/summarizationFallbacks:/g) ?? []).length, 1)
@@ -170,19 +178,27 @@ test('missing preference enables one complete fallback while the session model s
   }
 })
 
-test('alpha.1 shipped presets receive the Codex product overlay', (t) => {
+test('Agent Pi system preset copies receive the Codex product overlay without mutating DSH', (t) => {
   const fixture = createFixture(t)
 
   runInitializer(fixture)
 
   for (const id of ['standard', 'ptc', 'cordis']) {
-    const preset = readFileSync(join(
+    const official = readFileSync(join(
       fixture.dsh,
       'packages/preset/agent-presets/presets',
       id,
       'agent.cordis.yml',
     ), 'utf8')
-    assert.doesNotMatch(preset, /tool-subagent-codex[\s\S]*?disabled: true/)
+    const product = readFileSync(join(
+      fixture.home,
+      '.agent-pi-presets',
+      id,
+      'agent.cordis.yml',
+    ), 'utf8')
+    assert.match(official, /tool-subagent-codex[\s\S]*?disabled: true/)
+    assert.doesNotMatch(product, /tool-subagent-codex[\s\S]*?disabled: true/)
+    assert.match(product, /name: ['"]?dsh-agent-pi-compaction['"]?/)
   }
 })
 
@@ -215,15 +231,15 @@ test('repeated initialization is byte-stable and does not duplicate compaction c
   runInitializer(fixture)
   const firstPatch = readFileSync(fixture.patchPath, 'utf8')
   const firstPreset = readFileSync(join(
-    fixture.dsh,
-    'packages/preset/agent-presets/presets/standard/agent.cordis.yml',
+    fixture.home,
+    '.agent-pi-presets/standard/agent.cordis.yml',
   ), 'utf8')
 
   runInitializer(fixture)
   const secondPatch = readFileSync(fixture.patchPath, 'utf8')
   const secondPreset = readFileSync(join(
-    fixture.dsh,
-    'packages/preset/agent-presets/presets/standard/agent.cordis.yml',
+    fixture.home,
+    '.agent-pi-presets/standard/agent.cordis.yml',
   ), 'utf8')
 
   assert.equal(secondPatch, firstPatch)
@@ -232,6 +248,45 @@ test('repeated initialization is byte-stable and does not duplicate compaction c
   assert.equal((secondPreset.match(/summarizationFallbacks:/g) ?? []).length, 1)
 })
 
+
+test('legacy code preset default migrates to standard while valid defaults remain untouched', (t) => {
+  const fixture = createFixture(t)
+  writeFixtureFile(fixture.settingsPath, 'agent-presets:\n  default: code\nlocale:\n  preference: zh\n')
+  runInitializer(fixture)
+  const migrated = readFileSync(fixture.settingsPath, 'utf8')
+  assert.match(migrated, /agent-presets:\r?\n  default: standard/)
+  assert.match(migrated, /locale:\r?\n  preference: zh/)
+  assert.doesNotMatch(migrated, /default: code/)
+
+  writeFixtureFile(fixture.settingsPath, 'agent-presets:\n  default: router-standard\n')
+  runInitializer(fixture)
+  const preserved = readFileSync(fixture.settingsPath, 'utf8')
+  assert.match(preserved, /agent-presets:\r?\n  default: router-standard/)
+  assert.doesNotMatch(preserved, /default: standard/)
+})
+
+test('initializer migrates a persisted legacy code session before DSH resumes it', (t) => {
+  const fixture = createFixture(t)
+  const path = join(fixture.home, 'sessions/project/session-legacy-code/session.jsonl')
+  const event = `${JSON.stringify({
+    type: 'user/message', seq: 0, time: 2, data: { content: 'preserve this event' },
+  })}\n`
+  writeFixtureFile(path, `${JSON.stringify({
+    type: 'session',
+    version: 0,
+    id: 'session-legacy-code',
+    createdAt: 1,
+    cwd: fixture.root,
+    delegationDepth: 0,
+    agentPreset: 'code',
+  })}\n${event}`)
+
+  runInitializer(fixture)
+
+  const lines = readFileSync(path, 'utf8').split('\n')
+  assert.equal(JSON.parse(lines[0]).agentPreset, 'standard')
+  assert.equal(`${lines[1]}\n`, event)
+})
 test('unrelated user provider and model settings remain byte-for-byte unchanged', (t) => {
   const fixture = createFixture(t)
   const settings = `agent-default-model:

@@ -1,8 +1,8 @@
 import { createBusinessProject, listBusinessProjects } from '../packages/business-projects/index.ts'
 import { knowledgeStatus } from '../bundles/tender-host/src/knowledge.ts'
-import { publishOfficialOutput, listOfficialOutputs } from '../bundles/tender-host/src/outputs.ts'
+import { officialStageDir, publishOfficialOutput, listOfficialOutputs } from '../bundles/tender-host/src/outputs.ts'
 import { assessEvidence, forcePassEvidence, evidencePolicy } from '../bundles/tender-host/src/evidence.ts'
-import { prepareStage, workbenchSnapshot, completeSetup } from '../bundles/tender-host/src/orchestration.ts'
+import { prepareStage, workbenchSnapshot, completeSetup, decideApprovalStage } from '../bundles/tender-host/src/orchestration.ts'
 import { initTenderWorkspace, replaceCapability, capabilityStatus, upsertWorkspaceSection } from '../bundles/tender-host/src/workspace.ts'
 import { registerTools } from '../bundles/tender-host/src/tools.ts'
 import { importDsh } from '../bundles/tender-host/src/dsh.ts'
@@ -165,6 +165,13 @@ upsertWorkspaceSection(cwd, 'demo1', {
 })
 writeFileSync(join(cwd, 'book.pdf'), 'pdf')
 completeSetup(cwd, { ...project, inputPaths: [join(cwd, 'book.pdf')] })
+const bidDecisionDir = officialStageDir(cwd, project.projectId, 'bid-risk-decision')
+mkdirSync(bidDecisionDir, { recursive: true })
+writeFileSync(
+  join(bidDecisionDir, '投标决策与重大风险评估.md'),
+  '# 投标决策与重大风险评估\n\n' + '已核对资格、评分、合同、保函、保险、风险、缺口和投标条件。'.repeat(20),
+)
+decideApprovalStage(cwd, project, 'bid-risk-decision', 'approved')
 const analysisPrepared = prepareStage(cwd, project, 'tender-document-analysis')
 const briefMd = analysisPrepared.state.tasks[0]?.markdownPath?.replace(/\\/g, '/') ?? ''
 const briefJson = analysisPrepared.state.tasks[0]?.reportPath?.replace(/\\/g, '/') ?? ''

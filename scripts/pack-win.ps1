@@ -18,6 +18,8 @@ $IconSrc = Join-Path $Desktop "brand\app-logo.png"
 if (-not (Test-Path $IconSrc)) { $IconSrc = Join-Path $Root "AgentPI-logo-2.png" }
 $IconDir = Join-Path $Desktop "build"
 $IconDest = Join-Path $IconDir "icon.png"
+$InstallerIcon = Join-Path $IconDir "icon.ico"
+$InstallerHeader = Join-Path $IconDir "installer-header.bmp"
 
 function Get-NodeAdjacentCommand([string]$name) {
   $node = (Get-Command node -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
@@ -141,7 +143,8 @@ function Test-UnpackedApp([string]$dir) {
     (Join-Path $dir "resources\runtime\node\node.exe"),
     (Join-Path $dir "resources\runtime\deepseek-harness\package.json"),
     (Join-Path $dir "resources\runtime\deepseek-harness\apps\web\dist\index.html"),
-    (Join-Path $dir "resources\runtime\product\scripts\repair-dsh-links.mjs")
+    (Join-Path $dir "resources\runtime\product\scripts\repair-dsh-links.mjs"),
+    (Join-Path $dir "resources\runtime\product\bundles\agent-pi-compaction\lib\index.js")
   )
   return ($need | Where-Object { -not (Test-Path $_) }).Count -eq 0
 }
@@ -165,11 +168,29 @@ if (-not (Test-Path (Join-Path $Root "vendor\dsh-super-injector\lib\index.js")))
 if (-not (Test-Path (Join-Path $Root "vendor\dsh-router-standard\preset\agent.cordis.yml"))) {
   throw "vendor/dsh-router-standard incomplete. Run scripts/vendor-dsh-plugins.ps1"
 }
+if (-not (Test-Path (Join-Path $Root "bundles\agent-pi-compaction\lib\index.js"))) {
+  throw "bundles/agent-pi-compaction incomplete"
+}
 if (-not (Test-Path (Join-Path $Root "vendor\anysearch-dsh\lib\index.js"))) {
   throw "vendor/anysearch-dsh incomplete. Copy anysearch-dsh 0.1.1 with built lib/"
 }
 if (-not (Test-Path (Join-Path $Root "vendor\dsh-univer-office\lib\index.js"))) {
   Write-Host "WARN vendor/dsh-univer-office missing. Run scripts/vendor-dsh-plugins.ps1 to preset Univer."
+}
+
+function Find-BrandPython {
+  $resolved = Get-Command python -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+  $candidates = @(
+    (Join-Path $env:LOCALAPPDATA "Programs\Python\Python313\python.exe"),
+    (Join-Path $env:LOCALAPPDATA "Programs\Python\Python312\python.exe"),
+    (Join-Path $env:ProgramFiles "Python313\python.exe"),
+    (Join-Path $env:ProgramFiles "Python312\python.exe"),
+    (Join-Path $env:ProgramFiles "Python310\python.exe"),
+    $(if ($resolved) { $resolved.Source })
+  ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
+  $python = $candidates | Select-Object -First 1
+  if (-not $python) { throw "Python with Pillow is required to build the installer brand assets" }
+  return $python
 }
 if (Test-Path (Join-Path $Root "vendor\dsh-univer-office\lib\client.js")) {
   node (Join-Path $Root "scripts\patch-univer-alpha1.mjs") (Join-Path $Root "vendor\dsh-univer-office")
@@ -184,8 +205,15 @@ if (-not (Test-Path (Join-Path $Biz "node_modules\zod"))) {
   Invoke-NpmInstall $Biz "business-core"
 }
 
+Write-Host "Building tender-web client from source modules..."
+node (Join-Path $Root "scripts\build-tender-client.mjs")
+if ($LASTEXITCODE -ne 0) { throw "tender-web client build failed" }
+
 New-Item -ItemType Directory -Force -Path $IconDir | Out-Null
 if (Test-Path $IconSrc) { Copy-Item -Force $IconSrc $IconDest }
+$brandPython = Find-BrandPython
+& $brandPython (Join-Path $Root "scripts\make-installer-brand.py") $IconSrc $InstallerIcon $InstallerHeader
+if ($LASTEXITCODE -ne 0) { throw "installer brand generation failed: $LASTEXITCODE" }
 
 if (-not $SkipPrepare) {
   & (Join-Path $Root "scripts\prepare-win-runtime.ps1") -FullCopy
@@ -319,6 +347,8 @@ if ((Resolve-Path $sevenZip).Path -ne (Resolve-Path -ErrorAction SilentlyContinu
   Copy-Item -Force $sevenZip $bundled7za
 }
 Copy-Item -Force $NsisScript (Join-Path $nsisRoot "setup.nsi")
+Copy-Item -Force $InstallerIcon (Join-Path $nsisRoot "app-icon.ico")
+Copy-Item -Force $InstallerHeader (Join-Path $nsisRoot "installer-header.bmp")
 $payload = Join-Path $nsisRoot "payload.7z"
 if (Test-Path $payload) {
   try {
@@ -340,7 +370,7 @@ $archiveExit = $LASTEXITCODE
 Pop-Location
 if ($archiveExit -ne 0) { throw "7za archive failed: $archiveExit" }
 Push-Location $nsisRoot
-& $makensis /V2 "/DAPP_VERSION=$AppVersion" "setup.nsi"
+& $makensis /V2 "/DAPP_VERSION=$AppVersion" "/DAPP_ICON=app-icon.ico" "/DINSTALLER_HEADER=installer-header.bmp" "setup.nsi"
 $nsisExit = $LASTEXITCODE
 Pop-Location
 if ($nsisExit -ne 0) { throw "makensis failed: $nsisExit" }
