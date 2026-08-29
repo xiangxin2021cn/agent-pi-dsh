@@ -13,6 +13,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFil
 import { createHash } from 'node:crypto'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { patchUniverForDshAlpha1 } from './patch-univer-alpha1.mjs'
 import { verifyRuntimePayloadStage } from './verify-runtime-payload-stage.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -50,7 +51,7 @@ mkdirSync(outDir, { recursive: true })
 // 1. desktop shell (whitelist: only what electron-builder needs)
 const desktopDest = join(stage, 'desktop')
 mkdirSync(join(desktopDest, 'build'), { recursive: true })
-for (const file of ['main.mjs', 'codex-auth.mjs', 'codex-models.mjs', 'compaction-preferences.mjs', 'preload.cjs', 'boot.html', 'after-pack.cjs', 'package.json']) {
+for (const file of ['main.mjs', 'dsh-web-url.mjs', 'codex-auth.mjs', 'codex-models.mjs', 'compaction-preferences.mjs', 'preload.cjs', 'boot.html', 'after-pack.cjs', 'package.json']) {
   cpSync(join(desktop, file), join(desktopDest, file))
 }
 cpSync(join(desktop, 'brand'), join(desktopDest, 'brand'), { recursive: true })
@@ -82,6 +83,7 @@ for (const item of productItems) {
     cpSync(src, dest)
   }
 }
+patchUniverForDshAlpha1({ pluginRoot: join(productDest, 'vendor', 'dsh-univer-office') })
 console.log('staged product tree')
 
 // 3. deepseek-harness source + built artifacts (no node_modules)

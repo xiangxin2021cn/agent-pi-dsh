@@ -59,5 +59,7 @@ tar -xf $univerTgz -C $univerDest --strip-components=1
 if (-not (Test-Path (Join-Path $univerDest "lib\index.js"))) {
   throw "dsh-univer-office tarball missing lib/index.js"
 }
+node (Join-Path $Root "scripts\patch-univer-alpha1.mjs") $univerDest
+if ($LASTEXITCODE -ne 0) { throw "Univer DSH alpha.1 compatibility patch failed" }
 Set-Content -Path (Join-Path $Vendor "dsh-univer-office.pin") -Value "$univerVersion`n$univerUrl`nhttps://github.com/dream-num/dsh-univer-office`nnpm tarball; do not commit the unpacked tree or node_modules`n"
 Write-Host "Vendored dsh-univer-office under $Vendor"

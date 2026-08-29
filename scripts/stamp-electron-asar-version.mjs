@@ -17,9 +17,16 @@ if (!unpacked || !wanted) {
 
 const archive = join(unpacked, 'resources/app.asar')
 const mainSrc = join(root, 'apps/desktop/main.mjs')
+const dshWebUrlSrc = join(root, 'apps/desktop/dsh-web-url.mjs')
 const preloadSrc = join(root, 'apps/desktop/preload.cjs')
 const current = JSON.parse(asar.extractFile(archive, 'package.json').toString('utf8'))
 const currentMain = asar.extractFile(archive, 'main.mjs')
+let currentDshWebUrl
+try {
+  currentDshWebUrl = asar.extractFile(archive, 'dsh-web-url.mjs')
+} catch {
+  currentDshWebUrl = Buffer.alloc(0)
+}
 let currentPreload
 try {
   currentPreload = asar.extractFile(archive, 'preload.cjs')
@@ -27,12 +34,14 @@ try {
   currentPreload = Buffer.alloc(0)
 }
 const wantedMain = readFileSync(mainSrc)
+const wantedDshWebUrl = readFileSync(dshWebUrlSrc)
 const wantedPreload = readFileSync(preloadSrc)
 const versionOk = current.version === wanted
 const mainOk = Buffer.compare(currentMain, wantedMain) === 0
+const dshWebUrlOk = Buffer.compare(currentDshWebUrl, wantedDshWebUrl) === 0
 const preloadOk = Buffer.compare(currentPreload, wantedPreload) === 0
-if (versionOk && mainOk && preloadOk) {
-  process.stdout.write(`asar already ${wanted} with current main.mjs and preload.cjs\n`)
+if (versionOk && mainOk && dshWebUrlOk && preloadOk) {
+  process.stdout.write(`asar already ${wanted} with current desktop entry files\n`)
   process.exit(0)
 }
 
@@ -44,6 +53,7 @@ try {
   manifest.version = wanted
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
   writeFileSync(join(dir, 'main.mjs'), wantedMain)
+  writeFileSync(join(dir, 'dsh-web-url.mjs'), wantedDshWebUrl)
   rmSync(join(dir, 'preload.mjs'), { force: true })
   writeFileSync(join(dir, 'preload.cjs'), wantedPreload)
   await asar.createPackage(dir, archive)
@@ -55,4 +65,4 @@ try {
   rmSync(dir, { recursive: true, force: true })
 }
 
-process.stdout.write(`asar ${current.version} -> ${wanted} (main.mjs synced)\n`)
+process.stdout.write(`asar ${current.version} -> ${wanted} (desktop entry files synced)\n`)

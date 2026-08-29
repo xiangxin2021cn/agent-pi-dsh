@@ -282,3 +282,53 @@ test('alpha.1 preserves dsh-im installation but does not activate the incompatib
   assert.equal(manifest.dependencies['@xmanrui/dsh-im'], '^3.2.0')
   assert.doesNotMatch(JSON.stringify(manifest.dsh.profile.bundles), /@xmanrui\/dsh-im/)
 })
+
+test('alpha.1 replaces a registry Univer client that still reads the legacy session timeline', (t) => {
+  const fixture = createFixture(t)
+  const newline = String.fromCharCode(10)
+  const bundled = join(fixture.root, 'vendor/dsh-univer-office')
+  writeFixtureFile(join(bundled, 'package.json'), JSON.stringify({
+    name: 'dsh-univer-office',
+    version: '0.2.9',
+    dsh: { bundle: {} },
+  }) + newline)
+  writeFixtureFile(join(bundled, 'lib/index.js'), 'export {}' + newline)
+  writeFixtureFile(
+    join(bundled, 'lib/client.js'),
+    'var inject = ["slots", "locale", "uiConversation"];' + newline
+    + 'ctx.uiConversation.events.register(univerTurnDefinition);' + newline
+    + 'const chat = props.useConversation((snapshot) => snapshot.views.get("chat"));' + newline
+    + 'for (const turn of chat.timeline.turns.values()) {}' + newline,
+  )
+
+  const profileDir = join(fixture.home, 'profiles/tender')
+  const installed = join(profileDir, 'node_modules/dsh-univer-office')
+  writeFixtureFile(join(installed, 'package.json'), JSON.stringify({
+    name: 'dsh-univer-office',
+    version: '0.2.10',
+    dsh: { bundle: {} },
+  }) + newline)
+  writeFixtureFile(join(installed, 'lib/index.js'), 'export {}' + newline)
+  writeFixtureFile(
+    join(installed, 'lib/client.js'),
+    'var inject = ["slots", "locale", "uiConversation"];' + newline
+    + 'ctx.uiConversation.events.register(univerTurnDefinition);' + newline
+    + 'for (const turn of session.chat.timeline.turns.values()) {}' + newline,
+  )
+  writeFixtureFile(join(profileDir, 'package.json'), JSON.stringify({
+    name: 'dsh-profile-tender',
+    private: true,
+    dependencies: { 'dsh-univer-office': '^0.2.10' },
+    dsh: { profile: { bundles: ['dsh-univer-office'] } },
+  }, null, 2) + newline)
+
+  runInitializer(fixture)
+
+  const manifest = JSON.parse(readFileSync(join(profileDir, 'package.json'), 'utf8'))
+  const client = readFileSync(join(profileDir, 'node_modules/dsh-univer-office/lib/client.js'), 'utf8')
+  assert.ok(manifest.dependencies['dsh-univer-office'].startsWith('link:'))
+  assert.ok(client.includes('ctx.uiConversation.events.register(univerTurnDefinition)'))
+  assert.ok(client.includes('snapshot.views.get("chat")'))
+  assert.ok(!client.includes('conversationEvents'))
+  assert.ok(!client.includes('session.chat.timeline'))
+})

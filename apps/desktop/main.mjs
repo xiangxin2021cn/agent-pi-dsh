@@ -14,6 +14,7 @@ import {
   createCompactionFallbackPreferenceUpdate,
   normalizeCompactionFallbackPreference,
 } from './compaction-preferences.mjs'
+import { createDshWebUrlTracker, isAuthenticatedDshWebUrl } from './dsh-web-url.mjs'
 
 const APP_NAME = 'agent-pi-DSH'
 const here = dirname(fileURLToPath(import.meta.url))
@@ -268,6 +269,15 @@ async function urlAlive(url) {
   }
 }
 
+async function dshServerAlive(url) {
+  try {
+    const res = await fetch(url, { method: 'HEAD' })
+    return res.status >= 100 && res.status < 600
+  } catch {
+    return false
+  }
+}
+
 function findFreePort(preferred = 3080) {
   return new Promise((resolvePort, reject) => {
     const probe = createServer()
@@ -324,6 +334,7 @@ function ensureProfile() {
 
 function startDsh(port) {
   dshPort = Number.isInteger(port) ? port : dshPort
+  appUrl = `http://127.0.0.1:${dshPort}`
   mkdirSync(app.getPath('userData'), { recursive: true })
   launchLogStream = createWriteStream(launchLog(), { flags: 'a' })
   const env = runtimeEnv()
@@ -351,7 +362,13 @@ function startDsh(port) {
     launchLogStream?.write(`[${stream}] ${text}`)
     process.stderr.write(text)
   }
-  child.stdout?.on('data', prefix('out'))
+  const stdoutLog = prefix('out')
+  const advertisedUrl = createDshWebUrlTracker(dshPort)
+  child.stdout?.on('data', (chunk) => {
+    stdoutLog(chunk)
+    const nextUrl = advertisedUrl.push(chunk)
+    if (nextUrl) appUrl = nextUrl
+  })
   child.stderr?.on('data', prefix('err'))
   child.on('exit', (code) => {
     logLine(`[exit] ${code}`)
@@ -377,7 +394,8 @@ function startDsh(port) {
     setTimeout(() => {
       if (app.isQuitting) return
       startDsh(dshPort)
-      void waitForUrl(appUrl).then(() => {
+      void waitForDshUrl().then((url) => {
+        appUrl = url
         dshRestartCount = 0
         if (mainWindow && !mainWindow.isDestroyed()) void mainWindow.loadURL(appUrl)
       }).catch((error) => {
@@ -400,6 +418,19 @@ async function waitForUrl(url, timeoutMs = 120000) {
     await new Promise((r) => setTimeout(r, 400))
   }
   throw new Error(`timed out waiting for ${url}. 见 ${launchLog()}`)
+}
+
+async function waitForDshUrl(timeoutMs = 120000) {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    if (child && child.exitCode && child.exitCode !== 0) {
+      throw new Error(`dsh web exited ${child.exitCode}. 见 ${launchLog()}`)
+    }
+    const candidate = appUrl
+    if (isAuthenticatedDshWebUrl(candidate, dshPort) && await dshServerAlive(new URL(candidate).origin)) return candidate
+    await new Promise((r) => setTimeout(r, 200))
+  }
+  throw new Error(`timed out waiting for authenticated dsh web URL. 见 ${launchLog()}`)
 }
 
 function createWindow() {
@@ -1251,6 +1282,7 @@ if (!gotLock) {
       assertDshRuntime()
       repairPackedLinks()
       ensureProfile()
+      let launchedDsh = false
       if (!process.env.AGENT_PI_DSH_URL) {
         const existing = packaged
           ? null
@@ -1267,9 +1299,11 @@ if (!gotLock) {
           dshPort = port
           appUrl = `http://127.0.0.1:${port}`
           startDsh(port)
+          launchedDsh = true
         }
       }
-      await waitForUrl(appUrl)
+      if (launchedDsh) appUrl = await waitForDshUrl()
+      else await waitForUrl(appUrl)
       await win.loadURL(appUrl)
       applyWindowIcon(win)
     } catch (error) {

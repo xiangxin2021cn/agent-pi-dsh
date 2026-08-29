@@ -492,6 +492,19 @@ function compareVersions(a, b) {
   return 0
 }
 
+function univerSupportsAlpha1Client(dir) {
+  try {
+    const client = readFileSync(join(dir, 'lib/client.js'), 'utf8')
+    return client.includes('ctx.uiConversation.events.register(univerTurnDefinition)')
+      && client.includes('snapshot.views.get("chat")')
+      && !client.includes('conversationEvents')
+      && !client.includes('session.chat.timeline')
+      && !client.includes('props.useSession(')
+  } catch {
+    return false
+  }
+}
+
 // The in-app updater (plugin settings card / market) replaces the preinstall
 // junction with a real registry install and rewrites the dependency spec.
 // Keep that install when it is at least as new as the vendored copy; an app
@@ -505,6 +518,7 @@ function keepsRegistryInstall(plugin) {
     return false
   }
   if (samePath(dest, plugin.dir)) return false
+  if (plugin.name === UNIVER_NAME && !univerSupportsAlpha1Client(dest)) return false
   const installed = packageVersion(dest)
   const vendored = packageVersion(plugin.dir)
   if (!installed || !vendored) return false

@@ -171,6 +171,10 @@ if (-not (Test-Path (Join-Path $Root "vendor\anysearch-dsh\lib\index.js"))) {
 if (-not (Test-Path (Join-Path $Root "vendor\dsh-univer-office\lib\index.js"))) {
   Write-Host "WARN vendor/dsh-univer-office missing. Run scripts/vendor-dsh-plugins.ps1 to preset Univer."
 }
+if (Test-Path (Join-Path $Root "vendor\dsh-univer-office\lib\client.js")) {
+  node (Join-Path $Root "scripts\patch-univer-alpha1.mjs") (Join-Path $Root "vendor\dsh-univer-office")
+  if ($LASTEXITCODE -ne 0) { throw "Univer DSH alpha.1 compatibility patch failed" }
+}
 if (-not (Test-Path $NsisScript)) {
   throw "NSIS script missing: $NsisScript"
 }
