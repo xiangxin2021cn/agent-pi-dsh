@@ -184,21 +184,9 @@ Windows SHA256：`5CD82E6E4769387059F3CDC2E5FFBA0496187FB6BEB40CE65E6439F506AD56
 
 ## 开发 / Develop
 
-本仓库钉住 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 `dsh-v0.1.1-rc.2`，具体提交见 [DSH_PIN](./DSH_PIN)。Agent Pi 必需的会话接续、审批收口和宿主接口修复保存在 [内核补丁](./patches/deepseek-harness-agent-pi.patch)，开发与打包脚本会先做一致性检查并幂等应用，避免本地修复在新仓库中丢失。需要 Node.js `^22.19 || >=24`、pnpm 11.7.0 和自行配置的 DeepSeek API key。
+`3.4.0` 迁移分支钉住 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 `dsh-v0.1.2-alpha.1`（`cd5ef81481`），具体提交见 [DSH_PIN](./DSH_PIN)。该分支尚不可发布：旧版 [内核补丁](./patches/deepseek-harness-agent-pi.patch) 只作为迁移输入保留，不能直接套用到新内核；开发与打包入口在替代实现通过验收前应保持阻断。迁移范围与验收门槛见 [3.4.0 内核迁移计划](./docs/superpowers/plans/2026-08-29-dsh-0.1.2-alpha.1-migration.md)。稳定开发和发布仍使用 `v3.3.6`。
 
-```powershell
-git clone --recurse-submodules https://github.com/xiangxin2021cn/agent-pi-dsh.git
-cd agent-pi-dsh
-node .\scripts\apply-dsh-patches.mjs
-```
-
-```powershell
-.\scripts\run-smoke.ps1
-.\scripts\verify-profile.ps1
-.\scripts\dev.ps1
-```
-
-Windows 打包：`.\scripts\pack-win.ps1`。生成物不进入 Git；正式二进制放在 GitHub Releases。
+迁移基线检查：`node --test scripts/dsh-pin-3.4.0.test.mjs scripts/version-3.4.0.test.mjs`。在迁移计划的发布门禁全部通过前，不生成或发布 `3.4.0` 安装包。
 
 ---
 
@@ -209,5 +197,5 @@ Windows 打包：`.\scripts\pack-win.ps1`。生成物不进入 Git；正式二�
 <p align="center">
   <a href="https://www.agent-pi.app"><b>www.agent-pi.app</b></a>
   · Always π AI Studio
-  · pinned: dsh-v0.1.1-rc.2
+  · migration: dsh-v0.1.2-alpha.1
 </p>

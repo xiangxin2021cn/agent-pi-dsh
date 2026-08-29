@@ -31,4 +31,4 @@ Refresh copies:
 .\scripts\vendor-dsh-plugins.ps1
 ```
 
-`vendor/deepseek-harness` is a submodule pinned by `DSH_PIN` (`dsh-v0.1.1-rc.2` / `b150a551b8`). The Agent Pi history-page, catalog-skip, approval-settle, native-path-opener and parent-wake changes live in `patches/deepseek-harness-agent-pi.patch`; `scripts/apply-dsh-patches.mjs` applies that patch idempotently before development and packaging.
+On the 3.4.0 migration branch, `vendor/deepseek-harness` is pinned by `DSH_PIN` to the official `dsh-v0.1.2-alpha.1` release (`cd5ef81481`). The old Agent Pi patch targets `dsh-v0.1.1-rc.2` and is retained only as a porting inventory; it must not be applied to the alpha kernel. The migration plan maps its behavior to the new gateway, controller, split-client and subagent packages before development or packaging is re-enabled.

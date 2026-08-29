@@ -129,8 +129,8 @@ tail: value
 test('initializer templates official fields and repairs settings after managed patch', () => {
   const init = readFileSync(join(root, 'scripts/init-tender-profile.mjs'), 'utf8')
   assert.match(init, /deepseek-v4-flash-vision-exp[\s\S]*?contextWindow: 1000000[\s\S]*?maxTokens: 384000/)
-  assert.match(init, /deepseek-v4-flash\n[\s\S]*?contextWindow: 1000000[\s\S]*?maxTokens: 384000/)
-  assert.match(init, /deepseek-v4-pro\n[\s\S]*?contextWindow: 1000000[\s\S]*?maxTokens: 384000/)
+  assert.match(init, /deepseek-v4-flash\r?\n[\s\S]*?contextWindow: 1000000[\s\S]*?maxTokens: 384000/)
+  assert.match(init, /deepseek-v4-pro\r?\n[\s\S]*?contextWindow: 1000000[\s\S]*?maxTokens: 384000/)
   assert.match(init, /if \(repaired\.changed\) writeFileSync\(settingsPath, repaired\.yaml\)/)
   assert.ok(init.lastIndexOf('repairExistingDeepSeekModelCapacities()')
     > init.lastIndexOf('writeManagedPatch(dependencies)'))
