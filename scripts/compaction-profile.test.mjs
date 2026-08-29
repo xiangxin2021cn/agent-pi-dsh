@@ -21,6 +21,7 @@ const scriptNames = [
   'install-univer-runtime-deps.mjs',
   'enable-desktop-web-fetch.mjs',
   'enable-desktop-codex.mjs',
+  'enable-desktop-compaction.mjs',
 ]
 
 function writeFixtureFile(path, content) {
@@ -72,9 +73,32 @@ function createFixture(t) {
   }
   mkdirSync(join(dsh, 'node_modules/.pnpm/@openai+codex@0.0.0-test'), { recursive: true })
 
-  const preset = '# isolated test preset\n'
-  for (const id of ['standard', 'code', 'cordis']) {
-    writeFixtureFile(join(dsh, 'apps/cli/config/agent-presets', id, 'agent.cordis.yml'), preset)
+  const preset = `- id: compaction
+  name: cordis:group
+  group: true
+  isolate:
+    compaction: true
+  config:
+    - id: compaction-basic
+      name: '@deepseek-ai/dsh-compaction-basic'
+
+    - id: command-compact
+      name: '@deepseek-ai/dsh-command-compact'
+- id: delegation
+  name: cordis:group
+  group: true
+  config:
+    - id: tool-subagent-codex
+      name: '@deepseek-ai/dsh-tool-subagent'
+      disabled: true
+      config:
+        provider: codex
+`
+  for (const id of ['standard', 'ptc', 'cordis']) {
+    writeFixtureFile(
+      join(dsh, 'packages/preset/agent-presets/presets', id, 'agent.cordis.yml'),
+      preset,
+    )
   }
   for (const name of ['agent.cordis.yml', 'preset.yml', 'router-bootstrap.mjs', 'router-core.mjs']) {
     writeFixtureFile(join(root, 'vendor/dsh-router-standard/preset', name), preset)
@@ -112,23 +136,18 @@ function runInitializer(fixture, fallbackPreference) {
   return result
 }
 
-function compactionBlocks(patch) {
-  return patch.match(/^- id: compaction-basic\r?\n(?:^[ \t]+.*\r?\n?)*/gm) ?? []
+function presetTexts(fixture) {
+  return [
+    ...['standard', 'ptc', 'cordis'].map((id) => readFileSync(join(
+      fixture.dsh,
+      'packages/preset/agent-presets/presets',
+      id,
+      'agent.cordis.yml',
+    ), 'utf8')),
+    readFileSync(join(fixture.root, 'vendor/dsh-router-standard/preset/agent.cordis.yml'), 'utf8'),
+    readFileSync(join(fixture.home, '.agent-presets/router-standard/agent.cordis.yml'), 'utf8'),
+  ]
 }
-
-const enabledBlock = `- id: compaction-basic
-  config:
-    thresholdRatio: 0.72
-    summarizationFallbacks:
-      - provider: deepseek-official
-        model: deepseek-v4-flash-vision-exp
-        maxTokens: 32768
-`
-
-const disabledBlock = `- id: compaction-basic
-  config:
-    thresholdRatio: 0.72
-`
 
 test('missing preference enables one complete fallback while the session model stays primary', (t) => {
   const fixture = createFixture(t)
@@ -136,9 +155,45 @@ test('missing preference enables one complete fallback while the session model s
   runInitializer(fixture)
 
   const patch = readFileSync(fixture.patchPath, 'utf8')
-  const blocks = compactionBlocks(patch)
-  assert.deepEqual(blocks, [enabledBlock])
-  assert.doesNotMatch(blocks[0], /summarizationProvider|summarizationModel/)
+  assert.doesNotMatch(patch, /^- id: compaction-basic$/m)
+  for (const preset of presetTexts(fixture)) {
+    assert.match(
+      preset,
+      /name: ['"]?@deepseek-ai\/dsh-compaction-basic['"]?\r?\n      config:/,
+    )
+    assert.equal((preset.match(/thresholdRatio: 0\.72/g) ?? []).length, 1)
+    assert.equal((preset.match(/summarizationFallbacks:/g) ?? []).length, 1)
+    assert.match(preset, /provider: deepseek-official/)
+    assert.match(preset, /model: deepseek-v4-flash-vision-exp/)
+    assert.match(preset, /maxTokens: 32768/)
+    assert.doesNotMatch(preset, /summarizationProvider|summarizationModel/)
+  }
+})
+
+test('alpha.1 shipped presets receive the Codex product overlay', (t) => {
+  const fixture = createFixture(t)
+
+  runInitializer(fixture)
+
+  for (const id of ['standard', 'ptc', 'cordis']) {
+    const preset = readFileSync(join(
+      fixture.dsh,
+      'packages/preset/agent-presets/presets',
+      id,
+      'agent.cordis.yml',
+    ), 'utf8')
+    assert.doesNotMatch(preset, /tool-subagent-codex[\s\S]*?disabled: true/)
+  }
+})
+
+test('alpha.1 managed overlay reuses the built-in web fetch provider id', (t) => {
+  const fixture = createFixture(t)
+
+  runInitializer(fixture)
+
+  const patch = readFileSync(fixture.patchPath, 'utf8')
+  assert.doesNotMatch(patch, /- insert:\r?\n[\s\S]*?- id: web-fetch-http/)
+  assert.match(patch, /- id: web\r?\n  config:\r?\n[\s\S]*?fetchProvider: http/)
 })
 
 test('preference value 0 disables only cross-provider fallback and keeps 72 percent automatic compaction', (t) => {
@@ -147,20 +202,34 @@ test('preference value 0 disables only cross-provider fallback and keeps 72 perc
   runInitializer(fixture, '0')
 
   const patch = readFileSync(fixture.patchPath, 'utf8')
-  assert.deepEqual(compactionBlocks(patch), [disabledBlock])
   assert.doesNotMatch(patch, /summarizationFallbacks:/)
+  assert.doesNotMatch(patch, /^- id: compaction-basic$/m)
+  for (const preset of presetTexts(fixture)) {
+    assert.equal((preset.match(/thresholdRatio: 0\.72/g) ?? []).length, 1)
+    assert.doesNotMatch(preset, /summarizationFallbacks:/)
+  }
 })
 
 test('repeated initialization is byte-stable and does not duplicate compaction configuration', (t) => {
   const fixture = createFixture(t)
   runInitializer(fixture)
-  const first = readFileSync(fixture.patchPath, 'utf8')
+  const firstPatch = readFileSync(fixture.patchPath, 'utf8')
+  const firstPreset = readFileSync(join(
+    fixture.dsh,
+    'packages/preset/agent-presets/presets/standard/agent.cordis.yml',
+  ), 'utf8')
 
   runInitializer(fixture)
-  const second = readFileSync(fixture.patchPath, 'utf8')
+  const secondPatch = readFileSync(fixture.patchPath, 'utf8')
+  const secondPreset = readFileSync(join(
+    fixture.dsh,
+    'packages/preset/agent-presets/presets/standard/agent.cordis.yml',
+  ), 'utf8')
 
-  assert.equal(second, first)
-  assert.deepEqual(compactionBlocks(second), [enabledBlock])
+  assert.equal(secondPatch, firstPatch)
+  assert.equal(secondPreset, firstPreset)
+  assert.equal((secondPreset.match(/thresholdRatio: 0\.72/g) ?? []).length, 1)
+  assert.equal((secondPreset.match(/summarizationFallbacks:/g) ?? []).length, 1)
 })
 
 test('unrelated user provider and model settings remain byte-for-byte unchanged', (t) => {

@@ -3427,6 +3427,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
       cwd: '',
       files: [],
       conversation: null,
+      remote: null,
     }
     parentWakeEngine.load()
     const attachState = window.__apAttachState || (window.__apAttachState = { bySession: new Map(), listeners: new Set(), last: [], items: [] })
@@ -8848,17 +8849,15 @@ ${original}`
     }
 
     function officialRpc(method, payload) {
-      const rpcId = (globalThis.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + '-' + Math.random().toString(16).slice(2)
-      return fetch('/rpc/' + method, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ type: 'client-request', rpcId: rpcId, method: method, payload: payload }),
-      }).then(async (res) => {
-        const body = await res.json().catch(() => ({}))
-        if (!res.ok) throw new Error((body && body.error && body.error.message) || res.statusText)
-        const result = body.result
-        if (!result) throw new Error('empty rpc result')
-        if (result.ok === false) throw new Error((result.error && (result.error.message || result.error.code)) || method + ' failed')
+      const credentials = runtime.remote && runtime.remote.credentials
+      if (!credentials) return Promise.reject(new Error('credentials Remote unavailable'))
+      let operation
+      if (method === 'credentials.describe') operation = credentials.describe(payload.refs)
+      else if (method === 'credentials.set') operation = credentials.set(payload.ref, payload.value)
+      else return Promise.reject(new Error('unsupported credentials method: ' + method))
+      return Promise.resolve(operation).then((result) => {
+        if (!result) throw new Error('empty Remote result')
+        if (result.ok !== true) throw new Error((result.error && (result.error.message || result.error.code)) || method + ' failed')
         return result.value
       })
     }
@@ -10345,7 +10344,7 @@ ${original}`
     }
 
     exports.name = 'tender-web'
-    exports.inject = ['slots', 'workspaces']
+    exports.inject = ['slots', 'workspaces', 'remote', 'remote.credentials']
     window.__apAttachItems = attachItemsToComposer
     if (!window.__apAttachFileBound) {
       window.__apAttachFileBound = true
@@ -10359,6 +10358,7 @@ ${original}`
 
     exports.apply = function apply(ctx) {
       runtime.workspaces = ctx.workspaces || runtime.workspaces
+      runtime.remote = ctx.remote || runtime.remote
       watchArchivedWorkspaces()
       ctx.inject(['sessions'], (scope) => {
         runtime.sessions = scope.sessions

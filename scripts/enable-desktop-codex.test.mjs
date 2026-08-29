@@ -18,6 +18,7 @@ test('enables only the Codex product tool row and is idempotent', () => {
 test('tender profile installs the provider and packaging enables the Codex tool', () => {
   const init = readFileSync(join(root, 'scripts/init-tender-profile.mjs'), 'utf8')
   const pack = readFileSync(join(root, 'scripts/pack-win.ps1'), 'utf8')
+  const overlays = readFileSync(join(root, 'scripts/apply-runtime-overlays.mjs'), 'utf8')
   const verify = readFileSync(join(root, 'scripts/verify-profile.ps1'), 'utf8')
   const desktopPackage = readFileSync(join(root, 'apps/desktop/package.json'), 'utf8')
   const runtimePayload = readFileSync(join(root, 'scripts/pack-runtime-payload.mjs'), 'utf8')
@@ -26,7 +27,8 @@ test('tender profile installs the provider and packaging enables the Codex tool'
   assert.match(init, /node_modules', '\.pnpm'/)
   assert.match(init, /permissionMode: approve-for-me/)
   assert.match(init, /enable-desktop-codex\.mjs/)
-  assert.match(pack, /enable-desktop-codex\.mjs/)
+  assert.match(pack, /apply-runtime-overlays\.mjs/)
+  assert.match(overlays, /enable-desktop-codex\.mjs/)
   assert.match(verify, /@deepseek-ai\/dsh-subagent-codex/)
   assert.match(verify, /tool-subagent-codex/)
   assert.match(desktopPackage, /codex-auth\.mjs/)

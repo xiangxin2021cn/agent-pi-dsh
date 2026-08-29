@@ -1,10 +1,26 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
-import { applyDshPatch } from './apply-dsh-patches.mjs'
+import { applyDshPatch, prepareDshKernel } from './apply-dsh-patches.mjs'
+
+function createNativeAlphaFixture() {
+  const dir = mkdtempSync(join(tmpdir(), 'agent-pi-dsh-native-alpha-'))
+  spawnSync('git', ['init', '-q'], { cwd: dir })
+  writeFileSync(join(dir, 'package.json'), '{"version":"0.1.2-alpha.1"}\n')
+  for (const marker of [
+    'apps/cli/package.json',
+    'packages/api/session-controller/package.json',
+    'packages/preset/agent-presets/presets/standard/agent.cordis.yml',
+  ]) {
+    const path = join(dir, marker)
+    mkdirSync(join(path, '..'), { recursive: true })
+    writeFileSync(path, 'fixture\n')
+  }
+  return dir
+}
 
 test('DSH patch application is safe and idempotent', () => {
   const dir = mkdtempSync(join(tmpdir(), 'agent-pi-dsh-patch-'))
@@ -76,15 +92,79 @@ test('DSH patch refuses a mismatched checkout without changing it', () => {
   assert.equal(readFileSync(join(dir, 'sample.txt'), 'utf8'), 'different\n')
 })
 
+test('native alpha.1 applies its migration patch once for development and release', () => {
+  const dshRoot = createNativeAlphaFixture()
+  const patchPath = join(dshRoot, 'missing.patch')
+  const alphaPatchPath = join(dshRoot, 'alpha.patch')
+  writeFileSync(alphaPatchPath, [
+    'diff --git a/packages/preset/agent-presets/presets/standard/agent.cordis.yml b/packages/preset/agent-presets/presets/standard/agent.cordis.yml',
+    '--- a/packages/preset/agent-presets/presets/standard/agent.cordis.yml',
+    '+++ b/packages/preset/agent-presets/presets/standard/agent.cordis.yml',
+    '@@ -1 +1 @@',
+    '-fixture',
+    '+migrated',
+    '',
+  ].join('\n'))
+
+  assert.equal(
+    prepareDshKernel({ dshRoot, patchPath, alphaPatchPath, purpose: 'development' }),
+    'native-alpha1-development-applied',
+  )
+  assert.equal(
+    readFileSync(join(dshRoot, 'packages/preset/agent-presets/presets/standard/agent.cordis.yml'), 'utf8').replace(/\r\n/g, '\n'),
+    'migrated\n',
+  )
+  assert.equal(
+    prepareDshKernel({ dshRoot, patchPath, alphaPatchPath, purpose: 'release' }),
+    'native-alpha1-release-already-applied',
+  )
+})
+
+test('development migration refuses an incomplete or different native layout', () => {
+  const dshRoot = createNativeAlphaFixture()
+  writeFileSync(join(dshRoot, 'package.json'), '{"version":"0.1.2-alpha.2"}\n')
+  const patchPath = join(dshRoot, 'fallback.patch')
+  writeFileSync(patchPath, 'fixture\n')
+
+  assert.throws(
+    () => prepareDshKernel({
+      dshRoot,
+      patchPath,
+      purpose: 'development',
+      run: () => { throw new Error('legacy patch fallback reached') },
+    }),
+    /legacy patch fallback reached/,
+  )
+})
+
 test('development and packaging entrypoints enforce the DSH patch', () => {
   const root = join(import.meta.dirname, '..')
+  const alphaPatch = readFileSync(join(root, 'patches/deepseek-harness-agent-pi-alpha1.patch'), 'utf8')
+  assert.match(alphaPatch, /packages\/compaction\/compaction-basic\/src\/fallback\.ts/)
+  assert.match(alphaPatch, /packages\/llm\/llm-pi-ai\/src\/capacity\.ts/)
   for (const file of [
     'scripts/dev.ps1',
     'scripts/init-tender-profile.ps1',
+  ]) {
+    assert.match(
+      readFileSync(join(root, file), 'utf8'),
+      /apply-dsh-patches\.mjs["') ]+\$?Dsh["') ]+--development/,
+    )
+  }
+  for (const file of [
     'scripts/run-smoke.ps1',
     'scripts/prepare-win-runtime.ps1',
     'scripts/pack-runtime-payload.mjs',
   ]) {
     assert.match(readFileSync(join(root, file), 'utf8'), /apply-dsh-patches\.mjs/)
   }
+})
+
+test('development bootstrap installs the locked tender host runtime dependencies', () => {
+  const root = join(import.meta.dirname, '..')
+  const dev = readFileSync(join(root, 'scripts/dev.ps1'), 'utf8')
+
+  assert.match(dev, /bundles\\tender-host/)
+  assert.match(dev, /node_modules\\pdf-lib/)
+  assert.match(dev, /npm ci --no-fund --no-audit/)
 })

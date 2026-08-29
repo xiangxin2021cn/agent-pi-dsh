@@ -238,13 +238,6 @@ function buildManagedPatch(deps) {
   const searchProvider = composeBundles(deps).includes('@anysearch/anysearch-dsh')
     ? 'anysearch'
     : 'deepseek-official'
-  const compactionFallback = process.env.AGENT_PI_COMPACTION_FALLBACK === '0'
-    ? ''
-    : `    summarizationFallbacks:
-      - provider: deepseek-official
-        model: deepseek-v4-flash-vision-exp
-        maxTokens: 32768
-`
   return `${PATCH_MANAGED_MARK}
 # Profile overlay (applied after every bundle layer). Auto-rewritten on app
 # start while the marker line above is present; delete it to customize.
@@ -275,12 +268,6 @@ function buildManagedPatch(deps) {
     provider: deepseek-official
     model: deepseek-v4-flash-vision-exp
 
-# Compact near 72% with the current session model first. When enabled, the
-# DeepSeek vision model is only an eligible-failure summary fallback.
-- id: compaction-basic
-  config:
-    thresholdRatio: 0.72
-${compactionFallback}
 # Codex is an isolated product subagent, not a replacement LLM provider.
 # Auto-review remains confined to Codex's native workspace-write sandbox.
 - id: subagent-codex
@@ -294,13 +281,9 @@ ${compactionFallback}
   config:
     openBrowser: false
 
-# Desktop workbench: turn web_fetch back on. Stock DSH ships search-only.
-# Do not list web-fetch-http in package.json — it has no dsh.bundle, and the
-# market would show a false "verification failed". Overlay insert loads it.
+# Desktop workbench: alpha.1 dsh-base already owns web-fetch-http. Reuse that
+# row; inserting it again makes the loader reject the profile as a duplicate.
 # searchProvider is anysearch when the vendored (or later-installed) bundle is present.
-- insert:
-    - id: web-fetch-http
-      name: '@deepseek-ai/dsh-web-fetch-http'
 - id: web
   config:
     searchProvider: ${searchProvider}
@@ -648,9 +631,9 @@ function enableDesktopWebFetch() {
   const helper = join(root, 'scripts/enable-desktop-web-fetch.mjs')
   if (!existsSync(helper)) return
   const files = [
-    join(dsh, 'apps/cli/config/agent-presets/standard/agent.cordis.yml'),
-    join(dsh, 'apps/cli/config/agent-presets/code/agent.cordis.yml'),
-    join(dsh, 'apps/cli/config/agent-presets/cordis/agent.cordis.yml'),
+    join(dsh, 'packages/preset/agent-presets/presets/standard/agent.cordis.yml'),
+    join(dsh, 'packages/preset/agent-presets/presets/ptc/agent.cordis.yml'),
+    join(dsh, 'packages/preset/agent-presets/presets/cordis/agent.cordis.yml'),
     join(routerPresetSrc, 'agent.cordis.yml'),
     join(routerPresetDest, 'agent.cordis.yml'),
   ].filter((file) => existsSync(file))
@@ -669,9 +652,9 @@ function enableDesktopCodex() {
   const helper = join(root, 'scripts/enable-desktop-codex.mjs')
   if (!existsSync(helper)) return
   const files = [
-    join(dsh, 'apps/cli/config/agent-presets/standard/agent.cordis.yml'),
-    join(dsh, 'apps/cli/config/agent-presets/code/agent.cordis.yml'),
-    join(dsh, 'apps/cli/config/agent-presets/cordis/agent.cordis.yml'),
+    join(dsh, 'packages/preset/agent-presets/presets/standard/agent.cordis.yml'),
+    join(dsh, 'packages/preset/agent-presets/presets/ptc/agent.cordis.yml'),
+    join(dsh, 'packages/preset/agent-presets/presets/cordis/agent.cordis.yml'),
     join(routerPresetSrc, 'agent.cordis.yml'),
     join(routerPresetDest, 'agent.cordis.yml'),
   ].filter((file) => existsSync(file))
@@ -683,6 +666,30 @@ function enableDesktopCodex() {
   if (result.stdout) process.stdout.write(result.stdout)
   if (result.status !== 0) {
     process.stderr.write(`desktop Codex overlay skipped: ${result.stderr || result.status}\n`)
+  }
+}
+
+function enableDesktopCompaction() {
+  const helper = join(root, 'scripts/enable-desktop-compaction.mjs')
+  if (!existsSync(helper)) return
+  const files = [
+    join(dsh, 'packages/preset/agent-presets/presets/standard/agent.cordis.yml'),
+    join(dsh, 'packages/preset/agent-presets/presets/ptc/agent.cordis.yml'),
+    join(dsh, 'packages/preset/agent-presets/presets/cordis/agent.cordis.yml'),
+    join(routerPresetSrc, 'agent.cordis.yml'),
+    join(routerPresetDest, 'agent.cordis.yml'),
+  ].filter((file) => existsSync(file))
+  if (files.length === 0) return
+  const args = process.env.AGENT_PI_COMPACTION_FALLBACK === '0'
+    ? ['--no-fallback', ...files]
+    : files
+  const result = spawnSync(process.execPath, [helper, ...args], {
+    encoding: 'utf8',
+    windowsHide: true,
+  })
+  if (result.stdout) process.stdout.write(result.stdout)
+  if (result.status !== 0) {
+    throw new Error(`desktop compaction overlay failed: ${result.stderr || result.status}`)
   }
 }
 
@@ -744,6 +751,7 @@ function dropFactoryGenuiSkill() {
 }
 
 installRouterPreset()
+enableDesktopCompaction()
 enableDesktopWebFetch()
 enableDesktopCodex()
 removeRetiredJSpace()

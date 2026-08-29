@@ -151,12 +151,8 @@ if ($FullCopy) {
 if ($Measure) {
   & (Join-Path $Root "scripts\measure-dsh-size.ps1")
 }
-node (Join-Path $Root "scripts\enable-desktop-web-fetch.mjs") `
-  (Join-Path $dshTarget "apps\cli\config\agent-presets\standard\agent.cordis.yml") `
-  (Join-Path $dshTarget "apps\cli\config\agent-presets\code\agent.cordis.yml") `
-  (Join-Path $dshTarget "apps\cli\config\agent-presets\cordis\agent.cordis.yml") `
-  (Join-Path $Product "vendor\dsh-router-standard\preset\agent.cordis.yml")
-if ($LASTEXITCODE -ne 0) { throw "enable desktop web_fetch overlay failed" }
+node (Join-Path $Root "scripts\apply-runtime-overlays.mjs") $dshTarget $Product
+if ($LASTEXITCODE -ne 0) { throw "apply desktop runtime overlays failed" }
 
 Write-Host "Runtime staged at $Runtime"
 Write-Host "pack:win uses extraResources/runtime. Full installer: prepare-win-runtime.ps1 -FullCopy"

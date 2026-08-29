@@ -10,7 +10,7 @@ $Dsh = Join-Path $Root "vendor\deepseek-harness"
 if (-not (Test-Path (Join-Path $Dsh "package.json"))) {
   throw "vendor/deepseek-harness missing. Junction or clone DeepSeek Harness and pin DSH_PIN."
 }
-node (Join-Path $Root "scripts\apply-dsh-patches.mjs") $Dsh
+node (Join-Path $Root "scripts\apply-dsh-patches.mjs") $Dsh --development
 if ($LASTEXITCODE -ne 0) { throw "Agent Pi DSH kernel patch failed" }
 
 $env:DSH_HOME = Join-Path $Root ".dsh-home"
@@ -24,6 +24,16 @@ if (-not (Test-Path (Join-Path $biz "node_modules\zod"))) {
   Push-Location $biz
   npm install --no-fund --no-audit
   Pop-Location
+}
+
+$tenderHost = Join-Path $Root "bundles\tender-host"
+if (-not (Test-Path (Join-Path $tenderHost "node_modules\pdf-lib"))) {
+  Write-Host "Installing tender-host locked dependencies..."
+  Push-Location $tenderHost
+  npm ci --no-fund --no-audit
+  $tenderInstallExit = $LASTEXITCODE
+  Pop-Location
+  if ($tenderInstallExit -ne 0) { throw "tender-host npm ci failed: $tenderInstallExit" }
 }
 
 Set-Location $Dsh

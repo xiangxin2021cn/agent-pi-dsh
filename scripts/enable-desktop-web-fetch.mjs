@@ -34,8 +34,8 @@ function enableInFile(file) {
 }
 
 function presetFiles(dshRoot) {
-  return ['standard', 'code', 'cordis'].map((id) => (
-    join(dshRoot, 'apps/cli/config/agent-presets', id, 'agent.cordis.yml')
+  return ['standard', 'ptc', 'cordis'].map((id) => (
+    join(dshRoot, 'packages/preset/agent-presets/presets', id, 'agent.cordis.yml')
   ))
 }
 

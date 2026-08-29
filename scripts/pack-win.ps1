@@ -292,19 +292,8 @@ node (Join-Path $Root "scripts\stamp-electron-asar-version.mjs") $unpacked $AppV
 if ($LASTEXITCODE -ne 0) { throw "stamp electron asar version failed" }
 
 $unpackedDsh = Join-Path $unpacked "resources\runtime\deepseek-harness"
-node (Join-Path $Root "scripts\enable-desktop-web-fetch.mjs") `
-  (Join-Path $unpackedDsh "apps\cli\config\agent-presets\standard\agent.cordis.yml") `
-  (Join-Path $unpackedDsh "apps\cli\config\agent-presets\code\agent.cordis.yml") `
-  (Join-Path $unpackedDsh "apps\cli\config\agent-presets\cordis\agent.cordis.yml") `
-  (Join-Path $unpackedProduct "vendor\dsh-router-standard\preset\agent.cordis.yml")
-if ($LASTEXITCODE -ne 0) { throw "enable desktop web_fetch overlay on unpacked app failed" }
-
-node (Join-Path $Root "scripts\enable-desktop-codex.mjs") `
-  (Join-Path $unpackedDsh "apps\cli\config\agent-presets\standard\agent.cordis.yml") `
-  (Join-Path $unpackedDsh "apps\cli\config\agent-presets\code\agent.cordis.yml") `
-  (Join-Path $unpackedDsh "apps\cli\config\agent-presets\cordis\agent.cordis.yml") `
-  (Join-Path $unpackedProduct "vendor\dsh-router-standard\preset\agent.cordis.yml")
-if ($LASTEXITCODE -ne 0) { throw "enable desktop Codex overlay on unpacked app failed" }
+node (Join-Path $Root "scripts\apply-runtime-overlays.mjs") $unpackedDsh $unpackedProduct
+if ($LASTEXITCODE -ne 0) { throw "apply desktop runtime overlays on unpacked app failed" }
 
 if ($DirOnly) {
   Write-Host "Unpacked app written under $unpacked"

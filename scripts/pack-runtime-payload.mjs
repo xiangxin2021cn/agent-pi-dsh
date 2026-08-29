@@ -13,6 +13,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFil
 import { createHash } from 'node:crypto'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { verifyRuntimePayloadStage } from './verify-runtime-payload-stage.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const desktop = join(root, 'apps', 'desktop')
@@ -75,7 +76,7 @@ for (const item of productItems) {
   const dest = join(productDest, item)
   if (statSync(src).isDirectory()) {
     // node_modules stay out; CI installs per-platform dependencies.
-    robocopy(src, dest, ['/XD', 'node_modules', '.git'])
+    robocopy(src, dest, ['/XD', 'node_modules', '.git', '/XF', '.git'])
   } else {
     mkdirSync(join(dest, '..'), { recursive: true })
     cpSync(src, dest)
@@ -89,12 +90,14 @@ const dshDest = join(stage, 'deepseek-harness')
 robocopy(dshSrc, dshDest, [
   '/XD', 'node_modules', '.git', 'website', 'docs', '.agents', '.github',
   'coverage', '.turbo', '.cache', '.claude', '.reasonix', '.agent-pi',
-  '/XF', '*.map', '*.tsbuildinfo',
+  '/XF', '.git', '*.map', '*.tsbuildinfo',
 ])
 for (const marker of ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'apps/web/dist/index.html', 'apps/cli/lib/bin.js']) {
   if (!existsSync(join(dshDest, marker))) throw new Error(`payload dsh tree missing ${marker}`)
 }
 console.log('staged deepseek-harness')
+verifyRuntimePayloadStage(stage)
+console.log('verified portable payload stage')
 
 // 4. tarball (bsdtar ships with Windows 10+)
 const tarPath = join(outDir, tarName)

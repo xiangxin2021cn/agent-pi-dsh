@@ -21,4 +21,5 @@ vendor/dsh-univer-office/
 .worktrees/
 release/*.exe
 release/*.tar.gz
+release/*.sha256
 release/vr-144/
