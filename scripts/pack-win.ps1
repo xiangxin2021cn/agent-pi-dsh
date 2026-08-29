@@ -281,6 +281,7 @@ if (Test-Path $unpackedProduct) {
     "skills",
     "knowledge",
     "README.md",
+    "THIRD_PARTY_NOTICES.md",
     "vendor\dshmarket",
     "vendor\anysearch-dsh",
     "vendor\dsh-univer-office",

@@ -18,9 +18,10 @@ import { kbChunkStatus, readKbChunk } from './kb.ts'
 import { officialProjectDir } from './outputs.ts'
 import { projectDir, writeJson, readJson } from './fsutil.ts'
 import { loadWorkspace } from './workspace.ts'
+import { findStructuredEvidence, verifyStructuredEvidence } from './structured-evidence.ts'
 
 export interface CitationToken {
-  kind: 'kb' | 'src'
+  kind: 'kb' | 'src' | 'ev'
   /** Verbatim token text as written, e.g. `[kb:coto-ch4:c0012]`. */
   raw: string
   /** 1-based line number inside the scanned text. */
@@ -30,6 +31,7 @@ export interface CitationToken {
   path?: string
   lineStart?: number
   lineEnd?: number
+  claimId?: string
 }
 
 export interface CitationOrphan {
@@ -49,11 +51,13 @@ export interface CitationAudit {
   totalCitations: number
   kbCitations: number
   srcCitations: number
+  evidenceCitations?: number
   orphans: CitationOrphan[]
 }
 
 const KB_TOKEN = /\[kb:([a-z0-9][a-z0-9-]*):([A-Za-z0-9][A-Za-z0-9_.()-]*)\]/g
 const SRC_TOKEN = /\[src:([^\[\]#\n]+?)(?:#L(\d+)(?:-L?(\d+))?)?\]/g
+const EVIDENCE_TOKEN = /\[ev:([A-Za-z0-9][A-Za-z0-9._-]{2,127})\]/g
 const TEXT_EXT = new Set(['.md', '.markdown', '.txt', '.json', '.csv', '.xml', '.yml', '.yaml'])
 const MAX_LINE_CHECK_BYTES = 8_000_000
 
@@ -78,6 +82,9 @@ export function extractCitationTokens(text: string): CitationToken[] {
         lineStart: match[2] ? Number(match[2]) : undefined,
         lineEnd: match[3] ? Number(match[3]) : (match[2] ? Number(match[2]) : undefined),
       })
+    }
+    for (const match of lineText.matchAll(EVIDENCE_TOKEN)) {
+      tokens.push({ kind: 'ev', raw: match[0], line: index + 1, claimId: match[1] })
     }
   }
   return tokens
@@ -123,6 +130,11 @@ export function verifyCitationToken(cwd: string, project: BusinessProjectRecord,
     } catch (error) {
       return `知识库不可读：${error instanceof Error ? error.message : String(error)}`
     }
+  }
+  if (token.kind === 'ev') {
+    const claim = findStructuredEvidence(cwd, project.projectId, String(token.claimId), project.module)
+    if (!claim) return `找不到结构化证据 ${token.claimId}`
+    return verifyStructuredEvidence(cwd, claim, (sourceId) => resolveSourceCitation(cwd, project, sourceId))
   }
   const resolved = resolveSourceCitation(cwd, project, String(token.path))
   if (!resolved) return `找不到引用文件 ${token.path}`
@@ -179,6 +191,7 @@ export function auditProjectCitations(cwd: string, project: BusinessProjectRecor
   let total = 0
   let kbCount = 0
   let srcCount = 0
+  let evidenceCount = 0
   const cwdPrefix = resolve(cwd).replace(/\\/g, '/').toLocaleLowerCase()
   for (const file of files) {
     let text = ''
@@ -195,6 +208,7 @@ export function auditProjectCitations(cwd: string, project: BusinessProjectRecor
     for (const token of extractCitationTokens(text)) {
       total += 1
       if (token.kind === 'kb') kbCount += 1
+      else if (token.kind === 'ev') evidenceCount += 1
       else srcCount += 1
       const reason = verifyCitationToken(cwd, project, token)
       if (reason) orphans.push({ file: display, token: token.raw, line: token.line, reason })
@@ -209,6 +223,7 @@ export function auditProjectCitations(cwd: string, project: BusinessProjectRecor
     totalCitations: total,
     kbCitations: kbCount,
     srcCitations: srcCount,
+    evidenceCitations: evidenceCount,
     orphans,
   }
   writeJson(citationAuditPath(cwd, project.projectId, project.module), audit)
@@ -216,7 +231,7 @@ export function auditProjectCitations(cwd: string, project: BusinessProjectRecor
 }
 
 export interface CitationLocator {
-  kind: 'kb' | 'src'
+  kind: 'kb' | 'src' | 'ev'
   token: string
   label: string
   source?: string
@@ -243,6 +258,7 @@ export function citationChipLabel(token: string): string {
     const sep = rest.lastIndexOf(':')
     return sep > 0 ? rest.slice(0, sep) : rest
   }
+  if (raw.startsWith('ev:')) return `证据 · ${raw.slice(3)}`
   if (raw.startsWith('src:')) {
     const rest = raw.slice(4)
     const hash = rest.lastIndexOf('#')
@@ -310,6 +326,21 @@ export function describeCitation(
       }
     } catch {
       return { kind: 'kb', token, label: citationChipLabel(token), exists: false }
+    }
+  }
+  if (token.startsWith('ev:')) {
+    const claimId = token.slice(3)
+    const claim = project ? findStructuredEvidence(cwd, project.projectId, claimId, project.module) : undefined
+    if (!claim) return { kind: 'ev', token, label: citationChipLabel(token), exists: false }
+    return {
+      kind: 'ev',
+      token,
+      label: [basename(claim.sourceId), claim.section, claim.page ? `第 ${claim.page} 页` : claim.internalLocator].filter(Boolean).join(' · '),
+      source: basename(claim.sourceId),
+      heading: claim.section,
+      page: claim.page,
+      path: claim.sourceId,
+      exists: true,
     }
   }
   if (token.startsWith('src:')) {

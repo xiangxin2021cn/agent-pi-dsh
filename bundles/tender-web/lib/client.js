@@ -8541,13 +8541,28 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 						className: "ap-chip ok",
 						title: restore.manuscriptPath
 					}, "已对齐") : /\.(pdf|doc|docx|ppt|pptx|xls|xlsx|png|jpe?g|jp2|webp|gif|bmp)$/i.test(path) ? h("span", { className: "ap-chip" }, "待对齐") : null);
-				}))), row.citationAudit ? h("section", { className: "ap-sec" }, h("div", {
+				}))), row.workSurface ? h("section", { className: "ap-sec" }, h("div", {
 					className: "ap-row",
 					style: { justifyContent: "space-between" }
-				}, h("h2", null, "引用核验"), h("span", { className: "ap-sub" }, "成果中的 [kb:…]/[src:…] 令牌逐一对回知识库分块与项目文件")), h("div", { className: "ap-audit" + (row.citationAudit.orphans.length ? " bad" : "") }, h("div", {
+				}, h("h2", null, "知识面导航与证据"), h("span", { className: "ap-sub" }, "PageIndex 影子树只负责长文档导航；BOQ 仍以表格单元格为准")), h("div", { className: "ap-audit" + (row.workSurface.pageIndex.fallback ? " bad" : "") }, h("div", {
 					className: "ap-row",
 					style: { justifyContent: "space-between" }
-				}, h("span", null, row.citationAudit.orphans.length ? "未通过：" + row.citationAudit.orphans.length + " 个孤儿引用 / 共 " + row.citationAudit.totalCitations + " 个令牌" : row.citationAudit.totalCitations ? "通过：" + row.citationAudit.totalCitations + " 个令牌全部可解析（kb " + row.citationAudit.kbCitations + " / src " + row.citationAudit.srcCitations + "）" : "尚无引用令牌（" + row.citationAudit.checkedFiles + " 个成果文件）"), h("span", { className: "ap-sub" }, String(row.citationAudit.generatedAt || "").slice(0, 16).replace("T", " "))), row.citationAudit.orphans.length ? h("ul", null, row.citationAudit.orphans.slice(0, 8).map((orphan, index) => h("li", { key: index }, orphan.file + ":" + orphan.line + " " + orphan.token + " — " + orphan.reason))) : null, row.citationAudit.orphans.length > 8 ? h("p", {
+				}, h("span", null, "影子树 " + row.workSurface.pageIndex.ready + " 份" + (row.workSurface.pageIndex.notEligible ? " / " + row.workSurface.pageIndex.notEligible + " 份保持原检索" : "") + (row.workSurface.pageIndex.fallback ? " / " + row.workSurface.pageIndex.fallback + " 份已回退" : "")), h("span", { className: "ap-chip" }, row.workSurface.defaultNavigator ? "默认导航" : "影子评测")), h("div", {
+					className: "ap-row",
+					style: {
+						marginTop: 8,
+						flexWrap: "wrap"
+					}
+				}, h("span", { className: "ap-sub" }, row.workSurface.coverage.initialized ? row.workSurface.coverage.ready ? "五域覆盖：已完成" : "五域覆盖：有未读节点/证据/结论缺口" : "五域覆盖：等待首份长叙事资料对齐"), h("span", { className: "ap-sub" }, "结构化证据 " + row.workSurface.evidence.claimCount + " 条"), h("span", { className: "ap-sub" }, "遥测 " + row.workSurface.telemetry.eventCount + " 次")), !row.workSurface.defaultNavigator ? h("p", {
+					className: "ap-sub",
+					style: { margin: "8px 0 0" }
+				}, "默认切换仍受真实项目 80–120 项评测、Route F1、定位有效率、BOQ 基线和回退测试门禁控制。") : null)) : null, row.citationAudit ? h("section", { className: "ap-sec" }, h("div", {
+					className: "ap-row",
+					style: { justifyContent: "space-between" }
+				}, h("h2", null, "引用核验"), h("span", { className: "ap-sub" }, "成果中的 [kb:…]/[src:…]/[ev:…] 令牌逐一对回知识库、项目文件与冻结证据包")), h("div", { className: "ap-audit" + (row.citationAudit.orphans.length ? " bad" : "") }, h("div", {
+					className: "ap-row",
+					style: { justifyContent: "space-between" }
+				}, h("span", null, row.citationAudit.orphans.length ? "未通过：" + row.citationAudit.orphans.length + " 个孤儿引用 / 共 " + row.citationAudit.totalCitations + " 个令牌" : row.citationAudit.totalCitations ? "通过：" + row.citationAudit.totalCitations + " 个令牌全部可解析（kb " + row.citationAudit.kbCitations + " / src " + row.citationAudit.srcCitations + " / ev " + (row.citationAudit.evidenceCitations || 0) + "）" : "尚无引用令牌（" + row.citationAudit.checkedFiles + " 个成果文件）"), h("span", { className: "ap-sub" }, String(row.citationAudit.generatedAt || "").slice(0, 16).replace("T", " "))), row.citationAudit.orphans.length ? h("ul", null, row.citationAudit.orphans.slice(0, 8).map((orphan, index) => h("li", { key: index }, orphan.file + ":" + orphan.line + " " + orphan.token + " — " + orphan.reason))) : null, row.citationAudit.orphans.length > 8 ? h("p", {
 					className: "ap-sub",
 					style: { margin: "6px 0 0" }
 				}, "…其余 " + (row.citationAudit.orphans.length - 8) + " 条见 orchestration/citation-audit.json") : null)) : null, notice ? h("div", {

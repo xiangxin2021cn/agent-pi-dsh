@@ -70,6 +70,7 @@ $productItems = @(
   "scripts",
   "package.json",
   "README.md",
+  "THIRD_PARTY_NOTICES.md",
   "DSH_PIN",
   ".gitmodules",
   "vendor\dsh-super-injector",

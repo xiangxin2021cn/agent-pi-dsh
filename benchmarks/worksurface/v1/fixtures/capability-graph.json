@@ -1,0 +1,298 @@
+{
+  "nodes": [
+    {
+      "id": "core",
+      "revision": 1
+    },
+    {
+      "id": "cap-01",
+      "revision": 2
+    },
+    {
+      "id": "cap-02",
+      "revision": 3
+    },
+    {
+      "id": "cap-03",
+      "revision": 4
+    },
+    {
+      "id": "cap-04",
+      "revision": 5
+    },
+    {
+      "id": "cap-05",
+      "revision": 6
+    },
+    {
+      "id": "cap-06",
+      "revision": 7
+    },
+    {
+      "id": "cap-07",
+      "revision": 8
+    },
+    {
+      "id": "cap-08",
+      "revision": 9
+    },
+    {
+      "id": "cap-09",
+      "revision": 10
+    },
+    {
+      "id": "cap-10",
+      "revision": 11
+    },
+    {
+      "id": "cap-11",
+      "revision": 12
+    },
+    {
+      "id": "cap-12",
+      "revision": 13
+    },
+    {
+      "id": "cap-13",
+      "revision": 14
+    },
+    {
+      "id": "cap-14",
+      "revision": 15
+    },
+    {
+      "id": "cap-15",
+      "revision": 16
+    },
+    {
+      "id": "cap-16",
+      "revision": 17
+    },
+    {
+      "id": "cap-17",
+      "revision": 18
+    },
+    {
+      "id": "cap-18",
+      "revision": 19
+    },
+    {
+      "id": "cap-19",
+      "revision": 20
+    },
+    {
+      "id": "cap-20",
+      "revision": 21
+    },
+    {
+      "id": "cap-21",
+      "revision": 22
+    },
+    {
+      "id": "cap-22",
+      "revision": 23
+    },
+    {
+      "id": "cap-23",
+      "revision": 24
+    },
+    {
+      "id": "cap-24",
+      "revision": 25
+    },
+    {
+      "id": "cap-25",
+      "revision": 26
+    },
+    {
+      "id": "cap-26",
+      "revision": 27
+    },
+    {
+      "id": "cap-27",
+      "revision": 28
+    },
+    {
+      "id": "cap-28",
+      "revision": 29
+    },
+    {
+      "id": "cap-29",
+      "revision": 30
+    },
+    {
+      "id": "cap-30",
+      "revision": 31
+    },
+    {
+      "id": "cap-31",
+      "revision": 32
+    },
+    {
+      "id": "cap-32",
+      "revision": 33
+    }
+  ],
+  "edges": [
+    {
+      "from": "cap-01",
+      "to": "core",
+      "relation": "depends-on"
+    },
+    {
+      "from": "cap-02",
+      "to": "cap-01",
+      "relation": "depends-on"
+    },
+    {
+      "from": "cap-03",
+      "to": "cap-02",
+      "relation": "depends-on"
+    },
+    {
+      "from": "cap-04",
+      "to": "cap-03",
+      "relation": "depends-on"
+    },
+    {
+      "from": "cap-05",
+      "to": "cap-04",
+      "relation": "depends-on"
+    },
+    {
+      "from": "cap-06",
+      "to": "cap-05",
+      "relation": "depends-on"
+    },
+    {
+      "from": "cap-07",
+      "to": "cap-06",
+      "relation": "depends-on"
+    },
+    {
+      "from": "cap-08",
+      "to": "cap-07",
+      "relation": "depends-on"
+    },
+    {
+      "from": "cap-09",
+      "to": "cap-08",
+      "relation": "depends-on"
+    },
+    {
+      "from": "cap-10",
+      "to": "cap-09",
+      "relation": "depends-on"
+    },
+    {
+      "from": "cap-11",
+      "to": "cap-10",
+      "relation": "depends-on"
+    },
+    {
+      "from": "cap-12",
+      "to": "cap-11",
+      "relation": "depends-on"
+    },
+    {
+      "from": "cap-13",
+      "to": "cap-12",
+      "relation": "depends-on"
+    },
+    {
+      "from": "cap-14",
+      "to": "cap-13",
+      "relation": "depends-on"
+    },
+    {
+      "from": "cap-15",
+      "to": "cap-14",
+      "relation": "depends-on"
+    },
+    {
+      "from": "cap-16",
+      "to": "cap-15",
+      "relation": "depends-on"
+    },
+    {
+      "from": "cap-17",
+      "to": "cap-16",
+      "relation": "depends-on"
+    },
+    {
+      "from": "cap-18",
+      "to": "cap-17",
+      "relation": "depends-on"
+    },
+    {
+      "from": "cap-19",
+      "to": "cap-18",
+      "relation": "depends-on"
+    },
+    {
+      "from": "cap-20",
+      "to": "cap-19",
+      "relation": "depends-on"
+    },
+    {
+      "from": "cap-21",
+      "to": "cap-20",
+      "relation": "depends-on"
+    },
+    {
+      "from": "cap-22",
+      "to": "cap-21",
+      "relation": "depends-on"
+    },
+    {
+      "from": "cap-23",
+      "to": "cap-22",
+      "relation": "depends-on"
+    },
+    {
+      "from": "cap-24",
+      "to": "cap-23",
+      "relation": "depends-on"
+    },
+    {
+      "from": "cap-25",
+      "to": "cap-24",
+      "relation": "depends-on"
+    },
+    {
+      "from": "cap-26",
+      "to": "cap-25",
+      "relation": "depends-on"
+    },
+    {
+      "from": "cap-27",
+      "to": "cap-26",
+      "relation": "depends-on"
+    },
+    {
+      "from": "cap-28",
+      "to": "cap-27",
+      "relation": "depends-on"
+    },
+    {
+      "from": "cap-29",
+      "to": "cap-28",
+      "relation": "depends-on"
+    },
+    {
+      "from": "cap-30",
+      "to": "cap-29",
+      "relation": "depends-on"
+    },
+    {
+      "from": "cap-31",
+      "to": "cap-30",
+      "relation": "depends-on"
+    },
+    {
+      "from": "cap-32",
+      "to": "cap-31",
+      "relation": "depends-on"
+    }
+  ]
+}

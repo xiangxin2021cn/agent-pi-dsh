@@ -74,7 +74,7 @@ export const WORKFLOWS: Record<string, WorkflowDefinition> = {
         label: 'Project setup',
         labelZh: '项目资料登记',
         hintZh: '上传并登记招标资料。PDF / Word / Excel 按知识库同一套逻辑对齐成解析稿，可预览、改稿；保存时同步 sidecar JSON。齐套后进入解析。',
-        prompt: '上传并登记招标资料即可。PDF、Word、Excel 先按知识库同一套逻辑对齐为 Official Outputs setup/ 下的 manuscript.md + pack.json，用户改稿保存后 units 必须跟上。资料齐套后由用户确认进入解析；本步不派生子智能体，不进行组价或策划。登记说明沿用招标文件原名与原术语，禁止 AI 导读腔。',
+        prompt: '上传并登记招标资料即可。PDF、Word、Excel 先按知识库同一套逻辑对齐为 Official Outputs setup/ 下的 manuscript.md + pack.json，用户改稿保存后 units 必须跟上。资料齐套后由用户确认进入解析；长叙事解析稿会在保存时生成 PageIndex 影子树，复用当前模型配置且不弹第二个 API Key。影子树仅用于导航，不改变本阶段结论。本步不派生子智能体，不进行组价或策划。登记说明沿用招标文件原名与原术语，禁止 AI 导读腔。',
         skillSlugs: ['tender-intelligence-core', 'tender-project-boundary'],
       },
       {
@@ -106,7 +106,7 @@ export const WORKFLOWS: Record<string, WorkflowDefinition> = {
         label: 'Document analysis',
         labelZh: '招标文件解析',
         hintZh: '逐文件解析后汇总成一套可追溯的《投标分析底稿》，并完整抽取实际 BOQ；专题视图只在用户需要时从底稿派生。',
-        prompt: '对每个已登记文件产出可读 Markdown 解析稿并保留原始术语、页码/行号和交叉引用；完成后合成 document_analysis 与 boq_reconciliation，并编制唯一权威底稿《投标分析底稿.md》。底稿统一承载来源索引、项目边界、资格与评分、关键日期、合同/保险/保函、技术规范、BOQ 覆盖、提交清单、风险与缺口；不得为凑数量重复写五份长报告。招标总结、合同条款、技术要求、BOQ 分析等专题稿改为用户明确需要时从底稿派生的视图，不作为收阶段硬门。必须从每份已登记的实际工程量清单（BOQ / Bill of Quantities / Pricing Schedule / 工程量）抽出全部可识别真实行，tender_capability replace boq_reconciliation；每行带清单号、单位、数量、sheet+cell，PC Sum / Provisional Sum / percentage 等传递项也登记。系统会反查解析稿中的显式清单号，局部样本不得过关；没有清单或覆盖不全不得 complete_stage。全部客户可读成果写入 document-analysis/。缺规范、合同、地质原文必须标为缺口，禁止用模型记忆填空。已完成的源文件解析稿不要重扫。若需并行，使用 dsh 原生 subagent / workflow；子任务交付 JSON+MD。',
+        prompt: '对每个已登记文件产出可读 Markdown 解析稿并保留原始术语、页码/行号和交叉引用；完成后合成 document_analysis 与 boq_reconciliation，并编制唯一权威底稿《投标分析底稿.md》。底稿统一承载来源索引、项目边界、资格与评分、关键日期、合同/保险/保函、技术规范、BOQ 覆盖、提交清单、风险与缺口；不得为凑数量重复写五份长报告。招标总结、合同条款、技术要求、BOQ 分析等专题稿改为用户明确需要时从底稿派生的视图，不作为收阶段硬门。必须从每份已登记的实际工程量清单（BOQ / Bill of Quantities / Pricing Schedule / 工程量）抽出全部可识别真实行，tender_capability replace boq_reconciliation；每行带清单号、单位、数量、sheet+cell，PC Sum / Provisional Sum / percentage 等传递项也登记。系统会反查解析稿中的显式清单号，局部样本不得过关；没有清单或覆盖不全不得 complete_stage。全部客户可读成果写入 document-analysis/。缺规范、合同、地质原文必须标为缺口，禁止用模型记忆填空。已完成的源文件解析稿不要重扫。检索前调用 tender_knowledge action=route：叙事问题用 navigate，版本/补遗/能力失效用 graph，数量/单位/公式必须继续使用 BOQ 表格与 sheet+cell，严禁以 PageIndex 摘要代替表格计算。PageIndex 命中只作导航，必须回读原文并用 evidence_record 冻结精确 quote、sourceHash 和 internalLocator，再在正文使用返回的自然引用与 [ev:claimId]。按 qualification-risk、commercial-contract、boq-pricing、scope-technical、submission-compliance 五个域逐项 coverage_record，未读节点、证据或结论有缺口不得收阶段。若需并行，使用 dsh 原生 subagent / workflow；子任务交付 JSON+MD。',
         skillSlugs: ['tender-document-parsing', 'tender-boq-reconciliation', 'tender-formal-writing'],
         reviewSkillSlugs: ['deliverable-reviewer'],
         reviewPolicy: 'risk-based',

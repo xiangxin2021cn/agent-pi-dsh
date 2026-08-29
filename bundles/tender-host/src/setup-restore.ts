@@ -12,6 +12,9 @@ import { chunkByStructure, type StructureChunk } from './kb-structure.ts'
 import { ingestDocumentForKb, type MineruIngestResult } from './mineru-ingest.ts'
 import { MINERU_EXTENSIONS } from './mineru.ts'
 import { officialStageDir } from './outputs.ts'
+import { createPageIndexShadow, readPageIndexShadow, type PageIndexShadowStatus } from './pageindex-shadow.ts'
+import { initializeAnalysisCoverage } from './analysis-coverage.ts'
+import { recordKnowledgeTelemetry } from './knowledge-telemetry.ts'
 
 export const SETUP_RESTORE_KIND = 'agent-pi-setup-restore'
 
@@ -23,6 +26,8 @@ export interface SetupRestore {
   manuscriptPath: string
   via?: string
   unitCount: number
+  /** Long narrative navigation sidecar; never authoritative evidence. */
+  pageIndex?: PageIndexShadowStatus
 }
 
 export interface SetupRestoreSkip {
@@ -48,6 +53,10 @@ function samePath(left: string, right: string): boolean {
 
 function hashBytes(bytes: Buffer | string): string {
   return createHash('sha256').update(bytes).digest('hex')
+}
+
+function compactPageIndex(status: PageIndexShadowStatus): PageIndexShadowStatus {
+  return { state: status.state, path: status.path, reason: status.reason }
 }
 
 /** PDF / Office / images MinerU already accepts on the knowledge-base page. */
@@ -98,7 +107,7 @@ function restoreFromPack(packPath: string): SetupRestore | null {
   const packDir = dirname(packPath)
   const manuscriptPath = join(packDir, pack.manuscript || 'manuscript.md')
   if (!existsSync(manuscriptPath)) return null
-  return {
+  const restored: SetupRestore = {
     sourcePath: pack.originalPath,
     originalName: pack.originalName || basename(pack.originalPath),
     packDir,
@@ -107,6 +116,8 @@ function restoreFromPack(packPath: string): SetupRestore | null {
     via: pack.via,
     unitCount: Array.isArray(pack.units) ? pack.units.length : 0,
   }
+  restored.pageIndex = compactPageIndex(readPageIndexShadow({ manuscriptPath, packPath }))
+  return restored
 }
 
 /** Scan Official Outputs setup/ for restore packs that still have a manuscript. */
@@ -182,6 +193,18 @@ export function rebuildSetupPack(manuscriptPath: string, text?: string): SetupRe
     units,
   }
   writePack(packPath, pack)
+  let pageIndex: PageIndexShadowStatus | undefined
+  try {
+    pageIndex = compactPageIndex(createPageIndexShadow({
+      manuscriptPath: resolved,
+      originalPath: pack.originalPath,
+      sourceFileHash: pack.sourceFileHash,
+      packPath,
+      sourceId: pack.originalName || basename(dirname(resolved)),
+    }))
+  } catch (error) {
+    pageIndex = { state: 'corrupt', path: join(dirname(resolved), 'pageindex-tree.json'), reason: error instanceof Error ? error.message : String(error) }
+  }
   return {
     sourcePath: pack.originalPath || resolved,
     originalName: pack.originalName || basename(resolved),
@@ -190,6 +213,7 @@ export function rebuildSetupPack(manuscriptPath: string, text?: string): SetupRe
     manuscriptPath: resolved,
     via: pack.via,
     unitCount: units.length,
+    pageIndex,
   }
 }
 
@@ -281,6 +305,18 @@ export async function restoreSetupSource(
   if (Array.isArray(extracted.contentList) && extracted.contentList.length > 0) {
     writeFileSync(join(packDir, 'content_list.json'), `${JSON.stringify(extracted.contentList, null, 2)}\n`)
   }
+  let pageIndex: PageIndexShadowStatus | undefined
+  try {
+    pageIndex = compactPageIndex(createPageIndexShadow({
+      manuscriptPath,
+      originalPath: resolved,
+      sourceFileHash,
+      packPath,
+      sourceId: basename(resolved),
+    }))
+  } catch (error) {
+    pageIndex = { state: 'corrupt', path: join(packDir, 'pageindex-tree.json'), reason: error instanceof Error ? error.message : String(error) }
+  }
   return {
     sourcePath: resolved,
     originalName: basename(resolved),
@@ -289,6 +325,7 @@ export async function restoreSetupSource(
     manuscriptPath,
     via: extracted.via || extracted.route,
     unitCount: units.length,
+    pageIndex,
   }
 }
 
@@ -304,6 +341,7 @@ export async function restoreSetupSources(
     ingest?: typeof ingestDocumentForKb
   },
 ): Promise<SetupRestoreBatch> {
+  const startedAt = Date.now()
   const selected = (options?.paths && options.paths.length > 0 ? options.paths : inputPaths)
     .map((path) => resolvedSource(cwd, path))
   const restored: SetupRestore[] = []
@@ -326,5 +364,35 @@ export async function restoreSetupSources(
       })
     }
   }
+  const indexed = listSetupRestores(cwd, projectId)
+    .map((restore) => {
+      const status = readPageIndexShadow({ manuscriptPath: restore.manuscriptPath, packPath: restore.packPath })
+      if (status.state !== 'ready' || !status.tree) return null
+      const nodeIds: string[] = []
+      const walk = (nodes: typeof status.tree.nodes) => {
+        for (const node of nodes) {
+          nodeIds.push(node.nodeId)
+          if (node.nodes) walk(node.nodes)
+        }
+      }
+      walk(status.tree.nodes)
+      return { sourceId: status.tree.source.id, treeHash: status.tree.source.sourceHash, nodeIds }
+    })
+    .filter((item): item is { sourceId: string; treeHash: string; nodeIds: string[] } => Boolean(item))
+  if (indexed.length > 0) initializeAnalysisCoverage(cwd, projectId, indexed)
+  try {
+    recordKnowledgeTelemetry(cwd, projectId, {
+      operation: 'index',
+      surfaces: ['document'],
+      sourceCount: selected.length,
+      status: skipped.some((item) => item.reason !== 'unsupported') ? 'fallback' : 'ok',
+      elapsedMs: Date.now() - startedAt,
+      modelCalls: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      estimatedCostUsd: 0,
+      detail: `${indexed.length} eligible PageIndex shadow trees; MinerU/pack remains authoritative.`,
+    })
+  } catch { /* telemetry must not block setup */ }
   return { restored, skipped }
 }

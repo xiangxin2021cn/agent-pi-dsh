@@ -44,6 +44,10 @@ import {
   renderBoqInventoryBlock,
   type BoqInventoryGate,
 } from './boq-inventory-gate.ts'
+import { analysisCoverageRejectReason, assessAnalysisCoverage, loadAnalysisCoverage } from './analysis-coverage.ts'
+import { loadEvidenceLedger } from './structured-evidence.ts'
+import { loadKnowledgeTelemetry } from './knowledge-telemetry.ts'
+import { loadWorkSurfacePolicy } from './worksurface-policy.ts'
 
 export interface StageTask {
   id: string
@@ -530,6 +534,32 @@ export function projectSnapshot(cwd: string, project: BusinessProjectRecord) {
   const outputs = listOfficialOutputs(cwd, project.projectId, project.module)
   let citationAudit: CitationAudit | null = null
   try { citationAudit = loadCitationAudit(cwd, project.projectId, project.module) } catch { /* stale ledger */ }
+  const restores = listSetupRestores(cwd, project.projectId)
+  const workSurface = project.module === 'tender'
+    ? (() => {
+        const coverageLedger = loadAnalysisCoverage(cwd, project.projectId)
+        const coverage = assessAnalysisCoverage(coverageLedger)
+        const evidenceLedger = loadEvidenceLedger(cwd, project.projectId)
+        const telemetry = loadKnowledgeTelemetry(cwd, project.projectId)
+        const policy = loadWorkSurfacePolicy()
+        return {
+          mode: policy.mode,
+          defaultNavigator: policy.defaultNavigator,
+          policyReason: policy.reason,
+          pageIndex: {
+            ready: restores.filter((restore) => restore.pageIndex?.state === 'ready').length,
+            fallback: restores.filter((restore) => restore.pageIndex && restore.pageIndex.state !== 'ready' && restore.pageIndex.state !== 'not-eligible').length,
+            notEligible: restores.filter((restore) => restore.pageIndex?.state === 'not-eligible').length,
+          },
+          coverage,
+          evidence: {
+            claimCount: evidenceLedger.claims.length,
+            surfaces: [...new Set(evidenceLedger.claims.map((claim) => claim.surface))],
+          },
+          telemetry: { eventCount: telemetry.events.length, last: telemetry.events.at(-1) ?? null },
+        }
+      })()
+    : null
   return {
     project,
     workflow: workflowFor(project.module),
@@ -545,8 +575,9 @@ export function projectSnapshot(cwd: string, project: BusinessProjectRecord) {
     currentStageId: board.currentStageId,
     evidence,
     citationAudit,
+    workSurface,
     outputs,
-    restores: listSetupRestores(cwd, project.projectId),
+    restores,
   }
 }
 
@@ -1221,6 +1252,13 @@ export function completeStage(
     if (!suite.ok) throw new Error(analysisSuiteRejectReason(suite))
     const inventory = assessBoqInventoryGate(cwd, project.projectId, analysisDir)
     if (!inventory.ready) throw new Error(boqInventoryRejectReason(inventory))
+    // Only projects with an eligible PageIndex shadow receive the new traversal gate.
+    // Missing/corrupt/disabled PageIndex keeps the 3.4.1 MiniSearch + BOQ fallback intact.
+    const coverageLedger = loadAnalysisCoverage(cwd, project.projectId)
+    if (coverageLedger) {
+      const coverage = assessAnalysisCoverage(coverageLedger)
+      if (!coverage.ready) throw new Error(analysisCoverageRejectReason(coverage))
+    }
   }
   const workbookGap = pricingWorkbookMissing(cwd, project.projectId, stageId)
   if (workbookGap) throw new Error(workbookGap)

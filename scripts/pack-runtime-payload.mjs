@@ -64,7 +64,7 @@ console.log('staged desktop shell')
 const productDest = join(stage, 'product')
 const productItems = [
   'skills', 'knowledge', 'bundles', 'packages', 'scripts',
-  'package.json', 'README.md', 'DSH_PIN', '.gitmodules',
+  'package.json', 'README.md', 'THIRD_PARTY_NOTICES.md', 'DSH_PIN', '.gitmodules',
   'vendor/dsh-super-injector', 'vendor/dsh-router-standard', 'vendor/dshmarket',
   'vendor/anysearch-dsh',
   'vendor/dsh-univer-office',

@@ -29,6 +29,21 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     url: 'http://127.0.0.1/',
   })
 
+  const workflow = { id: 'tender-main', module: 'tender', labelZh: '投标全流程', setupStageId: 'project-setup', stages: [{ id: 'project-setup', labelZh: '项目资料登记', hintZh: '登记资料', prompt: '', skillSlugs: [] }] }
+  const workbenchSnapshot = {
+    cwd: 'C:\\workspace',
+    knowledge: {},
+    modules: [{ id: 'tender', labelZh: '投标工作台', builtin: true, disabled: false }],
+    workflows: [workflow],
+    projects: [{
+      project: { schemaVersion: 1, module: 'tender', projectId: 'p1', name: '测试投标', rootPath: 'C:\\workspace', workflowId: 'tender-main', inputPaths: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+      workflow, stage: null, stages: {}, currentStageId: 'project-setup', evidence: null, outputs: [], restores: [],
+      workSurface: { mode: 'shadow', defaultNavigator: false, pageIndex: { ready: 1, fallback: 0, notEligible: 1 }, coverage: { initialized: true, ready: false, missingDomains: [], unreadDomains: ['commercial-contract'], evidenceGaps: [], conclusionGaps: [], sourceTreeHashes: { volume: 'abc' } }, evidence: { claimCount: 2, surfaces: ['document', 'table'] }, telemetry: { eventCount: 3, last: null } },
+      citationAudit: { schemaVersion: 1, projectId: 'p1', module: 'tender', generatedAt: new Date().toISOString(), checkedFiles: 1, totalCitations: 2, kbCitations: 0, srcCitations: 1, evidenceCitations: 1, orphans: [] },
+    }],
+    inspectedAt: new Date().toISOString(),
+  }
+
   const globals = {
     window: dom.window,
     document: dom.window.document,
@@ -41,10 +56,10 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     NodeFilter: dom.window.NodeFilter,
     localStorage: dom.window.localStorage,
     sessionStorage: dom.window.sessionStorage,
-    fetch: async () => ({
+    fetch: async (input: string | URL | Request) => ({
       ok: true,
       statusText: '',
-      json: async () => ({ files: [], outputFiles: [] }),
+      json: async () => String(input).includes('/api/agent-pi/workbench') ? workbenchSnapshot : ({ files: [], outputFiles: [] }),
     }),
     requestAnimationFrame: (callback: FrameRequestCallback) => setTimeout(callback, 0),
     cancelAnimationFrame: (handle: ReturnType<typeof setTimeout>) => clearTimeout(handle),
@@ -129,6 +144,25 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     })
     assert.ok(mount.querySelector('.ap-files-dock'), 'right-side files rail did not render for an active session')
     assert.match(mount.textContent || '', /资源文件/)
+
+    await act(async () => rootView!.unmount())
+    rootView = createRoot(mount)
+    const Workbench = registered.get('workbench')
+    assert.equal(typeof Workbench, 'function')
+    await act(async () => {
+      rootView!.render(React.createElement(Workbench, {
+        sessionId: 'session-1',
+        useSessions: (selector: (state: typeof sessions) => unknown) => selector(sessions),
+      }))
+      await new Promise((resolveTick) => setTimeout(resolveTick, 30))
+    })
+    const rendered = mount.textContent || ''
+    assert.match(rendered, /知识面导航与证据/)
+    assert.match(rendered, /影子树 1 份/)
+    assert.ok(rendered.includes('五域覆盖：有未读节点/证据/结论缺口'))
+    assert.match(rendered, /结构化证据 2 条/)
+    assert.match(rendered, /默认切换仍受真实项目 80–120 项评测/)
+    assert.ok(rendered.includes('[kb:…]/[src:…]/[ev:…]'))
   } finally {
     if (rootView) await act(async () => rootView!.unmount())
     dom.window.close()

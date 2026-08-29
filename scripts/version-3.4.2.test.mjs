@@ -10,13 +10,13 @@ function readJson(...parts) {
   return JSON.parse(readFileSync(join(root, ...parts), 'utf8'))
 }
 
-test('release manifests resolve to Agent Pi DSH 3.4.1', () => {
+test('release manifests resolve to Agent Pi DSH 3.4.2', () => {
   const rootPackage = readJson('package.json')
   const desktopPackage = readJson('apps', 'desktop', 'package.json')
   const desktopLock = readJson('apps', 'desktop', 'package-lock.json')
 
-  assert.equal(rootPackage.version, '3.4.1')
-  assert.equal(desktopPackage.version, '3.4.1')
-  assert.equal(desktopLock.version, '3.4.1')
-  assert.equal(desktopLock.packages[''].version, '3.4.1')
+  assert.equal(rootPackage.version, '3.4.2')
+  assert.equal(desktopPackage.version, '3.4.2')
+  assert.equal(desktopLock.version, '3.4.2')
+  assert.equal(desktopLock.packages[''].version, '3.4.2')
 })

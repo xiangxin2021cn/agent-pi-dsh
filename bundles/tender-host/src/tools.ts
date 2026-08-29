@@ -10,6 +10,8 @@ import {
   importKbTransferFromPath,
   getKbTaskSlugs,
   kbOverview,
+  kbPageIndexPath,
+  listKbEntries,
   readKbChunk,
   reindexKb,
   removeKbEntry,
@@ -45,6 +47,14 @@ import { adoptWorkspace } from './adopt.ts'
 import { auditProjectCitations } from './citations.ts'
 import { prepareKbDocument } from './kb-prepare.ts'
 import { generatePricingWorkbook } from './pricing-workbook.ts'
+import { routeKnowledgeSurfaces } from './knowledge-surface-router.ts'
+import { listSetupRestores } from './setup-restore.ts'
+import { readPageIndexShadow, searchPageIndexShadow } from './pageindex-shadow.ts'
+import { buildTenderKnowledgeGraph, traceKnowledgeGraph } from './knowledge-graph.ts'
+import { loadEvidenceLedger, recordStructuredEvidence, renderStructuredEvidenceCitation } from './structured-evidence.ts'
+import { assessAnalysisCoverage, loadAnalysisCoverage, recordAnalysisCoverage, type TenderAnalysisDomainId } from './analysis-coverage.ts'
+import { recordKnowledgeTelemetry } from './knowledge-telemetry.ts'
+import { loadWorkSurfacePolicy } from './worksurface-policy.ts'
 
 type DefineTool = (options: Record<string, unknown>) => unknown
 
@@ -61,6 +71,132 @@ function jsonOut() {
 export function registerTools(ctx: {
   tools: { register: (definition: unknown) => unknown }
 }, defineTool: DefineTool): void {
+
+  ctx.tools.register(defineTool({
+    name: 'tender_knowledge',
+    description: 'Route and inspect tender knowledge across document/table/graph surfaces. PageIndex is a shadow navigator for long narrative setup manuscripts only; its preview is never evidence and it must never answer BOQ quantities. Use evidence_record to freeze claims with source hash and an immutable locator, then cite the returned [ev:claimId] token. Coverage actions record the five required analysis domains.',
+    parameters: {
+      action: { type: 'string', required: true, description: 'route | navigate | graph | evidence_record | evidence_status | coverage_record | coverage_status' },
+      projectId: { type: 'string', required: true },
+      question: { type: 'string' },
+      sourceId: { type: 'string' },
+      documentIds: { type: 'array' },
+      tableIds: { type: 'array' },
+      available: { type: 'json' },
+      budget: { type: 'json' },
+      from: { type: 'string' },
+      maxHops: { type: 'number' },
+      evidence: { type: 'array' },
+      domain: { type: 'string' },
+      readNodeIds: { type: 'array' },
+      unreadNodeIds: { type: 'array' },
+      evidenceClaimIds: { type: 'array' },
+      conclusion: { type: 'string' },
+      humanConfirmationRequired: { type: 'boolean' },
+    },
+    output: jsonOut(),
+    async execute(args: Record<string, unknown>, exec: { agent?: { session?: { header?: { cwd?: string } } } }) {
+      const cwd = sessionCwd(exec)
+      const projectId = String(args.projectId || '')
+      const project = getBusinessProject(cwd, 'tender', projectId)
+      if (!project) throw new Error(`Unknown tender project ${projectId}`)
+      const action = String(args.action || '')
+      const startedAt = Date.now()
+      const finish = (payload: unknown, operation: 'route' | 'navigate' | 'graph' | 'evidence' | 'coverage', surfaces: Array<'document' | 'table' | 'graph'>, sourceCount = 0, status: 'ok' | 'fallback' = 'ok') => {
+        try {
+          recordKnowledgeTelemetry(cwd, projectId, {
+            operation, surfaces, sourceCount, status, elapsedMs: Date.now() - startedAt,
+            modelCalls: 0, inputTokens: 0, outputTokens: 0, estimatedCostUsd: 0,
+            detail: 'Agent Pi deterministic WorkSurface operation; no separate model or API credential used.',
+          })
+        } catch { /* telemetry must never block tender work */ }
+        return textResult(payload)
+      }
+      if (action === 'route') {
+        const route = routeKnowledgeSurfaces({
+          question: String(args.question || ''),
+          documentIds: Array.isArray(args.documentIds) ? args.documentIds.map(String) : undefined,
+          tableIds: Array.isArray(args.tableIds) ? args.tableIds.map(String) : undefined,
+          available: args.available as never,
+          budget: args.budget as never,
+        })
+        return finish(route, 'route', route.surfaces)
+      }
+      if (action === 'navigate') {
+        const selected = listSetupRestores(cwd, projectId)
+          .filter((restore) => !args.sourceId || restore.originalName === String(args.sourceId) || restore.sourcePath === String(args.sourceId))
+        const sources = selected.map((restore) => {
+          const status = readPageIndexShadow({ manuscriptPath: restore.manuscriptPath, packPath: restore.packPath })
+          return {
+            sourceId: restore.originalName,
+            state: status.state,
+            reason: status.reason,
+            hits: status.state === 'ready' && status.tree
+              ? searchPageIndexShadow(status.tree, String(args.question || ''), Number((args.budget as { maxDocumentNodes?: number } | undefined)?.maxDocumentNodes) || 8)
+              : [],
+          }
+        }).filter((source) => Boolean(args.sourceId) || source.state === 'ready')
+        const knowledgeSources = listKbEntries()
+          .filter((entry) => (!entry.parseStatus || entry.parseStatus === 'ready')
+            && (args.sourceId
+              ? (entry.slug === String(args.sourceId) || entry.name === String(args.sourceId))
+              : entry.pageIndexStatus === 'ready'))
+          .map((entry) => {
+            const status = readPageIndexShadow({ manuscriptPath: entry.managedPath, outputPath: kbPageIndexPath(entry.slug) })
+            return {
+              sourceId: entry.slug,
+              sourceName: entry.name,
+              corpus: 'knowledge-base',
+              state: status.state,
+              reason: status.reason,
+              hits: status.state === 'ready' && status.tree
+                ? searchPageIndexShadow(status.tree, String(args.question || ''), Number((args.budget as { maxDocumentNodes?: number } | undefined)?.maxDocumentNodes) || 8)
+                : [],
+            }
+          })
+        const allSources = [...sources.map((source) => ({ ...source, corpus: 'project-setup' })), ...knowledgeSources]
+        const policy = loadWorkSurfacePolicy()
+        return finish({
+          mode: policy.mode,
+          defaultNavigator: policy.defaultNavigator,
+          policyReason: policy.reason,
+          sources: allSources,
+          fallback: allSources.length === 0 || allSources.some((source) => source.state !== 'ready')
+            ? 'Use existing MiniSearch/kb_find_clause/MinerU manuscript. Do not treat a missing or corrupt tree as fatal.'
+            : undefined,
+          evidenceRule: 'Hits are navigation only. Read the manuscript at the returned lines/pages and record exact quote + source hash before citing.',
+        }, 'navigate', ['document'], allSources.length, allSources.length === 0 || allSources.some((source) => source.state !== 'ready') ? 'fallback' : 'ok')
+      }
+      if (action === 'graph') {
+        const graph = buildTenderKnowledgeGraph(cwd, projectId, loadWorkspace(cwd, projectId))
+        return finish(args.from ? { graph, trace: traceKnowledgeGraph(graph, String(args.from), Number(args.maxHops) || 4) } : graph, 'graph', ['graph'], graph.nodes.length)
+      }
+      if (action === 'evidence_record') {
+        const ledger = recordStructuredEvidence(cwd, projectId, Array.isArray(args.evidence) ? args.evidence : [])
+        return finish({ ledger, citations: ledger.claims.map((claim) => ({ claimId: claim.claimId, citation: renderStructuredEvidenceCitation(claim) })) }, 'evidence', [...new Set(ledger.claims.map((claim) => claim.surface))], ledger.claims.length)
+      }
+      if (action === 'evidence_status') {
+        const ledger = loadEvidenceLedger(cwd, projectId)
+        return finish(ledger, 'evidence', [...new Set(ledger.claims.map((claim) => claim.surface))], ledger.claims.length)
+      }
+      if (action === 'coverage_record') {
+        const coverage = recordAnalysisCoverage(cwd, projectId, {
+          domain: String(args.domain) as TenderAnalysisDomainId,
+          readNodeIds: Array.isArray(args.readNodeIds) ? args.readNodeIds.map(String) : undefined,
+          unreadNodeIds: Array.isArray(args.unreadNodeIds) ? args.unreadNodeIds.map(String) : undefined,
+          evidenceClaimIds: Array.isArray(args.evidenceClaimIds) ? args.evidenceClaimIds.map(String) : undefined,
+          conclusion: args.conclusion == null ? undefined : String(args.conclusion),
+          humanConfirmationRequired: args.humanConfirmationRequired == null ? undefined : Boolean(args.humanConfirmationRequired),
+        })
+        return finish(coverage, 'coverage', ['document'], Object.keys(coverage.sourceTreeHashes).length)
+      }
+      if (action === 'coverage_status') {
+        const ledger = loadAnalysisCoverage(cwd, projectId)
+        return finish({ ledger, status: assessAnalysisCoverage(ledger) }, 'coverage', ['document'], Object.keys(ledger?.sourceTreeHashes ?? {}).length)
+      }
+      throw new Error(`Unknown tender_knowledge action ${action}`)
+    },
+  }))
 
   ctx.tools.register(defineTool({
     name: 'tender_workspace',

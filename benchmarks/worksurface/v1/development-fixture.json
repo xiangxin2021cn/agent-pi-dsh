@@ -1,0 +1,1769 @@
+{
+  "schemaVersion": 1,
+  "id": "agent-pi-worksurface-development-v1",
+  "provenance": "development-fixture",
+  "goldReviewedByHumans": false,
+  "generatedBy": "scripts/generate-worksurface-development-fixture.mjs",
+  "tasks": [
+    {
+      "id": "doc-001",
+      "question": "Requirement 01 requires which submission item?",
+      "requiredSurfaces": [
+        "document"
+      ],
+      "goldEvidence": [
+        "fixtures/tender-volume.md#L3"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "S01"
+      ],
+      "forbiddenClaims": [
+        "Any requirement or deadline not present in the cited fixture line."
+      ]
+    },
+    {
+      "id": "table-001",
+      "question": "What is the exact quantity and unit for BOQ item B01?",
+      "requiredSurfaces": [
+        "table"
+      ],
+      "goldEvidence": [
+        "fixtures/boq.csv!BOQ!C2:D2"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "m",
+        "10"
+      ],
+      "forbiddenClaims": [
+        "A quantity inferred from narrative text or a PageIndex preview."
+      ]
+    },
+    {
+      "id": "graph-001",
+      "question": "Which upstream node does capability cap-01 depend on?",
+      "requiredSurfaces": [
+        "graph"
+      ],
+      "goldEvidence": [
+        "fixtures/capability-graph.json:path:cap-01"
+      ],
+      "dependencyPath": [
+        "cap-01",
+        "core"
+      ],
+      "answerRubric": [
+        "core"
+      ],
+      "forbiddenClaims": [
+        "An upstream relationship not present in capability-graph.json."
+      ]
+    },
+    {
+      "id": "doc-002",
+      "question": "Requirement 02 requires which submission item?",
+      "requiredSurfaces": [
+        "document"
+      ],
+      "goldEvidence": [
+        "fixtures/tender-volume.md#L7"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "S02"
+      ],
+      "forbiddenClaims": [
+        "Any requirement or deadline not present in the cited fixture line."
+      ]
+    },
+    {
+      "id": "table-002",
+      "question": "What is the exact quantity and unit for BOQ item B02?",
+      "requiredSurfaces": [
+        "table"
+      ],
+      "goldEvidence": [
+        "fixtures/boq.csv!BOQ!C3:D3"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "m",
+        "20"
+      ],
+      "forbiddenClaims": [
+        "A quantity inferred from narrative text or a PageIndex preview."
+      ]
+    },
+    {
+      "id": "graph-002",
+      "question": "Which upstream node does capability cap-02 depend on?",
+      "requiredSurfaces": [
+        "graph"
+      ],
+      "goldEvidence": [
+        "fixtures/capability-graph.json:path:cap-02"
+      ],
+      "dependencyPath": [
+        "cap-02",
+        "cap-01"
+      ],
+      "answerRubric": [
+        "cap-01"
+      ],
+      "forbiddenClaims": [
+        "An upstream relationship not present in capability-graph.json."
+      ]
+    },
+    {
+      "id": "doc-003",
+      "question": "Requirement 03 requires which submission item?",
+      "requiredSurfaces": [
+        "document"
+      ],
+      "goldEvidence": [
+        "fixtures/tender-volume.md#L11"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "S03"
+      ],
+      "forbiddenClaims": [
+        "Any requirement or deadline not present in the cited fixture line."
+      ]
+    },
+    {
+      "id": "table-003",
+      "question": "What is the exact quantity and unit for BOQ item B03?",
+      "requiredSurfaces": [
+        "table"
+      ],
+      "goldEvidence": [
+        "fixtures/boq.csv!BOQ!C4:D4"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "m",
+        "30"
+      ],
+      "forbiddenClaims": [
+        "A quantity inferred from narrative text or a PageIndex preview."
+      ]
+    },
+    {
+      "id": "graph-003",
+      "question": "Which upstream node does capability cap-03 depend on?",
+      "requiredSurfaces": [
+        "graph"
+      ],
+      "goldEvidence": [
+        "fixtures/capability-graph.json:path:cap-03"
+      ],
+      "dependencyPath": [
+        "cap-03",
+        "cap-02"
+      ],
+      "answerRubric": [
+        "cap-02"
+      ],
+      "forbiddenClaims": [
+        "An upstream relationship not present in capability-graph.json."
+      ]
+    },
+    {
+      "id": "doc-004",
+      "question": "Requirement 04 requires which submission item?",
+      "requiredSurfaces": [
+        "document"
+      ],
+      "goldEvidence": [
+        "fixtures/tender-volume.md#L15"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "S04"
+      ],
+      "forbiddenClaims": [
+        "Any requirement or deadline not present in the cited fixture line."
+      ]
+    },
+    {
+      "id": "table-004",
+      "question": "What is the exact quantity and unit for BOQ item B04?",
+      "requiredSurfaces": [
+        "table"
+      ],
+      "goldEvidence": [
+        "fixtures/boq.csv!BOQ!C5:D5"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "m",
+        "40"
+      ],
+      "forbiddenClaims": [
+        "A quantity inferred from narrative text or a PageIndex preview."
+      ]
+    },
+    {
+      "id": "graph-004",
+      "question": "Which upstream node does capability cap-04 depend on?",
+      "requiredSurfaces": [
+        "graph"
+      ],
+      "goldEvidence": [
+        "fixtures/capability-graph.json:path:cap-04"
+      ],
+      "dependencyPath": [
+        "cap-04",
+        "cap-03"
+      ],
+      "answerRubric": [
+        "cap-03"
+      ],
+      "forbiddenClaims": [
+        "An upstream relationship not present in capability-graph.json."
+      ]
+    },
+    {
+      "id": "doc-005",
+      "question": "Requirement 05 requires which submission item?",
+      "requiredSurfaces": [
+        "document"
+      ],
+      "goldEvidence": [
+        "fixtures/tender-volume.md#L19"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "S05"
+      ],
+      "forbiddenClaims": [
+        "Any requirement or deadline not present in the cited fixture line."
+      ]
+    },
+    {
+      "id": "table-005",
+      "question": "What is the exact quantity and unit for BOQ item B05?",
+      "requiredSurfaces": [
+        "table"
+      ],
+      "goldEvidence": [
+        "fixtures/boq.csv!BOQ!C6:D6"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "m",
+        "50"
+      ],
+      "forbiddenClaims": [
+        "A quantity inferred from narrative text or a PageIndex preview."
+      ]
+    },
+    {
+      "id": "graph-005",
+      "question": "Which upstream node does capability cap-05 depend on?",
+      "requiredSurfaces": [
+        "graph"
+      ],
+      "goldEvidence": [
+        "fixtures/capability-graph.json:path:cap-05"
+      ],
+      "dependencyPath": [
+        "cap-05",
+        "cap-04"
+      ],
+      "answerRubric": [
+        "cap-04"
+      ],
+      "forbiddenClaims": [
+        "An upstream relationship not present in capability-graph.json."
+      ]
+    },
+    {
+      "id": "doc-006",
+      "question": "Requirement 06 requires which submission item?",
+      "requiredSurfaces": [
+        "document"
+      ],
+      "goldEvidence": [
+        "fixtures/tender-volume.md#L23"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "S06"
+      ],
+      "forbiddenClaims": [
+        "Any requirement or deadline not present in the cited fixture line."
+      ]
+    },
+    {
+      "id": "table-006",
+      "question": "What is the exact quantity and unit for BOQ item B06?",
+      "requiredSurfaces": [
+        "table"
+      ],
+      "goldEvidence": [
+        "fixtures/boq.csv!BOQ!C7:D7"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "m",
+        "60"
+      ],
+      "forbiddenClaims": [
+        "A quantity inferred from narrative text or a PageIndex preview."
+      ]
+    },
+    {
+      "id": "graph-006",
+      "question": "Which upstream node does capability cap-06 depend on?",
+      "requiredSurfaces": [
+        "graph"
+      ],
+      "goldEvidence": [
+        "fixtures/capability-graph.json:path:cap-06"
+      ],
+      "dependencyPath": [
+        "cap-06",
+        "cap-05"
+      ],
+      "answerRubric": [
+        "cap-05"
+      ],
+      "forbiddenClaims": [
+        "An upstream relationship not present in capability-graph.json."
+      ]
+    },
+    {
+      "id": "doc-007",
+      "question": "Requirement 07 requires which submission item?",
+      "requiredSurfaces": [
+        "document"
+      ],
+      "goldEvidence": [
+        "fixtures/tender-volume.md#L27"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "S07"
+      ],
+      "forbiddenClaims": [
+        "Any requirement or deadline not present in the cited fixture line."
+      ]
+    },
+    {
+      "id": "table-007",
+      "question": "What is the exact quantity and unit for BOQ item B07?",
+      "requiredSurfaces": [
+        "table"
+      ],
+      "goldEvidence": [
+        "fixtures/boq.csv!BOQ!C8:D8"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "m",
+        "70"
+      ],
+      "forbiddenClaims": [
+        "A quantity inferred from narrative text or a PageIndex preview."
+      ]
+    },
+    {
+      "id": "graph-007",
+      "question": "Which upstream node does capability cap-07 depend on?",
+      "requiredSurfaces": [
+        "graph"
+      ],
+      "goldEvidence": [
+        "fixtures/capability-graph.json:path:cap-07"
+      ],
+      "dependencyPath": [
+        "cap-07",
+        "cap-06"
+      ],
+      "answerRubric": [
+        "cap-06"
+      ],
+      "forbiddenClaims": [
+        "An upstream relationship not present in capability-graph.json."
+      ]
+    },
+    {
+      "id": "doc-008",
+      "question": "Requirement 08 requires which submission item?",
+      "requiredSurfaces": [
+        "document"
+      ],
+      "goldEvidence": [
+        "fixtures/tender-volume.md#L31"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "S08"
+      ],
+      "forbiddenClaims": [
+        "Any requirement or deadline not present in the cited fixture line."
+      ]
+    },
+    {
+      "id": "table-008",
+      "question": "What is the exact quantity and unit for BOQ item B08?",
+      "requiredSurfaces": [
+        "table"
+      ],
+      "goldEvidence": [
+        "fixtures/boq.csv!BOQ!C9:D9"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "m",
+        "80"
+      ],
+      "forbiddenClaims": [
+        "A quantity inferred from narrative text or a PageIndex preview."
+      ]
+    },
+    {
+      "id": "graph-008",
+      "question": "Which upstream node does capability cap-08 depend on?",
+      "requiredSurfaces": [
+        "graph"
+      ],
+      "goldEvidence": [
+        "fixtures/capability-graph.json:path:cap-08"
+      ],
+      "dependencyPath": [
+        "cap-08",
+        "cap-07"
+      ],
+      "answerRubric": [
+        "cap-07"
+      ],
+      "forbiddenClaims": [
+        "An upstream relationship not present in capability-graph.json."
+      ]
+    },
+    {
+      "id": "doc-009",
+      "question": "Requirement 09 requires which submission item?",
+      "requiredSurfaces": [
+        "document"
+      ],
+      "goldEvidence": [
+        "fixtures/tender-volume.md#L35"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "S09"
+      ],
+      "forbiddenClaims": [
+        "Any requirement or deadline not present in the cited fixture line."
+      ]
+    },
+    {
+      "id": "table-009",
+      "question": "What is the exact quantity and unit for BOQ item B09?",
+      "requiredSurfaces": [
+        "table"
+      ],
+      "goldEvidence": [
+        "fixtures/boq.csv!BOQ!C10:D10"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "m",
+        "90"
+      ],
+      "forbiddenClaims": [
+        "A quantity inferred from narrative text or a PageIndex preview."
+      ]
+    },
+    {
+      "id": "graph-009",
+      "question": "Which upstream node does capability cap-09 depend on?",
+      "requiredSurfaces": [
+        "graph"
+      ],
+      "goldEvidence": [
+        "fixtures/capability-graph.json:path:cap-09"
+      ],
+      "dependencyPath": [
+        "cap-09",
+        "cap-08"
+      ],
+      "answerRubric": [
+        "cap-08"
+      ],
+      "forbiddenClaims": [
+        "An upstream relationship not present in capability-graph.json."
+      ]
+    },
+    {
+      "id": "doc-010",
+      "question": "Requirement 10 requires which submission item?",
+      "requiredSurfaces": [
+        "document"
+      ],
+      "goldEvidence": [
+        "fixtures/tender-volume.md#L39"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "S10"
+      ],
+      "forbiddenClaims": [
+        "Any requirement or deadline not present in the cited fixture line."
+      ]
+    },
+    {
+      "id": "table-010",
+      "question": "What is the exact quantity and unit for BOQ item B10?",
+      "requiredSurfaces": [
+        "table"
+      ],
+      "goldEvidence": [
+        "fixtures/boq.csv!BOQ!C11:D11"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "m",
+        "100"
+      ],
+      "forbiddenClaims": [
+        "A quantity inferred from narrative text or a PageIndex preview."
+      ]
+    },
+    {
+      "id": "graph-010",
+      "question": "Which upstream node does capability cap-10 depend on?",
+      "requiredSurfaces": [
+        "graph"
+      ],
+      "goldEvidence": [
+        "fixtures/capability-graph.json:path:cap-10"
+      ],
+      "dependencyPath": [
+        "cap-10",
+        "cap-09"
+      ],
+      "answerRubric": [
+        "cap-09"
+      ],
+      "forbiddenClaims": [
+        "An upstream relationship not present in capability-graph.json."
+      ]
+    },
+    {
+      "id": "doc-011",
+      "question": "Requirement 11 requires which submission item?",
+      "requiredSurfaces": [
+        "document"
+      ],
+      "goldEvidence": [
+        "fixtures/tender-volume.md#L43"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "S11"
+      ],
+      "forbiddenClaims": [
+        "Any requirement or deadline not present in the cited fixture line."
+      ]
+    },
+    {
+      "id": "table-011",
+      "question": "What is the exact quantity and unit for BOQ item B11?",
+      "requiredSurfaces": [
+        "table"
+      ],
+      "goldEvidence": [
+        "fixtures/boq.csv!BOQ!C12:D12"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "m",
+        "110"
+      ],
+      "forbiddenClaims": [
+        "A quantity inferred from narrative text or a PageIndex preview."
+      ]
+    },
+    {
+      "id": "graph-011",
+      "question": "Which upstream node does capability cap-11 depend on?",
+      "requiredSurfaces": [
+        "graph"
+      ],
+      "goldEvidence": [
+        "fixtures/capability-graph.json:path:cap-11"
+      ],
+      "dependencyPath": [
+        "cap-11",
+        "cap-10"
+      ],
+      "answerRubric": [
+        "cap-10"
+      ],
+      "forbiddenClaims": [
+        "An upstream relationship not present in capability-graph.json."
+      ]
+    },
+    {
+      "id": "doc-012",
+      "question": "Requirement 12 requires which submission item?",
+      "requiredSurfaces": [
+        "document"
+      ],
+      "goldEvidence": [
+        "fixtures/tender-volume.md#L47"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "S12"
+      ],
+      "forbiddenClaims": [
+        "Any requirement or deadline not present in the cited fixture line."
+      ]
+    },
+    {
+      "id": "table-012",
+      "question": "What is the exact quantity and unit for BOQ item B12?",
+      "requiredSurfaces": [
+        "table"
+      ],
+      "goldEvidence": [
+        "fixtures/boq.csv!BOQ!C13:D13"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "m",
+        "120"
+      ],
+      "forbiddenClaims": [
+        "A quantity inferred from narrative text or a PageIndex preview."
+      ]
+    },
+    {
+      "id": "graph-012",
+      "question": "Which upstream node does capability cap-12 depend on?",
+      "requiredSurfaces": [
+        "graph"
+      ],
+      "goldEvidence": [
+        "fixtures/capability-graph.json:path:cap-12"
+      ],
+      "dependencyPath": [
+        "cap-12",
+        "cap-11"
+      ],
+      "answerRubric": [
+        "cap-11"
+      ],
+      "forbiddenClaims": [
+        "An upstream relationship not present in capability-graph.json."
+      ]
+    },
+    {
+      "id": "doc-013",
+      "question": "Requirement 13 requires which submission item?",
+      "requiredSurfaces": [
+        "document"
+      ],
+      "goldEvidence": [
+        "fixtures/tender-volume.md#L51"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "S13"
+      ],
+      "forbiddenClaims": [
+        "Any requirement or deadline not present in the cited fixture line."
+      ]
+    },
+    {
+      "id": "table-013",
+      "question": "What is the exact quantity and unit for BOQ item B13?",
+      "requiredSurfaces": [
+        "table"
+      ],
+      "goldEvidence": [
+        "fixtures/boq.csv!BOQ!C14:D14"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "m",
+        "130"
+      ],
+      "forbiddenClaims": [
+        "A quantity inferred from narrative text or a PageIndex preview."
+      ]
+    },
+    {
+      "id": "graph-013",
+      "question": "Which upstream node does capability cap-13 depend on?",
+      "requiredSurfaces": [
+        "graph"
+      ],
+      "goldEvidence": [
+        "fixtures/capability-graph.json:path:cap-13"
+      ],
+      "dependencyPath": [
+        "cap-13",
+        "cap-12"
+      ],
+      "answerRubric": [
+        "cap-12"
+      ],
+      "forbiddenClaims": [
+        "An upstream relationship not present in capability-graph.json."
+      ]
+    },
+    {
+      "id": "doc-014",
+      "question": "Requirement 14 requires which submission item?",
+      "requiredSurfaces": [
+        "document"
+      ],
+      "goldEvidence": [
+        "fixtures/tender-volume.md#L55"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "S14"
+      ],
+      "forbiddenClaims": [
+        "Any requirement or deadline not present in the cited fixture line."
+      ]
+    },
+    {
+      "id": "table-014",
+      "question": "What is the exact quantity and unit for BOQ item B14?",
+      "requiredSurfaces": [
+        "table"
+      ],
+      "goldEvidence": [
+        "fixtures/boq.csv!BOQ!C15:D15"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "m",
+        "140"
+      ],
+      "forbiddenClaims": [
+        "A quantity inferred from narrative text or a PageIndex preview."
+      ]
+    },
+    {
+      "id": "graph-014",
+      "question": "Which upstream node does capability cap-14 depend on?",
+      "requiredSurfaces": [
+        "graph"
+      ],
+      "goldEvidence": [
+        "fixtures/capability-graph.json:path:cap-14"
+      ],
+      "dependencyPath": [
+        "cap-14",
+        "cap-13"
+      ],
+      "answerRubric": [
+        "cap-13"
+      ],
+      "forbiddenClaims": [
+        "An upstream relationship not present in capability-graph.json."
+      ]
+    },
+    {
+      "id": "doc-015",
+      "question": "Requirement 15 requires which submission item?",
+      "requiredSurfaces": [
+        "document"
+      ],
+      "goldEvidence": [
+        "fixtures/tender-volume.md#L59"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "S15"
+      ],
+      "forbiddenClaims": [
+        "Any requirement or deadline not present in the cited fixture line."
+      ]
+    },
+    {
+      "id": "table-015",
+      "question": "What is the exact quantity and unit for BOQ item B15?",
+      "requiredSurfaces": [
+        "table"
+      ],
+      "goldEvidence": [
+        "fixtures/boq.csv!BOQ!C16:D16"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "m",
+        "150"
+      ],
+      "forbiddenClaims": [
+        "A quantity inferred from narrative text or a PageIndex preview."
+      ]
+    },
+    {
+      "id": "graph-015",
+      "question": "Which upstream node does capability cap-15 depend on?",
+      "requiredSurfaces": [
+        "graph"
+      ],
+      "goldEvidence": [
+        "fixtures/capability-graph.json:path:cap-15"
+      ],
+      "dependencyPath": [
+        "cap-15",
+        "cap-14"
+      ],
+      "answerRubric": [
+        "cap-14"
+      ],
+      "forbiddenClaims": [
+        "An upstream relationship not present in capability-graph.json."
+      ]
+    },
+    {
+      "id": "doc-016",
+      "question": "Requirement 16 requires which submission item?",
+      "requiredSurfaces": [
+        "document"
+      ],
+      "goldEvidence": [
+        "fixtures/tender-volume.md#L63"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "S16"
+      ],
+      "forbiddenClaims": [
+        "Any requirement or deadline not present in the cited fixture line."
+      ]
+    },
+    {
+      "id": "table-016",
+      "question": "What is the exact quantity and unit for BOQ item B16?",
+      "requiredSurfaces": [
+        "table"
+      ],
+      "goldEvidence": [
+        "fixtures/boq.csv!BOQ!C17:D17"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "m",
+        "160"
+      ],
+      "forbiddenClaims": [
+        "A quantity inferred from narrative text or a PageIndex preview."
+      ]
+    },
+    {
+      "id": "graph-016",
+      "question": "Which upstream node does capability cap-16 depend on?",
+      "requiredSurfaces": [
+        "graph"
+      ],
+      "goldEvidence": [
+        "fixtures/capability-graph.json:path:cap-16"
+      ],
+      "dependencyPath": [
+        "cap-16",
+        "cap-15"
+      ],
+      "answerRubric": [
+        "cap-15"
+      ],
+      "forbiddenClaims": [
+        "An upstream relationship not present in capability-graph.json."
+      ]
+    },
+    {
+      "id": "doc-017",
+      "question": "Requirement 17 requires which submission item?",
+      "requiredSurfaces": [
+        "document"
+      ],
+      "goldEvidence": [
+        "fixtures/tender-volume.md#L67"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "S17"
+      ],
+      "forbiddenClaims": [
+        "Any requirement or deadline not present in the cited fixture line."
+      ]
+    },
+    {
+      "id": "table-017",
+      "question": "What is the exact quantity and unit for BOQ item B17?",
+      "requiredSurfaces": [
+        "table"
+      ],
+      "goldEvidence": [
+        "fixtures/boq.csv!BOQ!C18:D18"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "m",
+        "170"
+      ],
+      "forbiddenClaims": [
+        "A quantity inferred from narrative text or a PageIndex preview."
+      ]
+    },
+    {
+      "id": "graph-017",
+      "question": "Which upstream node does capability cap-17 depend on?",
+      "requiredSurfaces": [
+        "graph"
+      ],
+      "goldEvidence": [
+        "fixtures/capability-graph.json:path:cap-17"
+      ],
+      "dependencyPath": [
+        "cap-17",
+        "cap-16"
+      ],
+      "answerRubric": [
+        "cap-16"
+      ],
+      "forbiddenClaims": [
+        "An upstream relationship not present in capability-graph.json."
+      ]
+    },
+    {
+      "id": "doc-018",
+      "question": "Requirement 18 requires which submission item?",
+      "requiredSurfaces": [
+        "document"
+      ],
+      "goldEvidence": [
+        "fixtures/tender-volume.md#L71"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "S18"
+      ],
+      "forbiddenClaims": [
+        "Any requirement or deadline not present in the cited fixture line."
+      ]
+    },
+    {
+      "id": "table-018",
+      "question": "What is the exact quantity and unit for BOQ item B18?",
+      "requiredSurfaces": [
+        "table"
+      ],
+      "goldEvidence": [
+        "fixtures/boq.csv!BOQ!C19:D19"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "m",
+        "180"
+      ],
+      "forbiddenClaims": [
+        "A quantity inferred from narrative text or a PageIndex preview."
+      ]
+    },
+    {
+      "id": "graph-018",
+      "question": "Which upstream node does capability cap-18 depend on?",
+      "requiredSurfaces": [
+        "graph"
+      ],
+      "goldEvidence": [
+        "fixtures/capability-graph.json:path:cap-18"
+      ],
+      "dependencyPath": [
+        "cap-18",
+        "cap-17"
+      ],
+      "answerRubric": [
+        "cap-17"
+      ],
+      "forbiddenClaims": [
+        "An upstream relationship not present in capability-graph.json."
+      ]
+    },
+    {
+      "id": "doc-019",
+      "question": "Requirement 19 requires which submission item?",
+      "requiredSurfaces": [
+        "document"
+      ],
+      "goldEvidence": [
+        "fixtures/tender-volume.md#L75"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "S19"
+      ],
+      "forbiddenClaims": [
+        "Any requirement or deadline not present in the cited fixture line."
+      ]
+    },
+    {
+      "id": "table-019",
+      "question": "What is the exact quantity and unit for BOQ item B19?",
+      "requiredSurfaces": [
+        "table"
+      ],
+      "goldEvidence": [
+        "fixtures/boq.csv!BOQ!C20:D20"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "m",
+        "190"
+      ],
+      "forbiddenClaims": [
+        "A quantity inferred from narrative text or a PageIndex preview."
+      ]
+    },
+    {
+      "id": "graph-019",
+      "question": "Which upstream node does capability cap-19 depend on?",
+      "requiredSurfaces": [
+        "graph"
+      ],
+      "goldEvidence": [
+        "fixtures/capability-graph.json:path:cap-19"
+      ],
+      "dependencyPath": [
+        "cap-19",
+        "cap-18"
+      ],
+      "answerRubric": [
+        "cap-18"
+      ],
+      "forbiddenClaims": [
+        "An upstream relationship not present in capability-graph.json."
+      ]
+    },
+    {
+      "id": "doc-020",
+      "question": "Requirement 20 requires which submission item?",
+      "requiredSurfaces": [
+        "document"
+      ],
+      "goldEvidence": [
+        "fixtures/tender-volume.md#L79"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "S20"
+      ],
+      "forbiddenClaims": [
+        "Any requirement or deadline not present in the cited fixture line."
+      ]
+    },
+    {
+      "id": "table-020",
+      "question": "What is the exact quantity and unit for BOQ item B20?",
+      "requiredSurfaces": [
+        "table"
+      ],
+      "goldEvidence": [
+        "fixtures/boq.csv!BOQ!C21:D21"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "m",
+        "200"
+      ],
+      "forbiddenClaims": [
+        "A quantity inferred from narrative text or a PageIndex preview."
+      ]
+    },
+    {
+      "id": "graph-020",
+      "question": "Which upstream node does capability cap-20 depend on?",
+      "requiredSurfaces": [
+        "graph"
+      ],
+      "goldEvidence": [
+        "fixtures/capability-graph.json:path:cap-20"
+      ],
+      "dependencyPath": [
+        "cap-20",
+        "cap-19"
+      ],
+      "answerRubric": [
+        "cap-19"
+      ],
+      "forbiddenClaims": [
+        "An upstream relationship not present in capability-graph.json."
+      ]
+    },
+    {
+      "id": "doc-021",
+      "question": "Requirement 21 requires which submission item?",
+      "requiredSurfaces": [
+        "document"
+      ],
+      "goldEvidence": [
+        "fixtures/tender-volume.md#L83"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "S21"
+      ],
+      "forbiddenClaims": [
+        "Any requirement or deadline not present in the cited fixture line."
+      ]
+    },
+    {
+      "id": "table-021",
+      "question": "What is the exact quantity and unit for BOQ item B21?",
+      "requiredSurfaces": [
+        "table"
+      ],
+      "goldEvidence": [
+        "fixtures/boq.csv!BOQ!C22:D22"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "m",
+        "210"
+      ],
+      "forbiddenClaims": [
+        "A quantity inferred from narrative text or a PageIndex preview."
+      ]
+    },
+    {
+      "id": "graph-021",
+      "question": "Which upstream node does capability cap-21 depend on?",
+      "requiredSurfaces": [
+        "graph"
+      ],
+      "goldEvidence": [
+        "fixtures/capability-graph.json:path:cap-21"
+      ],
+      "dependencyPath": [
+        "cap-21",
+        "cap-20"
+      ],
+      "answerRubric": [
+        "cap-20"
+      ],
+      "forbiddenClaims": [
+        "An upstream relationship not present in capability-graph.json."
+      ]
+    },
+    {
+      "id": "doc-022",
+      "question": "Requirement 22 requires which submission item?",
+      "requiredSurfaces": [
+        "document"
+      ],
+      "goldEvidence": [
+        "fixtures/tender-volume.md#L87"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "S22"
+      ],
+      "forbiddenClaims": [
+        "Any requirement or deadline not present in the cited fixture line."
+      ]
+    },
+    {
+      "id": "table-022",
+      "question": "What is the exact quantity and unit for BOQ item B22?",
+      "requiredSurfaces": [
+        "table"
+      ],
+      "goldEvidence": [
+        "fixtures/boq.csv!BOQ!C23:D23"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "m",
+        "220"
+      ],
+      "forbiddenClaims": [
+        "A quantity inferred from narrative text or a PageIndex preview."
+      ]
+    },
+    {
+      "id": "graph-022",
+      "question": "Which upstream node does capability cap-22 depend on?",
+      "requiredSurfaces": [
+        "graph"
+      ],
+      "goldEvidence": [
+        "fixtures/capability-graph.json:path:cap-22"
+      ],
+      "dependencyPath": [
+        "cap-22",
+        "cap-21"
+      ],
+      "answerRubric": [
+        "cap-21"
+      ],
+      "forbiddenClaims": [
+        "An upstream relationship not present in capability-graph.json."
+      ]
+    },
+    {
+      "id": "doc-023",
+      "question": "Requirement 23 requires which submission item?",
+      "requiredSurfaces": [
+        "document"
+      ],
+      "goldEvidence": [
+        "fixtures/tender-volume.md#L91"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "S23"
+      ],
+      "forbiddenClaims": [
+        "Any requirement or deadline not present in the cited fixture line."
+      ]
+    },
+    {
+      "id": "table-023",
+      "question": "What is the exact quantity and unit for BOQ item B23?",
+      "requiredSurfaces": [
+        "table"
+      ],
+      "goldEvidence": [
+        "fixtures/boq.csv!BOQ!C24:D24"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "m",
+        "230"
+      ],
+      "forbiddenClaims": [
+        "A quantity inferred from narrative text or a PageIndex preview."
+      ]
+    },
+    {
+      "id": "graph-023",
+      "question": "Which upstream node does capability cap-23 depend on?",
+      "requiredSurfaces": [
+        "graph"
+      ],
+      "goldEvidence": [
+        "fixtures/capability-graph.json:path:cap-23"
+      ],
+      "dependencyPath": [
+        "cap-23",
+        "cap-22"
+      ],
+      "answerRubric": [
+        "cap-22"
+      ],
+      "forbiddenClaims": [
+        "An upstream relationship not present in capability-graph.json."
+      ]
+    },
+    {
+      "id": "doc-024",
+      "question": "Requirement 24 requires which submission item?",
+      "requiredSurfaces": [
+        "document"
+      ],
+      "goldEvidence": [
+        "fixtures/tender-volume.md#L95"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "S24"
+      ],
+      "forbiddenClaims": [
+        "Any requirement or deadline not present in the cited fixture line."
+      ]
+    },
+    {
+      "id": "table-024",
+      "question": "What is the exact quantity and unit for BOQ item B24?",
+      "requiredSurfaces": [
+        "table"
+      ],
+      "goldEvidence": [
+        "fixtures/boq.csv!BOQ!C25:D25"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "m",
+        "240"
+      ],
+      "forbiddenClaims": [
+        "A quantity inferred from narrative text or a PageIndex preview."
+      ]
+    },
+    {
+      "id": "graph-024",
+      "question": "Which upstream node does capability cap-24 depend on?",
+      "requiredSurfaces": [
+        "graph"
+      ],
+      "goldEvidence": [
+        "fixtures/capability-graph.json:path:cap-24"
+      ],
+      "dependencyPath": [
+        "cap-24",
+        "cap-23"
+      ],
+      "answerRubric": [
+        "cap-23"
+      ],
+      "forbiddenClaims": [
+        "An upstream relationship not present in capability-graph.json."
+      ]
+    },
+    {
+      "id": "doc-025",
+      "question": "Requirement 25 requires which submission item?",
+      "requiredSurfaces": [
+        "document"
+      ],
+      "goldEvidence": [
+        "fixtures/tender-volume.md#L99"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "S25"
+      ],
+      "forbiddenClaims": [
+        "Any requirement or deadline not present in the cited fixture line."
+      ]
+    },
+    {
+      "id": "table-025",
+      "question": "What is the exact quantity and unit for BOQ item B25?",
+      "requiredSurfaces": [
+        "table"
+      ],
+      "goldEvidence": [
+        "fixtures/boq.csv!BOQ!C26:D26"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "m",
+        "250"
+      ],
+      "forbiddenClaims": [
+        "A quantity inferred from narrative text or a PageIndex preview."
+      ]
+    },
+    {
+      "id": "graph-025",
+      "question": "Which upstream node does capability cap-25 depend on?",
+      "requiredSurfaces": [
+        "graph"
+      ],
+      "goldEvidence": [
+        "fixtures/capability-graph.json:path:cap-25"
+      ],
+      "dependencyPath": [
+        "cap-25",
+        "cap-24"
+      ],
+      "answerRubric": [
+        "cap-24"
+      ],
+      "forbiddenClaims": [
+        "An upstream relationship not present in capability-graph.json."
+      ]
+    },
+    {
+      "id": "doc-026",
+      "question": "Requirement 26 requires which submission item?",
+      "requiredSurfaces": [
+        "document"
+      ],
+      "goldEvidence": [
+        "fixtures/tender-volume.md#L103"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "S26"
+      ],
+      "forbiddenClaims": [
+        "Any requirement or deadline not present in the cited fixture line."
+      ]
+    },
+    {
+      "id": "table-026",
+      "question": "What is the exact quantity and unit for BOQ item B26?",
+      "requiredSurfaces": [
+        "table"
+      ],
+      "goldEvidence": [
+        "fixtures/boq.csv!BOQ!C27:D27"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "m",
+        "260"
+      ],
+      "forbiddenClaims": [
+        "A quantity inferred from narrative text or a PageIndex preview."
+      ]
+    },
+    {
+      "id": "graph-026",
+      "question": "Which upstream node does capability cap-26 depend on?",
+      "requiredSurfaces": [
+        "graph"
+      ],
+      "goldEvidence": [
+        "fixtures/capability-graph.json:path:cap-26"
+      ],
+      "dependencyPath": [
+        "cap-26",
+        "cap-25"
+      ],
+      "answerRubric": [
+        "cap-25"
+      ],
+      "forbiddenClaims": [
+        "An upstream relationship not present in capability-graph.json."
+      ]
+    },
+    {
+      "id": "doc-027",
+      "question": "Requirement 27 requires which submission item?",
+      "requiredSurfaces": [
+        "document"
+      ],
+      "goldEvidence": [
+        "fixtures/tender-volume.md#L107"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "S27"
+      ],
+      "forbiddenClaims": [
+        "Any requirement or deadline not present in the cited fixture line."
+      ]
+    },
+    {
+      "id": "table-027",
+      "question": "What is the exact quantity and unit for BOQ item B27?",
+      "requiredSurfaces": [
+        "table"
+      ],
+      "goldEvidence": [
+        "fixtures/boq.csv!BOQ!C28:D28"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "m",
+        "270"
+      ],
+      "forbiddenClaims": [
+        "A quantity inferred from narrative text or a PageIndex preview."
+      ]
+    },
+    {
+      "id": "graph-027",
+      "question": "Which upstream node does capability cap-27 depend on?",
+      "requiredSurfaces": [
+        "graph"
+      ],
+      "goldEvidence": [
+        "fixtures/capability-graph.json:path:cap-27"
+      ],
+      "dependencyPath": [
+        "cap-27",
+        "cap-26"
+      ],
+      "answerRubric": [
+        "cap-26"
+      ],
+      "forbiddenClaims": [
+        "An upstream relationship not present in capability-graph.json."
+      ]
+    },
+    {
+      "id": "doc-028",
+      "question": "Requirement 28 requires which submission item?",
+      "requiredSurfaces": [
+        "document"
+      ],
+      "goldEvidence": [
+        "fixtures/tender-volume.md#L111"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "S28"
+      ],
+      "forbiddenClaims": [
+        "Any requirement or deadline not present in the cited fixture line."
+      ]
+    },
+    {
+      "id": "table-028",
+      "question": "What is the exact quantity and unit for BOQ item B28?",
+      "requiredSurfaces": [
+        "table"
+      ],
+      "goldEvidence": [
+        "fixtures/boq.csv!BOQ!C29:D29"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "m",
+        "280"
+      ],
+      "forbiddenClaims": [
+        "A quantity inferred from narrative text or a PageIndex preview."
+      ]
+    },
+    {
+      "id": "graph-028",
+      "question": "Which upstream node does capability cap-28 depend on?",
+      "requiredSurfaces": [
+        "graph"
+      ],
+      "goldEvidence": [
+        "fixtures/capability-graph.json:path:cap-28"
+      ],
+      "dependencyPath": [
+        "cap-28",
+        "cap-27"
+      ],
+      "answerRubric": [
+        "cap-27"
+      ],
+      "forbiddenClaims": [
+        "An upstream relationship not present in capability-graph.json."
+      ]
+    },
+    {
+      "id": "doc-029",
+      "question": "Requirement 29 requires which submission item?",
+      "requiredSurfaces": [
+        "document"
+      ],
+      "goldEvidence": [
+        "fixtures/tender-volume.md#L115"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "S29"
+      ],
+      "forbiddenClaims": [
+        "Any requirement or deadline not present in the cited fixture line."
+      ]
+    },
+    {
+      "id": "table-029",
+      "question": "What is the exact quantity and unit for BOQ item B29?",
+      "requiredSurfaces": [
+        "table"
+      ],
+      "goldEvidence": [
+        "fixtures/boq.csv!BOQ!C30:D30"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "m",
+        "290"
+      ],
+      "forbiddenClaims": [
+        "A quantity inferred from narrative text or a PageIndex preview."
+      ]
+    },
+    {
+      "id": "graph-029",
+      "question": "Which upstream node does capability cap-29 depend on?",
+      "requiredSurfaces": [
+        "graph"
+      ],
+      "goldEvidence": [
+        "fixtures/capability-graph.json:path:cap-29"
+      ],
+      "dependencyPath": [
+        "cap-29",
+        "cap-28"
+      ],
+      "answerRubric": [
+        "cap-28"
+      ],
+      "forbiddenClaims": [
+        "An upstream relationship not present in capability-graph.json."
+      ]
+    },
+    {
+      "id": "doc-030",
+      "question": "Requirement 30 requires which submission item?",
+      "requiredSurfaces": [
+        "document"
+      ],
+      "goldEvidence": [
+        "fixtures/tender-volume.md#L119"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "S30"
+      ],
+      "forbiddenClaims": [
+        "Any requirement or deadline not present in the cited fixture line."
+      ]
+    },
+    {
+      "id": "table-030",
+      "question": "What is the exact quantity and unit for BOQ item B30?",
+      "requiredSurfaces": [
+        "table"
+      ],
+      "goldEvidence": [
+        "fixtures/boq.csv!BOQ!C31:D31"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "m",
+        "300"
+      ],
+      "forbiddenClaims": [
+        "A quantity inferred from narrative text or a PageIndex preview."
+      ]
+    },
+    {
+      "id": "graph-030",
+      "question": "Which upstream node does capability cap-30 depend on?",
+      "requiredSurfaces": [
+        "graph"
+      ],
+      "goldEvidence": [
+        "fixtures/capability-graph.json:path:cap-30"
+      ],
+      "dependencyPath": [
+        "cap-30",
+        "cap-29"
+      ],
+      "answerRubric": [
+        "cap-29"
+      ],
+      "forbiddenClaims": [
+        "An upstream relationship not present in capability-graph.json."
+      ]
+    },
+    {
+      "id": "doc-031",
+      "question": "Requirement 31 requires which submission item?",
+      "requiredSurfaces": [
+        "document"
+      ],
+      "goldEvidence": [
+        "fixtures/tender-volume.md#L123"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "S31"
+      ],
+      "forbiddenClaims": [
+        "Any requirement or deadline not present in the cited fixture line."
+      ]
+    },
+    {
+      "id": "table-031",
+      "question": "What is the exact quantity and unit for BOQ item B31?",
+      "requiredSurfaces": [
+        "table"
+      ],
+      "goldEvidence": [
+        "fixtures/boq.csv!BOQ!C32:D32"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "m",
+        "310"
+      ],
+      "forbiddenClaims": [
+        "A quantity inferred from narrative text or a PageIndex preview."
+      ]
+    },
+    {
+      "id": "graph-031",
+      "question": "Which upstream node does capability cap-31 depend on?",
+      "requiredSurfaces": [
+        "graph"
+      ],
+      "goldEvidence": [
+        "fixtures/capability-graph.json:path:cap-31"
+      ],
+      "dependencyPath": [
+        "cap-31",
+        "cap-30"
+      ],
+      "answerRubric": [
+        "cap-30"
+      ],
+      "forbiddenClaims": [
+        "An upstream relationship not present in capability-graph.json."
+      ]
+    },
+    {
+      "id": "doc-032",
+      "question": "Requirement 32 requires which submission item?",
+      "requiredSurfaces": [
+        "document"
+      ],
+      "goldEvidence": [
+        "fixtures/tender-volume.md#L127"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "S32"
+      ],
+      "forbiddenClaims": [
+        "Any requirement or deadline not present in the cited fixture line."
+      ]
+    },
+    {
+      "id": "table-032",
+      "question": "What is the exact quantity and unit for BOQ item B32?",
+      "requiredSurfaces": [
+        "table"
+      ],
+      "goldEvidence": [
+        "fixtures/boq.csv!BOQ!C33:D33"
+      ],
+      "dependencyPath": [],
+      "answerRubric": [
+        "m",
+        "320"
+      ],
+      "forbiddenClaims": [
+        "A quantity inferred from narrative text or a PageIndex preview."
+      ]
+    },
+    {
+      "id": "graph-032",
+      "question": "Which upstream node does capability cap-32 depend on?",
+      "requiredSurfaces": [
+        "graph"
+      ],
+      "goldEvidence": [
+        "fixtures/capability-graph.json:path:cap-32"
+      ],
+      "dependencyPath": [
+        "cap-32",
+        "cap-31"
+      ],
+      "answerRubric": [
+        "cap-31"
+      ],
+      "forbiddenClaims": [
+        "An upstream relationship not present in capability-graph.json."
+      ]
+    }
+  ]
+}

@@ -126,7 +126,7 @@ try {
   )
   assert.equal(await page.getByText(/无法切换|Could not switch/i).count(), 0)
   assert.deepEqual(rendererErrors, [], `renderer errors: ${rendererErrors.join(' | ')}`)
-  const screenshotPath = join(tmpdir(), 'agent-pi-preset-smoke-3.4.1.png')
+  const screenshotPath = join(tmpdir(), 'agent-pi-preset-smoke-3.4.2.png')
   await page.screenshot({ path: screenshotPath, fullPage: false })
   console.log(JSON.stringify({
     status: 'ok',
