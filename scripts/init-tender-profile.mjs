@@ -33,6 +33,7 @@ const ANYSEARCH_NAME = '@anysearch/anysearch-dsh'
 const UNIVER_NAME = 'dsh-univer-office'
 const WEB_FETCH_HTTP = '@deepseek-ai/dsh-web-fetch-http'
 const CODEX_SUBAGENT = '@deepseek-ai/dsh-subagent-codex'
+const DSH_IM_NAME = '@xmanrui/dsh-im'
 const bundles = [
   '@deepseek-ai/dsh-base',
   '@deepseek-ai/dsh-web-app',
@@ -185,11 +186,18 @@ function isRetiredPluginName(name) {
   return isRetiredJSpaceName(name) || isRetiredVisionRouterName(name)
 }
 
+/** DSH 0.1.2-alpha.1 removed the apiProxy service required by dsh-im 3.2.0.
+ * Keep the installation and its data, but do not let strict bundle activation
+ * abort the entire desktop runtime. */
+function isAlpha1IncompatibleBundle(name) {
+  return name === DSH_IM_NAME
+}
+
 function composeBundles(deps) {
   const hidden = new Set([WEB_FETCH_HTTP])
   const extras = []
   const add = (name) => {
-    if (!name || hidden.has(name) || isRetiredPluginName(name) || bundles.includes(name) || extras.includes(name)) return
+    if (!name || hidden.has(name) || isRetiredPluginName(name) || isAlpha1IncompatibleBundle(name) || bundles.includes(name) || extras.includes(name)) return
     extras.push(name)
   }
   for (const name of Object.keys(deps)) {

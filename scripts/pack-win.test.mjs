@@ -9,6 +9,7 @@ import { test } from 'node:test'
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const packScript = join(root, 'scripts', 'pack-win.ps1')
 const nsisScript = join(root, 'scripts', 'nsis', 'setup.nsi')
+const nsisSource = readFileSync(nsisScript, 'utf8')
 const makensis = [
   join(process.env['ProgramFiles(x86)'] ?? '', 'NSIS', 'makensis.exe'),
   join(process.env.ProgramFiles ?? '', 'NSIS', 'makensis.exe'),
@@ -97,4 +98,19 @@ test('compiled finish page defaults to launching the installed application', {
   assert.match(result.stdout, /PageCallbacks mui\.FinishPage\.Pre_[^\s]+ mui\.FinishPage\.Leave_[^\s]+/)
   assert.match(result.stdout, /SendMessage \$mui\.FinishPage\.Run 0x00F1 1 0/)
   assert.match(result.stdout, /Exec "\$\\"\$INSTDIR\\agent-pi-DSH\.exe\$\\""/)
+})
+
+test('installer commits a separately extracted app.asar or restores the previous archive', () => {
+  assert.match(
+    nsisSource,
+    /DetailPrint "Installing app\.asar transactionally[\s\S]*7za\.exe" e[\s\S]*IfFileExists "\$INSTDIR\\resources\\app\.asar" asar_ok asar_restore/,
+  )
+  assert.match(
+    nsisSource,
+    /asar_restore:[\s\S]*IfFileExists "\$INSTDIR\\resources\\app\.asar\.old" 0 asar_fail[\s\S]*Rename "\$INSTDIR\\resources\\app\.asar\.old" "\$INSTDIR\\resources\\app\.asar"/,
+  )
+  assert.match(
+    nsisSource,
+    /Rename "\$PLUGINSDIR\\app\.asar" "\$INSTDIR\\resources\\app\.asar"/,
+  )
 })

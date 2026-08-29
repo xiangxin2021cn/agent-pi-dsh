@@ -264,3 +264,21 @@ test('an unmarked custom overlay is preserved byte-for-byte', (t) => {
 
   assert.equal(readFileSync(fixture.patchPath, 'utf8'), customPatch)
 })
+
+test('alpha.1 preserves dsh-im installation but does not activate the incompatible bundle', (t) => {
+  const fixture = createFixture(t)
+  const profileDir = join(fixture.home, 'profiles/tender')
+  writePackage(profileDir, 'node_modules/@xmanrui/dsh-im', '@xmanrui/dsh-im')
+  writeFixtureFile(join(profileDir, 'package.json'), `${JSON.stringify({
+    name: 'dsh-profile-tender',
+    private: true,
+    dependencies: { '@xmanrui/dsh-im': '^3.2.0' },
+    dsh: { profile: { bundles: ['@xmanrui/dsh-im'] } },
+  }, null, 2)}\n`)
+
+  runInitializer(fixture)
+
+  const manifest = JSON.parse(readFileSync(join(profileDir, 'package.json'), 'utf8'))
+  assert.equal(manifest.dependencies['@xmanrui/dsh-im'], '^3.2.0')
+  assert.doesNotMatch(JSON.stringify(manifest.dsh.profile.bundles), /@xmanrui\/dsh-im/)
+})

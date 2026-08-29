@@ -100,6 +100,15 @@ foreach ($item in $productItems) {
   }
 }
 
+# Keep first launch offline and deterministic. The source-vendored Univer
+# plugin intentionally excludes node_modules, so stage its production closure
+# into the packaged product while build-time npm access is available.
+$univerStage = Join-Path $Product "vendor\dsh-univer-office"
+if (Test-Path (Join-Path $univerStage "package.json")) {
+  & $node (Join-Path $Root "scripts\install-univer-runtime-deps.mjs") $univerStage
+  if ($LASTEXITCODE -ne 0) { throw "failed to stage Univer production dependencies" }
+}
+
 $dshLink = Get-Item -LiteralPath $Dsh
 if ($dshLink.LinkType) {
   $Dsh = @($dshLink.Target)[0]

@@ -61,26 +61,42 @@ Section "Install"
     nsExec::ExecToLog '"$PLUGINSDIR\7za.exe" x -y -aoa -bd "$PLUGINSDIR\payload.7z" "-o$INSTDIR"'
     Pop $0
   ${EndIf}
-  ${If} $0 != 0
-    DetailPrint "Extracting locked app.asar separately..."
-    nsExec::ExecToLog '"$PLUGINSDIR\7za.exe" e -y -aoa -bd "$PLUGINSDIR\payload.7z" "-o$PLUGINSDIR" "resources\app.asar"'
-    Pop $1
-    ClearErrors
+
+  ; Always commit app.asar separately. A bulk 7za extraction can report
+  ; success while antivirus or a stale Electron handle skips this one file.
+  DetailPrint "Installing app.asar transactionally..."
+  Delete "$PLUGINSDIR\app.asar"
+  nsExec::ExecToLog '"$PLUGINSDIR\7za.exe" e -y -aoa -bd "$PLUGINSDIR\payload.7z" "-o$PLUGINSDIR" "resources\app.asar"'
+  Pop $1
+  ClearErrors
+  Delete "$INSTDIR\resources\app.asar"
+  IfFileExists "$PLUGINSDIR\app.asar" 0 asar_restore
+    Rename "$PLUGINSDIR\app.asar" "$INSTDIR\resources\app.asar"
+  IfFileExists "$INSTDIR\resources\app.asar" asar_ok asar_restore
+
+  asar_restore:
     Delete "$INSTDIR\resources\app.asar"
-    IfFileExists "$PLUGINSDIR\app.asar" 0 asar_warn
-      CopyFiles /SILENT "$PLUGINSDIR\app.asar" "$INSTDIR\resources\app.asar"
-    asar_warn:
-    IfFileExists "$INSTDIR\agent-pi-DSH.exe" 0 extract_fail
-    IfFileExists "$INSTDIR\resources\runtime\node\node.exe" 0 extract_fail
-    IfFileExists "$INSTDIR\resources\app.asar" +2 0
-      MessageBox MB_OK|MB_ICONEXCLAMATION "程序文件已解压，但 resources\app.asar 仍被占用未能替换。请完全退出 Agent Pi DSH，并暂时关闭占用安装目录的编辑器后重新运行本安装包。$\r$\n$\r$\nPayload extracted, but app.asar is still locked. Quit Agent Pi DSH fully and close any editor locking the install folder, then run this installer again."
-    Goto extract_ok
-    extract_fail:
-      MessageBox MB_OK|MB_ICONSTOP "解压失败 ($0)。请完全退出 Agent Pi DSH（含托盘）后重试。$\r$\n$\r$\nFailed to extract the application ($0). Quit Agent Pi DSH fully and retry."
-      Abort
-  ${EndIf}
-  extract_ok:
+    IfFileExists "$INSTDIR\resources\app.asar.old" 0 asar_fail
+      Rename "$INSTDIR\resources\app.asar.old" "$INSTDIR\resources\app.asar"
+  asar_fail:
+    SetErrorLevel 2
+    MessageBox MB_OK|MB_ICONSTOP "resources\app.asar 安装失败；已尽可能恢复原版本。请完全退出 Agent Pi DSH，并暂时关闭占用安装目录的编辑器后重试。$\r$\n$\r$\nFailed to install resources\app.asar; the previous archive was restored where possible. Quit Agent Pi DSH fully and close any editor locking the install folder, then retry."
+    Abort
+
+  asar_ok:
+  IfFileExists "$INSTDIR\agent-pi-DSH.exe" 0 extract_fail
+  IfFileExists "$INSTDIR\resources\runtime\node\node.exe" 0 extract_fail
+  IfFileExists "$INSTDIR\resources\runtime\deepseek-harness\apps\cli\lib\bin.js" 0 extract_fail
+  IfFileExists "$INSTDIR\resources\runtime\product\scripts\repair-dsh-links.mjs" 0 extract_fail
   Delete "$INSTDIR\resources\app.asar.old"
+  Goto extract_ok
+
+  extract_fail:
+    SetErrorLevel 3
+    MessageBox MB_OK|MB_ICONSTOP "解压失败 ($0)。请完全退出 Agent Pi DSH（含托盘）后重试。$\r$\n$\r$\nFailed to extract the application ($0). Quit Agent Pi DSH fully and retry."
+    Abort
+
+  extract_ok:
   DetailPrint "Repairing DeepSeek Harness plugin links..."
   nsExec::ExecToLog '"$INSTDIR\resources\runtime\node\node.exe" "$INSTDIR\resources\runtime\product\scripts\repair-dsh-links.mjs" repair "$INSTDIR\resources\runtime\deepseek-harness"'
   Pop $0
