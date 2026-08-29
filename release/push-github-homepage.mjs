@@ -1,5 +1,5 @@
 // Publishes the website-styled GitHub homepage (README + light-theme assets)
-// and updates the repository About card. One commit on agent-pi main.
+// and updates the repository About card. One commit on agent-pi-dsh main.
 import { execSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -39,7 +39,7 @@ async function blob(absPath, encoding = 'base64') {
 
 const files = [
   { path: 'README.md', abs: join(root, 'release/github-readme.md'), encoding: 'utf-8' },
-  { path: 'release/notes-3.3.5.md', abs: join(root, 'release/notes-3.3.5.md'), encoding: 'utf-8' },
+  { path: 'release/notes-3.3.6.md', abs: join(root, 'release/notes-3.3.6.md'), encoding: 'utf-8' },
   { path: 'docs/assets/hero-flow-light.webp', abs: join(root, 'release/github-assets/hero-flow-light.webp') },
   { path: 'docs/assets/logo.png', abs: join(root, 'release/github-assets/logo.png') },
   { path: 'docs/assets/studio-logo.png', abs: join(root, 'release/github-assets/studio-logo.png') },
@@ -68,7 +68,7 @@ const commit = await api('/git/commits', {
   method: 'POST',
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify({
-    message: 'docs: publish v3.3.5 download links on GitHub homepage',
+    message: 'docs: publish v3.3.6 download links on GitHub homepage',
     tree: newTree.sha,
     parents: [headSha],
   }),

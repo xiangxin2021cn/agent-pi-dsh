@@ -17,7 +17,17 @@ if (-not (Test-Path $Installer)) {
 Write-Host "Uploading $Installer to $Repo $Tag"
 gh release upload $Tag $Installer --repo $Repo --clobber
 
-Write-Host "Dispatching Build Installers (Classic linux/mac only run for v0/v1/v2 tags)"
+if ($Tag -like "v3.*") {
+  Write-Host "Dispatching build-desktop-assets.yml for $Tag"
+  gh workflow run build-desktop-assets.yml --repo $Repo -f "tag=$Tag"
+  if ($LASTEXITCODE -ne 0) {
+    throw "build-desktop-assets workflow dispatch failed: $LASTEXITCODE"
+  }
+  Write-Host "Done. Watch: https://github.com/$Repo/actions/workflows/build-desktop-assets.yml"
+  return
+}
+
+Write-Host "Dispatching legacy Build Installers for v0/v1/v2 tags"
 $tmp = Join-Path $env:TEMP "agent-pi-dispatch.json"
 $json = @{
   event_type = "windows-installer-uploaded"
@@ -29,7 +39,4 @@ if ($LASTEXITCODE -ne 0) {
   throw "repository_dispatch failed: $LASTEXITCODE"
 }
 
-Write-Host "Done. Watch: https://github.com/$Repo/actions/workflows/build-installers.yml"
-if ($Tag -like "v3.*") {
-  Write-Host "Note: $Tag is 3.x. CI will not attach Classic 2.x dmg/AppImage to this release."
-}
+Write-Host "Done. Watch the legacy installer workflow in $Repo Actions"

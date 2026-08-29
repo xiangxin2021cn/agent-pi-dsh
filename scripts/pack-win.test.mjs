@@ -8,6 +8,11 @@ import { test } from 'node:test'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const packScript = join(root, 'scripts', 'pack-win.ps1')
+const nsisScript = join(root, 'scripts', 'nsis', 'setup.nsi')
+const makensis = [
+  join(process.env['ProgramFiles(x86)'] ?? '', 'NSIS', 'makensis.exe'),
+  join(process.env.ProgramFiles ?? '', 'NSIS', 'makensis.exe'),
+].find((candidate) => existsSync(candidate))
 
 function writeCmd(path, body) {
   writeFileSync(path, `@echo off\r\n${body}\r\n`)
@@ -78,4 +83,18 @@ test('stops before Electron commands when adjacent npm fails', (t) => {
   assert.notEqual(result.status, 0)
   assert.match(`${result.stdout}\n${result.stderr}`, /desktop npm install failed: 47/)
   assert.deepEqual(result.log, ['node-npm:install --no-fund --no-audit'])
+})
+
+test('compiled finish page defaults to launching the installed application', {
+  skip: !makensis && 'makensis.exe is required for the Windows installer contract',
+}, () => {
+  const result = spawnSync(makensis, ['/PPO', nsisScript], {
+    cwd: dirname(nsisScript),
+    encoding: 'utf8',
+  })
+
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`)
+  assert.match(result.stdout, /PageCallbacks mui\.FinishPage\.Pre_[^\s]+ mui\.FinishPage\.Leave_[^\s]+/)
+  assert.match(result.stdout, /SendMessage \$mui\.FinishPage\.Run 0x00F1 1 0/)
+  assert.match(result.stdout, /Exec "\$\\"\$INSTDIR\\agent-pi-DSH\.exe\$\\""/)
 })
