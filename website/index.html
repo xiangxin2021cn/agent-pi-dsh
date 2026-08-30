@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
 <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" /></noscript>
-<link rel="stylesheet" href="assets/css/main.css?v=24" />
+<link rel="stylesheet" href="assets/css/main.css?v=25" />
 </head>
 <body>
 
@@ -82,7 +82,7 @@
     <div class="hero-cta reveal">
       <a class="btn btn-primary" id="hero-dl" href="#download">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-        <span data-lang="zh">下载 Windows x64</span><span data-lang="en">Download for Windows</span>
+        <span data-lang="zh">选择下载平台</span><span data-lang="en">Choose a download</span>
       </a>
       <a class="btn btn-ghost" href="docs.html">
         <span data-lang="zh">阅读文档</span><span data-lang="en">Read the Docs</span>
@@ -90,8 +90,8 @@
       </a>
     </div>
     <p class="hero-meta reveal">
-      <span data-lang="zh">未签名安装包：SmartScreen 选「仍要运行」 · 可与 2.6.5 经典版并存 · 新会话默认</span>
-      <span data-lang="en">Unsigned installer: choose “Run anyway” in SmartScreen · Side-by-side with Classic 2.6.5 · New sessions default to</span>
+      <span data-lang="zh">Windows 未签名：SmartScreen 选「仍要运行」 · 可与 2.6.5 经典版并存 · 新会话默认</span>
+      <span data-lang="en">Windows is unsigned: choose “Run anyway” in SmartScreen · Side-by-side with Classic 2.6.5 · New sessions default to</span>
       <code>deepseek-v4-flash-vision-exp</code>
     </p>
   </div>
@@ -848,22 +848,52 @@
       <span class="kicker" data-lang="en">Get started</span>
       <h2 data-lang="zh">打开项目，直接下任务</h2>
       <h2 data-lang="en">Open a project. Give it the job.</h2>
-      <p data-lang="zh" style="color:var(--text-dim);max-width:560px;margin:0 auto 30px">3.5.1 Windows x64 参赛演示版采用定向交付；获取安装包后，选择工作区并配置 DeepSeek，也可在设置中用 ChatGPT 登录 Codex。</p>
-      <p data-lang="en" style="color:var(--text-dim);max-width:560px;margin:0 auto 30px">The 3.5.1 Windows x64 competition build is distributed directly. After receiving it, pick a workspace and connect DeepSeek or sign in to Codex with ChatGPT.</p>
-      <div id="release-static">
-        <div class="hero-cta">
-          <span class="btn btn-primary" role="status">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-            Agent-Pi-DSH-3.5.1-x64.exe
+      <p data-lang="zh" style="color:var(--text-dim);max-width:680px;margin:0 auto 30px">从 GitHub 获取 <span data-release-version>3.5.1</span> 的 Windows、macOS 或 Linux 安装包；选择工作区并配置 DeepSeek，也可在设置中用 ChatGPT 登录 Codex。</p>
+      <p data-lang="en" style="color:var(--text-dim);max-width:680px;margin:0 auto 30px">Download <span data-release-version>3.5.1</span> for Windows, macOS or Linux from GitHub; then pick a workspace and connect DeepSeek, or sign in to Codex with ChatGPT.</p>
+      <div id="release-panel" class="rl-panel" data-release-state="fallback">
+        <div class="rl-head">
+          <span class="rl-pill" data-rel-version>v3.5.1</span>
+          <span class="rl-kind"><span data-lang="zh">GitHub 最新正式版</span><span data-lang="en">GitHub latest release</span></span>
+          <span class="rl-date"><span data-lang="zh">发布于 <span data-release-date>2026-08-30</span></span><span data-lang="en">Released <span data-release-date>2026-08-30</span></span></span>
+        </div>
+        <div class="rl-row" data-release-platform="windows">
+          <span class="rl-kind">Windows x64</span>
+          <span class="rl-name" data-release-name="windows-exe">Agent-Pi-DSH-3.5.1-x64.exe</span>
+          <span class="rl-size" data-release-size="windows-exe">559.6 MB</span>
+          <span class="rl-btns">
+            <a class="primary" data-release-asset="windows-exe" href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.5.1/Agent-Pi-DSH-3.5.1-x64.exe" target="_blank" rel="noopener"><span data-lang="zh">下载 EXE</span><span data-lang="en">Download EXE</span></a>
+            <a data-release-asset="windows-sha" href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.5.1/Agent-Pi-DSH-3.5.1-x64.exe.sha256" target="_blank" rel="noopener">SHA256</a>
           </span>
         </div>
+        <div class="rl-row" data-release-platform="macos">
+          <span class="rl-kind">macOS arm64</span>
+          <span class="rl-name" data-release-name="mac-dmg">Agent-Pi-DSH-3.5.1-mac-arm64.dmg</span>
+          <span class="rl-size" data-release-size="mac-dmg">540.4 MB</span>
+          <span class="rl-btns">
+            <a class="primary" data-release-asset="mac-dmg" href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.5.1/Agent-Pi-DSH-3.5.1-mac-arm64.dmg" target="_blank" rel="noopener"><span data-lang="zh">下载 DMG</span><span data-lang="en">Download DMG</span></a>
+            <a data-release-asset="mac-zip" href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.5.1/Agent-Pi-DSH-3.5.1-mac-arm64.zip" target="_blank" rel="noopener">ZIP</a>
+          </span>
+        </div>
+        <div class="rl-row" data-release-platform="linux">
+          <span class="rl-kind">Linux x64</span>
+          <span class="rl-name" data-release-name="linux-appimage">Agent-Pi-DSH-3.5.1-linux-x86_64.AppImage</span>
+          <span class="rl-size" data-release-size="linux-appimage">602.4 MB</span>
+          <span class="rl-btns">
+            <a class="primary" data-release-asset="linux-appimage" href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.5.1/Agent-Pi-DSH-3.5.1-linux-x86_64.AppImage" target="_blank" rel="noopener"><span data-lang="zh">下载 AppImage</span><span data-lang="en">Download AppImage</span></a>
+            <a data-release-asset="linux-deb" href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.5.1/Agent-Pi-DSH-3.5.1-linux-amd64.deb" target="_blank" rel="noopener">DEB</a>
+          </span>
+        </div>
+        <p class="rl-note">
+          <span data-lang="zh">官网会在页面打开时同步完整的 GitHub Latest Release；若接口暂时不可用，则使用页面内置的已验证备用链接。</span>
+          <span data-lang="en">The page syncs a complete GitHub Latest Release when opened; if the API is temporarily unavailable, it uses the verified fallback links embedded in the page.</span>
+        </p>
         <p class="hero-meta">
-          <span data-lang="zh">SHA256：<code>E3D8CC41CCF76A71B00E05CD16E5E514C060D4346EA13DD740EEAA1C7AC0E018</code></span>
-          <span data-lang="en">SHA256: <code>E3D8CC41CCF76A71B00E05CD16E5E514C060D4346EA13DD740EEAA1C7AC0E018</code></span>
+          <span data-lang="zh">Windows SHA256：<code data-release-sha>E3D8CC41CCF76A71B00E05CD16E5E514C060D4346EA13DD740EEAA1C7AC0E018</code></span>
+          <span data-lang="en">Windows SHA256: <code data-release-sha>E3D8CC41CCF76A71B00E05CD16E5E514C060D4346EA13DD740EEAA1C7AC0E018</code></span>
         </p>
       </div>
-      <p class="hero-meta" data-lang="zh">未签名：SmartScreen 选「仍要运行」 · 覆盖安装前请完全退出（不要只关到托盘） · 安装前核对随包提供的 SHA256</p>
-      <p class="hero-meta" data-lang="en">Unsigned: SmartScreen → “Run anyway” · Quit fully before upgrading — closing to the tray is not enough · Verify the supplied SHA256 before installation</p>
+      <p class="hero-meta" data-lang="zh">当前构件未签名或公证 · Windows SmartScreen 选「仍要运行」 · 覆盖安装前请完全退出（不要只关到托盘） · Windows 安装前核对 SHA256</p>
+      <p class="hero-meta" data-lang="en">Current builds are unsigned or unnotarized · On Windows choose SmartScreen → “Run anyway” · Quit fully before upgrading · Verify the Windows SHA256 before installation</p>
     </div>
   </div>
 </section>
@@ -896,7 +926,7 @@
       </div>
       <div>
         <h4 data-lang="zh">版本</h4><h4 data-lang="en">Versions</h4>
-        <span>v3.5.1</span>
+        <span data-rel-version>v3.5.1</span>
       </div>
     </div>
     <div class="footer-bottom">
@@ -908,6 +938,6 @@
 </footer>
 
 <script src="assets/js/flow.js?v=24"></script>
-<script src="assets/js/main.js?v=25"></script>
+<script src="assets/js/main.js?v=26"></script>
 </body>
 </html>

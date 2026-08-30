@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
 <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" /></noscript>
-<link rel="stylesheet" href="assets/css/main.css?v=24" />
+<link rel="stylesheet" href="assets/css/main.css?v=25" />
 </head>
 <body>
 
@@ -51,20 +51,20 @@
   <div data-lang="zh">
     <p>本页说明 Agent Pi DSH 安装包的签名与完整性校验政策。</p>
     <ul>
-      <li>3.5.1 参赛演示安装包当前未签名，Windows SmartScreen 可能提示风险。</li>
-      <li>每个定向交付构件同时提供 SHA256 校验值，用户应在安装前核对。</li>
+      <li><span data-release-version>3.5.1</span> 当前公开构件未签名或公证，Windows SmartScreen 或其他平台安全机制可能提示风险。</li>
+      <li>GitHub Release 会提供构件摘要或校验文件（如有）；Windows 用户应在安装前核对官网显示的 SHA256。</li>
       <li>后续正式签名构件只通过受控发布流水线生成，签名密钥由签名服务托管，项目维护者不直接接触私钥。</li>
-      <li>签名状态与 SHA256 以随安装包提供的交付说明为准。</li>
+      <li>签名状态与摘要以 GitHub Release 中对应构件的信息为准。</li>
     </ul>
     <p>如有签名相关问题，请通过参赛测试通知中的项目联系人反馈。</p>
   </div>
   <div data-lang="en">
     <p>This page states the installer signing and integrity policy of Agent Pi DSH.</p>
     <ul>
-      <li>The 3.5.1 competition installer is currently unsigned, so Windows SmartScreen may display a warning.</li>
-      <li>Every directly supplied artifact includes a SHA256 value that should be verified before installation.</li>
+      <li>The current <span data-release-version>3.5.1</span> public artifacts are unsigned or unnotarized, so Windows SmartScreen or another platform's security checks may display a warning.</li>
+      <li>GitHub Release provides an artifact digest or checksum file when available; Windows users should verify the SHA256 shown on the website before installation.</li>
       <li>Future signed artifacts will be produced only through a controlled release pipeline; signing keys remain with the signing service and are not directly accessible to maintainers.</li>
-      <li>The delivery note supplied with each installer is authoritative for signing status and SHA256.</li>
+      <li>The corresponding GitHub Release asset information is authoritative for signing status and digests.</li>
     </ul>
     <p>For signing questions, use the project contact included with the competition test notice.</p>
   </div>
@@ -79,7 +79,7 @@
   </div>
 </footer>
 
-<script src="assets/js/main.js?v=25"></script>
+<script src="assets/js/main.js?v=26"></script>
 </body>
 </html>
 

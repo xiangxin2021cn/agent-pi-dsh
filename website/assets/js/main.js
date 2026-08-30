@@ -89,4 +89,95 @@
   });
 })();
 
-/* Release metadata is intentionally static so the public site never queries a source-code host. */
+/* ---- Latest complete GitHub release, with a verified static fallback ---- */
+(function () {
+  var releaseNodes = document.querySelectorAll("[data-rel-version], [data-release-version]");
+  var panel = document.getElementById("release-panel");
+  if (!panel && !releaseNodes.length) return;
+
+  var API = "https://api.github.com/repos/xiangxin2021cn/agent-pi-dsh/releases/latest";
+  var DOWNLOAD_PREFIX = "https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/";
+  var assetSuffixes = {
+    "windows-exe": "-x64.exe",
+    "windows-sha": "-x64.exe.sha256",
+    "mac-dmg": "-mac-arm64.dmg",
+    "mac-zip": "-mac-arm64.zip",
+    "linux-appimage": "-linux-x86_64.AppImage",
+    "linux-deb": "-linux-amd64.deb"
+  };
+
+  function fmtSize(bytes) {
+    return (bytes / 1048576).toFixed(1) + " MB";
+  }
+
+  function validAsset(asset, expectedName, tag) {
+    return asset && asset.name === expectedName && asset.state === "uploaded" &&
+      Number.isFinite(asset.size) && asset.size > 0 &&
+      typeof asset.browser_download_url === "string" &&
+      asset.browser_download_url === DOWNLOAD_PREFIX + tag + "/" + expectedName;
+  }
+
+  function applyRelease(release) {
+    var tag = release && release.tag_name;
+    if (!/^v\d+\.\d+\.\d+$/.test(tag || "") || release.draft || release.prerelease ||
+      typeof release.published_at !== "string" || Number.isNaN(Date.parse(release.published_at))) return;
+    var version = tag.slice(1);
+    var prefix = "Agent-Pi-DSH-" + version;
+    var byName = {};
+    (release.assets || []).forEach(function (asset) { byName[asset.name] = asset; });
+
+    var assets = {};
+    Object.keys(assetSuffixes).forEach(function (key) {
+      var expected = prefix + assetSuffixes[key];
+      var asset = byName[expected];
+      if (validAsset(asset, expected, tag)) assets[key] = asset;
+    });
+
+    /* Never switch the page to a newly published release until all three
+       primary desktop platforms have finished uploading. */
+    if (!assets["windows-exe"] || !assets["mac-dmg"] || !assets["linux-appimage"]) return;
+    var digest = assets["windows-exe"].digest || "";
+    var digestMatch = digest.match(/^sha256:([a-f0-9]{64})$/i);
+    if (!digestMatch) return;
+
+    document.querySelectorAll("[data-rel-version]").forEach(function (node) {
+      node.textContent = tag;
+    });
+    document.querySelectorAll("[data-release-version]").forEach(function (node) {
+      node.textContent = version;
+    });
+    document.querySelectorAll("[data-release-date]").forEach(function (node) {
+      node.textContent = (release.published_at || "").slice(0, 10);
+    });
+    document.querySelectorAll("[data-release-sha]").forEach(function (node) {
+      node.textContent = digestMatch[1].toUpperCase();
+    });
+
+    Object.keys(assetSuffixes).forEach(function (key) {
+      var asset = assets[key];
+      document.querySelectorAll('[data-release-asset="' + key + '"]').forEach(function (link) {
+        link.hidden = !asset;
+        if (asset) link.href = asset.browser_download_url;
+      });
+      if (!asset) return;
+      document.querySelectorAll('[data-release-name="' + key + '"]').forEach(function (node) {
+        node.textContent = asset.name;
+      });
+      document.querySelectorAll('[data-release-size="' + key + '"]').forEach(function (node) {
+        node.textContent = fmtSize(asset.size);
+      });
+    });
+
+    if (panel) panel.setAttribute("data-release-state", "synced");
+  }
+
+  var options = { credentials: "omit", referrerPolicy: "no-referrer", cache: "default" };
+  if ("AbortSignal" in window && AbortSignal.timeout) options.signal = AbortSignal.timeout(8000);
+  fetch(API, options)
+    .then(function (response) {
+      if (!response.ok) throw new Error("GitHub release metadata: " + response.status);
+      return response.json();
+    })
+    .then(applyRelease)
+    .catch(function () { /* Keep the complete, verified fallback embedded in the page. */ });
+})();

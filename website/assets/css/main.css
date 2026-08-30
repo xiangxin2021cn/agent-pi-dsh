@@ -364,7 +364,7 @@ svg .d-accent { fill: var(--accent); }
 }
 
 /* ---------- Latest release panel ---------- */
-.rl-panel { margin: 8px auto 6px; max-width: 720px; text-align: left; }
+.rl-panel { margin: 8px auto 6px; max-width: 920px; text-align: left; }
 .rl-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center; margin-bottom: 18px; text-align: center; }
 .rl-pill {
   font-family: var(--font-mono); font-weight: 600; font-size: 0.95rem;
@@ -390,6 +390,7 @@ svg .d-accent { fill: var(--accent); }
 .rl-btns a.primary:hover { color: #fff; box-shadow: 0 8px 22px -8px var(--glow); }
 .rl-note { text-align: center; color: var(--text-faint); font-size: 0.84rem; margin-top: 14px; }
 .rl-note code { font-family: var(--font-mono); font-size: 0.82em; background: var(--accent-soft); color: var(--accent-ink); padding: 2px 8px; border-radius: 6px; }
+.hero-meta [data-release-sha] { word-break: break-all; user-select: all; }
 
 /* ---------- Comparison table ---------- */
 .tbl.vs th:last-child, .tbl.vs td:last-child {
@@ -591,4 +592,8 @@ html[data-theme="light"] .cta-banner.on-flow .rl-note { color: #8593ab; }
   .cta-banner { padding: 50px 24px; }
   .footer-grid { grid-template-columns: 1fr; gap: 26px; }
   .step { grid-template-columns: 44px 1fr; gap: 14px; }
+  .rl-row { align-items: flex-start; }
+  .rl-row .rl-name { flex-basis: 100%; }
+  .rl-btns { width: 100%; }
+  .rl-btns a { flex: 1 1 auto; text-align: center; }
 }

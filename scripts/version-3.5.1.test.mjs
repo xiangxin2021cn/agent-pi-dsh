@@ -35,21 +35,29 @@ test('release manifests resolve to Agent Pi DSH 3.5.1', () => {
   assert.match(website, /Agent-Pi-DSH-3\.5\.1-x64\.exe/)
   assert.match(website, /执行账本 · 双态控制面板/)
   assert.match(websiteDocs, /3\.5\.1 执行账本与双态控制/)
-  assert.match(websiteDocs, /Agent-Pi-DSH-3\.5\.1-x64\.exe/)
+  assert.match(websiteDocs, /data-release-version>3\.5\.1</)
 })
 
-test('public website contains no application source-code host or repository links', () => {
-  const publicFiles = [
-    ['website', 'index.html'],
-    ['website', 'docs.html'],
-    ['website', 'privacy-policy.html'],
-    ['website', 'code-signing-policy.html'],
-    ['website', 'assets', 'js', 'main.js'],
+test('public website exposes three-platform fallback and syncs only a complete GitHub latest release', () => {
+  const website = readText('website', 'index.html')
+  const releaseScript = readText('website', 'assets', 'js', 'main.js')
+  const privacy = readText('website', 'privacy-policy.html')
+  const fallbackAssets = [
+    'Agent-Pi-DSH-3.5.1-x64.exe',
+    'Agent-Pi-DSH-3.5.1-x64.exe.sha256',
+    'Agent-Pi-DSH-3.5.1-mac-arm64.dmg',
+    'Agent-Pi-DSH-3.5.1-mac-arm64.zip',
+    'Agent-Pi-DSH-3.5.1-linux-x86_64.AppImage',
+    'Agent-Pi-DSH-3.5.1-linux-amd64.deb',
   ]
-  for (const parts of publicFiles) {
-    const text = readText(...parts)
-    assert.doesNotMatch(text, /github(?:\.com|\s+releases?|\s+issues?)/i, parts.join('/'))
-    assert.doesNotMatch(text, /xiangxin2021cn|gh-proxy|ghfast/i, parts.join('/'))
-    assert.doesNotMatch(text, /(?:当前\s*DSH\s*3\.x\s*)?源码|classic source|open-source project/i, parts.join('/'))
-  }
+
+  for (const asset of fallbackAssets) assert.match(website, new RegExp(asset.replaceAll('.', '\\.')))
+  assert.match(website, /data-release-platform="windows"/)
+  assert.match(website, /data-release-platform="macos"/)
+  assert.match(website, /data-release-platform="linux"/)
+  assert.match(releaseScript, /releases\/latest/)
+  assert.match(releaseScript, /!assets\["windows-exe"\] \|\| !assets\["mac-dmg"\] \|\| !assets\["linux-appimage"\]/)
+  assert.match(releaseScript, /\.digest \|\| ""/)
+  assert.match(releaseScript, /data-release-state", "synced"/)
+  assert.match(privacy, /GitHub(?: 的公开|'s public) Latest Release API/)
 })
