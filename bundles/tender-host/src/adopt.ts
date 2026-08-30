@@ -30,6 +30,8 @@ export interface AdoptWorkspaceInput {
   name?: string
   projectId?: string
   inputPaths?: string[]
+  projectGoal?: string
+  terminalDeliverables?: string[]
 }
 
 /**
@@ -127,15 +129,18 @@ export function adoptWorkspace(cwd: string, input: AdoptWorkspaceInput) {
   if (listBusinessProjects(preview.cwd).some((project) => project.module === module && project.projectId === projectId)) {
     throw new Error(`Business project ${module}/${projectId} already exists`)
   }
+  const workflow = workflowFor(module)
   const project = createBusinessProject({
     workspaceRootPath: preview.cwd,
     projectId,
     module,
     name: input.name?.trim() || preview.name,
     rootPath: preview.cwd,
-    workflowId: workflowFor(module).id,
+    workflowId: workflow.id,
     createDirectory: false,
     inputPaths: input.inputPaths ?? preview.suggestedInputs,
+    projectGoal: input.projectGoal ?? workflow.projectGoal,
+    terminalDeliverables: input.terminalDeliverables ?? workflow.terminalDeliverables,
   })
   if (usesTenderControlProfile(module)) {
     registerProjectSources(preview.cwd, project.projectId, {
@@ -143,7 +148,6 @@ export function adoptWorkspace(cwd: string, input: AdoptWorkspaceInput) {
       inputPaths: project.inputPaths,
     })
   }
-  const workflow = workflowFor(module)
   const firstStage = workflow.setupStageId || workflow.stages[0]?.id
   if (firstStage) prepareStage(preview.cwd, project, firstStage)
   return projectSnapshot(preview.cwd, project)

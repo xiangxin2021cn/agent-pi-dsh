@@ -343,6 +343,19 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     assert.equal(fetchCalls.filter((call) => call.action === 'record_requirement').length, 2, 'product-generated acceptance closeout must never re-enter the user-requirement ledger')
     await act(async () => {
       sessionSnapshot.pendingSubmissions.push({
+        requestId: 'rpc-stage-closeout', time: Date.now(),
+        text: '【阶段已收口 — 盘面复核】\n不要再次调用 complete_stage，必须等待用户再次点击继续推进。', images: [],
+      })
+      sessionSnapshot.pendingSubmissions.push({
+        requestId: 'rpc-pricing-diligence', time: Date.now(),
+        text: '【补齐组价当地情报 — 请在本项目主会话继续】\n必须读取供应商资料。', images: [],
+      })
+      sessionListeners.forEach((listener) => listener())
+      await new Promise((resolveTick) => setTimeout(resolveTick, 20))
+    })
+    assert.equal(fetchCalls.filter((call) => call.action === 'record_requirement').length, 2, 'internal closeout and pricing prompts must never self-trigger as user requirements')
+    await act(async () => {
+      sessionSnapshot.pendingSubmissions.push({
         requestId: 'rpc-repeat', time: Date.now(),
         text: '只修改重大风险结论，不要重做已完成的招标文件解析。', images: [],
       })

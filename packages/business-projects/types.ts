@@ -14,6 +14,10 @@ export interface BusinessProjectRecord {
   rootPath: string
   workflowId: string
   inputPaths: string[]
+  /** Stable end-to-end objective injected into every bound DSH turn. */
+  projectGoal?: string
+  /** Concrete final artifacts/outcomes proving the project is finished. */
+  terminalDeliverables?: string[]
   createdAt: string
   updatedAt: string
 }
@@ -27,4 +31,11 @@ export interface CreateBusinessProjectInput {
   workflowId: string
   createDirectory: boolean
   inputPaths?: string[]
+  projectGoal?: string
+  terminalDeliverables?: string[]
+}
+
+export interface UpdateBusinessProjectContractInput {
+  projectGoal?: string
+  terminalDeliverables?: string[]
 }

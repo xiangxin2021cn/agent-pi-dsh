@@ -2580,7 +2580,6 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region src/session-wake.ts
-		const CHILD_RETURN_RE = /(ACCEPT_AND_PROCEED|REVISE_AND_RETRY|\bDONE\b|Background subagent\s+\S+\s+(?:reported|finished|was stopped|ran out of room|declined the task|failed before it finished))/i;
 		/** Parent is in an open turn. Queue-only is not running. */
 		function snapshotIsRunning(snap) {
 			return !!(snap && snap.running);
@@ -2598,10 +2597,6 @@ window.__ModuleLoader__.load({
 				});
 			}
 			return out;
-		}
-		/** Busy for crash-resume / UI: running or a waiting queue. */
-		function snapshotIsBusy(snap) {
-			return snapshotIsRunning(snap) || queuedMessages(snap).length > 0;
 		}
 		/** Root main-session routing target for a workbench action opened from any descendant. */
 		function parentSessionTarget(activeId, snap, list) {
@@ -2649,103 +2644,12 @@ window.__ModuleLoader__.load({
 			const activity = sessionActivity(list, parentId);
 			return snapshotIsRunning(parentSnap) || activity.parentRunning || activity.runningChildCount > 0;
 		}
-		function nodeText(node) {
-			if (!node) return "";
-			const chunks = [];
-			const blocks = node.blocks || node.content || [];
-			if (Array.isArray(blocks)) {
-				for (const block of blocks) if (block && typeof block.text === "string" && block.text) chunks.push(block.text);
-			}
-			if (typeof node.text === "string" && node.text) chunks.push(node.text);
-			return chunks.join("\n");
-		}
-		function isChildReturnText(text) {
-			return CHILD_RETURN_RE.test(String(text || ""));
-		}
 		/** Workbench-injected wake; do not treat it as another unanswered inbound. */
 		function isWorkbenchWakeText(text) {
 			return /^(【子代理回推】|【主对话未接续】|【主对话插话】|【评审回推】|【事务自动接续】)/.test(String(text || "").trim());
 		}
-		function nodeLists(snap) {
-			if (!snap) return [];
-			const lists = [];
-			if (Array.isArray(snap.nodes)) lists.push(snap.nodes);
-			if (snap.chat && snap.chat.legacy && Array.isArray(snap.chat.legacy.nodes)) lists.push(snap.chat.legacy.nodes);
-			return lists;
-		}
-		/** Latest child DONE / settlement / review verdict visible on a session snapshot. */
-		function lastChildReturn(snap) {
-			for (const list of nodeLists(snap)) for (let i = list.length - 1; i >= 0; i -= 1) {
-				const node = list[i];
-				const text = nodeText(node).trim();
-				if (!text && node?.kind === "assistant") continue;
-				if (!text && !node?.kind) continue;
-				return isChildReturnText(text) ? text : "";
-			}
-			return "";
-		}
-		/**
-		* If the last meaningful node is an inbound user/child-return and the parent
-		* has not spoken after it, the main session needs a waking prompt.
-		*/
-		function inboundNeedsParentWake(snap) {
-			for (const list of nodeLists(snap)) for (let i = list.length - 1; i >= 0; i -= 1) {
-				const node = list[i];
-				if (!node) continue;
-				const text = nodeText(node).trim();
-				if (node.kind === "context" && text && isChildReturnText(text)) return {
-					kind: "child-return",
-					text
-				};
-				if (node.kind === "user" && text) {
-					if (isWorkbenchWakeText(text)) return null;
-					return {
-						kind: isChildReturnText(text) ? "child-return" : "user",
-						text
-					};
-				}
-				if (node.kind === "assistant" && !text) continue;
-				if (node.kind && node.kind !== "user") return null;
-			}
-			return null;
-		}
-		const HUMAN_APPROVAL_RE = /(?:是否(?:投标|不投标)|投标\s*[\/／]\s*不投标|重大(?:履约)?风险|价格基准|冻结(?:价格|报价|版本)?|最终提交|提交投标|批准提交|签字|签署|人工(?:确认|决策|审批)|强制放行|付款|发布)/i;
-		const MECHANICAL_CONTINUATION_RE = /(?:小批次|workflow|继续(?:推进|执行|处理|补齐|完成|组价)|补全|剩余|直至\s*complete_stage)/i;
-		const CONTINUATION_QUESTION_RE = /(?:是否(?:按(?:此|上述|该方案))?继续|是否继续(?:执行|推进|处理|补齐|组价)?|要(?:我|不要)?继续|可以继续吗)[？?]?\s*$/i;
-		/**
-		* Detect a narrow class of assistant self-pauses that do not ask for a new
-		* business decision. The committed session transaction already authorizes
-		* mechanical batching; real bid, price-freeze and submission gates stay manual.
-		*/
-		function assistantNeedsTransactionContinuation(snap) {
-			for (const list of nodeLists(snap)) for (let i = list.length - 1; i >= 0; i -= 1) {
-				const node = list[i];
-				if (!node) continue;
-				const text = nodeText(node).trim();
-				if (node.kind === "assistant" && !text) continue;
-				if (node.kind !== "assistant" || !text) return null;
-				const tail = text.slice(-600);
-				if (HUMAN_APPROVAL_RE.test(tail)) return null;
-				if (!MECHANICAL_CONTINUATION_RE.test(tail) || !CONTINUATION_QUESTION_RE.test(tail)) return null;
-				return {
-					kind: "transaction-continuation",
-					text: tail
-				};
-			}
-			return null;
-		}
-		/** Frame a workbench wake so the parent continues instead of sitting idle. */
-		function buildParentWakePrompt(hit) {
-			const excerpt = hit.text.length > 1200 ? `${hit.text.slice(0, 1200)}\n…` : hit.text;
-			if (hit.kind === "child-return") return "【子代理回推】子智能体已 report/settled。请立刻核验磁盘成果并继续本阶段，不要再空等 DONE。\n\n" + excerpt;
-			if (hit.kind === "transaction-continuation") return "【事务自动接续】本会话的「继续推进」事务仍有效；这只是已授权阶段内的机械分批，不需要再次询问是否继续。请直接核验磁盘现状、续派未完成工作并推进当前阶段。遇到投标/不投标、重大风险、价格基准冻结、最终提交等人工门时必须停止等待用户。\n\n" + excerpt;
-			return "【主对话未接续】用户已在本主会话提交指令，但主会话没有继续。请立刻处理这条指令，不要空等。\n\n" + excerpt;
-		}
 		function createWorkbenchSessionMonitor(options) {
 			const api = options.api;
-			const activeSessionId = options.activeSessionId;
-			const dispatchToConversation = options.dispatchToConversation;
-			const flushQueuedToParent = options.flushQueuedToParent;
 			const pinParentSessionId = options.pinParentSessionId;
 			const readSessionListSnap = options.readSessionListSnap;
 			const snapshotOf = options.snapshotOf;
@@ -2766,23 +2670,24 @@ window.__ModuleLoader__.load({
 					module: "tender",
 					projectId: "",
 					parentSessionId: "",
-					lastForwarded: "",
 					monitoring: false,
 					paused: false,
 					lastCheck: 0,
 					note: "",
-					wasBusy: false,
+					settlementCheckPending: false,
+					observedExecutionActive: false,
 					done: false,
 					lastReality: null,
-					lastControl: null
+					lastControl: null,
+					lastRealityDigest: ""
 				},
 				sending: false,
-				steeringQueue: false,
 				timer: null,
 				emit() {
 					onChange();
 				},
 				start(target) {
+					const previousTarget = `${this.state.parentSessionId}\n${this.state.cwd}\n${this.state.module}\n${this.state.projectId}`;
 					if (target && target.cwd && target.projectId) {
 						this.state.cwd = target.cwd;
 						this.state.module = target.module || "tender";
@@ -2791,6 +2696,10 @@ window.__ModuleLoader__.load({
 					if (!this.state.cwd || !this.state.projectId) return;
 					const parentSessionId = pinParentSessionId();
 					if (!parentSessionId) throw new Error("请先打开主会话，再启动自动推进。");
+					if (previousTarget !== `${parentSessionId}\n${this.state.cwd}\n${this.state.module}\n${this.state.projectId}`) {
+						this.state.lastRealityDigest = "";
+						this.state.observedExecutionActive = false;
+					}
 					if (prepareTransaction(parentSessionId, {
 						cwd: this.state.cwd,
 						module: this.state.module,
@@ -2801,8 +2710,9 @@ window.__ModuleLoader__.load({
 					this.state.paused = false;
 					this.state.done = false;
 					this.state.parentSessionId = parentSessionId;
-					this.state.note = "本会话自动推进事务已显式启动。";
-					this.state.wasBusy = snapshotIsBusy(snapshotOf(parentSessionId));
+					this.state.note = "本轮已显式派发；工作台只观察 DSH，空闲后核对一次，不会自动派活。";
+					this.state.settlementCheckPending = true;
+					this.state.observedExecutionActive = false;
 					this.ensureTimer();
 					this.emit();
 				},
@@ -2816,8 +2726,9 @@ window.__ModuleLoader__.load({
 					this.state.monitoring = true;
 					this.state.paused = Boolean(paused);
 					this.state.done = false;
-					this.state.note = paused ? "已恢复本会话显式启动的自动推进事务；事务保持暂停。" : "已恢复本会话显式启动的自动推进事务。";
-					this.state.wasBusy = snapshotIsBusy(snapshotOf(parentSessionId));
+					this.state.note = paused ? "已恢复本会话监控；保持暂停。" : "已恢复本会话监控；不会自动派活。";
+					this.state.settlementCheckPending = false;
+					this.state.observedExecutionActive = false;
 					this.ensureTimer();
 					this.emit();
 					return true;
@@ -2832,7 +2743,6 @@ window.__ModuleLoader__.load({
 					this.state.paused = false;
 					setTransactionPaused(this.state.parentSessionId, false);
 					if (!this.state.parentSessionId) this.state.parentSessionId = pinParentSessionId();
-					this.state.wasBusy = snapshotIsBusy(snapshotOf(this.state.parentSessionId));
 					this.emit();
 				},
 				stop(note, outcome) {
@@ -2875,91 +2785,13 @@ window.__ModuleLoader__.load({
 						this.emit();
 						return;
 					}
-					const parentRunning = snapshotIsRunning(parentSnap);
 					const sessionList = readSessionListSnap();
 					const executionActive = sessionExecutionActive(parentSnap, sessionList, parentId);
 					const runningChildren = sessionActivity(sessionList, parentId).runningChildCount;
-					const queued = queuedMessages(parentSnap);
-					const viewedId = activeSessionId();
-					const viewedSnap = viewedId && viewedId !== parentId ? snapshotOf(viewedId) : null;
-					const viewedBusy = snapshotIsBusy(viewedSnap);
-					state.wasBusy = executionActive || queued.length > 0;
 					state.lastCheck = Date.now();
-					if (queued.length && !this.steeringQueue && !this.sending) {
-						this.steeringQueue = true;
-						const task = flushQueuedToParent(parentId).then((ok) => {
-							if (!ok) return;
-							state.wasBusy = true;
-							state.note = "已把主对话排队指令插进当前轮。";
-							this.emit();
-						}).catch((error) => {
-							state.note = String(error && error.message || error);
-							this.emit();
-						}).finally(() => {
-							this.steeringQueue = false;
-						});
-						this.emit();
-						return task;
-					}
-					if (!parentRunning && viewedId && viewedId !== parentId && !viewedBusy) {
-						const verdict = lastChildReturn(viewedSnap);
-						const token = verdict ? `${viewedId}\n${verdict}` : "";
-						if (verdict && token !== state.lastForwarded) {
-							state.lastForwarded = token;
-							const task = dispatchToConversation({}, buildParentWakePrompt({
-								kind: "child-return",
-								text: verdict
-							}), parentId).then((ok) => {
-								if (!ok) return;
-								state.wasBusy = true;
-								state.note = "已把子智能体回推送进主对话。";
-								this.emit();
-							}).catch((error) => {
-								state.note = String(error && error.message || error);
-								this.emit();
-							});
-							this.emit();
-							return task;
-						}
-					}
-					if (!parentRunning) {
-						const hit = inboundNeedsParentWake(parentSnap);
-						const token = hit ? `parent\n${hit.kind}\n${hit.text}` : "";
-						if (hit && token !== state.lastForwarded) {
-							state.lastForwarded = token;
-							const task = dispatchToConversation({}, buildParentWakePrompt(hit), parentId).then((ok) => {
-								if (!ok) return;
-								state.wasBusy = true;
-								state.note = hit.kind === "child-return" ? "子代理已回传，已叫醒主对话。" : "已把未接续的主对话指令重新推入。";
-								this.emit();
-							}).catch((error) => {
-								state.note = String(error && error.message || error);
-								this.emit();
-							});
-							this.emit();
-							return task;
-						}
-					}
-					if (!parentRunning) {
-						const hit = assistantNeedsTransactionContinuation(parentSnap);
-						const token = hit ? `assistant\n${hit.kind}\n${hit.text}` : "";
-						if (hit && token !== state.lastForwarded) {
-							state.lastForwarded = token;
-							const task = dispatchToConversation({}, buildParentWakePrompt(hit), parentId).then((ok) => {
-								if (!ok) return;
-								state.wasBusy = true;
-								state.note = "已接续主智能体的机械分批；人工决策门仍会停止。";
-								this.emit();
-							}).catch((error) => {
-								state.note = String(error && error.message || error);
-								this.emit();
-							});
-							this.emit();
-							return task;
-						}
-					}
 					if (executionActive) {
-						if (!parentRunning && runningChildren > 0) state.note = `${runningChildren} 个子智能体仍在执行，监控等待回推。`;
+						state.observedExecutionActive = true;
+						state.note = runningChildren > 0 ? `${runningChildren} 个 DSH 子智能体仍在执行；工作台只观察，不插话。` : "DSH 主智能体正在执行；工作台只观察，不插话。";
 						this.emit();
 						return;
 					}
@@ -2967,6 +2799,9 @@ window.__ModuleLoader__.load({
 						this.emit();
 						return;
 					}
+					if (!state.settlementCheckPending && !state.observedExecutionActive) return void 0;
+					state.settlementCheckPending = false;
+					state.observedExecutionActive = false;
 					this.sending = true;
 					return api("/api/agent-pi/stage", state.cwd, {
 						method: "POST",
@@ -2982,48 +2817,10 @@ window.__ModuleLoader__.load({
 							state.lastControl = checked.control || null;
 							this.emit();
 						}
-					}).catch(() => {}).then(() => api("/api/agent-pi/stage", state.cwd, {
-						method: "POST",
-						body: JSON.stringify({
-							action: "resume",
-							module: state.module,
-							projectId: state.projectId,
-							sessionId: parentId
-						})
-					})).then((result) => {
-						if (result.done) {
-							state.done = true;
-							this.stop(result.message || "流程已全部完成。", "succeeded");
-							return;
-						}
-						if (result.blocked) {
-							this.stop(result.message || result.blocked, "failed");
-							return;
-						}
-						if (result.alreadyDispatched || !result.draft) {
-							state.note = result.message || "";
-							this.emit();
-							return;
-						}
-						return dispatchToConversation({}, result.draft, parentId).then((ok) => {
-							if (!ok) return void 0;
-							state.wasBusy = true;
-							state.note = result.message || "";
-							this.emit();
-							if (!result.dispatch) return void 0;
-							return api("/api/agent-pi/stage", state.cwd, {
-								method: "POST",
-								body: JSON.stringify({
-									action: "mark_dispatched",
-									module: state.module,
-									projectId: state.projectId,
-									stageId: result.dispatch.stageId,
-									key: result.dispatch.key
-								})
-							}).catch(() => {});
-						}).catch((error) => {
-							this.stop(String(error && error.message || error), "failed");
-						});
+						const realityDigest = String(checked && checked.control && checked.control.realityDigest || "");
+						const unchanged = Boolean(realityDigest && realityDigest === state.lastRealityDigest);
+						if (realityDigest) state.lastRealityDigest = realityDigest;
+						this.stop(unchanged ? "本轮 DSH 已空闲，项目事实未变化；继续下一步需再次点击「继续推进」。" : "本轮 DSH 已空闲，工作台已核对一次盘面；继续下一步需再次点击「继续推进」。", "succeeded");
 					}).catch((error) => {
 						this.stop(String(error && error.message || error), "failed");
 					}).finally(() => {
@@ -5635,7 +5432,8 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		function projectRequirementText(text) {
 			const clean = stripMentionArtifacts(String(text || "")).trim();
 			if (!clean) return "";
-			if (/^【(?:用户要求账本|用户验收口径已确认|阶段切换|执行账本对齐|用户最新要求|恢复未递交成果|成果质检并整理|专业项目启动|主对话插话|补齐实际工程量清单|补齐投标分析底稿)/.test(clean)) return "";
+			if (isWorkbenchWakeText(clean)) return "";
+			if (/^【(?:Agent Pi\b|用户要求账本|用户验收口径已确认|阶段切换|阶段已收口|执行账本对齐|用户最新要求|恢复未递交成果|成果质检并整理|专业项目启动|主对话插话|主机已自动重启|补齐实际工程量清单|补齐投标分析底稿|补齐组价当地情报|补齐组价强制放行说明)/.test(clean)) return "";
 			if (/^(?:继续|开始|暂停|停止|收到|好的?|谢谢|进度(?:如何|怎样|怎么样)?|到哪(?:里|儿)了|现在什么状态)[？?。.!！\s]*$/i.test(clean)) return "";
 			return /(?:请|需要|要求|必须|应当|应该|务必|优先|只要|只需|只修改|不要|不得|禁止|改成|改为|修改|调整|修正|纠正|替换|换成|补充|补齐|增加|新增|删除|移除|保留|采用|沿用|使用|重新|重做|改写|重写|更新|完善|优化|排序|合并|拆分|输出|生成|制作|编制|翻译|标注|核对|检查|审查|不对|有误|不符合|不满意|遗漏|缺少|please|must|should|need(?:\s+to)?|require|only|do\s+not|don't|revise|change|update|fix|correct|replace|add|remove|delete|keep|adopt|use\s+.+instead)/i.test(clean) ? clean : "";
 		}

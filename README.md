@@ -39,7 +39,7 @@
 通用办公助手陪你聊天，**Agent Pi DSH 替你干活**：吃透投标、实施、投资的垂直作业系统。长程任务不断档、目标不偏离、证据可追溯——数十份标书文件一次搞定，数千条 BOQ 逐项推导，成果直接落盘为正式文档。
 
 > [!IMPORTANT]
-> **v3.5.1**：投标主对话新增每会话执行账本，专业工作台同时显示“主智能体执行态”和“系统事实态”，只在两者出现差异时生成精简对齐任务；控制面板不再充当第二个智能体，也不再仅凭文件数量机械判断。内核仍钉在 **`dsh-v0.1.2-alpha.1`**（`cd5ef81481`），DSH 官方源码保持干净。
+> **v3.5.1**：投标流程收敛为“DSH 唯一执行、工作台轻量控制、一次点击一次派发”；监控空闲后只核对一次盘面，不再自动恢复或重复派活。项目总目标、阶段交接稿和磁盘成果取代心跳账本成为继续执行基线，并修复 BOQ 识别与最终递交冻结门禁。内核仍钉在 **`dsh-v0.1.2-alpha.1`**（`cd5ef81481`），DSH 官方源码保持干净。
 >
 > 本仓库是 **3.x DSH 版源码**，与 [2.6.5 经典版（Craft Agents OSS）](https://github.com/xiangxin2021cn/agent-pi) 分库维护。**3.x 安装包在 [DSH Releases](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/tag/v3.5.1) 发布。** 完整产品页：[www.agent-pi.app](https://www.agent-pi.app)
 
@@ -142,7 +142,7 @@ flowchart LR
 
 国内镜像（Windows）：[gh-proxy.com](https://gh-proxy.com/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.5.1/Agent-Pi-DSH-3.5.1-x64.exe) · [ghfast.top](https://ghfast.top/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.5.1/Agent-Pi-DSH-3.5.1-x64.exe)
 
-Windows SHA256：`E3D8CC41CCF76A71B00E05CD16E5E514C060D4346EA13DD740EEAA1C7AC0E018`
+Windows SHA256：`5DCD0062E3B6FC289CF9B4437DAFA0A5B6EF1AA152ECF670583AE0AE05D22292`
 
 1. 下载对应平台安装包
 2. 未签名：SmartScreen / Gatekeeper 选「仍要运行」
@@ -159,7 +159,7 @@ Windows SHA256：`E3D8CC41CCF76A71B00E05CD16E5E514C060D4346EA13DD740EEAA1C7AC0E0
 
 | 版本 | 一句话 |
 | --- | --- |
-| [3.5.1](./release/notes-3.5.1.md) | 主智能体执行账本；执行态与事实态双面板；差异驱动继续推进 |
+| [3.5.1](./release/notes-3.5.1.md) | 一次点击一次派发；停止重复扫描；BOQ 与最终冻结门禁修复 |
 | [3.5.0](./release/notes-3.5.0.md) | 阶段记忆与 handoff；精准失效；重启/压缩后从磁盘基线恢复 |
 | [3.4.2](./release/notes-3.4.2.md) | PageIndex 长文档影子导航；类型化知识面路由；不可变证据包；五域覆盖账本 |
 | [3.4.1](./release/notes-3.4.1.md) | DSH alpha.1 兼容；投标七阶段收敛；右侧文件栏与 Agent 模式恢复 |

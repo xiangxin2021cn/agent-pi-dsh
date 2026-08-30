@@ -153,7 +153,15 @@ test('sessionActivity projects nested DSH subagent execution under the main sess
 })
 
 test('workbench wake text is not treated as another unanswered inbound', () => {
-  assert.equal(isWorkbenchWakeText('【子代理回推】子智能体已 report/settled。\n\nDONE a.md md行数=10'), true)
+  for (const text of [
+    '【子代理回推】子智能体已 report/settled。\n\nDONE a.md md行数=10',
+    '【主对话未接续】用户已提交指令。',
+    '【主对话插话】请继续。',
+    '【评审回推】ACCEPT_AND_PROCEED',
+    '【事务自动接续】本会话事务仍有效。',
+  ]) {
+    assert.equal(isWorkbenchWakeText(text), true)
+  }
   const snap = {
     nodes: [
       { kind: 'user', blocks: [{ kind: 'text', text: 'DONE a.md md行数=10' }] },
@@ -161,7 +169,6 @@ test('workbench wake text is not treated as another unanswered inbound', () => {
     ],
   }
   assert.equal(inboundNeedsParentWake(snap), null)
-  assert.equal(isWorkbenchWakeText('【事务自动接续】本会话事务仍有效。'), true)
 })
 
 test('inboundNeedsParentWake fires when a human user message is last', () => {
@@ -202,22 +209,26 @@ test('assistant human approval question is never resumed automatically', () => {
   }
 })
 
-test('client monitor wakes only inside an explicit per-session transaction', () => {
+test('client monitor only observes an explicitly dispatched transaction and never auto-resumes', () => {
   const page = clientSource
+  const here = dirname(fileURLToPath(import.meta.url))
+  const monitor = readFileSync(join(here, '../src/client/session-monitor.js'), 'utf8')
   assert.match(page, /createWorkbenchSessionMonitor/)
+  assert.match(page, /if \(isWorkbenchWakeText\(clean\)\) return ''/)
   assert.match(page, /inboundNeedsParentWake/)
   assert.match(page, /flushQueuedToParent/)
   assert.match(page, /buildParentWakePrompt/)
   assert.match(page, /workbenchTransactions/)
   assert.match(page, /prepareWorkbenchTransaction/)
   assert.match(page, /commitWorkbenchTransaction/)
-  assert.match(page, /transactionCanRun\(parentId\)/)
+  assert.match(monitor, /transactionCanRun\(parentId\)/)
   assert.match(page, /updateQueue/)
   assert.match(page, /snapshotIsRunning\(snapshotOf\(targetId\)\) \? 'steer' : 'queue'/)
-  assert.match(page, /action: 'resume', module: state\.module, projectId: state\.projectId, sessionId: parentId/)
+  assert.match(monitor, /action: 'check', module: state\.module, projectId: state\.projectId, sessionId: parentId/)
+  assert.match(monitor, /if \(!state\.settlementCheckPending && !state\.observedExecutionActive\) return undefined/)
+  assert.doesNotMatch(monitor, /action: 'resume'|action: 'mark_dispatched'|dispatchToConversation/)
   assert.match(page, /const parentSessionId = pinParentSessionId\(\)/)
   assert.match(page, /sessionExecutionActive\(parentSnap, sessionList, parentId\)/)
-  assert.match(page, /dispatchToConversation\(\{\}, result\.draft, parentId\)/)
   assert.match(page, /ap-wb-session-transactions:v1/)
   assert.match(page, /monitorEngine\.restore/)
   assert.match(page, /if \(result\.alreadyDispatched\) \{[\s\S]{0,300}monitorEngine\.start/)

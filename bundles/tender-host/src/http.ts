@@ -2,7 +2,14 @@ import { IncomingMessage, ServerResponse } from 'node:http'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createBusinessProject, getBusinessProject, listBusinessProjects, unregisterBusinessProject, updateBusinessProjectInputs } from '../../../packages/business-projects/index.ts'
+import {
+  createBusinessProject,
+  getBusinessProject,
+  listBusinessProjects,
+  unregisterBusinessProject,
+  updateBusinessProjectContract,
+  updateBusinessProjectInputs,
+} from '../../../packages/business-projects/index.ts'
 import type { BusinessModuleId } from '../../../packages/business-projects/types.ts'
 import {
   workbenchSnapshot,
@@ -139,19 +146,24 @@ function createProject(cwd: string, body: {
   rootPath?: string
   createDirectory?: boolean
   inputPaths?: string[]
+  projectGoal?: string
+  terminalDeliverables?: string[]
 }) {
   const module = body.module ?? 'tender'
   const projectId = body.projectId ?? `p${Date.now()}`
   const rootPath = body.rootPath || cwd
+  const workflow = workflowFor(module)
   const project = createBusinessProject({
     workspaceRootPath: cwd,
     projectId,
     module,
     name: body.name ?? projectId,
     rootPath,
-    workflowId: workflowFor(module).id,
+    workflowId: workflow.id,
     createDirectory: body.createDirectory !== false,
     inputPaths: body.inputPaths ?? [],
+    projectGoal: body.projectGoal ?? workflow.projectGoal,
+    terminalDeliverables: body.terminalDeliverables ?? workflow.terminalDeliverables,
   })
   if (usesTenderControlProfile(module)) {
     registerProjectSources(cwd, projectId, { title: project.name, inputPaths: project.inputPaths })
@@ -740,10 +752,21 @@ export function attachHttp(ctx: {
             module?: BusinessModuleId
             projectId?: string
             inputPaths?: string[]
+            projectGoal?: string
+            terminalDeliverables?: string[]
           }
           const module = body.module ?? 'tender'
           const projectId = String(body.projectId ?? '')
-          const updated = updateBusinessProjectInputs(cwd, module, projectId, body.inputPaths ?? [])
+          let updated = body.inputPaths === undefined
+            ? getBusinessProject(cwd, module, projectId)
+            : updateBusinessProjectInputs(cwd, module, projectId, body.inputPaths)
+          if (!updated) throw new Error(`project ${module}/${projectId} not found`)
+          if (body.projectGoal !== undefined || body.terminalDeliverables !== undefined) {
+            updated = updateBusinessProjectContract(cwd, module, projectId, {
+              projectGoal: body.projectGoal,
+              terminalDeliverables: body.terminalDeliverables,
+            })
+          }
           if (usesTenderControlProfile(module)) {
             registerProjectSources(cwd, projectId, { title: updated.name, inputPaths: updated.inputPaths })
           }

@@ -19,6 +19,7 @@ import {
 import { buildPreviewSelectionFollowup } from '../selection-rewrite.ts'
 import { createSessionTransactionRegistry } from '../session-transaction.ts'
 import {
+  isWorkbenchWakeText,
   lastChildReturn,
   nodeText,
   parentSessionTarget,
@@ -1563,7 +1564,8 @@ const h = React.createElement
     function projectRequirementText(text) {
       const clean = stripMentionArtifacts(String(text || '')).trim()
       if (!clean) return ''
-      if (/^【(?:用户要求账本|用户验收口径已确认|阶段切换|执行账本对齐|用户最新要求|恢复未递交成果|成果质检并整理|专业项目启动|主对话插话|补齐实际工程量清单|补齐投标分析底稿)/.test(clean)) return ''
+      if (isWorkbenchWakeText(clean)) return ''
+      if (/^【(?:Agent Pi\b|用户要求账本|用户验收口径已确认|阶段切换|阶段已收口|执行账本对齐|用户最新要求|恢复未递交成果|成果质检并整理|专业项目启动|主对话插话|主机已自动重启|补齐实际工程量清单|补齐投标分析底稿|补齐组价当地情报|补齐组价强制放行说明)/.test(clean)) return ''
       if (/^(?:继续|开始|暂停|停止|收到|好的?|谢谢|进度(?:如何|怎样|怎么样)?|到哪(?:里|儿)了|现在什么状态)[？?。.!！\s]*$/i.test(clean)) return ''
       const directive = /(?:请|需要|要求|必须|应当|应该|务必|优先|只要|只需|只修改|不要|不得|禁止|改成|改为|修改|调整|修正|纠正|替换|换成|补充|补齐|增加|新增|删除|移除|保留|采用|沿用|使用|重新|重做|改写|重写|更新|完善|优化|排序|合并|拆分|输出|生成|制作|编制|翻译|标注|核对|检查|审查|不对|有误|不符合|不满意|遗漏|缺少|please|must|should|need(?:\s+to)?|require|only|do\s+not|don't|revise|change|update|fix|correct|replace|add|remove|delete|keep|adopt|use\s+.+instead)/i
       return directive.test(clean) ? clean : ''

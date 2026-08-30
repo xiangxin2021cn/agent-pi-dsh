@@ -1,15 +1,18 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, relative } from 'node:path'
 import { test } from 'node:test'
 import { createBusinessProject, type BusinessProjectRecord } from '../../../packages/business-projects/index.ts'
 import type { TenderCapabilityId, TenderCapabilityIndex } from '../../../packages/business-core/src/tender/index.ts'
 import {
   completeStage,
+  buildRecoveryDraft,
   inspectBoard,
   markDispatched,
   prepareStage,
+  projectExecutionForSession,
   projectForBoundSession,
   recordProjectUserRequirement,
   releaseDispatchOffer,
@@ -17,14 +20,16 @@ import {
   saveBoard,
   setProjectUserRequirementStatus,
   stageNeedsQc,
+  submissionFileGaps,
   executionControlState,
   updateProjectExecution,
   type OrchestrationBoard,
 } from '../src/orchestration.ts'
+import { workflowFor } from '../src/modules.ts'
 import { listUserRequirements } from '../src/user-requirements.ts'
 import { CAPABILITY_FILE_NAMES } from '../src/fsutil.ts'
 import { officialStageDir } from '../src/outputs.ts'
-import { initTenderWorkspace, registerProjectSources, workspacePaths } from '../src/workspace.ts'
+import { initTenderWorkspace, registerProjectSources, upsertWorkspaceSection, workspacePaths } from '../src/workspace.ts'
 
 function project(cwd: string, module = 'tender', inputPaths: string[] = []): BusinessProjectRecord {
   return {
@@ -118,7 +123,7 @@ test('an unconfirmed prompt offer can be released and retried immediately', () =
   assert.deepEqual(retried.dispatch, first.dispatch)
 })
 
-test('main-agent execution updates turn resume into a delta alignment draft', () => {
+test('execution telemetry does not replace the durable project goal or redispatch the stage', () => {
   const cwd = mkdtempSync(join(tmpdir(), 'ap-execution-alignment-'))
   const record = createBusinessProject({
     workspaceRootPath: cwd,
@@ -127,11 +132,15 @@ test('main-agent execution updates turn resume into a delta alignment draft', ()
     name: 'Road bid',
     rootPath: cwd,
     workflowId: 'delivery-main',
+    projectGoal: '完成全部登记资料分析并交付最终项目文件。',
+    terminalDeliverables: ['正式项目交付包存在且可核验。'],
     createDirectory: false,
   })
   const first = resumeUnfinished(cwd, record, [], { sessionId: 'session-1' })
   assert.ok(first.draft)
-  assert.match(first.draft ?? '', /execution_update/)
+  assert.match(first.draft ?? '', /完成全部登记资料分析并交付最终项目文件/)
+  assert.match(first.draft ?? '', /正式项目交付包存在且可核验/)
+  assert.doesNotMatch(first.draft ?? '', /读取 status 后立即调用.*execution_update/s)
   assert.ok(first.dispatch)
   markDispatched(cwd, record, first.dispatch!.stageId, first.dispatch!.key)
 
@@ -151,10 +160,75 @@ test('main-agent execution updates turn resume into a delta alignment draft', ()
   })
 
   const aligned = resumeUnfinished(cwd, record, [], { sessionId: 'session-1' })
-  assert.match(aligned.draft ?? '', /【执行账本对齐/)
-  assert.match(aligned.draft ?? '', /第一批成果/)
-  assert.match(aligned.draft ?? '', /系统事实版本/)
-  assert.doesNotMatch(aligned.draft ?? '', /主智能体尚未回写执行计划/)
+  assert.equal(aligned.alreadyDispatched, true)
+  assert.equal(aligned.draft, undefined)
+})
+
+test('a human blocker from the completed stage cannot block the next stage', () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'ap-old-stage-blocker-'))
+  const record = project(cwd, 'delivery')
+  boardWithDoneStages(cwd, record, ['delivery-setup'])
+  updateProjectExecution(cwd, record, {
+    sessionId: 'session-1',
+    stageId: 'delivery-setup',
+    status: 'blocked',
+    objective: '旧阶段目标',
+    blockerType: 'human',
+    blockerReason: '旧阶段等待人工确认',
+    nextAction: '停止',
+  })
+
+  const resumed = resumeUnfinished(cwd, record, [], { sessionId: 'session-1' })
+  assert.equal(resumed.stageId, 'delivery-controls')
+  assert.equal(resumed.blocked, undefined)
+  assert.match(resumed.draft ?? '', /【阶段切换/)
+  assert.doesNotMatch(resumed.draft ?? '', /旧阶段等待人工确认/)
+  assert.equal(projectExecutionForSession(cwd, record, 'session-1'), null)
+})
+
+test('non-source stages discard legacy per-source tasks but retain explicit stage tasks', () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'ap-stage-task-migration-'))
+  const record = project(cwd, 'delivery')
+  const board = boardWithDoneStages(cwd, record, ['delivery-setup'])
+  board.stages['delivery-controls'] = {
+    stageId: 'delivery-controls',
+    status: 'running',
+    tasks: [
+      { id: 'legacy-source', title: '旧版逐源重扫', sourcePath: join(cwd, 'old.pdf'), status: 'running' },
+      { id: 'manual-control', title: '保留人工控制任务', status: 'queued' },
+    ],
+    updatedAt: '2026-08-27T00:00:00.000Z',
+  }
+  saveBoard(cwd, board)
+
+  const prepared = prepareStage(cwd, record, 'delivery-controls')
+  assert.deepEqual(prepared.state.tasks.map((task) => task.id), ['manual-control'])
+})
+
+test('recovery draft preserves the project contract and only lists unfinished work', () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'ap-recovery-contract-'))
+  const record = {
+    ...project(cwd, 'delivery'),
+    projectGoal: '形成可执行、可审计的项目控制闭环。',
+    terminalDeliverables: ['月度控制报告', '风险与变更清单'],
+  }
+  const stage = workflowFor('delivery').stages.find((item) => item.id === 'delivery-controls')
+  assert.ok(stage)
+  const draft = buildRecoveryDraft(record, stage, {
+    stageId: stage.id,
+    status: 'running',
+    tasks: [
+      { id: 'done', title: '已落地成果', status: 'done', markdownPath: 'Official Outputs/done.md' },
+      { id: 'pending', title: '待完成成果', status: 'queued', markdownPath: 'Official Outputs/pending.md' },
+    ],
+    updatedAt: '2026-08-27T00:00:00.000Z',
+  })
+  assert.match(draft, /形成可执行、可审计的项目控制闭环/)
+  assert.match(draft, /月度控制报告/)
+  assert.match(draft, new RegExp(stage.prompt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  assert.match(draft, /pending 待完成成果/)
+  assert.doesNotMatch(draft, /done 已落地成果/)
+  assert.match(draft, /只处理这些/)
 })
 
 test('main-chat requirements persist, reopen the stage once, and resume with a delta-only draft', () => {
@@ -359,7 +433,110 @@ test('planning completion requires ready capability packs before output checks',
   )
 })
 
-test('planning completion requires every skill-declared hard output', () => {
+test('final submission file checks verify the declared path on disk', () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'ap-submission-files-'))
+  const record = project(cwd)
+  initializeTender(cwd)
+  const paths = workspacePaths(cwd, record.projectId)
+  const filePath = join(cwd, 'Agent Pi Outputs', record.projectId, 'submission', 'methodology.pdf')
+  const writeDocumentsPack = (declaredPath: string, format = 'pdf') => {
+    writeFileSync(join(paths.packs, `${CAPABILITY_FILE_NAMES.submission_documents}.json`), `${JSON.stringify({
+      schemaVersion: 1,
+      capability: 'submission_documents',
+      projectId: record.projectId,
+      revision: 1,
+      coreRevision: 1,
+      upstream: [],
+      updatedAt: '2026-08-27T00:00:00.000Z',
+      data: {
+        items: [{
+          id: 'methodology',
+          kind: 'work_plan_methodology',
+          title: 'Methodology',
+          filePath: declaredPath,
+          format,
+          requirementIds: [],
+          sourceRefs: [],
+          status: 'ready',
+        }],
+      },
+    }, null, 2)}\n`)
+  }
+  const writeAuditPack = (sha256: string, format = 'pdf', auditedPath = filePath) => {
+    writeFileSync(join(paths.packs, `${CAPABILITY_FILE_NAMES.submission_audit}.json`), `${JSON.stringify({
+      schemaVersion: 1,
+      capability: 'submission_audit',
+      projectId: record.projectId,
+      revision: 1,
+      coreRevision: 1,
+      upstream: [],
+      updatedAt: '2026-08-27T00:00:00.000Z',
+      data: {
+        submissionStatus: 'reviewed',
+        items: [{
+          deliverableId: 'methodology',
+          filePath: auditedPath,
+          format,
+          signatureStatus: 'verified',
+          dependencies: [],
+          validationStatus: 'passed',
+          evidenceRefs: [],
+          sha256,
+          checks: { filePresent: true, formatMatch: true, templateMatch: true, renderPassed: true, hashVerified: true },
+        }],
+        contradictions: [],
+        redTeamFindings: [],
+      },
+    }, null, 2)}\n`)
+  }
+
+  writeDocumentsPack(filePath)
+
+  assert.match(submissionFileGaps(cwd, record).join('\n'), /Methodology.*methodology\.pdf/)
+  mkdirSync(join(filePath, '..'), { recursive: true })
+  writeFileSync(filePath, 'real rendered tender file '.repeat(8))
+  assert.deepEqual(submissionFileGaps(cwd, record), [])
+
+  const outsideDir = mkdtempSync(join(tmpdir(), 'ap-submission-outside-'))
+  const outsideFile = join(outsideDir, 'unrelated.pdf')
+  writeFileSync(outsideFile, 'unrelated file outside official outputs '.repeat(8))
+  writeDocumentsPack(outsideFile)
+  assert.match(submissionFileGaps(cwd, record).join('\n'), /unrelated\.pdf/)
+  writeDocumentsPack(relative(cwd, outsideFile))
+  assert.match(submissionFileGaps(cwd, record).join('\n'), /unrelated\.pdf/)
+
+  mkdirSync(join(cwd, 'published'), { recursive: true })
+  const rawWorkspaceFile = join(cwd, 'raw-tender.pdf')
+  writeFileSync(rawWorkspaceFile, 'raw tender attachment must not become an output '.repeat(8))
+  writeDocumentsPack(rawWorkspaceFile)
+  assert.match(submissionFileGaps(cwd, record).join('\n'), /raw-tender\.pdf/)
+
+  writeDocumentsPack(filePath)
+  writeAuditPack('0'.repeat(64))
+  assert.match(submissionFileGaps(cwd, record).join('\n'), /SHA256 与磁盘提交文件不一致/)
+  const actualHash = createHash('sha256').update(readFileSync(filePath)).digest('hex')
+  writeAuditPack(actualHash)
+  assert.deepEqual(submissionFileGaps(cwd, record), [])
+
+  const auditOnlyPath = join(cwd, 'Agent Pi Outputs', record.projectId, 'submission', 'audit-only.pdf')
+  writeFileSync(auditOnlyPath, 'different official file must not verify the declared document '.repeat(8))
+  const auditOnlyHash = createHash('sha256').update(readFileSync(auditOnlyPath)).digest('hex')
+  writeAuditPack(auditOnlyHash, 'pdf', auditOnlyPath)
+  assert.match(submissionFileGaps(cwd, record).join('\n'), /submission_audit 路径与 submission_documents 不一致/)
+
+  writeAuditPack(actualHash)
+  writeAuditPack(actualHash, 'docx')
+  assert.match(submissionFileGaps(cwd, record).join('\n'), /声明格式 docx.*methodology\.pdf/)
+
+  const publishedFile = join(cwd, 'published', 'final-methodology.pdf')
+  writeFileSync(publishedFile, 'explicit published output remains an accepted final artifact '.repeat(8))
+  const publishedHash = createHash('sha256').update(readFileSync(publishedFile)).digest('hex')
+  writeDocumentsPack(publishedFile)
+  writeAuditPack(publishedHash, 'pdf', publishedFile)
+  assert.deepEqual(submissionFileGaps(cwd, record), [])
+})
+
+test('planning completion does not mechanically require optional format exports', () => {
   const cwd = mkdtempSync(join(tmpdir(), 'ap-stage-outputs-'))
   const record = project(cwd)
   initializeTender(cwd)
@@ -369,22 +546,47 @@ test('planning completion requires every skill-declared hard output', () => {
   mkdirSync(dir, { recursive: true })
   writeFileSync(join(dir, '施工与技术方案总控.md'), '# 施工与技术方案总控\n' + '施工、进度、资源、成本、现金流和技术响应。'.repeat(20))
 
-  assert.throws(
-    () => completeStage(cwd, record, 'planning-and-submission'),
-    /施工策划报告\.md.*tender-programme\.msp\.xml.*tender-programme\.p6\.xml/s,
-  )
+  const completed = completeStage(cwd, record, 'planning-and-submission')
+  assert.equal(completed.state.status, 'done')
+})
 
-  for (const fileName of [
-    '施工与技术方案总控.md',
-    '施工策划报告.md',
-    'tender-programme.msp.xml',
-    'tender-programme.p6.xml',
-    'S-Curve_Cash_Flow_Chart.html',
-    'Work_Plan_and_Proposed_Methodology.docx',
-  ]) {
+test('planning completion gates exports explicitly required by the tender or terminal deliverables', () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'ap-stage-required-outputs-'))
+  const record = {
+    ...project(cwd),
+    terminalDeliverables: ['Final deliverable: Primavera P6 XML programme.'],
+  }
+  initializeTender(cwd)
+  upsertWorkspaceSection(cwd, record.projectId, {
+    requirements: [{
+      id: 'req-s-curve',
+      title: 'Cash flow returnable',
+      text: 'The tender returnable must include an S-Curve Cash Flow Chart in HTML.',
+      type: 'format',
+      criticality: 'high',
+      source: { documentId: 'doc-returnables' },
+      evidenceNeeded: [],
+      status: 'open',
+    }],
+  })
+  boardWithDoneStages(cwd, record, ['project-setup', 'bid-risk-decision', 'tender-document-analysis', 'pricing-basis-freeze', 'boq-five-step-pricing'])
+  writeReadyCapabilities(cwd, ['execution_plan', 'schedule_resources', 'construction_resource_schedule', 'cost_cashflow'])
+  const dir = officialStageDir(cwd, record.projectId, 'planning-and-submission')
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(join(dir, '施工与技术方案总控.md'), '# 施工与技术方案总控\n' + '施工、进度、资源、成本、现金流和技术响应。'.repeat(20))
+
+  let missing = ''
+  try {
+    completeStage(cwd, record, 'planning-and-submission')
+  } catch (error) {
+    missing = String(error)
+  }
+  assert.match(missing, /tender-programme\.p6\.xml.*S-Curve_Cash_Flow_Chart\.html/s)
+  assert.doesNotMatch(missing, /tender-programme\.msp\.xml/)
+
+  for (const fileName of ['tender-programme.p6.xml', 'S-Curve_Cash_Flow_Chart.html']) {
     writeFileSync(join(dir, fileName), `${fileName}\n${'verified '.repeat(20)}`)
   }
-
   const completed = completeStage(cwd, record, 'planning-and-submission')
   assert.equal(completed.state.status, 'done')
 })

@@ -664,6 +664,10 @@ export function renderProjectMemoryContext(
   const snapshot = loadStageMemorySnapshot(cwd, project)
   const workflow = workflowFor(project.module)
   const current = workflow.stages.find((stage) => stage.id === currentStageId)
+  const projectGoal = project.projectGoal || workflow.projectGoal
+  const terminalDeliverables = project.terminalDeliverables?.length
+    ? project.terminalDeliverables
+    : workflow.terminalDeliverables
   const consumed = current?.consumes
     ?.filter((item): item is Extract<StageConsume, { kind: 'handoff' }> => item.kind === 'handoff')
     .map((item) => snapshot.stages[item.stageId])
@@ -671,9 +675,11 @@ export function renderProjectMemoryContext(
   const lines = [
     '【Agent Pi 项目状态胶囊 — 磁盘记忆为准】',
     `项目：${project.name} (${project.projectId})`,
+    ...(projectGoal ? [`项目总目标：${projectGoal}`] : []),
+    ...(terminalDeliverables?.length ? ['终态交付：', ...terminalDeliverables.map((item) => `- ${item}`)] : []),
     `当前阶段：${current?.labelZh ?? currentStageId ?? '尚未开始'}`,
     `盘面：${workflow.stages.map((stage) => `${stage.labelZh}=${stageStatuses[stage.id] ?? '未开始'}`).join('；')}`,
-    '规则：聊天压缩摘要不是业务基线；精确事实按下列 handoff 路径和 sha256 回读。项目事实不得写入全局知识库。',
+    '规则：项目总目标和终态交付高于当前微批次；聊天压缩摘要不是业务基线；精确事实按下列 handoff 路径和 sha256 回读。项目事实不得写入全局知识库。',
   ]
   for (const entry of consumed.slice(-4)) {
     lines.push('', `前序基线 ${entry.stageId}@${entry.revision} [${entry.status}] ${entry.path}`, entry.handoff.contextCapsule.slice(0, 1_800))

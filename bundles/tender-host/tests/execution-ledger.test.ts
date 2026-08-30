@@ -26,6 +26,10 @@ function project(cwd: string): BusinessProjectRecord {
   }
 }
 
+test('missing execution telemetry injects no mandatory planning instructions', () => {
+  assert.equal(renderExecutionContext(null), '')
+})
+
 test('execution ledger persists one bounded live plan per parent session', () => {
   const cwd = mkdtempSync(join(tmpdir(), 'ap-execution-ledger-'))
   const record = project(cwd)
@@ -93,4 +97,45 @@ test('human blocker remains explicit instead of being treated as an automatic re
   })
   assert.equal(blocked.blocker.type, 'human')
   assert.match(renderExecutionContext(blocked), /等待投标\/不投标确认/)
+})
+
+test('switching stages starts a clean execution run and never inherits the old blocker or plan', () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'ap-execution-stage-isolation-'))
+  const record = project(cwd)
+  const old = updateSessionExecution(cwd, record, {
+    sessionId: 'session-1',
+    runId: 'analysis-run',
+    stageId: 'tender-document-analysis',
+    status: 'blocked',
+    objective: '反复扫描全部招标文件',
+    currentBatch: '旧批次',
+    planItems: [{ id: 'scan', title: '重扫全部文件', status: 'blocked' }],
+    blockerType: 'human',
+    blockerReason: '旧阶段等待确认',
+    nextAction: '重扫',
+    summary: '旧阶段摘要',
+    observedRealityDigest: 'old-reality',
+  })
+
+  const next = updateSessionExecution(cwd, record, {
+    sessionId: 'session-1',
+    stageId: 'pricing-basis-freeze',
+    status: 'working',
+  })
+
+  assert.notEqual(next.runId, old.runId)
+  assert.equal(next.revision, 1)
+  assert.equal(next.objective, '')
+  assert.equal(next.currentBatch, '')
+  assert.deepEqual(next.plan, [])
+  assert.deepEqual(next.assignments, [])
+  assert.equal(next.blocker.type, 'none')
+  assert.equal(next.blocker.reason, undefined)
+  assert.equal(next.blocker.needed, undefined)
+  assert.equal(next.nextAction, '')
+  assert.equal(next.summary, undefined)
+  assert.equal(next.observedRealityDigest, undefined)
+  assert.equal(executionForSession(cwd, record, 'session-1', 'tender-document-analysis'), null)
+  assert.equal(executionForSession(cwd, record, 'session-1', 'pricing-basis-freeze')?.runId, next.runId)
+  assert.equal(latestExecutionForProject(cwd, record, 'tender-document-analysis'), null)
 })

@@ -9,6 +9,7 @@ import {
   assessBoqInventoryGate,
   boqInventoryApplies,
   boqInventoryRejectReason,
+  extractBoqSourceCodes,
   fixtureBoqReconciliationData,
   writeBoqInventoryFixture,
 } from '../src/boq-inventory-gate.ts'
@@ -249,6 +250,93 @@ test('a genuinely one-row BOQ is judged by full coverage, not an arbitrary minim
   const gate = assessBoqInventoryGate(cwd, 'p1', analysisDir)
   assert.equal(gate.ready, true, gate.shortGaps)
   assert.equal(gate.sourceCodeCount, 1)
+})
+
+test('source inventory joins a split letter suffix without treating a parent as covered', () => {
+  const codes = extractBoqSourceCodes([
+    '| ITEM | SUBITEM | DESCRIPTION | UNIT | QTY |',
+    '| --- | --- | --- | --- | --- |',
+    '| C9.1.1.2 | (a) | Continuously graded base | lump sum | 1 |',
+    '| C11.4.1.2 | (d) | Single guardrail end treatment | number (No.) | 6 |',
+    '| C12.1.1 | | Genuine unsuffixed parent item | m2 | 10 |',
+  ].join('\n'))
+
+  assert.deepEqual(codes, ['C9.1.1.2(A)', 'C11.4.1.2(D)', 'C12.1.1'])
+  assert.ok(!codes.includes('C9.1.1.2'))
+  assert.ok(!codes.includes('C11.4.1.2'))
+})
+
+test('a short but sourced BOQ description remains a real inventory row', () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'ap-boq-short-desc-'))
+  const sourcePath = seed(cwd, 'p1', 'BOQ-pricing-schedule.xlsx')
+  writeBoqRestore(cwd, 'p1', sourcePath, [
+    '# BOQ',
+    '| ITEM | DESCRIPTION | UNIT | QTY | RATE | AMT |',
+    '| --- | --- | --- | --- | --- | --- |',
+    '| C11.4.5.1 | Timber | number (No.) | 100 | | 0 |',
+  ].join('\n'))
+  const data = fixtureBoqReconciliationData('src-boq-seed-aa11bb22cc33')
+  data.items = [{
+    ...data.items[0],
+    id: 'boq-timber',
+    code: 'C11.4.5.1',
+    description: 'Timber',
+    unit: 'number (No.)',
+    quantity: '100',
+  }]
+  writePack(cwd, 'p1', data)
+  const analysisDir = join(cwd, 'document-analysis')
+  mkdirSync(analysisDir)
+  writeFileSync(join(analysisDir, BOQ_INVENTORY_MEMO), `${fixtureAnalysisSuiteMarkdown(BOQ_INVENTORY_MEMO)}\nC11.4.5.1\n`)
+
+  const gate = assessBoqInventoryGate(cwd, 'p1', analysisDir)
+  assert.equal(gate.ready, true, gate.shortGaps)
+  assert.equal(gate.touchedCount, 1)
+})
+
+test('PC prefix formatting is normalized but a C item cannot cover a PC item', () => {
+  const codes = extractBoqSourceCodes([
+    '| ITEM | DESCRIPTION | UNIT | QTY |',
+    '| --- | --- | --- | --- |',
+    '| pc 9.1.17 | Surface regularity payment adjustment | prime cost (PC) sum | 1 |',
+  ].join('\n'))
+  assert.deepEqual(codes, ['PC9.1.17'])
+  assert.notEqual(codes[0], 'C9.1.17')
+})
+
+test('a sourced rate-only row counts toward complete BOQ inventory coverage', () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'ap-boq-rate-only-'))
+  const sourcePath = seed(cwd, 'p1', 'BOQ-pricing-schedule.xlsx')
+  writeBoqRestore(cwd, 'p1', sourcePath, [
+    '# BOQ',
+    '| ITEM | DESCRIPTION | UNIT | QTY | RATE | AMT |',
+    '| --- | --- | --- | --- | --- | --- |',
+    '| C1.1 | Clear and grub the road reserve | ha | 12.5 | | 0 |',
+    '| C1.2 | Remove topsoil to stockpile | m3 | 850 | | 0 |',
+    '| C2.1 | Cut to spoil in all materials | m3 | 4200 | | 0 |',
+    '| C9.9 | Employer rate-only asphalt item | m2 | | | |',
+  ].join('\n'))
+  const data = fixtureBoqReconciliationData('src-boq-seed-aa11bb22cc33')
+  data.items.push({
+    id: 'boq-c4',
+    source: { documentId: 'src-boq-seed-aa11bb22cc33', sheet: 'C9', cell: 'A9:G9' },
+    code: 'C9.9',
+    description: 'Employer rate-only asphalt item',
+    unit: 'm2',
+    quantityBasis: 'not_provided',
+    quantityStatus: 'unverified',
+    quantityRefs: [],
+  })
+  writePack(cwd, 'p1', data)
+  const analysisDir = join(cwd, 'document-analysis')
+  mkdirSync(analysisDir)
+  writeFileSync(join(analysisDir, BOQ_INVENTORY_MEMO), `${fixtureAnalysisSuiteMarkdown(BOQ_INVENTORY_MEMO)}\nC1.1 C1.2 C2.1 C9.9\n`)
+
+  const gate = assessBoqInventoryGate(cwd, 'p1', analysisDir)
+  assert.equal(gate.ready, true, gate.shortGaps)
+  assert.equal(gate.sourceRowCount, 4)
+  assert.equal(gate.touchedCount, 4)
+  assert.equal(gate.missingSourceCodes.length, 0)
 })
 
 test('workbench client surfaces the inventory gap', () => {

@@ -41,6 +41,10 @@ export interface WorkflowDefinition {
   controlProfile?: 'tender'
   label: string
   labelZh: string
+  /** Default durable project objective; a project may override it. */
+  projectGoal?: string
+  /** Default terminal outcomes shown in every stage transaction. */
+  terminalDeliverables?: string[]
   /**
    * Stage completed by the user in the workbench UI (material registration), never
    * dispatched to the model. Stages after it are gated on its completion. Absent
@@ -69,6 +73,14 @@ export const WORKFLOWS: Record<string, WorkflowDefinition> = {
     controlProfile: 'tender',
     label: 'Tender workflow',
     labelZh: '投标全流程',
+    projectGoal: '以已登记招标文件和当前项目知识库为依据，完成逐文件分析、必要的网络尽调、组价基准确认、BOQ逐项组价、资源与施工策划，并按招标要求形成可核验的正式投标递交文件；全过程不得虚构项目事实。',
+    terminalDeliverables: [
+      '全部已登记招标文件均有可追溯解析结果，相关规范和模板已按需读取并留下引用',
+      '价格基准经用户确认，BOQ逐项组价及人工/材料/机械等资源汇总可追溯',
+      '施工组织、进度、资源、现金流和技术响应与BOQ及招标要求一致',
+      '招标要求的递交文件真实存在并通过合规、格式、签署状态和跨文件一致性检查',
+      '用户最终确认冻结版本后才宣称项目完成',
+    ],
     setupStageId: 'project-setup',
     bindingAreaByStage: {
       'project-setup': 'analysis',
@@ -119,7 +131,7 @@ export const WORKFLOWS: Record<string, WorkflowDefinition> = {
         label: 'Document analysis',
         labelZh: '招标文件解析',
         hintZh: '逐文件解析后汇总成一套可追溯的《投标分析底稿》，并完整抽取实际 BOQ；专题视图只在用户需要时从底稿派生。',
-        prompt: '对每个已登记文件产出可读 Markdown 解析稿并保留原始术语、页码/行号和交叉引用；完成后合成 document_analysis 与 boq_reconciliation，并编制唯一权威底稿《投标分析底稿.md》。底稿统一承载来源索引、项目边界、资格与评分、关键日期、合同/保险/保函、技术规范、BOQ 覆盖、提交清单、风险与缺口；不得为凑数量重复写五份长报告。招标总结、合同条款、技术要求、BOQ 分析等专题稿改为用户明确需要时从底稿派生的视图，不作为收阶段硬门。必须从每份已登记的实际工程量清单（BOQ / Bill of Quantities / Pricing Schedule / 工程量）抽出全部可识别真实行，tender_capability replace boq_reconciliation；每行带清单号、单位、数量、sheet+cell，PC Sum / Provisional Sum / percentage 等传递项也登记。系统会反查解析稿中的显式清单号，局部样本不得过关；没有清单或覆盖不全不得 complete_stage。全部客户可读成果写入 document-analysis/。缺规范、合同、地质原文必须标为缺口，禁止用模型记忆填空。已完成的源文件解析稿不要重扫。检索前调用 tender_knowledge action=route：叙事问题用 navigate，版本/补遗/能力失效用 graph，数量/单位/公式必须继续使用 BOQ 表格与 sheet+cell，严禁以 PageIndex 摘要代替表格计算。PageIndex 命中只作导航，必须回读原文并用 evidence_record 冻结精确 quote、sourceHash 和 internalLocator，再在正文使用返回的自然引用与 [ev:claimId]。按 qualification-risk、commercial-contract、boq-pricing、scope-technical、submission-compliance 五个域逐项 coverage_record，未读节点、证据或结论有缺口不得收阶段。若需并行，使用 dsh 原生 subagent / workflow；子任务交付 JSON+MD。',
+        prompt: '对每个已登记文件产出可读 Markdown 解析稿并保留原始术语、页码/行号和交叉引用；完成后合成 document_analysis 与 boq_reconciliation，并编制唯一权威底稿《投标分析底稿.md》。底稿统一承载来源索引、项目边界、资格与评分、关键日期、合同/保险/保函、技术规范、BOQ 覆盖、提交清单、风险与缺口；不得为凑数量重复写五份长报告。招标总结、合同条款、技术要求、BOQ 分析等专题稿改为用户明确需要时从底稿派生的视图，不作为收阶段硬门。必须从每份已登记的实际工程量清单（BOQ / Bill of Quantities / Pricing Schedule / 工程量）抽出全部可识别真实行，tender_capability replace boq_reconciliation；每行保留清单号、描述、单位、雇主给出的数量（若有）及 sheet+cell，PC Sum / Provisional Sum / percentage / rate-only 等传递项照实登记，严禁为过门禁虚构数量。全部客户可读成果写入 document-analysis/。缺规范、合同、地质原文必须标为缺口，禁止用模型记忆填空。已完成的源文件解析稿不要重扫。PageIndex 只作导航：每个节点读取或分类一次，再映射到相关分析域；不相关域允许 N/A，不得为五个域重复遍历全文。数量/单位/公式继续以 BOQ 表格和 sheet+cell 为准。能力包 warning 必须披露，但不应触发无差别重做；error、缺源和未覆盖文件才阻断收阶段。若需并行，使用 dsh 原生 subagent / workflow；子任务交付 JSON+MD。',
         skillSlugs: ['tender-document-parsing', 'tender-boq-reconciliation', 'tender-formal-writing', 'tender-overseas-professional-control'],
         consumes: [
           { kind: 'handoff', stageId: 'project-setup' },
@@ -176,7 +188,7 @@ export const WORKFLOWS: Record<string, WorkflowDefinition> = {
         label: 'BOQ five-step pricing',
         labelZh: 'BOQ 逐页组价与资源汇总',
         hintZh: '以项目特征为依据逐章组价；缺口不得臆造。',
-        prompt: '以已获用户确认的《组价基准冻结单.md》、《投标分析底稿.md》和完整 boq_reconciliation 为唯一组价基线，结合 orchestration/reports/ 下的 BOQ sidecar JSON，按分册/章节逐项组价。全部客户可读成果写入 boq-pricing/。章节 Markdown 与《BOQ 组价总报告.md》写完后，调用 tender_pricing_workbook generate 产出带公式的《BOQ 组价测算.xlsx》。不得悄悄改变已冻结币种、工资、材料、机械、工效、风险费或缺口处理；发现新证据与冻结基准冲突时停止并请求用户重新确认。当地工效和单价必须跟本标地址走：先 anysearch_capabilities，再 anysearch_batch_search（zone=intl）并用 web_search / web_fetch 复核；南非人工核 BCCEI。正式回价、网络询价和推导结果分列，写《当地供应商尽调.md》《当地工效尽调.md》和中英询价单；回价不足时 tender_evidence waive_pricing 并写《组价依据说明.md》。项目特征缺口不得臆造。先 tender_capability action=schema；燃油/工资/机械/水泥/骨料/沥青/分包写入 costComponents[].rateBasis.webEvidence。若需按册并行，使用 dsh 原生 subagent / workflow。',
+        prompt: '以已获用户确认的《组价基准冻结单.md》、《投标分析底稿.md》和完整 boq_reconciliation 为唯一组价基线，结合 orchestration/reports/ 下的 BOQ sidecar JSON，按稳定 BOQ item id / 分册 / 章节范围逐项组价；禁止重新逐份扫描原始标书。全部客户可读成果写入 boq-pricing/。章节 Markdown 与《BOQ 组价总报告.md》写完后，调用 tender_pricing_workbook generate 产出带公式的《BOQ 组价测算.xlsx》。不得悄悄改变已冻结币种、工资、材料、机械、工效、风险费或缺口处理；发现新证据与冻结基准冲突时停止并请求用户重新确认。当地工效和单价必须跟本标地址走：先 anysearch_capabilities，再 anysearch_batch_search（zone=intl）并用 web_search / web_fetch 复核；南非人工核 BCCEI。正式回价、网络询价和推导结果分列，写《当地供应商尽调.md》《当地工效尽调.md》和中英询价单；回价不足时 tender_evidence waive_pricing 并写《组价依据说明.md》。项目特征缺口不得臆造。先 tender_capability action=schema；燃油/工资/机械/水泥/骨料/沥青/分包写入 costComponents[].rateBasis.webEvidence。若需按册并行，使用 dsh 原生 subagent / workflow。',
         skillSlugs: ['tender-boq-five-step-pricing', 'tender-evaluation-strategy', 'tender-bidder-commitments', 'tender-formal-writing', 'tender-overseas-professional-control'],
         consumes: [
           { kind: 'handoff', stageId: 'tender-document-analysis' },
@@ -185,7 +197,7 @@ export const WORKFLOWS: Record<string, WorkflowDefinition> = {
         ],
         reviewSkillSlugs: ['deliverable-reviewer'],
         reviewPolicy: 'risk-based',
-        listsSources: true,
+        listsSources: false,
         summaryDeliverable: {
           fileName: 'BOQ 组价总报告.md',
           outlineZh: [
@@ -238,7 +250,7 @@ export const WORKFLOWS: Record<string, WorkflowDefinition> = {
         label: 'Submission compliance and final freeze',
         labelZh: '合规检查与最终提交冻结',
         hintZh: '核对资格、表单、签字盖章、价格、技术方案和提交介质；用户确认后才标记为冻结版本。',
-        prompt: '读取《投标分析底稿.md》、《组价基准冻结单.md》、《BOQ 组价总报告.md》、《施工与技术方案总控.md》和全部正式成果，执行最终 submission audit。编制《投标提交合规与冻结记录.md》：逐项列资格/CIDB/JV/税务与必交表单、评分与本地化证据、签字/见证/授权/盖章、保函保险、算术复核和跨文件价格一致性、技术与商务偏差、文件名/格式/份数/介质/截止时间/提交渠道、阻断项/警告/责任人/截止日和 maker-checker 记录。必须区分“文件存在”“内容完整”“已复核”“已授权”；不得把“文件已生成”写成“可提交”。任何重大未核证价格、法定用工/税务缺口、未签必交表或能力包 needs_review 均保持未冻结。完成后停止，等待用户在工作台最终确认冻结。',
+        prompt: '读取《投标分析底稿.md》、《组价基准冻结单.md》、《BOQ 组价总报告.md》、《施工与技术方案总控.md》和全部正式成果，执行最终 submission audit。编制《投标提交合规与冻结记录.md》：逐项列资格/CIDB/JV/税务与必交表单、评分与本地化证据、签字/见证/授权/盖章、保函保险、算术复核和跨文件价格一致性、技术与商务偏差、文件名/格式/份数/介质/截止时间/提交渠道、阻断项/警告/责任人/截止日和 maker-checker 记录。必须区分“文件存在”“内容完整”“已复核”“已授权”；不得把“文件已生成”写成“可提交”。能力包 not_ready、error、重大未核证价格、法定用工/税务缺口、未签必交表或声明文件实际不存在必须保持未冻结；warning / needs_review 必须完整列入冻结记录，由用户在最终人工门裁决，不得触发整阶段重做。完成后停止，等待用户在工作台最终确认冻结。',
         skillSlugs: [
           'tender-submission-documents',
           'tender-submission-audit',

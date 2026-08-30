@@ -148,6 +148,75 @@ describe('tender boq reconciliation capability', () => {
     expect(codes).toContain('scope_assumption_unverified');
   });
 
+  test('keeps a sourced rate-only row traceable without blocking reconciliation', async () => {
+    const tender = await import('../../index.ts') as Record<string, unknown>;
+    expect(typeof tender.auditTenderBoqReconciliation).toBe('function');
+    const data = completeData();
+    data.items[0] = {
+      ...data.items[0],
+      quantity: undefined,
+      quantityBasis: 'not_provided',
+      quantityStatus: 'unverified',
+      quantityRefs: [],
+    };
+    data.scopeLinks = [];
+
+    const audit = (tender.auditTenderBoqReconciliation as (
+      workspace: unknown,
+      data: unknown,
+      generatedAt: string,
+    ) => any)(workspace(), data, '2026-07-12T11:00:00.000Z');
+    const codes = audit.issues.map((issue: { code: string }) => issue.code);
+
+    expect(audit.readiness).toBe('ready');
+    expect(codes).toEqual(['boq_item_not_pricable']);
+  });
+
+  test('does not let non-blocking pricing exclusions hide real reconciliation warnings', async () => {
+    const tender = await import('../../index.ts') as Record<string, unknown>;
+    expect(typeof tender.auditTenderBoqReconciliation).toBe('function');
+    const data = completeData();
+    data.items[0] = {
+      ...data.items[0],
+      quantity: undefined,
+      quantityBasis: 'not_provided',
+      quantityStatus: 'unverified',
+      quantityRefs: [],
+    };
+    data.scopeLinks = [{
+      ...data.scopeLinks[0],
+      gapStatus: 'needs_review',
+    }];
+
+    const audit = (tender.auditTenderBoqReconciliation as (
+      workspace: unknown,
+      data: unknown,
+      generatedAt: string,
+    ) => any)(workspace(), data, '2026-07-12T11:00:00.000Z');
+
+    expect(audit.readiness).toBe('needs_review');
+    expect(audit.issues.map((issue: { code: string }) => issue.code)).toContain('scope_gap_needs_review');
+  });
+
+  test('still blocks synthetic BOQ groups that are not employer source rows', async () => {
+    const tender = await import('../../index.ts') as Record<string, unknown>;
+    expect(typeof tender.auditTenderBoqReconciliation).toBe('function');
+    const data = completeData();
+    data.items[0] = {
+      ...data.items[0],
+      unit: 'composite',
+    };
+
+    const audit = (tender.auditTenderBoqReconciliation as (
+      workspace: unknown,
+      data: unknown,
+      generatedAt: string,
+    ) => any)(workspace(), data, '2026-07-12T11:00:00.000Z');
+
+    expect(audit.readiness).toBe('not_ready');
+    expect(audit.issues.map((issue: { code: string }) => issue.code)).toContain('synthetic_boq_item');
+  });
+
   test('rejects malformed decimal quantities before audit', async () => {
     const tender = await import('../../index.ts') as Record<string, unknown>;
     expect(typeof tender.parseTenderBoqReconciliationData).toBe('function');

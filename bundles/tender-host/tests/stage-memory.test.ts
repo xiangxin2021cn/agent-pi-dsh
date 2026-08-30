@@ -82,6 +82,19 @@ function writeReadyDocumentCapability(cwd: string, projectId: string): string {
   return packPath
 }
 
+test('system prompt keeps execution telemetry optional and never mandates heartbeats', () => {
+  const sections: Array<{ name: string; text: string }> = []
+  registerPrompt({
+    systemPrompt: {
+      section: (entry) => { sections.push(entry) },
+    },
+  })
+  const prompt = sections.find((entry) => entry.name === 'agent-pi:tender')?.text ?? ''
+  assert.match(prompt, /execution_update is optional sparse telemetry/)
+  assert.match(prompt, /never a heartbeat/)
+  assert.doesNotMatch(prompt, /must call status, then execution_update|as a heartbeat|record the assignment with execution_update/)
+})
+
 test('stage completion writes a validated immutable handoff and reuses an identical basis', () => {
   const { cwd, project } = projectFixture('atomic-memory')
   const output = writeStageSummary(cwd, project, 'project-setup')

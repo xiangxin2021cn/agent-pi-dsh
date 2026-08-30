@@ -1,10 +1,15 @@
 import { createHash } from 'node:crypto'
-import { basename, dirname, join, resolve } from 'node:path'
+import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { existsSync, readFileSync, readdirSync, renameSync, statSync } from 'node:fs'
 import { listBusinessProjects, type BusinessProjectRecord } from '../../../packages/business-projects/index.ts'
-import type { TenderCapabilityId } from '../../../packages/business-core/src/tender/index.ts'
+import {
+  parseTenderCapabilityEnvelope,
+  parseTenderSubmissionAuditData,
+  parseTenderSubmissionDocumentsData,
+  type TenderCapabilityId,
+} from '../../../packages/business-core/src/tender/index.ts'
 import { assessEvidence, evidencePolicy, forcePassEvidence, forcePassPricingIntel } from './evidence.ts'
-import { tenderDir, writeJson, readJson, ensureDir } from './fsutil.ts'
+import { CAPABILITY_FILE_NAMES, tenderDir, writeJson, readJson, ensureDir } from './fsutil.ts'
 import type { WorkflowStage } from './workflows.ts'
 import { listWorkbenchModules, usesTenderControlProfile, workflowFor } from './modules.ts'
 import { capabilityStatus, loadWorkspace, registerProjectSources } from './workspace.ts'
@@ -273,7 +278,7 @@ export function projectMemoryContextForSession(cwd: string, sessionId: string): 
       board.currentStageId,
       Object.fromEntries(Object.entries(board.stages).map(([stageId, slice]) => [stageId, slice.status])),
     )
-    return `${memory}\n\n${renderExecutionContext(executionForSession(cwd, project, sessionId))}`
+    return `${memory}\n\n${renderExecutionContext(executionForSession(cwd, project, sessionId, board.currentStageId))}`
   } catch (error) {
     return `【Agent Pi 项目记忆告警】${error instanceof Error ? error.message : String(error)}。停止沿用聊天摘要，先在专业工作台修复阶段记忆。`
   }
@@ -360,11 +365,11 @@ const TENDER_STAGE_REQUIRED_CAPABILITIES: Partial<Record<string, TenderCapabilit
 }
 
 const PLANNING_REQUIRED_DELIVERABLES = [
-  '施工策划报告.md',
-  'tender-programme.msp.xml',
-  'tender-programme.p6.xml',
-  'S-Curve_Cash_Flow_Chart.html',
-  'Work_Plan_and_Proposed_Methodology.docx',
+  { fileName: '施工策划报告.md', requestedBy: [/施工策划报告(?:\.md)?/i, /construction planning report(?:\.md)?/i] },
+  { fileName: 'tender-programme.msp.xml', requestedBy: [/tender[-_ ]programme\.msp\.xml/i, /\bmicrosoft project\b/i, /\bms project\b/i, /\.msp(?:\.xml)?\b/i] },
+  { fileName: 'tender-programme.p6.xml', requestedBy: [/tender[-_ ]programme\.p6\.xml/i, /\bprimavera(?:\s+p6)?\b/i, /\bp6\s+(?:programme|program|schedule|xml)\b/i] },
+  { fileName: 'S-Curve_Cash_Flow_Chart.html', requestedBy: [/s[-_ ]?curve(?:[-_ ]cash[-_ ]flow[-_ ]chart)?(?:\.html)?/i, /S曲线/i, /现金流曲线/i] },
+  { fileName: 'Work_Plan_and_Proposed_Methodology.docx', requestedBy: [/work[-_ ]plan[-_ ]and[-_ ]proposed[-_ ]methodology(?:\.docx)?/i] },
 ]
 
 function fileExists(path?: string): boolean {
@@ -387,17 +392,133 @@ function tenderCapabilityGaps(cwd: string, projectId: string, stageId: string): 
   return required.flatMap((capability) => {
     const entry = index.capabilities.find((item) => item.capability === capability)
     if (!entry) return [`${capability}: missing`]
-    if (entry.readiness !== 'ready' || entry.stale) {
+    // Warning-only review findings remain visible in the handoff and final
+    // human freeze, but do not send DSH back through an already completed
+    // stage. Missing, stale and error-level (`not_ready`) packs still block.
+    if (entry.readiness === 'not_ready' || entry.stale) {
       return [`${capability}: ${entry.readiness}${entry.stale ? ', stale' : ''}`]
     }
     return []
   })
 }
 
-function planningDeliverableGaps(cwd: string, projectId: string, stageId: string): string[] {
+function pathInside(root: string, candidate: string): boolean {
+  const rel = relative(resolve(root), resolve(candidate))
+  return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel))
+}
+
+function sameResolvedPath(left: string, right: string): boolean {
+  return resolve(left).replace(/\\/g, '/').toLowerCase() === resolve(right).replace(/\\/g, '/').toLowerCase()
+}
+
+function declaredSubmissionFile(cwd: string, project: BusinessProjectRecord, filePath: string): string | null {
+  // Final-freeze inputs are deliberately narrower than the general output
+  // harvester: raw workspace files must never qualify as submission artifacts.
+  const roots = [
+    resolve(officialProjectDir(cwd, project.projectId)),
+    resolve(cwd, 'published'),
+  ]
+  const candidates = isAbsolute(filePath)
+    ? [resolve(filePath)]
+    : [resolve(cwd, filePath), ...roots.map((root) => resolve(root, filePath))]
+  return [...new Set(candidates)].find((candidate) => (
+    roots.some((root) => pathInside(root, candidate)) && deliverableReady(candidate)
+  )) ?? null
+}
+
+function declaredFormatMatches(path: string, format?: string): boolean {
+  if (!format?.trim()) return true
+  const aliases: Record<string, string> = {
+    'application/pdf': 'pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+    word: 'docx',
+    excel: 'xlsx',
+    powerpoint: 'pptx',
+  }
+  const declared = format.trim().toLowerCase().replace(/^\./, '')
+  return extname(path).slice(1).toLowerCase() === (aliases[declared] ?? declared)
+}
+
+function fileSha256(path: string): string {
+  return createHash('sha256').update(readFileSync(path)).digest('hex')
+}
+
+/** Final freeze verifies real disk files instead of trusting model-authored booleans. */
+export function submissionFileGaps(cwd: string, project: BusinessProjectRecord): string[] {
+  const packsDir = join(tenderDir(cwd, project.projectId), 'packs')
+  const gaps: string[] = []
+  const readItems = <T extends { items: Array<{ filePath: string; id?: string; title?: string; deliverableId?: string; format?: string; sha256?: string }> }>(
+    capability: 'submission_documents' | 'submission_audit',
+    parse: (value: unknown) => T,
+  ): T['items'] => {
+    const path = join(packsDir, `${CAPABILITY_FILE_NAMES[capability]}.json`)
+    if (!existsSync(path)) return []
+    try {
+      const envelope = parseTenderCapabilityEnvelope(JSON.parse(readFileSync(path, 'utf8')))
+      return parse(envelope.data).items
+    } catch (error) {
+      gaps.push(`${capability}: ${error instanceof Error ? error.message : String(error)}`)
+      return []
+    }
+  }
+
+  const documents = readItems('submission_documents', parseTenderSubmissionDocumentsData)
+  const documentPaths = new Map<string, string>()
+  for (const item of documents) {
+    const key = item.deliverableId || item.id || ''
+    const label = item.title || key || item.filePath
+    const actualPath = declaredSubmissionFile(cwd, project, item.filePath)
+    if (!actualPath) {
+      gaps.push(`${label}: ${item.filePath}`)
+      continue
+    }
+    if (!declaredFormatMatches(actualPath, item.format)) {
+      gaps.push(`${label}: 声明格式 ${item.format} 与文件 ${basename(actualPath)} 不一致`)
+    }
+    if (key) documentPaths.set(key, actualPath)
+  }
+
+  const audits = readItems('submission_audit', parseTenderSubmissionAuditData)
+  for (const item of audits) {
+    const key = item.deliverableId || item.id || ''
+    const label = item.title || key || item.filePath
+    const documentPath = key ? documentPaths.get(key) : undefined
+    const auditedPath = declaredSubmissionFile(cwd, project, item.filePath)
+    if (!documentPath) {
+      gaps.push(`${label}: 未在 submission_documents 中登记可核验文件`)
+      continue
+    }
+    if (!auditedPath || !sameResolvedPath(documentPath, auditedPath)) {
+      gaps.push(`${label}: submission_audit 路径与 submission_documents 不一致`)
+      continue
+    }
+    if (!declaredFormatMatches(documentPath, item.format)) {
+      gaps.push(`${label}: 声明格式 ${item.format} 与文件 ${basename(documentPath)} 不一致`)
+    }
+    if (item.sha256 && fileSha256(documentPath) !== item.sha256.toLowerCase()) {
+      gaps.push(`${label}: SHA256 与磁盘提交文件不一致`)
+    }
+  }
+  return [...new Set(gaps)]
+}
+
+function planningDeliverableGaps(cwd: string, project: BusinessProjectRecord, stageId: string): string[] {
   if (stageId !== 'planning-and-submission') return []
-  const dir = officialStageDir(cwd, projectId, stageId)
-  return PLANNING_REQUIRED_DELIVERABLES.filter((fileName) => !deliverableReady(join(dir, fileName)))
+  const requested = [...(project.terminalDeliverables ?? [])]
+  try {
+    const workspace = loadWorkspace(cwd, project.projectId)
+    requested.push(
+      ...workspace.requirements.map((item) => `${item.title} ${item.text}`),
+      ...workspace.deliverables.map((item) => `${item.title} ${item.format ?? ''} ${item.submissionSection ?? ''}`),
+    )
+  } catch { /* missing workspace is handled by the normal tender capability gates */ }
+  const dir = officialStageDir(cwd, project.projectId, stageId)
+  return PLANNING_REQUIRED_DELIVERABLES
+    .filter((item) => requested.some((text) => item.requestedBy.some((pattern) => pattern.test(text))))
+    .map((item) => item.fileName)
+    .filter((fileName) => !deliverableReady(join(dir, fileName)))
 }
 
 /**
@@ -466,11 +587,8 @@ function analysisHardGatesReady(cwd: string, project: BusinessProjectRecord, sta
     const stage = workflowFor(project.module).stages.find((item) => item.id === stageId)
     if (stage?.summaryDeliverable?.fileName) summaryName = stage.summaryDeliverable.fileName
   } catch { /* factory name stands */ }
-  const coverageLedger = loadAnalysisCoverage(cwd, project.projectId)
-  const coverageReady = !coverageLedger || assessAnalysisCoverage(coverageLedger).ready
   return (userOverride || (deliverableReady(join(dir, summaryName)) && assessAnalysisSuite(dir).ok))
     && assessBoqInventoryGate(cwd, project.projectId, dir).ready
-    && coverageReady
 }
 
 function pricingIntelGateFor(cwd: string, projectId: string, stageId: string) {
@@ -496,7 +614,7 @@ function stageHardGatesReady(cwd: string, project: BusinessProjectRecord, stageI
   const capabilitiesReady = !usesTenderControlProfile(project.module)
     || tenderCapabilityGaps(cwd, project.projectId, stageId).length === 0
   const planningReady = userOverride || !usesTenderControlProfile(project.module)
-    || planningDeliverableGaps(cwd, project.projectId, stageId).length === 0
+    || planningDeliverableGaps(cwd, project, stageId).length === 0
   return summaryReady
     && workbookReady
     && capabilitiesReady
@@ -773,7 +891,7 @@ export function projectSnapshot(cwd: string, project: BusinessProjectRecord) {
     citationAudit,
     userRequirements,
     workSurface,
-    execution: latestExecutionForProject(cwd, project),
+    execution: latestExecutionForProject(cwd, project, board.currentStageId),
     memory,
     outputs,
     restores,
@@ -793,7 +911,8 @@ export function projectExecutionForSession(
   project: BusinessProjectRecord,
   sessionId: string,
 ): SessionExecution | null {
-  return executionForSession(cwd, project, sessionId)
+  const stageId = loadBoard(cwd, project.projectId, project.module).currentStageId
+  return executionForSession(cwd, project, sessionId, stageId || undefined)
 }
 
 /** Resolved bindings for one stage; empty when the module/profile declares none. */
@@ -850,6 +969,11 @@ function bindingLines(rows: BindingFile[]): string {
 }
 
 export function buildStageDraft(project: BusinessProjectRecord, stage: WorkflowStage, extra = ''): string {
+  const workflow = workflowFor(project.module)
+  const projectGoal = project.projectGoal || workflow.projectGoal
+  const terminalDeliverables = project.terminalDeliverables?.length
+    ? project.terminalDeliverables
+    : workflow.terminalDeliverables
   const skillNames = stage.skillSlugs.length > 0 ? stage.skillSlugs.join('、') : '（无）'
   const registered = registeredSourcesBlock(project.inputPaths)
   const bindings = stageBindings(project, stage.id)
@@ -878,7 +1002,6 @@ export function buildStageDraft(project: BusinessProjectRecord, stage: WorkflowS
     : ''
   let priorBlock = ''
   try {
-    const workflow = workflowFor(project.module)
     const index = workflow.stages.findIndex((item) => item.id === stage.id)
     const prior = workflow.stages.slice(0, Math.max(0, index)).filter((item) => item.id !== workflow.setupStageId)
     if (prior.length > 0) {
@@ -888,6 +1011,7 @@ export function buildStageDraft(project: BusinessProjectRecord, stage: WorkflowS
   return `【阶段切换 — 请在本项目主会话继续】
 
 项目: ${project.name} (${project.projectId})
+${projectGoal ? `项目总目标: ${projectGoal}\n` : ''}${terminalDeliverables?.length ? `终态交付（当前阶段只贡献其中一部分，不得把微批次当成总目标）:\n${terminalDeliverables.map((item) => `- ${item}`).join('\n')}\n` : ''}
 新阶段: ${stage.labelZh} (\`${stage.id}\`)
 阶段要求: ${stage.prompt}
 
@@ -898,7 +1022,7 @@ ${bindingBlock}${priorBlock}
 - 本阶段技能在工人 brief：${skillNames}。
 - 引用：规范/合同/方法事实句尾只标 [kb:slug:chunkId] 或 [src:路径#L起-L止]；令牌是标注，不是原文。
 - 第一步调用 tender_stage status（projectId=${project.projectId}）读取未完成任务。
-- 读取 status 后立即调用 tender_stage action=execution_update：回写本阶段目标、当前批次、计划项、子任务、阻塞、下一动作和 status 返回的 realityDigest。执行状态发生实质变化时更新；不要把完整对话或长报告写入账本。
+- DSH 是唯一执行主线；工作台只提供事实、轻门禁和交接。execution_update 仅用于可选遥测，不得据此另起规划器、自动续跑或覆盖项目总目标。
 - 客户可读成果写入 ${stageOutDir}；同册/同名多格式是一份任务，不要再拆成一文件一工人。
 - 并行用 dsh 原生 subagent / workflow；tender_stage 只准备 brief，不派生子智能体。
 - ${liveWorkerLimitLineZh()}
@@ -1014,6 +1138,18 @@ export function buildRecoveryDraft(
   slice: StageSlice,
   extra = '',
 ): string {
+  const workflow = workflowFor(project.module)
+  const projectGoal = project.projectGoal || workflow.projectGoal
+  const terminalDeliverables = project.terminalDeliverables?.length
+    ? project.terminalDeliverables
+    : workflow.terminalDeliverables
+  const contract = [
+    projectGoal ? `项目总目标: ${projectGoal}` : '',
+    terminalDeliverables?.length
+      ? `终态交付（只用于保持方向，不得扩展为重跑整阶段）:\n${terminalDeliverables.map((item) => `- ${item}`).join('\n')}`
+      : '',
+    `阶段要求: ${stage.prompt}`,
+  ].filter(Boolean).join('\n')
   const pending = pendingTasks(slice)
   const doneCount = slice.tasks.length - pending.length
   const pendingBlock = pending.length === 0
@@ -1027,13 +1163,14 @@ export function buildRecoveryDraft(
 
 项目: ${project.name} (${project.projectId})
 阶段: ${stage.labelZh} (\`${stage.id}\`)
+${contract}
 
 盘面：本阶段已落地 ${doneCount}/${slice.tasks.length} 份成果。已完成的不要再读 JSON、不要再派工人、不要重解析源文件，也不要再展开写作合同或 [skill:…] 全文。
 
 未递交 / 未完成（只处理这些）：
 ${pendingBlock}
 
-对上面每一条：有 childSessionId 且成果未落地 → 续跑该工人让它写回 markdownPath；没有 session 或续不上 → 按阶段要求重新下派这一条。工人正常完工回推照常处理。用户改正式文件直接改 Official Outputs，不要复活已完工工人。
+阶段要求只约束上列未完成项，不得据此重跑整阶段。对上面每一条：有 childSessionId 且成果未落地 → 续跑该工人让它写回 markdownPath；没有 session 或续不上 → 按阶段要求重新下派这一条。工人正常完工回推照常处理。用户改正式文件直接改 Official Outputs，不要复活已完工工人。
 ${extra}`
 }
 
@@ -1372,7 +1509,7 @@ export function prepareStage(
   // workspace registry is shared, so per-file briefs work beyond tender.
   const tasks = stage.listsSources
     ? listSourceTasks(cwd, project, stage, briefsDir, previous, selectedKnowledgeSlugs)
-    : previous.map(inspectTask)
+    : previous.filter((task) => !task.sourcePath).map(inspectTask)
 
   const previousSlice = existingBoard.stages[stageId]
   const slice = inspectSlice({
@@ -1559,7 +1696,7 @@ export function completeStage(
     }
   }
   const planningGaps = usesTenderControlProfile(project.module) && !userOverride
-    ? planningDeliverableGaps(cwd, project.projectId, stageId)
+    ? planningDeliverableGaps(cwd, project, stageId)
     : []
   if (planningGaps.length > 0) {
     throw new Error(`施工策划阶段缺硬性交付：${planningGaps.join('、')}（应位于 Agent Pi Outputs/${project.projectId}/${officialStageFolder(stageId)}/）。`)
@@ -1570,13 +1707,9 @@ export function completeStage(
     if (!userOverride && !suite.ok) throw new Error(analysisSuiteRejectReason(suite))
     const inventory = assessBoqInventoryGate(cwd, project.projectId, analysisDir)
     if (!inventory.ready) throw new Error(boqInventoryRejectReason(inventory))
-    // Only projects with an eligible PageIndex shadow receive the new traversal gate.
-    // Missing/corrupt/disabled PageIndex keeps the 3.4.1 MiniSearch + BOQ fallback intact.
-    const coverageLedger = loadAnalysisCoverage(cwd, project.projectId)
-    if (coverageLedger) {
-      const coverage = assessAnalysisCoverage(coverageLedger)
-      if (!coverage.ready) throw new Error(analysisCoverageRejectReason(coverage))
-    }
+    // PageIndex is a navigation aid. Its unread-node ledger remains visible in
+    // status, but per-source task completion, the structured bottom paper and
+    // BOQ source/cell traceability are the actual completion gates.
   }
   const workbookGap = pricingWorkbookMissing(cwd, project.projectId, stageId)
   if (workbookGap && !userOverride) throw new Error(workbookGap)
@@ -1654,6 +1787,10 @@ export function decideApprovalStage(
       throw new Error(`人工决策前能力包未就绪：${capabilityGaps.join('；')}。`)
     }
     if (stageId === 'submission-compliance-freeze') {
+      const fileGaps = submissionFileGaps(cwd, project)
+      if (fileGaps.length > 0) {
+        throw new Error(`最终冻结前仍有 ${fileGaps.length} 个能力包声明文件不在磁盘或为空：${fileGaps.slice(0, 5).join('；')}。`)
+      }
       const citationAudit = auditProjectCitations(cwd, project)
       if (citationAudit.orphans.length > 0) {
         throw new Error(`最终冻结前仍有 ${citationAudit.orphans.length} 个孤儿引用，请先修复并重新质检。`)
@@ -2043,8 +2180,8 @@ export function executionControlState(
     ?? reality.stages.find((stage) => stage.stageStatus === 'running' || stage.stageStatus === 'blocked')
     ?? reality.stages[0]
   const execution = sessionId
-    ? executionForSession(cwd, project, sessionId)
-    : latestExecutionForProject(cwd, project)
+    ? executionForSession(cwd, project, sessionId, current?.stageId)
+    : latestExecutionForProject(cwd, project, current?.stageId)
   const realityDigest = digestStageReality(current)
   if (!execution) {
     return {
@@ -2364,8 +2501,8 @@ ${differences}
 
 本轮要求:
 1. 先调用 tender_stage action=status 读取最新事实版本和用户要求；不要重新扫描已完成成果。
-2. 仅处理上面的当前批次、下一动作和明确差异；原阶段合同仅作必要约束，禁止无差别重发整阶段。
-3. 立即调用 tender_stage action=execution_update，回写当前计划并把 observedRealityDigest 设为 ${control.realityDigest}；每个批次、子任务回传、阻塞或下一动作发生实质变化时再更新。
+2. 项目总目标、阶段交接稿和磁盘成果是执行依据；上面的执行账本只作可选进度提示。仅处理明确差异，禁止无差别重发整阶段。
+3. execution_update 仅在稀疏进度展示确有帮助时更新一次；无需心跳，不得据此自动恢复、重新规划或覆盖阶段边界。
 4. 若阻塞需要用户决策，把 blockerType 设为 human 并停止；证据、工具或模型阻塞分别使用 evidence / tool / model。
 5. 事实硬门禁全部满足后调用 tender_stage complete_stage；未满足时只补差异。
 
@@ -2517,8 +2654,13 @@ export function resumeUnfinished(
       }
     }
   }
-  const control = options.sessionId
+  const observedControl = options.sessionId
     ? executionControlState(cwd, project, options.sessionId)
+    : null
+  // A session may carry telemetry from the stage it just completed. Never let
+  // that old objective, plan or blocker govern the next stage.
+  const control = observedControl?.execution?.stageId === target.id
+    ? observedControl
     : null
   if (control?.execution?.blocker.type === 'human') {
     const message = `主智能体执行账本正在等待人工处理：${control.execution.blocker.reason || control.execution.blocker.needed || '未说明具体决策。'}`
@@ -2551,10 +2693,9 @@ export function resumeUnfinished(
     : intelGate
       ? (intelGate.ready ? (intelGate.intel.ok ? 'intel-ok' : 'intel-waived') : `intel:${intelGate.digest}`)
       : ''
-  const executionKey = control?.execution
-    ? `execution:${control.execution.revision}:${control.realityDigest}:${control.alignment}`
-    : (options.sessionId ? `execution:missing:${control?.realityDigest || ''}` : '')
-  const key = dispatchFingerprint(slice, `${extraKey}|${executionKey}`)
+  // Execution telemetry changes frequently and must not create a fresh stage
+  // dispatch. Only disk reality / gate changes may change the fingerprint.
+  const key = dispatchFingerprint(slice, extraKey)
   const stageDraft = patchSuiteOnly && suite
     ? buildAnalysisSuiteDraft(project, target, suite)
     : patchBoqOnly && boqGate
@@ -2570,9 +2711,7 @@ export function resumeUnfinished(
               : intelGate && !intelGate.ready
                 ? `${prepared.draft}\n\n${renderPricingIntelBlock(intelGate.intel, officialStageFolder(target.id))}`
                 : prepared.draft
-  const draft = control?.execution
-    ? buildExecutionAlignmentDraft(project, target, control)
-    : stageDraft
+  const draft = stageDraft
   const contextualDraft = withUserRequirementContext(cwd, project, target.id, draft)
   const waitingMessage = suite && !suite.ok
     ? `「${target.labelZh}」投标分析底稿未齐：${suite.shortGaps}。阶段稿已写入，只补底稿缺口，不要重扫已完成源文件。`

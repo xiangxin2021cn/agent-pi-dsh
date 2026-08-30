@@ -170,15 +170,19 @@ export function executionForSession(
   cwd: string,
   project: Pick<BusinessProjectRecord, 'module' | 'projectId'>,
   sessionId: string,
+  stageId?: string,
 ): SessionExecution | null {
-  return loadExecutionLedger(cwd, project).sessions[textOf(sessionId, 300)] ?? null
+  const row = loadExecutionLedger(cwd, project).sessions[textOf(sessionId, 300)] ?? null
+  return row && (!stageId || row.stageId === stageId) ? row : null
 }
 
 export function latestExecutionForProject(
   cwd: string,
   project: Pick<BusinessProjectRecord, 'module' | 'projectId'>,
+  stageId?: string,
 ): SessionExecution | null {
   return Object.values(loadExecutionLedger(cwd, project).sessions)
+    .filter((row) => !stageId || row.stageId === stageId)
     .sort((left, right) => Date.parse(right.heartbeatAt) - Date.parse(left.heartbeatAt))[0] ?? null
 }
 
@@ -194,26 +198,27 @@ export function updateSessionExecution(
 
   const ledger = loadExecutionLedger(cwd, project)
   const previous = ledger.sessions[sessionId]
+  const previousInStage = previous?.stageId === stageId ? previous : undefined
   const now = new Date().toISOString()
   const rawStatus = textOf(input.status, 40) as ExecutionStatus
   const rawBlockerType = textOf(input.blockerType, 40) as ExecutionBlockerType
   const content = {
-    runId: textOf(input.runId, 200) || previous?.runId || `run-${digestOf(`${sessionId}\n${stageId}\n${now}`)}`,
+    runId: textOf(input.runId, 200) || previousInStage?.runId || `run-${digestOf(`${sessionId}\n${stageId}\n${now}`)}`,
     stageId,
-    status: EXECUTION_STATUSES.has(rawStatus) ? rawStatus : (previous?.status ?? 'working'),
-    objective: textOf(input.objective, 2_000) || previous?.objective || '',
-    currentBatch: textOf(input.currentBatch, 1_000) || previous?.currentBatch || '',
-    plan: input.planItems === undefined ? (previous?.plan ?? []) : normalizePlan(input.planItems),
-    assignments: input.assignments === undefined ? (previous?.assignments ?? []) : normalizeAssignments(input.assignments),
+    status: EXECUTION_STATUSES.has(rawStatus) ? rawStatus : (previousInStage?.status ?? 'working'),
+    objective: textOf(input.objective, 2_000) || previousInStage?.objective || '',
+    currentBatch: textOf(input.currentBatch, 1_000) || previousInStage?.currentBatch || '',
+    plan: input.planItems === undefined ? (previousInStage?.plan ?? []) : normalizePlan(input.planItems),
+    assignments: input.assignments === undefined ? (previousInStage?.assignments ?? []) : normalizeAssignments(input.assignments),
     blocker: {
-      type: BLOCKER_TYPES.has(rawBlockerType) ? rawBlockerType : (previous?.blocker.type ?? 'none'),
-      reason: input.blockerReason === undefined ? previous?.blocker.reason : (textOf(input.blockerReason, 2_000) || undefined),
-      needed: input.blockerNeeded === undefined ? previous?.blocker.needed : (textOf(input.blockerNeeded, 2_000) || undefined),
+      type: BLOCKER_TYPES.has(rawBlockerType) ? rawBlockerType : (previousInStage?.blocker.type ?? 'none'),
+      reason: input.blockerReason === undefined ? previousInStage?.blocker.reason : (textOf(input.blockerReason, 2_000) || undefined),
+      needed: input.blockerNeeded === undefined ? previousInStage?.blocker.needed : (textOf(input.blockerNeeded, 2_000) || undefined),
     },
-    nextAction: input.nextAction === undefined ? (previous?.nextAction ?? '') : textOf(input.nextAction, 2_000),
-    summary: input.summary === undefined ? previous?.summary : (textOf(input.summary, 3_000) || undefined),
+    nextAction: input.nextAction === undefined ? (previousInStage?.nextAction ?? '') : textOf(input.nextAction, 2_000),
+    summary: input.summary === undefined ? previousInStage?.summary : (textOf(input.summary, 3_000) || undefined),
     observedRealityDigest: input.observedRealityDigest === undefined
-      ? previous?.observedRealityDigest
+      ? previousInStage?.observedRealityDigest
       : (textOf(input.observedRealityDigest, 200) || undefined),
   }
   if (content.status === 'blocked' && content.blocker.type === 'none') content.blocker.type = 'model'
@@ -223,10 +228,10 @@ export function updateSessionExecution(
     projectId: project.projectId,
     module: project.module,
     ...content,
-    revision: previous ? previous.revision + (previous.contentDigest === contentDigest ? 0 : 1) : 1,
+    revision: previousInStage ? previousInStage.revision + (previousInStage.contentDigest === contentDigest ? 0 : 1) : 1,
     contentDigest,
-    createdAt: previous?.createdAt || now,
-    updatedAt: previous?.contentDigest === contentDigest ? (previous.updatedAt || now) : now,
+    createdAt: previousInStage?.createdAt || now,
+    updatedAt: previousInStage?.contentDigest === contentDigest ? (previousInStage.updatedAt || now) : now,
     heartbeatAt: now,
   }
   ledger.sessions[sessionId] = row
@@ -270,12 +275,7 @@ export function completeStageExecutions(
 }
 
 export function renderExecutionContext(row: SessionExecution | null): string {
-  if (!row) {
-    return [
-      '【Agent Pi 执行账本】当前主会话尚未回写执行计划。',
-      '进入专业阶段后，先调用 tender_stage status，再立即调用 tender_stage action=execution_update 回写目标、当前批次、计划、阻塞与下一动作；每个批次或子智能体状态发生实质变化时更新一次。',
-    ].join('\n')
-  }
+  if (!row) return ''
   const plan = row.plan.slice(0, 12).map((item) => `${item.id}:${item.status}:${item.title}`).join('；') || '未登记'
   const assignments = row.assignments.slice(0, 8).map((item) => `${item.id}:${item.status}:${item.title}`).join('；') || '无'
   const blocker = row.blocker.type === 'none'
@@ -290,7 +290,7 @@ export function renderExecutionContext(row: SessionExecution | null): string {
     `子任务：${assignments}`,
     `阻塞：${blocker}`,
     `下一动作：${row.nextAction || '未登记'}`,
-    `最近心跳：${row.heartbeatAt}`,
-    '执行意图以本账本为准，文件、BOQ、证据、引用与门禁仍以工作台事实核验为准；两者不一致时先对齐差异，不要重扫已完成成果。',
+    `最近更新：${row.heartbeatAt}`,
+    '本账本仅用于可选的稀疏进度展示，不是第二规划器，也不会触发自动恢复。阶段交接稿、项目总目标与磁盘成果是执行依据；无需心跳，不要重扫已完成成果。',
   ].join('\n')
 }

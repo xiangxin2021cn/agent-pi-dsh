@@ -1,5 +1,10 @@
 import { isAbsolute, resolve } from 'node:path'
-import { createBusinessProject, getBusinessProject, listBusinessProjects } from '../../../packages/business-projects/index.ts'
+import {
+  createBusinessProject,
+  getBusinessProject,
+  listBusinessProjects,
+  updateBusinessProjectContract,
+} from '../../../packages/business-projects/index.ts'
 import type { BusinessModuleId } from '../../../packages/business-projects/types.ts'
 import { sessionCwd, textResult } from './cwd.ts'
 import { evidencePolicy, forcePassEvidence, forcePassPricingIntel, assessEvidence } from './evidence.ts'
@@ -35,7 +40,6 @@ import {
   recordProjectUserRequirement,
   setProjectUserRequirementStatus,
   executionControlState,
-  projectExecutionForSession,
   updateProjectExecution,
 } from './orchestration.ts'
 import { listUserRequirements } from './user-requirements.ts'
@@ -44,6 +48,7 @@ import {
   initTenderWorkspace,
   loadWorkspace,
   replaceCapability,
+  summarizeCapability,
   upsertWorkspaceSection,
   validateCapability,
 } from './workspace.ts'
@@ -307,13 +312,26 @@ export function registerTools(ctx: {
         return textResult(capabilitySchemaHint(capability))
       }
       if (action === 'replace' || action === 'init') {
-        return textResult(replaceCapability(cwd, projectId, capability, args.data))
+        const result = replaceCapability(cwd, projectId, capability, args.data)
+        return textResult({
+          ...summarizeCapability(cwd, projectId, capability, result),
+          written: true,
+        })
       }
       if (action === 'validate' && args.data !== undefined) {
-        return textResult(validateCapability(cwd, projectId, capability, args.data))
+        const result = validateCapability(cwd, projectId, capability, args.data)
+        return textResult({
+          ...summarizeCapability(cwd, projectId, capability, { audit: result.audit, data: result.parsed }),
+          ok: result.ok,
+          written: result.written,
+        })
       }
       if (action === 'status' || action === 'configure') {
-        return textResult({ configured: action === 'configure', ...capabilityStatus(cwd, projectId, capability) })
+        const status = capabilityStatus(cwd, projectId, capability)
+        return textResult({
+          ...summarizeCapability(cwd, projectId, capability, status),
+          configured: action === 'configure',
+        })
       }
       throw new Error(`Unknown tender_capability action ${action}`)
     },
@@ -552,13 +570,15 @@ export function registerTools(ctx: {
 
   ctx.tools.register(defineTool({
     name: 'tender_project',
-    description: 'Create, adopt, or list Agent Pi workbench projects in the current workspace. adopt registers the existing conversation folder under a chosen module without creating a new directory.',
+    description: 'Create, adopt, configure, or list Agent Pi workbench projects in the current workspace. configure persists the end-to-end project goal and terminal deliverables used by every DSH stage.',
     parameters: {
-      action: { type: 'string', required: true, description: 'create | adopt | list | get' },
+      action: { type: 'string', required: true, description: 'create | adopt | configure | list | get' },
       module: { type: 'string', description: 'Workbench module id (tender / delivery / investment / user module)' },
       projectId: { type: 'string' },
       name: { type: 'string' },
       inputPaths: { type: 'array', items: { type: 'string' } },
+      projectGoal: { type: 'string' },
+      terminalDeliverables: { type: 'array', items: { type: 'string' } },
     },
     output: jsonOut(),
     async execute(args: Record<string, unknown>, exec: { agent?: { session?: { header?: { cwd?: string } } } }) {
@@ -568,12 +588,20 @@ export function registerTools(ctx: {
       if (args.action === 'get') {
         return textResult(getBusinessProject(cwd, module, String(args.projectId)))
       }
+      if (args.action === 'configure') {
+        return textResult(updateBusinessProjectContract(cwd, module, String(args.projectId), {
+          projectGoal: args.projectGoal === undefined ? undefined : String(args.projectGoal),
+          terminalDeliverables: Array.isArray(args.terminalDeliverables) ? args.terminalDeliverables.map(String) : undefined,
+        }))
+      }
       if (args.action === 'adopt') {
         return textResult(adoptWorkspace(cwd, {
           module,
           name: args.name ? String(args.name) : undefined,
           projectId: args.projectId ? String(args.projectId) : undefined,
           inputPaths: Array.isArray(args.inputPaths) ? args.inputPaths.map(String) : undefined,
+          projectGoal: args.projectGoal ? String(args.projectGoal) : undefined,
+          terminalDeliverables: Array.isArray(args.terminalDeliverables) ? args.terminalDeliverables.map(String) : undefined,
         }))
       }
       const projectId = String(args.projectId ?? `p${Date.now()}`)
@@ -587,6 +615,10 @@ export function registerTools(ctx: {
         workflowId: workflow.id,
         createDirectory: true,
         inputPaths: Array.isArray(args.inputPaths) ? args.inputPaths.map(String) : [],
+        projectGoal: args.projectGoal ? String(args.projectGoal) : workflow.projectGoal,
+        terminalDeliverables: Array.isArray(args.terminalDeliverables)
+          ? args.terminalDeliverables.map(String)
+          : workflow.terminalDeliverables,
       })
       if (usesTenderControlProfile(module)) {
         try {
@@ -601,7 +633,7 @@ export function registerTools(ctx: {
 
   ctx.tools.register(defineTool({
     name: 'tender_stage',
-    description: 'Prepare or inspect a workbench stage and keep the main-agent execution ledger aligned with disk facts. User requirements from the bound parent chat outrank default soft gates. After status, call execution_update with the current objective, batch, plan, assignments, blocker and next action; update it when those materially change. status returns pending work plus the execution/fact alignment. Does not spawn subagents.',
+    description: 'Prepare or inspect a workbench stage. DSH is the only executor; the workbench provides disk facts, light coverage checks and explicit human stops. User requirements from the bound parent chat outrank default soft gates. execution_update is optional sparse progress telemetry only, never a heartbeat or a second planner. status returns pending work plus execution/fact alignment. Does not spawn subagents.',
     parameters: tenderStageParameters,
     output: jsonOut(),
     execute(args: Record<string, unknown>, exec: {
@@ -629,9 +661,10 @@ export function registerTools(ctx: {
         return textResult({ reality, control: executionControlState(cwd, project, sessionId, reality) })
       }
       if (args.action === 'execution_status') {
+        const control = executionControlState(cwd, project, sessionId)
         return textResult({
-          execution: projectExecutionForSession(cwd, project, sessionId),
-          control: executionControlState(cwd, project, sessionId),
+          execution: control.execution,
+          control,
         })
       }
       if (args.action === 'execution_update') {
