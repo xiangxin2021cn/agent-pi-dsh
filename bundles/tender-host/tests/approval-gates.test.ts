@@ -12,7 +12,8 @@ import {
 } from '../src/orchestration.ts'
 import { officialStageDir } from '../src/outputs.ts'
 import { WORKFLOWS } from '../src/workflows.ts'
-import { initTenderWorkspace } from '../src/workspace.ts'
+import { saveUserModule, workflowToModuleFile } from '../src/modules.ts'
+import { capabilityStatus, initTenderWorkspace, workspacePaths } from '../src/workspace.ts'
 
 function project(cwd: string): BusinessProjectRecord {
   return {
@@ -104,4 +105,56 @@ test('rejecting the bid decision persists a blocked stop state', () => {
   assert.equal(rejected.state.status, 'blocked')
   assert.equal(rejected.state.approval?.decision, 'rejected')
   assert.match(resumeUnfinished(cwd, record).blocked ?? '', /商业风险不可接受/)
+})
+
+test('final submission freeze requires the structured submission audit to be ready', () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'ap-final-freeze-'))
+  const moduleRoot = mkdtempSync(join(tmpdir(), 'ap-final-module-'))
+  const previousRoot = process.env.AGENT_PI_MODULES_ROOT
+  process.env.AGENT_PI_MODULES_ROOT = moduleRoot
+  try {
+    saveUserModule(workflowToModuleFile(WORKFLOWS.tender!, 'tender-proven', '已验证投标范式'))
+    const record = { ...project(cwd), module: 'tender-proven', workflowId: 'tender-proven-main' }
+    setup(cwd, record)
+    const now = '2026-08-30T00:00:00.000Z'
+    const stages = Object.fromEntries(WORKFLOWS.tender.stages.map((stage) => [stage.id, {
+      stageId: stage.id,
+      status: stage.id === 'submission-compliance-freeze' ? 'running' : 'done',
+      tasks: [],
+      updatedAt: now,
+      completedAt: stage.id === 'submission-compliance-freeze' ? undefined : now,
+    }])) as Parameters<typeof saveBoard>[1]['stages']
+    saveBoard(cwd, {
+      schemaVersion: 2,
+      projectId: record.projectId,
+      module: record.module,
+      currentStageId: 'submission-compliance-freeze',
+      stages,
+      updatedAt: now,
+    })
+
+    const outputDir = officialStageDir(cwd, record.projectId, 'submission-compliance-freeze')
+    mkdirSync(outputDir, { recursive: true })
+    writeFileSync(
+      join(outputDir, '投标提交合规与冻结记录.md'),
+      '# 投标提交合规与冻结记录\n\n' + '资格、签字、价格、技术、介质、截止时间与 maker-checker 核对记录。'.repeat(20),
+    )
+
+    const index = capabilityStatus(cwd, record.projectId).index
+    for (const entry of index.capabilities) {
+      if (entry.capability === 'submission_documents' || entry.capability === 'bidder_commitments') {
+        entry.readiness = 'ready'
+        entry.stale = false
+      }
+    }
+    writeFileSync(workspacePaths(cwd, record.projectId).index, `${JSON.stringify(index, null, 2)}\n`)
+
+    assert.throws(
+      () => decideApprovalStage(cwd, record, 'submission-compliance-freeze', 'approved'),
+      /submission_audit: not_ready/,
+    )
+  } finally {
+    if (previousRoot === undefined) delete process.env.AGENT_PI_MODULES_ROOT
+    else process.env.AGENT_PI_MODULES_ROOT = previousRoot
+  }
 })

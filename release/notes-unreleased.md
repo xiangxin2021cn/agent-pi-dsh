@@ -1,3 +1,3 @@
 # Unreleased
 
-3.4.2 已发布 PageIndex 影子导航与 WorkSurface 证据面，见 [notes-3.4.2.md](./notes-3.4.2.md)。此后改动写在本页。
+3.5.1 已完成主智能体执行账本、双态控制面板与官网参赛版收敛，见 [notes-3.5.1.md](./notes-3.5.1.md)。此后改动写在本页。

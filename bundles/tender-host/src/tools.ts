@@ -32,7 +32,13 @@ import {
   projectReality,
   resumeUnfinished,
   slimStageStatus,
+  recordProjectUserRequirement,
+  setProjectUserRequirementStatus,
+  executionControlState,
+  projectExecutionForSession,
+  updateProjectExecution,
 } from './orchestration.ts'
+import { listUserRequirements } from './user-requirements.ts'
 import {
   capabilityStatus,
   initTenderWorkspace,
@@ -42,7 +48,7 @@ import {
   validateCapability,
 } from './workspace.ts'
 import { capabilitySchemaHint } from './capability-schema.ts'
-import { copyWorkbenchModule, listWorkbenchModules, removeUserModule, saveUserModule, saveUserSkill, setModuleDisabled, workflowFor } from './modules.ts'
+import { copyWorkbenchModule, listWorkbenchModules, removeUserModule, saveUserModule, saveUserSkill, setModuleDisabled, usesTenderControlProfile, workflowFor } from './modules.ts'
 import { adoptWorkspace } from './adopt.ts'
 import { auditProjectCitations } from './citations.ts'
 import { prepareKbDocument } from './kb-prepare.ts'
@@ -55,8 +61,59 @@ import { loadEvidenceLedger, recordStructuredEvidence, renderStructuredEvidenceC
 import { assessAnalysisCoverage, loadAnalysisCoverage, recordAnalysisCoverage, type TenderAnalysisDomainId } from './analysis-coverage.ts'
 import { recordKnowledgeTelemetry } from './knowledge-telemetry.ts'
 import { loadWorkSurfacePolicy } from './worksurface-policy.ts'
+import { refreshStageMemorySnapshot, slimStageMemorySnapshot } from './stage-memory.ts'
 
 type DefineTool = (options: Record<string, unknown>) => unknown
+
+export const tenderStageParameters = {
+  action: { type: 'string', required: true, description: 'prepare | status | check | execution_status | execution_update | complete | complete_stage | resume | force_pass | reset | organize | record_requirement | satisfy_requirement' },
+  projectId: { type: 'string', required: true },
+  stageId: { type: 'string' },
+  module: { type: 'string' },
+  runId: { type: 'string' },
+  executionStatus: { type: 'string', description: 'planning | working | waiting | blocked | completed | failed' },
+  objective: { type: 'string' },
+  currentBatch: { type: 'string' },
+  planItems: {
+    type: 'array',
+    items: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        id: { type: 'string', required: true },
+        title: { type: 'string', required: true },
+        status: { type: 'string', required: true, description: 'pending | in_progress | done | blocked' },
+        artifactPaths: { type: 'array', items: { type: 'string' } },
+      },
+    },
+    description: 'Bounded live plan for the current parent session.',
+  },
+  assignments: {
+    type: 'array',
+    items: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        id: { type: 'string', required: true },
+        title: { type: 'string', required: true },
+        status: { type: 'string', required: true, description: 'queued | running | done | failed' },
+        childSessionId: { type: 'string' },
+        expectedOutput: { type: 'string' },
+      },
+    },
+    description: 'Subagent assignments already dispatched by the parent session.',
+  },
+  blockerType: { type: 'string', description: 'none | human | evidence | tool | model' },
+  blockerReason: { type: 'string' },
+  blockerNeeded: { type: 'string' },
+  nextAction: { type: 'string' },
+  summary: { type: 'string' },
+  observedRealityDigest: { type: 'string' },
+  requirementId: { type: 'string' },
+  requirementText: { type: 'string' },
+  note: { type: 'string' },
+  evidencePaths: { type: 'array' },
+} as const
 
 function jsonOut() {
   return {
@@ -531,7 +588,7 @@ export function registerTools(ctx: {
         createDirectory: true,
         inputPaths: Array.isArray(args.inputPaths) ? args.inputPaths.map(String) : [],
       })
-      if (module === 'tender') {
+      if (usesTenderControlProfile(module)) {
         try {
           initTenderWorkspace(cwd, projectId, { id: projectId, title: project.name, status: 'active' })
         } catch {
@@ -544,13 +601,8 @@ export function registerTools(ctx: {
 
   ctx.tools.register(defineTool({
     name: 'tender_stage',
-    description: 'Prepare or inspect a workbench stage. Writes per-file briefs under orchestration/briefs for analysis/pricing. status returns the pending checklist only — completed workers are not re-scanned. Call complete_stage after every deliverable of the current stage is finished so the workbench stops auto-resuming. force_pass on boq-five-step-pricing also waives the supplier/productivity pack (still write 组价依据说明.md). Does not spawn subagents — use dsh native subagent/workflow if you need parallelism.',
-    parameters: {
-      action: { type: 'string', required: true, description: 'prepare | status | check | complete | complete_stage | resume | force_pass | reset | organize' },
-      projectId: { type: 'string', required: true },
-      stageId: { type: 'string' },
-      module: { type: 'string' },
-    },
+    description: 'Prepare or inspect a workbench stage and keep the main-agent execution ledger aligned with disk facts. User requirements from the bound parent chat outrank default soft gates. After status, call execution_update with the current objective, batch, plan, assignments, blocker and next action; update it when those materially change. status returns pending work plus the execution/fact alignment. Does not spawn subagents.',
+    parameters: tenderStageParameters,
     output: jsonOut(),
     execute(args: Record<string, unknown>, exec: {
       agent?: { session?: { id?: string; header?: { cwd?: string } } }
@@ -561,15 +613,68 @@ export function registerTools(ctx: {
       const project = getBusinessProject(cwd, module, projectId)
       if (!project) throw new Error(`Unknown project ${module}/${projectId}. Call tender_project create first.`)
       const selectedKnowledgeSlugs = getKbTaskSlugs(exec.agent?.session?.id)
+      const sessionId = String(exec.agent?.session?.id || '')
 
       if (args.action === 'status') {
-        return textResult(slimStageStatus(inspectBoard(cwd, project)))
+        const board = inspectBoard(cwd, project)
+        return textResult({
+          ...slimStageStatus(board),
+          memory: slimStageMemorySnapshot(refreshStageMemorySnapshot(cwd, project)),
+          userRequirements: listUserRequirements(cwd, project).filter((row) => row.status !== 'dismissed'),
+          control: executionControlState(cwd, project, sessionId),
+        })
       }
       if (args.action === 'check') {
-        return textResult(projectReality(cwd, project))
+        const reality = projectReality(cwd, project)
+        return textResult({ reality, control: executionControlState(cwd, project, sessionId, reality) })
+      }
+      if (args.action === 'execution_status') {
+        return textResult({
+          execution: projectExecutionForSession(cwd, project, sessionId),
+          control: executionControlState(cwd, project, sessionId),
+        })
+      }
+      if (args.action === 'execution_update') {
+        const stageId = String(args.stageId ?? loadStageState(cwd, projectId)?.stageId ?? '')
+        const execution = updateProjectExecution(cwd, project, {
+          sessionId,
+          runId: args.runId ? String(args.runId) : undefined,
+          stageId,
+          status: args.executionStatus ? String(args.executionStatus) : undefined,
+          objective: args.objective ? String(args.objective) : undefined,
+          currentBatch: args.currentBatch ? String(args.currentBatch) : undefined,
+          planItems: Array.isArray(args.planItems) ? args.planItems : undefined,
+          assignments: Array.isArray(args.assignments) ? args.assignments : undefined,
+          blockerType: args.blockerType ? String(args.blockerType) : undefined,
+          blockerReason: args.blockerReason === undefined ? undefined : String(args.blockerReason),
+          blockerNeeded: args.blockerNeeded === undefined ? undefined : String(args.blockerNeeded),
+          nextAction: args.nextAction === undefined ? undefined : String(args.nextAction),
+          summary: args.summary === undefined ? undefined : String(args.summary),
+          observedRealityDigest: args.observedRealityDigest === undefined ? undefined : String(args.observedRealityDigest),
+        })
+        return textResult({ execution, control: executionControlState(cwd, project, sessionId) })
       }
       if (args.action === 'force_pass') {
         return textResult(markForcePass(cwd, projectId, args.stageId ? String(args.stageId) : undefined))
+      }
+      if (args.action === 'record_requirement') {
+        return textResult(recordProjectUserRequirement(cwd, project, {
+          sessionId: String(exec.agent?.session?.id || ''),
+          stageId: args.stageId ? String(args.stageId) : undefined,
+          text: String(args.requirementText || ''),
+        }))
+      }
+      if (args.action === 'satisfy_requirement') {
+        return textResult(setProjectUserRequirementStatus(
+          cwd,
+          project,
+          String(args.requirementId || ''),
+          'implemented',
+          {
+            note: String(args.note || ''),
+            evidencePaths: Array.isArray(args.evidencePaths) ? args.evidencePaths.map(String) : [],
+          },
+        ))
       }
       if (args.action === 'complete') {
         return textResult(completeSetup(cwd, project, selectedKnowledgeSlugs))
@@ -580,7 +685,7 @@ export function registerTools(ctx: {
         return textResult(completeStage(cwd, project, stageId))
       }
       if (args.action === 'resume') {
-        return textResult(resumeUnfinished(cwd, project, selectedKnowledgeSlugs))
+        return textResult(resumeUnfinished(cwd, project, selectedKnowledgeSlugs, { sessionId }))
       }
       const stageId = String(args.stageId ?? workflowFor(module).stages[0]?.id)
       if (args.action === 'reset' || args.action === 'reset_orchestration') {
@@ -622,7 +727,7 @@ export function registerTools(ctx: {
 
   ctx.tools.register(defineTool({
     name: 'workbench_module_save',
-    description: 'Create or replace a user-defined workbench module. You derive and pass the definition; never ask the user to paste JSON. A module is a complete workbench package (tab + stage monitor + setup + process gates + skills), rendered by this app — do not invent a new UI. Shape: { schemaVersion: 1, id, labelZh, setupStageId?, bindingAreaByStage?, kbPack?, stages: [{ id, labelZh, prompt, hintZh?, skillSlugs?, reviewSkillSlugs?, listsSources?, summaryDeliverable? }] }. Built-in ids cannot be overridden. Read skill workbench-domain-builder first.',
+    description: 'Create or replace a user-defined workbench module. You derive and pass the definition; never ask the user to paste JSON. A module is a complete workbench package (tab + stage monitor + setup + review/approval gates + skills), rendered by this app — do not invent a new UI. Shape: { schemaVersion: 1, id, labelZh, controlProfile?: "tender", setupStageId?, bindingAreaByStage?, kbPack?, stages: [{ id, labelZh, prompt, hintZh?, skillSlugs?, reviewSkillSlugs?, reviewPolicy?, approvalGate?, listsSources?, summaryDeliverable? }] }. Use controlProfile: "tender" only for a workflow copied from the built-in tender process with its canonical stage ids; it preserves deterministic BOQ/evidence/capability/final-freeze controls after the module is renamed. Built-in ids cannot be overridden. Read skill workbench-domain-builder first.',
     parameters: {
       definition: { type: 'json', required: true, description: 'Complete module definition object' },
     },

@@ -1,3 +1,9 @@
+import type { TenderCapabilityId } from '../../../packages/business-core/src/tender/index.ts'
+
+export type StageConsume =
+  | { kind: 'handoff'; stageId: string; required?: boolean }
+  | { kind: 'capability'; capability: TenderCapabilityId; required?: boolean }
+
 export interface WorkflowStage {
   id: string
   label: string
@@ -5,6 +11,8 @@ export interface WorkflowStage {
   hintZh: string
   prompt: string
   skillSlugs: string[]
+  /** Machine-readable prior baselines required before this stage can close. */
+  consumes?: StageConsume[]
   /** Reviewer skills available to the stage's risk/change/sample review policy. */
   reviewSkillSlugs?: string[]
   /** Review every file only for legacy/custom workflows; tender defaults to risk-based review. */
@@ -29,6 +37,8 @@ export interface WorkflowDefinition {
   id: string
   /** Business module id; built-ins are tender/delivery/investment, user modules add more. */
   module: string
+  /** Reuse a built-in domain's deterministic hard gates without coupling them to the module id. */
+  controlProfile?: 'tender'
   label: string
   labelZh: string
   /**
@@ -56,6 +66,7 @@ export const WORKFLOWS: Record<string, WorkflowDefinition> = {
   tender: {
     id: 'tender-main',
     module: 'tender',
+    controlProfile: 'tender',
     label: 'Tender workflow',
     labelZh: '投标全流程',
     setupStageId: 'project-setup',
@@ -76,14 +87,16 @@ export const WORKFLOWS: Record<string, WorkflowDefinition> = {
         hintZh: '上传并登记招标资料。PDF / Word / Excel 按知识库同一套逻辑对齐成解析稿，可预览、改稿；保存时同步 sidecar JSON。齐套后进入解析。',
         prompt: '上传并登记招标资料即可。PDF、Word、Excel 先按知识库同一套逻辑对齐为 Official Outputs setup/ 下的 manuscript.md + pack.json，用户改稿保存后 units 必须跟上。资料齐套后由用户确认进入解析；长叙事解析稿会在保存时生成 PageIndex 影子树，复用当前模型配置且不弹第二个 API Key。影子树仅用于导航，不改变本阶段结论。本步不派生子智能体，不进行组价或策划。登记说明沿用招标文件原名与原术语，禁止 AI 导读腔。',
         skillSlugs: ['tender-intelligence-core', 'tender-project-boundary'],
+        consumes: [],
       },
       {
         id: 'bid-risk-decision',
         label: 'Bid decision and critical risks',
         labelZh: '投标决策与重大风险',
         hintZh: '先形成投标/不投标建议、重大风险、澄清清单和决策条件，再由用户明确确认是否继续。',
-        prompt: '只做投标决策，不展开全文长报告或详细组价。基于已登记资料编制《投标决策与重大风险评估.md》：项目边界、资格与评分门槛、关键日期、保函/保险、合同与现金流重大风险、资料缺口、需要澄清的问题、建议投标/不投标及前提条件。每项事实带 [kb:…]/[src:…] 来源令牌；缺资料保持为缺口。完成后停止，等待用户在工作台明确选择「确认投标，继续」或「不投标，暂停」，不得由模型代替用户决策。',
-        skillSlugs: ['tender-intelligence-core', 'tender-evaluation-strategy', 'tender-project-boundary'],
+        prompt: '只做投标决策，不展开全文长报告或详细组价。基于已登记资料编制《投标决策与重大风险评估.md》：项目边界、采购制度与适用法域、投标主体/JV/分包结构、CIDB/资格与评分门槛、关键日期、保函/保险、合同与现金流重大风险、税务/外汇/用工/本地化义务、资料缺口、需要澄清的问题、央企内部法务/商务/财税/资金/履约审批责任人、建议投标/不投标及成立条件。法规、工资、税费只认现行官方来源，招标特定规则以招标文件为准；缺资料保持为缺口。完成后停止，等待用户在工作台明确选择「确认投标，继续」或「不投标，暂停」，不得由模型代替用户决策。',
+        skillSlugs: ['tender-intelligence-core', 'tender-evaluation-strategy', 'tender-project-boundary', 'tender-overseas-professional-control'],
+        consumes: [{ kind: 'handoff', stageId: 'project-setup' }],
         reviewSkillSlugs: ['deliverable-reviewer'],
         reviewPolicy: 'risk-based',
         summaryDeliverable: {
@@ -107,7 +120,11 @@ export const WORKFLOWS: Record<string, WorkflowDefinition> = {
         labelZh: '招标文件解析',
         hintZh: '逐文件解析后汇总成一套可追溯的《投标分析底稿》，并完整抽取实际 BOQ；专题视图只在用户需要时从底稿派生。',
         prompt: '对每个已登记文件产出可读 Markdown 解析稿并保留原始术语、页码/行号和交叉引用；完成后合成 document_analysis 与 boq_reconciliation，并编制唯一权威底稿《投标分析底稿.md》。底稿统一承载来源索引、项目边界、资格与评分、关键日期、合同/保险/保函、技术规范、BOQ 覆盖、提交清单、风险与缺口；不得为凑数量重复写五份长报告。招标总结、合同条款、技术要求、BOQ 分析等专题稿改为用户明确需要时从底稿派生的视图，不作为收阶段硬门。必须从每份已登记的实际工程量清单（BOQ / Bill of Quantities / Pricing Schedule / 工程量）抽出全部可识别真实行，tender_capability replace boq_reconciliation；每行带清单号、单位、数量、sheet+cell，PC Sum / Provisional Sum / percentage 等传递项也登记。系统会反查解析稿中的显式清单号，局部样本不得过关；没有清单或覆盖不全不得 complete_stage。全部客户可读成果写入 document-analysis/。缺规范、合同、地质原文必须标为缺口，禁止用模型记忆填空。已完成的源文件解析稿不要重扫。检索前调用 tender_knowledge action=route：叙事问题用 navigate，版本/补遗/能力失效用 graph，数量/单位/公式必须继续使用 BOQ 表格与 sheet+cell，严禁以 PageIndex 摘要代替表格计算。PageIndex 命中只作导航，必须回读原文并用 evidence_record 冻结精确 quote、sourceHash 和 internalLocator，再在正文使用返回的自然引用与 [ev:claimId]。按 qualification-risk、commercial-contract、boq-pricing、scope-technical、submission-compliance 五个域逐项 coverage_record，未读节点、证据或结论有缺口不得收阶段。若需并行，使用 dsh 原生 subagent / workflow；子任务交付 JSON+MD。',
-        skillSlugs: ['tender-document-parsing', 'tender-boq-reconciliation', 'tender-formal-writing'],
+        skillSlugs: ['tender-document-parsing', 'tender-boq-reconciliation', 'tender-formal-writing', 'tender-overseas-professional-control'],
+        consumes: [
+          { kind: 'handoff', stageId: 'project-setup' },
+          { kind: 'handoff', stageId: 'bid-risk-decision' },
+        ],
         reviewSkillSlugs: ['deliverable-reviewer'],
         reviewPolicy: 'risk-based',
         listsSources: true,
@@ -130,8 +147,13 @@ export const WORKFLOWS: Record<string, WorkflowDefinition> = {
         label: 'Pricing basis freeze',
         labelZh: '组价基准冻结',
         hintZh: '把币种、税费、工资、材料、机械、工效、风险费和缺口处理冻结成可追溯基准，再由用户确认进入详细组价。',
-        prompt: '读取《投标分析底稿.md》和完整 boq_reconciliation，编制《组价基准冻结单.md》。逐项列出币种/汇率时点、税费、工资体系、材料与机械来源、当地工效、分包与供应商询价状态、风险费原则、暂列金额/计日工处理、资料缺口和允许使用的暂定假设。每个外部价格注明日期、地区、来源和有效期；未获正式回价必须明确标为网络询价或推导。完成后停止，等待用户在工作台确认基准；不得由模型自行冻结。',
-        skillSlugs: ['tender-boq-five-step-pricing', 'tender-evaluation-strategy', 'tender-project-boundary'],
+        prompt: '读取《投标分析底稿.md》和完整 boq_reconciliation，编制《组价基准冻结单.md》。逐项列出币种/汇率时点、VAT/税费/关税、工资与雇主负担体系、材料与机械来源、运距与当地工效、分包与供应商询价状态、现场管理费/总部管理费/利润/涨价/风险费原则、暂列金额/计日工处理、资料缺口和允许使用的暂定假设。每个外部价格注明日期、地区、官方/正式回价/网络价/推导证据等级和有效期；列 BOQ 行审核覆盖率与金额加权核证覆盖率。南非土木工程人工必须核对当前 BCCEI 公报，不得沿用旧范文工资。重大成本仍为 draft/unverified、现行法定费率未落实或相对雇主估算/历史基准存在未解释重大偏差时，保持未冻结。完成后停止，等待用户在工作台确认基准；不得由模型自行冻结。',
+        skillSlugs: ['tender-boq-five-step-pricing', 'tender-evaluation-strategy', 'tender-project-boundary', 'tender-overseas-professional-control'],
+        consumes: [
+          { kind: 'handoff', stageId: 'tender-document-analysis' },
+          { kind: 'capability', capability: 'document_analysis', required: false },
+          { kind: 'capability', capability: 'boq_reconciliation', required: false },
+        ],
         reviewSkillSlugs: ['deliverable-reviewer'],
         reviewPolicy: 'risk-based',
         summaryDeliverable: {
@@ -155,7 +177,12 @@ export const WORKFLOWS: Record<string, WorkflowDefinition> = {
         labelZh: 'BOQ 逐页组价与资源汇总',
         hintZh: '以项目特征为依据逐章组价；缺口不得臆造。',
         prompt: '以已获用户确认的《组价基准冻结单.md》、《投标分析底稿.md》和完整 boq_reconciliation 为唯一组价基线，结合 orchestration/reports/ 下的 BOQ sidecar JSON，按分册/章节逐项组价。全部客户可读成果写入 boq-pricing/。章节 Markdown 与《BOQ 组价总报告.md》写完后，调用 tender_pricing_workbook generate 产出带公式的《BOQ 组价测算.xlsx》。不得悄悄改变已冻结币种、工资、材料、机械、工效、风险费或缺口处理；发现新证据与冻结基准冲突时停止并请求用户重新确认。当地工效和单价必须跟本标地址走：先 anysearch_capabilities，再 anysearch_batch_search（zone=intl）并用 web_search / web_fetch 复核；南非人工核 BCCEI。正式回价、网络询价和推导结果分列，写《当地供应商尽调.md》《当地工效尽调.md》和中英询价单；回价不足时 tender_evidence waive_pricing 并写《组价依据说明.md》。项目特征缺口不得臆造。先 tender_capability action=schema；燃油/工资/机械/水泥/骨料/沥青/分包写入 costComponents[].rateBasis.webEvidence。若需按册并行，使用 dsh 原生 subagent / workflow。',
-        skillSlugs: ['tender-boq-five-step-pricing', 'tender-evaluation-strategy', 'tender-bidder-commitments', 'tender-formal-writing'],
+        skillSlugs: ['tender-boq-five-step-pricing', 'tender-evaluation-strategy', 'tender-bidder-commitments', 'tender-formal-writing', 'tender-overseas-professional-control'],
+        consumes: [
+          { kind: 'handoff', stageId: 'tender-document-analysis' },
+          { kind: 'handoff', stageId: 'pricing-basis-freeze' },
+          { kind: 'capability', capability: 'boq_reconciliation', required: false },
+        ],
         reviewSkillSlugs: ['deliverable-reviewer'],
         reviewPolicy: 'risk-based',
         listsSources: true,
@@ -178,7 +205,7 @@ export const WORKFLOWS: Record<string, WorkflowDefinition> = {
         label: 'Construction and technical proposal',
         labelZh: '施工与技术方案',
         hintZh: '基于冻结基准和详细组价形成施工组织、进度、资源、现金流和技术响应，不在本阶段宣称最终可提交。',
-        prompt: '按可见子步骤推进：施工组织与方法 → 进度/资源 → 成本/现金流 → 技术响应与一致性核对。工期与资源读取组价阶段 planningBasis、《组价基准冻结单.md》和《当地工效尽调.md》；存在《组价依据说明.md》时必须标注网络询价/工效推导和非正式回价。编制《施工与技术方案总控.md》，关联全部明细成果和未决事项。本阶段只完成方案，不生成“最终可提交”结论；项目特征缺口不得臆造。',
+        prompt: '按可见子步骤推进：施工组织与方法 → 进度/资源 → 成本/现金流 → 技术响应与一致性核对。工期与资源读取组价阶段 planningBasis、《组价基准冻结单.md》和《当地工效尽调.md》；存在《组价依据说明.md》时必须标注网络询价/工效推导和非正式回价。现金流必须考虑计量/认证/付款滞后、预付款及回收、保留金、保函、VAT 时点、调价、融资需求和最大负现金流，不得只把直接成本按月摊开。编制《施工与技术方案总控.md》，关联 BOQ/工作包/进度/资源/现金流、全部明细成果和未决事项。本阶段只完成方案，不生成“最终可提交”结论；项目特征缺口不得臆造。',
         skillSlugs: [
           'tender-execution-planning',
           'tender-schedule-resource-planning',
@@ -186,6 +213,13 @@ export const WORKFLOWS: Record<string, WorkflowDefinition> = {
           'tender-cost-cashflow-planning',
           'professional-report',
           'tender-formal-writing',
+          'tender-overseas-professional-control',
+        ],
+        consumes: [
+          { kind: 'handoff', stageId: 'pricing-basis-freeze' },
+          { kind: 'handoff', stageId: 'boq-five-step-pricing' },
+          { kind: 'capability', capability: 'boq_reconciliation', required: false },
+          { kind: 'capability', capability: 'boq_five_step_pricing', required: false },
         ],
         reviewSkillSlugs: ['deliverable-reviewer'],
         reviewPolicy: 'risk-based',
@@ -204,13 +238,26 @@ export const WORKFLOWS: Record<string, WorkflowDefinition> = {
         label: 'Submission compliance and final freeze',
         labelZh: '合规检查与最终提交冻结',
         hintZh: '核对资格、表单、签字盖章、价格、技术方案和提交介质；用户确认后才标记为冻结版本。',
-        prompt: '读取《投标分析底稿.md》、《组价基准冻结单.md》、《BOQ 组价总报告.md》、《施工与技术方案总控.md》和全部正式成果，执行最终 submission audit。编制《投标提交合规与冻结记录.md》：逐项列资格与必交表单、签字盖章、保函保险、价格一致性、技术偏差、文件名/格式/份数/介质/截止时间、未决缺口和责任人。不得把“文件已生成”写成“可提交”；存在阻断项时明确保持未冻结。完成后停止，等待用户在工作台最终确认冻结。',
+        prompt: '读取《投标分析底稿.md》、《组价基准冻结单.md》、《BOQ 组价总报告.md》、《施工与技术方案总控.md》和全部正式成果，执行最终 submission audit。编制《投标提交合规与冻结记录.md》：逐项列资格/CIDB/JV/税务与必交表单、评分与本地化证据、签字/见证/授权/盖章、保函保险、算术复核和跨文件价格一致性、技术与商务偏差、文件名/格式/份数/介质/截止时间/提交渠道、阻断项/警告/责任人/截止日和 maker-checker 记录。必须区分“文件存在”“内容完整”“已复核”“已授权”；不得把“文件已生成”写成“可提交”。任何重大未核证价格、法定用工/税务缺口、未签必交表或能力包 needs_review 均保持未冻结。完成后停止，等待用户在工作台最终确认冻结。',
         skillSlugs: [
           'tender-submission-documents',
           'tender-submission-audit',
           'tender-bidder-commitments',
           'professional-report',
           'tender-formal-writing',
+          'tender-overseas-professional-control',
+        ],
+        consumes: [
+          { kind: 'handoff', stageId: 'tender-document-analysis' },
+          { kind: 'handoff', stageId: 'pricing-basis-freeze' },
+          { kind: 'handoff', stageId: 'boq-five-step-pricing' },
+          { kind: 'handoff', stageId: 'planning-and-submission' },
+          { kind: 'capability', capability: 'document_analysis', required: false },
+          { kind: 'capability', capability: 'boq_reconciliation', required: false },
+          { kind: 'capability', capability: 'boq_five_step_pricing', required: false },
+          { kind: 'capability', capability: 'execution_plan', required: false },
+          { kind: 'capability', capability: 'schedule_resources', required: false },
+          { kind: 'capability', capability: 'cost_cashflow', required: false },
         ],
         reviewSkillSlugs: ['tender-submission-audit', 'deliverable-reviewer'],
         reviewPolicy: 'risk-based',
@@ -243,6 +290,7 @@ export const WORKFLOWS: Record<string, WorkflowDefinition> = {
         hintZh: '确认实施输入、数据日期、合同范围、控制基准与交付物。',
         prompt: '建立 Delivery Workspace 与基线控制总控。使用 project-delivery-controls-core。',
         skillSlugs: ['project-delivery-controls-core'],
+        consumes: [],
       },
       {
         id: 'delivery-controls',
@@ -260,6 +308,7 @@ export const WORKFLOWS: Record<string, WorkflowDefinition> = {
           'project-delivery-reporting-audit',
         ],
         reviewSkillSlugs: ['deliverable-reviewer'],
+        consumes: [{ kind: 'handoff', stageId: 'delivery-setup' }],
       },
     ],
   },
@@ -276,6 +325,7 @@ export const WORKFLOWS: Record<string, WorkflowDefinition> = {
         hintZh: '确认投资阶段、授权边界、估值基准日、资料和决策门槛。',
         prompt: '建立投资研究 Workspace，冻结知识快照与假设。',
         skillSlugs: ['resource-investment-intelligence-core', 'resource-investment-mandate-screening'],
+        consumes: [],
       },
       {
         id: 'investment-diligence',
@@ -291,6 +341,7 @@ export const WORKFLOWS: Record<string, WorkflowDefinition> = {
           'resource-investment-transaction-decision',
         ],
         reviewSkillSlugs: ['deliverable-reviewer'],
+        consumes: [{ kind: 'handoff', stageId: 'investment-setup' }],
       },
     ],
   },

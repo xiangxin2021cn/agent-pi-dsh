@@ -948,7 +948,7 @@ function beginMineruIngest(input: {
   displayName?: string
   category?: string
   slug?: string
-  ingest?: 'direct' | 'mineru' | 'pack'
+  ingest?: 'direct' | 'mineru'
   parseNow?: boolean
   folderId?: string
   folderName?: string

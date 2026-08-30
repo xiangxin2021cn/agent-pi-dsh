@@ -478,15 +478,15 @@ const h = React.createElement
         'mm.designTitle': '回到对话，用人机交互生成完整工作台模块包',
         'mm.design': '去对话里创造',
         'mm.createTitle': '模块创造模式',
-        'mm.createLead': '不要先导入 JSON。点下面一条路，回到对话用人机交互。生成的是和「投标全流程」同等级的完整模块包：顶栏、阶段监控、资料登记、流程控制、配套方法和知识库。保存后本应用按同一套专业化工作台画出来。',
-        'mm.createWarn': '不要切到 Agent 预设里的「创造模式」——那是改插件组装的。模块创造只走本页进对话这条路。',
+        'mm.createLead': '不要先导入 JSON。点下面一条路，本应用会进入 DSH 原生「创造模式」，用对话把这次做成的成果和修订经验沉淀为完整业务模块包：顶栏、阶段监控、资料登记、流程控制、配套方法和知识库。',
+        'mm.createWarn': '原生创造模式只是创作驾驶舱，最终保存的是专业工作台业务模块，不会改 DSH 官方预设。当前对话为空时原地切换；已有历史时会新建创造模式对话。',
         'mm.createAdvanced': '只有已经拿到本应用校验过的模块定义时，才在这里粘贴。普通使用请走上面的创造对话。',
         'mm.packNotJson': '完整模块包，不是一段 JSON',
         'mm.pickKind': '选你们属于哪一种。选完回到对话，用大白话问一两句；模型直接装上，你不用粘贴定义。',
         'mm.card.distill': '做过一单，照这个来',
         'mm.card.distillBody': '把这次对话里已经认可的成果，整理成以后同类工作的标准。范文进知识库，做法记下来。',
         'mm.card.copy': '步骤和投标全流程一样，规矩不同',
-        'mm.card.copyBody': '还是登记 → 解析 → 组价 → 出稿。拷贝一份，挂上你们的评分办法、组价表或投标函。阶段条还是四步。',
+        'mm.card.copyBody': '沿用当前投标流程的阶段和人工确认门禁，拷贝一份，再挂上你们的评分办法、组价表或投标函。',
         'mm.card.custom': '步骤就不一样',
         'mm.card.customBody': '例如先资格再技术再商务、没有组价。用中文说清几步，新标签和监控条按这几步画。',
         'mm.advanced': '高级 · 粘贴模块定义（开发者）',
@@ -521,6 +521,13 @@ const h = React.createElement
         'mm.stagePrompt': '阶段要求（写给模型看）',
         'mm.skillSlugs': '技能 slug（逗号分隔）',
         'mm.reviewSlugs': '评审技能 slug（逗号分隔，可空）',
+        'mm.reviewPolicy': '审查范围',
+        'mm.reviewRisk': '按风险 / 变更 / 抽样审查',
+        'mm.reviewAll': '逐文件全部审查',
+        'mm.approvalGate': '本阶段需要人工确认后才能继续',
+        'mm.approvalPrompt': '确认事项（显示给用户）',
+        'mm.approveLabel': '确认按钮文字',
+        'mm.rejectLabel': '暂停 / 退回按钮文字（可空）',
         'mm.binding': '知识库绑定',
         'mm.bindNone': '不绑定',
         'mm.bindAnalysis': '解析 analysis',
@@ -789,15 +796,15 @@ const h = React.createElement
         'mm.designTitle': 'Return to chat and generate a complete workbench module pack through conversation',
         'mm.design': 'Create in chat',
         'mm.createTitle': 'Module create mode',
-        'mm.createLead': 'Do not start by importing JSON. Pick a path below and continue in chat. What you get is a complete module pack at the same level as Tender process: top bar, stage monitor, source registration, workflow gates, matching methods, and a knowledge base. After save, this app draws it with the same workbench.',
-        'mm.createWarn': 'Do not switch to Create mode in the Agent preset — that edits plugin assembly. Module creation only goes through this page into chat.',
+        'mm.createLead': 'Do not start by importing JSON. Pick a path below and this app opens DSH native Create mode, where conversation distils accepted outputs and revision experience into a complete business module pack: top bar, stage monitor, source registration, workflow gates, methods, and knowledge.',
+        'mm.createWarn': 'Native Create mode is the authoring cockpit; the saved product is a professional-workbench business module and never edits a shipped DSH preset. A blank chat switches in place; a chat with history opens a new Create-mode session.',
         'mm.createAdvanced': 'Paste here only when you already have a module definition this app has validated. Everyday use should go through the create conversation above.',
         'mm.packNotJson': 'A complete module pack, not a JSON snippet',
         'mm.pickKind': 'Pick the case that matches you. Then return to chat and ask in plain language. The model installs it; you do not paste a definition.',
         'mm.card.distill': 'We finished one job — use this as the standard',
         'mm.card.distillBody': 'Turn the accepted results from this chat into the standard for later work of the same kind. Exemplars go to the knowledge base; the method is written down.',
         'mm.card.copy': 'Same steps as Tender process, different rules',
-        'mm.card.copyBody': 'Still register → analyze → price → draft. Copy one and attach your scoring rules, rate tables, or letters. The stage bar stays four steps.',
+        'mm.card.copyBody': 'Keep the current tender stages and human-approval gates, then attach your scoring rules, rate tables, or letters to a copy.',
         'mm.card.custom': 'The steps are different',
         'mm.card.customBody': 'For example qualification, then technical, then commercial — no pricing. Say the steps in plain language. The new tab and monitor bar follow those steps.',
         'mm.advanced': 'Advanced · Paste a module definition (developers)',
@@ -832,6 +839,13 @@ const h = React.createElement
         'mm.stagePrompt': 'Stage requirements (for the model)',
         'mm.skillSlugs': 'Skill slugs (comma-separated)',
         'mm.reviewSlugs': 'Review skill slugs (comma-separated, optional)',
+        'mm.reviewPolicy': 'Review scope',
+        'mm.reviewRisk': 'Risk / change / sample review',
+        'mm.reviewAll': 'Review every file',
+        'mm.approvalGate': 'Require human approval before the next stage',
+        'mm.approvalPrompt': 'Decision prompt shown to the user',
+        'mm.approveLabel': 'Approve button label',
+        'mm.rejectLabel': 'Pause / reject button label (optional)',
         'mm.binding': 'Knowledge binding',
         'mm.bindNone': 'None',
         'mm.bindAnalysis': 'Analysis',
@@ -1334,6 +1348,7 @@ const h = React.createElement
       if (props.inputActions) composerFace.inputActions = props.inputActions
       if (props.session) composerFace.session = props.session
       composerPropsRef.current = snapshotComposer()
+      ensureUserRequirementWatcher(sessionId)
       return cwd
     }
 
@@ -1377,6 +1392,25 @@ const h = React.createElement
         try {
           const binding = runtime.sessions.binding(sid)
           if (binding && binding.session && typeof binding.session.prompt === 'function') return binding.session
+        } catch {}
+      }
+      return null
+    }
+
+    function observableSessionById(sid) {
+      const sessions = runtime.sessions
+      if (!sessions || !sid) return null
+      if (typeof sessions.scope === 'function' && typeof sessions.sessionOf === 'function') {
+        try {
+          const scope = sessions.scope(sid)
+          const session = scope ? sessions.sessionOf(scope) : null
+          if (session) return session
+        } catch {}
+      }
+      if (typeof sessions.binding === 'function') {
+        try {
+          const binding = sessions.binding(sid)
+          if (binding && binding.session) return binding.session
         } catch {}
       }
       return null
@@ -1451,20 +1485,224 @@ const h = React.createElement
       return Promise.reject(new Error('当前没有可写入的主对话。请先打开或新建一个会话。'))
     }
 
+    const WORKBENCH_TRANSACTION_STATE_KEY = 'ap-wb-session-transactions:v1'
+    function loadWorkbenchTransactionState() {
+      try {
+        const value = JSON.parse(localStorage.getItem(WORKBENCH_TRANSACTION_STATE_KEY) || 'null')
+        return {
+          transactions: Array.isArray(value && value.transactions) ? value.transactions : [],
+          paused: Array.isArray(value && value.paused) ? value.paused : [],
+        }
+      } catch {
+        return { transactions: [], paused: [] }
+      }
+    }
+    const restoredWorkbenchState = loadWorkbenchTransactionState()
     const workbenchTransactions = window.__apWorkbenchTransactions
-      || (window.__apWorkbenchTransactions = createSessionTransactionRegistry())
+      || (window.__apWorkbenchTransactions = createSessionTransactionRegistry(Date.now, restoredWorkbenchState.transactions))
+    const workbenchPausedSessions = window.__apWorkbenchPausedSessions
+      || (window.__apWorkbenchPausedSessions = new Set(restoredWorkbenchState.paused))
+    function persistWorkbenchTransactionState() {
+      const transactions = workbenchTransactions.committed()
+      const activeIds = new Set(transactions.map((item) => item.sessionId))
+      const paused = [...workbenchPausedSessions].filter((sessionId) => activeIds.has(sessionId))
+      try {
+        if (!transactions.length) localStorage.removeItem(WORKBENCH_TRANSACTION_STATE_KEY)
+        else localStorage.setItem(WORKBENCH_TRANSACTION_STATE_KEY, JSON.stringify({ transactions, paused }))
+      } catch {}
+    }
+    function setWorkbenchTransactionPaused(sessionId, paused) {
+      const id = String(sessionId || '').trim()
+      if (!id) return
+      if (paused) workbenchPausedSessions.add(id)
+      else workbenchPausedSessions.delete(id)
+      persistWorkbenchTransactionState()
+    }
+    const workbenchSessionBindings = window.__apWorkbenchSessionBindings
+      || (window.__apWorkbenchSessionBindings = new Map())
+    const workbenchRequirementRecords = window.__apWorkbenchRequirementRecords
+      || (window.__apWorkbenchRequirementRecords = new Map())
+    const workbenchRequirementPending = window.__apWorkbenchRequirementPending
+      || (window.__apWorkbenchRequirementPending = new Set())
+    const workbenchRequirementWatchers = window.__apWorkbenchRequirementWatchers
+      || (window.__apWorkbenchRequirementWatchers = new Map())
+    function workbenchBindingKey(sessionId) {
+      return 'ap-wb-session-binding:' + String(sessionId || '').trim()
+    }
+    function rememberWorkbenchBinding(sessionId, payload) {
+      const id = String(sessionId || '').trim()
+      if (!id || !payload || !payload.cwd || !payload.projectId) return null
+      const binding = {
+        sessionId: id,
+        cwd: payload.cwd,
+        module: payload.module || 'tender',
+        projectId: payload.projectId,
+      }
+      workbenchSessionBindings.set(id, binding)
+      try { localStorage.setItem(workbenchBindingKey(id), JSON.stringify(binding)) } catch {}
+      return binding
+    }
+    function cachedWorkbenchBinding(sessionId, cwd) {
+      const id = String(sessionId || '').trim()
+      if (!id) return null
+      let binding = workbenchSessionBindings.get(id) || null
+      if (!binding) {
+        try { binding = JSON.parse(localStorage.getItem(workbenchBindingKey(id)) || 'null') } catch { binding = null }
+      }
+      if (!binding || !binding.projectId || (cwd && binding.cwd && normPath(binding.cwd) !== normPath(cwd))) return null
+      return rememberWorkbenchBinding(id, binding)
+    }
+    function resolveWorkbenchBinding(sessionId, cwd) {
+      const cached = cachedWorkbenchBinding(sessionId, cwd)
+      if (cached) return Promise.resolve(cached)
+      if (!sessionId || !cwd) return Promise.resolve(null)
+      return api('/api/agent-pi/session-project?sessionId=' + encodeURIComponent(sessionId), cwd, { method: 'GET' })
+        .then((body) => body && body.binding ? rememberWorkbenchBinding(sessionId, body.binding) : null)
+        .catch(() => null)
+    }
+    function projectRequirementText(text) {
+      const clean = stripMentionArtifacts(String(text || '')).trim()
+      if (!clean) return ''
+      if (/^【(?:用户要求账本|用户验收口径已确认|阶段切换|执行账本对齐|用户最新要求|恢复未递交成果|成果质检并整理|专业项目启动|主对话插话|补齐实际工程量清单|补齐投标分析底稿)/.test(clean)) return ''
+      if (/^(?:继续|开始|暂停|停止|收到|好的?|谢谢|进度(?:如何|怎样|怎么样)?|到哪(?:里|儿)了|现在什么状态)[？?。.!！\s]*$/i.test(clean)) return ''
+      const directive = /(?:请|需要|要求|必须|应当|应该|务必|优先|只要|只需|只修改|不要|不得|禁止|改成|改为|修改|调整|修正|纠正|替换|换成|补充|补齐|增加|新增|删除|移除|保留|采用|沿用|使用|重新|重做|改写|重写|更新|完善|优化|排序|合并|拆分|输出|生成|制作|编制|翻译|标注|核对|检查|审查|不对|有误|不符合|不满意|遗漏|缺少|please|must|should|need(?:\s+to)?|require|only|do\s+not|don't|revise|change|update|fix|correct|replace|add|remove|delete|keep|adopt|use\s+.+instead)/i
+      return directive.test(clean) ? clean : ''
+    }
+    function recordWorkbenchUserRequirement(props, text, retainDedupe) {
+      const clean = projectRequirementText(text)
+      const sessionId = sessionHint(props) || runtime.sessionId || ''
+      const cwd = workspaceCwd(props)
+      if (!clean || !sessionId || !cwd) return Promise.resolve(null)
+      const recordKey = sessionId + '\n' + clean
+      const existing = workbenchRequirementRecords.get(recordKey)
+      if (existing) return existing
+      workbenchRequirementPending.add(recordKey)
+      const pending = resolveWorkbenchBinding(sessionId, cwd).then((binding) => {
+        if (!binding) return null
+        return api('/api/agent-pi/stage', cwd, {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'record_requirement',
+            module: binding.module,
+            projectId: binding.projectId,
+            sessionId,
+            text: clean,
+          }),
+        }).then((result) => {
+          window.dispatchEvent(new CustomEvent('agent-pi-user-requirement', { detail: result && result.requirement }))
+          return result
+        })
+      }).catch((error) => {
+        showToast('项目要求同步失败：' + String(error && error.message || error))
+        return null
+      })
+      const tracked = pending.then((result) => {
+        if (!result || !retainDedupe) workbenchRequirementRecords.delete(recordKey)
+        return result
+      }).finally(() => workbenchRequirementPending.delete(recordKey))
+      workbenchRequirementRecords.set(recordKey, tracked)
+      return tracked
+    }
+    function projectRequirementWritePending(sessionId) {
+      const prefix = String(sessionId || '').trim() + '\n'
+      if (prefix === '\n') return false
+      for (const key of workbenchRequirementPending) {
+        if (key.startsWith(prefix)) return true
+      }
+      return false
+    }
+    function userRequirementNodeText(node) {
+      return (node && node.content || [])
+        .filter((part) => part && part.type === 'text')
+        .map((part) => part.text || '')
+        .join('')
+        .trim()
+    }
+    function ensureUserRequirementWatcher(sessionId) {
+      const id = String(sessionId || '').trim()
+      if (!id || workbenchRequirementWatchers.has(id)) return
+      if (!cachedWorkbenchBinding(id, runtime.cwd || composerFace.cwd || '')) return
+      const session = observableSessionById(id)
+      if (!session || typeof session.getSnapshot !== 'function' || typeof session.subscribe !== 'function') return
+      let initialSnapshot
+      try { initialSnapshot = session.getSnapshot() } catch { return }
+      let watermark = codexUserNodeWatermark(initialSnapshot)
+      const seenSubmissions = new Set()
+      const seenQueue = new Set()
+      const submittedTexts = new Set()
+      const onSession = () => {
+        let snapshot
+        try { snapshot = session.getSnapshot() } catch { return }
+        if (snapshot && snapshot.removed === true) {
+          const watcher = workbenchRequirementWatchers.get(id)
+          if (watcher && typeof watcher.unsubscribe === 'function') {
+            try { watcher.unsubscribe() } catch {}
+          }
+          workbenchRequirementWatchers.delete(id)
+          return
+        }
+        for (const submission of snapshot && snapshot.pendingSubmissions || []) {
+          const key = String(submission && submission.requestId || '')
+          if (!key || seenSubmissions.has(key)) continue
+          seenSubmissions.add(key)
+          const text = projectRequirementText(submission.text)
+          if (text) {
+            submittedTexts.add(text)
+            void recordWorkbenchUserRequirement({ sessionId: id }, text, true)
+          }
+        }
+        for (const queued of snapshot && snapshot.queue || []) {
+          const key = String(queued && (queued.rpcId || queued.messageId || queued.id) || '')
+          if (!queued || !queued.rpcId || !key || seenQueue.has(key)) continue
+          seenQueue.add(key)
+          const text = projectRequirementText(queued.text)
+          if (text) {
+            submittedTexts.add(text)
+            void recordWorkbenchUserRequirement({ sessionId: id }, text, true)
+          }
+        }
+        for (const node of snapshot && snapshot.nodes || []) {
+          if (!node || node.kind !== 'user' || typeof node.seq !== 'number' || node.seq <= watermark) continue
+          watermark = Math.max(watermark, node.seq)
+          const text = projectRequirementText(userRequirementNodeText(node))
+          if (!text) continue
+          if (submittedTexts.delete(text)) {
+            workbenchRequirementRecords.delete(id + '\n' + text)
+            continue
+          }
+          void recordWorkbenchUserRequirement({ sessionId: id }, text, false)
+        }
+      }
+      let unsubscribe
+      try { unsubscribe = session.subscribe(onSession) } catch { return }
+      if (typeof unsubscribe !== 'function') return
+      workbenchRequirementWatchers.set(id, { session, unsubscribe })
+      onSession()
+    }
     function prepareWorkbenchTransaction(sessionId, payload) {
       const id = String(sessionId || '').trim()
       if (!id) throw new Error('自动推进需要明确的主会话。')
       const previous = workbenchTransactions.get(id)
       if (previous && (previous.phase === 'prepared' || previous.phase === 'committed')) {
-        if (previous.payload.cwd === payload.cwd && previous.payload.projectId === payload.projectId) return previous
+        if (previous.payload.cwd === payload.cwd
+          && previous.payload.module === payload.module
+          && previous.payload.projectId === payload.projectId) {
+          rememberWorkbenchBinding(id, payload)
+          ensureUserRequirementWatcher(id)
+          return previous
+        }
         throw new Error('当前会话已有另一项自动推进事务，请先暂停或结束。')
       }
-      return workbenchTransactions.prepare(id, payload)
+      const transaction = workbenchTransactions.prepare(id, payload)
+      rememberWorkbenchBinding(id, payload)
+      ensureUserRequirementWatcher(id)
+      return transaction
     }
     function commitWorkbenchTransaction(sessionId) {
-      return workbenchTransactions.commit(sessionId)
+      const transaction = workbenchTransactions.commit(sessionId)
+      workbenchPausedSessions.delete(String(sessionId || '').trim())
+      persistWorkbenchTransactionState()
+      return transaction
     }
     function workbenchTransactionCanRun(sessionId) {
       return workbenchTransactions.canRun(sessionId)
@@ -1474,13 +1712,20 @@ const h = React.createElement
       if (!transaction) return
       if (phase === 'succeeded') workbenchTransactions.succeed(sessionId)
       else workbenchTransactions.fail(sessionId, error)
+      workbenchPausedSessions.delete(String(sessionId || '').trim())
+      persistWorkbenchTransactionState()
     }
     function destroyWorkbenchTransaction(sessionId) {
+      workbenchSessionBindings.delete(String(sessionId || '').trim())
+      try { localStorage.removeItem(workbenchBindingKey(sessionId)) } catch {}
       workbenchTransactions.destroy(sessionId)
+      workbenchPausedSessions.delete(String(sessionId || '').trim())
+      persistWorkbenchTransactionState()
     }
 
     // Auto-advance exists only inside an explicitly committed per-session
-    // transaction. It is never restored on boot and never wakes unrelated sessions.
+    // transaction. A committed transaction survives renderer/app restarts, but
+    // remains bound to the exact session and project and never wakes unrelated sessions.
     const monitorEngine = createWorkbenchSessionMonitor({
       api,
       activeSessionId,
@@ -1494,8 +1739,32 @@ const h = React.createElement
       transactionCanRun: workbenchTransactionCanRun,
       settleTransaction: settleWorkbenchTransaction,
       destroyTransaction: destroyWorkbenchTransaction,
+      setTransactionPaused: setWorkbenchTransactionPaused,
+      requirementsPending: projectRequirementWritePending,
       onChange: () => window.dispatchEvent(new Event('agent-pi-monitor-changed')),
     })
+    function restoreActiveWorkbenchMonitor() {
+      if (monitorEngine.state.monitoring) return false
+      const parentSessionId = pinParentSessionId()
+      const transaction = workbenchTransactions.get(parentSessionId)
+      if (!transaction || transaction.phase !== 'committed') return false
+      rememberWorkbenchBinding(parentSessionId, transaction.payload)
+      ensureUserRequirementWatcher(parentSessionId)
+      return monitorEngine.restore(
+        transaction.payload,
+        parentSessionId,
+        workbenchPausedSessions.has(parentSessionId),
+      )
+    }
+    let transactionRestoreList = null
+    function watchWorkbenchTransactionRestore() {
+      const list = runtime.sessions && runtime.sessions.list
+      if (list && list !== transactionRestoreList && typeof list.subscribe === 'function') {
+        transactionRestoreList = list
+        list.subscribe(() => { restoreActiveWorkbenchMonitor() })
+      }
+      restoreActiveWorkbenchMonitor()
+    }
     function slugify(str) {
       return String(str || '')
         .toLowerCase()
@@ -1668,11 +1937,70 @@ const h = React.createElement
       }
     }
 
-    const MODULE_CREATE_GUARD = '请先读 skill workbench-domain-builder。这是本应用专业化工作台的模块创造对话，不是 Agent 预设里的「创造模式」，不要写 cordis.yml 或改插件组装。生成的必须是完整工作台模块包：顶栏中文名、阶段监控条、开工资料登记、后续阶段的流程门槛（总报告 / 按册任务 / 评审）、配套方法 skill、能挂的知识库。用 workbench_module_save / workbench_module_copy / workbench_skill_save 直接装上，本应用按现有盘面画出来。不要发明新窗口或新界面。不要让我粘贴 JSON、id、slug。不要改内置投标。'
+    const MODULE_CREATE_GUARD = '请先读 skill workbench-domain-builder。当前会话使用 DSH 原生「创造模式」作为创作驾驶舱，但本任务的交付物是专业工作台业务模块，不是 Agent 预设。不得修改 DSH 官方预设、不得写 agent.cordis.yml 或改插件组装，除非用户另行明确要求创建 Agent 预设。生成的必须是完整工作台模块包：顶栏中文名、阶段监控条、开工资料登记、后续阶段的流程门槛（总报告 / 按册任务 / 风险审查 / 必要的人工确认）、配套方法 skill、能挂的知识库。来源是投标项目时，必须从内置 tender 复制并保留原阶段 id 和 controlProfile=tender，不得只仿造七段外观而丢掉 BOQ、证据、能力包和最终冻结硬门。用 workbench_module_save / workbench_module_copy / workbench_skill_save 直接装上，本应用按现有盘面画出来。不要发明新窗口或新界面。不要让我粘贴 JSON、id、slug。不要改内置投标。'
     const MODULE_CREATE_PROMPTS = {
-      distill: MODULE_CREATE_GUARD + '我想把这次对话里已经做完、我认可的成果，整理成以后同类工作的标准。范文或用户模板进知识库，做法记成 skill，模块保存后用中文告诉我顶栏新标签叫什么、下次怎么开项目。最多确认一句中文名称和分几步。',
-      'copy-pack': MODULE_CREATE_GUARD + '我们步骤和「投标全流程」一样（资料登记 → 解析 → 组价 → 出稿），但要用我们自己的规范、组价表或投标函。请拷贝内置投标为自建模块（workbench_module_copy），不要改四阶段 id。拷完用中文问我模块叫什么、规范或范文在哪（可以让我上传），挂到规范包。建好告诉我顶栏新标签和下次怎么用。',
+      distill: MODULE_CREATE_GUARD + '我想把来源项目里已经做完且由用户明确认可的成果与修订经验，整理成以后同类工作的标准。读取来源项目的 Official Outputs、用户要求台账和明确审批记录；不能把“文件存在”当成“用户认可”。如来源模块是 tender，先 workbench_module_copy 复制内置投标，保留原阶段 id、三个人工门、风险审查和 controlProfile=tender，再把用户验收的方法、skill 和知识包挂上去。范文或用户模板进知识库，做法和用户纠正规则记成 skill，模块保存后用中文告诉我顶栏新标签叫什么、下次怎么开项目。最多确认一句中文名称和分几步。',
+      'copy-pack': MODULE_CREATE_GUARD + '我们的步骤和「投标全流程」一样，但要用自己的规范、组价表或投标函。请用 workbench_module_copy 拷贝当前内置投标，完整保留其阶段 id、风险审查和人工确认门禁。拷完用中文问我模块叫什么、规范或范文在哪（可以让我上传），挂到规范包。建好告诉我顶栏新标签和下次怎么用。',
       'custom-steps': MODULE_CREATE_GUARD + '我们这类工作和「投标全流程」步骤不一样。请用一条消息、用大白话问清：这个领域叫什么、实际工作分哪几步（3到6步）、开工有什么资料、最后交什么、有没有规范或范文。问完后建成完整模块包。保存后告诉我顶栏新标签叫什么、下次怎么开项目。',
+    }
+    function remoteResultValue(result, operation) {
+      if (result && result.ok === true) return result.value
+      const error = result && result.error
+      const message = error && (error.message || error.code)
+      throw new Error((operation || 'DSH 远程调用') + '失败：' + (message || '未返回可用结果'))
+    }
+    function waitForSessionFace(sessionId, attempts) {
+      const face = sessionFaceById(sessionId)
+      if (face) return Promise.resolve(face)
+      if ((attempts || 0) >= 30) return Promise.reject(new Error('创造模式会话已建立，但对话绑定尚未就绪。'))
+      return new Promise((resolve) => window.setTimeout(resolve, 100))
+        .then(() => waitForSessionFace(sessionId, (attempts || 0) + 1))
+    }
+    function moduleSourceSuffix(context) {
+      const source = context || {}
+      const lines = [
+        '',
+        '【Agent Pi 来源上下文】',
+        '来源会话：' + (source.sessionId || '未绑定'),
+        '工作区：' + (source.cwd || '未绑定'),
+      ]
+      if (source.module) lines.push('来源模块：' + source.module)
+      if (source.projectId) lines.push('来源项目：' + source.projectId)
+      if (source.projectRoot) lines.push('项目根目录：' + source.projectRoot)
+      lines.push('若来源会话有历史，不要假设新会话能直接继承聊天文本；以项目中已接受的 Official Outputs、.agent-pi 用户要求台账和显式人工审批为准。')
+      return lines.join('\n')
+    }
+    async function openNativeModuleCreate(props, prompt, context) {
+      const sourceId = resolveSessionId(props) || activeSessionId()
+      const list = readSessionListSnap()
+      const summary = sourceId && list && list.byId ? list.byId[sourceId] : null
+      const blank = !!(summary && summary.blank === true) || !!(props && props.session && props.session.blank === true)
+      const remote = runtime.remote
+      if (!sourceId) throw new Error('请先打开或新建一个主对话，再进入创造模式。')
+      if (!remote || !remote.agentPresets || typeof remote.agentPresets.select !== 'function'
+        || !remote.session || typeof remote.session.create !== 'function') {
+        throw new Error('当前 DSH Typert Gateway 未提供创造模式所需的 agentPresets/session 接口。')
+      }
+      if (!runtime.sessions || typeof runtime.sessions.open !== 'function' || typeof runtime.sessions.refresh !== 'function') {
+        throw new Error('当前 DSH 会话服务尚未就绪。')
+      }
+      let targetId = sourceId
+      if (blank) {
+        remoteResultValue(await remote.agentPresets.select(sourceId, 'cordis'), '切换原生创造模式')
+        await runtime.sessions.refresh()
+      } else {
+        const created = remoteResultValue(await remote.session.create({
+          cwd: (context && context.cwd) || workspaceCwd(props),
+          agentPreset: 'cordis',
+        }), '新建原生创造模式会话')
+        targetId = created && created.sessionId
+        if (!targetId) throw new Error('DSH 未返回创造模式会话 id。')
+        await runtime.sessions.refresh()
+        runtime.sessions.open(targetId)
+      }
+      await waitForSessionFace(targetId, 0)
+      await dispatchToConversation({}, prompt + moduleSourceSuffix(Object.assign({}, context, { sessionId: sourceId })), targetId)
+      return targetId
     }
     function moduleCreateCopy() {
       return {
@@ -1852,6 +2180,17 @@ const h = React.createElement
       try { sessionStorage.setItem('ap-wb-open', open ? '1' : '0') } catch {}
       document.documentElement.classList.toggle('ap-wb-open', !!open)
       window.dispatchEvent(new Event('agent-pi-wb-changed'))
+    }
+
+    function focusMainConversation(props) {
+      setWorkbenchOpen(false)
+      if (props && typeof props.openView === 'function') props.openView('chat', 'agent-pi-workbench-handoff')
+      window.requestAnimationFrame(() => {
+        const textarea = document.querySelector('[data-composer-card] textarea, [data-phase] textarea')
+        if (!textarea) return
+        try { textarea.scrollIntoView({ block: 'nearest' }) } catch {}
+        try { textarea.focus() } catch {}
+      })
     }
 
     function useWorkbenchOpen() {
@@ -3087,11 +3426,11 @@ const h = React.createElement
       actions.__apOrigSubmit = orig
       actions.submit = () => {
         const live = actions.__apLatestProps || props
+        const before = currentDraft(live)
         if (codexTurnArmed(live)) {
           submitCodexTurn(live)
           return
         }
-        const before = currentDraft(live)
         restoreCleanDraft(live)
         const sid = sessionHint(live) || runtime.sessionId || 'active'
         const hasAttach = attachItemsOf(attachSessionId(live)).length > 0
@@ -3677,6 +4016,11 @@ const h = React.createElement
         prompt: '写明这一步要完成什么、交出什么成果。',
         skillSlugs: '',
         reviewSkillSlugs: '',
+        reviewPolicy: 'risk-based',
+        approvalEnabled: false,
+        approvalPrompt: '',
+        approveLabel: '确认并继续',
+        rejectLabel: '',
         listsSources: false,
         binding: '',
         summaryFile: '',
@@ -3692,6 +4036,7 @@ const h = React.createElement
         label: workflow.label || row.label || '',
         labelZh: workflow.labelZh || row.labelZh || moduleLabel(row),
         icon: row.icon || '',
+        controlProfile: workflow.controlProfile || '',
         setupStageId: workflow.setupStageId || (stages[0] && stages[0].id) || '',
         kbPack: {
           analysis: ((workflow.kbPack && workflow.kbPack.analysis) || []).slice(),
@@ -3706,7 +4051,13 @@ const h = React.createElement
           hintZh: stage.hintZh || '',
           prompt: stage.prompt || '',
           skillSlugs: joinSlugs(stage.skillSlugs),
+          consumes: Array.isArray(stage.consumes) ? stage.consumes.map((item) => ({ ...item })) : undefined,
           reviewSkillSlugs: joinSlugs(stage.reviewSkillSlugs),
+          reviewPolicy: stage.reviewPolicy || 'risk-based',
+          approvalEnabled: !!stage.approvalGate,
+          approvalPrompt: (stage.approvalGate && stage.approvalGate.promptZh) || '',
+          approveLabel: (stage.approvalGate && stage.approvalGate.approveLabelZh) || '确认并继续',
+          rejectLabel: (stage.approvalGate && stage.approvalGate.rejectLabelZh) || '',
           listsSources: !!stage.listsSources,
           binding: binding[stage.id] || '',
           summaryFile: (stage.summaryDeliverable && stage.summaryDeliverable.fileName) || '',
@@ -3730,7 +4081,16 @@ const h = React.createElement
           hintZh: String(stage.hintZh || '').trim() || undefined,
           prompt: String(stage.prompt || '').trim(),
           skillSlugs: splitSlugs(stage.skillSlugs),
+          consumes: Array.isArray(stage.consumes) ? stage.consumes.map((item) => ({ ...item })) : undefined,
           reviewSkillSlugs: splitSlugs(stage.reviewSkillSlugs),
+          reviewPolicy: stage.reviewPolicy === 'all' ? 'all' : 'risk-based',
+          approvalGate: stage.approvalEnabled
+            ? {
+                promptZh: String(stage.approvalPrompt || '').trim(),
+                approveLabelZh: String(stage.approveLabel || '').trim(),
+                rejectLabelZh: String(stage.rejectLabel || '').trim() || undefined,
+              }
+            : undefined,
           listsSources: stage.listsSources ? true : undefined,
           summaryDeliverable: fileName
             ? { fileName, outlineZh: outline.length ? outline : ['待补大纲'] }
@@ -3743,6 +4103,7 @@ const h = React.createElement
         label: String(draft.label || '').trim() || undefined,
         labelZh: String(draft.labelZh || '').trim(),
         icon: String(draft.icon || '').trim() || undefined,
+        controlProfile: draft.controlProfile === 'tender' ? 'tender' : undefined,
         setupStageId: draft.setupStageId || (stages[0] && stages[0].id),
         bindingAreaByStage: Object.keys(bindingAreaByStage).length ? bindingAreaByStage : undefined,
         kbPack: (function pack() {
@@ -4073,6 +4434,12 @@ const h = React.createElement
               h('label', { className: 'ap-mm-field' }, tAp('mm.reviewSlugs'),
                 h('input', { value: stage.reviewSkillSlugs, onChange: (e) => patchStage(index, { reviewSkillSlugs: e.target.value }) }),
               ),
+              h('label', { className: 'ap-mm-field' }, tAp('mm.reviewPolicy'),
+                h('select', { value: stage.reviewPolicy, onChange: (e) => patchStage(index, { reviewPolicy: e.target.value }) },
+                  h('option', { value: 'risk-based' }, tAp('mm.reviewRisk')),
+                  h('option', { value: 'all' }, tAp('mm.reviewAll')),
+                ),
+              ),
               h('label', { className: 'ap-mm-field' }, tAp('mm.binding'),
                 h('select', { value: stage.binding, onChange: (e) => patchStage(index, { binding: e.target.value }) },
                   h('option', { value: '' }, tAp('mm.bindNone')),
@@ -4086,7 +4453,24 @@ const h = React.createElement
                   h('input', { type: 'checkbox', checked: !!stage.listsSources, onChange: (e) => patchStage(index, { listsSources: e.target.checked }) }),
                   ' ' + tAp('mm.listsSources'),
                 ),
+                h('label', null,
+                  h('input', { type: 'checkbox', checked: !!stage.approvalEnabled, onChange: (e) => patchStage(index, { approvalEnabled: e.target.checked }) }),
+                  ' ' + tAp('mm.approvalGate'),
+                ),
               ),
+              stage.approvalEnabled
+                ? h(React.Fragment, null,
+                  h('label', { className: 'ap-mm-field' }, tAp('mm.approvalPrompt'),
+                    h('input', { value: stage.approvalPrompt, onChange: (e) => patchStage(index, { approvalPrompt: e.target.value }) }),
+                  ),
+                  h('label', { className: 'ap-mm-field' }, tAp('mm.approveLabel'),
+                    h('input', { value: stage.approveLabel, onChange: (e) => patchStage(index, { approveLabel: e.target.value }) }),
+                  ),
+                  h('label', { className: 'ap-mm-field' }, tAp('mm.rejectLabel'),
+                    h('input', { value: stage.rejectLabel, onChange: (e) => patchStage(index, { rejectLabel: e.target.value }) }),
+                  ),
+                )
+                : null,
               h('label', { className: 'ap-mm-field' }, tAp('mm.summaryFile'),
                 h('input', { value: stage.summaryFile, onChange: (e) => patchStage(index, { summaryFile: e.target.value }) }),
               ),
@@ -4275,6 +4659,11 @@ const h = React.createElement
         window.addEventListener('agent-pi-created', onCreated)
         return () => window.removeEventListener('agent-pi-created', onCreated)
       }, [refresh])
+      React.useEffect(() => {
+        const onRequirement = () => refresh(true)
+        window.addEventListener('agent-pi-user-requirement', onRequirement)
+        return () => window.removeEventListener('agent-pi-user-requirement', onRequirement)
+      }, [refresh])
 
       const projects = (data && data.projects ? data.projects : []).filter((row) => row.project.module === module)
       React.useEffect(() => {
@@ -4297,7 +4686,8 @@ const h = React.createElement
       // Disk-verified project health check shown under the monitor header; filled
       // by the 检查 button or the live monitor, cleared when switching projects.
       const [reality, setReality] = React.useState(null)
-      React.useEffect(() => { setReality(null) }, [selectedId])
+      const [control, setControl] = React.useState(null)
+      React.useEffect(() => { setReality(null); setControl(null) }, [selectedId])
 
       // Keep the dashboard in sync with the module-level engine and poll the board
       // while the workbench is open. Opening the workbench never dispatches anything.
@@ -4305,6 +4695,7 @@ const h = React.createElement
         const onMonitor = () => {
           setMonitorState(Object.assign({}, monitorEngine.state))
           if (monitorEngine.state.lastReality) setReality(monitorEngine.state.lastReality)
+          if (monitorEngine.state.lastControl) setControl(monitorEngine.state.lastControl)
           refresh(true)
         }
         window.addEventListener('agent-pi-monitor-changed', onMonitor)
@@ -4326,12 +4717,51 @@ const h = React.createElement
         setError('')
         return api('/api/agent-pi/stage', cwd, {
           method: 'POST',
-          body: JSON.stringify({ action: 'check', module: project.module, projectId: project.projectId }),
+          body: JSON.stringify({
+            action: 'check',
+            module: project.module,
+            projectId: project.projectId,
+            sessionId: pinParentSessionId() || resolveSessionId(props) || runtime.sessionId || '',
+          }),
         }).then((result) => {
           setReality(result.reality || null)
+          setControl(result.control || null)
           monitorEngine.state.lastReality = result.reality || null
+          monitorEngine.state.lastControl = result.control || null
           return refresh(true)
         }).catch((e) => setError(String(e.message || e))).finally(() => setBusy(''))
+      }
+
+      const updateRequirement = (project, requirement, action) => {
+        if (!project || !requirement || !action) return Promise.resolve()
+        if (action === 'accept_requirement'
+          && !window.confirm('确认以这条用户要求替代本阶段旧的文件名、篇幅、章节和视图门禁？实际 BOQ、能力包、来源和引用完整性仍不可跳过。')) {
+          return Promise.resolve()
+        }
+        setBusy(action + ':' + requirement.id)
+        setError('')
+        setNotice('')
+        return api('/api/agent-pi/stage', cwd, {
+          method: 'POST',
+          body: JSON.stringify({
+            action,
+            module: project.module,
+            projectId: project.projectId,
+            stageId: requirement.stageId,
+            requirementId: requirement.id,
+            sessionId: requirement.sessionId,
+          }),
+        }).then(() => {
+          setNotice(action === 'accept_requirement'
+            ? '已把用户要求设为本阶段验收口径；旧软门禁不再触发重复返工。'
+            : action === 'satisfy_requirement'
+              ? '已记录要求落实状态。'
+              : action === 'reopen_requirement'
+                ? '已把要求退回主会话继续修改。'
+                : '已从项目要求中移除。')
+          return refresh(true)
+        }).catch((e) => setError(String(e && e.message || e)))
+          .finally(() => setBusy(''))
       }
 
       const runStage = (project, stageId, action, submit, closeWorkbench) => {
@@ -4339,6 +4769,20 @@ const h = React.createElement
         setBusy(action + ':' + (stageId || ''))
         setError('')
         setNotice('')
+        if (submit && !parentId) {
+          setBusy('')
+          setError('请先打开或新建一个主会话，再启动专业项目。')
+          return Promise.resolve()
+        }
+        const activeTransaction = submit ? workbenchTransactions.get(parentId) : null
+        if (activeTransaction && (activeTransaction.phase === 'prepared' || activeTransaction.phase === 'committed')
+          && (activeTransaction.payload.cwd !== cwd
+            || activeTransaction.payload.module !== project.module
+            || activeTransaction.payload.projectId !== project.projectId)) {
+          setBusy('')
+          setError('当前主会话已有另一项专业项目事务，请先暂停或结束。')
+          return Promise.resolve()
+        }
         return api('/api/agent-pi/stage', cwd, {
           method: 'POST',
           body: JSON.stringify({
@@ -4361,6 +4805,10 @@ const h = React.createElement
             return refresh()
           }
           if (result.alreadyDispatched) {
+            if (submit) {
+              monitorEngine.start({ cwd, module: project.module, projectId: project.projectId })
+              if (closeWorkbench !== false) focusMainConversation(props)
+            }
             setNotice(result.message || '阶段稿已写入主对话，等待执行。')
             return refresh()
           }
@@ -4381,6 +4829,12 @@ const h = React.createElement
             if (!result.closed) fillComposer(props, result.draft)
             return refresh()
           }
+          const transaction = prepareWorkbenchTransaction(parentId, {
+            cwd,
+            module: project.module,
+            projectId: project.projectId,
+          })
+          const ownsPreparedTransaction = transaction.phase === 'prepared'
           return dispatchToConversation(props, result.draft, parentId).then((ok) => {
             if (ok && result.dispatch) {
               api('/api/agent-pi/stage', cwd, {
@@ -4396,12 +4850,27 @@ const h = React.createElement
             }
             if (ok) {
               monitorEngine.start({ cwd, module: project.module, projectId: project.projectId })
-              if (closeWorkbench !== false) setWorkbenchOpen(false)
+              if (closeWorkbench !== false) focusMainConversation(props)
             }
             return refresh()
           }).catch((e) => {
-            setError(String(e.message || e))
-            return refresh()
+            if (ownsPreparedTransaction) settleWorkbenchTransaction(parentId, 'failed', e)
+            const release = result.dispatch
+              ? api('/api/agent-pi/stage', cwd, {
+                method: 'POST',
+                body: JSON.stringify({
+                  action: 'release_dispatch',
+                  module: project.module,
+                  projectId: project.projectId,
+                  stageId: result.dispatch.stageId,
+                  key: result.dispatch.key,
+                }),
+              }).catch(() => {})
+              : Promise.resolve()
+            return release.then(() => {
+              setError(String(e.message || e))
+              return refresh()
+            })
           })
         }).catch((e) => setError(String(e.message || e)))
           .finally(() => setBusy(''))
@@ -4537,6 +5006,19 @@ const h = React.createElement
         const stages = wf.stages || []
         const setupId = wf.setupStageId || ''
         const evidence = item.evidence
+        const requirements = (item.userRequirements || []).filter((requirement) => requirement.status !== 'dismissed')
+        const activeControl = control && control.execution && control.execution.projectId === project.projectId ? control : null
+        const execution = (activeControl && activeControl.execution) || item.execution || null
+        const currentReality = reality && reality.stages
+          ? reality.stages.find((stage) => stage.stageId === item.currentStageId) || null
+          : null
+        const currentSlice = item.currentStageId ? stageSlice(item, item.currentStageId) : null
+        const executionStatusLabel = execution
+          ? ({ planning: '规划中', working: '执行中', waiting: '等待回推', blocked: '已阻塞', completed: '已完成', failed: '失败' }[execution.status] || execution.status)
+          : '未回写'
+        const alignmentLabel = activeControl
+          ? ({ aligned: '已对齐', missing: '缺执行账本', drifted: '存在差异', stale: '心跳过期', 'waiting-human': '等待人工' }[activeControl.alignment] || activeControl.alignment)
+          : '待核验'
         const forceTarget = stages.find((stage) => {
           if (setupId && stage.id === setupId) return false
           const slice = stageSlice(item, stage.id)
@@ -4574,11 +5056,74 @@ const h = React.createElement
               h('button', { type: 'button', className: 'ap-btn ghost', onClick: removeProject }, Icon('trash', 14), '移除项目'),
             ),
           ),
+          requirements.length
+            ? h('section', { className: 'ap-sec ap-user-reqs', 'aria-label': '用户要求（最高优先级）' },
+              h('div', { className: 'ap-user-req-head' },
+                h('div', null,
+                  h('h2', null, '用户要求（最高优先级）'),
+                  h('p', { className: 'ap-sub' }, '主会话的新要求与工作台共用这份账本；只改受影响成果，不再让旧软门禁触发整阶段返工。'),
+                ),
+                h('span', { className: 'ap-chip' }, requirements.filter((requirement) => requirement.status === 'active').length + ' 条待落实'),
+              ),
+              requirements.slice(0, 6).map((requirement) => {
+                const statusLabel = requirement.status === 'active' ? '待落实'
+                  : requirement.status === 'implemented' ? '已落实'
+                    : '已采用为验收口径'
+                const statusClass = requirement.status === 'active' ? ' warn' : ' ok'
+                return h('article', { className: 'ap-user-req', key: requirement.id },
+                  h('div', { className: 'ap-user-req-main' },
+                    h('div', { className: 'ap-row' },
+                      h('span', { className: 'ap-chip' + statusClass }, statusLabel),
+                      h('span', { className: 'ap-sub' }, requirement.stageId),
+                    ),
+                    h('p', null, requirement.text),
+                    requirement.note ? h('p', { className: 'ap-sub' }, '落实说明：' + requirement.note) : null,
+                    requirement.evidencePaths && requirement.evidencePaths.length
+                      ? h('p', { className: 'ap-sub' }, '影响成果：' + requirement.evidencePaths.join('、'))
+                      : null,
+                  ),
+                  h('div', { className: 'ap-user-req-actions' },
+                    requirement.status === 'active'
+                      ? h('button', {
+                        type: 'button',
+                        className: 'ap-btn',
+                        disabled: !!busy,
+                        onClick: () => updateRequirement(project, requirement, 'satisfy_requirement'),
+                      }, '标记已落实')
+                      : requirement.status === 'implemented'
+                        ? h(React.Fragment, null,
+                          h('button', {
+                            type: 'button',
+                            className: 'ap-btn primary',
+                            disabled: !!busy,
+                            onClick: () => updateRequirement(project, requirement, 'accept_requirement'),
+                          }, '采用为验收口径'),
+                          h('button', {
+                            type: 'button',
+                            className: 'ap-btn',
+                            disabled: !!busy,
+                            onClick: () => updateRequirement(project, requirement, 'reopen_requirement'),
+                          }, '继续修改'),
+                        )
+                        : null,
+                    requirement.status !== 'accepted'
+                      ? h('button', {
+                        type: 'button',
+                        className: 'ap-btn ghost',
+                        disabled: !!busy,
+                        onClick: () => updateRequirement(project, requirement, 'dismiss_requirement'),
+                      }, '不属于本项目')
+                      : null,
+                  ),
+                )
+              }),
+            )
+            : null,
           h('section', { className: 'ap-sec' },
             h('div', { className: 'ap-mon-hd' },
               h('div', { style: { minWidth: 0 } },
                 h('h2', null, '流程监控'),
-                h('p', { className: 'ap-sub' }, '只有点「继续推进」才启动当前主会话事务；遇到人工决策门、阻塞或异常会停止。分析阶段只维护一套可追溯底稿。'),
+                h('p', { className: 'ap-sub' }, '只有点「继续推进」才启动当前主会话事务；已启动事务会在应用重启后恢复，遇到人工决策门、阻塞或异常会停止。分析阶段只维护一套可追溯底稿。'),
               ),
               h('div', { className: 'ap-mon-tools' },
                 h('span', { className: 'ap-row' },
@@ -4612,13 +5157,73 @@ const h = React.createElement
                       type: 'button',
                       className: 'ap-btn ghost',
                       onClick: () => { monitorEngine.unpause(); refresh(true) },
-                    }, Icon('play', 14), '恢复事务')
+                }, Icon('play', 14), '恢复事务')
                     : null,
               ),
             ),
+            h('div', { className: 'ap-dual-state' },
+              h('article', { className: 'ap-state-card' },
+                h('div', { className: 'ap-state-card-hd' },
+                  h('div', null,
+                    h('strong', null, '执行态（主智能体回写）'),
+                    h('span', { className: 'ap-sub' }, '主对话负责理解、计划、派活与阻塞说明'),
+                  ),
+                  h('span', { className: 'ap-chip' + (execution && execution.status === 'blocked' ? ' warn' : execution ? ' ok' : '') }, executionStatusLabel),
+                ),
+                execution
+                  ? h('div', { className: 'ap-state-body' },
+                    h('p', null, h('b', null, '目标：'), execution.objective || '未登记'),
+                    h('p', null, h('b', null, '当前批次：'), execution.currentBatch || '未登记'),
+                    h('p', null, h('b', null, '下一动作：'), execution.nextAction || '未登记'),
+                    execution.plan && execution.plan.length
+                      ? h('div', { className: 'ap-mini-list' }, execution.plan.slice(0, 5).map((plan) => h('div', { key: plan.id },
+                        h('i', { className: 'ap-mini-status ' + plan.status }),
+                        h('span', null, plan.title),
+                      )))
+                      : h('p', { className: 'ap-sub' }, '尚未登记结构化计划。'),
+                    execution.assignments && execution.assignments.length
+                      ? h('p', { className: 'ap-sub' }, '子任务：' + execution.assignments.map((assignment) => assignment.title + ' [' + assignment.status + ']').join(' · '))
+                      : null,
+                    execution.blocker && execution.blocker.type !== 'none'
+                      ? h('p', { className: 'ap-state-alert' }, '阻塞：' + (execution.blocker.reason || execution.blocker.needed || execution.blocker.type))
+                      : null,
+                    h('p', { className: 'ap-sub' }, 'revision ' + execution.revision + ' · 心跳 ' + formatClock(execution.heartbeatAt)),
+                  )
+                  : h('div', { className: 'ap-state-empty' }, '主智能体尚未回写执行计划。点「继续推进」后，主对话应先读取 status，再登记目标、批次、计划和下一动作。'),
+              ),
+              h('article', { className: 'ap-state-card' },
+                h('div', { className: 'ap-state-card-hd' },
+                  h('div', null,
+                    h('strong', null, '事实态（系统核验）'),
+                    h('span', { className: 'ap-sub' }, '只核验磁盘成果、BOQ、证据、引用与人工门禁'),
+                  ),
+                  h('span', { className: 'ap-chip' + (activeControl && activeControl.alignment !== 'aligned' ? ' warn' : currentReality ? ' ok' : '') }, alignmentLabel),
+                ),
+                h('div', { className: 'ap-state-body' },
+                  h('p', null, h('b', null, '当前阶段：'), currentReality ? currentReality.stageLabel : (item.currentStageId || '未开始')),
+                  currentReality
+                    ? h('p', null,
+                      '任务 ' + currentReality.tasks.done + '/' + currentReality.tasks.total,
+                      currentReality.summary ? (currentReality.summary.exists ? ' · 总报告已就位' : ' · 缺《' + currentReality.summary.fileName + '》') : '',
+                      currentReality.boqInventory ? (currentReality.boqInventory.ok ? ' · BOQ 已核验' : ' · BOQ 有缺口') : '',
+                      currentReality.citations && currentReality.citations.total ? ' · 孤儿引用 ' + currentReality.citations.orphans : '',
+                    )
+                    : h('p', { className: 'ap-sub' }, '尚未执行本轮事实核验；阶段状态为 ' + ((currentSlice && currentSlice.status) || 'idle') + '。'),
+                  activeControl && activeControl.realityDigest
+                    ? h('p', { className: 'ap-sub' }, '事实版本 ' + activeControl.realityDigest)
+                    : null,
+                ),
+              ),
+            ),
+            activeControl && activeControl.differences && activeControl.differences.length
+              ? h('div', { className: 'ap-alignment-alert' },
+                h('strong', null, '认知差异'),
+                h('ul', null, activeControl.differences.map((difference, index) => h('li', { key: index }, difference))),
+              )
+              : null,
             reality && reality.stages ? h('div', { className: 'ap-check' },
               h('div', { className: 'ap-check-hd' },
-                '全面体检',
+                '系统事实明细',
                 h('span', { className: 'ap-sub' },
                   formatClock(reality.generatedAt)
                   + (reality.stages[0] && reality.stages[0].quietMinutes != null ? ' · 最近产出 ' + reality.stages[0].quietMinutes + ' 分钟前' : '')),
@@ -4626,6 +5231,11 @@ const h = React.createElement
               ),
               reality.stages.map((st, index) => {
                 const parts = []
+                if (st.userRequirements && st.userRequirements.active > 0) {
+                  parts.push('用户要求待落实 ' + st.userRequirements.active + ' 条')
+                } else if (st.userRequirementOverride) {
+                  parts.push('用户验收口径已生效')
+                }
                 if (st.tasks && st.tasks.total > 0) {
                   parts.push('任务 ' + st.tasks.done + '/' + st.tasks.total + (st.tasks.error ? '（' + st.tasks.error + ' 个 error）' : ''))
                 }
@@ -4671,13 +5281,14 @@ const h = React.createElement
             ) : null,
             stages.map((stage, index) => {
               const slice = stageSlice(item, stage.id)
+              const stageMemory = item.memory && item.memory.stages ? item.memory.stages[stage.id] : null
               const tasks = (slice && slice.tasks) || []
               const done = tasks.filter((task) => task.status === 'done').length
               const failed = tasks.filter((task) => task.status === 'error').length
               const percent = tasks.length ? Math.round((done / tasks.length) * 100) : (slice && slice.status === 'done' ? 100 : 0)
               const setupDone = slice && slice.status === 'done'
               const checkRow = reality && reality.stages ? reality.stages.find((st) => st.stageId === stage.id) : null
-              const closedClean = setupDone && !stageRowDirty(slice, tasks, checkRow)
+              const closedClean = setupDone && stageMemory && stageMemory.status === 'current' && !stageRowDirty(slice, tasks, checkRow)
               const outFolder = (checkRow && checkRow.outputFolder) || officialFolder(stage.id)
               const stageHint = closedClean
                 ? ('阶段已收口。成果在 Agent Pi Outputs/' + project.projectId + '/' + outFolder + '/。询价、开工确认、submission_audit 未通过是投标可提交门禁，不表示本阶段没做完。')
@@ -4688,6 +5299,13 @@ const h = React.createElement
                   h('div', { className: 'ap-row' },
                     h('strong', null, stage.labelZh),
                     statusChip(slice && slice.status),
+                    stageMemory && stageMemory.status === 'current'
+                      ? h('span', { className: 'ap-chip ok', title: stageMemory.path }, '基线 v' + stageMemory.revision)
+                      : stageMemory && stageMemory.status === 'stale'
+                        ? h('span', { className: 'ap-chip warn', title: stageMemory.staleReason || '' }, '记忆已失效')
+                        : slice && slice.status === 'done'
+                          ? h('span', { className: 'ap-chip warn' }, '待生成记忆')
+                          : null,
                     slice && slice.forcePassedAt ? h('span', { className: 'ap-chip' }, '已强制放行') : null,
                     slice && slice.approval && slice.approval.decision === 'approved'
                       ? h('span', { className: 'ap-chip ok' }, '用户已确认')
@@ -4698,6 +5316,13 @@ const h = React.createElement
                           : null,
                   ),
                   h('p', { className: 'ap-stage-hint' }, stageHint),
+                  stageMemory && stageMemory.inputs && stageMemory.inputs.length
+                    ? h('p', { className: 'ap-sub' }, '前序基线：' + stageMemory.inputs.map((input) => {
+                      const upstream = stages.find((item) => item.id === input.ref)
+                      const label = input.kind === 'handoff' ? ((upstream && upstream.labelZh) || input.ref) : ('能力包 ' + input.ref)
+                      return label + (input.revision ? ' v' + input.revision : '') + (input.status === 'current' ? '' : '（' + input.status + '）')
+                    }).join(' · '))
+                    : null,
                   slice && slice.blockedReason ? h('div', { className: 'ap-err' }, slice.blockedReason) : null,
                   evidence && stage.id !== setupId && evidence.gaps && evidence.gaps.length
                     && (stage.id === item.currentStageId || (slice && slice.status === 'blocked') || stage.id === 'tender-document-analysis')
@@ -4932,12 +5557,33 @@ const h = React.createElement
               },
               onDesign: (kind) => {
                 const known = (data && data.modules ? data.modules : catalog).map((item) => item.id)
+                const sourceRow = data && data.projects
+                  ? data.projects.find((item) => item && item.project && item.project.projectId === selectedId)
+                  : null
                 try {
                   sessionStorage.setItem('ap-wb-known-modules', JSON.stringify(known))
                   sessionStorage.setItem('ap-wb-await-module', '1')
                 } catch {}
-                fillComposer(props, MODULE_CREATE_PROMPTS[kind] || MODULE_CREATE_PROMPTS['custom-steps'])
-                if (props.onClose) props.onClose()
+                setBusy('module-create')
+                setError('')
+                setNotice('正在进入 DSH 原生创造模式…')
+                openNativeModuleCreate(
+                  props,
+                  MODULE_CREATE_PROMPTS[kind] || MODULE_CREATE_PROMPTS['custom-steps'],
+                  {
+                    cwd,
+                    module: sourceRow && sourceRow.project ? sourceRow.project.module : '',
+                    projectId: sourceRow && sourceRow.project ? sourceRow.project.projectId : '',
+                    projectRoot: sourceRow && sourceRow.project ? sourceRow.project.rootPath : cwd,
+                  },
+                ).then(() => {
+                  showToast('已进入 DSH 原生创造模式；完成后模块会自动出现在专业工作台。')
+                  if (props.onClose) props.onClose()
+                }).catch((err) => {
+                  try { sessionStorage.removeItem('ap-wb-await-module') } catch {}
+                  setError(String(err && err.message || err))
+                  setNotice('')
+                }).finally(() => setBusy(''))
               },
             })
             : null
@@ -5059,8 +5705,27 @@ const h = React.createElement
       const close = () => { if (!saving) { setOpen(false); reset() } }
 
       const finishCreated = (createdId) => {
+        const parentId = pinParentSessionId()
+        if (parentId) {
+          rememberWorkbenchBinding(parentId, { cwd, module, projectId: createdId })
+          ensureUserRequirementWatcher(parentId)
+          void api('/api/agent-pi/stage', cwd, {
+            method: 'POST',
+            body: JSON.stringify({
+              action: 'bind_session',
+              module,
+              projectId: createdId,
+              sessionId: parentId,
+            }),
+          }).catch((error) => showToast('项目与主会话绑定失败：' + String(error && error.message || error)))
+        }
         setOpen(false)
         reset()
+        try {
+          sessionStorage.setItem('ap-wb-module', module)
+          sessionStorage.setItem('ap-wb-project', createdId)
+        } catch {}
+        setWorkbenchOpen(true)
         window.dispatchEvent(new CustomEvent('agent-pi-created', {
           detail: { projectId: createdId, module },
         }))
@@ -5090,18 +5755,6 @@ const h = React.createElement
         }).then((created) => {
           const createdId = created && created.project ? created.project.projectId : normalizedId
           finishCreated(createdId)
-          if (adopt) return
-          // Initialize the first stage slice so the dashboard shows the board, but do
-          // not touch the conversation: material registration is a human step, and
-          // model stages start from explicit buttons (继续推进 / 进入此阶段).
-          const firstStage = workflow
-            ? (workflow.setupStageId || (workflow.stages[0] && workflow.stages[0].id))
-            : (module === 'tender' ? 'project-setup' : module === 'delivery' ? 'delivery-setup' : module === 'investment' ? 'investment-setup' : '')
-          if (!firstStage) return
-          api('/api/agent-pi/stage', cwd, {
-            method: 'POST',
-            body: JSON.stringify({ action: 'prepare', module, projectId: createdId, stageId: firstStage }),
-          }).catch(() => {})
         }).catch((e) => {
           setError(String(e.message || e))
           setSaving(false)
@@ -5498,10 +6151,39 @@ const h = React.createElement
       )
     }
 
+    function ProfessionalProjectStarter(props) {
+      const session = props && props.session
+      const cwd = props && props.cwd
+      const pending = session && Array.isArray(session.pendingSubmissions) ? session.pendingSubmissions.length : 0
+      const queued = session && Array.isArray(session.queue) ? session.queue.length : 0
+      if (!cwd || !session || session.blank !== true || session.running || pending || queued) return null
+      const choices = [
+        { module: MODULES.tender, label: '投标项目' },
+        { module: MODULES.delivery, label: '项管项目' },
+        { module: MODULES.investment, label: '投资项目' },
+      ]
+      return h('section', { className: 'ap-project-starter', 'aria-label': '新建专业工作台项目' },
+        h('div', { className: 'ap-project-starter-copy' },
+          h('strong', null, '新建专业工作台项目'),
+          h('span', null, '当前主对话将绑定项目；登记资料后，从工作台明确点击推进并在这里开始执行。'),
+        ),
+        h('div', { className: 'ap-project-starter-actions' },
+          choices.map((choice) => h('button', {
+            key: choice.module.id,
+            type: 'button',
+            className: 'ap-btn' + (choice.module.id === 'tender' ? ' primary' : ''),
+            onClick: () => window.dispatchEvent(new CustomEvent('agent-pi-open-create', {
+              detail: { cwd, module: choice.module.id, mode: 'create', source: 'blank-conversation' },
+            })),
+          }, moduleIconNode(choice.module, 14), choice.label)),
+        ),
+      )
+    }
+
     function AttachmentDock(props) {
-      captureComposerFace(props)
+      const cwd = captureComposerFace(props)
       wrapComposerSubmit(snapshotComposer())
-      return null
+      return h(ProfessionalProjectStarter, { session: props && props.session, cwd })
     }
 
     function ensureComposerAttachHost() {
@@ -6955,7 +7637,14 @@ const h = React.createElement
     }
 
     export const name = 'tender-web'
-    export const inject = ['slots', 'workspaces', 'remote', 'remote.credentials']
+    export const inject = [
+      'slots',
+      'workspaces',
+      'remote',
+      'remote.credentials',
+      'remote.agentPresets',
+      'remote.session',
+    ]
     window.__apAttachItems = attachItemsToComposer
     if (!window.__apAttachFileBound) {
       window.__apAttachFileBound = true
@@ -6977,6 +7666,8 @@ const h = React.createElement
           || (typeof scope.get === 'function' ? scope.get('sessions') : null)
           || runtime.sessions
         guardArchivedSessionView(runtime.sessions)
+        watchWorkbenchTransactionRestore()
+        ensureUserRequirementWatcher(runtime.sessionId)
       })
       ctx.inject(['conversation'], (scope) => {
         runtime.conversation = scope.conversation
@@ -7069,6 +7760,7 @@ const h = React.createElement
       ))
       ctx.inject(['inputTriggers', 'sessions'], (scope) => {
         runtime.sessions = scope.sessions || (typeof scope.get === 'function' ? scope.get('sessions') : null)
+        watchWorkbenchTransactionRestore()
         const inputTriggers = scope.inputTriggers || (typeof scope.get === 'function' ? scope.get('inputTriggers') : null)
         if (!inputTriggers || typeof inputTriggers.registerSource !== 'function') return
         const source = {

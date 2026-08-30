@@ -10,7 +10,7 @@ import type { BusinessModuleId } from '../../../packages/business-projects/types
 import { UPLOADS_DIR } from './files.ts'
 import { listOfficialOutputs } from './outputs.ts'
 import { prepareStage, projectSnapshot } from './orchestration.ts'
-import { workflowFor } from './modules.ts'
+import { usesTenderControlProfile, workflowFor } from './modules.ts'
 import { registerProjectSources } from './workspace.ts'
 
 const SUGGEST_CAP = 80
@@ -137,7 +137,7 @@ export function adoptWorkspace(cwd: string, input: AdoptWorkspaceInput) {
     createDirectory: false,
     inputPaths: input.inputPaths ?? preview.suggestedInputs,
   })
-  if (module === 'tender') {
+  if (usesTenderControlProfile(module)) {
     registerProjectSources(preview.cwd, project.projectId, {
       title: project.name,
       inputPaths: project.inputPaths,

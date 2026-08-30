@@ -1,4 +1,5 @@
 import {
+  assistantNeedsTransactionContinuation,
   buildParentWakePrompt,
   inboundNeedsParentWake,
   lastChildReturn,
@@ -24,6 +25,8 @@ export function createWorkbenchSessionMonitor(options) {
   const transactionCanRun = options.transactionCanRun
   const settleTransaction = options.settleTransaction
   const destroyTransaction = options.destroyTransaction
+  const setTransactionPaused = options.setTransactionPaused || (() => {})
+  const requirementsPending = options.requirementsPending || (() => false)
   const onChange = options.onChange || (() => {})
   const setIntervalFn = options.setIntervalFn || ((callback, delay) => setInterval(callback, delay))
   const clearIntervalFn = options.clearIntervalFn || ((timer) => clearInterval(timer))
@@ -43,6 +46,7 @@ export function createWorkbenchSessionMonitor(options) {
       wasBusy: false,
       done: false,
       lastReality: null,
+      lastControl: null,
     },
     sending: false,
     steeringQueue: false,
@@ -65,6 +69,7 @@ export function createWorkbenchSessionMonitor(options) {
         projectId: this.state.projectId,
       })
       if (transaction.phase === 'prepared') commitTransaction(parentSessionId)
+      setTransactionPaused(parentSessionId, false)
       this.state.monitoring = true
       this.state.paused = false
       this.state.done = false
@@ -74,13 +79,33 @@ export function createWorkbenchSessionMonitor(options) {
       this.ensureTimer()
       this.emit()
     },
+    restore(target, parentSessionId, paused = false) {
+      if (!target || !target.cwd || !target.projectId || !parentSessionId) return false
+      if (!transactionCanRun(parentSessionId)) return false
+      this.state.cwd = target.cwd
+      this.state.module = target.module || 'tender'
+      this.state.projectId = target.projectId
+      this.state.parentSessionId = parentSessionId
+      this.state.monitoring = true
+      this.state.paused = Boolean(paused)
+      this.state.done = false
+      this.state.note = paused
+        ? '已恢复本会话显式启动的自动推进事务；事务保持暂停。'
+        : '已恢复本会话显式启动的自动推进事务。'
+      this.state.wasBusy = snapshotIsBusy(snapshotOf(parentSessionId))
+      this.ensureTimer()
+      this.emit()
+      return true
+    },
     pause() {
       this.state.paused = true
+      setTransactionPaused(this.state.parentSessionId, true)
       this.emit()
     },
     unpause() {
       if (!this.state.monitoring) return
       this.state.paused = false
+      setTransactionPaused(this.state.parentSessionId, false)
       if (!this.state.parentSessionId) this.state.parentSessionId = pinParentSessionId()
       this.state.wasBusy = snapshotIsBusy(snapshotOf(this.state.parentSessionId))
       this.emit()
@@ -89,6 +114,7 @@ export function createWorkbenchSessionMonitor(options) {
       const parentId = this.state.parentSessionId
       if (parentId && outcome === 'succeeded') settleTransaction(parentId, 'succeeded')
       else if (parentId && outcome === 'failed') settleTransaction(parentId, 'failed', note)
+      setTransactionPaused(parentId, false)
       this.state.monitoring = false
       if (note) this.state.note = note
       if (this.timer) {
@@ -114,6 +140,12 @@ export function createWorkbenchSessionMonitor(options) {
       if (parentSnap && parentSnap.removed === true) {
         destroyTransaction(parentId)
         this.stop('主会话已销毁，自动推进事务同时结束。')
+        return undefined
+      }
+      if (requirementsPending(parentId)) {
+        state.lastCheck = Date.now()
+        state.note = '用户最新要求正在写入项目账本，自动推进等待落账。'
+        this.emit()
         return undefined
       }
       const parentRunning = snapshotIsRunning(parentSnap)
@@ -179,6 +211,24 @@ export function createWorkbenchSessionMonitor(options) {
           return task
         }
       }
+      if (!parentRunning) {
+        const hit = assistantNeedsTransactionContinuation(parentSnap)
+        const token = hit ? `assistant\n${hit.kind}\n${hit.text}` : ''
+        if (hit && token !== state.lastForwarded) {
+          state.lastForwarded = token
+          const task = dispatchToConversation({}, buildParentWakePrompt(hit), parentId).then((ok) => {
+            if (!ok) return
+            state.wasBusy = true
+            state.note = '已接续主智能体的机械分批；人工决策门仍会停止。'
+            this.emit()
+          }).catch((error) => {
+            state.note = String((error && error.message) || error)
+            this.emit()
+          })
+          this.emit()
+          return task
+        }
+      }
       if (executionActive) {
         if (!parentRunning && runningChildren > 0) state.note = `${runningChildren} 个子智能体仍在执行，监控等待回推。`
         this.emit()
@@ -191,10 +241,11 @@ export function createWorkbenchSessionMonitor(options) {
       this.sending = true
       return api('/api/agent-pi/stage', state.cwd, {
         method: 'POST',
-        body: JSON.stringify({ action: 'check', module: state.module, projectId: state.projectId }),
+        body: JSON.stringify({ action: 'check', module: state.module, projectId: state.projectId, sessionId: parentId }),
       }).then((checked) => {
         if (checked && checked.reality) {
           state.lastReality = checked.reality
+          state.lastControl = checked.control || null
           this.emit()
         }
       }).catch(() => {}).then(() => api('/api/agent-pi/stage', state.cwd, {

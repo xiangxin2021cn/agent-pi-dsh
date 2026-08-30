@@ -47,3 +47,25 @@ test('one session cannot start overlapping automation transactions', () => {
   registry.fail('session-a', 'cancelled')
   assert.doesNotThrow(() => registry.prepare('session-a', { projectId: 'p2' }))
 })
+
+test('only previously committed transactions are restored after a renderer restart', () => {
+  const registry = createSessionTransactionRegistry<{ projectId: string }>(() => 40, [
+    {
+      sessionId: 'session-a',
+      phase: 'committed',
+      payload: { projectId: 'p1' },
+      preparedAt: 10,
+      committedAt: 20,
+    },
+    {
+      sessionId: 'session-b',
+      phase: 'prepared',
+      payload: { projectId: 'p2' },
+      preparedAt: 30,
+    },
+  ])
+
+  assert.equal(registry.canRun('session-a'), true)
+  assert.equal(registry.get('session-a')?.committedAt, 20)
+  assert.equal(registry.get('session-b'), undefined)
+})

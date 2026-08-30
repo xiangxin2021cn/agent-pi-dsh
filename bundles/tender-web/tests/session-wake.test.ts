@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 import {
+  assistantNeedsTransactionContinuation,
   buildParentWakePrompt,
   inboundNeedsParentWake,
   isChildReturnText,
@@ -160,6 +161,7 @@ test('workbench wake text is not treated as another unanswered inbound', () => {
     ],
   }
   assert.equal(inboundNeedsParentWake(snap), null)
+  assert.equal(isWorkbenchWakeText('【事务自动接续】本会话事务仍有效。'), true)
 })
 
 test('inboundNeedsParentWake fires when a human user message is last', () => {
@@ -174,6 +176,30 @@ test('inboundNeedsParentWake fires when a human user message is last', () => {
   assert.equal(hit.kind, 'user')
   assert.match(buildParentWakePrompt(hit), /主对话未接续/)
   assert.match(buildParentWakePrompt(hit), /6个子代理都停止/)
+})
+
+test('assistant mechanical batching question is resumed inside a committed transaction', () => {
+  const snap = {
+    nodes: [
+      { kind: 'assistant', blocks: [{ kind: 'text', text: '我继续以小批次 workflow 补全其余计量项五步组价，直至 complete_stage(tender-document-analysis)。是否按此继续？' }] },
+    ],
+  }
+  const hit = assistantNeedsTransactionContinuation(snap)
+  assert.ok(hit)
+  assert.equal(hit.kind, 'transaction-continuation')
+  assert.match(buildParentWakePrompt(hit), /事务自动接续/)
+})
+
+test('assistant human approval question is never resumed automatically', () => {
+  for (const text of [
+    '存在重大履约风险，请人工决定是否投标？',
+    '价格基准已经形成，是否确认冻结并进入详细组价？',
+    '最终投标文件已经完成，是否批准提交？',
+  ]) {
+    assert.equal(assistantNeedsTransactionContinuation({
+      nodes: [{ kind: 'assistant', blocks: [{ kind: 'text', text }] }],
+    }), null)
+  }
 })
 
 test('client monitor wakes only inside an explicit per-session transaction', () => {
@@ -192,6 +218,9 @@ test('client monitor wakes only inside an explicit per-session transaction', () 
   assert.match(page, /const parentSessionId = pinParentSessionId\(\)/)
   assert.match(page, /sessionExecutionActive\(parentSnap, sessionList, parentId\)/)
   assert.match(page, /dispatchToConversation\(\{\}, result\.draft, parentId\)/)
+  assert.match(page, /ap-wb-session-transactions:v1/)
+  assert.match(page, /monitorEngine\.restore/)
+  assert.match(page, /if \(result\.alreadyDispatched\) \{[\s\S]{0,300}monitorEngine\.start/)
   assert.match(page, /sessionActivity\(readSessionListSnap\(\), monitorState\.parentSessionId\)/)
   assert.match(page, /h\(KnowledgeBasePanel, \{ cwd, sessionId: pinParentSessionId\(\) \|\| resolveSessionId\(props\)/)
   assert.match(page, /sessionId: parentId \|\| resolveSessionId\(props\) \|\| runtime\.sessionId \|\| 'active'/)

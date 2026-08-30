@@ -489,9 +489,32 @@ window.__ModuleLoader__.load({
 						else window.dispatchEvent(new Event("agent-pi-files-changed"));
 					}).catch((e) => setError(String(e.message || e))).finally(() => setBusy(""));
 				};
-				const saveContent = (content) => {
+				const saveContent = (content, memoryConfirmed) => {
 					if (!canEdit || busy) return;
 					if (isOfficeUniver) return;
+					if (!kbSlug && !memoryConfirmed) {
+						setBusy("memory-impact");
+						setError("");
+						api("/api/agent-pi/memory/impact", cwd, {
+							method: "POST",
+							body: JSON.stringify({ path: file.path })
+						}).then((impact) => {
+							if (impact && impact.affected) {
+								const labels = (impact.stageLabels || impact.stageIds || []).join("、");
+								const approval = impact.requiresReapproval ? "，并需要重新人工确认相关冻结门" : "";
+								if (!window.confirm("这份文件属于「" + (impact.sourceStageLabel || impact.sourceStageId) + "」的已冻结基线。\n\n保存后将使以下阶段失效：" + labels + approval + "。\n\n仍要保存吗？")) {
+									setBusy("");
+									return;
+								}
+							}
+							setBusy("");
+							saveContent(content, true);
+						}).catch((e) => {
+							setBusy("");
+							setError("无法核对阶段基线影响，已取消保存：" + String(e.message || e));
+						});
+						return;
+					}
 					if (isSlimUniver) {
 						if (!univerDirty) return;
 						setBusy("save");
@@ -755,10 +778,20 @@ window.__ModuleLoader__.load({
 					if (busy) return;
 					if (!window.confirm("删除文件「" + file.name + "」？此操作无法撤销。")) return;
 					setBusy("delete");
-					api("/api/agent-pi/files/delete", cwd, {
+					api("/api/agent-pi/memory/impact", cwd, {
 						method: "POST",
 						body: JSON.stringify({ path: file.path })
-					}).then(() => {
+					}).then((impact) => {
+						if (impact && impact.affected) {
+							const labels = (impact.stageLabels || impact.stageIds || []).join("、");
+							if (!window.confirm("删除这份冻结成果会使以下阶段失效：" + labels + "。\n\n仍要删除吗？")) return null;
+						}
+						return api("/api/agent-pi/files/delete", cwd, {
+							method: "POST",
+							body: JSON.stringify({ path: file.path })
+						});
+					}).then((deleted) => {
+						if (deleted === null) return;
 						window.dispatchEvent(new Event("agent-pi-files-changed"));
 						if (typeof props.onDeleted === "function") props.onDeleted();
 						else props.onClose();
@@ -2631,7 +2664,7 @@ window.__ModuleLoader__.load({
 		}
 		/** Workbench-injected wake; do not treat it as another unanswered inbound. */
 		function isWorkbenchWakeText(text) {
-			return /^(【子代理回推】|【主对话未接续】|【主对话插话】|【评审回推】)/.test(String(text || "").trim());
+			return /^(【子代理回推】|【主对话未接续】|【主对话插话】|【评审回推】|【事务自动接续】)/.test(String(text || "").trim());
 		}
 		function nodeLists(snap) {
 			if (!snap) return [];
@@ -2676,10 +2709,36 @@ window.__ModuleLoader__.load({
 			}
 			return null;
 		}
+		const HUMAN_APPROVAL_RE = /(?:是否(?:投标|不投标)|投标\s*[\/／]\s*不投标|重大(?:履约)?风险|价格基准|冻结(?:价格|报价|版本)?|最终提交|提交投标|批准提交|签字|签署|人工(?:确认|决策|审批)|强制放行|付款|发布)/i;
+		const MECHANICAL_CONTINUATION_RE = /(?:小批次|workflow|继续(?:推进|执行|处理|补齐|完成|组价)|补全|剩余|直至\s*complete_stage)/i;
+		const CONTINUATION_QUESTION_RE = /(?:是否(?:按(?:此|上述|该方案))?继续|是否继续(?:执行|推进|处理|补齐|组价)?|要(?:我|不要)?继续|可以继续吗)[？?]?\s*$/i;
+		/**
+		* Detect a narrow class of assistant self-pauses that do not ask for a new
+		* business decision. The committed session transaction already authorizes
+		* mechanical batching; real bid, price-freeze and submission gates stay manual.
+		*/
+		function assistantNeedsTransactionContinuation(snap) {
+			for (const list of nodeLists(snap)) for (let i = list.length - 1; i >= 0; i -= 1) {
+				const node = list[i];
+				if (!node) continue;
+				const text = nodeText(node).trim();
+				if (node.kind === "assistant" && !text) continue;
+				if (node.kind !== "assistant" || !text) return null;
+				const tail = text.slice(-600);
+				if (HUMAN_APPROVAL_RE.test(tail)) return null;
+				if (!MECHANICAL_CONTINUATION_RE.test(tail) || !CONTINUATION_QUESTION_RE.test(tail)) return null;
+				return {
+					kind: "transaction-continuation",
+					text: tail
+				};
+			}
+			return null;
+		}
 		/** Frame a workbench wake so the parent continues instead of sitting idle. */
 		function buildParentWakePrompt(hit) {
 			const excerpt = hit.text.length > 1200 ? `${hit.text.slice(0, 1200)}\n…` : hit.text;
 			if (hit.kind === "child-return") return "【子代理回推】子智能体已 report/settled。请立刻核验磁盘成果并继续本阶段，不要再空等 DONE。\n\n" + excerpt;
+			if (hit.kind === "transaction-continuation") return "【事务自动接续】本会话的「继续推进」事务仍有效；这只是已授权阶段内的机械分批，不需要再次询问是否继续。请直接核验磁盘现状、续派未完成工作并推进当前阶段。遇到投标/不投标、重大风险、价格基准冻结、最终提交等人工门时必须停止等待用户。\n\n" + excerpt;
 			return "【主对话未接续】用户已在本主会话提交指令，但主会话没有继续。请立刻处理这条指令，不要空等。\n\n" + excerpt;
 		}
 		function createWorkbenchSessionMonitor(options) {
@@ -2695,6 +2754,8 @@ window.__ModuleLoader__.load({
 			const transactionCanRun = options.transactionCanRun;
 			const settleTransaction = options.settleTransaction;
 			const destroyTransaction = options.destroyTransaction;
+			const setTransactionPaused = options.setTransactionPaused || (() => {});
+			const requirementsPending = options.requirementsPending || (() => false);
 			const onChange = options.onChange || (() => {});
 			const setIntervalFn = options.setIntervalFn || ((callback, delay) => setInterval(callback, delay));
 			const clearIntervalFn = options.clearIntervalFn || ((timer) => clearInterval(timer));
@@ -2712,7 +2773,8 @@ window.__ModuleLoader__.load({
 					note: "",
 					wasBusy: false,
 					done: false,
-					lastReality: null
+					lastReality: null,
+					lastControl: null
 				},
 				sending: false,
 				steeringQueue: false,
@@ -2734,6 +2796,7 @@ window.__ModuleLoader__.load({
 						module: this.state.module,
 						projectId: this.state.projectId
 					}).phase === "prepared") commitTransaction(parentSessionId);
+					setTransactionPaused(parentSessionId, false);
 					this.state.monitoring = true;
 					this.state.paused = false;
 					this.state.done = false;
@@ -2743,13 +2806,31 @@ window.__ModuleLoader__.load({
 					this.ensureTimer();
 					this.emit();
 				},
+				restore(target, parentSessionId, paused = false) {
+					if (!target || !target.cwd || !target.projectId || !parentSessionId) return false;
+					if (!transactionCanRun(parentSessionId)) return false;
+					this.state.cwd = target.cwd;
+					this.state.module = target.module || "tender";
+					this.state.projectId = target.projectId;
+					this.state.parentSessionId = parentSessionId;
+					this.state.monitoring = true;
+					this.state.paused = Boolean(paused);
+					this.state.done = false;
+					this.state.note = paused ? "已恢复本会话显式启动的自动推进事务；事务保持暂停。" : "已恢复本会话显式启动的自动推进事务。";
+					this.state.wasBusy = snapshotIsBusy(snapshotOf(parentSessionId));
+					this.ensureTimer();
+					this.emit();
+					return true;
+				},
 				pause() {
 					this.state.paused = true;
+					setTransactionPaused(this.state.parentSessionId, true);
 					this.emit();
 				},
 				unpause() {
 					if (!this.state.monitoring) return;
 					this.state.paused = false;
+					setTransactionPaused(this.state.parentSessionId, false);
 					if (!this.state.parentSessionId) this.state.parentSessionId = pinParentSessionId();
 					this.state.wasBusy = snapshotIsBusy(snapshotOf(this.state.parentSessionId));
 					this.emit();
@@ -2758,6 +2839,7 @@ window.__ModuleLoader__.load({
 					const parentId = this.state.parentSessionId;
 					if (parentId && outcome === "succeeded") settleTransaction(parentId, "succeeded");
 					else if (parentId && outcome === "failed") settleTransaction(parentId, "failed", note);
+					setTransactionPaused(parentId, false);
 					this.state.monitoring = false;
 					if (note) this.state.note = note;
 					if (this.timer) {
@@ -2785,6 +2867,12 @@ window.__ModuleLoader__.load({
 					if (parentSnap && parentSnap.removed === true) {
 						destroyTransaction(parentId);
 						this.stop("主会话已销毁，自动推进事务同时结束。");
+						return;
+					}
+					if (requirementsPending(parentId)) {
+						state.lastCheck = Date.now();
+						state.note = "用户最新要求正在写入项目账本，自动推进等待落账。";
+						this.emit();
 						return;
 					}
 					const parentRunning = snapshotIsRunning(parentSnap);
@@ -2852,6 +2940,24 @@ window.__ModuleLoader__.load({
 							return task;
 						}
 					}
+					if (!parentRunning) {
+						const hit = assistantNeedsTransactionContinuation(parentSnap);
+						const token = hit ? `assistant\n${hit.kind}\n${hit.text}` : "";
+						if (hit && token !== state.lastForwarded) {
+							state.lastForwarded = token;
+							const task = dispatchToConversation({}, buildParentWakePrompt(hit), parentId).then((ok) => {
+								if (!ok) return;
+								state.wasBusy = true;
+								state.note = "已接续主智能体的机械分批；人工决策门仍会停止。";
+								this.emit();
+							}).catch((error) => {
+								state.note = String(error && error.message || error);
+								this.emit();
+							});
+							this.emit();
+							return task;
+						}
+					}
 					if (executionActive) {
 						if (!parentRunning && runningChildren > 0) state.note = `${runningChildren} 个子智能体仍在执行，监控等待回推。`;
 						this.emit();
@@ -2867,11 +2973,13 @@ window.__ModuleLoader__.load({
 						body: JSON.stringify({
 							action: "check",
 							module: state.module,
-							projectId: state.projectId
+							projectId: state.projectId,
+							sessionId: parentId
 						})
 					}).then((checked) => {
 						if (checked && checked.reality) {
 							state.lastReality = checked.reality;
+							state.lastControl = checked.control || null;
 							this.emit();
 						}
 					}).catch(() => {}).then(() => api("/api/agent-pi/stage", state.cwd, {
@@ -3303,6 +3411,12 @@ html.ap-simple-nav [data-slot="sidebar"] button[class*="brand"] svg[viewBox="0 0
 .ap-lang b{color:var(--dsw-alias-label-primary);font-weight:700}
 .ap-badge{position:absolute;top:-3px;right:-3px;min-width:14px;height:14px;padding:0 4px;border-radius:999px;background:var(--ap-accent);color:#fff;font-size:9px;line-height:14px;font-weight:700}
 .ap-attach-host{min-width:0;padding:4px 12px 6px}
+.ap-project-starter{display:flex;align-items:center;justify-content:space-between;gap:14px;box-sizing:border-box;width:min(100%,var(--dsh-composer-card-max-width,760px));margin:0 auto 10px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--ap-accent) 24%,var(--dsw-alias-border-l2));border-radius:12px;background:color-mix(in srgb,var(--ap-accent) 7%,var(--dsw-alias-bg-base));color:var(--dsw-alias-label-primary)}
+.ap-project-starter-copy{display:flex;flex-direction:column;gap:3px;min-width:0}
+.ap-project-starter-copy strong{font-size:13px;font-weight:650}
+.ap-project-starter-copy span{font-size:11px;line-height:1.45;color:var(--dsw-alias-label-tertiary)}
+.ap-project-starter-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap;flex:none}
+@media(max-width:760px){.ap-project-starter{align-items:flex-start;flex-direction:column}.ap-project-starter-actions{justify-content:flex-start}}
 [data-slot="conversation.input.dock"]{
   display:flex!important;flex-direction:column;width:100%;min-width:0;visibility:visible!important;
 }
@@ -3472,10 +3586,36 @@ html.ap-doc-open [data-shell-overlay]{z-index:400;pointer-events:auto}
 .ap-ov-hd h1{font-size:20px;font-weight:650;margin:0;letter-spacing:-0.02em}
 .ap-sec{padding:18px 24px;border-bottom:1px solid var(--dsw-alias-border-l1)}
 .ap-sec h2{font-size:13px;font-weight:650;margin:0}
+.ap-user-reqs{display:flex;flex-direction:column;gap:10px;background:color-mix(in srgb,var(--ap-accent) 4%,transparent)}
+.ap-user-req-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.ap-user-req{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:12px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-base)}
+.ap-user-req-main{display:flex;flex:1;flex-direction:column;gap:7px;min-width:0}
+.ap-user-req-main p{margin:0;font-size:12px;line-height:1.55;overflow-wrap:anywhere}
+.ap-user-req-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap;flex:none}
+@media(max-width:760px){.ap-user-req-head,.ap-user-req{flex-direction:column}.ap-user-req-actions{justify-content:flex-start}}
 .ap-mon-hd{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px}
 .ap-mon-tools{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:12px;color:var(--dsw-alias-label-tertiary)}
 .ap-dot{width:6px;height:6px;border-radius:999px;background:color-mix(in srgb, var(--dsw-alias-label-primary) 28%, transparent);display:inline-block}
 .ap-dot.on{background:var(--ap-accent);box-shadow:0 0 0 3px color-mix(in srgb, var(--ap-accent) 22%, transparent)}
+.ap-dual-state{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin-top:14px}
+.ap-state-card{min-width:0;border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:color-mix(in srgb,var(--dsw-alias-bg-base) 96%,var(--ap-accent) 4%);overflow:hidden}
+.ap-state-card-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:11px 12px;border-bottom:1px solid var(--dsw-alias-border-l2)}
+.ap-state-card-hd>div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.ap-state-card-hd strong{font-size:12px;font-weight:700}
+.ap-state-body{display:flex;flex-direction:column;gap:7px;padding:11px 12px;font-size:12px;line-height:1.5}
+.ap-state-body p{margin:0;overflow-wrap:anywhere}
+.ap-state-empty{padding:16px 12px;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:1.55}
+.ap-mini-list{display:flex;flex-direction:column;gap:5px;padding-top:2px}
+.ap-mini-list>div{display:flex;align-items:flex-start;gap:7px;min-width:0}
+.ap-mini-list span{min-width:0;overflow-wrap:anywhere}
+.ap-mini-status{width:7px;height:7px;margin-top:5px;border-radius:999px;flex:none;background:var(--dsw-alias-label-tertiary)}
+.ap-mini-status.in_progress{background:var(--ap-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--ap-accent) 18%,transparent)}
+.ap-mini-status.done{background:#1f9d68}
+.ap-mini-status.blocked{background:#d97706}
+.ap-state-alert{padding:7px 8px;border-radius:8px;background:color-mix(in srgb,#d97706 10%,transparent);color:color-mix(in srgb,#d97706 76%,var(--dsw-alias-label-primary))}
+.ap-alignment-alert{margin-top:10px;padding:10px 12px;border:1px solid color-mix(in srgb,#d97706 30%,var(--dsw-alias-border-l1));border-radius:10px;background:color-mix(in srgb,#d97706 7%,transparent);font-size:12px}
+.ap-alignment-alert ul{margin:5px 0 0;padding-left:18px;color:var(--dsw-alias-label-secondary)}
+@media(max-width:920px){.ap-dual-state{grid-template-columns:1fr}}
 .ap-check{border:1px solid var(--dsw-alias-border-l1);border-radius:10px;margin:12px 0 4px;overflow:hidden}
 .ap-check-hd{display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:12px;font-weight:600;border-bottom:1px solid var(--dsw-alias-border-l1);background:color-mix(in srgb, var(--dsw-alias-label-primary) 3%, transparent)}
 .ap-check-hd .ap-sub{font-weight:400;flex:1}
@@ -3739,8 +3879,16 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		* In-memory, per-session transaction registry for product-layer automation.
 		* Nothing may run after prepare alone: the user action must explicitly commit it.
 		*/
-		function createSessionTransactionRegistry(now = Date.now) {
+		function createSessionTransactionRegistry(now = Date.now, restored = []) {
 			const entries = /* @__PURE__ */ new Map();
+			for (const value of restored) {
+				const sessionId = String(value?.sessionId || "").trim();
+				if (!sessionId || value.phase !== "committed" || value.payload == null) continue;
+				entries.set(sessionId, copy({
+					...value,
+					sessionId
+				}));
+			}
 			const current = (sessionId) => {
 				const id = requireSessionId(sessionId);
 				const value = entries.get(id);
@@ -4440,15 +4588,15 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				"mm.designTitle": "回到对话，用人机交互生成完整工作台模块包",
 				"mm.design": "去对话里创造",
 				"mm.createTitle": "模块创造模式",
-				"mm.createLead": "不要先导入 JSON。点下面一条路，回到对话用人机交互。生成的是和「投标全流程」同等级的完整模块包：顶栏、阶段监控、资料登记、流程控制、配套方法和知识库。保存后本应用按同一套专业化工作台画出来。",
-				"mm.createWarn": "不要切到 Agent 预设里的「创造模式」——那是改插件组装的。模块创造只走本页进对话这条路。",
+				"mm.createLead": "不要先导入 JSON。点下面一条路，本应用会进入 DSH 原生「创造模式」，用对话把这次做成的成果和修订经验沉淀为完整业务模块包：顶栏、阶段监控、资料登记、流程控制、配套方法和知识库。",
+				"mm.createWarn": "原生创造模式只是创作驾驶舱，最终保存的是专业工作台业务模块，不会改 DSH 官方预设。当前对话为空时原地切换；已有历史时会新建创造模式对话。",
 				"mm.createAdvanced": "只有已经拿到本应用校验过的模块定义时，才在这里粘贴。普通使用请走上面的创造对话。",
 				"mm.packNotJson": "完整模块包，不是一段 JSON",
 				"mm.pickKind": "选你们属于哪一种。选完回到对话，用大白话问一两句；模型直接装上，你不用粘贴定义。",
 				"mm.card.distill": "做过一单，照这个来",
 				"mm.card.distillBody": "把这次对话里已经认可的成果，整理成以后同类工作的标准。范文进知识库，做法记下来。",
 				"mm.card.copy": "步骤和投标全流程一样，规矩不同",
-				"mm.card.copyBody": "还是登记 → 解析 → 组价 → 出稿。拷贝一份，挂上你们的评分办法、组价表或投标函。阶段条还是四步。",
+				"mm.card.copyBody": "沿用当前投标流程的阶段和人工确认门禁，拷贝一份，再挂上你们的评分办法、组价表或投标函。",
 				"mm.card.custom": "步骤就不一样",
 				"mm.card.customBody": "例如先资格再技术再商务、没有组价。用中文说清几步，新标签和监控条按这几步画。",
 				"mm.advanced": "高级 · 粘贴模块定义（开发者）",
@@ -4483,6 +4631,13 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				"mm.stagePrompt": "阶段要求（写给模型看）",
 				"mm.skillSlugs": "技能 slug（逗号分隔）",
 				"mm.reviewSlugs": "评审技能 slug（逗号分隔，可空）",
+				"mm.reviewPolicy": "审查范围",
+				"mm.reviewRisk": "按风险 / 变更 / 抽样审查",
+				"mm.reviewAll": "逐文件全部审查",
+				"mm.approvalGate": "本阶段需要人工确认后才能继续",
+				"mm.approvalPrompt": "确认事项（显示给用户）",
+				"mm.approveLabel": "确认按钮文字",
+				"mm.rejectLabel": "暂停 / 退回按钮文字（可空）",
 				"mm.binding": "知识库绑定",
 				"mm.bindNone": "不绑定",
 				"mm.bindAnalysis": "解析 analysis",
@@ -4751,15 +4906,15 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				"mm.designTitle": "Return to chat and generate a complete workbench module pack through conversation",
 				"mm.design": "Create in chat",
 				"mm.createTitle": "Module create mode",
-				"mm.createLead": "Do not start by importing JSON. Pick a path below and continue in chat. What you get is a complete module pack at the same level as Tender process: top bar, stage monitor, source registration, workflow gates, matching methods, and a knowledge base. After save, this app draws it with the same workbench.",
-				"mm.createWarn": "Do not switch to Create mode in the Agent preset — that edits plugin assembly. Module creation only goes through this page into chat.",
+				"mm.createLead": "Do not start by importing JSON. Pick a path below and this app opens DSH native Create mode, where conversation distils accepted outputs and revision experience into a complete business module pack: top bar, stage monitor, source registration, workflow gates, methods, and knowledge.",
+				"mm.createWarn": "Native Create mode is the authoring cockpit; the saved product is a professional-workbench business module and never edits a shipped DSH preset. A blank chat switches in place; a chat with history opens a new Create-mode session.",
 				"mm.createAdvanced": "Paste here only when you already have a module definition this app has validated. Everyday use should go through the create conversation above.",
 				"mm.packNotJson": "A complete module pack, not a JSON snippet",
 				"mm.pickKind": "Pick the case that matches you. Then return to chat and ask in plain language. The model installs it; you do not paste a definition.",
 				"mm.card.distill": "We finished one job — use this as the standard",
 				"mm.card.distillBody": "Turn the accepted results from this chat into the standard for later work of the same kind. Exemplars go to the knowledge base; the method is written down.",
 				"mm.card.copy": "Same steps as Tender process, different rules",
-				"mm.card.copyBody": "Still register → analyze → price → draft. Copy one and attach your scoring rules, rate tables, or letters. The stage bar stays four steps.",
+				"mm.card.copyBody": "Keep the current tender stages and human-approval gates, then attach your scoring rules, rate tables, or letters to a copy.",
 				"mm.card.custom": "The steps are different",
 				"mm.card.customBody": "For example qualification, then technical, then commercial — no pricing. Say the steps in plain language. The new tab and monitor bar follow those steps.",
 				"mm.advanced": "Advanced · Paste a module definition (developers)",
@@ -4794,6 +4949,13 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				"mm.stagePrompt": "Stage requirements (for the model)",
 				"mm.skillSlugs": "Skill slugs (comma-separated)",
 				"mm.reviewSlugs": "Review skill slugs (comma-separated, optional)",
+				"mm.reviewPolicy": "Review scope",
+				"mm.reviewRisk": "Risk / change / sample review",
+				"mm.reviewAll": "Review every file",
+				"mm.approvalGate": "Require human approval before the next stage",
+				"mm.approvalPrompt": "Decision prompt shown to the user",
+				"mm.approveLabel": "Approve button label",
+				"mm.rejectLabel": "Pause / reject button label (optional)",
 				"mm.binding": "Knowledge binding",
 				"mm.bindNone": "None",
 				"mm.bindAnalysis": "Analysis",
@@ -5295,6 +5457,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			if (props.inputActions) composerFace.inputActions = props.inputActions;
 			if (props.session) composerFace.session = props.session;
 			composerPropsRef.current = snapshotComposer();
+			ensureUserRequirementWatcher(sessionId);
 			return cwd;
 		}
 		function readWorkspaceCwd(props) {
@@ -5327,6 +5490,20 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			if (runtime.sessions && typeof runtime.sessions.binding === "function" && sid) try {
 				const binding = runtime.sessions.binding(sid);
 				if (binding && binding.session && typeof binding.session.prompt === "function") return binding.session;
+			} catch {}
+			return null;
+		}
+		function observableSessionById(sid) {
+			const sessions = runtime.sessions;
+			if (!sessions || !sid) return null;
+			if (typeof sessions.scope === "function" && typeof sessions.sessionOf === "function") try {
+				const scope = sessions.scope(sid);
+				const session = scope ? sessions.sessionOf(scope) : null;
+				if (session) return session;
+			} catch {}
+			if (typeof sessions.binding === "function") try {
+				const binding = sessions.binding(sid);
+				if (binding && binding.session) return binding.session;
 			} catch {}
 			return null;
 		}
@@ -5378,19 +5555,231 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			}
 			return Promise.reject(/* @__PURE__ */ new Error("当前没有可写入的主对话。请先打开或新建一个会话。"));
 		}
-		const workbenchTransactions = window.__apWorkbenchTransactions || (window.__apWorkbenchTransactions = createSessionTransactionRegistry());
+		const WORKBENCH_TRANSACTION_STATE_KEY = "ap-wb-session-transactions:v1";
+		function loadWorkbenchTransactionState() {
+			try {
+				const value = JSON.parse(localStorage.getItem(WORKBENCH_TRANSACTION_STATE_KEY) || "null");
+				return {
+					transactions: Array.isArray(value && value.transactions) ? value.transactions : [],
+					paused: Array.isArray(value && value.paused) ? value.paused : []
+				};
+			} catch {
+				return {
+					transactions: [],
+					paused: []
+				};
+			}
+		}
+		const restoredWorkbenchState = loadWorkbenchTransactionState();
+		const workbenchTransactions = window.__apWorkbenchTransactions || (window.__apWorkbenchTransactions = createSessionTransactionRegistry(Date.now, restoredWorkbenchState.transactions));
+		const workbenchPausedSessions = window.__apWorkbenchPausedSessions || (window.__apWorkbenchPausedSessions = new Set(restoredWorkbenchState.paused));
+		function persistWorkbenchTransactionState() {
+			const transactions = workbenchTransactions.committed();
+			const activeIds = new Set(transactions.map((item) => item.sessionId));
+			const paused = [...workbenchPausedSessions].filter((sessionId) => activeIds.has(sessionId));
+			try {
+				if (!transactions.length) localStorage.removeItem(WORKBENCH_TRANSACTION_STATE_KEY);
+				else localStorage.setItem(WORKBENCH_TRANSACTION_STATE_KEY, JSON.stringify({
+					transactions,
+					paused
+				}));
+			} catch {}
+		}
+		function setWorkbenchTransactionPaused(sessionId, paused) {
+			const id = String(sessionId || "").trim();
+			if (!id) return;
+			if (paused) workbenchPausedSessions.add(id);
+			else workbenchPausedSessions.delete(id);
+			persistWorkbenchTransactionState();
+		}
+		const workbenchSessionBindings = window.__apWorkbenchSessionBindings || (window.__apWorkbenchSessionBindings = /* @__PURE__ */ new Map());
+		const workbenchRequirementRecords = window.__apWorkbenchRequirementRecords || (window.__apWorkbenchRequirementRecords = /* @__PURE__ */ new Map());
+		const workbenchRequirementPending = window.__apWorkbenchRequirementPending || (window.__apWorkbenchRequirementPending = /* @__PURE__ */ new Set());
+		const workbenchRequirementWatchers = window.__apWorkbenchRequirementWatchers || (window.__apWorkbenchRequirementWatchers = /* @__PURE__ */ new Map());
+		function workbenchBindingKey(sessionId) {
+			return "ap-wb-session-binding:" + String(sessionId || "").trim();
+		}
+		function rememberWorkbenchBinding(sessionId, payload) {
+			const id = String(sessionId || "").trim();
+			if (!id || !payload || !payload.cwd || !payload.projectId) return null;
+			const binding = {
+				sessionId: id,
+				cwd: payload.cwd,
+				module: payload.module || "tender",
+				projectId: payload.projectId
+			};
+			workbenchSessionBindings.set(id, binding);
+			try {
+				localStorage.setItem(workbenchBindingKey(id), JSON.stringify(binding));
+			} catch {}
+			return binding;
+		}
+		function cachedWorkbenchBinding(sessionId, cwd) {
+			const id = String(sessionId || "").trim();
+			if (!id) return null;
+			let binding = workbenchSessionBindings.get(id) || null;
+			if (!binding) try {
+				binding = JSON.parse(localStorage.getItem(workbenchBindingKey(id)) || "null");
+			} catch {
+				binding = null;
+			}
+			if (!binding || !binding.projectId || cwd && binding.cwd && normPath(binding.cwd) !== normPath(cwd)) return null;
+			return rememberWorkbenchBinding(id, binding);
+		}
+		function resolveWorkbenchBinding(sessionId, cwd) {
+			const cached = cachedWorkbenchBinding(sessionId, cwd);
+			if (cached) return Promise.resolve(cached);
+			if (!sessionId || !cwd) return Promise.resolve(null);
+			return api("/api/agent-pi/session-project?sessionId=" + encodeURIComponent(sessionId), cwd, { method: "GET" }).then((body) => body && body.binding ? rememberWorkbenchBinding(sessionId, body.binding) : null).catch(() => null);
+		}
+		function projectRequirementText(text) {
+			const clean = stripMentionArtifacts(String(text || "")).trim();
+			if (!clean) return "";
+			if (/^【(?:用户要求账本|用户验收口径已确认|阶段切换|执行账本对齐|用户最新要求|恢复未递交成果|成果质检并整理|专业项目启动|主对话插话|补齐实际工程量清单|补齐投标分析底稿)/.test(clean)) return "";
+			if (/^(?:继续|开始|暂停|停止|收到|好的?|谢谢|进度(?:如何|怎样|怎么样)?|到哪(?:里|儿)了|现在什么状态)[？?。.!！\s]*$/i.test(clean)) return "";
+			return /(?:请|需要|要求|必须|应当|应该|务必|优先|只要|只需|只修改|不要|不得|禁止|改成|改为|修改|调整|修正|纠正|替换|换成|补充|补齐|增加|新增|删除|移除|保留|采用|沿用|使用|重新|重做|改写|重写|更新|完善|优化|排序|合并|拆分|输出|生成|制作|编制|翻译|标注|核对|检查|审查|不对|有误|不符合|不满意|遗漏|缺少|please|must|should|need(?:\s+to)?|require|only|do\s+not|don't|revise|change|update|fix|correct|replace|add|remove|delete|keep|adopt|use\s+.+instead)/i.test(clean) ? clean : "";
+		}
+		function recordWorkbenchUserRequirement(props, text, retainDedupe) {
+			const clean = projectRequirementText(text);
+			const sessionId = sessionHint(props) || runtime.sessionId || "";
+			const cwd = workspaceCwd(props);
+			if (!clean || !sessionId || !cwd) return Promise.resolve(null);
+			const recordKey = sessionId + "\n" + clean;
+			const existing = workbenchRequirementRecords.get(recordKey);
+			if (existing) return existing;
+			workbenchRequirementPending.add(recordKey);
+			const tracked = resolveWorkbenchBinding(sessionId, cwd).then((binding) => {
+				if (!binding) return null;
+				return api("/api/agent-pi/stage", cwd, {
+					method: "POST",
+					body: JSON.stringify({
+						action: "record_requirement",
+						module: binding.module,
+						projectId: binding.projectId,
+						sessionId,
+						text: clean
+					})
+				}).then((result) => {
+					window.dispatchEvent(new CustomEvent("agent-pi-user-requirement", { detail: result && result.requirement }));
+					return result;
+				});
+			}).catch((error) => {
+				showToast("项目要求同步失败：" + String(error && error.message || error));
+				return null;
+			}).then((result) => {
+				if (!result || !retainDedupe) workbenchRequirementRecords.delete(recordKey);
+				return result;
+			}).finally(() => workbenchRequirementPending.delete(recordKey));
+			workbenchRequirementRecords.set(recordKey, tracked);
+			return tracked;
+		}
+		function projectRequirementWritePending(sessionId) {
+			const prefix = String(sessionId || "").trim() + "\n";
+			if (prefix === "\n") return false;
+			for (const key of workbenchRequirementPending) if (key.startsWith(prefix)) return true;
+			return false;
+		}
+		function userRequirementNodeText(node) {
+			return (node && node.content || []).filter((part) => part && part.type === "text").map((part) => part.text || "").join("").trim();
+		}
+		function ensureUserRequirementWatcher(sessionId) {
+			const id = String(sessionId || "").trim();
+			if (!id || workbenchRequirementWatchers.has(id)) return;
+			if (!cachedWorkbenchBinding(id, runtime.cwd || composerFace.cwd || "")) return;
+			const session = observableSessionById(id);
+			if (!session || typeof session.getSnapshot !== "function" || typeof session.subscribe !== "function") return;
+			let initialSnapshot;
+			try {
+				initialSnapshot = session.getSnapshot();
+			} catch {
+				return;
+			}
+			let watermark = codexUserNodeWatermark(initialSnapshot);
+			const seenSubmissions = /* @__PURE__ */ new Set();
+			const seenQueue = /* @__PURE__ */ new Set();
+			const submittedTexts = /* @__PURE__ */ new Set();
+			const onSession = () => {
+				let snapshot;
+				try {
+					snapshot = session.getSnapshot();
+				} catch {
+					return;
+				}
+				if (snapshot && snapshot.removed === true) {
+					const watcher = workbenchRequirementWatchers.get(id);
+					if (watcher && typeof watcher.unsubscribe === "function") try {
+						watcher.unsubscribe();
+					} catch {}
+					workbenchRequirementWatchers.delete(id);
+					return;
+				}
+				for (const submission of snapshot && snapshot.pendingSubmissions || []) {
+					const key = String(submission && submission.requestId || "");
+					if (!key || seenSubmissions.has(key)) continue;
+					seenSubmissions.add(key);
+					const text = projectRequirementText(submission.text);
+					if (text) {
+						submittedTexts.add(text);
+						recordWorkbenchUserRequirement({ sessionId: id }, text, true);
+					}
+				}
+				for (const queued of snapshot && snapshot.queue || []) {
+					const key = String(queued && (queued.rpcId || queued.messageId || queued.id) || "");
+					if (!queued || !queued.rpcId || !key || seenQueue.has(key)) continue;
+					seenQueue.add(key);
+					const text = projectRequirementText(queued.text);
+					if (text) {
+						submittedTexts.add(text);
+						recordWorkbenchUserRequirement({ sessionId: id }, text, true);
+					}
+				}
+				for (const node of snapshot && snapshot.nodes || []) {
+					if (!node || node.kind !== "user" || typeof node.seq !== "number" || node.seq <= watermark) continue;
+					watermark = Math.max(watermark, node.seq);
+					const text = projectRequirementText(userRequirementNodeText(node));
+					if (!text) continue;
+					if (submittedTexts.delete(text)) {
+						workbenchRequirementRecords.delete(id + "\n" + text);
+						continue;
+					}
+					recordWorkbenchUserRequirement({ sessionId: id }, text, false);
+				}
+			};
+			let unsubscribe;
+			try {
+				unsubscribe = session.subscribe(onSession);
+			} catch {
+				return;
+			}
+			if (typeof unsubscribe !== "function") return;
+			workbenchRequirementWatchers.set(id, {
+				session,
+				unsubscribe
+			});
+			onSession();
+		}
 		function prepareWorkbenchTransaction(sessionId, payload) {
 			const id = String(sessionId || "").trim();
 			if (!id) throw new Error("自动推进需要明确的主会话。");
 			const previous = workbenchTransactions.get(id);
 			if (previous && (previous.phase === "prepared" || previous.phase === "committed")) {
-				if (previous.payload.cwd === payload.cwd && previous.payload.projectId === payload.projectId) return previous;
+				if (previous.payload.cwd === payload.cwd && previous.payload.module === payload.module && previous.payload.projectId === payload.projectId) {
+					rememberWorkbenchBinding(id, payload);
+					ensureUserRequirementWatcher(id);
+					return previous;
+				}
 				throw new Error("当前会话已有另一项自动推进事务，请先暂停或结束。");
 			}
-			return workbenchTransactions.prepare(id, payload);
+			const transaction = workbenchTransactions.prepare(id, payload);
+			rememberWorkbenchBinding(id, payload);
+			ensureUserRequirementWatcher(id);
+			return transaction;
 		}
 		function commitWorkbenchTransaction(sessionId) {
-			return workbenchTransactions.commit(sessionId);
+			const transaction = workbenchTransactions.commit(sessionId);
+			workbenchPausedSessions.delete(String(sessionId || "").trim());
+			persistWorkbenchTransactionState();
+			return transaction;
 		}
 		function workbenchTransactionCanRun(sessionId) {
 			return workbenchTransactions.canRun(sessionId);
@@ -5399,9 +5788,17 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			if (!workbenchTransactions.get(sessionId)) return;
 			if (phase === "succeeded") workbenchTransactions.succeed(sessionId);
 			else workbenchTransactions.fail(sessionId, error);
+			workbenchPausedSessions.delete(String(sessionId || "").trim());
+			persistWorkbenchTransactionState();
 		}
 		function destroyWorkbenchTransaction(sessionId) {
+			workbenchSessionBindings.delete(String(sessionId || "").trim());
+			try {
+				localStorage.removeItem(workbenchBindingKey(sessionId));
+			} catch {}
 			workbenchTransactions.destroy(sessionId);
+			workbenchPausedSessions.delete(String(sessionId || "").trim());
+			persistWorkbenchTransactionState();
 		}
 		const monitorEngine = createWorkbenchSessionMonitor({
 			api,
@@ -5416,8 +5813,30 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			transactionCanRun: workbenchTransactionCanRun,
 			settleTransaction: settleWorkbenchTransaction,
 			destroyTransaction: destroyWorkbenchTransaction,
+			setTransactionPaused: setWorkbenchTransactionPaused,
+			requirementsPending: projectRequirementWritePending,
 			onChange: () => window.dispatchEvent(new Event("agent-pi-monitor-changed"))
 		});
+		function restoreActiveWorkbenchMonitor() {
+			if (monitorEngine.state.monitoring) return false;
+			const parentSessionId = pinParentSessionId();
+			const transaction = workbenchTransactions.get(parentSessionId);
+			if (!transaction || transaction.phase !== "committed") return false;
+			rememberWorkbenchBinding(parentSessionId, transaction.payload);
+			ensureUserRequirementWatcher(parentSessionId);
+			return monitorEngine.restore(transaction.payload, parentSessionId, workbenchPausedSessions.has(parentSessionId));
+		}
+		let transactionRestoreList = null;
+		function watchWorkbenchTransactionRestore() {
+			const list = runtime.sessions && runtime.sessions.list;
+			if (list && list !== transactionRestoreList && typeof list.subscribe === "function") {
+				transactionRestoreList = list;
+				list.subscribe(() => {
+					restoreActiveWorkbenchMonitor();
+				});
+			}
+			restoreActiveWorkbenchMonitor();
+		}
 		function slugify(str) {
 			return String(str || "").toLowerCase().trim().replace(/[\s_]+/g, "-").replace(/[^a-z0-9-]/g, "").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 128);
 		}
@@ -5559,10 +5978,63 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			};
 		}
 		const MODULE_CREATE_PROMPTS = {
-			distill: "请先读 skill workbench-domain-builder。这是本应用专业化工作台的模块创造对话，不是 Agent 预设里的「创造模式」，不要写 cordis.yml 或改插件组装。生成的必须是完整工作台模块包：顶栏中文名、阶段监控条、开工资料登记、后续阶段的流程门槛（总报告 / 按册任务 / 评审）、配套方法 skill、能挂的知识库。用 workbench_module_save / workbench_module_copy / workbench_skill_save 直接装上，本应用按现有盘面画出来。不要发明新窗口或新界面。不要让我粘贴 JSON、id、slug。不要改内置投标。我想把这次对话里已经做完、我认可的成果，整理成以后同类工作的标准。范文或用户模板进知识库，做法记成 skill，模块保存后用中文告诉我顶栏新标签叫什么、下次怎么开项目。最多确认一句中文名称和分几步。",
-			"copy-pack": "请先读 skill workbench-domain-builder。这是本应用专业化工作台的模块创造对话，不是 Agent 预设里的「创造模式」，不要写 cordis.yml 或改插件组装。生成的必须是完整工作台模块包：顶栏中文名、阶段监控条、开工资料登记、后续阶段的流程门槛（总报告 / 按册任务 / 评审）、配套方法 skill、能挂的知识库。用 workbench_module_save / workbench_module_copy / workbench_skill_save 直接装上，本应用按现有盘面画出来。不要发明新窗口或新界面。不要让我粘贴 JSON、id、slug。不要改内置投标。我们步骤和「投标全流程」一样（资料登记 → 解析 → 组价 → 出稿），但要用我们自己的规范、组价表或投标函。请拷贝内置投标为自建模块（workbench_module_copy），不要改四阶段 id。拷完用中文问我模块叫什么、规范或范文在哪（可以让我上传），挂到规范包。建好告诉我顶栏新标签和下次怎么用。",
-			"custom-steps": "请先读 skill workbench-domain-builder。这是本应用专业化工作台的模块创造对话，不是 Agent 预设里的「创造模式」，不要写 cordis.yml 或改插件组装。生成的必须是完整工作台模块包：顶栏中文名、阶段监控条、开工资料登记、后续阶段的流程门槛（总报告 / 按册任务 / 评审）、配套方法 skill、能挂的知识库。用 workbench_module_save / workbench_module_copy / workbench_skill_save 直接装上，本应用按现有盘面画出来。不要发明新窗口或新界面。不要让我粘贴 JSON、id、slug。不要改内置投标。我们这类工作和「投标全流程」步骤不一样。请用一条消息、用大白话问清：这个领域叫什么、实际工作分哪几步（3到6步）、开工有什么资料、最后交什么、有没有规范或范文。问完后建成完整模块包。保存后告诉我顶栏新标签叫什么、下次怎么开项目。"
+			distill: "请先读 skill workbench-domain-builder。当前会话使用 DSH 原生「创造模式」作为创作驾驶舱，但本任务的交付物是专业工作台业务模块，不是 Agent 预设。不得修改 DSH 官方预设、不得写 agent.cordis.yml 或改插件组装，除非用户另行明确要求创建 Agent 预设。生成的必须是完整工作台模块包：顶栏中文名、阶段监控条、开工资料登记、后续阶段的流程门槛（总报告 / 按册任务 / 风险审查 / 必要的人工确认）、配套方法 skill、能挂的知识库。来源是投标项目时，必须从内置 tender 复制并保留原阶段 id 和 controlProfile=tender，不得只仿造七段外观而丢掉 BOQ、证据、能力包和最终冻结硬门。用 workbench_module_save / workbench_module_copy / workbench_skill_save 直接装上，本应用按现有盘面画出来。不要发明新窗口或新界面。不要让我粘贴 JSON、id、slug。不要改内置投标。我想把来源项目里已经做完且由用户明确认可的成果与修订经验，整理成以后同类工作的标准。读取来源项目的 Official Outputs、用户要求台账和明确审批记录；不能把“文件存在”当成“用户认可”。如来源模块是 tender，先 workbench_module_copy 复制内置投标，保留原阶段 id、三个人工门、风险审查和 controlProfile=tender，再把用户验收的方法、skill 和知识包挂上去。范文或用户模板进知识库，做法和用户纠正规则记成 skill，模块保存后用中文告诉我顶栏新标签叫什么、下次怎么开项目。最多确认一句中文名称和分几步。",
+			"copy-pack": "请先读 skill workbench-domain-builder。当前会话使用 DSH 原生「创造模式」作为创作驾驶舱，但本任务的交付物是专业工作台业务模块，不是 Agent 预设。不得修改 DSH 官方预设、不得写 agent.cordis.yml 或改插件组装，除非用户另行明确要求创建 Agent 预设。生成的必须是完整工作台模块包：顶栏中文名、阶段监控条、开工资料登记、后续阶段的流程门槛（总报告 / 按册任务 / 风险审查 / 必要的人工确认）、配套方法 skill、能挂的知识库。来源是投标项目时，必须从内置 tender 复制并保留原阶段 id 和 controlProfile=tender，不得只仿造七段外观而丢掉 BOQ、证据、能力包和最终冻结硬门。用 workbench_module_save / workbench_module_copy / workbench_skill_save 直接装上，本应用按现有盘面画出来。不要发明新窗口或新界面。不要让我粘贴 JSON、id、slug。不要改内置投标。我们的步骤和「投标全流程」一样，但要用自己的规范、组价表或投标函。请用 workbench_module_copy 拷贝当前内置投标，完整保留其阶段 id、风险审查和人工确认门禁。拷完用中文问我模块叫什么、规范或范文在哪（可以让我上传），挂到规范包。建好告诉我顶栏新标签和下次怎么用。",
+			"custom-steps": "请先读 skill workbench-domain-builder。当前会话使用 DSH 原生「创造模式」作为创作驾驶舱，但本任务的交付物是专业工作台业务模块，不是 Agent 预设。不得修改 DSH 官方预设、不得写 agent.cordis.yml 或改插件组装，除非用户另行明确要求创建 Agent 预设。生成的必须是完整工作台模块包：顶栏中文名、阶段监控条、开工资料登记、后续阶段的流程门槛（总报告 / 按册任务 / 风险审查 / 必要的人工确认）、配套方法 skill、能挂的知识库。来源是投标项目时，必须从内置 tender 复制并保留原阶段 id 和 controlProfile=tender，不得只仿造七段外观而丢掉 BOQ、证据、能力包和最终冻结硬门。用 workbench_module_save / workbench_module_copy / workbench_skill_save 直接装上，本应用按现有盘面画出来。不要发明新窗口或新界面。不要让我粘贴 JSON、id、slug。不要改内置投标。我们这类工作和「投标全流程」步骤不一样。请用一条消息、用大白话问清：这个领域叫什么、实际工作分哪几步（3到6步）、开工有什么资料、最后交什么、有没有规范或范文。问完后建成完整模块包。保存后告诉我顶栏新标签叫什么、下次怎么开项目。"
 		};
+		function remoteResultValue(result, operation) {
+			if (result && result.ok === true) return result.value;
+			const error = result && result.error;
+			const message = error && (error.message || error.code);
+			throw new Error((operation || "DSH 远程调用") + "失败：" + (message || "未返回可用结果"));
+		}
+		function waitForSessionFace(sessionId, attempts) {
+			const face = sessionFaceById(sessionId);
+			if (face) return Promise.resolve(face);
+			if ((attempts || 0) >= 30) return Promise.reject(/* @__PURE__ */ new Error("创造模式会话已建立，但对话绑定尚未就绪。"));
+			return new Promise((resolve) => window.setTimeout(resolve, 100)).then(() => waitForSessionFace(sessionId, (attempts || 0) + 1));
+		}
+		function moduleSourceSuffix(context) {
+			const source = context || {};
+			const lines = [
+				"",
+				"【Agent Pi 来源上下文】",
+				"来源会话：" + (source.sessionId || "未绑定"),
+				"工作区：" + (source.cwd || "未绑定")
+			];
+			if (source.module) lines.push("来源模块：" + source.module);
+			if (source.projectId) lines.push("来源项目：" + source.projectId);
+			if (source.projectRoot) lines.push("项目根目录：" + source.projectRoot);
+			lines.push("若来源会话有历史，不要假设新会话能直接继承聊天文本；以项目中已接受的 Official Outputs、.agent-pi 用户要求台账和显式人工审批为准。");
+			return lines.join("\n");
+		}
+		async function openNativeModuleCreate(props, prompt, context) {
+			const sourceId = resolveSessionId(props) || activeSessionId();
+			const list = readSessionListSnap();
+			const summary = sourceId && list && list.byId ? list.byId[sourceId] : null;
+			const blank = !!(summary && summary.blank === true) || !!(props && props.session && props.session.blank === true);
+			const remote = runtime.remote;
+			if (!sourceId) throw new Error("请先打开或新建一个主对话，再进入创造模式。");
+			if (!remote || !remote.agentPresets || typeof remote.agentPresets.select !== "function" || !remote.session || typeof remote.session.create !== "function") throw new Error("当前 DSH Typert Gateway 未提供创造模式所需的 agentPresets/session 接口。");
+			if (!runtime.sessions || typeof runtime.sessions.open !== "function" || typeof runtime.sessions.refresh !== "function") throw new Error("当前 DSH 会话服务尚未就绪。");
+			let targetId = sourceId;
+			if (blank) {
+				remoteResultValue(await remote.agentPresets.select(sourceId, "cordis"), "切换原生创造模式");
+				await runtime.sessions.refresh();
+			} else {
+				const created = remoteResultValue(await remote.session.create({
+					cwd: context && context.cwd || workspaceCwd(props),
+					agentPreset: "cordis"
+				}), "新建原生创造模式会话");
+				targetId = created && created.sessionId;
+				if (!targetId) throw new Error("DSH 未返回创造模式会话 id。");
+				await runtime.sessions.refresh();
+				runtime.sessions.open(targetId);
+			}
+			await waitForSessionFace(targetId, 0);
+			await dispatchToConversation({}, prompt + moduleSourceSuffix(Object.assign({}, context, { sessionId: sourceId })), targetId);
+			return targetId;
+		}
 		function moduleCreateCopy() {
 			return {
 				title: tAp("mm.createTitle"),
@@ -5749,6 +6221,20 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			} catch {}
 			document.documentElement.classList.toggle("ap-wb-open", !!open);
 			window.dispatchEvent(new Event("agent-pi-wb-changed"));
+		}
+		function focusMainConversation(props) {
+			setWorkbenchOpen(false);
+			if (props && typeof props.openView === "function") props.openView("chat", "agent-pi-workbench-handoff");
+			window.requestAnimationFrame(() => {
+				const textarea = document.querySelector("[data-composer-card] textarea, [data-phase] textarea");
+				if (!textarea) return;
+				try {
+					textarea.scrollIntoView({ block: "nearest" });
+				} catch {}
+				try {
+					textarea.focus();
+				} catch {}
+			});
 		}
 		function useWorkbenchOpen() {
 			const [open, setOpen] = react.useState(() => typeof document !== "undefined" && document.documentElement.classList.contains("ap-wb-open") || readWorkbenchOpen());
@@ -6855,11 +7341,11 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			actions.__apOrigSubmit = orig;
 			actions.submit = () => {
 				const live = actions.__apLatestProps || props;
+				const before = currentDraft(live);
 				if (codexTurnArmed(live)) {
 					submitCodexTurn(live);
 					return;
 				}
-				const before = currentDraft(live);
 				restoreCleanDraft(live);
 				const sid = sessionHint(live) || runtime.sessionId || "active";
 				const hasAttach = attachItemsOf(attachSessionId(live)).length > 0;
@@ -7387,6 +7873,11 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				prompt: "写明这一步要完成什么、交出什么成果。",
 				skillSlugs: "",
 				reviewSkillSlugs: "",
+				reviewPolicy: "risk-based",
+				approvalEnabled: false,
+				approvalPrompt: "",
+				approveLabel: "确认并继续",
+				rejectLabel: "",
 				listsSources: false,
 				binding: "",
 				summaryFile: "",
@@ -7402,6 +7893,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				label: workflow.label || row.label || "",
 				labelZh: workflow.labelZh || row.labelZh || moduleLabel(row),
 				icon: row.icon || "",
+				controlProfile: workflow.controlProfile || "",
 				setupStageId: workflow.setupStageId || stages[0] && stages[0].id || "",
 				kbPack: {
 					analysis: (workflow.kbPack && workflow.kbPack.analysis || []).slice(),
@@ -7416,7 +7908,13 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					hintZh: stage.hintZh || "",
 					prompt: stage.prompt || "",
 					skillSlugs: joinSlugs(stage.skillSlugs),
+					consumes: Array.isArray(stage.consumes) ? stage.consumes.map((item) => ({ ...item })) : void 0,
 					reviewSkillSlugs: joinSlugs(stage.reviewSkillSlugs),
+					reviewPolicy: stage.reviewPolicy || "risk-based",
+					approvalEnabled: !!stage.approvalGate,
+					approvalPrompt: stage.approvalGate && stage.approvalGate.promptZh || "",
+					approveLabel: stage.approvalGate && stage.approvalGate.approveLabelZh || "确认并继续",
+					rejectLabel: stage.approvalGate && stage.approvalGate.rejectLabelZh || "",
 					listsSources: !!stage.listsSources,
 					binding: binding[stage.id] || "",
 					summaryFile: stage.summaryDeliverable && stage.summaryDeliverable.fileName || "",
@@ -7438,7 +7936,14 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					hintZh: String(stage.hintZh || "").trim() || void 0,
 					prompt: String(stage.prompt || "").trim(),
 					skillSlugs: splitSlugs(stage.skillSlugs),
+					consumes: Array.isArray(stage.consumes) ? stage.consumes.map((item) => ({ ...item })) : void 0,
 					reviewSkillSlugs: splitSlugs(stage.reviewSkillSlugs),
+					reviewPolicy: stage.reviewPolicy === "all" ? "all" : "risk-based",
+					approvalGate: stage.approvalEnabled ? {
+						promptZh: String(stage.approvalPrompt || "").trim(),
+						approveLabelZh: String(stage.approveLabel || "").trim(),
+						rejectLabelZh: String(stage.rejectLabel || "").trim() || void 0
+					} : void 0,
 					listsSources: stage.listsSources ? true : void 0,
 					summaryDeliverable: fileName ? {
 						fileName,
@@ -7452,6 +7957,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				label: String(draft.label || "").trim() || void 0,
 				labelZh: String(draft.labelZh || "").trim(),
 				icon: String(draft.icon || "").trim() || void 0,
+				controlProfile: draft.controlProfile === "tender" ? "tender" : void 0,
 				setupStageId: draft.setupStageId || stages[0] && stages[0].id,
 				bindingAreaByStage: Object.keys(bindingAreaByStage).length ? bindingAreaByStage : void 0,
 				kbPack: function pack() {
@@ -7864,14 +8370,30 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			})), h("label", { className: "ap-mm-field" }, tAp("mm.reviewSlugs"), h("input", {
 				value: stage.reviewSkillSlugs,
 				onChange: (e) => patchStage(index, { reviewSkillSlugs: e.target.value })
-			})), h("label", { className: "ap-mm-field" }, tAp("mm.binding"), h("select", {
+			})), h("label", { className: "ap-mm-field" }, tAp("mm.reviewPolicy"), h("select", {
+				value: stage.reviewPolicy,
+				onChange: (e) => patchStage(index, { reviewPolicy: e.target.value })
+			}, h("option", { value: "risk-based" }, tAp("mm.reviewRisk")), h("option", { value: "all" }, tAp("mm.reviewAll")))), h("label", { className: "ap-mm-field" }, tAp("mm.binding"), h("select", {
 				value: stage.binding,
 				onChange: (e) => patchStage(index, { binding: e.target.value })
 			}, h("option", { value: "" }, tAp("mm.bindNone")), h("option", { value: "analysis" }, tAp("mm.bindAnalysis")), h("option", { value: "pricing" }, tAp("mm.bindPricing")), h("option", { value: "planning" }, tAp("mm.bindPlanning")))), h("div", { className: "ap-mm-checks" }, h("label", null, h("input", {
 				type: "checkbox",
 				checked: !!stage.listsSources,
 				onChange: (e) => patchStage(index, { listsSources: e.target.checked })
-			}), " " + tAp("mm.listsSources"))), h("label", { className: "ap-mm-field" }, tAp("mm.summaryFile"), h("input", {
+			}), " " + tAp("mm.listsSources")), h("label", null, h("input", {
+				type: "checkbox",
+				checked: !!stage.approvalEnabled,
+				onChange: (e) => patchStage(index, { approvalEnabled: e.target.checked })
+			}), " " + tAp("mm.approvalGate"))), stage.approvalEnabled ? h(react.Fragment, null, h("label", { className: "ap-mm-field" }, tAp("mm.approvalPrompt"), h("input", {
+				value: stage.approvalPrompt,
+				onChange: (e) => patchStage(index, { approvalPrompt: e.target.value })
+			})), h("label", { className: "ap-mm-field" }, tAp("mm.approveLabel"), h("input", {
+				value: stage.approveLabel,
+				onChange: (e) => patchStage(index, { approveLabel: e.target.value })
+			})), h("label", { className: "ap-mm-field" }, tAp("mm.rejectLabel"), h("input", {
+				value: stage.rejectLabel,
+				onChange: (e) => patchStage(index, { rejectLabel: e.target.value })
+			}))) : null, h("label", { className: "ap-mm-field" }, tAp("mm.summaryFile"), h("input", {
 				value: stage.summaryFile,
 				onChange: (e) => patchStage(index, { summaryFile: e.target.value })
 			})), h("label", { className: "ap-mm-field" }, tAp("mm.summaryOutline"), h("textarea", {
@@ -8078,6 +8600,11 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				window.addEventListener("agent-pi-created", onCreated);
 				return () => window.removeEventListener("agent-pi-created", onCreated);
 			}, [refresh]);
+			react.useEffect(() => {
+				const onRequirement = () => refresh(true);
+				window.addEventListener("agent-pi-user-requirement", onRequirement);
+				return () => window.removeEventListener("agent-pi-user-requirement", onRequirement);
+			}, [refresh]);
 			const projects = (data && data.projects ? data.projects : []).filter((row) => row.project.module === module);
 			react.useEffect(() => {
 				if (!projects.length) return;
@@ -8094,13 +8621,16 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			]);
 			const row = projects.find((item) => item.project.projectId === selectedId) || null;
 			const [reality, setReality] = react.useState(null);
+			const [control, setControl] = react.useState(null);
 			react.useEffect(() => {
 				setReality(null);
+				setControl(null);
 			}, [selectedId]);
 			react.useEffect(() => {
 				const onMonitor = () => {
 					setMonitorState(Object.assign({}, monitorEngine.state));
 					if (monitorEngine.state.lastReality) setReality(monitorEngine.state.lastReality);
+					if (monitorEngine.state.lastControl) setControl(monitorEngine.state.lastControl);
 					refresh(true);
 				};
 				window.addEventListener("agent-pi-monitor-changed", onMonitor);
@@ -8126,19 +8656,54 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					body: JSON.stringify({
 						action: "check",
 						module: project.module,
-						projectId: project.projectId
+						projectId: project.projectId,
+						sessionId: pinParentSessionId() || resolveSessionId(props) || runtime.sessionId || ""
 					})
 				}).then((result) => {
 					setReality(result.reality || null);
+					setControl(result.control || null);
 					monitorEngine.state.lastReality = result.reality || null;
+					monitorEngine.state.lastControl = result.control || null;
 					return refresh(true);
 				}).catch((e) => setError(String(e.message || e))).finally(() => setBusy(""));
+			};
+			const updateRequirement = (project, requirement, action) => {
+				if (!project || !requirement || !action) return Promise.resolve();
+				if (action === "accept_requirement" && !window.confirm("确认以这条用户要求替代本阶段旧的文件名、篇幅、章节和视图门禁？实际 BOQ、能力包、来源和引用完整性仍不可跳过。")) return Promise.resolve();
+				setBusy(action + ":" + requirement.id);
+				setError("");
+				setNotice("");
+				return api("/api/agent-pi/stage", cwd, {
+					method: "POST",
+					body: JSON.stringify({
+						action,
+						module: project.module,
+						projectId: project.projectId,
+						stageId: requirement.stageId,
+						requirementId: requirement.id,
+						sessionId: requirement.sessionId
+					})
+				}).then(() => {
+					setNotice(action === "accept_requirement" ? "已把用户要求设为本阶段验收口径；旧软门禁不再触发重复返工。" : action === "satisfy_requirement" ? "已记录要求落实状态。" : action === "reopen_requirement" ? "已把要求退回主会话继续修改。" : "已从项目要求中移除。");
+					return refresh(true);
+				}).catch((e) => setError(String(e && e.message || e))).finally(() => setBusy(""));
 			};
 			const runStage = (project, stageId, action, submit, closeWorkbench) => {
 				const parentId = pinParentSessionId();
 				setBusy(action + ":" + (stageId || ""));
 				setError("");
 				setNotice("");
+				if (submit && !parentId) {
+					setBusy("");
+					setError("请先打开或新建一个主会话，再启动专业项目。");
+					return Promise.resolve();
+				}
+				const activeTransaction = submit ? workbenchTransactions.get(parentId) : null;
+				if (activeTransaction && (activeTransaction.phase === "prepared" || activeTransaction.phase === "committed") && (activeTransaction.payload.cwd !== cwd || activeTransaction.payload.module !== project.module || activeTransaction.payload.projectId !== project.projectId)) {
+					setBusy("");
+					setError("当前主会话已有另一项专业项目事务，请先暂停或结束。");
+					return Promise.resolve();
+				}
 				return api("/api/agent-pi/stage", cwd, {
 					method: "POST",
 					body: JSON.stringify({
@@ -8159,6 +8724,14 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 						return refresh();
 					}
 					if (result.alreadyDispatched) {
+						if (submit) {
+							monitorEngine.start({
+								cwd,
+								module: project.module,
+								projectId: project.projectId
+							});
+							if (closeWorkbench !== false) focusMainConversation(props);
+						}
 						setNotice(result.message || "阶段稿已写入主对话，等待执行。");
 						return refresh();
 					}
@@ -8177,6 +8750,11 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 						if (!result.closed) fillComposer(props, result.draft);
 						return refresh();
 					}
+					const ownsPreparedTransaction = prepareWorkbenchTransaction(parentId, {
+						cwd,
+						module: project.module,
+						projectId: project.projectId
+					}).phase === "prepared";
 					return dispatchToConversation(props, result.draft, parentId).then((ok) => {
 						if (ok && result.dispatch) api("/api/agent-pi/stage", cwd, {
 							method: "POST",
@@ -8194,12 +8772,24 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 								module: project.module,
 								projectId: project.projectId
 							});
-							if (closeWorkbench !== false) setWorkbenchOpen(false);
+							if (closeWorkbench !== false) focusMainConversation(props);
 						}
 						return refresh();
 					}).catch((e) => {
-						setError(String(e.message || e));
-						return refresh();
+						if (ownsPreparedTransaction) settleWorkbenchTransaction(parentId, "failed", e);
+						return (result.dispatch ? api("/api/agent-pi/stage", cwd, {
+							method: "POST",
+							body: JSON.stringify({
+								action: "release_dispatch",
+								module: project.module,
+								projectId: project.projectId,
+								stageId: result.dispatch.stageId,
+								key: result.dispatch.key
+							})
+						}).catch(() => {}) : Promise.resolve()).then(() => {
+							setError(String(e.message || e));
+							return refresh();
+						});
 					});
 				}).catch((e) => setError(String(e.message || e))).finally(() => setBusy(""));
 			};
@@ -8318,6 +8908,26 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				const stages = wf.stages || [];
 				const setupId = wf.setupStageId || "";
 				const evidence = item.evidence;
+				const requirements = (item.userRequirements || []).filter((requirement) => requirement.status !== "dismissed");
+				const activeControl = control && control.execution && control.execution.projectId === project.projectId ? control : null;
+				const execution = activeControl && activeControl.execution || item.execution || null;
+				const currentReality = reality && reality.stages ? reality.stages.find((stage) => stage.stageId === item.currentStageId) || null : null;
+				const currentSlice = item.currentStageId ? stageSlice(item, item.currentStageId) : null;
+				const executionStatusLabel = execution ? {
+					planning: "规划中",
+					working: "执行中",
+					waiting: "等待回推",
+					blocked: "已阻塞",
+					completed: "已完成",
+					failed: "失败"
+				}[execution.status] || execution.status : "未回写";
+				const alignmentLabel = activeControl ? {
+					aligned: "已对齐",
+					missing: "缺执行账本",
+					drifted: "存在差异",
+					stale: "心跳过期",
+					"waiting-human": "等待人工"
+				}[activeControl.alignment] || activeControl.alignment : "待核验";
 				const forceTarget = stages.find((stage) => {
 					if (setupId && stage.id === setupId) return false;
 					const slice = stageSlice(item, stage.id);
@@ -8351,7 +8961,37 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					type: "button",
 					className: "ap-btn ghost",
 					onClick: removeProject
-				}, Icon("trash", 14), "移除项目"))), h("section", { className: "ap-sec" }, h("div", { className: "ap-mon-hd" }, h("div", { style: { minWidth: 0 } }, h("h2", null, "流程监控"), h("p", { className: "ap-sub" }, "只有点「继续推进」才启动当前主会话事务；遇到人工决策门、阻塞或异常会停止。分析阶段只维护一套可追溯底稿。")), h("div", { className: "ap-mon-tools" }, h("span", { className: "ap-row" }, h("i", { className: "ap-dot" + (monitoringHere && !monitorState.paused || liveActivityText ? " on" : "") }), !monitoringHere ? liveActivityText || (monitorState.monitoring ? "另一项目事务正在运行" : "点继续推进后启动当前会话事务") : (monitorState.paused ? "当前会话事务已暂停" : "当前会话事务空闲") + (liveActivityText ? " · " + liveActivityText : "")), h("span", null, "检查于 " + (monitorState.lastCheck ? formatClock(new Date(monitorState.lastCheck).toISOString()) : lastCheck ? formatClock(new Date(lastCheck).toISOString()) : "—")), h("button", {
+				}, Icon("trash", 14), "移除项目"))), requirements.length ? h("section", {
+					className: "ap-sec ap-user-reqs",
+					"aria-label": "用户要求（最高优先级）"
+				}, h("div", { className: "ap-user-req-head" }, h("div", null, h("h2", null, "用户要求（最高优先级）"), h("p", { className: "ap-sub" }, "主会话的新要求与工作台共用这份账本；只改受影响成果，不再让旧软门禁触发整阶段返工。")), h("span", { className: "ap-chip" }, requirements.filter((requirement) => requirement.status === "active").length + " 条待落实")), requirements.slice(0, 6).map((requirement) => {
+					const statusLabel = requirement.status === "active" ? "待落实" : requirement.status === "implemented" ? "已落实" : "已采用为验收口径";
+					const statusClass = requirement.status === "active" ? " warn" : " ok";
+					return h("article", {
+						className: "ap-user-req",
+						key: requirement.id
+					}, h("div", { className: "ap-user-req-main" }, h("div", { className: "ap-row" }, h("span", { className: "ap-chip" + statusClass }, statusLabel), h("span", { className: "ap-sub" }, requirement.stageId)), h("p", null, requirement.text), requirement.note ? h("p", { className: "ap-sub" }, "落实说明：" + requirement.note) : null, requirement.evidencePaths && requirement.evidencePaths.length ? h("p", { className: "ap-sub" }, "影响成果：" + requirement.evidencePaths.join("、")) : null), h("div", { className: "ap-user-req-actions" }, requirement.status === "active" ? h("button", {
+						type: "button",
+						className: "ap-btn",
+						disabled: !!busy,
+						onClick: () => updateRequirement(project, requirement, "satisfy_requirement")
+					}, "标记已落实") : requirement.status === "implemented" ? h(react.Fragment, null, h("button", {
+						type: "button",
+						className: "ap-btn primary",
+						disabled: !!busy,
+						onClick: () => updateRequirement(project, requirement, "accept_requirement")
+					}, "采用为验收口径"), h("button", {
+						type: "button",
+						className: "ap-btn",
+						disabled: !!busy,
+						onClick: () => updateRequirement(project, requirement, "reopen_requirement")
+					}, "继续修改")) : null, requirement.status !== "accepted" ? h("button", {
+						type: "button",
+						className: "ap-btn ghost",
+						disabled: !!busy,
+						onClick: () => updateRequirement(project, requirement, "dismiss_requirement")
+					}, "不属于本项目") : null));
+				})) : null, h("section", { className: "ap-sec" }, h("div", { className: "ap-mon-hd" }, h("div", { style: { minWidth: 0 } }, h("h2", null, "流程监控"), h("p", { className: "ap-sub" }, "只有点「继续推进」才启动当前主会话事务；已启动事务会在应用重启后恢复，遇到人工决策门、阻塞或异常会停止。分析阶段只维护一套可追溯底稿。")), h("div", { className: "ap-mon-tools" }, h("span", { className: "ap-row" }, h("i", { className: "ap-dot" + (monitoringHere && !monitorState.paused || liveActivityText ? " on" : "") }), !monitoringHere ? liveActivityText || (monitorState.monitoring ? "另一项目事务正在运行" : "点继续推进后启动当前会话事务") : (monitorState.paused ? "当前会话事务已暂停" : "当前会话事务空闲") + (liveActivityText ? " · " + liveActivityText : "")), h("span", null, "检查于 " + (monitorState.lastCheck ? formatClock(new Date(monitorState.lastCheck).toISOString()) : lastCheck ? formatClock(new Date(lastCheck).toISOString()) : "—")), h("button", {
 					type: "button",
 					className: "ap-btn",
 					disabled: busy === "check:",
@@ -8378,12 +9018,14 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 						monitorEngine.unpause();
 						refresh(true);
 					}
-				}, Icon("play", 14), "恢复事务") : null)), reality && reality.stages ? h("div", { className: "ap-check" }, h("div", { className: "ap-check-hd" }, "全面体检", h("span", { className: "ap-sub" }, formatClock(reality.generatedAt) + (reality.stages[0] && reality.stages[0].quietMinutes != null ? " · 最近产出 " + reality.stages[0].quietMinutes + " 分钟前" : "")), h("button", {
+				}, Icon("play", 14), "恢复事务") : null)), h("div", { className: "ap-dual-state" }, h("article", { className: "ap-state-card" }, h("div", { className: "ap-state-card-hd" }, h("div", null, h("strong", null, "执行态（主智能体回写）"), h("span", { className: "ap-sub" }, "主对话负责理解、计划、派活与阻塞说明")), h("span", { className: "ap-chip" + (execution && execution.status === "blocked" ? " warn" : execution ? " ok" : "") }, executionStatusLabel)), execution ? h("div", { className: "ap-state-body" }, h("p", null, h("b", null, "目标："), execution.objective || "未登记"), h("p", null, h("b", null, "当前批次："), execution.currentBatch || "未登记"), h("p", null, h("b", null, "下一动作："), execution.nextAction || "未登记"), execution.plan && execution.plan.length ? h("div", { className: "ap-mini-list" }, execution.plan.slice(0, 5).map((plan) => h("div", { key: plan.id }, h("i", { className: "ap-mini-status " + plan.status }), h("span", null, plan.title)))) : h("p", { className: "ap-sub" }, "尚未登记结构化计划。"), execution.assignments && execution.assignments.length ? h("p", { className: "ap-sub" }, "子任务：" + execution.assignments.map((assignment) => assignment.title + " [" + assignment.status + "]").join(" · ")) : null, execution.blocker && execution.blocker.type !== "none" ? h("p", { className: "ap-state-alert" }, "阻塞：" + (execution.blocker.reason || execution.blocker.needed || execution.blocker.type)) : null, h("p", { className: "ap-sub" }, "revision " + execution.revision + " · 心跳 " + formatClock(execution.heartbeatAt))) : h("div", { className: "ap-state-empty" }, "主智能体尚未回写执行计划。点「继续推进」后，主对话应先读取 status，再登记目标、批次、计划和下一动作。")), h("article", { className: "ap-state-card" }, h("div", { className: "ap-state-card-hd" }, h("div", null, h("strong", null, "事实态（系统核验）"), h("span", { className: "ap-sub" }, "只核验磁盘成果、BOQ、证据、引用与人工门禁")), h("span", { className: "ap-chip" + (activeControl && activeControl.alignment !== "aligned" ? " warn" : currentReality ? " ok" : "") }, alignmentLabel)), h("div", { className: "ap-state-body" }, h("p", null, h("b", null, "当前阶段："), currentReality ? currentReality.stageLabel : item.currentStageId || "未开始"), currentReality ? h("p", null, "任务 " + currentReality.tasks.done + "/" + currentReality.tasks.total, currentReality.summary ? currentReality.summary.exists ? " · 总报告已就位" : " · 缺《" + currentReality.summary.fileName + "》" : "", currentReality.boqInventory ? currentReality.boqInventory.ok ? " · BOQ 已核验" : " · BOQ 有缺口" : "", currentReality.citations && currentReality.citations.total ? " · 孤儿引用 " + currentReality.citations.orphans : "") : h("p", { className: "ap-sub" }, "尚未执行本轮事实核验；阶段状态为 " + (currentSlice && currentSlice.status || "idle") + "。"), activeControl && activeControl.realityDigest ? h("p", { className: "ap-sub" }, "事实版本 " + activeControl.realityDigest) : null))), activeControl && activeControl.differences && activeControl.differences.length ? h("div", { className: "ap-alignment-alert" }, h("strong", null, "认知差异"), h("ul", null, activeControl.differences.map((difference, index) => h("li", { key: index }, difference)))) : null, reality && reality.stages ? h("div", { className: "ap-check" }, h("div", { className: "ap-check-hd" }, "系统事实明细", h("span", { className: "ap-sub" }, formatClock(reality.generatedAt) + (reality.stages[0] && reality.stages[0].quietMinutes != null ? " · 最近产出 " + reality.stages[0].quietMinutes + " 分钟前" : "")), h("button", {
 					type: "button",
 					className: "ap-btn ghost",
 					onClick: () => setReality(null)
 				}, "收起")), reality.stages.map((st, index) => {
 					const parts = [];
+					if (st.userRequirements && st.userRequirements.active > 0) parts.push("用户要求待落实 " + st.userRequirements.active + " 条");
+					else if (st.userRequirementOverride) parts.push("用户验收口径已生效");
 					if (st.tasks && st.tasks.total > 0) parts.push("任务 " + st.tasks.done + "/" + st.tasks.total + (st.tasks.error ? "（" + st.tasks.error + " 个 error）" : ""));
 					const missing = st.artifacts ? st.artifacts.missingMarkdown.length + st.artifacts.missingReport.length : 0;
 					if (missing > 0) parts.push("缺产物 " + missing + " 份");
@@ -8407,19 +9049,29 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					}, h("span", { className: "ap-check-num" }, index + 1), h("strong", null, st.stageLabel), statusChip(st.stageStatus), h("span", { className: "ap-sub" }, parts.length ? parts.join(" · ") : idleText));
 				})) : null, stages.map((stage, index) => {
 					const slice = stageSlice(item, stage.id);
+					const stageMemory = item.memory && item.memory.stages ? item.memory.stages[stage.id] : null;
 					const tasks = slice && slice.tasks || [];
 					const done = tasks.filter((task) => task.status === "done").length;
 					const failed = tasks.filter((task) => task.status === "error").length;
 					const percent = tasks.length ? Math.round(done / tasks.length * 100) : slice && slice.status === "done" ? 100 : 0;
 					const setupDone = slice && slice.status === "done";
 					const checkRow = reality && reality.stages ? reality.stages.find((st) => st.stageId === stage.id) : null;
-					const closedClean = setupDone && !stageRowDirty(slice, tasks, checkRow);
+					const closedClean = setupDone && stageMemory && stageMemory.status === "current" && !stageRowDirty(slice, tasks, checkRow);
 					const outFolder = checkRow && checkRow.outputFolder || officialFolder(stage.id);
 					const stageHint = closedClean ? "阶段已收口。成果在 Agent Pi Outputs/" + project.projectId + "/" + outFolder + "/。询价、开工确认、submission_audit 未通过是投标可提交门禁，不表示本阶段没做完。" : stage.hintZh || stage.prompt;
 					return h("div", {
 						className: "ap-stage-row",
 						key: stage.id
-					}, h("span", { className: "ap-stage-num" }, index + 1), h("div", { className: "ap-stage-body" }, h("div", { className: "ap-row" }, h("strong", null, stage.labelZh), statusChip(slice && slice.status), slice && slice.forcePassedAt ? h("span", { className: "ap-chip" }, "已强制放行") : null, slice && slice.approval && slice.approval.decision === "approved" ? h("span", { className: "ap-chip ok" }, "用户已确认") : slice && slice.approval && slice.approval.decision === "rejected" ? h("span", { className: "ap-chip warn" }, "用户已暂停") : stage.approvalGate && slice ? h("span", { className: "ap-chip warn" }, "待用户决策") : null), h("p", { className: "ap-stage-hint" }, stageHint), slice && slice.blockedReason ? h("div", { className: "ap-err" }, slice.blockedReason) : null, evidence && stage.id !== setupId && evidence.gaps && evidence.gaps.length && (stage.id === item.currentStageId || slice && slice.status === "blocked" || stage.id === "tender-document-analysis") ? evidence.gaps.slice(0, 4).map((gap) => h("div", {
+					}, h("span", { className: "ap-stage-num" }, index + 1), h("div", { className: "ap-stage-body" }, h("div", { className: "ap-row" }, h("strong", null, stage.labelZh), statusChip(slice && slice.status), stageMemory && stageMemory.status === "current" ? h("span", {
+						className: "ap-chip ok",
+						title: stageMemory.path
+					}, "基线 v" + stageMemory.revision) : stageMemory && stageMemory.status === "stale" ? h("span", {
+						className: "ap-chip warn",
+						title: stageMemory.staleReason || ""
+					}, "记忆已失效") : slice && slice.status === "done" ? h("span", { className: "ap-chip warn" }, "待生成记忆") : null, slice && slice.forcePassedAt ? h("span", { className: "ap-chip" }, "已强制放行") : null, slice && slice.approval && slice.approval.decision === "approved" ? h("span", { className: "ap-chip ok" }, "用户已确认") : slice && slice.approval && slice.approval.decision === "rejected" ? h("span", { className: "ap-chip warn" }, "用户已暂停") : stage.approvalGate && slice ? h("span", { className: "ap-chip warn" }, "待用户决策") : null), h("p", { className: "ap-stage-hint" }, stageHint), stageMemory && stageMemory.inputs && stageMemory.inputs.length ? h("p", { className: "ap-sub" }, "前序基线：" + stageMemory.inputs.map((input) => {
+						const upstream = stages.find((item) => item.id === input.ref);
+						return (input.kind === "handoff" ? upstream && upstream.labelZh || input.ref : "能力包 " + input.ref) + (input.revision ? " v" + input.revision : "") + (input.status === "current" ? "" : "（" + input.status + "）");
+					}).join(" · ")) : null, slice && slice.blockedReason ? h("div", { className: "ap-err" }, slice.blockedReason) : null, evidence && stage.id !== setupId && evidence.gaps && evidence.gaps.length && (stage.id === item.currentStageId || slice && slice.status === "blocked" || stage.id === "tender-document-analysis") ? evidence.gaps.slice(0, 4).map((gap) => h("div", {
 						className: "ap-gap",
 						key: stage.id + gap.chapterId
 					}, h("span", { className: "ap-chip warn" }, "缺口"), gap.title + " — " + gap.suggestedUpload)) : null, tasks.length ? h("div", { style: { marginTop: 8 } }, h("div", { className: "ap-bar" + (failed ? " fail" : "") }, h("i", { style: { width: percent + "%" } })), h("div", { className: "ap-sub" }, "清单 " + done + "/" + tasks.length + (failed ? " · 失败 " + failed : "")), tasks.slice(0, 8).map((task) => {
@@ -8584,12 +9236,29 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				},
 				onDesign: (kind) => {
 					const known = (data && data.modules ? data.modules : catalog).map((item) => item.id);
+					const sourceRow = data && data.projects ? data.projects.find((item) => item && item.project && item.project.projectId === selectedId) : null;
 					try {
 						sessionStorage.setItem("ap-wb-known-modules", JSON.stringify(known));
 						sessionStorage.setItem("ap-wb-await-module", "1");
 					} catch {}
-					fillComposer(props, MODULE_CREATE_PROMPTS[kind] || MODULE_CREATE_PROMPTS["custom-steps"]);
-					if (props.onClose) props.onClose();
+					setBusy("module-create");
+					setError("");
+					setNotice("正在进入 DSH 原生创造模式…");
+					openNativeModuleCreate(props, MODULE_CREATE_PROMPTS[kind] || MODULE_CREATE_PROMPTS["custom-steps"], {
+						cwd,
+						module: sourceRow && sourceRow.project ? sourceRow.project.module : "",
+						projectId: sourceRow && sourceRow.project ? sourceRow.project.projectId : "",
+						projectRoot: sourceRow && sourceRow.project ? sourceRow.project.rootPath : cwd
+					}).then(() => {
+						showToast("已进入 DSH 原生创造模式；完成后模块会自动出现在专业工作台。");
+						if (props.onClose) props.onClose();
+					}).catch((err) => {
+						try {
+							sessionStorage.removeItem("ap-wb-await-module");
+						} catch {}
+						setError(String(err && err.message || err));
+						setNotice("");
+					}).finally(() => setBusy(""));
 				}
 			}) : null;
 			return h(WorkbenchView, {
@@ -8698,8 +9367,31 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				}
 			};
 			const finishCreated = (createdId) => {
+				const parentId = pinParentSessionId();
+				if (parentId) {
+					rememberWorkbenchBinding(parentId, {
+						cwd,
+						module,
+						projectId: createdId
+					});
+					ensureUserRequirementWatcher(parentId);
+					api("/api/agent-pi/stage", cwd, {
+						method: "POST",
+						body: JSON.stringify({
+							action: "bind_session",
+							module,
+							projectId: createdId,
+							sessionId: parentId
+						})
+					}).catch((error) => showToast("项目与主会话绑定失败：" + String(error && error.message || error)));
+				}
 				setOpen(false);
 				reset();
+				try {
+					sessionStorage.setItem("ap-wb-module", module);
+					sessionStorage.setItem("ap-wb-project", createdId);
+				} catch {}
+				setWorkbenchOpen(true);
 				window.dispatchEvent(new CustomEvent("agent-pi-created", { detail: {
 					projectId: createdId,
 					module
@@ -8731,20 +9423,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					method: "POST",
 					body: JSON.stringify(body)
 				}).then((created) => {
-					const createdId = created && created.project ? created.project.projectId : normalizedId;
-					finishCreated(createdId);
-					if (adopt) return;
-					const firstStage = workflow ? workflow.setupStageId || workflow.stages[0] && workflow.stages[0].id : module === "tender" ? "project-setup" : module === "delivery" ? "delivery-setup" : module === "investment" ? "investment-setup" : "";
-					if (!firstStage) return;
-					api("/api/agent-pi/stage", cwd, {
-						method: "POST",
-						body: JSON.stringify({
-							action: "prepare",
-							module,
-							projectId: createdId,
-							stageId: firstStage
-						})
-					}).catch(() => {});
+					finishCreated(created && created.project ? created.project.projectId : normalizedId);
 				}).catch((e) => {
 					setError(String(e.message || e));
 					setSaving(false);
@@ -9133,10 +9812,48 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				alt: item.name
 			}) : Icon(item.kind === "folder" ? "folder" : item.kind === "text" ? "fileText" : "file", 16)), item.kind === "image" ? null : h("div", { className: "ap-attach-meta" }, h("strong", { title: item.path || item.relativePath || item.name }, item.name))))));
 		}
+		function ProfessionalProjectStarter(props) {
+			const session = props && props.session;
+			const cwd = props && props.cwd;
+			const pending = session && Array.isArray(session.pendingSubmissions) ? session.pendingSubmissions.length : 0;
+			const queued = session && Array.isArray(session.queue) ? session.queue.length : 0;
+			if (!cwd || !session || session.blank !== true || session.running || pending || queued) return null;
+			const choices = [
+				{
+					module: MODULES.tender,
+					label: "投标项目"
+				},
+				{
+					module: MODULES.delivery,
+					label: "项管项目"
+				},
+				{
+					module: MODULES.investment,
+					label: "投资项目"
+				}
+			];
+			return h("section", {
+				className: "ap-project-starter",
+				"aria-label": "新建专业工作台项目"
+			}, h("div", { className: "ap-project-starter-copy" }, h("strong", null, "新建专业工作台项目"), h("span", null, "当前主对话将绑定项目；登记资料后，从工作台明确点击推进并在这里开始执行。")), h("div", { className: "ap-project-starter-actions" }, choices.map((choice) => h("button", {
+				key: choice.module.id,
+				type: "button",
+				className: "ap-btn" + (choice.module.id === "tender" ? " primary" : ""),
+				onClick: () => window.dispatchEvent(new CustomEvent("agent-pi-open-create", { detail: {
+					cwd,
+					module: choice.module.id,
+					mode: "create",
+					source: "blank-conversation"
+				} }))
+			}, moduleIconNode(choice.module, 14), choice.label))));
+		}
 		function AttachmentDock(props) {
-			captureComposerFace(props);
+			const cwd = captureComposerFace(props);
 			wrapComposerSubmit(snapshotComposer());
-			return null;
+			return h(ProfessionalProjectStarter, {
+				session: props && props.session,
+				cwd
+			});
 		}
 		function ensureComposerAttachHost() {
 			const card = document.querySelector("[data-composer-card]");
@@ -10542,7 +11259,9 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			"slots",
 			"workspaces",
 			"remote",
-			"remote.credentials"
+			"remote.credentials",
+			"remote.agentPresets",
+			"remote.session"
 		];
 		window.__apAttachItems = attachItemsToComposer;
 		if (!window.__apAttachFileBound) {
@@ -10561,6 +11280,8 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			ctx.inject(["sessions"], (scope) => {
 				runtime.sessions = scope.sessions || ctx.sessions || (typeof scope.get === "function" ? scope.get("sessions") : null) || runtime.sessions;
 				guardArchivedSessionView(runtime.sessions);
+				watchWorkbenchTransactionRestore();
+				ensureUserRequirementWatcher(runtime.sessionId);
 			});
 			ctx.inject(["conversation"], (scope) => {
 				runtime.conversation = scope.conversation || ctx.conversation || (typeof scope.get === "function" ? scope.get("conversation") : null) || runtime.conversation;
@@ -10654,6 +11375,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			}, HarvestOutputs));
 			ctx.inject(["inputTriggers", "sessions"], (scope) => {
 				runtime.sessions = scope.sessions || (typeof scope.get === "function" ? scope.get("sessions") : null);
+				watchWorkbenchTransactionRestore();
 				const inputTriggers = scope.inputTriggers || (typeof scope.get === "function" ? scope.get("inputTriggers") : null);
 				if (!inputTriggers || typeof inputTriggers.registerSource !== "function") return;
 				const source = {

@@ -20,16 +20,16 @@
 
 <p align="center">
   <a href="https://www.agent-pi.app"><img src="https://img.shields.io/badge/官网-agent--pi.app-2f6df0?style=flat-square" alt="Website"></a>
-  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/latest"><img src="https://img.shields.io/badge/v3.4.2-DSH%20dsh--v0.1.2--alpha.1-2f6df0?style=flat-square" alt="v3.4.2"></a>
+  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/latest"><img src="https://img.shields.io/badge/v3.5.1-DSH%20dsh--v0.1.2--alpha.1-2f6df0?style=flat-square" alt="v3.5.1"></a>
   <a href="https://www.agent-pi.app/docs.html"><img src="https://img.shields.io/badge/文档-Docs-0fb5c9?style=flat-square" alt="Docs"></a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.4.2/Agent-Pi-DSH-3.4.2-x64.exe"><b>Windows x64</b></a>
+  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.5.1/Agent-Pi-DSH-3.5.1-x64.exe"><b>Windows x64</b></a>
   ·
-  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.4.2/Agent-Pi-DSH-3.4.2-mac-arm64.dmg"><b>macOS arm64</b></a>
+  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.5.1/Agent-Pi-DSH-3.5.1-mac-arm64.dmg"><b>macOS arm64</b></a>
   ·
-  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.4.2/Agent-Pi-DSH-3.4.2-linux-x86_64.AppImage"><b>Linux AppImage</b></a>
+  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.5.1/Agent-Pi-DSH-3.5.1-linux-x86_64.AppImage"><b>Linux AppImage</b></a>
   ·
   <a href="https://www.agent-pi.app">官网</a>
   ·
@@ -39,9 +39,9 @@
 通用办公助手陪你聊天，**Agent Pi DSH 替你干活**：吃透投标、实施、投资的垂直作业系统。长程任务不断档、目标不偏离、证据可追溯——数十份标书文件一次搞定，数千条 BOQ 逐项推导，成果直接落盘为正式文档。
 
 > [!IMPORTANT]
-> **v3.4.2**：长篇招标文件增加 PageIndex 兼容影子树、类型化知识面路由、不可变证据包和五域覆盖账本；BOQ、MiniSearch、精确条款及投标硬门禁保持原路径。开发评测已通过，默认导航仍由真实项目审计门禁控制。内核钉在 **`dsh-v0.1.2-alpha.1`**（`cd5ef81481`），DSH 官方源码保持干净。
+> **v3.5.1**：投标主对话新增每会话执行账本，专业工作台同时显示“主智能体执行态”和“系统事实态”，只在两者出现差异时生成精简对齐任务；控制面板不再充当第二个智能体，也不再仅凭文件数量机械判断。内核仍钉在 **`dsh-v0.1.2-alpha.1`**（`cd5ef81481`），DSH 官方源码保持干净。
 >
-> 本仓库是 **3.x DSH 版源码**，与 [2.6.5 经典版（Craft Agents OSS）](https://github.com/xiangxin2021cn/agent-pi) 分库维护。**3.x 安装包在 [DSH Releases](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/tag/v3.4.2) 发布。** 完整产品页：[www.agent-pi.app](https://www.agent-pi.app)
+> 本仓库是 **3.x DSH 版源码**，与 [2.6.5 经典版（Craft Agents OSS）](https://github.com/xiangxin2021cn/agent-pi) 分库维护。**3.x 安装包在 [DSH Releases](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/tag/v3.5.1) 发布。** 完整产品页：[www.agent-pi.app](https://www.agent-pi.app)
 
 <p align="center">
   <img src="docs/assets/screenshot-market.jpg" alt="Agent Pi DSH 插件市场 · 亮色工作台" width="92%">
@@ -135,14 +135,14 @@ flowchart LR
 
 | 平台 | 文件 |
 | --- | --- |
-| Windows x64 | [Agent-Pi-DSH-3.4.2-x64.exe](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.4.2/Agent-Pi-DSH-3.4.2-x64.exe) |
-| macOS Apple Silicon | [Agent-Pi-DSH-3.4.2-mac-arm64.dmg](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.4.2/Agent-Pi-DSH-3.4.2-mac-arm64.dmg) · [zip](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.4.2/Agent-Pi-DSH-3.4.2-mac-arm64.zip) |
-| Linux x64 | [AppImage](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.4.2/Agent-Pi-DSH-3.4.2-linux-x86_64.AppImage) · [deb](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.4.2/Agent-Pi-DSH-3.4.2-linux-amd64.deb) |
+| Windows x64 | [Agent-Pi-DSH-3.5.1-x64.exe](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.5.1/Agent-Pi-DSH-3.5.1-x64.exe) |
+| macOS Apple Silicon | [Agent-Pi-DSH-3.5.1-mac-arm64.dmg](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.5.1/Agent-Pi-DSH-3.5.1-mac-arm64.dmg) · [zip](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.5.1/Agent-Pi-DSH-3.5.1-mac-arm64.zip) |
+| Linux x64 | [AppImage](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.5.1/Agent-Pi-DSH-3.5.1-linux-x86_64.AppImage) · [deb](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.5.1/Agent-Pi-DSH-3.5.1-linux-amd64.deb) |
 | 2.6.5 经典版 | [可与 3.x 并存](https://github.com/xiangxin2021cn/agent-pi/releases/tag/v2.6.5) |
 
-国内镜像（Windows）：[gh-proxy.com](https://gh-proxy.com/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.4.2/Agent-Pi-DSH-3.4.2-x64.exe) · [ghfast.top](https://ghfast.top/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.4.2/Agent-Pi-DSH-3.4.2-x64.exe)
+国内镜像（Windows）：[gh-proxy.com](https://gh-proxy.com/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.5.1/Agent-Pi-DSH-3.5.1-x64.exe) · [ghfast.top](https://ghfast.top/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.5.1/Agent-Pi-DSH-3.5.1-x64.exe)
 
-Windows SHA256：`BC18E20A2C11C032A7B41018406E3B811A6E8E138F33F0512581BEF5B8F2540B`
+Windows SHA256：`E3D8CC41CCF76A71B00E05CD16E5E514C060D4346EA13DD740EEAA1C7AC0E018`
 
 1. 下载对应平台安装包
 2. 未签名：SmartScreen / Gatekeeper 选「仍要运行」
@@ -159,6 +159,8 @@ Windows SHA256：`BC18E20A2C11C032A7B41018406E3B811A6E8E138F33F0512581BEF5B8F254
 
 | 版本 | 一句话 |
 | --- | --- |
+| [3.5.1](./release/notes-3.5.1.md) | 主智能体执行账本；执行态与事实态双面板；差异驱动继续推进 |
+| [3.5.0](./release/notes-3.5.0.md) | 阶段记忆与 handoff；精准失效；重启/压缩后从磁盘基线恢复 |
 | [3.4.2](./release/notes-3.4.2.md) | PageIndex 长文档影子导航；类型化知识面路由；不可变证据包；五域覆盖账本 |
 | [3.4.1](./release/notes-3.4.1.md) | DSH alpha.1 兼容；投标七阶段收敛；右侧文件栏与 Agent 模式恢复 |
 | [3.3.6](./release/notes-3.3.6.md) | Codex 主对话指派；每会话事务控制；容量匹配与自动压缩；安装后可选启动 |
@@ -186,7 +188,7 @@ Windows SHA256：`BC18E20A2C11C032A7B41018406E3B811A6E8E138F33F0512581BEF5B8F254
 
 ## 开发 / Develop
 
-当前版本钉住 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 `dsh-v0.1.2-alpha.1`（`cd5ef81481`），具体提交见 [DSH_PIN](./DSH_PIN)。所有兼容能力均通过 Agent Pi 产品层启动迁移、preset overlay 和 bundle 适配实现；发布门禁要求官方 DSH 子模块保持字节干净。迁移设计与验收记录见 [3.4.0 内核迁移计划](./docs/superpowers/plans/2026-08-29-dsh-0.1.2-alpha.1-migration.md) 和 [3.4.2 WorkSurface 实施记录](./docs/superpowers/specs/2026-08-30-pageindex-worksurface-3.4.2-implementation.md)。
+当前版本钉住 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 `dsh-v0.1.2-alpha.1`（`cd5ef81481`），具体提交见 [DSH_PIN](./DSH_PIN)。所有兼容能力均通过 Agent Pi 产品层启动迁移、preset overlay 和 bundle 适配实现；发布门禁要求官方 DSH 子模块保持字节干净。迁移与验收记录见 [3.4.0 内核迁移计划](./docs/superpowers/plans/2026-08-29-dsh-0.1.2-alpha.1-migration.md)、[3.4.2 WorkSurface 实施记录](./docs/superpowers/specs/2026-08-30-pageindex-worksurface-3.4.2-implementation.md) 和 [3.5.0 阶段记忆实施规格](./docs/superpowers/specs/2026-08-30-stage-memory-3.5.0-implementation.md)。
 
 ---
 

@@ -82,7 +82,7 @@ async function renderPageWithPdfjs(
     const page = await pdf.getPage(pageNumber)
     const base = page.getViewport({ scale: 1 })
     const viewport = page.getViewport({ scale: fitScale(base.width, base.height) })
-    const factory = (pdf as { canvasFactory?: { create: (w: number, h: number) => { canvas: { toBuffer: (type: string) => Buffer }, context: unknown } } }).canvasFactory
+    const factory = (pdf as unknown as { canvasFactory?: { create: (w: number, h: number) => { canvas: { toBuffer: (type: string) => Buffer }, context: unknown } } }).canvasFactory
     if (!factory) throw new Error('pdfjs canvasFactory is missing; @napi-rs/canvas did not load')
     const surface = factory.create(Math.ceil(viewport.width), Math.ceil(viewport.height))
     await page.render({ canvasContext: surface.context as never, viewport }).promise

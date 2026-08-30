@@ -18,7 +18,10 @@ function createHarness(overrides: Record<string, unknown> = {}) {
     api: async (_path: string, _cwd: string, init: { body: string }) => {
       const body = JSON.parse(init.body)
       apiCalls.push({ action: body.action, body })
-      if (body.action === 'check') return { reality: { ok: true } }
+      if (body.action === 'check') return {
+        reality: { ok: true },
+        control: { alignment: 'aligned', realityDigest: 'facts-1', differences: [] },
+      }
       if (body.action === 'resume') {
         return {
           draft: '继续当前投标阶段',
@@ -79,6 +82,19 @@ test('monitor starts only through an explicitly committed per-session transactio
   assert.deepEqual(harness.timerStats(), { started: 1, cleared: 0 })
 })
 
+test('monitor restores an already committed session transaction without a second user click', () => {
+  const harness = createHarness()
+  harness.registry.prepare('parent', { cwd: 'D:\\Bid', module: 'tender', projectId: 'project-1' })
+  harness.registry.commit('parent')
+
+  harness.monitor.restore({ cwd: 'D:\\Bid', module: 'tender', projectId: 'project-1' }, 'parent')
+
+  assert.equal(harness.registry.canRun('parent'), true)
+  assert.equal(harness.monitor.state.monitoring, true)
+  assert.match(harness.monitor.state.note, /已恢复/)
+  assert.deepEqual(harness.timerStats(), { started: 1, cleared: 0 })
+})
+
 test('monitor never calls stage resume without a committed transaction', async () => {
   const harness = createHarness()
   harness.registry.prepare('parent', { cwd: 'D:\\Bid', module: 'tender', projectId: 'project-1' })
@@ -122,7 +138,38 @@ test('idle committed monitor checks, resumes, dispatches and marks exactly once'
   assert.deepEqual(harness.apiCalls.map((call) => call.action), ['check', 'resume', 'mark_dispatched'])
   assert.deepEqual(harness.dispatches, [{ text: '继续当前投标阶段', sessionId: 'parent' }])
   assert.equal(harness.monitor.state.lastReality.ok, true)
+  assert.equal(harness.monitor.state.lastControl.realityDigest, 'facts-1')
+  assert.equal(harness.apiCalls[0]?.body.sessionId, 'parent')
   assert.equal(harness.monitor.sending, false)
+})
+
+test('idle committed monitor resumes a mechanical assistant pause before stage dedupe', async () => {
+  const harness = createHarness()
+  harness.snapshots.set('parent', {
+    running: false,
+    nodes: [{ kind: 'assistant', blocks: [{ kind: 'text', text: '继续分批补齐剩余 BOQ 并回填能力包，是否按此继续？' }] }],
+  })
+  start(harness)
+
+  await harness.monitor.tick()
+
+  assert.deepEqual(harness.apiCalls, [])
+  assert.equal(harness.dispatches.length, 1)
+  assert.match(harness.dispatches[0]!.text, /事务自动接续/)
+})
+
+test('monitor waits until a newly submitted user requirement reaches the project ledger', async () => {
+  let pending = true
+  const harness = createHarness({ requirementsPending: () => pending })
+  start(harness)
+
+  await harness.monitor.tick()
+  assert.deepEqual(harness.apiCalls, [])
+  assert.match(harness.monitor.state.note, /等待落账/)
+
+  pending = false
+  await harness.monitor.tick()
+  assert.deepEqual(harness.apiCalls.map((call) => call.action), ['check', 'resume', 'mark_dispatched'])
 })
 
 test('destroying the parent session destroys its monitor transaction', async () => {

@@ -10,9 +10,21 @@ workbench package**, at the same grade as built-in 投标全流程: top-bar tab,
 setup/registration in the UI, later-stage process gates, method skill, optional knowledge
 pack. Saving (`workbench_module_save` / `_copy`) makes it live immediately — no rebuild.
 
-This conversation is **模块创造模式**. It is not DSH Agent-preset「创造模式」. Do not write
-`agent.cordis.yml`, do not retarget the session preset, do not invent a new Electron window,
+This conversation runs through DSH native Agent-preset「创造模式」 as the authoring cockpit.
+Use its runtime inspection when useful, but keep the two output planes separate:
+
+- Agent preset authoring changes one agent's Cordis composition.
+- Workbench module authoring records a reusable business process in the workbench registry.
+
+This skill handles the second plane. Do not edit a shipped preset or write `agent.cordis.yml`
+unless the user separately asks for an Agent preset. Do not invent a new Electron window,
 custom React page, or dashboard. The existing workbench draws the UI from the registry.
+
+For a module distilled from a tender project, start with `workbench_module_copy` on the
+built-in `tender` workflow. Preserve its canonical stage ids and `controlProfile: tender`:
+that profile carries the deterministic evidence, BOQ, capability, pricing-workbook, local-
+intel, planning-output, citation, and final-freeze controls after the module is renamed.
+Merely recreating seven similar-looking stages is not equivalent and is forbidden.
 
 Do not ask the user to paste JSON, ids, slugs, or schema fields. Derive them. Call the
 tools yourself. Ask at most one plain-language confirmation (Chinese name, and phase split
@@ -28,8 +40,10 @@ Like 投标全流程, every new module must include:
 3. 3–6 later stages. Each prompt names the deliverables and the Official Outputs folder
    for that stage. Do not restate citation rules (the platform injects them).
 4. Process control on writing stages: `reviewSkillSlugs` (usually `deliverable-reviewer`),
-   `summaryDeliverable` when the stage has a synthesis report, `listsSources: true` when
-   the stage fans out per registered document.
+   `reviewPolicy: "risk-based"`, `summaryDeliverable` when the stage has a synthesis report,
+   and `listsSources: true` when the stage fans out per registered document. Add an
+   `approvalGate` only where the user's real process includes an irreversible decision,
+   frozen baseline, external issue, or final release.
 5. `bindingAreaByStage` mapping each stage to `analysis` | `pricing` | `planning`.
 6. A method skill via `workbench_skill_save` (`<module-id>-method`), attached on writing
    stages as `skillSlugs`.
@@ -64,6 +78,9 @@ Re-read this conversation and list, for yourself:
 - Every correction and preference the user expressed during revisions. These are the
   domain's hard rules — they are the most valuable thing being distilled. Capture them
   verbatim-ish: structure demands, tone, standards/norms invoked, things the user rejected.
+- When the source was a professional-workbench project, read its accepted Official Outputs
+  and `.agent-pi` user-requirement ledger. Do not infer acceptance from “file exists”; use the
+  user's accepted requirements, explicit approvals, and final revision evidence.
 
 ### A2. Preserve the evidence (knowledge base)
 
@@ -90,14 +107,21 @@ Frontmatter `name` must equal the slug; `description` says when to use it.
 
 ### A4. Save the module and hand it back
 
-Call `workbench_module_save`. Derive 3–5 stages from A1's real steps — typically:
+对非投标领域，call `workbench_module_save` and derive 3–5 stages from A1's real steps — typically:
 资料登记 → 分析/起草 → 评审定稿. Rules:
+
+If the source project/module is `tender`, call `workbench_module_copy` first and then
+re-save that copy with the accepted method skill and KB slugs attached. Keep the built-in
+stage ids, `controlProfile: "tender"`, risk review, and all three approval gates. Do not
+collapse a proven tender into a generic 3–5-stage module.
 
 - Stage 1 is always setup/registration (register inputs, scan sources, no drafting).
 - Each drafting stage's `prompt` names the deliverables, their required structure, and
   tells the model to `kb_search` the exemplar/norm slugs from A2 before writing.
 - Every stage that writes client-facing output gets `skillSlugs: ["<module-id>-method"]`
-  and `reviewSkillSlugs: ["deliverable-reviewer"]`.
+  and `reviewSkillSlugs: ["deliverable-reviewer"]`, with `reviewPolicy: "risk-based"`.
+- Reproduce the user's real human decision points with `approvalGate`; never add approval
+  buttons merely because a stage exists.
 - Citation discipline and the writing contract are injected by the platform — do not
   restate them in `prompt`.
 
@@ -139,6 +163,12 @@ analysis/pricing/planning). Do not overwrite built-ins.
       "prompt": "…what the model must do in this stage…",
       "skillSlugs": ["method-statement-za-method"],
       "reviewSkillSlugs": [],
+      "reviewPolicy": "risk-based",
+      "approvalGate": {
+        "promptZh": "请确认是否采用本阶段结论并进入下一步。",
+        "approveLabelZh": "确认并继续",
+        "rejectLabelZh": "退回修改"
+      },
       "listsSources": false
     }
   ]

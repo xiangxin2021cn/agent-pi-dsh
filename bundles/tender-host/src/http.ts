@@ -15,12 +15,18 @@ import {
   completeStage,
   decideApprovalStage,
   markDispatched,
+  releaseDispatchOffer,
   resetOrchestration,
   organizeDeliverables,
   projectReality,
   resumeUnfinished,
+  bindProjectSession,
+  projectForBoundSession,
+  recordProjectUserRequirement,
+  setProjectUserRequirementStatus,
+  executionControlState,
 } from './orchestration.ts'
-import { copyWorkbenchModule, listWorkbenchModules, removeUserModule, saveUserModule, setModuleDisabled, workflowFor } from './modules.ts'
+import { copyWorkbenchModule, listWorkbenchModules, removeUserModule, saveUserModule, setModuleDisabled, usesTenderControlProfile, workflowFor } from './modules.ts'
 import { auditProjectCitations, describeCitation, resolveSourceCitation } from './citations.ts'
 import { registerProjectSources } from './workspace.ts'
 import { restoreSetupSources } from './setup-restore.ts'
@@ -52,6 +58,7 @@ import {
   univerOfficePreviewKind,
   type UniverOfficeService,
 } from './univer-office-open.ts'
+import { invalidateWorkspaceStageMemoryForPath, workspaceMemoryImpactForPath } from './stage-memory.ts'
 
 const MAX_KB_UPLOAD_BYTES = 80 * 1024 * 1024
 
@@ -146,7 +153,7 @@ function createProject(cwd: string, body: {
     createDirectory: body.createDirectory !== false,
     inputPaths: body.inputPaths ?? [],
   })
-  if (module === 'tender') {
+  if (usesTenderControlProfile(module)) {
     registerProjectSources(cwd, projectId, { title: project.name, inputPaths: project.inputPaths })
   }
   return project
@@ -326,8 +333,8 @@ export function attachHttp(ctx: {
           send(res, 200, {
             ...added,
             selectedSlugs: added.staged
-              ? getKbTaskSlugs(url.searchParams.get('sessionId'))
-              : selectKbSlugForSession(url.searchParams.get('sessionId'), added.entry.slug),
+              ? getKbTaskSlugs(url.searchParams.get('sessionId') || undefined)
+              : selectKbSlugForSession(url.searchParams.get('sessionId') || undefined, added.entry.slug),
           })
           return
         }
@@ -355,6 +362,8 @@ export function attachHttp(ctx: {
               token?: string
               folderId?: string
               folderName?: string
+              force?: boolean
+              preferMineru?: boolean
             }
             const action = body.action || 'list'
             if (action === 'read') {
@@ -735,7 +744,7 @@ export function attachHttp(ctx: {
           const module = body.module ?? 'tender'
           const projectId = String(body.projectId ?? '')
           const updated = updateBusinessProjectInputs(cwd, module, projectId, body.inputPaths ?? [])
-          if (module === 'tender') {
+          if (usesTenderControlProfile(module)) {
             registerProjectSources(cwd, projectId, { title: updated.name, inputPaths: updated.inputPaths })
           }
           inspectBoard(cwd, updated)
@@ -755,6 +764,17 @@ export function attachHttp(ctx: {
           return
         }
 
+        if (req.method === 'GET' && url.pathname === '/api/agent-pi/session-project') {
+          const sessionId = String(url.searchParams.get('sessionId') || '').trim()
+          const project = sessionId ? projectForBoundSession(cwd, sessionId) : null
+          send(res, 200, {
+            binding: project
+              ? { sessionId, module: project.module, projectId: project.projectId, cwd }
+              : null,
+          })
+          return
+        }
+
         if (req.method === 'POST' && url.pathname === '/api/agent-pi/stage') {
           const body = JSON.parse(await readBody(req) || '{}') as {
             action?: string
@@ -765,6 +785,9 @@ export function attachHttp(ctx: {
             sessionId?: string
             decision?: 'approved' | 'rejected'
             note?: string
+            text?: string
+            requirementId?: string
+            evidencePaths?: string[]
           }
           const module = body.module ?? 'tender'
           const projectId = String(body.projectId ?? '')
@@ -776,17 +799,56 @@ export function attachHttp(ctx: {
           const stageId = body.stageId ?? workflowFor(module).stages[0]?.id ?? 'project-setup'
           const action = body.action || 'prepare'
           const selectedKnowledgeSlugs = getKbTaskSlugs(body.sessionId)
+          if (body.sessionId) bindProjectSession(cwd, project, body.sessionId, body.stageId || '')
+          if (action === 'bind_session') {
+            send(res, 200, { binding: { sessionId: body.sessionId, module, projectId, cwd }, project: projectSnapshot(cwd, project) })
+            return
+          }
+          if (action === 'record_requirement') {
+            const recorded = recordProjectUserRequirement(cwd, project, {
+              sessionId: String(body.sessionId || ''),
+              stageId: body.stageId,
+              text: String(body.text || ''),
+            })
+            send(res, 200, { ...recorded, project: projectSnapshot(cwd, project) })
+            return
+          }
+          if (action === 'satisfy_requirement' || action === 'accept_requirement'
+            || action === 'dismiss_requirement' || action === 'reopen_requirement') {
+            const status = action === 'satisfy_requirement' ? 'implemented'
+              : action === 'accept_requirement' ? 'accepted'
+                : action === 'dismiss_requirement' ? 'dismissed'
+                  : 'active'
+            const updated = setProjectUserRequirementStatus(
+              cwd,
+              project,
+              String(body.requirementId || ''),
+              status,
+              { note: body.note, evidencePaths: body.evidencePaths },
+            )
+            send(res, 200, { ...updated, project: projectSnapshot(cwd, project) })
+            return
+          }
           if (action === 'force_pass') {
             send(res, 200, { state: markForcePass(cwd, projectId, stageId), project: projectSnapshot(cwd, project) })
             return
           }
           if (action === 'status' || action === 'inspect') {
             const board = inspectBoard(cwd, project)
-            send(res, 200, { board, project: projectSnapshot(cwd, project) })
+            send(res, 200, {
+              board,
+              control: executionControlState(cwd, project, String(body.sessionId || '')),
+              project: projectSnapshot(cwd, project),
+            })
             return
           }
           if (action === 'check') {
-            send(res, 200, { reality: projectReality(cwd, project), project: projectSnapshot(cwd, project) })
+            const reality = projectReality(cwd, project)
+            send(res, 200, {
+              reality,
+              control: executionControlState(cwd, project, String(body.sessionId || ''), reality),
+              project: projectSnapshot(cwd, project),
+            })
             return
           }
           if (action === 'complete') {
@@ -810,6 +872,11 @@ export function attachHttp(ctx: {
             send(res, 200, { ...marked, project: projectSnapshot(cwd, project) })
             return
           }
+          if (action === 'release_dispatch') {
+            const released = releaseDispatchOffer(cwd, project, stageId, String(body.key ?? ''))
+            send(res, 200, { ...released, project: projectSnapshot(cwd, project) })
+            return
+          }
           if (action === 'reset_orchestration' || action === 'reset') {
             const reset = resetOrchestration(cwd, project, stageId)
             send(res, 200, { ...reset, project: projectSnapshot(cwd, project) })
@@ -821,7 +888,7 @@ export function attachHttp(ctx: {
             return
           }
           if (action === 'resume') {
-            const resumed = resumeUnfinished(cwd, project, selectedKnowledgeSlugs)
+            const resumed = resumeUnfinished(cwd, project, selectedKnowledgeSlugs, { sessionId: body.sessionId })
             send(res, 200, { ...resumed, project: projectSnapshot(cwd, project) })
             return
           }
@@ -935,6 +1002,12 @@ export function attachHttp(ctx: {
           return
         }
 
+        if (req.method === 'POST' && url.pathname === '/api/agent-pi/memory/impact') {
+          const body = JSON.parse(await readBody(req) || '{}') as { path?: string }
+          send(res, 200, workspaceMemoryImpactForPath(cwd, String(body.path ?? '')))
+          return
+        }
+
         if (req.method === 'POST' && url.pathname === '/api/agent-pi/files/save') {
           const body = JSON.parse(await readBody(req) || '{}') as {
             path?: string
@@ -945,11 +1018,15 @@ export function attachHttp(ctx: {
             office?: { kind?: string; sheets?: Array<{ name: string; rows: string[][] }>; paragraphs?: string[]; slides?: Array<{ name: string; texts: string[] }> }
           }
           if (body.univer) {
-            send(res, 200, saveUniverWorkbook(cwd, String(body.path ?? ''), body.univer))
+            const path = String(body.path ?? '')
+            const saved = saveUniverWorkbook(cwd, path, body.univer)
+            send(res, 200, { ...saved, memoryImpact: invalidateWorkspaceStageMemoryForPath(cwd, path) })
             return
           }
           if (body.office) {
-            send(res, 200, saveOfficePreview(cwd, String(body.path ?? ''), body.office))
+            const path = String(body.path ?? '')
+            const saved = saveOfficePreview(cwd, path, body.office)
+            send(res, 200, { ...saved, memoryImpact: invalidateWorkspaceStageMemoryForPath(cwd, path) })
             return
           }
           send(res, 200, saveWorkspaceText(cwd, String(body.path ?? ''), String(body.content ?? ''), {
@@ -961,7 +1038,9 @@ export function attachHttp(ctx: {
 
         if (req.method === 'POST' && url.pathname === '/api/agent-pi/files/delete') {
           const body = JSON.parse(await readBody(req) || '{}') as { path?: string }
-          send(res, 200, deleteWorkspaceFile(cwd, String(body.path ?? '')))
+          const path = String(body.path ?? '')
+          const deleted = deleteWorkspaceFile(cwd, path)
+          send(res, 200, { ...deleted, memoryImpact: invalidateWorkspaceStageMemoryForPath(cwd, path) })
           return
         }
 

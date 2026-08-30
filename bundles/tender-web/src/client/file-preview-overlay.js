@@ -407,9 +407,33 @@ export function createFilePreviewOverlay(dependencies) {
           .finally(() => setBusy(''))
       }
 
-      const saveContent = (content) => {
+      const saveContent = (content, memoryConfirmed) => {
         if (!canEdit || busy) return
         if (isOfficeUniver) return
+        if (!kbSlug && !memoryConfirmed) {
+          setBusy('memory-impact')
+          setError('')
+          api('/api/agent-pi/memory/impact', cwd, {
+            method: 'POST',
+            body: JSON.stringify({ path: file.path }),
+          }).then((impact) => {
+            if (impact && impact.affected) {
+              const labels = (impact.stageLabels || impact.stageIds || []).join('、')
+              const approval = impact.requiresReapproval ? '，并需要重新人工确认相关冻结门' : ''
+              const accepted = window.confirm('这份文件属于「' + (impact.sourceStageLabel || impact.sourceStageId) + '」的已冻结基线。\n\n保存后将使以下阶段失效：' + labels + approval + '。\n\n仍要保存吗？')
+              if (!accepted) {
+                setBusy('')
+                return
+              }
+            }
+            setBusy('')
+            saveContent(content, true)
+          }).catch((e) => {
+            setBusy('')
+            setError('无法核对阶段基线影响，已取消保存：' + String(e.message || e))
+          })
+          return
+        }
         if (isSlimUniver) {
           if (!univerDirty) return
           setBusy('save')
@@ -667,8 +691,16 @@ export function createFilePreviewOverlay(dependencies) {
         if (busy) return
         if (!window.confirm('删除文件「' + file.name + '」？此操作无法撤销。')) return
         setBusy('delete')
-        api('/api/agent-pi/files/delete', cwd, { method: 'POST', body: JSON.stringify({ path: file.path }) })
-          .then(() => {
+        api('/api/agent-pi/memory/impact', cwd, { method: 'POST', body: JSON.stringify({ path: file.path }) })
+          .then((impact) => {
+            if (impact && impact.affected) {
+              const labels = (impact.stageLabels || impact.stageIds || []).join('、')
+              if (!window.confirm('删除这份冻结成果会使以下阶段失效：' + labels + '。\n\n仍要删除吗？')) return null
+            }
+            return api('/api/agent-pi/files/delete', cwd, { method: 'POST', body: JSON.stringify({ path: file.path }) })
+          })
+          .then((deleted) => {
+            if (deleted === null) return
             window.dispatchEvent(new Event('agent-pi-files-changed'))
             if (typeof props.onDeleted === 'function') props.onDeleted()
             else props.onClose()

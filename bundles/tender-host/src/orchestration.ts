@@ -6,7 +6,7 @@ import type { TenderCapabilityId } from '../../../packages/business-core/src/ten
 import { assessEvidence, evidencePolicy, forcePassEvidence, forcePassPricingIntel } from './evidence.ts'
 import { tenderDir, writeJson, readJson, ensureDir } from './fsutil.ts'
 import type { WorkflowStage } from './workflows.ts'
-import { listWorkbenchModules, workflowFor } from './modules.ts'
+import { listWorkbenchModules, usesTenderControlProfile, workflowFor } from './modules.ts'
 import { capabilityStatus, loadWorkspace, registerProjectSources } from './workspace.ts'
 import { listOfficialOutputs, officialDestForHarvest, officialProjectDir, officialStageDir, officialStageFolder, syncProjectOutputs, syncWorkbenchOutputs } from './outputs.ts'
 import { knowledgeStatus, resolveBindingFiles, type BindingFile } from './knowledge.ts'
@@ -48,6 +48,34 @@ import { analysisCoverageRejectReason, assessAnalysisCoverage, loadAnalysisCover
 import { loadEvidenceLedger } from './structured-evidence.ts'
 import { loadKnowledgeTelemetry } from './knowledge-telemetry.ts'
 import { loadWorkSurfacePolicy } from './worksurface-policy.ts'
+import {
+  acceptedUserRequirementOverride,
+  activeUserRequirements,
+  bindUserRequirementSession,
+  listUserRequirements,
+  projectBoundToSession,
+  recordUserRequirement as writeUserRequirement,
+  updateUserRequirement as writeUserRequirementStatus,
+  type UserRequirement,
+  type UserRequirementStatus,
+} from './user-requirements.ts'
+import {
+  commitStageHandoff,
+  invalidateStageMemory,
+  loadStageMemorySnapshot,
+  refreshStageMemorySnapshot,
+  renderProjectMemoryContext,
+  slimStageMemorySnapshot,
+} from './stage-memory.ts'
+import {
+  completeStageExecutions,
+  executionForSession,
+  latestExecutionForProject,
+  renderExecutionContext,
+  updateSessionExecution,
+  type ExecutionUpdateInput,
+  type SessionExecution,
+} from './execution-ledger.ts'
 
 export interface StageTask {
   id: string
@@ -219,13 +247,116 @@ export function saveStageState(cwd: string, state: StageState): void {
   saveBoard(cwd, board)
 }
 
+export function bindProjectSession(
+  cwd: string,
+  project: BusinessProjectRecord,
+  sessionId: string,
+  stageId = '',
+) {
+  return bindUserRequirementSession(cwd, project, sessionId, stageId || loadBoard(cwd, project.projectId, project.module).currentStageId || '')
+}
+
+export function projectForBoundSession(cwd: string, sessionId: string): BusinessProjectRecord | null {
+  return projectBoundToSession(cwd, sessionId)
+}
+
+/** Small disk-backed project baseline injected into every bound parent turn. */
+export function projectMemoryContextForSession(cwd: string, sessionId: string): string {
+  const project = projectForBoundSession(cwd, sessionId)
+  if (!project) return ''
+  try {
+    const board = loadBoard(cwd, project.projectId, project.module)
+    refreshStageMemorySnapshot(cwd, project)
+    const memory = renderProjectMemoryContext(
+      cwd,
+      project,
+      board.currentStageId,
+      Object.fromEntries(Object.entries(board.stages).map(([stageId, slice]) => [stageId, slice.status])),
+    )
+    return `${memory}\n\n${renderExecutionContext(executionForSession(cwd, project, sessionId))}`
+  } catch (error) {
+    return `【Agent Pi 项目记忆告警】${error instanceof Error ? error.message : String(error)}。停止沿用聊天摘要，先在专业工作台修复阶段记忆。`
+  }
+}
+
+function requirementStageId(
+  cwd: string,
+  project: BusinessProjectRecord,
+  requestedStageId = '',
+): string {
+  const workflow = workflowFor(project.module)
+  const board = loadBoard(cwd, project.projectId, project.module)
+  const candidate = requestedStageId || board.currentStageId
+    || workflow.stages.find((stage) => board.stages[stage.id]?.status !== 'done')?.id
+    || workflow.stages.at(-1)?.id
+    || ''
+  if (!workflow.stages.some((stage) => stage.id === candidate)) {
+    throw new Error(`Unknown stage ${candidate}`)
+  }
+  return candidate
+}
+
+export function recordProjectUserRequirement(
+  cwd: string,
+  project: BusinessProjectRecord,
+  input: { sessionId: string; stageId?: string; text: string },
+): { requirement: UserRequirement; board: OrchestrationBoard } {
+  const stageId = requirementStageId(cwd, project, input.stageId)
+  const recorded = writeUserRequirement(cwd, project, { ...input, stageId })
+  const board = loadBoard(cwd, project.projectId, project.module)
+  if (!recorded.created) return { requirement: recorded.requirement, board }
+  try { invalidateStageMemory(cwd, project, stageId, '用户对已冻结阶段提出了新的变更要求。') } catch { /* inspection surfaces corrupt memory */ }
+  const previous = board.stages[stageId]
+  const now = new Date().toISOString()
+  const slice: StageSlice = {
+    stageId,
+    status: 'running',
+    tasks: previous?.tasks ?? [],
+    updatedAt: now,
+    forcePassedAt: previous?.forcePassedAt,
+    approval: previous?.approval,
+  }
+  board.currentStageId = stageId
+  board.stages[stageId] = slice
+  board.updatedAt = now
+  saveBoard(cwd, board)
+  return { requirement: recorded.requirement, board }
+}
+
+export function setProjectUserRequirementStatus(
+  cwd: string,
+  project: BusinessProjectRecord,
+  requirementId: string,
+  status: UserRequirementStatus,
+  options: { note?: string; evidencePaths?: string[] } = {},
+): { requirement: UserRequirement; board: OrchestrationBoard } {
+  const requirement = writeUserRequirementStatus(cwd, project, requirementId, status, options)
+  const board = loadBoard(cwd, project.projectId, project.module)
+  const previous = board.stages[requirement.stageId]
+  if (previous) {
+    const slice: StageSlice = { ...previous, updatedAt: new Date().toISOString() }
+    delete slice.dispatch
+    if (status === 'active') {
+      try { invalidateStageMemory(cwd, project, requirement.stageId, '用户要求继续修改已冻结阶段。') } catch { /* inspection surfaces corrupt memory */ }
+      slice.status = 'running'
+      delete slice.completedAt
+      delete slice.blockedReason
+    }
+    board.currentStageId = requirement.stageId
+    board.stages[requirement.stageId] = slice
+    board.updatedAt = slice.updatedAt
+    saveBoard(cwd, board)
+  }
+  return { requirement, board }
+}
+
 const DELIVERABLE_MIN_BYTES = 80
 
 const TENDER_STAGE_REQUIRED_CAPABILITIES: Partial<Record<string, TenderCapabilityId[]>> = {
   'tender-document-analysis': ['document_analysis', 'boq_reconciliation'],
   'boq-five-step-pricing': ['boq_five_step_pricing'],
   'planning-and-submission': ['execution_plan', 'schedule_resources', 'construction_resource_schedule', 'cost_cashflow'],
-  'submission-compliance-freeze': ['submission_documents', 'bidder_commitments'],
+  'submission-compliance-freeze': ['submission_documents', 'bidder_commitments', 'submission_audit'],
 }
 
 const PLANNING_REQUIRED_DELIVERABLES = [
@@ -326,17 +457,20 @@ function inspectSlice(slice: StageSlice, gatesReady = true): StageSlice {
   return next
 }
 
-function analysisHardGatesReady(cwd: string, projectId: string, stageId: string): boolean {
+function analysisHardGatesReady(cwd: string, project: BusinessProjectRecord, stageId: string): boolean {
   if (!analysisSuiteApplies(stageId)) return true
-  const dir = officialStageDir(cwd, projectId, stageId)
+  const dir = officialStageDir(cwd, project.projectId, stageId)
+  const userOverride = acceptedUserRequirementOverride(cwd, project, stageId)
   let summaryName = '投标分析底稿.md'
   try {
-    const stage = workflowFor('tender').stages.find((item) => item.id === stageId)
+    const stage = workflowFor(project.module).stages.find((item) => item.id === stageId)
     if (stage?.summaryDeliverable?.fileName) summaryName = stage.summaryDeliverable.fileName
   } catch { /* factory name stands */ }
-  return deliverableReady(join(dir, summaryName))
-    && assessAnalysisSuite(dir).ok
-    && assessBoqInventoryGate(cwd, projectId, dir).ready
+  const coverageLedger = loadAnalysisCoverage(cwd, project.projectId)
+  const coverageReady = !coverageLedger || assessAnalysisCoverage(coverageLedger).ready
+  return (userOverride || (deliverableReady(join(dir, summaryName)) && assessAnalysisSuite(dir).ok))
+    && assessBoqInventoryGate(cwd, project.projectId, dir).ready
+    && coverageReady
 }
 
 function pricingIntelGateFor(cwd: string, projectId: string, stageId: string) {
@@ -355,19 +489,20 @@ function pricingHardGatesReady(cwd: string, projectId: string, stageId: string):
 
 function stageHardGatesReady(cwd: string, project: BusinessProjectRecord, stageId: string): boolean {
   const stage = workflowFor(project.module).stages.find((item) => item.id === stageId)
-  const summaryReady = !stage?.summaryDeliverable
+  const userOverride = acceptedUserRequirementOverride(cwd, project, stageId)
+  const summaryReady = userOverride || !stage?.summaryDeliverable
     || deliverableReady(join(officialStageDir(cwd, project.projectId, stageId), stage.summaryDeliverable.fileName))
-  const workbookReady = !pricingWorkbookMissing(cwd, project.projectId, stageId)
-  const capabilitiesReady = project.module !== 'tender'
+  const workbookReady = userOverride || !pricingWorkbookMissing(cwd, project.projectId, stageId)
+  const capabilitiesReady = !usesTenderControlProfile(project.module)
     || tenderCapabilityGaps(cwd, project.projectId, stageId).length === 0
-  const planningReady = project.module !== 'tender'
+  const planningReady = userOverride || !usesTenderControlProfile(project.module)
     || planningDeliverableGaps(cwd, project.projectId, stageId).length === 0
   return summaryReady
     && workbookReady
     && capabilitiesReady
     && planningReady
-    && analysisHardGatesReady(cwd, project.projectId, stageId)
-    && pricingHardGatesReady(cwd, project.projectId, stageId)
+    && analysisHardGatesReady(cwd, project, stageId)
+    && (userOverride || pricingHardGatesReady(cwd, project.projectId, stageId))
 }
 
 /** Pending-only view for the parent model. Completed JSON ledgers stay off this payload. */
@@ -482,6 +617,53 @@ export function syncOrchestrationReportFromMarkdown(
   return null
 }
 
+function backfillCompletedStageMemories(
+  cwd: string,
+  project: BusinessProjectRecord,
+  board: OrchestrationBoard,
+): void {
+  const workflow = workflowFor(project.module)
+  let snapshot = loadStageMemorySnapshot(cwd, project)
+  for (const stage of workflow.stages) {
+    const slice = board.stages[stage.id]
+    if (!slice || slice.status !== 'done' || snapshot.stages[stage.id]) continue
+    try {
+      commitStageHandoff(cwd, project, stage.id, slice)
+      snapshot = loadStageMemorySnapshot(cwd, project)
+    } catch (error) {
+      slice.status = 'blocked'
+      slice.blockedReason = `阶段记忆包未生成：${error instanceof Error ? error.message : String(error)}`
+      board.currentStageId = stage.id
+      return
+    }
+  }
+}
+
+function reconcileBoardWithStageMemory(
+  project: BusinessProjectRecord,
+  board: OrchestrationBoard,
+  snapshot: ReturnType<typeof refreshStageMemorySnapshot>,
+): void {
+  const workflow = workflowFor(project.module)
+  let firstInvalidIndex = Number.POSITIVE_INFINITY
+  for (const [index, stage] of workflow.stages.entries()) {
+    const memory = snapshot.stages[stage.id]
+    const slice = board.stages[stage.id]
+    if (!slice || !memory || memory.status !== 'stale') continue
+    firstInvalidIndex = Math.min(firstInvalidIndex, index)
+    board.stages[stage.id] = {
+      ...slice,
+      status: 'blocked',
+      updatedAt: new Date().toISOString(),
+      completedAt: undefined,
+      approval: undefined,
+      dispatch: undefined,
+      blockedReason: memory.staleReason || '阶段记忆已失效，需要按当前基线重新收阶段。',
+    }
+  }
+  if (Number.isFinite(firstInvalidIndex)) board.currentStageId = workflow.stages[firstInvalidIndex]?.id
+}
+
 export function inspectBoard(cwd: string, project: BusinessProjectRecord): OrchestrationBoard {
   const board = loadBoard(cwd, project.projectId, project.module)
   const next: OrchestrationBoard = {
@@ -496,10 +678,21 @@ export function inspectBoard(cwd: string, project: BusinessProjectRecord): Orche
       inspectSlice(slice, stageHardGatesReady(cwd, project, id)),
     )
   }
-  if (project.module === 'tender') {
+  if (usesTenderControlProfile(project.module)) {
     try { assessEvidence(cwd, project.projectId) } catch { /* ignore */ }
   }
   syncProjectOutputs(cwd, project.projectId, project.module, next.currentStageId)
+  backfillCompletedStageMemories(cwd, project, next)
+  try {
+    reconcileBoardWithStageMemory(project, next, refreshStageMemorySnapshot(cwd, project))
+  } catch (error) {
+    const stageId = next.currentStageId
+    const slice = stageId ? next.stages[stageId] : undefined
+    if (slice) {
+      slice.status = 'blocked'
+      slice.blockedReason = `阶段记忆读取失败：${error instanceof Error ? error.message : String(error)}`
+    }
+  }
   saveBoard(cwd, next)
   return next
 }
@@ -528,14 +721,17 @@ export function projectSnapshot(cwd: string, project: BusinessProjectRecord) {
   // is the material/deliverable folder named in stage drafts, never a state root.
   const board = loadBoard(cwd, project.projectId, project.module)
   const current = board.currentStageId ? board.stages[board.currentStageId] : undefined
-  const evidence = project.module === 'tender'
+  const evidence = usesTenderControlProfile(project.module)
     ? evidencePolicy(cwd, project.projectId)
     : null
   const outputs = listOfficialOutputs(cwd, project.projectId, project.module)
+  let memory
+  try { memory = slimStageMemorySnapshot(refreshStageMemorySnapshot(cwd, project)) } catch { memory = null }
   let citationAudit: CitationAudit | null = null
   try { citationAudit = loadCitationAudit(cwd, project.projectId, project.module) } catch { /* stale ledger */ }
   const restores = listSetupRestores(cwd, project.projectId)
-  const workSurface = project.module === 'tender'
+  const userRequirements = listUserRequirements(cwd, project)
+  const workSurface = usesTenderControlProfile(project.module)
     ? (() => {
         const coverageLedger = loadAnalysisCoverage(cwd, project.projectId)
         const coverage = assessAnalysisCoverage(coverageLedger)
@@ -575,10 +771,29 @@ export function projectSnapshot(cwd: string, project: BusinessProjectRecord) {
     currentStageId: board.currentStageId,
     evidence,
     citationAudit,
+    userRequirements,
     workSurface,
+    execution: latestExecutionForProject(cwd, project),
+    memory,
     outputs,
     restores,
   }
+}
+
+export function updateProjectExecution(
+  cwd: string,
+  project: BusinessProjectRecord,
+  input: ExecutionUpdateInput,
+): SessionExecution {
+  return updateSessionExecution(cwd, project, input)
+}
+
+export function projectExecutionForSession(
+  cwd: string,
+  project: BusinessProjectRecord,
+  sessionId: string,
+): SessionExecution | null {
+  return executionForSession(cwd, project, sessionId)
 }
 
 /** Resolved bindings for one stage; empty when the module/profile declares none. */
@@ -683,6 +898,7 @@ ${bindingBlock}${priorBlock}
 - 本阶段技能在工人 brief：${skillNames}。
 - 引用：规范/合同/方法事实句尾只标 [kb:slug:chunkId] 或 [src:路径#L起-L止]；令牌是标注，不是原文。
 - 第一步调用 tender_stage status（projectId=${project.projectId}）读取未完成任务。
+- 读取 status 后立即调用 tender_stage action=execution_update：回写本阶段目标、当前批次、计划项、子任务、阻塞、下一动作和 status 返回的 realityDigest。执行状态发生实质变化时更新；不要把完整对话或长报告写入账本。
 - 客户可读成果写入 ${stageOutDir}；同册/同名多格式是一份任务，不要再拆成一文件一工人。
 - 并行用 dsh 原生 subagent / workflow；tender_stage 只准备 brief，不派生子智能体。
 - ${liveWorkerLimitLineZh()}
@@ -691,6 +907,97 @@ ${bindingBlock}${priorBlock}
 
 请按阶段要求推进。
 ${extra}`
+}
+
+function requirementDigest(rows: UserRequirement[]): string {
+  return createHash('sha256')
+    .update(rows.map((row) => `${row.id}:${row.status}:${row.updatedAt}`).join('|'))
+    .digest('hex')
+    .slice(0, 16)
+}
+
+function userRequirementContext(
+  cwd: string,
+  project: BusinessProjectRecord,
+  stageId: string,
+): string {
+  const rows = listUserRequirements(cwd, project, stageId)
+    .filter((row) => row.status !== 'dismissed')
+    .slice(0, 8)
+  if (rows.length === 0) return ''
+  const lines = rows.map((row) => {
+    const status = row.status === 'active' ? '待落实'
+      : row.status === 'implemented' ? '已落实'
+        : '用户已采纳为验收口径'
+    return `- [${row.id}] ${status}: ${row.text}`
+  })
+  const accepted = rows.some((row) => row.status === 'accepted')
+  return `
+
+【用户要求账本 — 优先级高于默认工作台写法】
+${lines.join('\n')}
+- 只修改受这些要求影响的现有成果；不得重扫已解析文件、重派已完成工人或重写无关章节。
+- 用户要求可以替代文件名、篇幅、章节和视图等软门禁；实际 BOQ、结构化能力包、精确来源和引用完整性仍不可臆造或跳过。
+${accepted ? '- 用户已明确采用上述要求作为本阶段验收口径；旧的文件名/篇幅/视图门禁不再触发返工，只核对不可豁免的真实性门禁。' : '- 每项落实后调用 tender_stage action=satisfy_requirement，并传 requirementId、note 和实际修改的 evidencePaths。'}
+`
+}
+
+function withUserRequirementContext(
+  cwd: string,
+  project: BusinessProjectRecord,
+  stageId: string,
+  draft: string,
+): string {
+  const context = userRequirementContext(cwd, project, stageId)
+  if (!context || draft.includes('【用户要求账本 — 优先级高于默认工作台写法】')) return draft
+  return `${context}${draft}`
+}
+
+function buildUserRequirementDraft(
+  cwd: string,
+  project: BusinessProjectRecord,
+  stage: WorkflowStage,
+  rows: UserRequirement[],
+): string {
+  const outputFolder = officialStageFolder(stage.id)
+  return `【用户最新要求 — 请在本项目主会话优先处理】
+
+项目: ${project.name} (${project.projectId})
+阶段: ${stage.labelZh} (\`${stage.id}\`)
+待落实要求: ${rows.length} 条
+
+${userRequirementContext(cwd, project, stage.id)}
+执行顺序:
+1. 先调用 tender_stage status 读取当前阶段和用户要求；用户最新要求优先于默认报告写法和旧的软门禁。
+2. 先检查 Agent Pi Outputs/${project.projectId}/${outputFolder}/ 已有成果，只做影响分析和定点修改；禁止重做已完成解析、组价或评审。
+3. 保留不可豁免的真实性底线：实际 BOQ 行与 sheet+cell、能力包结构、精确来源、引用完整性和明确标注的资料缺口。
+4. 每项完成后调用 tender_stage action=satisfy_requirement，传 requirementId、note、evidencePaths。仍与默认软门禁冲突时停下，由用户在工作台选择「采用为验收口径」，不要自行 force_pass。
+
+不要重复阶段总任务；只落实上面的用户增量要求。`
+}
+
+function buildAcceptedRequirementCloseoutDraft(
+  cwd: string,
+  project: BusinessProjectRecord,
+  stage: WorkflowStage,
+  rows: UserRequirement[],
+): string {
+  const closeout = stage.approvalGate
+    ? `本阶段另有独立人工决策门。只核对任务、实际 BOQ、能力包、证据和引用等不可豁免门禁；核对完成后停止，等待用户在工作台点击「${stage.approvalGate.approveLabelZh}」${stage.approvalGate.rejectLabelZh ? `或「${stage.approvalGate.rejectLabelZh}」` : ''}，不得代替用户审批。`
+    : '调用 tender_stage complete_stage 尝试收口一次；若仍有不可豁免门禁，只报告并定点补齐该硬缺口，不得恢复旧文件名、篇幅、章节、视图或重做整阶段。'
+  return `【用户验收口径已确认 — 只做硬门禁收口】
+
+项目: ${project.name} (${project.projectId})
+阶段: ${stage.labelZh} (\`${stage.id}\`)
+已采纳要求: ${rows.length} 条
+
+${userRequirementContext(cwd, project, stage.id)}
+执行顺序:
+1. 调用 tender_stage status 读取当前任务、能力包、实际 BOQ、证据和引用状态，不重新扫描已经完成的源文件或成果。
+2. 用户已采用这些要求作为本阶段验收口径；旧的文件名、篇幅、章节、报告数量和视图门禁不得再次触发返工。
+3. ${closeout}
+
+这不是新的阶段总任务，也不代表人工投标/冻结决策；只做一次不可豁免门禁收口。`
 }
 
 function pendingTasks(slice: StageSlice): StageTask[] {
@@ -910,7 +1217,7 @@ function listSourceTasks(
     }
   }
   briefBindings.citationRule = '规范/合同/方法事实句只给出处令牌：[kb:slug:chunkId] 或 [src:路径#L起-L止]。令牌是标注，不是原文；禁止粘贴大段证据。给不出令牌的写成缺口。'
-  if (project.module === 'tender') {
+  if (usesTenderControlProfile(project.module)) {
     briefBindings.evidencePolicy = evidencePolicy(cwd, project.projectId)
   }
   const selectedSlugs = [...new Set(selectedKnowledgeSlugs.map((slug) => String(slug).trim()).filter(Boolean))]
@@ -1010,7 +1317,7 @@ export function prepareStage(
   const workflow = workflowFor(project.module)
   const stage = workflow.stages.find((item) => item.id === stageId)
   if (!stage) throw new Error(`Unknown stage ${stageId}`)
-  const existingBoard = loadBoard(cwd, project.projectId, project.module)
+  const existingBoard = inspectBoard(cwd, project)
 
   const stageIndex = workflow.stages.findIndex((item) => item.id === stageId)
   const unfinishedPrior = workflow.stages
@@ -1038,7 +1345,7 @@ export function prepareStage(
 
   const setupStageId = workflow.setupStageId
   if (setupStageId && stageId !== setupStageId) {
-    const policy = project.module === 'tender' ? evidencePolicy(cwd, project.projectId) : null
+    const policy = usesTenderControlProfile(project.module) ? evidencePolicy(cwd, project.projectId) : null
     if (policy && policy.blocking && stageId !== 'bid-risk-decision' && stageId !== 'tender-document-analysis') {
       const blocked = `项目特征证据门禁仍阻塞（${policy.ledger.blockingGapCount} 个缺口）。请补传资料或强制放行。`
       const slice: StageSlice = {
@@ -1078,16 +1385,16 @@ export function prepareStage(
     dispatch: previousSlice?.dispatch,
   }, stageHardGatesReady(cwd, project, stageId))
   const board = putSlice(cwd, project, slice)
-  if (project.module === 'tender') assessEvidence(cwd, project.projectId)
+  if (usesTenderControlProfile(project.module)) assessEvidence(cwd, project.projectId)
   syncProjectOutputs(cwd, project.projectId, project.module, stageId)
   let extra = ''
-  if (project.module === 'tender' && stageId === 'boq-five-step-pricing') {
+  if (usesTenderControlProfile(project.module) && stageId === 'boq-five-step-pricing') {
     seedEnterpriseProductivityMemo(cwd, project.projectId)
     extra = enterpriseProductivityDraftNote(cwd, project.projectId)
   }
   return {
     state: { schemaVersion: 1, projectId: project.projectId, module: project.module, ...slice },
-    draft: draftForSlice(project, stage, slice, extra),
+    draft: withUserRequirementContext(cwd, project, stageId, draftForSlice(project, stage, slice, extra)),
     board,
     dispatch: { stageId, key: dispatchFingerprint(slice) },
   }
@@ -1153,7 +1460,7 @@ export function completeSetup(
       blocked: slice.blockedReason,
     }
   }
-  if (project.module === 'tender') {
+  if (usesTenderControlProfile(project.module)) {
     registerProjectSources(cwd, project.projectId, { title: project.name, inputPaths: project.inputPaths })
   }
   const now = new Date().toISOString()
@@ -1174,6 +1481,7 @@ export function completeSetup(
     updatedAt: now,
     completedAt: now,
   }
+  commitStageHandoff(cwd, project, setupStageId, slice)
   putSlice(cwd, project, slice)
   const next = workflow.stages.find((item) => item.id !== setupStageId)
   if (next) {
@@ -1187,7 +1495,7 @@ export function completeSetup(
       dispatch: prepared.blocked ? undefined : prepared.dispatch,
     }
   }
-  const board = loadBoard(cwd, project.projectId, project.module)
+  const board = inspectBoard(cwd, project)
   return {
     state: { schemaVersion: 1, projectId: project.projectId, module: project.module, ...slice },
     board,
@@ -1208,7 +1516,7 @@ export function completeStage(
   const workflow = workflowFor(project.module)
   const stage = workflow.stages.find((item) => item.id === stageId)
   if (!stage) throw new Error(`Unknown stage ${stageId}`)
-  const board = loadBoard(cwd, project.projectId, project.module)
+  const board = inspectBoard(cwd, project)
   const stageIndex = workflow.stages.findIndex((item) => item.id === stageId)
   const unfinishedPrior = workflow.stages
     .slice(0, Math.max(0, stageIndex))
@@ -1216,13 +1524,23 @@ export function completeStage(
   if (unfinishedPrior) {
     throw new Error(`请先完成前序阶段「${unfinishedPrior.labelZh}」（${unfinishedPrior.id}）。`)
   }
+  const activeRequirements = activeUserRequirements(cwd, project, stageId)
+  if (activeRequirements.length > 0) {
+    throw new Error(`用户最新要求尚未落实：${activeRequirements.slice(0, 3).map((item) => item.text).join('；')}。先按用户要求修改现有成果；不要为旧门禁重复生成。完成后调用 tender_stage satisfy_requirement。`)
+  }
+  const implementedRequirements = listUserRequirements(cwd, project, stageId)
+    .filter((item) => item.status === 'implemented')
+  if (implementedRequirements.length > 0) {
+    throw new Error(`用户最新要求已落实但尚待用户验收：${implementedRequirements.slice(0, 3).map((item) => item.text).join('；')}。请在工作台选择「采用为验收口径」「继续修改」或「不属于本项目」，不得按旧门禁自动收阶段。`)
+  }
+  const userOverride = acceptedUserRequirementOverride(cwd, project, stageId)
   const previous = board.stages[stageId] ? inspectSlice(board.stages[stageId]) : undefined
   const pending = (previous?.tasks ?? []).filter((task) => task.status !== 'done')
   if (pending.length > 0) {
     const sample = pending.slice(0, 3).map((task) => `${task.id}(${task.status})`).join(', ')
     throw new Error(`还有 ${pending.length} 个任务未完成：${sample}。请先交付这些任务，或先 reset 该阶段。`)
   }
-  if (stage.summaryDeliverable) {
+  if (stage.summaryDeliverable && !userOverride) {
     const summaryPath = join(officialStageDir(cwd, project.projectId, stageId), stage.summaryDeliverable.fileName)
     if (!existsSync(summaryPath)) {
       throw new Error(`缺阶段总报告《${stage.summaryDeliverable.fileName}》（应位于 Agent Pi Outputs/${project.projectId}/${officialStageFolder(stageId)}/）。请先汇总编制总报告，覆盖：${stage.summaryDeliverable.outlineZh.join('；')}。`)
@@ -1234,13 +1552,13 @@ export function completeStage(
   if (stage.approvalGate) {
     throw new Error(`阶段「${stage.labelZh}」等待用户人工决策。请停止自动推进，由用户在工作台点击「${stage.approvalGate.approveLabelZh}」${stage.approvalGate.rejectLabelZh ? `或「${stage.approvalGate.rejectLabelZh}」` : ''}。`)
   }
-  if (project.module === 'tender') {
+  if (usesTenderControlProfile(project.module)) {
     const capabilityGaps = tenderCapabilityGaps(cwd, project.projectId, stageId)
     if (capabilityGaps.length > 0) {
       throw new Error(`阶段能力包未就绪：${capabilityGaps.join('；')}。请先 tender_capability replace/validate，并处理 stale 依赖。`)
     }
   }
-  const planningGaps = project.module === 'tender'
+  const planningGaps = usesTenderControlProfile(project.module) && !userOverride
     ? planningDeliverableGaps(cwd, project.projectId, stageId)
     : []
   if (planningGaps.length > 0) {
@@ -1249,7 +1567,7 @@ export function completeStage(
   if (analysisSuiteApplies(stageId)) {
     const analysisDir = officialStageDir(cwd, project.projectId, stageId)
     const suite = assessAnalysisSuite(analysisDir)
-    if (!suite.ok) throw new Error(analysisSuiteRejectReason(suite))
+    if (!userOverride && !suite.ok) throw new Error(analysisSuiteRejectReason(suite))
     const inventory = assessBoqInventoryGate(cwd, project.projectId, analysisDir)
     if (!inventory.ready) throw new Error(boqInventoryRejectReason(inventory))
     // Only projects with an eligible PageIndex shadow receive the new traversal gate.
@@ -1261,8 +1579,8 @@ export function completeStage(
     }
   }
   const workbookGap = pricingWorkbookMissing(cwd, project.projectId, stageId)
-  if (workbookGap) throw new Error(workbookGap)
-  if (pricingLocalIntelApplies(stageId)) {
+  if (workbookGap && !userOverride) throw new Error(workbookGap)
+  if (pricingLocalIntelApplies(stageId) && !userOverride) {
     const gate = pricingIntelGateFor(cwd, project.projectId, stageId)
     if (gate && !gate.ready) throw new Error(pricingIntelGateRejectReason(gate))
   }
@@ -1276,7 +1594,9 @@ export function completeStage(
     completedAt: now,
     dispatch: previous?.dispatch,
   }
+  commitStageHandoff(cwd, project, stageId, slice)
   const nextBoard = putSlice(cwd, project, slice)
+  completeStageExecutions(cwd, project, stageId)
   syncProjectOutputs(cwd, project.projectId, project.module, stageId)
   return {
     state: { schemaVersion: 1, projectId: project.projectId, module: project.module, ...slice },
@@ -1299,7 +1619,7 @@ export function decideApprovalStage(
   const stage = workflow.stages.find((item) => item.id === stageId)
   if (!stage) throw new Error(`Unknown stage ${stageId}`)
   if (!stage.approvalGate) throw new Error(`阶段「${stage.labelZh}」不是人工决策门。`)
-  const board = loadBoard(cwd, project.projectId, project.module)
+  const board = inspectBoard(cwd, project)
   const stageIndex = workflow.stages.findIndex((item) => item.id === stageId)
   const unfinishedPrior = workflow.stages
     .slice(0, Math.max(0, stageIndex))
@@ -1307,18 +1627,28 @@ export function decideApprovalStage(
   if (unfinishedPrior) {
     throw new Error(`请先完成前序阶段「${unfinishedPrior.labelZh}」（${unfinishedPrior.id}）。`)
   }
+  const activeRequirements = activeUserRequirements(cwd, project, stageId)
+  if (activeRequirements.length > 0) {
+    throw new Error(`用户最新要求尚未落实，不能提交人工决策：${activeRequirements.slice(0, 3).map((item) => item.text).join('；')}`)
+  }
+  const implementedRequirements = listUserRequirements(cwd, project, stageId)
+    .filter((item) => item.status === 'implemented')
+  if (implementedRequirements.length > 0) {
+    throw new Error(`用户最新要求已落实但尚待用户验收，不能提交人工决策：${implementedRequirements.slice(0, 3).map((item) => item.text).join('；')}`)
+  }
+  const userOverride = acceptedUserRequirementOverride(cwd, project, stageId)
   const previous = board.stages[stageId] ? inspectSlice(board.stages[stageId]) : undefined
   const pending = (previous?.tasks ?? []).filter((task) => task.status !== 'done')
   if (pending.length > 0) {
     throw new Error(`阶段仍有 ${pending.length} 个任务未完成，不能提交人工决策。`)
   }
-  if (stage.summaryDeliverable) {
+  if (stage.summaryDeliverable && !userOverride) {
     const summaryPath = join(officialStageDir(cwd, project.projectId, stageId), stage.summaryDeliverable.fileName)
     if (!existsSync(summaryPath) || !deliverableReady(summaryPath)) {
       throw new Error(`请先完成《${stage.summaryDeliverable.fileName}》再提交人工决策。`)
     }
   }
-  if (project.module === 'tender') {
+  if (usesTenderControlProfile(project.module)) {
     const capabilityGaps = tenderCapabilityGaps(cwd, project.projectId, stageId)
     if (capabilityGaps.length > 0) {
       throw new Error(`人工决策前能力包未就绪：${capabilityGaps.join('；')}。`)
@@ -1346,6 +1676,11 @@ export function decideApprovalStage(
       note: note || undefined,
     },
   }
+  if (approved) {
+    commitStageHandoff(cwd, project, stageId, slice)
+    completeStageExecutions(cwd, project, stageId)
+  }
+  else invalidateStageMemory(cwd, project, stageId, note || '用户撤回或拒绝了阶段冻结决策。')
   const nextBoard = putSlice(cwd, project, slice)
   syncProjectOutputs(cwd, project.projectId, project.module, stageId)
   return {
@@ -1381,11 +1716,39 @@ export function markDispatched(
   }
 }
 
+/** Release an unconfirmed draft offer so an explicit user retry can run immediately. */
+export function releaseDispatchOffer(
+  cwd: string,
+  project: BusinessProjectRecord,
+  stageId: string,
+  key: string,
+): { state: StageState; board: OrchestrationBoard; released: boolean } {
+  const board = loadBoard(cwd, project.projectId, project.module)
+  const previous = board.stages[stageId]
+  if (!previous) throw new Error(`Stage ${stageId} has no orchestration slice`)
+  if (!key || previous.dispatch?.key !== key || previous.dispatch.dispatchedAt) {
+    return {
+      state: { schemaVersion: 1, projectId: project.projectId, module: project.module, ...previous },
+      board,
+      released: false,
+    }
+  }
+  const slice: StageSlice = { ...previous, updatedAt: new Date().toISOString() }
+  delete slice.dispatch
+  const nextBoard = putSlice(cwd, project, slice)
+  return {
+    state: { schemaVersion: 1, projectId: project.projectId, module: project.module, ...slice },
+    board: nextBoard,
+    released: true,
+  }
+}
+
 export function resetOrchestration(
   cwd: string,
   project: BusinessProjectRecord,
   stageId: string,
 ): { state: StageState; board: OrchestrationBoard } {
+  invalidateStageMemory(cwd, project, stageId, '用户重置了阶段编排，原冻结基线不再有效。')
   const slice: StageSlice = {
     stageId,
     status: 'idle',
@@ -1440,6 +1803,8 @@ export interface StageReality {
   }
   citations: { total: number; orphans: number }
   evidence?: { blocking: boolean; gapCount: number; waived: boolean }
+  userRequirements: { active: number; implemented: number; accepted: number }
+  userRequirementOverride: boolean
   /** Official Outputs subfolder for this stage (`planning`, `boq-pricing`, …). */
   outputFolder: string
   /**
@@ -1456,12 +1821,15 @@ export interface StageReality {
 export function stageNeedsQc(reality: Omit<StageReality, 'needsQc'>): boolean {
   const missing = reality.artifacts.missingMarkdown.length + reality.artifacts.missingReport.length
   const unfinished = reality.tasks.total - reality.tasks.done
+  const softOverride = reality.userRequirementOverride
   return missing > 0
-    || Boolean(reality.summary && !reality.summary.exists && reality.stageStatus !== 'idle')
-    || Boolean(reality.suite && !reality.suite.ok && reality.stageStatus !== 'idle')
+    || reality.userRequirements.active > 0
+    || reality.userRequirements.implemented > 0
+    || Boolean(!softOverride && reality.summary && !reality.summary.exists && reality.stageStatus !== 'idle')
+    || Boolean(!softOverride && reality.suite && !reality.suite.ok && reality.stageStatus !== 'idle')
     || Boolean(reality.boqInventory && !reality.boqInventory.ok && reality.stageStatus !== 'idle')
-    || Boolean(reality.workbook && !reality.workbook.exists && reality.stageStatus !== 'idle')
-    || Boolean(reality.localIntel && !reality.localIntel.ready && reality.stageStatus !== 'idle')
+    || Boolean(!softOverride && reality.workbook && !reality.workbook.exists && reality.stageStatus !== 'idle')
+    || Boolean(!softOverride && reality.localIntel && !reality.localIntel.ready && reality.stageStatus !== 'idle')
     || Boolean(reality.evidence?.blocking)
     || reality.citations.orphans > 0
     || reality.tasks.error > 0
@@ -1517,7 +1885,7 @@ export function collectStageReality(
     }
   }
   let evidence: StageReality['evidence']
-  if (project.module === 'tender') {
+  if (usesTenderControlProfile(project.module)) {
     try {
       const policy = evidencePolicy(cwd, project.projectId)
       evidence = { blocking: policy.blocking, gapCount: policy.gaps.length, waived: policy.gateWaived }
@@ -1572,6 +1940,13 @@ export function collectStageReality(
       })),
     }
   }
+  const requirements = listUserRequirements(cwd, project, stage.id)
+  const userRequirements = {
+    active: requirements.filter((row) => row.status === 'active').length,
+    implemented: requirements.filter((row) => row.status === 'implemented').length,
+    accepted: requirements.filter((row) => row.status === 'accepted').length,
+  }
+  const userRequirementOverride = userRequirements.accepted > 0
   const newest = newestOutputMtime(officialProjectDir(cwd, project.projectId))
   const outputFolder = officialStageFolder(stage.id)
   const facts = {
@@ -1597,6 +1972,8 @@ export function collectStageReality(
     localIntel,
     citations: { total: citationAudit.totalCitations, orphans: citationAudit.orphans.length },
     evidence,
+    userRequirements,
+    userRequirementOverride,
     outputFolder,
     lastOutputAt: newest > 0 ? new Date(newest).toISOString() : undefined,
     quietMinutes: newest > 0 ? Math.max(0, Math.round((Date.now() - newest) / 60000)) : undefined,
@@ -1625,6 +2002,92 @@ export function projectReality(cwd: string, project: BusinessProjectRecord): Pro
   }
 }
 
+export type ExecutionAlignment = 'aligned' | 'missing' | 'drifted' | 'stale' | 'waiting-human'
+
+export interface ExecutionControlState {
+  generatedAt: string
+  execution: SessionExecution | null
+  realityDigest: string
+  alignment: ExecutionAlignment
+  differences: string[]
+}
+
+function digestStageReality(reality: StageReality | undefined): string {
+  if (!reality) return createHash('sha256').update('no-current-stage').digest('hex').slice(0, 20)
+  return createHash('sha256').update(JSON.stringify({
+    stageId: reality.stageId,
+    stageStatus: reality.stageStatus,
+    tasks: reality.tasks,
+    artifacts: reality.artifacts,
+    summary: reality.summary,
+    suite: reality.suite && { ok: reality.suite.ok, shortGaps: reality.suite.shortGaps },
+    boqInventory: reality.boqInventory,
+    workbook: reality.workbook,
+    localIntel: reality.localIntel && { ready: reality.localIntel.ready, waived: reality.localIntel.waived, shortGaps: reality.localIntel.shortGaps },
+    citations: reality.citations,
+    evidence: reality.evidence,
+    userRequirements: reality.userRequirements,
+    needsQc: reality.needsQc,
+  })).digest('hex').slice(0, 20)
+}
+
+export function executionControlState(
+  cwd: string,
+  project: BusinessProjectRecord,
+  sessionId = '',
+  knownReality?: ProjectReality,
+): ExecutionControlState {
+  const reality = knownReality ?? projectReality(cwd, project)
+  const board = loadBoard(cwd, project.projectId, project.module)
+  const current = reality.stages.find((stage) => stage.stageId === board.currentStageId)
+    ?? reality.stages.find((stage) => stage.stageStatus === 'running' || stage.stageStatus === 'blocked')
+    ?? reality.stages[0]
+  const execution = sessionId
+    ? executionForSession(cwd, project, sessionId)
+    : latestExecutionForProject(cwd, project)
+  const realityDigest = digestStageReality(current)
+  if (!execution) {
+    return {
+      generatedAt: new Date().toISOString(),
+      execution: null,
+      realityDigest,
+      alignment: 'missing',
+      differences: ['主智能体尚未回写执行计划；控制面板目前只能核验磁盘事实。'],
+    }
+  }
+
+  const differences: string[] = []
+  let alignment: ExecutionAlignment = 'aligned'
+  if (current && execution.stageId !== current.stageId) {
+    differences.push(`执行账本仍在「${execution.stageId}」，系统当前阶段是「${current.stageId}」。`)
+    alignment = 'drifted'
+  }
+  if (execution.observedRealityDigest && execution.observedRealityDigest !== realityDigest) {
+    differences.push('磁盘事实自本轮计划后已变化，需要主智能体读取差异并更新计划。')
+    alignment = 'drifted'
+  }
+  const heartbeatAge = Date.now() - Date.parse(execution.heartbeatAt)
+  if (Number.isFinite(heartbeatAge) && heartbeatAge > 10 * 60_000
+    && (execution.status === 'planning' || execution.status === 'working' || execution.status === 'waiting')) {
+    differences.push(`主智能体执行心跳已超过 ${Math.floor(heartbeatAge / 60_000)} 分钟。`)
+    alignment = 'stale'
+  }
+  const planDone = execution.plan.length > 0 && execution.plan.every((item) => item.status === 'done')
+  if (current?.needsQc && (execution.status === 'completed' || planDone)) {
+    differences.push('主智能体声明本批已完成，但系统事实门禁仍有缺口。')
+    alignment = 'drifted'
+  }
+  if (current?.stageStatus === 'done' && execution.status !== 'completed') {
+    differences.push('系统阶段已经冻结完成，但执行账本尚未收口。')
+    alignment = 'drifted'
+  }
+  if (execution.blocker.type === 'human') {
+    differences.push(`等待人工处理：${execution.blocker.reason || execution.blocker.needed || '未说明具体决策。'}`)
+    alignment = 'waiting-human'
+  }
+  return { generatedAt: new Date().toISOString(), execution, realityDigest, alignment, differences }
+}
+
 function renderRealityBlock(reality: StageReality, published: number): string {
   const chain = reality.chain.map((item) => `${item.label}(${item.status})`).join(' → ')
   const unfinishedBlock = reality.tasks.unfinished.length > 0
@@ -1635,7 +2098,7 @@ function renderRealityBlock(reality: StageReality, published: number): string {
   if (reality.artifacts.missingReport.length > 0) artifactIssues.push(`已标 done 但缺结构化 JSON：${reality.artifacts.missingReport.join('、')}`)
   const artifactBlock = artifactIssues.length > 0 ? `\n- 产物缺失：${artifactIssues.join('；')}` : ''
   const summaryBlock = reality.summary
-    ? `\n- 阶段总报告：${reality.summary.exists ? `《${reality.summary.fileName}》已就位` : `缺《${reality.summary.fileName}》—— 收阶段前必须补齐`}`
+    ? `\n- 阶段总报告：${reality.summary.exists ? `《${reality.summary.fileName}》已就位` : reality.userRequirementOverride ? `旧制式《${reality.summary.fileName}》已由用户验收口径替代` : `缺《${reality.summary.fileName}》—— 收阶段前必须补齐`}`
     : ''
   const suiteBlock = reality.suite
     ? `\n- 投标分析底稿：${reality.suite.ok ? '已就位' : reality.suite.shortGaps}`
@@ -1658,12 +2121,15 @@ function renderRealityBlock(reality: StageReality, published: number): string {
   const quietBlock = reality.lastOutputAt
     ? `\n- 最近产出：${reality.lastOutputAt.slice(11, 19)} UTC（已静默约 ${reality.quietMinutes} 分钟）`
     : ''
+  const requirementBlock = reality.userRequirements.active || reality.userRequirements.implemented || reality.userRequirements.accepted
+    ? `\n- 用户要求：${reality.userRequirements.active} 条待落实，${reality.userRequirements.implemented} 条已落实，${reality.userRequirements.accepted} 条已成为验收口径${reality.userRequirementOverride ? '（旧软门禁不再触发返工）' : ''}`
+    : ''
   return [
     `盘面对账（服务端已核验，勿重复扫描）：`,
     `- 阶段链：${chain}`,
     `- 本阶段「${reality.stageLabel}」任务：${reality.tasks.done}/${reality.tasks.total} done${reality.tasks.error > 0 ? `，${reality.tasks.error} 个 error` : ''}${unfinishedBlock}${artifactBlock}${summaryBlock}${suiteBlock}${workbookBlock}${intelBlock}`,
     `- 引用核验：共 ${reality.citations.total} 个令牌，${reality.citations.orphans} 个孤儿`,
-    `- 本次已同步 ${published} 件客户成果${evidenceBlock}${quietBlock}`,
+    `- 本次已同步 ${published} 件客户成果${requirementBlock}${evidenceBlock}${quietBlock}`,
   ].join('\n')
 }
 
@@ -1685,20 +2151,20 @@ function buildOrganizeDraft(input: {
     ...stage.skillSlugs.filter((slug) => slug.includes('formal-writing')),
   ]
   const skillLines = [...new Set(reviewSkills)].map((slug) => `[skill:${slug}]`).join('\n')
-  const summaryOutline = stage.summaryDeliverable && reality.summary && !reality.summary.exists
+  const summaryOutline = !reality.userRequirementOverride && stage.summaryDeliverable && reality.summary && !reality.summary.exists
     ? `\n阶段总报告《${stage.summaryDeliverable.fileName}》大纲（写入 Agent Pi Outputs/${project.projectId}/${reality.outputFolder}/）：\n${stage.summaryDeliverable.outlineZh.map((line) => `- ${line}`).join('\n')}\n`
     : ''
-  const suiteOutline = reality.suite && !reality.suite.ok
+  const suiteOutline = !reality.userRequirementOverride && reality.suite && !reality.suite.ok
     ? `\n投标分析底稿未齐（专题视图按需派生；禁止重扫已完成源文件）：\n${ANALYSIS_SUITE.map((item) => {
       const row = reality.suite!.files.find((file) => file.fileName === item.fileName)
       const mark = !row || !row.exists ? '缺' : !row.ok ? `未达标${row.missingTerms.length ? `（${row.missingTerms.join('、')}）` : ''}` : '已齐'
       return `- 《${item.fileName}》${mark}\n${item.outlineZh.map((line) => `  - ${line}`).join('\n')}`
     }).join('\n')}\n`
     : ''
-  const workbookOutline = reality.workbook && !reality.workbook.exists
+  const workbookOutline = !reality.userRequirementOverride && reality.workbook && !reality.workbook.exists
     ? `\n公式测算表《${reality.workbook.fileName}》仍缺：调用 tender_pricing_workbook generate，写入 Agent Pi Outputs/${project.projectId}/${reality.outputFolder}/。\n`
     : ''
-  const intelOutline = reality.localIntel && !reality.localIntel.ready
+  const intelOutline = !reality.userRequirementOverride && reality.localIntel && !reality.localIntel.ready
     ? `\n当地供应商尽调 / 工效尽调 / 询价单未齐：${reality.localIntel.shortGaps}。写入 Agent Pi Outputs/${project.projectId}/${reality.outputFolder}/。先 anysearch_capabilities，再 anysearch_batch_search（zone=intl）。询价回不齐时 tender_evidence waive_pricing，再写《组价依据说明.md》。\n`
     : ''
   const alignBlock = aligned.renamed + aligned.moved > 0
@@ -1735,9 +2201,9 @@ ${renderRealityBlock(reality, published)}${orphanBlock}
 ${summaryOutline}${suiteOutline}${workbookOutline}${intelOutline}${alignBlock}
 你的职责是掌控与裁决，不是机械重扫：
 1. 差异逐项裁决：上面列出的每一条缺失/未完成/孤儿，判断是补做、返工还是纠正任务状态，并当场执行；补齐或删除错误成果后调用 tender_stage status 重新核对，需清空任务时使用 reset。缺产物的任务不得保持 done。没有列出的差异不要自行发明，不要重新解析已完成的源文件。
-2. 阶段总控与分析底稿：若上面显示缺失/过短/缺章，基于已有解析成果补齐，不要重扫源文件；专题视图不再是数量硬门。BOQ 组价阶段还须 tender_pricing_workbook generate 写出《BOQ 组价测算.xlsx》，并补齐当地供应商尽调与询价单。
+2. ${reality.userRequirementOverride ? '用户已采用新验收口径：不要再补旧文件名、篇幅、章节或视图，只核实用户要求的证据路径和不可豁免真实性门禁。' : '阶段总控与分析底稿：若上面显示缺失/过短/缺章，基于已有解析成果补齐，不要重扫源文件；专题视图不再是数量硬门。BOQ 组价阶段还须 tender_pricing_workbook generate 写出《BOQ 组价测算.xlsx》，并补齐当地供应商尽调与询价单。'}
 3. 评审纪律稽核：只复核高风险、实质变更和抽样成果，最多 1 轮修订；仍有分歧交用户裁决。
-4. 裁决完成后收口：清单全部 done、孤儿为 0、阶段总控与分析底稿就位、组价阶段公式测算表及当地尽调就位时调用 tender_stage complete_stage（projectId=${project.projectId}, stageId=${stage.id}）；人工决策阶段必须停下等待工作台确认。
+4. 裁决完成后收口：${reality.userRequirementOverride ? '用户要求已成为验收口径，确认清单、能力包、真实 BOQ/来源与引用完整性后' : '清单全部 done、孤儿为 0、阶段总控与分析底稿就位、组价阶段公式测算表及当地尽调就位时'}调用 tender_stage complete_stage（projectId=${project.projectId}, stageId=${stage.id}）；人工决策阶段必须停下等待工作台确认。
 5. 最后向用户输出「阶段实况简报」两栏（三行以内）：阶段（已完成什么）/ 投标可提交（商务待办，不挡阶段收口）。询价、开工确认、submission_audit not_ready 不得写成「本阶段未完成」。若系统此前处于空闲等待，请明确说出当前在等谁做什么。
 禁止由主会话代写子任务成果；禁止对已通过评审的成果重复评审。`
 }
@@ -1859,10 +2325,59 @@ ${outlines}
 请只补列出的缺口。`
 }
 
+function buildExecutionAlignmentDraft(
+  project: BusinessProjectRecord,
+  stage: WorkflowStage,
+  control: ExecutionControlState,
+): string {
+  const execution = control.execution
+  if (!execution) return buildStageDraft(project, stage)
+  const pendingPlan = execution.plan
+    .filter((item) => item.status !== 'done')
+    .slice(0, 12)
+    .map((item) => `- ${item.id} [${item.status}] ${item.title}`)
+    .join('\n') || '- 无未完成计划项'
+  const assignments = execution.assignments
+    .filter((item) => item.status !== 'done')
+    .slice(0, 8)
+    .map((item) => `- ${item.id} [${item.status}] ${item.title}${item.expectedOutput ? ` → ${item.expectedOutput}` : ''}`)
+    .join('\n') || '- 无运行中的子任务'
+  const differences = control.differences.map((item) => `- ${item}`).join('\n') || '- 执行声明与系统事实暂未发现冲突'
+  return `【执行账本对齐 — 请在本项目主会话继续】
+
+项目: ${project.name} (${project.projectId})
+阶段: ${stage.labelZh} (${stage.id})
+执行 run: ${execution.runId} / revision ${execution.revision} / ${execution.status}
+目标: ${execution.objective || '未登记'}
+当前批次: ${execution.currentBatch || '未登记'}
+下一动作: ${execution.nextAction || '未登记'}
+系统事实版本: ${control.realityDigest}
+
+未完成计划:
+${pendingPlan}
+
+子任务:
+${assignments}
+
+执行态与事实态差异:
+${differences}
+
+本轮要求:
+1. 先调用 tender_stage action=status 读取最新事实版本和用户要求；不要重新扫描已完成成果。
+2. 仅处理上面的当前批次、下一动作和明确差异；原阶段合同仅作必要约束，禁止无差别重发整阶段。
+3. 立即调用 tender_stage action=execution_update，回写当前计划并把 observedRealityDigest 设为 ${control.realityDigest}；每个批次、子任务回传、阻塞或下一动作发生实质变化时再更新。
+4. 若阻塞需要用户决策，把 blockerType 设为 human 并停止；证据、工具或模型阻塞分别使用 evidence / tool / model。
+5. 事实硬门禁全部满足后调用 tender_stage complete_stage；未满足时只补差异。
+
+阶段边界：${stage.prompt}
+不要注入完整历史或重发整阶段合同；精确门禁与未完成任务从 tender_stage status 读取。`
+}
+
 export function resumeUnfinished(
   cwd: string,
   project: BusinessProjectRecord,
   selectedKnowledgeSlugs: string[] = [],
+  options: { sessionId?: string } = {},
 ): ResumeResult {
   const board = inspectBoard(cwd, project)
   const workflow = workflowFor(project.module)
@@ -1874,11 +2389,110 @@ export function resumeUnfinished(
       message: '请先完成「项目资料登记」并确认资料齐套。',
     }
   }
+  const pendingUserRequirements = listUserRequirements(cwd, project)
+    .filter((row) => row.status === 'active')
+  if (pendingUserRequirements.length > 0) {
+    const latest = pendingUserRequirements[0]!
+    const target = workflow.stages.find((stage) => stage.id === latest.stageId)
+      ?? workflow.stages.find((stage) => stage.id !== setupStageId)
+      ?? workflow.stages[0]!
+    const stageRequirements = pendingUserRequirements.filter((row) => row.stageId === target.id)
+    const previous = board.stages[target.id]
+    const slice: StageSlice = {
+      stageId: target.id,
+      status: 'running',
+      tasks: previous?.tasks ?? [],
+      updatedAt: new Date().toISOString(),
+      forcePassedAt: previous?.forcePassedAt,
+      approval: previous?.approval,
+      dispatch: previous?.dispatch,
+    }
+    const key = dispatchFingerprint(slice, `user-requirements:${requirementDigest(stageRequirements)}`)
+    const record = slice.dispatch
+    if (record && record.key === key) {
+      const offeredRecently = Date.parse(record.offeredAt) > Date.now() - DISPATCH_OFFER_TTL_MS
+      if (record.dispatchedAt || offeredRecently) {
+        return {
+          state: { schemaVersion: 1, projectId: project.projectId, module: project.module, ...slice },
+          board,
+          stageId: target.id,
+          alreadyDispatched: true,
+          message: `用户最新要求已写入主对话，等待定点修改；不要按旧门禁重复生成。`,
+        }
+      }
+    }
+    slice.dispatch = { key, offeredAt: new Date().toISOString() }
+    const nextBoard = putSlice(cwd, project, slice)
+    return {
+      state: { schemaVersion: 1, projectId: project.projectId, module: project.module, ...slice },
+      draft: buildUserRequirementDraft(cwd, project, target, stageRequirements),
+      board: nextBoard,
+      stageId: target.id,
+      dispatch: { stageId: target.id, key },
+      message: `已把 ${stageRequirements.length} 条用户最新要求作为最高优先级送回主对话；只做受影响成果的增量修改。`,
+    }
+  }
+  const implementedUserRequirements = listUserRequirements(cwd, project)
+    .filter((row) => row.status === 'implemented' && board.stages[row.stageId]?.status !== 'done')
+  if (implementedUserRequirements.length > 0) {
+    const latest = implementedUserRequirements[0]!
+    const stage = workflow.stages.find((item) => item.id === latest.stageId)
+    const message = `「${stage?.labelZh ?? latest.stageId}」的用户要求已落实，等待用户在工作台选择「采用为验收口径」「继续修改」或「不属于本项目」；不得按旧门禁自动重发整阶段。`
+    return {
+      board,
+      stageId: latest.stageId,
+      blocked: message,
+      message,
+    }
+  }
+  const acceptedUserRequirements = listUserRequirements(cwd, project)
+    .filter((row) => row.status === 'accepted' && board.stages[row.stageId]?.status !== 'done')
+  if (acceptedUserRequirements.length > 0) {
+    const latest = acceptedUserRequirements[0]!
+    const target = workflow.stages.find((stage) => stage.id === latest.stageId)
+    if (target) {
+      const stageRequirements = acceptedUserRequirements.filter((row) => row.stageId === target.id)
+      const previous = board.stages[target.id]
+      const slice: StageSlice = {
+        stageId: target.id,
+        status: previous?.status ?? 'running',
+        tasks: previous?.tasks ?? [],
+        updatedAt: new Date().toISOString(),
+        forcePassedAt: previous?.forcePassedAt,
+        approval: previous?.approval,
+        dispatch: previous?.dispatch,
+      }
+      const key = dispatchFingerprint(slice, `accepted-requirements:${requirementDigest(stageRequirements)}`)
+      const record = slice.dispatch
+      if (record && record.key === key) {
+        const offeredRecently = Date.parse(record.offeredAt) > Date.now() - DISPATCH_OFFER_TTL_MS
+        if (record.dispatchedAt || offeredRecently) {
+          return {
+            state: { schemaVersion: 1, projectId: project.projectId, module: project.module, ...slice },
+            board,
+            stageId: target.id,
+            alreadyDispatched: true,
+            message: '用户验收口径的硬门禁收口已写入主对话；等待状态变化，不重发整阶段。',
+          }
+        }
+      }
+      slice.dispatch = { key, offeredAt: new Date().toISOString() }
+      const nextBoard = putSlice(cwd, project, slice)
+      return {
+        state: { schemaVersion: 1, projectId: project.projectId, module: project.module, ...slice },
+        draft: buildAcceptedRequirementCloseoutDraft(cwd, project, target, stageRequirements),
+        board: nextBoard,
+        stageId: target.id,
+        dispatch: { stageId: target.id, key },
+        message: '已按用户验收口径准备一次硬门禁收口；不会恢复旧软门禁或重发整阶段。',
+      }
+    }
+  }
   const target = workflow.stages.find((stage) => {
     if (stage.id === setupStageId) return false
     const slice = board.stages[stage.id]
     if (!slice) return true
-    if ((analysisSuiteApplies(stage.id) || boqInventoryApplies(stage.id)) && !analysisHardGatesReady(cwd, project.projectId, stage.id)) return true
+    if ((analysisSuiteApplies(stage.id) || boqInventoryApplies(stage.id)) && !analysisHardGatesReady(cwd, project, stage.id)) return true
     if (pricingLocalIntelApplies(stage.id) && !pricingHardGatesReady(cwd, project.projectId, stage.id)) return true
     return slice.status !== 'done'
   })
@@ -1902,6 +2516,13 @@ export function resumeUnfinished(
         message,
       }
     }
+  }
+  const control = options.sessionId
+    ? executionControlState(cwd, project, options.sessionId)
+    : null
+  if (control?.execution?.blocker.type === 'human') {
+    const message = `主智能体执行账本正在等待人工处理：${control.execution.blocker.reason || control.execution.blocker.needed || '未说明具体决策。'}`
+    return { board, stageId: target.id, blocked: message, message }
   }
   const prepared = prepareStage(cwd, project, target.id, selectedKnowledgeSlugs)
   if (prepared.blocked) {
@@ -1930,8 +2551,11 @@ export function resumeUnfinished(
     : intelGate
       ? (intelGate.ready ? (intelGate.intel.ok ? 'intel-ok' : 'intel-waived') : `intel:${intelGate.digest}`)
       : ''
-  const key = dispatchFingerprint(slice, extraKey)
-  const draft = patchSuiteOnly && suite
+  const executionKey = control?.execution
+    ? `execution:${control.execution.revision}:${control.realityDigest}:${control.alignment}`
+    : (options.sessionId ? `execution:missing:${control?.realityDigest || ''}` : '')
+  const key = dispatchFingerprint(slice, `${extraKey}|${executionKey}`)
+  const stageDraft = patchSuiteOnly && suite
     ? buildAnalysisSuiteDraft(project, target, suite)
     : patchBoqOnly && boqGate
       ? buildAnalysisBoqDraft(project, target, boqGate)
@@ -1944,8 +2568,12 @@ export function resumeUnfinished(
             : boqGate && !boqGate.ready
               ? `${prepared.draft}\n\n${renderBoqInventoryBlock(boqGate)}`
               : intelGate && !intelGate.ready
-                ? `${prepared.draft}\n\n${renderPricingIntelBlock(intel, officialStageFolder(target.id))}`
+                ? `${prepared.draft}\n\n${renderPricingIntelBlock(intelGate.intel, officialStageFolder(target.id))}`
                 : prepared.draft
+  const draft = control?.execution
+    ? buildExecutionAlignmentDraft(project, target, control)
+    : stageDraft
+  const contextualDraft = withUserRequirementContext(cwd, project, target.id, draft)
   const waitingMessage = suite && !suite.ok
     ? `「${target.labelZh}」投标分析底稿未齐：${suite.shortGaps}。阶段稿已写入，只补底稿缺口，不要重扫已完成源文件。`
     : boqGate && !boqGate.ready
@@ -1972,7 +2600,7 @@ export function resumeUnfinished(
   const boardWithOffer = putSlice(cwd, project, slice)
   return {
     state: prepared.state,
-    draft,
+    draft: contextualDraft,
     board: boardWithOffer,
     stageId: target.id,
     dispatch: { stageId: target.id, key },

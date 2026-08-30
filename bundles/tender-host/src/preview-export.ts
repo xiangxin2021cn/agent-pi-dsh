@@ -12,6 +12,7 @@ import {
   type MarkdownExportFormat,
 } from './export-document.ts'
 import { commitReviewedPricing, type PricingRecalcResult } from './pricing-recalc.ts'
+import { invalidateWorkspaceStageMemoryForPath } from './stage-memory.ts'
 
 export { renderMarkdownBlocksForExport, createMarkdownHtml }
 
@@ -91,6 +92,7 @@ export function saveWorkspaceText(cwd: string, sourcePath: string, content: stri
   reportSidecar?: string
   kbSidecar?: string
   pricingReview?: PricingRecalcResult
+  memoryImpact?: ReturnType<typeof invalidateWorkspaceStageMemoryForPath>
 } {
   const path = assertInside(cwd, sourcePath)
   if (!MARKDOWN_EXT.has(extname(path).toLowerCase()) && extname(path).toLowerCase() !== '.txt') {
@@ -128,7 +130,8 @@ export function saveWorkspaceText(cwd: string, sourcePath: string, content: stri
       // Markdown is already on disk; the caller still sees the saved file
     }
   }
-  return { path, mtimeMs: statSync(path).mtimeMs, packSidecar, reportSidecar, kbSidecar, pricingReview }
+  const memoryImpact = invalidateWorkspaceStageMemoryForPath(cwd, path)
+  return { path, mtimeMs: statSync(path).mtimeMs, packSidecar, reportSidecar, kbSidecar, pricingReview, memoryImpact }
 }
 
 export function deleteWorkspaceFile(cwd: string, sourcePath: string): { path: string } {

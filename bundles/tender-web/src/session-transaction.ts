@@ -42,8 +42,14 @@ function copy<TPayload>(value: SessionTransaction<TPayload>): SessionTransaction
  */
 export function createSessionTransactionRegistry<TPayload>(
   now: () => number = Date.now,
+  restored: ReadonlyArray<SessionTransaction<TPayload>> = [],
 ): SessionTransactionRegistry<TPayload> {
   const entries = new Map<string, SessionTransaction<TPayload>>()
+  for (const value of restored) {
+    const sessionId = String(value?.sessionId || '').trim()
+    if (!sessionId || value.phase !== 'committed' || value.payload == null) continue
+    entries.set(sessionId, copy({ ...value, sessionId }))
+  }
 
   const current = (sessionId: string): SessionTransaction<TPayload> => {
     const id = requireSessionId(sessionId)

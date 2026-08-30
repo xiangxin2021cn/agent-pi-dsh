@@ -3,15 +3,25 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import type { BusinessProjectRecord } from '../../../packages/business-projects/index.ts'
+import { createBusinessProject, type BusinessProjectRecord } from '../../../packages/business-projects/index.ts'
 import type { TenderCapabilityId, TenderCapabilityIndex } from '../../../packages/business-core/src/tender/index.ts'
 import {
   completeStage,
   inspectBoard,
+  markDispatched,
   prepareStage,
+  projectForBoundSession,
+  recordProjectUserRequirement,
+  releaseDispatchOffer,
+  resumeUnfinished,
   saveBoard,
+  setProjectUserRequirementStatus,
+  stageNeedsQc,
+  executionControlState,
+  updateProjectExecution,
   type OrchestrationBoard,
 } from '../src/orchestration.ts'
+import { listUserRequirements } from '../src/user-requirements.ts'
 import { CAPABILITY_FILE_NAMES } from '../src/fsutil.ts'
 import { officialStageDir } from '../src/outputs.ts'
 import { initTenderWorkspace, registerProjectSources, workspacePaths } from '../src/workspace.ts'
@@ -89,6 +99,206 @@ test('prepare and complete reject a stage whose predecessor is unfinished', () =
     () => completeStage(cwd, record, 'planning-and-submission'),
     /前序阶段.*投标决策与重大风险/,
   )
+})
+
+test('an unconfirmed prompt offer can be released and retried immediately', () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'ap-stage-release-'))
+  const record = project(cwd, 'delivery')
+
+  const first = resumeUnfinished(cwd, record)
+  assert.ok(first.draft)
+  assert.ok(first.dispatch)
+  const locked = resumeUnfinished(cwd, record)
+  assert.equal(locked.alreadyDispatched, true)
+
+  const released = releaseDispatchOffer(cwd, record, first.dispatch!.stageId, first.dispatch!.key)
+  assert.equal(released.released, true)
+  const retried = resumeUnfinished(cwd, record)
+  assert.ok(retried.draft)
+  assert.deepEqual(retried.dispatch, first.dispatch)
+})
+
+test('main-agent execution updates turn resume into a delta alignment draft', () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'ap-execution-alignment-'))
+  const record = createBusinessProject({
+    workspaceRootPath: cwd,
+    projectId: 'road-bid',
+    module: 'delivery',
+    name: 'Road bid',
+    rootPath: cwd,
+    workflowId: 'delivery-main',
+    createDirectory: false,
+  })
+  const first = resumeUnfinished(cwd, record, [], { sessionId: 'session-1' })
+  assert.ok(first.draft)
+  assert.match(first.draft ?? '', /execution_update/)
+  assert.ok(first.dispatch)
+  markDispatched(cwd, record, first.dispatch!.stageId, first.dispatch!.key)
+
+  const controlBefore = executionControlState(cwd, record, 'session-1')
+  assert.equal(controlBefore.alignment, 'missing')
+  updateProjectExecution(cwd, record, {
+    sessionId: 'session-1',
+    runId: 'run-1',
+    stageId: first.stageId!,
+    status: 'working',
+    objective: '交付当前阶段',
+    currentBatch: '第一批成果',
+    planItems: [{ id: 'draft', title: '完成阶段成果', status: 'in_progress' }],
+    blockerType: 'none',
+    nextAction: '继续编制第一批成果',
+    observedRealityDigest: controlBefore.realityDigest,
+  })
+
+  const aligned = resumeUnfinished(cwd, record, [], { sessionId: 'session-1' })
+  assert.match(aligned.draft ?? '', /【执行账本对齐/)
+  assert.match(aligned.draft ?? '', /第一批成果/)
+  assert.match(aligned.draft ?? '', /系统事实版本/)
+  assert.doesNotMatch(aligned.draft ?? '', /主智能体尚未回写执行计划/)
+})
+
+test('main-chat requirements persist, reopen the stage once, and resume with a delta-only draft', () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'ap-user-requirement-'))
+  const record = createBusinessProject({
+    workspaceRootPath: cwd,
+    projectId: 'road-bid',
+    module: 'delivery',
+    name: 'Road bid',
+    rootPath: cwd,
+    workflowId: 'delivery-main',
+    createDirectory: false,
+  })
+  const initial = resumeUnfinished(cwd, record)
+  assert.ok(initial.dispatch)
+
+  const text = '只修改重大风险结论和澄清清单，不要重做已完成的招标文件解析。'
+  const first = recordProjectUserRequirement(cwd, record, { sessionId: 'session-1', text })
+  assert.equal(first.requirement.status, 'active')
+  assert.equal(projectForBoundSession(cwd, 'session-1')?.projectId, record.projectId)
+  assert.throws(() => completeStage(cwd, record, first.requirement.stageId), /用户最新要求尚未落实/)
+
+  const requirementResume = resumeUnfinished(cwd, record)
+  assert.match(requirementResume.draft ?? '', /【用户最新要求/)
+  assert.match(requirementResume.draft ?? '', /只做影响分析和定点修改/)
+  assert.match(requirementResume.draft ?? '', /禁止重做已完成解析、组价或评审/)
+  assert.match(requirementResume.draft ?? '', new RegExp(first.requirement.id))
+  assert.ok(requirementResume.dispatch)
+  markDispatched(cwd, record, requirementResume.dispatch!.stageId, requirementResume.dispatch!.key)
+
+  const duplicate = recordProjectUserRequirement(cwd, record, { sessionId: 'session-1', text })
+  assert.equal(duplicate.requirement.id, first.requirement.id)
+  assert.equal(listUserRequirements(cwd, record).length, 1)
+  assert.equal(resumeUnfinished(cwd, record).alreadyDispatched, true)
+
+  setProjectUserRequirementStatus(cwd, record, first.requirement.id, 'implemented', {
+    note: '已定点修改风险结论。',
+    evidencePaths: ['Agent Pi Outputs/road-bid/risk/重大风险结论.md'],
+  })
+  const waitingForUser = resumeUnfinished(cwd, record)
+  assert.equal(waitingForUser.draft, undefined)
+  assert.match(waitingForUser.blocked ?? '', /已落实.*等待用户.*采用为验收口径.*继续修改/s)
+  assert.throws(
+    () => completeStage(cwd, record, first.requirement.stageId),
+    /已落实但尚待用户验收/,
+  )
+
+  const accepted = setProjectUserRequirementStatus(cwd, record, first.requirement.id, 'accepted')
+  assert.equal(accepted.requirement.status, 'accepted')
+  assert.deepEqual(accepted.requirement.evidencePaths, ['Agent Pi Outputs/road-bid/risk/重大风险结论.md'])
+
+  const closeout = resumeUnfinished(cwd, record)
+  assert.match(closeout.draft ?? '', /【用户验收口径已确认 — 只做硬门禁收口】/)
+  assert.match(closeout.draft ?? '', /旧的文件名、篇幅、章节、报告数量和视图门禁不得再次触发返工/)
+  assert.match(closeout.draft ?? '', /不是新的阶段总任务/)
+  assert.doesNotMatch(closeout.draft ?? '', /【阶段切换/)
+  assert.ok(closeout.dispatch)
+  markDispatched(cwd, record, closeout.dispatch!.stageId, closeout.dispatch!.key)
+  assert.equal(resumeUnfinished(cwd, record).alreadyDispatched, true)
+
+  const repeatedByUser = recordProjectUserRequirement(cwd, record, { sessionId: 'session-1', text })
+  assert.equal(repeatedByUser.requirement.id, first.requirement.id)
+  assert.equal(repeatedByUser.requirement.status, 'active')
+  assert.equal(repeatedByUser.requirement.evidencePaths, undefined)
+  assert.equal(listUserRequirements(cwd, record).length, 1)
+  assert.match(resumeUnfinished(cwd, record).draft ?? '', /【用户最新要求/)
+})
+
+test('an accepted baseline never substitutes for a separate human approval gate', () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'ap-user-approval-'))
+  const record = project(cwd)
+  initializeTender(cwd)
+  boardWithDoneStages(cwd, record, ['project-setup'])
+  const added = recordProjectUserRequirement(cwd, record, {
+    sessionId: 'session-approval',
+    stageId: 'bid-risk-decision',
+    text: '风险结论采用一页决策表，不再生成旧版长报告。',
+  })
+  setProjectUserRequirementStatus(cwd, record, added.requirement.id, 'implemented')
+  setProjectUserRequirementStatus(cwd, record, added.requirement.id, 'accepted')
+
+  const closeout = resumeUnfinished(cwd, record)
+  assert.match(closeout.draft ?? '', /独立人工决策门/)
+  assert.match(closeout.draft ?? '', /确认投标，继续/)
+  assert.match(closeout.draft ?? '', /不得代替用户审批/)
+  assert.doesNotMatch(closeout.draft ?? '', /调用 tender_stage complete_stage/)
+})
+
+test('an accepted baseline cannot bypass a missing structured capability pack', () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'ap-user-capability-'))
+  const record = project(cwd)
+  initializeTender(cwd)
+  boardWithDoneStages(cwd, record, [
+    'project-setup',
+    'bid-risk-decision',
+    'tender-document-analysis',
+    'pricing-basis-freeze',
+    'boq-five-step-pricing',
+  ])
+  const added = recordProjectUserRequirement(cwd, record, {
+    sessionId: 'session-capability',
+    stageId: 'planning-and-submission',
+    text: '采用现有施工方案结构，不再生成旧版固定文件名。',
+  })
+  setProjectUserRequirementStatus(cwd, record, added.requirement.id, 'implemented')
+  setProjectUserRequirementStatus(cwd, record, added.requirement.id, 'accepted')
+
+  assert.throws(
+    () => completeStage(cwd, record, 'planning-and-submission'),
+    /能力包.*execution_plan.*not_ready/,
+  )
+})
+
+test('an accepted user baseline replaces only soft presentation gates', () => {
+  const base = {
+    stageId: 'tender-document-analysis', stageLabel: '招标文件分析', stageStatus: 'running',
+    chain: [], tasks: { total: 0, done: 0, error: 0, unfinished: [] },
+    artifacts: { missingMarkdown: [], missingReport: [] },
+    summary: { fileName: '投标分析底稿.md', exists: false, bytes: 0 },
+    suite: { ok: false, files: [], shortGaps: '旧专题视图未齐' },
+    boqInventory: { ok: true, required: true, shortGaps: '' },
+    citations: { total: 0, orphans: 0 },
+    userRequirements: { active: 0, implemented: 0, accepted: 1 },
+    userRequirementOverride: true,
+    outputFolder: 'analysis',
+  }
+  assert.equal(stageNeedsQc(base as never), false)
+  assert.equal(stageNeedsQc({
+    ...base,
+    userRequirements: { active: 0, implemented: 1, accepted: 0 },
+    userRequirementOverride: false,
+  } as never), true)
+  assert.equal(stageNeedsQc({
+    ...base,
+    boqInventory: { ok: false, required: true, shortGaps: '缺实际 BOQ 行与 sheet+cell 来源' },
+  } as never), true)
+  assert.equal(stageNeedsQc({
+    ...base,
+    evidence: { blocking: true, gapCount: 1, waived: false },
+  } as never), true)
+  assert.equal(stageNeedsQc({
+    ...base,
+    citations: { total: 1, orphans: 1 },
+  } as never), true)
 })
 
 test('disk delivery does not implicitly complete a stage', () => {

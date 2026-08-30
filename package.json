@@ -1,6 +1,6 @@
 {
   "name": "agent-pi-dsh",
-  "version": "3.4.2",
+  "version": "3.5.1",
   "private": true,
   "type": "module",
   "description": "Agent Pi DSH workbench on DeepSeek Harness",
@@ -15,6 +15,7 @@
     "verify-profile": "powershell -File scripts/verify-profile.ps1",
     "smoke": "powershell -File scripts/run-smoke.ps1",
     "smoke:desktop-cold": "node scripts/smoke-desktop-cold-start.mjs",
+    "smoke:desktop-workbench": "node scripts/smoke-desktop-workbench-handoff.mjs",
     "smoke:presets": "node scripts/smoke-agent-presets.mjs",
     "desktop": "npm --prefix apps/desktop start",
     "measure-runtime": "powershell -File scripts/measure-dsh-size.ps1",
