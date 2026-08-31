@@ -13,6 +13,7 @@
 
 import { cpSync, existsSync, mkdirSync, rmSync, statSync, chmodSync, copyFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
+import { verifyDshAlpha3Runtime } from './verify-dsh-alpha3-runtime.mjs'
 
 function arg(name, fallback = null) {
   const index = process.argv.indexOf(`--${name}`)
@@ -76,6 +77,7 @@ function stage(label, src, dest) {
 
 stage('product', product, join(runtime, 'product'))
 stage('deepseek-harness', dsh, join(runtime, 'deepseek-harness'))
+verifyDshAlpha3Runtime(join(runtime, 'deepseek-harness'), join(runtime, 'product'))
 
 // Smoke-check the staged tree the same way the packaged app will.
 const staged = join(runtime, 'deepseek-harness')

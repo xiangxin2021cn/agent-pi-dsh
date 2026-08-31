@@ -150,6 +150,45 @@ describe('tender submission assembly and red-team audit capability', () => {
     expect(audit.readiness).toBe('not_ready');
   });
 
+  test('keeps a healthy required pack that needs review as a warning', async () => {
+    const tender = await import('../../index.ts') as Record<string, unknown>;
+    const index = capabilityIndex();
+    index.capabilities[0].readiness = 'needs_review';
+    index.capabilities[0].issueCount = 1;
+
+    const audit = (tender.auditTenderSubmission as Function)(workspace(), index, completeSubmission());
+    const issue = audit.issues.find((row: { code: string }) => row.code === 'required_capability_needs_review');
+
+    expect(issue?.severity).toBe('warning');
+    expect(audit.issues.some((row: { severity: string }) => row.severity === 'error')).toBe(false);
+    expect(audit.readiness).toBe('needs_review');
+    expect(audit.summary.readyRequiredCapabilityPacks).toBe(0);
+  });
+
+  test('still blocks disabled, empty-revision, not-ready, and stale required packs', async () => {
+    const tender = await import('../../index.ts') as Record<string, unknown>;
+    const disabled = capabilityIndex();
+    disabled.capabilities[0].enabled = false;
+    expect(
+      () => (tender.auditTenderSubmission as Function)(workspace(), disabled, completeSubmission()),
+    ).toThrow('A required capability must be enabled.');
+
+    const cases = [
+      { label: 'empty revision', patch: { revision: 0 } },
+      { label: 'not ready', patch: { readiness: 'not_ready' } },
+      { label: 'stale', patch: { stale: true } },
+    ];
+
+    for (const row of cases) {
+      const index = capabilityIndex();
+      Object.assign(index.capabilities[0], row.patch);
+      const audit = (tender.auditTenderSubmission as Function)(workspace(), index, completeSubmission());
+      const issue = audit.issues.find((item: { code: string }) => item.code === 'required_capability_not_ready');
+      expect(issue?.severity, row.label).toBe('error');
+      expect(audit.readiness, row.label).toBe('not_ready');
+    }
+  });
+
   test('keeps red-team findings outside formal narrative and blocks unresolved major findings', async () => {
     const tender = await import('../../index.ts') as Record<string, unknown>;
     const data = completeSubmission();

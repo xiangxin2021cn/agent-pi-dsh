@@ -283,12 +283,12 @@ export function kbChatImportCopy(lang) {
   }
 }
 
-const MODULE_CREATE_GUARD = '请先读 skill workbench-domain-builder。这是本应用专业化工作台的模块创造对话，不是 Agent 预设里的「创造模式」，不要写 cordis.yml 或改插件组装。生成的必须是完整工作台模块包：顶栏中文名、阶段监控条、开工资料登记、后续阶段的流程门槛（总报告 / 按册任务 / 评审）、配套方法 skill、能挂的知识库。用 workbench_module_save / workbench_module_copy / workbench_skill_save 直接装上，本应用按现有盘面画出来。不要发明新窗口或新界面。不要让我粘贴 JSON、id、slug。不要改内置投标。'
+const MODULE_CREATE_GUARD = '请先读 skill workbench-domain-builder。当前会话使用 DSH 原生「创造模式」作为创作驾驶舱，但本任务的交付物是专业工作台业务模块，不是 Agent 预设。不得修改 DSH 官方预设、不得写 agent.cordis.yml 或改插件组装，除非用户另行明确要求创建 Agent 预设。生成的必须是完整工作台模块包：顶栏中文名、阶段监控条、开工资料登记、后续阶段的流程门槛（总报告 / 按册任务 / 风险审查 / 必要的人工确认）、配套方法 skill、能挂的知识库。来源是投标项目时，必须从内置 tender 复制并保留原阶段 id 和 controlProfile=tender，不得只仿造七段外观而丢掉 BOQ、证据、能力包和最终冻结硬门。用 workbench_module_save / workbench_module_copy / workbench_skill_save 直接装上，本应用按现有盘面画出来。不要发明新窗口或新界面。不要让我粘贴 JSON、id、slug。不要改内置投标。'
 
 /** Composer drafts that open the workbench module-creation conversation. */
 export const MODULE_CREATE_PROMPTS = {
-  distill: MODULE_CREATE_GUARD + '我想把这次对话里已经做完、我认可的成果，整理成以后同类工作的标准。范文或用户模板进知识库，做法记成 skill，模块保存后用中文告诉我顶栏新标签叫什么、下次怎么开项目。最多确认一句中文名称和分几步。',
-  'copy-pack': MODULE_CREATE_GUARD + '我们步骤和「投标全流程」一样（资料登记 → 解析 → 组价 → 出稿），但要用我们自己的规范、组价表或投标函。请拷贝内置投标为自建模块（workbench_module_copy），不要改四阶段 id。拷完用中文问我模块叫什么、规范或范文在哪（可以让我上传），挂到规范包。建好告诉我顶栏新标签和下次怎么用。',
+  distill: MODULE_CREATE_GUARD + '我想把来源项目里已经做完且由用户明确认可的成果与修订经验，整理成以后同类工作的标准。读取来源项目的 Official Outputs、用户要求台账和明确审批记录；不能把“文件存在”当成“用户认可”。如来源模块是 tender，先 workbench_module_copy 复制内置投标，保留原阶段 id、三个人工门、风险审查和 controlProfile=tender，再把用户验收的方法、skill 和知识包挂上去。范文或用户模板进知识库，做法和用户纠正规则记成 skill，模块保存后用中文告诉我顶栏新标签叫什么、下次怎么开项目。最多确认一句中文名称和分几步。',
+  'copy-pack': MODULE_CREATE_GUARD + '我们的步骤和「投标全流程」一样，但要用自己的规范、组价表或投标函。请用 workbench_module_copy 拷贝当前内置投标，完整保留其阶段 id、风险审查和人工确认门禁。拷完用中文问我模块叫什么、规范或范文在哪（可以让我上传），挂到规范包。建好告诉我顶栏新标签和下次怎么用。',
   'custom-steps': MODULE_CREATE_GUARD + '我们这类工作和「投标全流程」步骤不一样。请用一条消息、用大白话问清：这个领域叫什么、实际工作分哪几步（3到6步）、开工有什么资料、最后交什么、有没有规范或范文。问完后建成完整模块包。保存后告诉我顶栏新标签叫什么、下次怎么开项目。',
 }
 
@@ -481,24 +481,24 @@ export function moduleCreateCopy(lang) {
   if (apLangOf(lang) === 'en') {
     return {
       title: 'Module create mode',
-      lead: 'Do not start by importing JSON. Pick a path below and continue in chat. What you get is a complete module pack at the same level as Tender process: top bar, stage monitor, source registration, workflow gates, matching methods, and a knowledge base. After save, this app draws it with the same workbench.',
-      warn: 'Do not switch to Create mode in the Agent preset — that edits plugin assembly. Module creation only goes through this page into chat.',
+      lead: 'Do not start by importing JSON. Pick a path below and this app opens DSH native Create mode, where conversation distils accepted outputs and revision experience into a complete business module pack: top bar, stage monitor, source registration, workflow gates, methods, and knowledge.',
+      warn: 'Native Create mode is the authoring cockpit; the saved product is a professional-workbench business module and never edits a shipped DSH preset. A blank chat switches in place; a chat with history opens a new Create-mode session.',
       advanced: 'Paste here only when you already have a module definition this app has validated. Everyday use should go through the create conversation above.',
       cards: [
         { id: 'distill', title: 'We finished one job — use this as the standard', body: 'Turn the accepted results from this chat into the standard for later work of the same kind. Exemplars go to the knowledge base; the method is written down.' },
-        { id: 'copy-pack', title: 'Same steps as Tender process, different rules', body: 'Still register → analyze → price → draft. Copy one and attach your scoring rules, rate tables, or letters. The stage bar stays four steps.' },
+        { id: 'copy-pack', title: 'Same steps as Tender process, different rules', body: 'Keep the current tender stages and human-approval gates, then attach your scoring rules, rate tables, or letters to a copy.' },
         { id: 'custom-steps', title: 'The steps are different', body: 'For example qualification, then technical, then commercial — no pricing. Say the steps in plain language. The new tab and monitor bar follow those steps.' },
       ],
     }
   }
   return {
     title: '模块创造模式',
-    lead: '不要先导入 JSON。点下面一条路，回到对话用人机交互。生成的是和「投标全流程」同等级的完整模块包：顶栏、阶段监控、资料登记、流程控制、配套方法和知识库。保存后本应用按同一套专业化工作台画出来。',
-    warn: '不要切到 Agent 预设里的「创造模式」——那是改插件组装的。模块创造只走本页进对话这条路。',
+    lead: '不要先导入 JSON。点下面一条路，本应用会进入 DSH 原生「创造模式」，用对话把这次做成的成果和修订经验沉淀为完整业务模块包：顶栏、阶段监控、资料登记、流程控制、配套方法和知识库。',
+    warn: '原生创造模式只是创作驾驶舱，最终保存的是专业工作台业务模块，不会改 DSH 官方预设。当前对话为空时原地切换；已有历史时会新建创造模式对话。',
     advanced: '只有已经拿到本应用校验过的模块定义时，才在这里粘贴。普通使用请走上面的创造对话。',
     cards: [
       { id: 'distill', title: '做过一单，照这个来', body: '把这次对话里已经认可的成果，整理成以后同类工作的标准。范文进知识库，做法记下来。' },
-      { id: 'copy-pack', title: '步骤和投标全流程一样，规矩不同', body: '还是登记 → 解析 → 组价 → 出稿。拷贝一份，挂上你们的评分办法、组价表或投标函。阶段条还是四步。' },
+      { id: 'copy-pack', title: '步骤和投标全流程一样，规矩不同', body: '沿用当前投标流程的阶段和人工确认门禁，拷贝一份，再挂上你们的评分办法、组价表或投标函。' },
       { id: 'custom-steps', title: '步骤就不一样', body: '例如先资格再技术再商务、没有组价。用中文说清几步，新标签和监控条按这几步画。' },
     ],
   }

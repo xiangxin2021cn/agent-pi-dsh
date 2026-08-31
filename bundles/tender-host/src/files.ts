@@ -3,6 +3,7 @@ import { basename, dirname, join, normalize, relative, resolve, sep } from 'node
 import { closeSync, copyFileSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { OFFICIAL_OUTPUTS_DIR, harvestWorkspaceOutputs, officialOutputsDir } from './outputs.ts'
 import { listBusinessProjects } from '../../../packages/business-projects/index.ts'
+import { usesTenderControlProfile } from './modules.ts'
 
 export const UPLOADS_DIR = 'Agent Pi Uploads'
 export const MAX_UPLOAD_BYTES = 32 * 1024 * 1024
@@ -287,7 +288,7 @@ export function promoteFile(cwd: string, sourcePath: string, projectId?: string)
   const projects = listBusinessProjects(cwd)
   const id = projectId
     || (projects.length === 1 ? projects[0]?.projectId : undefined)
-    || projects.find((project) => project.module === 'tender')?.projectId
+    || projects.find((project) => usesTenderControlProfile(project.module))?.projectId
     || projects[0]?.projectId
     || 'workspace'
   const destDir = officialOutputsDir(cwd, id, 'inbox')

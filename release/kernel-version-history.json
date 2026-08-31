@@ -1,0 +1,12 @@
+[
+  {
+    "version": "3.5.1",
+    "dshPin": "dd6322d604e00eec1ba5e0c8541159906a21094a",
+    "releaseTag": "v3.5.1"
+  },
+  {
+    "version": "3.5.2",
+    "dshPin": "dd6322d604e00eec1ba5e0c8541159906a21094a",
+    "releaseTag": "v3.5.2"
+  }
+]

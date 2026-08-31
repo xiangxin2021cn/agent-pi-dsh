@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
 <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" /></noscript>
-<link rel="stylesheet" href="assets/css/main.css?v=24" />
+<link rel="stylesheet" href="assets/css/main.css?v=25" />
 </head>
 <body>
 
@@ -30,7 +30,6 @@
       <a href="index.html#architecture" data-lang="en">Architecture</a>
       <a href="docs.html" class="active" data-lang="zh">文档</a>
       <a href="docs.html" class="active" data-lang="en">Docs</a>
-      <a href="https://github.com/xiangxin2021cn/agent-pi-dsh" target="_blank" rel="noopener">GitHub</a>
       <button class="icon-btn lang-btn" data-toggle-lang aria-label="Switch language">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
         <span>EN</span>
@@ -120,10 +119,10 @@
       <h2 data-lang="zh">快速上手</h2>
       <h2 data-lang="en">Quickstart</h2>
       <div data-lang="zh">
-        <p><b>当前 DSH 3.x 源码：</b><a href="https://github.com/xiangxin2021cn/agent-pi-dsh" target="_blank" rel="noopener">agent-pi-dsh</a>；<b>Craft Agents OSS 2.x 经典版：</b><a href="https://github.com/xiangxin2021cn/agent-pi" target="_blank" rel="noopener">agent-pi</a>。两个仓库、内核和更新通道完全分开。</p>
+        <p><b>当前版本：</b>Agent Pi DSH <span data-release-version>3.5.2</span>。DSH 3.x 与 Craft Agents OSS 2.x 经典版的内核、数据目录和更新通道完全分开。</p>
         <p>Agent Pi DSH 的默认路径只有一条：<b>打开工作区，直接说任务</b>。工作台是加速器，不是闸门。</p>
         <ol>
-          <li>下载并安装 <code>Agent-Pi-DSH-3.3.5-x64.exe</code>（<a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/tag/v3.3.5" target="_blank" rel="noopener">GitHub Releases</a>）。</li>
+          <li>在<a href="index.html#download">官网下载区</a>选择 Windows、macOS 或 Linux 安装包；Windows 用户安装前核对 SHA256：<code data-release-sha>664C6FEBF8C1968A962C28417F9BFD96877CF32EE16BAA9A0FC819C8F154751A</code>。</li>
           <li>打开 <b>Agent Pi DSH</b>，选择项目工作区（投标资料所在目录）。</li>
           <li>配置 DeepSeek。新会话默认 <code>deepseek-v4-flash-vision-exp</code>。</li>
           <li>可选：设置 → Codex 智能体 → 使用 ChatGPT 登录；无需 API Key。</li>
@@ -133,10 +132,10 @@
         <div class="callout"><p><b>提示：</b>PDF 当文件读（能抽文本的不先转图）；图纸和照片交给官方视觉模型。</p></div>
       </div>
       <div data-lang="en">
-        <p><b>Current DSH 3.x source:</b> <a href="https://github.com/xiangxin2021cn/agent-pi-dsh" target="_blank" rel="noopener">agent-pi-dsh</a>; <b>Craft Agents OSS 2.x Classic:</b> <a href="https://github.com/xiangxin2021cn/agent-pi" target="_blank" rel="noopener">agent-pi</a>. Their repositories, engines, and update channels are separate.</p>
+        <p><b>Current version:</b> Agent Pi DSH <span data-release-version>3.5.2</span>. DSH 3.x and Craft Agents OSS 2.x Classic use separate engines, data directories and update channels.</p>
         <p>The default path in Agent Pi DSH is a single one: <b>pick a workspace and talk</b>. The workbench accelerates work; it does not gate it.</p>
         <ol>
-          <li>Download and install <code>Agent-Pi-DSH-3.3.5-x64.exe</code> from <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/tag/v3.3.5" target="_blank" rel="noopener">GitHub Releases</a>.</li>
+          <li>Choose the Windows, macOS or Linux package in the <a href="index.html#download">website download section</a>. Windows users should verify SHA256 before installation: <code data-release-sha>664C6FEBF8C1968A962C28417F9BFD96877CF32EE16BAA9A0FC819C8F154751A</code>.</li>
           <li>Open <b>Agent Pi DSH</b> and pick the project workspace (the folder with the bid files).</li>
           <li>Connect DeepSeek. New sessions default to <code>deepseek-v4-flash-vision-exp</code>.</li>
           <li>Optional: Settings → Codex Agent → Sign in with ChatGPT. No API key is required.</li>
@@ -158,12 +157,11 @@
           <tr><td>不会自动升级</td><td>2.x 停在 2.6.5，避免把旧引擎静默换成新内核；3.x 请手动下载安装。</td></tr>
           <tr><td>项目还在</td><td>工作目录和 <code>Agent Pi Outputs</code> 接着用。</td></tr>
           <tr><td>会话不迁移</td><td>2.x 的旧聊天、旧模型连接不会进 3.x。</td></tr>
-          <tr><td>可并存</td><td>3.x 与 <a href="https://github.com/xiangxin2021cn/agent-pi/releases/tag/v2.6.5" target="_blank" rel="noopener">v2.6.5 经典版</a> 可同时安装。</td></tr>
+          <tr><td>可并存</td><td>3.x 与 v2.6.5 经典版可同时安装。</td></tr>
           <tr><td>数据目录</td><td><code>%APPDATA%\agent-pi-dsh-desktop</code>（首次启动写入可写 <code>dsh-home</code> 并组装 tender profile）。</td></tr>
         </table>
         <div class="callout warn"><p><b>若提示 <code>app.asar</code> 被占用：</b>退出 Agent Pi DSH（含托盘），并暂时关掉占用安装目录的编辑器，再重新安装。覆盖安装不会改动已有知识库。</p></div>
-        <p>macOS arm64 / Linux x64 由同一 Release 上的 CI 回传。</p>
-        <p>国内下载较慢时可用镜像：<a href="https://gh-proxy.com/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.3.5/Agent-Pi-DSH-3.3.5-x64.exe" target="_blank" rel="noopener">gh-proxy.com</a> · <a href="https://ghfast.top/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.3.5/Agent-Pi-DSH-3.3.5-x64.exe" target="_blank" rel="noopener">ghfast.top</a>。镜像为第三方服务，下载后请核对 SHA256：<code>3581435F4844BBB573EA6F0D8C752B37C1C2EFD5F7763CE95B3491FA878ED447</code>。</p>
+        <p>当前正式版同时提供 Windows x64、macOS arm64 和 Linux x64 构件；请从<a href="index.html#download">官网下载区</a>进入对应的 GitHub Release 资产。</p>
       </div>
       <div data-lang="en">
         <p>The installer is unsigned: if SmartScreen blocks it, choose <b>“Run anyway”</b>. Before an in-place upgrade, <b>quit fully</b> — closing to the tray is not enough.</p>
@@ -172,12 +170,11 @@
           <tr><td>No auto-update</td><td>2.x stays at 2.6.5 so the old engine is never silently swapped; install 3.x manually.</td></tr>
           <tr><td>Projects stay</td><td>Your working directory and <code>Agent Pi Outputs</code> carry over.</td></tr>
           <tr><td>Sessions stay</td><td>Old 2.x chats and model connections do not migrate into 3.x.</td></tr>
-          <tr><td>Side by side</td><td>3.x and <a href="https://github.com/xiangxin2021cn/agent-pi/releases/tag/v2.6.5" target="_blank" rel="noopener">Classic 2.6.5</a> can be installed together.</td></tr>
+          <tr><td>Side by side</td><td>3.x and Classic 2.6.5 can be installed together.</td></tr>
           <tr><td>Data directory</td><td><code>%APPDATA%\agent-pi-dsh-desktop</code> (first launch writes a writable <code>dsh-home</code> and assembles the tender profile).</td></tr>
         </table>
         <div class="callout warn"><p><b>If <code>app.asar</code> is locked:</b> quit Agent Pi DSH (including the tray) and close any editor holding the install directory, then reinstall. In-place upgrades never touch your existing knowledge base.</p></div>
-        <p>macOS arm64 / Linux x64 builds are uploaded by CI onto the same Release.</p>
-        <p>If downloads are slow from mainland China, use a mirror: <a href="https://gh-proxy.com/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.3.5/Agent-Pi-DSH-3.3.5-x64.exe" target="_blank" rel="noopener">gh-proxy.com</a> · <a href="https://ghfast.top/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.3.5/Agent-Pi-DSH-3.3.5-x64.exe" target="_blank" rel="noopener">ghfast.top</a>. Mirrors are third-party services — verify the SHA256 after downloading: <code>3581435F4844BBB573EA6F0D8C752B37C1C2EFD5F7763CE95B3491FA878ED447</code>.</p>
+        <p>The current release provides Windows x64, macOS arm64 and Linux x64 artifacts. Use the <a href="index.html#download">website download section</a> to open the matching GitHub Release asset.</p>
       </div>
     </section>
 
@@ -195,6 +192,9 @@
           <tr><td>并行拆活</td><td>内核原生 <code>subagent</code> / <code>workflow</code>，不再自研调度器</td></tr>
         </table>
         <p>实施 / 投资与投标走同一套规则：落盘写成果，工作台不自建阶段运行器。阶段只准备 brief 和文件清单，并行扇出交给内核。</p>
+        <div class="callout"><p><b>3.5.0 阶段记忆：</b>阶段完成时先原子提交可校验的 StageMemory/Handoff；下一阶段只接收声明过的前序基线。主对话每轮只注入小型状态胶囊，精确事实按路径回读，因此重启、自动压缩或超长项目都不依赖聊天摘要充当业务底稿。项目事实只留在本项目，通用规范才进入知识库。</p></div>
+        <div class="callout"><p><b>3.5.1 执行账本与双态控制：</b>DSH 主智能体把目标、当前批次、计划、子任务、阻塞和下一动作回写到每会话执行账本；控制面板只维护磁盘事实、BOQ、证据、引用和人工门禁。面板同时展示执行态与事实态，并把差异定点送回主对话，不再靠机械扫描猜测智能体进度。</p></div>
+        <div class="callout"><p><b>3.5.2 DSH alpha.3：</b>长会话分页、渲染和图片投递能力升级；Agent Pi 同时订阅 Session 与 Chat projection，并在打包时拒绝已被上游删除的 SQLite 会话后端。内核指针今后每次变化都必须提升应用版本并通过 PR 门禁。</p></div>
       </div>
       <div data-lang="en">
         <p>Agent Pi DSH is not a chat skin. It runs real jobs — <b>bid parse and pricing, delivery planning, investment research</b>. The workbench lives on chat-page tabs; the default path is still to open a workspace and talk.</p>
@@ -206,6 +206,9 @@
           <tr><td>Parallel fan-out</td><td>Native <code>subagent</code> / <code>workflow</code> — no in-house scheduler</td></tr>
         </table>
         <p>Delivery and investment follow the same rules as tender: outputs land on disk, and the workbench never builds its own stage runner. Stages only prepare the brief and file list; fan-out belongs to the kernel.</p>
+        <div class="callout"><p><b>3.5.0 stage memory:</b> completing a stage first commits an atomic, validated StageMemory/Handoff; downstream stages consume only declared baselines. Each chat turn receives a small state capsule and reads exact facts back from disk, so restarts, automatic compaction and very large projects never depend on a chat summary as the business record. Project facts stay project-local; only reusable standards enter the knowledge base.</p></div>
+        <div class="callout"><p><b>3.5.1 execution ledger and dual-state control:</b> the DSH parent writes its objective, active batch, plan, assignments, blockers and next action into a per-session ledger. The workbench remains authoritative only for disk facts, BOQ, evidence, citations and human gates. It shows both states and sends exact mismatches back to the parent instead of guessing progress from files.</p></div>
+        <div class="callout"><p><b>3.5.2 DSH alpha.3:</b> long-session paging, rendering and image delivery are upgraded. Agent Pi subscribes to both Session and Chat projections and rejects the removed SQLite session backend during packaging. Every future kernel-pin change must raise the application version and pass the PR gate.</p></div>
       </div>
     </section>
 
@@ -223,7 +226,7 @@
           <li>不会把整个阶段当新任务重开；</li>
           <li>你在正式稿上改的字留在父会话里，不会把已完工工人叫醒。</li>
         </ul>
-        <div class="callout"><p><b>原则：</b>已完工任务的 JSON 不是权威——重启只根据 Official Outputs 判断是否还要救工人。</p></div>
+        <div class="callout"><p><b>原则：</b>已完工任务的临时 JSON 不是权威——重启根据 Official Outputs 与已校验的 StageMemory/Handoff 判断是否还要救工人。</p></div>
         <h3>大历史不卡窗</h3>
         <p>上百个工人的父会话：点开某一个孩子的历史不应把整窗打死；冷子代理历史不再扫全部兄弟目录；大历史分页不再栈溢出；主对话上滚到头部自动「加载更早」。</p>
       </div>
@@ -237,7 +240,7 @@
           <li>the stage is never restarted as a brand-new task;</li>
           <li>your edits to Official Outputs stay put and never wake finished workers.</li>
         </ul>
-        <div class="callout"><p><b>Rule:</b> a finished task's JSON is not authoritative — after restart, only Official Outputs decide whether a worker still needs rescuing.</p></div>
+        <div class="callout"><p><b>Rule:</b> a finished task's transient JSON is not authoritative — after restart, Official Outputs plus the validated StageMemory/Handoff decide whether a worker still needs rescuing.</p></div>
         <h3>Large histories stay responsive</h3>
         <p>Parent sessions with a hundred workers: opening one child's history should not freeze the window; cold subagent histories no longer scan every sibling; large-history pagination no longer overflows; scrolling to the top of the main chat auto-loads earlier messages.</p>
       </div>
@@ -275,6 +278,7 @@
       <h2 data-lang="en">Knowledge base</h2>
       <div data-lang="zh">
         <p>入口在左侧栏「专业化工作台」下面的<b>知识库</b>按钮（工作台顶栏入口是同一页）。索引按<b>文档自己的编排</b>切条款：章 / 节 / 条、<code>Clause</code> / <code>Article</code> / <code>Section</code>、<code>A1.2.3</code>。检索是 MiniSearch BM25，不是向量库。</p>
+        <div class="callout"><p><b>3.4.2 影子导航：</b>长篇叙事 PDF / Markdown 会额外建立 PageIndex 兼容结构树，用于先定位应读章节；它不替代原文、MiniSearch、精确条款或 BOQ 表格。无需第二 API Key；真实项目审计门禁通过前，默认仍走 3.4.1 路径。</p></div>
         <h3>两条入库路，同一套索引</h3>
         <ul>
           <li><b>本页导入</b>：选择文件或拖入，先落入 <code>knowledge-base/originals/</code> 原始文档区，点「解析入库」才抽文本或走 MinerU（有进度条）。也可以贴路径：原文件、知识包文件夹、MinerU 产物文件夹。</li>
@@ -288,10 +292,11 @@
         <h3>分类子目录与 <code>.apkb</code> 传递包</h3>
         <p>分类下可建子目录（如 规范 → COTO 2020）；已入库且文件名能认出的章节自动挂上。已入库条目、有文件的子目录、本机技能（不含出厂捆绑技能）都可导出 <code>.apkb</code>——这不是 zip，对方在同一页导入后，条目回到原分类和子目录，技能写入本机技能目录。</p>
         <h3>MinerU 表格能看</h3>
-        <p>官方 MinerU 把表写成 HTML；入库落稿会把 <code>&lt;table&gt;</code> 收成 GitHub 风格 Markdown 表。旧稿点「全部重建」即可转表；预览对未重建的稿做兜底渲染。</p>
+        <p>官方 MinerU 把表写成 HTML；入库落稿会把 <code>&lt;table&gt;</code> 收成标准 Markdown 表。旧稿点「全部重建」即可转表；预览对未重建的稿做兜底渲染。</p>
       </div>
       <div data-lang="en">
         <p>The entry is the <b>Knowledge Base</b> button under “专业化工作台” in the left rail (the workbench header opens the same page). Indexing follows <b>each document's own structure</b>: chapters / sections / clauses, <code>Clause</code> / <code>Article</code> / <code>Section</code>, <code>A1.2.3</code>. Retrieval is MiniSearch BM25, not a vector store.</p>
+        <div class="callout"><p><b>3.4.2 shadow navigation:</b> long narrative PDF / Markdown sources also receive a PageIndex-compatible structure tree to locate chapters before reading. It never replaces originals, MiniSearch, exact clauses or BOQ tables. No second API key; the 3.4.1 path remains default until audited real-project gates pass.</p></div>
         <h3>Two import paths, one index</h3>
         <ul>
           <li><b>On-page import</b>: pick or drop files — they land in <code>knowledge-base/originals/</code> first, and only “Parse into KB” extracts text or runs MinerU (with a progress bar). You can also paste a path: a file, a knowledge-pack folder, or a MinerU output folder.</li>
@@ -305,7 +310,7 @@
         <h3>Sub-folders and <code>.apkb</code> transfer packs</h3>
         <p>Categories can hold sub-folders (e.g. Specs → COTO 2020); imported chapters with recognizable filenames attach automatically. Entries, populated sub-folders and local skills (not factory-bundled ones) export as <code>.apkb</code> — not a zip; importing on the same page restores the original category and sub-folder, and skills land in the local skill directory.</p>
         <h3>Readable MinerU tables</h3>
-        <p>Stock MinerU emits HTML tables; on import they are folded into GitHub-style Markdown tables. Rebuild older entries with “Rebuild all”; the preview falls back to rendering raw <code>&lt;table&gt;</code> for entries not yet rebuilt.</p>
+        <p>Stock MinerU emits HTML tables; on import they are folded into standard Markdown tables. Rebuild older entries with “Rebuild all”; the preview falls back to rendering raw <code>&lt;table&gt;</code> for entries not yet rebuilt.</p>
       </div>
     </section>
 
@@ -318,7 +323,7 @@
         <h3>一句话蒸馏领域模块</h3>
         <p>模块管理的主按钮是<b>「去对话里创造」</b>：把本单活的打法一句话蒸馏成领域模块（<code>workbench-domain-builder</code>），沉淀为可复用的企业经验。JSON 粘贴收在高级里。</p>
         <h3>插件市场</h3>
-        <p>设置 → 插件市场：发现社区为 Agent Pi 打造的能力，一键安装。从 GitHub 装插件时，点确认会预写正确的 pnpm 构建放行键。对话里后来装的 bundle 插件，重启后保留。</p>
+        <p>设置 → 插件市场：发现社区为 Agent Pi 打造的能力，一键安装。从外部仓库装插件时，点确认会预写正确的 pnpm 构建放行键。对话里后来装的 bundle 插件，重启后保留。</p>
         <h3>内置能力</h3>
         <ul>
           <li><code>web_fetch</code>：模型可取页面和图片地址，写成 Markdown 图；</li>
@@ -332,7 +337,7 @@
         <h3>One-sentence module distillation</h3>
         <p>The main button in module management is <b>“create in chat”</b>: distill the playbook of the current job into a domain module in one sentence (<code>workbench-domain-builder</code>) and keep it as reusable company experience. Raw JSON paste lives under Advanced.</p>
         <h3>Plugin market</h3>
-        <p>Settings → Plugin market: discover community capabilities for Agent Pi and install in one click. When installing from GitHub, confirming pre-writes the correct pnpm build-approval keys. Bundle plugins installed later in chat survive restarts.</p>
+        <p>Settings → Plugin market: discover community capabilities for Agent Pi and install in one click. When installing from an external repository, confirming pre-writes the correct pnpm build-approval keys. Bundle plugins installed later in chat survive restarts.</p>
         <h3>Built-ins</h3>
         <ul>
           <li><code>web_fetch</code>: the model fetches pages and image URLs into Markdown images;</li>
@@ -348,7 +353,7 @@
       <h2 data-lang="zh">模型、视觉与 Codex</h2>
       <h2 data-lang="en">Models, vision &amp; Codex</h2>
       <div data-lang="zh">
-        <p>内核钉在 DeepSeek Harness <a href="https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.1-rc.2" target="_blank" rel="noopener"><code>dsh-v0.1.1-rc.2</code></a>（<code>b150a551b8</code>），桌面壳 Electron 43.4.1。</p>
+        <p>内核钉在 DeepSeek Harness <code>dsh-v0.1.2-alpha.3</code>（<code>dd6322d604</code>），桌面壳 Electron 43.4.1；Agent Pi 兼容层不修改官方 DSH 内核。</p>
         <ul>
           <li>新会话默认 <b>DeepSeek-V4-Flash-Vision-Exp</b>；Flash / Pro 仍是纯文本——只选它们<b>看不见图片</b>。已有会话沿用当时记在日志里的模型。</li>
           <li>贴图：规范化 → Files API，失败再 inline。工作区图片用官方 <code>read_image</code>。系统提示不再点名已卸掉的 <code>vision_*</code>。</li>
@@ -358,7 +363,7 @@
         <div class="callout"><p><b>选模型口诀：</b>要识图，选 Vision-Exp；只跑文本长任务，Flash / Pro 更省。推理强度可调到 <code>low</code> 进一步降本。</p></div>
       </div>
       <div data-lang="en">
-        <p>The kernel is pinned to DeepSeek Harness <a href="https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.1-rc.2" target="_blank" rel="noopener"><code>dsh-v0.1.1-rc.2</code></a> (<code>b150a551b8</code>), on an Electron 43.4.1 shell.</p>
+        <p>The kernel is pinned to DeepSeek Harness <code>dsh-v0.1.2-alpha.3</code> (<code>dd6322d604</code>) on Electron 43.4.1; the Agent Pi compatibility layer does not modify the official DSH kernel.</p>
         <ul>
           <li>New sessions default to <b>DeepSeek-V4-Flash-Vision-Exp</b>; Flash / Pro are text-only — with those, <b>images are invisible</b>. Existing sessions keep the model recorded in their logs.</li>
           <li>Pasted images: normalize → Files API, inline as fallback. Workspace images use the official <code>read_image</code>. The system prompt no longer names the removed <code>vision_*</code> tools.</li>
@@ -376,6 +381,11 @@
       <div data-lang="zh">
         <table class="tbl">
           <tr><th>版本</th><th>一句话</th></tr>
+          <tr><td>3.5.2</td><td>DSH alpha.3 正式升级；长会话与图片投递适配；内核升级强制提升应用版本</td></tr>
+          <tr><td>3.5.1</td><td>每会话执行账本；主智能体执行态与系统事实态双态对照；差异驱动续派</td></tr>
+          <tr><td>3.5.0</td><td>不可变阶段记忆与 handoff；精准下游失效；重启与压缩后从磁盘基线恢复</td></tr>
+          <tr><td>3.4.2</td><td>PageIndex 长文档影子导航；知识面路由；不可变证据包；五域覆盖账本</td></tr>
+          <tr><td>3.4.1</td><td>DSH alpha.1 兼容；投标七阶段收敛；右侧文件栏与 Agent 模式恢复</td></tr>
           <tr><td>3.3.5</td><td>投标执行链收紧；BOQ 全量覆盖；ChatGPT/Codex 登录；父会话自动接续</td></tr>
           <tr><td>3.3.4</td><td>解析必须抽出实际 BOQ；企业工效优先；预览改价全局重算</td></tr>
           <tr><td>3.3.3</td><td>南非道路投标五份深度分析稿；右侧多格式预览；Univer 软件内编辑</td></tr>
@@ -404,6 +414,11 @@
       <div data-lang="en">
         <table class="tbl">
           <tr><th>Version</th><th>In one line</th></tr>
+          <tr><td>3.5.2</td><td>DSH alpha.3 release, long-session and image-delivery adaptation, mandatory application version bump for kernel upgrades</td></tr>
+          <tr><td>3.5.1</td><td>Per-session execution ledger, dual main-agent/fact state, and mismatch-driven continuation</td></tr>
+          <tr><td>3.5.0</td><td>Immutable stage memory and handoffs, precise downstream invalidation, disk-baseline recovery after restart and compaction</td></tr>
+          <tr><td>3.4.2</td><td>PageIndex shadow navigation for long documents, typed knowledge-surface routing, immutable evidence packages, five-domain coverage ledger</td></tr>
+          <tr><td>3.4.1</td><td>DSH alpha.1 compatibility, converged seven-stage tender flow, restored files rail and agent modes</td></tr>
           <tr><td>3.3.5</td><td>Hardened tender execution, full BOQ coverage, ChatGPT/Codex sign-in, and automatic parent wake</td></tr>
           <tr><td>3.3.4</td><td>Analysis must extract the real BOQ; enterprise productivity first; reviewed rates recalculate</td></tr>
           <tr><td>3.3.3</td><td>Five-manuscript SA road-tender analysis depth; multi-format right rail; in-app Univer editing</td></tr>
@@ -478,10 +493,9 @@
         · <a href="index.html" data-lang="zh">返回首页</a><a href="index.html" data-lang="en">Home</a>
       </span>
     </div>
-    <p style="margin:14px 0 0;color:var(--text-faint);font-size:0.82rem">Free code signing provided by <a href="https://signpath.io" target="_blank" rel="noopener" style="display:inline;padding:0">SignPath.io</a>, certificate by <a href="https://signpath.org" target="_blank" rel="noopener" style="display:inline;padding:0">SignPath Foundation</a>.</p>
   </div>
 </footer>
 
-<script src="assets/js/main.js?v=25"></script>
+<script src="assets/js/main.js?v=26"></script>
 </body>
 </html>

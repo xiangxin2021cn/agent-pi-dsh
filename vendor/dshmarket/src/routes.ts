@@ -30,6 +30,7 @@ import { createThemeManager, type LoaderEntry } from './themes.ts'
 import { readJsonBody, sameOrigin, sendJson } from './http.ts'
 import { restartAllowed, scheduleRestart, trustedRestartRequest, trustedDownloadRequest } from './restart.ts'
 import { verifyActivation } from './verify.ts'
+import { reconcileKnownPluginCompatibility } from '../compatibility.js'
 import {
   createProfileBackup, downloadWebdav, MAX_BACKUP_BYTES, restoreProfileBackup, secretFileCount, uploadWebdav,
 } from './backup.ts'
@@ -742,6 +743,7 @@ export function mountMarketRoutes(
             let ok = result.exitCode === 0 && !result.timedOut && !cancelled
             let stale = false
             let activation: Record<string, ReturnType<typeof verifyActivation>> | undefined
+            let compatibility: ReturnType<typeof reconcileKnownPluginCompatibility> | undefined
             if (ok) {
               stale = isStaleUpdate({
                 isGit,
@@ -755,6 +757,7 @@ export function mountMarketRoutes(
               if (stale) ok = false
             }
             if (ok) {
+              compatibility = reconcileKnownPluginCompatibility(activeProfileDir, name)
               invalidateUpdates()
               activation = { [name]: verifyActivation(config.profile, name, liveNames(), activeProfileDir) }
             }
@@ -787,6 +790,7 @@ export function mountMarketRoutes(
               partial: cancelDiff?.partial,
               changed: cancelDiff?.changed,
               activation,
+              compatibility,
               ignoredBuilds,
               staleReason: staleReason ?? undefined,
               error: staleError ?? undefined,
@@ -1174,6 +1178,14 @@ export function mountMarketRoutes(
             }
             let ok = result.exitCode === 0 && !result.timedOut && !cancelled
             const cancelDiff = cancelled ? changedSince(beforeSpecs) : null
+            const compatibility = new Map<string, ReturnType<typeof reconcileKnownPluginCompatibility>>()
+            if (ok) {
+              const installedAfterCommand = readInstalled(config.profile, activeProfileDir)
+              for (const name of Object.keys(installedAfterCommand)) {
+                if (before.has(name)) continue
+                compatibility.set(name, reconcileKnownPluginCompatibility(activeProfileDir, name))
+              }
+            }
             if (ok) invalidateUpdates()
             if (ok) {
               // Collection repos (e.g. skin monorepos) install as a junk
@@ -1219,9 +1231,11 @@ export function mountMarketRoutes(
                 // theme) so the result is visible right after the refresh.
                 hot = true
                 for (const name of added) {
-                  const live = entry.category === 'theme'
+                  const prepared = compatibility.get(name)
+                  const canActivate = prepared === undefined || prepared.status === 'compatible' || prepared.status === 'irrelevant'
+                  const live = canActivate && (entry.category === 'theme'
                     ? await themes.activateTheme(name)
-                    : (await hotMount(host, activeProfileDir, name)).ok
+                    : (await hotMount(host, activeProfileDir, name)).ok)
                   if (!live) hot = false
                 }
                 activation = {}
@@ -1242,6 +1256,7 @@ export function mountMarketRoutes(
               partial: cancelDiff?.partial,
               changed: cancelDiff?.changed,
               activation,
+              compatibility: Object.fromEntries(compatibility),
               ignoredBuilds,
               // Blocked build scripts are expected (pnpm >= 10 blocks them by
               // default): surface the approve-builds banner instead of scaring

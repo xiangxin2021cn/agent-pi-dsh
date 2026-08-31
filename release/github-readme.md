@@ -20,16 +20,16 @@
 
 <p align="center">
   <a href="https://www.agent-pi.app"><img src="https://img.shields.io/badge/官网-agent--pi.app-2f6df0?style=flat-square" alt="Website"></a>
-  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/latest"><img src="https://img.shields.io/badge/v3.3.5-DSH%20dsh--v0.1.1--rc.2-2f6df0?style=flat-square" alt="v3.3.5"></a>
+  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/latest"><img src="https://img.shields.io/badge/v3.3.6-DSH%20dsh--v0.1.1--rc.2-2f6df0?style=flat-square" alt="v3.3.6"></a>
   <a href="https://www.agent-pi.app/docs.html"><img src="https://img.shields.io/badge/文档-Docs-0fb5c9?style=flat-square" alt="Docs"></a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.3.5/Agent-Pi-DSH-3.3.5-x64.exe"><b>Windows x64</b></a>
+  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.3.6/Agent-Pi-DSH-3.3.6-x64.exe"><b>Windows x64</b></a>
   ·
-  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.3.5/Agent-Pi-DSH-3.3.5-mac-arm64.dmg"><b>macOS arm64</b></a>
+  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.3.6/Agent-Pi-DSH-3.3.6-mac-arm64.dmg"><b>macOS arm64</b></a>
   ·
-  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.3.5/Agent-Pi-DSH-3.3.5-linux-x86_64.AppImage"><b>Linux AppImage</b></a>
+  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.3.6/Agent-Pi-DSH-3.3.6-linux-x86_64.AppImage"><b>Linux AppImage</b></a>
   ·
   <a href="https://www.agent-pi.app">官网</a>
   ·
@@ -39,9 +39,9 @@
 通用办公助手陪你聊天，**Agent Pi DSH 替你干活**：吃透投标、实施、投资的垂直作业系统。长程任务不断档、目标不偏离、证据可追溯——数十份标书文件一次搞定，数千条 BOQ 逐项推导，成果直接落盘为正式文档。
 
 > [!IMPORTANT]
-> **v3.3.5**：投标阶段顺序、能力包就绪状态和真实 BOQ 全量覆盖统一收紧；新增无需 API Key 的 ChatGPT/Codex 登录与 `subagent_codex`，父会话在子代理回推或用户追加消息后继续收口。内核钉在 **`dsh-v0.1.1-rc.2`** · 新会话默认 `deepseek-v4-flash-vision-exp`
+> **v3.3.6**：主对话可显式交给 Codex 执行；每会话事务控制器统一收口准备、提交、成功、失败和销毁；模型容量自动匹配，约 72% 上下文占用时自动压缩并可选 DeepSeek 兜底；Windows 安装完成页默认勾选启动应用。内核钉在 **`dsh-v0.1.1-rc.2`** · DSH `0.1.2-alpha.1` 迁移在独立 3.4.0 分支进行
 >
-> 本仓库 `main` 是 **3.x DSH 版源码**，与 [2.6.5 经典版（Craft Agents OSS）](https://github.com/xiangxin2021cn/agent-pi) 分库维护。**3.x 安装包在 [DSH Releases](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/tag/v3.3.5) 发布。** 完整产品页：[www.agent-pi.app](https://www.agent-pi.app)
+> 本仓库 `main` 是 **3.x DSH 版源码**，与 [2.6.5 经典版（Craft Agents OSS）](https://github.com/xiangxin2021cn/agent-pi) 分库维护。**3.x 安装包在 [DSH Releases](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/tag/v3.3.6) 发布。** 完整产品页：[www.agent-pi.app](https://www.agent-pi.app)
 
 <p align="center">
   <img src="docs/assets/screenshot-market.jpg" alt="Agent Pi DSH 插件市场 · 亮色工作台" width="92%">
@@ -135,14 +135,14 @@ flowchart LR
 
 | 平台 | 文件 |
 | --- | --- |
-| Windows x64 | [Agent-Pi-DSH-3.3.5-x64.exe](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.3.5/Agent-Pi-DSH-3.3.5-x64.exe) |
-| macOS Apple Silicon | [Agent-Pi-DSH-3.3.5-mac-arm64.dmg](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.3.5/Agent-Pi-DSH-3.3.5-mac-arm64.dmg) · [zip](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.3.5/Agent-Pi-DSH-3.3.5-mac-arm64.zip) |
-| Linux x64 | [AppImage](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.3.5/Agent-Pi-DSH-3.3.5-linux-x86_64.AppImage) · [deb](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.3.5/Agent-Pi-DSH-3.3.5-linux-amd64.deb) |
+| Windows x64 | [Agent-Pi-DSH-3.3.6-x64.exe](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.3.6/Agent-Pi-DSH-3.3.6-x64.exe) |
+| macOS Apple Silicon | [Agent-Pi-DSH-3.3.6-mac-arm64.dmg](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.3.6/Agent-Pi-DSH-3.3.6-mac-arm64.dmg) · [zip](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.3.6/Agent-Pi-DSH-3.3.6-mac-arm64.zip) |
+| Linux x64 | [AppImage](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.3.6/Agent-Pi-DSH-3.3.6-linux-x86_64.AppImage) · [deb](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.3.6/Agent-Pi-DSH-3.3.6-linux-amd64.deb) |
 | 2.6.5 经典版 | [可与 3.x 并存](https://github.com/xiangxin2021cn/agent-pi/releases/tag/v2.6.5) |
 
-国内镜像（Windows）：[gh-proxy.com](https://gh-proxy.com/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.3.5/Agent-Pi-DSH-3.3.5-x64.exe) · [ghfast.top](https://ghfast.top/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.3.5/Agent-Pi-DSH-3.3.5-x64.exe)
+国内镜像（Windows）：[gh-proxy.com](https://gh-proxy.com/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.3.6/Agent-Pi-DSH-3.3.6-x64.exe) · [ghfast.top](https://ghfast.top/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.3.6/Agent-Pi-DSH-3.3.6-x64.exe)
 
-Windows SHA256：`3581435F4844BBB573EA6F0D8C752B37C1C2EFD5F7763CE95B3491FA878ED447`
+Windows SHA256：`5CD82E6E4769387059F3CDC2E5FFBA0496187FB6BEB40CE65E6439F506AD56F5`
 
 1. 下载对应平台安装包
 2. 未签名：SmartScreen / Gatekeeper 选「仍要运行」
@@ -159,6 +159,7 @@ Windows SHA256：`3581435F4844BBB573EA6F0D8C752B37C1C2EFD5F7763CE95B3491FA878ED4
 
 | 版本 | 一句话 |
 | --- | --- |
+| [3.3.6](./release/notes-3.3.6.md) | Codex 主对话指派；每会话事务控制；容量匹配与自动压缩；安装后可选启动 |
 | [3.3.5](./release/notes-3.3.5.md) | 投标执行链收紧；BOQ 全量覆盖；ChatGPT/Codex 登录；父会话自动接续 |
 | [3.3.4](./release/notes-3.3.4.md) | 解析必须抽出实际 BOQ；企业工效优先；预览改价全局重算 |
 | [3.3.3](./release/notes-3.3.3.md) | 南非道路投标五份深度分析稿；右侧多格式预览；Univer 软件内编辑 |

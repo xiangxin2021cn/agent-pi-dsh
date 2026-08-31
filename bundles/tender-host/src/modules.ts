@@ -14,8 +14,8 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { readJson, writeJson } from './fsutil.ts'
-import { WORKFLOWS, type WorkflowDefinition, type WorkflowStage } from './workflows.ts'
+import { CAPABILITY_FILE_NAMES, readJson, writeJson } from './fsutil.ts'
+import { WORKFLOWS, type StageConsume, type WorkflowDefinition, type WorkflowStage } from './workflows.ts'
 
 /** One JSON file under the user modules root. */
 export interface ModuleFile {
@@ -25,6 +25,8 @@ export interface ModuleFile {
   labelZh: string
   /** Icon name from the workbench icon set; unknown names fall back in the client. */
   icon?: string
+  /** Deterministic professional controls inherited from a built-in domain. */
+  controlProfile?: 'tender'
   setupStageId?: string
   bindingAreaByStage?: Record<string, 'analysis' | 'pricing' | 'planning'>
   kbPack?: {
@@ -39,7 +41,14 @@ export interface ModuleFile {
     hintZh?: string
     prompt: string
     skillSlugs?: string[]
+    consumes?: StageConsume[]
     reviewSkillSlugs?: string[]
+    reviewPolicy?: 'all' | 'risk-based'
+    approvalGate?: {
+      promptZh: string
+      approveLabelZh: string
+      rejectLabelZh?: string
+    }
     listsSources?: boolean
     summaryDeliverable?: { fileName: string; outlineZh: string[] }
   }>
@@ -127,6 +136,10 @@ export function validateModuleFile(value: unknown): ModuleFile {
   if (!labelZh) fail('labelZh（模块中文名）不能为空')
   const label = raw.label === undefined ? undefined : String(raw.label).trim() || undefined
   const icon = raw.icon === undefined ? undefined : String(raw.icon).trim() || undefined
+  const controlProfile = raw.controlProfile === undefined ? undefined : String(raw.controlProfile).trim()
+  if (controlProfile !== undefined && controlProfile !== 'tender') {
+    fail('controlProfile 目前只支持 tender')
+  }
   if (!Array.isArray(raw.stages) || raw.stages.length === 0) fail('stages 至少需要一个阶段')
   if (raw.stages.length > 12) fail('stages 最多 12 个阶段')
   const seen = new Set<string>()
@@ -161,6 +174,56 @@ export function validateModuleFile(value: unknown): ModuleFile {
         }),
       }
     }
+    let reviewPolicy: ModuleFile['stages'][number]['reviewPolicy']
+    if (stage.reviewPolicy !== undefined) {
+      if (stage.reviewPolicy !== 'all' && stage.reviewPolicy !== 'risk-based') {
+        fail(`stages[${index}].reviewPolicy 必须是 all | risk-based`)
+      }
+      reviewPolicy = stage.reviewPolicy
+    }
+    let consumes: StageConsume[] | undefined
+    if (stage.consumes !== undefined) {
+      if (!Array.isArray(stage.consumes)) fail(`stages[${index}].consumes 必须是数组`)
+      consumes = stage.consumes.map((item, consumeIndex) => {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) {
+          fail(`stages[${index}].consumes[${consumeIndex}] 必须是对象`)
+        }
+        const consume = item as Record<string, unknown>
+        const required = consume.required === undefined ? undefined : Boolean(consume.required)
+        if (consume.kind === 'handoff') {
+          const upstreamId = String(consume.stageId ?? '')
+          if (!upstreamId || upstreamId === stageId || !seen.has(upstreamId)) {
+            fail(`stages[${index}].consumes[${consumeIndex}].stageId 必须引用当前阶段之前的阶段`)
+          }
+          return required === undefined
+            ? { kind: 'handoff', stageId: upstreamId }
+            : { kind: 'handoff', stageId: upstreamId, required }
+        }
+        if (consume.kind === 'capability') {
+          const capability = String(consume.capability ?? '')
+          if (!Object.prototype.hasOwnProperty.call(CAPABILITY_FILE_NAMES, capability)) {
+            fail(`stages[${index}].consumes[${consumeIndex}].capability 不受支持：${capability || '(空)'}`)
+          }
+          return required === undefined
+            ? { kind: 'capability', capability: capability as keyof typeof CAPABILITY_FILE_NAMES }
+            : { kind: 'capability', capability: capability as keyof typeof CAPABILITY_FILE_NAMES, required }
+        }
+        fail(`stages[${index}].consumes[${consumeIndex}].kind 必须是 handoff | capability`)
+      })
+    }
+    let approvalGate: ModuleFile['stages'][number]['approvalGate']
+    if (stage.approvalGate !== undefined) {
+      if (!stage.approvalGate || typeof stage.approvalGate !== 'object' || Array.isArray(stage.approvalGate)) {
+        fail(`stages[${index}].approvalGate 必须是对象`)
+      }
+      const gate = stage.approvalGate as Record<string, unknown>
+      const promptZh = String(gate.promptZh ?? '').trim()
+      const approveLabelZh = String(gate.approveLabelZh ?? '').trim()
+      const rejectLabelZh = gate.rejectLabelZh === undefined ? undefined : String(gate.rejectLabelZh).trim() || undefined
+      if (!promptZh) fail(`stages[${index}].approvalGate.promptZh 不能为空`)
+      if (!approveLabelZh) fail(`stages[${index}].approvalGate.approveLabelZh 不能为空`)
+      approvalGate = { promptZh, approveLabelZh, rejectLabelZh }
+    }
     return {
       id: stageId,
       label: stage.label === undefined ? undefined : String(stage.label).trim() || undefined,
@@ -168,7 +231,10 @@ export function validateModuleFile(value: unknown): ModuleFile {
       hintZh: stage.hintZh === undefined ? undefined : String(stage.hintZh).trim() || undefined,
       prompt,
       skillSlugs: asStringArray(stage.skillSlugs, `stages[${index}].skillSlugs`),
+      consumes,
       reviewSkillSlugs: asStringArray(stage.reviewSkillSlugs, `stages[${index}].reviewSkillSlugs`),
+      reviewPolicy,
+      approvalGate,
       listsSources: stage.listsSources === undefined ? undefined : Boolean(stage.listsSources),
       summaryDeliverable,
     }
@@ -204,24 +270,41 @@ export function validateModuleFile(value: unknown): ModuleFile {
       kbPack[area] = asStringArray(value, `kbPack.${area}`)
     }
   }
-  return { schemaVersion: 1, id, label, labelZh, icon, setupStageId, bindingAreaByStage, kbPack, stages }
+  if (controlProfile === 'tender') {
+    const canonical = WORKFLOWS.tender.stages.map((stage) => stage.id)
+    const actual = stages.map((stage) => stage.id)
+    if (actual.length !== canonical.length || actual.some((stageId, index) => stageId !== canonical[index])) {
+      fail(`controlProfile=tender 必须保留内置投标阶段 id 及顺序：${canonical.join(' -> ')}`)
+    }
+    if (setupStageId !== WORKFLOWS.tender.setupStageId) {
+      fail(`controlProfile=tender 的 setupStageId 必须是 ${WORKFLOWS.tender.setupStageId}`)
+    }
+  }
+  return { schemaVersion: 1, id, label, labelZh, icon, controlProfile, setupStageId, bindingAreaByStage, kbPack, stages }
 }
 
 function toWorkflow(file: ModuleFile): WorkflowDefinition {
-  const stages: WorkflowStage[] = file.stages.map((stage) => ({
+  const canonicalTender = file.controlProfile === 'tender' ? WORKFLOWS.tender : undefined
+  const stages: WorkflowStage[] = file.stages.map((stage, index) => ({
     id: stage.id,
     label: stage.label ?? stage.labelZh,
     labelZh: stage.labelZh,
     hintZh: stage.hintZh ?? stage.prompt.slice(0, 60),
     prompt: stage.prompt,
     skillSlugs: stage.skillSlugs ?? [],
+    consumes: stage.consumes
+      ?? canonicalTender?.stages.find((item) => item.id === stage.id)?.consumes
+      ?? (index === 0 ? [] : [{ kind: 'handoff' as const, stageId: file.stages[index - 1].id }]),
     reviewSkillSlugs: stage.reviewSkillSlugs && stage.reviewSkillSlugs.length > 0 ? stage.reviewSkillSlugs : undefined,
+    reviewPolicy: stage.reviewPolicy,
+    approvalGate: stage.approvalGate,
     listsSources: stage.listsSources,
     summaryDeliverable: stage.summaryDeliverable,
   }))
   return {
     id: `${file.id}-main`,
     module: file.id,
+    controlProfile: file.controlProfile,
     label: file.label ?? file.labelZh,
     labelZh: file.labelZh,
     setupStageId: file.setupStageId,
@@ -318,6 +401,11 @@ export function workflowFor(module: string): WorkflowDefinition {
   throw new Error(`Unknown module ${module}（既不是内置模块，也没有 ${path}）`)
 }
 
+/** True for the built-in tender workflow and user modules copied from it. */
+export function usesTenderControlProfile(module: string): boolean {
+  return workflowFor(module).controlProfile === 'tender'
+}
+
 /**
  * Create or replace a user module definition file after validation.
  * @param value - untrusted module JSON (tool args / HTTP body).
@@ -354,6 +442,7 @@ export function workflowToModuleFile(
     label: workflow.label,
     labelZh: (labelZh ?? workflow.labelZh).trim(),
     icon: icon || BUILTIN_ICONS[workflow.module],
+    controlProfile: workflow.controlProfile,
     setupStageId: workflow.setupStageId,
     bindingAreaByStage: workflow.bindingAreaByStage,
     kbPack: workflow.kbPack,
@@ -364,7 +453,10 @@ export function workflowToModuleFile(
       hintZh: stage.hintZh,
       prompt: stage.prompt,
       skillSlugs: stage.skillSlugs,
+      consumes: stage.consumes,
       reviewSkillSlugs: stage.reviewSkillSlugs,
+      reviewPolicy: stage.reviewPolicy,
+      approvalGate: stage.approvalGate,
       listsSources: stage.listsSources,
       summaryDeliverable: stage.summaryDeliverable,
     })),

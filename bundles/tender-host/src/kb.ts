@@ -38,6 +38,7 @@ import {
   type KbTransferSkillItem,
 } from './kb-transfer.ts'
 import { listUserSkills, readUserSkill, saveUserSkill } from './modules.ts'
+import { createPageIndexShadow, type PageIndexShadowStatus } from './pageindex-shadow.ts'
 
 export type { KbFolder } from './kb-folder.ts'
 
@@ -98,6 +99,9 @@ export interface KbEntry {
   clauseCount?: number
   coverage?: number
   tableCount?: number
+  /** Shadow navigation status; MiniSearch and exact clause lookup stay authoritative. */
+  pageIndexStatus?: PageIndexShadowStatus['state']
+  pageIndexUpdatedAt?: string
   /** True for entries auto-imported from the bundled knowledge packs. */
   seeded?: boolean
   /** Optional collection under `category`, e.g. 规范 → COTO 2020. */
@@ -163,6 +167,10 @@ function contentListPath(slug: string): string {
 
 function minisearchPath(slug: string): string {
   return join(kbRoot(), 'index', `${slug}.minisearch.json`)
+}
+
+export function kbPageIndexPath(slug: string): string {
+  return join(kbRoot(), 'index', `${slug}.pageindex-tree.json`)
 }
 
 let searchIndexCache: { key: string, index: ReturnType<typeof createKbMiniSearch> } | null = null
@@ -641,6 +649,18 @@ function commitKbText(input: {
     chunks.map((chunk) => searchDocumentFromChunk(slug, chunk)).filter((doc) => doc !== null),
   )
   invalidateKbSearchIndex()
+  let pageIndex: PageIndexShadowStatus
+  try {
+    pageIndex = createPageIndexShadow({
+      manuscriptPath: managedPath,
+      originalPath: input.originalPath || sourcePath,
+      classificationPath: input.originalName || input.originalPath || sourcePath,
+      sourceId: slug,
+      outputPath: kbPageIndexPath(slug),
+    })
+  } catch (error) {
+    pageIndex = { state: 'corrupt', path: kbPageIndexPath(slug), reason: error instanceof Error ? error.message : String(error) }
+  }
 
   const entry: KbEntry = {
     slug,
@@ -660,6 +680,8 @@ function commitKbText(input: {
     clauseCount: fidelity.clauseCount,
     coverage: fidelity.coverage,
     tableCount: fidelity.tableCount,
+    pageIndexStatus: pageIndex.state,
+    pageIndexUpdatedAt: pageIndex.state === 'ready' ? now : undefined,
     seeded: input.seeded || existing?.seeded,
     folderId: resolveEntryFolderId(registry, category, {
       folderId: input.folderId || existing?.folderId,
@@ -926,7 +948,7 @@ function beginMineruIngest(input: {
   displayName?: string
   category?: string
   slug?: string
-  ingest?: 'direct' | 'mineru' | 'pack'
+  ingest?: 'direct' | 'mineru'
   parseNow?: boolean
   folderId?: string
   folderName?: string
@@ -1312,6 +1334,7 @@ export function removeKbEntry(slug: string): { removed: boolean; slug: string } 
   rmSync(manifestPath(slug), { force: true })
   rmSync(fidelityPath(slug), { force: true })
   rmSync(minisearchPath(slug), { force: true })
+  rmSync(kbPageIndexPath(slug), { force: true })
   rmSync(contentListPath(slug), { force: true })
   invalidateKbSearchIndex()
   if (entry.managedPath && existsSync(entry.managedPath)) rmSync(entry.managedPath, { force: true })

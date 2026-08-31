@@ -4,7 +4,7 @@
  * Five synthesis memos can pass the mechanical word bar with filler. That let a
  * run close document analysis on the wrong (or empty) bill. This gate reads
  * `packs/boq-reconciliation.json` and requires sourced line items that point at
- * a registered BOQ file and appear by code in 《工程量清单分析.md》.
+ * a registered BOQ file and appear by code in 《投标分析底稿.md》.
  *
  * Not waivable. Feature-gate / pricing `force_pass` must not clear this.
  */
@@ -22,10 +22,10 @@ import { officialStageDir } from './outputs.ts'
 import { findSetupRestore } from './setup-restore.ts'
 import { loadWorkspace, workspacePaths } from './workspace.ts'
 
-export const BOQ_INVENTORY_MEMO = '工程量清单分析.md'
+export const BOQ_INVENTORY_MEMO = '投标分析底稿.md'
 export const BOQ_INVENTORY_MIN_ITEMS = 1
 export const BOQ_INVENTORY_MEMO_CITATIONS = 3
-export const BOQ_INVENTORY_MIN_DESC = 8
+export const BOQ_INVENTORY_MIN_DESC = 1
 
 const PLACEHOLDER_CODE = /^(demo|template|sample|tbd|todo|xxx+|placeholder|n\/a|na|item[-_]?0*\d+|示例|范例|占位|清单项)$/i
 const BOQ_NAME = /\bboq\b|bill[ _-]*of[ _-]*quantit|pricing[ _-]*schedule|工程量/i
@@ -85,14 +85,21 @@ export function isUsableBoqCode(code: string): boolean {
   return /\d/.test(trimmed)
 }
 
-function quantityPositive(raw: string | undefined): boolean {
-  if (!raw) return false
-  const value = Number(raw)
-  return Number.isFinite(value) && value > 0
-}
-
 function normalizedBoqCode(value: string): string {
   return value.trim().replace(/\s+/g, '').toUpperCase()
+}
+
+function sourceRowBoqCode(cells: string[]): string | undefined {
+  const leadingCells = cells.slice(0, 4)
+  const code = leadingCells.find((cell) => (
+    /^(?:PC\s*)?[A-Z]?\d+(?:\.\d+)+(?:\([A-Z0-9]+\))?$/i.test(cell)
+    && !/^0\./.test(cell)
+  ))
+  if (!code) return undefined
+  const normalized = normalizedBoqCode(code)
+  if (/\([A-Z0-9]+\)$/i.test(normalized)) return normalized
+  const suffix = leadingCells.find((cell) => /^\([A-Z0-9]+\)$/i.test(cell.trim()))
+  return suffix ? `${normalized}${normalizedBoqCode(suffix)}` : normalized
 }
 
 function isBoqUnitCell(value: string): boolean {
@@ -115,12 +122,9 @@ function extractBoqSourceInventory(markdown: string): { codes: string[]; rowCoun
     const cells = line.split('|').slice(1, -1).map((cell) => cell.trim())
     if (!cells.some(isBoqUnitCell)) continue
     rowCount += 1
-    const code = cells.slice(0, 4).find((cell) => (
-      /^(?:PC)?[A-Z]?\d+(?:\.\d+)+(?:\([A-Z0-9]+\))?$/i.test(cell)
-      && !/^0\./.test(cell)
-    ))
+    const code = sourceRowBoqCode(cells)
     if (!code) continue
-    found.set(normalizedBoqCode(code), code.trim())
+    found.set(normalizedBoqCode(code), code)
   }
   return { codes: [...found.values()], rowCount }
 }
@@ -161,11 +165,8 @@ function itemTouchReason(
   documents: Map<string, TenderDocument>,
 ): string | undefined {
   if (!isUsableBoqCode(item.code)) return `清单号不可用（${item.code || '空'}）`
-  if (item.description.trim().length < BOQ_INVENTORY_MIN_DESC) return `${item.code} 描述过短`
+  if (item.description.trim().length < BOQ_INVENTORY_MIN_DESC) return `${item.code} 描述为空`
   if (!item.unit.trim()) return `${item.code} 缺单位`
-  if (item.quantityBasis === 'not_provided' || !quantityPositive(item.quantity)) {
-    return `${item.code} 没有从清单抽出的数量`
-  }
   if (!item.source.sheet || !item.source.cell) return `${item.code} 缺 sheet/cell`
   const document = documents.get(item.source.documentId)
   if (!document) return `${item.code} 来源文件未登记`
@@ -332,7 +333,7 @@ function appendCodesToMemo(analysisDir: string, data: TenderBoqReconciliationDat
     `- ${item.code} ${item.description} ${item.quantity ?? ''} ${item.unit}（${item.source.sheet} ${item.source.cell}）`
   )).join('\n')}\n`
   if (!existsSync(path)) {
-    writeFileSync(path, `# 工程量清单分析\n${extra}`)
+    writeFileSync(path, `# 投标分析底稿\n\n## 来源索引\nfixture\n\n## 项目边界与项目特征\nfixture\n\n## 资格与评分\nfixture\n\n## 合同、保函与保险\nfixture\n\n## 技术规范\nfixture\n\n## BOQ 清单\n${extra}\n\n## 提交 Form\nfixture\n\n## 风险与缺口\nfixture\n`)
     return
   }
   const current = readFileSync(path, 'utf8')

@@ -13,6 +13,9 @@ import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFil
 import { createHash } from 'node:crypto'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { patchUniverForDshAlpha1 } from './patch-univer-alpha1.mjs'
+import { verifyDshAlpha3Runtime } from './verify-dsh-alpha3-runtime.mjs'
+import { verifyRuntimePayloadStage } from './verify-runtime-payload-stage.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const desktop = join(root, 'apps', 'desktop')
@@ -29,6 +32,7 @@ function run(cmd, args, opts = {}) {
   }
 }
 
+run(process.execPath, [join(root, 'scripts', 'kernel-version-policy.mjs'), '--history'])
 run(process.execPath, [join(root, 'scripts', 'apply-dsh-patches.mjs')])
 
 function robocopy(src, dest, extra = []) {
@@ -49,7 +53,7 @@ mkdirSync(outDir, { recursive: true })
 // 1. desktop shell (whitelist: only what electron-builder needs)
 const desktopDest = join(stage, 'desktop')
 mkdirSync(join(desktopDest, 'build'), { recursive: true })
-for (const file of ['main.mjs', 'codex-auth.mjs', 'preload.mjs', 'boot.html', 'after-pack.cjs', 'package.json']) {
+for (const file of ['main.mjs', 'dsh-web-url.mjs', 'codex-auth.mjs', 'codex-models.mjs', 'compaction-preferences.mjs', 'preload.cjs', 'boot.html', 'after-pack.cjs', 'package.json']) {
   cpSync(join(desktop, file), join(desktopDest, file))
 }
 cpSync(join(desktop, 'brand'), join(desktopDest, 'brand'), { recursive: true })
@@ -62,7 +66,7 @@ console.log('staged desktop shell')
 const productDest = join(stage, 'product')
 const productItems = [
   'skills', 'knowledge', 'bundles', 'packages', 'scripts',
-  'package.json', 'README.md', 'DSH_PIN', '.gitmodules',
+  'package.json', 'README.md', 'THIRD_PARTY_NOTICES.md', 'DSH_PIN', '.gitmodules',
   'vendor/dsh-super-injector', 'vendor/dsh-router-standard', 'vendor/dshmarket',
   'vendor/anysearch-dsh',
   'vendor/dsh-univer-office',
@@ -75,12 +79,13 @@ for (const item of productItems) {
   const dest = join(productDest, item)
   if (statSync(src).isDirectory()) {
     // node_modules stay out; CI installs per-platform dependencies.
-    robocopy(src, dest, ['/XD', 'node_modules', '.git'])
+    robocopy(src, dest, ['/XD', 'node_modules', '.git', '/XF', '.git'])
   } else {
     mkdirSync(join(dest, '..'), { recursive: true })
     cpSync(src, dest)
   }
 }
+patchUniverForDshAlpha1({ pluginRoot: join(productDest, 'vendor', 'dsh-univer-office') })
 console.log('staged product tree')
 
 // 3. deepseek-harness source + built artifacts (no node_modules)
@@ -89,12 +94,15 @@ const dshDest = join(stage, 'deepseek-harness')
 robocopy(dshSrc, dshDest, [
   '/XD', 'node_modules', '.git', 'website', 'docs', '.agents', '.github',
   'coverage', '.turbo', '.cache', '.claude', '.reasonix', '.agent-pi',
-  '/XF', '*.map', '*.tsbuildinfo',
+  '/XF', '.git', '*.map', '*.tsbuildinfo',
 ])
 for (const marker of ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'apps/web/dist/index.html', 'apps/cli/lib/bin.js']) {
   if (!existsSync(join(dshDest, marker))) throw new Error(`payload dsh tree missing ${marker}`)
 }
 console.log('staged deepseek-harness')
+verifyDshAlpha3Runtime(dshDest, productDest)
+verifyRuntimePayloadStage(stage)
+console.log('verified portable payload stage')
 
 // 4. tarball (bsdtar ships with Windows 10+)
 const tarPath = join(outDir, tarName)

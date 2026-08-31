@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 import { buildPreviewSelectionFollowup } from '../src/selection-rewrite.ts'
+import { clientSource } from './client-source.ts'
 
 test('selection rewrite stays on the parent session', () => {
   const text = buildPreviewSelectionFollowup({
@@ -18,7 +19,7 @@ test('selection rewrite stays on the parent session', () => {
 })
 
 test('client preview sends the selection to the main conversation', () => {
-  const page = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../lib/client.js'), 'utf8')
+  const page = clientSource
   assert.match(page, /buildPreviewSelectionFollowup/)
   assert.match(page, /dispatchToConversation/)
   assert.match(page, /AI 改选区/)

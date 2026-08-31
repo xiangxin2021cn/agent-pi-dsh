@@ -162,6 +162,12 @@
   config:
     - id: compaction-basic
       name: '@deepseek-ai/dsh-compaction-basic'
+      config:
+        thresholdRatio: 0.72
+        summarizationFallbacks:
+          - provider: deepseek-official
+            model: deepseek-v4-flash-vision-exp
+            maxTokens: 32768
 
     - id: command-compact
       name: '@deepseek-ai/dsh-command-compact'

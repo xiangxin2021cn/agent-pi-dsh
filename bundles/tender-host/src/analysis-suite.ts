@@ -1,16 +1,14 @@
 /**
- * Factory depth bar for `tender-document-analysis`.
+ * Compatibility gate for the canonical tender analysis base.
  *
- * The five synthesis memos are the customer-facing analysis suite. Per-source
- * Markdown and `招标文件解析总报告.md` remain required; the suite cannot be
- * replaced by the summary alone. Structure and chapter words are generic —
- * never pre-load another project's contract numbers, amounts, or place names.
+ * 3.4.1 replaces five overlapping long reports with one source-indexed model.
+ * Optional topic views are derived from it and are no longer completion gates.
  */
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 export const ANALYSIS_SUITE_STAGE_ID = 'tender-document-analysis'
-export const ANALYSIS_SUITE_MIN_CHARS = 3500
+export const ANALYSIS_SUITE_MIN_CHARS = 1200
 
 export interface AnalysisSuiteFileSpec {
   fileName: string
@@ -21,57 +19,17 @@ export interface AnalysisSuiteFileSpec {
 
 export const ANALYSIS_SUITE: AnalysisSuiteFileSpec[] = [
   {
-    fileName: '招标文件总结.md',
-    mustHave: ['基本信息', '资格', '评标|评分|Stage', '合同', '返标|可退回|Form', '时间|日期|截标', '风险'],
+    fileName: '投标分析底稿.md',
+    mustHave: ['来源|索引', '边界|项目特征', '资格|评分', '合同|保函|保险', '规范|技术', 'BOQ|清单', '提交|Form', '风险|缺口'],
     outlineZh: [
-      '项目基本信息表（编号、业主、工期、合同形式、截标，全部带来源）',
-      '卷册 / 文件体系',
-      '资格门槛与关键人员（本标写什么就写什么，缺则标缺口）',
-      '评标各阶段、分数线、商务权重',
-      '合同与商业条件（分包、调价、保险、提交介质）',
-      'A / B 返标清单',
-      '时间节点与风险（逐条带来源，禁止用上一单数字填空）',
-    ],
-  },
-  {
-    fileName: '工程量清单分析.md',
-    mustHave: ['总价', 'Schedule|清单|分册', 'PC Sum|Provisional|暂定|指定', '报价|策略', '风险'],
-    outlineZh: [
-      '总价构成（税前/税后、基金、或本标等价结构）',
-      '各 Schedule / 分册金额与占比',
-      'PC Sum / Provisional / 待报价项分层，结构物暂定 vs 须自算',
-      '点名本标实际清单号（与 packs/boq-reconciliation.json 一致；禁止空话过关）',
-      '报价敏感点与风险（带来源；没有金额就标缺口）',
-    ],
-  },
-  {
-    fileName: '工程范围与技术规范总结.md',
-    mustHave: ['合同', '工期|保函|预付款|保留金', '规范', '范围', '安全|健康|HSE'],
-    outlineZh: [
-      '合同数据：工期、保函、预付款、保留金、CPA、罚则、分包上限、工时',
-      '定价结构与主要结构物 / 工点清单',
-      'C3 或等价范围 + 规范体系与项目修正',
-      'HSE / 环境 / 本地化或目标企业条款（本标有则写，无则标缺口）',
-    ],
-  },
-  {
-    fileName: '合同特殊条款与规范修订总结.md',
-    mustHave: ['特殊条款|Particular|FIDIC', '优先级|支付', '分包', '规范', '索赔|EOT|延期'],
-    outlineZh: [
-      '通用条件对照表（定义、文件优先级、支付、分包、EOT、罚则、CPA、索赔）',
-      '规范逐章 / 逐节修订',
-      '风险条款清单（带来源）',
-    ],
-  },
-  {
-    fileName: '技术标文件要求汇总.md',
-    mustHave: ['返标|Returnable|Form', '评分|功能性', 'B8|工作计划|Methodology', 'A系列|行政|Form A'],
-    outlineZh: [
-      '返标总表',
-      'A 系列逐项（行政 / 合规）',
-      'B 系列字段与评分挂钩',
-      '功能性评分表',
-      '方法说明书（B8 或本标等价）深度与前后阶段联动',
+      '来源索引及卷册/文件关系',
+      '项目边界、项目特征和资料缺口',
+      '资格、评分、关键日期及必交材料',
+      '合同、保函、保险、支付及重大商业风险',
+      '技术规范体系、工程范围和关键修订',
+      'BOQ 分册/章节/行级覆盖及与规范的映射',
+      '提交合规清单、风险与待澄清事项',
+      '可按需派生的专题视图',
     ],
   },
 ]
@@ -135,7 +93,7 @@ function describeGaps(status: AnalysisSuiteStatus): string {
 }
 
 /**
- * Disk check for the five analysis-suite memos in one official folder.
+ * Disk check for the canonical analysis base in one official folder.
  * @param dir `Agent Pi Outputs/<projectId>/document-analysis/`
  */
 export function assessAnalysisSuite(dir: string): AnalysisSuiteStatus {
@@ -166,7 +124,7 @@ export function analysisSuiteApplies(stageId: string): boolean {
 }
 
 export function analysisSuiteRejectReason(status: AnalysisSuiteStatus): string {
-  return `招标解析深度套件未达标：${status.shortGaps}。《招标文件解析总报告.md》不能代替这五份。禁止重扫已完成源文件，只补列出的缺口。`
+  return `投标分析底稿未达标：${status.shortGaps}。禁止重扫已完成源文件，只补列出的来源、章节或 BOQ 覆盖缺口。`
 }
 
 export function renderAnalysisSuiteBlock(status: AnalysisSuiteStatus, folder = 'document-analysis'): string {
@@ -177,9 +135,9 @@ export function renderAnalysisSuiteBlock(status: AnalysisSuiteStatus, folder = '
     return `- 《${file.fileName}》：已就位`
   })
   return [
-    `分析深度套件（写入 Agent Pi Outputs/…/${folder}/；总报告不能代替）：`,
+    `投标分析底稿（写入 Agent Pi Outputs/…/${folder}/；专题视图按需派生）：`,
     ...rows,
-    status.ok ? '- 套件已齐，不要重扫已完成源文件。' : `- 未齐：${status.shortGaps}`,
+    status.ok ? '- 底稿已齐，不要重扫已完成源文件。' : `- 未齐：${status.shortGaps}`,
   ].join('\n')
 }
 

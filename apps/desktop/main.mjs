@@ -9,6 +9,12 @@ import { pipeline } from 'node:stream/promises'
 import { delimiter, dirname, isAbsolute, join, normalize, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createCodexAuthController, resolveCodexWrapper } from './codex-auth.mjs'
+import {
+  applyCompactionFallbackEnv,
+  createCompactionFallbackPreferenceUpdate,
+  normalizeCompactionFallbackPreference,
+} from './compaction-preferences.mjs'
+import { createDshWebUrlTracker, isAuthenticatedDshWebUrl } from './dsh-web-url.mjs'
 
 const APP_NAME = 'agent-pi-DSH'
 const here = dirname(fileURLToPath(import.meta.url))
@@ -83,6 +89,7 @@ if (process.platform === 'win32') {
 let child = null
 let mainWindow = null
 let appUrl = process.env.AGENT_PI_DSH_URL || 'http://127.0.0.1:3080'
+const forceColdStart = process.env.AGENT_PI_DSH_FORCE_COLD_START === '1'
 let launchLogStream = null
 let dshPort = 3080
 let dshRestartCount = 0
@@ -171,14 +178,16 @@ function reapPackagedPort(port) {
 
 function runtimeEnv() {
   const sysRoot = process.env.SystemRoot || process.env.WINDIR || (process.platform === 'win32' ? 'C:\\Windows' : '')
-  const env = {
+  const env = applyCompactionFallbackEnv({
     ...process.env,
     DSH_HOME: dshHome,
     DSH_CHECKOUT: dshRoot,
     DSH_BUNDLED_SKILL_DIR: join(productRoot, 'skills'),
     AGENT_PI_DESKTOP: '1',
     CODEX_HOME: codexHome,
-  }
+  }, readPrefs())
+  const inheritedPathKey = Object.keys(env).find((key) => key.toLowerCase() === 'path')
+  const inheritedPath = inheritedPathKey ? env[inheritedPathKey] : ''
   // Official Models onboarding treats a process-environment DEEPSEEK_API_KEY
   // as a ready, read-only credential. The desktop stores the key through the
   // DSH credential file so first-run users get the official dialog and can
@@ -203,7 +212,10 @@ function runtimeEnv() {
     pathParts.push(join(sysRoot, 'System32'))
     pathParts.push(sysRoot)
   }
-  if (env.PATH) pathParts.push(env.PATH)
+  if (inheritedPath) pathParts.push(inheritedPath)
+  for (const key of Object.keys(env)) {
+    if (key.toLowerCase() === 'path') delete env[key]
+  }
   env.PATH = pathParts.join(delimiter)
   return env
 }
@@ -258,6 +270,15 @@ async function urlAlive(url) {
   try {
     const res = await fetch(url, { method: 'HEAD' })
     return res.ok || res.status === 404 || res.status === 405
+  } catch {
+    return false
+  }
+}
+
+async function dshServerAlive(url) {
+  try {
+    const res = await fetch(url, { method: 'HEAD' })
+    return res.status >= 100 && res.status < 600
   } catch {
     return false
   }
@@ -319,6 +340,7 @@ function ensureProfile() {
 
 function startDsh(port) {
   dshPort = Number.isInteger(port) ? port : dshPort
+  appUrl = `http://127.0.0.1:${dshPort}`
   mkdirSync(app.getPath('userData'), { recursive: true })
   launchLogStream = createWriteStream(launchLog(), { flags: 'a' })
   const env = runtimeEnv()
@@ -346,7 +368,13 @@ function startDsh(port) {
     launchLogStream?.write(`[${stream}] ${text}`)
     process.stderr.write(text)
   }
-  child.stdout?.on('data', prefix('out'))
+  const stdoutLog = prefix('out')
+  const advertisedUrl = createDshWebUrlTracker(dshPort)
+  child.stdout?.on('data', (chunk) => {
+    stdoutLog(chunk)
+    const nextUrl = advertisedUrl.push(chunk)
+    if (nextUrl) appUrl = nextUrl
+  })
   child.stderr?.on('data', prefix('err'))
   child.on('exit', (code) => {
     logLine(`[exit] ${code}`)
@@ -372,7 +400,8 @@ function startDsh(port) {
     setTimeout(() => {
       if (app.isQuitting) return
       startDsh(dshPort)
-      void waitForUrl(appUrl).then(() => {
+      void waitForDshUrl().then((url) => {
+        appUrl = url
         dshRestartCount = 0
         if (mainWindow && !mainWindow.isDestroyed()) void mainWindow.loadURL(appUrl)
       }).catch((error) => {
@@ -397,6 +426,19 @@ async function waitForUrl(url, timeoutMs = 120000) {
   throw new Error(`timed out waiting for ${url}. 见 ${launchLog()}`)
 }
 
+async function waitForDshUrl(timeoutMs = 120000) {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    if (child && child.exitCode && child.exitCode !== 0) {
+      throw new Error(`dsh web exited ${child.exitCode}. 见 ${launchLog()}`)
+    }
+    const candidate = appUrl
+    if (isAuthenticatedDshWebUrl(candidate, dshPort) && await dshServerAlive(new URL(candidate).origin)) return candidate
+    await new Promise((r) => setTimeout(r, 200))
+  }
+  throw new Error(`timed out waiting for authenticated dsh web URL. 见 ${launchLog()}`)
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1440,
@@ -405,7 +447,7 @@ function createWindow() {
     icon: packedBrandIcon || undefined,
     backgroundColor: '#eef2f6',
     webPreferences: {
-      preload: join(here, 'preload.mjs'),
+      preload: join(here, 'preload.cjs'),
       contextIsolation: true,
     },
   })
@@ -919,6 +961,14 @@ ipcMain.handle('app-relaunch', () => {
   return true
 })
 ipcMain.handle('app-version', () => app.getVersion())
+ipcMain.handle('compaction-fallback-status', () => (
+  normalizeCompactionFallbackPreference(readPrefs())
+))
+ipcMain.handle('set-compaction-fallback', (_event, enabled) => {
+  const update = createCompactionFallbackPreferenceUpdate(enabled)
+  writePrefs(update)
+  return { enabled: update.compactionFallbackEnabled, restartRequired: true }
+})
 ipcMain.handle('codex-auth-status', () => (
   getCodexAuthController()?.status() ?? { available: false, state: 'unavailable' }
 ))
@@ -1238,8 +1288,9 @@ if (!gotLock) {
       assertDshRuntime()
       repairPackedLinks()
       ensureProfile()
+      let launchedDsh = false
       if (!process.env.AGENT_PI_DSH_URL) {
-        const existing = packaged
+        const existing = packaged || forceColdStart
           ? null
           : (await urlAlive('http://127.0.0.1:3080')
             ? 'http://127.0.0.1:3080'
@@ -1254,9 +1305,11 @@ if (!gotLock) {
           dshPort = port
           appUrl = `http://127.0.0.1:${port}`
           startDsh(port)
+          launchedDsh = true
         }
       }
-      await waitForUrl(appUrl)
+      if (launchedDsh) appUrl = await waitForDshUrl()
+      else await waitForUrl(appUrl)
       await win.loadURL(appUrl)
       applyWindowIcon(win)
     } catch (error) {

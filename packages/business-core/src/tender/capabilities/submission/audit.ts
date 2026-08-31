@@ -42,13 +42,21 @@ export function auditTenderSubmission(
 
   const requiredPacks = capabilityIndex.capabilities.filter((entry) => entry.required && entry.capability !== 'submission_audit');
   for (const pack of requiredPacks) {
-    if (!pack.enabled || pack.revision === 0 || pack.readiness !== 'ready' || pack.stale) {
+    if (!pack.enabled || pack.revision === 0 || pack.readiness === 'not_ready' || pack.stale) {
       add({
         code: 'required_capability_not_ready',
         severity: 'error',
         entityType: 'capability_pack',
         entityId: pack.capability,
         message: `Required capability ${pack.capability} is disabled, incomplete, not ready, or stale.`,
+      });
+    } else if (pack.readiness === 'needs_review') {
+      add({
+        code: 'required_capability_needs_review',
+        severity: 'warning',
+        entityType: 'capability_pack',
+        entityId: pack.capability,
+        message: `Required capability ${pack.capability} needs review.`,
       });
     }
   }

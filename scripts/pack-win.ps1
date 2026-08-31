@@ -1,7 +1,8 @@
 param(
   [switch]$SkipPrepare,
   [switch]$DirOnly,
-  [switch]$ReuseUnpacked
+  [switch]$ReuseUnpacked,
+  [switch]$ToolchainOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -17,6 +18,69 @@ $IconSrc = Join-Path $Desktop "brand\app-logo.png"
 if (-not (Test-Path $IconSrc)) { $IconSrc = Join-Path $Root "AgentPI-logo-2.png" }
 $IconDir = Join-Path $Desktop "build"
 $IconDest = Join-Path $IconDir "icon.png"
+$InstallerIcon = Join-Path $IconDir "icon.ico"
+$InstallerHeader = Join-Path $IconDir "installer-header.bmp"
+
+function Get-NodeAdjacentCommand([string]$name) {
+  $node = (Get-Command node -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
+  $command = Join-Path (Split-Path -Parent $node) "$name.cmd"
+  if (-not (Test-Path $command)) {
+    throw "$name.cmd missing next to resolved node executable: $node"
+  }
+  return $command
+}
+
+function Invoke-NpmInstall([string]$dir, [string]$label) {
+  $npm = Get-NodeAdjacentCommand "npm"
+  $installExit = 1
+  Push-Location $dir
+  try {
+    & $npm install --no-fund --no-audit
+    $installExit = $LASTEXITCODE
+  } finally {
+    Pop-Location
+  }
+  if ($installExit -ne 0) { throw "$label npm install failed: $installExit" }
+}
+
+function Invoke-DesktopToolchain {
+  if (-not (Test-Path (Join-Path $Desktop "node_modules\electron-builder"))) {
+    Write-Host "Installing desktop pack dependencies..."
+    Invoke-NpmInstall $Desktop "desktop"
+  }
+
+  $electronVer = Join-Path $Desktop "node_modules\electron\dist\version"
+  if (-not (Test-Path $electronVer)) {
+    $installElectron = Join-Path $Desktop "node_modules\.bin\install-electron.cmd"
+    if (-not (Test-Path $installElectron)) { throw "local install-electron.cmd missing: $installElectron" }
+    Write-Host "electron binary missing; running local install-electron.cmd --no"
+    $electronExit = 1
+    Push-Location $Desktop
+    try {
+      & $installElectron --no
+      $electronExit = $LASTEXITCODE
+    } finally {
+      Pop-Location
+    }
+    if ($electronExit -ne 0) { throw "local install-electron.cmd --no failed: $electronExit" }
+  } else {
+    Write-Host "electron binary $((Get-Content $electronVer -Raw).Trim())"
+  }
+}
+
+function Invoke-DesktopElectronBuilder {
+  $electronBuilder = Join-Path $Desktop "node_modules\.bin\electron-builder.cmd"
+  if (-not (Test-Path $electronBuilder)) { throw "local electron-builder.cmd missing: $electronBuilder" }
+  $builderExit = 1
+  Push-Location $Desktop
+  try {
+    & $electronBuilder --win --dir | Out-Host
+    $builderExit = $LASTEXITCODE
+  } finally {
+    Pop-Location
+  }
+  return $builderExit
+}
 
 function Find-7zaDir {
   $cached = Get-ChildItem "$env:LOCALAPPDATA\electron-builder\Cache" -Recurse -Filter "7za.exe" -ErrorAction SilentlyContinue |
@@ -79,10 +143,21 @@ function Test-UnpackedApp([string]$dir) {
     (Join-Path $dir "resources\runtime\node\node.exe"),
     (Join-Path $dir "resources\runtime\deepseek-harness\package.json"),
     (Join-Path $dir "resources\runtime\deepseek-harness\apps\web\dist\index.html"),
-    (Join-Path $dir "resources\runtime\product\scripts\repair-dsh-links.mjs")
+    (Join-Path $dir "resources\runtime\product\scripts\repair-dsh-links.mjs"),
+    (Join-Path $dir "resources\runtime\product\bundles\agent-pi-compaction\lib\index.js")
   )
   return ($need | Where-Object { -not (Test-Path $_) }).Count -eq 0
 }
+
+if ($ToolchainOnly) {
+  Invoke-DesktopToolchain
+  $toolchainBuilderExit = Invoke-DesktopElectronBuilder
+  if ($toolchainBuilderExit -ne 0) { throw "local electron-builder.cmd failed: $toolchainBuilderExit" }
+  return
+}
+
+& node (Join-Path $Root "scripts\kernel-version-policy.mjs") --history
+if ($LASTEXITCODE -ne 0) { throw "kernel version policy failed: $LASTEXITCODE" }
 
 if (-not (Test-Path (Join-Path $Dsh "package.json"))) {
   throw "vendor/deepseek-harness missing"
@@ -96,11 +171,33 @@ if (-not (Test-Path (Join-Path $Root "vendor\dsh-super-injector\lib\index.js")))
 if (-not (Test-Path (Join-Path $Root "vendor\dsh-router-standard\preset\agent.cordis.yml"))) {
   throw "vendor/dsh-router-standard incomplete. Run scripts/vendor-dsh-plugins.ps1"
 }
+if (-not (Test-Path (Join-Path $Root "bundles\agent-pi-compaction\lib\index.js"))) {
+  throw "bundles/agent-pi-compaction incomplete"
+}
 if (-not (Test-Path (Join-Path $Root "vendor\anysearch-dsh\lib\index.js"))) {
   throw "vendor/anysearch-dsh incomplete. Copy anysearch-dsh 0.1.1 with built lib/"
 }
 if (-not (Test-Path (Join-Path $Root "vendor\dsh-univer-office\lib\index.js"))) {
   Write-Host "WARN vendor/dsh-univer-office missing. Run scripts/vendor-dsh-plugins.ps1 to preset Univer."
+}
+
+function Find-BrandPython {
+  $resolved = Get-Command python -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+  $candidates = @(
+    (Join-Path $env:LOCALAPPDATA "Programs\Python\Python313\python.exe"),
+    (Join-Path $env:LOCALAPPDATA "Programs\Python\Python312\python.exe"),
+    (Join-Path $env:ProgramFiles "Python313\python.exe"),
+    (Join-Path $env:ProgramFiles "Python312\python.exe"),
+    (Join-Path $env:ProgramFiles "Python310\python.exe"),
+    $(if ($resolved) { $resolved.Source })
+  ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
+  $python = $candidates | Select-Object -First 1
+  if (-not $python) { throw "Python with Pillow is required to build the installer brand assets" }
+  return $python
+}
+if (Test-Path (Join-Path $Root "vendor\dsh-univer-office\lib\client.js")) {
+  node (Join-Path $Root "scripts\patch-univer-alpha1.mjs") (Join-Path $Root "vendor\dsh-univer-office")
+  if ($LASTEXITCODE -ne 0) { throw "Univer DSH alpha.1 compatibility patch failed" }
 }
 if (-not (Test-Path $NsisScript)) {
   throw "NSIS script missing: $NsisScript"
@@ -108,37 +205,24 @@ if (-not (Test-Path $NsisScript)) {
 
 if (-not (Test-Path (Join-Path $Biz "node_modules\zod"))) {
   Write-Host "Installing business-core dependencies..."
-  Push-Location $Biz
-  npm install --no-fund --no-audit
-  Pop-Location
+  Invoke-NpmInstall $Biz "business-core"
 }
+
+Write-Host "Building tender-web client from source modules..."
+node (Join-Path $Root "scripts\build-tender-client.mjs")
+if ($LASTEXITCODE -ne 0) { throw "tender-web client build failed" }
 
 New-Item -ItemType Directory -Force -Path $IconDir | Out-Null
 if (Test-Path $IconSrc) { Copy-Item -Force $IconSrc $IconDest }
+$brandPython = Find-BrandPython
+& $brandPython (Join-Path $Root "scripts\make-installer-brand.py") $IconSrc $InstallerIcon $InstallerHeader
+if ($LASTEXITCODE -ne 0) { throw "installer brand generation failed: $LASTEXITCODE" }
 
 if (-not $SkipPrepare) {
   & (Join-Path $Root "scripts\prepare-win-runtime.ps1") -FullCopy
 }
 
-if (-not (Test-Path (Join-Path $Desktop "node_modules\electron-builder"))) {
-  Write-Host "Installing desktop pack dependencies..."
-  Push-Location $Desktop
-  npm install --no-fund --no-audit
-  Pop-Location
-}
-
-# Electron 42+ no longer downloads the binary in postinstall.
-$electronVer = Join-Path $Desktop "node_modules\electron\dist\version"
-if (-not (Test-Path $electronVer)) {
-  Write-Host "electron binary missing; running npx install-electron --no"
-  Push-Location $Desktop
-  npx install-electron --no
-  $electronExit = $LASTEXITCODE
-  Pop-Location
-  if ($electronExit -ne 0) { throw "npx install-electron --no failed: $electronExit" }
-} else {
-  Write-Host "electron binary $((Get-Content $electronVer -Raw).Trim())"
-}
+Invoke-DesktopToolchain
 
 $runtime = Join-Path $Desktop "runtime"
 Get-ChildItem -LiteralPath $runtime -Force -ErrorAction SilentlyContinue |
@@ -164,17 +248,14 @@ if ($ReuseUnpacked -and $existing) {
 } else {
   New-Item -ItemType Directory -Force -Path $unpackedRoot | Out-Null
   $env:CSC_IDENTITY_AUTO_DISCOVERY = "false"
-  Push-Location $Desktop
   $exit = 1
   foreach ($attempt in 1..3) {
     Write-Host "electron-builder attempt $attempt --win --dir (no NSIS 7z)"
-    npx electron-builder --win --dir
-    $exit = $LASTEXITCODE
+    $exit = Invoke-DesktopElectronBuilder
     if ($exit -eq 0 -and (Test-UnpackedApp $unpacked)) { break }
     Write-Host "electron-builder exited $exit; retrying after brief wait..."
     Start-Sleep -Seconds (3 * $attempt)
   }
-  Pop-Location
   if ($exit -ne 0 -or -not (Test-UnpackedApp $unpacked)) {
     throw "electron-builder --dir failed to produce a complete win-unpacked app"
   }
@@ -203,6 +284,7 @@ if (Test-Path $unpackedProduct) {
     "skills",
     "knowledge",
     "README.md",
+    "THIRD_PARTY_NOTICES.md",
     "vendor\dshmarket",
     "vendor\anysearch-dsh",
     "vendor\dsh-univer-office",
@@ -246,19 +328,8 @@ node (Join-Path $Root "scripts\stamp-electron-asar-version.mjs") $unpacked $AppV
 if ($LASTEXITCODE -ne 0) { throw "stamp electron asar version failed" }
 
 $unpackedDsh = Join-Path $unpacked "resources\runtime\deepseek-harness"
-node (Join-Path $Root "scripts\enable-desktop-web-fetch.mjs") `
-  (Join-Path $unpackedDsh "apps\cli\config\agent-presets\standard\agent.cordis.yml") `
-  (Join-Path $unpackedDsh "apps\cli\config\agent-presets\code\agent.cordis.yml") `
-  (Join-Path $unpackedDsh "apps\cli\config\agent-presets\cordis\agent.cordis.yml") `
-  (Join-Path $unpackedProduct "vendor\dsh-router-standard\preset\agent.cordis.yml")
-if ($LASTEXITCODE -ne 0) { throw "enable desktop web_fetch overlay on unpacked app failed" }
-
-node (Join-Path $Root "scripts\enable-desktop-codex.mjs") `
-  (Join-Path $unpackedDsh "apps\cli\config\agent-presets\standard\agent.cordis.yml") `
-  (Join-Path $unpackedDsh "apps\cli\config\agent-presets\code\agent.cordis.yml") `
-  (Join-Path $unpackedDsh "apps\cli\config\agent-presets\cordis\agent.cordis.yml") `
-  (Join-Path $unpackedProduct "vendor\dsh-router-standard\preset\agent.cordis.yml")
-if ($LASTEXITCODE -ne 0) { throw "enable desktop Codex overlay on unpacked app failed" }
+node (Join-Path $Root "scripts\apply-runtime-overlays.mjs") $unpackedDsh $unpackedProduct
+if ($LASTEXITCODE -ne 0) { throw "apply desktop runtime overlays on unpacked app failed" }
 
 if ($DirOnly) {
   Write-Host "Unpacked app written under $unpacked"
@@ -280,6 +351,8 @@ if ((Resolve-Path $sevenZip).Path -ne (Resolve-Path -ErrorAction SilentlyContinu
   Copy-Item -Force $sevenZip $bundled7za
 }
 Copy-Item -Force $NsisScript (Join-Path $nsisRoot "setup.nsi")
+Copy-Item -Force $InstallerIcon (Join-Path $nsisRoot "app-icon.ico")
+Copy-Item -Force $InstallerHeader (Join-Path $nsisRoot "installer-header.bmp")
 $payload = Join-Path $nsisRoot "payload.7z"
 if (Test-Path $payload) {
   try {
@@ -301,7 +374,7 @@ $archiveExit = $LASTEXITCODE
 Pop-Location
 if ($archiveExit -ne 0) { throw "7za archive failed: $archiveExit" }
 Push-Location $nsisRoot
-& $makensis /V2 "/DAPP_VERSION=$AppVersion" "setup.nsi"
+& $makensis /V2 "/DAPP_VERSION=$AppVersion" "/DAPP_ICON=app-icon.ico" "/DINSTALLER_HEADER=installer-header.bmp" "setup.nsi"
 $nsisExit = $LASTEXITCODE
 Pop-Location
 if ($nsisExit -ne 0) { throw "makensis failed: $nsisExit" }
@@ -323,5 +396,14 @@ try {
   $published = $installer
 }
 
+$checksumPath = Join-Path $releaseDir "$InstallerName.sha256"
+$installerHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $published).Hash
+[IO.File]::WriteAllText(
+  $checksumPath,
+  "$installerHash  $InstallerName`n",
+  [Text.Encoding]::ASCII
+)
+
 Write-Host "Installer written:"
 Get-Item $published | Format-Table FullName, @{ N = "MB"; E = { [math]::Round($_.Length / 1MB, 1) } }, LastWriteTime
+Write-Host "SHA256 written: $checksumPath"

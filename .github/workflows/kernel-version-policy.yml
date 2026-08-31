@@ -1,0 +1,24 @@
+name: kernel-version-policy
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify release history
+        run: node scripts/kernel-version-policy.mjs --history
+      - name: Require an application version bump for a DSH pin change
+        if: github.event_name == 'pull_request'
+        run: node scripts/kernel-version-policy.mjs "${{ github.event.pull_request.base.sha }}"

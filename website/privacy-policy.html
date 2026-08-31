@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
 <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" /></noscript>
-<link rel="stylesheet" href="assets/css/main.css?v=24" />
+<link rel="stylesheet" href="assets/css/main.css?v=25" />
 </head>
 <body>
 
@@ -28,7 +28,6 @@
       <a href="index.html#features" data-lang="en">Features</a>
       <a href="docs.html" data-lang="zh">文档</a>
       <a href="docs.html" data-lang="en">Docs</a>
-      <a href="https://github.com/xiangxin2021cn/agent-pi-dsh" target="_blank" rel="noopener">GitHub</a>
       <button class="icon-btn lang-btn" data-toggle-lang aria-label="Switch language">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
         <span>EN</span>
@@ -50,40 +49,40 @@
   <h2 data-lang="en" style="border:0">Privacy policy</h2>
 
   <div data-lang="zh">
-    <p>本政策适用于 <b>www.agent-pi.app</b> 网站（以下简称「本站」）。最后更新：2026-08-22。</p>
+    <p>本政策适用于 <b>www.agent-pi.app</b> 网站（以下简称「本站」）。最后更新：2026-08-30。</p>
     <h3>本站收集什么</h3>
     <ul>
       <li><b>不收集任何个人信息。</b>本站没有账号系统、没有表单、没有分析脚本、没有广告、没有 Cookie。</li>
       <li>你的语言与主题偏好仅保存在你自己浏览器的 <code>localStorage</code> 里，不会发送到任何服务器。</li>
-      <li>页面会从你的浏览器请求 <code>api.github.com</code> 获取最新 Release 信息，该请求由 GitHub 按其隐私政策处理（只携带常规 HTTP 头，不携带任何本站数据）。</li>
+      <li>首页和下载文档会从 GitHub 的公开 Latest Release API 读取当前版本与安装包链接；GitHub 会按其隐私政策接收常规请求信息（如 IP、User-Agent）。接口不可用时，页面使用本站随静态版本发布的已验证链接。</li>
       <li>字体文件加载自 Google Fonts，失败时自动回退到系统字体，不影响使用。</li>
     </ul>
     <h3>托管与日志</h3>
     <p>本站由 Cloudflare Pages 托管。Cloudflare 作为托管方会按自身隐私政策记录常规的服务器日志（IP、User-Agent 等），本站无法访问这些日志。</p>
-    <h3>第三方链接</h3>
-    <p>下载链接指向 GitHub Releases 及第三方镜像（gh-proxy.com、ghfast.top）。这些服务有各自的隐私政策；经镜像下载的安装包请务必核对页面上提供的 SHA256 校验值。</p>
+    <h3>安装包交付</h3>
+    <p>下载按钮会打开项目的 GitHub Releases 资产。Windows 用户安装前应核对页面显示的 SHA256；其他平台请以对应 Release 资产信息为准。</p>
     <h3>桌面软件</h3>
     <p>Agent Pi DSH 桌面端的数据（项目、会话、知识库）保存在你的本机（<code>%APPDATA%\agent-pi-dsh-desktop</code>），不会上传给我们。模型对话内容只发往你自己配置的模型服务商（如 DeepSeek）；仅当你主动使用 Codex 子智能体时，独立任务说明及其引用内容会通过 ChatGPT/Codex 发送给 OpenAI。</p>
     <h3>联系</h3>
-    <p>隐私相关问题请在 <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/issues" target="_blank" rel="noopener">GitHub Issues</a> 提出。</p>
+    <p>隐私相关问题请通过参赛测试通知中的项目联系人反馈。</p>
   </div>
   <div data-lang="en">
-    <p>This policy applies to the website <b>www.agent-pi.app</b>. Last updated: 2026-08-22.</p>
+    <p>This policy applies to the website <b>www.agent-pi.app</b>. Last updated: 2026-08-30.</p>
     <h3>What this site collects</h3>
     <ul>
       <li><b>No personal data.</b> This site has no accounts, no forms, no analytics, no ads, and no cookies.</li>
       <li>Your language and theme preferences live only in your own browser's <code>localStorage</code> and are never sent anywhere.</li>
-      <li>The page queries <code>api.github.com</code> from your browser for the latest release information; GitHub handles that request under its own privacy policy (standard HTTP headers only — no data from this site is attached).</li>
+      <li>The home page and download documentation query GitHub's public Latest Release API for the current version and installer links. GitHub receives ordinary request metadata (such as IP and User-Agent) under its own privacy policy. If the API is unavailable, the page keeps the verified links shipped with the static site.</li>
       <li>Fonts load from Google Fonts, with automatic fallback to system fonts if unavailable.</li>
     </ul>
     <h3>Hosting &amp; logs</h3>
     <p>The site is hosted on Cloudflare Pages. Cloudflare, as the hosting provider, keeps routine server logs (IP, User-Agent, etc.) under its own privacy policy; we have no access to those logs.</p>
-    <h3>Third-party links</h3>
-    <p>Download links point to GitHub Releases and third-party mirrors (gh-proxy.com, ghfast.top), each with their own privacy policies. Always verify the SHA256 checksum shown on the download section when using a mirror.</p>
+    <h3>Installer delivery</h3>
+    <p>Download buttons open the project's GitHub Releases assets. Windows users should verify the SHA256 shown on the page; for other platforms, refer to the corresponding Release asset information.</p>
     <h3>The desktop app</h3>
     <p>Agent Pi DSH desktop data (projects, sessions, knowledge base) stays on your machine (<code>%APPDATA%\agent-pi-dsh-desktop</code>) and is never uploaded to us. Chat content goes only to the model provider you configure (e.g. DeepSeek); only when you invoke the Codex subagent are its self-contained brief and referenced content sent to OpenAI through ChatGPT/Codex.</p>
     <h3>Contact</h3>
-    <p>For privacy questions, please open an issue on <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/issues" target="_blank" rel="noopener">GitHub Issues</a>.</p>
+    <p>For privacy questions, use the project contact included with the competition test notice.</p>
   </div>
 </main>
 
@@ -96,6 +95,6 @@
   </div>
 </footer>
 
-<script src="assets/js/main.js?v=25"></script>
+<script src="assets/js/main.js?v=26"></script>
 </body>
 </html>

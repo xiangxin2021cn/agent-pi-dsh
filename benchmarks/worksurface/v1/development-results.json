@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "benchmarkId": "agent-pi-worksurface-development-v1",
+  "generatedAt": "2026-08-29T23:04:25.425Z",
+  "note": "Development fixture only. It cannot authorize default navigation.",
+  "baseline": {
+    "label": "3.4.1 deterministic surfaces",
+    "metrics": {
+      "taskCount": 96,
+      "routeF1": 0.6666666666666666,
+      "evidencePrecision": 1,
+      "evidenceRecall": 0.34375,
+      "dependencyPathAccuracy": 0,
+      "answerScore": 0.34375,
+      "forbiddenClaimRate": 0,
+      "modelCalls": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "elapsedMs": 372.33259999999893,
+      "estimatedCostUsd": 0
+    }
+  },
+  "candidate": {
+    "label": "3.4.2 typed router + PageIndex shadow + dependency graph",
+    "metrics": {
+      "taskCount": 96,
+      "routeF1": 1,
+      "evidencePrecision": 1,
+      "evidenceRecall": 1,
+      "dependencyPathAccuracy": 1,
+      "answerScore": 1,
+      "forbiddenClaimRate": 0,
+      "modelCalls": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "elapsedMs": 3.3079000000011547,
+      "estimatedCostUsd": 0
+    }
+  },
+  "comparison": {
+    "documentRecallGain": 0.65625,
+    "routeF1Gain": 0.33333333333333337
+  },
+  "releaseGate": {
+    "eligibleForDefault": false,
+    "failures": [
+      "评测集不是经审校的真实项目任务",
+      "gold evidence 未经人工复核"
+    ],
+    "requirements": {
+      "minimumTasks": 80,
+      "routeF1": 0.95,
+      "locatorValidity": 1,
+      "unsupportedCriticalClaimRate": 0.01,
+      "documentRecallGain": 0.1
+    }
+  },
+  "verification": {
+    "fallback": "pageindex-shadow.test.ts",
+    "crossProjectIsolation": "evidence-citation.test.ts",
+    "boqBaseline": "boq-inventory-gate.test.ts"
+  }
+}

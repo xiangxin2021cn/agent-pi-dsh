@@ -89,127 +89,95 @@
   });
 })();
 
-/* ---- Latest release panel (GitHub API, with static fallback) ---- */
+/* ---- Latest complete GitHub release, with a verified static fallback ---- */
 (function () {
+  var releaseNodes = document.querySelectorAll("[data-rel-version], [data-release-version]");
   var panel = document.getElementById("release-panel");
-  if (!panel) return;
-  var API = "https://api.github.com/repos/xiangxin2021cn/agent-pi-dsh/releases?per_page=10";
-  var CLASSIC_API = "https://api.github.com/repos/xiangxin2021cn/agent-pi/releases/tags/v2.6.5";
-  var MIRRORS = [
-    ["gh-proxy.com", "https://gh-proxy.com/"],
-    ["ghfast.top", "https://ghfast.top/"]
-  ];
+  if (!panel && !releaseNodes.length) return;
 
-  function bi(zh, en) {
-    var f = document.createDocumentFragment();
-    [["zh", zh], ["en", en]].forEach(function (p) {
-      var s = document.createElement("span");
-      s.setAttribute("data-lang", p[0]);
-      s.textContent = p[1];
-      f.appendChild(s);
+  var API = "https://api.github.com/repos/xiangxin2021cn/agent-pi-dsh/releases/latest";
+  var DOWNLOAD_PREFIX = "https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/";
+  var assetSuffixes = {
+    "windows-exe": "-x64.exe",
+    "windows-sha": "-x64.exe.sha256",
+    "mac-dmg": "-mac-arm64.dmg",
+    "mac-zip": "-mac-arm64.zip",
+    "linux-appimage": "-linux-x86_64.AppImage",
+    "linux-deb": "-linux-amd64.deb"
+  };
+
+  function fmtSize(bytes) {
+    return (bytes / 1048576).toFixed(1) + " MB";
+  }
+
+  function validAsset(asset, expectedName, tag) {
+    return asset && asset.name === expectedName && asset.state === "uploaded" &&
+      Number.isFinite(asset.size) && asset.size > 0 &&
+      typeof asset.browser_download_url === "string" &&
+      asset.browser_download_url === DOWNLOAD_PREFIX + tag + "/" + expectedName;
+  }
+
+  function applyRelease(release) {
+    var tag = release && release.tag_name;
+    if (!/^v\d+\.\d+\.\d+$/.test(tag || "") || release.draft || release.prerelease ||
+      typeof release.published_at !== "string" || Number.isNaN(Date.parse(release.published_at))) return;
+    var version = tag.slice(1);
+    var prefix = "Agent-Pi-DSH-" + version;
+    var byName = {};
+    (release.assets || []).forEach(function (asset) { byName[asset.name] = asset; });
+
+    var assets = {};
+    Object.keys(assetSuffixes).forEach(function (key) {
+      var expected = prefix + assetSuffixes[key];
+      var asset = byName[expected];
+      if (validAsset(asset, expected, tag)) assets[key] = asset;
     });
-    return f;
-  }
-  function el(tag, cls) {
-    var e = document.createElement(tag);
-    if (cls) e.className = cls;
-    return e;
-  }
-  function fmtSize(b) {
-    if (b >= 1048576) return (b / 1048576).toFixed(1) + " MB";
-    if (b >= 1024) return (b / 1024).toFixed(1) + " KB";
-    return b + " B";
-  }
-  function btn(href, label, primary) {
-    var a = el("a", primary ? "primary" : null);
-    a.href = href; a.target = "_blank"; a.rel = "noopener";
-    a.textContent = label;
-    return a;
-  }
-  function row(name, size, url, kind, primary) {
-    var r = el("div", "rl-row");
-    var n = el("span", "rl-name"); n.textContent = name;
-    r.appendChild(n);
-    if (kind) { var k = el("span", "rl-kind"); k.appendChild(bi(kind[0], kind[1])); r.appendChild(k); }
-    if (size != null) { var s = el("span", "rl-size"); s.textContent = fmtSize(size); r.appendChild(s); }
-    var bs = el("span", "rl-btns");
-    var off = btn(url, "", primary); off.appendChild(bi("官方下载", "Official"));
-    bs.appendChild(off);
-    MIRRORS.forEach(function (m) { bs.appendChild(btn(m[1] + url, m[0], false)); });
-    r.appendChild(bs);
-    return r;
-  }
 
-  function headRow(d, track) {
-    var head = el("div", "rl-head");
-    var pill = el("span", "rl-pill"); pill.textContent = d.tag_name || "latest";
-    head.appendChild(pill);
-    if (track) {
-      var tk = el("span", "rl-kind");
-      tk.appendChild(bi(track[0], track[1]));
-      head.appendChild(tk);
-    }
-    var dt = el("span", "rl-date");
-    dt.appendChild(bi("发布于 " + (d.published_at || "").slice(0, 10), "Released " + (d.published_at || "").slice(0, 10)));
-    head.appendChild(dt);
-    return head;
-  }
+    /* Never switch the page to a newly published release until all three
+       primary desktop platforms have finished uploading. */
+    if (!assets["windows-exe"] || !assets["mac-dmg"] || !assets["linux-appimage"]) return;
+    var digest = assets["windows-exe"].digest || "";
+    var digestMatch = digest.match(/^sha256:([a-f0-9]{64})$/i);
+    if (!digestMatch) return;
 
-  function assetRows(d, primaryExe) {
-    (d.assets || []).filter(function (a) { return /\.(exe|dmg|deb|appimage|rpm|msi)$/i.test(a.name); }).forEach(function (a) {
-      var isSha = /\.sha256$/i.test(a.name);
-      var isExe = /\.exe$/i.test(a.name);
-      panel.appendChild(row(
-        a.name, a.size, a.browser_download_url,
-        isSha ? ["校验文件", "Checksum"] : null, isExe && primaryExe
-      ));
+    document.querySelectorAll("[data-rel-version]").forEach(function (node) {
+      node.textContent = tag;
     });
+    document.querySelectorAll("[data-release-version]").forEach(function (node) {
+      node.textContent = version;
+    });
+    document.querySelectorAll("[data-release-date]").forEach(function (node) {
+      node.textContent = (release.published_at || "").slice(0, 10);
+    });
+    document.querySelectorAll("[data-release-sha]").forEach(function (node) {
+      node.textContent = digestMatch[1].toUpperCase();
+    });
+
+    Object.keys(assetSuffixes).forEach(function (key) {
+      var asset = assets[key];
+      document.querySelectorAll('[data-release-asset="' + key + '"]').forEach(function (link) {
+        link.hidden = !asset;
+        if (asset) link.href = asset.browser_download_url;
+      });
+      if (!asset) return;
+      document.querySelectorAll('[data-release-name="' + key + '"]').forEach(function (node) {
+        node.textContent = asset.name;
+      });
+      document.querySelectorAll('[data-release-size="' + key + '"]').forEach(function (node) {
+        node.textContent = fmtSize(asset.size);
+      });
+    });
+
+    if (panel) panel.setAttribute("data-release-state", "synced");
   }
 
-  function render(main, classic) {
-    panel.innerHTML = "";
-    panel.appendChild(headRow(main, ["DSH 当前版", "DSH current"]));
-    assetRows(main, true);
-
-    if (classic) {
-      panel.appendChild(headRow(classic, ["经典版", "Classic"]));
-      assetRows(classic, false);
-    }
-
-    var note = el("p", "rl-note");
-    var rel = "https://github.com/xiangxin2021cn/agent-pi-dsh/releases";
-    var t1 = document.createElement("span"); t1.setAttribute("data-lang", "zh");
-    t1.innerHTML = "仅展示 Windows / macOS / Linux 安装包；校验文件与全部资产见 <a href=\"" + rel + "\" target=\"_blank\" rel=\"noopener\">GitHub Releases</a>。";
-    var t2 = document.createElement("span"); t2.setAttribute("data-lang", "en");
-    t2.innerHTML = "Installers for Windows / macOS / Linux only; checksums and all assets on <a href=\"" + rel + "\" target=\"_blank\" rel=\"noopener\">GitHub Releases</a>.";
-    note.appendChild(t1); note.appendChild(t2);
-    panel.appendChild(note);
-  }
-
-  var ctrl = "AbortSignal" in window && AbortSignal.timeout ? { signal: AbortSignal.timeout(9000) } : {};
-  Promise.all([
-    fetch(API, ctrl).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }),
-    fetch(CLASSIC_API, ctrl).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })
-  ])
-    .then(function (results) {
-      var list = results[0];
-      var classic = results[1];
-      if (!list || !list.length) return;
-      var pub = list.filter(function (r) { return !r.draft && !r.prerelease; });
-      var main = pub.filter(function (r) { return /^v3/i.test(r.tag_name || ""); })[0] || pub[0];
-      if (!main || !main.assets) return;
-      render(main, classic);
-      panel.hidden = false;
-      var st = document.getElementById("release-static");
-      if (st) st.style.display = "none";
-      var exe = main.assets.filter(function (a) { return /\.exe$/i.test(a.name); })[0];
-      if (exe) {
-        var h = document.getElementById("hero-dl");
-        if (h) h.href = exe.browser_download_url;
-      }
-      if (main.tag_name) {
-        document.querySelectorAll("[data-rel-version]").forEach(function (e) { e.textContent = main.tag_name; });
-      }
+  var options = { credentials: "omit", referrerPolicy: "no-referrer", cache: "default" };
+  if ("AbortSignal" in window && AbortSignal.timeout) options.signal = AbortSignal.timeout(8000);
+  fetch(API, options)
+    .then(function (response) {
+      if (!response.ok) throw new Error("GitHub release metadata: " + response.status);
+      return response.json();
     })
-    .catch(function () { /* static fallback stays */ });
+    .then(applyRelease)
+    .catch(function () { /* Keep the complete, verified fallback embedded in the page. */ });
 })();

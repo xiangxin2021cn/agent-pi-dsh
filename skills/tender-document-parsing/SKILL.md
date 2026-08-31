@@ -50,24 +50,26 @@ Write like an estimator / technical / commercial tender memo:
 3. Both artifacts are required; missing MD keeps the document incomplete. Parent must not regenerate child MD.
 4. When every JSON report is complete, the parent `tender_capability replace`s from those reports (pass the merged structured data — empty payloads are not auto-merged). Write `项目特征.md` to Official Outputs from merged sections. Never wait for an Electron stage runner.
 
-## Analysis suite (hard gate)
+## Analysis base (hard gate)
 
-After per-source memos exist, write **five** synthesis documents in `Agent Pi Outputs/<projectId>/document-analysis/`. The stage summary `招标文件解析总报告.md` is a pointer, not a substitute. Names must be exactly:
+After the per-source memos exist, write one authoritative, traceable `投标分析底稿.md` in `Agent Pi Outputs/<projectId>/document-analysis/`. Structure it so a bid team can verify and reuse the analysis without rereading every source:
 
-1. `招标文件总结.md` — identity table; volume map; qualification; evaluation stages / cut-scores; commercial conditions; A/B returnables; dates; risks
-2. `工程量清单分析.md` — price build-up; each Schedule / book share; PC Sum vs Provisional vs to-price; provisional structures vs self-measured; **name the actual BOQ item codes** from `boq_reconciliation`; pricing strategy and risks
-3. `工程范围与技术规范总结.md` — contract data (duration, bonds, advance, retention, CPA, damages, subcontract cap, hours); pricing structure and structure list; C3 / equivalent scope and spec system; HSE / TE if the tender has them
-4. `合同特殊条款与规范修订总结.md` — particular-conditions table vs the general conditions; spec chapter amendments; risk-clause list
-5. `技术标文件要求汇总.md` — returnable index; A-series item by item; B-series fields and scoring; functionality table; methodology (B8 or local equivalent) depth and hand-off
+- source index and volume/file relationships;
+- project boundary and bid-binding characteristics;
+- qualification, evaluation, key dates, and returnables;
+- contract, bonds, insurance, payment, and material commercial risk;
+- scope, specification system, and particular amendments;
+- BOQ book/chapter/line coverage and mapping gaps;
+- submission checklist, risks, gaps, clarifications, and source locators.
 
-Each memo must be long enough for a estimator to work from (about 3 500 characters minimum) and must contain the chapter words the host checks. Missing, short, or chapter-thin files make `complete_stage` fail. The workbench check panel and the monitor list the exact gaps.
+Keep conclusions linked to page/clause/sheet/cell or other usable source locators. The base must be substantive enough to support pricing, planning, and submission work, but there is no fixed quota of five long reports. `招标文件总结.md`, `工程量清单分析.md`, `工程范围与技术规范总结.md`, `合同特殊条款与规范修订总结.md`, `技术标文件要求汇总.md`, and similar topic reports are **views derived on demand** when the user or tender requires them; they are not stage-completion gates by default.
 
-**BOQ inventory hard gate (not waivable):** `complete_stage` also fails unless `packs/boq-reconciliation.json` has at least three real payment rows (code + unit + quantity + sheet/cell) sourced from a registered BOQ / Bill of Quantities / Pricing Schedule file, and `工程量清单分析.md` names those codes. A project with no bill of quantities cannot leave document analysis. Feature-gate waive and `force_pass` do not clear this. Do not invent demo rows or lift a bill from another tender.
+**BOQ inventory hard gate (not waivable):** `complete_stage` also fails unless `packs/boq-reconciliation.json` has at least three real payment rows (code + unit + quantity + sheet/cell) sourced from a registered BOQ / Bill of Quantities / Pricing Schedule file, and the BOQ section of `投标分析底稿.md` names representative actual item codes. A project with no bill of quantities cannot leave document analysis. Feature-gate waive and `force_pass` do not clear this. Do not invent demo rows or lift a bill from another tender.
 
 **Do not** copy numbers, chainages, penalties, or place names from another bid or from a user template. Templates may donate headings only. If the current tender is silent, write a gap.
 
-When the suite is the only remaining work: do **not** re-parse completed source files and do **not** re-dispatch those workers.
+When the analysis base is the only remaining work: do **not** re-parse completed source files and do **not** re-dispatch those workers. Fill only the missing source index, topic, citation, or BOQ coverage in `投标分析底稿.md`; derive a topic view only when it is actually requested.
 
 ## Completion
 
-Report: documents covered, MD paths written, whether `document_analysis` / `boq_reconciliation` packs exist, how many real BOQ rows were extracted, whether Official Outputs `项目特征.md` was written, whether the five analysis-suite files meet the depth bar, and any optional `evaluation_strategy` notes. Do not claim the stage is complete until usable MD, the BOQ pack with real line items, the five memos, and the summary exist.
+Report: documents covered, MD paths written, whether `document_analysis` / `boq_reconciliation` packs exist, how many real BOQ rows were extracted, whether Official Outputs `项目特征.md` was written, whether `投标分析底稿.md` is traceable and structurally complete, which optional topic views were requested/generated, and any optional `evaluation_strategy` notes. Do not claim the stage is complete until the per-file MD, structured handoffs, the BOQ pack with real line items, and the authoritative analysis base exist.

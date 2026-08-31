@@ -1,6 +1,11 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
-import type { BusinessModuleId, BusinessProjectRecord, CreateBusinessProjectInput } from './types.ts'
+import type {
+  BusinessModuleId,
+  BusinessProjectRecord,
+  CreateBusinessProjectInput,
+  UpdateBusinessProjectContractInput,
+} from './types.ts'
 
 const REGISTRY_FILE = 'business-projects.json'
 const SAFE_PROJECT_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
@@ -50,6 +55,17 @@ function normalizeInputPaths(inputPaths: string[] = []): string[] {
   }))]
 }
 
+function normalizeProjectGoal(value?: string): string | undefined {
+  const goal = String(value ?? '').replace(/\r\n/g, '\n').trim().slice(0, 4_000)
+  return goal || undefined
+}
+
+function normalizeTerminalDeliverables(value: string[] = []): string[] | undefined {
+  const rows = [...new Set(value.map((item) => String(item ?? '').replace(/\r\n/g, '\n').trim().slice(0, 1_000)).filter(Boolean))]
+    .slice(0, 40)
+  return rows.length > 0 ? rows : undefined
+}
+
 function shellManifestPath(project: Pick<BusinessProjectRecord, 'rootPath' | 'module' | 'projectId'>): string {
   return join(project.rootPath, '.agent-pi', 'business', project.module, project.projectId, 'project-shell.json')
 }
@@ -83,6 +99,8 @@ export function createBusinessProject(input: CreateBusinessProjectInput): Busine
     rootPath,
     workflowId: input.workflowId,
     inputPaths: normalizeInputPaths(input.inputPaths),
+    projectGoal: normalizeProjectGoal(input.projectGoal),
+    terminalDeliverables: normalizeTerminalDeliverables(input.terminalDeliverables),
     createdAt: now,
     updatedAt: now,
   }
@@ -90,6 +108,31 @@ export function createBusinessProject(input: CreateBusinessProjectInput): Busine
   saveRegistry(input.workspaceRootPath, registry)
   writeShellManifest(project)
   return project
+}
+
+export function updateBusinessProjectContract(
+  workspaceRootPath: string,
+  module: BusinessModuleId,
+  projectId: string,
+  input: UpdateBusinessProjectContractInput,
+): BusinessProjectRecord {
+  assertProjectId(projectId)
+  const registry = loadRegistry(workspaceRootPath)
+  const index = registry.projects.findIndex((project) => project.module === module && project.projectId === projectId)
+  if (index < 0) throw new Error(`Business project ${module}/${projectId} does not exist`)
+  const current = registry.projects[index]!
+  const updated: BusinessProjectRecord = {
+    ...current,
+    projectGoal: input.projectGoal === undefined ? current.projectGoal : normalizeProjectGoal(input.projectGoal),
+    terminalDeliverables: input.terminalDeliverables === undefined
+      ? current.terminalDeliverables
+      : normalizeTerminalDeliverables(input.terminalDeliverables),
+    updatedAt: new Date().toISOString(),
+  }
+  registry.projects[index] = updated
+  saveRegistry(workspaceRootPath, registry)
+  writeShellManifest(updated)
+  return updated
 }
 
 export function getBusinessProject(

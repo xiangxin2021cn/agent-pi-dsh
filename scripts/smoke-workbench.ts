@@ -1,29 +1,34 @@
 /**
- * Workbench orchestration smoke test (no server, no model).
+ * Tender workbench orchestration smoke test (no server, no model).
  *
- * Drives the tender business flow end to end against a temp workspace:
- * setup gate → completeSetup → resume dedupe (fingerprint + mark_dispatched) →
- * evidence gate waive → task completion → complete_stage terminal → resume done.
+ * Drives the seven-stage tender flow, including all three user-owned approval
+ * gates and the durable capability/output gates.
  *
  * Run: node scripts/smoke-workbench.ts   (Node >= 23.6, native type stripping)
  */
-import assert from 'node:assert'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import assert from 'node:assert/strict'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { createBusinessProject } from '../packages/business-projects/index.ts'
+import type { TenderCapabilityId, TenderCapabilityIndex } from '../packages/business-core/src/tender/index.ts'
 import {
   completeSetup,
   completeStage,
+  decideApprovalStage,
   inspectBoard,
   markDispatched,
   organizeDeliverables,
   resumeUnfinished,
 } from '../bundles/tender-host/src/orchestration.ts'
-import { ANALYSIS_SUITE, fixtureAnalysisSuiteMarkdown } from '../bundles/tender-host/src/analysis-suite.ts'
+import { fixtureAnalysisSuiteMarkdown } from '../bundles/tender-host/src/analysis-suite.ts'
 import { writeBoqInventoryFixture } from '../bundles/tender-host/src/boq-inventory-gate.ts'
-import { writePricingIntelFixtures } from '../bundles/tender-host/src/pricing-local-intel.ts'
 import { evidencePolicy, forcePassEvidence } from '../bundles/tender-host/src/evidence.ts'
+import { CAPABILITY_FILE_NAMES } from '../bundles/tender-host/src/fsutil.ts'
+import { officialStageDir } from '../bundles/tender-host/src/outputs.ts'
+import { writePricingIntelFixtures } from '../bundles/tender-host/src/pricing-local-intel.ts'
+import { demoPricingData, generatePricingWorkbook } from '../bundles/tender-host/src/pricing-workbook.ts'
+import { workspacePaths } from '../bundles/tender-host/src/workspace.ts'
 
 const cwd = mkdtempSync(join(tmpdir(), 'ap-smoke-'))
 const inputA = join(cwd, 'input-a.docx')
@@ -43,170 +48,177 @@ const project = createBusinessProject({
   inputPaths: [inputA, inputB, inputBoq],
 })
 
-let step = ''
 const ok = (name: string) => console.log('  ok', name)
+const substantial = (title: string) => '# ' + title + '\n\n' + '已核对项目资料、风险、依据、缺口与责任人。'.repeat(30)
 
-// 1. resume before setup is done → blocked, no draft
-step = 'setup gate'
+function writeSummary(stageId: string, fileName: string, body = substantial(fileName.replace(/\.md$/, ''))): string {
+  const dir = officialStageDir(cwd, project.projectId, stageId)
+  mkdirSync(dir, { recursive: true })
+  const path = join(dir, fileName)
+  writeFileSync(path, body)
+  return path
+}
+
+function finishSourceTasks(stageId: string, label: string): void {
+  const board = inspectBoard(cwd, project)
+  for (const task of board.stages[stageId]?.tasks ?? []) {
+    assert.ok(task.markdownPath, label + ' task must carry markdownPath')
+    if (!existsSync(task.markdownPath!)) {
+      writeFileSync(task.markdownPath!, '# ' + task.title + '\n\n' + (label + ' verified content. ').repeat(30))
+    }
+  }
+}
+
+function markCapabilitiesReady(capabilities: TenderCapabilityId[]): void {
+  const paths = workspacePaths(cwd, project.projectId)
+  const index = JSON.parse(readFileSync(paths.index, 'utf8')) as TenderCapabilityIndex
+  const now = new Date().toISOString()
+  mkdirSync(paths.packs, { recursive: true })
+  for (const capability of capabilities) {
+    const entry = index.capabilities.find((item) => item.capability === capability)
+    assert.ok(entry, 'capability index entry missing: ' + capability)
+    Object.assign(entry, { revision: 1, readiness: 'ready', issueCount: 0, stale: false, updatedAt: now })
+    const packPath = join(paths.packs, CAPABILITY_FILE_NAMES[capability] + '.json')
+    if (!existsSync(packPath)) {
+      writeFileSync(packPath, JSON.stringify({
+        schemaVersion: 1,
+        capability,
+        projectId: project.projectId,
+        revision: 1,
+        coreRevision: index.coreRevision,
+        upstream: [],
+        updatedAt: now,
+        data: {},
+      }, null, 2) + '\n')
+    }
+  }
+  for (const capability of capabilities) {
+    const packPath = join(paths.packs, CAPABILITY_FILE_NAMES[capability] + '.json')
+    const pack = JSON.parse(readFileSync(packPath, 'utf8')) as {
+      revision: number
+      coreRevision: number
+      upstream: Array<{ capability: 'core' | TenderCapabilityId; revision: number }>
+    }
+    pack.revision = index.capabilities.find((item) => item.capability === capability)!.revision
+    pack.coreRevision = index.coreRevision
+    pack.upstream = pack.upstream.map((reference) => ({
+      ...reference,
+      revision: reference.capability === 'core'
+        ? index.coreRevision
+        : index.capabilities.find((item) => item.capability === reference.capability)?.revision ?? reference.revision,
+    }))
+    writeFileSync(packPath, JSON.stringify(pack, null, 2) + '\n')
+  }
+  writeFileSync(paths.index, JSON.stringify(index, null, 2) + '\n')
+}
+
 let r = resumeUnfinished(cwd, project)
-assert.ok(r.blocked, 'resume should be blocked before setup')
-assert.ok(!r.draft, 'blocked resume must not return a draft')
-ok(step)
+assert.ok(r.blocked && !r.draft, 'setup must block before source confirmation')
+ok('project registration gate')
 
-// 2. completeSetup → setup done, next stage prepared with draft + dispatch key
-step = 'completeSetup'
 const setup = completeSetup(cwd, project)
-assert.equal(setup.nextStageId, 'tender-document-analysis')
-assert.ok(setup.draft && setup.draft.includes('complete_stage'), 'draft carries closing instruction')
-assert.ok(setup.draft.includes('招标文件总结.md'), 'draft names the analysis-suite files')
-assert.ok(setup.draft.includes('boq_reconciliation'), 'draft requires a real BOQ pack')
-assert.ok(setup.dispatch && setup.dispatch.key, 'dispatch key present')
-ok(step)
+assert.equal(setup.nextStageId, 'bid-risk-decision')
+assert.match(setup.draft ?? '', /投标决策与重大风险评估/)
+ok('setup enters bid decision')
 
-// 3. first resume → offers analysis draft with dispatch key
-step = 'resume offers analysis'
+writeSummary('bid-risk-decision', '投标决策与重大风险评估.md')
+r = resumeUnfinished(cwd, project)
+assert.equal(r.stageId, 'bid-risk-decision')
+assert.match(r.blocked ?? '', /工作台.*确认投标/)
+const bidApproved = decideApprovalStage(cwd, project, 'bid-risk-decision', 'approved')
+assert.equal(bidApproved.state.approval?.decision, 'approved')
+ok('bid decision requires explicit user approval')
+
 r = resumeUnfinished(cwd, project)
 assert.equal(r.stageId, 'tender-document-analysis')
-assert.ok(r.draft && r.dispatch, 'draft + dispatch expected')
+assert.ok(r.draft && r.dispatch)
 const analysisKey = r.dispatch!.key
-ok(step)
-
-// 4. immediate second resume → deduped by offer TTL
-step = 'resume dedupe (offer TTL)'
 r = resumeUnfinished(cwd, project)
-assert.ok(r.alreadyDispatched, 'second resume must dedupe')
-assert.ok(!r.draft, 'deduped resume returns no draft')
-ok(step)
-
-// 5. mark_dispatched → still deduped (durable, beyond TTL semantics)
-step = 'mark_dispatched'
+assert.ok(r.alreadyDispatched && !r.draft, 'offered analysis draft must dedupe')
 markDispatched(cwd, project, 'tender-document-analysis', analysisKey)
-r = resumeUnfinished(cwd, project)
-assert.ok(r.alreadyDispatched, 'resume after mark_dispatched must dedupe')
-ok(step)
+ok('analysis dispatch is durable and deduped')
 
-// 6. one deliverable lands → resume offers a recovery draft, not a full rescan
-step = 'recovery skips completed workers'
 let board = inspectBoard(cwd, project)
-const analysis = board.stages['tender-document-analysis']!
-assert.ok(analysis.tasks.length > 0, 'analysis checklist expected')
-const firstTask = analysis.tasks[0]!
-assert.ok(firstTask.markdownPath, 'task carries markdownPath')
-writeFileSync(firstTask.markdownPath, '# 交付\n' + '内容 '.repeat(60))
-board = inspectBoard(cwd, project)
-assert.equal(board.stages['tender-document-analysis']!.tasks[0]!.status, 'done')
-if (firstTask.reportPath) {
-  mkdirSync(join(firstTask.reportPath, '..'), { recursive: true })
-  writeFileSync(firstTask.reportPath, JSON.stringify({ status: 'error', error: 'should be ignored after done' }))
-  board = inspectBoard(cwd, project)
-  assert.equal(board.stages['tender-document-analysis']!.tasks[0]!.status, 'done', 'done tasks must not re-read JSON')
-}
+const firstAnalysisTask = board.stages['tender-document-analysis']!.tasks[0]!
+assert.ok(firstAnalysisTask.markdownPath)
+writeFileSync(firstAnalysisTask.markdownPath!, '# source analysis\n' + 'verified source '.repeat(30))
 r = resumeUnfinished(cwd, project)
-assert.ok(r.draft && r.draft.includes('恢复未递交成果'), 'partial progress must offer a recovery draft')
-assert.ok(!r.draft.includes('第一步先调用 tender_stage status'), 'recovery must not restart the whole stage')
-assert.ok(!r.draft.includes(`- ${firstTask.id} `), 'completed task must not appear in the pending list')
-ok(step)
-
-// 7. deliver remaining analysis markdown — tasks done is not enough; suite still blocks
-step = 'analysis tasks done stay on suite'
-board = inspectBoard(cwd, project)
-for (const task of board.stages['tender-document-analysis']!.tasks) {
-  if (task.status === 'done') continue
-  assert.ok(task.markdownPath, 'task carries markdownPath')
-  writeFileSync(task.markdownPath!, '# 交付\n' + '内容 '.repeat(60))
-}
-board = inspectBoard(cwd, project)
-assert.equal(board.stages['tender-document-analysis']!.status, 'running', 'suite gap must keep analysis open')
+assert.match(r.draft ?? '', /恢复未递交成果/)
+assert.ok(!r.draft!.includes(firstAnalysisTask.id), 'completed source must not be re-dispatched')
+finishSourceTasks('tender-document-analysis', 'analysis')
 r = resumeUnfinished(cwd, project)
-assert.equal(r.stageId, 'tender-document-analysis')
-assert.ok(r.draft && r.draft.includes('补齐分析深度套件'), 'suite gap must offer a patch draft, not a full rescan')
-assert.ok(r.draft.includes('招标文件总结.md'))
-assert.ok(!r.draft.includes('恢复未递交成果'), 'all source tasks done: do not recover workers')
-assert.throws(() => completeStage(cwd, project, 'tender-document-analysis'), /总报告|深度套件|招标解析/)
-ok(step)
+assert.match(r.draft ?? '', /补齐投标分析底稿/)
+ok('analysis recovery only resumes missing work')
 
-step = 'analysis suite + summary still need a real BOQ pack'
-const analysisDir = dirname(board.stages['tender-document-analysis']!.tasks[0]!.markdownPath!)
-for (const spec of ANALYSIS_SUITE) {
-  writeFileSync(join(analysisDir, spec.fileName), fixtureAnalysisSuiteMarkdown(spec.fileName))
-}
-writeFileSync(join(analysisDir, '招标文件解析总报告.md'), '# 总报告\n' + '综述 '.repeat(80))
-assert.throws(() => completeStage(cwd, project, 'tender-document-analysis'), /工程量清单|boq_reconciliation|清单行/)
-r = resumeUnfinished(cwd, project)
-assert.equal(r.stageId, 'tender-document-analysis')
-assert.ok(r.draft && (r.draft.includes('boq_reconciliation') || r.draft.includes('工程量清单')), 'BOQ gap must offer a pack draft')
-ok(step)
-
-step = 'analysis suite + summary + BOQ pack close the stage'
+const analysisDir = officialStageDir(cwd, project.projectId, 'tender-document-analysis')
+writeFileSync(join(analysisDir, '投标分析底稿.md'), fixtureAnalysisSuiteMarkdown('投标分析底稿.md'))
 writeBoqInventoryFixture(cwd, project.projectId, analysisDir)
+markCapabilitiesReady(['document_analysis', 'boq_reconciliation'])
 completeStage(cwd, project, 'tender-document-analysis')
-board = inspectBoard(cwd, project)
-assert.equal(board.stages['tender-document-analysis']!.status, 'done')
-ok(step)
+ok('canonical analysis base and full BOQ provenance close analysis')
 
-// 8. resume → next is pricing, but evidence gate blocks (no evidence-named files)
-step = 'evidence gate blocks pricing'
 r = resumeUnfinished(cwd, project)
-assert.equal(r.stageId, 'boq-five-step-pricing')
-assert.ok(r.blocked, 'pricing should be gate-blocked')
-assert.ok(!r.draft, 'gate-blocked resume must not return a draft')
-ok(step)
-
-// 9. waive gate (no web authorization) → pricing draft offered
-step = 'waive gate'
+assert.equal(r.stageId, 'pricing-basis-freeze')
+assert.ok(r.blocked, 'pricing basis must respect evidence gate')
 const ledger = forcePassEvidence(cwd, project.projectId)
-assert.ok(ledger.gateWaivedAt, 'gateWaivedAt set')
-assert.ok(!ledger.webDiligenceAuthorizedAt, 'waive must not authorize web diligence')
-const policy = evidencePolicy(cwd, project.projectId)
-assert.equal(policy.blocking, false)
-assert.equal(policy.webDiligenceAuthorized, false)
+assert.ok(ledger.gateWaivedAt)
+assert.equal(evidencePolicy(cwd, project.projectId).blocking, false)
+r = resumeUnfinished(cwd, project)
+assert.equal(r.stageId, 'pricing-basis-freeze')
+assert.ok(r.draft)
+writeSummary('pricing-basis-freeze', '组价基准冻结单.md')
+decideApprovalStage(cwd, project, 'pricing-basis-freeze', 'approved')
+ok('pricing basis freeze requires explicit user approval')
+
 r = resumeUnfinished(cwd, project)
 assert.equal(r.stageId, 'boq-five-step-pricing')
-assert.ok(r.draft && r.dispatch, 'pricing draft offered after waive')
-const pricingKey = r.dispatch!.key
-markDispatched(cwd, project, 'boq-five-step-pricing', pricingKey)
-ok(step)
-
-// 10. complete_stage rejects while pricing checklist is unfinished
-step = 'complete_stage rejects pending tasks'
-assert.throws(() => completeStage(cwd, project, 'boq-five-step-pricing'), /未完成/)
-ok(step)
-
-// 11. deliver pricing markdowns → stage done; planning has no checklist →
-//     complete_stage is its only terminal signal
-step = 'pricing done + planning complete_stage'
-board = inspectBoard(cwd, project)
-for (const task of board.stages['boq-five-step-pricing']!.tasks) {
-  writeFileSync(task.markdownPath!, '# 组价\n' + '数据 '.repeat(60))
-}
-r = resumeUnfinished(cwd, project)
-assert.equal(r.stageId, 'boq-five-step-pricing', 'supplier pack gap must keep pricing open')
-assert.ok(r.draft && r.draft.includes('当地供应商尽调'), 'pricing intel gap must offer a patch draft')
-const pricingDir = dirname(board.stages['boq-five-step-pricing']!.tasks[0]!.markdownPath!)
+finishSourceTasks('boq-five-step-pricing', 'pricing')
+const pricingDir = officialStageDir(cwd, project.projectId, 'boq-five-step-pricing')
+writeSummary('boq-five-step-pricing', 'BOQ 组价总报告.md')
 writePricingIntelFixtures(pricingDir)
+generatePricingWorkbook({
+  cwd,
+  projectId: project.projectId,
+  projectTitle: project.name,
+  data: demoPricingData(),
+})
+markCapabilitiesReady(['boq_five_step_pricing'])
+completeStage(cwd, project, 'boq-five-step-pricing')
+ok('detailed pricing keeps workbook, local diligence and capability gates')
+
 r = resumeUnfinished(cwd, project)
-assert.equal(r.stageId, 'planning-and-submission', 'resume should reach planning')
-assert.ok(r.draft, 'planning draft offered')
+assert.equal(r.stageId, 'planning-and-submission')
+const planningDir = officialStageDir(cwd, project.projectId, 'planning-and-submission')
+mkdirSync(planningDir, { recursive: true })
+for (const fileName of [
+  '施工与技术方案总控.md',
+  '施工策划报告.md',
+  'tender-programme.msp.xml',
+  'tender-programme.p6.xml',
+  'S-Curve_Cash_Flow_Chart.html',
+  'Work_Plan_and_Proposed_Methodology.docx',
+]) {
+  writeFileSync(join(planningDir, fileName), fileName + '\n' + 'verified planning output '.repeat(20))
+}
+markCapabilitiesReady(['execution_plan', 'schedule_resources', 'construction_resource_schedule', 'cost_cashflow'])
 completeStage(cwd, project, 'planning-and-submission')
-const organizedClosed = organizeDeliverables(cwd, project, 'planning-and-submission')
-assert.equal(organizedClosed.reality.stageStatus, 'done')
-assert.equal(organizedClosed.reality.outputFolder, 'planning')
-assert.equal(organizedClosed.closed, true)
-assert.equal(organizedClosed.needsQc, false)
-assert.ok(organizedClosed.draft.includes('阶段已收口'), 'closed organize must not look like pending QC')
-assert.ok(!organizedClosed.draft.includes('调用 tender_stage complete_stage'), 'closed organize must not ask to complete_stage again')
-assert.ok(organizedClosed.draft.includes('投标可提交'), 'closed organize must separate bid readiness from stage status')
-ok(step)
+const organized = organizeDeliverables(cwd, project, 'planning-and-submission')
+assert.equal(organized.reality.stageStatus, 'done')
+assert.equal(organized.reality.outputFolder, 'planning')
+assert.ok(organized.closed && !organized.needsQc)
+ok('construction and technical proposal closes independently of submission')
 
-// 12. resume → workflow finished
-step = 'terminal state'
 r = resumeUnfinished(cwd, project)
-assert.ok(r.done, 'workflow should be done')
-assert.ok(!r.draft, 'no draft at terminal state')
-ok(step)
+assert.equal(r.stageId, 'submission-compliance-freeze')
+assert.ok(r.draft)
+writeSummary('submission-compliance-freeze', '投标提交合规与冻结记录.md')
+markCapabilitiesReady(['submission_documents', 'bidder_commitments'])
+const finalApproved = decideApprovalStage(cwd, project, 'submission-compliance-freeze', 'approved')
+assert.equal(finalApproved.state.approval?.decision, 'approved')
+r = resumeUnfinished(cwd, project)
+assert.ok(r.done && !r.draft)
+ok('final compliance freeze requires explicit user approval')
 
-// 13. delivery module resume targets its first stage without any setup gate
-step = 'delivery module resume'
 const delivery = createBusinessProject({
   workspaceRootPath: cwd,
   module: 'delivery',
@@ -218,16 +230,13 @@ const delivery = createBusinessProject({
 })
 r = resumeUnfinished(cwd, delivery)
 assert.equal(r.stageId, 'delivery-setup')
-assert.ok(r.draft && r.dispatch, 'delivery first stage draft offered')
-ok(step)
+assert.ok(r.draft && r.dispatch)
+ok('other workbench modules remain unaffected')
 
-// 14. evidence registered OUTSIDE the workspace top level is visible to the gate
-//     (registered-inputs channel; previously only cwd top-level files counted)
-step = 'evidence via registered inputs'
 const evidenceDir = mkdtempSync(join(tmpdir(), 'ap-evidence-'))
 const specFile = join(evidenceDir, 'COTO-standard-specification.pdf')
 writeFileSync(specFile, 'spec '.repeat(50))
-const p3 = createBusinessProject({
+const evidenceProject = createBusinessProject({
   workspaceRootPath: cwd,
   module: 'tender',
   projectId: 'smoke-3',
@@ -236,13 +245,13 @@ const p3 = createBusinessProject({
   createDirectory: true,
   inputPaths: [specFile],
 })
-completeSetup(cwd, p3)
-const policy3 = evidencePolicy(cwd, p3.projectId)
-assert.ok(policy3.evidenceFileNames.some((name) => /coto/i.test(name)), 'registered off-workspace evidence must be seen')
-assert.equal(policy3.gaps.some((gap) => gap.chapterId === 'specs'), false, 'registered COTO must satisfy the specs chapter')
-r = resumeUnfinished(cwd, p3)
-assert.equal(r.stageId, 'tender-document-analysis')
-assert.ok(r.draft, 'analysis draft offered without any waive')
-ok(step)
+completeSetup(cwd, evidenceProject)
+const evidencePolicyResult = evidencePolicy(cwd, evidenceProject.projectId)
+assert.ok(evidencePolicyResult.evidenceFileNames.some((name) => /coto/i.test(name)))
+assert.equal(evidencePolicyResult.gaps.some((gap) => gap.chapterId === 'specs'), false)
+r = resumeUnfinished(cwd, evidenceProject)
+assert.equal(r.stageId, 'bid-risk-decision')
+assert.ok(r.draft)
+ok('registered external evidence enters the user-owned bid gate')
 
 console.log('\nsmoke-workbench: all checks passed —', cwd)

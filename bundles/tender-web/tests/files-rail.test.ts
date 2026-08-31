@@ -18,6 +18,7 @@ import {
   writeFilesRailOpen,
   writeFilesRailWidth,
 } from '../lib/files-rail.js'
+import { clientSource } from './client-source.ts'
 
 test('files rail remembers collapse and reserves the 56px right strip', () => {
   const store = new Map()
@@ -39,7 +40,7 @@ test('files rail remembers collapse and reserves the 56px right strip', () => {
 })
 
 test('files rail page copy collapses to a right icon strip, not a floating tab', () => {
-  const page = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../lib/client.js'), 'utf8')
+  const page = clientSource
   assert.match(page, /ap-files-dock\.collapsed/)
   assert.match(page, /ap-files-collapsed/)
   assert.match(page, /files\.collapse/)
@@ -49,7 +50,7 @@ test('files rail page copy collapses to a right icon strip, not a floating tab',
 })
 
 test('files rail page distinguishes markdown, sheet and word icons', () => {
-  const page = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../lib/client.js'), 'utf8')
+  const page = clientSource
   assert.match(page, /fileSheet/)
   assert.match(page, /fileWord/)
   assert.match(page, /fileMd/)
@@ -74,7 +75,7 @@ test('files rail width can be dragged and remembered', () => {
 })
 
 test('files rail page exposes a width drag handle and CSS variable', () => {
-  const page = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../lib/client.js'), 'utf8')
+  const page = clientSource
   assert.match(page, /--ap-files-w/)
   assert.match(page, /ap-files-resizer/)
   assert.match(page, /files\.resize/)

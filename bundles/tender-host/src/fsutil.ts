@@ -1,6 +1,6 @@
 import { isAbsolute, join, resolve } from 'node:path'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import type { TenderCapabilityId } from '../../packages/business-core/src/tender/index.ts'
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import type { TenderCapabilityId } from '../../../packages/business-core/src/tender/index.ts'
 import { repoRoot } from './root.ts'
 
 export const SAFE_PROJECT_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
@@ -40,6 +40,19 @@ export function readJson<T>(path: string, fallback: T): T {
 export function writeJson(path: string, value: unknown): void {
   ensureDir(join(path, '..'))
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`)
+}
+
+/** Write a new JSON file through a same-directory temporary file and atomic rename. */
+export function writeNewJsonAtomic(path: string, value: unknown): void {
+  ensureDir(join(path, '..'))
+  if (existsSync(path)) throw new Error(`Atomic JSON target already exists: ${path}`)
+  const temp = `${path}.${process.pid}.${Date.now()}.tmp`
+  try {
+    writeFileSync(temp, `${JSON.stringify(value, null, 2)}\n`)
+    renameSync(temp, path)
+  } finally {
+    if (existsSync(temp)) rmSync(temp, { force: true })
+  }
 }
 
 export function resolveMaybe(cwd: string, path: string): string {

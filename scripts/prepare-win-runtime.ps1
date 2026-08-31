@@ -15,7 +15,7 @@ if (-not (Test-Path $IconSrc)) { $IconSrc = Join-Path $Root "AgentPI-logo-2.png"
 $IconDest = Join-Path $Desktop "build\icon.png"
 
 node (Join-Path $Root "scripts\apply-dsh-patches.mjs") $Dsh
-if ($LASTEXITCODE -ne 0) { throw "Agent Pi DSH kernel patch failed" }
+if ($LASTEXITCODE -ne 0) { throw "Agent Pi DSH clean-kernel guard failed" }
 
 New-Item -ItemType Directory -Force -Path $NodeDir, $Product, (Split-Path $IconDest) | Out-Null
 $iconIco = Join-Path $Desktop "build\icon.ico"
@@ -70,6 +70,7 @@ $productItems = @(
   "scripts",
   "package.json",
   "README.md",
+  "THIRD_PARTY_NOTICES.md",
   "DSH_PIN",
   ".gitmodules",
   "vendor\dsh-super-injector",
@@ -98,6 +99,15 @@ foreach ($item in $productItems) {
   } else {
     Copy-Item -Force $src $dest
   }
+}
+
+# Keep first launch offline and deterministic. The source-vendored Univer
+# plugin intentionally excludes node_modules, so stage its production closure
+# into the packaged product while build-time npm access is available.
+$univerStage = Join-Path $Product "vendor\dsh-univer-office"
+if (Test-Path (Join-Path $univerStage "package.json")) {
+  & $node (Join-Path $Root "scripts\install-univer-runtime-deps.mjs") $univerStage
+  if ($LASTEXITCODE -ne 0) { throw "failed to stage Univer production dependencies" }
 }
 
 $dshLink = Get-Item -LiteralPath $Dsh
@@ -151,12 +161,10 @@ if ($FullCopy) {
 if ($Measure) {
   & (Join-Path $Root "scripts\measure-dsh-size.ps1")
 }
-node (Join-Path $Root "scripts\enable-desktop-web-fetch.mjs") `
-  (Join-Path $dshTarget "apps\cli\config\agent-presets\standard\agent.cordis.yml") `
-  (Join-Path $dshTarget "apps\cli\config\agent-presets\code\agent.cordis.yml") `
-  (Join-Path $dshTarget "apps\cli\config\agent-presets\cordis\agent.cordis.yml") `
-  (Join-Path $Product "vendor\dsh-router-standard\preset\agent.cordis.yml")
-if ($LASTEXITCODE -ne 0) { throw "enable desktop web_fetch overlay failed" }
+node (Join-Path $Root "scripts\apply-runtime-overlays.mjs") $dshTarget $Product
+if ($LASTEXITCODE -ne 0) { throw "apply desktop runtime overlays failed" }
+node (Join-Path $Root "scripts\verify-dsh-alpha3-runtime.mjs") $dshTarget $Product
+if ($LASTEXITCODE -ne 0) { throw "staged DSH alpha.3 runtime verification failed" }
 
 Write-Host "Runtime staged at $Runtime"
 Write-Host "pack:win uses extraResources/runtime. Full installer: prepare-win-runtime.ps1 -FullCopy"

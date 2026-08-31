@@ -7,6 +7,7 @@ import { productionRuntimeManifest, runtimeDependenciesReady } from './install-u
 
 const script = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'init-tender-profile.mjs'), 'utf8')
 const workflow = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../.github/workflows/build-desktop-assets.yml'), 'utf8')
+const windowsRuntime = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'prepare-win-runtime.ps1'), 'utf8')
 
 test('Univer runtime install resolves only production dependencies in a clean staging folder', () => {
   assert.deepEqual(productionRuntimeManifest({
@@ -20,6 +21,11 @@ test('Univer runtime install resolves only production dependencies in a clean st
   })
   assert.match(script, /installUniverRuntimeDeps\(univerDir/)
   assert.match(workflow, /install-univer-runtime-deps\.mjs payload\/product\/vendor\/dsh-univer-office/)
+})
+
+test('Windows package stages Univer production dependencies before first launch', () => {
+  assert.match(windowsRuntime, /vendor\\dsh-univer-office/)
+  assert.match(windowsRuntime, /install-univer-runtime-deps\.mjs/)
 })
 
 test('Univer readiness requires every production package', () => {

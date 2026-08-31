@@ -3,9 +3,10 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
+import { clientSource } from './client-source.ts'
 
 const root = dirname(fileURLToPath(import.meta.url))
-const client = readFileSync(join(root, '../lib/client.js'), 'utf8')
+const client = clientSource
 const sheet = readFileSync(join(root, '../lib/univer-assets/univer-sheet.js'), 'utf8')
 
 test('overlay embeds Univer iframe and saves back to the original path', () => {

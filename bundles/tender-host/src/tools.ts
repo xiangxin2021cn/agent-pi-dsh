@@ -1,5 +1,10 @@
 import { isAbsolute, resolve } from 'node:path'
-import { createBusinessProject, getBusinessProject, listBusinessProjects } from '../../../packages/business-projects/index.ts'
+import {
+  createBusinessProject,
+  getBusinessProject,
+  listBusinessProjects,
+  updateBusinessProjectContract,
+} from '../../../packages/business-projects/index.ts'
 import type { BusinessModuleId } from '../../../packages/business-projects/types.ts'
 import { sessionCwd, textResult } from './cwd.ts'
 import { evidencePolicy, forcePassEvidence, forcePassPricingIntel, assessEvidence } from './evidence.ts'
@@ -10,6 +15,8 @@ import {
   importKbTransferFromPath,
   getKbTaskSlugs,
   kbOverview,
+  kbPageIndexPath,
+  listKbEntries,
   readKbChunk,
   reindexKb,
   removeKbEntry,
@@ -30,23 +37,88 @@ import {
   projectReality,
   resumeUnfinished,
   slimStageStatus,
+  recordProjectUserRequirement,
+  setProjectUserRequirementStatus,
+  executionControlState,
+  updateProjectExecution,
 } from './orchestration.ts'
+import { listUserRequirements } from './user-requirements.ts'
 import {
   capabilityStatus,
   initTenderWorkspace,
   loadWorkspace,
   replaceCapability,
+  summarizeCapability,
   upsertWorkspaceSection,
   validateCapability,
 } from './workspace.ts'
 import { capabilitySchemaHint } from './capability-schema.ts'
-import { copyWorkbenchModule, listWorkbenchModules, removeUserModule, saveUserModule, saveUserSkill, setModuleDisabled, workflowFor } from './modules.ts'
+import { copyWorkbenchModule, listWorkbenchModules, removeUserModule, saveUserModule, saveUserSkill, setModuleDisabled, usesTenderControlProfile, workflowFor } from './modules.ts'
 import { adoptWorkspace } from './adopt.ts'
 import { auditProjectCitations } from './citations.ts'
 import { prepareKbDocument } from './kb-prepare.ts'
 import { generatePricingWorkbook } from './pricing-workbook.ts'
+import { routeKnowledgeSurfaces } from './knowledge-surface-router.ts'
+import { listSetupRestores } from './setup-restore.ts'
+import { readPageIndexShadow, searchPageIndexShadow } from './pageindex-shadow.ts'
+import { buildTenderKnowledgeGraph, traceKnowledgeGraph } from './knowledge-graph.ts'
+import { loadEvidenceLedger, recordStructuredEvidence, renderStructuredEvidenceCitation } from './structured-evidence.ts'
+import { assessAnalysisCoverage, loadAnalysisCoverage, recordAnalysisCoverage, type TenderAnalysisDomainId } from './analysis-coverage.ts'
+import { recordKnowledgeTelemetry } from './knowledge-telemetry.ts'
+import { loadWorkSurfacePolicy } from './worksurface-policy.ts'
+import { refreshStageMemorySnapshot, slimStageMemorySnapshot } from './stage-memory.ts'
 
 type DefineTool = (options: Record<string, unknown>) => unknown
+
+export const tenderStageParameters = {
+  action: { type: 'string', required: true, description: 'prepare | status | check | execution_status | execution_update | complete | complete_stage | resume | force_pass | reset | organize | record_requirement | satisfy_requirement' },
+  projectId: { type: 'string', required: true },
+  stageId: { type: 'string' },
+  module: { type: 'string' },
+  runId: { type: 'string' },
+  executionStatus: { type: 'string', description: 'planning | working | waiting | blocked | completed | failed' },
+  objective: { type: 'string' },
+  currentBatch: { type: 'string' },
+  planItems: {
+    type: 'array',
+    items: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        id: { type: 'string', required: true },
+        title: { type: 'string', required: true },
+        status: { type: 'string', required: true, description: 'pending | in_progress | done | blocked' },
+        artifactPaths: { type: 'array', items: { type: 'string' } },
+      },
+    },
+    description: 'Bounded live plan for the current parent session.',
+  },
+  assignments: {
+    type: 'array',
+    items: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        id: { type: 'string', required: true },
+        title: { type: 'string', required: true },
+        status: { type: 'string', required: true, description: 'queued | running | done | failed' },
+        childSessionId: { type: 'string' },
+        expectedOutput: { type: 'string' },
+      },
+    },
+    description: 'Subagent assignments already dispatched by the parent session.',
+  },
+  blockerType: { type: 'string', description: 'none | human | evidence | tool | model' },
+  blockerReason: { type: 'string' },
+  blockerNeeded: { type: 'string' },
+  nextAction: { type: 'string' },
+  summary: { type: 'string' },
+  observedRealityDigest: { type: 'string' },
+  requirementId: { type: 'string' },
+  requirementText: { type: 'string' },
+  note: { type: 'string' },
+  evidencePaths: { type: 'array' },
+} as const
 
 function jsonOut() {
   return {
@@ -61,6 +133,132 @@ function jsonOut() {
 export function registerTools(ctx: {
   tools: { register: (definition: unknown) => unknown }
 }, defineTool: DefineTool): void {
+
+  ctx.tools.register(defineTool({
+    name: 'tender_knowledge',
+    description: 'Route and inspect tender knowledge across document/table/graph surfaces. PageIndex is a shadow navigator for long narrative setup manuscripts only; its preview is never evidence and it must never answer BOQ quantities. Use evidence_record to freeze claims with source hash and an immutable locator, then cite the returned [ev:claimId] token. Coverage actions record the five required analysis domains.',
+    parameters: {
+      action: { type: 'string', required: true, description: 'route | navigate | graph | evidence_record | evidence_status | coverage_record | coverage_status' },
+      projectId: { type: 'string', required: true },
+      question: { type: 'string' },
+      sourceId: { type: 'string' },
+      documentIds: { type: 'array' },
+      tableIds: { type: 'array' },
+      available: { type: 'json' },
+      budget: { type: 'json' },
+      from: { type: 'string' },
+      maxHops: { type: 'number' },
+      evidence: { type: 'array' },
+      domain: { type: 'string' },
+      readNodeIds: { type: 'array' },
+      unreadNodeIds: { type: 'array' },
+      evidenceClaimIds: { type: 'array' },
+      conclusion: { type: 'string' },
+      humanConfirmationRequired: { type: 'boolean' },
+    },
+    output: jsonOut(),
+    async execute(args: Record<string, unknown>, exec: { agent?: { session?: { header?: { cwd?: string } } } }) {
+      const cwd = sessionCwd(exec)
+      const projectId = String(args.projectId || '')
+      const project = getBusinessProject(cwd, 'tender', projectId)
+      if (!project) throw new Error(`Unknown tender project ${projectId}`)
+      const action = String(args.action || '')
+      const startedAt = Date.now()
+      const finish = (payload: unknown, operation: 'route' | 'navigate' | 'graph' | 'evidence' | 'coverage', surfaces: Array<'document' | 'table' | 'graph'>, sourceCount = 0, status: 'ok' | 'fallback' = 'ok') => {
+        try {
+          recordKnowledgeTelemetry(cwd, projectId, {
+            operation, surfaces, sourceCount, status, elapsedMs: Date.now() - startedAt,
+            modelCalls: 0, inputTokens: 0, outputTokens: 0, estimatedCostUsd: 0,
+            detail: 'Agent Pi deterministic WorkSurface operation; no separate model or API credential used.',
+          })
+        } catch { /* telemetry must never block tender work */ }
+        return textResult(payload)
+      }
+      if (action === 'route') {
+        const route = routeKnowledgeSurfaces({
+          question: String(args.question || ''),
+          documentIds: Array.isArray(args.documentIds) ? args.documentIds.map(String) : undefined,
+          tableIds: Array.isArray(args.tableIds) ? args.tableIds.map(String) : undefined,
+          available: args.available as never,
+          budget: args.budget as never,
+        })
+        return finish(route, 'route', route.surfaces)
+      }
+      if (action === 'navigate') {
+        const selected = listSetupRestores(cwd, projectId)
+          .filter((restore) => !args.sourceId || restore.originalName === String(args.sourceId) || restore.sourcePath === String(args.sourceId))
+        const sources = selected.map((restore) => {
+          const status = readPageIndexShadow({ manuscriptPath: restore.manuscriptPath, packPath: restore.packPath })
+          return {
+            sourceId: restore.originalName,
+            state: status.state,
+            reason: status.reason,
+            hits: status.state === 'ready' && status.tree
+              ? searchPageIndexShadow(status.tree, String(args.question || ''), Number((args.budget as { maxDocumentNodes?: number } | undefined)?.maxDocumentNodes) || 8)
+              : [],
+          }
+        }).filter((source) => Boolean(args.sourceId) || source.state === 'ready')
+        const knowledgeSources = listKbEntries()
+          .filter((entry) => (!entry.parseStatus || entry.parseStatus === 'ready')
+            && (args.sourceId
+              ? (entry.slug === String(args.sourceId) || entry.name === String(args.sourceId))
+              : entry.pageIndexStatus === 'ready'))
+          .map((entry) => {
+            const status = readPageIndexShadow({ manuscriptPath: entry.managedPath, outputPath: kbPageIndexPath(entry.slug) })
+            return {
+              sourceId: entry.slug,
+              sourceName: entry.name,
+              corpus: 'knowledge-base',
+              state: status.state,
+              reason: status.reason,
+              hits: status.state === 'ready' && status.tree
+                ? searchPageIndexShadow(status.tree, String(args.question || ''), Number((args.budget as { maxDocumentNodes?: number } | undefined)?.maxDocumentNodes) || 8)
+                : [],
+            }
+          })
+        const allSources = [...sources.map((source) => ({ ...source, corpus: 'project-setup' })), ...knowledgeSources]
+        const policy = loadWorkSurfacePolicy()
+        return finish({
+          mode: policy.mode,
+          defaultNavigator: policy.defaultNavigator,
+          policyReason: policy.reason,
+          sources: allSources,
+          fallback: allSources.length === 0 || allSources.some((source) => source.state !== 'ready')
+            ? 'Use existing MiniSearch/kb_find_clause/MinerU manuscript. Do not treat a missing or corrupt tree as fatal.'
+            : undefined,
+          evidenceRule: 'Hits are navigation only. Read the manuscript at the returned lines/pages and record exact quote + source hash before citing.',
+        }, 'navigate', ['document'], allSources.length, allSources.length === 0 || allSources.some((source) => source.state !== 'ready') ? 'fallback' : 'ok')
+      }
+      if (action === 'graph') {
+        const graph = buildTenderKnowledgeGraph(cwd, projectId, loadWorkspace(cwd, projectId))
+        return finish(args.from ? { graph, trace: traceKnowledgeGraph(graph, String(args.from), Number(args.maxHops) || 4) } : graph, 'graph', ['graph'], graph.nodes.length)
+      }
+      if (action === 'evidence_record') {
+        const ledger = recordStructuredEvidence(cwd, projectId, Array.isArray(args.evidence) ? args.evidence : [])
+        return finish({ ledger, citations: ledger.claims.map((claim) => ({ claimId: claim.claimId, citation: renderStructuredEvidenceCitation(claim) })) }, 'evidence', [...new Set(ledger.claims.map((claim) => claim.surface))], ledger.claims.length)
+      }
+      if (action === 'evidence_status') {
+        const ledger = loadEvidenceLedger(cwd, projectId)
+        return finish(ledger, 'evidence', [...new Set(ledger.claims.map((claim) => claim.surface))], ledger.claims.length)
+      }
+      if (action === 'coverage_record') {
+        const coverage = recordAnalysisCoverage(cwd, projectId, {
+          domain: String(args.domain) as TenderAnalysisDomainId,
+          readNodeIds: Array.isArray(args.readNodeIds) ? args.readNodeIds.map(String) : undefined,
+          unreadNodeIds: Array.isArray(args.unreadNodeIds) ? args.unreadNodeIds.map(String) : undefined,
+          evidenceClaimIds: Array.isArray(args.evidenceClaimIds) ? args.evidenceClaimIds.map(String) : undefined,
+          conclusion: args.conclusion == null ? undefined : String(args.conclusion),
+          humanConfirmationRequired: args.humanConfirmationRequired == null ? undefined : Boolean(args.humanConfirmationRequired),
+        })
+        return finish(coverage, 'coverage', ['document'], Object.keys(coverage.sourceTreeHashes).length)
+      }
+      if (action === 'coverage_status') {
+        const ledger = loadAnalysisCoverage(cwd, projectId)
+        return finish({ ledger, status: assessAnalysisCoverage(ledger) }, 'coverage', ['document'], Object.keys(ledger?.sourceTreeHashes ?? {}).length)
+      }
+      throw new Error(`Unknown tender_knowledge action ${action}`)
+    },
+  }))
 
   ctx.tools.register(defineTool({
     name: 'tender_workspace',
@@ -114,13 +312,26 @@ export function registerTools(ctx: {
         return textResult(capabilitySchemaHint(capability))
       }
       if (action === 'replace' || action === 'init') {
-        return textResult(replaceCapability(cwd, projectId, capability, args.data))
+        const result = replaceCapability(cwd, projectId, capability, args.data)
+        return textResult({
+          ...summarizeCapability(cwd, projectId, capability, result),
+          written: true,
+        })
       }
       if (action === 'validate' && args.data !== undefined) {
-        return textResult(validateCapability(cwd, projectId, capability, args.data))
+        const result = validateCapability(cwd, projectId, capability, args.data)
+        return textResult({
+          ...summarizeCapability(cwd, projectId, capability, { audit: result.audit, data: result.parsed }),
+          ok: result.ok,
+          written: result.written,
+        })
       }
       if (action === 'status' || action === 'configure') {
-        return textResult({ configured: action === 'configure', ...capabilityStatus(cwd, projectId, capability) })
+        const status = capabilityStatus(cwd, projectId, capability)
+        return textResult({
+          ...summarizeCapability(cwd, projectId, capability, status),
+          configured: action === 'configure',
+        })
       }
       throw new Error(`Unknown tender_capability action ${action}`)
     },
@@ -359,13 +570,15 @@ export function registerTools(ctx: {
 
   ctx.tools.register(defineTool({
     name: 'tender_project',
-    description: 'Create, adopt, or list Agent Pi workbench projects in the current workspace. adopt registers the existing conversation folder under a chosen module without creating a new directory.',
+    description: 'Create, adopt, configure, or list Agent Pi workbench projects in the current workspace. configure persists the end-to-end project goal and terminal deliverables used by every DSH stage.',
     parameters: {
-      action: { type: 'string', required: true, description: 'create | adopt | list | get' },
+      action: { type: 'string', required: true, description: 'create | adopt | configure | list | get' },
       module: { type: 'string', description: 'Workbench module id (tender / delivery / investment / user module)' },
       projectId: { type: 'string' },
       name: { type: 'string' },
       inputPaths: { type: 'array', items: { type: 'string' } },
+      projectGoal: { type: 'string' },
+      terminalDeliverables: { type: 'array', items: { type: 'string' } },
     },
     output: jsonOut(),
     async execute(args: Record<string, unknown>, exec: { agent?: { session?: { header?: { cwd?: string } } } }) {
@@ -375,12 +588,20 @@ export function registerTools(ctx: {
       if (args.action === 'get') {
         return textResult(getBusinessProject(cwd, module, String(args.projectId)))
       }
+      if (args.action === 'configure') {
+        return textResult(updateBusinessProjectContract(cwd, module, String(args.projectId), {
+          projectGoal: args.projectGoal === undefined ? undefined : String(args.projectGoal),
+          terminalDeliverables: Array.isArray(args.terminalDeliverables) ? args.terminalDeliverables.map(String) : undefined,
+        }))
+      }
       if (args.action === 'adopt') {
         return textResult(adoptWorkspace(cwd, {
           module,
           name: args.name ? String(args.name) : undefined,
           projectId: args.projectId ? String(args.projectId) : undefined,
           inputPaths: Array.isArray(args.inputPaths) ? args.inputPaths.map(String) : undefined,
+          projectGoal: args.projectGoal ? String(args.projectGoal) : undefined,
+          terminalDeliverables: Array.isArray(args.terminalDeliverables) ? args.terminalDeliverables.map(String) : undefined,
         }))
       }
       const projectId = String(args.projectId ?? `p${Date.now()}`)
@@ -394,8 +615,12 @@ export function registerTools(ctx: {
         workflowId: workflow.id,
         createDirectory: true,
         inputPaths: Array.isArray(args.inputPaths) ? args.inputPaths.map(String) : [],
+        projectGoal: args.projectGoal ? String(args.projectGoal) : workflow.projectGoal,
+        terminalDeliverables: Array.isArray(args.terminalDeliverables)
+          ? args.terminalDeliverables.map(String)
+          : workflow.terminalDeliverables,
       })
-      if (module === 'tender') {
+      if (usesTenderControlProfile(module)) {
         try {
           initTenderWorkspace(cwd, projectId, { id: projectId, title: project.name, status: 'active' })
         } catch {
@@ -408,13 +633,8 @@ export function registerTools(ctx: {
 
   ctx.tools.register(defineTool({
     name: 'tender_stage',
-    description: 'Prepare or inspect a workbench stage. Writes per-file briefs under orchestration/briefs for analysis/pricing. status returns the pending checklist only — completed workers are not re-scanned. Call complete_stage after every deliverable of the current stage is finished so the workbench stops auto-resuming. force_pass on boq-five-step-pricing also waives the supplier/productivity pack (still write 组价依据说明.md). Does not spawn subagents — use dsh native subagent/workflow if you need parallelism.',
-    parameters: {
-      action: { type: 'string', required: true, description: 'prepare | status | check | complete | complete_stage | resume | force_pass | reset | organize' },
-      projectId: { type: 'string', required: true },
-      stageId: { type: 'string' },
-      module: { type: 'string' },
-    },
+    description: 'Prepare or inspect a workbench stage. DSH is the only executor; the workbench provides disk facts, light coverage checks and explicit human stops. User requirements from the bound parent chat outrank default soft gates. execution_update is optional sparse progress telemetry only, never a heartbeat or a second planner. status returns pending work plus execution/fact alignment. Does not spawn subagents.',
+    parameters: tenderStageParameters,
     output: jsonOut(),
     execute(args: Record<string, unknown>, exec: {
       agent?: { session?: { id?: string; header?: { cwd?: string } } }
@@ -425,15 +645,69 @@ export function registerTools(ctx: {
       const project = getBusinessProject(cwd, module, projectId)
       if (!project) throw new Error(`Unknown project ${module}/${projectId}. Call tender_project create first.`)
       const selectedKnowledgeSlugs = getKbTaskSlugs(exec.agent?.session?.id)
+      const sessionId = String(exec.agent?.session?.id || '')
 
       if (args.action === 'status') {
-        return textResult(slimStageStatus(inspectBoard(cwd, project)))
+        const board = inspectBoard(cwd, project)
+        return textResult({
+          ...slimStageStatus(board),
+          memory: slimStageMemorySnapshot(refreshStageMemorySnapshot(cwd, project)),
+          userRequirements: listUserRequirements(cwd, project).filter((row) => row.status !== 'dismissed'),
+          control: executionControlState(cwd, project, sessionId),
+        })
       }
       if (args.action === 'check') {
-        return textResult(projectReality(cwd, project))
+        const reality = projectReality(cwd, project)
+        return textResult({ reality, control: executionControlState(cwd, project, sessionId, reality) })
+      }
+      if (args.action === 'execution_status') {
+        const control = executionControlState(cwd, project, sessionId)
+        return textResult({
+          execution: control.execution,
+          control,
+        })
+      }
+      if (args.action === 'execution_update') {
+        const stageId = String(args.stageId ?? loadStageState(cwd, projectId)?.stageId ?? '')
+        const execution = updateProjectExecution(cwd, project, {
+          sessionId,
+          runId: args.runId ? String(args.runId) : undefined,
+          stageId,
+          status: args.executionStatus ? String(args.executionStatus) : undefined,
+          objective: args.objective ? String(args.objective) : undefined,
+          currentBatch: args.currentBatch ? String(args.currentBatch) : undefined,
+          planItems: Array.isArray(args.planItems) ? args.planItems : undefined,
+          assignments: Array.isArray(args.assignments) ? args.assignments : undefined,
+          blockerType: args.blockerType ? String(args.blockerType) : undefined,
+          blockerReason: args.blockerReason === undefined ? undefined : String(args.blockerReason),
+          blockerNeeded: args.blockerNeeded === undefined ? undefined : String(args.blockerNeeded),
+          nextAction: args.nextAction === undefined ? undefined : String(args.nextAction),
+          summary: args.summary === undefined ? undefined : String(args.summary),
+          observedRealityDigest: args.observedRealityDigest === undefined ? undefined : String(args.observedRealityDigest),
+        })
+        return textResult({ execution, control: executionControlState(cwd, project, sessionId) })
       }
       if (args.action === 'force_pass') {
         return textResult(markForcePass(cwd, projectId, args.stageId ? String(args.stageId) : undefined))
+      }
+      if (args.action === 'record_requirement') {
+        return textResult(recordProjectUserRequirement(cwd, project, {
+          sessionId: String(exec.agent?.session?.id || ''),
+          stageId: args.stageId ? String(args.stageId) : undefined,
+          text: String(args.requirementText || ''),
+        }))
+      }
+      if (args.action === 'satisfy_requirement') {
+        return textResult(setProjectUserRequirementStatus(
+          cwd,
+          project,
+          String(args.requirementId || ''),
+          'implemented',
+          {
+            note: String(args.note || ''),
+            evidencePaths: Array.isArray(args.evidencePaths) ? args.evidencePaths.map(String) : [],
+          },
+        ))
       }
       if (args.action === 'complete') {
         return textResult(completeSetup(cwd, project, selectedKnowledgeSlugs))
@@ -444,7 +718,7 @@ export function registerTools(ctx: {
         return textResult(completeStage(cwd, project, stageId))
       }
       if (args.action === 'resume') {
-        return textResult(resumeUnfinished(cwd, project, selectedKnowledgeSlugs))
+        return textResult(resumeUnfinished(cwd, project, selectedKnowledgeSlugs, { sessionId }))
       }
       const stageId = String(args.stageId ?? workflowFor(module).stages[0]?.id)
       if (args.action === 'reset' || args.action === 'reset_orchestration') {
@@ -486,7 +760,7 @@ export function registerTools(ctx: {
 
   ctx.tools.register(defineTool({
     name: 'workbench_module_save',
-    description: 'Create or replace a user-defined workbench module. You derive and pass the definition; never ask the user to paste JSON. A module is a complete workbench package (tab + stage monitor + setup + process gates + skills), rendered by this app — do not invent a new UI. Shape: { schemaVersion: 1, id, labelZh, setupStageId?, bindingAreaByStage?, kbPack?, stages: [{ id, labelZh, prompt, hintZh?, skillSlugs?, reviewSkillSlugs?, listsSources?, summaryDeliverable? }] }. Built-in ids cannot be overridden. Read skill workbench-domain-builder first.',
+    description: 'Create or replace a user-defined workbench module. You derive and pass the definition; never ask the user to paste JSON. A module is a complete workbench package (tab + stage monitor + setup + review/approval gates + skills), rendered by this app — do not invent a new UI. Shape: { schemaVersion: 1, id, labelZh, controlProfile?: "tender", setupStageId?, bindingAreaByStage?, kbPack?, stages: [{ id, labelZh, prompt, hintZh?, skillSlugs?, reviewSkillSlugs?, reviewPolicy?, approvalGate?, listsSources?, summaryDeliverable? }] }. Use controlProfile: "tender" only for a workflow copied from the built-in tender process with its canonical stage ids; it preserves deterministic BOQ/evidence/capability/final-freeze controls after the module is renamed. Built-in ids cannot be overridden. Read skill workbench-domain-builder first.',
     parameters: {
       definition: { type: 'json', required: true, description: 'Complete module definition object' },
     },

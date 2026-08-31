@@ -1,23 +1,61 @@
 param(
-  [string]$Tag = "v3.1.0",
+  [Parameter(Mandatory = $true)]
+  [string]$Tag,
   [string]$Repo = "xiangxin2021cn/agent-pi-dsh",
-  [string]$Installer = ""
+  [string]$Installer = "",
+  [string]$InstallerChecksum = "",
+  [string]$Payload = ""
 )
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
+$Version = $Tag.TrimStart('v')
 if (-not $Installer) {
-  $Version = $Tag.TrimStart('v')
   $Installer = Join-Path $Root "release\Agent-Pi-DSH-$Version-x64.exe"
 }
 if (-not (Test-Path $Installer)) {
   throw "Windows installer missing: $Installer"
 }
+if (-not $InstallerChecksum) {
+  $InstallerChecksum = "$Installer.sha256"
+}
+if (-not (Test-Path $InstallerChecksum)) {
+  throw "Windows installer checksum missing: $InstallerChecksum"
+}
 
-Write-Host "Uploading $Installer to $Repo $Tag"
-gh release upload $Tag $Installer --repo $Repo --clobber
+if ($Tag -like "v3.*") {
+  if (-not $Payload) {
+    $Payload = Join-Path $Root "release\runtime-payload-$Version.tar.gz"
+  }
+  if (-not (Test-Path $Payload)) {
+    throw "Runtime payload missing: $Payload"
+  }
+  $PayloadChecksum = "$Payload.sha256"
+  if (-not (Test-Path $PayloadChecksum)) {
+    throw "Runtime payload checksum missing: $PayloadChecksum"
+  }
 
-Write-Host "Dispatching Build Installers (Classic linux/mac only run for v0/v1/v2 tags)"
+  Write-Host "Uploading $Installer, $InstallerChecksum, $Payload, and $PayloadChecksum to $Repo $Tag"
+  gh release upload $Tag $Installer $InstallerChecksum $Payload $PayloadChecksum --repo $Repo
+  if ($LASTEXITCODE -ne 0) {
+    throw "release upload failed: $LASTEXITCODE"
+  }
+  Write-Host "Dispatching build-desktop-assets.yml for $Tag"
+  gh workflow run build-desktop-assets.yml --repo $Repo --ref $Tag -f "tag=$Tag"
+  if ($LASTEXITCODE -ne 0) {
+    throw "build-desktop-assets workflow dispatch failed: $LASTEXITCODE"
+  }
+  Write-Host "Done. Watch: https://github.com/$Repo/actions/workflows/build-desktop-assets.yml"
+  return
+}
+
+Write-Host "Uploading $Installer and $InstallerChecksum to $Repo $Tag"
+gh release upload $Tag $Installer $InstallerChecksum --repo $Repo
+if ($LASTEXITCODE -ne 0) {
+  throw "release upload failed: $LASTEXITCODE"
+}
+
+Write-Host "Dispatching legacy Build Installers for v0/v1/v2 tags"
 $tmp = Join-Path $env:TEMP "agent-pi-dispatch.json"
 $json = @{
   event_type = "windows-installer-uploaded"
@@ -29,7 +67,4 @@ if ($LASTEXITCODE -ne 0) {
   throw "repository_dispatch failed: $LASTEXITCODE"
 }
 
-Write-Host "Done. Watch: https://github.com/$Repo/actions/workflows/build-installers.yml"
-if ($Tag -like "v3.*") {
-  Write-Host "Note: $Tag is 3.x. CI will not attach Classic 2.x dmg/AppImage to this release."
-}
+Write-Host "Done. Watch the legacy installer workflow in $Repo Actions"

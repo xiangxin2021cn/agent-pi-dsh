@@ -6,6 +6,7 @@ dist/
 .DS_Store
 Thumbs.db
 .playwright-cli/
+.codex-temp/
 .tmp/
 .wrangler/
 output/
@@ -15,9 +16,12 @@ apps/desktop/dist-*/
 apps/desktop/dist.locked/
 apps/desktop/runtime/
 apps/desktop/.asar-patch.asar
+apps/desktop/build/installer-header.bmp
 vendor/dsh-univer-office/
 .agent-pi/
 .knox-debug/
+.worktrees/
 release/*.exe
 release/*.tar.gz
+release/*.sha256
 release/vr-144/

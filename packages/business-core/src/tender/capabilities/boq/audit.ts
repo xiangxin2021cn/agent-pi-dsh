@@ -7,6 +7,13 @@ import type {
   TenderBoqReconciliationData,
 } from './types.ts';
 
+const NON_BLOCKING_WARNING_CODES = new Set([
+  // A rate-only, total or summary row is still part of the employer's BOQ
+  // inventory. It must remain visible and traceable, but its deliberate
+  // exclusion from item pricing is not an unresolved reconciliation defect.
+  'boq_item_not_pricable',
+]);
+
 export function auditTenderBoqReconciliation(
   workspace: TenderWorkspace,
   value: TenderBoqReconciliationData | unknown,
@@ -103,7 +110,7 @@ export function auditTenderBoqReconciliation(
     }
     unitByCode.set(item.code, item.unit);
 
-    if (item.quantityStatus === 'unverified') {
+    if (item.quantityBasis !== 'not_provided' && item.quantityStatus === 'unverified') {
       issues.push({
         code: 'quantity_unverified',
         severity: 'warning',
@@ -125,9 +132,10 @@ export function auditTenderBoqReconciliation(
 
     const ineligibility = boqPricingIneligibilityReason(item);
     if (ineligibility) {
+      const synthetic = ineligibility.startsWith('synthetic composite group');
       issues.push({
-        code: 'boq_item_not_pricable',
-        severity: 'warning',
+        code: synthetic ? 'synthetic_boq_item' : 'boq_item_not_pricable',
+        severity: synthetic ? 'error' : 'warning',
         entityType: 'boq_item',
         entityId: item.id,
         message: `BOQ item ${item.id} is excluded from pricing batches: ${ineligibility}.`,
@@ -229,7 +237,7 @@ export function auditTenderBoqReconciliation(
 
   const readiness = issues.some((issue) => issue.severity === 'error')
     ? 'not_ready'
-    : issues.length > 0
+    : issues.some((issue) => issue.severity === 'warning' && !NON_BLOCKING_WARNING_CODES.has(issue.code))
       ? 'needs_review'
       : 'ready';
 
@@ -246,7 +254,9 @@ export function auditTenderBoqReconciliation(
       clearItems: data.scopeLinks.filter((link) => link.gapStatus === 'clear').length,
       reviewGaps: data.scopeLinks.filter((link) => link.gapStatus === 'needs_review').length,
       blockedGaps: data.scopeLinks.filter((link) => link.gapStatus === 'blocked').length,
-      unverifiedQuantities: data.items.filter((item) => item.quantityStatus === 'unverified').length,
+      unverifiedQuantities: data.items.filter((item) => (
+        item.quantityBasis !== 'not_provided' && item.quantityStatus === 'unverified'
+      )).length,
       unverifiedAssumptions: data.scopeLinks.reduce(
         (sum, link) => sum + link.assumptions.filter((assumption) => assumption.status === 'unverified').length,
         0,

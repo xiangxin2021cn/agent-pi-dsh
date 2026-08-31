@@ -6,13 +6,13 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>代码签名政策 — Agent Pi DSH</title>
-<meta name="description" content="Agent Pi DSH code signing policy. Free code signing provided by SignPath.io, certificate by SignPath Foundation." />
+<meta name="description" content="Agent Pi DSH installer signing and SHA256 integrity policy." />
 <link rel="icon" type="image/png" href="assets/img/logo.png" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
 <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" /></noscript>
-<link rel="stylesheet" href="assets/css/main.css?v=24" />
+<link rel="stylesheet" href="assets/css/main.css?v=25" />
 </head>
 <body>
 
@@ -28,7 +28,6 @@
       <a href="index.html#features" data-lang="en">Features</a>
       <a href="docs.html" data-lang="zh">文档</a>
       <a href="docs.html" data-lang="en">Docs</a>
-      <a href="https://github.com/xiangxin2021cn/agent-pi-dsh" target="_blank" rel="noopener">GitHub</a>
       <button class="icon-btn lang-btn" data-toggle-lang aria-label="Switch language">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
         <span>EN</span>
@@ -50,28 +49,24 @@
   <h2 data-lang="en" style="border:0">Code signing policy</h2>
 
   <div data-lang="zh">
-    <p>本页说明 Agent Pi DSH 的代码签名政策，对应开源项目 <a href="https://github.com/xiangxin2021cn/agent-pi-dsh" target="_blank" rel="noopener">xiangxin2021cn/agent-pi-dsh</a>。</p>
+    <p>本页说明 Agent Pi DSH 安装包的签名与完整性校验政策。</p>
     <ul>
-      <li><b>Free code signing provided by <a href="https://signpath.io" target="_blank" rel="noopener">SignPath.io</a>, certificate by <a href="https://signpath.org" target="_blank" rel="noopener">SignPath Foundation</a>.</b></li>
-      <li>代码签名只用于正式发布的安装包与二进制文件。</li>
-      <li>被签名的构件必须来自公开仓库的 CI 发布流水线（GitHub Actions），不接受任何本地上传的构件。</li>
-      <li>签名密钥由 SignPath 托管，项目维护者无法直接访问私钥。</li>
-      <li>发布角色：仅仓库所有者（<a href="https://github.com/xiangxin2021cn" target="_blank" rel="noopener">@xiangxin2021cn</a>）可触发发布流水线。</li>
-      <li>每个发布构件同时提供 SHA256 校验文件，用户可自行核对。</li>
+      <li><span data-release-version>3.5.2</span> 当前公开构件未签名或公证，Windows SmartScreen 或其他平台安全机制可能提示风险。</li>
+      <li>GitHub Release 会提供构件摘要或校验文件（如有）；Windows 用户应在安装前核对官网显示的 SHA256。</li>
+      <li>后续正式签名构件只通过受控发布流水线生成，签名密钥由签名服务托管，项目维护者不直接接触私钥。</li>
+      <li>签名状态与摘要以 GitHub Release 中对应构件的信息为准。</li>
     </ul>
-    <p>如有签名相关问题，请在 <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/issues" target="_blank" rel="noopener">GitHub Issues</a> 反馈。</p>
+    <p>如有签名相关问题，请通过参赛测试通知中的项目联系人反馈。</p>
   </div>
   <div data-lang="en">
-    <p>This page states the code signing policy of Agent Pi DSH, for the open-source project <a href="https://github.com/xiangxin2021cn/agent-pi-dsh" target="_blank" rel="noopener">xiangxin2021cn/agent-pi-dsh</a>.</p>
+    <p>This page states the installer signing and integrity policy of Agent Pi DSH.</p>
     <ul>
-      <li><b>Free code signing provided by <a href="https://signpath.io" target="_blank" rel="noopener">SignPath.io</a>, certificate by <a href="https://signpath.org" target="_blank" rel="noopener">SignPath Foundation</a>.</b></li>
-      <li>Code signing is used exclusively for installers and binaries of official releases.</li>
-      <li>Signed artifacts must be built by the CI release pipeline (GitHub Actions) from the public repository; locally uploaded artifacts are never signed.</li>
-      <li>Signing keys are held by SignPath; project maintainers have no direct access to private keys.</li>
-      <li>Release role: only the repository owner (<a href="https://github.com/xiangxin2021cn" target="_blank" rel="noopener">@xiangxin2021cn</a>) may trigger the release pipeline.</li>
-      <li>Every release artifact ships with a SHA256 checksum file for user verification.</li>
+      <li>The current <span data-release-version>3.5.2</span> public artifacts are unsigned or unnotarized, so Windows SmartScreen or another platform's security checks may display a warning.</li>
+      <li>GitHub Release provides an artifact digest or checksum file when available; Windows users should verify the SHA256 shown on the website before installation.</li>
+      <li>Future signed artifacts will be produced only through a controlled release pipeline; signing keys remain with the signing service and are not directly accessible to maintainers.</li>
+      <li>The corresponding GitHub Release asset information is authoritative for signing status and digests.</li>
     </ul>
-    <p>For signing-related questions, please open an issue on <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/issues" target="_blank" rel="noopener">GitHub Issues</a>.</p>
+    <p>For signing questions, use the project contact included with the competition test notice.</p>
   </div>
 </main>
 
@@ -84,7 +79,7 @@
   </div>
 </footer>
 
-<script src="assets/js/main.js?v=25"></script>
+<script src="assets/js/main.js?v=26"></script>
 </body>
 </html>
 

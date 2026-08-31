@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { spawn as nodeSpawn, spawnSync as nodeSpawnSync } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
+import { probeCodexModel } from './codex-models.mjs'
 
 const CREDENTIAL_ENV = [
   'OPENAI_API_KEY',
@@ -59,18 +60,27 @@ export function createCodexAuthController(options) {
 
   const status = () => {
     mkdirSync(options.codexHome, { recursive: true })
-    const parsed = parseCodexLoginStatus(spawnSync(
+    const loginStatusResult = spawnSync(
       options.nodePath,
       [options.wrapperPath, 'login', 'status'],
       commandOptions(),
-    ))
+    )
+    const parsed = parseCodexLoginStatus(loginStatusResult)
     if (parsed.state === 'logged-out' && loginChild?.exitCode === null) {
       return { available: true, state: 'pending' }
     }
     if (parsed.state === 'logged-out' && loginFailed) {
       return { available: true, state: 'error' }
     }
-    return parsed
+    if (parsed.state !== 'logged-in') return parsed
+    const model = probeCodexModel({
+      spawnSync,
+      nodePath: options.nodePath,
+      wrapperPath: options.wrapperPath,
+      codexHome: options.codexHome,
+      env,
+    })
+    return model === null ? parsed : { ...parsed, model }
   }
 
   const login = () => {

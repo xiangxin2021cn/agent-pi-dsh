@@ -2,6 +2,7 @@ import { basename, dirname, extname, join, relative, resolve, sep } from 'node:p
 import { copyFileSync, existsSync, mkdirSync, readdirSync, statSync } from 'node:fs'
 import { listBusinessProjects } from '../../../packages/business-projects/index.ts'
 import { projectDir, ensureDir, writeJson, readJson } from './fsutil.ts'
+import { usesTenderControlProfile } from './modules.ts'
 
 export const OFFICIAL_OUTPUTS_DIR = 'Agent Pi Outputs'
 
@@ -31,12 +32,18 @@ export function officialScanRoots(cwd: string, projectId: string): string[] {
 
 export function officialStageFolder(stageId?: string): string {
   switch (stageId) {
+    case 'bid-risk-decision':
+      return 'bid-decision'
     case 'tender-document-analysis':
       return 'document-analysis'
+    case 'pricing-basis-freeze':
+      return 'pricing-basis'
     case 'boq-five-step-pricing':
       return 'boq-pricing'
     case 'planning-and-submission':
       return 'planning'
+    case 'submission-compliance-freeze':
+      return 'submission'
     case 'project-setup':
       return 'setup'
     case 'delivery-setup':
@@ -241,7 +248,7 @@ function assertInsideCwd(cwd: string, target: string): string {
 
 function harvestProjectId(cwd: string): string {
   const projects = listBusinessProjects(cwd)
-  const tender = projects.find((project) => project.module === 'tender')
+  const tender = projects.find((project) => usesTenderControlProfile(project.module))
   if (tender) return tender.projectId
   const named = projects.find((project) => project.projectId === basename(resolve(cwd)))
   if (named) return named.projectId

@@ -10,15 +10,18 @@
     "./package.json": "./package.json"
   },
   "files": ["src", "lib", "cordis.patch.yml"],
+  "scripts": {
+    "build:client": "node ../../scripts/build-tender-client.mjs"
+  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
     },
     "client": {
       "inject": [
-        "@deepseek-ai/dsh-client-runtime",
         "@deepseek-ai/dsh-client-ui-layout",
-        "@deepseek-ai/dsh-client-ui-conversation"
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-chat"
       ],
       "platform": "web",
       "immediately": true

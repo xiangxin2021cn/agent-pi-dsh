@@ -1,6 +1,6 @@
 {
   "name": "agent-pi-dsh-desktop",
-  "version": "3.3.5",
+  "version": "3.5.2",
   "private": true,
   "author": "agent-pi-DSH",
   "homepage": "https://github.com/xiangxin2021cn/agent-pi-dsh",
@@ -31,8 +31,11 @@
     },
     "files": [
       "main.mjs",
+      "dsh-web-url.mjs",
       "codex-auth.mjs",
-      "preload.mjs",
+      "codex-models.mjs",
+      "compaction-preferences.mjs",
+      "preload.cjs",
       "boot.html",
       "brand/**/*"
     ],

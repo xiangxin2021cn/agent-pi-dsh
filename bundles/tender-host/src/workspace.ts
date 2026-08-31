@@ -334,6 +334,88 @@ export function capabilityStatus(cwd: string, projectId: string, capability?: Te
   }
 }
 
+type CapabilitySummarySource = {
+  index?: TenderCapabilityIndex
+  envelope?: { revision: number; data: unknown } | null
+  audit?: unknown
+  data?: unknown
+}
+
+function capabilityIssueCounts(audit: unknown) {
+  const record = audit && typeof audit === 'object' && !Array.isArray(audit)
+    ? audit as Record<string, unknown>
+    : undefined
+  const issues = Array.isArray(record?.issues) ? record.issues : []
+  const bySeverity: Record<string, number> = { error: 0, warning: 0 }
+  const byCode: Record<string, number> = {}
+  for (const issue of issues) {
+    if (!issue || typeof issue !== 'object' || Array.isArray(issue)) continue
+    const row = issue as Record<string, unknown>
+    if (typeof row.severity === 'string') bySeverity[row.severity] = (bySeverity[row.severity] ?? 0) + 1
+    if (typeof row.code === 'string') byCode[row.code] = (byCode[row.code] ?? 0) + 1
+  }
+  return {
+    total: issues.length,
+    bySeverity,
+    byCode: Object.fromEntries(Object.entries(byCode).sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)),
+  }
+}
+
+function capabilityDataCounts(data: unknown) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return {}
+  return Object.fromEntries(
+    Object.entries(data as Record<string, unknown>)
+      .filter((entry): entry is [string, unknown[]] => Array.isArray(entry[1]))
+      .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+      .slice(0, 8)
+      .map(([key, value]) => [key, value.length]),
+  )
+}
+
+/** Compact tool-facing projection; canonical pack and audit files remain unchanged. */
+export function summarizeCapability(
+  cwd: string,
+  projectId: string,
+  capability: TenderCapabilityId,
+  source: CapabilitySummarySource = {},
+) {
+  const paths = workspacePaths(cwd, projectId)
+  const workspace = loadWorkspace(cwd, projectId)
+  const storedIndex = source.index ?? (existsSync(paths.index)
+    ? parseTenderCapabilityIndex(JSON.parse(readFileSync(paths.index, 'utf8')))
+    : emptyIndex(projectId, workspace.revision))
+  const index = source.index ?? refreshCapabilityStaleness(cwd, projectId, workspace, storedIndex)
+  const entry = index.capabilities.find((item) => item.capability === capability)
+  const packPath = join(paths.packs, `${CAPABILITY_FILE_NAMES[capability]}.json`)
+  const auditPath = join(paths.packs, `${CAPABILITY_FILE_NAMES[capability]}.audit.json`)
+  const envelope = source.envelope === undefined
+    ? existsSync(packPath)
+      ? parseTenderCapabilityEnvelope(JSON.parse(readFileSync(packPath, 'utf8')))
+      : null
+    : source.envelope
+  const audit = source.audit === undefined && envelope && existsSync(auditPath)
+    ? JSON.parse(readFileSync(auditPath, 'utf8'))
+    : source.audit
+  const auditRecord = audit && typeof audit === 'object' && !Array.isArray(audit)
+    ? audit as Record<string, unknown>
+    : undefined
+  const auditReadiness = auditRecord?.readiness
+  const readiness = auditReadiness === 'ready' || auditReadiness === 'needs_review' || auditReadiness === 'not_ready'
+    ? auditReadiness
+    : entry?.readiness ?? 'not_ready'
+  const data = source.data === undefined ? envelope?.data : source.data
+  return {
+    capability,
+    revision: envelope?.revision ?? entry?.revision ?? 0,
+    readiness,
+    stale: entry?.stale ?? false,
+    issueCounts: capabilityIssueCounts(audit),
+    packPath,
+    auditPath,
+    dataCounts: capabilityDataCounts(data),
+  }
+}
+
 export function sourceDocumentId(path: string): string {
   const stem = basename(path, extname(path)).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'source'
   const hash = createHash('sha256').update(path.toLowerCase()).digest('hex').slice(0, 12)

@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, webUtils } from 'electron'
+const { contextBridge, ipcRenderer, webUtils } = require('electron')
 
 contextBridge.exposeInMainWorld('agentPiDesktop', {
   relaunch: () => ipcRenderer.invoke('app-relaunch'),
@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('agentPiDesktop', {
   openPath: (path) => ipcRenderer.invoke('open-path', path),
   revealPath: (path) => ipcRenderer.invoke('reveal-path', path),
   appVersion: () => ipcRenderer.invoke('app-version'),
+  compactionFallbackStatus: () => ipcRenderer.invoke('compaction-fallback-status'),
+  setCompactionFallback: (enabled) => ipcRenderer.invoke('set-compaction-fallback', enabled),
   codexAuthStatus: () => ipcRenderer.invoke('codex-auth-status'),
   codexAuthLogin: () => ipcRenderer.invoke('codex-auth-login'),
   codexAuthLogout: () => ipcRenderer.invoke('codex-auth-logout'),

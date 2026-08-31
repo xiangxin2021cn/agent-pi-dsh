@@ -45,7 +45,7 @@ test('analysis and pricing prompts use native fan-out', () => {
   assert.match(pricing?.prompt ?? '', /询价单/)
   assert.match(pricing?.prompt ?? '', /waive_pricing/)
   assert.match(analysis?.prompt ?? '', /boq_reconciliation/)
-  assert.match(analysis?.prompt ?? '', /没有清单/)
+  assert.match(analysis?.prompt ?? '', /全部可识别真实行/)
 })
 
 test('stage draft tells writers to report DONE and not sit idle', () => {
@@ -67,7 +67,7 @@ test('stage draft tells writers to report DONE and not sit idle', () => {
   assert.match(draft, /不要结束本轮空等 DONE/)
   assert.match(draft, /dsh 原生 subagent/)
   assert.match(draft, /boq_reconciliation/)
-  assert.match(draft, /没有清单/)
+  assert.match(draft, /没有清单或覆盖不全/)
   assert.doesNotMatch(draft, /同时最多 4 个活工人/)
 })
 

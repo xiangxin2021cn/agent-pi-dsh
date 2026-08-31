@@ -4,51 +4,39 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
-import { applyDshPatch } from './apply-dsh-patches.mjs'
+import { assertDshCheckoutClean, prepareDshKernel } from './apply-dsh-patches.mjs'
 
-test('DSH patch application is safe and idempotent', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'agent-pi-dsh-patch-'))
-  const patchPath = join(dir, 'change.patch')
+function createCleanCheckout() {
+  const dir = mkdtempSync(join(tmpdir(), 'agent-pi-dsh-clean-'))
   spawnSync('git', ['init', '-q'], { cwd: dir })
-  writeFileSync(join(dir, 'sample.txt'), 'before\n')
-  writeFileSync(patchPath, [
-    'diff --git a/sample.txt b/sample.txt',
-    '--- a/sample.txt',
-    '+++ b/sample.txt',
-    '@@ -1 +1 @@',
-    '-before',
-    '+after',
-    '',
-  ].join('\n'))
+  writeFileSync(join(dir, 'package.json'), '{"version":"0.1.2-alpha.1"}\n')
+  spawnSync('git', ['add', 'package.json'], { cwd: dir })
+  const committed = spawnSync('git', [
+    '-c', 'user.name=Agent Pi Test',
+    '-c', 'user.email=agent-pi-test@example.invalid',
+    'commit', '-qm', 'fixture',
+  ], { cwd: dir, encoding: 'utf8' })
+  assert.equal(committed.status, 0, committed.stderr)
+  return dir
+}
 
-  assert.equal(applyDshPatch({ dshRoot: dir, patchPath }), 'applied')
-  assert.equal(readFileSync(join(dir, 'sample.txt'), 'utf8').replace(/\r\n/g, '\n'), 'after\n')
-  assert.equal(applyDshPatch({ dshRoot: dir, patchPath }), 'already-applied')
+test('official DSH guard accepts a byte-clean checkout', () => {
+  const dshRoot = createCleanCheckout()
+  assert.equal(assertDshCheckoutClean({ dshRoot }), 'clean')
+  assert.equal(prepareDshKernel({ dshRoot }), 'clean')
 })
 
-test('DSH patch refuses a mismatched checkout without changing it', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'agent-pi-dsh-patch-conflict-'))
-  const patchPath = join(dir, 'change.patch')
-  spawnSync('git', ['init', '-q'], { cwd: dir })
-  writeFileSync(join(dir, 'sample.txt'), 'different\n')
-  writeFileSync(patchPath, [
-    'diff --git a/sample.txt b/sample.txt',
-    '--- a/sample.txt',
-    '+++ b/sample.txt',
-    '@@ -1 +1 @@',
-    '-before',
-    '+after',
-    '',
-  ].join('\n'))
+test('official DSH guard refuses tracked and untracked source changes', () => {
+  const tracked = createCleanCheckout()
+  writeFileSync(join(tracked, 'package.json'), '{"version":"modified"}\n')
+  assert.throws(() => assertDshCheckoutClean({ dshRoot: tracked }), /must remain byte-clean[\s\S]*package\.json/)
 
-  assert.throws(
-    () => applyDshPatch({ dshRoot: dir, patchPath }),
-    /does not match the pinned DSH checkout/,
-  )
-  assert.equal(readFileSync(join(dir, 'sample.txt'), 'utf8'), 'different\n')
+  const untracked = createCleanCheckout()
+  writeFileSync(join(untracked, 'product-patch.ts'), 'export {}\n')
+  assert.throws(() => assertDshCheckoutClean({ dshRoot: untracked }), /must remain byte-clean[\s\S]*product-patch\.ts/)
 })
 
-test('development and packaging entrypoints enforce the DSH patch', () => {
+test('development and packaging entrypoints enforce the clean DSH guard', () => {
   const root = join(import.meta.dirname, '..')
   for (const file of [
     'scripts/dev.ps1',
@@ -59,4 +47,12 @@ test('development and packaging entrypoints enforce the DSH patch', () => {
   ]) {
     assert.match(readFileSync(join(root, file), 'utf8'), /apply-dsh-patches\.mjs/)
   }
+})
+
+test('development bootstrap installs the locked tender host runtime dependencies', () => {
+  const root = join(import.meta.dirname, '..')
+  const dev = readFileSync(join(root, 'scripts/dev.ps1'), 'utf8')
+  assert.match(dev, /bundles\\tender-host/)
+  assert.match(dev, /node_modules\\pdf-lib/)
+  assert.match(dev, /npm ci --no-fund --no-audit/)
 })

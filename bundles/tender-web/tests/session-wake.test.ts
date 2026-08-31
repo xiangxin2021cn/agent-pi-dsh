@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 import {
+  assistantNeedsTransactionContinuation,
   buildParentWakePrompt,
   inboundNeedsParentWake,
   isChildReturnText,
@@ -13,9 +14,11 @@ import {
   queuedMessages,
   sessionActivity,
   sessionExecutionActive,
+  sessionNodes,
   snapshotIsBusy,
   snapshotIsRunning,
 } from '../src/session-wake.ts'
+import { clientSource } from './client-source.ts'
 
 test('queue-only is busy for crash-resume but not running', () => {
   const snap = { running: false, queue: [{ id: 'q1', placement: 'queued' }] }
@@ -151,7 +154,15 @@ test('sessionActivity projects nested DSH subagent execution under the main sess
 })
 
 test('workbench wake text is not treated as another unanswered inbound', () => {
-  assert.equal(isWorkbenchWakeText('【子代理回推】子智能体已 report/settled。\n\nDONE a.md md行数=10'), true)
+  for (const text of [
+    '【子代理回推】子智能体已 report/settled。\n\nDONE a.md md行数=10',
+    '【主对话未接续】用户已提交指令。',
+    '【主对话插话】请继续。',
+    '【评审回推】ACCEPT_AND_PROCEED',
+    '【事务自动接续】本会话事务仍有效。',
+  ]) {
+    assert.equal(isWorkbenchWakeText(text), true)
+  }
   const snap = {
     nodes: [
       { kind: 'user', blocks: [{ kind: 'text', text: 'DONE a.md md行数=10' }] },
@@ -159,6 +170,14 @@ test('workbench wake text is not treated as another unanswered inbound', () => {
     ],
   }
   assert.equal(inboundNeedsParentWake(snap), null)
+})
+
+test('alpha.3 Chat legacy slice is authoritative over removed SessionSnapshot.nodes', () => {
+  const stale = { kind: 'assistant', blocks: [{ kind: 'text', text: 'stale' }] }
+  const current = { kind: 'user', content: [{ type: 'text', text: 'DONE official.md md行数=10' }] }
+  const snap = { nodes: [stale], chat: { legacy: { nodes: [current] } } }
+  assert.deepEqual(sessionNodes(snap), [current])
+  assert.match(lastChildReturn(snap), /official\.md/)
 })
 
 test('inboundNeedsParentWake fires when a human user message is last', () => {
@@ -175,23 +194,57 @@ test('inboundNeedsParentWake fires when a human user message is last', () => {
   assert.match(buildParentWakePrompt(hit), /6个子代理都停止/)
 })
 
-test('client monitor wires queue steer and parent wake', () => {
-  const page = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../lib/client.js'), 'utf8')
+test('assistant mechanical batching question is resumed inside a committed transaction', () => {
+  const snap = {
+    nodes: [
+      { kind: 'assistant', blocks: [{ kind: 'text', text: '我继续以小批次 workflow 补全其余计量项五步组价，直至 complete_stage(tender-document-analysis)。是否按此继续？' }] },
+    ],
+  }
+  const hit = assistantNeedsTransactionContinuation(snap)
+  assert.ok(hit)
+  assert.equal(hit.kind, 'transaction-continuation')
+  assert.match(buildParentWakePrompt(hit), /事务自动接续/)
+})
+
+test('assistant human approval question is never resumed automatically', () => {
+  for (const text of [
+    '存在重大履约风险，请人工决定是否投标？',
+    '价格基准已经形成，是否确认冻结并进入详细组价？',
+    '最终投标文件已经完成，是否批准提交？',
+  ]) {
+    assert.equal(assistantNeedsTransactionContinuation({
+      nodes: [{ kind: 'assistant', blocks: [{ kind: 'text', text }] }],
+    }), null)
+  }
+})
+
+test('client monitor only observes an explicitly dispatched transaction and never auto-resumes', () => {
+  const page = clientSource
+  const here = dirname(fileURLToPath(import.meta.url))
+  const monitor = readFileSync(join(here, '../src/client/session-monitor.js'), 'utf8')
+  assert.match(page, /createWorkbenchSessionMonitor/)
+  assert.match(page, /if \(isWorkbenchWakeText\(clean\)\) return ''/)
   assert.match(page, /inboundNeedsParentWake/)
   assert.match(page, /flushQueuedToParent/)
   assert.match(page, /buildParentWakePrompt/)
-  assert.match(page, /parentWakeEngine/)
+  assert.match(page, /workbenchTransactions/)
+  assert.match(page, /prepareWorkbenchTransaction/)
+  assert.match(page, /commitWorkbenchTransaction/)
+  assert.match(monitor, /transactionCanRun\(parentId\)/)
   assert.match(page, /updateQueue/)
   assert.match(page, /snapshotIsRunning\(snapshotOf\(targetId\)\) \? 'steer' : 'queue'/)
-  assert.match(page, /action: 'resume', module: st\.module, projectId: st\.projectId, sessionId: parentId/)
-  assert.match(page, /const parentId = pinParentSessionId\(\)/)
-  assert.match(page, /dispatchToConversation\(props, result\.draft, parentId\)/)
+  assert.match(monitor, /action: 'check', module: state\.module, projectId: state\.projectId, sessionId: parentId/)
+  assert.match(monitor, /if \(!state\.settlementCheckPending && !state\.observedExecutionActive\) return undefined/)
+  assert.doesNotMatch(monitor, /action: 'resume'|action: 'mark_dispatched'|dispatchToConversation/)
+  assert.match(page, /const parentSessionId = pinParentSessionId\(\)/)
   assert.match(page, /sessionExecutionActive\(parentSnap, sessionList, parentId\)/)
-  assert.match(page, /dispatchToConversation\(\{\}, result\.draft, parentId\)/)
+  assert.match(page, /ap-wb-session-transactions:v1/)
+  assert.match(page, /monitorEngine\.restore/)
+  assert.match(page, /if \(result\.alreadyDispatched\) \{[\s\S]{0,300}monitorEngine\.start/)
   assert.match(page, /sessionActivity\(readSessionListSnap\(\), monitorState\.parentSessionId\)/)
   assert.match(page, /h\(KnowledgeBasePanel, \{ cwd, sessionId: pinParentSessionId\(\) \|\| resolveSessionId\(props\)/)
   assert.match(page, /sessionId: parentId \|\| resolveSessionId\(props\) \|\| runtime\.sessionId \|\| 'active'/)
-  const runtimeAt = page.indexOf('const runtime = {')
-  const loadAt = page.indexOf('parentWakeEngine.load()')
-  assert.ok(runtimeAt >= 0 && loadAt > runtimeAt, 'parentWakeEngine.load() must run after const runtime')
+  assert.doesNotMatch(page, /monitorEngine\.load\(\)/)
+  assert.doesNotMatch(page, /crashResumeEngine\.load\(\)/)
+  assert.doesNotMatch(page, /parentWakeEngine\.load\(\)/)
 })
