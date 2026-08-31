@@ -163,6 +163,8 @@ if ($Measure) {
 }
 node (Join-Path $Root "scripts\apply-runtime-overlays.mjs") $dshTarget $Product
 if ($LASTEXITCODE -ne 0) { throw "apply desktop runtime overlays failed" }
+node (Join-Path $Root "scripts\verify-dsh-alpha3-runtime.mjs") $dshTarget $Product
+if ($LASTEXITCODE -ne 0) { throw "staged DSH alpha.3 runtime verification failed" }
 
 Write-Host "Runtime staged at $Runtime"
 Write-Host "pack:win uses extraResources/runtime. Full installer: prepare-win-runtime.ps1 -FullCopy"

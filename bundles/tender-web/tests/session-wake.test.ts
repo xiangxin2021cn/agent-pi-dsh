@@ -14,6 +14,7 @@ import {
   queuedMessages,
   sessionActivity,
   sessionExecutionActive,
+  sessionNodes,
   snapshotIsBusy,
   snapshotIsRunning,
 } from '../src/session-wake.ts'
@@ -169,6 +170,14 @@ test('workbench wake text is not treated as another unanswered inbound', () => {
     ],
   }
   assert.equal(inboundNeedsParentWake(snap), null)
+})
+
+test('alpha.3 Chat legacy slice is authoritative over removed SessionSnapshot.nodes', () => {
+  const stale = { kind: 'assistant', blocks: [{ kind: 'text', text: 'stale' }] }
+  const current = { kind: 'user', content: [{ type: 'text', text: 'DONE official.md md行数=10' }] }
+  const snap = { nodes: [stale], chat: { legacy: { nodes: [current] } } }
+  assert.deepEqual(sessionNodes(snap), [current])
+  assert.match(lastChildReturn(snap), /official\.md/)
 })
 
 test('inboundNeedsParentWake fires when a human user message is last', () => {

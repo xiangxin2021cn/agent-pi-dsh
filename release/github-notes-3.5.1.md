@@ -2,7 +2,7 @@
 
 本次同版本替换修复投标流程反复扫描、重复派活和偏离最终交付目标的问题。DSH 主智能体仍是唯一负责语义判断、计划和子智能体派活的“大脑”；专业工作台收敛为轻量控制面，只核验磁盘事实、显示稀疏进度，并在人工明确点击后派发一轮任务。
 
-DeepSeek Harness 继续固定在 **`dsh-v0.1.2-alpha.1`**（`cd5ef81481`），未修改官方内核源码。
+DeepSeek Harness 已固定到官方 **`dsh-v0.1.2-alpha.3`**（`dd6322d604`），未修改官方内核源码。产品兼容层适配了 alpha.3 独立 Chat projection，并阻止已移除的 SQLite 会话持久化模块混入发布包。
 
 ## 主要变化
 
@@ -13,12 +13,13 @@ DeepSeek Harness 继续固定在 **`dsh-v0.1.2-alpha.1`**（`cd5ef81481`），�
 - 修复 BOQ 后缀拆分、短描述、仅费率行和 PC/C 项识别；保留来源、数量和价格假设的可追溯性。
 - 最终提交冻结只接受正式输出根目录中的真实文件，校验清单路径、审计路径和 SHA256 的一一绑定，拒绝伪造或游离文件。
 - 延续不可变阶段记忆与 handoff：上一阶段成果作为下一阶段磁盘基线，主对话只加载小型状态胶囊，精确事实按路径回读。
+- 适配 alpha.3 长会话渲染、断线判定、图片与队列交互改进；Codex 任务结算和用户要求监听改从 Session 与 Chat 双投影合并读取。
 
 ## 验证与下载
 
-- 投标 Host 227 项、真实 DOM 133 项、业务核心 125 项测试通过；类型检查通过。
+- 投标 Host 227 项、真实 DOM 134 项、业务核心 125 项测试通过；类型检查与 Windows 冷启动烟测通过。
 - Windows x64：[Agent-Pi-DSH-3.5.1-x64.exe](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.5.1/Agent-Pi-DSH-3.5.1-x64.exe)
-- SHA256：`5DCD0062E3B6FC289CF9B4437DAFA0A5B6EF1AA152ECF670583AE0AE05D22292`
+- SHA256：`CB9051BF2B23BFCED0B764C8A5569AA0ECC4BB3587A9EB9B3BF49CED8397E474`
 - macOS arm64 与 Linux x64 安装资源由同一 Release 的 GitHub Actions 构建回传。
 
 安装包尚未签名。覆盖安装前请完全退出 Agent Pi DSH（包括托盘进程）；Windows SmartScreen 请选择“仍要运行”，并先核对 SHA256。

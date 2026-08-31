@@ -20,7 +20,7 @@
 
 <p align="center">
   <a href="https://www.agent-pi.app"><img src="https://img.shields.io/badge/官网-agent--pi.app-2f6df0?style=flat-square" alt="Website"></a>
-  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/latest"><img src="https://img.shields.io/badge/v3.5.1-DSH%20dsh--v0.1.2--alpha.1-2f6df0?style=flat-square" alt="v3.5.1"></a>
+  <a href="https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.2-alpha.3"><img src="https://img.shields.io/badge/source-DSH%20dsh--v0.1.2--alpha.3-2f6df0?style=flat-square" alt="DSH dsh-v0.1.2-alpha.3"></a>
   <a href="https://www.agent-pi.app/docs.html"><img src="https://img.shields.io/badge/文档-Docs-0fb5c9?style=flat-square" alt="Docs"></a>
 </p>
 
@@ -39,7 +39,7 @@
 通用办公助手陪你聊天，**Agent Pi DSH 替你干活**：吃透投标、实施、投资的垂直作业系统。长程任务不断档、目标不偏离、证据可追溯——数十份标书文件一次搞定，数千条 BOQ 逐项推导，成果直接落盘为正式文档。
 
 > [!IMPORTANT]
-> **v3.5.1**：投标流程收敛为“DSH 唯一执行、工作台轻量控制、一次点击一次派发”；监控空闲后只核对一次盘面，不再自动恢复或重复派活。项目总目标、阶段交接稿和磁盘成果取代心跳账本成为继续执行基线，并修复 BOQ 识别与最终递交冻结门禁。内核仍钉在 **`dsh-v0.1.2-alpha.1`**（`cd5ef81481`），DSH 官方源码保持干净。
+> **当前开发分支**：投标流程保持“DSH 唯一执行、工作台轻量控制、一次点击一次派发”；核心依赖升级到 **`dsh-v0.1.2-alpha.3`**（`dd6322d604`）。Agent Pi 适配继续位于产品层启动迁移、profile overlay 和 bundle，DSH 官方源码保持干净。公开安装包仍以下载区标注的稳定版本为准。
 >
 > 本仓库是 **3.x DSH 版源码**，与 [2.6.5 经典版（Craft Agents OSS）](https://github.com/xiangxin2021cn/agent-pi) 分库维护。**3.x 安装包在 [DSH Releases](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/tag/v3.5.1) 发布。** 完整产品页：[www.agent-pi.app](https://www.agent-pi.app)
 
@@ -142,7 +142,7 @@ flowchart LR
 
 国内镜像（Windows）：[gh-proxy.com](https://gh-proxy.com/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.5.1/Agent-Pi-DSH-3.5.1-x64.exe) · [ghfast.top](https://ghfast.top/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.5.1/Agent-Pi-DSH-3.5.1-x64.exe)
 
-Windows SHA256：`5DCD0062E3B6FC289CF9B4437DAFA0A5B6EF1AA152ECF670583AE0AE05D22292`
+Windows SHA256：`CB9051BF2B23BFCED0B764C8A5569AA0ECC4BB3587A9EB9B3BF49CED8397E474`
 
 1. 下载对应平台安装包
 2. 未签名：SmartScreen / Gatekeeper 选「仍要运行」
@@ -188,7 +188,7 @@ Windows SHA256：`5DCD0062E3B6FC289CF9B4437DAFA0A5B6EF1AA152ECF670583AE0AE05D222
 
 ## 开发 / Develop
 
-当前版本钉住 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 `dsh-v0.1.2-alpha.1`（`cd5ef81481`），具体提交见 [DSH_PIN](./DSH_PIN)。所有兼容能力均通过 Agent Pi 产品层启动迁移、preset overlay 和 bundle 适配实现；发布门禁要求官方 DSH 子模块保持字节干净。迁移与验收记录见 [3.4.0 内核迁移计划](./docs/superpowers/plans/2026-08-29-dsh-0.1.2-alpha.1-migration.md)、[3.4.2 WorkSurface 实施记录](./docs/superpowers/specs/2026-08-30-pageindex-worksurface-3.4.2-implementation.md) 和 [3.5.0 阶段记忆实施规格](./docs/superpowers/specs/2026-08-30-stage-memory-3.5.0-implementation.md)。
+当前开发分支钉住 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 `dsh-v0.1.2-alpha.3`（`dd6322d604`），具体提交见 [DSH_PIN](./DSH_PIN)。所有兼容能力均通过 Agent Pi 产品层启动迁移、preset overlay 和 bundle 适配实现；发布门禁要求官方 DSH 子模块保持字节干净。最初迁移记录见 [3.4.0 内核迁移计划](./docs/superpowers/plans/2026-08-29-dsh-0.1.2-alpha.1-migration.md)，后续能力记录见 [3.4.2 WorkSurface 实施记录](./docs/superpowers/specs/2026-08-30-pageindex-worksurface-3.4.2-implementation.md) 和 [3.5.0 阶段记忆实施规格](./docs/superpowers/specs/2026-08-30-stage-memory-3.5.0-implementation.md)。
 
 ---
 
@@ -199,5 +199,5 @@ Windows SHA256：`5DCD0062E3B6FC289CF9B4437DAFA0A5B6EF1AA152ECF670583AE0AE05D222
 <p align="center">
   <a href="https://www.agent-pi.app"><b>www.agent-pi.app</b></a>
   · Always π AI Studio
-  · migration: dsh-v0.1.2-alpha.1
+  · kernel: dsh-v0.1.2-alpha.3
 </p>

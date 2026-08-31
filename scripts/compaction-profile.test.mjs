@@ -52,7 +52,13 @@ function createFixture(t) {
   cpSync(
     join(sourceRoot, 'bundles/agent-pi-compaction'),
     join(root, 'bundles/agent-pi-compaction'),
-    { recursive: true },
+    {
+      recursive: true,
+      // The initializer wires ignored runtime junctions here. They are host
+      // state, not fixture input, and cpSync can crash while cloning them on
+      // Windows. The fixture creates its own junctions against dsh-checkout.
+      filter: (source) => !source.split(/[\\/]/).includes('node_modules'),
+    },
   )
 
   writePackage(root, 'bundles/tender-host', 'dsh-tender-host')

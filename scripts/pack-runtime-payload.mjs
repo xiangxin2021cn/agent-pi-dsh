@@ -14,6 +14,7 @@ import { createHash } from 'node:crypto'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { patchUniverForDshAlpha1 } from './patch-univer-alpha1.mjs'
+import { verifyDshAlpha3Runtime } from './verify-dsh-alpha3-runtime.mjs'
 import { verifyRuntimePayloadStage } from './verify-runtime-payload-stage.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -98,6 +99,7 @@ for (const marker of ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '
   if (!existsSync(join(dshDest, marker))) throw new Error(`payload dsh tree missing ${marker}`)
 }
 console.log('staged deepseek-harness')
+verifyDshAlpha3Runtime(dshDest, productDest)
 verifyRuntimePayloadStage(stage)
 console.log('verified portable payload stage')
 

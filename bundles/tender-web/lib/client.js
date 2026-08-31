@@ -2648,6 +2648,12 @@ window.__ModuleLoader__.load({
 		function isWorkbenchWakeText(text) {
 			return /^(【子代理回推】|【主对话未接续】|【主对话插话】|【评审回推】|【事务自动接续】)/.test(String(text || "").trim());
 		}
+		/** Official alpha.3 Chat projection first; top-level nodes are an old-client fallback only. */
+		function sessionNodes(snap) {
+			const official = snap?.chat?.legacy?.nodes;
+			if (Array.isArray(official)) return official;
+			return Array.isArray(snap?.nodes) ? snap.nodes : [];
+		}
 		function createWorkbenchSessionMonitor(options) {
 			const api = options.api;
 			const pinParentSessionId = options.pinParentSessionId;
@@ -4997,6 +5003,40 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				inputStore: input && input.state
 			};
 		}
+		function chatSourceById(sessionId) {
+			const sessions = runtime.sessions;
+			const uiConversation = runtime.uiConversation;
+			if (!sessionId || !sessions || !uiConversation || typeof sessions.binding !== "function" || typeof uiConversation.binding !== "function") return null;
+			try {
+				const binding = sessions.binding(sessionId);
+				return binding ? uiConversation.binding(binding).target("chat") : null;
+			} catch {
+				return null;
+			}
+		}
+		function sessionSnapshotWithChat(sessionId, session) {
+			const snapshot = session && typeof session.getSnapshot === "function" ? session.getSnapshot() : null;
+			const source = chatSourceById(sessionId);
+			const chat = source && typeof source.getSnapshot === "function" ? source.getSnapshot() : null;
+			return chat ? {
+				...snapshot || {},
+				chat
+			} : snapshot;
+		}
+		function subscribeSessionWithChat(sessionId, session, listener) {
+			const unsubscribers = [];
+			const sessionUnsubscribe = session && typeof session.subscribe === "function" ? session.subscribe(listener) : null;
+			if (typeof sessionUnsubscribe === "function") unsubscribers.push(sessionUnsubscribe);
+			const source = chatSourceById(sessionId);
+			const chatUnsubscribe = source && typeof source.subscribe === "function" ? source.subscribe(listener) : null;
+			if (typeof chatUnsubscribe === "function") unsubscribers.push(chatUnsubscribe);
+			if (!unsubscribers.length) return null;
+			return () => unsubscribers.splice(0).forEach((unsubscribe) => {
+				try {
+					unsubscribe();
+				} catch {}
+			});
+		}
 		function watchCodexTurnSession(key, controller) {
 			if (typeof controller.unsubscribeSession === "function") return true;
 			let authorities;
@@ -5011,7 +5051,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				if (codexTurnControllers.get(key) !== controller || controller.phase === "disposed") return;
 				let snapshot;
 				try {
-					snapshot = session.getSnapshot();
+					snapshot = sessionSnapshotWithChat(key, session);
 				} catch {
 					return;
 				}
@@ -5026,7 +5066,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			};
 			let unsubscribe;
 			try {
-				unsubscribe = session.subscribe(onSession);
+				unsubscribe = subscribeSessionWithChat(key, session, onSession);
 			} catch {
 				return false;
 			}
@@ -5041,7 +5081,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			return true;
 		}
 		function codexUserNode(snapshot, controller) {
-			const nodes = snapshot && snapshot.nodes || [];
+			const nodes = sessionNodes(snapshot);
 			for (const node of nodes) {
 				if (!node || node.kind !== "user" || typeof node.seq !== "number" || node.seq <= controller.preSubmitUserNodeWatermark) continue;
 				if ((node.content || []).filter((part) => part && part.type === "text").map((part) => part.text).join("") === controller.framedDraft) return true;
@@ -5050,7 +5090,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		}
 		function codexUserNodeWatermark(snapshot) {
 			let watermark = -1;
-			for (const node of snapshot && snapshot.nodes || []) if (node && node.kind === "user" && typeof node.seq === "number") watermark = Math.max(watermark, node.seq);
+			for (const node of sessionNodes(snapshot)) if (node && node.kind === "user" && typeof node.seq === "number") watermark = Math.max(watermark, node.seq);
 			return watermark;
 		}
 		function codexAttachmentIds(items) {
@@ -5084,7 +5124,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			let sessionSnapshot;
 			let inputSnapshot;
 			try {
-				sessionSnapshot = session.getSnapshot();
+				sessionSnapshot = sessionSnapshotWithChat(key, session);
 				inputSnapshot = inputStore.getSnapshot();
 			} catch {
 				rearmCodexTurn(key, controller);
@@ -5158,7 +5198,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			let snapshot;
 			let inputSnapshot;
 			try {
-				snapshot = session && typeof session.getSnapshot === "function" ? session.getSnapshot() : null;
+				snapshot = sessionSnapshotWithChat(key, session);
 				inputSnapshot = inputStore && typeof inputStore.getSnapshot === "function" ? inputStore.getSnapshot() : null;
 			} catch {
 				failCodexTurn(key, controller, inputStore);
@@ -5305,10 +5345,10 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			return null;
 		}
 		function snapshotOf(sid) {
-			const face = sessionFaceById(sid);
+			const face = observableSessionById(sid) || sessionFaceById(sid);
 			if (!face || typeof face.getSnapshot !== "function") return null;
 			try {
-				return face.getSnapshot();
+				return sessionSnapshotWithChat(sid, face);
 			} catch {
 				return null;
 			}
@@ -5488,7 +5528,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			if (!session || typeof session.getSnapshot !== "function" || typeof session.subscribe !== "function") return;
 			let initialSnapshot;
 			try {
-				initialSnapshot = session.getSnapshot();
+				initialSnapshot = sessionSnapshotWithChat(id, session);
 			} catch {
 				return;
 			}
@@ -5499,7 +5539,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			const onSession = () => {
 				let snapshot;
 				try {
-					snapshot = session.getSnapshot();
+					snapshot = sessionSnapshotWithChat(id, session);
 				} catch {
 					return;
 				}
@@ -5531,7 +5571,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 						recordWorkbenchUserRequirement({ sessionId: id }, text, true);
 					}
 				}
-				for (const node of snapshot && snapshot.nodes || []) {
+				for (const node of sessionNodes(snapshot)) {
 					if (!node || node.kind !== "user" || typeof node.seq !== "number" || node.seq <= watermark) continue;
 					watermark = Math.max(watermark, node.seq);
 					const text = projectRequirementText(userRequirementNodeText(node));
@@ -5545,7 +5585,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			};
 			let unsubscribe;
 			try {
-				unsubscribe = session.subscribe(onSession);
+				unsubscribe = subscribeSessionWithChat(id, session, onSession);
 			} catch {
 				return;
 			}
@@ -6561,6 +6601,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			cwd: "",
 			files: [],
 			conversation: null,
+			uiConversation: null,
 			remote: null
 		};
 		const attachState = window.__apAttachState || (window.__apAttachState = {
@@ -7107,7 +7148,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					return;
 				}
 				if (!authorities.session || typeof authorities.session.getSnapshot !== "function" || !authorities.inputStore || typeof authorities.inputStore.getSnapshot !== "function") return;
-				sessionSnapshot = authorities.session.getSnapshot();
+				sessionSnapshot = sessionSnapshotWithChat(key, authorities.session);
 				inputSnapshot = authorities.inputStore.getSnapshot();
 			} catch {
 				return;
@@ -11083,6 +11124,9 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			});
 			ctx.inject(["conversation"], (scope) => {
 				runtime.conversation = scope.conversation || ctx.conversation || (typeof scope.get === "function" ? scope.get("conversation") : null) || runtime.conversation;
+			});
+			ctx.inject(["uiConversation"], (scope) => {
+				runtime.uiConversation = scope.uiConversation || ctx.uiConversation || (typeof scope.get === "function" ? scope.get("uiConversation") : null) || runtime.uiConversation;
 			});
 			ctx.slots.inject("conversation.view", () => ctx.slots.register({
 				name: "conversation.view",

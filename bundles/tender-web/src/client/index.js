@@ -25,6 +25,7 @@ import {
   parentSessionTarget,
   queuedMessages,
   sessionActivity,
+  sessionNodes,
   snapshotIsBusy,
   snapshotIsRunning,
 } from '../session-wake.ts'
@@ -1085,6 +1086,35 @@ const h = React.createElement
       const input = conversation.input.for(scope)
       return { scope, session, inputStore: input && input.state }
     }
+    function chatSourceById(sessionId) {
+      const sessions = runtime.sessions
+      const uiConversation = runtime.uiConversation
+      if (!sessionId || !sessions || !uiConversation || typeof sessions.binding !== 'function' || typeof uiConversation.binding !== 'function') return null
+      try {
+        const binding = sessions.binding(sessionId)
+        return binding ? uiConversation.binding(binding).target('chat') : null
+      } catch {
+        return null
+      }
+    }
+    function sessionSnapshotWithChat(sessionId, session) {
+      const snapshot = session && typeof session.getSnapshot === 'function' ? session.getSnapshot() : null
+      const source = chatSourceById(sessionId)
+      const chat = source && typeof source.getSnapshot === 'function' ? source.getSnapshot() : null
+      return chat ? { ...(snapshot || {}), chat } : snapshot
+    }
+    function subscribeSessionWithChat(sessionId, session, listener) {
+      const unsubscribers = []
+      const sessionUnsubscribe = session && typeof session.subscribe === 'function' ? session.subscribe(listener) : null
+      if (typeof sessionUnsubscribe === 'function') unsubscribers.push(sessionUnsubscribe)
+      const source = chatSourceById(sessionId)
+      const chatUnsubscribe = source && typeof source.subscribe === 'function' ? source.subscribe(listener) : null
+      if (typeof chatUnsubscribe === 'function') unsubscribers.push(chatUnsubscribe)
+      if (!unsubscribers.length) return null
+      return () => unsubscribers.splice(0).forEach((unsubscribe) => {
+        try { unsubscribe() } catch {}
+      })
+    }
     function watchCodexTurnSession(key, controller) {
       if (typeof controller.unsubscribeSession === 'function') return true
       let authorities
@@ -1099,7 +1129,7 @@ const h = React.createElement
         if (codexTurnControllers.get(key) !== controller || controller.phase === 'disposed') return
         let snapshot
         try {
-          snapshot = session.getSnapshot()
+          snapshot = sessionSnapshotWithChat(key, session)
         } catch {
           return
         }
@@ -1114,7 +1144,7 @@ const h = React.createElement
       }
       let unsubscribe
       try {
-        unsubscribe = session.subscribe(onSession)
+        unsubscribe = subscribeSessionWithChat(key, session, onSession)
       } catch {
         return false
       }
@@ -1127,7 +1157,7 @@ const h = React.createElement
       return true
     }
     function codexUserNode(snapshot, controller) {
-      const nodes = snapshot && snapshot.nodes || []
+      const nodes = sessionNodes(snapshot)
       for (const node of nodes) {
         if (!node || node.kind !== 'user' || typeof node.seq !== 'number' || node.seq <= controller.preSubmitUserNodeWatermark) continue
         const text = (node.content || []).filter((part) => part && part.type === 'text').map((part) => part.text).join('')
@@ -1137,7 +1167,7 @@ const h = React.createElement
     }
     function codexUserNodeWatermark(snapshot) {
       let watermark = -1
-      for (const node of snapshot && snapshot.nodes || []) {
+      for (const node of sessionNodes(snapshot)) {
         if (node && node.kind === 'user' && typeof node.seq === 'number') watermark = Math.max(watermark, node.seq)
       }
       return watermark
@@ -1173,7 +1203,7 @@ const h = React.createElement
       let sessionSnapshot
       let inputSnapshot
       try {
-        sessionSnapshot = session.getSnapshot()
+        sessionSnapshot = sessionSnapshotWithChat(key, session)
         inputSnapshot = inputStore.getSnapshot()
       } catch {
         rearmCodexTurn(key, controller)
@@ -1242,7 +1272,7 @@ const h = React.createElement
       let snapshot
       let inputSnapshot
       try {
-        snapshot = session && typeof session.getSnapshot === 'function' ? session.getSnapshot() : null
+        snapshot = sessionSnapshotWithChat(key, session)
         inputSnapshot = inputStore && typeof inputStore.getSnapshot === 'function' ? inputStore.getSnapshot() : null
       } catch {
         failCodexTurn(key, controller, inputStore)
@@ -1418,10 +1448,10 @@ const h = React.createElement
     }
 
     function snapshotOf(sid) {
-      const face = sessionFaceById(sid)
+      const face = observableSessionById(sid) || sessionFaceById(sid)
       if (!face || typeof face.getSnapshot !== 'function') return null
       try {
-        return face.getSnapshot()
+        return sessionSnapshotWithChat(sid, face)
       } catch {
         return null
       }
@@ -1627,14 +1657,14 @@ const h = React.createElement
       const session = observableSessionById(id)
       if (!session || typeof session.getSnapshot !== 'function' || typeof session.subscribe !== 'function') return
       let initialSnapshot
-      try { initialSnapshot = session.getSnapshot() } catch { return }
+      try { initialSnapshot = sessionSnapshotWithChat(id, session) } catch { return }
       let watermark = codexUserNodeWatermark(initialSnapshot)
       const seenSubmissions = new Set()
       const seenQueue = new Set()
       const submittedTexts = new Set()
       const onSession = () => {
         let snapshot
-        try { snapshot = session.getSnapshot() } catch { return }
+        try { snapshot = sessionSnapshotWithChat(id, session) } catch { return }
         if (snapshot && snapshot.removed === true) {
           const watcher = workbenchRequirementWatchers.get(id)
           if (watcher && typeof watcher.unsubscribe === 'function') {
@@ -1663,7 +1693,7 @@ const h = React.createElement
             void recordWorkbenchUserRequirement({ sessionId: id }, text, true)
           }
         }
-        for (const node of snapshot && snapshot.nodes || []) {
+        for (const node of sessionNodes(snapshot)) {
           if (!node || node.kind !== 'user' || typeof node.seq !== 'number' || node.seq <= watermark) continue
           watermark = Math.max(watermark, node.seq)
           const text = projectRequirementText(userRequirementNodeText(node))
@@ -1676,7 +1706,7 @@ const h = React.createElement
         }
       }
       let unsubscribe
-      try { unsubscribe = session.subscribe(onSession) } catch { return }
+      try { unsubscribe = subscribeSessionWithChat(id, session, onSession) } catch { return }
       if (typeof unsubscribe !== 'function') return
       workbenchRequirementWatchers.set(id, { session, unsubscribe })
       onSession()
@@ -2728,6 +2758,7 @@ const h = React.createElement
       cwd: '',
       files: [],
       conversation: null,
+      uiConversation: null,
       remote: null,
     }
     const attachState = window.__apAttachState || (window.__apAttachState = { bySession: new Map(), listeners: new Set(), last: [], items: [] })
@@ -3395,7 +3426,7 @@ const h = React.createElement
         }
         if (!authorities.session || typeof authorities.session.getSnapshot !== 'function'
           || !authorities.inputStore || typeof authorities.inputStore.getSnapshot !== 'function') return
-        sessionSnapshot = authorities.session.getSnapshot()
+        sessionSnapshot = sessionSnapshotWithChat(key, authorities.session)
         inputSnapshot = authorities.inputStore.getSnapshot()
       } catch {
         return
@@ -7676,6 +7707,12 @@ const h = React.createElement
           || ctx.conversation
           || (typeof scope.get === 'function' ? scope.get('conversation') : null)
           || runtime.conversation
+      })
+      ctx.inject(['uiConversation'], (scope) => {
+        runtime.uiConversation = scope.uiConversation
+          || ctx.uiConversation
+          || (typeof scope.get === 'function' ? scope.get('uiConversation') : null)
+          || runtime.uiConversation
       })
       ctx.slots.inject('conversation.view', () => ctx.slots.register(
         { name: 'conversation.view', id: 'workbench', order: 50, label: WORKBENCH_LABEL },

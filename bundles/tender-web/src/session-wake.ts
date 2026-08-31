@@ -140,12 +140,16 @@ export function isWorkbenchWakeText(text: string): boolean {
   return /^(【子代理回推】|【主对话未接续】|【主对话插话】|【评审回推】|【事务自动接续】)/.test(String(text || '').trim())
 }
 
+/** Official alpha.3 Chat projection first; top-level nodes are an old-client fallback only. */
+export function sessionNodes(snap: WakeSnap | null | undefined): WakeNode[] {
+  const official = snap?.chat?.legacy?.nodes
+  if (Array.isArray(official)) return official
+  return Array.isArray(snap?.nodes) ? snap.nodes : []
+}
+
 function nodeLists(snap: WakeSnap | null | undefined): WakeNode[][] {
-  if (!snap) return []
-  const lists: WakeNode[][] = []
-  if (Array.isArray(snap.nodes)) lists.push(snap.nodes)
-  if (snap.chat && snap.chat.legacy && Array.isArray(snap.chat.legacy.nodes)) lists.push(snap.chat.legacy.nodes)
-  return lists
+  const nodes = sessionNodes(snap)
+  return nodes.length > 0 ? [nodes] : []
 }
 
 /** Latest child DONE / settlement / review verdict visible on a session snapshot. */
