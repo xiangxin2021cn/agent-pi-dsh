@@ -73,6 +73,6 @@ test('release upload paths are immutable and cross-platform builds run from the 
   assert.match(workflow, /GITHUB_REF_TYPE.*tag/)
   assert.match(workflow, /GITHUB_REF_NAME.*inputs\.tag/)
   assert.match(createRelease, /git\/ref\/tags/)
-  assert.match(createRelease, /tagCommit !== mainCommit/)
-  assert.match(createRelease, /target_commitish: tag/)
+  assert.match(createRelease, /compare\/\$\{tagCommit\}\.\.\.main/)
+  assert.doesNotMatch(createRelease, /target_commitish/)
 })
