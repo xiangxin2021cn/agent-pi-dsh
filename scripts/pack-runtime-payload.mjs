@@ -32,6 +32,7 @@ function run(cmd, args, opts = {}) {
   }
 }
 
+run(process.execPath, [join(root, 'scripts', 'kernel-version-policy.mjs'), '--history'])
 run(process.execPath, [join(root, 'scripts', 'apply-dsh-patches.mjs')])
 
 function robocopy(src, dest, extra = []) {

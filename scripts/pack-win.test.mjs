@@ -130,3 +130,9 @@ test('installer branding is generated from the desktop app logo and passed to NS
   assert.match(nsisSource, /Icon "\$\{APP_ICON\}"/)
   assert.match(nsisSource, /!define MUI_HEADERIMAGE_BITMAP "\$\{INSTALLER_HEADER\}"/)
 })
+
+test('Windows packaging writes the checksum required by the immutable upload flow', () => {
+  assert.match(packSource, /Get-FileHash -Algorithm SHA256 -LiteralPath \$published/)
+  assert.match(packSource, /Join-Path \$releaseDir "\$InstallerName\.sha256"/)
+  assert.match(packSource, /\$installerHash  \$InstallerName`n/)
+})

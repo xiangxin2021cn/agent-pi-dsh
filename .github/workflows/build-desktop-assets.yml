@@ -41,6 +41,12 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
+      - name: Verify immutable release ref
+        shell: bash
+        run: |
+          test "${GITHUB_REF_TYPE}" = "tag"
+          test "${GITHUB_REF_NAME}" = "${{ inputs.tag }}"
+
       - name: Download runtime payload
         run: |
           gh release download "${{ inputs.tag }}" \
@@ -126,4 +132,4 @@ jobs:
           fi
           printf '%s\n' "${assets[@]}"
           gh release upload "${{ inputs.tag }}" "${assets[@]}" \
-            --repo "${{ github.repository }}" --clobber
+            --repo "${{ github.repository }}"

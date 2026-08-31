@@ -1,7 +1,9 @@
 param(
-  [string]$Tag = "v3.1.0",
+  [Parameter(Mandatory = $true)]
+  [string]$Tag,
   [string]$Repo = "xiangxin2021cn/agent-pi-dsh",
   [string]$Installer = "",
+  [string]$InstallerChecksum = "",
   [string]$Payload = ""
 )
 
@@ -13,6 +15,12 @@ if (-not $Installer) {
 }
 if (-not (Test-Path $Installer)) {
   throw "Windows installer missing: $Installer"
+}
+if (-not $InstallerChecksum) {
+  $InstallerChecksum = "$Installer.sha256"
+}
+if (-not (Test-Path $InstallerChecksum)) {
+  throw "Windows installer checksum missing: $InstallerChecksum"
 }
 
 if ($Tag -like "v3.*") {
@@ -27,13 +35,13 @@ if ($Tag -like "v3.*") {
     throw "Runtime payload checksum missing: $PayloadChecksum"
   }
 
-  Write-Host "Uploading $Installer, $Payload, and $PayloadChecksum to $Repo $Tag"
-  gh release upload $Tag $Installer $Payload $PayloadChecksum --repo $Repo --clobber
+  Write-Host "Uploading $Installer, $InstallerChecksum, $Payload, and $PayloadChecksum to $Repo $Tag"
+  gh release upload $Tag $Installer $InstallerChecksum $Payload $PayloadChecksum --repo $Repo
   if ($LASTEXITCODE -ne 0) {
     throw "release upload failed: $LASTEXITCODE"
   }
   Write-Host "Dispatching build-desktop-assets.yml for $Tag"
-  gh workflow run build-desktop-assets.yml --repo $Repo -f "tag=$Tag"
+  gh workflow run build-desktop-assets.yml --repo $Repo --ref $Tag -f "tag=$Tag"
   if ($LASTEXITCODE -ne 0) {
     throw "build-desktop-assets workflow dispatch failed: $LASTEXITCODE"
   }
@@ -41,8 +49,8 @@ if ($Tag -like "v3.*") {
   return
 }
 
-Write-Host "Uploading $Installer to $Repo $Tag"
-gh release upload $Tag $Installer --repo $Repo --clobber
+Write-Host "Uploading $Installer and $InstallerChecksum to $Repo $Tag"
+gh release upload $Tag $Installer $InstallerChecksum --repo $Repo
 if ($LASTEXITCODE -ne 0) {
   throw "release upload failed: $LASTEXITCODE"
 }

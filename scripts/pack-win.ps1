@@ -156,6 +156,9 @@ if ($ToolchainOnly) {
   return
 }
 
+& node (Join-Path $Root "scripts\kernel-version-policy.mjs") --history
+if ($LASTEXITCODE -ne 0) { throw "kernel version policy failed: $LASTEXITCODE" }
+
 if (-not (Test-Path (Join-Path $Dsh "package.json"))) {
   throw "vendor/deepseek-harness missing"
 }
@@ -393,5 +396,14 @@ try {
   $published = $installer
 }
 
+$checksumPath = Join-Path $releaseDir "$InstallerName.sha256"
+$installerHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $published).Hash
+[IO.File]::WriteAllText(
+  $checksumPath,
+  "$installerHash  $InstallerName`n",
+  [Text.Encoding]::ASCII
+)
+
 Write-Host "Installer written:"
 Get-Item $published | Format-Table FullName, @{ N = "MB"; E = { [math]::Round($_.Length / 1MB, 1) } }, LastWriteTime
+Write-Host "SHA256 written: $checksumPath"

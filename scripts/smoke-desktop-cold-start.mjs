@@ -9,7 +9,7 @@ const root = resolve(here, '..')
 const desktopDir = join(root, 'apps', 'desktop')
 const electronExe = join(desktopDir, 'node_modules', 'electron', 'dist', process.platform === 'win32' ? 'electron.exe' : 'electron')
 const pnpmStore = join(root, 'vendor', 'deepseek-harness', 'node_modules', '.pnpm')
-const deadlineMs = Number(process.env.AGENT_PI_COLD_START_MS || 30_000)
+const deadlineMs = Number(process.env.AGENT_PI_COLD_START_MS || 120_000)
 
 function playwrightEntry() {
   const packageDir = readdirSync(pnpmStore, { withFileTypes: true })

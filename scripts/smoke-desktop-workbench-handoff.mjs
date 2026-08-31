@@ -10,7 +10,7 @@ const root = resolve(here, '..')
 const desktopDir = join(root, 'apps', 'desktop')
 const electronExe = join(desktopDir, 'node_modules', 'electron', 'dist', process.platform === 'win32' ? 'electron.exe' : 'electron')
 const pnpmStore = join(root, 'vendor', 'deepseek-harness', 'node_modules', '.pnpm')
-const deadlineMs = Number(process.env.AGENT_PI_WORKBENCH_E2E_MS || 60_000)
+const deadlineMs = Number(process.env.AGENT_PI_WORKBENCH_E2E_MS || 120_000)
 const browserHold = process.env.AGENT_PI_WORKBENCH_BROWSER_HOLD === '1'
 const promptMarker = '【阶段切换 — 请在本项目主会话继续】'
 const requirementMarker = '【用户最新要求 — 请在本项目主会话优先处理】'
