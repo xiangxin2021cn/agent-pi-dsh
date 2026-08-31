@@ -48,17 +48,16 @@ const existing = await fetch(`${apiRoot}/releases/tags/${tag}`, { headers })
 if (mode === '--create-draft') {
   if (existing.ok) throw new Error(`${tag} already exists; published versions are immutable`)
   if (existing.status !== 404) throw new Error(`lookup ${tag}: ${existing.status} ${await existing.text()}`)
-  const [tagCommit, mainCommit] = await Promise.all([
-    resolveTagCommit(),
-    githubJson('/commits/main', 'lookup main commit').then((commit) => commit.sha),
-  ])
-  if (tagCommit !== mainCommit) throw new Error(`${tag} must point at current main: ${tagCommit} != ${mainCommit}`)
+  const tagCommit = await resolveTagCommit()
+  const comparison = await githubJson(`/compare/${tagCommit}...main`, `verify ${tag} on main`)
+  if (!['identical', 'ahead'].includes(comparison.status)) {
+    throw new Error(`${tag} must point to a commit in main history; comparison status is ${comparison.status}`)
+  }
   const response = await fetch(`${apiRoot}/releases`, {
     method: 'POST',
     headers: jsonHeaders,
     body: JSON.stringify({
       tag_name: tag,
-      target_commitish: tag,
       name: 'Agent Pi DSH 3.5.2',
       body,
       draft: true,
