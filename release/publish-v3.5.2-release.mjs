@@ -43,11 +43,11 @@ async function resolveTagCommit() {
   return object.sha
 }
 
-const existing = await fetch(`${apiRoot}/releases/tags/${tag}`, { headers })
+const releases = await githubJson('/releases?per_page=100', 'list releases')
+const existing = releases.find((release) => release.tag_name === tag)
 
 if (mode === '--create-draft') {
-  if (existing.ok) throw new Error(`${tag} already exists; published versions are immutable`)
-  if (existing.status !== 404) throw new Error(`lookup ${tag}: ${existing.status} ${await existing.text()}`)
+  if (existing) throw new Error(`${tag} already exists; published versions are immutable`)
   const tagCommit = await resolveTagCommit()
   const comparison = await githubJson(`/compare/${tagCommit}...main`, `verify ${tag} on main`)
   if (!['identical', 'ahead'].includes(comparison.status)) {
@@ -69,8 +69,8 @@ if (mode === '--create-draft') {
   const created = await response.json()
   console.log(`created draft ${created.html_url}`)
 } else if (mode === '--publish') {
-  if (!existing.ok) throw new Error(`${tag} draft is missing: ${existing.status}`)
-  const release = await existing.json()
+  if (!existing) throw new Error(`${tag} draft is missing`)
+  const release = existing
   if (!release.draft) throw new Error(`${tag} is already public; refusing to rewrite it`)
   const assetNames = new Set(release.assets.map((asset) => asset.name))
   const missing = [...requiredAssets].filter((name) => !assetNames.has(name))
