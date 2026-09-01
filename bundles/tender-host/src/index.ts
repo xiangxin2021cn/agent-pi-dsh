@@ -32,6 +32,12 @@ export const name = 'tender-host'
 export const inject = ['tools', 'systemPrompt']
 
 const { defineTool } = await importDsh<{ defineTool: (options: Record<string, unknown>) => unknown }>('packages/core/tools/src/index.ts')
+const { createUserMessage } = await importDsh<{
+  createUserMessage: (input: {
+    content: Array<{ type: 'text'; text: string }>
+    source: { kind: 'plugin'; plugin: string; form: 'instructions' }
+  }) => unknown
+}>('packages/llm/llm/src/message.ts')
 
 export function apply(ctx: {
   tools: { register: (definition: unknown) => unknown }
@@ -47,7 +53,7 @@ export function apply(ctx: {
 }): void {
   ensureWindowsNativeOpenPath()
   repairKimiCodingSettings()
-  registerPrompt(ctx)
+  registerPrompt(ctx, createUserMessage)
   registerTools({ tools: ctx.tools }, defineTool)
   ctx.inject(['webServer'], (inner) => {
     attachHttp({

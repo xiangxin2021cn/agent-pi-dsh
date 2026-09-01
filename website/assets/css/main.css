@@ -131,6 +131,25 @@ html[data-theme="dark"] .company-logo { filter: brightness(1.4) saturate(0.9); }
 }
 .nav-links a:hover, .nav-links a.active { color: var(--text); background: var(--accent-soft); text-decoration: none; }
 
+.language-picker {
+  height: 38px; display: inline-flex; align-items: center; gap: 6px;
+  padding: 0 8px; border: 1px solid var(--border); border-radius: 10px;
+  color: var(--text-dim); background: var(--surface); cursor: pointer;
+  transition: all 0.2s var(--ease);
+}
+.language-picker:hover { border-color: var(--border-strong); color: var(--text); transform: translateY(-1px); }
+.language-picker svg { flex: 0 0 auto; }
+.language-picker select {
+  max-width: 112px; border: 0; outline: 0; appearance: none;
+  color: inherit; background: transparent; font: inherit; font-size: 0.82rem;
+  font-weight: 600; cursor: pointer;
+}
+.language-picker option { color: var(--text); background: var(--surface); }
+html[dir="rtl"] body { direction: rtl; }
+html[dir="rtl"] .nav-inner,
+html[dir="rtl"] .hero-cta,
+html[dir="rtl"] .footer-bottom { direction: rtl; }
+
 .icon-btn {
   display: inline-flex; align-items: center; justify-content: center;
   width: 38px; height: 38px; border-radius: 10px;

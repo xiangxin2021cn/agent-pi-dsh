@@ -57,7 +57,7 @@ export function probeCodexModel(options) {
   const spawnSync = options.spawnSync ?? nodeSpawnSync
   const input = [
     JSON.stringify({ id: 1, method: 'initialize', params: {
-      clientInfo: { name: 'agent-pi-dsh', version: '3.5.2' },
+      clientInfo: { name: 'agent-pi-dsh', version: '3.5.3' },
       capabilities: {},
     } }),
     JSON.stringify({ method: 'notifications/initialized', params: {} }),

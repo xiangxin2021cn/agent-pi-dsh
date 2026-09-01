@@ -8,8 +8,33 @@ import { buildCodexTurnDelegation, codexCanRun } from '../src/codex-turn.ts'
 
 const client = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../lib/client.js'), 'utf8')
 
+function okJsonResponse(body = {}, payload = {}) {
+  const result = body.action === 'status'
+    ? { state: 'committed', sessionId: body.sessionId, transactionId: body.transactionId, ...payload }
+    : body.action === 'commit'
+    ? { committed: true, sessionId: body.sessionId, transactionId: body.transactionId }
+    : body.action === 'cancel'
+      ? { cleared: true, sessionId: body.sessionId, transactionId: body.transactionId }
+      : Array.isArray(body.files) || Array.isArray(body.folders)
+        ? { stored: true, sessionId: body.sessionId, transactionId: body.transactionId, ...payload }
+        : payload
+  return { ok: true, json: async () => result }
+}
+
+function attachmentTransactionMarker(transactionId) {
+  return `<!--agent-pi-attachment-tx:${encodeURIComponent(transactionId)}-->`
+}
+
 function loadShippedComposer(options = {}) {
   const timers = []
+  const setTimer = (fn) => {
+    const timer = { fn, active: true }
+    timers.push(timer)
+    return timer
+  }
+  const clearTimer = (timer) => {
+    if (timer) timer.active = false
+  }
   const frames = []
   const requestFrame = (fn) => {
     if (options.queuedRaf) {
@@ -27,7 +52,11 @@ function loadShippedComposer(options = {}) {
     querySelectorAll() { return [] },
     createElement() { return { dataset: {}, remove() {} } },
     head: { appendChild() {} },
-    documentElement: { classList: { add() {}, remove() {}, toggle() {} } },
+    documentElement: {
+      classList: { add() {}, remove() {}, toggle() {} },
+      setAttribute() {},
+      removeAttribute() {},
+    },
   }
   const window = {
     __ModuleLoader__: { load(next) { definition = next } },
@@ -35,7 +64,8 @@ function loadShippedComposer(options = {}) {
     addEventListener() {},
     removeEventListener() {},
     dispatchEvent() {},
-    setTimeout(fn) { timers.push(fn); return timers.length },
+    setTimeout: setTimer,
+    clearTimeout: clearTimer,
     requestAnimationFrame: requestFrame,
   }
   const React = {
@@ -52,17 +82,22 @@ function loadShippedComposer(options = {}) {
     )
     .replace(
       /(\s*return module\.exports;)/,
-      "\n    window.__apCodexTurnTest = { ComposerTools, codexTurnControllers, codexTurnArmed, setCodexTurnArmed, setAttachItems, attachItemsOf, attachState };\n$1",
+      "\n    window.__apCodexTurnTest = { ComposerTools, codexTurnControllers, codexTurnArmed, setCodexTurnArmed, setAttachItems: (items, props) => setAttachItemsFor(attachSessionId(props), items), attachItemsOf, attachState, mergeImportedItems, attachmentTurnControllers: typeof attachmentTurnControllers === 'undefined' ? null : attachmentTurnControllers };\n$1",
     )
   vm.runInNewContext(source, {
     window,
     document,
     requestAnimationFrame: requestFrame,
+    setTimeout: setTimer,
+    clearTimeout: clearTimer,
     setInterval: () => 1,
     clearInterval() {},
     CustomEvent: class { constructor(type, init) { this.type = type; this.detail = init?.detail } },
     Event: class { constructor(type) { this.type = type } },
-    fetch: options.fetch || (async () => ({ ok: true, json: async () => ({}) })),
+    fetch: options.fetch || (async (_url, init = {}) => {
+      const body = JSON.parse(String(init.body || '{}'))
+      return okJsonResponse(body)
+    }),
     MutationObserver: class { observe() {} disconnect() {} },
     AbortController,
     URLSearchParams,
@@ -104,7 +139,7 @@ function loadShippedComposer(options = {}) {
   })
   return {
     api: window.__apCodexTurnTest,
-    runTimers() { timers.splice(0).forEach((fn) => fn()) },
+    runTimers() { timers.splice(0).forEach((timer) => { if (timer.active) timer.fn() }) },
     runFrames() { frames.splice(0).forEach((fn) => fn()) },
     publishFallbackSession(sessionId, snapshot) { fallbackSessionFor(sessionId).set(snapshot) },
   }
@@ -201,16 +236,633 @@ function controllerPhase(api, sessionId) {
   return api.codexTurnControllers.get(sessionId)?.phase
 }
 
-async function flush() {
-  await Promise.resolve()
-  await Promise.resolve()
-  await Promise.resolve()
-  await Promise.resolve()
-  await Promise.resolve()
-  await Promise.resolve()
-  await Promise.resolve()
-  await Promise.resolve()
+function attachmentControllerPhase(api, sessionId) {
+  return api.attachmentTurnControllers?.get(sessionId)?.phase
 }
+
+async function flush() {
+  await new Promise((resolve) => setImmediate(resolve))
+}
+
+test('normal attachment turn waits for host delivery after its matching durable user node', async () => {
+  const calls = []
+  let hostState = 'committed'
+  const composer = publicComposer('attachment-success', '请读取附件并继续。')
+  const { api, runTimers } = loadShippedComposer({
+    runtime: publicRuntime(composer),
+    fetch: async (url, init = {}) => {
+      const body = JSON.parse(String(init.body || '{}'))
+      calls.push({ url: String(url), body })
+      return body.action === 'status'
+        ? okJsonResponse(body, { state: hostState })
+        : okJsonResponse(body)
+    },
+  })
+  const attachment = { id: 'success-doc', name: 'scope.pdf', kind: 'file', path: 'C:/workspace/scope.pdf', relativePath: 'scope.pdf' }
+  api.ComposerTools(composer.props())
+  api.setAttachItems([attachment], composer.props())
+
+  composer.actions.submit()
+  await flush()
+  await flush()
+  runTimers()
+  await flush()
+  await flush()
+
+  assert.equal(composer.sent.length, 1)
+  assert.equal(attachmentControllerPhase(api, composer.sessionId), 'submitting')
+  assert.deepEqual(api.attachState.bySession.get(composer.sessionId), [attachment])
+
+  const framed = composer.sent[0]
+  composer.input.set({
+    ...composer.input.getSnapshot(),
+    phase: 'plain',
+    draft: '',
+    draftRev: composer.input.getSnapshot().draftRev + 1,
+  })
+  composer.session.set({ nodes: [userNode(1, '另一条无关用户消息')], promptError: null })
+
+  assert.equal(attachmentControllerPhase(api, composer.sessionId), 'submitting')
+  assert.deepEqual(api.attachState.bySession.get(composer.sessionId), [attachment])
+
+  composer.session.set({ nodes: [
+    userNode(1, '另一条无关用户消息'),
+    userNode(2, framed),
+  ], promptError: null })
+
+  assert.equal(attachmentControllerPhase(api, composer.sessionId), 'submitting')
+  assert.deepEqual(api.attachState.bySession.get(composer.sessionId), [attachment])
+  assert.equal(calls.filter((call) => call.body.action === 'cancel').length, 0)
+
+  hostState = 'delivered'
+  runTimers()
+  await flush()
+  await flush()
+
+  assert.equal(attachmentControllerPhase(api, composer.sessionId), undefined)
+  assert.deepEqual(api.attachState.bySession.get(composer.sessionId), [])
+  assert.equal(calls.filter((call) => call.body.action === 'cancel').length, 0)
+  assert.equal(composer.input.subscriberCount, 0)
+  assert.equal(composer.session.subscriberCount, 0)
+})
+
+test('normal attachment turn restores retry state and cancels its host stash after send failure', async () => {
+  const calls = []
+  const composer = publicComposer('attachment-failure', '失败后保留这段话。')
+  const { api } = loadShippedComposer({
+    runtime: publicRuntime(composer),
+    fetch: async (url, init = {}) => {
+      calls.push({ url: String(url), body: JSON.parse(String(init.body || '{}')) })
+      return okJsonResponse(calls.at(-1).body)
+    },
+  })
+  const attachment = { id: 'retry-doc', name: 'retry.pdf', kind: 'file', path: 'C:/workspace/retry.pdf', relativePath: 'retry.pdf' }
+  api.ComposerTools(composer.props())
+  api.setAttachItems([attachment], composer.props())
+
+  composer.actions.submit()
+  await flush()
+  await flush()
+  assert.equal(composer.sent.length, 1)
+
+  composer.input.set({ ...composer.input.getSnapshot(), phase: 'plain' })
+  composer.session.set({ nodes: [], promptError: { op: 'send', error: { code: 'rejected' } } })
+  await flush()
+
+  assert.equal(attachmentControllerPhase(api, composer.sessionId), undefined)
+  assert.equal(composer.input.getSnapshot().draft, '失败后保留这段话。')
+  assert.deepEqual(api.attachState.bySession.get(composer.sessionId), [attachment])
+  const prepare = calls.find((call) => Array.isArray(call.body.files))
+  const commits = calls.filter((call) => call.body.action === 'commit')
+  const cancels = calls.filter((call) => call.body.action === 'cancel')
+  assert.ok(prepare?.body.transactionId)
+  assert.match(composer.sent[0], new RegExp(attachmentTransactionMarker(prepare.body.transactionId).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  assert.equal(commits.length, 1)
+  assert.equal(commits[0].body.transactionId, prepare.body.transactionId)
+  assert.equal(cancels.length, 1)
+  assert.equal(cancels[0].body.transactionId, prepare.body.transactionId)
+})
+
+test('normal attachment transaction detects a detached DSH send failure while input stays plain', async () => {
+  const composer = publicComposer('attachment-detached-failure', 'detached send must restore this task')
+  composer.actions.submit = () => {
+    const framed = composer.input.getSnapshot()
+    composer.sent.push(framed.draft)
+    composer.input.set({ ...framed, phase: 'plain', draft: '', draftRev: framed.draftRev + 1 })
+  }
+  const { api } = loadShippedComposer({ runtime: publicRuntime(composer) })
+  const attachment = { id: 'detached-doc', name: 'scope.pdf', kind: 'file', path: 'C:/workspace/scope.pdf', relativePath: 'scope.pdf' }
+  api.ComposerTools(composer.props())
+  api.setAttachItems([attachment], composer.props())
+
+  composer.actions.submit()
+  await flush()
+  await flush()
+  assert.equal(composer.input.getSnapshot().phase, 'plain')
+  assert.equal(composer.input.getSnapshot().draft, '')
+  assert.equal(attachmentControllerPhase(api, composer.sessionId), 'submitting')
+
+  composer.session.set({ nodes: [], promptError: { op: 'send', error: { code: 'detached-rejected' } } })
+
+  assert.equal(attachmentControllerPhase(api, composer.sessionId), undefined)
+  assert.equal(composer.input.getSnapshot().draft, 'detached send must restore this task')
+  assert.deepEqual(api.attachState.bySession.get(composer.sessionId), [attachment])
+})
+
+test('detached attachment failure never overwrites text entered after the accepted clear', async () => {
+  const composer = publicComposer('attachment-detached-edit', 'original detached task')
+  composer.actions.submit = () => {
+    const framed = composer.input.getSnapshot()
+    composer.sent.push(framed.draft)
+    composer.input.set({ ...framed, phase: 'plain', draft: '', draftRev: framed.draftRev + 1 })
+  }
+  const { api } = loadShippedComposer({ runtime: publicRuntime(composer) })
+  const attachment = { id: 'detached-edit-doc', name: 'scope.pdf', kind: 'file', path: 'C:/workspace/scope.pdf', relativePath: 'scope.pdf' }
+  api.ComposerTools(composer.props())
+  api.setAttachItems([attachment], composer.props())
+
+  composer.actions.submit()
+  await flush()
+  await flush()
+  composer.actions.setDraft('new work typed after send')
+  composer.session.set({ nodes: [], promptError: { op: 'send', error: { code: 'detached-rejected' } } })
+
+  assert.equal(attachmentControllerPhase(api, composer.sessionId), undefined)
+  assert.equal(composer.input.getSnapshot().draft, 'new work typed after send')
+  assert.deepEqual(api.attachState.bySession.get(composer.sessionId), [attachment])
+})
+
+test('host transaction failure settles a blocked detached turn without a fixed queue timeout', async () => {
+  const composer = publicComposer('attachment-host-blocked', 'restore after host blocked')
+  composer.actions.submit = () => {
+    const framed = composer.input.getSnapshot()
+    composer.sent.push(framed.draft)
+    composer.input.set({ ...framed, phase: 'plain', draft: '', draftRev: framed.draftRev + 1 })
+  }
+  const { api, runTimers } = loadShippedComposer({
+    runtime: publicRuntime(composer),
+    fetch: async (_url, init = {}) => {
+      const body = JSON.parse(String(init.body || '{}'))
+      return body.action === 'status'
+        ? okJsonResponse(body, { state: 'failed' })
+        : okJsonResponse(body)
+    },
+  })
+  const attachment = { id: 'blocked-doc', name: 'blocked.pdf', kind: 'file', path: 'C:/workspace/blocked.pdf', relativePath: 'blocked.pdf' }
+  api.ComposerTools(composer.props())
+  api.setAttachItems([attachment], composer.props())
+
+  composer.actions.submit()
+  await flush()
+  await flush()
+  runTimers()
+  await flush()
+  await flush()
+
+  assert.equal(attachmentControllerPhase(api, composer.sessionId), undefined)
+  assert.equal(composer.input.getSnapshot().draft, 'restore after host blocked')
+  assert.deepEqual(api.attachState.bySession.get(composer.sessionId), [attachment])
+})
+
+test('normal attachment transactions are isolated across sessions', async () => {
+  const calls = []
+  const hostStates = new Map()
+  const left = publicComposer('attachment-left-normal', '左侧任务')
+  const right = publicComposer('attachment-right-normal', '右侧任务')
+  const { api, runTimers } = loadShippedComposer({
+    runtime: publicRuntime(left, right),
+    fetch: async (url, init = {}) => {
+      const body = JSON.parse(String(init.body || '{}'))
+      calls.push({ url: String(url), body })
+      return body.action === 'status'
+        ? okJsonResponse(body, { state: hostStates.get(body.sessionId) || 'committed' })
+        : okJsonResponse(body)
+    },
+  })
+  const leftItem = { id: 'left-doc', name: 'left.pdf', kind: 'file', path: 'C:/workspace/left.pdf', relativePath: 'left.pdf' }
+  const rightItem = { id: 'right-doc', name: 'right.pdf', kind: 'file', path: 'C:/workspace/right.pdf', relativePath: 'right.pdf' }
+  api.ComposerTools(left.props())
+  api.setAttachItems([leftItem], left.props())
+  api.ComposerTools(right.props())
+  api.setAttachItems([rightItem], right.props())
+
+  left.actions.submit()
+  right.actions.submit()
+  await flush()
+  await flush()
+  assert.equal(left.sent.length, 1)
+  assert.equal(right.sent.length, 1)
+  assert.match(left.sent[0], /@left\.pdf/)
+  assert.doesNotMatch(left.sent[0], /right\.pdf/)
+  assert.match(right.sent[0], /@right\.pdf/)
+  assert.doesNotMatch(right.sent[0], /left\.pdf/)
+  const prepares = calls.filter((call) => Array.isArray(call.body.files))
+  assert.deepEqual(prepares.map((call) => [call.body.sessionId, call.body.files.map((file) => file.relativePath)]), [
+    [left.sessionId, ['left.pdf']],
+    [right.sessionId, ['right.pdf']],
+  ])
+
+  left.input.set({ ...left.input.getSnapshot(), phase: 'plain', draft: '', draftRev: left.input.getSnapshot().draftRev + 1 })
+  left.session.set({ nodes: [userNode(1, left.sent[0])], promptError: null })
+
+  assert.deepEqual(api.attachState.bySession.get(left.sessionId), [leftItem])
+  assert.deepEqual(api.attachState.bySession.get(right.sessionId), [rightItem])
+  assert.equal(attachmentControllerPhase(api, left.sessionId), 'submitting')
+  assert.equal(attachmentControllerPhase(api, right.sessionId), 'submitting')
+
+  hostStates.set(left.sessionId, 'delivered')
+  runTimers()
+  await flush()
+  await flush()
+
+  assert.deepEqual(api.attachState.bySession.get(left.sessionId), [])
+  assert.deepEqual(api.attachState.bySession.get(right.sessionId), [rightItem])
+  assert.equal(attachmentControllerPhase(api, left.sessionId), undefined)
+  assert.equal(attachmentControllerPhase(api, right.sessionId), 'submitting')
+  assert.equal(calls.filter((call) => call.body.action === 'cancel').length, 0)
+})
+
+test('normal attachment turn keeps retry attachments when session authority is temporarily unavailable', async () => {
+  const composer = publicComposer('attachment-authority-gap', '会话恢复后继续。')
+  const runtime = publicRuntime(composer)
+  const { api } = loadShippedComposer({ runtime })
+  const attachment = { id: 'authority-gap-doc', name: 'scope.pdf', kind: 'file', path: 'C:/workspace/scope.pdf', relativePath: 'scope.pdf' }
+  api.ComposerTools(composer.props())
+  api.setAttachItems([attachment], composer.props())
+
+  composer.actions.submit()
+  await flush()
+  await flush()
+  assert.equal(attachmentControllerPhase(api, composer.sessionId), 'submitting')
+
+  runtime.remove(composer.sessionId)
+  composer.input.set({ ...composer.input.getSnapshot(), phase: 'plain' })
+  await flush()
+
+  assert.deepEqual(api.attachState.bySession.get(composer.sessionId), [attachment])
+  assert.deepEqual(api.attachItemsOf(composer.sessionId), [attachment])
+})
+
+test('a session without an attachment map never inherits another session attachment rail', () => {
+  const left = publicComposer('attachment-owned-left', '左侧任务')
+  const right = publicComposer('attachment-unseen-right', '右侧任务')
+  const { api } = loadShippedComposer({ runtime: publicRuntime(left, right) })
+  const leftItem = { id: 'owned-left-doc', name: 'left.pdf', kind: 'file', path: 'C:/workspace/left.pdf', relativePath: 'left.pdf' }
+
+  api.ComposerTools(left.props())
+  api.setAttachItems([leftItem], left.props())
+
+  assert.equal(api.attachState.bySession.has(right.sessionId), false)
+  assert.equal(api.attachItemsOf(right.sessionId).length, 0)
+})
+
+test('async attachment enrichment preserves the existing attachment identity', () => {
+  const composer = publicComposer('attachment-enrichment-id', '处理附件')
+  const { api } = loadShippedComposer({ runtime: publicRuntime(composer) })
+  const existing = {
+    id: 'stable-attachment-id',
+    name: 'scope.pdf',
+    kind: 'file',
+    path: '',
+    relativePath: 'scope.pdf',
+    uploaded: false,
+  }
+  const enriched = {
+    id: 'replacement-enrichment-id',
+    name: 'scope.pdf',
+    kind: 'file',
+    path: 'C:/workspace/Agent Pi Uploads/scope.pdf',
+    relativePath: 'Agent Pi Uploads/scope.pdf',
+    uploaded: true,
+  }
+  api.ComposerTools(composer.props())
+  api.setAttachItems([existing], composer.props())
+
+  api.mergeImportedItems(composer.props(), [enriched])
+
+  const [result] = api.attachState.bySession.get(composer.sessionId)
+  assert.equal(result.id, existing.id)
+  assert.equal(result.path, enriched.path)
+  assert.equal(result.uploaded, true)
+})
+
+test('normal attachment transaction admits only one in-flight turn per session', async () => {
+  const read = deferred()
+  const calls = []
+  const composer = publicComposer('attachment-single-flight', '同一会话只提交一次。')
+  const { api } = loadShippedComposer({
+    runtime: publicRuntime(composer),
+    fetch: async (url, init = {}) => {
+      const body = JSON.parse(String(init.body || '{}'))
+      calls.push({ url: String(url), body })
+      if (body.action === 'commit') return okJsonResponse(body)
+      return read.promise
+    },
+  })
+  const attachment = { id: 'single-flight-doc', name: 'once.pdf', kind: 'file', path: 'C:/workspace/once.pdf', relativePath: 'once.pdf' }
+  api.ComposerTools(composer.props())
+  api.setAttachItems([attachment], composer.props())
+
+  composer.actions.submit()
+  composer.actions.submit()
+  await flush()
+
+  assert.equal(attachmentControllerPhase(api, composer.sessionId), 'preparing')
+  assert.equal(calls.filter((call) => Array.isArray(call.body.files)).length, 1)
+  assert.equal(composer.sent.length, 0)
+
+  const prepare = calls.find((call) => Array.isArray(call.body.files))
+  assert.ok(prepare)
+  read.resolve(okJsonResponse(prepare.body))
+  await flush()
+  await flush()
+
+  assert.equal(composer.sent.length, 1)
+  assert.equal(attachmentControllerPhase(api, composer.sessionId), 'submitting')
+})
+
+test('normal and Codex attachment transactions are mutually exclusive within one session', async () => {
+  const calls = []
+  const composer = publicComposer('attachment-normal-codex-exclusive', '同一会话只允许一个附件事务。')
+  const { api } = loadShippedComposer({
+    runtime: publicRuntime(composer),
+    queuedRaf: true,
+    fetch: async (url, init = {}) => {
+      const body = JSON.parse(String(init.body || '{}'))
+      calls.push({ url: String(url), body })
+      return okJsonResponse(body)
+    },
+  })
+  const attachment = { id: 'exclusive-doc', name: 'exclusive.pdf', kind: 'file', path: 'C:/workspace/exclusive.pdf', relativePath: 'exclusive.pdf' }
+  api.ComposerTools(composer.props())
+  api.setAttachItems([attachment], composer.props())
+
+  composer.actions.submit()
+  await flush()
+  assert.equal(attachmentControllerPhase(api, composer.sessionId), 'preparing')
+  assert.equal(calls.filter((call) => Array.isArray(call.body.files)).length, 1)
+
+  api.setCodexTurnArmed(composer.props(), true)
+  composer.actions.submit()
+  await flush()
+
+  assert.equal(attachmentControllerPhase(api, composer.sessionId), 'preparing')
+  assert.equal(controllerPhase(api, composer.sessionId), undefined)
+  assert.equal(calls.filter((call) => Array.isArray(call.body.files)).length, 1)
+  assert.equal(composer.sent.length, 0)
+})
+
+test('normal attachment transaction aborts when its session is destroyed during preparation', async () => {
+  const read = deferred()
+  const calls = []
+  const composer = publicComposer('attachment-removed', '不要发送已销毁会话。')
+  const { api } = loadShippedComposer({
+    runtime: publicRuntime(composer),
+    fetch: async (url, init = {}) => {
+      const body = JSON.parse(String(init.body || '{}'))
+      calls.push({ url: String(url), body })
+      if (body.action === 'cancel') return { ok: true, json: async () => ({ cleared: true }) }
+      return read.promise
+    },
+  })
+  const attachment = { id: 'removed-doc', name: 'removed.pdf', kind: 'file', path: 'C:/workspace/removed.pdf', relativePath: 'removed.pdf' }
+  api.ComposerTools(composer.props())
+  api.setAttachItems([attachment], composer.props())
+
+  composer.actions.submit()
+  await flush()
+  assert.equal(attachmentControllerPhase(api, composer.sessionId), 'preparing')
+  composer.session.set({ nodes: [], promptError: null, removed: true })
+  const prepare = calls.find((call) => Array.isArray(call.body.files))
+  assert.ok(prepare)
+  read.resolve(okJsonResponse(prepare.body))
+  await flush()
+  await flush()
+
+  assert.equal(composer.sent.length, 0)
+  assert.equal(attachmentControllerPhase(api, composer.sessionId), undefined)
+  assert.equal(composer.input.subscriberCount, 0)
+  assert.equal(composer.session.subscriberCount, 0)
+  assert.equal(calls.filter((call) => call.body.action === 'cancel').length, 1)
+  assert.equal(api.attachState.bySession.has(composer.sessionId), false)
+  assert.equal(api.attachItemsOf(composer.sessionId).length, 0)
+})
+
+test('normal attachment preparation failure keeps retry state and releases its controller', async () => {
+  const calls = []
+  const composer = publicComposer('attachment-prepare-failure', '读取失败后保留这段话。')
+  const { api } = loadShippedComposer({
+    runtime: publicRuntime(composer),
+    fetch: async (url, init = {}) => {
+      const body = JSON.parse(String(init.body || '{}'))
+      calls.push({ url: String(url), body })
+      if (body.action === 'cancel') return { ok: true, json: async () => ({ cleared: true }) }
+      throw new Error('document reader unavailable')
+    },
+  })
+  const attachment = { id: 'prepare-failure-doc', name: 'failure.pdf', kind: 'file', path: 'C:/workspace/failure.pdf', relativePath: 'failure.pdf' }
+  api.ComposerTools(composer.props())
+  api.setAttachItems([attachment], composer.props())
+
+  composer.actions.submit()
+  await flush()
+  await flush()
+
+  assert.equal(composer.sent.length, 0)
+  assert.equal(composer.input.getSnapshot().draft, '读取失败后保留这段话。')
+  assert.deepEqual(api.attachState.bySession.get(composer.sessionId), [attachment])
+  assert.equal(attachmentControllerPhase(api, composer.sessionId), undefined)
+  assert.equal(composer.input.subscriberCount, 0)
+  assert.equal(composer.session.subscriberCount, 0)
+  const prepares = calls.filter((call) => call.url.includes('/api/agent-pi/llm/vision/read') && call.body.action !== 'cancel')
+  assert.equal(prepares.length, 1)
+  assert.ok(Array.isArray(prepares[0].body.files))
+  const cancels = calls.filter((call) => call.body.action === 'cancel')
+  assert.equal(cancels.length, 1)
+  assert.ok(prepares[0].body.transactionId)
+  assert.equal(cancels[0].body.transactionId, prepares[0].body.transactionId)
+})
+
+test('normal attachment rejects an abnormal 2xx prepare acknowledgement and cancels the same transaction', async (t) => {
+  const cases = [
+    ['stored false', (body) => okJsonResponse(body, { stored: false })],
+    ['transaction mismatch', (body) => okJsonResponse(body, { transactionId: 'attachment-turn-other' })],
+  ]
+  for (const [name, prepareResponse] of cases) {
+    await t.test(name, async () => {
+      const calls = []
+      const composer = publicComposer(`attachment-prepare-ack-${String(name).replace(/\s+/g, '-')}`, '异常确认后保留任务。')
+      const { api } = loadShippedComposer({
+        runtime: publicRuntime(composer),
+        fetch: async (url, init = {}) => {
+          const body = JSON.parse(String(init.body || '{}'))
+          calls.push({ url: String(url), body })
+          if (body.action === 'cancel') return okJsonResponse(body)
+          if (body.action === 'commit') return okJsonResponse(body)
+          return prepareResponse(body)
+        },
+      })
+      const attachment = { id: `prepare-ack-${name}`, name: 'ack.pdf', kind: 'file', path: 'C:/workspace/ack.pdf', relativePath: 'ack.pdf' }
+      api.ComposerTools(composer.props())
+      api.setAttachItems([attachment], composer.props())
+
+      composer.actions.submit()
+      await flush()
+      await flush()
+
+      const prepare = calls.find((call) => Array.isArray(call.body.files))
+      const commits = calls.filter((call) => call.body.action === 'commit')
+      const cancels = calls.filter((call) => call.body.action === 'cancel')
+      assert.ok(prepare?.body.transactionId)
+      assert.equal(composer.sent.length, 0)
+      assert.equal(commits.length, 0)
+      assert.equal(cancels.length, 1)
+      assert.equal(cancels[0].body.transactionId, prepare.body.transactionId)
+      assert.equal(attachmentControllerPhase(api, composer.sessionId), undefined)
+      assert.equal(composer.input.getSnapshot().draft, '异常确认后保留任务。')
+      assert.deepEqual(api.attachState.bySession.get(composer.sessionId), [attachment])
+    })
+  }
+})
+
+test('normal attachment commit failure restores retry state and cancels its prepared host stash', async () => {
+  const calls = []
+  const composer = publicComposer('attachment-commit-failure', '提交失败后保留这段话。')
+  composer.actions.submit = () => { throw new Error('submit unavailable') }
+  const { api } = loadShippedComposer({
+    runtime: publicRuntime(composer),
+    fetch: async (url, init = {}) => {
+      const body = JSON.parse(String(init.body || '{}'))
+      calls.push({ url: String(url), body })
+      return okJsonResponse(body)
+    },
+  })
+  const attachment = { id: 'commit-failure-doc', name: 'commit.pdf', kind: 'file', path: 'C:/workspace/commit.pdf', relativePath: 'commit.pdf' }
+  api.ComposerTools(composer.props())
+  api.setAttachItems([attachment], composer.props())
+
+  composer.actions.submit()
+  await flush()
+  await flush()
+
+  assert.equal(composer.sent.length, 0)
+  assert.equal(composer.input.getSnapshot().draft, '提交失败后保留这段话。')
+  assert.deepEqual(api.attachState.bySession.get(composer.sessionId), [attachment])
+  assert.equal(attachmentControllerPhase(api, composer.sessionId), undefined)
+  assert.equal(composer.input.subscriberCount, 0)
+  assert.equal(composer.session.subscriberCount, 0)
+  assert.equal(calls.filter((call) => call.body.action === 'cancel').length, 1)
+})
+
+test('normal attachment rolls back when the host refuses or cannot complete commit', async (t) => {
+  for (const mode of ['committed-false', 'http-error']) {
+    await t.test(mode, async () => {
+      const calls = []
+      const composer = publicComposer(`attachment-host-commit-${mode}`, '主机提交失败后保留任务。')
+      const { api } = loadShippedComposer({
+        runtime: publicRuntime(composer),
+        fetch: async (url, init = {}) => {
+          const body = JSON.parse(String(init.body || '{}'))
+          calls.push({ url: String(url), body })
+          if (body.action === 'cancel') return okJsonResponse(body)
+          if (body.action === 'commit') {
+            if (mode === 'http-error') throw new Error('commit transport unavailable')
+            return { ok: true, json: async () => ({ committed: false }) }
+          }
+          return okJsonResponse(body)
+        },
+      })
+      const attachment = { id: `host-commit-${mode}`, name: 'commit.pdf', kind: 'file', path: 'C:/workspace/commit.pdf', relativePath: 'commit.pdf' }
+      api.ComposerTools(composer.props())
+      api.setAttachItems([attachment], composer.props())
+
+      composer.actions.submit()
+      await flush()
+      await flush()
+
+      const prepare = calls.find((call) => Array.isArray(call.body.files))
+      const commits = calls.filter((call) => call.body.action === 'commit')
+      const cancels = calls.filter((call) => call.body.action === 'cancel')
+      assert.ok(prepare?.body.transactionId)
+      assert.equal(commits.length, 1)
+      assert.equal(commits[0].body.transactionId, prepare.body.transactionId)
+      assert.equal(cancels.length, 1)
+      assert.equal(cancels[0].body.transactionId, prepare.body.transactionId)
+      assert.equal(composer.sent.length, 0)
+      assert.equal(composer.input.getSnapshot().draft, '主机提交失败后保留任务。')
+      assert.deepEqual(api.attachState.bySession.get(composer.sessionId), [attachment])
+      assert.equal(attachmentControllerPhase(api, composer.sessionId), undefined)
+    })
+  }
+})
+
+test('normal attachment preparation aborts after draft or attachment edits and cancels its stash', async () => {
+  const read = deferred()
+  const calls = []
+  const composer = publicComposer('attachment-edited', '原始任务')
+  const { api } = loadShippedComposer({
+    runtime: publicRuntime(composer),
+    fetch: async (url, init = {}) => {
+      const body = JSON.parse(String(init.body || '{}'))
+      calls.push({ url: String(url), body })
+      if (body.action === 'cancel') return { ok: true, json: async () => ({ cleared: true }) }
+      return read.promise
+    },
+  })
+  const oldItem = { id: 'edited-old', name: 'old.pdf', kind: 'file', path: 'C:/workspace/old.pdf', relativePath: 'old.pdf' }
+  const newItem = { id: 'edited-new', name: 'new.pdf', kind: 'file', path: 'C:/workspace/new.pdf', relativePath: 'new.pdf' }
+  api.ComposerTools(composer.props())
+  api.setAttachItems([oldItem], composer.props())
+
+  composer.actions.submit()
+  await flush()
+  assert.equal(attachmentControllerPhase(api, composer.sessionId), 'preparing')
+  composer.input.set({ ...composer.input.getSnapshot(), draft: '用户修改后的任务' })
+  api.setAttachItems([oldItem, newItem], composer.props())
+  const prepare = calls.find((call) => Array.isArray(call.body.files))
+  assert.ok(prepare)
+  read.resolve(okJsonResponse(prepare.body))
+  await flush()
+  await flush()
+
+  assert.equal(composer.sent.length, 0)
+  assert.equal(composer.input.getSnapshot().draft, '用户修改后的任务')
+  assert.deepEqual(api.attachState.bySession.get(composer.sessionId), [oldItem, newItem])
+  assert.equal(attachmentControllerPhase(api, composer.sessionId), undefined)
+  assert.equal(calls.filter((call) => call.body.action === 'cancel').length, 1)
+})
+
+test('normal attachment success removes only the captured attachment instance', async () => {
+  const composer = publicComposer('attachment-readd-normal', '处理旧附件')
+  const { api, runTimers } = loadShippedComposer({
+    runtime: publicRuntime(composer),
+    fetch: async (_url, init = {}) => {
+      const body = JSON.parse(String(init.body || '{}'))
+      return body.action === 'status'
+        ? okJsonResponse(body, { state: 'delivered' })
+        : okJsonResponse(body)
+    },
+  })
+  const oldItem = { id: 'old-normal', name: 'scope.pdf', kind: 'file', path: 'C:/workspace/scope.pdf', relativePath: 'scope.pdf' }
+  const newItem = { id: 'new-normal', name: 'scope.pdf', kind: 'file', path: 'C:/workspace/scope.pdf', relativePath: 'scope.pdf' }
+  api.ComposerTools(composer.props())
+  api.setAttachItems([oldItem], composer.props())
+
+  composer.actions.submit()
+  await flush()
+  await flush()
+  assert.equal(composer.sent.length, 1)
+  assert.equal(attachmentControllerPhase(api, composer.sessionId), 'submitting')
+  api.setAttachItems([newItem], composer.props())
+  composer.input.set({ ...composer.input.getSnapshot(), phase: 'plain', draft: '', draftRev: composer.input.getSnapshot().draftRev + 1 })
+  composer.session.set({ nodes: [userNode(1, composer.sent[0])], promptError: null })
+  runTimers()
+  await flush()
+  await flush()
+
+  assert.deepEqual(api.attachState.bySession.get(composer.sessionId), [newItem])
+  assert.equal(attachmentControllerPhase(api, composer.sessionId), undefined)
+})
 
 test('shipped composer uses latest props for a stable action and releases its lock', async () => {
   const { api, runTimers, publishFallbackSession } = loadShippedComposer()
@@ -380,6 +1032,148 @@ test('shipped composer preserves latest work when deferred document folding reje
   assert.equal(api.codexTurnArmed(composer.props()), true)
   assert.equal(api.attachItemsOf('fold-error').length, 2)
   assert.equal(controllerPhase(api, 'fold-error'), 'armed')
+})
+
+test('Codex document turn waits for delivered host status and does not cancel successful context', async () => {
+  const calls = []
+  let hostState = 'committed'
+  const composer = publicComposer('codex-attachment-success', '请让 Codex 读取附件。')
+  const { api, runTimers } = loadShippedComposer({
+    runtime: publicRuntime(composer),
+    fetch: async (url, init = {}) => {
+      const body = JSON.parse(String(init.body || '{}'))
+      calls.push({ url: String(url), body })
+      return body.action === 'status'
+        ? okJsonResponse(body, { state: hostState })
+        : okJsonResponse(body)
+    },
+  })
+  const attachment = { id: 'codex-success-doc', name: 'scope.pdf', kind: 'file', path: 'C:/workspace/scope.pdf', relativePath: 'scope.pdf' }
+  api.ComposerTools(composer.props())
+  api.setAttachItems([attachment], composer.props())
+  api.setCodexTurnArmed(composer.props(), true)
+
+  composer.actions.submit()
+  await flush()
+  await flush()
+  runTimers()
+  await flush()
+  await flush()
+
+  assert.equal(composer.sent.length, 1)
+  const framed = composer.sent[0]
+  composer.input.set({
+    ...composer.input.getSnapshot(),
+    phase: 'plain',
+    draft: '',
+    draftRev: composer.input.getSnapshot().draftRev + 1,
+  })
+  composer.session.set({ nodes: [userNode(1, framed)], promptError: null })
+
+  assert.equal(controllerPhase(api, composer.sessionId), 'submitting')
+  assert.equal(api.codexTurnArmed(composer.props()), true)
+  assert.deepEqual(api.attachItemsOf(composer.sessionId), [attachment])
+  assert.equal(calls.filter((call) => call.body.action === 'cancel').length, 0)
+
+  hostState = 'delivered'
+  runTimers()
+  await flush()
+  await flush()
+
+  assert.equal(controllerPhase(api, composer.sessionId), 'idle')
+  assert.equal(api.codexTurnArmed(composer.props()), false)
+  assert.deepEqual(api.attachItemsOf(composer.sessionId), [])
+  assert.equal(calls.filter((call) => call.body.action === 'cancel').length, 0)
+})
+
+test('Codex document turn cancels its matching host transaction after send failure', async () => {
+  const calls = []
+  const composer = publicComposer('codex-attachment-failure', '失败后重试 Codex 任务')
+  const { api } = loadShippedComposer({
+    runtime: publicRuntime(composer),
+    fetch: async (url, init = {}) => {
+      const body = JSON.parse(String(init.body || '{}'))
+      calls.push({ url: String(url), body })
+      return okJsonResponse(body)
+    },
+  })
+  const attachment = { id: 'codex-failure-doc', name: 'scope.pdf', kind: 'file', path: 'C:/workspace/scope.pdf', relativePath: 'scope.pdf' }
+  api.ComposerTools(composer.props())
+  api.setAttachItems([attachment], composer.props())
+  api.setCodexTurnArmed(composer.props(), true)
+
+  composer.actions.submit()
+  await flush()
+  await flush()
+  assert.equal(composer.sent.length, 1)
+
+  composer.session.set({ nodes: [], promptError: { op: 'send', error: { code: 'rejected' } } })
+  composer.input.set({ ...composer.input.getSnapshot(), phase: 'plain' })
+  await flush()
+
+  const prepare = calls.find((call) => Array.isArray(call.body.files))
+  const commits = calls.filter((call) => call.body.action === 'commit')
+  const cancels = calls.filter((call) => call.body.action === 'cancel')
+  assert.ok(prepare)
+  assert.ok(prepare.body.transactionId)
+  assert.match(composer.sent[0], new RegExp(attachmentTransactionMarker(prepare.body.transactionId).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  assert.equal(commits.length, 1)
+  assert.equal(commits[0].body.transactionId, prepare.body.transactionId)
+  assert.equal(cancels.length, 1)
+  assert.equal(cancels[0].body.transactionId, prepare.body.transactionId)
+  assert.deepEqual(api.attachState.bySession.get(composer.sessionId), [attachment])
+})
+
+test('Codex document turn cancels its matching host transaction when the session is destroyed during preparation', async () => {
+  const read = deferred()
+  const calls = []
+  const composer = publicComposer('codex-attachment-destroyed', '不要发送已销毁的 Codex 会话')
+  const { api } = loadShippedComposer({
+    runtime: publicRuntime(composer),
+    fetch: async (url, init = {}) => {
+      const body = JSON.parse(String(init.body || '{}'))
+      calls.push({ url: String(url), body })
+      if (body.action === 'cancel') return { ok: true, json: async () => ({ cleared: true }) }
+      return read.promise
+    },
+  })
+  const attachment = { id: 'codex-destroyed-doc', name: 'destroyed.pdf', kind: 'file', path: 'C:/workspace/destroyed.pdf', relativePath: 'destroyed.pdf' }
+  api.ComposerTools(composer.props())
+  api.setAttachItems([attachment], composer.props())
+  api.setCodexTurnArmed(composer.props(), true)
+
+  composer.actions.submit()
+  await flush()
+  const prepare = calls.find((call) => Array.isArray(call.body.files))
+  assert.ok(prepare)
+  composer.session.set({ nodes: [], promptError: null, removed: true })
+  read.resolve(okJsonResponse(prepare.body))
+  await flush()
+  await flush()
+
+  const cancels = calls.filter((call) => call.body.action === 'cancel')
+  const commits = calls.filter((call) => call.body.action === 'commit')
+  assert.equal(composer.sent.length, 0)
+  assert.ok(prepare.body.transactionId)
+  assert.equal(commits.length, 0)
+  assert.equal(cancels.length, 1)
+  assert.equal(cancels[0].body.transactionId, prepare.body.transactionId)
+})
+
+test('Codex session removal clears that session attachment rail', () => {
+  const composer = publicComposer('codex-removed-clears-attachments', '不会发送')
+  const { api } = loadShippedComposer({ runtime: publicRuntime(composer) })
+  const attachment = { id: 'codex-removed-doc', name: 'removed.pdf', kind: 'file', path: 'C:/workspace/removed.pdf', relativePath: 'removed.pdf' }
+  api.ComposerTools(composer.props())
+  api.setAttachItems([attachment], composer.props())
+  api.setCodexTurnArmed(composer.props(), true)
+
+  composer.session.set({ nodes: [], promptError: null, removed: true })
+
+  assert.equal(api.codexTurnControllers.has(composer.sessionId), false)
+  assert.equal(api.attachState.bySession.has(composer.sessionId), false)
+  assert.equal(api.attachItemsOf(composer.sessionId).length, 0)
+  assert.equal(api.attachState.items.length, 0)
 })
 
 test('shipped composer settles successful public stores after ComposerTools unmounts', async () => {
@@ -566,7 +1360,7 @@ test('shipped composer disposes an armed turn when its session is removed before
   assert.equal(api.codexTurnControllers.size, 0)
 })
 
-test('shipped composer aborts before queued RAF when its session authority disappears', async () => {
+test('shipped composer rearms before queued RAF when its session authority temporarily disappears', async () => {
   const composer = publicComposer('removed-before-raf', 'keep this task')
   composer.input.set({ ...composer.input.getSnapshot(), imageIds: ['host-image'] })
   const runtime = publicRuntime(composer)
@@ -582,10 +1376,13 @@ test('shipped composer aborts before queued RAF when its session authority disap
   assert.equal(composer.sent.length, 0)
   assert.equal(composer.input.getSnapshot().draft, 'keep this task')
   assert.deepEqual(composer.input.getSnapshot().imageIds, ['host-image'])
-  assert.equal(api.codexTurnArmed(composer.props()), false)
+  assert.equal(api.codexTurnArmed(composer.props()), true)
   assert.deepEqual(api.attachState.bySession.get('removed-before-raf'), [doc])
-  assert.equal(controllerPhase(api, 'removed-before-raf'), undefined)
+  assert.equal(controllerPhase(api, 'removed-before-raf'), 'armed')
   assert.equal(composer.input.subscriberCount, 0)
+  assert.equal(composer.session.subscriberCount, 1)
+  runtime.add(composer)
+  api.setCodexTurnArmed(composer.props(), false)
   assert.equal(composer.session.subscriberCount, 0)
 })
 

@@ -56,7 +56,7 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
   }
 
   const promptTexts: string[] = []
-  const fetchCalls: Array<{ url: string; action?: string; text?: string }> = []
+  const fetchCalls: Array<{ url: string; action?: string; text?: string; transactionId?: string; files?: unknown[] }> = []
   const sessionSnapshot = {
     sessionId: 'session-1', blank: true, running: false, queue: [],
     pendingSubmissions: [] as Array<{ requestId: string; time: number; text: string; images: unknown[] }>,
@@ -66,6 +66,19 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     awaitingFirstTurn: false,
   }
   const sessionListeners = new Set<() => void>()
+  const attachmentInputListeners = new Set<() => void>()
+  const attachmentInput = { draft: '请读取新增报销单并再做一份。', phase: 'plain', imageIds: [] as string[], draftRev: 0 }
+  const attachmentInputStore = {
+    getSnapshot: () => attachmentInput,
+    subscribe: (listener: () => void) => {
+      attachmentInputListeners.add(listener)
+      return () => attachmentInputListeners.delete(listener)
+    },
+    set(next: typeof attachmentInput) {
+      Object.assign(attachmentInput, next)
+      attachmentInputListeners.forEach((listener) => listener())
+    },
+  }
   const presetSelectCalls: Array<{ sessionId: string; preset: string }> = []
   const sessionCreateCalls: Array<{ cwd?: string; agentPreset?: string }> = []
   const openedSessionIds: string[] = []
@@ -83,6 +96,8 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     },
   }
   const sessionService = {
+    scope: (sessionId: string) => ({ sessionId }),
+    sessionOf: () => sessionFace,
     binding: () => ({ session: sessionFace }),
     refresh: async () => {},
     open: (sessionId: string) => { openedSessionIds.push(sessionId) },
@@ -106,8 +121,10 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     sessionStorage: dom.window.sessionStorage,
     fetch: async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input)
-      const request = init && typeof init.body === 'string' ? JSON.parse(init.body) as { action?: string; text?: string } : {}
-      fetchCalls.push({ url, action: request.action, text: request.text })
+      const request = init && typeof init.body === 'string'
+        ? JSON.parse(init.body) as { action?: string; text?: string; sessionId?: string; transactionId?: string; files?: unknown[] }
+        : {}
+      fetchCalls.push({ url, action: request.action, text: request.text, transactionId: request.transactionId, files: request.files })
       let body: unknown = { files: [], outputFiles: [] }
       if (url.includes('/api/agent-pi/workbench')) body = {
         ...workbenchSnapshot,
@@ -136,6 +153,12 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
       } else if (url.includes('/api/agent-pi/stage') && request.action === 'accept_requirement') {
         requirement.status = 'accepted'
         body = { requirement }
+      } else if (url.includes('/api/agent-pi/llm/vision/read') && request.action === 'commit') {
+        body = { committed: true, sessionId: request.sessionId, transactionId: request.transactionId }
+      } else if (url.includes('/api/agent-pi/llm/vision/read') && request.action === 'cancel') {
+        body = { cleared: true, sessionId: request.sessionId, transactionId: request.transactionId }
+      } else if (url.includes('/api/agent-pi/llm/vision/read')) {
+        body = { stored: true, sessionId: request.sessionId, transactionId: request.transactionId }
       }
       return { ok: true, statusText: '', json: async () => body }
     },
@@ -185,7 +208,12 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     client.apply({
       inject(deps: unknown, callback: (scope: object) => void) {
         const names = Array.isArray(deps) ? deps : [deps]
-        callback(names.includes('sessions') ? { sessions: sessionService } : {})
+        const scope: Record<string, unknown> = {}
+        if (names.includes('sessions')) scope.sessions = sessionService
+        if (names.includes('conversation')) {
+          scope.conversation = { input: { for: () => ({ state: attachmentInputStore }) } }
+        }
+        callback(scope)
       },
       slots: {
         inject(_name: string, callback: () => void) { callback() },
@@ -378,6 +406,67 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     })
     assert.ok(mount.querySelector('.ap-files-dock'), 'right-side files rail did not render for an active session')
     assert.match(mount.textContent || '', /资源文件/)
+
+    await act(async () => rootView!.unmount())
+    rootView = createRoot(mount)
+    const ComposerTools = registered.get('agent-pi-composer-tools')
+    assert.equal(typeof ComposerTools, 'function')
+    let attachmentSubmitCalls = 0
+    const attachmentActions = {
+      setDraft: (text: string) => {
+        attachmentInputStore.set({ ...attachmentInput, draft: text, draftRev: attachmentInput.draftRev + 1 })
+      },
+      submit: () => {
+        attachmentSubmitCalls += 1
+        attachmentInputStore.set({ ...attachmentInput, phase: 'submitting' })
+      },
+    }
+    await act(async () => {
+      rootView!.render(React.createElement('div', { 'data-composer-card': '' },
+        React.createElement('div', { 'data-composer-input': '', contentEditable: true }),
+        React.createElement(ComposerTools, {
+          sessionId: 'session-1', session: { ...blankSession, blank: false },
+          input: attachmentInput,
+          inputActions: attachmentActions,
+          useSessions: (selector: (state: typeof sessions) => unknown) => selector(sessions),
+        }),
+      ))
+      await new Promise((resolveTick) => setTimeout(resolveTick, 0))
+    })
+    await act(async () => {
+      dom.window.dispatchEvent(new dom.window.CustomEvent('agent-pi-attach-file', {
+        detail: {
+          source: 'mention',
+          items: [{
+            id: 'expense-pdf', name: 'expense.pdf', kind: 'pdf', loaded: true,
+            path: 'C:\\workspace\\expense.pdf', relativePath: 'expense.pdf', cwd: 'C:\\workspace',
+          }],
+        },
+      }))
+      await new Promise((resolveTick) => setTimeout(resolveTick, 0))
+    })
+    const composerInput = mount.querySelector('[data-composer-input]')!
+    await act(async () => {
+      composerInput.dispatchEvent(new dom.window.KeyboardEvent('keydown', {
+        key: 'Enter', bubbles: true, cancelable: true,
+      }))
+      await new Promise((resolveTick) => setTimeout(resolveTick, 30))
+    })
+    assert.equal(attachmentSubmitCalls, 1, 'Lexical Enter must submit through the Agent Pi attachment transaction')
+    const visionCalls = fetchCalls.filter((call) => call.url.includes('/api/agent-pi/llm/vision/read'))
+    const prepareCall = visionCalls.find((call) => Array.isArray(call.files))
+    const commitCall = visionCalls.find((call) => call.action === 'commit')
+    assert.equal(visionCalls.length, 2)
+    assert.ok(prepareCall?.transactionId)
+    assert.equal(commitCall?.transactionId, prepareCall.transactionId)
+    assert.match(attachmentInput.draft, /@expense\.pdf/)
+    const attachmentFramedDraft = attachmentInput.draft
+    await act(async () => {
+      attachmentInputStore.set({ ...attachmentInput, phase: 'plain', draft: '', draftRev: attachmentInput.draftRev + 1 })
+      sessionSnapshot.nodes.push({ kind: 'user', seq: 1, content: [{ type: 'text', text: attachmentFramedDraft }] })
+      sessionListeners.forEach((listener) => listener())
+      await new Promise((resolveTick) => setTimeout(resolveTick, 20))
+    })
 
     await act(async () => rootView!.unmount())
     rootView = createRoot(mount)
