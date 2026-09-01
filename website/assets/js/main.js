@@ -15,25 +15,41 @@
     });
   }
 
-  /* ---- Language (default zh) ---- */
+  /* ---- Language (persisted; first visit follows the browser) ---- */
   var storedLang = null;
   try { storedLang = localStorage.getItem("ap-lang"); } catch (e) {}
-  setLang(storedLang || "zh");
+  var i18n = window.AgentPiI18n || null;
+  var initialLang = i18n
+    ? i18n.initialLocale(storedLang)
+    : (storedLang === "zh" || storedLang === "zh-CN" ? "zh-CN" : "en");
+  var preserveInitialPreference = !i18n && storedLang && storedLang !== "zh" && storedLang !== "zh-CN" && storedLang !== "en";
 
-  function setLang(l) {
-    root.setAttribute("lang", l === "en" ? "en" : "zh-CN");
-    root.setAttribute("data-lang", l);
-    try { localStorage.setItem("ap-lang", l); } catch (e) {}
-    document.title = root.getAttribute(l === "en" ? "data-title-en" : "data-title-zh") || document.title;
+  function setLang(l, skipPersist) {
+    var locale = i18n ? (i18n.normaliseLocale(l) || "en") : (l === "en" ? "en" : "zh-CN");
+    root.setAttribute("lang", locale);
+    root.setAttribute("dir", locale === "ar" ? "rtl" : "ltr");
+    root.setAttribute("data-locale", locale);
+    root.setAttribute("data-lang", locale === "zh-CN" ? "zh" : "en");
+    if (!skipPersist) {
+      try { localStorage.setItem("ap-lang", locale); } catch (e) {}
+    }
+    if (i18n) i18n.apply(locale);
+    else document.title = root.getAttribute(locale === "en" ? "data-title-en" : "data-title-zh") || document.title;
     var btn = document.querySelector(".lang-btn span");
-    if (btn) btn.textContent = l === "en" ? "中文" : "EN";
+    if (btn) btn.textContent = locale === "zh-CN" ? "EN" : "中文";
   }
+
+  document.addEventListener("change", function (event) {
+    var select = event.target.closest && event.target.closest("[data-language-select]");
+    if (select) setLang(select.value);
+  });
+  setLang(initialLang, preserveInitialPreference);
 
   document.addEventListener("click", function (e) {
     var t = e.target.closest("[data-toggle-theme]");
     if (t) setTheme(root.getAttribute("data-theme") === "dark" ? "light" : "dark");
     var l = e.target.closest("[data-toggle-lang]");
-    if (l) setLang(root.getAttribute("data-lang") === "zh" ? "en" : "zh");
+    if (l) setLang(root.getAttribute("data-locale") === "zh-CN" ? "en" : "zh-CN");
     var h = e.target.closest(".hamburger");
     if (h) document.querySelector(".nav").classList.toggle("open");
     var nl = e.target.closest(".nav-links a");

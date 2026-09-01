@@ -1,6 +1,6 @@
 {
   "name": "agent-pi-dsh",
-  "version": "3.5.2",
+  "version": "3.5.3",
   "private": true,
   "type": "module",
   "description": "Agent Pi DSH workbench on DeepSeek Harness",

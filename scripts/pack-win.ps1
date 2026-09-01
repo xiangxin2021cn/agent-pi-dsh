@@ -13,6 +13,7 @@ $InstallerName = "Agent-Pi-DSH-$AppVersion-x64.exe"
 $Dsh = Join-Path $Root "vendor\deepseek-harness"
 $WebDist = Join-Path $Dsh "apps\web\dist\index.html"
 $Biz = Join-Path $Root "packages\business-core"
+$TenderHost = Join-Path $Root "bundles\tender-host"
 $NsisScript = Join-Path $Root "scripts\nsis\setup.nsi"
 $IconSrc = Join-Path $Desktop "brand\app-logo.png"
 if (-not (Test-Path $IconSrc)) { $IconSrc = Join-Path $Root "AgentPI-logo-2.png" }
@@ -41,6 +42,19 @@ function Invoke-NpmInstall([string]$dir, [string]$label) {
     Pop-Location
   }
   if ($installExit -ne 0) { throw "$label npm install failed: $installExit" }
+}
+
+function Invoke-NpmCi([string]$dir, [string]$label) {
+  $npm = Get-NodeAdjacentCommand "npm"
+  $installExit = 1
+  Push-Location $dir
+  try {
+    & $npm ci --no-fund --no-audit
+    $installExit = $LASTEXITCODE
+  } finally {
+    Pop-Location
+  }
+  if ($installExit -ne 0) { throw "$label npm ci failed: $installExit" }
 }
 
 function Invoke-DesktopToolchain {
@@ -206,6 +220,10 @@ if (-not (Test-Path $NsisScript)) {
 if (-not (Test-Path (Join-Path $Biz "node_modules\zod"))) {
   Write-Host "Installing business-core dependencies..."
   Invoke-NpmInstall $Biz "business-core"
+}
+if (-not (Test-Path (Join-Path $TenderHost "node_modules\pdf-lib"))) {
+  Write-Host "Installing tender-host locked dependencies..."
+  Invoke-NpmCi $TenderHost "tender-host"
 }
 
 Write-Host "Building tender-web client from source modules..."

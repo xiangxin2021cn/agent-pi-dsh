@@ -48,7 +48,13 @@ import {
 } from './preview-export.ts'
 import { inspectPricingSave } from './pricing-recalc.ts'
 import { optimizePromptWithLlm, type LlmStreamRuntime } from './prompt-optimize.ts'
-import { currentDefaultModel, readVisionImages } from './attachment-context.ts'
+import {
+  cancelPendingVisionContext,
+  commitPendingVisionContext,
+  currentDefaultModel,
+  pendingVisionTransactionStatus,
+  readVisionImages,
+} from './attachment-context.ts'
 import { addKbBytes, addKbContent, addKbFile, createKbFolder, exportKbTransfer, getKbTaskSlugs, importKbPack, importKbTransfer, importKbTransferFromPath, kbOverview, kbSourcePath, moveKbEntry, parseKbEntries, parseKbEntry, readKbChunk, readKbMarkdown, reindexKb, removeKbEntry, removeKbFolder, saveKbMarkdown, searchKb, seedBundledKnowledge, selectKbSlugForSession, setKbTaskSlugs, stageKbBytes, stageKbContent, stageKbFile } from './kb.ts'
 import { looksLikeKbTransfer, looksLikeKbTransferPath } from './kb-transfer.ts'
 import { clearMineruToken, mineruStatus, probeMineruToken, saveMineruToken } from './mineru.ts'
@@ -601,15 +607,49 @@ export function attachHttp(ctx: {
         }
         if (url.pathname === '/api/agent-pi/llm/vision/read' && req.method === 'POST') {
           const body = JSON.parse(await readBody(req) || '{}') as {
+            action?: string
             message?: string
             images?: Array<{ name?: string; path?: string }>
             files?: Array<{ name?: string; path?: string; relativePath?: string; kind?: 'image' | 'file' | 'folder' }>
             folders?: Array<{ name?: string; path?: string }>
             cwd?: string
             sessionId?: string
+            transactionId?: string
           }
           const cwd = url.searchParams.get('cwd') || body.cwd || ''
           const sessionId = url.searchParams.get('sessionId') || body.sessionId || ''
+          if (body.action === 'status') {
+            if (!sessionId.trim() || !body.transactionId?.trim()) {
+              send(res, 400, { error: 'sessionId and transactionId are required' })
+              return
+            }
+            send(res, 200, pendingVisionTransactionStatus(sessionId.trim(), body.transactionId.trim()))
+            return
+          }
+          if (body.action === 'cancel') {
+            if (!sessionId.trim() || !body.transactionId?.trim()) {
+              send(res, 400, { error: 'sessionId and transactionId are required' })
+              return
+            }
+            send(res, 200, {
+              cleared: cancelPendingVisionContext(sessionId.trim(), body.transactionId.trim()),
+              sessionId: sessionId.trim(),
+              transactionId: body.transactionId.trim(),
+            })
+            return
+          }
+          if (body.action === 'commit') {
+            if (!sessionId.trim() || !body.transactionId?.trim()) {
+              send(res, 400, { error: 'sessionId and transactionId are required' })
+              return
+            }
+            send(res, 200, {
+              committed: commitPendingVisionContext(sessionId.trim(), body.transactionId.trim()),
+              sessionId: sessionId.trim(),
+              transactionId: body.transactionId.trim(),
+            })
+            return
+          }
           if (!cwd || !isAbsolute(cwd) || !sessionId.trim()) {
             send(res, 400, { error: 'cwd and sessionId are required' })
             return

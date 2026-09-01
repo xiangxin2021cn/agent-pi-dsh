@@ -267,14 +267,18 @@ html.ap-simple-nav [data-slot="sidebar"] button[class*="brand"] svg[viewBox="0 0
 .ap-header-tool{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:32px;height:32px;min-width:32px;padding:0;border:1px solid var(--dsw-alias-border-l2);border-radius:18px;background:transparent;color:var(--dsw-alias-label-primary);cursor:pointer}
 .ap-header-tool:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}
 .ap-header-tool:disabled{opacity:.4;cursor:default}
+.ap-mount.ap-mount-lang{width:auto;min-width:0;margin-inline-start:auto;flex:none}
+.ap-lang-host{display:flex;align-items:center;min-width:0}
+.ap-lang-host.rail,[data-sidebar-collapsed] #ap-mount-lang{display:none!important}
 .ap-lang{
-  display:inline-flex;align-items:center;justify-content:center;gap:4px;
-  width:100%;height:32px;margin:0 0 6px;padding:0 8px;border:1px solid var(--dsw-alias-border-l2);
-  border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary);
-  font-size:12px;font-weight:650;cursor:pointer;letter-spacing:.02em;
+  display:inline-flex;align-items:center;justify-content:center;
+  width:106px;max-width:clamp(82px,36vw,112px);height:28px;margin:0;padding:0 22px 0 8px;
+  border:1px solid var(--dsw-alias-border-l2);border-radius:8px;
+  background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-secondary);
+  font-size:11px;font-weight:650;cursor:pointer;letter-spacing:.01em;
 }
 .ap-lang:hover{color:var(--dsw-alias-label-primary);background:color-mix(in srgb, var(--dsw-alias-label-primary) 6%, transparent)}
-.ap-lang b{color:var(--dsw-alias-label-primary);font-weight:700}
+html[dir="rtl"] .ap-lang{padding:0 8px 0 22px}
 .ap-badge{position:absolute;top:-3px;right:-3px;min-width:14px;height:14px;padding:0 4px;border-radius:999px;background:var(--ap-accent);color:#fff;font-size:9px;line-height:14px;font-weight:700}
 .ap-attach-host{min-width:0;padding:4px 12px 6px}
 .ap-project-starter{display:flex;align-items:center;justify-content:space-between;gap:14px;box-sizing:border-box;width:min(100%,var(--dsh-composer-card-max-width,760px));margin:0 auto 10px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--ap-accent) 24%,var(--dsw-alias-border-l2));border-radius:12px;background:color-mix(in srgb,var(--ap-accent) 7%,var(--dsw-alias-bg-base));color:var(--dsw-alias-label-primary)}

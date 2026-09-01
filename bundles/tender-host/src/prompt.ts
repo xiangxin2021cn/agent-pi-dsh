@@ -1,4 +1,14 @@
-import { takePendingVisionContext } from './attachment-context.ts'
+import {
+  attachmentTransactionIdsFromMessage,
+  bindPendingVisionDeliveryMessage,
+  claimPendingVisionContext,
+  clearPendingVisionContext,
+  deliverPendingVisionContextForMessage,
+  failPendingVisionContext,
+  failPendingVisionContexts,
+  hasAttachmentTransactionMarker,
+  pendingVisionContextForTransaction,
+} from './attachment-context.ts'
 import { liveWorkerLimitLineEn } from './concurrency.ts'
 import { formatSelectedKbContext } from './kb.ts'
 import { projectMemoryContextForSession } from './orchestration.ts'
@@ -50,7 +60,117 @@ export function registerPrompt(ctx: {
       }) => string)
     }) => unknown
   }
-}): void {
+  on?: (event: string, listener: (...args: any[]) => unknown) => unknown
+}, createUserMessage: (input: {
+  content: Array<{ type: 'text'; text: string }>
+  source: { kind: 'plugin'; plugin: string; form: 'instructions' }
+}) => unknown): void {
+  const sessionIdOf = (agent: unknown): string => {
+    const row = agent && typeof agent === 'object' ? agent as { id?: unknown; session?: { id?: unknown } } : {}
+    return String(row.session?.id || row.id || '')
+  }
+  const sessionCwdOf = (agent: unknown): string => {
+    const row = agent && typeof agent === 'object' ? agent as { session?: { header?: { cwd?: unknown } } } : {}
+    return String(row.session?.header?.cwd || '')
+  }
+
+  ctx.on?.('agent/inbox/claimed', (payload: unknown) => {
+    const row = payload && typeof payload === 'object'
+      ? payload as { agent?: unknown; message?: unknown; turn?: unknown }
+      : {}
+    const sessionId = sessionIdOf(row.agent)
+    const turn = Number(row.turn)
+    const transactionIds = attachmentTransactionIdsFromMessage(row.message)
+    if (!sessionId || !Number.isFinite(turn)) return
+    if (transactionIds.length === 1 && transactionIds[0]) {
+      claimPendingVisionContext(sessionId, transactionIds[0], turn)
+      return
+    }
+    for (const transactionId of transactionIds) {
+      if (transactionId) failPendingVisionContext(sessionId, transactionId)
+    }
+  })
+
+  ctx.on?.('agent/pre-step', async (payload: unknown, next?: () => Promise<unknown>) => {
+    const row = payload && typeof payload === 'object'
+      ? payload as { agent?: unknown; messages?: unknown[]; signal?: AbortSignal }
+      : {}
+    const markerMessages = (row.messages || [])
+      .map((message) => ({ message, transactionIds: attachmentTransactionIdsFromMessage(message) }))
+      .filter((entry) => entry.transactionIds.length > 0)
+    if (markerMessages.length === 0) {
+      if ((row.messages || []).some(hasAttachmentTransactionMarker)) return { kind: 'reject' }
+      return typeof next === 'function' ? next() : { kind: 'enter', messages: row.messages || [] }
+    }
+    const sessionId = sessionIdOf(row.agent)
+    if (markerMessages.length !== 1 || markerMessages[0]!.transactionIds.length !== 1) {
+      for (const entry of markerMessages) {
+        for (const transactionId of entry.transactionIds) {
+          if (sessionId && transactionId) failPendingVisionContext(sessionId, transactionId)
+        }
+      }
+      return { kind: 'reject' }
+    }
+    const transactionId = markerMessages[0]!.transactionIds[0]!
+    if (!sessionId || !transactionId) return { kind: 'reject' }
+    const decision = typeof next === 'function'
+      ? await next()
+      : { kind: 'enter', messages: row.messages || [] }
+    const decisionRow = decision && typeof decision === 'object'
+      ? decision as { kind?: unknown; messages?: unknown[] }
+      : {}
+    if (decisionRow.kind === 'reject') {
+      failPendingVisionContext(sessionId, transactionId)
+      return decision
+    }
+    row.signal?.throwIfAborted()
+    const markerMessage = markerMessages[0]!.message
+    const markerId = String((markerMessage as { id?: unknown })?.id || '')
+    if (!(decisionRow.messages || []).some((message) => message === markerMessage
+      || (markerId && String((message as { id?: unknown })?.id || '') === markerId))) {
+      failPendingVisionContext(sessionId, transactionId)
+      return { kind: 'reject' }
+    }
+    const text = pendingVisionContextForTransaction(sessionId, transactionId, sessionCwdOf(row.agent))
+    if (!text) {
+      failPendingVisionContext(sessionId, transactionId)
+      return { kind: 'reject' }
+    }
+    const instructionMessage = createUserMessage({
+      content: [{ type: 'text', text }],
+      source: { kind: 'plugin', plugin: 'tender-host', form: 'instructions' },
+    }) as { id?: unknown }
+    if (!bindPendingVisionDeliveryMessage(sessionId, transactionId, String(instructionMessage.id || ''))) {
+      failPendingVisionContext(sessionId, transactionId)
+      return { kind: 'reject' }
+    }
+    return {
+      ...decisionRow,
+      kind: 'enter',
+      messages: [...(decisionRow.messages || []), instructionMessage],
+    }
+  })
+  ctx.on?.('session/event', (session: unknown, event: unknown) => {
+    const sessionId = String((session as { id?: unknown } | undefined)?.id || '')
+    const row = event && typeof event === 'object'
+      ? event as { type?: unknown; data?: unknown }
+      : {}
+    if (!sessionId) return
+    if (row.type === 'user/message') {
+      deliverPendingVisionContextForMessage(sessionId, row.data)
+      return
+    }
+    if (row.type !== 'turn/end') return
+    const turn = Number((row.data as { turn?: unknown } | undefined)?.turn)
+    if (Number.isFinite(turn)) failPendingVisionContexts(sessionId, turn)
+  })
+  ctx.on?.('agent/disposed', (payload: unknown) => {
+    const row = payload && typeof payload === 'object' ? payload as { agent?: unknown } : {}
+    const sessionId = sessionIdOf(row.agent)
+    if (!sessionId) return
+    clearPendingVisionContext(sessionId)
+  })
+
   ctx.systemPrompt?.section({
     name: 'agent-pi:tender',
     order: 42,
@@ -68,16 +188,6 @@ export function registerPrompt(ctx: {
       const session = assemble.agent?.session
       if (!session?.id || !session.header?.cwd) return ''
       return projectMemoryContextForSession(String(session.header.cwd), String(session.id))
-    },
-  })
-  ctx.systemPrompt?.context?.({
-    name: 'agent-pi:vision',
-    order: 80,
-    text: (assemble) => {
-      const session = assemble.agent?.session
-      const sessionId = session?.id
-      if (!sessionId) return ''
-      return takePendingVisionContext(String(sessionId), session.header?.cwd)
     },
   })
 }

@@ -121,6 +121,12 @@ test('portable runtime requires the Agent Pi preset compaction plugin', () => {
   assert.match(packSource, /bundles\\agent-pi-compaction\\lib\\index\.js/)
 })
 
+test('portable runtime installs the locked tender-host document dependencies', () => {
+  assert.match(packSource, /\$TenderHost = Join-Path \$Root "bundles\\tender-host"/)
+  assert.match(packSource, /node_modules\\pdf-lib/)
+  assert.match(packSource, /Invoke-NpmCi \$TenderHost "tender-host"/)
+})
+
 test('installer branding is generated from the desktop app logo and passed to NSIS', () => {
   assert.match(packSource, /brand\\app-logo\.png/)
   assert.match(packSource, /make-installer-brand\.py/)

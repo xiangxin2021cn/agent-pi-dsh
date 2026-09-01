@@ -3204,14 +3204,18 @@ html.ap-simple-nav [data-slot="sidebar"] button[class*="brand"] svg[viewBox="0 0
 .ap-header-tool{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:32px;height:32px;min-width:32px;padding:0;border:1px solid var(--dsw-alias-border-l2);border-radius:18px;background:transparent;color:var(--dsw-alias-label-primary);cursor:pointer}
 .ap-header-tool:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}
 .ap-header-tool:disabled{opacity:.4;cursor:default}
+.ap-mount.ap-mount-lang{width:auto;min-width:0;margin-inline-start:auto;flex:none}
+.ap-lang-host{display:flex;align-items:center;min-width:0}
+.ap-lang-host.rail,[data-sidebar-collapsed] #ap-mount-lang{display:none!important}
 .ap-lang{
-  display:inline-flex;align-items:center;justify-content:center;gap:4px;
-  width:100%;height:32px;margin:0 0 6px;padding:0 8px;border:1px solid var(--dsw-alias-border-l2);
-  border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary);
-  font-size:12px;font-weight:650;cursor:pointer;letter-spacing:.02em;
+  display:inline-flex;align-items:center;justify-content:center;
+  width:106px;max-width:clamp(82px,36vw,112px);height:28px;margin:0;padding:0 22px 0 8px;
+  border:1px solid var(--dsw-alias-border-l2);border-radius:8px;
+  background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-secondary);
+  font-size:11px;font-weight:650;cursor:pointer;letter-spacing:.01em;
 }
 .ap-lang:hover{color:var(--dsw-alias-label-primary);background:color-mix(in srgb, var(--dsw-alias-label-primary) 6%, transparent)}
-.ap-lang b{color:var(--dsw-alias-label-primary);font-weight:700}
+html[dir="rtl"] .ap-lang{padding:0 8px 0 22px}
 .ap-badge{position:absolute;top:-3px;right:-3px;min-width:14px;height:14px;padding:0 4px;border-radius:999px;background:var(--ap-accent);color:#fff;font-size:9px;line-height:14px;font-weight:700}
 .ap-attach-host{min-width:0;padding:4px 12px 6px}
 .ap-project-starter{display:flex;align-items:center;justify-content:space-between;gap:14px;box-sizing:border-box;width:min(100%,var(--dsh-composer-card-max-width,760px));margin:0 auto 10px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--ap-accent) 24%,var(--dsw-alias-border-l2));border-radius:12px;background:color-mix(in srgb,var(--ap-accent) 7%,var(--dsw-alias-bg-base));color:var(--dsw-alias-label-primary)}
@@ -4485,7 +4489,8 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				"mm.markReview": "评审 {list}",
 				"lang.zh": "中文",
 				"lang.en": "English",
-				"lang.title": "语言"
+				"lang.title": "语言",
+				"lang.switchFailed": "语言切换失败，请重试"
 			},
 			en: {
 				"workbench.title": "Workbench",
@@ -4803,26 +4808,389 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				"mm.markReview": "Review {list}",
 				"lang.zh": "中文",
 				"lang.en": "English",
-				"lang.title": "Language"
+				"lang.title": "Language",
+				"lang.switchFailed": "Could not switch language. Please try again."
 			}
 		};
+		const AP_LANGUAGE_DEFINITIONS = [
+			{
+				id: "zh",
+				label: "中文",
+				documentLang: "zh-CN",
+				fallback: "en"
+			},
+			{
+				id: "en",
+				label: "English",
+				documentLang: "en",
+				fallback: "en"
+			},
+			{
+				id: "es",
+				label: "Español",
+				documentLang: "es",
+				fallback: "en"
+			},
+			{
+				id: "fr",
+				label: "Français",
+				documentLang: "fr",
+				fallback: "en"
+			},
+			{
+				id: "de",
+				label: "Deutsch",
+				documentLang: "de",
+				fallback: "en"
+			},
+			{
+				id: "ja",
+				label: "日本語",
+				documentLang: "ja",
+				fallback: "en"
+			},
+			{
+				id: "ko",
+				label: "한국어",
+				documentLang: "ko",
+				fallback: "en"
+			},
+			{
+				id: "pt",
+				label: "Português",
+				documentLang: "pt",
+				fallback: "en"
+			},
+			{
+				id: "ru",
+				label: "Русский",
+				documentLang: "ru",
+				fallback: "en"
+			},
+			{
+				id: "ar",
+				label: "العربية",
+				documentLang: "ar",
+				fallback: "en",
+				rtl: true
+			}
+		];
+		Object.assign(AP_I18N.zh, { "codex.title": "Codex 智能体" });
+		Object.assign(AP_I18N.en, { "codex.title": "Codex Agent" });
+		Object.assign(AP_I18N, {
+			es: {
+				"workbench.title": "Espacio de trabajo",
+				"files.title": "Archivos",
+				"files.official": "Resultados",
+				"files.workspace": "Área de trabajo",
+				"files.uploads": "Cargas",
+				"files.refresh": "Actualizar",
+				"files.collapse": "Contraer archivos",
+				"files.expand": "Expandir archivos",
+				"nav.kb": "Base de conocimiento",
+				"wb.back": "Volver al chat",
+				"wb.kb": "Base de conocimiento",
+				"wb.modules": "Módulos",
+				"wb.refresh": "Actualizar",
+				"wb.adopt": "Convertir trabajo actual",
+				"wb.create": "Nuevo proyecto",
+				"wb.projects": "Proyectos",
+				"module.tender": "Proceso de licitación",
+				"module.delivery": "Control de ejecución",
+				"module.investment": "Análisis de inversión",
+				"create.close": "Cerrar",
+				"session.archive": "Archivar conversación",
+				"session.delete": "Eliminar conversación",
+				"archive.title": "Archivo",
+				"archive.open": "Abrir registro",
+				"archive.delete": "Eliminar",
+				"kb.title": "Base de conocimiento local",
+				"kb.refresh": "Actualizar",
+				"kb.import": "Importar",
+				"kb.search": "Buscar",
+				"mm.title": "Módulos",
+				"codex.title": "Agente Codex",
+				"lang.title": "Idioma"
+			},
+			fr: {
+				"workbench.title": "Espace de travail",
+				"files.title": "Fichiers",
+				"files.official": "Résultats",
+				"files.workspace": "Espace de travail",
+				"files.uploads": "Téléversements",
+				"files.refresh": "Actualiser",
+				"files.collapse": "Réduire les fichiers",
+				"files.expand": "Développer les fichiers",
+				"nav.kb": "Base de connaissances",
+				"wb.back": "Retour au chat",
+				"wb.kb": "Base de connaissances",
+				"wb.modules": "Modules",
+				"wb.refresh": "Actualiser",
+				"wb.adopt": "Convertir le travail actuel",
+				"wb.create": "Nouveau projet",
+				"wb.projects": "Projets",
+				"module.tender": "Processus d'appel d'offres",
+				"module.delivery": "Contrôle d'exécution",
+				"module.investment": "Analyse d'investissement",
+				"create.close": "Fermer",
+				"session.archive": "Archiver la conversation",
+				"session.delete": "Supprimer la conversation",
+				"archive.title": "Archives",
+				"archive.open": "Ouvrir le dossier",
+				"archive.delete": "Supprimer",
+				"kb.title": "Base de connaissances locale",
+				"kb.refresh": "Actualiser",
+				"kb.import": "Importer",
+				"kb.search": "Rechercher",
+				"mm.title": "Modules",
+				"codex.title": "Agent Codex",
+				"lang.title": "Langue"
+			},
+			de: {
+				"workbench.title": "Arbeitsbereich",
+				"files.title": "Dateien",
+				"files.official": "Ergebnisse",
+				"files.workspace": "Arbeitsbereich",
+				"files.uploads": "Uploads",
+				"files.refresh": "Aktualisieren",
+				"files.collapse": "Dateien einklappen",
+				"files.expand": "Dateien ausklappen",
+				"nav.kb": "Wissensbasis",
+				"wb.back": "Zurück zum Chat",
+				"wb.kb": "Wissensbasis",
+				"wb.modules": "Module",
+				"wb.refresh": "Aktualisieren",
+				"wb.adopt": "Aktuelle Arbeit übernehmen",
+				"wb.create": "Neues Projekt",
+				"wb.projects": "Projekte",
+				"module.tender": "Ausschreibungsprozess",
+				"module.delivery": "Ausführungskontrolle",
+				"module.investment": "Investitionsprüfung",
+				"create.close": "Schließen",
+				"session.archive": "Unterhaltung archivieren",
+				"session.delete": "Unterhaltung löschen",
+				"archive.title": "Archiv",
+				"archive.open": "Datensatz öffnen",
+				"archive.delete": "Löschen",
+				"kb.title": "Lokale Wissensbasis",
+				"kb.refresh": "Aktualisieren",
+				"kb.import": "Importieren",
+				"kb.search": "Suchen",
+				"mm.title": "Module",
+				"codex.title": "Codex-Agent",
+				"lang.title": "Sprache"
+			},
+			ja: {
+				"workbench.title": "専門ワークベンチ",
+				"files.title": "ファイル",
+				"files.official": "成果物",
+				"files.workspace": "ワークスペース",
+				"files.uploads": "アップロード",
+				"files.refresh": "更新",
+				"files.collapse": "ファイルを閉じる",
+				"files.expand": "ファイルを開く",
+				"nav.kb": "ナレッジベース",
+				"wb.back": "チャットに戻る",
+				"wb.kb": "ナレッジベース",
+				"wb.modules": "モジュール",
+				"wb.refresh": "更新",
+				"wb.adopt": "現在の作業を登録",
+				"wb.create": "新規プロジェクト",
+				"wb.projects": "プロジェクト",
+				"module.tender": "入札プロセス",
+				"module.delivery": "施工管理",
+				"module.investment": "投資調査",
+				"create.close": "閉じる",
+				"session.archive": "会話をアーカイブ",
+				"session.delete": "会話を削除",
+				"archive.title": "アーカイブ",
+				"archive.open": "記録を開く",
+				"archive.delete": "削除",
+				"kb.title": "ローカルナレッジベース",
+				"kb.refresh": "更新",
+				"kb.import": "インポート",
+				"kb.search": "検索",
+				"mm.title": "モジュール",
+				"codex.title": "Codex エージェント",
+				"lang.title": "言語"
+			},
+			ko: {
+				"workbench.title": "전문 워크벤치",
+				"files.title": "파일",
+				"files.official": "작업 결과",
+				"files.workspace": "작업 공간",
+				"files.uploads": "업로드",
+				"files.refresh": "새로 고침",
+				"files.collapse": "파일 접기",
+				"files.expand": "파일 펼치기",
+				"nav.kb": "지식 베이스",
+				"wb.back": "채팅으로 돌아가기",
+				"wb.kb": "지식 베이스",
+				"wb.modules": "모듈",
+				"wb.refresh": "새로 고침",
+				"wb.adopt": "현재 작업 등록",
+				"wb.create": "새 프로젝트",
+				"wb.projects": "프로젝트",
+				"module.tender": "입찰 프로세스",
+				"module.delivery": "시공 관리",
+				"module.investment": "투자 검토",
+				"create.close": "닫기",
+				"session.archive": "대화 보관",
+				"session.delete": "대화 삭제",
+				"archive.title": "보관함",
+				"archive.open": "기록 열기",
+				"archive.delete": "삭제",
+				"kb.title": "로컬 지식 베이스",
+				"kb.refresh": "새로 고침",
+				"kb.import": "가져오기",
+				"kb.search": "검색",
+				"mm.title": "모듈",
+				"codex.title": "Codex 에이전트",
+				"lang.title": "언어"
+			},
+			pt: {
+				"workbench.title": "Área de trabalho",
+				"files.title": "Arquivos",
+				"files.official": "Resultados",
+				"files.workspace": "Área de trabalho",
+				"files.uploads": "Envios",
+				"files.refresh": "Atualizar",
+				"files.collapse": "Recolher arquivos",
+				"files.expand": "Expandir arquivos",
+				"nav.kb": "Base de conhecimento",
+				"wb.back": "Voltar ao chat",
+				"wb.kb": "Base de conhecimento",
+				"wb.modules": "Módulos",
+				"wb.refresh": "Atualizar",
+				"wb.adopt": "Converter trabalho atual",
+				"wb.create": "Novo projeto",
+				"wb.projects": "Projetos",
+				"module.tender": "Processo de licitação",
+				"module.delivery": "Controle de execução",
+				"module.investment": "Análise de investimento",
+				"create.close": "Fechar",
+				"session.archive": "Arquivar conversa",
+				"session.delete": "Excluir conversa",
+				"archive.title": "Arquivo",
+				"archive.open": "Abrir registro",
+				"archive.delete": "Excluir",
+				"kb.title": "Base de conhecimento local",
+				"kb.refresh": "Atualizar",
+				"kb.import": "Importar",
+				"kb.search": "Pesquisar",
+				"mm.title": "Módulos",
+				"codex.title": "Agente Codex",
+				"lang.title": "Idioma"
+			},
+			ru: {
+				"workbench.title": "Рабочая панель",
+				"files.title": "Файлы",
+				"files.official": "Результаты",
+				"files.workspace": "Рабочая область",
+				"files.uploads": "Загрузки",
+				"files.refresh": "Обновить",
+				"files.collapse": "Свернуть файлы",
+				"files.expand": "Развернуть файлы",
+				"nav.kb": "База знаний",
+				"wb.back": "Назад к чату",
+				"wb.kb": "База знаний",
+				"wb.modules": "Модули",
+				"wb.refresh": "Обновить",
+				"wb.adopt": "Подключить текущую работу",
+				"wb.create": "Новый проект",
+				"wb.projects": "Проекты",
+				"module.tender": "Тендерный процесс",
+				"module.delivery": "Контроль исполнения",
+				"module.investment": "Инвестиционный анализ",
+				"create.close": "Закрыть",
+				"session.archive": "Архивировать беседу",
+				"session.delete": "Удалить беседу",
+				"archive.title": "Архив",
+				"archive.open": "Открыть запись",
+				"archive.delete": "Удалить",
+				"kb.title": "Локальная база знаний",
+				"kb.refresh": "Обновить",
+				"kb.import": "Импорт",
+				"kb.search": "Поиск",
+				"mm.title": "Модули",
+				"codex.title": "Агент Codex",
+				"lang.title": "Язык"
+			},
+			ar: {
+				"workbench.title": "مساحة العمل",
+				"files.title": "الملفات",
+				"files.official": "النتائج",
+				"files.workspace": "مساحة العمل",
+				"files.uploads": "التحميلات",
+				"files.refresh": "تحديث",
+				"files.collapse": "طي الملفات",
+				"files.expand": "توسيع الملفات",
+				"nav.kb": "قاعدة المعرفة",
+				"wb.back": "العودة إلى المحادثة",
+				"wb.kb": "قاعدة المعرفة",
+				"wb.modules": "الوحدات",
+				"wb.refresh": "تحديث",
+				"wb.adopt": "اعتماد العمل الحالي",
+				"wb.create": "مشروع جديد",
+				"wb.projects": "المشاريع",
+				"module.tender": "عملية المناقصة",
+				"module.delivery": "مراقبة التنفيذ",
+				"module.investment": "تحليل الاستثمار",
+				"create.close": "إغلاق",
+				"session.archive": "أرشفة المحادثة",
+				"session.delete": "حذف المحادثة",
+				"archive.title": "الأرشيف",
+				"archive.open": "فتح السجل",
+				"archive.delete": "حذف",
+				"kb.title": "قاعدة المعرفة المحلية",
+				"kb.refresh": "تحديث",
+				"kb.import": "استيراد",
+				"kb.search": "بحث",
+				"mm.title": "الوحدات",
+				"codex.title": "وكيل Codex",
+				"lang.title": "اللغة"
+			}
+		});
+		function localeIdOf(value) {
+			const primary = String(value || "").toLowerCase().split("-")[0];
+			return AP_LANGUAGE_DEFINITIONS.some((language) => language.id === primary) ? primary : "zh";
+		}
+		function initialApLang() {
+			try {
+				const stored = localStorage.getItem("agent-pi:language:v1");
+				if (stored) return localeIdOf(stored);
+			} catch {}
+			try {
+				return localeIdOf(navigator.language);
+			} catch {
+				return "zh";
+			}
+		}
 		const langState = {
-			lang: "zh",
+			lang: initialApLang(),
 			listeners: /* @__PURE__ */ new Set()
 		};
-		function localeIdOf(value) {
-			const id = String(value || "").toLowerCase();
-			return id === "en" || id.startsWith("en-") ? "en" : "zh";
+		function applyDocumentLanguage(next) {
+			if (typeof document === "undefined") return;
+			const language = AP_LANGUAGE_DEFINITIONS.find((entry) => entry.id === next) || AP_LANGUAGE_DEFINITIONS[0];
+			document.documentElement.setAttribute("lang", language.documentLang);
+			document.documentElement.setAttribute("dir", language.rtl ? "rtl" : "ltr");
 		}
 		function setApLang(lang) {
 			const next = localeIdOf(lang);
+			applyDocumentLanguage(next);
+			try {
+				localStorage.setItem("agent-pi:language:v1", next);
+			} catch {}
 			if (langState.lang === next) return;
 			langState.lang = next;
-			if (typeof document !== "undefined") document.documentElement.setAttribute("lang", next === "en" ? "en" : "zh-CN");
 			langState.listeners.forEach((fn) => fn(next));
 		}
+		applyDocumentLanguage(langState.lang);
 		function tAp(key, vars) {
-			let text = (AP_I18N[langState.lang] || AP_I18N.zh)[key] || AP_I18N.zh[key] || key;
+			const dict = AP_I18N[langState.lang] || AP_I18N.en;
+			const fallback = langState.lang === "zh" ? AP_I18N.zh : AP_I18N.en;
+			let text = dict[key] || fallback[key] || key;
 			if (vars && typeof vars === "object") Object.keys(vars).forEach((name) => {
 				text = text.split("{" + name + "}").join(String(vars[name]));
 			});
@@ -4862,7 +5230,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		function moduleLabel(info) {
 			if (!info) return "";
 			if (info.id && AP_I18N.zh["module." + info.id]) return tAp("module." + info.id);
-			if (langState.lang === "en" && info.labelEn) return info.labelEn;
+			if (langState.lang !== "zh" && info.labelEn) return info.labelEn;
 			return info.labelZh || info.label || info.id || "";
 		}
 		function moduleIconNode(info, size) {
@@ -4885,6 +5253,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		}
 		const codexTurnControllers = window.__apCodexTurnControllers || (window.__apCodexTurnControllers = /* @__PURE__ */ new Map());
 		const codexTurnListeners = window.__apCodexTurnListeners || (window.__apCodexTurnListeners = /* @__PURE__ */ new Set());
+		const attachmentTurnControllers = window.__apAttachmentTurnControllers || (window.__apAttachmentTurnControllers = /* @__PURE__ */ new Map());
 		function codexTurnKey(props) {
 			return sessionHint(props) || runtime.sessionId || "active";
 		}
@@ -4905,9 +5274,16 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				capturedAttachmentIds: [],
 				capturedAttachments: [],
 				preSubmitUserNodeWatermark: -1,
+				preSubmitPromptErrorRef: null,
+				preSubmitPromptErrorToken: "null",
+				promptErrorBaselineCleared: false,
 				lastInputPhase: null,
 				lastInputDraftRev: null,
 				sawSubmitting: false,
+				acceptedDraft: null,
+				acceptedDraftRev: null,
+				cwd: "",
+				inputStore: null,
 				unsubscribeSession: null,
 				unsubscribeInput: null
 			};
@@ -4935,6 +5311,10 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		}
 		function setCodexTurnArmed(props, armed) {
 			const key = codexTurnKey(props);
+			if (armed && attachmentTurnControllers.has(key)) {
+				showToast("当前会话已有附件发送事务，请等待完成后再切换 Codex 执行");
+				return;
+			}
 			const controller = codexTurnController(props, armed);
 			if (!controller) return;
 			controller.latestProps = props;
@@ -4942,7 +5322,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				controller.phase = "armed";
 				watchCodexTurnSession(key, controller);
 			} else if (!armed && controller.phase === "armed") {
-				resetCodexTurnAttempt(controller);
+				resetCodexTurnAttempt(key, controller);
 				disposeCodexTurnSessionSubscription(controller);
 				controller.phase = "idle";
 			} else return;
@@ -4962,7 +5342,9 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				unsubscribeSession();
 			} catch {}
 		}
-		function resetCodexTurnAttempt(controller) {
+		function resetCodexTurnAttempt(key, controller) {
+			cancelAttachmentTurnHost(key, controller);
+			clearAttachmentTurnStatus(controller.attemptToken);
 			disposeCodexTurnInputSubscription(controller);
 			controller.attemptToken = null;
 			controller.originalDraft = "";
@@ -4970,22 +5352,35 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			controller.capturedAttachmentIds = [];
 			controller.capturedAttachments = [];
 			controller.preSubmitUserNodeWatermark = -1;
+			controller.preSubmitPromptErrorRef = null;
+			controller.preSubmitPromptErrorToken = "null";
+			controller.promptErrorBaselineCleared = false;
 			controller.lastInputPhase = null;
 			controller.lastInputDraftRev = null;
 			controller.sawSubmitting = false;
+			controller.acceptedDraft = null;
+			controller.acceptedDraftRev = null;
+			controller.cwd = "";
+			controller.inputStore = null;
 		}
 		function rearmCodexTurn(key, controller) {
 			if (codexTurnControllers.get(key) !== controller || controller.phase === "disposed") return;
-			resetCodexTurnAttempt(controller);
+			resetCodexTurnAttempt(key, controller);
 			controller.phase = "armed";
 			notifyCodexTurn();
 		}
 		function disposeCodexTurn(key, controller) {
 			if (codexTurnControllers.get(key) !== controller) return;
-			resetCodexTurnAttempt(controller);
+			resetCodexTurnAttempt(key, controller);
 			disposeCodexTurnSessionSubscription(controller);
 			controller.phase = "disposed";
 			codexTurnControllers.delete(key);
+			attachState.bySession.delete(key);
+			if (activeSessionId() === key) {
+				attachState.items = [];
+				attachState.last = [];
+				notifyAttach();
+			}
 			notifyCodexTurn();
 		}
 		function codexTurnAuthorities(sessionId) {
@@ -5025,11 +5420,20 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		}
 		function subscribeSessionWithChat(sessionId, session, listener) {
 			const unsubscribers = [];
-			const sessionUnsubscribe = session && typeof session.subscribe === "function" ? session.subscribe(listener) : null;
-			if (typeof sessionUnsubscribe === "function") unsubscribers.push(sessionUnsubscribe);
-			const source = chatSourceById(sessionId);
-			const chatUnsubscribe = source && typeof source.subscribe === "function" ? source.subscribe(listener) : null;
-			if (typeof chatUnsubscribe === "function") unsubscribers.push(chatUnsubscribe);
+			try {
+				const sessionUnsubscribe = session && typeof session.subscribe === "function" ? session.subscribe(listener) : null;
+				if (typeof sessionUnsubscribe === "function") unsubscribers.push(sessionUnsubscribe);
+				const source = chatSourceById(sessionId);
+				const chatUnsubscribe = source && typeof source.subscribe === "function" ? source.subscribe(listener) : null;
+				if (typeof chatUnsubscribe === "function") unsubscribers.push(chatUnsubscribe);
+			} catch (error) {
+				unsubscribers.splice(0).forEach((unsubscribe) => {
+					try {
+						unsubscribe();
+					} catch {}
+				});
+				throw error;
+			}
 			if (!unsubscribers.length) return null;
 			return () => unsubscribers.splice(0).forEach((unsubscribe) => {
 				try {
@@ -5112,7 +5516,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				return null;
 			}
 			if (!authorities) {
-				disposeCodexTurn(key, controller);
+				rearmCodexTurn(key, controller);
 				return null;
 			}
 			const session = authorities.session;
@@ -5152,9 +5556,9 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		function failCodexTurn(key, controller, inputStore) {
 			if (codexTurnControllers.get(key) !== controller || controller.phase === "disposed") return;
 			let ownsFramedDraft = false;
+			const authoritativeInputStore = inputStore || controller.inputStore;
 			try {
-				const input = inputStore && inputStore.getSnapshot();
-				ownsFramedDraft = Boolean(input && input.draft === controller.framedDraft);
+				ownsFramedDraft = submissionOwnsDraft(controller, authoritativeInputStore && authoritativeInputStore.getSnapshot());
 			} catch {}
 			const originalDraft = controller.originalDraft;
 			const live = controller.latestProps;
@@ -5173,7 +5577,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				remainingIds.splice(index, 1);
 				return false;
 			});
-			resetCodexTurnAttempt(controller);
+			resetCodexTurnAttempt(key, controller);
 			disposeCodexTurnSessionSubscription(controller);
 			controller.phase = "idle";
 			if (capturedIds.length) setCodexAttachItems(key, remaining);
@@ -5190,7 +5594,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				return;
 			}
 			if (!authorities) {
-				disposeCodexTurn(key, controller);
+				failCodexTurn(key, controller, null);
 				return;
 			}
 			const session = authorities.session;
@@ -5213,7 +5617,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				return;
 			}
 			if (codexUserNode(snapshot, controller)) {
-				clearCodexTurnAfterSubmit(key, controller);
+				if (!token.hostRequested) clearCodexTurnAfterSubmit(key, controller);
 				return;
 			}
 			const previousInputPhase = controller.lastInputPhase;
@@ -5224,11 +5628,14 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			controller.lastInputPhase = inputPhase;
 			controller.lastInputDraftRev = inputDraftRev;
 			if (inputPhase === "submitting") return;
+			if (submissionHasNewPromptError(snapshot, controller)) {
+				failCodexTurn(key, controller, inputStore);
+				return;
+			}
 			if (controller.sawSubmitting && previousInputPhase === "submitting" && inputPhase === "plain" && inputDraftRev !== null && previousInputDraftRev !== null) {
 				if (inputDraftRev === previousInputDraftRev) failCodexTurn(key, controller, inputStore);
 				return;
 			}
-			if (snapshot.promptError && snapshot.promptError.op === "send") failCodexTurn(key, controller, inputStore);
 		}
 		const composerPropsRef = { current: null };
 		const composerFace = {
@@ -5260,6 +5667,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		}
 		function captureComposerFace(props) {
 			if (!props) return runtime.cwd || composerFace.cwd || "";
+			const previousSessionId = runtime.sessionId || composerFace.sessionId || "";
 			const hinted = sessionHint(props) || runtime.sessionId;
 			let sessionId = hinted;
 			let sessionCwd = "";
@@ -5281,11 +5689,23 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			if (sessionId) {
 				runtime.sessionId = sessionId;
 				composerFace.sessionId = sessionId;
+				if (sessionId !== previousSessionId) {
+					const sessionItems = attachItemsOf(sessionId);
+					attachState.items = sessionItems;
+					attachState.last = sessionItems;
+					Promise.resolve().then(() => {
+						if (activeSessionId() === sessionId) notifyAttach();
+					});
+				}
 			}
-			const cwd = sessionCwd || workspacePath || runtime.cwd || "";
+			const changedSession = Boolean(previousSessionId && sessionId && sessionId !== previousSessionId);
+			const cwd = sessionCwd || workspacePath || (changedSession ? "" : runtime.cwd) || "";
 			if (cwd) {
 				runtime.cwd = cwd;
 				composerFace.cwd = cwd;
+			} else if (changedSession) {
+				runtime.cwd = "";
+				composerFace.cwd = "";
 			}
 			if (typeof draft === "string") {
 				composerFace.draft = draft;
@@ -5300,7 +5720,11 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		function readWorkspaceCwd(props) {
 			return captureComposerFace(props);
 		}
-		function workspaceCwd() {
+		function workspaceCwd(props) {
+			const direct = props && typeof props.cwd === "string" ? props.cwd : "";
+			if (direct) return direct;
+			const hinted = sessionHint(props);
+			if (hinted && hinted !== activeSessionId()) return "";
 			return runtime.cwd || composerFace.cwd || "";
 		}
 		function activeSessionId() {
@@ -5755,7 +6179,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			});
 		}
 		function kbFidelityLabel(entry, lang) {
-			const en = localeIdOf(lang || langState.lang) === "en";
+			const en = localeIdOf(lang || langState.lang) !== "zh";
 			const clauseCount = Number(entry && entry.clauseCount);
 			const coverage = Number(entry && entry.coverage);
 			const tableCount = Number(entry && entry.tableCount);
@@ -5778,7 +6202,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		function kbIngestLabel(entry, lang) {
 			const kind = kbIngestKind(entry);
 			if (!kind) return "";
-			const en = localeIdOf(lang || langState.lang) === "en";
+			const en = localeIdOf(lang || langState.lang) !== "zh";
 			if (kind === "pack") return en ? "Knowledge pack" : "知识包";
 			if (kind === "mineru") return en ? "MinerU manuscript" : "MinerU 解析稿";
 			if (kind === "local") return en ? "Local text layer" : "本机文本层";
@@ -5791,7 +6215,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			return labeled === key ? name : labeled;
 		}
 		function apJoin(items) {
-			return (items || []).join(langState.lang === "en" ? ", " : "、");
+			return (items || []).join(langState.lang === "zh" ? "、" : ", ");
 		}
 		function kbProgressText(text) {
 			const raw = String(text || "");
@@ -6706,11 +7130,8 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			});
 		}
 		function attachItemsOf(sessionId) {
+			if (sessionId) return attachState.bySession.get(sessionId) || [];
 			if (attachState.items && attachState.items.length) return attachState.items;
-			if (sessionId && attachState.bySession.has(sessionId)) {
-				const owned = attachState.bySession.get(sessionId) || [];
-				if (owned.length) return owned;
-			}
 			return attachState.last || [];
 		}
 		function codexAttachItems(sessionId) {
@@ -6731,20 +7152,16 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		}
 		function setAttachItemsFor(sessionId, items) {
 			const next = Array.isArray(items) ? items : [];
+			if (sessionId) attachState.bySession.set(sessionId, next);
+			if (sessionId && activeSessionId() !== sessionId) return;
 			attachState.items = next;
 			attachState.last = next;
-			if (sessionId) attachState.bySession.set(sessionId, next);
 			notifyAttach();
 		}
-		function setAttachItems(items, props) {
-			setAttachItemsFor(attachSessionId(props), items);
-		}
 		function useAttachItems() {
-			const [items, setItems] = react.useState(() => (attachState.items || attachState.last || []).slice());
+			const [items, setItems] = react.useState(() => attachItemsOf(activeSessionId()).slice());
 			react.useEffect(() => {
-				const sync = (event) => {
-					setItems((event && event.detail && event.detail.items || attachState.items || attachState.last || []).slice());
-				};
+				const sync = () => setItems(attachItemsOf(activeSessionId()).slice());
 				attachState.listeners.add(sync);
 				window.addEventListener("agent-pi-attach-changed", sync);
 				sync();
@@ -6754,8 +7171,9 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				};
 			}, []);
 			return [items, (next) => {
-				const current = attachState.items || [];
-				setAttachItemsFor(runtime.sessionId || "pending", typeof next === "function" ? next(current) : next);
+				const sessionId = activeSessionId() || "pending";
+				const current = attachItemsOf(sessionId);
+				setAttachItemsFor(sessionId, typeof next === "function" ? next(current) : next);
 			}];
 		}
 		function flattenFiles(nodes, out) {
@@ -6819,7 +7237,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			fillComposer(props, text);
 		}
 		function stripMentionArtifacts(draft) {
-			return String(draft || "").replace(/\uFFFC\s*/g, "").replace(/请读取并依据此文件：[`'“”‘'][^`'“”‘']*[`'“”‘']/g, "").replace(/<!--agent-pi-attachments-->[\s\S]*?<!--\/agent-pi-attachments-->/g, "").replace(/<!--agent-pi-kb-task-->[\s\S]*?<!--\/agent-pi-kb-task-->/g, "").replace(/<attached-image\b[^>]*>[\s\S]*?<\/attached-image>/g, "").replace(/The user attached an image\. The following is a faithful visual reading[\s\S]*$/g, "").replace(/The user attached \d+ images\. The following are faithful visual readings[\s\S]*$/g, "").replace(/\n{3,}/g, "\n\n").trim();
+			return String(draft || "").replace(/\uFFFC\s*/g, "").replace(/请读取并依据此文件：[`'“”‘'][^`'“”‘']*[`'“”‘']/g, "").replace(/<!--agent-pi-attachments-->[\s\S]*?<!--\/agent-pi-attachments-->/g, "").replace(/<!--agent-pi-kb-task-->[\s\S]*?<!--\/agent-pi-kb-task-->/g, "").replace(/<!--agent-pi-attachment-tx:[^>]+?-->/g, "").replace(/<attached-image\b[^>]*>[\s\S]*?<\/attached-image>/g, "").replace(/The user attached an image\. The following is a faithful visual reading[\s\S]*$/g, "").replace(/The user attached \d+ images\. The following are faithful visual readings[\s\S]*$/g, "").replace(/\n{3,}/g, "\n\n").trim();
 		}
 		function cleanComposerDraft(props) {
 			const draft = currentDraft(props);
@@ -6856,10 +7274,11 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			return tokens.join(" ");
 		}
 		function stripComposerMentions(files) {
-			if (attachSubmitLock) return;
 			const live = composerPropsRef.current;
 			const codexPhase = codexTurnPhase(live);
 			if (codexPhase === "preparing" || codexPhase === "submitting") return;
+			const attachmentController = attachmentTurnControllers.get(attachmentTurnKey(live));
+			if (attachmentController && (attachmentController.phase === "preparing" || attachmentController.phase === "submitting")) return;
 			let draft = currentDraft(live);
 			if (!draft) {
 				const ta = document.querySelector("[data-composer-card] textarea, [data-phase] textarea");
@@ -6920,7 +7339,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					if (!visual.length) revealComposerAfterAttach();
 					return;
 				}
-				const merged = (attachState.items || attachItemsOf(sid) || []).slice();
+				const merged = attachItemsOf(sid).slice();
 				const added = [];
 				for (const item of docs) {
 					const key = attachKey(item);
@@ -6934,7 +7353,6 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					return;
 				}
 				setAttachItemsFor(sid, merged);
-				if (runtime.sessionId && runtime.sessionId !== sid) attachState.bySession.set(runtime.sessionId, merged);
 				stripComposerMentions(merged);
 				if (source === "folder") showToast(added.length === 1 ? "已加入文件夹：" + added[0].name : "已加入 " + added.length + " 个文件夹");
 				else if (source === "upload") showToast(added.length === 1 ? "已加入对话：" + added[0].name : "已加入对话 " + added.length + " 个文件");
@@ -6950,83 +7368,541 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			if (draft !== currentDraft(props)) setComposerDraft(props, draft);
 			return draft;
 		}
-		let foldBusy = false;
-		let attachSubmitLock = false;
 		function isLiveSessionId(sid) {
 			return Boolean(sid) && sid !== "pending" && sid !== "active";
 		}
-		async function foldAttachmentsIntoDraft(props, capturedItems) {
-			const sid = attachSessionId(props) || runtime.sessionId || "";
-			const cwd = workspaceCwd(props);
-			const items = (capturedItems || attachState.items || attachItemsOf(sid)).filter((item) => !item.cwd || !cwd || normPath(item.cwd) === normPath(cwd));
-			if (!items.length || foldBusy) return false;
-			foldBusy = true;
-			restoreCleanDraft(props);
-			try {
-				const files = items.filter((item) => item.kind !== "image" && item.kind !== "folder" && (item.path || item.relativePath || item.name));
-				const folders = items.filter((item) => item.kind === "folder" && (item.path || item.relativePath));
-				if (!files.length && !folders.length) return true;
-				if (!isLiveSessionId(sid) || !cwd) {
-					showToast("当前会话没有工作区，无法把附件交给模型");
-					throw new Error("session workspace required");
-				}
-				await api("/api/agent-pi/llm/vision/read?sessionId=" + encodeURIComponent(sid), cwd, {
-					method: "POST",
-					body: JSON.stringify({
-						sessionId: sid,
-						cwd,
-						files: files.map((item) => ({
-							name: item.name,
-							path: item.path || item.relativePath,
-							relativePath: item.relativePath || item.path,
-							kind: "file"
-						})),
-						folders: folders.map((item) => ({
-							name: item.name,
-							path: item.path || item.relativePath
-						})),
-						images: []
-					})
-				});
-				return true;
-			} catch (err) {
-				showToast(String(err && err.message || err));
-				throw err;
-			} finally {
-				foldBusy = false;
-			}
+		function attachmentTurnKey(props) {
+			return attachSessionId(props) || runtime.sessionId || "active";
 		}
-		function submitAfterFold(props, submit) {
-			const sid = sessionHint(props) || runtime.sessionId || "active";
-			const clean = stripMentionArtifacts(currentDraft(props));
-			const items = attachItemsOf(attachSessionId(props));
-			const attachLine = formatAttachVisible(items);
-			const block = formatKbTaskBlock(sid);
-			const fallback = items.length ? "请结合附件作答。" : "";
-			const body = [clean, attachLine].filter(Boolean).join("\n\n");
-			const text = block ? body ? block + "\n\n" + body : block + (fallback ? "\n\n" + fallback : "") : body || fallback;
-			attachSubmitLock = true;
-			if (!text) {
-				const send = typeof submit === "function" ? submit : props && props.inputActions && props.inputActions.__apOrigSubmit;
-				if (typeof send === "function") send();
-				attachSubmitLock = false;
-				setAttachItems([], props);
+		function attachmentTransactionId(key) {
+			return "attachment:" + key + ":" + Date.now() + ":" + Math.random().toString(36).slice(2, 9);
+		}
+		function attachmentTransactionMarker(token) {
+			if (!token || !token.hostRequested || !token.hostTransactionId) return "";
+			return "<!--agent-pi-attachment-tx:" + encodeURIComponent(token.hostTransactionId) + "-->";
+		}
+		function clearAttachmentTurnStatus(token) {
+			if (!token || !token.statusTimer) return;
+			try {
+				window.clearTimeout(token.statusTimer);
+			} catch {}
+			token.statusTimer = null;
+		}
+		function submissionHasNewPromptError(snapshot, controller) {
+			const current = snapshot && snapshot.promptError;
+			if (!current) {
+				if (controller.preSubmitPromptErrorRef) controller.promptErrorBaselineCleared = true;
+				return false;
+			}
+			if (current.op !== "send") return false;
+			return !controller.preSubmitPromptErrorRef || controller.promptErrorBaselineCleared || current !== controller.preSubmitPromptErrorRef || JSON.stringify(current) !== controller.preSubmitPromptErrorToken;
+		}
+		function submissionOwnsDraft(controller, input) {
+			if (!input) return false;
+			if (input.draft === controller.framedDraft) return true;
+			return controller.acceptedDraft === "" && input.draft === controller.acceptedDraft && controller.acceptedDraftRev !== null && input.draftRev === controller.acceptedDraftRev;
+		}
+		function disposeAttachmentTurnInput(controller) {
+			const unsubscribe = controller.unsubscribeInput;
+			controller.unsubscribeInput = null;
+			if (typeof unsubscribe === "function") try {
+				unsubscribe();
+			} catch {}
+		}
+		function disposeAttachmentTurnSession(controller) {
+			const unsubscribe = controller.unsubscribeSession;
+			controller.unsubscribeSession = null;
+			if (typeof unsubscribe === "function") try {
+				unsubscribe();
+			} catch {}
+		}
+		function closeAttachmentTurn(key, controller, phase) {
+			if (attachmentTurnControllers.get(key) !== controller) return;
+			controller.phase = phase;
+			clearAttachmentTurnStatus(controller.attemptToken);
+			disposeAttachmentTurnInput(controller);
+			disposeAttachmentTurnSession(controller);
+			attachmentTurnControllers.delete(key);
+		}
+		function cancelAttachmentTurnHost(key, controller, attemptToken) {
+			const token = attemptToken || controller.attemptToken;
+			if (!token || !token.hostRequested || !token.hostTransactionId || token.hostDelivered === true) return;
+			if (!token.prepareSettled) {
+				token.cancelWhenPrepared = true;
 				return;
 			}
-			setComposerDraft(props, text);
+			if (token.cancelRequested) return;
+			token.cancelRequested = true;
+			api("/api/agent-pi/llm/vision/read?sessionId=" + encodeURIComponent(key), controller.cwd || "", {
+				method: "POST",
+				body: JSON.stringify({
+					action: "cancel",
+					sessionId: key,
+					transactionId: token.hostTransactionId
+				})
+			}).catch(() => {});
+		}
+		async function commitAttachmentTurnHost(key, controller, token) {
+			if (!token.hostRequested) return;
+			const result = await api("/api/agent-pi/llm/vision/read?sessionId=" + encodeURIComponent(key), controller.cwd || "", {
+				method: "POST",
+				timeoutMs: 3e4,
+				body: JSON.stringify({
+					action: "commit",
+					sessionId: key,
+					transactionId: token.hostTransactionId
+				})
+			});
+			if (!result || result.committed !== true || result.sessionId !== key || result.transactionId !== token.hostTransactionId) throw new Error("附件上下文提交失败，请重试");
+			token.hostCommitted = true;
+		}
+		function attachmentTurnStillOwns(key, controller, token, kind) {
+			return (kind === "codex" ? codexTurnControllers.get(key) : attachmentTurnControllers.get(key)) === controller && controller.attemptToken === token && controller.phase === "submitting";
+		}
+		function scheduleAttachmentTurnStatus(key, controller, token, kind, delay) {
+			if (!token.hostRequested || !token.hostCommitted || token.statusTimer || token.statusPending) return;
+			token.statusTimer = window.setTimeout(() => {
+				token.statusTimer = null;
+				pollAttachmentTurnStatus(key, controller, token, kind);
+			}, delay == null ? 750 : delay);
+		}
+		async function pollAttachmentTurnStatus(key, controller, token, kind) {
+			if (!attachmentTurnStillOwns(key, controller, token, kind) || token.statusPending) return;
+			token.statusPending = true;
+			try {
+				const status = await api("/api/agent-pi/llm/vision/read?sessionId=" + encodeURIComponent(key), controller.cwd || "", {
+					method: "POST",
+					timeoutMs: 5e3,
+					body: JSON.stringify({
+						action: "status",
+						sessionId: key,
+						transactionId: token.hostTransactionId
+					})
+				});
+				if (!attachmentTurnStillOwns(key, controller, token, kind)) return;
+				if (!status || status.sessionId !== key || status.transactionId !== token.hostTransactionId) {
+					if (kind === "codex") failCodexTurn(key, controller, controller.inputStore);
+					else failAttachmentTurn(key, controller, controller.inputStore);
+					return;
+				}
+				if (status.state === "delivered") {
+					token.hostDelivered = true;
+					if (kind === "codex") clearCodexTurnAfterSubmit(key, controller);
+					else clearAttachmentTurnAfterSubmit(key, controller);
+					return;
+				}
+				if (status.state === "failed" || status.state === "cancelled" || status.state === "destroyed" || status.state === "unknown") {
+					if (kind === "codex") failCodexTurn(key, controller, controller.inputStore);
+					else failAttachmentTurn(key, controller, controller.inputStore);
+					return;
+				}
+			} catch {} finally {
+				token.statusPending = false;
+			}
+			if (attachmentTurnStillOwns(key, controller, token, kind)) scheduleAttachmentTurnStatus(key, controller, token, kind, 1e3);
+		}
+		function restoreAttachmentTurnItems(key, controller) {
+			const current = codexAttachItems(key).slice();
+			const currentIds = codexAttachmentIds(current);
+			const missing = [];
+			for (const item of controller.capturedAttachments) {
+				const id = codexAttachmentToken(item);
+				const index = currentIds.indexOf(id);
+				if (index >= 0) currentIds.splice(index, 1);
+				else missing.push(item);
+			}
+			if (missing.length) setCodexAttachItems(key, missing.concat(current));
+		}
+		function abortAttachmentTurn(key, controller) {
+			if (attachmentTurnControllers.get(key) !== controller) return;
+			cancelAttachmentTurnHost(key, controller);
+			closeAttachmentTurn(key, controller, "failed");
+		}
+		function failAttachmentTurn(key, controller, inputStore) {
+			if (attachmentTurnControllers.get(key) !== controller) return;
+			let ownsFramedDraft = false;
+			const authoritativeInputStore = inputStore || controller.inputStore;
+			try {
+				ownsFramedDraft = submissionOwnsDraft(controller, authoritativeInputStore && authoritativeInputStore.getSnapshot());
+			} catch {}
+			const live = controller.latestProps;
+			const originalDraft = controller.originalDraft;
+			restoreAttachmentTurnItems(key, controller);
+			cancelAttachmentTurnHost(key, controller);
+			closeAttachmentTurn(key, controller, "failed");
+			if (ownsFramedDraft) try {
+				setComposerDraft(live, originalDraft);
+			} catch {}
+		}
+		function destroyAttachmentTurn(key, controller) {
+			if (attachmentTurnControllers.get(key) !== controller) return;
+			cancelAttachmentTurnHost(key, controller);
+			closeAttachmentTurn(key, controller, "destroyed");
+			attachState.bySession.delete(key);
+			if (activeSessionId() === key) {
+				attachState.items = [];
+				attachState.last = [];
+				notifyAttach();
+			}
+		}
+		function clearAttachmentTurnAfterSubmit(key, controller) {
+			if (attachmentTurnControllers.get(key) !== controller || controller.phase !== "submitting") return;
+			const capturedIds = controller.capturedAttachmentIds.slice();
+			const remainingIds = capturedIds.slice();
+			const remaining = codexAttachItems(key).filter((item) => {
+				const index = remainingIds.indexOf(codexAttachmentToken(item));
+				if (index < 0) return true;
+				remainingIds.splice(index, 1);
+				return false;
+			});
+			cancelAttachmentTurnHost(key, controller);
+			closeAttachmentTurn(key, controller, "succeeded");
+			if (capturedIds.length) setCodexAttachItems(key, remaining);
+		}
+		function settleAttachmentTurn(key, token) {
+			const controller = attachmentTurnControllers.get(key);
+			if (!controller || controller.phase !== "submitting" || controller.attemptToken !== token) return;
+			let authorities;
+			try {
+				authorities = codexTurnAuthorities(key);
+			} catch {
+				failAttachmentTurn(key, controller, null);
+				return;
+			}
+			if (!authorities) {
+				failAttachmentTurn(key, controller, null);
+				return;
+			}
+			const session = authorities.session;
+			const inputStore = authorities.inputStore;
+			let snapshot;
+			let inputSnapshot;
+			try {
+				snapshot = sessionSnapshotWithChat(key, session);
+				inputSnapshot = inputStore && typeof inputStore.getSnapshot === "function" ? inputStore.getSnapshot() : null;
+			} catch {
+				failAttachmentTurn(key, controller, inputStore);
+				return;
+			}
+			if (!snapshot || !inputSnapshot) {
+				failAttachmentTurn(key, controller, inputStore);
+				return;
+			}
+			if (snapshot.removed === true) {
+				destroyAttachmentTurn(key, controller);
+				return;
+			}
+			if (codexUserNode(snapshot, controller)) {
+				if (!token.hostRequested) clearAttachmentTurnAfterSubmit(key, controller);
+				return;
+			}
+			const previousPhase = controller.lastInputPhase;
+			const previousDraftRev = controller.lastInputDraftRev;
+			const inputPhase = inputSnapshot.phase;
+			const inputDraftRev = typeof inputSnapshot.draftRev === "number" ? inputSnapshot.draftRev : null;
+			if (inputPhase === "submitting") controller.sawSubmitting = true;
+			controller.lastInputPhase = inputPhase;
+			controller.lastInputDraftRev = inputDraftRev;
+			if (inputPhase === "submitting") return;
+			if (submissionHasNewPromptError(snapshot, controller)) {
+				failAttachmentTurn(key, controller, inputStore);
+				return;
+			}
+			if (controller.sawSubmitting && previousPhase === "submitting" && inputPhase === "plain" && inputDraftRev !== null && previousDraftRev !== null) {
+				if (inputDraftRev === previousDraftRev) failAttachmentTurn(key, controller, inputStore);
+				return;
+			}
+		}
+		function watchAttachmentTurnSession(key, controller) {
+			if (typeof controller.unsubscribeSession === "function") return true;
+			let authorities;
+			try {
+				authorities = codexTurnAuthorities(key);
+			} catch {
+				return false;
+			}
+			const session = authorities && authorities.session;
+			if (!session || typeof session.getSnapshot !== "function" || typeof session.subscribe !== "function") return false;
+			const onSession = () => {
+				if (attachmentTurnControllers.get(key) !== controller) return;
+				let snapshot;
+				try {
+					snapshot = sessionSnapshotWithChat(key, session);
+				} catch {
+					return;
+				}
+				if (snapshot && snapshot.removed === true) {
+					destroyAttachmentTurn(key, controller);
+					return;
+				}
+				const token = controller.attemptToken;
+				if (controller.phase !== "submitting" || !token) return;
+				if (!token.settlementReady) token.settlementQueued = true;
+				else settleAttachmentTurn(key, token);
+			};
+			let unsubscribe;
+			try {
+				unsubscribe = subscribeSessionWithChat(key, session, onSession);
+			} catch {
+				return false;
+			}
+			if (typeof unsubscribe !== "function") return false;
+			if (attachmentTurnControllers.get(key) !== controller) {
+				try {
+					unsubscribe();
+				} catch {}
+				return false;
+			}
+			controller.unsubscribeSession = unsubscribe;
+			return true;
+		}
+		function preparingAttachmentTurn(key, token) {
+			const controller = attachmentTurnControllers.get(key);
+			if (!controller || controller.phase !== "preparing" || controller.attemptToken !== token) return null;
+			let authorities;
+			try {
+				authorities = codexTurnAuthorities(key);
+			} catch {
+				abortAttachmentTurn(key, controller);
+				return null;
+			}
+			if (!authorities) {
+				abortAttachmentTurn(key, controller);
+				return null;
+			}
+			const session = authorities.session;
+			const inputStore = authorities.inputStore;
+			if (!session || typeof session.getSnapshot !== "function" || !inputStore || typeof inputStore.getSnapshot !== "function") {
+				abortAttachmentTurn(key, controller);
+				return null;
+			}
+			let sessionSnapshot;
+			let inputSnapshot;
+			try {
+				sessionSnapshot = sessionSnapshotWithChat(key, session);
+				inputSnapshot = inputStore.getSnapshot();
+			} catch {
+				abortAttachmentTurn(key, controller);
+				return null;
+			}
+			if (sessionSnapshot && sessionSnapshot.removed === true) {
+				destroyAttachmentTurn(key, controller);
+				return null;
+			}
+			const live = controller.latestProps;
+			const attachmentIds = codexAttachmentIds(codexAttachItems(key));
+			if (!sessionSnapshot || !inputSnapshot || inputSnapshot.phase !== "plain" || inputSnapshot.draft !== controller.originalDraft || !live || attachmentTurnKey(live) !== key || !sameCodexAttachmentIds(attachmentIds, controller.capturedAttachmentIds)) {
+				abortAttachmentTurn(key, controller);
+				return null;
+			}
+			return {
+				controller,
+				live,
+				sessionSnapshot,
+				inputStore
+			};
+		}
+		function attachmentPreparedDraft(key, controller, token) {
+			const clean = stripMentionArtifacts(controller.originalDraft);
+			const attachLine = formatAttachVisible(controller.capturedAttachments);
+			const block = formatKbTaskBlock(key);
+			const fallback = controller.capturedAttachments.length ? "请结合附件作答。" : "";
+			const body = [clean, attachLine].filter(Boolean).join("\n\n");
+			const draft = block ? body ? block + "\n\n" + body : block + (fallback ? "\n\n" + fallback : "") : body || fallback;
+			const marker = attachmentTransactionMarker(token);
+			return marker ? [draft, marker].filter(Boolean).join("\n\n") : draft;
+		}
+		async function prepareAttachmentTurn(key, token) {
+			const controller = attachmentTurnControllers.get(key);
+			if (!controller || controller.phase !== "preparing" || controller.attemptToken !== token) return;
+			if (controller.capturedAttachments.some((item) => item.cwd && controller.cwd && normPath(item.cwd) !== normPath(controller.cwd))) {
+				token.prepareSettled = true;
+				abortAttachmentTurn(key, controller);
+				showToast("附件来自另一个工作区，请重新添加后再发送");
+				return;
+			}
+			const items = controller.capturedAttachments;
+			const files = items.filter((item) => item.kind !== "image" && item.kind !== "folder" && (item.path || item.relativePath || item.name));
+			const folders = items.filter((item) => item.kind === "folder" && (item.path || item.relativePath));
+			if (files.length || folders.length) {
+				if (!isLiveSessionId(key) || !controller.cwd) {
+					token.prepareSettled = true;
+					abortAttachmentTurn(key, controller);
+					showToast("当前会话没有工作区，无法把附件交给模型");
+					return;
+				}
+				token.hostRequested = true;
+				try {
+					const result = await api("/api/agent-pi/llm/vision/read?sessionId=" + encodeURIComponent(key), controller.cwd, {
+						method: "POST",
+						timeoutMs: 3e4,
+						body: JSON.stringify({
+							sessionId: key,
+							transactionId: token.hostTransactionId,
+							cwd: controller.cwd,
+							files: files.map((item) => ({
+								name: item.name,
+								path: item.path || item.relativePath,
+								relativePath: item.relativePath || item.path,
+								kind: "file"
+							})),
+							folders: folders.map((item) => ({
+								name: item.name,
+								path: item.path || item.relativePath
+							})),
+							images: []
+						})
+					});
+					if (!result || result.stored !== true || result.sessionId !== key || result.transactionId !== token.hostTransactionId) throw new Error("附件上下文准备失败，请重试");
+					token.prepareSettled = true;
+					token.hostPrepared = true;
+					if (token.cancelWhenPrepared || attachmentTurnControllers.get(key) !== controller) {
+						cancelAttachmentTurnHost(key, controller, token);
+						return;
+					}
+				} catch (err) {
+					token.prepareSettled = true;
+					cancelAttachmentTurnHost(key, controller, token);
+					abortAttachmentTurn(key, controller);
+					showToast(String(err && err.message || err));
+					return;
+				}
+			} else token.prepareSettled = true;
+			if (!preparingAttachmentTurn(key, token)) return;
+			controller.framedDraft = attachmentPreparedDraft(key, controller, token);
 			requestAnimationFrame(() => {
-				const send = typeof submit === "function" ? submit : props && props.inputActions && props.inputActions.__apOrigSubmit;
-				if (typeof send === "function") send();
-				window.setTimeout(() => {
-					attachSubmitLock = false;
-					setAttachItems([], props);
-				}, 280);
+				commitAttachmentTurn(key, token);
 			});
 		}
+		async function commitAttachmentTurn(key, token) {
+			let prepared = preparingAttachmentTurn(key, token);
+			if (!prepared) return;
+			const controller = prepared.controller;
+			if (token.hostRequested) try {
+				await commitAttachmentTurnHost(key, controller, token);
+			} catch (error) {
+				cancelAttachmentTurnHost(key, controller, token);
+				failAttachmentTurn(key, controller, prepared.inputStore);
+				showToast(String(error && error.message || error));
+				return;
+			}
+			prepared = preparingAttachmentTurn(key, token);
+			if (!prepared) return;
+			const inputStore = prepared.inputStore;
+			try {
+				if (typeof inputStore.subscribe !== "function" || typeof controller.unsubscribeSession !== "function") throw new Error("attachment settlement subscriptions unavailable");
+				const actions = prepared.live && prepared.live.inputActions;
+				const submit = actions && actions.__apOrigSubmit;
+				if (typeof submit !== "function") throw new Error("attachment original submit unavailable");
+				controller.preSubmitUserNodeWatermark = codexUserNodeWatermark(prepared.sessionSnapshot);
+				controller.preSubmitPromptErrorRef = prepared.sessionSnapshot.promptError || null;
+				controller.preSubmitPromptErrorToken = JSON.stringify(prepared.sessionSnapshot.promptError || null);
+				controller.promptErrorBaselineCleared = false;
+				controller.phase = "submitting";
+				setComposerDraft(prepared.live, controller.framedDraft);
+				const inputSnapshot = inputStore.getSnapshot();
+				controller.lastInputPhase = inputSnapshot && inputSnapshot.phase;
+				controller.lastInputDraftRev = inputSnapshot && typeof inputSnapshot.draftRev === "number" ? inputSnapshot.draftRev : null;
+				controller.sawSubmitting = controller.lastInputPhase === "submitting";
+				token.settlementReady = false;
+				token.settlementQueued = false;
+				const onSettlement = () => {
+					if (!token.settlementReady) {
+						token.settlementQueued = true;
+						return;
+					}
+					settleAttachmentTurn(key, token);
+				};
+				const unsubscribe = inputStore.subscribe(onSettlement);
+				if (typeof unsubscribe !== "function") throw new Error("attachment input settlement subscription unavailable");
+				controller.unsubscribeInput = unsubscribe;
+				token.settlementReady = true;
+				submit();
+				const acceptedInput = inputStore.getSnapshot();
+				controller.acceptedDraft = acceptedInput && typeof acceptedInput.draft === "string" ? acceptedInput.draft : null;
+				controller.acceptedDraftRev = acceptedInput && typeof acceptedInput.draftRev === "number" ? acceptedInput.draftRev : null;
+				scheduleAttachmentTurnStatus(key, controller, token, "normal", 250);
+				if (token.settlementQueued) settleAttachmentTurn(key, token);
+			} catch {
+				failAttachmentTurn(key, controller, inputStore);
+			}
+		}
+		function submitAttachmentTurn(props) {
+			const key = attachmentTurnKey(props);
+			if (attachmentTurnControllers.has(key)) return;
+			const codexController = codexTurnControllers.get(key);
+			if (codexController && (codexController.phase === "preparing" || codexController.phase === "submitting")) {
+				showToast("当前会话已有 Codex 附件事务，请等待完成后重试");
+				return;
+			}
+			let authorities;
+			let sessionSnapshot;
+			let inputSnapshot;
+			try {
+				authorities = codexTurnAuthorities(key);
+				if (!authorities || !authorities.session || !authorities.inputStore) {
+					showToast("当前会话正在切换，请稍后重试");
+					return;
+				}
+				sessionSnapshot = sessionSnapshotWithChat(key, authorities.session);
+				inputSnapshot = authorities.inputStore.getSnapshot();
+			} catch {
+				showToast("当前会话状态不可用，请刷新后重试");
+				return;
+			}
+			if (!sessionSnapshot || sessionSnapshot.removed === true || !inputSnapshot || inputSnapshot.phase !== "plain" || typeof inputSnapshot.draft !== "string") {
+				showToast("当前会话正在切换或输入状态忙，请稍后重试");
+				return;
+			}
+			const cleanDraft = stripMentionArtifacts(inputSnapshot.draft);
+			if (cleanDraft !== inputSnapshot.draft) try {
+				setComposerDraft(props, cleanDraft);
+				inputSnapshot = authorities.inputStore.getSnapshot();
+			} catch {
+				return;
+			}
+			const attachments = codexAttachItems(key).slice();
+			const token = {
+				prepareSettled: false,
+				cancelWhenPrepared: false,
+				cancelRequested: false,
+				hostRequested: false,
+				hostPrepared: false,
+				hostCommitted: false,
+				hostTransactionId: attachmentTransactionId(key)
+			};
+			const controller = {
+				phase: "preparing",
+				latestProps: props,
+				attemptToken: token,
+				originalDraft: inputSnapshot.draft,
+				framedDraft: "",
+				capturedAttachments: attachments,
+				capturedAttachmentIds: codexAttachmentIds(attachments),
+				preSubmitUserNodeWatermark: -1,
+				preSubmitPromptErrorRef: sessionSnapshot.promptError || null,
+				preSubmitPromptErrorToken: JSON.stringify(sessionSnapshot.promptError || null),
+				promptErrorBaselineCleared: false,
+				lastInputPhase: null,
+				lastInputDraftRev: null,
+				sawSubmitting: false,
+				acceptedDraft: null,
+				acceptedDraftRev: null,
+				cwd: workspaceCwd(props),
+				inputStore: authorities.inputStore,
+				unsubscribeSession: null,
+				unsubscribeInput: null
+			};
+			attachmentTurnControllers.set(key, controller);
+			if (!watchAttachmentTurnSession(key, controller)) {
+				closeAttachmentTurn(key, controller, "failed");
+				showToast("当前会话状态不可用，请刷新后重试");
+				return;
+			}
+			prepareAttachmentTurn(key, token);
+		}
 		function foldAndSubmit(props) {
-			foldAttachmentsIntoDraft(props).then((folded) => {
-				if (folded) submitAfterFold(props);
-			}).catch(() => {});
+			submitAttachmentTurn(props);
 		}
 		function failCodexPreparation(key, token, message) {
 			const controller = codexTurnControllers.get(key);
@@ -7034,14 +7910,16 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			rearmCodexTurn(key, controller);
 			if (message) showToast(message);
 		}
-		function codexPreparedDraft(key, controller) {
+		function codexPreparedDraft(key, controller, token) {
 			const clean = stripMentionArtifacts(controller.originalDraft);
 			const items = controller.capturedAttachments;
 			const attachLine = formatAttachVisible(items);
 			const block = formatKbTaskBlock(key);
 			const fallback = items.length ? "请结合附件作答。" : "";
 			const body = [clean, attachLine].filter(Boolean).join("\n\n");
-			return buildCodexTurnDelegation(block ? body ? block + "\n\n" + body : block + (fallback ? "\n\n" + fallback : "") : body || fallback);
+			const delegation = buildCodexTurnDelegation(block ? body ? block + "\n\n" + body : block + (fallback ? "\n\n" + fallback : "") : body || fallback);
+			const marker = attachmentTransactionMarker(token);
+			return marker ? delegation + "\n\n" + marker : delegation;
 		}
 		async function prepareCodexTurn(key, token) {
 			const desktop = window.agentPiDesktop;
@@ -7056,18 +7934,26 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			if (!prepared) return;
 			const items = prepared.controller.capturedAttachments;
 			const cwd = prepared.live && prepared.live.cwd || workspaceCwd(prepared.live);
+			if (items.some((item) => item.cwd && cwd && normPath(item.cwd) !== normPath(cwd))) {
+				failCodexPreparation(key, token, "附件来自另一个工作区，请重新添加后再发送");
+				return;
+			}
 			const files = items.filter((item) => item.kind !== "image" && item.kind !== "folder" && (item.path || item.relativePath || item.name));
 			const folders = items.filter((item) => item.kind === "folder" && (item.path || item.relativePath));
+			prepared.controller.cwd = cwd || "";
 			if (files.length || folders.length) {
 				if (!isLiveSessionId(key) || !cwd) {
 					failCodexPreparation(key, token, "当前会话没有工作区，无法把附件交给模型");
 					return;
 				}
+				token.hostRequested = true;
 				try {
-					await api("/api/agent-pi/llm/vision/read?sessionId=" + encodeURIComponent(key), cwd, {
+					const result = await api("/api/agent-pi/llm/vision/read?sessionId=" + encodeURIComponent(key), cwd, {
 						method: "POST",
+						timeoutMs: 3e4,
 						body: JSON.stringify({
 							sessionId: key,
+							transactionId: token.hostTransactionId,
 							cwd,
 							files: files.map((item) => ({
 								name: item.name,
@@ -7082,24 +7968,45 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 							images: []
 						})
 					});
+					if (!result || result.stored !== true || result.sessionId !== key || result.transactionId !== token.hostTransactionId) throw new Error("附件上下文准备失败，请重试");
+					token.prepareSettled = true;
+					token.hostPrepared = true;
+					if (token.cancelWhenPrepared || codexTurnControllers.get(key) !== prepared.controller) {
+						cancelAttachmentTurnHost(key, prepared.controller, token);
+						return;
+					}
 				} catch (err) {
+					token.prepareSettled = true;
+					cancelAttachmentTurnHost(key, prepared.controller, token);
 					failCodexPreparation(key, token, String(err && err.message || err));
 					return;
 				}
 				prepared = preparingCodexTurn(key, token);
 				if (!prepared) return;
-			}
+			} else token.prepareSettled = true;
 			try {
-				prepared.controller.framedDraft = codexPreparedDraft(key, prepared.controller);
-				requestAnimationFrame(() => commitCodexTurn(key, token));
+				prepared.controller.framedDraft = codexPreparedDraft(key, prepared.controller, token);
+				requestAnimationFrame(() => {
+					commitCodexTurn(key, token);
+				});
 			} catch {
 				failCodexPreparation(key, token);
 			}
 		}
-		function commitCodexTurn(key, token) {
-			const prepared = preparingCodexTurn(key, token);
+		async function commitCodexTurn(key, token) {
+			let prepared = preparingCodexTurn(key, token);
 			if (!prepared) return;
 			const controller = prepared.controller;
+			if (token.hostRequested) try {
+				await commitAttachmentTurnHost(key, controller, token);
+			} catch (error) {
+				cancelAttachmentTurnHost(key, controller, token);
+				failCodexTurn(key, controller, prepared.inputStore);
+				showToast(String(error && error.message || error));
+				return;
+			}
+			prepared = preparingCodexTurn(key, token);
+			if (!prepared) return;
 			const inputStore = prepared.inputStore;
 			try {
 				if (typeof inputStore.subscribe !== "function" || !watchCodexTurnSession(key, controller)) throw new Error("Codex settlement subscriptions unavailable");
@@ -7107,6 +8014,9 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				const submit = actions && actions.__apOrigSubmit;
 				if (typeof submit !== "function") throw new Error("Codex original submit unavailable");
 				controller.preSubmitUserNodeWatermark = codexUserNodeWatermark(prepared.sessionSnapshot);
+				controller.preSubmitPromptErrorRef = prepared.sessionSnapshot.promptError || null;
+				controller.preSubmitPromptErrorToken = JSON.stringify(prepared.sessionSnapshot.promptError || null);
+				controller.promptErrorBaselineCleared = false;
 				controller.phase = "submitting";
 				setComposerDraft(prepared.live, controller.framedDraft);
 				const inputSnapshot = inputStore.getSnapshot();
@@ -7128,6 +8038,10 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				controller.unsubscribeInput = unsubscribeInput;
 				token.settlementReady = true;
 				submit();
+				const acceptedInput = inputStore.getSnapshot();
+				controller.acceptedDraft = acceptedInput && typeof acceptedInput.draft === "string" ? acceptedInput.draft : null;
+				controller.acceptedDraftRev = acceptedInput && typeof acceptedInput.draftRev === "number" ? acceptedInput.draftRev : null;
+				scheduleAttachmentTurnStatus(key, controller, token, "codex", 250);
 				if (token.settlementQueued) settleCodexTurn(key, token);
 			} catch {
 				failCodexTurn(key, controller, inputStore);
@@ -7137,6 +8051,10 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			const key = codexTurnKey(props);
 			const controller = codexTurnControllers.get(key);
 			if (!controller || controller.phase !== "armed") return;
+			if (attachmentTurnControllers.has(key)) {
+				showToast("当前会话已有附件发送事务，请等待完成后重试");
+				return;
+			}
 			controller.latestProps = props;
 			let authorities;
 			let sessionSnapshot;
@@ -7144,7 +8062,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			try {
 				authorities = codexTurnAuthorities(key);
 				if (!authorities) {
-					disposeCodexTurn(key, controller);
+					showToast("当前会话正在切换，请稍后重试");
 					return;
 				}
 				if (!authorities.session || typeof authorities.session.getSnapshot !== "function" || !authorities.inputStore || typeof authorities.inputStore.getSnapshot !== "function") return;
@@ -7159,14 +8077,28 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			}
 			if (!sessionSnapshot || !inputSnapshot || inputSnapshot.phase !== "plain" || typeof inputSnapshot.draft !== "string") return;
 			const attachments = codexAttachItems(key).slice();
-			const token = {};
+			const token = {
+				prepareSettled: false,
+				cancelWhenPrepared: false,
+				cancelRequested: false,
+				hostRequested: false,
+				hostPrepared: false,
+				hostCommitted: false,
+				hostTransactionId: attachmentTransactionId(key)
+			};
 			controller.phase = "preparing";
 			controller.attemptToken = token;
 			controller.originalDraft = inputSnapshot.draft;
 			controller.framedDraft = "";
 			controller.capturedAttachments = attachments;
 			controller.capturedAttachmentIds = codexAttachmentIds(attachments);
+			controller.inputStore = authorities.inputStore;
 			controller.preSubmitUserNodeWatermark = -1;
+			controller.preSubmitPromptErrorRef = sessionSnapshot.promptError || null;
+			controller.preSubmitPromptErrorToken = JSON.stringify(sessionSnapshot.promptError || null);
+			controller.promptErrorBaselineCleared = false;
+			controller.acceptedDraft = null;
+			controller.acceptedDraftRev = null;
 			notifyCodexTurn();
 			prepareCodexTurn(key, token);
 		}
@@ -7175,6 +8107,8 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			if (!actions || typeof actions.submit !== "function") return;
 			actions.__apLatestProps = props;
 			trackCodexTurnProps(props);
+			const attachmentController = attachmentTurnControllers.get(attachmentTurnKey(props));
+			if (attachmentController) attachmentController.latestProps = props;
 			if (actions.__apFoldWrapped) return;
 			const orig = actions.submit.bind(actions);
 			actions.__apOrigSubmit = orig;
@@ -7185,18 +8119,18 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					submitCodexTurn(live);
 					return;
 				}
+				const attachmentKey = attachmentTurnKey(live);
+				if (attachmentTurnControllers.has(attachmentKey)) return;
 				restoreCleanDraft(live);
 				const sid = sessionHint(live) || runtime.sessionId || "active";
-				const hasAttach = attachItemsOf(attachSessionId(live)).length > 0;
+				const hasAttach = codexAttachItems(attachmentKey).length > 0;
 				const hasKb = kbTaskOf(sid).slugs.length > 0;
 				if (hasAttach) {
-					foldAttachmentsIntoDraft(live).then((folded) => {
-						if (folded) submitAfterFold(live, orig);
-					}).catch(() => {});
+					submitAttachmentTurn(live);
 					return;
 				}
 				if (hasKb && stripMentionArtifacts(currentDraft(live))) {
-					submitAfterFold(live, orig);
+					submitAttachmentTurn(live);
 					return;
 				}
 				if (stripMentionArtifacts(before) !== before) {
@@ -7306,11 +8240,14 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		}
 		function mergeImportedItems(props, imported) {
 			const sid = resolveSessionId(props) || resolveSessionId(composerPropsRef.current) || runtime.sessionId || "pending";
-			const current = (attachState.items || []).slice();
+			const current = attachItemsOf(sid).slice();
 			for (const item of imported || []) {
 				const idx = current.findIndex((row) => row.name === item.name && row.kind === item.kind);
-				if (idx >= 0) current[idx] = Object.assign({}, current[idx], item);
-				else if (!current.some((row) => attachKey(row) === attachKey(item))) current.push(item);
+				if (idx >= 0) {
+					const stableId = current[idx].id;
+					current[idx] = Object.assign({}, current[idx], item);
+					if (stableId) current[idx].id = stableId;
+				} else if (!current.some((row) => attachKey(row) === attachKey(item))) current.push(item);
 			}
 			setAttachItemsFor(sid, current);
 		}
@@ -7527,9 +8464,9 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			return seat ? String(seat.textContent || "").replace(/\s+/g, " ").trim() : "";
 		}
 		function sourceLabel(source) {
-			if (source === "official-output") return langState.lang === "en" ? "Official" : "正式";
-			if (source === "attachment") return langState.lang === "en" ? "Upload" : "上传";
-			if (source === "tender-workspace") return langState.lang === "en" ? "Project" : "项目";
+			if (source === "official-output") return langState.lang === "zh" ? "正式" : "Official";
+			if (source === "attachment") return langState.lang === "zh" ? "上传" : "Upload";
+			if (source === "tender-workspace") return langState.lang === "zh" ? "项目" : "Project";
 			return null;
 		}
 		function displayFileName(file) {
@@ -9524,7 +10461,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					return !/停止|Stop|stop/i.test(label);
 				};
 				const onClick = (event) => {
-					if (!attachItemsOf(attachSessionId(propsRef.current)).length) return;
+					if (!codexAttachItems(attachmentTurnKey(propsRef.current)).length) return;
 					if (!isSendButton(event.target.closest("button"))) return;
 					event.preventDefault();
 					event.stopPropagation();
@@ -9537,9 +10474,9 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				};
 				const onKeyDown = (event) => {
 					if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
-					if (!attachItemsOf(attachSessionId(propsRef.current)).length) return;
-					const ta = event.target;
-					if (!ta || ta.tagName !== "TEXTAREA" || !ta.closest("[data-composer-card]")) return;
+					if (!codexAttachItems(attachmentTurnKey(propsRef.current)).length) return;
+					const input = event.target && typeof event.target.closest === "function" ? event.target.closest("textarea, [data-composer-input]") : null;
+					if (!input || !input.closest("[data-composer-card]")) return;
 					event.preventDefault();
 					event.stopPropagation();
 					if (codexTurnArmed(propsRef.current)) {
@@ -9563,7 +10500,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					method: "POST",
 					body: JSON.stringify({
 						input: draft,
-						attachments: attachItemsOf(attachSessionId(live)).map((item) => ({
+						attachments: codexAttachItems(attachmentTurnKey(live)).map((item) => ({
 							name: item.name,
 							type: item.kind,
 							size: item.size
@@ -9976,21 +10913,34 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			}, [cwd, paths.join("|")]);
 			return null;
 		}
-		function LanguageToggle() {
+		function LanguageToggle(props) {
 			const lang = useApLang();
-			return h("button", {
-				type: "button",
+			return h("div", {
+				ref: usePlaced("ap-mount-lang"),
+				className: "ap-lang-host" + (props && props.wide ? "" : " rail"),
+				"data-ap-place": "ap-mount-lang"
+			}, props && props.wide ? h("select", {
 				className: "ap-lang",
+				value: lang,
 				title: tAp("lang.title"),
 				"aria-label": tAp("lang.title"),
-				onClick: () => {
-					const next = lang === "zh" ? "en" : "zh";
-					setApLang(next);
+				onClick: (event) => {
+					event.stopPropagation();
+				},
+				onChange: (event) => {
+					const next = localeIdOf(event.target.value);
 					if (runtime.locale && typeof runtime.locale.setLocale === "function") try {
 						runtime.locale.setLocale(next);
-					} catch {}
+						setApLang(next);
+					} catch {
+						showToast(tAp("lang.switchFailed"));
+					}
+					else setApLang(next);
 				}
-			}, lang === "zh" ? h(react.Fragment, null, h("b", null, "中"), " / EN") : h(react.Fragment, null, "中 / ", h("b", null, "EN")));
+			}, AP_LANGUAGE_DEFINITIONS.map((language) => h("option", {
+				key: language.id,
+				value: language.id
+			}, language.label))) : null);
 		}
 		function uniqueIds(ids) {
 			const out = [];
@@ -10492,12 +11442,16 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			placingSidebar = true;
 			try {
 				const company = ensureMount("ap-mount-company");
+				const lang = ensureMount("ap-mount-lang");
+				lang.classList.add("ap-mount-lang");
 				const wb = ensureMount("ap-mount-wb");
 				const kb = ensureMount("ap-mount-kb");
 				const archive = ensureMount("ap-mount-archive");
 				const pi = ensureMount("ap-mount-pi");
 				const staleSessions = document.getElementById("ap-mount-sessions");
 				if (staleSessions) staleSessions.remove();
+				const logoToggle = parts.logoRow.lastElementChild;
+				if (lang.parentElement !== parts.logoRow || lang.nextElementSibling !== logoToggle) parts.logoRow.insertBefore(lang, logoToggle || null);
 				const seq = [
 					parts.logoRow,
 					company,
@@ -10512,6 +11466,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				for (let i = 0; i < seq.length; i++) if (parts.root.children[i] !== seq[i]) parts.root.insertBefore(seq[i], parts.root.children[i] || null);
 				[
 					"ap-mount-company",
+					"ap-mount-lang",
 					"ap-mount-wb",
 					"ap-mount-kb",
 					"ap-mount-archive"
@@ -10864,7 +11819,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		}
 		function CodexSettingsSection() {
 			const desktop = window.agentPiDesktop;
-			const zh = useApLang() !== "en";
+			const zh = useApLang() === "zh";
 			const [auth, setAuth] = react.useState({
 				available: true,
 				state: "checking"
@@ -11138,7 +12093,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				name: "settings.section",
 				id: "agent-pi-codex",
 				order: 15,
-				label: () => langState.lang === "en" ? "Codex Agent" : "Codex 智能体"
+				label: () => tAp("codex.title")
 			}, CodexSettingsSection));
 			ctx.slots.inject("shell.overlay", () => ctx.slots.register({
 				name: "shell.overlay",
@@ -11189,6 +12144,20 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			});
 			ctx.inject(["locale"], (scope) => {
 				runtime.locale = scope.locale || (typeof scope.get === "function" ? scope.get("locale") : null) || runtime.locale;
+				if (runtime.locale && typeof runtime.locale.addLanguage === "function" && typeof runtime.locale.getLocale === "function") {
+					const registered = new Set((runtime.locale.getLocale().locales || []).map((language) => String(language.id || "").toLowerCase()));
+					for (const language of AP_LANGUAGE_DEFINITIONS) {
+						if (registered.has(language.id)) continue;
+						try {
+							runtime.locale.addLanguage({
+								id: language.id,
+								label: language.label,
+								fallback: language.fallback
+							});
+							registered.add(language.id);
+						} catch {}
+					}
+				}
 				const applyLang = () => {
 					const snap = runtime.locale && typeof runtime.locale.getLocale === "function" ? runtime.locale.getLocale() : null;
 					setApLang(snap && snap.active ? snap.active : snap && snap.locale);

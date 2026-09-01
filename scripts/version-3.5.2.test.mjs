@@ -14,20 +14,20 @@ function readText(...parts) {
   return readFileSync(join(root, ...parts), 'utf8')
 }
 
-test('release manifests resolve to Agent Pi DSH 3.5.2', () => {
+test('release manifests resolve to Agent Pi DSH 3.5.3 while the static website fallback stays on 3.5.2', () => {
   const rootPackage = readJson('package.json')
   const desktopPackage = readJson('apps', 'desktop', 'package.json')
   const desktopLock = readJson('apps', 'desktop', 'package-lock.json')
   const compactionPackage = readJson('bundles', 'agent-pi-compaction', 'package.json')
 
-  assert.equal(rootPackage.version, '3.5.2')
-  assert.equal(desktopPackage.version, '3.5.2')
-  assert.equal(desktopLock.version, '3.5.2')
-  assert.equal(desktopLock.packages[''].version, '3.5.2')
-  assert.equal(compactionPackage.version, '3.5.2')
+  assert.equal(rootPackage.version, '3.5.3')
+  assert.equal(desktopPackage.version, '3.5.3')
+  assert.equal(desktopLock.version, '3.5.3')
+  assert.equal(desktopLock.packages[''].version, '3.5.3')
+  assert.equal(compactionPackage.version, '3.5.3')
 
   const codexModels = readText('apps', 'desktop', 'codex-models.mjs')
-  assert.match(codexModels, /clientInfo: \{ name: 'agent-pi-dsh', version: '3\.5\.2' \}/)
+  assert.match(codexModels, /clientInfo: \{ name: 'agent-pi-dsh', version: '3\.5\.3' \}/)
 
   const website = readText('website', 'index.html')
   const websiteDocs = readText('website', 'docs.html')
@@ -68,7 +68,7 @@ test('public website exposes three-platform 3.5.2 fallback and syncs only a comp
 test('release upload paths are immutable and cross-platform builds run from the release tag', () => {
   const publish = readText('scripts', 'publish-win-and-trigger-platforms.ps1')
   const workflow = readText('.github', 'workflows', 'build-desktop-assets.yml')
-  const createRelease = readText('release', 'publish-v3.5.2-release.mjs')
+  const createRelease = readText('release', 'publish-v3.5.3-release.mjs')
   assert.doesNotMatch(publish, /--clobber/)
   assert.doesNotMatch(workflow, /--clobber/)
   assert.match(publish, /workflow run build-desktop-assets\.yml --repo \$Repo --ref \$Tag/)
