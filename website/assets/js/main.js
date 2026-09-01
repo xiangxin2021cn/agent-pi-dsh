@@ -121,7 +121,10 @@
     var tag = release && release.tag_name;
     if (!/^v\d+\.\d+\.\d+$/.test(tag || "") || release.draft || release.prerelease ||
       typeof release.published_at !== "string" || Number.isNaN(Date.parse(release.published_at))) return;
-    var version = tag.slice(1);
+    var identity = window.AgentPiReleaseMetadata &&
+      window.AgentPiReleaseMetadata.releaseIdentity(release);
+    if (!identity) return;
+    var version = identity.appVersion;
     var prefix = "Agent-Pi-DSH-" + version;
     var byName = {};
     (release.assets || []).forEach(function (asset) { byName[asset.name] = asset; });
@@ -151,6 +154,14 @@
     });
     document.querySelectorAll("[data-release-sha]").forEach(function (node) {
       node.textContent = digestMatch[1].toUpperCase();
+    });
+    document.querySelectorAll("[data-kernel-version]").forEach(function (node) {
+      node.textContent = identity.kernelVersion;
+    });
+    document.querySelectorAll("[data-kernel-pin]").forEach(function (node) {
+      if (!identity.kernelPin) return;
+      var length = Number(node.getAttribute("data-kernel-pin-length")) || 40;
+      node.textContent = identity.kernelPin.slice(0, length);
     });
 
     Object.keys(assetSuffixes).forEach(function (key) {
