@@ -353,7 +353,7 @@
       <h2 data-lang="zh">模型、视觉与 Codex</h2>
       <h2 data-lang="en">Models, vision &amp; Codex</h2>
       <div data-lang="zh">
-        <p>内核钉在 DeepSeek Harness <code>dsh-v0.1.2-alpha.3</code>（<code>dd6322d604</code>），桌面壳 Electron 43.4.1；Agent Pi 兼容层不修改官方 DSH 内核。</p>
+        <p>内核钉在 DeepSeek Harness <code data-kernel-version>dsh-v0.1.2-alpha.3</code>（<code data-kernel-pin data-kernel-pin-length="10">dd6322d604</code>），桌面壳 Electron 43.4.1；Agent Pi 兼容层不修改官方 DSH 内核。</p>
         <ul>
           <li>新会话默认 <b>DeepSeek-V4-Flash-Vision-Exp</b>；Flash / Pro 仍是纯文本——只选它们<b>看不见图片</b>。已有会话沿用当时记在日志里的模型。</li>
           <li>贴图：规范化 → Files API，失败再 inline。工作区图片用官方 <code>read_image</code>。系统提示不再点名已卸掉的 <code>vision_*</code>。</li>
@@ -363,7 +363,7 @@
         <div class="callout"><p><b>选模型口诀：</b>要识图，选 Vision-Exp；只跑文本长任务，Flash / Pro 更省。推理强度可调到 <code>low</code> 进一步降本。</p></div>
       </div>
       <div data-lang="en">
-        <p>The kernel is pinned to DeepSeek Harness <code>dsh-v0.1.2-alpha.3</code> (<code>dd6322d604</code>) on Electron 43.4.1; the Agent Pi compatibility layer does not modify the official DSH kernel.</p>
+        <p>The kernel is pinned to DeepSeek Harness <code data-kernel-version>dsh-v0.1.2-alpha.3</code> (<code data-kernel-pin data-kernel-pin-length="10">dd6322d604</code>) on Electron 43.4.1; the Agent Pi compatibility layer does not modify the official DSH kernel.</p>
         <ul>
           <li>New sessions default to <b>DeepSeek-V4-Flash-Vision-Exp</b>; Flash / Pro are text-only — with those, <b>images are invisible</b>. Existing sessions keep the model recorded in their logs.</li>
           <li>Pasted images: normalize → Files API, inline as fallback. Workspace images use the official <code>read_image</code>. The system prompt no longer names the removed <code>vision_*</code> tools.</li>
@@ -496,6 +496,7 @@
   </div>
 </footer>
 
-<script src="assets/js/main.js?v=26"></script>
+<script src="assets/js/release-metadata.js?v=27"></script>
+<script src="assets/js/main.js?v=27"></script>
 </body>
 </html>

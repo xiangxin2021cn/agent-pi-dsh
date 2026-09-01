@@ -1,5 +1,7 @@
 # Agent Pi DSH 3.5.2 — DSH alpha.3 正式升级
 
+<!-- agent-pi-release-meta: {"schema":1,"appVersion":"3.5.2","kernel":{"releaseTag":"dsh-v0.1.2-alpha.3","commit":"dd6322d604e00eec1ba5e0c8541159906a21094a"}} -->
+
 本版本将核心依赖正式升级到 DeepSeek Harness **`dsh-v0.1.2-alpha.3`**（`dd6322d604`），通过独立 `v3.5.2` 标签和 Release 发布，不覆盖 3.5.1。
 
 ## 主要变化
