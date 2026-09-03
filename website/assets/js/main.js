@@ -170,6 +170,7 @@
     });
     document.querySelectorAll("[data-release-sha]").forEach(function (node) {
       node.textContent = digestMatch[1].toUpperCase();
+      node.setAttribute("data-release-sha-source", "github-release");
     });
     document.querySelectorAll("[data-kernel-version]").forEach(function (node) {
       node.textContent = identity.kernelVersion;

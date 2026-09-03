@@ -13,7 +13,8 @@
 
 import { cpSync, existsSync, mkdirSync, rmSync, statSync, chmodSync, copyFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { verifyDshAlpha3Runtime } from './verify-dsh-alpha3-runtime.mjs'
+import { dshBuildReceiptName, verifyDshBuildReceipt } from './dsh-build-receipt.mjs'
+import { verifyDshRuntime } from './verify-dsh-runtime.mjs'
 
 function arg(name, fallback = null) {
   const index = process.argv.indexOf(`--${name}`)
@@ -54,6 +55,11 @@ if (!existsSync(join(product, 'package.json'))) {
   console.error(`product tree missing package.json under ${product}`)
   process.exit(1)
 }
+verifyDshBuildReceipt({
+  dshRoot: dsh,
+  productRoot: product,
+  receiptPath: join(dsh, dshBuildReceiptName),
+})
 
 mkdirSync(runtime, { recursive: true })
 
@@ -77,7 +83,12 @@ function stage(label, src, dest) {
 
 stage('product', product, join(runtime, 'product'))
 stage('deepseek-harness', dsh, join(runtime, 'deepseek-harness'))
-verifyDshAlpha3Runtime(join(runtime, 'deepseek-harness'), join(runtime, 'product'))
+verifyDshBuildReceipt({
+  dshRoot: join(runtime, 'deepseek-harness'),
+  productRoot: join(runtime, 'product'),
+  receiptPath: join(runtime, 'deepseek-harness', dshBuildReceiptName),
+})
+verifyDshRuntime(join(runtime, 'deepseek-harness'), join(runtime, 'product'))
 
 // Smoke-check the staged tree the same way the packaged app will.
 const staged = join(runtime, 'deepseek-harness')

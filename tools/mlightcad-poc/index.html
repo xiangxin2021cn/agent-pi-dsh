@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <meta name="color-scheme" content="light dark" />
+    <title>Agent Pi DSH · DWG 预览</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="title-group">
+          <span class="title-mark" aria-hidden="true">DWG</span>
+          <div>
+            <h1>二维图纸预览</h1>
+            <p id="drawing-name">尚未打开图纸</p>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <button class="external-button" id="external-button" type="button" hidden>
+            用系统应用打开
+          </button>
+          <button class="open-button" id="open-button" type="button">
+            选择 DWG / DXF
+          </button>
+        </div>
+        <input id="file-input" type="file" accept=".dwg,.dxf" hidden />
+      </header>
+
+      <main id="viewer-host" class="viewer-host">
+        <section id="empty-state" class="empty-state">
+          <div class="empty-icon" aria-hidden="true">⌗</div>
+          <h2>打开二维 CAD 图纸</h2>
+          <p>本地文件只在当前页面内解析，不上传到外部服务。</p>
+          <button class="empty-open-button" id="empty-open-button" type="button">
+            选择文件
+          </button>
+        </section>
+        <div id="busy-state" class="busy-state" hidden>
+          <span class="spinner" aria-hidden="true"></span>
+          <span id="busy-message">正在准备查看器…</span>
+        </div>
+      </main>
+
+      <footer class="statusbar">
+        <span id="status-message" role="status" aria-live="polite">准备就绪</span>
+        <span class="scope-note">只读 PoC · MLightCAD + LibreDWG</span>
+      </footer>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

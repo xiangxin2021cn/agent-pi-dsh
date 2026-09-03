@@ -22,8 +22,17 @@ function createCleanCheckout() {
 
 test('official DSH guard accepts a byte-clean checkout', () => {
   const dshRoot = createCleanCheckout()
-  assert.equal(assertDshCheckoutClean({ dshRoot }), 'clean')
+  const expectedCommit = spawnSync('git', ['-C', dshRoot, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).stdout.trim()
+  assert.equal(assertDshCheckoutClean({ dshRoot, expectedCommit }), 'clean')
   assert.equal(prepareDshKernel({ dshRoot }), 'clean')
+})
+
+test('official DSH guard refuses a clean checkout at the wrong commit', () => {
+  const dshRoot = createCleanCheckout()
+  assert.throws(
+    () => assertDshCheckoutClean({ dshRoot, expectedCommit: '0'.repeat(40) }),
+    /DSH_PIN requires/,
+  )
 })
 
 test('official DSH guard refuses tracked and untracked source changes', () => {

@@ -2,13 +2,17 @@ param(
   [switch]$SkipPrepare,
   [switch]$DirOnly,
   [switch]$ReuseUnpacked,
-  [switch]$ToolchainOnly
+  [switch]$ToolchainOnly,
+  [string]$CadCleanOutput = $env:AGENT_PI_CAD_CLEAN_OUTPUT
 )
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 $Desktop = Join-Path $Root "apps\desktop"
 $AppVersion = (Get-Content (Join-Path $Desktop "package.json") -Raw | ConvertFrom-Json).version
+if ($AppVersion -eq "3.6.0" -and ($SkipPrepare -or $ReuseUnpacked)) {
+  throw "Agent Pi DSH 3.6.0 packaging forbids -SkipPrepare and -ReuseUnpacked"
+}
 $InstallerName = "Agent-Pi-DSH-$AppVersion-x64.exe"
 $Dsh = Join-Path $Root "vendor\deepseek-harness"
 $WebDist = Join-Path $Dsh "apps\web\dist\index.html"
@@ -21,40 +25,41 @@ $IconDir = Join-Path $Desktop "build"
 $IconDest = Join-Path $IconDir "icon.png"
 $InstallerIcon = Join-Path $IconDir "icon.ico"
 $InstallerHeader = Join-Path $IconDir "installer-header.bmp"
+$DshReceiptName = "DSH-BUILD-RECEIPT.json"
+$DshBuildReceipt = Join-Path $Root ".codex-temp\dsh-build\$DshReceiptName"
 
-function Get-NodeAdjacentCommand([string]$name) {
+function Get-NodeNpmCli {
   $node = (Get-Command node -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
-  $command = Join-Path (Split-Path -Parent $node) "$name.cmd"
-  if (-not (Test-Path $command)) {
-    throw "$name.cmd missing next to resolved node executable: $node"
+  $candidates = @(
+    (Join-Path (Split-Path -Parent $node) "node_modules\npm\bin\npm-cli.js"),
+    (Join-Path $env:ProgramFiles "nodejs\node_modules\npm\bin\npm-cli.js")
+  ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
+  $npmCli = $candidates | Select-Object -First 1
+  if (-not $npmCli) {
+    throw "npm-cli.js missing for resolved node executable: $node"
   }
-  return $command
+  return @{ Node = $node; NpmCli = $npmCli }
+}
+
+function Invoke-NpmCommand([string]$dir, [string]$label, [string[]]$npmArgs) {
+  $tool = Get-NodeNpmCli
+  $npmExit = 1
+  Push-Location $dir
+  try {
+    & $tool.Node $tool.NpmCli @npmArgs
+    $npmExit = $LASTEXITCODE
+  } finally {
+    Pop-Location
+  }
+  if ($npmExit -ne 0) { throw "$label npm $($npmArgs -join ' ') failed: $npmExit" }
 }
 
 function Invoke-NpmInstall([string]$dir, [string]$label) {
-  $npm = Get-NodeAdjacentCommand "npm"
-  $installExit = 1
-  Push-Location $dir
-  try {
-    & $npm install --no-fund --no-audit
-    $installExit = $LASTEXITCODE
-  } finally {
-    Pop-Location
-  }
-  if ($installExit -ne 0) { throw "$label npm install failed: $installExit" }
+  Invoke-NpmCommand $dir $label @("install", "--no-fund", "--no-audit")
 }
 
 function Invoke-NpmCi([string]$dir, [string]$label) {
-  $npm = Get-NodeAdjacentCommand "npm"
-  $installExit = 1
-  Push-Location $dir
-  try {
-    & $npm ci --no-fund --no-audit
-    $installExit = $LASTEXITCODE
-  } finally {
-    Pop-Location
-  }
-  if ($installExit -ne 0) { throw "$label npm ci failed: $installExit" }
+  Invoke-NpmCommand $dir $label @("ci", "--no-fund", "--no-audit")
 }
 
 function Invoke-DesktopToolchain {
@@ -151,16 +156,82 @@ function Find-Makensis {
   throw "makensis.exe not found. Install NSIS (https://nsis.sourceforge.io/)."
 }
 
+function Test-CadViewerAssets([string]$dir) {
+  if (-not (Test-Path (Join-Path $dir "index.html"))) { return $false }
+  $files = @(Get-ChildItem -LiteralPath $dir -Recurse -File -ErrorAction SilentlyContinue)
+  $names = @($files | ForEach-Object { $_.Name })
+  $mainJs = @($files | Where-Object {
+    $_.Extension -eq ".js" -and $_.Name -notin @("libredwg-parser-worker.js", "mtext-renderer-worker.js")
+  })
+  $fallbackFont = Join-Path $dir "resources\fonts\SourceHanSansCN-Regular.otf"
+  return (
+    $mainJs.Count -gt 0 -and
+    @($files | Where-Object { $_.Extension -eq ".css" }).Count -gt 0 -and
+    $names -contains "libredwg-parser-worker.js" -and
+    $names -contains "libredwg-web.wasm" -and
+    $names -contains "mtext-renderer-worker.js" -and
+    (Test-Path (Join-Path $dir "CAD-CLEAN-BUILD.json")) -and
+    (Test-Path (Join-Path $dir "LICENSE-BOUNDARY.md")) -and
+    (Test-Path (Join-Path $dir "THIRD_PARTY_NOTICES.md")) -and
+    (Test-Path (Join-Path $dir "licenses\mlightcad-cad-simple-viewer-LICENSE")) -and
+    (Test-Path (Join-Path $dir "licenses\mlightcad-libredwg-converter-LICENSE")) -and
+    (Test-Path (Join-Path $dir "licenses\GPL-3.0.txt")) -and
+    (Select-String -LiteralPath (Join-Path $dir "licenses\GPL-3.0.txt") -SimpleMatch "GNU GENERAL PUBLIC LICENSE" -Quiet) -and
+    (Test-Path (Join-Path $dir "resources\fonts\fonts.json")) -and
+    (Test-Path $fallbackFont) -and
+    ((Get-FileHash -LiteralPath $fallbackFont -Algorithm SHA256).Hash -eq "E2BC8A2E7F37474B774FFF8DB758681ECE40BB6947A90D571BCE9DD60671A8E4") -and
+    (Test-Path (Join-Path $dir "resources\fonts\OFL-1.1.txt")) -and
+    (Test-Path (Join-Path $dir "licenses\SourceHanSansCN-OFL-1.1.txt"))
+  )
+}
+
+function Assert-CadViewerAssets([string]$dir, [string]$label) {
+  if (-not (Test-CadViewerAssets $dir)) {
+    throw "$label CAD viewer assets incomplete: $dir"
+  }
+}
+
+function Assert-CadCleanRelease([string]$dir, [string]$label) {
+  & node (Join-Path $Root "scripts\cad-clean-release.mjs") verify `
+    --archive $CadSourceArchive `
+    --checksum $CadSourceChecksum `
+    --runtime-dir $dir
+  if ($LASTEXITCODE -ne 0) { throw "$label clean CAD verification failed: $LASTEXITCODE" }
+  Assert-CadViewerAssets $dir $label
+}
+
+function Install-CadCleanRuntime([string]$destination, [string]$label) {
+  $rootFull = [System.IO.Path]::GetFullPath($Root).TrimEnd('\') + '\'
+  $destinationFull = [System.IO.Path]::GetFullPath($destination)
+  if (-not $destinationFull.StartsWith($rootFull, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "refusing to replace CAD runtime outside repository: $destinationFull"
+  }
+  if (Test-Path -LiteralPath $destinationFull) {
+    Remove-Item -LiteralPath $destinationFull -Recurse -Force
+  }
+  New-Item -ItemType Directory -Force -Path (Split-Path -Parent $destinationFull) | Out-Null
+  Copy-Item -LiteralPath $CadViewer -Destination $destinationFull -Recurse
+  Assert-CadCleanRelease $destinationFull $label
+}
+
 function Test-UnpackedApp([string]$dir) {
   $need = @(
     (Join-Path $dir "agent-pi-DSH.exe"),
     (Join-Path $dir "resources\runtime\node\node.exe"),
     (Join-Path $dir "resources\runtime\deepseek-harness\package.json"),
+    (Join-Path $dir "resources\runtime\deepseek-harness\$DshReceiptName"),
     (Join-Path $dir "resources\runtime\deepseek-harness\apps\web\dist\index.html"),
     (Join-Path $dir "resources\runtime\product\scripts\repair-dsh-links.mjs"),
-    (Join-Path $dir "resources\runtime\product\bundles\agent-pi-compaction\lib\index.js")
+    (Join-Path $dir "resources\runtime\product\LICENSE"),
+    (Join-Path $dir "resources\runtime\product\bundles\agent-pi-compaction\lib\index.js"),
+    (Join-Path $dir "resources\runtime\product\bundles\tender-host\node_modules\pdf-lib\package.json"),
+    (Join-Path $dir "resources\runtime\product\packages\business-core\node_modules\zod\package.json")
   )
-  return ($need | Where-Object { -not (Test-Path $_) }).Count -eq 0
+  $cadViewer = Join-Path $dir "resources\runtime\product\bundles\tender-web\lib\cad-viewer"
+  return (
+    ($need | Where-Object { -not (Test-Path $_) }).Count -eq 0 -and
+    (Test-CadViewerAssets $cadViewer)
+  )
 }
 
 if ($ToolchainOnly) {
@@ -170,8 +241,33 @@ if ($ToolchainOnly) {
   return
 }
 
+
+if (-not $CadCleanOutput) { $CadCleanOutput = Join-Path $Root ".codex-temp\cad-clean-output" }
+$CadCleanOutput = (Resolve-Path -LiteralPath $CadCleanOutput -ErrorAction Stop).Path
+$CadViewer = Join-Path $CadCleanOutput "cad-viewer"
+$CadSourceName = "Agent-Pi-DSH-$AppVersion-CAD-corresponding-source.tar.gz"
+$CadSourceArchive = Join-Path $CadCleanOutput $CadSourceName
+$CadSourceChecksum = "$CadSourceArchive.sha256"
+Assert-CadCleanRelease $CadViewer "clean build input"
+$ReleaseDir = Join-Path $Root "release"
+New-Item -ItemType Directory -Force -Path $ReleaseDir | Out-Null
+foreach ($sourcePath in @($CadSourceArchive, $CadSourceChecksum)) {
+  $target = Join-Path $ReleaseDir (Split-Path -Leaf $sourcePath)
+  if ([System.IO.Path]::GetFullPath($sourcePath) -ne [System.IO.Path]::GetFullPath($target)) {
+    Copy-Item -LiteralPath $sourcePath -Destination $target -Force
+  }
+}
+
 & node (Join-Path $Root "scripts\kernel-version-policy.mjs") --history
 if ($LASTEXITCODE -ne 0) { throw "kernel version policy failed: $LASTEXITCODE" }
+& node (Join-Path $Root "scripts\apply-dsh-patches.mjs") $Dsh
+if ($LASTEXITCODE -ne 0) { throw "Agent Pi DSH clean-kernel guard failed" }
+& node (Join-Path $Root "scripts\dsh-build-receipt.mjs") build `
+  --dsh $Dsh --product $Root --receipt $DshBuildReceipt
+if ($LASTEXITCODE -ne 0) { throw "official DSH build and receipt generation failed: $LASTEXITCODE" }
+& node (Join-Path $Root "scripts\dsh-build-receipt.mjs") verify `
+  --dsh $Dsh --product $Root --receipt $DshBuildReceipt --source
+if ($LASTEXITCODE -ne 0) { throw "DSH source build receipt verification failed: $LASTEXITCODE" }
 
 if (-not (Test-Path (Join-Path $Dsh "package.json"))) {
   throw "vendor/deepseek-harness missing"
@@ -226,6 +322,8 @@ if (-not (Test-Path (Join-Path $TenderHost "node_modules\pdf-lib"))) {
   Invoke-NpmCi $TenderHost "tender-host"
 }
 
+Write-Host "Using verified clean MLightCAD viewer from $CadCleanOutput"
+
 Write-Host "Building tender-web client from source modules..."
 node (Join-Path $Root "scripts\build-tender-client.mjs")
 if ($LASTEXITCODE -ne 0) { throw "tender-web client build failed" }
@@ -237,8 +335,10 @@ $brandPython = Find-BrandPython
 if ($LASTEXITCODE -ne 0) { throw "installer brand generation failed: $LASTEXITCODE" }
 
 if (-not $SkipPrepare) {
-  & (Join-Path $Root "scripts\prepare-win-runtime.ps1") -FullCopy
+  & (Join-Path $Root "scripts\prepare-win-runtime.ps1") -FullCopy -DshBuildReceipt $DshBuildReceipt
 }
+$runtimeCadViewer = Join-Path $Desktop "runtime\product\bundles\tender-web\lib\cad-viewer"
+Install-CadCleanRuntime $runtimeCadViewer "staged Windows runtime"
 
 Invoke-DesktopToolchain
 
@@ -301,6 +401,7 @@ if (Test-Path $unpackedProduct) {
     "bundles",
     "skills",
     "knowledge",
+    "LICENSE",
     "README.md",
     "THIRD_PARTY_NOTICES.md",
     "vendor\dshmarket",
@@ -308,6 +409,7 @@ if (Test-Path $unpackedProduct) {
     "vendor\dsh-univer-office",
     "vendor\dsh-router-standard",
     "vendor\README.md",
+    "vendor\dsh-router-standard.pin",
     "vendor\anysearch-dsh.pin",
     "vendor\dsh-univer-office.pin"
   )) {
@@ -338,6 +440,8 @@ if (Test-Path $unpackedProduct) {
     }
   }
 }
+$unpackedCadViewer = Join-Path $unpackedProduct "bundles\tender-web\lib\cad-viewer"
+Install-CadCleanRuntime $unpackedCadViewer "unpacked runtime"
 # ReuseUnpacked keeps the previous electron-builder asar. The NSIS filename
 # and DisplayVersion come from this tree's package.json; app.getVersion()
 # reads the asar. If those diverge, startup update check prompts for the
@@ -348,6 +452,11 @@ if ($LASTEXITCODE -ne 0) { throw "stamp electron asar version failed" }
 $unpackedDsh = Join-Path $unpacked "resources\runtime\deepseek-harness"
 node (Join-Path $Root "scripts\apply-runtime-overlays.mjs") $unpackedDsh $unpackedProduct
 if ($LASTEXITCODE -ne 0) { throw "apply desktop runtime overlays on unpacked app failed" }
+node (Join-Path $Root "scripts\verify-dsh-runtime.mjs") $unpackedDsh $unpackedProduct
+if ($LASTEXITCODE -ne 0) { throw "verify staged DSH runtime failed" }
+node (Join-Path $Root "scripts\dsh-build-receipt.mjs") verify `
+  --dsh $unpackedDsh --product $unpackedProduct --receipt (Join-Path $unpackedDsh $DshReceiptName)
+if ($LASTEXITCODE -ne 0) { throw "verify unpacked DSH build receipt failed" }
 
 if ($DirOnly) {
   Write-Host "Unpacked app written under $unpacked"
@@ -422,6 +531,27 @@ $installerHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $published).Hash
   [Text.Encoding]::ASCII
 )
 
+$windowsBuildReceipt = Join-Path $releaseDir "$InstallerName.build.json"
+& node (Join-Path $Root "scripts\windows-build-receipt.mjs") create `
+  --root $Root `
+  --installer $published `
+  --payload $payload `
+  --cad-runtime $unpackedCadViewer `
+  --cad-source $CadSourceArchive `
+  --dsh-receipt (Join-Path $unpackedDsh $DshReceiptName) `
+  --receipt $windowsBuildReceipt
+if ($LASTEXITCODE -ne 0) { throw "Windows build receipt generation failed: $LASTEXITCODE" }
+& node (Join-Path $Root "scripts\windows-build-receipt.mjs") verify `
+  --root $Root `
+  --installer $published `
+  --payload $payload `
+  --cad-runtime $unpackedCadViewer `
+  --cad-source $CadSourceArchive `
+  --dsh-receipt (Join-Path $unpackedDsh $DshReceiptName) `
+  --receipt $windowsBuildReceipt
+if ($LASTEXITCODE -ne 0) { throw "Windows build receipt verification failed: $LASTEXITCODE" }
+
 Write-Host "Installer written:"
 Get-Item $published | Format-Table FullName, @{ N = "MB"; E = { [math]::Round($_.Length / 1MB, 1) } }, LastWriteTime
 Write-Host "SHA256 written: $checksumPath"
+Write-Host "Build receipt written: $windowsBuildReceipt"

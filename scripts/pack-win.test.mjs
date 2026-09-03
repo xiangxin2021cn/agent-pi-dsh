@@ -11,6 +11,8 @@ const packScript = join(root, 'scripts', 'pack-win.ps1')
 const nsisScript = join(root, 'scripts', 'nsis', 'setup.nsi')
 const nsisSource = readFileSync(nsisScript, 'utf8')
 const packSource = readFileSync(packScript, 'utf8')
+const prepareRuntimeSource = readFileSync(join(root, 'scripts', 'prepare-win-runtime.ps1'), 'utf8')
+const runtimePayloadSource = readFileSync(join(root, 'scripts', 'pack-runtime-payload.mjs'), 'utf8')
 const makensis = [
   join(process.env['ProgramFiles(x86)'] ?? '', 'NSIS', 'makensis.exe'),
   join(process.env.ProgramFiles ?? '', 'NSIS', 'makensis.exe'),
@@ -20,7 +22,7 @@ function writeCmd(path, body) {
   writeFileSync(path, `@echo off\r\n${body}\r\n`)
 }
 
-function makeToolchainFixture(t, npmExit = 0) {
+function makeToolchainFixture(t, npmExit = 0, { version = '3.3.5', extraArgs = [] } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'agent-pi-pack-win-'))
   t.after(() => rmSync(dir, { recursive: true, force: true, maxRetries: 3 }))
 
@@ -33,17 +35,20 @@ function makeToolchainFixture(t, npmExit = 0) {
   mkdirSync(join(desktop, 'node_modules', 'electron'), { recursive: true })
   mkdirSync(join(desktop, 'node_modules', '.bin'), { recursive: true })
   mkdirSync(nodeBin, { recursive: true })
+  mkdirSync(join(nodeBin, 'node_modules', 'npm', 'bin'), { recursive: true })
   mkdirSync(globalBin, { recursive: true })
   copyFileSync(packScript, fixtureScript)
-  writeFileSync(join(desktop, 'package.json'), '{"version":"3.3.5"}')
-  writeFileSync(join(nodeBin, 'node.exe'), '')
-
-  writeCmd(join(nodeBin, 'npm.cmd'), [
-    'echo node-npm:%*>> "%PACK_TEST_LOG%"',
-    'if not "%PACK_TEST_NPM_EXIT%"=="0" exit /b %PACK_TEST_NPM_EXIT%',
-    'mkdir "%PACK_TEST_DESKTOP%\\node_modules\\electron-builder"',
-    'exit /b 0',
-  ].join('\r\n'))
+  writeFileSync(join(desktop, 'package.json'), JSON.stringify({ version }))
+  copyFileSync(process.execPath, join(nodeBin, 'node.exe'))
+  writeFileSync(join(nodeBin, 'node_modules', 'npm', 'bin', 'npm-cli.js'), [
+    "const { appendFileSync, mkdirSync } = require('node:fs')",
+    "const { join } = require('node:path')",
+    "const args = process.argv.slice(2)",
+    "appendFileSync(process.env.PACK_TEST_LOG, `node-npm:${args.join(' ')}\\n`)",
+    "const exit = Number(process.env.PACK_TEST_NPM_EXIT || 0)",
+    "if (exit) process.exit(exit)",
+    "mkdirSync(join(process.env.PACK_TEST_DESKTOP, 'node_modules', 'electron-builder'), { recursive: true })",
+  ].join('\n'))
   writeCmd(join(globalBin, 'npm.cmd'), 'echo global-npm:%*>> "%PACK_TEST_LOG%"\r\nexit /b 97')
   writeCmd(join(globalBin, 'npx.cmd'), 'echo global-npx:%*>> "%PACK_TEST_LOG%"\r\nexit /b 97')
   writeCmd(join(desktop, 'node_modules', '.bin', 'install-electron.cmd'), [
@@ -54,7 +59,7 @@ function makeToolchainFixture(t, npmExit = 0) {
   ].join('\r\n'))
   writeCmd(join(desktop, 'node_modules', '.bin', 'electron-builder.cmd'), 'echo electron-builder:%*>> "%PACK_TEST_LOG%"\r\nexit /b 0')
 
-  const result = spawnSync('pwsh', ['-NoProfile', '-File', fixtureScript, '-ToolchainOnly'], {
+  const result = spawnSync('pwsh', ['-NoProfile', '-File', fixtureScript, '-ToolchainOnly', ...extraArgs], {
     encoding: 'utf8',
     env: {
       ...process.env,
@@ -70,7 +75,7 @@ function makeToolchainFixture(t, npmExit = 0) {
   }
 }
 
-test('runs the resolved node toolchain and local Electron commands', (t) => {
+test('runs npm through the resolved Node npm CLI and local Electron commands', (t) => {
   const result = makeToolchainFixture(t)
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`)
   assert.deepEqual(result.log, [
@@ -80,11 +85,71 @@ test('runs the resolved node toolchain and local Electron commands', (t) => {
   ])
 })
 
-test('stops before Electron commands when adjacent npm fails', (t) => {
+test('stops before Electron commands when the resolved npm CLI fails', (t) => {
   const result = makeToolchainFixture(t, 47)
   assert.notEqual(result.status, 0)
-  assert.match(`${result.stdout}\n${result.stderr}`, /desktop npm install failed: 47/)
+  assert.match(`${result.stdout}\n${result.stderr}`, /desktop npm install --no-fund --no-audit failed: 47/)
   assert.deepEqual(result.log, ['node-npm:install --no-fund --no-audit'])
+})
+
+test('v3.6.0 packaging rejects stale-runtime reuse switches', (t) => {
+  for (const flag of ['-SkipPrepare', '-ReuseUnpacked']) {
+    const result = makeToolchainFixture(t, 0, { version: '3.6.0', extraArgs: [flag] })
+    assert.notEqual(result.status, 0)
+    assert.match(`${result.stdout}\n${result.stderr}`, /3\.6\.0 packaging forbids -SkipPrepare and -ReuseUnpacked/)
+    assert.deepEqual(result.log, [])
+  }
+})
+
+test('Windows packaging preserves and validates the explicit clean CAD runtime', () => {
+  assert.match(packSource, /node_modules\\npm\\bin\\npm-cli\.js/)
+  assert.doesNotMatch(packSource, /Get-NodeAdjacentCommand/)
+  assert.match(packSource, /\[string\]\$CadCleanOutput/)
+  assert.match(packSource, /\$CadViewer = Join-Path \$CadCleanOutput "cad-viewer"/)
+  assert.match(packSource, /scripts\\cad-clean-release\.mjs"\) verify/)
+  assert.doesNotMatch(packSource, /Invoke-NpmCi \$CadPoc/)
+  assert.doesNotMatch(packSource, /Invoke-NpmBuild \$CadPoc/)
+  assert.match(packSource, /Install-CadCleanRuntime \$runtimeCadViewer/)
+  assert.match(packSource, /Install-CadCleanRuntime \$unpackedCadViewer/)
+  assert.match(packSource, /Test-CadViewerAssets/)
+  for (const marker of [
+    'libredwg-parser-worker.js',
+    'libredwg-web.wasm',
+    'mtext-renderer-worker.js',
+    'CAD-CLEAN-BUILD.json',
+    'LICENSE-BOUNDARY.md',
+    'THIRD_PARTY_NOTICES.md',
+    'mlightcad-cad-simple-viewer-LICENSE',
+    'mlightcad-libredwg-converter-LICENSE',
+    'GPL-3.0.txt',
+    'SourceHanSansCN-Regular.otf',
+    'SourceHanSansCN-OFL-1.1.txt',
+  ]) {
+    assert.match(packSource, new RegExp(marker.replaceAll('.', '\\.')))
+  }
+  assert.match(packSource, /E2BC8A2E7F37474B774FFF8DB758681ECE40BB6947A90D571BCE9DD60671A8E4/)
+  assert.match(packSource, /resources\\runtime\\product\\bundles\\tender-web\\lib\\cad-viewer/)
+})
+
+test('portable runtime payload preserves and verifies the same clean CAD runtime', () => {
+  assert.match(runtimePayloadSource, /--cad-clean-output/)
+  assert.match(runtimePayloadSource, /join\(cadCleanOutput, 'cad-viewer'\)/)
+  assert.match(runtimePayloadSource, /verifyCadCleanRelease/)
+  assert.doesNotMatch(runtimePayloadSource, /npm-cli\.js/)
+  assert.doesNotMatch(runtimePayloadSource, /\[npmCli, 'run', 'build'\]/)
+  assert.match(runtimePayloadSource, /verifyCadViewerAssets\(cadViewer, 'source'\)/)
+  assert.match(runtimePayloadSource, /verifyCadViewerAssets\(stagedCadViewer, 'staged runtime'\)/)
+  assert.match(runtimePayloadSource, /CAD-CLEAN-BUILD\.json/)
+  assert.match(runtimePayloadSource, /SourceHanSansCN-Regular\.otf/)
+  assert.match(runtimePayloadSource, /SourceHanSansCN-OFL-1\.1\.txt/)
+  assert.match(runtimePayloadSource, /e2bc8a2e7f37474b774fff8db758681ece40bb6947a90d571bce9dd60671a8e4/)
+  assert.match(runtimePayloadSource, /'package\.json', 'package-lock\.json'/)
+  assert.match(runtimePayloadSource, /'package\.json', 'LICENSE', 'README\.md'/)
+  assert.match(runtimePayloadSource, /'vendor\/dsh-router-standard\.pin'/)
+  assert.match(prepareRuntimeSource, /"LICENSE"/)
+  assert.match(prepareRuntimeSource, /"vendor\\dsh-router-standard\.pin"/)
+  assert.match(packSource, /"vendor\\dsh-router-standard\.pin"/)
+  assert.match(packSource, /verify-dsh-runtime\.mjs/)
 })
 
 test('compiled finish page defaults to launching the installed application', {
@@ -125,6 +190,11 @@ test('portable runtime installs the locked tender-host document dependencies', (
   assert.match(packSource, /\$TenderHost = Join-Path \$Root "bundles\\tender-host"/)
   assert.match(packSource, /node_modules\\pdf-lib/)
   assert.match(packSource, /Invoke-NpmCi \$TenderHost "tender-host"/)
+  assert.match(prepareRuntimeSource, /function Stage-ProjectNodeModules/)
+  assert.match(prepareRuntimeSource, /Stage-ProjectNodeModules "bundles\\tender-host" "pdf-lib"/)
+  assert.match(prepareRuntimeSource, /Stage-ProjectNodeModules "packages\\business-core" "zod"/)
+  assert.match(packSource, /product\\bundles\\tender-host\\node_modules\\pdf-lib\\package\.json/)
+  assert.match(packSource, /product\\packages\\business-core\\node_modules\\zod\\package\.json/)
 })
 
 test('installer branding is generated from the desktop app logo and passed to NSIS', () => {
@@ -141,4 +211,9 @@ test('Windows packaging writes the checksum required by the immutable upload flo
   assert.match(packSource, /Get-FileHash -Algorithm SHA256 -LiteralPath \$published/)
   assert.match(packSource, /Join-Path \$releaseDir "\$InstallerName\.sha256"/)
   assert.match(packSource, /\$installerHash  \$InstallerName`n/)
+  assert.match(packSource, /windows-build-receipt\.mjs"\) create/)
+  assert.match(packSource, /--payload \$payload/)
+  assert.match(packSource, /--cad-runtime \$unpackedCadViewer/)
+  assert.match(packSource, /--cad-source \$CadSourceArchive/)
+  assert.match(packSource, /--dsh-receipt \(Join-Path \$unpackedDsh \$DshReceiptName\)/)
 })

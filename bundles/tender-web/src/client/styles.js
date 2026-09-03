@@ -348,6 +348,8 @@ html.ap-doc-open [data-shell-overlay]{z-index:400;pointer-events:auto}
 .ap-doc-scroll{flex:1;min-height:0;overflow:auto;padding:40px 24px 80px}
 .ap-doc-scroll.univer{padding:0;overflow:hidden;background:#fff;position:relative}
 .ap-univer-frame{position:absolute;inset:0;display:block;width:100%;height:100%;border:0;background:#fff}
+.ap-doc-scroll.cad{padding:0;overflow:hidden;background:#111827;position:relative}
+.ap-cad-frame{position:absolute;inset:0;display:block;width:100%;height:100%;border:0;background:#111827}
 .ap-doc-sheet{width:min(960px,100%);margin:0 auto;background:var(--dsw-alias-bg-base);border-radius:16px;padding:36px 44px 56px;box-shadow:0 18px 48px color-mix(in srgb, var(--dsw-alias-label-primary) 16%, transparent)}
 .ap-doc-sheet.wide{width:min(1180px,100%);padding:28px 28px 40px}
 .ap-doc-sheet h1{font-size:22px;line-height:1.3;margin:0 0 16px;font-weight:650}

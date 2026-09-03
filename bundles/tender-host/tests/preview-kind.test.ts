@@ -11,6 +11,8 @@ test('preview kinds distinguish office, html, markdown, and pdf', () => {
   assert.equal(previewKind('a.md'), 'markdown')
   assert.equal(previewKind('a.pdf'), 'pdf')
   assert.equal(previewKind('a.html'), 'html')
+  assert.equal(previewKind('a.dwg'), 'cad')
+  assert.equal(previewKind('a.DXF'), 'cad')
   assert.equal(previewKind('a.xlsx'), 'spreadsheet')
   assert.equal(previewKind('a.csv'), 'spreadsheet')
   assert.equal(previewKind('a.univer'), 'spreadsheet')
@@ -40,6 +42,16 @@ test('content route keeps office files off the binary text reader', () => {
   assert.match(http, /openUniverOfficePreview/)
   assert.match(http, /univer-office/)
   assert.match(http, /univerOfficePreviewKind/)
+})
+
+test('content route returns CAD viewer metadata before reading binary content', () => {
+  const http = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../src/http.ts'), 'utf8')
+  const cadBranch = http.indexOf("if (kind === 'cad')")
+  const textReader = http.indexOf('const maxBytes = kind ===')
+  assert.ok(cadBranch >= 0)
+  assert.ok(textReader > cadBranch)
+  assert.match(http, /describeWorkspaceBinary\(cwd, path\)/)
+  assert.match(http, /viewerUrl: cadViewerUrl\(cwd, file\.path\)/)
 })
 
 test('host HTTP attach keeps the live webServer instead of spreading the ctx proxy', () => {

@@ -53,6 +53,7 @@ export type PreviewKind =
   | 'image'
   | 'pdf'
   | 'html'
+  | 'cad'
   | 'spreadsheet'
   | 'word'
   | 'slides'
@@ -65,6 +66,7 @@ export function previewKind(path: string): PreviewKind {
   if (IMAGE_EXT.has(ext)) return 'image'
   if (ext === '.pdf') return 'pdf'
   if (ext === '.html' || ext === '.htm') return 'html'
+  if (ext === '.dwg' || ext === '.dxf') return 'cad'
   if (ext === '.xlsx' || ext === '.csv' || ext === '.tsv' || ext === '.univer') return 'spreadsheet'
   if (ext === '.docx') return 'word'
   if (ext === '.pptx') return 'slides'
@@ -73,6 +75,25 @@ export function previewKind(path: string): PreviewKind {
     return 'text'
   }
   return 'binary'
+}
+
+export function describeWorkspaceBinary(cwd: string, sourcePath: string): {
+  path: string
+  mime: string
+  filename: string
+  size: number
+  mtimeMs: number
+} {
+  const path = assertInside(cwd, sourcePath)
+  const stats = statSync(path)
+  if (stats.isDirectory()) throw new Error('not a file')
+  return {
+    path,
+    mime: fileMime(path),
+    filename: basename(path),
+    size: stats.size,
+    mtimeMs: stats.mtimeMs,
+  }
 }
 
 export function readWorkspaceBinary(cwd: string, sourcePath: string): { path: string; mime: string; body: Buffer; filename: string } {

@@ -140,8 +140,13 @@ export function classifyTask(text) {
 }
 
 /** Per-session mode derived from durable events (resume-safe). */
+export function sessionEvents(session) {
+  if (typeof session?.snapshotEvents === 'function') return session.snapshotEvents()
+  return Array.isArray(session?.events) ? session.events : []
+}
+
 export function sessionMode(session) {
-  const events = session.events
+  const events = sessionEvents(session)
   const userMsg = events.find((e) => e.type === 'user/message')
   return classifyTask(extractText(userMsg?.data))
 }

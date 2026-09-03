@@ -101,6 +101,7 @@ export function createFilePreviewOverlay(dependencies) {
       const [office, setOffice] = React.useState(null)
       const [officeSaved, setOfficeSaved] = React.useState(null)
       const [siteUrl, setSiteUrl] = React.useState('')
+      const [cadUrl, setCadUrl] = React.useState('')
       const [aiSel, setAiSel] = React.useState(null)
       const [sheetTab, setSheetTab] = React.useState(0)
       const [univerDirty, setUniverDirty] = React.useState(false)
@@ -109,6 +110,7 @@ export function createFilePreviewOverlay(dependencies) {
       const wysiwygRef = React.useRef(null)
       const previewBoxRef = React.useRef(null)
       const univerRef = React.useRef(null)
+      const cadRef = React.useRef(null)
       const fillCtl = React.useRef(null)
       const loadCtl = React.useRef(null)
       const fullMdRef = React.useRef('')
@@ -236,6 +238,7 @@ export function createFilePreviewOverlay(dependencies) {
         setOfficeSaved(null)
         setUniverDirty(false)
         setSiteUrl('')
+        setCadUrl('')
         setAiSel(null)
         const cacheKey = previewCacheKey(cwd, file.path, kbSlug)
         const cached = previewCacheGet(cacheKey)
@@ -256,6 +259,7 @@ export function createFilePreviewOverlay(dependencies) {
           const nextKind = body.kind || (body.binary ? 'binary' : 'text')
           setKind(nextKind)
           setSiteUrl(body.siteUrl || '')
+          setCadUrl(body.viewerUrl || '')
           if (nextKind === 'spreadsheet' || nextKind === 'word' || nextKind === 'slides' || nextKind === 'legacy-office') {
             setOffice(body)
             setOfficeSaved(body)
@@ -309,9 +313,27 @@ export function createFilePreviewOverlay(dependencies) {
       }, [cwd, file.path, kbSlug])
 
       const isOffice = kind === 'spreadsheet' || kind === 'word' || kind === 'slides' || kind === 'legacy-office'
+      const isCad = kind === 'cad'
       const isOfficeUniver = !!(isOffice && office && office.engine === 'univer-office' && office.viewerUrl)
       const isSlimUniver = !!(kind === 'spreadsheet' && office && office.engine === 'univer' && office.viewerUrl)
       const isUniver = !!(isOfficeUniver || isSlimUniver)
+      React.useEffect(() => {
+        if (!isCad) return undefined
+        const onMessage = (event) => {
+          if (event.origin !== window.location.origin || !cadRef.current || event.source !== cadRef.current.contentWindow) return
+          const message = event.data || {}
+          if (message.type === 'agent-pi-cad:ready') {
+            setStatus('二维预览已就绪')
+            setError('')
+          } else if (message.type === 'agent-pi-cad:error') {
+            setError(String(message.message || 'CAD 预览失败，请用系统 CAD 应用打开。'))
+          } else if (message.type === 'agent-pi-cad:open-external') {
+            openInExplorer(cwd, file.path, { file: file, reveal: false }).catch((err) => setError(String(err && err.message || err)))
+          }
+        }
+        window.addEventListener('message', onMessage)
+        return () => window.removeEventListener('message', onMessage)
+      }, [isCad, cwd, file.path])
       const canEdit = kbSlug
         ? kind === 'markdown' || kind === 'text'
         : ((kind === 'markdown' || kind === 'text') && /\.(md|markdown|txt)$/i.test(file.path || file.name || ''))
@@ -851,6 +873,16 @@ export function createFilePreviewOverlay(dependencies) {
           src: siteUrl || rawFileUrl(cwd, file.path),
           sandbox: 'allow-same-origin allow-scripts allow-forms allow-popups',
         })
+      } else if (isCad) {
+        body = cadUrl
+          ? h('iframe', {
+            ref: cadRef,
+            className: 'ap-cad-frame',
+            title: file.name,
+            src: cadUrl,
+            sandbox: 'allow-same-origin allow-scripts',
+          })
+          : h('div', { className: 'ap-doc-status' }, '二维 CAD 预览资源尚未就绪。')
       } else if (isUniver) {
         body = h('iframe', {
           ref: univerRef,
@@ -938,7 +970,7 @@ export function createFilePreviewOverlay(dependencies) {
               mentionInChat(props.sessionProps || props, file)
               if (typeof props.onClose === 'function') props.onClose()
             }, [Icon('paperclip', 14), '注入对话'], loading),
-            DocBtn('AI 改', () => openAiSel(), [Icon('sparkles', 14), 'AI 改'], loading || !!busy),
+            isCad ? null : DocBtn('AI 改', () => openAiSel(), [Icon('sparkles', 14), 'AI 改'], loading || !!busy),
             canEdit && !isUniver ? DocBtn(mode === 'edit' ? '预览' : '编辑', toggleMode, [
               Icon(mode === 'edit' ? 'eye' : 'pencil', 14),
             ], loading) : null,
@@ -950,12 +982,16 @@ export function createFilePreviewOverlay(dependencies) {
                 .catch((e) => setError(String(e.message || e)))
             }, [Icon('folder', 14), '打开源文件'], !!busy) : null,
             kbSlug ? null : DocBtn('删除', remove, [Icon('trash', 14)], !!busy),
+            isCad ? DocBtn('系统打开', () => {
+              openInExplorer(cwd, file.path, { file: file, reveal: false })
+                .catch((err) => setError(String(err && err.message || err)))
+            }, [Icon('folder', 14), '系统打开'], loading || !!busy) : null,
             kbSlug ? null : (canExport ? h('div', { className: 'ap-doc-exports' },
               DocBtn('导出 Markdown', () => exportFile('md'), [Icon('download', 14), ' MD'], !!busy),
               DocBtn('导出 PDF', () => exportFile('pdf'), [Icon('download', 14), ' PDF'], !!busy),
               DocBtn('导出 Word', () => exportFile('docx'), [Icon('download', 14), ' DOCX'], !!busy),
             ) : null),
-            kind === 'binary' || kind === 'pdf' || kind === 'image' || isOffice || kind === 'html' ? DocBtn('下载原件', () => {
+            kind === 'binary' || kind === 'pdf' || kind === 'image' || isOffice || kind === 'html' || isCad ? DocBtn('下载原件', () => {
               apiBlob('/api/agent-pi/files/raw?path=' + encodeURIComponent(file.path), cwd, { method: 'GET' })
                 .then((result) => downloadBlob(result.blob, result.filename || file.name))
                 .catch((e) => setError(String(e.message || e)))
@@ -963,11 +999,11 @@ export function createFilePreviewOverlay(dependencies) {
             DocBtn('关闭', props.onClose, [Icon('x', 14)]),
           ),
         ),
-        h('div', { className: 'ap-doc-scroll' + (isUniver ? ' univer' : '') },
-          isUniver
+        h('div', { className: 'ap-doc-scroll' + (isUniver ? ' univer' : (isCad ? ' cad' : '')) },
+          isUniver || isCad
             ? h(React.Fragment, null,
               error ? h('div', { className: 'ap-err', style: { padding: '8px 12px', position: 'relative', zIndex: 2 } }, error) : null,
-              !isOfficeUniver && status ? h('div', { className: 'ap-doc-status', style: { padding: '8px 12px' } }, status) : null,
+              ((!isOfficeUniver && !isCad) || (isCad && error)) && status ? h('div', { className: 'ap-doc-status', style: { padding: '8px 12px', position: 'relative', zIndex: 2 } }, status) : null,
               body,
             )
             : (kind === 'pdf' || kind === 'html'

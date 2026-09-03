@@ -1,5 +1,6 @@
 param(
-  [string]$InjectorVersion = "0.3.1"
+  [string]$InjectorVersion = "0.3.1",
+  [string]$RouterCommit = "b39112dce54b90e67b50b166c2773861d7945d1f"
 )
 
 $ErrorActionPreference = "Stop"
@@ -21,7 +22,7 @@ if (-not (Test-Path (Join-Path $injectorDest "lib\index.js"))) {
   throw "injector tarball missing lib/index.js"
 }
 
-$routerBase = "https://raw.githubusercontent.com/yjh051108/dsh-router-standard/main"
+$routerBase = "https://raw.githubusercontent.com/yjh051108/dsh-router-standard/$RouterCommit"
 $routerDest = Join-Path $Vendor "dsh-router-standard"
 $presetDest = Join-Path $routerDest "preset"
 New-Item -ItemType Directory -Force -Path $presetDest | Out-Null
@@ -43,8 +44,13 @@ foreach ($rel in $routerFiles.Keys) {
 if (-not (Test-Path (Join-Path $presetDest "agent.cordis.yml"))) {
   throw "router-standard preset missing agent.cordis.yml"
 }
+node (Join-Path $Root "scripts\patch-router-standard-rc1.mjs") $routerDest
+if ($LASTEXITCODE -ne 0) { throw "Router Standard DSH rc.1 compatibility patch failed" }
+node --test (Join-Path $Root "scripts\router-standard-rc1.test.mjs")
+if ($LASTEXITCODE -ne 0) { throw "Router Standard DSH rc.1 compatibility tests failed" }
 
 Set-Content -Path (Join-Path $Vendor "dsh-super-injector.pin") -Value "v$InjectorVersion`n$injectorUrl`n"
+Set-Content -Path (Join-Path $Vendor "dsh-router-standard.pin") -Value "$RouterCommit`nhttps://github.com/yjh051108/dsh-router-standard/commit/$RouterCommit`nAgent Pi DSH rc.1 compatibility patch applied after vendoring`n"
 Write-Host "Vendored injector + router-standard under $Vendor"
 
 $univerVersion = "0.2.9"

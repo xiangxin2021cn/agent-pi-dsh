@@ -1104,7 +1104,7 @@ ipcMain.handle('pick-files', async () => {
   const result = await openDialog({
     properties: ['openFile', 'multiSelections'],
     filters: [
-      { name: '文档', extensions: ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'md', 'markdown', 'txt', 'json', 'png', 'jpg', 'jpeg', 'jp2', 'webp', 'gif', 'bmp'] },
+      { name: '文档与图纸', extensions: ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'dwg', 'dxf', 'md', 'markdown', 'txt', 'json', 'png', 'jpg', 'jpeg', 'jp2', 'webp', 'gif', 'bmp'] },
       { name: '全部', extensions: ['*'] },
     ],
   })

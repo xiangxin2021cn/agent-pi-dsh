@@ -2,14 +2,14 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-export const expectedDshCommit = 'dd6322d604e00eec1ba5e0c8541159906a21094a'
-export const expectedDshVersion = '0.1.2-alpha.3'
+export const expectedDshCommit = 'a66e4702047846cdaa10c66c9d3df3951f5ea70d'
+export const expectedDshVersion = '0.1.2-rc.1'
 
 function readJson(path) {
   return JSON.parse(readFileSync(path, 'utf8'))
 }
 
-export function verifyDshAlpha3Runtime(dshRoot, productRoot) {
+export function verifyDshRuntime(dshRoot, productRoot) {
   const dsh = resolve(dshRoot)
   const product = productRoot ? resolve(productRoot) : null
   const dshPackage = readJson(join(dsh, 'package.json'))
@@ -46,10 +46,10 @@ export function verifyDshAlpha3Runtime(dshRoot, productRoot) {
 
 export function main(args = process.argv.slice(2)) {
   if (args.length < 1 || args.length > 2) {
-    throw new Error('Usage: verify-dsh-alpha3-runtime.mjs <dsh-root> [product-root]')
+    throw new Error('Usage: verify-dsh-runtime.mjs <dsh-root> [product-root]')
   }
-  const verified = verifyDshAlpha3Runtime(args[0], args[1])
-  process.stdout.write(`DSH alpha.3 runtime verified: ${verified.dsh}\n`)
+  const verified = verifyDshRuntime(args[0], args[1])
+  process.stdout.write(`DSH ${expectedDshVersion} runtime verified: ${verified.dsh}\n`)
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main()

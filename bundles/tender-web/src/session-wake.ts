@@ -140,7 +140,7 @@ export function isWorkbenchWakeText(text: string): boolean {
   return /^(【子代理回推】|【主对话未接续】|【主对话插话】|【评审回推】|【事务自动接续】)/.test(String(text || '').trim())
 }
 
-/** Official alpha.3 Chat projection first; top-level nodes are an old-client fallback only. */
+/** Official Chat legacy projection first; top-level nodes are an old-client fallback only. */
 export function sessionNodes(snap: WakeSnap | null | undefined): WakeNode[] {
   const official = snap?.chat?.legacy?.nodes
   if (Array.isArray(official)) return official

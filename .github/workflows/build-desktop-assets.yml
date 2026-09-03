@@ -1,5 +1,5 @@
 # Builds macOS / Linux desktop packages from the runtime payload attached to a
-# GitHub release. The repository pins DSH 0.1.2-alpha.3 plus the Agent Pi
+# GitHub release. The repository pins DSH 0.1.2-rc.1 plus the Agent Pi
 # migration; the payload (runtime-payload-<version>.tar.gz, uploaded from the Windows build
 # machine by scripts/pack-runtime-payload.mjs) carries everything needed:
 # the Electron shell, the product trees, and the DeepSeek Harness source with
@@ -47,19 +47,37 @@ jobs:
           test "${GITHUB_REF_TYPE}" = "tag"
           test "${GITHUB_REF_NAME}" = "${{ inputs.tag }}"
 
-      - name: Download runtime payload
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Download and verify release inputs
         run: |
+          mkdir -p release-inputs
           gh release download "${{ inputs.tag }}" \
             --repo "${{ github.repository }}" \
             --pattern "runtime-payload-*.tar.gz" \
-            --output payload.tar.gz
+            --pattern "runtime-payload-*.tar.gz.sha256" \
+            --pattern "Agent-Pi-DSH-*-CAD-corresponding-source.tar.gz" \
+            --pattern "Agent-Pi-DSH-*-CAD-corresponding-source.tar.gz.sha256" \
+            --dir release-inputs
+          version="${{ inputs.tag }}"
+          version="${version#v}"
+          test -f "release-inputs/runtime-payload-${version}.tar.gz"
+          test -f "release-inputs/runtime-payload-${version}.tar.gz.sha256"
+          test -f "release-inputs/Agent-Pi-DSH-${version}-CAD-corresponding-source.tar.gz"
+          test -f "release-inputs/Agent-Pi-DSH-${version}-CAD-corresponding-source.tar.gz.sha256"
+          node -e 'const fs=require("node:fs"),crypto=require("node:crypto"),path=require("node:path"); for (const checksum of fs.readdirSync("release-inputs").filter((name)=>name.endsWith(".sha256"))) { const text=fs.readFileSync(path.join("release-inputs",checksum),"utf8").trim(); const match=text.match(/^([a-f0-9]{64})  ([^\\/]+)$/); if (!match) throw new Error(`malformed ${checksum}`); const target=path.join("release-inputs",match[2]); if (!fs.existsSync(target)) throw new Error(`missing ${match[2]}`); const actual=crypto.createHash("sha256").update(fs.readFileSync(target)).digest("hex"); if (actual!==match[1]) throw new Error(`SHA256 mismatch for ${match[2]}`); }'
           mkdir -p payload
-          tar -xzf payload.tar.gz -C payload
+          tar -xzf release-inputs/runtime-payload-*.tar.gz -C payload
           ls payload
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
+      - name: Verify clean CAD runtime against corresponding source
+        run: |
+          node payload/product/scripts/cad-clean-release.mjs verify \
+            --archive release-inputs/Agent-Pi-DSH-3.6.0-CAD-corresponding-source.tar.gz \
+            --checksum release-inputs/Agent-Pi-DSH-3.6.0-CAD-corresponding-source.tar.gz.sha256 \
+            --runtime-dir payload/product/bundles/tender-web/lib/cad-viewer
 
       - name: Enable pnpm via corepack
         run: corepack enable
@@ -78,8 +96,8 @@ jobs:
 
       - name: Install bundle dependencies
         run: |
-          (cd payload/product/packages/business-core && npm install --omit=dev --no-fund --no-audit)
-          (cd payload/product/bundles/tender-host && npm install --omit=dev --no-fund --no-audit)
+          (cd payload/product/packages/business-core && npm ci --omit=dev --no-fund --no-audit)
+          (cd payload/product/bundles/tender-host && npm ci --omit=dev --no-fund --no-audit)
           # Install only the public production graph. The plugin's full manifest
           # also names short-lived insiders dev packages that npm cannot resolve.
           node payload/product/scripts/install-univer-runtime-deps.mjs payload/product/vendor/dsh-univer-office
@@ -102,7 +120,7 @@ jobs:
       - name: Install desktop shell dependencies
         working-directory: payload/desktop
         run: |
-          npm install --no-fund --no-audit
+          npm ci --no-fund --no-audit
           # package.json pins electronDist to node_modules/electron/dist.
           # npm install on CI often skips the Electron zip (run 32699235307
           # added 284 packages in 7s and left dist/ missing). Force it.
@@ -126,10 +144,15 @@ jobs:
             payload/desktop/dist-unpacked/*.dmg
             payload/desktop/dist-unpacked/*-mac-*.zip
           )
-          if [ ${#assets[@]} -eq 0 ]; then
-            echo "no assets produced" >&2
+          if [ ${#assets[@]} -ne 2 ]; then
+            echo "expected exactly two ${{ matrix.platform }} assets, found ${#assets[@]}" >&2
             exit 1
           fi
           printf '%s\n' "${assets[@]}"
-          gh release upload "${{ inputs.tag }}" "${assets[@]}" \
+          checksum_assets=()
+          for asset in "${assets[@]}"; do
+            node -e 'const fs=require("node:fs"),crypto=require("node:crypto"),path=require("node:path"); const file=process.argv[1]; const digest=crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex"); fs.writeFileSync(file+".sha256", digest+"  "+path.basename(file)+"\n");' "$asset"
+            checksum_assets+=("${asset}.sha256")
+          done
+          gh release upload "${{ inputs.tag }}" "${assets[@]}" "${checksum_assets[@]}" \
             --repo "${{ github.repository }}"
