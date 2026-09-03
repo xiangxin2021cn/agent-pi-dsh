@@ -63,14 +63,14 @@
     "إصدار Windows غير موقّع: اختر «تشغيل على أي حال» في SmartScreen · يعمل بجانب Classic 2.6.5 · الجلسات الجديدة تستخدم",
     "Сборка Windows не подписана: выберите «Выполнить в любом случае» в SmartScreen · Работает рядом с Classic 2.6.5 · Новые сеансы используют");
   add("{{data-rel-version}} · DeepSeek Harness {{data-kernel-version}} kernel",
-    "<span data-rel-version>v3.5.2</span> · Núcleo DeepSeek Harness <span data-kernel-version>dsh-v0.1.2-alpha.3</span>",
-    "<span data-rel-version>v3.5.2</span> · Noyau DeepSeek Harness <span data-kernel-version>dsh-v0.1.2-alpha.3</span>",
-    "<span data-rel-version>v3.5.2</span> · DeepSeek-Harness-Kernel <span data-kernel-version>dsh-v0.1.2-alpha.3</span>",
-    "<span data-rel-version>v3.5.2</span> · DeepSeek Harness カーネル <span data-kernel-version>dsh-v0.1.2-alpha.3</span>",
-    "<span data-rel-version>v3.5.2</span> · DeepSeek Harness 커널 <span data-kernel-version>dsh-v0.1.2-alpha.3</span>",
-    "<span data-rel-version>v3.5.2</span> · Núcleo DeepSeek Harness <span data-kernel-version>dsh-v0.1.2-alpha.3</span>",
-    "<span data-rel-version>v3.5.2</span> · نواة DeepSeek Harness <span data-kernel-version>dsh-v0.1.2-alpha.3</span>",
-    "<span data-rel-version>v3.5.2</span> · Ядро DeepSeek Harness <span data-kernel-version>dsh-v0.1.2-alpha.3</span>");
+    "<span data-rel-version>v3.5.3</span> · Núcleo DeepSeek Harness <span data-kernel-version>dsh-v0.1.2-alpha.3</span>",
+    "<span data-rel-version>v3.5.3</span> · Noyau DeepSeek Harness <span data-kernel-version>dsh-v0.1.2-alpha.3</span>",
+    "<span data-rel-version>v3.5.3</span> · DeepSeek-Harness-Kernel <span data-kernel-version>dsh-v0.1.2-alpha.3</span>",
+    "<span data-rel-version>v3.5.3</span> · DeepSeek Harness カーネル <span data-kernel-version>dsh-v0.1.2-alpha.3</span>",
+    "<span data-rel-version>v3.5.3</span> · DeepSeek Harness 커널 <span data-kernel-version>dsh-v0.1.2-alpha.3</span>",
+    "<span data-rel-version>v3.5.3</span> · Núcleo DeepSeek Harness <span data-kernel-version>dsh-v0.1.2-alpha.3</span>",
+    "<span data-rel-version>v3.5.3</span> · نواة DeepSeek Harness <span data-kernel-version>dsh-v0.1.2-alpha.3</span>",
+    "<span data-rel-version>v3.5.3</span> · Ядро DeepSeek Harness <span data-kernel-version>dsh-v0.1.2-alpha.3</span>");
   add("Domains: tender / delivery / investment", "Áreas: licitación / ejecución / inversión", "Domaines : appels d'offres / réalisation / investissement", "Bereiche: Ausschreibung / Ausführung / Investition", "領域：入札／施工／投資", "영역: 입찰 / 수행 / 투자", "Domínios: licitação / entrega / investimento", "المجالات: العطاء / التنفيذ / الاستثمار", "Области: тендеры / реализация / инвестиции");
   add("Domain skills shipped out of the box", "Habilidades sectoriales incluidas", "Compétences métier prêtes à l'emploi", "Domänenfähigkeiten sofort einsatzbereit", "標準搭載の業務スキル", "기본 제공 도메인 스킬", "Competências de domínio prontas", "مهارات تخصصية جاهزة", "Готовые отраслевые навыки");
   add("Parallel workers without freezing the window", "Trabajadores paralelos sin bloquear la ventana", "Agents parallèles sans bloquer la fenêtre", "Parallele Worker ohne blockiertes Fenster", "画面を止めない並列ワーカー", "창을 멈추지 않는 병렬 워커", "Trabalhadores paralelos sem travar a janela", "عمال متوازون دون تجميد النافذة", "Параллельные исполнители без зависания окна");
@@ -203,16 +203,16 @@
   add("Get started", "Comenzar", "Commencer", "Loslegen", "始める", "시작하기", "Começar", "ابدأ", "Начать");
   add("Open a project. Give it the job.", "Abra un proyecto. Asigne la tarea.", "Ouvrez un projet. Donnez-lui la mission.", "Projekt öffnen. Aufgabe erteilen.", "プロジェクトを開き、仕事を任せる。", "프로젝트를 열고 작업을 맡기세요.", "Abra um projeto. Dê a tarefa.", "افتح مشروعاً وأسند إليه المهمة.", "Откройте проект и поставьте задачу.");
   add("Download {{data-release-version}} for Windows, macOS or Linux from GitHub; then pick a workspace and connect DeepSeek, or sign in to Codex with ChatGPT.",
-    "Descargue <span data-release-version>3.5.2</span> para Windows, macOS o Linux desde GitHub; elija un espacio de trabajo y conecte DeepSeek, o inicie sesión en Codex con ChatGPT.",
-    "Téléchargez la version <span data-release-version>3.5.2</span> pour Windows, macOS ou Linux depuis GitHub ; choisissez un espace et connectez DeepSeek, ou ouvrez une session Codex avec ChatGPT.",
-    "Laden Sie <span data-release-version>3.5.2</span> für Windows, macOS oder Linux von GitHub herunter; wählen Sie einen Arbeitsbereich und verbinden Sie DeepSeek oder melden Sie sich mit ChatGPT bei Codex an.",
-    "GitHub から Windows・macOS・Linux 用 <span data-release-version>3.5.2</span> を取得し、作業領域と DeepSeek を設定するか、ChatGPT で Codex にログインします。",
-    "GitHub에서 Windows, macOS 또는 Linux용 <span data-release-version>3.5.2</span>를 내려받고 작업 공간과 DeepSeek를 설정하거나 ChatGPT로 Codex에 로그인하세요.",
-    "Baixe a versão <span data-release-version>3.5.2</span> para Windows, macOS ou Linux no GitHub; escolha um espaço e conecte o DeepSeek, ou entre no Codex com o ChatGPT.",
-    "نزّل الإصدار <span data-release-version>3.5.2</span> لويندوز أو macOS أو Linux من GitHub، ثم اختر مساحة عمل ووصل DeepSeek أو سجّل الدخول إلى Codex عبر ChatGPT.",
-    "Скачайте версию <span data-release-version>3.5.2</span> для Windows, macOS или Linux с GitHub; выберите рабочее пространство и подключите DeepSeek либо войдите в Codex через ChatGPT.");
+    "Descargue <span data-release-version>3.5.3</span> para Windows, macOS o Linux desde GitHub; elija un espacio de trabajo y conecte DeepSeek, o inicie sesión en Codex con ChatGPT.",
+    "Téléchargez la version <span data-release-version>3.5.3</span> pour Windows, macOS ou Linux depuis GitHub ; choisissez un espace et connectez DeepSeek, ou ouvrez une session Codex avec ChatGPT.",
+    "Laden Sie <span data-release-version>3.5.3</span> für Windows, macOS oder Linux von GitHub herunter; wählen Sie einen Arbeitsbereich und verbinden Sie DeepSeek oder melden Sie sich mit ChatGPT bei Codex an.",
+    "GitHub から Windows・macOS・Linux 用 <span data-release-version>3.5.3</span> を取得し、作業領域と DeepSeek を設定するか、ChatGPT で Codex にログインします。",
+    "GitHub에서 Windows, macOS 또는 Linux용 <span data-release-version>3.5.3</span>를 내려받고 작업 공간과 DeepSeek를 설정하거나 ChatGPT로 Codex에 로그인하세요.",
+    "Baixe a versão <span data-release-version>3.5.3</span> para Windows, macOS ou Linux no GitHub; escolha um espaço e conecte o DeepSeek, ou entre no Codex com o ChatGPT.",
+    "نزّل الإصدار <span data-release-version>3.5.3</span> لويندوز أو macOS أو Linux من GitHub، ثم اختر مساحة عمل ووصل DeepSeek أو سجّل الدخول إلى Codex عبر ChatGPT.",
+    "Скачайте версию <span data-release-version>3.5.3</span> для Windows, macOS или Linux с GitHub; выберите рабочее пространство и подключите DeepSeek либо войдите в Codex через ChatGPT.");
   add("GitHub latest release", "Última versión en GitHub", "Dernière version GitHub", "Neueste GitHub-Version", "GitHub 最新リリース", "GitHub 최신 릴리스", "Versão mais recente no GitHub", "أحدث إصدار على GitHub", "Последний выпуск GitHub");
-  add("Released {{data-release-date}}", "Publicado el <span data-release-date>2026-08-31</span>", "Publié le <span data-release-date>2026-08-31</span>", "Veröffentlicht am <span data-release-date>2026-08-31</span>", "公開日 <span data-release-date>2026-08-31</span>", "출시일 <span data-release-date>2026-08-31</span>", "Publicado em <span data-release-date>2026-08-31</span>", "نُشر في <span data-release-date>2026-08-31</span>", "Опубликовано <span data-release-date>2026-08-31</span>");
+  add("Released {{data-release-date}}", "Publicado el <span data-release-date>2026-09-01</span>", "Publié le <span data-release-date>2026-09-01</span>", "Veröffentlicht am <span data-release-date>2026-09-01</span>", "公開日 <span data-release-date>2026-09-01</span>", "출시일 <span data-release-date>2026-09-01</span>", "Publicado em <span data-release-date>2026-09-01</span>", "نُشر في <span data-release-date>2026-09-01</span>", "Опубликовано <span data-release-date>2026-09-01</span>");
   add("Download EXE", "Descargar EXE", "Télécharger EXE", "EXE herunterladen", "EXE をダウンロード", "EXE 다운로드", "Baixar EXE", "تنزيل EXE", "Скачать EXE");
   add("Download DMG", "Descargar DMG", "Télécharger DMG", "DMG herunterladen", "DMG をダウンロード", "DMG 다운로드", "Baixar DMG", "تنزيل DMG", "Скачать DMG");
   add("Download AppImage", "Descargar AppImage", "Télécharger AppImage", "AppImage herunterladen", "AppImage をダウンロード", "AppImage 다운로드", "Baixar AppImage", "تنزيل AppImage", "Скачать AppImage");
@@ -226,14 +226,14 @@
     "تزامن الصفحة أحدث إصدار كامل من GitHub عند فتحها؛ وإذا تعذرت الواجهة تستخدم روابط احتياطية موثقة.",
     "При открытии страница синхронизирует полный последний выпуск GitHub; если API недоступен, используются проверенные резервные ссылки.");
   add("Windows SHA256: {{data-release-sha}}",
-    "SHA256 de Windows: <code data-release-sha>664C6FEBF8C1968A962C28417F9BFD96877CF32EE16BAA9A0FC819C8F154751A</code>",
-    "SHA256 Windows : <code data-release-sha>664C6FEBF8C1968A962C28417F9BFD96877CF32EE16BAA9A0FC819C8F154751A</code>",
-    "Windows-SHA256: <code data-release-sha>664C6FEBF8C1968A962C28417F9BFD96877CF32EE16BAA9A0FC819C8F154751A</code>",
-    "Windows SHA256：<code data-release-sha>664C6FEBF8C1968A962C28417F9BFD96877CF32EE16BAA9A0FC819C8F154751A</code>",
-    "Windows SHA256: <code data-release-sha>664C6FEBF8C1968A962C28417F9BFD96877CF32EE16BAA9A0FC819C8F154751A</code>",
-    "SHA256 do Windows: <code data-release-sha>664C6FEBF8C1968A962C28417F9BFD96877CF32EE16BAA9A0FC819C8F154751A</code>",
-    "SHA256 لويندوز: <code data-release-sha>664C6FEBF8C1968A962C28417F9BFD96877CF32EE16BAA9A0FC819C8F154751A</code>",
-    "SHA256 Windows: <code data-release-sha>664C6FEBF8C1968A962C28417F9BFD96877CF32EE16BAA9A0FC819C8F154751A</code>");
+    "SHA256 de Windows: <code data-release-sha data-release-sha-source=\"github-release\">579CAE929C685CB0BAD65F6476B4124593DD3649C68CCAE0E1CA8829E8EF7213</code>",
+    "SHA256 Windows : <code data-release-sha data-release-sha-source=\"github-release\">579CAE929C685CB0BAD65F6476B4124593DD3649C68CCAE0E1CA8829E8EF7213</code>",
+    "Windows-SHA256: <code data-release-sha data-release-sha-source=\"github-release\">579CAE929C685CB0BAD65F6476B4124593DD3649C68CCAE0E1CA8829E8EF7213</code>",
+    "Windows SHA256：<code data-release-sha data-release-sha-source=\"github-release\">579CAE929C685CB0BAD65F6476B4124593DD3649C68CCAE0E1CA8829E8EF7213</code>",
+    "Windows SHA256: <code data-release-sha data-release-sha-source=\"github-release\">579CAE929C685CB0BAD65F6476B4124593DD3649C68CCAE0E1CA8829E8EF7213</code>",
+    "SHA256 do Windows: <code data-release-sha data-release-sha-source=\"github-release\">579CAE929C685CB0BAD65F6476B4124593DD3649C68CCAE0E1CA8829E8EF7213</code>",
+    "SHA256 لويندوز: <code data-release-sha data-release-sha-source=\"github-release\">579CAE929C685CB0BAD65F6476B4124593DD3649C68CCAE0E1CA8829E8EF7213</code>",
+    "SHA256 Windows: <code data-release-sha data-release-sha-source=\"github-release\">579CAE929C685CB0BAD65F6476B4124593DD3649C68CCAE0E1CA8829E8EF7213</code>");
   add("Current builds are unsigned or unnotarized · On Windows choose SmartScreen → “Run anyway” · Quit fully before upgrading · Verify the Windows SHA256 before installation",
     "Las compilaciones actuales no están firmadas · En Windows elija SmartScreen → «Ejecutar de todos modos» · Cierre completamente antes de actualizar · Verifique SHA256",
     "Les builds actuels ne sont pas signés · Sous Windows choisissez SmartScreen → « Exécuter quand même » · Quittez complètement avant la mise à niveau · Vérifiez le SHA256",

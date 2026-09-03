@@ -1,0 +1,68 @@
+name: build-cad-clean-source
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Immutable Agent Pi DSH release tag to rebuild (for example v3.6.0)
+        required: true
+        default: v3.6.0
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out the exact release source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.tag }}
+
+      - name: Verify immutable tag selection
+        shell: bash
+        env:
+          CAD_RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          test "$(git describe --exact-match --tags HEAD)" = "${CAD_RELEASE_TAG}"
+          test "${CAD_RELEASE_TAG}" = "v3.6.0"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Build the pinned CAD toolchain image
+        shell: bash
+        run: |
+          set -euo pipefail
+          base_image="$(node -p "require('./scripts/cad-clean-pins.json').builder.baseImage")"
+          docker pull "${base_image}"
+          docker build \
+            --pull=false \
+            --file scripts/cad-clean-builder.Dockerfile \
+            --tag agent-pi-cad-builder:3.6.0 \
+            scripts
+
+      - name: Rebuild and verify the CAD runtime and source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          image_id="$(docker image inspect --format '{{.Id}}' agent-pi-cad-builder:3.6.0)"
+          test -n "${image_id}"
+          docker run --rm \
+            --user 0:0 \
+            --volume "${PWD}:/workspace" \
+            --env "CAD_BUILDER_IMAGE_ID=${image_id}" \
+            agent-pi-cad-builder:3.6.0 \
+            bash /workspace/scripts/build-cad-clean-release.sh
+
+      - name: Upload review-only clean CAD build
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cad-clean-release-v3.6.0
+          path: .codex-temp/cad-clean-output/
+          include-hidden-files: true
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14

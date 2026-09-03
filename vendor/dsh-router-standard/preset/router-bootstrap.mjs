@@ -20,7 +20,7 @@
  */
 
 import {
-  applyPersona, bandFor, coreFor, parseMode, personaFor, sessionMode, testinessFor, clamp01,
+  applyPersona, bandFor, bandOf, coreFor, extractText, parseMode, personaFor, sessionEvents, sessionMode, testinessFor, clamp01,
   isComplexTask,
 } from './router-core.mjs'
 
@@ -63,7 +63,7 @@ export function apply(ctx, config) {
     // the tool surface changes once, after the first durable tool/call.
     const sections = applyPersona(assembled.sections, persona)
 
-    if (session.events.some((event) => event.type === 'tool/call')) {
+    if (sessionEvents(session).some((event) => event.type === 'tool/call')) {
       return { ...assembled, sections, contexts: [] } // promoted: full catalog
     }
 

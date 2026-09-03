@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 const here = dirname(fileURLToPath(import.meta.url))
 const manifest = JSON.parse(readFileSync(join(here, '../package.json'), 'utf8'))
 
-test('client manifest declares the alpha.3 Chat projection it reads', () => {
+test('client manifest declares the official Chat projection it reads', () => {
   assert.deepEqual(manifest.dsh.client.inject, [
     '@deepseek-ai/dsh-client-ui-layout',
     '@deepseek-ai/dsh-client-ui-conversation',

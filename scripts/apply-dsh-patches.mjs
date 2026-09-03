@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -6,7 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 /** Refuse product builds from a modified official DSH checkout. */
-export function assertDshCheckoutClean({ dshRoot, run = spawnSync }) {
+export function assertDshCheckoutClean({ dshRoot, expectedCommit = null, run = spawnSync }) {
   if (!existsSync(join(dshRoot, '.git'))) {
     throw new Error(`DSH checkout is not a Git worktree: ${dshRoot}`)
   }
@@ -24,6 +24,16 @@ export function assertDshCheckoutClean({ dshRoot, run = spawnSync }) {
       `Official DSH checkout must remain byte-clean; move Agent Pi behavior to product overlays.\n${dirty}`,
     )
   }
+  if (expectedCommit) {
+    const head = run('git', ['-C', dshRoot, 'rev-parse', 'HEAD'], { encoding: 'utf8', windowsHide: true })
+    if (head.status !== 0) {
+      throw new Error(`Failed to resolve the official DSH checkout commit.\n${head.stderr || head.stdout || ''}`)
+    }
+    const actualCommit = String(head.stdout || '').trim()
+    if (actualCommit !== expectedCommit) {
+      throw new Error(`Official DSH checkout is ${actualCommit}; DSH_PIN requires ${expectedCommit}`)
+    }
+  }
   return 'clean'
 }
 
@@ -35,7 +45,8 @@ export function prepareDshKernel({ dshRoot, run = spawnSync }) {
 export function main(args = process.argv.slice(2)) {
   const positionals = args.filter((arg) => !arg.startsWith('--'))
   const dshRoot = resolve(positionals[0] || process.env.DSH_CHECKOUT || join(root, 'vendor/deepseek-harness'))
-  const result = assertDshCheckoutClean({ dshRoot })
+  const expectedCommit = readFileSync(join(root, 'DSH_PIN'), 'utf8').trim()
+  const result = assertDshCheckoutClean({ dshRoot, expectedCommit })
   process.stdout.write(`Agent Pi DSH kernel guard: ${result} upstream checkout\n`)
 }
 

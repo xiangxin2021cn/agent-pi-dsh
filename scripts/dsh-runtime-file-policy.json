@@ -1,0 +1,30 @@
+{
+  "excludedDirectoryNames": [
+    ".git",
+    "node_modules",
+    "website",
+    "docs",
+    ".agents",
+    ".github",
+    "coverage",
+    ".turbo",
+    ".cache",
+    ".claude",
+    ".reasonix",
+    ".agent-pi",
+    ".dsh-build"
+  ],
+  "excludedFileNames": [
+    ".git",
+    ".agent-pi-links.json",
+    "DSH-BUILD-RECEIPT.json"
+  ],
+  "excludedFileGlobs": [
+    "*.map",
+    "*.tsbuildinfo"
+  ],
+  "excludedFileSuffixes": [
+    ".map",
+    ".tsbuildinfo"
+  ]
+}

@@ -1,6 +1,7 @@
 param(
   [switch]$FullCopy,
-  [switch]$Measure
+  [switch]$Measure,
+  [string]$DshBuildReceipt
 )
 
 $ErrorActionPreference = "Stop"
@@ -8,6 +9,16 @@ $Root = Split-Path -Parent $PSScriptRoot
 $Desktop = Join-Path $Root "apps\desktop"
 $Runtime = Join-Path $Desktop "runtime"
 $Dsh = Join-Path $Root "vendor\deepseek-harness"
+$DshReceiptName = "DSH-BUILD-RECEIPT.json"
+$DshRuntimeFilePolicy = Get-Content (Join-Path $Root "scripts\dsh-runtime-file-policy.json") -Raw | ConvertFrom-Json
+# Windows bundles the platform-specific pnpm closure. It remains outside the
+# cross-platform receipt, while portable CI installs its own closure later.
+$WindowsDshCopyExcludedDirectoryNames = @(
+  $DshRuntimeFilePolicy.excludedDirectoryNames | Where-Object { $_ -ne "node_modules" }
+)
+if (-not $DshBuildReceipt) {
+  $DshBuildReceipt = Join-Path $Root ".codex-temp\dsh-build\$DshReceiptName"
+}
 $NodeDir = Join-Path $Runtime "node"
 $Product = Join-Path $Runtime "product"
 $IconSrc = Join-Path $Desktop "brand\app-logo.png"
@@ -69,6 +80,7 @@ $productItems = @(
   "packages",
   "scripts",
   "package.json",
+  "LICENSE",
   "README.md",
   "THIRD_PARTY_NOTICES.md",
   "DSH_PIN",
@@ -80,6 +92,7 @@ $productItems = @(
   "vendor\dsh-univer-office",
   "vendor\README.md",
   "vendor\dsh-super-injector.pin",
+  "vendor\dsh-router-standard.pin",
   "vendor\anysearch-dsh.pin",
   "vendor\dsh-univer-office.pin"
 )
@@ -101,6 +114,34 @@ foreach ($item in $productItems) {
   }
 }
 
+function Stage-ProjectNodeModules([string]$projectRelative, [string]$requiredPackage) {
+  $sourceModules = Join-Path $Root "$projectRelative\node_modules"
+  $sourceMarker = Join-Path $sourceModules "$requiredPackage\package.json"
+  if (-not (Test-Path -LiteralPath $sourceMarker)) {
+    throw "$projectRelative dependencies are not installed; missing $sourceMarker"
+  }
+
+  $sourceItem = Get-Item -LiteralPath $sourceModules
+  if ($sourceItem.LinkType) {
+    $sourceModules = @($sourceItem.Target)[0]
+    Write-Host "Resolved $([System.IO.Path]::GetFileName($projectRelative)) node_modules $($sourceItem.LinkType) -> $sourceModules"
+  }
+
+  $stageModules = Join-Path $Product "$projectRelative\node_modules"
+  New-Item -ItemType Directory -Force -Path $stageModules | Out-Null
+  robocopy $sourceModules $stageModules /E /XJ /NFL /NDL /NJH /NJS /NP | Out-Null
+  if ($LASTEXITCODE -ge 8) { throw "staging $projectRelative node_modules failed: $LASTEXITCODE" }
+  if (-not (Test-Path -LiteralPath (Join-Path $stageModules "$requiredPackage\package.json"))) {
+    throw "staged $projectRelative is missing $requiredPackage"
+  }
+}
+
+# The broad product copy intentionally excludes Junctions. These two projects
+# own runtime imports, so copy their already lock-installed dependency trees
+# explicitly and verify the first package Node must resolve during cold start.
+Stage-ProjectNodeModules "packages\business-core" "zod"
+Stage-ProjectNodeModules "bundles\tender-host" "pdf-lib"
+
 # Keep first launch offline and deterministic. The source-vendored Univer
 # plugin intentionally excludes node_modules, so stage its production closure
 # into the packaged product while build-time npm access is available.
@@ -115,6 +156,9 @@ if ($dshLink.LinkType) {
   $Dsh = @($dshLink.Target)[0]
   Write-Host "Resolved vendor/deepseek-harness $($dshLink.LinkType) -> $Dsh"
 }
+node (Join-Path $Root "scripts\dsh-build-receipt.mjs") verify `
+  --dsh $Dsh --product $Root --receipt $DshBuildReceipt --source
+if ($LASTEXITCODE -ne 0) { throw "DSH source build receipt verification failed" }
 
 $dshTarget = Join-Path $Runtime "deepseek-harness"
 if (Test-Path $dshTarget) {
@@ -131,9 +175,13 @@ if ($FullCopy) {
   # multi-hour full-tree duplicate and breaks workspace links.
   $roboArgs = @(
     $Dsh, $dshTarget, "/E", "/SL", "/SJ", "/MT:16", "/R:1", "/W:1",
-    "/XD", ".git", "website", "docs", ".agents", ".github", "coverage", ".turbo", ".cache",
-    "/XF", "*.map", "/NFL", "/NDL", "/NJH", "/NJS", "/nc", "/ns", "/np"
+    "/XD"
   )
+  $roboArgs += $WindowsDshCopyExcludedDirectoryNames
+  $roboArgs += "/XF"
+  $roboArgs += @($DshRuntimeFilePolicy.excludedFileNames)
+  $roboArgs += @($DshRuntimeFilePolicy.excludedFileGlobs)
+  $roboArgs += @("/NFL", "/NDL", "/NJH", "/NJS", "/nc", "/ns", "/np")
   robocopy @roboArgs | Out-Null
   if ($LASTEXITCODE -ge 8) {
     Write-Host "robocopy first pass exited $LASTEXITCODE, retrying once..."
@@ -154,6 +202,7 @@ if ($FullCopy) {
   if ($LASTEXITCODE -ne 0) { throw "write dsh link manifest failed" }
   node (Join-Path $Root "scripts\repair-dsh-links.mjs") repair $dshTarget
   if ($LASTEXITCODE -ne 0) { throw "repair dsh links failed" }
+  Copy-Item -LiteralPath $DshBuildReceipt -Destination (Join-Path $dshTarget $DshReceiptName) -Force
 } else {
   cmd /c "mklink /J `"$dshTarget`" `"$Dsh`"" | Out-Null
 }
@@ -163,8 +212,12 @@ if ($Measure) {
 }
 node (Join-Path $Root "scripts\apply-runtime-overlays.mjs") $dshTarget $Product
 if ($LASTEXITCODE -ne 0) { throw "apply desktop runtime overlays failed" }
-node (Join-Path $Root "scripts\verify-dsh-alpha3-runtime.mjs") $dshTarget $Product
-if ($LASTEXITCODE -ne 0) { throw "staged DSH alpha.3 runtime verification failed" }
+$stagedDshReceipt = if ($FullCopy) { Join-Path $dshTarget $DshReceiptName } else { $DshBuildReceipt }
+node (Join-Path $Root "scripts\dsh-build-receipt.mjs") verify `
+  --dsh $dshTarget --product $Product --receipt $stagedDshReceipt
+if ($LASTEXITCODE -ne 0) { throw "staged DSH build receipt verification failed" }
+node (Join-Path $Root "scripts\verify-dsh-runtime.mjs") $dshTarget $Product
+if ($LASTEXITCODE -ne 0) { throw "staged DSH rc.1 runtime verification failed" }
 
 Write-Host "Runtime staged at $Runtime"
 Write-Host "pack:win uses extraResources/runtime. Full installer: prepare-win-runtime.ps1 -FullCopy"

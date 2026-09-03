@@ -1,0 +1,88 @@
+{
+  "schema": "agent-pi-dsh/cad-clean-pins/v1",
+  "releaseVersion": "3.6.0",
+  "sourceArchive": "Agent-Pi-DSH-3.6.0-CAD-corresponding-source.tar.gz",
+  "runtimeReceipt": "CAD-CLEAN-BUILD.json",
+  "builder": {
+    "baseImage": "emscripten/emsdk:4.0.12-x64@sha256:744fb6a68941970951bacf9d6632041a0398260492232691ef22bbf54b0585c6",
+    "emsdkVersion": "4.0.12",
+    "emsdkCommit": "f39e849effe1bd679aa9ef3cd1798d327c9619db",
+    "emscriptenCommit": "209b886304498eff50dd835850dc5715803401ed",
+    "nodeVersion": "v22.16.0",
+    "pnpmVersion": "10.33.4"
+  },
+  "sources": {
+    "libredwgWeb": {
+      "repository": "https://github.com/mlightcad/libredwg-web.git",
+      "tag": "v0.7.10",
+      "tagObject": "b16efd6b4a42d1d557cf6e2fcef9a1c92d053728",
+      "commit": "5909bd2bb87fa1168838e1295188f3ee603618eb",
+      "tree": "8e6d39794c5e2ff0f55b111476a6d143fca13db0",
+      "packageName": "@mlightcad/libredwg-web",
+      "packageVersion": "0.7.10",
+      "npmIntegrity": "sha512-L9wnwQn8cgHIr6I5El/8TgKSXaRacW9vytSpsU19xufmrnAAqEEGcW0MU92PgEiDKuQtU4GBenERIDfSrbY99g==",
+      "rejectedPublishedWasmSha256": "d8b78f6d5e63e6e178cf7343cfd08ebe798d75b6754c593e15d8f948b823e038"
+    },
+    "jsmn": {
+      "repository": "https://github.com/zserge/jsmn.git",
+      "commit": "85695f3d5903b1cd5b4030efe50db3b4f5f3c928",
+      "tree": "6ebbff934820545dc5f998fb81362154b3026ab9"
+    },
+    "realdwgWeb": {
+      "repository": "https://github.com/mlightcad/realdwg-web.git",
+      "tag": "v1.14.3",
+      "tagObject": "5c90badc0e79b5ef0d088cae691875832acb4f18",
+      "commit": "30b1f38280daf4a5305e0c85175b4e601f5bd200",
+      "tree": "378893db19a773137efda801d483fe74a170d33f",
+      "packageName": "@mlightcad/libredwg-converter",
+      "packageVersion": "3.14.3",
+      "npmIntegrity": "sha512-Sd/bSUnfMX6q4QWbC8xt32F/TW0aq9FxG8cLdG1ZDfGWr/LbkqaaCDoiHmbU715spuq5PF6CsxXaS1EWZluJ3A=="
+    },
+    "cadViewer": {
+      "repository": "https://github.com/mlightcad/cad-viewer.git",
+      "tag": "v1.6.3",
+      "tagObject": "d8aea6c87caf7fd14cf144f5594d3b25ce5042aa",
+      "commit": "212d3a9860bd0761edd673db3993f438e0d74bf3",
+      "tree": "7e0cde3f351073d021bacea11f19e61599eff0d3"
+    },
+    "mtextRenderer": {
+      "repository": "https://github.com/mlightcad/mtext-renderer.git",
+      "tag": "v0.12.4",
+      "tagObject": "6caa5c205616f14f395453140ade500314a9fd39",
+      "commit": "3393325fb7296a7b1180c36936790fa0be6f2a4a",
+      "tree": "a535b4257ae439af76175a45236c749d34f50c64"
+    },
+    "mtextParser": {
+      "repository": "https://github.com/mlightcad/mtext-parser.git",
+      "tag": "v1.5.0",
+      "tagObject": "57ac328ed5b929b2d1ebc4bb56d37a9ffaf9646a",
+      "commit": "8ff80704d68007641a3d13993063be0ff6000d2f",
+      "tree": "40dfe30f030b3a07beee859c5dafa939372ec32e"
+    },
+    "shxParser": {
+      "repository": "https://github.com/mlightcad/shx-parser.git",
+      "tag": "v1.4.5",
+      "tagObject": "41de8c94675d245c6639e9872f54d4033a65093b",
+      "commit": "5100b5f29083d1f39d24ac57d68ec05cc702d647",
+      "tree": "ac01c4adf461b6c5c925c66c47aadb4d416b0b8c"
+    }
+  },
+  "runtimeSourcePackages": [
+    { "name": "@mlightcad/libredwg-web", "version": "0.7.10", "license": "GPL-3.0", "source": "libredwg-web/bindings/javascript/package.json" },
+    { "name": "@mlightcad/libredwg-converter", "version": "3.14.3", "license": "GPL-3.0", "source": "realdwg-web/packages/libredwg-converter/package.json" },
+    { "name": "@mlightcad/data-model", "version": "1.14.3", "license": "MIT", "source": "realdwg-web/packages/data-model/package.json" },
+    { "name": "@mlightcad/common", "version": "1.14.3", "license": "MIT", "source": "realdwg-web/packages/common/package.json" },
+    { "name": "@mlightcad/geometry-engine", "version": "3.14.3", "license": "MIT", "source": "realdwg-web/packages/geometry-engine/package.json" },
+    { "name": "@mlightcad/graphic-interface", "version": "3.14.3", "license": "MIT", "source": "realdwg-web/packages/graphic-interface/package.json" },
+    { "name": "@mlightcad/cad-simple-viewer", "version": "1.6.3", "license": "MIT", "source": "cad-viewer/packages/cad-simple-viewer/package.json" },
+    { "name": "@mlightcad/cad-simple-ui-plugin", "version": "1.6.3", "license": "MIT", "source": "cad-viewer/packages/cad-simple-ui-plugin/package.json" },
+    { "name": "@mlightcad/three-renderer", "version": "1.6.3", "license": "MIT", "source": "cad-viewer/packages/three-renderer/package.json" },
+    { "name": "@mlightcad/mtext-renderer", "version": "0.12.4", "license": "MIT", "source": "mtext-renderer/packages/mtext-renderer/package.json" },
+    { "name": "@mlightcad/mtext-parser", "version": "1.5.0", "license": "MIT", "source": "mtext-parser/package.json" },
+    { "name": "@mlightcad/shx-parser", "version": "1.4.5", "license": "MIT", "source": "shx-parser/package.json" }
+  ],
+  "requiredRuntimeArtifacts": [
+    "workers/libredwg-parser-worker.js",
+    "workers/libredwg-web.wasm"
+  ]
+}

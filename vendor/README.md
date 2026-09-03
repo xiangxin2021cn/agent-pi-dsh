@@ -31,4 +31,4 @@ Refresh copies:
 .\scripts\vendor-dsh-plugins.ps1
 ```
 
-`vendor/deepseek-harness` is pinned by `DSH_PIN` to the official `dsh-v0.1.2-alpha.3` release (`dd6322d604`). The old Agent Pi patch targets `dsh-v0.1.1-rc.2` and is retained only as a porting inventory; it must not be applied to the alpha kernel. Agent Pi compatibility stays in product startup migration, profile overlays and bundles so the official checkout remains byte-clean.
+`vendor/deepseek-harness` is pinned by `DSH_PIN` to the official `dsh-v0.1.2-rc.1` release (`a66e470204`). The old Agent Pi patch targets `dsh-v0.1.1-rc.2` and is retained only as a porting inventory; it must not be applied to the current kernel. Agent Pi compatibility stays in product startup migration, profile overlays and bundles so the official checkout remains byte-clean.

@@ -40,12 +40,14 @@ import { restoreSetupSources } from './setup-restore.ts'
 import { adoptPreview, adoptWorkspace } from './adopt.ts'
 import { importExternalPaths, listWorkspaceFiles, openExistingPath, openInFileManager, harvestWorkspaceOutputs, promoteFile, readWorkspaceFile, saveUpload } from './files.ts'
 import {
+  describeWorkspaceBinary,
   deleteWorkspaceFile,
   exportMarkdownFile,
   previewKind,
   readWorkspaceBinary,
   saveWorkspaceText,
 } from './preview-export.ts'
+import { cadViewerUrl, readCadViewerAsset } from './cad-viewer-assets.ts'
 import { inspectPricingSave } from './pricing-recalc.ts'
 import { optimizePromptWithLlm, type LlmStreamRuntime } from './prompt-optimize.ts'
 import {
@@ -145,6 +147,21 @@ function sendHtml(res: ServerResponse, html: string): void {
   res.end(body)
 }
 
+function sendCadAsset(req: IncomingMessage, res: ServerResponse, requestPath: string): void {
+  const file = readCadViewerAsset(requestPath)
+  if (!file) {
+    send(res, 404, { error: 'CAD viewer asset not found' })
+    return
+  }
+  res.writeHead(200, {
+    'content-type': file.mime,
+    'content-length': file.body.length,
+    'cache-control': file.mime.startsWith('text/html') ? 'no-store' : 'public, max-age=86400',
+    'x-content-type-options': 'nosniff',
+  })
+  res.end(req.method === 'HEAD' ? undefined : file.body)
+}
+
 function createProject(cwd: string, body: {
   module?: BusinessModuleId
   projectId?: string
@@ -229,6 +246,11 @@ export function attachHttp(ctx: {
         const url = new URL(req.url ?? '/', 'http://127.0.0.1')
         if (req.method === 'GET' && url.pathname.startsWith('/api/agent-pi/brand/')) {
           sendBrand(res, decodeURIComponent(url.pathname.slice('/api/agent-pi/brand/'.length)))
+          return
+        }
+        if ((req.method === 'GET' || req.method === 'HEAD') && url.pathname.startsWith('/api/agent-pi/cad-viewer/')) {
+          const name = decodeURIComponent(url.pathname.slice('/api/agent-pi/cad-viewer/'.length)) || 'index.html'
+          sendCadAsset(req, res, name)
           return
         }
         if (req.method === 'GET' && url.pathname.startsWith('/api/agent-pi/univer-assets/')) {
@@ -982,6 +1004,19 @@ export function attachHttp(ctx: {
         if (req.method === 'GET' && url.pathname === '/api/agent-pi/files/content') {
           const path = url.searchParams.get('path') ?? ''
           const kind = previewKind(path)
+          if (kind === 'cad') {
+            const file = describeWorkspaceBinary(cwd, path)
+            send(res, 200, {
+              kind,
+              path: file.path,
+              filename: file.filename,
+              mime: file.mime,
+              size: file.size,
+              mtimeMs: file.mtimeMs,
+              viewerUrl: cadViewerUrl(cwd, file.path),
+            })
+            return
+          }
           // Office must not fall through to the 200KB text reader. A stale
           // previewKind() that still maps xlsx→binary would otherwise show
           // “二进制文件无法在预览中排版”.

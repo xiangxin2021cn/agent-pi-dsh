@@ -10,6 +10,7 @@ Thumbs.db
 .tmp/
 .wrangler/
 output/
+bundles/tender-web/lib/cad-viewer/
 apps/desktop/node_modules/
 apps/desktop/dist/
 apps/desktop/dist-*/
@@ -24,4 +25,5 @@ vendor/dsh-univer-office/
 release/*.exe
 release/*.tar.gz
 release/*.sha256
+release/*.build.json
 release/vr-144/

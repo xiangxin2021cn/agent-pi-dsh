@@ -119,10 +119,10 @@
       <h2 data-lang="zh">快速上手</h2>
       <h2 data-lang="en">Quickstart</h2>
       <div data-lang="zh">
-        <p><b>当前版本：</b>Agent Pi DSH <span data-release-version>3.5.2</span>。DSH 3.x 与 Craft Agents OSS 2.x 经典版的内核、数据目录和更新通道完全分开。</p>
+        <p><b>当前版本：</b>Agent Pi DSH <span data-release-version>3.5.3</span>。DSH 3.x 与 Craft Agents OSS 2.x 经典版的内核、数据目录和更新通道完全分开。</p>
         <p>Agent Pi DSH 的默认路径只有一条：<b>打开工作区，直接说任务</b>。工作台是加速器，不是闸门。</p>
         <ol>
-          <li>在<a href="index.html#download">官网下载区</a>选择 Windows、macOS 或 Linux 安装包；Windows 用户安装前核对 SHA256：<code data-release-sha>664C6FEBF8C1968A962C28417F9BFD96877CF32EE16BAA9A0FC819C8F154751A</code>。</li>
+          <li>在<a href="index.html#download">官网下载区</a>选择 Windows、macOS 或 Linux 安装包；Windows 用户安装前核对 SHA256：<code data-release-sha data-release-sha-source="github-release">579CAE929C685CB0BAD65F6476B4124593DD3649C68CCAE0E1CA8829E8EF7213</code>。</li>
           <li>打开 <b>Agent Pi DSH</b>，选择项目工作区（投标资料所在目录）。</li>
           <li>配置 DeepSeek。新会话默认 <code>deepseek-v4-flash-vision-exp</code>。</li>
           <li>可选：设置 → Codex 智能体 → 使用 ChatGPT 登录；无需 API Key。</li>
@@ -132,10 +132,10 @@
         <div class="callout"><p><b>提示：</b>PDF 当文件读（能抽文本的不先转图）；图纸和照片交给官方视觉模型。</p></div>
       </div>
       <div data-lang="en">
-        <p><b>Current version:</b> Agent Pi DSH <span data-release-version>3.5.2</span>. DSH 3.x and Craft Agents OSS 2.x Classic use separate engines, data directories and update channels.</p>
+        <p><b>Current version:</b> Agent Pi DSH <span data-release-version>3.5.3</span>. DSH 3.x and Craft Agents OSS 2.x Classic use separate engines, data directories and update channels.</p>
         <p>The default path in Agent Pi DSH is a single one: <b>pick a workspace and talk</b>. The workbench accelerates work; it does not gate it.</p>
         <ol>
-          <li>Choose the Windows, macOS or Linux package in the <a href="index.html#download">website download section</a>. Windows users should verify SHA256 before installation: <code data-release-sha>664C6FEBF8C1968A962C28417F9BFD96877CF32EE16BAA9A0FC819C8F154751A</code>.</li>
+          <li>Choose the Windows, macOS or Linux package in the <a href="index.html#download">website download section</a>. Windows users should verify SHA256 before installation: <code data-release-sha data-release-sha-source="github-release">579CAE929C685CB0BAD65F6476B4124593DD3649C68CCAE0E1CA8829E8EF7213</code>.</li>
           <li>Open <b>Agent Pi DSH</b> and pick the project workspace (the folder with the bid files).</li>
           <li>Connect DeepSeek. New sessions default to <code>deepseek-v4-flash-vision-exp</code>.</li>
           <li>Optional: Settings → Codex Agent → Sign in with ChatGPT. No API key is required.</li>
@@ -381,6 +381,7 @@
       <div data-lang="zh">
         <table class="tbl">
           <tr><th>版本</th><th>一句话</th></tr>
+          <tr><td>3.6.0</td><td>DSH rc.1；DWG 只读预览；GPL 对应源码与十五项资产验证后发布</td></tr>
           <tr><td>3.5.2</td><td>DSH alpha.3 正式升级；长会话与图片投递适配；内核升级强制提升应用版本</td></tr>
           <tr><td>3.5.1</td><td>每会话执行账本；主智能体执行态与系统事实态双态对照；差异驱动续派</td></tr>
           <tr><td>3.5.0</td><td>不可变阶段记忆与 handoff；精准下游失效；重启与压缩后从磁盘基线恢复</td></tr>
@@ -414,6 +415,7 @@
       <div data-lang="en">
         <table class="tbl">
           <tr><th>Version</th><th>In one line</th></tr>
+          <tr><td>3.6.0</td><td>DSH rc.1, read-only DWG preview, and GPL source plus fifteen-asset verification before publication</td></tr>
           <tr><td>3.5.2</td><td>DSH alpha.3 release, long-session and image-delivery adaptation, mandatory application version bump for kernel upgrades</td></tr>
           <tr><td>3.5.1</td><td>Per-session execution ledger, dual main-agent/fact state, and mismatch-driven continuation</td></tr>
           <tr><td>3.5.0</td><td>Immutable stage memory and handoffs, precise downstream invalidation, disk-baseline recovery after restart and compaction</td></tr>
@@ -497,6 +499,6 @@
 </footer>
 
 <script src="assets/js/release-metadata.js?v=27"></script>
-<script src="assets/js/main.js?v=29"></script>
+<script src="assets/js/main.js?v=32"></script>
 </body>
 </html>
