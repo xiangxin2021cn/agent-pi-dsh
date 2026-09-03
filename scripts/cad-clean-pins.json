@@ -8,6 +8,7 @@
     "emsdkVersion": "4.0.12",
     "emsdkCommit": "f39e849effe1bd679aa9ef3cd1798d327c9619db",
     "emscriptenCommit": "209b886304498eff50dd835850dc5715803401ed",
+    "autoconfHostAlias": "wasm32-unknown-emscripten",
     "nodeVersion": "v22.16.0",
     "pnpmVersion": "10.33.4"
   },

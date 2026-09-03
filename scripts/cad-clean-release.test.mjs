@@ -61,7 +61,7 @@ function makeGitExport(directory, { gitlink } = {}) {
     run('git', ['update-index', '--add', '--cacheinfo', `160000,${gitlink.commit},${gitlink.path}`], directory)
   }
   const tree = run('git', ['write-tree'], directory)
-  const listing = run('git', ['ls-tree', '-r', '--full-tree', tree], directory) + '\n'
+  const listing = run('git', ['-c', 'core.quotePath=false', 'ls-tree', '-r', '--full-tree', tree], directory) + '\n'
   rmSync(join(directory, '.git'), { recursive: true, force: true })
   write(join(directory, '.agent-pi-git-tree.txt'), listing)
   return tree
@@ -175,6 +175,7 @@ function createFixture(t, { dirtyWasm = false, failedEvidence = false, rejectFix
   write(join(dsh, 'tools', 'mlightcad-poc', 'package.json'), JSON.stringify({
     name: 'agent-pi-dsh-mlightcad-poc', version: '0.0.0', private: true,
   }) + '\n')
+  write(join(dsh, 'WPS图片.png'), 'fixture\n')
   const dshTree = makeGitExport(dsh)
   const dshCommit = makeCommitEvidence(dsh, dshTree)
   write(join(dsh, '.agent-pi-full-git-tree.txt'), readFileSync(join(dsh, '.agent-pi-git-tree.txt')))
@@ -189,6 +190,7 @@ function createFixture(t, { dirtyWasm = false, failedEvidence = false, rejectFix
       emsdkVersion: '4.0.12',
       emsdkCommit: '2222222222222222222222222222222222222222',
       emscriptenCommit: '3333333333333333333333333333333333333333',
+      autoconfHostAlias: 'wasm32-unknown-emscripten',
       nodeVersion: 'v22.16.0',
       pnpmVersion: '10.33.4',
     },

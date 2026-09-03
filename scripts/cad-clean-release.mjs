@@ -439,7 +439,7 @@ function publishedNpmReferences(pins) {
 
 function assertToolchain(toolchain, pins) {
   const expected = pins.builder
-  for (const key of ['baseImage', 'emsdkVersion', 'emsdkCommit', 'emscriptenCommit', 'nodeVersion', 'pnpmVersion']) {
+  for (const key of ['baseImage', 'emsdkVersion', 'emsdkCommit', 'emscriptenCommit', 'autoconfHostAlias', 'nodeVersion', 'pnpmVersion']) {
     if (toolchain[key] !== expected[key]) fail(`toolchain ${key} does not match the pin`)
   }
   if (typeof toolchain.builderImageId !== 'string' || !/^sha256:[a-f0-9]{64}$/.test(toolchain.builderImageId)) {
