@@ -78,8 +78,9 @@ image_id="$(docker image inspect --format '{{.Id}}' agent-pi-cad-builder:3.6.0)"
 docker run --rm \
   --volume "$PWD:/workspace" \
   --env "CAD_BUILDER_IMAGE_ID=$image_id" \
+  --env "COREPACK_ENABLE_PROJECT_SPEC=0" \
   agent-pi-cad-builder:3.6.0 \
-  bash /workspace/scripts/build-cad-clean-release.sh
+  bash -lc 'git config --global url."https://github.com/zserge/jsmn.git".insteadOf https://github.com/zserge/jsmn && exec bash /workspace/scripts/build-cad-clean-release.sh'
 ```
 
 The inner script verifies each annotated tag object, commit, tree and submodule;
@@ -89,7 +90,7 @@ exports pristine source trees; and rebuilds LibreDWG with the upstream flags:
 autoreconf -f --install --symlink -I m4
 cd bindings/javascript
 pnpm install --frozen-lockfile
-pnpm run build:prepare
+host_alias=wasm32-unknown-emscripten pnpm run build:prepare
 pnpm run build:obj
 pnpm run build:wasm
 pnpm run copy
@@ -105,7 +106,8 @@ pnpm install --frozen-lockfile
 pnpm --filter '@mlightcad/libredwg-converter...' run build
 ```
 
-Finally, it installs the Agent Pi CAD PoC dependency lock in a temporary copy,
+Finally, it installs the Agent Pi CAD PoC dependency lock, including the exact
+Node 22 type declarations used to check `vite.config.ts`, in a temporary copy,
 overlays the rebuilt packages, runs `npm run check`, tests and the viewer build,
 then generates and verifies the source manifest and archive.
 

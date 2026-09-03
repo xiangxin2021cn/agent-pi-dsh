@@ -87,11 +87,23 @@ test('3.6.0 publisher remains immutable and fails closed before GitHub access un
   const publish = readText('scripts', 'publish-win-and-trigger-platforms.ps1')
   const workflow = readText('.github', 'workflows', 'build-desktop-assets.yml')
   const cadWorkflow = readText('.github', 'workflows', 'build-cad-clean-source.yml')
+  const cadBuild = readText('scripts', 'build-cad-clean-release.sh')
+  const cadPins = readJson('scripts', 'cad-clean-pins.json')
+  const cadPackage = readJson('tools', 'mlightcad-poc', 'package.json')
+  const cadLock = readJson('tools', 'mlightcad-poc', 'package-lock.json')
   const publisherPath = join(root, 'release', 'publish-v3.6.0-release.mjs')
   const createRelease = readFileSync(publisherPath, 'utf8')
   assert.doesNotMatch(publish, /--clobber/)
   assert.doesNotMatch(workflow, /--clobber/)
   assert.match(cadWorkflow, /include-hidden-files:\s*true/)
+  assert.match(cadWorkflow, /url\."https:\/\/github\.com\/zserge\/jsmn\.git"\.insteadOf https:\/\/github\.com\/zserge\/jsmn/)
+  assert.match(cadWorkflow, /COREPACK_ENABLE_PROJECT_SPEC=0/)
+  assert.equal(cadPins.builder.autoconfHostAlias, 'wasm32-unknown-emscripten')
+  assert.match(cadBuild, /host_alias="\$\{AUTOCONF_HOST_ALIAS\}" pnpm run build:prepare/)
+  assert.match(cadBuild, /core\.quotePath=false/)
+  assert.equal(cadPackage.devDependencies['@types/node'], '22.16.0')
+  assert.equal(cadLock.packages['node_modules/@types/node'].version, '22.16.0')
+  assert.equal(cadLock.packages['node_modules/undici-types'].version, '6.21.0')
   assert.match(publish, /workflow run build-desktop-assets\.yml --repo \$Repo --ref \$Tag/)
   assert.match(publish, /InstallerChecksum/)
   assert.match(publish, /InstallerBuildReceipt/)
@@ -129,5 +141,8 @@ test('3.6.0 publisher remains immutable and fails closed before GitHub access un
     encoding: 'utf8',
   })
   assert.notEqual(blocked.status, 0)
-  assert.match(`${blocked.stdout}\n${blocked.stderr}`, /publishing requires a completely clean checkout|exact v3\.6\.0 tag/i)
+  assert.match(
+    `${blocked.stdout}\n${blocked.stderr}`,
+    /publishing requires a completely clean checkout|exact v3\.6\.0 tag|no tag exactly matches|release checksum pair is incomplete/i,
+  )
 })

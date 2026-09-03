@@ -52,12 +52,13 @@ readonly BASE_IMAGE="$(pin builder baseImage)"
 readonly EMSDK_VERSION="$(pin builder emsdkVersion)"
 readonly EMSDK_COMMIT="$(pin builder emsdkCommit)"
 readonly EMSCRIPTEN_COMMIT="$(pin builder emscriptenCommit)"
+readonly AUTOCONF_HOST_ALIAS="$(pin builder autoconfHostAlias)"
 readonly NODE_VERSION="$(pin builder nodeVersion)"
 readonly PNPM_VERSION="$(pin builder pnpmVersion)"
 readonly ARCHIVE_NAME="$(pin sourceArchive)"
 
 dsh_git() {
-  git -c "safe.directory=${ROOT}" -C "${ROOT}" "$@"
+  git -c "safe.directory=${ROOT}" -c core.quotePath=false -C "${ROOT}" "$@"
 }
 
 if [[ -n "$(dsh_git status --porcelain=v1 --untracked-files=all)" ]]; then
@@ -155,9 +156,9 @@ printf '%s\n' "${LIBREDWG_VERSION}" > "${SOURCE_STAGE}/libredwg-web/.tarball-ver
 write_marker "${SOURCE_STAGE}/libredwg-web/.agent-pi-source.json" "${LIBREDWG_REPOSITORY}" "${LIBREDWG_COMMIT}" "${LIBREDWG_TREE}" "${LIBREDWG_TAG}" "${LIBREDWG_TAG_OBJECT}"
 write_marker "${SOURCE_STAGE}/libredwg-web/jsmn/.agent-pi-source.json" "${JSMN_REPOSITORY}" "${JSMN_COMMIT}" "${JSMN_TREE}"
 write_marker "${SOURCE_STAGE}/realdwg-web/.agent-pi-source.json" "${REALDWG_REPOSITORY}" "${REALDWG_COMMIT}" "${REALDWG_TREE}" "${REALDWG_TAG}" "${REALDWG_TAG_OBJECT}"
-git -C "${REPOS}/libredwg-web" ls-tree -r --full-tree "${LIBREDWG_COMMIT}" > "${SOURCE_STAGE}/libredwg-web/.agent-pi-git-tree.txt"
-git -C "${REPOS}/libredwg-web/jsmn" ls-tree -r --full-tree "${JSMN_COMMIT}" > "${SOURCE_STAGE}/libredwg-web/jsmn/.agent-pi-git-tree.txt"
-git -C "${REPOS}/realdwg-web" ls-tree -r --full-tree "${REALDWG_COMMIT}" > "${SOURCE_STAGE}/realdwg-web/.agent-pi-git-tree.txt"
+git -c core.quotePath=false -C "${REPOS}/libredwg-web" ls-tree -r --full-tree "${LIBREDWG_COMMIT}" > "${SOURCE_STAGE}/libredwg-web/.agent-pi-git-tree.txt"
+git -c core.quotePath=false -C "${REPOS}/libredwg-web/jsmn" ls-tree -r --full-tree "${JSMN_COMMIT}" > "${SOURCE_STAGE}/libredwg-web/jsmn/.agent-pi-git-tree.txt"
+git -c core.quotePath=false -C "${REPOS}/realdwg-web" ls-tree -r --full-tree "${REALDWG_COMMIT}" > "${SOURCE_STAGE}/realdwg-web/.agent-pi-git-tree.txt"
 write_git_commit "${REPOS}/libredwg-web" "${LIBREDWG_COMMIT}" "${SOURCE_STAGE}/libredwg-web"
 write_git_tag "${REPOS}/libredwg-web" "${LIBREDWG_TAG_OBJECT}" "${SOURCE_STAGE}/libredwg-web"
 write_git_commit "${REPOS}/libredwg-web/jsmn" "${JSMN_COMMIT}" "${SOURCE_STAGE}/libredwg-web/jsmn"
@@ -183,7 +184,7 @@ export_tagged_source() {
     tar -xf - -C "${SOURCE_STAGE}/${directory}"
   write_marker "${SOURCE_STAGE}/${directory}/.agent-pi-source.json" \
     "${repository}" "${commit}" "${tree}" "${tag}" "${tag_object}"
-  git -C "${REPOS}/${directory}" ls-tree -r --full-tree "${commit}" > \
+  git -c core.quotePath=false -C "${REPOS}/${directory}" ls-tree -r --full-tree "${commit}" > \
     "${SOURCE_STAGE}/${directory}/.agent-pi-git-tree.txt"
   write_git_commit "${REPOS}/${directory}" "${commit}" "${SOURCE_STAGE}/${directory}"
   write_git_tag "${REPOS}/${directory}" "${tag_object}" "${SOURCE_STAGE}/${directory}"
@@ -231,7 +232,7 @@ pushd "${WORK}/libredwg-web" >/dev/null
 autoreconf -f --install --symlink -I m4
 pushd bindings/javascript >/dev/null
 pnpm install --frozen-lockfile
-pnpm run build:prepare
+host_alias="${AUTOCONF_HOST_ALIAS}" pnpm run build:prepare
 pnpm run build:obj
 pnpm run build:wasm
 pnpm run copy
@@ -300,6 +301,7 @@ export CAD_TOOLCHAIN_BASE_IMAGE="${BASE_IMAGE}"
 export CAD_TOOLCHAIN_EMSDK_VERSION="${EMSDK_VERSION}"
 export CAD_TOOLCHAIN_EMSDK_COMMIT="${EMSDK_COMMIT}"
 export CAD_TOOLCHAIN_EMSCRIPTEN_COMMIT="${EMSCRIPTEN_COMMIT}"
+export CAD_TOOLCHAIN_AUTOCONF_HOST_ALIAS="${AUTOCONF_HOST_ALIAS}"
 export CAD_TOOLCHAIN_NODE_VERSION="$(node --version)"
 export CAD_TOOLCHAIN_PNPM_VERSION="$(pnpm --version)"
 export CAD_TOOLCHAIN_EMCC_VERSION="$(emcc --version | head -n 1)"
@@ -323,6 +325,7 @@ node -e '
     emsdkVersion: process.env.CAD_TOOLCHAIN_EMSDK_VERSION,
     emsdkCommit: process.env.CAD_TOOLCHAIN_EMSDK_COMMIT,
     emscriptenCommit: process.env.CAD_TOOLCHAIN_EMSCRIPTEN_COMMIT,
+    autoconfHostAlias: process.env.CAD_TOOLCHAIN_AUTOCONF_HOST_ALIAS,
     nodeVersion: process.env.CAD_TOOLCHAIN_NODE_VERSION,
     pnpmVersion: process.env.CAD_TOOLCHAIN_PNPM_VERSION,
     emccVersion: process.env.CAD_TOOLCHAIN_EMCC_VERSION,
@@ -376,4 +379,5 @@ node "${RELEASE_TOOL}" verify \
   --checksum "${OUTPUT_ROOT}/${ARCHIVE_NAME}.sha256" \
   --runtime-dir "${RUNTIME_DIR}"
 
+test -z "$(dsh_git status --porcelain=v1 --untracked-files=all)"
 echo "CAD clean build complete: ${OUTPUT_ROOT}"
