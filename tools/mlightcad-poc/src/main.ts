@@ -13,6 +13,8 @@ import {
   toolbarPreset
 } from '@mlightcad/cad-simple-ui-plugin'
 import {
+  AcDbBlockReference,
+  AcDbBlockTableRecord,
   AcDbDatabaseConverterManager,
   AcDbFileType
 } from '@mlightcad/data-model'
@@ -26,8 +28,10 @@ const busyMessage = requireElement<HTMLElement>('busy-message')
 const statusMessage = requireElement<HTMLElement>('status-message')
 const drawingName = requireElement<HTMLElement>('drawing-name')
 const fileInput = requireElement<HTMLInputElement>('file-input')
+const fontInput = requireElement<HTMLInputElement>('font-input')
 const openButton = requireElement<HTMLButtonElement>('open-button')
 const emptyOpenButton = requireElement<HTMLButtonElement>('empty-open-button')
+const fontButton = requireElement<HTMLButtonElement>('font-button')
 const externalButton = requireElement<HTMLButtonElement>('external-button')
 
 const pageBaseUrl = new URL('./', window.location.href)
@@ -41,6 +45,8 @@ const LOCAL_FALLBACK_FONT = 'Source Han Sans CN'
 
 let manager: AcApDocManager | undefined
 let hasOpenedDocument = false
+let drawingRevision = 0
+let currentDrawing: { name: string; content: ArrayBuffer } | undefined
 
 type CadFrameMessage =
   | { type: 'agent-pi-cad:ready' }
@@ -60,11 +66,13 @@ function setBusy(isBusy: boolean, message = ''): void {
   busyMessage.textContent = message
   openButton.disabled = isBusy
   emptyOpenButton.disabled = isBusy
+  fontButton.disabled = isBusy
 }
 
-function setStatus(message: string, isError = false): void {
+function setStatus(message: string, isError = false, isWarning = false): void {
   statusMessage.textContent = message
   statusMessage.classList.toggle('is-error', isError)
+  statusMessage.classList.toggle('is-warning', isWarning && !isError)
 }
 
 function postToParent(message: CadFrameMessage): void {
@@ -100,6 +108,116 @@ function registerDwgConverter(): void {
       parserWorkerUrl: workerUrls.dwgParser
     })
   )
+}
+
+function normalizeFontName(name: string): string {
+  const baseName = name.trim().split(/[\\/]/).pop() || ''
+  return baseName.toLowerCase().replace(/\.(?:shx|ttf|otf|woff)$/i, '')
+}
+
+function currentMissingFonts(docManager: AcApDocManager): string[] {
+  const missed = docManager.curView?.missedData?.fonts ?? {}
+  const candidates = new Map<string, string>()
+  for (const name of Object.keys(missed)) {
+    const normalized = normalizeFontName(name)
+    if (normalized) candidates.set(normalized, name)
+  }
+
+  const database = docManager.curDocument.database
+  const blockTable = database.tables.blockTable
+  const textStyleTable = database.tables.textStyleTable
+  const textEntityTypes = new Set(['TEXT', 'MTEXT', 'ATTRIB', 'ATTDEF', 'SHAPE'])
+  const usedStyles = new Set<string>()
+  const pendingBlocks: AcDbBlockTableRecord[] = [blockTable.modelSpace]
+  const visitedBlocks = new Set<string>()
+
+  for (const block of blockTable.newIterator()) {
+    if (block.isPaperSapce) pendingBlocks.push(block)
+  }
+
+  const addStyle = (styleName: unknown): void => {
+    if (typeof styleName === 'string' && styleName.trim()) {
+      usedStyles.add(styleName)
+    }
+  }
+
+  while (pendingBlocks.length > 0) {
+    const block = pendingBlocks.pop()
+    if (!block || visitedBlocks.has(block.objectId)) continue
+    visitedBlocks.add(block.objectId)
+
+    for (const entity of block.newIterator()) {
+      if (textEntityTypes.has(entity.dxfTypeName.toUpperCase())) {
+        addStyle((entity as { styleName?: unknown }).styleName)
+      }
+      if (entity.dxfTypeName.toUpperCase() !== 'INSERT') continue
+
+      const blockReference = entity as AcDbBlockReference
+      for (const attribute of blockReference.attributeIterator()) {
+        addStyle(attribute.styleName)
+      }
+      if (blockReference.blockTableRecord) {
+        pendingBlocks.push(blockReference.blockTableRecord)
+      }
+    }
+  }
+
+  for (const styleName of usedStyles) {
+    const record = textStyleTable.getAt(styleName)
+    if (!record) continue
+    for (const name of [record.fileName, record.bigFontFileName, record.textStyle?.font]) {
+      if (typeof name !== 'string' || !name.trim()) continue
+      const normalized = normalizeFontName(name)
+      if (normalized && !AcApFontUtil.isFontLoaded(normalized)) {
+        candidates.set(normalized, name)
+      }
+    }
+  }
+
+  return [...candidates.values()].sort((left, right) =>
+    left.localeCompare(right)
+  )
+}
+
+async function refreshMissingFontStatusWhenIdle(
+  docManager: AcApDocManager,
+  revision: number
+): Promise<void> {
+  const view = docManager.curView
+  if (!view) return
+  try {
+    await view.waitUntilIdle()
+  } catch (error) {
+    console.warn('[mlightcad-poc] Failed to wait for final font status', error)
+    return
+  }
+  refreshMissingFontStatus(docManager, revision)
+}
+
+function refreshMissingFontStatus(
+  docManager: AcApDocManager,
+  revision: number
+): void {
+  if (revision !== drawingRevision || !hasOpenedDocument) return
+  const missing = currentMissingFonts(docManager)
+  if (missing.length === 0) {
+    setStatus('图纸已打开 · 只读模式')
+    return
+  }
+  const visible = missing.slice(0, 6).join('、')
+  const suffix = missing.length > 6 ? ` 等 ${missing.length} 种` : ''
+  setStatus(
+    `图纸已打开，但缺少字体：${visible}${suffix}。请导入图纸配套的 SHX / TTF / OTF 字体。`,
+    false,
+    true
+  )
+}
+
+function inferShxEncoding(fileName: string): string | undefined {
+  const name = normalizeFontName(fileName)
+  if (name === 'hztxt') return 'gbk'
+  if (name === 'gbcbig') return 'gb2312'
+  return undefined
 }
 
 async function ensureViewer(): Promise<AcApDocManager> {
@@ -178,6 +296,7 @@ async function ensureViewer(): Promise<AcApDocManager> {
 async function openDrawing(name: string, content: ArrayBuffer): Promise<void> {
   const safeName = normalizeDrawingName(name)
   assertSupportedFileName(safeName)
+  const revision = ++drawingRevision
   setBusy(true, `正在解析 ${safeName}…`)
   setStatus('正在检查离线运行时…')
 
@@ -189,7 +308,7 @@ async function openDrawing(name: string, content: ArrayBuffer): Promise<void> {
     }
 
     setStatus('正在解析图纸，请稍候…')
-    const opened = await docManager.openDocument(safeName, content, {
+    const opened = await docManager.openDocument(safeName, content.slice(0), {
       mode: AcEdOpenMode.Read,
       openViewMode: AcApOpenViewMode.Extents,
       progressiveRendering: true
@@ -200,9 +319,11 @@ async function openDrawing(name: string, content: ArrayBuffer): Promise<void> {
     }
 
     hasOpenedDocument = true
+    currentDrawing = { name: safeName, content }
     drawingName.textContent = safeName
     emptyState.hidden = true
-    setStatus('图纸已打开 · 只读模式')
+    refreshMissingFontStatus(docManager, revision)
+    void refreshMissingFontStatusWhenIdle(docManager, revision)
     postToParent({ type: 'agent-pi-cad:ready' })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
@@ -217,6 +338,45 @@ async function openDrawing(name: string, content: ArrayBuffer): Promise<void> {
 async function openSelectedFile(file: File): Promise<void> {
   assertSupportedFileName(file.name)
   await openDrawing(file.name, await file.arrayBuffer())
+}
+
+async function importFontFiles(files: File[]): Promise<void> {
+  if (files.length === 0) return
+  setBusy(true, `正在导入 ${files.length} 个字体…`)
+  const missing = manager ? currentMissingFonts(manager) : []
+  const missingByName = new Map(
+    missing.map((name) => [normalizeFontName(name), name])
+  )
+  const failed: string[] = []
+
+  try {
+    for (const file of files) {
+      if (!/\.(?:shx|ttf|otf|woff)$/i.test(file.name)) {
+        failed.push(file.name)
+        continue
+      }
+      const normalized = normalizeFontName(file.name)
+      const alias = missingByName.get(normalized)
+      const status = await AcApFontUtil.cacheFont(
+        file,
+        undefined,
+        alias ? [alias] : undefined,
+        /\.shx$/i.test(file.name) ? inferShxEncoding(file.name) : undefined
+      )
+      if (status.status !== 'Success') failed.push(file.name)
+    }
+
+    if (failed.length > 0) {
+      throw new Error(`以下字体无法导入：${failed.join('、')}`)
+    }
+    if (currentDrawing) {
+      await openDrawing(currentDrawing.name, currentDrawing.content)
+    } else {
+      setStatus(`已导入 ${files.length} 个字体；打开图纸后自动使用。`)
+    }
+  } finally {
+    setBusy(false)
+  }
 }
 
 async function openSameOriginSourceFromQuery(): Promise<void> {
@@ -251,8 +411,13 @@ function chooseFile(): void {
   fileInput.click()
 }
 
+function chooseFonts(): void {
+  fontInput.click()
+}
+
 openButton.addEventListener('click', chooseFile)
 emptyOpenButton.addEventListener('click', chooseFile)
+fontButton.addEventListener('click', chooseFonts)
 fileInput.addEventListener('change', () => {
   const file = fileInput.files?.[0]
   fileInput.value = ''
@@ -260,6 +425,13 @@ fileInput.addEventListener('change', () => {
 
   void openSelectedFile(file).catch((error) => {
     reportError(error, 'Failed to open local drawing')
+  })
+})
+fontInput.addEventListener('change', () => {
+  const files = Array.from(fontInput.files ?? [])
+  fontInput.value = ''
+  void importFontFiles(files).catch((error) => {
+    reportError(error, 'Failed to import CAD fonts')
   })
 })
 
