@@ -98,9 +98,7 @@ jobs:
         run: |
           (cd payload/product/packages/business-core && npm ci --omit=dev --no-fund --no-audit)
           (cd payload/product/bundles/tender-host && npm ci --omit=dev --no-fund --no-audit)
-          # Install only the public production graph. The plugin's full manifest
-          # also names short-lived insiders dev packages that npm cannot resolve.
-          node payload/product/scripts/install-univer-runtime-deps.mjs payload/product/vendor/dsh-univer-office
+          node payload/product/scripts/univer-public-release.mjs assert-tree payload/product
 
       - name: Download Node runtime binary
         run: |
@@ -116,13 +114,6 @@ jobs:
             --product payload/product \
             --node-bin node-runtime/bin/node \
             --out payload/desktop/runtime
-
-      - name: Verify staged Univer native runtime
-        run: |
-          payload/desktop/runtime/node/node \
-            payload/desktop/runtime/product/scripts/install-univer-runtime-deps.mjs \
-            payload/desktop/runtime/product/vendor/dsh-univer-office \
-            --verify-only
 
       - name: Install desktop shell dependencies
         working-directory: payload/desktop

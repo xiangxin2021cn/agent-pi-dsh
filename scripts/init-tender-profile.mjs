@@ -16,8 +16,11 @@ import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { repairDeepSeekModelCapacities } from './deepseek-model-capacities.mjs'
 import { removeProductParallelCap } from './heal-agent-loop-settings.mjs'
-import { installUniverRuntimeDeps } from './install-univer-runtime-deps.mjs'
 import { migrateLegacyAgentPresetSessions } from './migrate-legacy-agent-preset-sessions.mjs'
+import {
+  removeMissingProductUniverDependency,
+  UNIVER_OFFICE_NAME,
+} from './univer-profile-migration.mjs'
 import { prepareKnownPluginCompatibility } from '../vendor/dshmarket/compatibility.js'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -34,7 +37,7 @@ const systemPresetIds = ['standard', 'ptc', 'minimal', 'cordis']
 const INJECTOR_NAME = '@dsh-external/dsh-super-injector'
 const GENUI_NAME = '@omdsh-dev/dsh-genui'
 const ANYSEARCH_NAME = '@anysearch/anysearch-dsh'
-const UNIVER_NAME = 'dsh-univer-office'
+const UNIVER_NAME = UNIVER_OFFICE_NAME
 const WEB_FETCH_HTTP = '@deepseek-ai/dsh-web-fetch-http'
 const CODEX_SUBAGENT = '@deepseek-ai/dsh-subagent-codex'
 const AGENT_PI_COMPACTION = 'dsh-agent-pi-compaction'
@@ -153,13 +156,6 @@ const localPlugins = [
   { name: ANYSEARCH_NAME, dir: join(root, 'vendor/anysearch-dsh'), updatable: true },
 ]
 
-const univerDir = join(root, 'vendor/dsh-univer-office')
-const univerReady = existsSync(join(univerDir, 'lib/index.js'))
-if (univerReady) {
-  bundles.push(UNIVER_NAME)
-  localPlugins.push({ name: UNIVER_NAME, dir: univerDir, updatable: true })
-}
-
 mkdirSync(profileDir, { recursive: true })
 
 let dependencies = {}
@@ -169,6 +165,10 @@ if (existsSync(manifestPath)) {
   } catch {
     dependencies = {}
   }
+}
+const univerMigration = removeMissingProductUniverDependency({ dependencies, profileDir, productRoot: root })
+if (univerMigration.changed) {
+  process.stdout.write('removed obsolete Agent Pi dsh-univer-office link; a user-installed registry package was not changed\n')
 }
 
 function packageDeclaresBundle(packageName) {
@@ -544,23 +544,9 @@ function compareVersions(a, b) {
   return 0
 }
 
-function univerSupportsAlpha1Client(dir) {
-  try {
-    const client = readFileSync(join(dir, 'lib/client.js'), 'utf8')
-    return client.includes('ctx.uiConversation.events.register(univerTurnDefinition)')
-      && client.includes('snapshot.views.get("chat")')
-      && !client.includes('conversationEvents')
-      && !client.includes('session.chat.timeline')
-      && !client.includes('props.useSession(')
-  } catch {
-    return false
-  }
-}
-
-// The in-app updater (plugin settings card / market) replaces the preinstall
-// junction with a real registry install and rewrites the dependency spec.
-// Keep that install when it is at least as new as the vendored copy; an app
-// upgrade shipping a newer vendored copy falls through and re-links.
+// The in-app updater can replace a product-managed junction with a real
+// registry install. Keep such user-owned installs for the vendored plugins
+// that remain part of the public runtime.
 function keepsRegistryInstall(plugin) {
   if (!plugin.updatable) return false
   const dest = moduleDest(plugin.name)
@@ -570,7 +556,6 @@ function keepsRegistryInstall(plugin) {
     return false
   }
   if (samePath(dest, plugin.dir)) return false
-  if (plugin.name === UNIVER_NAME && !univerSupportsAlpha1Client(dest)) return false
   const installed = packageVersion(dest)
   const vendored = packageVersion(plugin.dir)
   if (!installed || !vendored) return false
@@ -640,47 +625,9 @@ function wireAnysearchPeers() {
 }
 wireAnysearchPeers()
 
-function ensureUniverRuntimeDeps() {
-  if (!univerReady) return
-  if (process.env.AGENT_PI_SKIP_UNIVER_INSTALL === '1') return
-  installUniverRuntimeDeps(univerDir, join(home, '.runtime-install', UNIVER_NAME))
-}
-
-function wireUniverPeers() {
-  if (!univerReady) return
-  let pluginDir = univerDir
-  try {
-    pluginDir = realpathSync(moduleDest(UNIVER_NAME))
-  } catch {
-    // Profile not linked yet.
-  }
-  if (!existsSync(join(pluginDir, 'package.json'))) return
-  const peers = [
-    ['@deepseek-ai/cordis', ['@deepseek-ai/cordis', 'cordis']],
-    ['@deepseek-ai/dsh-attachment', ['@deepseek-ai/dsh-attachment']],
-    ['@deepseek-ai/dsh-host-webserver', ['@deepseek-ai/dsh-host-webserver']],
-    ['@deepseek-ai/dsh-llm', ['@deepseek-ai/dsh-llm']],
-    ['@deepseek-ai/dsh-session', ['@deepseek-ai/dsh-session']],
-    ['@deepseek-ai/dsh-skill', ['@deepseek-ai/dsh-skill']],
-    ['@deepseek-ai/dsh-tools', ['@deepseek-ai/dsh-tools']],
-    ['@deepseek-ai/schemastery', ['@deepseek-ai/schemastery', 'schemastery']],
-  ]
-  for (const [destName, names] of peers) {
-    const source = findDshPackage(names)
-    if (!source) {
-      process.stderr.write(`univer cannot resolve ${destName} under ${dsh}\n`)
-      continue
-    }
-    ensureJunction(source, join(pluginDir, 'node_modules', ...destName.split('/')))
-  }
-}
-
 function syncUniverSkills() {
-  const srcRoot = [
-    join(moduleDest(UNIVER_NAME), 'skills'),
-    join(univerDir, 'skills'),
-  ].find((path) => existsSync(path))
-  if (!srcRoot) return
+  const srcRoot = join(moduleDest(UNIVER_NAME), 'skills')
+  if (!existsSync(srcRoot)) return
   let names = []
   try {
     names = readdirSync(srcRoot)
@@ -696,8 +643,6 @@ function syncUniverSkills() {
   }
 }
 
-ensureUniverRuntimeDeps()
-wireUniverPeers()
 writeManifest(dependencies)
 writeManagedPatch(dependencies)
 

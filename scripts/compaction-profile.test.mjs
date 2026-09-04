@@ -19,7 +19,7 @@ const scriptNames = [
   'init-tender-profile.mjs',
   'deepseek-model-capacities.mjs',
   'heal-agent-loop-settings.mjs',
-  'install-univer-runtime-deps.mjs',
+  'univer-profile-migration.mjs',
   'migrate-legacy-agent-preset-sessions.mjs',
   'enable-desktop-web-fetch.mjs',
   'enable-desktop-codex.mjs',
@@ -344,7 +344,7 @@ test('alpha.1 preserves dsh-im installation but does not activate the incompatib
   assert.doesNotMatch(JSON.stringify(manifest.dsh.profile.bundles), /@xmanrui\/dsh-im/)
 })
 
-test('alpha.1 replaces a registry Univer client that still reads the legacy session timeline', (t) => {
+test('public runtime preserves a user-installed Univer package instead of replacing it from vendor', (t) => {
   const fixture = createFixture(t)
   const newline = String.fromCharCode(10)
   const bundled = join(fixture.root, 'vendor/dsh-univer-office')
@@ -387,9 +387,7 @@ test('alpha.1 replaces a registry Univer client that still reads the legacy sess
 
   const manifest = JSON.parse(readFileSync(join(profileDir, 'package.json'), 'utf8'))
   const client = readFileSync(join(profileDir, 'node_modules/dsh-univer-office/lib/client.js'), 'utf8')
-  assert.ok(manifest.dependencies['dsh-univer-office'].startsWith('link:'))
+  assert.equal(manifest.dependencies['dsh-univer-office'], '^0.2.10')
   assert.ok(client.includes('ctx.uiConversation.events.register(univerTurnDefinition)'))
-  assert.ok(client.includes('snapshot.views.get("chat")'))
-  assert.ok(!client.includes('conversationEvents'))
-  assert.ok(!client.includes('session.chat.timeline'))
+  assert.ok(client.includes('session.chat.timeline'))
 })

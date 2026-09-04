@@ -226,17 +226,12 @@ function Test-UnpackedApp([string]$dir) {
     (Join-Path $dir "resources\runtime\product\bundles\agent-pi-compaction\lib\index.js"),
     (Join-Path $dir "resources\runtime\product\bundles\tender-host\node_modules\pdf-lib\package.json"),
     (Join-Path $dir "resources\runtime\product\packages\business-core\node_modules\zod\package.json")
-    (Join-Path $dir "resources\runtime\product\vendor\dsh-univer-office\LICENSE")
-    (Join-Path $dir "resources\runtime\product\vendor\dsh-univer-office\AGENT-PI-VENDOR-RECEIPT.json")
-    (Join-Path $dir "resources\runtime\product\vendor\dsh-univer-office\node_modules\@univerjs-pro\cli-assets\package.json")
   )
   $cadViewer = Join-Path $dir "resources\runtime\product\bundles\tender-web\lib\cad-viewer"
   if (($need | Where-Object { -not (Test-Path $_) }).Count -ne 0 -or -not (Test-CadViewerAssets $cadViewer)) {
     return $false
   }
-  $univer = Join-Path $dir "resources\runtime\product\vendor\dsh-univer-office"
-  $packagedNode = Join-Path $dir "resources\runtime\node\node.exe"
-  & $packagedNode (Join-Path $Root "scripts\install-univer-runtime-deps.mjs") $univer --verify-only *> $null
+  & node (Join-Path $Root "scripts\univer-public-release.mjs") assert-tree (Join-Path $dir "resources\runtime\product") *> $null
   return $LASTEXITCODE -eq 0
 }
 
@@ -246,9 +241,6 @@ if ($ToolchainOnly) {
   if ($toolchainBuilderExit -ne 0) { throw "local electron-builder.cmd failed: $toolchainBuilderExit" }
   return
 }
-
-& node (Join-Path $Root "scripts\materialize-dsh-univer-office.mjs")
-if ($LASTEXITCODE -ne 0) { throw "failed to materialize pinned dsh-univer-office" }
 
 if (-not $CadCleanOutput) { $CadCleanOutput = Join-Path $Root ".codex-temp\cad-clean-output" }
 $CadCleanOutput = (Resolve-Path -LiteralPath $CadCleanOutput -ErrorAction Stop).Path
@@ -295,10 +287,6 @@ if (-not (Test-Path (Join-Path $Root "bundles\agent-pi-compaction\lib\index.js")
 if (-not (Test-Path (Join-Path $Root "vendor\anysearch-dsh\lib\index.js"))) {
   throw "vendor/anysearch-dsh incomplete. Copy anysearch-dsh 0.1.1 with built lib/"
 }
-if (-not (Test-Path (Join-Path $Root "vendor\dsh-univer-office\lib\index.js"))) {
-  throw "vendor/dsh-univer-office materialization is incomplete"
-}
-
 function Find-BrandPython {
   $resolved = Get-Command python -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
   $candidates = @(
@@ -410,12 +398,10 @@ if (Test-Path $unpackedProduct) {
     "THIRD_PARTY_NOTICES.md",
     "vendor\dshmarket",
     "vendor\anysearch-dsh",
-    "vendor\dsh-univer-office",
     "vendor\dsh-router-standard",
     "vendor\README.md",
     "vendor\dsh-router-standard.pin",
-    "vendor\anysearch-dsh.pin",
-    "vendor\dsh-univer-office.pin"
+    "vendor\anysearch-dsh.pin"
   )) {
     $src = Join-Path $Root $item
     $dest = Join-Path $unpackedProduct $item
@@ -429,6 +415,8 @@ if (Test-Path $unpackedProduct) {
       Copy-Item -Force $src $dest
     }
   }
+  & node (Join-Path $Root "scripts\univer-public-release.mjs") sanitize $unpackedProduct
+  if ($LASTEXITCODE -ne 0) { throw "unpacked public Univer release boundary failed" }
   $retiredSkill = Join-Path $unpackedProduct "skills\j-space"
   if (Test-Path $retiredSkill) {
     Remove-Item -Recurse -Force $retiredSkill
@@ -444,6 +432,8 @@ if (Test-Path $unpackedProduct) {
     }
   }
 }
+& node (Join-Path $Root "scripts\univer-public-release.mjs") assert-tree $unpackedProduct
+if ($LASTEXITCODE -ne 0) { throw "unpacked product contains a bundled Univer Pro integration" }
 $unpackedCadViewer = Join-Path $unpackedProduct "bundles\tender-web\lib\cad-viewer"
 Install-CadCleanRuntime $unpackedCadViewer "unpacked runtime"
 # ReuseUnpacked keeps the previous electron-builder asar. The NSIS filename

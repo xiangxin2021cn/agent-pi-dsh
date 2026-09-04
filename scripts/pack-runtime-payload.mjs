@@ -23,7 +23,6 @@ import {
 import { createHash } from 'node:crypto'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { verifyMaterializedUniver } from './materialize-dsh-univer-office.mjs'
 import { verifyCadCleanRelease } from './cad-clean-release.mjs'
 import {
   buildDshWithReceipt,
@@ -33,6 +32,10 @@ import {
 } from './dsh-build-receipt.mjs'
 import { verifyDshRuntime } from './verify-dsh-runtime.mjs'
 import { verifyRuntimePayloadStage } from './verify-runtime-payload-stage.mjs'
+import {
+  assertUniverPublicReleaseTree,
+  removeBundledUniverFromProduct,
+} from './univer-public-release.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const desktop = join(root, 'apps', 'desktop')
@@ -101,7 +104,6 @@ function verifyCadViewerAssets(dir, label) {
   if (missing.length) throw new Error(`${label} CAD viewer missing: ${missing.join(', ')}`)
 }
 
-run(process.execPath, [join(root, 'scripts', 'materialize-dsh-univer-office.mjs')])
 run(process.execPath, [join(root, 'scripts', 'kernel-version-policy.mjs'), '--history'])
 run(process.execPath, [join(root, 'scripts', 'apply-dsh-patches.mjs')])
 const dshSrc = realpathSync(join(root, 'vendor', 'deepseek-harness'))
@@ -157,9 +159,8 @@ const productItems = [
   'package.json', 'LICENSE', 'README.md', 'THIRD_PARTY_NOTICES.md', 'DSH_PIN', '.gitmodules',
   'vendor/dsh-super-injector', 'vendor/dsh-router-standard', 'vendor/dshmarket',
   'vendor/anysearch-dsh',
-  'vendor/dsh-univer-office',
   'vendor/README.md', 'vendor/dsh-super-injector.pin', 'vendor/dsh-router-standard.pin',
-  'vendor/anysearch-dsh.pin', 'vendor/dsh-univer-office.pin',
+  'vendor/anysearch-dsh.pin',
 ]
 for (const item of productItems) {
   const src = join(root, item)
@@ -173,14 +174,12 @@ for (const item of productItems) {
     cpSync(src, dest)
   }
 }
+removeBundledUniverFromProduct(productDest)
+assertUniverPublicReleaseTree(productDest)
 const stagedCadViewer = join(productDest, 'bundles', 'tender-web', 'lib', 'cad-viewer')
 rmSync(stagedCadViewer, { recursive: true, force: true })
 mkdirSync(dirname(stagedCadViewer), { recursive: true })
 cpSync(cadViewer, stagedCadViewer, { recursive: true })
-verifyMaterializedUniver(
-  join(productDest, 'vendor', 'dsh-univer-office'),
-  join(productDest, 'vendor', 'dsh-univer-office.pin'),
-)
 verifyCadCleanRelease({
   archivePath: cadSourceArchive,
   checksumPath: cadSourceChecksum,

@@ -1,11 +1,13 @@
 import { readdirSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { assertUniverPublicReleaseTree } from './univer-public-release.mjs'
 
 const forbiddenNames = new Set(['.git', 'node_modules'])
 
 export function verifyRuntimePayloadStage(stage) {
   const root = resolve(stage)
+  assertUniverPublicReleaseTree(root)
   const pending = [root]
   while (pending.length > 0) {
     const directory = pending.pop()

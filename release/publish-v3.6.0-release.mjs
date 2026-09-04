@@ -7,6 +7,10 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { verifyCadCleanRelease } from '../scripts/cad-clean-release.mjs'
 import { verifyWindowsBuildReceipt } from '../scripts/windows-build-receipt.mjs'
+import {
+  assertUniverPublicReleaseArchive,
+  assertUniverPublicReleaseTree,
+} from '../scripts/univer-public-release.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const repo = 'xiangxin2021cn/agent-pi-dsh'
@@ -93,6 +97,11 @@ async function assertCadDistributionReady() {
     dshReceiptPath: join(root, 'apps', 'desktop', 'dist-unpacked', 'win-unpacked', 'resources', 'runtime', 'deepseek-harness', 'DSH-BUILD-RECEIPT.json'),
     receiptPath: join(root, 'release', windowsBuildReceiptAsset),
   })
+  assertUniverPublicReleaseTree(join(
+    root,
+    'apps', 'desktop', 'dist-unpacked', 'win-unpacked', 'resources', 'runtime', 'product',
+  ))
+  assertUniverPublicReleaseArchive(join(root, 'release', 'runtime-payload-3.6.0.tar.gz'))
 }
 
 if (!['--create-draft', '--publish'].includes(mode)) {
