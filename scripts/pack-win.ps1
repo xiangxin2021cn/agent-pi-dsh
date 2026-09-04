@@ -231,10 +231,13 @@ function Test-UnpackedApp([string]$dir) {
     (Join-Path $dir "resources\runtime\product\vendor\dsh-univer-office\node_modules\@univerjs-pro\cli-assets\package.json")
   )
   $cadViewer = Join-Path $dir "resources\runtime\product\bundles\tender-web\lib\cad-viewer"
-  return (
-    ($need | Where-Object { -not (Test-Path $_) }).Count -eq 0 -and
-    (Test-CadViewerAssets $cadViewer)
-  )
+  if (($need | Where-Object { -not (Test-Path $_) }).Count -ne 0 -or -not (Test-CadViewerAssets $cadViewer)) {
+    return $false
+  }
+  $univer = Join-Path $dir "resources\runtime\product\vendor\dsh-univer-office"
+  $packagedNode = Join-Path $dir "resources\runtime\node\node.exe"
+  & $packagedNode (Join-Path $Root "scripts\install-univer-runtime-deps.mjs") $univer --verify-only *> $null
+  return $LASTEXITCODE -eq 0
 }
 
 if ($ToolchainOnly) {

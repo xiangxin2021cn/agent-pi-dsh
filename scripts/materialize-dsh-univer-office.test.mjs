@@ -116,6 +116,31 @@ test('materializes, patches, receipts, and verifies a clean pinned package', asy
   assert.match(client, /ctx\.uiConversation\.events\.register/)
   assert.doesNotMatch(client, /conversationEvents/)
   assert.equal(existsSync(join(plugin, 'AGENT-PI-VENDOR-RECEIPT.json')), true)
+  const receipt = JSON.parse(readFileSync(join(plugin, 'AGENT-PI-VENDOR-RECEIPT.json'), 'utf8'))
+  assert.deepEqual(receipt.files.map((file) => file.path), [
+    'LICENSE',
+    'lib/client.js',
+    'lib/index.js',
+    'package.json',
+  ])
+  assert.ok(receipt.files.every((file) => Number.isSafeInteger(file.size) && /^[a-f0-9]{64}$/.test(file.sha256)))
+})
+
+test('verification rejects changed, added, and removed materialized files', async (t) => {
+  for (const mutation of ['changed', 'added', 'removed']) {
+    await t.test(mutation, async (t) => {
+      const item = fixture(t)
+      await materializeDshUniverOffice(item)
+      const plugin = join(item.root, 'vendor', 'dsh-univer-office')
+      if (mutation === 'changed') write(join(plugin, 'lib', 'index.js'), 'export const tampered = true\n')
+      if (mutation === 'added') write(join(plugin, 'unexpected.js'), 'unexpected\n')
+      if (mutation === 'removed') rmSync(join(plugin, 'lib', 'index.js'))
+      assert.throws(
+        () => verifyMaterializedUniver(plugin, item.pinPath),
+        /vendor receipt file tree mismatch|is missing lib\/index\.js/,
+      )
+    })
+  }
 })
 
 test('rejects a tarball integrity mismatch before replacing an existing package', async (t) => {

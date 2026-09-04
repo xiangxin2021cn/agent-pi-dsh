@@ -13,7 +13,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { patchUniverForDshAlpha1 } from './patch-univer-alpha1.mjs'
@@ -125,6 +125,35 @@ function walkTree(root) {
   }
 }
 
+function receiptFileList(pluginRoot) {
+  const root = resolve(pluginRoot)
+  const files = []
+  const pending = [root]
+  while (pending.length > 0) {
+    const directory = pending.pop()
+    for (const entry of readdirSync(directory).sort().reverse()) {
+      const path = join(directory, entry)
+      const stat = lstatSync(path)
+      if (stat.isSymbolicLink()) fail(`materialized dsh-univer-office contains a symbolic link: ${path}`)
+      if (stat.isDirectory()) {
+        pending.push(path)
+      } else if (stat.isFile()) {
+        const relativePath = relative(root, path).split(sep).join('/')
+        if (relativePath !== receiptName) {
+          files.push({
+            path: relativePath,
+            size: stat.size,
+            sha256: sha(readFileSync(path), 'sha256'),
+          })
+        }
+      } else {
+        fail(`materialized dsh-univer-office contains an unsupported entry: ${path}`)
+      }
+    }
+  }
+  return files.sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0)
+}
+
 function validatePackage(pluginRoot, pin) {
   const root = resolve(pluginRoot)
   walkTree(root)
@@ -181,6 +210,7 @@ function writeReceipt(pluginRoot, pin, clientSource) {
       path: 'lib/client.js',
       sha256: sha(Buffer.from(clientSource), 'sha256'),
     },
+    files: receiptFileList(pluginRoot),
   }
   writeFileSync(join(pluginRoot, receiptName), `${JSON.stringify(receipt, null, 2)}\n`)
   return receipt
@@ -206,6 +236,13 @@ export function verifyMaterializedUniver(pluginRoot, pinPath = defaultPinPath) {
   if (receipt.compatibilityPatch?.sha256 !== patchSha256) fail('dsh-univer-office compatibility patch receipt mismatch')
   if (receipt.patchedClient?.sha256 !== sha(Buffer.from(client), 'sha256')) {
     fail('dsh-univer-office patched client receipt mismatch')
+  }
+  if (!Array.isArray(receipt.files) || receipt.files.length === 0) {
+    fail('dsh-univer-office vendor receipt file list is missing')
+  }
+  const actualFiles = receiptFileList(root)
+  if (JSON.stringify(receipt.files) !== JSON.stringify(actualFiles)) {
+    fail('dsh-univer-office vendor receipt file tree mismatch')
   }
   return receipt
 }

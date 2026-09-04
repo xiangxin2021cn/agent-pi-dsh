@@ -186,6 +186,9 @@ function runtimeEnv() {
     AGENT_PI_DESKTOP: '1',
     CODEX_HOME: codexHome,
   }, readPrefs())
+  // Packaged runtimes are fully materialized and receipt-verified before the
+  // installer is produced. Do not rehash or mutate that closure on every launch.
+  if (packaged) env.AGENT_PI_SKIP_UNIVER_INSTALL = '1'
   const inheritedPathKey = Object.keys(env).find((key) => key.toLowerCase() === 'path')
   const inheritedPath = inheritedPathKey ? env[inheritedPathKey] : ''
   // Official Models onboarding treats a process-environment DEEPSEEK_API_KEY
