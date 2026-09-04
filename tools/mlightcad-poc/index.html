@@ -20,6 +20,9 @@
           </div>
         </div>
         <div class="topbar-actions">
+          <button class="font-button" id="font-button" type="button">
+            导入缺失字体
+          </button>
           <button class="external-button" id="external-button" type="button" hidden>
             用系统应用打开
           </button>
@@ -28,6 +31,13 @@
           </button>
         </div>
         <input id="file-input" type="file" accept=".dwg,.dxf" hidden />
+        <input
+          id="font-input"
+          type="file"
+          accept=".shx,.ttf,.otf,.woff"
+          multiple
+          hidden
+        />
       </header>
 
       <main id="viewer-host" class="viewer-host">

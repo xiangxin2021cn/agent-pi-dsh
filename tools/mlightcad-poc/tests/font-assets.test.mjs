@@ -17,8 +17,8 @@ test('text fixture exercises both TEXT and MTEXT entities', async () => {
     'utf8'
   )
 
-  assert.match(fixture, /\nTEXT\n/)
-  assert.match(fixture, /\nMTEXT\n/)
+  assert.match(fixture, /\r?\nTEXT\r?\n/)
+  assert.match(fixture, /\r?\nMTEXT\r?\n/)
   assert.match(fixture, /AGENT PI TEXT/)
   assert.match(fixture, /MTEXT \\U\+4E2D\\U\+6587/)
 })
@@ -59,4 +59,22 @@ test('viewer commits its singleton only after fallback fonts and plugins load', 
   assert.ok(commitIndex > loadPluginIndex)
   assert.match(source, /catch \(error\) \{[\s\S]*await nextManager\.destroy\(\)/)
   assert.match(source, /await docManager\.closeDocument\(\)\s+hasOpenedDocument = false/)
+})
+
+test('viewer reports missing drawing fonts and lets the user import licensed local replacements', async () => {
+  const source = await readFile(resolve(toolRoot, 'src/main.ts'), 'utf8')
+  const html = await readFile(resolve(toolRoot, 'index.html'), 'utf8')
+
+  assert.match(html, /id="font-button"/)
+  assert.match(html, /id="font-input"[^>]*type="file"[^>]*accept="\.shx,\.ttf,\.otf,\.woff"[^>]*multiple/s)
+  assert.match(source, /docManager\.curView\?\.missedData\?\.fonts/)
+  assert.match(source, /await view\.waitUntilIdle\(\)/)
+  assert.match(source, /blockTable\.modelSpace/)
+  assert.match(source, /block\.isPaperSapce/)
+  assert.match(source, /blockReference\.blockTableRecord/)
+  assert.match(source, /AcApFontUtil\.cacheFont\(/)
+  assert.match(source, /name === 'hztxt'\) return 'gbk'/)
+  assert.match(source, /name === 'gbcbig'\) return 'gb2312'/)
+  assert.match(source, /await openDrawing\(currentDrawing\.name, currentDrawing\.content\)/)
+  assert.match(source, /缺少字体/)
 })

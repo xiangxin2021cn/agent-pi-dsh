@@ -96,6 +96,7 @@ h1 {
 }
 
 .open-button,
+.font-button,
 .external-button,
 .empty-open-button {
   border: 0;
@@ -120,7 +121,17 @@ h1 {
   border: 1px solid #c9d7e5;
 }
 
-.external-button:hover {
+.font-button {
+  padding: 7px 11px;
+  color: #32506f;
+  font-size: 12px;
+  font-weight: 600;
+  background: #f4f8fc;
+  border: 1px solid #c9d7e5;
+}
+
+.external-button:hover,
+.font-button:hover {
   color: #075cb5;
   background: #eaf4ff;
   border-color: #9dc5eb;
@@ -132,6 +143,7 @@ h1 {
 }
 
 .open-button:disabled,
+.font-button:disabled,
 .external-button:disabled,
 .empty-open-button:disabled {
   cursor: wait;
@@ -253,6 +265,10 @@ h1 {
   color: #c33232;
 }
 
+#status-message.is-warning {
+  color: #a45b00;
+}
+
 .scope-note {
   flex: none;
   color: #8490a0;
@@ -289,10 +305,20 @@ h1 {
     border-color: #3b5065;
   }
 
+  .font-button {
+    color: #c1d2e3;
+    background: #223140;
+    border-color: #3b5065;
+  }
+
   #drawing-name,
   .statusbar,
   .scope-note {
     color: #9ba8b7;
+  }
+
+  #status-message.is-warning {
+    color: #f3b45e;
   }
 
   .empty-state {

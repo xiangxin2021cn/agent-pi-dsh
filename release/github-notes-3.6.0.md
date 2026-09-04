@@ -16,6 +16,8 @@
 
 MLightCAD viewer 与 data-model 为 MIT；LibreDWG converter/web 包声明为 GPL-3.0。仓库所有者选择 GPL 路线，因此 Agent Pi DSH 3.6.0 的项目代码和发行物按 `GPL-3.0-only` 发布，第三方组件继续保留自身原始条款。
 
+查看器内置 Source Han Unicode 回退字体；遇到老图纸依赖的 SHX / big-font 时会列出缺失字体，并允许用户导入自己有权使用的 `.shx` / `.ttf` / `.otf` / `.woff` 文件后重新渲染。为避免许可证风险，本发行版不捆绑来历不明的工程 SHX 字体。
+
 publisher 以本地/远端 exact tag 双向绑定、干净检出、GPL 元数据、clean runtime 和可验证对应源码 fail-closed。Release 必须同时提供 `Agent-Pi-DSH-3.6.0-CAD-corresponding-source.tar.gz` 及其 `.sha256`；Windows、runtime payload、macOS 与 Linux 产物也各自提供 SHA256，Windows 另附绑定 payload、CAD 与 DSH 来源的构建回执。十五项正式资产全部到齐且远端 digest 与校验文件一致后，才可公开为 Latest。
 
 发布前还会检查 Windows 解包树与 runtime payload，确保没有预装 Office wrapper、Univer Pro 包或旧 vendor receipt。

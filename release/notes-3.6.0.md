@@ -8,6 +8,7 @@
 - 构建产物固定写入 `bundles/tender-web/lib/cad-viewer`，由 `/api/agent-pi/cad-viewer/*` 静态路由提供。
 - Windows 安装包和跨平台 runtime payload 都必须验证 HTML、JS、CSS、两个 worker、WASM、离线 Source Han Sans CN 回退字体与许可证归档齐全。
 - Windows 构建直接以 `node npm-cli.js` 调用 npm，避开本机损坏的 `npm.cmd` shim。
+- CAD 查看器会列出当前图纸缺失的字体，并允许用户导入自己有权使用的 `.shx` / `.ttf` / `.otf` / `.woff` 文件后重新渲染；常见 `hztxt.shx` 与 `gbcbig.shx` 分别按 GBK、GB2312 解码。内置 Source Han 只负责 Unicode 兜底，不冒充缺失的工程 SHX 大字体。
 - 公共安装包不再预装 `dsh-univer-office` 或 Univer Pro 商业运行时；市场入口保留，并明确提示需另行取得商业许可且 rc.1 兼容性待验证。升级时只清理旧版本留下且目标已失效的产品 `link:` / `file:` 依赖，用户自行安装的 npm 版本不改动。
 
 ## DSH rc.1 适配
