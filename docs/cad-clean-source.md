@@ -80,7 +80,7 @@ docker run --rm \
   --env "CAD_BUILDER_IMAGE_ID=$image_id" \
   --env "COREPACK_ENABLE_PROJECT_SPEC=0" \
   agent-pi-cad-builder:3.6.0 \
-  bash -lc 'git config --global url."https://github.com/zserge/jsmn.git".insteadOf https://github.com/zserge/jsmn && exec bash /workspace/scripts/build-cad-clean-release.sh'
+  bash -lc 'git config --global --add safe.directory /workspace && git config --global url."https://github.com/zserge/jsmn.git".insteadOf https://github.com/zserge/jsmn && exec bash /workspace/scripts/build-cad-clean-release.sh'
 ```
 
 The inner script verifies each annotated tag object, commit, tree and submodule;
