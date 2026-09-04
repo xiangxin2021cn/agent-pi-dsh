@@ -92,13 +92,28 @@ test('stops before Electron commands when the resolved npm CLI fails', (t) => {
   assert.deepEqual(result.log, ['node-npm:install --no-fund --no-audit'])
 })
 
-test('v3.6.0 packaging rejects stale-runtime reuse switches', (t) => {
-  for (const flag of ['-SkipPrepare', '-ReuseUnpacked']) {
-    const result = makeToolchainFixture(t, 0, { version: '3.6.0', extraArgs: [flag] })
-    assert.notEqual(result.status, 0)
-    assert.match(`${result.stdout}\n${result.stderr}`, /3\.6\.0 packaging forbids -SkipPrepare and -ReuseUnpacked/)
-    assert.deepEqual(result.log, [])
+test('v3.6.0 and later packaging rejects stale-runtime reuse switches', (t) => {
+  for (const version of ['3.6.0', '3.6.1']) {
+    for (const flag of ['-SkipPrepare', '-ReuseUnpacked']) {
+      const result = makeToolchainFixture(t, 0, { version, extraArgs: [flag] })
+      assert.notEqual(result.status, 0)
+      assert.ok(`${result.stdout}\n${result.stderr}`.includes(`${version} packaging forbids -SkipPrepare and -ReuseUnpacked`))
+      assert.deepEqual(result.log, [])
+    }
   }
+})
+
+test('licensed Univer packaging is explicit, freshly materialized, and verified as required', () => {
+  assert.match(packSource, /\[switch\]\$IncludeLicensedUniver/)
+  assert.match(packSource, /IncludeLicensedUniver[\s\S]*materialize-dsh-univer-office\.mjs/)
+  assert.match(packSource, /IncludeLicensedUniver[\s\S]*install-univer-runtime-deps\.mjs/)
+  assert.match(packSource, /prepare-win-runtime\.ps1[^\r\n]*-IncludeLicensedUniver/)
+  assert.match(packSource, /DINCLUDE_LICENSED_UNIVER=1/)
+  assert.match(packSource, /installer-univer-lifecycle\.mjs"\) verify-product[^\r\n]*--required/)
+  assert.match(prepareRuntimeSource, /\[switch\]\$IncludeLicensedUniver/)
+  assert.match(prepareRuntimeSource, /vendor\\dsh-univer-office/)
+  assert.match(prepareRuntimeSource, /installer-univer-lifecycle\.mjs"\) verify-product[^\r\n]*--required/)
+  assert.match(prepareRuntimeSource, /if \(\$IncludeLicensedUniver\)[\s\S]*else[\s\S]*univer-public-release\.mjs"\) sanitize/)
 })
 
 test('Windows packaging preserves and validates the explicit clean CAD runtime', () => {
@@ -173,7 +188,11 @@ test('installer commits a separately extracted app.asar or restores the previous
   )
   assert.match(
     nsisSource,
-    /asar_restore:[\s\S]*IfFileExists "\$INSTDIR\\resources\\app\.asar\.old" 0 asar_fail[\s\S]*Rename "\$INSTDIR\\resources\\app\.asar\.old" "\$INSTDIR\\resources\\app\.asar"/,
+    /asar_restore:[\s\S]*Call RollbackAppAsar/,
+  )
+  assert.match(
+    nsisSource,
+    /Function RollbackAppAsar[\s\S]*IfFileExists "\$INSTDIR\\resources\\app\.asar\.old"[\s\S]*Rename "\$INSTDIR\\resources\\app\.asar\.old" "\$INSTDIR\\resources\\app\.asar"[\s\S]*FunctionEnd/,
   )
   assert.match(
     nsisSource,
@@ -216,4 +235,17 @@ test('Windows packaging writes the checksum required by the immutable upload flo
   assert.match(packSource, /--cad-runtime \$unpackedCadViewer/)
   assert.match(packSource, /--cad-source \$CadSourceArchive/)
   assert.match(packSource, /--dsh-receipt \(Join-Path \$unpackedDsh \$DshReceiptName\)/)
+})
+
+test('runtime cleanup uses bounded native PowerShell paths, not a second shell', () => {
+  assert.doesNotMatch(packSource + prepareRuntimeSource, /cmd\s+\/c\s+"rmdir/i)
+  assert.match(prepareRuntimeSource, /\$dshTarget\.StartsWith\(\$runtimeFull/)
+  assert.match(prepareRuntimeSource, /Remove-Item -LiteralPath \$dshTarget -Recurse -Force/)
+  assert.match(packSource, /\$trashPath\.StartsWith\(\$runtimeFull/)
+  assert.match(packSource, /if \(\$_\.LinkType\) \{ \$_\.Delete\(\) \}/)
+})
+
+test('Windows verifies native modules using the staged and unpacked Node executables', () => {
+  assert.match(prepareRuntimeSource, /& \$nodeDest[^\r\n]*verify-dsh-runtime\.mjs[^\r\n]*--native/)
+  assert.match(packSource, /& \$unpackedNode[^\r\n]*verify-dsh-runtime\.mjs[^\r\n]*--native/)
 })

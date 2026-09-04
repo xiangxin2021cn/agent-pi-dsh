@@ -1,9 +1,10 @@
 import { existsSync, readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-export const expectedDshCommit = 'a66e4702047846cdaa10c66c9d3df3951f5ea70d'
-export const expectedDshVersion = '0.1.2-rc.1'
+export const expectedDshCommit = 'd347e703908d0406b7a7ef80e3a0e594d86b2215'
+export const expectedDshVersion = '0.1.3-alpha.1'
 
 function readJson(path) {
   return JSON.parse(readFileSync(path, 'utf8'))
@@ -45,10 +46,17 @@ export function verifyDshRuntime(dshRoot, productRoot) {
 }
 
 export function main(args = process.argv.slice(2)) {
-  if (args.length < 1 || args.length > 2) {
-    throw new Error('Usage: verify-dsh-runtime.mjs <dsh-root> [product-root]')
+  const checkNative = args.at(-1) === '--native'
+  const paths = checkNative ? args.slice(0, -1) : args
+  if (paths.length < 1 || paths.length > 2) {
+    throw new Error('Usage: verify-dsh-runtime.mjs <dsh-root> [product-root] [--native]')
   }
-  const verified = verifyDshRuntime(args[0], args[1])
+  const verified = verifyDshRuntime(paths[0], paths[1])
+  if (checkNative) {
+    const require = createRequire(join(verified.dsh, 'packages', 'session', 'session-persistence-jsonl', 'package.json'))
+    require('fs-ext')
+    require('koffi')
+  }
   process.stdout.write(`DSH ${expectedDshVersion} runtime verified: ${verified.dsh}\n`)
 }
 

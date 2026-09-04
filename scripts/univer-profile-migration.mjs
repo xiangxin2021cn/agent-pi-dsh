@@ -28,6 +28,10 @@ function isProductVendorTarget(target, productRoot) {
     || normalized.endsWith('/product/vendor/dsh-univer-office')
 }
 
+function isCurrentProductVendorTarget(target, productRoot) {
+  return normalize(target) === normalize(join(productRoot, 'vendor', UNIVER_OFFICE_NAME))
+}
+
 function removeProductOwnedModule(modulePath, target) {
   try {
     const stat = lstatSync(modulePath)
@@ -64,6 +68,28 @@ export function removeMissingProductUniverDependency({ dependencies, profileDir,
   }
   const target = dependencyTarget(profileDir, spec)
   if (!isProductVendorTarget(target, productRoot) || existsSync(target)) {
+    return { changed: false, removedModule: false }
+  }
+  delete dependencies[UNIVER_OFFICE_NAME]
+  const removedModule = removeProductOwnedModule(
+    join(profileDir, 'node_modules', UNIVER_OFFICE_NAME),
+    target,
+  )
+  return { changed: true, removedModule }
+}
+
+/**
+ * Detach only the Univer link owned by the product root being uninstalled.
+ * Unlike the startup migration above, this deliberately requires an exact
+ * target so an unrelated local `file:` dependency is never removed.
+ */
+export function detachCurrentProductUniverDependency({ dependencies, profileDir, productRoot }) {
+  const spec = dependencies[UNIVER_OFFICE_NAME]
+  if (typeof spec !== 'string' || !/^(?:link|file):/i.test(spec)) {
+    return { changed: false, removedModule: false }
+  }
+  const target = dependencyTarget(profileDir, spec)
+  if (!isCurrentProductVendorTarget(target, productRoot)) {
     return { changed: false, removedModule: false }
   }
   delete dependencies[UNIVER_OFFICE_NAME]

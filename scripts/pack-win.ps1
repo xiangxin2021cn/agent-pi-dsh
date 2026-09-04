@@ -3,6 +3,7 @@ param(
   [switch]$DirOnly,
   [switch]$ReuseUnpacked,
   [switch]$ToolchainOnly,
+  [switch]$IncludeLicensedUniver,
   [string]$CadCleanOutput = $env:AGENT_PI_CAD_CLEAN_OUTPUT
 )
 
@@ -10,8 +11,11 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 $Desktop = Join-Path $Root "apps\desktop"
 $AppVersion = (Get-Content (Join-Path $Desktop "package.json") -Raw | ConvertFrom-Json).version
-if ($AppVersion -eq "3.6.0" -and ($SkipPrepare -or $ReuseUnpacked)) {
-  throw "Agent Pi DSH 3.6.0 packaging forbids -SkipPrepare and -ReuseUnpacked"
+if ([version]$AppVersion -ge [version]"3.6.0" -and ($SkipPrepare -or $ReuseUnpacked)) {
+  throw "Agent Pi DSH $AppVersion packaging forbids -SkipPrepare and -ReuseUnpacked"
+}
+if ($IncludeLicensedUniver -and ($SkipPrepare -or $ReuseUnpacked)) {
+  throw "-IncludeLicensedUniver requires a fresh runtime and unpacked application"
 }
 $InstallerName = "Agent-Pi-DSH-$AppVersion-x64.exe"
 $Dsh = Join-Path $Root "vendor\deepseek-harness"
@@ -231,7 +235,12 @@ function Test-UnpackedApp([string]$dir) {
   if (($need | Where-Object { -not (Test-Path $_) }).Count -ne 0 -or -not (Test-CadViewerAssets $cadViewer)) {
     return $false
   }
-  & node (Join-Path $Root "scripts\univer-public-release.mjs") assert-tree (Join-Path $dir "resources\runtime\product") *> $null
+  $product = Join-Path $dir "resources\runtime\product"
+  if ($IncludeLicensedUniver) {
+    & node (Join-Path $Root "scripts\installer-univer-lifecycle.mjs") verify-product $product --required *> $null
+    return $LASTEXITCODE -eq 0
+  }
+  & node (Join-Path $Root "scripts\univer-public-release.mjs") assert-tree $product *> $null
   return $LASTEXITCODE -eq 0
 }
 
@@ -240,6 +249,18 @@ if ($ToolchainOnly) {
   $toolchainBuilderExit = Invoke-DesktopElectronBuilder
   if ($toolchainBuilderExit -ne 0) { throw "local electron-builder.cmd failed: $toolchainBuilderExit" }
   return
+}
+
+if ($IncludeLicensedUniver) {
+  # Private/OEM build path only. This explicit switch does not grant a Univer
+  # Pro redistribution license; the builder must hold the applicable rights.
+  & node (Join-Path $Root "scripts\materialize-dsh-univer-office.mjs")
+  if ($LASTEXITCODE -ne 0) { throw "licensed Univer materialization failed" }
+  $licensedUniver = Join-Path $Root "vendor\dsh-univer-office"
+  & node (Join-Path $Root "scripts\install-univer-runtime-deps.mjs") $licensedUniver
+  if ($LASTEXITCODE -ne 0) { throw "licensed Univer runtime dependency installation failed" }
+  & node (Join-Path $Root "scripts\installer-univer-lifecycle.mjs") verify-product $Root --required
+  if ($LASTEXITCODE -ne 0) { throw "licensed Univer source verification failed" }
 }
 
 if (-not $CadCleanOutput) { $CadCleanOutput = Join-Path $Root ".codex-temp\cad-clean-output" }
@@ -327,7 +348,11 @@ $brandPython = Find-BrandPython
 if ($LASTEXITCODE -ne 0) { throw "installer brand generation failed: $LASTEXITCODE" }
 
 if (-not $SkipPrepare) {
-  & (Join-Path $Root "scripts\prepare-win-runtime.ps1") -FullCopy -DshBuildReceipt $DshBuildReceipt
+  if ($IncludeLicensedUniver) {
+    & (Join-Path $Root "scripts\prepare-win-runtime.ps1") -FullCopy -IncludeLicensedUniver -DshBuildReceipt $DshBuildReceipt
+  } else {
+    & (Join-Path $Root "scripts\prepare-win-runtime.ps1") -FullCopy -DshBuildReceipt $DshBuildReceipt
+  }
 }
 $runtimeCadViewer = Join-Path $Desktop "runtime\product\bundles\tender-web\lib\cad-viewer"
 Install-CadCleanRuntime $runtimeCadViewer "staged Windows runtime"
@@ -335,11 +360,17 @@ Install-CadCleanRuntime $runtimeCadViewer "staged Windows runtime"
 Invoke-DesktopToolchain
 
 $runtime = Join-Path $Desktop "runtime"
+$runtimeFull = [System.IO.Path]::GetFullPath($runtime).TrimEnd('\') + '\'
 Get-ChildItem -LiteralPath $runtime -Force -ErrorAction SilentlyContinue |
   Where-Object { $_.Name -like "*.trash" } |
   ForEach-Object {
-    Write-Host "Removing $($_.FullName) from runtime before pack"
-    cmd /c "rmdir /s /q `"$($_.FullName)`"" | Out-Null
+    $trashPath = [System.IO.Path]::GetFullPath($_.FullName)
+    if (-not $trashPath.StartsWith($runtimeFull, [System.StringComparison]::OrdinalIgnoreCase)) {
+      throw "refusing to remove stale item outside runtime: $trashPath"
+    }
+    Write-Host "Removing $trashPath from runtime before pack"
+    if ($_.LinkType) { $_.Delete() }
+    else { Remove-Item -LiteralPath $trashPath -Recurse -Force }
   }
 
 $unpackedRoot = Join-Path $Desktop "dist-unpacked"
@@ -415,8 +446,13 @@ if (Test-Path $unpackedProduct) {
       Copy-Item -Force $src $dest
     }
   }
-  & node (Join-Path $Root "scripts\univer-public-release.mjs") sanitize $unpackedProduct
-  if ($LASTEXITCODE -ne 0) { throw "unpacked public Univer release boundary failed" }
+  if ($IncludeLicensedUniver) {
+    & node (Join-Path $Root "scripts\installer-univer-lifecycle.mjs") verify-product $unpackedProduct --required
+    if ($LASTEXITCODE -ne 0) { throw "unpacked licensed Univer verification failed" }
+  } else {
+    & node (Join-Path $Root "scripts\univer-public-release.mjs") sanitize $unpackedProduct
+    if ($LASTEXITCODE -ne 0) { throw "unpacked public Univer release boundary failed" }
+  }
   $retiredSkill = Join-Path $unpackedProduct "skills\j-space"
   if (Test-Path $retiredSkill) {
     Remove-Item -Recurse -Force $retiredSkill
@@ -432,8 +468,10 @@ if (Test-Path $unpackedProduct) {
     }
   }
 }
-& node (Join-Path $Root "scripts\univer-public-release.mjs") assert-tree $unpackedProduct
-if ($LASTEXITCODE -ne 0) { throw "unpacked product contains a bundled Univer Pro integration" }
+if (-not $IncludeLicensedUniver) {
+  & node (Join-Path $Root "scripts\univer-public-release.mjs") assert-tree $unpackedProduct
+  if ($LASTEXITCODE -ne 0) { throw "unpacked product contains a bundled Univer Pro integration" }
+}
 $unpackedCadViewer = Join-Path $unpackedProduct "bundles\tender-web\lib\cad-viewer"
 Install-CadCleanRuntime $unpackedCadViewer "unpacked runtime"
 # ReuseUnpacked keeps the previous electron-builder asar. The NSIS filename
@@ -446,7 +484,8 @@ if ($LASTEXITCODE -ne 0) { throw "stamp electron asar version failed" }
 $unpackedDsh = Join-Path $unpacked "resources\runtime\deepseek-harness"
 node (Join-Path $Root "scripts\apply-runtime-overlays.mjs") $unpackedDsh $unpackedProduct
 if ($LASTEXITCODE -ne 0) { throw "apply desktop runtime overlays on unpacked app failed" }
-node (Join-Path $Root "scripts\verify-dsh-runtime.mjs") $unpackedDsh $unpackedProduct
+$unpackedNode = Join-Path $unpacked "resources\runtime\node\node.exe"
+& $unpackedNode (Join-Path $Root "scripts\verify-dsh-runtime.mjs") $unpackedDsh $unpackedProduct --native
 if ($LASTEXITCODE -ne 0) { throw "verify staged DSH runtime failed" }
 node (Join-Path $Root "scripts\dsh-build-receipt.mjs") verify `
   --dsh $unpackedDsh --product $unpackedProduct --receipt (Join-Path $unpackedDsh $DshReceiptName)
@@ -495,7 +534,9 @@ $archiveExit = $LASTEXITCODE
 Pop-Location
 if ($archiveExit -ne 0) { throw "7za archive failed: $archiveExit" }
 Push-Location $nsisRoot
-& $makensis /V2 "/DAPP_VERSION=$AppVersion" "/DAPP_ICON=app-icon.ico" "/DINSTALLER_HEADER=installer-header.bmp" "setup.nsi"
+$nsisArgs = @('/V2', "/DAPP_VERSION=$AppVersion", '/DAPP_ICON=app-icon.ico', '/DINSTALLER_HEADER=installer-header.bmp')
+if ($IncludeLicensedUniver) { $nsisArgs += '/DINCLUDE_LICENSED_UNIVER=1' }
+& $makensis @nsisArgs "setup.nsi"
 $nsisExit = $LASTEXITCODE
 Pop-Location
 if ($nsisExit -ne 0) { throw "makensis failed: $nsisExit" }

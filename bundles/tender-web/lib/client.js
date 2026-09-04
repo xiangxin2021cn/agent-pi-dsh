@@ -2621,6 +2621,68 @@ window.__ModuleLoader__.load({
 			};
 		}
 		//#endregion
+		//#region src/client/native-attachment-adapter.js
+		/**
+		* Add browser files to the native DSH composer while preserving the 0.1.2
+		* image-only contract during the 0.1.3 migration.
+		*/
+		function addNativeComposerFiles({ conversation, actions, sessionId, files }) {
+			const list = (files || []).filter(Boolean);
+			if (!list.length || !conversation || !actions) return { status: "unavailable" };
+			if (typeof conversation.createDrafts === "function" && typeof conversation.releaseDraftAttachments === "function" && typeof actions.addAttachments === "function") {
+				if (!sessionId) return { status: "unavailable" };
+				let drafts;
+				let released = false;
+				const rollback = () => {
+					if (!drafts || released) return;
+					released = true;
+					conversation.releaseDraftAttachments(drafts);
+				};
+				try {
+					drafts = conversation.createDrafts(sessionId, list);
+					if (!actions.addAttachments(drafts.map((draft) => draft.id))) {
+						rollback();
+						return { status: "rejected" };
+					}
+					return { status: "added" };
+				} catch (error) {
+					try {
+						rollback();
+					} catch {}
+					return {
+						status: "error",
+						error
+					};
+				}
+			}
+			if (typeof conversation.createDraftImages === "function" && typeof actions.addImages === "function") {
+				let images;
+				let released = false;
+				const rollback = () => {
+					if (!images || released || typeof conversation.releaseDraftImages !== "function") return;
+					released = true;
+					conversation.releaseDraftImages(images);
+				};
+				try {
+					images = conversation.createDraftImages(list);
+					if (!actions.addImages(images.map((image) => image.id))) {
+						rollback();
+						return { status: "rejected" };
+					}
+					return { status: "added" };
+				} catch (error) {
+					try {
+						rollback();
+					} catch {}
+					return {
+						status: "error",
+						error
+					};
+				}
+			}
+			return { status: "unavailable" };
+		}
+		//#endregion
 		//#region src/session-wake.ts
 		/** Parent is in an open turn. Queue-only is not running. */
 		function snapshotIsRunning(snap) {
@@ -8234,19 +8296,23 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		function addNativeImageFiles(props, files) {
 			const list = (files || []).filter(Boolean);
 			if (!list.length) return false;
-			const conversation = runtime.conversation;
-			const actions = props && props.inputActions;
-			if (conversation && typeof conversation.createDraftImages === "function" && actions && typeof actions.addImages === "function") try {
-				const images = conversation.createDraftImages(list);
-				if (!actions.addImages(images.map((row) => row.id))) {
-					if (typeof conversation.releaseDraftImages === "function") conversation.releaseDraftImages(images);
-					showToast("无法加入图片（可能超出张数或大小限制）");
-					return false;
-				}
+			const result = addNativeComposerFiles({
+				conversation: runtime.conversation,
+				actions: props && props.inputActions,
+				sessionId: resolveSessionId(props),
+				files: list
+			});
+			if (result.status === "added") {
 				showToast(list.length === 1 ? "已加入图片 " + list[0].name : "已加入 " + list.length + " 张图片");
 				return true;
-			} catch (err) {
-				showToast(String(err && err.message || err));
+			}
+			if (result.status === "rejected") {
+				showToast("无法加入图片（可能超出张数或大小限制）");
+				return false;
+			}
+			if (result.status === "error") {
+				showToast(String(result.error && result.error.message || result.error));
+				return false;
 			}
 			if (dropNativeImages(list)) {
 				showToast(list.length === 1 ? "已加入图片 " + list[0].name : "已加入 " + list.length + " 张图片");

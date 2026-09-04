@@ -15,29 +15,34 @@ function readText(...parts) {
   return readFileSync(join(root, ...parts), 'utf8')
 }
 
-test('3.6.0 source manifests are ready while the public website fallback stays on the existing release', () => {
+test('3.6.1 source manifests are ready while published downloads and the website fallback stay unchanged', () => {
   const rootPackage = readJson('package.json')
   const desktopPackage = readJson('apps', 'desktop', 'package.json')
   const desktopLock = readJson('apps', 'desktop', 'package-lock.json')
   const compactionPackage = readJson('bundles', 'agent-pi-compaction', 'package.json')
 
-  assert.equal(rootPackage.version, '3.6.0')
-  assert.equal(desktopPackage.version, '3.6.0')
-  assert.equal(desktopLock.version, '3.6.0')
-  assert.equal(desktopLock.packages[''].version, '3.6.0')
-  assert.equal(compactionPackage.version, '3.6.0')
+  assert.equal(rootPackage.version, '3.6.1')
+  assert.equal(desktopPackage.version, '3.6.1')
+  assert.equal(desktopLock.version, '3.6.1')
+  assert.equal(desktopLock.packages[''].version, '3.6.1')
+  assert.equal(compactionPackage.version, '3.6.1')
 
   const codexModels = readText('apps', 'desktop', 'codex-models.mjs')
-  assert.match(codexModels, /clientInfo: \{ name: 'agent-pi-dsh', version: '3\.6\.0' \}/)
+  assert.match(codexModels, /clientInfo: \{ name: 'agent-pi-dsh', version: '3\.6\.1' \}/)
 
-  const localNotes = readText('release', 'notes-3.6.0.md')
-  assert.match(localNotes, /正式版/)
+  const localNotes = readText('release', 'notes-3.6.1.md')
+  const githubNotes = readText('release', 'github-notes-3.6.1.md')
+  assert.match(localNotes, /dsh-v0\.1\.3-alpha\.1/)
   assert.match(localNotes, /GPL-3\.0-only/)
-  assert.equal(existsSync(join(root, 'release', 'publish-v3.6.0-release.mjs')), true)
+  assert.match(githubNotes, /"appVersion":"3\.6\.1"/)
+  assert.match(githubNotes, /"commit":"d347e703908d0406b7a7ef80e3a0e594d86b2215"/)
+  assert.equal(existsSync(join(root, 'release', 'publish-v3.6.1-release.mjs')), true)
 
   const readme = readText('README.md')
   assert.match(readme, /releases\/download\/v3\.6\.0\/Agent-Pi-DSH-3\.6\.0-x64\.exe/)
-  assert.match(readme, /dsh-v0\.1\.2-rc\.1/)
+  assert.match(readme, /3\.6\.1 正在开发与验收，尚未发布/)
+  assert.match(readme, /dsh-v0\.1\.3-alpha\.1/)
+  assert.match(readme, /d347e70390/)
   assert.match(readme, /正式 SHA256 以同一 Release 中的 `\.sha256` 资产为准/)
   assert.doesNotMatch(readme, /releases\/download\/v3\.5\.2/)
 
@@ -83,7 +88,7 @@ test('public website exposes the current three-platform fallback and syncs only 
   assert.match(privacy, /GitHub(?: 的公开|'s public) Latest Release API/)
 })
 
-test('3.6.0 publisher remains immutable and fails closed before GitHub access until the GPL release inputs verify', () => {
+test('3.6.1 publisher remains immutable and fails closed before GitHub access until the GPL release inputs verify', () => {
   const publish = readText('scripts', 'publish-win-and-trigger-platforms.ps1')
   const workflow = readText('.github', 'workflows', 'build-desktop-assets.yml')
   const cadWorkflow = readText('.github', 'workflows', 'build-cad-clean-source.yml')
@@ -91,11 +96,14 @@ test('3.6.0 publisher remains immutable and fails closed before GitHub access un
   const cadPins = readJson('scripts', 'cad-clean-pins.json')
   const cadPackage = readJson('tools', 'mlightcad-poc', 'package.json')
   const cadLock = readJson('tools', 'mlightcad-poc', 'package-lock.json')
-  const publisherPath = join(root, 'release', 'publish-v3.6.0-release.mjs')
+  const publisherPath = join(root, 'release', 'publish-v3.6.1-release.mjs')
   const createRelease = readFileSync(publisherPath, 'utf8')
   assert.doesNotMatch(publish, /--clobber/)
   assert.doesNotMatch(workflow, /--clobber/)
   assert.match(cadWorkflow, /include-hidden-files:\s*true/)
+  assert.match(cadWorkflow, /require\('\.\/package\.json'\)\.version/)
+  assert.match(cadWorkflow, /cad-clean-release-\$\{\{ inputs\.tag \}\}/)
+  assert.doesNotMatch(cadWorkflow, /agent-pi-cad-builder:3\.6\.0/)
   assert.match(cadWorkflow, /git config --global --add safe\.directory \/workspace/)
   assert.match(cadWorkflow, /url\."https:\/\/github\.com\/zserge\/jsmn\.git"\.insteadOf https:\/\/github\.com\/zserge\/jsmn/)
   assert.match(cadWorkflow, /COREPACK_ENABLE_PROJECT_SPEC=0/)
@@ -112,13 +120,25 @@ test('3.6.0 publisher remains immutable and fails closed before GitHub access un
   assert.equal(cadLock.packages['node_modules/@types/node'].version, '22.16.0')
   assert.equal(cadLock.packages['node_modules/undici-types'].version, '6.21.0')
   assert.match(publish, /workflow run build-desktop-assets\.yml --repo \$Repo --ref \$Tag/)
+  assert.match(publish, /Release tag \$Tag does not match source version \$SourceVersion/)
+  assert.match(publish, /CAD clean pins target \$CadReleaseVersion/)
   assert.match(publish, /InstallerChecksum/)
   assert.match(publish, /InstallerBuildReceipt/)
   assert.match(publish, /windows-build-receipt\.mjs"\) verify/)
   assert.match(publish, /\$UploadAssets \+= @\(\$InstallerBuildReceipt, \$CadSource, \$CadSourceChecksum\)/)
   assert.match(workflow, /GITHUB_REF_TYPE.*tag/)
   assert.match(workflow, /GITHUB_REF_NAME.*inputs\.tag/)
+  assert.match(workflow, /node-version:\s*\$\{\{ env\.NODE_RUNTIME_VERSION \}\}/)
+  assert.match(workflow, /pnpm rebuild node-pty fs-ext/)
+  assert.match(workflow, /node-runtime\/bin\/node payload\/product\/scripts\/verify-dsh-runtime\.mjs/)
+  assert.match(workflow, /payload\/deepseek-harness payload\/product --native/)
+  assert.match(workflow, /payload\/desktop\/runtime\/node\/node payload\/desktop\/runtime\/product\/scripts\/verify-dsh-runtime\.mjs/)
+  assert.ok(
+    workflow.indexOf('Verify DSH session native modules with packaged Node') < workflow.indexOf('Stage runtime'),
+    'native module load verification must run before runtime staging',
+  )
   assert.match(workflow, /runtime-payload-\$\{version\}\.tar\.gz\.sha256/)
+  assert.match(workflow, /Agent-Pi-DSH-\$\{version\}-CAD-corresponding-source\.tar\.gz/)
   assert.match(workflow, /checksum_assets=\(\)/)
   assert.match(workflow, /\$\{asset\}\.sha256/)
   assert.match(createRelease, /git\/ref\/tags/)
@@ -133,9 +153,9 @@ test('3.6.0 publisher remains immutable and fails closed before GitHub access un
   assert.match(createRelease, /assertReleaseCheckout/)
   assert.match(createRelease, /verifyCadCleanRelease/)
   assert.match(createRelease, /verifyWindowsBuildReceipt/)
-  assert.match(createRelease, /Agent-Pi-DSH-3\.6\.0-x64\.exe\.build\.json/)
-  assert.match(createRelease, /Agent-Pi-DSH-3\.6\.0-CAD-corresponding-source\.tar\.gz/)
-  assert.match(createRelease, /Agent-Pi-DSH-3\.6\.0-CAD-corresponding-source\.tar\.gz\.sha256/)
+  assert.match(createRelease, /Agent-Pi-DSH-3\.6\.1-x64\.exe\.build\.json/)
+  assert.match(createRelease, /Agent-Pi-DSH-3\.6\.1-CAD-corresponding-source\.tar\.gz/)
+  assert.match(createRelease, /Agent-Pi-DSH-3\.6\.1-CAD-corresponding-source\.tar\.gz\.sha256/)
   assert.match(createRelease, /existsSync/)
   assert.match(createRelease, /createHash\('sha256'\)/)
   assert.ok(
@@ -150,6 +170,6 @@ test('3.6.0 publisher remains immutable and fails closed before GitHub access un
   assert.notEqual(blocked.status, 0)
   assert.match(
     `${blocked.stdout}\n${blocked.stderr}`,
-    /publishing requires a completely clean checkout|exact v3\.6\.0 tag|no tag exactly matches|release checksum pair is incomplete/i,
+    /publishing requires a completely clean checkout|exact v3\.6\.1 tag|no tag exactly matches|release checksum pair is incomplete/i,
   )
 })

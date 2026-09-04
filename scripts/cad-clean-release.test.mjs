@@ -471,7 +471,7 @@ test('formal packaging paths require the clean verifier and do not rebuild CAD f
   const repositoryRoot = join(import.meta.dirname, '..')
   const windowsPack = readFileSync(join(repositoryRoot, 'scripts', 'pack-win.ps1'), 'utf8')
   const payloadPack = readFileSync(join(repositoryRoot, 'scripts', 'pack-runtime-payload.mjs'), 'utf8')
-  const publisher = readFileSync(join(repositoryRoot, 'release', 'publish-v3.6.0-release.mjs'), 'utf8')
+  const publisher = readFileSync(join(repositoryRoot, 'release', 'publish-v3.6.1-release.mjs'), 'utf8')
   const uploader = readFileSync(join(repositoryRoot, 'scripts', 'publish-win-and-trigger-platforms.ps1'), 'utf8')
 
   assert.match(windowsPack, /cad-clean-release\.mjs"\) verify/)

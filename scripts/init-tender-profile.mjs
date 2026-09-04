@@ -21,6 +21,8 @@ import {
   removeMissingProductUniverDependency,
   UNIVER_OFFICE_NAME,
 } from './univer-profile-migration.mjs'
+import { patchUniverForDshAlpha1 } from './patch-univer-alpha1.mjs'
+import { syncManagedUniverSkills } from './univer-skill-sync.mjs'
 import { prepareKnownPluginCompatibility } from '../vendor/dshmarket/compatibility.js'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -155,6 +157,10 @@ const localPlugins = [
   // this product must use tender. Do not run prepare (it is tsc).
   { name: ANYSEARCH_NAME, dir: join(root, 'vendor/anysearch-dsh'), updatable: true },
 ]
+const bundledUniver = join(root, 'vendor/dsh-univer-office')
+if (existsSync(join(bundledUniver, 'package.json'))) {
+  localPlugins.push({ name: UNIVER_NAME, dir: bundledUniver, updatable: true })
+}
 
 mkdirSync(profileDir, { recursive: true })
 
@@ -213,16 +219,25 @@ function isRetiredPluginName(name) {
  * prepare dsh-im 4.x to discover Typert Gateway through Context#get before the
  * strict bundle loader sees it. Unknown majors stay quarantined safely.
  */
-function isAlpha1IncompatibleBundle(name) {
-  if (name !== DSH_IM_NAME) return false
-  return prepareKnownPluginCompatibility(profileDir, name).status !== 'compatible'
+function isRuntimeIncompatibleBundle(name) {
+  if (name === DSH_IM_NAME) {
+    return prepareKnownPluginCompatibility(profileDir, name).status !== 'compatible'
+  }
+  if (name !== UNIVER_NAME) return false
+  try {
+    patchUniverForDshAlpha1({ pluginRoot: moduleDest(name) })
+    return false
+  } catch (error) {
+    process.stderr.write(`dsh-univer-office kept installed but inactive: ${error}\n`)
+    return true
+  }
 }
 
 function composeBundles(deps) {
   const hidden = new Set([WEB_FETCH_HTTP])
   const extras = []
   const add = (name) => {
-    if (!name || hidden.has(name) || isRetiredPluginName(name) || isAlpha1IncompatibleBundle(name) || bundles.includes(name) || extras.includes(name)) return
+    if (!name || hidden.has(name) || isRetiredPluginName(name) || isRuntimeIncompatibleBundle(name) || bundles.includes(name) || extras.includes(name)) return
     extras.push(name)
   }
   for (const name of Object.keys(deps)) {
@@ -268,9 +283,20 @@ function patchIsEmptyTemplate(text) {
   return body === '' || body === '[]'
 }
 function buildManagedPatch(deps) {
-  const searchProvider = composeBundles(deps).includes('@anysearch/anysearch-dsh')
+  const activeBundles = composeBundles(deps)
+  const searchProvider = activeBundles.includes('@anysearch/anysearch-dsh')
     ? 'anysearch'
     : 'deepseek-official'
+  const univerConfig = activeBundles.includes(UNIVER_NAME)
+    ? `# Product privacy default for the licensed Office workbench. The plugin
+# still owns its other defaults; users can take over this overlay by removing
+# the managed marker above.
+- id: univer
+  config:
+    telemetry: false
+
+`
+    : ''
   const presetRoot = JSON.stringify(systemPresetRoot.replaceAll('\\', '/'))
   return `${PATCH_MANAGED_MARK}
 # Profile overlay (applied after every bundle layer). Auto-rewritten on app
@@ -327,7 +353,7 @@ function buildManagedPatch(deps) {
   config:
     openBrowser: false
 
-# Desktop workbench: alpha.1 dsh-base already owns web-fetch-http. Reuse that
+${univerConfig}# Desktop workbench: alpha.1 dsh-base already owns web-fetch-http. Reuse that
 # row; inserting it again makes the loader reject the profile as a duplicate.
 # searchProvider is anysearch when the vendored (or later-installed) bundle is present.
 - id: web
@@ -507,6 +533,17 @@ function wireCodexRuntimeDeps() {
   }
 }
 
+function wireUniverPeerDependencies() {
+  const pluginDir = moduleDest(UNIVER_NAME)
+  if (!existsSync(join(pluginDir, 'package.json'))) return
+  const manifest = JSON.parse(readFileSync(join(pluginDir, 'package.json'), 'utf8'))
+  for (const name of Object.keys(manifest.peerDependencies ?? {})) {
+    const source = findDshPackage([name])
+    if (!source) throw new Error(`dsh-univer-office cannot resolve peer ${name} under ${dsh}`)
+    ensureJunction(source, join(pluginDir, 'node_modules', ...name.split('/')))
+  }
+}
+
 function linkLocalBundle(packageName, sourceDir) {
   if (!existsSync(join(sourceDir, 'package.json'))) {
     throw new Error(`missing plugin package at ${sourceDir}`)
@@ -583,6 +620,7 @@ for (const plugin of localPlugins) {
   linkLocalBundle(plugin.name, plugin.dir)
 }
 
+wireUniverPeerDependencies()
 wireCodexRuntimeDeps()
 
 writeManifest(dependencies)
@@ -624,24 +662,6 @@ function wireAnysearchPeers() {
   }
 }
 wireAnysearchPeers()
-
-function syncUniverSkills() {
-  const srcRoot = join(moduleDest(UNIVER_NAME), 'skills')
-  if (!existsSync(srcRoot)) return
-  let names = []
-  try {
-    names = readdirSync(srcRoot)
-  } catch {
-    return
-  }
-  for (const name of names) {
-    const src = join(srcRoot, name, 'SKILL.md')
-    if (!existsSync(src)) continue
-    const dest = join(home, 'skills', name, 'SKILL.md')
-    mkdirSync(dirname(dest), { recursive: true })
-    copyFileSync(src, dest)
-  }
-}
 
 writeManifest(dependencies)
 writeManagedPatch(dependencies)
@@ -776,9 +796,13 @@ enableDesktopCodex()
 removeRetiredJSpace()
 removeRetiredVisionRouter()
 dropFactoryGenuiSkill()
-syncUniverSkills()
 writeManifest(dependencies)
 writeManagedPatch(dependencies)
+syncManagedUniverSkills({
+  home,
+  pluginRoot: moduleDest(UNIVER_NAME),
+  active: readExistingBundles().includes(UNIVER_NAME),
+})
 repairExistingDeepSeekModelCapacities()
 repairLegacyAgentPresetDefault()
 const legacyPresetMigration = migrateLegacyAgentPresetSessions(home)

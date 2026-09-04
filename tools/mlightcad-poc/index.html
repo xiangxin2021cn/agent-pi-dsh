@@ -20,6 +20,15 @@
           </div>
         </div>
         <div class="topbar-actions">
+          <button
+            class="main-fit-button external-button"
+            id="main-fit-button"
+            type="button"
+            title="按图纸记录的模型范围聚焦；不会删除实体，Zoom Extents 可恢复全图"
+            disabled
+          >
+            主体取景
+          </button>
           <button class="font-button" id="font-button" type="button">
             导入缺失字体
           </button>
@@ -57,7 +66,7 @@
 
       <footer class="statusbar">
         <span id="status-message" role="status" aria-live="polite">准备就绪</span>
-        <span class="scope-note">只读 PoC · MLightCAD + LibreDWG</span>
+        <span class="scope-note">本地审阅 · MLightCAD + LibreDWG</span>
       </footer>
     </div>
     <script type="module" src="/src/main.ts"></script>

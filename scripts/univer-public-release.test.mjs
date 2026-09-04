@@ -24,11 +24,13 @@ test('public product sanitizer removes the wrapper, Pro closure, pin and receipt
   write(join(root, 'vendor/dsh-univer-office/node_modules/@univerjs-pro/cli-assets/package.json'), '{}')
   write(join(root, 'vendor/dsh-univer-office.pin'), '{}')
   write(join(root, 'scripts/dsh-univer-office-runtime.package-lock.json'), '{}')
+  write(join(root, 'scripts/patch-univer-alpha1.mjs'), 'export {}\n')
 
   assert.throws(() => assertUniverPublicReleaseTree(root), /bundled Univer Pro integration/)
   const removed = removeBundledUniverFromProduct(root)
   assert.ok(removed.includes('vendor/dsh-univer-office'))
   assert.ok(removed.includes('vendor/dsh-univer-office.pin'))
+  assert.equal(readFileSync(join(root, 'scripts/patch-univer-alpha1.mjs'), 'utf8'), 'export {}\n')
   assertUniverPublicReleaseTree(root)
 })
 

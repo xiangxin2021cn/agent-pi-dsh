@@ -49,8 +49,25 @@ Open the built `index.html` from an HTTP server and select a local `.dwg` or
 
 The page turns `cwd` + `path` into the existing same-origin raw-file endpoint.
 For standalone diagnostics, `src` is also accepted but rejects cross-origin
-URLs. The page opens drawings with `AcEdOpenMode.Read` and exposes only
-navigation, layers, measurement, theme, and locale controls.
+URLs. The page opens drawings with `AcEdOpenMode.Review` and uses MLightCAD's
+complete default review toolbar, including layout switching, navigation,
+layers, measurement, annotations and export controls.
+
+The initial viewport always uses the complete drawing extents. In model space,
+the user may explicitly select **主体取景** to validate and use the DWG's stored
+database extents when they fully contain at least 99% of entity bounds and pass
+the conservative size checks. This changes only the camera: no entity is hidden
+or removed, and the standard **Zoom Extents** command restores the full view.
+The action is rejected with a visible message in paper-space layouts.
+
+The DWG parser worker, LibreDWG WASM module, MText worker and fallback font are
+served from this local bundle. Large drawings use an adaptive worker timeout;
+file transfer and viewer initialization start in parallel, entity conversion
+uses the viewer's 1,000-entity batch floor, and conversion avoids progressive
+redraws while the blocking progress overlay is visible. A single preparation
+transaction is acquired before parallel file/viewer loading so repeated open
+events cannot start two parsers. Reopening after a font import reloads the
+original local source instead of retaining or cloning a detached DWG buffer.
 
 The iframe message contract is intentionally small:
 
@@ -64,7 +81,9 @@ responsible for verifying both `event.origin` and `event.source`.
 ## Known PoC limits
 
 - No DWG/DXF save or editing path is exposed.
-- XRefs, proprietary custom objects, and some advanced entities can be absent.
+- Missing XRefs and raster images are reported but are not resolved
+  automatically; proprietary custom objects and some advanced entities can be
+  absent.
 - Very large drawings can still consume substantial browser memory.
 - Source Han Sans CN 2.005 is bundled under SIL OFL 1.1 as an offline Chinese
   and Western fallback. Custom SHX, big-font encodings and CAD-specific glyphs
