@@ -1,4 +1,17 @@
-0.2.9
-https://registry.npmjs.org/dsh-univer-office/-/dsh-univer-office-0.2.9.tgz
-https://github.com/dream-num/dsh-univer-office
-npm tarball; do not commit the unpacked tree or node_modules
+{
+  "schema": "agent-pi-dsh/univer-office-pin/v1",
+  "name": "dsh-univer-office",
+  "version": "0.2.9",
+  "license": "Apache-2.0",
+  "tarball": "https://registry.npmjs.org/dsh-univer-office/-/dsh-univer-office-0.2.9.tgz",
+  "integrity": "sha512-0gvUi/JH70+r5Lx3Q9LyPhsaugUQaYgFjshWbMJcGV+eCTiZ/+YBL6r4J8V9wzwdBvCBjehxmTeTed7tsCiuag==",
+  "shasum": "f9137166038351c4c646912e882d47f01b53ba8d",
+  "archiveBytes": 35613705,
+  "archiveEntries": 241,
+  "source": {
+    "repository": "https://github.com/dream-num/dsh-univer-office",
+    "tag": "v0.2.9",
+    "tagObject": "403d919dc2636ce036609ac7ea63a365a57fcdcb",
+    "commit": "e0222951012ff6eddd76e54c94975d9a27fd6032"
+  }
+}

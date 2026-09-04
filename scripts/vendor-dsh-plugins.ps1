@@ -53,19 +53,5 @@ Set-Content -Path (Join-Path $Vendor "dsh-super-injector.pin") -Value "v$Injecto
 Set-Content -Path (Join-Path $Vendor "dsh-router-standard.pin") -Value "$RouterCommit`nhttps://github.com/yjh051108/dsh-router-standard/commit/$RouterCommit`nAgent Pi DSH rc.1 compatibility patch applied after vendoring`n"
 Write-Host "Vendored injector + router-standard under $Vendor"
 
-$univerVersion = "0.2.9"
-$univerUrl = "https://registry.npmjs.org/dsh-univer-office/-/dsh-univer-office-$univerVersion.tgz"
-$univerTgz = Join-Path $Tmp "dsh-univer-office.tgz"
-$univerDest = Join-Path $Vendor "dsh-univer-office"
-Write-Host "Downloading dsh-univer-office $univerVersion ..."
-Invoke-WebRequest -Uri $univerUrl -OutFile $univerTgz
-if (Test-Path $univerDest) { Remove-Item -Recurse -Force $univerDest }
-New-Item -ItemType Directory -Force -Path $univerDest | Out-Null
-tar -xf $univerTgz -C $univerDest --strip-components=1
-if (-not (Test-Path (Join-Path $univerDest "lib\index.js"))) {
-  throw "dsh-univer-office tarball missing lib/index.js"
-}
-node (Join-Path $Root "scripts\patch-univer-alpha1.mjs") $univerDest
-if ($LASTEXITCODE -ne 0) { throw "Univer DSH alpha.1 compatibility patch failed" }
-Set-Content -Path (Join-Path $Vendor "dsh-univer-office.pin") -Value "$univerVersion`n$univerUrl`nhttps://github.com/dream-num/dsh-univer-office`nnpm tarball; do not commit the unpacked tree or node_modules`n"
-Write-Host "Vendored dsh-univer-office under $Vendor"
+node (Join-Path $Root "scripts\materialize-dsh-univer-office.mjs")
+if ($LASTEXITCODE -ne 0) { throw "Pinned dsh-univer-office materialization failed" }

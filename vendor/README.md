@@ -11,7 +11,7 @@ that Agent Pi DSH ships so a packaged Windows build can initialize offline.
 | `dsh-vision-router/` | retired in 3.3.1 | Kept on disk for rollback only. Not installed, not packed. Official `deepseek-v4-flash-vision-exp` understands images. |
 | `dsh-genui/` | [dsh-genui 0.8.7](https://github.com/omdsh-dev/dsh-genui) source + built `lib/` | Retired from the factory profile. Not packed, not linked. A leftover `$DSH_HOME` install can be uninstalled in Settings; later installs go through the market / GitHub URL. |
 | `anysearch-dsh/` | [anysearch-dsh 0.1.1](https://github.com/anysearch-team/anysearch-dsh) source + built `lib/` | Web search provider + tools. Preinstalled as a `link:` junction. Official docs say `--profile web`; this product uses `tender`. |
-| `dsh-univer-office/` | [dsh-univer-office 0.2.9](https://github.com/dream-num/dsh-univer-office) npm tarball | In-chat Sheet/Doc/Slide preview and formula edit. Unpacked tree is gitignored (`vendor/dsh-univer-office.pin` is the pin). Official docs say `--profile web`; this product uses `tender`. |
+| `dsh-univer-office/` | [dsh-univer-office 0.2.9](https://github.com/dream-num/dsh-univer-office) npm tarball | In-chat Sheet/Doc/Slide preview and formula edit. The gitignored tree is materialized from the integrity-bound JSON pin before packaging. Official docs say `--profile web`; this product uses `tender`. |
 
 Local modifications:
 
@@ -21,7 +21,7 @@ Local modifications:
 - `dshmarket` restart banner: the status poll is the only writer of `hostBusy`. Stopping it after install/update/uninstall must clear that lock, or 「立即重启」 stays disabled. On Agent Pi the button prefers `window.agentPiDesktop.relaunch()` (Electron `app.relaunch`). Hosts with `AGENT_PI_DESKTOP=1` or `DSH_BUNDLED_SKILL_DIR` never spawn a second raw `dsh`; they write `request-relaunch.json` and exit so the shell owns the replacement.
 - `dsh-genui/`: kept on disk for rollback only. Factory profile no longer links or packs it. Do not run `pnpm prepare` on the copy.
 - `anysearch-dsh/`: vendored at 0.1.1 with upstream `lib/` already built. Do not run `pnpm prepare` (`tsc`). `node_modules` stay out of the copy; `init-tender-profile.mjs` junctions `@deepseek-ai/*` peers plus `schemastery` into the running DSH checkout. Managed overlay sets `searchProvider: anysearch` when the bundle is present.
-- `dsh-univer-office/`: vendored at 0.2.9 from the npm tarball. The unpacked ~157MB tree and its native `node_modules` stay out of git. `scripts/vendor-dsh-plugins.ps1` re-downloads the pin. `init-tender-profile.mjs` links it when `lib/index.js` is present and junctions DSH peers; first boot may `npm install --omit=dev` inside the vendor dir. Do not merge Univer worktrees unless the user asks.
+- `dsh-univer-office/`: pinned at 0.2.9 by `dsh-univer-office.pin`, including the npm SRI, shasum, archive shape and upstream source commit. `scripts/materialize-dsh-univer-office.mjs` verifies the archive before extraction, rejects links and unsafe entry types, applies the DSH compatibility patch, and writes a receipt into the gitignored tree. Both release packagers and `scripts/vendor-dsh-plugins.ps1` call that same materializer. Runtime dependencies are installed with `npm ci` from `scripts/dsh-univer-office-runtime.package-lock.json`; neither a floating install nor a global npm shim is used. `init-tender-profile.mjs` links the verified package when `lib/index.js` is present and junctions DSH peers. Do not merge Univer worktrees unless the user asks.
 - Desktop `web_fetch` overlay: `scripts/enable-desktop-web-fetch.mjs` sets `tool-web.fetch: true` in the pinned DSH `standard`/`code`/`cordis` presets and in `dsh-router-standard`. Stock DSH leaves fetch off; this machine is a local workbench. Host-plane `web-fetch-http` is junctioned by `init-tender-profile.mjs` and must **not** be listed in the profile `package.json` dependencies (the market would show a false verification failure — the package has no `dsh` metadata).
 - Conversation / injector installs that declare `dsh.bundle` stay in `dsh.profile.bundles` across restarts. `init-tender-profile.mjs` no longer overwrites the list with a fixed factory set.
 
@@ -29,6 +29,12 @@ Refresh copies:
 
 ```powershell
 .\scripts\vendor-dsh-plugins.ps1
+```
+
+To refresh only the pinned Univer package:
+
+```powershell
+node .\scripts\materialize-dsh-univer-office.mjs
 ```
 
 `vendor/deepseek-harness` is pinned by `DSH_PIN` to the official `dsh-v0.1.2-rc.1` release (`a66e470204`). The old Agent Pi patch targets `dsh-v0.1.1-rc.2` and is retained only as a porting inventory; it must not be applied to the current kernel. Agent Pi compatibility stays in product startup migration, profile overlays and bundles so the official checkout remains byte-clean.

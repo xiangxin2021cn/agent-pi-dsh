@@ -69,14 +69,35 @@ test('refuses a mismatched 0.2.9 client layout without changing it', () => {
   assert.equal(readFileSync(join(pluginRoot, 'lib/client.js'), 'utf8'), source)
 })
 
-test('development, vendoring, and packaging entrypoints enforce Univer alpha.1 compatibility', () => {
+test('development and materialization entrypoints enforce Univer alpha.1 compatibility', () => {
   const root = join(import.meta.dirname, '..')
   for (const file of [
     'scripts/init-tender-profile.ps1',
+    'scripts/materialize-dsh-univer-office.mjs',
+  ]) {
+    assert.ok(readFileSync(join(root, file), 'utf8').includes('patch-univer-alpha1'))
+  }
+})
+
+test('vendoring and packaging entrypoints use the verified Univer materializer', () => {
+  const root = join(import.meta.dirname, '..')
+  const entrypoints = []
+  for (const file of [
     'scripts/vendor-dsh-plugins.ps1',
     'scripts/pack-win.ps1',
     'scripts/pack-runtime-payload.mjs',
   ]) {
-    assert.ok(readFileSync(join(root, file), 'utf8').includes('patch-univer-alpha1'))
+    const source = readFileSync(join(root, file), 'utf8')
+    entrypoints.push([file, source])
+    assert.ok(source.includes('materialize-dsh-univer-office'))
   }
+  const vendorSource = entrypoints.find(([file]) => file.endsWith('vendor-dsh-plugins.ps1'))[1]
+  const windowsSource = entrypoints.find(([file]) => file.endsWith('pack-win.ps1'))[1]
+  const portableSource = entrypoints.find(([file]) => file.endsWith('pack-runtime-payload.mjs'))[1]
+  assert.doesNotMatch(vendorSource, /Set-Content[^\n]+dsh-univer-office\.pin/)
+  assert.ok(windowsSource.indexOf('materialize-dsh-univer-office') < windowsSource.indexOf('kernel-version-policy'))
+  assert.ok(portableSource.indexOf("run(process.execPath, [join(root, 'scripts', 'materialize-dsh-univer-office.mjs')])")
+    < portableSource.indexOf("run(process.execPath, [join(root, 'scripts', 'kernel-version-policy.mjs')"))
+  assert.match(portableSource, /verifyMaterializedUniver/)
+  assert.doesNotMatch(windowsSource, /WARN vendor\/dsh-univer-office missing/)
 })
