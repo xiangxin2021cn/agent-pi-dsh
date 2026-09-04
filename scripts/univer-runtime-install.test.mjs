@@ -26,7 +26,7 @@ const desktopMain = readFileSync(join(scripts, '../apps/desktop/main.mjs'), 'utf
 const lock = JSON.parse(readFileSync(defaultUniverRuntimeLockPath, 'utf8'))
 const pinnedDependencies = lock.packages[''].dependencies
 
-test('Univer runtime install resolves only production dependencies in a clean staging folder', () => {
+test('Univer development installer resolves only production dependencies', () => {
   assert.deepEqual(productionRuntimeManifest({
     name: 'dsh-univer-office',
     dependencies: { public: '1.0.0' },
@@ -36,13 +36,15 @@ test('Univer runtime install resolves only production dependencies in a clean st
     private: true,
     dependencies: { public: '1.0.0' },
   })
-  assert.match(script, /installUniverRuntimeDeps\(univerDir/)
-  assert.match(workflow, /install-univer-runtime-deps\.mjs payload\/product\/vendor\/dsh-univer-office/)
-  assert.match(workflow, /payload\/desktop\/runtime\/node\/node[\s\\]+payload\/desktop\/runtime\/product\/scripts\/install-univer-runtime-deps\.mjs[\s\\]+payload\/desktop\/runtime\/product\/vendor\/dsh-univer-office[\s\\]+--verify-only/)
-  assert.equal(workflow.match(/install-univer-runtime-deps\.mjs/g)?.length, 2)
   assert.match(installer, /'ci'/)
   assert.match(installer, /'--include=optional'/)
   assert.doesNotMatch(installer, /'install'/)
+})
+
+test('public profile and runtime packaging do not install Univer Pro dependencies', () => {
+  assert.doesNotMatch(script, /installUniverRuntimeDeps/)
+  assert.doesNotMatch(workflow, /install-univer-runtime-deps\.mjs/)
+  assert.match(workflow, /univer-public-release\.mjs assert-tree/)
 })
 
 test('tracked Univer production lock exactly matches the pinned 0.2.9 dependency graph', () => {
@@ -67,12 +69,14 @@ test('tracked Univer production lock exactly matches the pinned 0.2.9 dependency
   }
 })
 
-test('Windows package stages Univer production dependencies before first launch', () => {
-  assert.match(windowsRuntime, /vendor\\dsh-univer-office/)
-  assert.match(windowsRuntime, /install-univer-runtime-deps\.mjs/)
+test('Windows package removes Univer integration before first launch', () => {
+  assert.doesNotMatch(windowsRuntime, /vendor\\dsh-univer-office/)
+  assert.doesNotMatch(windowsRuntime, /install-univer-runtime-deps\.mjs/)
+  assert.match(windowsRuntime, /univer-public-release\.mjs[^\r\n]*sanitize/)
   const windowsPack = readFileSync(join(scripts, 'pack-win.ps1'), 'utf8')
   assert.match(windowsPack, /resources\\runtime\\node\\node\.exe/)
-  assert.match(windowsPack, /install-univer-runtime-deps\.mjs[^\r\n]+--verify-only/)
+  assert.doesNotMatch(windowsPack, /install-univer-runtime-deps\.mjs/)
+  assert.match(windowsPack, /univer-public-release\.mjs[\s\S]+assert-tree/)
   assert.match(desktopMain, /if \(packaged\) env\.AGENT_PI_SKIP_UNIVER_INSTALL = '1'/)
 })
 

@@ -8,6 +8,7 @@
 - 构建产物固定写入 `bundles/tender-web/lib/cad-viewer`，由 `/api/agent-pi/cad-viewer/*` 静态路由提供。
 - Windows 安装包和跨平台 runtime payload 都必须验证 HTML、JS、CSS、两个 worker、WASM、离线 Source Han Sans CN 回退字体与许可证归档齐全。
 - Windows 构建直接以 `node npm-cli.js` 调用 npm，避开本机损坏的 `npm.cmd` shim。
+- 公共安装包不再预装 `dsh-univer-office` 或 Univer Pro 商业运行时；市场入口保留，并明确提示需另行取得商业许可且 rc.1 兼容性待验证。升级时只清理旧版本留下且目标已失效的产品 `link:` / `file:` 依赖，用户自行安装的 npm 版本不改动。
 
 ## DSH rc.1 适配
 
@@ -21,6 +22,8 @@
 MLightCAD viewer 与 data-model 为 MIT；`@mlightcad/libredwg-converter` 及 `@mlightcad/libredwg-web` 为 GPL-3.0。仓库所有者选择 GPL 路线，因此 Agent Pi DSH 3.6.0 的项目代码和发行物改为 `GPL-3.0-only`，并保留各第三方组件自身的许可证与版权声明。
 
 `release/publish-v3.6.0-release.mjs` 在访问 GitHub 前要求本地/远端 exact `v3.6.0` 指向同一 main 提交、干净检出、根项目 GPL 元数据、SHA256 相符且可完整验证的 `Agent-Pi-DSH-3.6.0-CAD-corresponding-source.tar.gz` 与 clean runtime。Windows、runtime payload、macOS 与 Linux 产物均带独立 SHA256；Windows 构建回执还把安装包及其 payload 绑定到 clean CAD 清单、对应源码和 DSH 构建回执。十五项资产全部到齐、远端 digest 与校验文件一致且本地关键资产逐字节一致时，才允许发布为 Latest。
+
+同一发布闸门还会检查 Windows 解包树和跨平台 runtime payload，拒绝包含预装 Office wrapper、Univer Pro 包路径或旧 vendor receipt 的产物。
 
 这是面向构建与分发的技术合规措施，不构成法律意见；如需对具体分发关系作法律确认，应另行咨询适用法域的专业人士。
 

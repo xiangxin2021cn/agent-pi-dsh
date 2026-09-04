@@ -79,25 +79,17 @@ test('development and materialization entrypoints enforce Univer alpha.1 compati
   }
 })
 
-test('vendoring and packaging entrypoints use the verified Univer materializer', () => {
+test('development vendoring keeps the materializer while public packages exclude Univer', () => {
   const root = join(import.meta.dirname, '..')
-  const entrypoints = []
-  for (const file of [
-    'scripts/vendor-dsh-plugins.ps1',
-    'scripts/pack-win.ps1',
-    'scripts/pack-runtime-payload.mjs',
-  ]) {
-    const source = readFileSync(join(root, file), 'utf8')
-    entrypoints.push([file, source])
-    assert.ok(source.includes('materialize-dsh-univer-office'))
-  }
-  const vendorSource = entrypoints.find(([file]) => file.endsWith('vendor-dsh-plugins.ps1'))[1]
-  const windowsSource = entrypoints.find(([file]) => file.endsWith('pack-win.ps1'))[1]
-  const portableSource = entrypoints.find(([file]) => file.endsWith('pack-runtime-payload.mjs'))[1]
+  const vendorSource = readFileSync(join(root, 'scripts/vendor-dsh-plugins.ps1'), 'utf8')
+  const windowsSource = readFileSync(join(root, 'scripts/pack-win.ps1'), 'utf8')
+  const portableSource = readFileSync(join(root, 'scripts/pack-runtime-payload.mjs'), 'utf8')
+
+  assert.match(vendorSource, /materialize-dsh-univer-office/)
   assert.doesNotMatch(vendorSource, /Set-Content[^\n]+dsh-univer-office\.pin/)
-  assert.ok(windowsSource.indexOf('materialize-dsh-univer-office') < windowsSource.indexOf('kernel-version-policy'))
-  assert.ok(portableSource.indexOf("run(process.execPath, [join(root, 'scripts', 'materialize-dsh-univer-office.mjs')])")
-    < portableSource.indexOf("run(process.execPath, [join(root, 'scripts', 'kernel-version-policy.mjs')"))
-  assert.match(portableSource, /verifyMaterializedUniver/)
-  assert.doesNotMatch(windowsSource, /WARN vendor\/dsh-univer-office missing/)
+  for (const source of [windowsSource, portableSource]) {
+    assert.doesNotMatch(source, /materialize-dsh-univer-office/)
+    assert.doesNotMatch(source, /verifyMaterializedUniver/)
+    assert.match(source, /univer-public-release/)
+  }
 })

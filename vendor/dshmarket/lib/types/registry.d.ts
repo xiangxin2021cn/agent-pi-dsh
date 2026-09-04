@@ -27,6 +27,7 @@ export interface Registry {
     categories: Record<string, Record<string, string>>;
     plugins: RegistryPlugin[];
 }
+export declare function applyAgentPiUniverPolicy(registry: Registry): Registry;
 export declare function loadRegistry(): Promise<{
     registry: Registry;
     source: 'live' | 'cache' | 'snapshot';

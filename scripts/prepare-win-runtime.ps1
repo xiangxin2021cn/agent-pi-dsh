@@ -89,12 +89,10 @@ $productItems = @(
   "vendor\dsh-router-standard",
   "vendor\dshmarket",
   "vendor\anysearch-dsh",
-  "vendor\dsh-univer-office",
   "vendor\README.md",
   "vendor\dsh-super-injector.pin",
   "vendor\dsh-router-standard.pin",
-  "vendor\anysearch-dsh.pin",
-  "vendor\dsh-univer-office.pin"
+  "vendor\anysearch-dsh.pin"
 )
 foreach ($item in $productItems) {
   $src = Join-Path $Root $item
@@ -142,15 +140,11 @@ function Stage-ProjectNodeModules([string]$projectRelative, [string]$requiredPac
 Stage-ProjectNodeModules "packages\business-core" "zod"
 Stage-ProjectNodeModules "bundles\tender-host" "pdf-lib"
 
-# Keep first launch offline and deterministic. The source-vendored Univer
-# plugin intentionally excludes node_modules, so stage its production closure
-# into the packaged product while build-time npm access is available.
-$univerStage = Join-Path $Product "vendor\dsh-univer-office"
-if (-not (Test-Path (Join-Path $univerStage "package.json"))) {
-  throw "staged product is missing materialized dsh-univer-office"
-}
-& $node (Join-Path $Root "scripts\install-univer-runtime-deps.mjs") $univerStage
-if ($LASTEXITCODE -ne 0) { throw "failed to stage Univer production dependencies" }
+# Public builds keep the optional Office integration in the market. They do
+# not redistribute its commercial Univer Pro runtime or an obsolete vendor
+# link left by an earlier build.
+& $node (Join-Path $Root "scripts\univer-public-release.mjs") sanitize $Product
+if ($LASTEXITCODE -ne 0) { throw "public Univer release boundary failed" }
 
 $dshLink = Get-Item -LiteralPath $Dsh
 if ($dshLink.LinkType) {

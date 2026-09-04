@@ -27,12 +27,9 @@ test('repository carries the declared business-core and super-injector licenses'
   assert.match(notices, /`vendor\/dsh-super-injector\/LICENSE`/)
   assert.match(notices, /No upstream `NOTICE` is claimed or\s+synthesized/)
 
-  assert.match(notices, /`dsh-univer-office` 0\.2\.9/)
-  assert.match(notices, /e0222951012ff6eddd76e54c94975d9a27fd6032/)
-  assert.match(notices, /sha512-0gvUi\/JH70\+r5Lx3Q9LyPhsaugUQaYgFjshWbMJcGV\+eCTiZ\/\+YBL6r4J8V9wzwdBvCBjehxmTeTed7tsCiuag==/)
-  assert.match(notices, /`vendor\/dsh-univer-office\/LICENSE`/)
-  assert.match(notices, /Univer Pro runtime components/)
-  assert.match(notices, /does not grant or imply a Univer Pro or\s+commercial license/)
+  assert.match(notices, /does \*\*not\*\* distribute `dsh-univer-office` or its Univer\s+Pro runtime/)
+  assert.match(notices, /obtain and comply with the applicable Univer commercial\s+license/)
+  assert.match(notices, /DSH 0\.1\.2-rc\.1.*pending verification/s)
 })
 
 test('license notices ship in Windows and cross-platform runtime manifests', () => {
@@ -56,7 +53,6 @@ test('license notices ship in Windows and cross-platform runtime manifests', () 
   const expectedPackagedLicenses = [
     'packages/business-core/LICENSE',
     'vendor/dsh-super-injector/LICENSE',
-    'vendor/dsh-univer-office/LICENSE',
   ]
   for (const path of expectedPackagedLicenses) {
     assert.match(readFileSync(join(root, 'THIRD_PARTY_NOTICES.md'), 'utf8'), new RegExp(path.replaceAll('/', '\\/')))
