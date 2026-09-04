@@ -238,7 +238,7 @@ cp -a "${SOURCE_STAGE}/libredwg-web" "${WORK}/libredwg-web"
 pushd "${WORK}/libredwg-web" >/dev/null
 autoreconf -f --install --symlink -I m4
 pushd bindings/javascript >/dev/null
-pnpm install --frozen-lockfile
+pnpm install --frozen-lockfile --store-dir "${BUILD_ROOT}/pnpm-store"
 host_alias="${AUTOCONF_HOST_ALIAS}" pnpm run build:prepare
 pnpm run build:obj
 pnpm run build:wasm
@@ -276,7 +276,7 @@ cp "${ROOT}/docs/cad-clean-third-party.md" "${SOURCE_STAGE}/THIRD-PARTY-SOURCES.
 
 cp -a "${SOURCE_STAGE}/realdwg-web" "${WORK}/realdwg-web"
 pushd "${WORK}/realdwg-web" >/dev/null
-pnpm install --frozen-lockfile
+pnpm install --frozen-lockfile --store-dir "${BUILD_ROOT}/pnpm-store"
 readonly INSTALLED_LIBREDWG="$(node -e 'console.log(require("node:fs").realpathSync("packages/libredwg-converter/node_modules/@mlightcad/libredwg-web"))')"
 rm -rf -- "${INSTALLED_LIBREDWG}/dist" "${INSTALLED_LIBREDWG}/lib" "${INSTALLED_LIBREDWG}/wasm"
 cp -a "${CLEAN_LIBREDWG_PACKAGE}/dist" "${CLEAN_LIBREDWG_PACKAGE}/lib" "${CLEAN_LIBREDWG_PACKAGE}/wasm" "${INSTALLED_LIBREDWG}/"
