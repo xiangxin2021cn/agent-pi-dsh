@@ -23,7 +23,7 @@ import {
 import { createHash } from 'node:crypto'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { patchUniverForDshAlpha1 } from './patch-univer-alpha1.mjs'
+import { verifyMaterializedUniver } from './materialize-dsh-univer-office.mjs'
 import { verifyCadCleanRelease } from './cad-clean-release.mjs'
 import {
   buildDshWithReceipt,
@@ -101,6 +101,7 @@ function verifyCadViewerAssets(dir, label) {
   if (missing.length) throw new Error(`${label} CAD viewer missing: ${missing.join(', ')}`)
 }
 
+run(process.execPath, [join(root, 'scripts', 'materialize-dsh-univer-office.mjs')])
 run(process.execPath, [join(root, 'scripts', 'kernel-version-policy.mjs'), '--history'])
 run(process.execPath, [join(root, 'scripts', 'apply-dsh-patches.mjs')])
 const dshSrc = realpathSync(join(root, 'vendor', 'deepseek-harness'))
@@ -176,7 +177,10 @@ const stagedCadViewer = join(productDest, 'bundles', 'tender-web', 'lib', 'cad-v
 rmSync(stagedCadViewer, { recursive: true, force: true })
 mkdirSync(dirname(stagedCadViewer), { recursive: true })
 cpSync(cadViewer, stagedCadViewer, { recursive: true })
-patchUniverForDshAlpha1({ pluginRoot: join(productDest, 'vendor', 'dsh-univer-office') })
+verifyMaterializedUniver(
+  join(productDest, 'vendor', 'dsh-univer-office'),
+  join(productDest, 'vendor', 'dsh-univer-office.pin'),
+)
 verifyCadCleanRelease({
   archivePath: cadSourceArchive,
   checksumPath: cadSourceChecksum,

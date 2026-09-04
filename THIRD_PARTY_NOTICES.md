@@ -31,6 +31,35 @@ distribution, the standard BSD 3-Clause text is carried as
 the author identity on the tagged commit. No upstream `NOTICE` is claimed or
 synthesized.
 
+## dsh-univer-office and Univer Pro runtime components
+
+Agent Pi DSH materializes `dsh-univer-office` 0.2.9 from its published npm
+archive. The archive is pinned by the npm SHA-512 integrity value
+`sha512-0gvUi/JH70+r5Lx3Q9LyPhsaugUQaYgFjshWbMJcGV+eCTiZ/+YBL6r4J8V9wzwdBvCBjehxmTeTed7tsCiuag==`
+and maps to upstream source commit
+`e0222951012ff6eddd76e54c94975d9a27fd6032` (tag `v0.2.9`).
+
+Source: https://github.com/dream-num/dsh-univer-office/tree/v0.2.9
+
+The `dsh-univer-office` package manifest declares `Apache-2.0`, and the
+complete Apache License 2.0 text from its npm archive is distributed as
+`vendor/dsh-univer-office/LICENSE`. Its production dependency closure is
+installed from the integrity-locked
+`scripts/dsh-univer-office-runtime.package-lock.json`.
+
+That runtime closure includes these Univer Pro runtime components, whose npm
+metadata does not declare a license:
+
+- `@univerjs-pro/cli-assets` 0.1.0
+- `@univerjs-pro/engine-formula-rust-binding` 1.0.0-insiders.20260819-8209aa8
+- `@univerjs-pro/exchange-node-binding` 0.1.0
+
+Those components are distinct from the Apache-2.0 wrapper and from Agent Pi's
+GPL-3.0-only code. This notice does not grant or imply a Univer Pro or
+commercial license. Users and distributors must separately ensure that their
+use of the Univer Pro runtime components complies with the applicable Univer
+terms and credentials.
+
 ## VectifyAI/PageIndex
 
 Agent Pi DSH includes a small TypeScript adaptation of the Markdown heading

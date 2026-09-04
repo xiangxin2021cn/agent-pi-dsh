@@ -226,12 +226,18 @@ function Test-UnpackedApp([string]$dir) {
     (Join-Path $dir "resources\runtime\product\bundles\agent-pi-compaction\lib\index.js"),
     (Join-Path $dir "resources\runtime\product\bundles\tender-host\node_modules\pdf-lib\package.json"),
     (Join-Path $dir "resources\runtime\product\packages\business-core\node_modules\zod\package.json")
+    (Join-Path $dir "resources\runtime\product\vendor\dsh-univer-office\LICENSE")
+    (Join-Path $dir "resources\runtime\product\vendor\dsh-univer-office\AGENT-PI-VENDOR-RECEIPT.json")
+    (Join-Path $dir "resources\runtime\product\vendor\dsh-univer-office\node_modules\@univerjs-pro\cli-assets\package.json")
   )
   $cadViewer = Join-Path $dir "resources\runtime\product\bundles\tender-web\lib\cad-viewer"
-  return (
-    ($need | Where-Object { -not (Test-Path $_) }).Count -eq 0 -and
-    (Test-CadViewerAssets $cadViewer)
-  )
+  if (($need | Where-Object { -not (Test-Path $_) }).Count -ne 0 -or -not (Test-CadViewerAssets $cadViewer)) {
+    return $false
+  }
+  $univer = Join-Path $dir "resources\runtime\product\vendor\dsh-univer-office"
+  $packagedNode = Join-Path $dir "resources\runtime\node\node.exe"
+  & $packagedNode (Join-Path $Root "scripts\install-univer-runtime-deps.mjs") $univer --verify-only *> $null
+  return $LASTEXITCODE -eq 0
 }
 
 if ($ToolchainOnly) {
@@ -241,6 +247,8 @@ if ($ToolchainOnly) {
   return
 }
 
+& node (Join-Path $Root "scripts\materialize-dsh-univer-office.mjs")
+if ($LASTEXITCODE -ne 0) { throw "failed to materialize pinned dsh-univer-office" }
 
 if (-not $CadCleanOutput) { $CadCleanOutput = Join-Path $Root ".codex-temp\cad-clean-output" }
 $CadCleanOutput = (Resolve-Path -LiteralPath $CadCleanOutput -ErrorAction Stop).Path
@@ -288,7 +296,7 @@ if (-not (Test-Path (Join-Path $Root "vendor\anysearch-dsh\lib\index.js"))) {
   throw "vendor/anysearch-dsh incomplete. Copy anysearch-dsh 0.1.1 with built lib/"
 }
 if (-not (Test-Path (Join-Path $Root "vendor\dsh-univer-office\lib\index.js"))) {
-  Write-Host "WARN vendor/dsh-univer-office missing. Run scripts/vendor-dsh-plugins.ps1 to preset Univer."
+  throw "vendor/dsh-univer-office materialization is incomplete"
 }
 
 function Find-BrandPython {
@@ -304,10 +312,6 @@ function Find-BrandPython {
   $python = $candidates | Select-Object -First 1
   if (-not $python) { throw "Python with Pillow is required to build the installer brand assets" }
   return $python
-}
-if (Test-Path (Join-Path $Root "vendor\dsh-univer-office\lib\client.js")) {
-  node (Join-Path $Root "scripts\patch-univer-alpha1.mjs") (Join-Path $Root "vendor\dsh-univer-office")
-  if ($LASTEXITCODE -ne 0) { throw "Univer DSH alpha.1 compatibility patch failed" }
 }
 if (-not (Test-Path $NsisScript)) {
   throw "NSIS script missing: $NsisScript"

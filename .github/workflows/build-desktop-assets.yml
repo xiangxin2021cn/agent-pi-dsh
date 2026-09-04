@@ -117,6 +117,13 @@ jobs:
             --node-bin node-runtime/bin/node \
             --out payload/desktop/runtime
 
+      - name: Verify staged Univer native runtime
+        run: |
+          payload/desktop/runtime/node/node \
+            payload/desktop/runtime/product/scripts/install-univer-runtime-deps.mjs \
+            payload/desktop/runtime/product/vendor/dsh-univer-office \
+            --verify-only
+
       - name: Install desktop shell dependencies
         working-directory: payload/desktop
         run: |
