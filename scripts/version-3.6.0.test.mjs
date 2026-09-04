@@ -96,6 +96,7 @@ test('3.6.0 publisher remains immutable and fails closed before GitHub access un
   assert.doesNotMatch(publish, /--clobber/)
   assert.doesNotMatch(workflow, /--clobber/)
   assert.match(cadWorkflow, /include-hidden-files:\s*true/)
+  assert.match(cadWorkflow, /git config --global --add safe\.directory \/workspace/)
   assert.match(cadWorkflow, /url\."https:\/\/github\.com\/zserge\/jsmn\.git"\.insteadOf https:\/\/github\.com\/zserge\/jsmn/)
   assert.match(cadWorkflow, /COREPACK_ENABLE_PROJECT_SPEC=0/)
   assert.equal(cadPins.builder.autoconfHostAlias, 'wasm32-unknown-emscripten')
