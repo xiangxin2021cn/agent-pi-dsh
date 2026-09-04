@@ -61,10 +61,17 @@ dsh_git() {
   git -c "safe.directory=${ROOT}" -c core.quotePath=false -C "${ROOT}" "$@"
 }
 
-if [[ -n "$(dsh_git status --porcelain=v1 --untracked-files=all)" ]]; then
-  echo 'CAD clean build: Agent Pi DSH checkout must be completely clean' >&2
-  exit 1
-fi
+assert_dsh_checkout_clean() {
+  local status
+  status="$(dsh_git status --porcelain=v1 --untracked-files=all --ignore-submodules=all)"
+  if [[ -n "${status}" ]]; then
+    echo 'CAD clean build: Agent Pi DSH checkout must be completely clean' >&2
+    printf '%s\n' "${status}" >&2
+    exit 1
+  fi
+}
+
+assert_dsh_checkout_clean
 if [[ "$(dsh_git describe --exact-match --tags HEAD 2>/dev/null || true)" != "${DSH_TAG}" ]]; then
   echo "CAD clean build: HEAD must be the exact ${DSH_TAG} release tag" >&2
   exit 1
@@ -379,5 +386,5 @@ node "${RELEASE_TOOL}" verify \
   --checksum "${OUTPUT_ROOT}/${ARCHIVE_NAME}.sha256" \
   --runtime-dir "${RUNTIME_DIR}"
 
-test -z "$(dsh_git status --porcelain=v1 --untracked-files=all)"
+assert_dsh_checkout_clean
 echo "CAD clean build complete: ${OUTPUT_ROOT}"

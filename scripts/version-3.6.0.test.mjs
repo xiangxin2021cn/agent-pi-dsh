@@ -102,6 +102,8 @@ test('3.6.0 publisher remains immutable and fails closed before GitHub access un
   assert.equal(cadPins.builder.autoconfHostAlias, 'wasm32-unknown-emscripten')
   assert.match(cadBuild, /host_alias="\$\{AUTOCONF_HOST_ALIAS\}" pnpm run build:prepare/)
   assert.match(cadBuild, /core\.quotePath=false/)
+  assert.match(cadBuild, /status --porcelain=v1 --untracked-files=all --ignore-submodules=all/)
+  assert.match(cadBuild, /printf '%s\\n' "\$\{status\}" >&2/)
   assert.equal(cadPackage.devDependencies['@types/node'], '22.16.0')
   assert.equal(cadLock.packages['node_modules/@types/node'].version, '22.16.0')
   assert.equal(cadLock.packages['node_modules/undici-types'].version, '6.21.0')
