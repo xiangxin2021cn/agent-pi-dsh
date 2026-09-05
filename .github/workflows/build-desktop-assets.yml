@@ -1,10 +1,10 @@
 # Builds macOS / Linux desktop packages from the runtime payload attached to a
-# GitHub release. The repository pins DSH 0.1.2-rc.1 plus the Agent Pi
+# GitHub release. The repository pins DSH 0.1.3-alpha.1 plus the Agent Pi
 # migration; the payload (runtime-payload-<version>.tar.gz, uploaded from the Windows build
 # machine by scripts/pack-runtime-payload.mjs) carries everything needed:
 # the Electron shell, the product trees, and the DeepSeek Harness source with
 # built lib/ + web dist. Each runner installs platform-correct dependencies
-# (pnpm --prod), compiles node-pty where no prebuild exists (Linux), stages
+# (pnpm --prod), rebuilds native modules for the packaged Node ABI, stages
 # the runtime, and lets electron-builder produce native packages.
 name: build-desktop-assets
 
@@ -49,7 +49,7 @@ jobs:
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_RUNTIME_VERSION }}
 
       - name: Download and verify release inputs
         run: |
@@ -74,9 +74,11 @@ jobs:
 
       - name: Verify clean CAD runtime against corresponding source
         run: |
+          version="${{ inputs.tag }}"
+          version="${version#v}"
           node payload/product/scripts/cad-clean-release.mjs verify \
-            --archive release-inputs/Agent-Pi-DSH-3.6.0-CAD-corresponding-source.tar.gz \
-            --checksum release-inputs/Agent-Pi-DSH-3.6.0-CAD-corresponding-source.tar.gz.sha256 \
+            --archive "release-inputs/Agent-Pi-DSH-${version}-CAD-corresponding-source.tar.gz" \
+            --checksum "release-inputs/Agent-Pi-DSH-${version}-CAD-corresponding-source.tar.gz.sha256" \
             --runtime-dir payload/product/bundles/tender-web/lib/cad-viewer
 
       - name: Enable pnpm via corepack
@@ -90,9 +92,9 @@ jobs:
           # a local build are rebuilt explicitly below.
           pnpm install --prod --frozen-lockfile --ignore-scripts
 
-      - name: Rebuild node-pty (no Linux prebuilds ship in the package)
+      - name: Rebuild DSH native modules for the packaged Node ABI
         working-directory: payload/deepseek-harness
-        run: pnpm rebuild node-pty
+        run: pnpm rebuild node-pty fs-ext
 
       - name: Install bundle dependencies
         run: |
@@ -107,6 +109,11 @@ jobs:
           tar -xf node-runtime.archive -C node-runtime --strip-components=1
           node-runtime/bin/node --version
 
+      - name: Verify DSH session native modules with packaged Node
+        run: |
+          node-runtime/bin/node payload/product/scripts/verify-dsh-runtime.mjs \
+            payload/deepseek-harness payload/product --native
+
       - name: Stage runtime
         run: |
           node payload/product/scripts/prepare-runtime.mjs \
@@ -114,6 +121,8 @@ jobs:
             --product payload/product \
             --node-bin node-runtime/bin/node \
             --out payload/desktop/runtime
+          payload/desktop/runtime/node/node payload/desktop/runtime/product/scripts/verify-dsh-runtime.mjs \
+            payload/desktop/runtime/deepseek-harness payload/desktop/runtime/product --native
 
       - name: Install desktop shell dependencies
         working-directory: payload/desktop

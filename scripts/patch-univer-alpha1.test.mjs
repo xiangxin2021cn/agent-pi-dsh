@@ -22,6 +22,31 @@ const legacyClient = [
   '',
 ].join(newline)
 
+const nativeClient = [
+  'function CombinedSnapshotPreviewCard(props) {',
+  '  const timeline = props.useSession((snapshot) => snapshot.chat.timeline);',
+  '}',
+  'function SplitSnapshotPreviewCard(props) {',
+  '  const timeline = props.useChat((snapshot) => snapshot.timeline);',
+  '}',
+  'function registerConversationDefinition(ctx, definition) {',
+  '  const uiConversation = ctx.get("uiConversation");',
+  '  if (uiConversation !== void 0) {',
+  '    registerDefinition(uiConversation.events, definition);',
+  '    return "split";',
+  '  }',
+  '  const conversationEvents = ctx.get("conversationEvents");',
+  '  if (conversationEvents === void 0) {',
+  '    throw new Error("dsh-univer-office: active conversation service exposes no event registry");',
+  '  }',
+  '  registerDefinition(conversationEvents, definition);',
+  '  return "combined";',
+  '}',
+  'var inject = ["slots", "locale", "conversation"];',
+  'const PreviewCard = conversationApi === "split" ? SplitSnapshotPreviewCard : CombinedSnapshotPreviewCard;',
+  '',
+].join(newline)
+
 function fixture(version = '0.2.9', client = legacyClient) {
   const dir = mkdtempSync(join(tmpdir(), 'agent-pi-univer-alpha1-'))
   mkdirSync(join(dir, 'lib'), { recursive: true })
@@ -30,32 +55,55 @@ function fixture(version = '0.2.9', client = legacyClient) {
   return dir
 }
 
-test('patches Univer 0.2.9 to the alpha.1 conversation service and snapshots, and is idempotent', () => {
-  const pluginRoot = fixture()
+for (const version of ['0.2.9', '0.2.10']) {
+  test(`patches Univer ${version} to the current conversation service and snapshots, and is idempotent`, () => {
+    const pluginRoot = fixture(version)
 
-  assert.equal(patchUniverForDshAlpha1({ pluginRoot }), 'applied')
-  const patched = readFileSync(join(pluginRoot, 'lib/client.js'), 'utf8')
-  assert.ok(patched.includes('var inject = ["slots", "locale", "uiConversation"]'))
-  assert.ok(patched.includes('ctx.uiConversation.events.register(univerTurnDefinition)'))
-  assert.ok(patched.includes('snapshot.views.get("chat")'))
-  assert.ok(patched.includes('turnFilesOfSession(chat, cwd)'))
-  assert.ok(patched.includes('latestWorktreeTurns(chat)'))
-  assert.ok(patched.includes('chat.timeline.turns'))
-  assert.ok(!patched.includes('conversationEvents'))
-  assert.ok(!patched.includes('session.chat.timeline'))
-  assert.ok(!patched.includes('props.useSession('))
-  assert.equal(patchUniverForDshAlpha1({ pluginRoot }), 'already-applied')
-  assert.equal(readFileSync(join(pluginRoot, 'lib/client.js'), 'utf8'), patched)
-})
+    assert.equal(patchUniverForDshAlpha1({ pluginRoot }), 'applied')
+    const patched = readFileSync(join(pluginRoot, 'lib/client.js'), 'utf8')
+    assert.ok(patched.includes('var inject = ["slots", "locale", "uiConversation"]'))
+    assert.ok(patched.includes('ctx.uiConversation.events.register(univerTurnDefinition)'))
+    assert.ok(patched.includes('snapshot.views.get("chat")'))
+    assert.ok(patched.includes('turnFilesOfSession(chat, cwd)'))
+    assert.ok(patched.includes('latestWorktreeTurns(chat)'))
+    assert.ok(patched.includes('chat.timeline.turns'))
+    assert.ok(!patched.includes('conversationEvents'))
+    assert.ok(!patched.includes('session.chat.timeline'))
+    assert.ok(!patched.includes('props.useSession('))
+    assert.equal(patchUniverForDshAlpha1({ pluginRoot }), 'already-applied')
+    assert.equal(readFileSync(join(pluginRoot, 'lib/client.js'), 'utf8'), patched)
+  })
+}
 
-test('refuses an unpinned Univer version without changing it', () => {
-  const pluginRoot = fixture('0.2.10')
+test('refuses an unverified Univer version without changing it', () => {
+  const pluginRoot = fixture('0.2.14', nativeClient)
 
   assert.throws(
     () => patchUniverForDshAlpha1({ pluginRoot }),
     /Unsupported dsh-univer-office/,
   )
-  assert.equal(readFileSync(join(pluginRoot, 'lib/client.js'), 'utf8'), legacyClient)
+  assert.equal(readFileSync(join(pluginRoot, 'lib/client.js'), 'utf8'), nativeClient)
+})
+
+test('accepts the verified native 0.2.13 conversation adapter without changing one byte', () => {
+  const pluginRoot = fixture('0.2.13', nativeClient)
+
+  assert.equal(patchUniverForDshAlpha1({ pluginRoot }), 'native-compatible')
+  assert.equal(readFileSync(join(pluginRoot, 'lib/client.js'), 'utf8'), nativeClient)
+})
+
+test('refuses a malformed 0.2.13 native adapter without changing it', () => {
+  const source = nativeClient.replace(
+    'registerDefinition(uiConversation.events, definition);',
+    'registerDefinition(definition);',
+  )
+  const pluginRoot = fixture('0.2.13', source)
+
+  assert.throws(
+    () => patchUniverForDshAlpha1({ pluginRoot }),
+    /native client layout does not match/,
+  )
+  assert.equal(readFileSync(join(pluginRoot, 'lib/client.js'), 'utf8'), source)
 })
 
 test('refuses a mismatched 0.2.9 client layout without changing it', () => {
@@ -79,7 +127,7 @@ test('development and materialization entrypoints enforce Univer alpha.1 compati
   }
 })
 
-test('development vendoring keeps the materializer while public packages exclude Univer', () => {
+test('development vendoring and explicit licensed packaging keep the materializer while public packages sanitize Univer', () => {
   const root = join(import.meta.dirname, '..')
   const vendorSource = readFileSync(join(root, 'scripts/vendor-dsh-plugins.ps1'), 'utf8')
   const windowsSource = readFileSync(join(root, 'scripts/pack-win.ps1'), 'utf8')
@@ -87,9 +135,10 @@ test('development vendoring keeps the materializer while public packages exclude
 
   assert.match(vendorSource, /materialize-dsh-univer-office/)
   assert.doesNotMatch(vendorSource, /Set-Content[^\n]+dsh-univer-office\.pin/)
-  for (const source of [windowsSource, portableSource]) {
-    assert.doesNotMatch(source, /materialize-dsh-univer-office/)
-    assert.doesNotMatch(source, /verifyMaterializedUniver/)
-    assert.match(source, /univer-public-release/)
-  }
+  assert.match(windowsSource, /IncludeLicensedUniver/)
+  assert.match(windowsSource, /materialize-dsh-univer-office/)
+  assert.match(windowsSource, /univer-public-release/)
+  assert.match(portableSource, /univer-public-release/)
+  assert.doesNotMatch(portableSource, /materialize-dsh-univer-office/)
+  assert.doesNotMatch(portableSource, /verifyMaterializedUniver/)
 })

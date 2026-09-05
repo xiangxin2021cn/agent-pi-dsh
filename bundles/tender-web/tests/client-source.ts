@@ -13,6 +13,7 @@ export const clientSource = [
   '../src/client/api-client.js',
   '../src/client/file-preview-overlay.js',
   '../src/client/knowledge-base-panel.js',
+  '../src/client/native-attachment-adapter.js',
   '../src/client/session-monitor.js',
   '../src/client/workbench-view.js',
   '../src/client/styles.js',

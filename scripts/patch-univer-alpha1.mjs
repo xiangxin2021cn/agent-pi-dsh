@@ -3,7 +3,8 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const supportedVersion = '0.2.9'
+const legacyPatchVersions = new Set(['0.2.9', '0.2.10'])
+const nativeCompatibleVersion = '0.2.13'
 const replacements = [
   {
     before: 'var inject = ["slots", "locale", "conversationEvents"];',
@@ -43,6 +44,66 @@ const replacements = [
   },
 ]
 
+const legacyPatchedMarkers = [
+  'var inject = ["slots", "locale", "uiConversation"];',
+  'ctx.uiConversation.events.register(univerTurnDefinition);',
+  'snapshot.views.get("chat")',
+]
+const legacyObsoleteMarkers = ['conversationEvents', 'session.chat.timeline', 'props.useSession(']
+const nativeMarkers = [
+  'function registerConversationDefinition(ctx, definition) {',
+  'var inject = ["slots", "locale", "conversation"];',
+  'props.useChat((snapshot) => snapshot.timeline)',
+  'conversationApi === "split" ? SplitSnapshotPreviewCard : CombinedSnapshotPreviewCard',
+  'if (uiConversation !== void 0) {',
+  'if (conversationEvents === void 0) {',
+  'throw new Error("dsh-univer-office: active conversation service exposes no event registry");',
+]
+const nativeConversationSequence = [
+  'const uiConversation = ctx.get("uiConversation");',
+  'registerDefinition(uiConversation.events, definition);',
+  'return "split";',
+  'const conversationEvents = ctx.get("conversationEvents");',
+  'registerDefinition(conversationEvents, definition);',
+  'return "combined";',
+]
+
+export function assertUniverClientCompatibility({ version, source }) {
+  if (typeof source !== 'string') {
+    throw new Error(`dsh-univer-office ${version || 'unknown'} client layout does not match the compatibility contract`)
+  }
+  if (legacyPatchVersions.has(version)) {
+    for (const marker of legacyPatchedMarkers) {
+      if (!source.includes(marker)) {
+        throw new Error(`dsh-univer-office ${version} client layout does not match the compatibility patch`)
+      }
+    }
+    for (const marker of legacyObsoleteMarkers) {
+      if (source.includes(marker)) {
+        throw new Error(`dsh-univer-office ${version} compatibility patch left obsolete marker ${marker}`)
+      }
+    }
+    return 'legacy-patched'
+  }
+  if (version === nativeCompatibleVersion) {
+    for (const marker of nativeMarkers) {
+      if (!source.includes(marker)) {
+        throw new Error(`dsh-univer-office ${version} native client layout does not match the compatibility contract`)
+      }
+    }
+    let previous = -1
+    for (const marker of nativeConversationSequence) {
+      const index = source.indexOf(marker, previous + 1)
+      if (index === -1) {
+        throw new Error(`dsh-univer-office ${version} native client layout does not match the compatibility contract`)
+      }
+      previous = index
+    }
+    return 'native-compatible'
+  }
+  throw new Error(`Unsupported dsh-univer-office for the current DSH conversation API: dsh-univer-office@${version || 'unknown'}`)
+}
+
 export function patchUniverForDshAlpha1({ pluginRoot }) {
   const manifestPath = join(pluginRoot, 'package.json')
   const clientPath = join(pluginRoot, 'lib/client.js')
@@ -51,23 +112,29 @@ export function patchUniverForDshAlpha1({ pluginRoot }) {
   }
 
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
-  if (manifest.name !== 'dsh-univer-office' || manifest.version !== supportedVersion) {
+  if (manifest.name !== 'dsh-univer-office'
+      || (!legacyPatchVersions.has(manifest.version) && manifest.version !== nativeCompatibleVersion)) {
     throw new Error(
-      'Unsupported dsh-univer-office for DSH alpha.1 compatibility: '
+      'Unsupported dsh-univer-office for the current DSH conversation API: '
       + (manifest.name || 'unknown') + '@' + (manifest.version || 'unknown'),
     )
   }
 
   let source = readFileSync(clientPath, 'utf8')
+  if (manifest.version === nativeCompatibleVersion) {
+    assertUniverClientCompatibility({ version: manifest.version, source })
+    return 'native-compatible'
+  }
   let changed = false
   for (const { before, after } of replacements) {
     if (source.includes(after)) continue
     if (!source.includes(before)) {
-      throw new Error('dsh-univer-office ' + supportedVersion + ' client layout does not match the compatibility patch')
+      throw new Error('dsh-univer-office ' + manifest.version + ' client layout does not match the compatibility patch')
     }
     source = source.replace(before, after)
     changed = true
   }
+  assertUniverClientCompatibility({ version: manifest.version, source })
   if (changed) writeFileSync(clientPath, source, 'utf8')
   return changed ? 'applied' : 'already-applied'
 }
@@ -75,7 +142,7 @@ export function patchUniverForDshAlpha1({ pluginRoot }) {
 export function main(args = process.argv.slice(2)) {
   const pluginRoot = resolve(args[0] || join(root, 'vendor/dsh-univer-office'))
   const result = patchUniverForDshAlpha1({ pluginRoot })
-  process.stdout.write('Univer DSH alpha.1 compatibility: ' + result + String.fromCharCode(10))
+  process.stdout.write('Univer DSH conversation compatibility: ' + result + String.fromCharCode(10))
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main()
