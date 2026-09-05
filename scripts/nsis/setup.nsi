@@ -46,16 +46,24 @@ UninstallIcon "${APP_ICON}"
 ; receipt allows subsequent upgrades; the exact default legacy directory is
 ; accepted once so existing installations can acquire the receipt.
 Function ValidateInstallRoot
-  GetFullPathName $INSTDIR "$INSTDIR"
+  GetFullPathName $0 "$INSTDIR"
+  StrCmp $0 "" 0 install_root_normalized
+  ; NSIS may fail when the selected directory does not yet exist. Normalize
+  ; the new path without creating it, then apply the same ownership checks.
+  System::Call 'kernel32::GetFullPathNameW(w "$INSTDIR", i ${NSIS_MAX_STRLEN}, w .r0, p 0)i.r1'
+  IntCmp $1 0 install_root_invalid
+  IntCmp $1 ${NSIS_MAX_STRLEN} install_root_invalid 0 install_root_invalid
+  install_root_normalized:
+  StrCpy $INSTDIR "$0"
   StrLen $0 "$INSTDIR"
   IntCmp $0 3 install_root_invalid install_root_invalid
   StrCpy $0 "$INSTDIR" 2
   StrCmp $0 "\\" install_root_invalid
 
-  System::Call 'kernel32::GetFileAttributesW(w "$INSTDIR").i .r4'
+  System::Call 'kernel32::GetFileAttributesW(w "$INSTDIR")i.r4'
   StrCpy $1 "$INSTDIR"
   install_root_reparse_loop:
-    System::Call 'kernel32::GetFileAttributesW(w r1).i .r2'
+    System::Call 'kernel32::GetFileAttributesW(w r1)i.r2'
     ${If} $2 != -1
       IntOp $3 $2 & 0x400
       ${If} $3 != 0
@@ -87,7 +95,18 @@ Function ValidateInstallRoot
     StrCpy $0 "$INSTDIR" 13 -13
     StrCmp $0 "\Agent Pi DSH" 0 install_root_invalid
     IntCmp $4 -1 install_root_ok
-    IfFileExists "$INSTDIR\*.*" install_root_legacy 0
+    FindFirst $0 $1 "$INSTDIR\*.*"
+    IfErrors install_root_ok
+  install_root_entries:
+    StrCmp $1 "." install_root_next
+    StrCmp $1 ".." install_root_next
+    FindClose $0
+    Goto install_root_legacy
+  install_root_next:
+    FindNext $0 $1
+    IfErrors install_root_empty install_root_entries
+  install_root_empty:
+    FindClose $0
     Goto install_root_ok
   install_root_legacy:
     IfFileExists "$INSTDIR\agent-pi-DSH.exe" 0 install_root_invalid
@@ -95,7 +114,7 @@ Function ValidateInstallRoot
 
   install_root_invalid:
     SetErrorLevel 5
-    MessageBox MB_OK|MB_ICONSTOP "安装目录必须是名为 Agent Pi DSH 的专属本地文件夹，且不能是磁盘根目录、共享路径或链接目录。为防止卸载误删其他文件，请选择类似 D:\Apps\Agent Pi DSH 的目录。$\r$\n$\r$\nThe install root must be a dedicated local folder named Agent Pi DSH, not a drive root, network share, or reparse-point directory. Choose a path such as D:\Apps\Agent Pi DSH."
+    MessageBox MB_OK|MB_ICONSTOP "无法确认所选目录是 Agent Pi DSH 的专属本地安装目录：$\r$\n$INSTDIR$\r$\n$\r$\n正常升级可直接使用原安装目录，无需更换位置或先卸载。请勿选择磁盘根目录、共享路径、链接目录或存放其他文件的非安装目录。$\r$\n$\r$\nThe selected folder could not be verified as a dedicated local Agent Pi DSH installation. Normal upgrades can use the existing install folder without moving or uninstalling first. Do not select a drive root, network share, reparse-point directory, or an unrelated data folder."
     Abort
   install_root_ok:
 FunctionEnd
@@ -126,11 +145,11 @@ Function un.ValidateInstallRoot
   IntCmp $0 3 uninstall_root_invalid uninstall_root_invalid
   StrCpy $0 "$INSTDIR" 2
   StrCmp $0 "\\" uninstall_root_invalid
-  System::Call 'kernel32::GetFileAttributesW(w "$INSTDIR").i .r4'
+  System::Call 'kernel32::GetFileAttributesW(w "$INSTDIR")i.r4'
   IntCmp $4 -1 uninstall_root_invalid
   StrCpy $1 "$INSTDIR"
   uninstall_root_reparse_loop:
-    System::Call 'kernel32::GetFileAttributesW(w r1).i .r2'
+    System::Call 'kernel32::GetFileAttributesW(w r1)i.r2'
     ${If} $2 != -1
       IntOp $3 $2 & 0x400
       ${If} $3 != 0
@@ -194,6 +213,7 @@ Function StageUniverVendor
   IfFileExists "$INSTDIR\resources\runtime\product\vendor\dsh-univer-office\*.*" stage_univer_delete_failed 0
   Goto stage_univer_done
   stage_univer_delete_failed:
+    Call RollbackAppAsar
     MessageBox MB_OK|MB_ICONSTOP "无法清理上次安装留下的 dsh-univer-office 临时目录；最后可用备份仍已保留。请完全退出应用后重试。 Failed to clear the partial dsh-univer-office from the previous attempt; the last known-good backup was preserved. Quit the app fully and retry."
     Abort
   stage_univer_current:
@@ -201,6 +221,7 @@ Function StageUniverVendor
   ClearErrors
   Rename "$INSTDIR\resources\runtime\product\vendor\dsh-univer-office" "$INSTDIR\resources\runtime\product\vendor\.agent-pi-univer-previous"
   IfErrors 0 stage_univer_done
+    Call RollbackAppAsar
     MessageBox MB_OK|MB_ICONSTOP "无法暂存旧版 dsh-univer-office。请确认 Agent Pi DSH 已完全退出后重试。 Failed to stage the previous dsh-univer-office. Quit Agent Pi DSH fully and retry."
     Abort
   stage_univer_done:
@@ -268,13 +289,13 @@ FunctionEnd
 
 Section "Install"
   Call ValidateInstallRoot
-  Call CloseRunningApp
-  Call StageAppAsar
-  Call StageUniverVendor
   InitPluginsDir
   SetOutPath "$PLUGINSDIR"
   File "7za.exe"
   File "payload.7z"
+  Call CloseRunningApp
+  Call StageAppAsar
+  Call StageUniverVendor
   SetOutPath "$INSTDIR"
   DetailPrint "Extracting Agent Pi DSH..."
   nsExec::ExecToLog '"$PLUGINSDIR\7za.exe" x -y -aoa -bd "$PLUGINSDIR\payload.7z" "-o$INSTDIR"'
@@ -306,7 +327,7 @@ Section "Install"
     Call RollbackAppAsar
   asar_fail:
     SetErrorLevel 2
-    MessageBox MB_OK|MB_ICONSTOP "resources\app.asar 安装失败；已尽可能恢复原版本。请完全退出 Agent Pi DSH，并暂时关闭占用安装目录的编辑器后重试。$\r$\n$\r$\nFailed to install resources\app.asar; the previous archive was restored where possible. Quit Agent Pi DSH fully and close any editor locking the install folder, then retry."
+    MessageBox MB_OK|MB_ICONSTOP "resources\app.asar 安装失败；已尝试恢复旧应用入口和 Office，但不保证整套运行时已恢复。请完全退出应用及占用安装目录的编辑器，在原目录重试安装。$\r$\n$\r$\nFailed to install resources\app.asar. Restoration of the previous archive and Office was attempted; the entire runtime is not rolled back. Quit the app and editors locking the install folder, then reinstall to the same directory."
     Abort
 
   asar_ok:
@@ -344,7 +365,7 @@ Section "Install"
   IntCmp $0 0 univer_verify_ok
     Call RollbackUniverVendor
     Call RollbackAppAsar
-    MessageBox MB_OK|MB_ICONSTOP "dsh-univer-office 完整性或 DSH 兼容检查失败；已恢复旧插件目录。 dsh-univer-office failed its integrity or DSH compatibility check; the previous plugin directory was restored."
+    MessageBox MB_OK|MB_ICONSTOP "dsh-univer-office 校验失败。已尝试恢复旧 Office 和应用入口，但不保证整套运行时已恢复。请点「显示详情」查看具体错误，并在原目录重试安装。$\r$\n$\r$\ndsh-univer-office verification failed. Restoration of the previous Office and app archive was attempted; the entire runtime is not rolled back. See Show details for the error and reinstall to the same directory."
     Abort
   univer_verify_ok:
   Call EnsureInstallRootReceipt

@@ -255,6 +255,8 @@ test('NSIS stages the old vendor before overlay, verifies before commit, and rol
   assert.ok(verify > extract && commit > verify)
   const stageBody = nsisSource.match(/Function StageUniverVendor([\s\S]*?)FunctionEnd/)?.[1] ?? ''
   assert.doesNotMatch(stageBody, /RMDir \/r "\$INSTDIR\\resources\\runtime\\product\\vendor\\\.agent-pi-univer-previous"/)
+  assert.match(stageBody, /stage_univer_delete_failed:\s+Call RollbackAppAsar/)
+  assert.match(stageBody, /IfErrors 0 stage_univer_done\s+Call RollbackAppAsar/)
   assert.match(stageBody, /IfFileExists "\$INSTDIR\\resources\\runtime\\product\\vendor\\\.agent-pi-univer-previous\\\*\.\*"/)
   assert.match(nsisSource, /asar_restore:[\s\S]*Call RollbackUniverVendor/)
   assert.match(nsisSource, /extract_fail:[\s\S]*Call RollbackUniverVendor/)
@@ -265,6 +267,8 @@ test('NSIS stages the old vendor before overlay, verifies before commit, and rol
   assert.match(asarStageBody, /IfFileExists "\$INSTDIR\\resources\\app\.asar\.old" stage_asar_has_backup/)
   assert.doesNotMatch(asarStageBody, /Delete "\$INSTDIR\\resources\\app\.asar\.old"/)
   assert.match(nsisSource, /INCLUDE_LICENSED_UNIVER[\s\S]*verify-product[^\r\n]*--required/)
+  const installSection = nsisSource.match(/Section "Install"([\s\S]*?)SectionEnd/)?.[1] ?? ''
+  assert.ok(installSection.indexOf('File "payload.7z"') < installSection.indexOf('Call StageAppAsar'))
   assert.match(nsisSource, /un\.CloseRunningApp/)
   assert.match(nsisSource, /installer-univer-lifecycle\.mjs" detach-profile/)
   assert.match(nsisSource, /IfFileExists "\$INSTDIR\\\*\.\*" uninstall_delete_fail/)
@@ -277,7 +281,9 @@ test('NSIS accepts only a dedicated non-reparse install root and records its own
   const uninstallSection = nsisSource.match(/Section "Uninstall"([\s\S]*?)SectionEnd/)?.[1] ?? ''
 
   assert.match(nsisSource, /InstallDirRegKey HKCU "\$\{UNINST_KEY\}" "InstallLocation"/)
-  assert.match(validate, /GetFullPathName \$INSTDIR "\$INSTDIR"/)
+  assert.match(validate, /GetFullPathName \$0 "\$INSTDIR"/)
+  assert.match(validate, /GetFullPathNameW/)
+  assert.match(validate, /StrCpy \$INSTDIR "\$0"/)
   assert.match(validate, /GetFileAttributesW/)
   assert.match(validate, /0x400/)
   assert.match(validate, /GetParent/)

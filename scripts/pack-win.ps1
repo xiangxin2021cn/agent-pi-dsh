@@ -523,16 +523,54 @@ if (Test-Path $payload) {
     Write-Host "payload.7z in use; moved aside to $stale"
   }
 }
-Write-Host "Archiving payload.7z (excluding type declarations and sourcemaps)..."
+Write-Host "Archiving payload.7z..."
 Push-Location $unpacked
 # -snl keeps junctions as links (repair re-points them after install).
-# Excluded suffixes are compile-time artifacts no runtime path reads.
 & $sevenZip a -t7z -mx=1 -md=1m -snl -snh -mtc=off -ms=off -bd `
-  "-xr!*.d.ts" "-xr!*.d.mts" "-xr!*.d.cts" "-xr!*.tsbuildinfo" "-xr!*.js.map" "-xr!*.mjs.map" "-xr!*.cjs.map" `
   $payload .
 $archiveExit = $LASTEXITCODE
 Pop-Location
 if ($archiveExit -ne 0) { throw "7za archive failed: $archiveExit" }
+if ($IncludeLicensedUniver) {
+  $payloadVerifyBase = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath()).TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+  $payloadVerifyRoot = Join-Path $payloadVerifyBase ("agent-pi-payload-univer-{0}" -f [guid]::NewGuid().ToString("N"))
+  $payloadVerifyFull = [System.IO.Path]::GetFullPath($payloadVerifyRoot)
+  if (-not $payloadVerifyFull.StartsWith($payloadVerifyBase, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "refusing to create payload verification directory outside TEMP: $payloadVerifyFull"
+  }
+  New-Item -ItemType Directory -Path $payloadVerifyFull | Out-Null
+  try {
+    Write-Host "Verifying licensed Office bytes from payload.7z..."
+    & $sevenZip x -y -bd $payload ("-o{0}" -f $payloadVerifyFull) `
+      "-ir!resources\runtime\node\node.exe" `
+      "-ir!resources\runtime\product\scripts\*" `
+      "-ir!resources\runtime\product\vendor\dsh-univer-office\*"
+    if ($LASTEXITCODE -ne 0) { throw "licensed Office payload extraction failed: $LASTEXITCODE" }
+
+    $payloadProduct = Join-Path $payloadVerifyFull "resources\runtime\product"
+    $payloadNode = Join-Path $payloadVerifyFull "resources\runtime\node\node.exe"
+    $payloadVerifier = Join-Path $payloadProduct "scripts\installer-univer-lifecycle.mjs"
+    foreach ($required in @($payloadNode, $payloadVerifier, (Join-Path $payloadProduct "vendor\dsh-univer-office\package.json"))) {
+      if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
+        throw "licensed Office payload verification input missing: $required"
+      }
+    }
+    & $payloadNode $payloadVerifier verify-product $payloadProduct --required
+    if ($LASTEXITCODE -ne 0) { throw "licensed Office payload verification failed: $LASTEXITCODE" }
+  } finally {
+    if (Test-Path -LiteralPath $payloadVerifyFull) {
+      $payloadVerifyItem = Get-Item -LiteralPath $payloadVerifyFull -Force
+      $payloadVerifyResolved = (Resolve-Path -LiteralPath $payloadVerifyFull).Path.TrimEnd([System.IO.Path]::DirectorySeparatorChar)
+      if (-not [string]::Equals($payloadVerifyResolved, $payloadVerifyFull.TrimEnd([System.IO.Path]::DirectorySeparatorChar), [System.StringComparison]::OrdinalIgnoreCase) -or
+          -not $payloadVerifyResolved.StartsWith($payloadVerifyBase, [System.StringComparison]::OrdinalIgnoreCase) -or
+          (($payloadVerifyItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) -or
+          $payloadVerifyItem.Name -notmatch '^agent-pi-payload-univer-[0-9a-f]{32}$') {
+        throw "refusing to remove unexpected payload verification directory: $payloadVerifyResolved"
+      }
+      Remove-Item -LiteralPath $payloadVerifyResolved -Recurse -Force
+    }
+  }
+}
 Push-Location $nsisRoot
 $nsisArgs = @('/V2', "/DAPP_VERSION=$AppVersion", '/DAPP_ICON=app-icon.ico', '/DINSTALLER_HEADER=installer-header.bmp')
 if ($IncludeLicensedUniver) { $nsisArgs += '/DINCLUDE_LICENSED_UNIVER=1' }
