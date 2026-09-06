@@ -60,7 +60,7 @@ function loadShippedComposer(options = {}) {
   }
   const window = {
     __ModuleLoader__: { load(next) { definition = next } },
-    agentPiDesktop: { codexAuthStatus: async () => ({ available: true, state: 'logged-in' }) },
+    agentPiDesktop: { codexAuthStatus: options.codexAuthStatus || (async () => ({ available: true, state: 'logged-in' })) },
     addEventListener() {},
     removeEventListener() {},
     dispatchEvent() {},
@@ -82,7 +82,7 @@ function loadShippedComposer(options = {}) {
     )
     .replace(
       /(\s*return module\.exports;)/,
-      "\n    window.__apCodexTurnTest = { ComposerTools, codexTurnControllers, codexTurnArmed, setCodexTurnArmed, setAttachItems: (items, props) => setAttachItemsFor(attachSessionId(props), items), attachItemsOf, attachState, mergeImportedItems, attachmentTurnControllers: typeof attachmentTurnControllers === 'undefined' ? null : attachmentTurnControllers };\n$1",
+      "\n    window.__apCodexTurnTest = { ComposerTools, codexTurnControllers, codexTurnArmed, setCodexTurnArmed, setCodexTurnModel, setAttachItems: (items, props) => setAttachItemsFor(attachSessionId(props), items), attachItemsOf, attachState, mergeImportedItems, attachmentTurnControllers: typeof attachmentTurnControllers === 'undefined' ? null : attachmentTurnControllers };\n$1",
     )
   vm.runInNewContext(source, {
     window,
@@ -243,6 +243,128 @@ function attachmentControllerPhase(api, sessionId) {
 async function flush() {
   await new Promise((resolve) => setImmediate(resolve))
 }
+
+const modelStatus = () => Promise.resolve({
+  available: true, state: 'logged-in', defaultModel: 'codex-default',
+  models: [{ id: 'codex-default' }, { id: 'codex-override' }],
+})
+
+test('Codex model overrides stay within one session and clear only after accepted submission', async () => {
+  const left = publicComposer('model-left', 'left model task')
+  const right = publicComposer('model-right', 'right model task')
+  const { api } = loadShippedComposer({ runtime: publicRuntime(left, right), codexAuthStatus: modelStatus })
+  api.ComposerTools(left.props())
+  api.setCodexTurnArmed(left.props(), true)
+  api.setCodexTurnModel(left.props(), 'codex-override')
+  api.ComposerTools(right.props())
+  api.setCodexTurnArmed(right.props(), true)
+  left.actions.submit()
+  right.actions.submit()
+  // An in-flight choice cannot change after its submit snapshot.
+  api.setCodexTurnModel(left.props(), 'codex-default')
+  await flush()
+  assert.match(left.sent[0], /model="codex-override"/)
+  assert.match(right.sent[0], /model="codex-default"/)
+  assert.equal(api.codexTurnControllers.get(left.sessionId).selectedModel, 'codex-override')
+  left.session.set({ nodes: [userNode(1, left.sent[0])], promptError: null })
+  assert.equal(controllerPhase(api, left.sessionId), 'idle')
+  assert.equal(api.codexTurnControllers.get(left.sessionId).selectedModel, '')
+  assert.equal(controllerPhase(api, right.sessionId), 'submitting')
+})
+
+test('Codex model selection survives send failure and retry', async () => {
+  const composer = publicComposer('model-retry', 'retry model task')
+  let rejectSubmit = true
+  composer.actions.submit = () => {
+    if (rejectSubmit) throw new Error('send failed')
+    composer.sent.push(composer.input.getSnapshot().draft)
+    composer.input.set({ ...composer.input.getSnapshot(), phase: 'submitting' })
+  }
+  const { api } = loadShippedComposer({ runtime: publicRuntime(composer), codexAuthStatus: modelStatus })
+  api.ComposerTools(composer.props())
+  api.setCodexTurnArmed(composer.props(), true)
+  api.setCodexTurnModel(composer.props(), 'codex-override')
+  composer.actions.submit()
+  await flush()
+  assert.equal(controllerPhase(api, composer.sessionId), 'armed')
+  assert.equal(composer.input.getSnapshot().draft, 'retry model task')
+  assert.equal(api.codexTurnControllers.get(composer.sessionId).selectedModel, 'codex-override')
+  rejectSubmit = false
+  composer.actions.submit()
+  await flush()
+  assert.match(composer.sent[0], /model="codex-override"/)
+  assert.equal(composer.sent[0].match(/【Codex 执行模式】/g).length, 1)
+})
+
+test('an unavailable Codex override preserves the draft and blocks submission', async () => {
+  const composer = publicComposer('model-unavailable', 'keep this draft')
+  const { api } = loadShippedComposer({ runtime: publicRuntime(composer), codexAuthStatus: modelStatus })
+  api.ComposerTools(composer.props())
+  api.setCodexTurnArmed(composer.props(), true)
+  api.setCodexTurnModel(composer.props(), 'removed-model')
+  composer.actions.submit()
+  await flush()
+  assert.equal(composer.sent.length, 0)
+  assert.equal(composer.input.getSnapshot().draft, 'keep this draft')
+  assert.equal(controllerPhase(api, composer.sessionId), 'armed')
+  assert.equal(api.codexTurnControllers.get(composer.sessionId).selectedModel, 'removed-model')
+})
+
+test('Codex accepts native-only attachments without copying them to the custom rail', async (t) => {
+  for (const field of ['attachmentIds', 'imageIds']) {
+    await t.test(field, async () => {
+      const composer = publicComposer(`native-only-${field}`, '')
+      const ids = ['native-image', 'native-document']
+      composer.input.set({ ...composer.input.getSnapshot(), [field]: ids })
+      const { api } = loadShippedComposer({ runtime: publicRuntime(composer), codexAuthStatus: modelStatus })
+      api.ComposerTools(composer.props())
+      api.setCodexTurnArmed(composer.props(), true)
+      composer.actions.submit()
+      await flush()
+      assert.equal(composer.sent.length, 1)
+      assert.match(composer.sent[0], /请结合附件作答。/)
+      assert.match(composer.sent[0], /model="codex-default"/)
+      assert.deepEqual(composer.input.getSnapshot()[field], ids)
+      assert.equal(api.attachItemsOf(composer.sessionId).length, 0)
+    })
+  }
+})
+
+test('native attachment edits during Codex model discovery cancel preparation without changing the draft', async (t) => {
+  for (const ids of [[], ['replacement-file'], ['first-file', 'added-file']]) {
+    await t.test(JSON.stringify(ids), async () => {
+      const status = deferred()
+      const composer = publicComposer('native-edited', 'native file task')
+      composer.input.set({ ...composer.input.getSnapshot(), attachmentIds: ['first-file'] })
+      const { api } = loadShippedComposer({ runtime: publicRuntime(composer), codexAuthStatus: () => status.promise })
+      api.ComposerTools(composer.props())
+      api.setCodexTurnArmed(composer.props(), true)
+      composer.actions.submit()
+      // Native attachment edits do not advance the text draft revision.
+      composer.input.set({ ...composer.input.getSnapshot(), attachmentIds: ids })
+      status.resolve(await modelStatus())
+      await flush()
+      assert.equal(composer.sent.length, 0)
+      assert.equal(composer.input.getSnapshot().draft, 'native file task')
+      assert.deepEqual(composer.input.getSnapshot().attachmentIds, ids)
+      assert.equal(controllerPhase(api, composer.sessionId), 'armed')
+    })
+  }
+})
+
+test('native attachment ownership survives a rejected Codex send', async () => {
+  const composer = publicComposer('native-rejected', '')
+  composer.input.set({ ...composer.input.getSnapshot(), attachmentIds: ['native-file'] })
+  composer.actions.submit = () => { throw new Error('send rejected') }
+  const { api } = loadShippedComposer({ runtime: publicRuntime(composer), codexAuthStatus: modelStatus })
+  api.ComposerTools(composer.props())
+  api.setCodexTurnArmed(composer.props(), true)
+  composer.actions.submit()
+  await flush()
+  assert.equal(composer.input.getSnapshot().draft, '')
+  assert.deepEqual(composer.input.getSnapshot().attachmentIds, ['native-file'])
+  assert.equal(controllerPhase(api, composer.sessionId), 'armed')
+})
 
 test('normal attachment turn waits for host delivery after its matching durable user node', async () => {
   const calls = []

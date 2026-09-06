@@ -6,6 +6,8 @@
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./codex-provider": "./src/codex-provider.ts",
+    "./codex-tool": "./src/codex-tool.ts",
     "./package.json": "./package.json"
   },
   "files": [

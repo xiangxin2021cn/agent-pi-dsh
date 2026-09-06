@@ -343,6 +343,7 @@ function buildManagedPatch(deps) {
 # Codex is an isolated product subagent, not a replacement LLM provider.
 # Auto-review remains confined to Codex's native workspace-write sandbox.
 - id: subagent-codex
+  name: dsh-tender-host/codex-provider
   config:
     permissionMode: approve-for-me
 

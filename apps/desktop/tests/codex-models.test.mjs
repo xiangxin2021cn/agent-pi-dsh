@@ -1,115 +1,183 @@
 import assert from 'node:assert/strict'
+import { EventEmitter } from 'node:events'
+import { PassThrough } from 'node:stream'
 import { test } from 'node:test'
-import {
-  codexModelFromAppServerOutput,
-  probeCodexModel,
-} from '../codex-models.mjs'
+import { codexModelSelection, probeCodexModels, setCodexDefaultModel } from '../codex-models.mjs'
 
-test('selects the app-server default and applies exact official capacity', () => {
-  const output = [
-    JSON.stringify({ id: 1, result: {} }),
-    JSON.stringify({ id: 2, result: { data: [
-      { id: 'gpt-5.6-sol', isDefault: true },
-      { id: 'gpt-5.6-terra', isDefault: false },
-    ] } }),
-  ].join('\n')
-  assert.deepEqual(codexModelFromAppServerOutput(output), {
-    id: 'gpt-5.6-sol',
-    contextWindow: 1_050_000,
-    maxTokens: 128_000,
-    contextWindowSource: 'official',
-    maxTokensSource: 'official',
-  })
-})
-
-test('labels an unknown default with conservative estimates', () => {
-  const output = JSON.stringify({
-    id: 2,
-    result: { data: [{ id: 'future-codex', isDefault: true }] },
-  })
-  assert.deepEqual(codexModelFromAppServerOutput(output), {
-    id: 'future-codex',
-    contextWindow: 262_144,
-    maxTokens: 32_768,
-    contextWindowSource: 'estimated',
-    maxTokensSource: 'estimated',
-  })
-})
-
-test('prefers app-server capacity per field', () => {
-  const output = JSON.stringify({
-    id: 2,
-    result: { data: [{
-      id: 'gpt-5.6-sol',
-      isDefault: true,
-      contextWindow: 900_000,
-    }] },
-  })
-  assert.deepEqual(codexModelFromAppServerOutput(output), {
-    id: 'gpt-5.6-sol',
-    contextWindow: 900_000,
-    maxTokens: 128_000,
-    contextWindowSource: 'provider',
-    maxTokensSource: 'official',
-  })
-})
-
-test('rejects invalid app-server capacity fields independently', () => {
-  const output = JSON.stringify({
-    id: 2,
-    result: { data: [{
-      id: 'gpt-5.6-sol',
-      isDefault: true,
-      contextWindow: '900000',
-      maxTokens: 0,
-    }] },
-  })
-  assert.deepEqual(codexModelFromAppServerOutput(output), {
-    id: 'gpt-5.6-sol',
-    contextWindow: 1_050_000,
-    maxTokens: 128_000,
-    contextWindowSource: 'official',
-    maxTokensSource: 'official',
-  })
-})
-
-test('returns null when model/list has no usable default', () => {
-  assert.equal(codexModelFromAppServerOutput('{"id":2,"result":{"data":[]}}'), null)
-})
-
-test('probes the app-server through the Codex wrapper', () => {
+function server(handler) {
   const calls = []
-  const codexHome = 'C:\\codex-home'
-  const result = probeCodexModel({
+  const child = new EventEmitter()
+  child.stdin = new PassThrough()
+  child.stdout = new PassThrough()
+  child.stderr = new PassThrough()
+  child.exitCode = null
+  child.kill = () => { child.exitCode = 0; child.emit('close', 0) }
+  child.stdin.once('finish', child.kill)
+  let initialized = false
+  const reply = (id, result) => {
+    const text = JSON.stringify({ id, result }) + '\n'
+    child.stdout.write(text.slice(0, 5))
+    child.stdout.write(text.slice(5))
+  }
+  child.stdin.on('data', (chunk) => {
+    for (const line of String(chunk).trim().split('\n')) {
+      const message = JSON.parse(line)
+      calls.push(message)
+      queueMicrotask(() => {
+        if (message.method === 'initialize') {
+          initialized = true
+          reply(message.id, {})
+        } else {
+          assert.equal(initialized, true, 'must await initialize before sending later requests')
+          if (message.method !== 'initialized') handler(message, { reply, child })
+        }
+      })
+    }
+  })
+  const options = {
     nodePath: 'node.exe',
     wrapperPath: 'codex.js',
-    codexHome,
-    env: { CODEX_HOME: codexHome },
-    spawnSync(command, args, options) {
-      calls.push({ command, args, options })
-      return {
-        status: 0,
-        stdout: JSON.stringify({
-          id: 2,
-          result: { data: [{ id: 'gpt-5.6-sol', isDefault: true }] },
-        }),
-      }
+    codexHome: 'isolated-home',
+    env: { CODEX_HOME: 'isolated-home' },
+    spawn(command, args, processOptions) {
+      assert.equal(command, 'node.exe')
+      assert.deepEqual(args, ['codex.js', 'app-server', '--stdio'])
+      assert.equal(processOptions.env.CODEX_HOME, 'isolated-home')
+      return child
     },
-  })
-  const [call] = calls
+  }
+  return { options, calls, child }
+}
 
-  assert.deepEqual(result, {
-    id: 'gpt-5.6-sol',
-    contextWindow: 1_050_000,
-    maxTokens: 128_000,
-    contextWindowSource: 'official',
-    maxTokensSource: 'official',
+function catalogServer(entries, selectedModel = null) {
+  return server((message, { reply }) => {
+    if (message.method === 'model/list') reply(message.id, { data: entries, nextCursor: null })
+    else if (message.method === 'config/read') reply(message.id, { config: { model: selectedModel } })
+    else if (message.method === 'config/value/write') {
+      selectedModel = message.params.value
+      reply(message.id, {})
+    } else assert.fail('unexpected request')
   })
-  assert.equal(call.command, 'node.exe')
-  assert.deepEqual(call.args, ['codex.js', 'app-server', '--stdio'])
-  assert.equal(call.options.env.CODEX_HOME, codexHome)
-  const initialize = JSON.parse(call.options.input.split('\n')[0])
-  assert.equal(initialize.params.clientInfo.version, '3.6.1')
-  assert.match(call.options.input, /"method":"model\/list"/)
-  assert.equal(call.options.timeout, 10_000)
+}
+
+test('discovers all model pages after the initialized handshake and selects the configured execution name', async () => {
+  const fixture = server((message, { reply }) => {
+    if (message.method === 'config/read') return reply(message.id, { config: { model: 'model-b' } })
+    assert.equal(message.method, 'model/list')
+    assert.equal(message.params.includeHidden, false)
+    reply(message.id, message.params.cursor === null
+      ? { data: [{ id: 'picker-a', model: 'model-a', isDefault: true }], nextCursor: 'page-2' }
+      : { data: [
+        { id: 'picker-b', model: 'model-b', displayName: 'Model B', contextWindow: 900_000 },
+        { id: 'secret', hidden: true },
+      ], nextCursor: null })
+  })
+  const result = await probeCodexModels(fixture.options)
+  assert.deepEqual(fixture.calls.map(({ method }) => method),
+    ['initialize', 'initialized', 'model/list', 'model/list', 'config/read'])
+  assert.equal(fixture.calls[0].params.clientInfo.version, '3.6.2')
+  assert.equal(result.models.length, 2)
+  assert.equal(result.defaultModel, 'model-b')
+  assert.equal(result.selectedModel, 'model-b')
+  assert.equal(result.model.displayName, 'Model B')
+  assert.equal(result.model.contextWindow, 900_000)
+  assert.equal(result.model.contextWindowSource, 'provider')
+  assert.equal(result.model.maxTokensSource, 'estimated')
+  assert.equal(fixture.child.stdin.writableEnded, true)
+})
+
+test('follows a catalog default without hardcoding model ids or requiring isDefault', async () => {
+  for (const entries of [[{ id: 'next-provider-model' }], [{ id: 'model-a' }, { id: 'model-b', isDefault: true }]]) {
+    const fixture = catalogServer(entries)
+    const result = await probeCodexModels(fixture.options)
+    assert.equal(result.selectedModel, null)
+    assert.equal(result.defaultModel, entries.at(-1).id)
+  }
+})
+
+test('does not silently substitute an unavailable saved model', () => {
+  const result = codexModelSelection({ models: [{ id: 'model-a', isDefault: true }], selectedModel: 'removed' })
+  assert.equal(result.selectedModel, 'removed')
+  assert.equal(result.defaultModel, null)
+  assert.equal(result.model, null)
+})
+
+test('rejects repeated pagination cursors instead of looping', async () => {
+  const fixture = server((message, { reply }) => reply(message.id, {
+    data: [{ id: 'model-a' }], nextCursor: 'same',
+  }))
+  await assert.rejects(probeCodexModels(fixture.options), { code: 'invalid-pagination' })
+  assert.equal(fixture.calls.filter(({ method }) => method === 'model/list').length, 2)
+  assert.equal(fixture.child.stdin.writableEnded, true)
+})
+
+test('reports safe protocol failure and preserves no raw server diagnostics', async () => {
+  const fixture = server((message, { child }) => child.stdout.write(JSON.stringify({
+    id: message.id, error: { code: -32000, message: 'secret-account-value' },
+  }) + '\n'))
+  await assert.rejects(probeCodexModels(fixture.options), (error) => {
+    assert.equal(error.code, 'rpc')
+    assert.doesNotMatch(error.message, /secret-account-value/)
+    return true
+  })
+})
+
+test('times out a missing response and closes the server input', async () => {
+  const fixture = server(() => {})
+  await assert.rejects(probeCodexModels({ ...fixture.options, timeoutMs: 10 }), { code: 'timeout' })
+  assert.equal(fixture.child.stdin.writableEnded, true)
+})
+
+test('rejects an early process exit without waiting for the timeout', async () => {
+  const fixture = server((_message, { child }) => child.emit('close', 1))
+  await assert.rejects(probeCodexModels(fixture.options), { code: 'closed' })
+})
+
+test('rejects empty or malformed catalogs', async () => {
+  for (const data of [[], null]) {
+    const fixture = server((message, { reply }) => reply(message.id, { data, nextCursor: null }))
+    await assert.rejects(probeCodexModels(fixture.options))
+  }
+})
+
+test('persists only a currently offered execution id through the official config RPC', async () => {
+  const fixture = catalogServer([{ id: 'model-a', isDefault: true }, { id: 'model-b' }])
+  const result = await setCodexDefaultModel(fixture.options, 'model-b')
+  assert.equal(result.selectedModel, 'model-b')
+  assert.equal(result.defaultModel, 'model-b')
+  const write = fixture.calls.find(({ method }) => method === 'config/value/write')
+  assert.deepEqual(write.params, { keyPath: 'model', value: 'model-b', mergeStrategy: 'replace' })
+})
+
+test('clears the saved override to follow the provider default', async () => {
+  const fixture = catalogServer([{ id: 'model-a', isDefault: true }], 'old-model')
+  const result = await setCodexDefaultModel(fixture.options, null)
+  assert.equal(result.selectedModel, null)
+  assert.equal(result.defaultModel, 'model-a')
+  assert.equal(fixture.calls.find(({ method }) => method === 'config/value/write').params.value, null)
+})
+
+test('refuses unavailable selections without writing the existing config', async () => {
+  const fixture = catalogServer([{ id: 'model-a' }])
+  await assert.rejects(setCodexDefaultModel(fixture.options, 'removed'), /已不可用/)
+  assert.equal(fixture.calls.some(({ method }) => method === 'config/value/write'), false)
+  await assert.rejects(setCodexDefaultModel(fixture.options, {}), TypeError)
+})
+
+test('cancels model discovery when its owner is disposed', async () => {
+  const fixture = server(() => {})
+  const controller = new AbortController()
+  const pending = probeCodexModels({ ...fixture.options, signal: controller.signal })
+  controller.abort()
+  await assert.rejects(pending, { code: 'aborted' })
+  assert.equal(fixture.child.stdin.writableEnded, true)
+})
+
+test('does not report a model preference as saved if effective config rejects it', async () => {
+  const fixture = server((message, { reply }) => {
+    if (message.method === 'model/list') reply(message.id, { data: [{ id: 'model-a' }], nextCursor: null })
+    else if (message.method === 'config/value/write') reply(message.id, {})
+    else if (message.method === 'config/read') reply(message.id, { config: { model: 'managed-model' } })
+  })
+  await assert.rejects(setCodexDefaultModel(fixture.options, 'model-a'), /未生效/)
 })

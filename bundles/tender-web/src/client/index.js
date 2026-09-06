@@ -1117,6 +1117,9 @@ const h = React.createElement
     function createCodexTurnController(latestProps) {
       return {
         phase: 'idle',
+        selectedModel: '',
+        capturedModel: null,
+        capturedNativeAttachmentIds: [],
         latestProps: latestProps || null,
         attemptToken: null,
         originalDraft: '',
@@ -1159,6 +1162,12 @@ const h = React.createElement
       const phase = codexTurnPhase(props)
       return phase === 'armed' || phase === 'preparing' || phase === 'submitting'
     }
+    function setCodexTurnModel(props, model) {
+      const controller = codexTurnController(props, true)
+      if (controller.phase !== 'idle' && controller.phase !== 'armed') return
+      controller.selectedModel = String(model || '')
+      notifyCodexTurn()
+    }
     function setCodexTurnArmed(props, armed) {
       const key = codexTurnKey(props)
       if (armed && attachmentTurnControllers.has(key)) {
@@ -1200,6 +1209,8 @@ const h = React.createElement
       controller.attemptToken = null
       controller.originalDraft = ''
       controller.framedDraft = ''
+      controller.capturedModel = null
+      controller.capturedNativeAttachmentIds = []
       controller.capturedAttachmentIds = []
       controller.capturedAttachments = []
       controller.preSubmitUserNodeWatermark = -1
@@ -1346,6 +1357,10 @@ const h = React.createElement
       for (let i = 0; i < left.length; i++) if (left[i] !== right[i]) return false
       return true
     }
+    function nativeCodexAttachmentIds(input) {
+      if (Array.isArray(input && input.attachmentIds)) return input.attachmentIds.slice()
+      return Array.isArray(input && input.imageIds) ? input.imageIds.slice() : []
+    }
     function preparingCodexTurn(key, token) {
       const controller = codexTurnControllers.get(key)
       if (!controller || controller.phase !== 'preparing' || controller.attemptToken !== token) return null
@@ -1383,7 +1398,8 @@ const h = React.createElement
       const attachmentIds = codexAttachmentIds(codexAttachItems(key))
       if (!sessionSnapshot || !inputSnapshot || inputSnapshot.phase !== 'plain' || typeof inputSnapshot.draft !== 'string'
         || inputSnapshot.draft !== controller.originalDraft || !live || codexTurnKey(live) !== key
-        || !sameCodexAttachmentIds(attachmentIds, controller.capturedAttachmentIds)) {
+        || !sameCodexAttachmentIds(attachmentIds, controller.capturedAttachmentIds)
+        || !sameCodexAttachmentIds(nativeCodexAttachmentIds(inputSnapshot), controller.capturedNativeAttachmentIds)) {
         rearmCodexTurn(key, controller)
         return null
       }
@@ -1417,6 +1433,7 @@ const h = React.createElement
       resetCodexTurnAttempt(key, controller)
       disposeCodexTurnSessionSubscription(controller)
       controller.phase = 'idle'
+      controller.selectedModel = ''
       if (capturedIds.length) setCodexAttachItems(key, remaining)
       notifyCodexTurn()
     }
@@ -3969,20 +3986,21 @@ const h = React.createElement
       const items = controller.capturedAttachments
       const attachLine = formatAttachVisible(items)
       const block = formatKbTaskBlock(key)
-      const fallback = items.length ? '请结合附件作答。' : ''
+      const fallback = items.length || controller.capturedNativeAttachmentIds.length ? '请结合附件作答。' : ''
       const body = [clean, attachLine].filter(Boolean).join('\n\n')
       const text = block
         ? (body ? block + '\n\n' + body : block + (fallback ? '\n\n' + fallback : ''))
         : (body || fallback)
-      const delegation = buildCodexTurnDelegation(text)
+      const delegation = buildCodexTurnDelegation(text, controller.capturedModel)
       const marker = attachmentTransactionMarker(token)
       return marker ? delegation + '\n\n' + marker : delegation
     }
 
     async function prepareCodexTurn(key, token) {
       const desktop = window.agentPiDesktop
+      let status
       try {
-        const status = !desktop || typeof desktop.codexAuthStatus !== 'function'
+        status = !desktop || typeof desktop.codexAuthStatus !== 'function'
           ? null
           : await desktop.codexAuthStatus()
         if (!status || status.available !== true || status.state !== 'logged-in') throw new Error('Codex unavailable')
@@ -3992,6 +4010,16 @@ const h = React.createElement
       }
       let prepared = preparingCodexTurn(key, token)
       if (!prepared) return
+      const selectedModel = prepared.controller.selectedModel
+      if (!selectedModel && status.modelError) {
+        failCodexPreparation(key, token, '无法确认默认 Codex 模型，请刷新模型列表或选择可用模型后重试。')
+        return
+      }
+      if (selectedModel && !(status.models || []).some((model) => model.id === selectedModel)) {
+        failCodexPreparation(key, token, '所选 Codex 模型当前不可用，请刷新模型列表并重新选择。')
+        return
+      }
+      prepared.controller.capturedModel = selectedModel || status.defaultModel || null
       const items = prepared.controller.capturedAttachments
       const cwd = prepared.live && prepared.live.cwd || workspaceCwd(prepared.live)
       const workspaceMismatch = items.some((item) => item.cwd && cwd && normPath(item.cwd) !== normPath(cwd))
@@ -4157,6 +4185,7 @@ const h = React.createElement
       }
       controller.phase = 'preparing'
       controller.attemptToken = token
+      controller.capturedNativeAttachmentIds = nativeCodexAttachmentIds(inputSnapshot)
       controller.originalDraft = inputSnapshot.draft
       controller.framedDraft = ''
       controller.capturedAttachments = attachments
@@ -6746,7 +6775,6 @@ const h = React.createElement
       const draft = readDraft()
       const [busy, setBusy] = React.useState(false)
       const [items, setItems] = useAttachItems()
-      const fileInput = React.useRef(null)
       wrapComposerSubmit(live)
       React.useEffect(() => { if (items.length) stripComposerMentions(items) }, [items.length])
       const propsRef = React.useRef(live)
@@ -6836,7 +6864,6 @@ const h = React.createElement
           showToast('润色失败：' + String(err && err.message || err))
         }).finally(() => setBusy(false))
       }
-      const uploaded = items.filter((item) => item.kind !== 'image').length
       return h('div', { className: 'ap-composer-tools' },
         h('div', { className: 'ap-row', style: { gap: 2 } },
           h('button', {
@@ -6857,17 +6884,7 @@ const h = React.createElement
             onMouseDown: (event) => event.preventDefault(),
             onClick: () => setCodexTurnArmed(propsRef.current, !armed),
           }, Icon('sparkles', 14), 'Codex 执行'),
-          h('button', {
-            type: 'button',
-            className: 'ap-toolbtn',
-            title: uploaded ? '已加入 ' + uploaded + ' 个文件' : '上传文件到对话（回形针）',
-            onMouseDown: (e) => e.preventDefault(),
-            onClick: (e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              chooseAndUpload(cwd, snapshotComposer(), 'files', { fileInput }).catch((err) => showToast('上传失败：' + String(err && err.message || err)))
-            },
-          }, Icon('paperclip', 15), uploaded ? h('span', { className: 'ap-badge' }, uploaded > 9 ? '9+' : uploaded) : null),
+          armed && h(ComposerCodexModelSelector, { composer: live }),
           h('button', {
             type: 'button',
             className: 'ap-toolbtn',
@@ -6879,11 +6896,6 @@ const h = React.createElement
               chooseFolderForChat(cwd, snapshotComposer()).catch((err) => showToast('加入文件夹失败：' + String(err && err.message || err)))
             },
           }, Icon('folder', 15)),
-          h('input', { ref: fileInput, type: 'file', multiple: true, style: { position: 'fixed', width: 1, height: 1, opacity: 0, pointerEvents: 'none' },           onChange: (e) => {
-            const list = snapshotFileList(e.target.files)
-            e.target.value = ''
-            if (list.length) uploadFileList(cwd, list, snapshotComposer()).catch((err) => showToast('上传失败：' + String(err && err.message || err)))
-          } }),
         ),
       )
     }
@@ -8180,12 +8192,76 @@ const h = React.createElement
       injectWorkspaceArchiveMenu(document)
     }
 
+    function useCodexStatus() {
+      const desktop = window.agentPiDesktop
+      const [auth, setAuth] = React.useState({ available: true, state: 'checking' })
+      const [refreshing, setRefreshing] = React.useState(false)
+      const latestRequest = React.useRef(0)
+      const refresh = React.useCallback(async () => {
+        const request = ++latestRequest.current
+        setRefreshing(true)
+        try {
+          const next = desktop && typeof desktop.codexAuthStatus === 'function'
+            ? await desktop.codexAuthStatus()
+            : { available: false, state: 'unavailable' }
+          if (request === latestRequest.current) setAuth(next)
+        } catch {
+          if (request === latestRequest.current) setAuth({ available: false, state: 'unavailable' })
+        } finally {
+          if (request === latestRequest.current) setRefreshing(false)
+        }
+      }, [desktop])
+      React.useEffect(() => {
+        void refresh()
+        window.addEventListener('agent-pi-codex-model-changed', refresh)
+        return () => {
+          latestRequest.current += 1
+          window.removeEventListener('agent-pi-codex-model-changed', refresh)
+        }
+      }, [refresh])
+      return { auth, setAuth, refresh, refreshing }
+    }
+
+    function ComposerCodexModelSelector({ composer }) {
+      const { auth, refresh, refreshing } = useCodexStatus()
+      const zh = useApLang() === 'zh'
+      const controller = codexTurnController(composer, false)
+      const selectedModel = controller && controller.selectedModel || ''
+      const models = auth.models || []
+      const model = auth.model
+      const defaultLabel = model && (model.displayName || model.id) || auth.defaultModel
+      const locked = codexTurnPhase(composer) !== 'armed'
+      return h('span', { className: 'ap-codex-model-control' },
+        h('select', {
+          className: 'ap-codex-model-select',
+          'aria-label': zh ? '本次 Codex 模型' : 'Codex model for this message',
+          title: zh ? '仅用于下一条 Codex 执行消息' : 'Applies only to the next Codex message',
+          value: selectedModel,
+          disabled: locked || refreshing || auth.state !== 'logged-in' || !models.length,
+          onChange: (event) => setCodexTurnModel(composer, event.target.value),
+        },
+        h('option', { value: '' }, refreshing
+          ? (zh ? '正在读取模型…' : 'Loading models…')
+          : (zh ? '默认模型' : 'Default model') + (defaultLabel ? ' · ' + defaultLabel : '')),
+        selectedModel && !models.some((entry) => entry.id === selectedModel)
+          && h('option', { value: selectedModel, disabled: true }, selectedModel + (zh ? '（不可用）' : ' (unavailable)')),
+        models.map((entry) => h('option', { key: entry.id, value: entry.id }, entry.displayName || entry.id))),
+        !refreshing && (!models.length || auth.modelError) && h('button', {
+          type: 'button', className: 'ap-toolbtn', disabled: locked,
+          title: auth.modelError || (zh ? '登录后刷新 Codex 模型' : 'Sign in, then refresh Codex models'),
+          onClick: () => { void refresh() },
+        }, zh ? '刷新模型' : 'Refresh models'),
+      )
+    }
+
     function CodexSettingsSection() {
       const desktop = window.agentPiDesktop
       const lang = useApLang()
       const zh = lang === 'zh'
-      const [auth, setAuth] = React.useState({ available: true, state: 'checking' })
+      const { auth, setAuth, refresh, refreshing } = useCodexStatus()
       const [busy, setBusy] = React.useState(false)
+      const [modelBusy, setModelBusy] = React.useState(false)
+      const [modelMessage, setModelMessage] = React.useState('')
       const compactionBridgeAvailable = !!desktop
         && typeof desktop.compactionFallbackStatus === 'function'
         && typeof desktop.setCompactionFallback === 'function'
@@ -8194,19 +8270,6 @@ const h = React.createElement
       const [compactionBusy, setCompactionBusy] = React.useState(compactionBridgeAvailable)
       const [compactionMessage, setCompactionMessage] = React.useState('')
 
-      const refresh = React.useCallback(async () => {
-        if (!desktop || typeof desktop.codexAuthStatus !== 'function') {
-          setAuth({ available: false, state: 'unavailable' })
-          return
-        }
-        try {
-          setAuth(await desktop.codexAuthStatus())
-        } catch {
-          setAuth({ available: false, state: 'unavailable' })
-        }
-      }, [desktop])
-
-      React.useEffect(() => { void refresh() }, [refresh])
       React.useEffect(() => {
         if (auth.state !== 'pending') return undefined
         const timer = setInterval(() => { void refresh() }, 2000)
@@ -8239,10 +8302,28 @@ const h = React.createElement
         setBusy(true)
         try {
           setAuth(await desktop[method]())
+          window.dispatchEvent(new Event('agent-pi-codex-model-changed'))
         } catch {
           setAuth({ available: true, state: 'error' })
         } finally {
           setBusy(false)
+        }
+      }
+
+      const saveModel = async (modelId) => {
+        if (modelBusy || !desktop || typeof desktop.codexSetDefaultModel !== 'function') return
+        setModelBusy(true)
+        setModelMessage('')
+        try {
+          const next = await desktop.codexSetDefaultModel(modelId || null)
+          if (!next || next.state !== 'logged-in') throw new Error('Invalid Codex model preference')
+          setAuth(next)
+          setModelMessage(zh ? '默认模型已保存，下次 Codex 调用生效。' : 'Default model saved for the next Codex call.')
+          window.dispatchEvent(new Event('agent-pi-codex-model-changed'))
+        } catch {
+          setModelMessage(zh ? '模型保存失败，请刷新列表后重试。' : 'Could not save the model. Refresh the list and retry.')
+        } finally {
+          setModelBusy(false)
         }
       }
 
@@ -8315,6 +8396,24 @@ const h = React.createElement
           h('p', { className: 'ap-sub' }, zh
             ? '使用 ChatGPT 账号在系统浏览器中授权，无需 API Key。凭据仅保存在本机 Agent Pi 专属 Codex 目录。'
             : 'Authorize with your ChatGPT account in the system browser. No API key is required; credentials stay in Agent Pi’s private local Codex directory.'),
+          loggedIn && h('div', { className: 'ap-codex-model-setting' },
+            h('label', { htmlFor: 'ap-codex-default-model' }, zh ? '默认 Codex 模型' : 'Default Codex model'),
+            h('select', {
+              id: 'ap-codex-default-model',
+              className: 'ap-codex-model-select',
+              value: auth.selectedModel || '',
+              disabled: modelBusy || refreshing || !(auth.models || []).length || typeof desktop.codexSetDefaultModel !== 'function',
+              onChange: (event) => { void saveModel(event.target.value) },
+            },
+            h('option', { value: '' }, zh ? '跟随 Codex 推荐模型' : 'Use the Codex recommended model'),
+            auth.selectedModel && !(auth.models || []).some((entry) => entry.id === auth.selectedModel)
+              && h('option', { value: auth.selectedModel, disabled: true }, auth.selectedModel + (zh ? '（不可用）' : ' (unavailable)')),
+            (auth.models || []).map((entry) => h('option', { key: entry.id, value: entry.id }, entry.displayName || entry.id))),
+            h('p', { className: 'ap-sub' }, zh
+              ? '用于 Codex 子智能体调用；主对话开启“Codex 执行”后可单独选择本次模型。'
+              : 'Used for Codex subagent calls. Enable Codex execution in the composer to override it for one message.'),
+            (auth.modelError || modelMessage) && h('p', { className: 'ap-sub', role: 'status' }, auth.modelError || modelMessage),
+          ),
           loggedIn && h('p', { className: 'ap-sub' }, model
             ? [
                 h('strong', { key: 'id' }, model.id),
@@ -8340,7 +8439,7 @@ const h = React.createElement
             h('button', {
               type: 'button',
               className: 'ap-btn',
-              disabled: busy,
+              disabled: busy || refreshing || modelBusy,
               onClick: () => { void refresh() },
             }, zh ? '刷新状态' : 'Refresh'),
             loggedIn && h('button', {

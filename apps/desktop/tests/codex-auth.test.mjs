@@ -61,68 +61,85 @@ test('Codex auth controller uses browser login with isolated CODEX_HOME and no A
   controller.dispose()
 })
 
-test('Codex auth controller enriches a logged-in status with the active model', () => {
-  const codexHome = join(process.cwd(), '.tmp', 'codex-auth-model-test')
-  const appServerReply = JSON.stringify({
-    id: 2,
-    result: { data: [{ id: 'gpt-5.6-sol', isDefault: true }] },
-  })
+test('Codex auth controller enriches a logged-in status with the dynamic catalog', async () => {
+  const catalog = {
+    models: [{ id: 'model-a', displayName: 'Model A', isDefault: true }],
+    selectedModel: null,
+    defaultModel: 'model-a',
+    model: { id: 'model-a', displayName: 'Model A', isDefault: true },
+  }
+  let probes = 0
   const controller = createCodexAuthController({
     nodePath: 'node.exe',
     wrapperPath: 'codex.js',
-    codexHome,
-    baseEnv: { PATH: 'C:\\Windows', OPENAI_API_KEY: 'must-not-cross' },
-    spawnSync(_command, args) {
-      if (args.slice(-2).join(' ') === 'login status') {
-        return { status: 0, stdout: 'Logged in using ChatGPT\n', stderr: '' }
-      }
-      if (args.includes('app-server')) {
-        return { status: 0, stdout: appServerReply, stderr: '' }
-      }
-      throw new Error('unexpected command')
+    codexHome: join(process.cwd(), '.tmp', 'codex-auth-model-test'),
+    baseEnv: { OPENAI_API_KEY: 'must-not-cross' },
+    spawnSync() { return { status: 0, stdout: 'Logged in using ChatGPT' } },
+    async probeModels(options) {
+      probes += 1
+      assert.equal(options.env.OPENAI_API_KEY, undefined)
+      return catalog
     },
   })
-
-  assert.deepEqual(controller.status(), {
-    available: true,
-    state: 'logged-in',
-    method: 'chatgpt',
-    model: {
-      id: 'gpt-5.6-sol',
-      contextWindow: 1_050_000,
-      maxTokens: 128_000,
-      contextWindowSource: 'official',
-      maxTokensSource: 'official',
-    },
-  })
+  const [first, second] = await Promise.all([controller.status(), controller.status()])
+  assert.equal(probes, 1)
+  assert.deepEqual(first, { available: true, state: 'logged-in', method: 'chatgpt', ...catalog })
+  assert.deepEqual(second, first)
 })
 
-test('Codex auth controller keeps logged-in status when the model probe fails', () => {
-  const codexHome = join(process.cwd(), '.tmp', 'codex-auth-model-failure-test')
+test('Codex auth controller preserves login and returns a retryable error when model discovery fails', async () => {
+  const controller = createCodexAuthController({
+    nodePath: 'node.exe',
+    wrapperPath: 'codex.js',
+    codexHome: join(process.cwd(), '.tmp', 'codex-auth-model-failure-test'),
+    spawnSync() { return { status: 0, stdout: 'Logged in using ChatGPT' } },
+    async probeModels() { throw new Error('private upstream diagnostic') },
+  })
+  const status = await controller.status()
+  assert.equal(status.state, 'logged-in')
+  assert.equal(status.method, 'chatgpt')
+  assert.deepEqual(status.models, [])
+  assert.equal(status.model, null)
+  assert.match(status.modelError, /重试/)
+  assert.doesNotMatch(status.modelError, /private upstream/)
+})
+
+test('saving a default model uses the isolated account and refuses logged-out writes', async () => {
+  let loggedIn = true
+  const calls = []
+  const catalog = { models: [{ id: 'model-b' }], selectedModel: 'model-b', defaultModel: 'model-b', model: { id: 'model-b' } }
+  const codexHome = join(process.cwd(), '.tmp', 'codex-auth-save-test')
   const controller = createCodexAuthController({
     nodePath: 'node.exe',
     wrapperPath: 'codex.js',
     codexHome,
-    baseEnv: { PATH: 'C:\\Windows' },
-    spawnSync(_command, args) {
-      if (args.slice(-2).join(' ') === 'login status') {
-        return { status: 0, stdout: 'Logged in using ChatGPT\n', stderr: '' }
-      }
-      if (args.includes('app-server')) {
-        return { status: 1, stdout: '', stderr: 'app-server failed' }
-      }
-      throw new Error('unexpected command')
+    baseEnv: { CODEX_HOME: 'unrelated-home', OPENAI_API_KEY: 'must-not-cross' },
+    spawnSync() { return { status: loggedIn ? 0 : 1, stdout: loggedIn ? 'Logged in using ChatGPT' : 'Not logged in' } },
+    async setDefaultModel(options, model) {
+      calls.push(model)
+      assert.equal(options.env.CODEX_HOME, codexHome)
+      assert.equal(options.env.OPENAI_API_KEY, undefined)
+      return catalog
     },
   })
+  assert.equal((await controller.setDefaultModel('model-b')).defaultModel, 'model-b')
+  loggedIn = false
+  await assert.rejects(controller.setDefaultModel('model-a'), /先登录/)
+  assert.deepEqual(calls, ['model-b'])
+})
 
-  const status = controller.status()
-
-  assert.deepEqual(status, {
-    available: true,
-    state: 'logged-in',
-    method: 'chatgpt',
+test('an unavailable saved model is visible and requires a new selection', async () => {
+  const controller = createCodexAuthController({
+    nodePath: 'node.exe',
+    wrapperPath: 'codex.js',
+    codexHome: join(process.cwd(), '.tmp', 'codex-auth-missing-model-test'),
+    spawnSync() { return { status: 0, stdout: 'Logged in using ChatGPT' } },
+    async probeModels() { return { models: [{ id: 'model-a' }], selectedModel: 'removed', defaultModel: null, model: null } },
   })
-  assert.equal('model' in status, false)
+  const status = await controller.status()
+  assert.equal(status.selectedModel, 'removed')
+  assert.equal(status.defaultModel, null)
+  assert.match(status.modelError, /重新选择/)
 })
 
 test('Electron exposes only normalized Codex auth operations to the renderer', () => {
@@ -175,4 +192,40 @@ test('sandboxed Electron preload executes as CommonJS and exposes the Codex brid
   const manifest = JSON.parse(readFileSync(join(desktop, 'package.json'), 'utf8'))
   assert.match(main, /preload\.cjs/)
   assert.ok(manifest.build.files.includes('preload.cjs'))
+})
+
+test('logout cancels an in-flight model query and cannot restore stale logged-in state', async () => {
+  let loggedIn = true
+  const controller = createCodexAuthController({
+    nodePath: 'node.exe',
+    wrapperPath: 'codex.js',
+    codexHome: join(process.cwd(), '.tmp', 'codex-auth-logout-race-test'),
+    spawnSync(_command, args) {
+      if (args.at(-1) === 'logout') { loggedIn = false; return { status: 0 } }
+      return { status: loggedIn ? 0 : 1, stdout: loggedIn ? 'Logged in using ChatGPT' : 'Not logged in' }
+    },
+    probeModels({ signal }) {
+      return new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(new Error('aborted'))))
+    },
+  })
+  const pending = controller.status()
+  assert.equal(controller.logout().state, 'logged-out')
+  assert.equal((await pending).state, 'logged-out')
+})
+
+test('a failed model query can be retried by refreshing status', async () => {
+  let attempts = 0
+  const controller = createCodexAuthController({
+    nodePath: 'node.exe',
+    wrapperPath: 'codex.js',
+    codexHome: join(process.cwd(), '.tmp', 'codex-auth-refresh-test'),
+    spawnSync() { return { status: 0, stdout: 'Logged in using ChatGPT' } },
+    async probeModels() {
+      if (++attempts === 1) throw new Error('temporary failure')
+      return { models: [{ id: 'new-model' }], model: { id: 'new-model' }, defaultModel: 'new-model', selectedModel: null }
+    },
+  })
+  assert.match((await controller.status()).modelError, /重试/)
+  assert.equal((await controller.status()).defaultModel, 'new-model')
+  assert.equal(attempts, 2)
 })

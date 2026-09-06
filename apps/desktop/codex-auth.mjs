@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { spawn as nodeSpawn, spawnSync as nodeSpawnSync } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
-import { probeCodexModel } from './codex-models.mjs'
+import { probeCodexModels, setCodexDefaultModel } from './codex-models.mjs'
 
 const CREDENTIAL_ENV = [
   'OPENAI_API_KEY',
@@ -50,6 +50,9 @@ export function createCodexAuthController(options) {
   const env = isolatedEnv(options.baseEnv ?? process.env, options.codexHome)
   let loginChild = null
   let loginFailed = false
+  let modelRequest = null
+  let authRevision = 0
+  const modelQueries = new Set()
 
   const commandOptions = () => ({
     cwd: options.codexHome,
@@ -58,12 +61,12 @@ export function createCodexAuthController(options) {
     windowsHide: true,
   })
 
-  const status = () => {
+  const authStatus = () => {
     mkdirSync(options.codexHome, { recursive: true })
     const loginStatusResult = spawnSync(
       options.nodePath,
       [options.wrapperPath, 'login', 'status'],
-      commandOptions(),
+      { ...commandOptions(), timeout: 5_000 },
     )
     const parsed = parseCodexLoginStatus(loginStatusResult)
     if (parsed.state === 'logged-out' && loginChild?.exitCode === null) {
@@ -72,20 +75,70 @@ export function createCodexAuthController(options) {
     if (parsed.state === 'logged-out' && loginFailed) {
       return { available: true, state: 'error' }
     }
+    return parsed
+  }
+
+  const modelOptions = {
+    nodePath: options.nodePath,
+    wrapperPath: options.wrapperPath,
+    codexHome: options.codexHome,
+    env,
+    spawn,
+  }
+  const queryModels = async (query) => {
+    const controller = new AbortController()
+    modelQueries.add(controller)
+    try {
+      return await query({ ...modelOptions, signal: controller.signal })
+    } finally {
+      modelQueries.delete(controller)
+    }
+  }
+  const status = async () => {
+    const parsed = authStatus()
     if (parsed.state !== 'logged-in') return parsed
-    const model = probeCodexModel({
-      spawnSync,
-      nodePath: options.nodePath,
-      wrapperPath: options.wrapperPath,
-      codexHome: options.codexHome,
-      env,
-    })
-    return model === null ? parsed : { ...parsed, model }
+    const revision = authRevision
+    const request = modelRequest ??= queryModels(options.probeModels ?? probeCodexModels)
+    try {
+      const catalog = await request
+      if (revision !== authRevision) return status()
+      return {
+        ...parsed,
+        ...catalog,
+        ...(catalog.selectedModel && !catalog.model
+          ? { modelError: '已保存的 Codex 模型当前不可用，请重新选择。' }
+          : {}),
+      }
+    } catch (error) {
+      if (revision !== authRevision) return status()
+      return {
+        ...parsed,
+        models: [],
+        selectedModel: null,
+        defaultModel: null,
+        model: null,
+        modelError: error?.code === 'timeout' ? 'Codex 模型查询超时，请重试。' : '无法读取 Codex 模型信息，请重试。',
+      }
+    } finally {
+      if (modelRequest === request) modelRequest = null
+    }
+  }
+
+  const setDefaultModel = async (model) => {
+    const parsed = authStatus()
+    if (parsed.state !== 'logged-in') throw new Error('请先登录 ChatGPT 再选择 Codex 模型。')
+    const catalog = await queryModels((queryOptions) => (
+      (options.setDefaultModel ?? setCodexDefaultModel)(queryOptions, model)
+    ))
+    authRevision += 1
+    modelRequest = null
+    return { ...parsed, ...catalog }
   }
 
   const login = () => {
-    const current = status()
+    const current = authStatus()
     if (current.state === 'logged-in' || current.state === 'pending') return current
+    authRevision += 1
     loginFailed = false
     try {
       loginChild = spawn(
@@ -107,6 +160,9 @@ export function createCodexAuthController(options) {
   }
 
   const logout = () => {
+    authRevision += 1
+    for (const query of modelQueries) query.abort()
+    modelRequest = null
     if (loginChild?.exitCode === null) loginChild.kill()
     loginChild = null
     loginFailed = false
@@ -122,9 +178,10 @@ export function createCodexAuthController(options) {
   }
 
   const dispose = () => {
+    for (const query of modelQueries) query.abort()
     if (loginChild?.exitCode === null) loginChild.kill()
     loginChild = null
   }
 
-  return { status, login, logout, dispose }
+  return { status, login, logout, setDefaultModel, dispose }
 }

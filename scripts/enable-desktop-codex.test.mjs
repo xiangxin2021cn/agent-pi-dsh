@@ -12,6 +12,7 @@ test('enables only the Codex product tool row and is idempotent', () => {
   const once = enableCodexInText(source)
   assert.doesNotMatch(once, /tool-subagent-codex[\s\S]*?disabled: true[\s\S]*?provider: codex/)
   assert.match(once, /tool-subagent-claude-code[\s\S]*?disabled: true/)
+  assert.match(once, /name: dsh-tender-host\/codex-tool/)
   assert.equal(enableCodexInText(once), once)
 })
 
@@ -26,6 +27,7 @@ test('tender profile installs the provider and packaging enables the Codex tool'
   assert.match(init, /function wireCodexRuntimeDeps/)
   assert.match(init, /node_modules', '\.pnpm'/)
   assert.match(init, /permissionMode: approve-for-me/)
+  assert.match(init, /- id: subagent-codex\s+name: dsh-tender-host\/codex-provider/)
   assert.match(init, /enable-desktop-codex\.mjs/)
   assert.match(pack, /apply-runtime-overlays\.mjs/)
   assert.match(overlays, /enable-desktop-codex\.mjs/)
