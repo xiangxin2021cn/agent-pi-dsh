@@ -94,7 +94,9 @@ jobs:
 
       - name: Rebuild DSH native modules for the packaged Node ABI
         working-directory: payload/deepseek-harness
-        run: pnpm rebuild node-pty fs-ext
+        run: |
+          pnpm --recursive rebuild node-pty fs-ext koffi
+          node packages/subprocess/subprocess-local/scripts/ensure-spawn-helper.mjs
 
       - name: Install bundle dependencies
         run: |
@@ -113,6 +115,22 @@ jobs:
         run: |
           node-runtime/bin/node payload/product/scripts/verify-dsh-runtime.mjs \
             payload/deepseek-harness payload/product --native
+
+      - name: Verify terminal native module with packaged Node
+        run: |
+          node-runtime/bin/node --input-type=module <<'NODE'
+          import { createRequire } from 'node:module'
+          const require = createRequire(`${process.cwd()}/payload/deepseek-harness/packages/subprocess/subprocess-local/package.json`)
+          const terminal = require('node-pty').spawn('/bin/sh', ['-c', 'printf agent-pi-native-ok'])
+          let output = ''
+          terminal.onData((data) => { output += data })
+          const timeout = setTimeout(() => { terminal.kill(); process.exit(1) }, 10000)
+          terminal.onExit(({ exitCode }) => {
+            clearTimeout(timeout)
+            if (exitCode !== 0 || !output.includes('agent-pi-native-ok')) process.exit(1)
+            console.log('terminal native module verified')
+          })
+          NODE
 
       - name: Stage runtime
         run: |
