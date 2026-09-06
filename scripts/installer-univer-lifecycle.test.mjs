@@ -269,6 +269,21 @@ test('NSIS stages the old vendor before overlay, verifies before commit, and rol
   assert.match(nsisSource, /INCLUDE_LICENSED_UNIVER[\s\S]*verify-product[^\r\n]*--required/)
   const installSection = nsisSource.match(/Section "Install"([\s\S]*?)SectionEnd/)?.[1] ?? ''
   assert.ok(installSection.indexOf('File "payload.7z"') < installSection.indexOf('Call StageAppAsar'))
+  const prepare = installSection.indexOf('Call PrepareUniverCleanup')
+  assert.ok(prepare > installSection.indexOf('File "payload.7z"') && prepare < installSection.indexOf('Call StageAppAsar'))
+  for (const [name, target] of [['StageUniverVendor', 'current'], ['RollbackUniverVendor', 'current'], ['CommitUniverVendor', 'previous']]) {
+    const body = nsisSource.match(new RegExp(`Function ${name}([\\s\\S]*?)FunctionEnd`))?.[1] ?? ''
+    assert.doesNotMatch(body, /RMDir \/r/, `${name} must not follow Office peer junctions`)
+    assert.ok(body.includes(`"$PLUGINSDIR\\installer-remove-univer-tree.mjs" "$INSTDIR" ${target}`))
+    assert.match(body, /Pop \$0\s+StrCmp \$0 "0"/)
+    assert.match(body, /Abort/)
+  }
+  const finalVerify = installSection.indexOf('dsh-build-receipt.mjs" verify-installed ')
+  assert.doesNotMatch(installSection, /dsh-build-receipt\.mjs" verify /)
+  assert.ok(finalVerify > installSection.indexOf('Call CommitUniverVendor'))
+  assert.ok(finalVerify < installSection.indexOf('Delete "$INSTDIR\\resources\\app.asar.old"'))
+  assert.ok(finalVerify < installSection.indexOf('CreateShortCut'))
+  assert.match(installSection, /StrCmp \$0 "0" installed_runtime_verified[\s\S]*?Abort\s+installed_runtime_verified:/)
   assert.match(nsisSource, /un\.CloseRunningApp/)
   assert.match(nsisSource, /installer-univer-lifecycle\.mjs" detach-profile/)
   assert.match(nsisSource, /IfFileExists "\$INSTDIR\\\*\.\*" uninstall_delete_fail/)

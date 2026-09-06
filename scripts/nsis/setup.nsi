@@ -202,6 +202,23 @@ FunctionEnd
 ; Move this installer-owned plugin out of the overlay path first so an upgrade
 ; cannot combine two wrapper versions. The previous directory stays available
 ; until the new runtime passes its receipt and DSH compatibility checks.
+Function PrepareUniverCleanup
+  ; Use this payload's Node and standalone helper even when an older install
+  ; is incomplete. Never run cleanup through the tree being replaced.
+  DetailPrint "Preparing safe Office cleanup..."
+  nsExec::ExecToLog '"$PLUGINSDIR\7za.exe" e -y -aoa -bd "$PLUGINSDIR\payload.7z" "-o$PLUGINSDIR" "resources\runtime\node\node.exe" "resources\runtime\product\scripts\installer-remove-univer-tree.mjs"'
+  Pop $0
+  StrCmp $0 "0" cleanup_runtime_files cleanup_runtime_failed
+  cleanup_runtime_files:
+  IfFileExists "$PLUGINSDIR\node.exe" 0 cleanup_runtime_failed
+  IfFileExists "$PLUGINSDIR\installer-remove-univer-tree.mjs" cleanup_runtime_ready cleanup_runtime_failed
+  cleanup_runtime_failed:
+    SetErrorLevel 9
+    MessageBox MB_OK|MB_ICONSTOP "无法从安装包准备安全清理程序，安装尚未修改旧应用。请重新下载安装包后重试。 Failed to prepare safe cleanup from the installer payload. The old application has not been changed. Download the installer again and retry."
+    Abort
+  cleanup_runtime_ready:
+FunctionEnd
+
 Function StageUniverVendor
   ; If a previous attempt stopped after staging, the backup is the last known
   ; good copy. Discard only the partial current directory and keep the backup.
@@ -209,11 +226,12 @@ Function StageUniverVendor
   IfFileExists "$INSTDIR\resources\runtime\product\vendor\dsh-univer-office\*.*" stage_univer_current 0
   Goto stage_univer_done
   stage_univer_has_backup:
-  RMDir /r "$INSTDIR\resources\runtime\product\vendor\dsh-univer-office"
-  IfFileExists "$INSTDIR\resources\runtime\product\vendor\dsh-univer-office\*.*" stage_univer_delete_failed 0
-  Goto stage_univer_done
+  nsExec::ExecToLog '"$PLUGINSDIR\node.exe" "$PLUGINSDIR\installer-remove-univer-tree.mjs" "$INSTDIR" current'
+  Pop $0
+  StrCmp $0 "0" stage_univer_done stage_univer_delete_failed
   stage_univer_delete_failed:
     Call RollbackAppAsar
+    SetErrorLevel 9
     MessageBox MB_OK|MB_ICONSTOP "无法清理上次安装留下的 dsh-univer-office 临时目录；最后可用备份仍已保留。请完全退出应用后重试。 Failed to clear the partial dsh-univer-office from the previous attempt; the last known-good backup was preserved. Quit the app fully and retry."
     Abort
   stage_univer_current:
@@ -228,15 +246,30 @@ Function StageUniverVendor
 FunctionEnd
 
 Function RollbackUniverVendor
-  RMDir /r "$INSTDIR\resources\runtime\product\vendor\dsh-univer-office"
+  nsExec::ExecToLog '"$PLUGINSDIR\node.exe" "$PLUGINSDIR\installer-remove-univer-tree.mjs" "$INSTDIR" current'
+  Pop $0
+  StrCmp $0 "0" rollback_univer_removed rollback_univer_failed
+  rollback_univer_removed:
   IfFileExists "$INSTDIR\resources\runtime\product\vendor\.agent-pi-univer-previous\*.*" 0 rollback_univer_done
   ClearErrors
   Rename "$INSTDIR\resources\runtime\product\vendor\.agent-pi-univer-previous" "$INSTDIR\resources\runtime\product\vendor\dsh-univer-office"
+  IfErrors rollback_univer_failed rollback_univer_done
+  rollback_univer_failed:
+    Call RollbackAppAsar
+    SetErrorLevel 9
+    MessageBox MB_OK|MB_ICONSTOP "无法安全恢复旧 Office 目录，安装已停止。请完全退出应用后在原目录重试安装。 Failed to safely restore the previous Office directory. Setup stopped. Quit the app fully and reinstall to the same directory."
+    Abort
   rollback_univer_done:
 FunctionEnd
 
 Function CommitUniverVendor
-  RMDir /r "$INSTDIR\resources\runtime\product\vendor\.agent-pi-univer-previous"
+  nsExec::ExecToLog '"$PLUGINSDIR\node.exe" "$PLUGINSDIR\installer-remove-univer-tree.mjs" "$INSTDIR" previous'
+  Pop $0
+  StrCmp $0 "0" commit_univer_done
+    SetErrorLevel 9
+    MessageBox MB_OK|MB_ICONSTOP "无法安全清理旧 Office 备份，安装尚未完成。请完全退出应用后在原目录重试安装。 Failed to safely remove the previous Office backup. Setup is incomplete. Quit the app fully and reinstall to the same directory."
+    Abort
+  commit_univer_done:
 FunctionEnd
 
 Function StageAppAsar
@@ -294,6 +327,7 @@ Section "Install"
   File "7za.exe"
   File "payload.7z"
   Call CloseRunningApp
+  Call PrepareUniverCleanup
   Call StageAppAsar
   Call StageUniverVendor
   SetOutPath "$INSTDIR"
@@ -370,6 +404,16 @@ Section "Install"
   univer_verify_ok:
   Call EnsureInstallRootReceipt
   Call CommitUniverVendor
+  ; Cleanup must finish before the final integrity gate: old Office peers
+  ; point into the newly extracted DSH tree during an in-place upgrade.
+  DetailPrint "Verifying installed DeepSeek Harness build receipt..."
+  nsExec::ExecToLog '"$PLUGINSDIR\node.exe" "$INSTDIR\resources\runtime\product\scripts\dsh-build-receipt.mjs" verify-installed --dsh "$INSTDIR\resources\runtime\deepseek-harness" --product "$INSTDIR\resources\runtime\product" --receipt "$INSTDIR\resources\runtime\deepseek-harness\DSH-BUILD-RECEIPT.json"'
+  Pop $0
+  StrCmp $0 "0" installed_runtime_verified
+    SetErrorLevel 10
+    MessageBox MB_OK|MB_ICONSTOP "DSH 运行时完整性校验失败，安装尚未完成。请点「显示详情」查看缺失或变化的必需文件；不要启动此安装，请修复运行时后重试。 DeepSeek Harness runtime integrity verification failed. Setup is incomplete. See Show details for missing or changed required files. Do not launch this installation until its runtime is repaired."
+    Abort
+  installed_runtime_verified:
   Delete "$INSTDIR\resources\app.asar.old"
   CreateShortCut "$DESKTOP\Agent Pi DSH.lnk" "$INSTDIR\agent-pi-DSH.exe"
   CreateDirectory "$SMPROGRAMS\Agent Pi DSH"

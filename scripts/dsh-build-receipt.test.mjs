@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
+import { spawnSync } from 'node:child_process'
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -134,6 +135,110 @@ test('fails closed when an unreceipted runtime source file is added', () => {
   }
 })
 
+test('installed verification permits old unused source and artifacts while strict verification still rejects them', () => {
+  const value = fixture()
+  try {
+    const leftovers = ['packages/retired/source.ts', 'packages/retired/lib/index.js']
+    for (const path of leftovers) {
+      mkdirSync(dirname(join(value.dsh, path)), { recursive: true })
+      writeFileSync(join(value.dsh, path), 'unused old-version file\n')
+    }
+    assert.equal(verifyDshBuildReceipt({ ...value, installed: true }).dshCommit, expectedDshCommit)
+    assert.throws(() => verifyDshBuildReceipt(value), /inventory length mismatch/)
+    for (const path of leftovers) assert.equal(readFileSync(join(value.dsh, path), 'utf8'), 'unused old-version file\n')
+
+    const args = ['--dsh', value.dsh, '--product', value.product, '--receipt', value.receiptPath]
+    const script = fileURLToPath(new URL('./dsh-build-receipt.mjs', import.meta.url))
+    const options = { encoding: 'utf8', windowsHide: true, timeout: 10000 }
+    const installed = spawnSync(process.execPath, [script, 'verify-installed', ...args], options)
+    assert.ifError(installed.error)
+    assert.equal(installed.status, 0, installed.stderr)
+    assert.match(installed.stdout, /verify-installed receipt verified/)
+    const strict = spawnSync(process.execPath, [script, 'verify', ...args], options)
+    assert.notEqual(strict.status, 0)
+    assert.match(strict.stderr, /inventory length mismatch/)
+  } finally {
+    rmSync(value.root, { recursive: true, force: true })
+  }
+})
+
+for (const [kind, path, replacement] of [
+  ['source', 'packages/preset/agent-presets/presets/standard/agent.cordis.yml', 'plugins: {}\n'],
+  ['artifact', 'packages/core/example/lib/index.js', 'evil\n'],
+]) {
+  test(`installed verification rejects missing declared ${kind} even when an old file replaces its inventory count`, () => {
+    const value = fixture()
+    try {
+      rmSync(join(value.dsh, path))
+      writeFileSync(join(value.dsh, path + '.retired'), 'unused old-version file\n')
+      assert.throws(() => verifyDshBuildReceipt({ ...value, installed: true }), /inventory length mismatch|missing|hash mismatch/)
+    } finally {
+      rmSync(value.root, { recursive: true, force: true })
+    }
+  })
+
+  test(`installed verification rejects same-size changes to a declared ${kind}`, () => {
+    const value = fixture()
+    try {
+      const original = readFileSync(join(value.dsh, path))
+      assert.equal(Buffer.byteLength(replacement), original.length)
+      writeFileSync(join(value.dsh, path), replacement)
+      assert.throws(() => verifyDshBuildReceipt({ ...value, installed: true }), /hash mismatch/)
+    } finally {
+      rmSync(value.root, { recursive: true, force: true })
+    }
+  })
+}
+
+test('installed verification still requires the exact receipt identity and build commands', () => {
+  const value = fixture()
+  try {
+    const original = JSON.parse(readFileSync(value.receiptPath, 'utf8'))
+    for (const [field, invalid] of [
+      ['schemaVersion', -1], ['kind', 'untrusted'], ['dshCommit', 'wrong'],
+      ['dshPin', 'wrong'], ['dshVersion', '0.0.0'], ['buildCommands', []],
+    ]) {
+      writeFileSync(value.receiptPath, JSON.stringify({ ...original, [field]: invalid }))
+      assert.throws(() => verifyDshBuildReceipt({ ...value, installed: true }), /unsupported|mismatch/, field)
+    }
+    writeFileSync(value.receiptPath, JSON.stringify(original))
+    writeFileSync(join(value.product, 'DSH_PIN'), 'wrong\n')
+    assert.throws(() => verifyDshBuildReceipt({ ...value, installed: true }), /commit\/pin mismatch/)
+  } finally {
+    rmSync(value.root, { recursive: true, force: true })
+  }
+})
+
+test('installed verification cannot satisfy a receipt entry with a file outside its runtime root', () => {
+  const value = fixture()
+  try {
+    const receipt = JSON.parse(readFileSync(value.receiptPath, 'utf8'))
+    const outside = join(value.root, 'outside.txt')
+    writeFileSync(outside, 'outside fixture marker\n')
+    for (const path of ['../outside.txt', outside]) {
+      receipt.sourceFiles[0] = { path, bytes: readFileSync(outside).length, sha256: sha256(outside) }
+      writeFileSync(value.receiptPath, JSON.stringify(receipt))
+      assert.throws(() => verifyDshBuildReceipt({ ...value, installed: true }), /inventory length mismatch|invalid|hash mismatch|missing/)
+      assert.equal(readFileSync(outside, 'utf8'), 'outside fixture marker\n')
+    }
+  } finally {
+    rmSync(value.root, { recursive: true, force: true })
+  }
+})
+
+test('installed verification rejects an empty source or artifact receipt inventory', () => {
+  const value = fixture()
+  try {
+    const original = JSON.parse(readFileSync(value.receiptPath, 'utf8'))
+    for (const field of ['sourceFiles', 'artifacts']) {
+      writeFileSync(value.receiptPath, JSON.stringify({ ...original, [field]: [] }))
+      assert.throws(() => verifyDshBuildReceipt({ ...value, installed: true }), /inventory|empty/)
+    }
+  } finally {
+    rmSync(value.root, { recursive: true, force: true })
+  }
+})
+
 test('fails closed when a packaged directory is substituted with a symlink', () => {
   const value = fixture()
   try {
@@ -144,6 +249,7 @@ test('fails closed when a packaged directory is substituted with a symlink', () 
     rmSync(join(value.dsh, 'apps/cli'), { recursive: true, force: true })
     symlinkSync(replacement, join(value.dsh, 'apps/cli'), process.platform === 'win32' ? 'junction' : 'dir')
     assert.throws(() => verifyDshBuildReceipt(value), /must not be a symlink/)
+    assert.throws(() => verifyDshBuildReceipt({ ...value, installed: true }), /must not be a symlink/)
   } finally {
     rmSync(value.root, { recursive: true, force: true })
   }
