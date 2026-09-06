@@ -109,7 +109,7 @@ test('probes the app-server through the Codex wrapper', () => {
   assert.deepEqual(call.args, ['codex.js', 'app-server', '--stdio'])
   assert.equal(call.options.env.CODEX_HOME, codexHome)
   const initialize = JSON.parse(call.options.input.split('\n')[0])
-  assert.equal(initialize.params.clientInfo.version, '3.6.0')
+  assert.equal(initialize.params.clientInfo.version, '3.6.1')
   assert.match(call.options.input, /"method":"model\/list"/)
   assert.equal(call.options.timeout, 10_000)
 })

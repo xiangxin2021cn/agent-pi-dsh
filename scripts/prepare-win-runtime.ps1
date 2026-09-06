@@ -1,6 +1,7 @@
 param(
   [switch]$FullCopy,
   [switch]$Measure,
+  [switch]$IncludeLicensedUniver,
   [string]$DshBuildReceipt
 )
 
@@ -94,6 +95,14 @@ $productItems = @(
   "vendor\dsh-router-standard.pin",
   "vendor\anysearch-dsh.pin"
 )
+if ($IncludeLicensedUniver) {
+  # Private/OEM build path only. The switch is technical opt-in and does not
+  # grant redistribution rights; the caller must hold the applicable license.
+  $productItems += @(
+    "vendor\dsh-univer-office",
+    "vendor\dsh-univer-office.pin"
+  )
+}
 foreach ($item in $productItems) {
   $src = Join-Path $Root $item
   if (-not (Test-Path $src)) { continue }
@@ -140,11 +149,16 @@ function Stage-ProjectNodeModules([string]$projectRelative, [string]$requiredPac
 Stage-ProjectNodeModules "packages\business-core" "zod"
 Stage-ProjectNodeModules "bundles\tender-host" "pdf-lib"
 
-# Public builds keep the optional Office integration in the market. They do
-# not redistribute its commercial Univer Pro runtime or an obsolete vendor
-# link left by an earlier build.
-& $node (Join-Path $Root "scripts\univer-public-release.mjs") sanitize $Product
-if ($LASTEXITCODE -ne 0) { throw "public Univer release boundary failed" }
+if ($IncludeLicensedUniver) {
+  & $node (Join-Path $Product "scripts\installer-univer-lifecycle.mjs") verify-product $Product --required
+  if ($LASTEXITCODE -ne 0) { throw "licensed Univer runtime verification failed" }
+} else {
+  # Public builds keep the optional Office integration in the market. They do
+  # not redistribute its commercial Univer Pro runtime or an obsolete vendor
+  # link left by an earlier build.
+  & $node (Join-Path $Root "scripts\univer-public-release.mjs") sanitize $Product
+  if ($LASTEXITCODE -ne 0) { throw "public Univer release boundary failed" }
+}
 
 $dshLink = Get-Item -LiteralPath $Dsh
 if ($dshLink.LinkType) {
@@ -156,12 +170,17 @@ node (Join-Path $Root "scripts\dsh-build-receipt.mjs") verify `
 if ($LASTEXITCODE -ne 0) { throw "DSH source build receipt verification failed" }
 
 $dshTarget = Join-Path $Runtime "deepseek-harness"
+$runtimeFull = [System.IO.Path]::GetFullPath($Runtime).TrimEnd('\') + '\'
+$dshTarget = [System.IO.Path]::GetFullPath($dshTarget)
+if (-not $dshTarget.StartsWith($runtimeFull, [System.StringComparison]::OrdinalIgnoreCase)) {
+  throw "refusing to replace DSH runtime outside staging directory: $dshTarget"
+}
 if (Test-Path $dshTarget) {
   $existing = Get-Item -LiteralPath $dshTarget
   if ($existing.LinkType) {
     $existing.Delete()
   } else {
-    cmd /c "rmdir /s /q `"$dshTarget`"" | Out-Null
+    Remove-Item -LiteralPath $dshTarget -Recurse -Force
   }
 }
 if ($FullCopy) {
@@ -211,8 +230,8 @@ $stagedDshReceipt = if ($FullCopy) { Join-Path $dshTarget $DshReceiptName } else
 node (Join-Path $Root "scripts\dsh-build-receipt.mjs") verify `
   --dsh $dshTarget --product $Product --receipt $stagedDshReceipt
 if ($LASTEXITCODE -ne 0) { throw "staged DSH build receipt verification failed" }
-node (Join-Path $Root "scripts\verify-dsh-runtime.mjs") $dshTarget $Product
-if ($LASTEXITCODE -ne 0) { throw "staged DSH rc.1 runtime verification failed" }
+& $nodeDest (Join-Path $Root "scripts\verify-dsh-runtime.mjs") $dshTarget $Product --native
+if ($LASTEXITCODE -ne 0) { throw "staged DSH runtime verification failed" }
 
 Write-Host "Runtime staged at $Runtime"
 Write-Host "pack:win uses extraResources/runtime. Full installer: prepare-win-runtime.ps1 -FullCopy"

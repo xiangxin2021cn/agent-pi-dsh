@@ -3,6 +3,7 @@ import * as ReactDOM from 'react-dom'
 import { createAgentPiApiClient } from './api-client.js'
 import { createFilePreviewOverlay } from './file-preview-overlay.js'
 import { createKnowledgeBasePanel } from './knowledge-base-panel.js'
+import { addNativeComposerFiles } from './native-attachment-adapter.js'
 import { createWorkbenchSessionMonitor } from './session-monitor.js'
 import { createWorkbenchView } from './workbench-view.js'
 import { clientCss } from './styles.js'
@@ -4259,21 +4260,23 @@ const h = React.createElement
     function addNativeImageFiles(props, files) {
       const list = (files || []).filter(Boolean)
       if (!list.length) return false
-      const conversation = runtime.conversation
-      const actions = props && props.inputActions
-      if (conversation && typeof conversation.createDraftImages === 'function' && actions && typeof actions.addImages === 'function') {
-        try {
-          const images = conversation.createDraftImages(list)
-          if (!actions.addImages(images.map((row) => row.id))) {
-            if (typeof conversation.releaseDraftImages === 'function') conversation.releaseDraftImages(images)
-            showToast('无法加入图片（可能超出张数或大小限制）')
-            return false
-          }
-          showToast(list.length === 1 ? '已加入图片 ' + list[0].name : '已加入 ' + list.length + ' 张图片')
-          return true
-        } catch (err) {
-          showToast(String(err && err.message || err))
-        }
+      const result = addNativeComposerFiles({
+        conversation: runtime.conversation,
+        actions: props && props.inputActions,
+        sessionId: resolveSessionId(props),
+        files: list,
+      })
+      if (result.status === 'added') {
+        showToast(list.length === 1 ? '已加入图片 ' + list[0].name : '已加入 ' + list.length + ' 张图片')
+        return true
+      }
+      if (result.status === 'rejected') {
+        showToast('无法加入图片（可能超出张数或大小限制）')
+        return false
+      }
+      if (result.status === 'error') {
+        showToast(String(result.error && result.error.message || result.error))
+        return false
       }
       if (dropNativeImages(list)) {
         showToast(list.length === 1 ? '已加入图片 ' + list[0].name : '已加入 ' + list.length + ' 张图片')

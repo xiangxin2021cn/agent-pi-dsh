@@ -47,12 +47,12 @@ test('public profile and runtime packaging do not install Univer Pro dependencie
   assert.match(workflow, /univer-public-release\.mjs assert-tree/)
 })
 
-test('tracked Univer production lock exactly matches the pinned 0.2.9 dependency graph', () => {
+test('tracked Univer production lock exactly matches the pinned 0.2.13 dependency graph', () => {
   assert.deepEqual(pinnedDependencies, {
     '@puppeteer/browsers': '^3.2.0',
     '@univerjs-pro/cli-assets': '0.1.0',
-    '@univerjs-pro/engine-formula-rust-binding': '1.0.0-insiders.20260819-8209aa8',
-    '@univerjs-pro/exchange-node-binding': '0.1.0',
+    '@univerjs-pro/engine-formula-rust-binding': '1.0.0-insiders.20260829-2e3c387',
+    '@univerjs-pro/exchange-node-binding': '0.1.1',
     libsql: '^0.5.29',
     'puppeteer-core': '^25.7.0',
   })
@@ -67,15 +67,28 @@ test('tracked Univer production lock exactly matches the pinned 0.2.9 dependency
     assert.match(entry.resolved, /^https:\/\/registry\.npmjs\.org\//, name)
     assert.match(entry.integrity, /^sha512-/, name)
   }
+  for (const suffix of ['darwin-arm64', 'linux-arm64-gnu', 'linux-x64-gnu', 'win32-x64-msvc']) {
+    assert.equal(
+      lock.packages[`node_modules/@univerjs-pro/engine-formula-rust-binding-${suffix}`].version,
+      '1.0.0-insiders.20260829-2e3c387',
+    )
+    assert.equal(
+      lock.packages[`node_modules/@univerjs-pro/exchange-node-binding-${suffix}`].version,
+      '0.1.1',
+    )
+  }
 })
 
-test('Windows package removes Univer integration before first launch', () => {
-  assert.doesNotMatch(windowsRuntime, /vendor\\dsh-univer-office/)
-  assert.doesNotMatch(windowsRuntime, /install-univer-runtime-deps\.mjs/)
+test('Windows package defaults to the public boundary and gates licensed preinstall explicitly', () => {
+  assert.match(windowsRuntime, /\[switch\]\$IncludeLicensedUniver/)
+  assert.match(windowsRuntime, /if \(\$IncludeLicensedUniver\)/)
+  assert.match(windowsRuntime, /vendor\\dsh-univer-office/)
   assert.match(windowsRuntime, /univer-public-release\.mjs[^\r\n]*sanitize/)
   const windowsPack = readFileSync(join(scripts, 'pack-win.ps1'), 'utf8')
   assert.match(windowsPack, /resources\\runtime\\node\\node\.exe/)
-  assert.doesNotMatch(windowsPack, /install-univer-runtime-deps\.mjs/)
+  assert.match(windowsPack, /\[switch\]\$IncludeLicensedUniver/)
+  assert.match(windowsPack, /install-univer-runtime-deps\.mjs/)
+  assert.match(windowsPack, /verify-product[^\r\n]*--required/)
   assert.match(windowsPack, /univer-public-release\.mjs[\s\S]+assert-tree/)
   assert.match(desktopMain, /if \(packaged\) env\.AGENT_PI_SKIP_UNIVER_INSTALL = '1'/)
 })

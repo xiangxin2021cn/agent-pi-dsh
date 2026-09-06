@@ -220,7 +220,7 @@ readonly DSH_SOURCE_PATHS=(
   docs/cad-clean-source.md
   docs/cad-clean-third-party.md
   release/RELEASE_POLICY.md
-  release/publish-v3.6.0-release.mjs
+  "release/publish-v${RELEASE_VERSION}-release.mjs"
   .github/workflows/build-cad-clean-source.yml
 )
 dsh_git archive --format=tar "${DSH_COMMIT}" -- "${DSH_SOURCE_PATHS[@]}" | \

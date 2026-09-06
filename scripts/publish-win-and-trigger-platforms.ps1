@@ -13,6 +13,7 @@ param(
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 $Version = $Tag.TrimStart('v')
+$SourceVersion = (Get-Content -LiteralPath (Join-Path $Root "package.json") -Raw | ConvertFrom-Json).version
 
 function Assert-Sha256Pair([string]$Asset, [string]$Checksum, [string]$Label) {
   $line = (Get-Content -LiteralPath $Checksum -Raw).Trim()
@@ -53,6 +54,9 @@ if (-not (Test-Path $InstallerChecksum)) {
 Assert-Sha256Pair $Installer $InstallerChecksum "Windows installer"
 
 if ($Tag -like "v3.*") {
+  if ($Version -ne $SourceVersion) {
+    throw "Release tag $Tag does not match source version $SourceVersion"
+  }
   if (-not $Payload) {
     $Payload = Join-Path $Root "release\runtime-payload-$Version.tar.gz"
   }
@@ -66,7 +70,11 @@ if ($Tag -like "v3.*") {
   Assert-Sha256Pair $Payload $PayloadChecksum "Runtime payload"
 
   $UploadAssets = @($Installer, $InstallerChecksum, $Payload, $PayloadChecksum)
-  if ($Tag -eq "v3.6.0") {
+  if (Test-Path -LiteralPath (Join-Path $Root "scripts\cad-clean-pins.json")) {
+    $CadReleaseVersion = (Get-Content -LiteralPath (Join-Path $Root "scripts\cad-clean-pins.json") -Raw | ConvertFrom-Json).releaseVersion
+    if ($CadReleaseVersion -ne $Version) {
+      throw "CAD clean pins target $CadReleaseVersion, not release $Version"
+    }
     if (-not $CadSource) {
       $CadSource = Join-Path $Root "release\Agent-Pi-DSH-$Version-CAD-corresponding-source.tar.gz"
     }

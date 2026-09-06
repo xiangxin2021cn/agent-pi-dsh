@@ -8,15 +8,22 @@
 !ifndef INSTALLER_HEADER
   !define INSTALLER_HEADER "${NSISDIR}\Contrib\Graphics\Header\nsis3-grey.bmp"
 !endif
+!define PRODUCT_NAME "Agent Pi DSH"
+!define PRODUCT_ID "do.agentpi.dsh"
+!define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\AgentPiDSH"
+!define INSTALL_ROOT_RECEIPT ".agent-pi-install-root.ini"
+!define INSTALL_ROOT_RECEIPT_SECTION "AgentPiDSH"
 Name "Agent Pi DSH"
 OutFile "Agent-Pi-DSH-${APP_VERSION}-x64.exe"
 InstallDir "$LOCALAPPDATA\Programs\Agent Pi DSH"
+InstallDirRegKey HKCU "${UNINST_KEY}" "InstallLocation"
 RequestExecutionLevel user
 SetCompress off
 Icon "${APP_ICON}"
 UninstallIcon "${APP_ICON}"
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
+!include "FileFunc.nsh"
 
 !define MUI_ABORTWARNING
 !define MUI_ICON "${APP_ICON}"
@@ -26,8 +33,6 @@ UninstallIcon "${APP_ICON}"
 !define MUI_HEADERIMAGE_BITMAP "${INSTALLER_HEADER}"
 !define MUI_HEADERIMAGE_UNBITMAP "${INSTALLER_HEADER}"
 !define MUI_FINISHPAGE_RUN "$INSTDIR\agent-pi-DSH.exe"
-!define PRODUCT_NAME "Agent Pi DSH"
-!define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\AgentPiDSH"
 
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
@@ -36,6 +41,144 @@ UninstallIcon "${APP_ICON}"
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "SimpChinese"
 !insertmacro MUI_LANGUAGE "English"
+
+; Only a dedicated, ordinary directory may become an install root. A valid
+; receipt allows subsequent upgrades; the exact default legacy directory is
+; accepted once so existing installations can acquire the receipt.
+Function ValidateInstallRoot
+  GetFullPathName $0 "$INSTDIR"
+  StrCmp $0 "" 0 install_root_normalized
+  ; NSIS may fail when the selected directory does not yet exist. Normalize
+  ; the new path without creating it, then apply the same ownership checks.
+  System::Call 'kernel32::GetFullPathNameW(w "$INSTDIR", i ${NSIS_MAX_STRLEN}, w .r0, p 0)i.r1'
+  IntCmp $1 0 install_root_invalid
+  IntCmp $1 ${NSIS_MAX_STRLEN} install_root_invalid 0 install_root_invalid
+  install_root_normalized:
+  StrCpy $INSTDIR "$0"
+  StrLen $0 "$INSTDIR"
+  IntCmp $0 3 install_root_invalid install_root_invalid
+  StrCpy $0 "$INSTDIR" 2
+  StrCmp $0 "\\" install_root_invalid
+
+  System::Call 'kernel32::GetFileAttributesW(w "$INSTDIR")i.r4'
+  StrCpy $1 "$INSTDIR"
+  install_root_reparse_loop:
+    System::Call 'kernel32::GetFileAttributesW(w r1)i.r2'
+    ${If} $2 != -1
+      IntOp $3 $2 & 0x400
+      ${If} $3 != 0
+        Goto install_root_invalid
+      ${EndIf}
+    ${EndIf}
+    ${GetParent} "$1" $0
+    StrCmp $0 "" install_root_reparse_done
+    StrCmp $0 "$1" install_root_reparse_done
+    StrCpy $1 "$0"
+    Goto install_root_reparse_loop
+  install_root_reparse_done:
+  ${If} $4 != -1
+    IntOp $3 $4 & 0x10
+    ${If} $3 == 0
+      Goto install_root_invalid
+    ${EndIf}
+  ${EndIf}
+
+  IfFileExists "$INSTDIR\${INSTALL_ROOT_RECEIPT}" 0 install_root_unowned
+    ReadINIStr $0 "$INSTDIR\${INSTALL_ROOT_RECEIPT}" "${INSTALL_ROOT_RECEIPT_SECTION}" "Schema"
+    StrCmp $0 "1" 0 install_root_invalid
+    ReadINIStr $0 "$INSTDIR\${INSTALL_ROOT_RECEIPT}" "${INSTALL_ROOT_RECEIPT_SECTION}" "Product"
+    StrCmp $0 "${PRODUCT_ID}" 0 install_root_invalid
+    ReadINIStr $0 "$INSTDIR\${INSTALL_ROOT_RECEIPT}" "${INSTALL_ROOT_RECEIPT_SECTION}" "InstallLocation"
+    StrCmp $0 "$INSTDIR" install_root_ok install_root_invalid
+
+  install_root_unowned:
+    StrCpy $0 "$INSTDIR" 13 -13
+    StrCmp $0 "\Agent Pi DSH" 0 install_root_invalid
+    IntCmp $4 -1 install_root_ok
+    FindFirst $0 $1 "$INSTDIR\*.*"
+    IfErrors install_root_ok
+  install_root_entries:
+    StrCmp $1 "." install_root_next
+    StrCmp $1 ".." install_root_next
+    FindClose $0
+    Goto install_root_legacy
+  install_root_next:
+    FindNext $0 $1
+    IfErrors install_root_empty install_root_entries
+  install_root_empty:
+    FindClose $0
+    Goto install_root_ok
+  install_root_legacy:
+    IfFileExists "$INSTDIR\agent-pi-DSH.exe" 0 install_root_invalid
+    IfFileExists "$INSTDIR\resources\app.asar" install_root_ok install_root_invalid
+
+  install_root_invalid:
+    SetErrorLevel 5
+    MessageBox MB_OK|MB_ICONSTOP "无法确认所选目录是 Agent Pi DSH 的专属本地安装目录：$\r$\n$INSTDIR$\r$\n$\r$\n正常升级可直接使用原安装目录，无需更换位置或先卸载。请勿选择磁盘根目录、共享路径、链接目录或存放其他文件的非安装目录。$\r$\n$\r$\nThe selected folder could not be verified as a dedicated local Agent Pi DSH installation. Normal upgrades can use the existing install folder without moving or uninstalling first. Do not select a drive root, network share, reparse-point directory, or an unrelated data folder."
+    Abort
+  install_root_ok:
+FunctionEnd
+
+Function EnsureInstallRootReceipt
+  IfFileExists "$INSTDIR\${INSTALL_ROOT_RECEIPT}" install_receipt_ok 0
+  ClearErrors
+  WriteINIStr "$INSTDIR\${INSTALL_ROOT_RECEIPT}" "${INSTALL_ROOT_RECEIPT_SECTION}" "Schema" "1"
+  IfErrors install_receipt_failed 0
+  WriteINIStr "$INSTDIR\${INSTALL_ROOT_RECEIPT}" "${INSTALL_ROOT_RECEIPT_SECTION}" "Product" "${PRODUCT_ID}"
+  IfErrors install_receipt_failed 0
+  WriteINIStr "$INSTDIR\${INSTALL_ROOT_RECEIPT}" "${INSTALL_ROOT_RECEIPT_SECTION}" "InstallLocation" "$INSTDIR"
+  IfErrors install_receipt_failed 0
+  Goto install_receipt_ok
+  install_receipt_failed:
+    Delete "$INSTDIR\${INSTALL_ROOT_RECEIPT}"
+    Call RollbackUniverVendor
+    Call RollbackAppAsar
+    SetErrorLevel 6
+    MessageBox MB_OK|MB_ICONSTOP "无法写入 Agent Pi DSH 安装收据；为保护该目录，安装已中止。 Failed to write the Agent Pi DSH install receipt; setup stopped to protect this directory."
+    Abort
+  install_receipt_ok:
+FunctionEnd
+
+Function un.ValidateInstallRoot
+  GetFullPathName $INSTDIR "$INSTDIR"
+  StrLen $0 "$INSTDIR"
+  IntCmp $0 3 uninstall_root_invalid uninstall_root_invalid
+  StrCpy $0 "$INSTDIR" 2
+  StrCmp $0 "\\" uninstall_root_invalid
+  System::Call 'kernel32::GetFileAttributesW(w "$INSTDIR")i.r4'
+  IntCmp $4 -1 uninstall_root_invalid
+  StrCpy $1 "$INSTDIR"
+  uninstall_root_reparse_loop:
+    System::Call 'kernel32::GetFileAttributesW(w r1)i.r2'
+    ${If} $2 != -1
+      IntOp $3 $2 & 0x400
+      ${If} $3 != 0
+        Goto uninstall_root_invalid
+      ${EndIf}
+    ${EndIf}
+    ${GetParent} "$1" $0
+    StrCmp $0 "" uninstall_root_reparse_done
+    StrCmp $0 "$1" uninstall_root_reparse_done
+    StrCpy $1 "$0"
+    Goto uninstall_root_reparse_loop
+  uninstall_root_reparse_done:
+  IntOp $3 $4 & 0x10
+  IntCmp $3 0 uninstall_root_invalid
+  ReadINIStr $0 "$INSTDIR\${INSTALL_ROOT_RECEIPT}" "${INSTALL_ROOT_RECEIPT_SECTION}" "Schema"
+  StrCmp $0 "1" 0 uninstall_root_invalid
+  ReadINIStr $0 "$INSTDIR\${INSTALL_ROOT_RECEIPT}" "${INSTALL_ROOT_RECEIPT_SECTION}" "Product"
+  StrCmp $0 "${PRODUCT_ID}" 0 uninstall_root_invalid
+  ReadINIStr $0 "$INSTDIR\${INSTALL_ROOT_RECEIPT}" "${INSTALL_ROOT_RECEIPT_SECTION}" "InstallLocation"
+  StrCmp $0 "$INSTDIR" 0 uninstall_root_invalid
+  ReadRegStr $0 HKCU "${UNINST_KEY}" "InstallLocation"
+  StrCmp $0 "$INSTDIR" 0 uninstall_root_invalid
+  IfFileExists "$INSTDIR\agent-pi-DSH.exe" uninstall_root_ok uninstall_root_invalid
+  uninstall_root_invalid:
+    SetErrorLevel 5
+    MessageBox MB_OK|MB_ICONSTOP "无法确认该目录由 Agent Pi DSH 安装程序独占，卸载已停止且没有删除文件。请在同一目录重新安装后再卸载。$\r$\n$\r$\nThe installer cannot prove ownership of this directory. Uninstall stopped without deleting files. Reinstall to the same directory, then retry."
+    Abort
+  uninstall_root_ok:
+FunctionEnd
 
 ; Close the packaged app so 7za can replace resources\app.asar. Do not
 ; taskkill editors (Cursor can also lock that file); the asar fallback
@@ -55,17 +198,105 @@ Function CloseRunningApp
   ${EndIf}
 FunctionEnd
 
+; 7za -aoa replaces files but never deletes files removed by a newer package.
+; Move this installer-owned plugin out of the overlay path first so an upgrade
+; cannot combine two wrapper versions. The previous directory stays available
+; until the new runtime passes its receipt and DSH compatibility checks.
+Function StageUniverVendor
+  ; If a previous attempt stopped after staging, the backup is the last known
+  ; good copy. Discard only the partial current directory and keep the backup.
+  IfFileExists "$INSTDIR\resources\runtime\product\vendor\.agent-pi-univer-previous\*.*" stage_univer_has_backup 0
+  IfFileExists "$INSTDIR\resources\runtime\product\vendor\dsh-univer-office\*.*" stage_univer_current 0
+  Goto stage_univer_done
+  stage_univer_has_backup:
+  RMDir /r "$INSTDIR\resources\runtime\product\vendor\dsh-univer-office"
+  IfFileExists "$INSTDIR\resources\runtime\product\vendor\dsh-univer-office\*.*" stage_univer_delete_failed 0
+  Goto stage_univer_done
+  stage_univer_delete_failed:
+    Call RollbackAppAsar
+    MessageBox MB_OK|MB_ICONSTOP "无法清理上次安装留下的 dsh-univer-office 临时目录；最后可用备份仍已保留。请完全退出应用后重试。 Failed to clear the partial dsh-univer-office from the previous attempt; the last known-good backup was preserved. Quit the app fully and retry."
+    Abort
+  stage_univer_current:
+  RMDir "$INSTDIR\resources\runtime\product\vendor\.agent-pi-univer-previous"
+  ClearErrors
+  Rename "$INSTDIR\resources\runtime\product\vendor\dsh-univer-office" "$INSTDIR\resources\runtime\product\vendor\.agent-pi-univer-previous"
+  IfErrors 0 stage_univer_done
+    Call RollbackAppAsar
+    MessageBox MB_OK|MB_ICONSTOP "无法暂存旧版 dsh-univer-office。请确认 Agent Pi DSH 已完全退出后重试。 Failed to stage the previous dsh-univer-office. Quit Agent Pi DSH fully and retry."
+    Abort
+  stage_univer_done:
+FunctionEnd
+
+Function RollbackUniverVendor
+  RMDir /r "$INSTDIR\resources\runtime\product\vendor\dsh-univer-office"
+  IfFileExists "$INSTDIR\resources\runtime\product\vendor\.agent-pi-univer-previous\*.*" 0 rollback_univer_done
+  ClearErrors
+  Rename "$INSTDIR\resources\runtime\product\vendor\.agent-pi-univer-previous" "$INSTDIR\resources\runtime\product\vendor\dsh-univer-office"
+  rollback_univer_done:
+FunctionEnd
+
+Function CommitUniverVendor
+  RMDir /r "$INSTDIR\resources\runtime\product\vendor\.agent-pi-univer-previous"
+FunctionEnd
+
+Function StageAppAsar
+  ; A prior interrupted attempt may already have preserved the last known-good
+  ; archive. Keep it and discard only the unverified current archive.
+  IfFileExists "$INSTDIR\resources\app.asar.old" stage_asar_has_backup 0
+  IfFileExists "$INSTDIR\resources\app.asar" stage_asar_current 0
+  Goto stage_asar_done
+  stage_asar_has_backup:
+  ClearErrors
+  Delete "$INSTDIR\resources\app.asar"
+  IfErrors stage_asar_delete_failed 0
+  Goto stage_asar_done
+  stage_asar_delete_failed:
+    MessageBox MB_OK|MB_ICONSTOP "无法清理上次安装留下的 resources\app.asar；最后可用备份仍已保留。请完全退出应用后重试。 Failed to clear the unverified resources\app.asar from the previous attempt; the last known-good backup was preserved. Quit the app fully and retry."
+    Abort
+  stage_asar_current:
+  ClearErrors
+  Rename "$INSTDIR\resources\app.asar" "$INSTDIR\resources\app.asar.old"
+  IfErrors 0 stage_asar_done
+    MessageBox MB_OK|MB_ICONSTOP "无法暂存旧版 resources\app.asar。请确认 Agent Pi DSH 已完全退出后重试。 Failed to stage the previous resources\app.asar. Quit Agent Pi DSH fully and retry."
+    Abort
+  stage_asar_done:
+FunctionEnd
+
+Function RollbackAppAsar
+  IfFileExists "$INSTDIR\resources\app.asar.old" rollback_asar_previous 0
+  Delete "$INSTDIR\resources\app.asar"
+  Goto rollback_asar_done
+  rollback_asar_previous:
+  Delete "$INSTDIR\resources\app.asar"
+  Rename "$INSTDIR\resources\app.asar.old" "$INSTDIR\resources\app.asar"
+  rollback_asar_done:
+FunctionEnd
+
+Function un.CloseRunningApp
+  nsExec::ExecToStack '"$SYSDIR\cmd.exe" /c tasklist /FI "IMAGENAME eq agent-pi-DSH.exe" /NH | find /I "agent-pi-DSH.exe"'
+  Pop $0
+  Pop $1
+  ${If} $0 == 0
+    MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "检测到 Agent Pi DSH 仍在运行（含托盘）。点「确定」将退出后继续卸载。 Agent Pi DSH is still running (including the tray). OK will close it and continue uninstalling." IDOK un_do_kill
+    Abort
+    un_do_kill:
+      DetailPrint "Closing Agent Pi DSH..."
+      nsExec::ExecToLog '"$SYSDIR\taskkill.exe" /F /IM agent-pi-DSH.exe /T'
+      Pop $0
+      Sleep 1500
+  ${EndIf}
+FunctionEnd
+
 Section "Install"
-  Call CloseRunningApp
+  Call ValidateInstallRoot
   InitPluginsDir
   SetOutPath "$PLUGINSDIR"
   File "7za.exe"
   File "payload.7z"
+  Call CloseRunningApp
+  Call StageAppAsar
+  Call StageUniverVendor
   SetOutPath "$INSTDIR"
-  IfFileExists "$INSTDIR\resources\app.asar" 0 skip_asar_rename
-    Delete "$INSTDIR\resources\app.asar.old"
-    Rename "$INSTDIR\resources\app.asar" "$INSTDIR\resources\app.asar.old"
-  skip_asar_rename:
   DetailPrint "Extracting Agent Pi DSH..."
   nsExec::ExecToLog '"$PLUGINSDIR\7za.exe" x -y -aoa -bd "$PLUGINSDIR\payload.7z" "-o$INSTDIR"'
   Pop $0
@@ -74,6 +305,9 @@ Section "Install"
     Sleep 1000
     nsExec::ExecToLog '"$PLUGINSDIR\7za.exe" x -y -aoa -bd "$PLUGINSDIR\payload.7z" "-o$INSTDIR"'
     Pop $0
+  ${EndIf}
+  ${If} $0 != 0
+    Goto extract_fail
   ${EndIf}
 
   ; Always commit app.asar separately. A bulk 7za extraction can report
@@ -89,12 +323,11 @@ Section "Install"
   IfFileExists "$INSTDIR\resources\app.asar" asar_ok asar_restore
 
   asar_restore:
-    Delete "$INSTDIR\resources\app.asar"
-    IfFileExists "$INSTDIR\resources\app.asar.old" 0 asar_fail
-      Rename "$INSTDIR\resources\app.asar.old" "$INSTDIR\resources\app.asar"
+    Call RollbackUniverVendor
+    Call RollbackAppAsar
   asar_fail:
     SetErrorLevel 2
-    MessageBox MB_OK|MB_ICONSTOP "resources\app.asar 安装失败；已尽可能恢复原版本。请完全退出 Agent Pi DSH，并暂时关闭占用安装目录的编辑器后重试。$\r$\n$\r$\nFailed to install resources\app.asar; the previous archive was restored where possible. Quit Agent Pi DSH fully and close any editor locking the install folder, then retry."
+    MessageBox MB_OK|MB_ICONSTOP "resources\app.asar 安装失败；已尝试恢复旧应用入口和 Office，但不保证整套运行时已恢复。请完全退出应用及占用安装目录的编辑器，在原目录重试安装。$\r$\n$\r$\nFailed to install resources\app.asar. Restoration of the previous archive and Office was attempted; the entire runtime is not rolled back. Quit the app and editors locking the install folder, then reinstall to the same directory."
     Abort
 
   asar_ok:
@@ -102,10 +335,12 @@ Section "Install"
   IfFileExists "$INSTDIR\resources\runtime\node\node.exe" 0 extract_fail
   IfFileExists "$INSTDIR\resources\runtime\deepseek-harness\apps\cli\lib\bin.js" 0 extract_fail
   IfFileExists "$INSTDIR\resources\runtime\product\scripts\repair-dsh-links.mjs" 0 extract_fail
-  Delete "$INSTDIR\resources\app.asar.old"
+  IfFileExists "$INSTDIR\resources\runtime\product\scripts\installer-univer-lifecycle.mjs" 0 extract_fail
   Goto extract_ok
 
   extract_fail:
+    Call RollbackUniverVendor
+    Call RollbackAppAsar
     SetErrorLevel 3
     MessageBox MB_OK|MB_ICONSTOP "解压失败 ($0)。请完全退出 Agent Pi DSH（含托盘）后重试。$\r$\n$\r$\nFailed to extract the application ($0). Quit Agent Pi DSH fully and retry."
     Abort
@@ -115,9 +350,27 @@ Section "Install"
   nsExec::ExecToLog '"$INSTDIR\resources\runtime\node\node.exe" "$INSTDIR\resources\runtime\product\scripts\repair-dsh-links.mjs" repair "$INSTDIR\resources\runtime\deepseek-harness"'
   Pop $0
   IntCmp $0 0 repair_ok
+    Call RollbackUniverVendor
+    Call RollbackAppAsar
     MessageBox MB_OK|MB_ICONSTOP "Failed to repair plugin links ($0)."
     Abort
   repair_ok:
+  DetailPrint "Verifying dsh-univer-office install boundary..."
+  !ifdef INCLUDE_LICENSED_UNIVER
+  nsExec::ExecToLog '"$INSTDIR\resources\runtime\node\node.exe" "$INSTDIR\resources\runtime\product\scripts\installer-univer-lifecycle.mjs" verify-product "$INSTDIR\resources\runtime\product" --required'
+  !else
+  nsExec::ExecToLog '"$INSTDIR\resources\runtime\node\node.exe" "$INSTDIR\resources\runtime\product\scripts\installer-univer-lifecycle.mjs" verify-product "$INSTDIR\resources\runtime\product"'
+  !endif
+  Pop $0
+  IntCmp $0 0 univer_verify_ok
+    Call RollbackUniverVendor
+    Call RollbackAppAsar
+    MessageBox MB_OK|MB_ICONSTOP "dsh-univer-office 校验失败。已尝试恢复旧 Office 和应用入口，但不保证整套运行时已恢复。请点「显示详情」查看具体错误，并在原目录重试安装。$\r$\n$\r$\ndsh-univer-office verification failed. Restoration of the previous Office and app archive was attempted; the entire runtime is not rolled back. See Show details for the error and reinstall to the same directory."
+    Abort
+  univer_verify_ok:
+  Call EnsureInstallRootReceipt
+  Call CommitUniverVendor
+  Delete "$INSTDIR\resources\app.asar.old"
   CreateShortCut "$DESKTOP\Agent Pi DSH.lnk" "$INSTDIR\agent-pi-DSH.exe"
   CreateDirectory "$SMPROGRAMS\Agent Pi DSH"
   CreateShortCut "$SMPROGRAMS\Agent Pi DSH\Agent Pi DSH.lnk" "$INSTDIR\agent-pi-DSH.exe"
@@ -128,18 +381,53 @@ Section "Install"
   WriteRegStr HKCU "${UNINST_KEY}" "DisplayIcon" "$INSTDIR\agent-pi-DSH.exe"
   WriteRegStr HKCU "${UNINST_KEY}" "Publisher" "Agent Pi DSH"
   WriteRegStr HKCU "${UNINST_KEY}" "DisplayVersion" "${APP_VERSION}"
+  WriteRegStr HKCU "${UNINST_KEY}" "InstallLocation" "$INSTDIR"
   WriteRegDWORD HKCU "${UNINST_KEY}" "EstimatedSize" 1900000
 SectionEnd
 
 Section "Uninstall"
+  Call un.ValidateInstallRoot
+  Call un.CloseRunningApp
+  DetailPrint "Detaching installer-owned dsh-univer-office profile link..."
+  IfFileExists "$INSTDIR\resources\runtime\node\node.exe" 0 uninstall_helper_missing
+  IfFileExists "$INSTDIR\resources\runtime\product\scripts\installer-univer-lifecycle.mjs" 0 uninstall_helper_missing
+  nsExec::ExecToLog '"$INSTDIR\resources\runtime\node\node.exe" "$INSTDIR\resources\runtime\product\scripts\installer-univer-lifecycle.mjs" detach-profile "$APPDATA\agent-pi-dsh-desktop\dsh-home\profiles\tender" "$INSTDIR\resources\runtime\product"'
+  Pop $0
+  IntCmp $0 0 uninstall_detach_ok
+  Goto uninstall_detach_failed
+  uninstall_detach_ok:
   DetailPrint "Removing DeepSeek Harness plugin links..."
-  IfFileExists "$INSTDIR\resources\runtime\node\node.exe" 0 skip_strip
-  IfFileExists "$INSTDIR\resources\runtime\product\scripts\repair-dsh-links.mjs" 0 skip_strip
+  IfFileExists "$INSTDIR\resources\runtime\product\scripts\repair-dsh-links.mjs" 0 uninstall_helper_missing
   nsExec::ExecToLog '"$INSTDIR\resources\runtime\node\node.exe" "$INSTDIR\resources\runtime\product\scripts\repair-dsh-links.mjs" strip "$INSTDIR"'
-  skip_strip:
+  Pop $0
+  IntCmp $0 0 uninstall_strip_ok
+  Goto uninstall_strip_failed
+  uninstall_strip_ok:
+  Goto uninstall_helpers_ok
+  uninstall_helper_missing:
+    SetErrorLevel 6
+    MessageBox MB_OK|MB_ICONSTOP "卸载所需的 Agent Pi DSH 运行时或清理程序缺失。为避免留下损坏配置或误删文件，卸载已停止；请先在同一目录重新安装。 The required runtime or cleanup helper is missing. Uninstall stopped to avoid corrupting configuration or deleting unrelated files; reinstall to the same directory first."
+    Abort
+  uninstall_detach_failed:
+    SetErrorLevel 7
+    MessageBox MB_OK|MB_ICONSTOP "无法安全解除 dsh-univer-office 配置 ($0)。程序和卸载记录均已保留；请修复配置或在同一目录重新安装后重试。 Failed to detach dsh-univer-office safely ($0). The program and uninstall entry were preserved; repair the configuration or reinstall to the same directory, then retry."
+    Abort
+  uninstall_strip_failed:
+    SetErrorLevel 8
+    MessageBox MB_OK|MB_ICONSTOP "无法安全清理 DeepSeek Harness 插件链接 ($0)。程序和卸载记录均已保留；请在同一目录重新安装后重试。 Failed to clean DeepSeek Harness plugin links safely ($0). The program and uninstall entry were preserved; reinstall to the same directory, then retry."
+    Abort
+  uninstall_helpers_ok:
   SetOutPath $TEMP
-  nsExec::ExecToLog '"$SYSDIR\cmd.exe" /c rmdir /s /q "$INSTDIR"'
   RMDir /r "$INSTDIR"
+  IfFileExists "$INSTDIR\*.*" 0 uninstall_delete_ok
+    Sleep 1000
+    RMDir /r "$INSTDIR"
+  IfFileExists "$INSTDIR\*.*" uninstall_delete_fail uninstall_delete_ok
+  uninstall_delete_fail:
+    SetErrorLevel 4
+    MessageBox MB_OK|MB_ICONSTOP "未能完全删除 Agent Pi DSH 安装目录。卸载记录已保留；部分安装收据或程序文件可能已经删除，请先在原目录重新安装，再重试卸载。 The install directory could not be removed completely. The uninstall entry was kept, but receipt or program files may already be gone; reinstall to the same directory before retrying uninstall."
+    Abort
+  uninstall_delete_ok:
   Delete "$DESKTOP\Agent Pi DSH.lnk"
   Delete "$DESKTOP\Agent Pi 3.0.lnk"
   RMDir /r "$SMPROGRAMS\Agent Pi DSH"

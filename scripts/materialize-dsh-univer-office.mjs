@@ -16,7 +16,10 @@ import {
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-import { patchUniverForDshAlpha1 } from './patch-univer-alpha1.mjs'
+import {
+  assertUniverClientCompatibility,
+  patchUniverForDshAlpha1,
+} from './patch-univer-alpha1.mjs'
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))
 const repositoryRoot = resolve(scriptDir, '..')
@@ -40,7 +43,7 @@ function assertHex(value, length, label) {
 export function loadUniverPin(pinPath = defaultPinPath) {
   const pin = JSON.parse(readFileSync(resolve(pinPath), 'utf8'))
   if (pin.schema !== 'agent-pi-dsh/univer-office-pin/v1') fail('unsupported dsh-univer-office pin schema')
-  if (pin.name !== 'dsh-univer-office' || pin.version !== '0.2.9') fail('unexpected dsh-univer-office identity')
+  if (pin.name !== 'dsh-univer-office' || pin.version !== '0.2.13') fail('unexpected dsh-univer-office identity')
   if (pin.license !== 'Apache-2.0') fail('dsh-univer-office pin must declare Apache-2.0')
   if (pin.tarball !== `https://registry.npmjs.org/${pin.name}/-/${pin.name}-${pin.version}.tgz`) {
     fail('dsh-univer-office tarball URL does not match the pinned package')
@@ -174,18 +177,10 @@ function validatePackage(pluginRoot, pin) {
   return manifest
 }
 
-function validateCompatibilityPatch(pluginRoot) {
+function validateCompatibilityPatch(pluginRoot, manifest) {
   const clientPath = join(pluginRoot, 'lib', 'client.js')
   const source = readFileSync(clientPath, 'utf8')
-  for (const marker of [
-    'ctx.uiConversation.events.register(univerTurnDefinition)',
-    'snapshot.views.get("chat")',
-  ]) {
-    if (!source.includes(marker)) fail(`dsh-univer-office compatibility patch is missing ${marker}`)
-  }
-  for (const marker of ['conversationEvents', 'session.chat.timeline', 'props.useSession(']) {
-    if (source.includes(marker)) fail(`dsh-univer-office compatibility patch left obsolete marker ${marker}`)
-  }
+  assertUniverClientCompatibility({ version: manifest.version, source })
   return source
 }
 
@@ -219,8 +214,8 @@ function writeReceipt(pluginRoot, pin, clientSource) {
 export function verifyMaterializedUniver(pluginRoot, pinPath = defaultPinPath) {
   const pin = loadUniverPin(pinPath)
   const root = resolve(pluginRoot)
-  validatePackage(root, pin)
-  const client = validateCompatibilityPatch(root)
+  const manifest = validatePackage(root, pin)
+  const client = validateCompatibilityPatch(root, manifest)
   const receipt = JSON.parse(readFileSync(join(root, receiptName), 'utf8'))
   if (receipt.schema !== 'agent-pi-dsh/univer-office-vendor-receipt/v1') fail('invalid dsh-univer-office vendor receipt')
   if (JSON.stringify(receipt.package) !== JSON.stringify({ name: pin.name, version: pin.version, license: pin.license })) {
@@ -275,9 +270,9 @@ export async function materializeDshUniverOffice({
     assertSafeUniverArchive(archive, pin)
     mkdirSync(unpacked, { recursive: true })
     runTar(['-xzf', archive, '-C', unpacked, '--strip-components=1'])
-    validatePackage(unpacked, pin)
+    const manifest = validatePackage(unpacked, pin)
     patchUniverForDshAlpha1({ pluginRoot: unpacked })
-    const client = validateCompatibilityPatch(unpacked)
+    const client = validateCompatibilityPatch(unpacked, manifest)
     writeReceipt(unpacked, pin, client)
 
     const destination = join(productRoot, 'vendor', pin.name)

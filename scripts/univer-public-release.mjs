@@ -16,7 +16,6 @@ export const excludedUniverReleaseFiles = [
   'scripts/install-univer-runtime-deps.mjs',
   'scripts/materialize-dsh-univer-office.mjs',
   'scripts/materialize-dsh-univer-office.test.mjs',
-  'scripts/patch-univer-alpha1.mjs',
   'scripts/patch-univer-alpha1.test.mjs',
   'scripts/univer-runtime-install.test.mjs',
 ]

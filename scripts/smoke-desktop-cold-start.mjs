@@ -10,6 +10,7 @@ const desktopDir = join(root, 'apps', 'desktop')
 const electronExe = join(desktopDir, 'node_modules', 'electron', 'dist', process.platform === 'win32' ? 'electron.exe' : 'electron')
 const pnpmStore = join(root, 'vendor', 'deepseek-harness', 'node_modules', '.pnpm')
 const deadlineMs = Number(process.env.AGENT_PI_COLD_START_MS || 120_000)
+const requireUniver = process.env.AGENT_PI_SMOKE_REQUIRE_UNIVER === '1'
 
 function playwrightEntry() {
   const packageDir = readdirSync(pnpmStore, { withFileTypes: true })
@@ -78,6 +79,18 @@ try {
     timeout: remaining(),
   })
   await page.locator('[data-slot="sidebar"]').waitFor({ state: 'visible', timeout: remaining() })
+  if (requireUniver) {
+    const profile = JSON.parse(readFileSync(join(dshHome, 'profiles', 'tender', 'package.json'), 'utf8'))
+    assert.ok(profile.dsh?.profile?.bundles?.includes('dsh-univer-office'), 'Office must be active in the profile')
+    await page.locator('style[data-plugin="dsh-univer-office"]').first().waitFor({ state: 'attached', timeout: remaining() })
+    const status = await page.evaluate(async () => {
+      const response = await fetch('/univer-api/status')
+      return { status: response.status, contentType: response.headers.get('content-type'), body: await response.json() }
+    })
+    assert.equal(status.status, 200, 'Office host status endpoint must respond')
+    assert.match(status.contentType || '', /application\/json/)
+    assert.notEqual(status.body?.ok, false, 'Office host must not report a startup failure')
+  }
   const continueButton = page.locator('button').filter({ hasText: /继续|Continue/i }).first()
   await continueButton.waitFor({ state: 'visible', timeout: Math.min(3_000, remaining()) })
     .then(() => continueButton.click())
@@ -107,7 +120,7 @@ try {
     elapsedMs,
     limitMs: deadlineMs,
     url: safeUrl(page.url()),
-    checks: ['authenticated-dsh-url', 'sidebar-visible', ...(seedHome ? ['session-files-rail-visible'] : []), 'workbench-interactive', 'no-legacy-api-key-overlay'],
+    checks: ['authenticated-dsh-url', 'sidebar-visible', ...(requireUniver ? ['office-profile-active', 'office-client-active', 'office-host-status'] : []), ...(seedHome ? ['session-files-rail-visible'] : []), 'workbench-interactive', 'no-legacy-api-key-overlay'],
   }))
 } catch (error) {
   mkdirSync(artifactDir, { recursive: true })

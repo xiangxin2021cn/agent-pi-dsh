@@ -33,12 +33,14 @@ synthesized.
 
 ## Optional dsh-univer-office integration
 
-Agent Pi DSH 3.6.0 does **not** distribute `dsh-univer-office` or its Univer
-Pro runtime. The plugin remains discoverable in the in-app market only. Its
+Agent Pi DSH public builds do **not** distribute `dsh-univer-office` or its
+Univer Pro runtime. The plugin remains discoverable in the in-app market. Its
 Apache-2.0 wrapper and its separate commercial runtime have different license
 boundaries; users must obtain and comply with the applicable Univer commercial
-license before installing or using it. Compatibility with DSH 0.1.2-rc.1 is
-not asserted by this release and remains pending verification.
+license before installing or using it. The 3.6.1 compatibility work targets
+wrapper 0.2.13 with DSH 0.1.3-alpha.1; technical validation does not establish
+redistribution rights. Explicit private/OEM builds may preinstall the runtime
+only under the applicable authorization; they are not public release assets.
 
 Source: https://github.com/dream-num/dsh-univer-office
 

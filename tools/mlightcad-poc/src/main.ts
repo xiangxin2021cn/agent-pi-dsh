@@ -8,17 +8,21 @@ import {
   acedApplyUiTheme
 } from '@mlightcad/cad-simple-viewer'
 import {
-  createSimpleUiPlugin,
-  createToolbarSeparator,
-  toolbarPreset
+  createSimpleUiPlugin
 } from '@mlightcad/cad-simple-ui-plugin'
 import {
   AcDbBlockReference,
   AcDbBlockTableRecord,
   AcDbDatabaseConverterManager,
-  AcDbFileType
+  AcDbFileType,
+  acdbHostApplicationServices
 } from '@mlightcad/data-model'
+import { AcGeBox2d } from '@mlightcad/geometry-engine'
 import { AcDbLibreDwgConverter } from '@mlightcad/libredwg-converter'
+import {
+  chooseRobustFitBounds,
+  type CadEntityExtent
+} from './robust-fit'
 import './styles.css'
 
 const viewerHost = requireElement<HTMLElement>('viewer-host')
@@ -32,6 +36,7 @@ const fontInput = requireElement<HTMLInputElement>('font-input')
 const openButton = requireElement<HTMLButtonElement>('open-button')
 const emptyOpenButton = requireElement<HTMLButtonElement>('empty-open-button')
 const fontButton = requireElement<HTMLButtonElement>('font-button')
+const mainFitButton = requireElement<HTMLButtonElement>('main-fit-button')
 const externalButton = requireElement<HTMLButtonElement>('external-button')
 
 const pageBaseUrl = new URL('./', window.location.href)
@@ -42,11 +47,16 @@ const workerUrls = {
   mtextRender: new URL(MTEXT_RENDERER_WORKER_FILE, workerBaseUrl)
 }
 const LOCAL_FALLBACK_FONT = 'Source Han Sans CN'
+const BYTES_PER_MIB = 1024 * 1024
+const MIN_PARSER_TIMEOUT_MS = 120_000
+const MAX_PARSER_TIMEOUT_MS = 600_000
+const PARSER_TIMEOUT_PER_MIB_MS = 5_000
 
 let manager: AcApDocManager | undefined
 let hasOpenedDocument = false
+let openTransactionActive = false
 let drawingRevision = 0
-let currentDrawing: { name: string; content: ArrayBuffer } | undefined
+let currentDrawing: { name: string; load: () => Promise<ArrayBuffer> } | undefined
 
 type CadFrameMessage =
   | { type: 'agent-pi-cad:ready' }
@@ -67,10 +77,12 @@ function setBusy(isBusy: boolean, message = ''): void {
   openButton.disabled = isBusy
   emptyOpenButton.disabled = isBusy
   fontButton.disabled = isBusy
+  mainFitButton.disabled = isBusy || !hasOpenedDocument
 }
 
 function setStatus(message: string, isError = false, isWarning = false): void {
   statusMessage.textContent = message
+  statusMessage.title = message
   statusMessage.classList.toggle('is-error', isError)
   statusMessage.classList.toggle('is-warning', isWarning && !isError)
 }
@@ -179,7 +191,7 @@ function currentMissingFonts(docManager: AcApDocManager): string[] {
   )
 }
 
-async function refreshMissingFontStatusWhenIdle(
+async function refreshDrawingStatusWhenIdle(
   docManager: AcApDocManager,
   revision: number
 ): Promise<void> {
@@ -191,23 +203,141 @@ async function refreshMissingFontStatusWhenIdle(
     console.warn('[mlightcad-poc] Failed to wait for final font status', error)
     return
   }
-  refreshMissingFontStatus(docManager, revision)
+  refreshDrawingStatus(docManager, revision)
 }
 
-function refreshMissingFontStatus(
+function parserTimeoutFor(contentBytes: number): number {
+  const sizeInMiB = Math.max(1, Math.ceil(contentBytes / BYTES_PER_MIB))
+  return Math.min(
+    MAX_PARSER_TIMEOUT_MS,
+    Math.max(MIN_PARSER_TIMEOUT_MS, sizeInMiB * PARSER_TIMEOUT_PER_MIB_MS)
+  )
+}
+
+function currentModelSpaceExtents(docManager: AcApDocManager): CadEntityExtent[] {
+  const extents: CadEntityExtent[] = []
+  const modelSpace = docManager.curDocument.database.tables.blockTable.modelSpace
+  for (const entity of modelSpace.newIterator()) {
+    try {
+      const bounds = entity.geometricExtents
+      extents.push({
+        id: entity.objectId,
+        type: entity.dxfTypeName,
+        min: { x: bounds.min.x, y: bounds.min.y },
+        max: { x: bounds.max.x, y: bounds.max.y }
+      })
+    } catch {
+      // Some proxy entities do not expose usable geometric extents.
+    }
+  }
+  return extents
+}
+
+async function fitMainContent(): Promise<void> {
+  const docManager = manager
+  const revision = drawingRevision
+  if (!docManager || !hasOpenedDocument) return
+
+  const view = docManager.curView
+  const database = docManager.curDocument.database
+  const blockTable = database.tables.blockTable
+  if (!view) return
+  if (view.activeLayoutBtrId !== blockTable.modelSpace.objectId) {
+    setStatus('主体取景仅适用于模型空间；当前为图纸布局，请切换到 Model 后重试。', false, true)
+    return
+  }
+
+  setBusy(true, '正在核对主体范围…')
+  try {
+    await view.waitUntilIdle()
+    if (revision !== drawingRevision || !hasOpenedDocument) return
+    if (view.activeLayoutBtrId !== blockTable.modelSpace.objectId) {
+      setStatus('主体取景仅适用于模型空间；当前为图纸布局，请切换到 Model 后重试。', false, true)
+      return
+    }
+
+    const stored = database.extents
+    const result = chooseRobustFitBounds(currentModelSpaceExtents(docManager), {
+      minX: stored.min.x,
+      minY: stored.min.y,
+      maxX: stored.max.x,
+      maxY: stored.max.y
+    })
+    if (!result) {
+      setStatus('未能取得有效实体范围，当前视图保持不变。', false, true)
+      return
+    }
+
+    if (result.source === 'full') {
+      setStatus('未发现可安全忽略的远端小实体，当前视图保持不变。')
+      return
+    }
+
+    const { bounds } = result
+    view.zoomTo(
+      new AcGeBox2d(
+        { x: bounds.minX, y: bounds.minY },
+        { x: bounds.maxX, y: bounds.maxY }
+      ),
+      1.05
+    )
+
+    setStatus(
+      `主体取景已应用 · 完整包含 ${result.includedCount}/${result.includedCount + result.excludedCount} 个实体 · ` +
+      `${result.excludedCount} 个远端小实体仍保留；使用 Zoom Extents 可恢复全图。`
+    )
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    console.error('[mlightcad-poc] Failed to fit main content', error)
+    setStatus(`主体取景失败：${message}`, true)
+  } finally {
+    setBusy(false)
+  }
+}
+
+function refreshDrawingStatus(
   docManager: AcApDocManager,
   revision: number
 ): void {
   if (revision !== drawingRevision || !hasOpenedDocument) return
-  const missing = currentMissingFonts(docManager)
-  if (missing.length === 0) {
-    setStatus('图纸已打开 · 只读模式')
+  const view = docManager.curView
+  const missed = view?.missedData
+  const missingFonts = currentMissingFonts(docManager)
+  const missingImages = [...(missed?.images.values() ?? [])]
+  const missingXrefs = missed?.xrefs ?? []
+  const layoutCount = acdbHostApplicationServices()
+    .layoutManager
+    .countLayouts(docManager.curDocument.database)
+  const resourceSummary = [
+    `字体 ${missingFonts.length}`,
+    `图像 ${missingImages.length}`,
+    `外部参照 ${missingXrefs.length}`
+  ].join(' · ')
+
+  const details: string[] = []
+  if (missingFonts.length > 0) {
+    details.push(`缺少字体：${missingFonts.slice(0, 4).join('、')}`)
+  }
+  if (missingImages.length > 0) {
+    details.push(`缺少图像：${missingImages.slice(0, 3).join('、')}`)
+  }
+  if (missingXrefs.length > 0) {
+    details.push(
+      `缺少外部参照：${missingXrefs
+        .slice(0, 3)
+        .map((xref) => xref.pathName || xref.name)
+        .join('、')}`
+    )
+  }
+
+  if (details.length === 0) {
+    setStatus(
+      `图纸已打开 · 审阅模式 · 布局 ${layoutCount} · 缺失资源：${resourceSummary}`
+    )
     return
   }
-  const visible = missing.slice(0, 6).join('、')
-  const suffix = missing.length > 6 ? ` 等 ${missing.length} 种` : ''
   setStatus(
-    `图纸已打开，但缺少字体：${visible}${suffix}。请导入图纸配套的 SHX / TTF / OTF 字体。`,
+    `图纸已打开 · 审阅模式 · 布局 ${layoutCount} · 缺失资源：${resourceSummary}。${details.join('；')}`,
     false,
     true
   )
@@ -265,18 +395,8 @@ async function ensureViewer(): Promise<AcApDocManager> {
         },
         toolbar: {
           placement: 'right',
-          items: [
-            toolbarPreset('select'),
-            toolbarPreset('pan'),
-            toolbarPreset('zoom-extent'),
-            createToolbarSeparator('viewer-navigation-end'),
-            toolbarPreset('layer'),
-            toolbarPreset('measure'),
-            createToolbarSeparator('viewer-settings-end'),
-            toolbarPreset('switch-bg'),
-            toolbarPreset('theme'),
-            toolbarPreset('locale')
-          ]
+          items: 'default',
+          collapsible: true
         }
       })
     )
@@ -293,12 +413,14 @@ async function ensureViewer(): Promise<AcApDocManager> {
   return nextManager
 }
 
-async function openDrawing(name: string, content: ArrayBuffer): Promise<void> {
+async function openDrawing(
+  name: string,
+  content: ArrayBuffer,
+  load: () => Promise<ArrayBuffer>
+): Promise<void> {
   const safeName = normalizeDrawingName(name)
   assertSupportedFileName(safeName)
   const revision = ++drawingRevision
-  setBusy(true, `正在解析 ${safeName}…`)
-  setStatus('正在检查离线运行时…')
 
   try {
     const docManager = await ensureViewer()
@@ -308,10 +430,12 @@ async function openDrawing(name: string, content: ArrayBuffer): Promise<void> {
     }
 
     setStatus('正在解析图纸，请稍候…')
-    const opened = await docManager.openDocument(safeName, content.slice(0), {
-      mode: AcEdOpenMode.Read,
+    const opened = await docManager.openDocument(safeName, content, {
+      mode: AcEdOpenMode.Review,
+      minimumChunkSize: 1000,
       openViewMode: AcApOpenViewMode.Extents,
-      progressiveRendering: true
+      progressiveRendering: false,
+      timeout: parserTimeoutFor(content.byteLength)
     })
 
     if (!opened) {
@@ -319,25 +443,45 @@ async function openDrawing(name: string, content: ArrayBuffer): Promise<void> {
     }
 
     hasOpenedDocument = true
-    currentDrawing = { name: safeName, content }
+    currentDrawing = { name: safeName, load }
     drawingName.textContent = safeName
     emptyState.hidden = true
-    refreshMissingFontStatus(docManager, revision)
-    void refreshMissingFontStatusWhenIdle(docManager, revision)
+    refreshDrawingStatus(docManager, revision)
+    void refreshDrawingStatusWhenIdle(docManager, revision)
     postToParent({ type: 'agent-pi-cad:ready' })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     setStatus(message, true)
     if (!hasOpenedDocument) emptyState.hidden = false
     throw error
+  }
+}
+
+async function loadAndOpenDrawing(
+  name: string,
+  load: () => Promise<ArrayBuffer>
+): Promise<void> {
+  const safeName = normalizeDrawingName(name)
+  assertSupportedFileName(safeName)
+  if (openTransactionActive) {
+    throw new Error('已有图纸正在打开，请等待当前解析完成。')
+  }
+
+  openTransactionActive = true
+  setBusy(true, `正在解析 ${safeName}…`)
+  setStatus('正在检查离线运行时…')
+  try {
+    const [content] = await Promise.all([load(), ensureViewer()])
+    await openDrawing(safeName, content, load)
   } finally {
+    openTransactionActive = false
     setBusy(false)
   }
 }
 
 async function openSelectedFile(file: File): Promise<void> {
-  assertSupportedFileName(file.name)
-  await openDrawing(file.name, await file.arrayBuffer())
+  const load = () => file.arrayBuffer()
+  await loadAndOpenDrawing(file.name, load)
 }
 
 async function importFontFiles(files: File[]): Promise<void> {
@@ -370,7 +514,8 @@ async function importFontFiles(files: File[]): Promise<void> {
       throw new Error(`以下字体无法导入：${failed.join('、')}`)
     }
     if (currentDrawing) {
-      await openDrawing(currentDrawing.name, currentDrawing.content)
+      const source = currentDrawing
+      await loadAndOpenDrawing(source.name, source.load)
     } else {
       setStatus(`已导入 ${files.length} 个字体；打开图纸后自动使用。`)
     }
@@ -395,16 +540,19 @@ async function openSameOriginSourceFromQuery(): Promise<void> {
     throw new Error('为避免凭据泄露，src 仅允许同源文件地址。')
   }
 
-  const response = await fetch(sourceUrl, {
-    cache: 'no-store',
-    credentials: 'same-origin'
-  })
-  if (!response.ok) {
-    throw new Error(`读取图纸失败：HTTP ${response.status}`)
+  const load = async (): Promise<ArrayBuffer> => {
+    const response = await fetch(sourceUrl, {
+      cache: 'no-store',
+      credentials: 'same-origin'
+    })
+    if (!response.ok) {
+      throw new Error(`读取图纸失败：HTTP ${response.status}`)
+    }
+    return response.arrayBuffer()
   }
 
   const name = params.get('name') || normalizeDrawingName(path || sourceUrl.pathname)
-  await openDrawing(name, await response.arrayBuffer())
+  await loadAndOpenDrawing(name, load)
 }
 
 function chooseFile(): void {
@@ -418,6 +566,9 @@ function chooseFonts(): void {
 openButton.addEventListener('click', chooseFile)
 emptyOpenButton.addEventListener('click', chooseFile)
 fontButton.addEventListener('click', chooseFonts)
+mainFitButton.addEventListener('click', () => {
+  void fitMainContent()
+})
 fileInput.addEventListener('change', () => {
   const file = fileInput.files?.[0]
   fileInput.value = ''
