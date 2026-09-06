@@ -1,6 +1,6 @@
 # Agent Pi DSH 3.6.2 验证记录
 
-本记录覆盖源代码、Codex RPC 与隔离桌面验证。各测试组可能存在交集，数量不相加；发行资产的完整性以 Release 构建回执及 SHA256 为准。
+本记录覆盖源代码、Codex RPC、隔离桌面验证及后续同版安装器修复。各测试组可能存在交集，数量不相加；发行资产的完整性以对应批次的 Release 构建回执及 SHA256 为准。
 
 ## 内核与构建
 
@@ -34,5 +34,31 @@
 
 ## 验证边界
 
-- 本次未执行实际安装/卸载测试。完整 DSH/runtime 回滚尚未实现。
+- 原发布验证未执行实际安装/卸载测试。后续本机恢复验证的 `installerExecuted` 仍为 `false`。按用户选择，此次重打也不执行真实产品安装、升级或卸载；验证范围为生产 NSIS 隔离升级 fixture 和解包应用独立启动。完整 DSH/runtime 回滚尚未实现。
 - 公开安装包不预装 `dsh-univer-office` 及 Univer Pro 商业运行时。
+
+## 2026-09-06：同版安装器修复重打
+
+用户明确授权替换 GitHub 3.6.2 Windows 安装包，并撤下其他平台资源后重新生成。原 `v3.6.2` annotated tag object 为 `02ea52b7f25c38defa1c9593582ae3ab90c685ee`，原应用提交为 `1aef6820ebc450125788158a4b2d1706115cdd10`。启动故障修复提交 `f06d6e5` 经 PR #19 合并为 `6d3435224eab9a22556527c8f563d3b6bc9cee72`；最终重打提交及资产身份见随附构建回执和对应 GitHub Actions 记录。
+
+### 已确认的故障与修复证据
+
+- 真实 NSIS fixture 复现 `RMDir /r` 沿旧 Office peer junction 删除共享 DSH 文件；独立 Node 清理程序保留链接目标，并覆盖嵌套、循环、顶层 junction、越界目标及删除失败场景。
+- 安装器清理与生命周期回归：21 通过、0 失败、0 跳过；日志 `.codex-temp/installer-runtime-loss-regressions.log`。
+- 安装后 receipt 模式与生命周期回归：30 通过、0 失败、0 跳过；日志 `.codex-temp/installed-receipt-mode-regressions.log`。`verify-installed` 允许旧版额外文件，仍拒绝当前声明文件缺失、同大小内容变化、身份不符及越界 receipt；原构建与发布 `verify` 保持严格。
+- 恢复本机安装目录缺失文件后，3.6.2 真实主界面及侧栏可见，页面错误为 0，认证凭据未改变，模型调用数为 0。此步骤未执行安装器。证据：`.codex-temp/installed-362-startup-repro/installed-launch-result.json`、`installed-main-window.png`。
+
+### CAD 复用来源
+
+- 原 clean CAD workflow run：`34022342224`；artifact：`9985982492`（`cad-clean-release-v3.6.2`）。来源提交仍为 `1aef6820ebc450125788158a4b2d1706115cdd10`。
+- 原对应源码归档 `Agent-Pi-DSH-3.6.2-CAD-corresponding-source.tar.gz` 的 SHA256：`fbc7044499a8e8f87f34cad3a0501b353a9202164fe5dda1990cb43b5d5344af`。
+- 原 `CAD-CLEAN-BUILD.json` 的 SHA256：`d73a1922e3db79075681c22af0ae34bd594ba683f61cd625cd512351dfb4b620`。原完整验证记录：`.codex-temp/cad-release-362-verification.json`；runtime 位于 `.codex-temp/cad-clean-output-release-362/cad-viewer`。
+- `v3.6.2` 至 `f06d6e5` 的修复未改变 CAD Viewer 源码、依赖 pin、工具链或 CAD 构建脚本。`pack-win.ps1` 的修改属于安装器打包检查；虽然该脚本也作为辅助材料存在于原 CAD 源码归档中，它不改变已复用的 CAD 二进制。保留原归档及来源，新增安装器修复由应用源码提交提供。
+- 重打的 CAD 复用门禁核对实际构建输入，并校验原 runtime、对应源码和校验文件；原 CAD manifest 的来源保持不变，新安装器来源单独记录。
+
+### 重打产物与验证记录
+
+- 最终 Windows 构建提交、安装包、运行时载荷及 CAD/DSH 输入身份见 Release 随附的 `Agent-Pi-DSH-3.6.2-x64.exe.build.json`；下载文件使用同批次 `.sha256` 校验。
+- 生产 NSIS 隔离升级 fixture 和解包应用独立 UI 启动的执行结果以重打验证输出为准。这些检查不计为真实产品安装、升级或卸载测试。
+- macOS/Linux 的构建、打包原生模块检查及上传结果见 [build-desktop-assets Actions](https://github.com/xiangxin2021cn/agent-pi-dsh/actions/workflows/build-desktop-assets.yml) 中对应发布提交的运行。
+- 最终标签来源与下载资源清单见 [v3.6.2 Release](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/tag/v3.6.2)，所有重打产物通过校验后发布。本文不预先记载最终构建哈希或未执行检查的成功结果。

@@ -6,6 +6,7 @@ import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { verifyCadCleanRelease } from '../scripts/cad-clean-release.mjs'
+import { assertCadIntegrationUnchanged } from '../scripts/cad-integration-compatibility.mjs'
 import { verifyWindowsBuildReceipt } from '../scripts/windows-build-receipt.mjs'
 import {
   assertUniverPublicReleaseArchive,
@@ -84,9 +85,7 @@ async function assertCadDistributionReady() {
     runtimeDir: cadRuntimeRoot,
   })
   const releaseCommit = execSync('git rev-parse HEAD', { cwd: root, encoding: 'utf8' }).trim()
-  if (manifest.sources.agentPiDshCadIntegration.commit !== releaseCommit) {
-    throw new Error('CAD corresponding source was not built from this exact release commit')
-  }
+  assertCadIntegrationUnchanged({ root, manifest, releaseCommit })
 
   verifyWindowsBuildReceipt({
     root,

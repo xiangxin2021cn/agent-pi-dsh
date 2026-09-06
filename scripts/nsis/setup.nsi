@@ -407,13 +407,16 @@ Section "Install"
   ; Cleanup must finish before the final integrity gate: old Office peers
   ; point into the newly extracted DSH tree during an in-place upgrade.
   DetailPrint "Verifying installed DeepSeek Harness build receipt..."
-  nsExec::ExecToLog '"$PLUGINSDIR\node.exe" "$INSTDIR\resources\runtime\product\scripts\dsh-build-receipt.mjs" verify-installed --dsh "$INSTDIR\resources\runtime\deepseek-harness" --product "$INSTDIR\resources\runtime\product" --receipt "$INSTDIR\resources\runtime\deepseek-harness\DSH-BUILD-RECEIPT.json"'
+  ; Keep this command below NSIS's string limit for long install directories.
+  SetOutPath "$INSTDIR\resources\runtime"
+  nsExec::ExecToLog '"$PLUGINSDIR\node.exe" "product\scripts\dsh-build-receipt.mjs" verify-installed --dsh "deepseek-harness" --product "product" --receipt "deepseek-harness\DSH-BUILD-RECEIPT.json"'
   Pop $0
   StrCmp $0 "0" installed_runtime_verified
     SetErrorLevel 10
     MessageBox MB_OK|MB_ICONSTOP "DSH 运行时完整性校验失败，安装尚未完成。请点「显示详情」查看缺失或变化的必需文件；不要启动此安装，请修复运行时后重试。 DeepSeek Harness runtime integrity verification failed. Setup is incomplete. See Show details for missing or changed required files. Do not launch this installation until its runtime is repaired."
     Abort
   installed_runtime_verified:
+  SetOutPath "$INSTDIR"
   Delete "$INSTDIR\resources\app.asar.old"
   CreateShortCut "$DESKTOP\Agent Pi DSH.lnk" "$INSTDIR\agent-pi-DSH.exe"
   CreateDirectory "$SMPROGRAMS\Agent Pi DSH"

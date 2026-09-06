@@ -100,7 +100,7 @@ test('3.6.2 publisher remains immutable and fails closed before GitHub access un
   const cadLock = readJson('tools', 'mlightcad-poc', 'package-lock.json')
   const publisherPath = join(root, 'release', 'publish-v3.6.2-release.mjs')
   const createRelease = readFileSync(publisherPath, 'utf8')
-  assert.equal(createRelease, readText('release', 'publish-v3.6.1-release.mjs').replaceAll('3.6.1', '3.6.2'))
+  assert.match(createRelease, /assertCadIntegrationUnchanged\(\{ root, manifest, releaseCommit \}\)/)
   assert.doesNotMatch(publish, /--clobber/)
   assert.doesNotMatch(workflow, /--clobber/)
   assert.match(cadWorkflow, /include-hidden-files:\s*true/)
