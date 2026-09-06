@@ -212,7 +212,22 @@ function assertEntries(actual, expected, label) {
   }
 }
 
-export function verifyDshBuildReceipt({ dshRoot, productRoot, receiptPath, requireGit = false }) {
+function assertInstalledEntries(actual, expected, label) {
+  if (!Array.isArray(expected) || expected.length === 0) {
+    throw new Error(`${label} receipt has no file inventory`)
+  }
+  const expectedPaths = new Set(expected.map((entry) => entry?.path))
+  const selected = actual.filter((entry) => expectedPaths.has(entry.path))
+  const present = new Set(selected.map((entry) => entry.path))
+  for (const entry of expected) {
+    if (!present.has(entry?.path)) {
+      throw new Error(`${label} missing receipted file: ${entry?.path}`)
+    }
+  }
+  assertEntries(selected, expected, label)
+}
+
+export function verifyDshBuildReceipt({ dshRoot, productRoot, receiptPath, requireGit = false, installed = false }) {
   const dsh = resolve(dshRoot)
   const product = resolve(productRoot)
   const destination = resolve(receiptPath)
@@ -237,8 +252,16 @@ export function verifyDshBuildReceipt({ dshRoot, productRoot, receiptPath, requi
     const identity = assertExactCleanDsh(dsh, product)
     assertEntries(inventory.sourceFiles, trackedSourceInventory(identity.dsh), 'DSH source checkout')
   }
-  assertEntries(receipt.sourceFiles, inventory.sourceFiles, 'DSH source')
-  assertEntries(receipt.artifacts, inventory.artifacts, 'DSH artifact')
+  if (installed) {
+    // Overlay upgrades can retain files removed by a previous DSH release.
+    // Select only paths found by the bounded runtime walk; receipt paths must
+    // never be used directly to read files outside the installed runtime.
+    assertInstalledEntries(inventory.sourceFiles, receipt.sourceFiles, 'DSH source')
+    assertInstalledEntries(inventory.artifacts, receipt.artifacts, 'DSH artifact')
+  } else {
+    assertEntries(receipt.sourceFiles, inventory.sourceFiles, 'DSH source')
+    assertEntries(receipt.artifacts, inventory.artifacts, 'DSH artifact')
+  }
   return receipt
 }
 
@@ -250,8 +273,8 @@ function value(args, name) {
 
 export function main(args = process.argv.slice(2)) {
   const command = args[0]
-  if (!['build', 'verify'].includes(command)) {
-    throw new Error('Usage: dsh-build-receipt.mjs <build|verify> --dsh <dir> --product <dir> --receipt <file> [--source]')
+  if (!['build', 'verify', 'verify-installed'].includes(command)) {
+    throw new Error('Usage: dsh-build-receipt.mjs <build|verify|verify-installed> --dsh <dir> --product <dir> --receipt <file> [--source]')
   }
   const options = {
     dshRoot: value(args, 'dsh'),
@@ -259,7 +282,7 @@ export function main(args = process.argv.slice(2)) {
     receiptPath: value(args, 'receipt'),
   }
   if (command === 'build') buildDshWithReceipt(options)
-  else verifyDshBuildReceipt({ ...options, requireGit: args.includes('--source') })
+  else verifyDshBuildReceipt({ ...options, requireGit: args.includes('--source'), installed: command === 'verify-installed' })
   process.stdout.write(`DSH ${expectedDshVersion} ${command} receipt verified\n`)
 }
 

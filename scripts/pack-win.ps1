@@ -490,6 +490,13 @@ if ($LASTEXITCODE -ne 0) { throw "verify staged DSH runtime failed" }
 node (Join-Path $Root "scripts\dsh-build-receipt.mjs") verify `
   --dsh $unpackedDsh --product $unpackedProduct --receipt (Join-Path $unpackedDsh $DshReceiptName)
 if ($LASTEXITCODE -ne 0) { throw "verify unpacked DSH build receipt failed" }
+$cleanupSource = Join-Path $Root "scripts\installer-remove-univer-tree.mjs"
+$cleanupPacked = Join-Path $unpackedProduct "scripts\installer-remove-univer-tree.mjs"
+if (-not (Test-Path -LiteralPath $cleanupPacked -PathType Leaf) -or
+    (Get-FileHash -Algorithm SHA256 -LiteralPath $cleanupSource).Hash -ne
+    (Get-FileHash -Algorithm SHA256 -LiteralPath $cleanupPacked).Hash) {
+  throw "unpacked installer Office cleanup helper is missing or stale"
+}
 
 if ($DirOnly) {
   Write-Host "Unpacked app written under $unpacked"
