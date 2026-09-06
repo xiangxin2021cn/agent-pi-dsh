@@ -44,8 +44,12 @@ jobs:
       - name: Verify immutable release ref
         shell: bash
         run: |
-          test "${GITHUB_REF_TYPE}" = "tag"
-          test "${GITHUB_REF_NAME}" = "${{ inputs.tag }}"
+          # Recovery builds use the existing immutable 3.6.1 payload.
+          test "${GITHUB_REF}" = "refs/heads/codex/3.6.1-platform-native-rebuild"
+          test "${{ inputs.tag }}" = "v3.6.1"
+          tag_object="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/v3.6.1" --jq '.object | select(.type == "tag") | .sha')"
+          test -n "${tag_object}"
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/${tag_object}" --jq '.object.sha')" = "b3cf735d527c73881e3583debb2b18a0ca49cfca"
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -70,6 +74,7 @@ jobs:
           node -e 'const fs=require("node:fs"),crypto=require("node:crypto"),path=require("node:path"); for (const checksum of fs.readdirSync("release-inputs").filter((name)=>name.endsWith(".sha256"))) { const text=fs.readFileSync(path.join("release-inputs",checksum),"utf8").trim(); const match=text.match(/^([a-f0-9]{64})  ([^\\/]+)$/); if (!match) throw new Error(`malformed ${checksum}`); const target=path.join("release-inputs",match[2]); if (!fs.existsSync(target)) throw new Error(`missing ${match[2]}`); const actual=crypto.createHash("sha256").update(fs.readFileSync(target)).digest("hex"); if (actual!==match[1]) throw new Error(`SHA256 mismatch for ${match[2]}`); }'
           mkdir -p payload
           tar -xzf release-inputs/runtime-payload-*.tar.gz -C payload
+          node -e 'const m=require("./payload/product/bundles/tender-web/lib/cad-viewer/CAD-CLEAN-BUILD.json"); if(m.sources.agentPiDshCadIntegration.commit!=="b3cf735d527c73881e3583debb2b18a0ca49cfca") throw new Error("release payload commit mismatch")'
           ls payload
 
       - name: Verify clean CAD runtime against corresponding source
@@ -94,7 +99,9 @@ jobs:
 
       - name: Rebuild DSH native modules for the packaged Node ABI
         working-directory: payload/deepseek-harness
-        run: pnpm rebuild node-pty fs-ext
+        run: |
+          pnpm --recursive rebuild node-pty fs-ext koffi
+          node packages/subprocess/subprocess-local/scripts/ensure-spawn-helper.mjs
 
       - name: Install bundle dependencies
         run: |
@@ -113,6 +120,22 @@ jobs:
         run: |
           node-runtime/bin/node payload/product/scripts/verify-dsh-runtime.mjs \
             payload/deepseek-harness payload/product --native
+
+      - name: Verify terminal native module with packaged Node
+        run: |
+          node-runtime/bin/node --input-type=module <<'NODE'
+          import { createRequire } from 'node:module'
+          const require = createRequire(`${process.cwd()}/payload/deepseek-harness/packages/subprocess/subprocess-local/package.json`)
+          const terminal = require('node-pty').spawn('/bin/sh', ['-c', 'printf agent-pi-native-ok'])
+          let output = ''
+          terminal.onData((data) => { output += data })
+          const timeout = setTimeout(() => { terminal.kill(); process.exit(1) }, 10000)
+          terminal.onExit(({ exitCode }) => {
+            clearTimeout(timeout)
+            if (exitCode !== 0 || !output.includes('agent-pi-native-ok')) process.exit(1)
+            console.log('terminal native module verified')
+          })
+          NODE
 
       - name: Stage runtime
         run: |
