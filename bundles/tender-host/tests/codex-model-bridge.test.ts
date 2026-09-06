@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { createRequire } from 'node:module'
 import { PassThrough } from 'node:stream'
 import { test } from 'node:test'
 import { apply as applyProvider } from '../src/codex-provider.ts'
@@ -101,6 +102,12 @@ test('official Codex wire receives each concurrent task model while default rema
   ])
   assert.deepEqual(h.threads.map((thread) => thread.model).sort(), ['gpt-5.4-mini', 'gpt-5.6-sol', undefined])
   assert.equal(h.threads.filter((thread) => !Object.hasOwn(thread, 'model')).length, 1)
+  const wrapper = createRequire(import.meta.url).resolve('@openai/codex/bin/codex.js')
+  for (const spec of h.spawnSpecs) {
+    assert.equal(spec.argv[0], process.execPath)
+    assert.equal(spec.argv[1], wrapper)
+    assert.deepEqual(spec.argv.slice(2), ['app-server', '--stdio'])
+  }
   for (const thread of h.threads) {
     assert.equal(thread.approvalPolicy, 'on-request')
     assert.equal(thread.approvalsReviewer, 'auto_review')
@@ -137,5 +144,37 @@ test('foreground cancellation reaches the official run and releases its subproce
 test('blank native model is rejected before a subprocess starts', () => {
   const h = harness()
   assert.throws(() => h.execute({ model: '   ' }), /non-empty model id/)
+  assert.equal(h.children.length, 0)
+})
+
+test('concurrent reasoning overrides reach only their own official Codex process', { timeout: 5000 }, async () => {
+  const h = harness()
+  assert.equal(h.tool.parameters.properties.reasoningEffort.type, 'string')
+  await Promise.all([
+    h.execute({ model: 'gpt-5.6-sol', reasoningEffort: 'ultra', run_in_background: false }),
+    h.execute({ model: 'gpt-5.6-luna', reasoningEffort: 'low', run_in_background: false }),
+    h.execute({ reasoningEffort: 'max', run_in_background: false }),
+    h.execute({ run_in_background: false }),
+  ])
+  const overrides = h.spawnSpecs.map((spec) => {
+    const index = spec.argv.indexOf('--config')
+    assert.equal(spec.argv.at(-2), 'app-server')
+    assert.equal(spec.argv.at(-1), '--stdio')
+    return index === -1 ? undefined : spec.argv[index + 1]
+  })
+  assert.deepEqual(overrides, [
+    'model_reasoning_effort="ultra"', 'model_reasoning_effort="low"',
+    'model_reasoning_effort="max"', undefined,
+  ])
+  assert.equal(Object.hasOwn(h.config, 'reasoningEffort'), false)
+  assert.ok(h.children.every((child) => child.terminated === 1))
+  assert.ok(h.threads.every((thread) => thread.sandbox === 'workspace-write'))
+})
+
+test('invalid reasoning effort is rejected before spawning Codex', () => {
+  const h = harness()
+  for (const reasoningEffort of ['', ' ', 'high\nmodel="other"', 3, null]) {
+    assert.throws(() => h.execute({ reasoningEffort }), /supported effort id/)
+  }
   assert.equal(h.children.length, 0)
 })

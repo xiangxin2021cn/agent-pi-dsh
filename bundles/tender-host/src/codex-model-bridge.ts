@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 
 // Native Codex models never enter the DSH child-LLM routing parameters.
-const selectedModel = new AsyncLocalStorage<string | undefined>()
+const selectedOptions = new AsyncLocalStorage<{ model?: string; reasoningEffort?: string }>()
 type Context = Record<string, any>
 type PluginApply = (ctx: Context, config: Record<string, any>) => void
 
@@ -16,12 +16,28 @@ function withService(ctx: Context, name: string, service: unknown): Context {
 }
 
 /** Keep the official provider's cwd, sandbox, subprocess and run lifecycle. */
-export function applyCodexModelProvider(ctx: Context, config: Record<string, any>, apply: PluginApply): void {
-  const createProvider = (options: Record<string, any>) => {
+export function applyCodexModelProvider(ctx: Context, config: Record<string, any>, apply: PluginApply, wrapperPath: string): void {
+  const createProvider = (options: Record<string, any>, reasoningEffort?: string) => {
     let provider: any
-    apply(withService(ctx, 'subagents', {
+    let providerContext = withService(ctx, 'subagents', {
       registerProvider(value: unknown) { provider = value },
-    }), options)
+    })
+    const subprocess = new Proxy(ctx.subprocess, {
+      get(target, key) {
+        if (key === 'spawn') return (spec: any) => target.spawn({
+          ...spec,
+          argv: [
+            spec.argv[0], wrapperPath,
+            ...(reasoningEffort === undefined ? [] : ['--config', `model_reasoning_effort=${JSON.stringify(reasoningEffort)}`]),
+            ...spec.argv.slice(2),
+          ],
+        })
+        const value = Reflect.get(target, key, target)
+        return typeof value === 'function' ? value.bind(target) : value
+      },
+    })
+    providerContext = withService(providerContext, 'subprocess', subprocess)
+    apply(providerContext, options)
     if (!provider) throw new Error('Codex provider did not register')
     return provider
   }
@@ -31,8 +47,11 @@ export function applyCodexModelProvider(ctx: Context, config: Record<string, any
     capabilities: provider.capabilities,
     inheritsParentContext: provider.inheritsParentContext,
     start(request: unknown) {
-      const model = selectedModel.getStore()
-      const instance = model === undefined ? provider : createProvider({ ...config, model })
+      const selected = selectedOptions.getStore()
+      const instance = selected === undefined || (!selected.model && !selected.reasoningEffort) ? provider : createProvider({
+        ...config,
+        ...(selected.model === undefined ? {} : { model: selected.model }),
+      }, selected.reasoningEffort)
       return instance.start(request)
     },
   })
@@ -57,14 +76,25 @@ export function applyCodexModelTool(ctx: Context, config: Record<string, any>, a
               minLength: 1,
               description: 'Native Codex model id for this task only. Omit to use the configured Codex default. Do not supply a DSH LLM provider.',
             },
+            reasoningEffort: {
+              type: 'string',
+              minLength: 1,
+              description: 'Codex reasoning effort for this task only, chosen from the selected model supportedReasoningEfforts. Omit to use the configured Codex default.',
+            },
           },
         },
         execute(args: Record<string, unknown>, exec: unknown) {
-          const { model, ...delegation } = args
+          const { model, reasoningEffort, ...delegation } = args
           if (model !== undefined && (typeof model !== 'string' || !model.trim())) {
             throw new Error('Codex model must be a non-empty model id')
           }
-          return selectedModel.run(model === undefined ? undefined : model.trim(), () => (
+          if (reasoningEffort !== undefined && (typeof reasoningEffort !== 'string' || !/^[a-z][a-z0-9_-]*$/.test(reasoningEffort))) {
+            throw new Error('Codex reasoning effort must be a supported effort id')
+          }
+          return selectedOptions.run({
+            ...(model === undefined ? {} : { model: (model as string).trim() }),
+            ...(reasoningEffort === undefined ? {} : { reasoningEffort: reasoningEffort as string }),
+          }, () => (
             definition.execute(delegation, exec)
           ))
         },

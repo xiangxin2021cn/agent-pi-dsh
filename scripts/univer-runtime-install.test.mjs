@@ -41,9 +41,10 @@ test('Univer development installer resolves only production dependencies', () =>
   assert.doesNotMatch(installer, /'install'/)
 })
 
-test('public profile and runtime packaging do not install Univer Pro dependencies', () => {
+test('profile startup uses preinstalled Office while platform builds prepare and verify its native dependencies', () => {
   assert.doesNotMatch(script, /installUniverRuntimeDeps/)
-  assert.doesNotMatch(workflow, /install-univer-runtime-deps\.mjs/)
+  assert.match(workflow, /install-univer-runtime-deps\.mjs/)
+  assert.match(workflow, /install-univer-runtime-deps\.mjs[^\r\n]*--verify-only/)
   assert.match(workflow, /univer-public-release\.mjs assert-tree/)
 })
 
@@ -79,14 +80,14 @@ test('tracked Univer production lock exactly matches the pinned 0.2.13 dependenc
   }
 })
 
-test('Windows package defaults to the public boundary and gates licensed preinstall explicitly', () => {
-  assert.match(windowsRuntime, /\[switch\]\$IncludeLicensedUniver/)
+test('Windows package requires complete official Office by default and verifies the shipped runtime', () => {
+  assert.match(windowsRuntime, /\[switch\]\$IncludeLicensedUniver\s*=\s*\$true/)
   assert.match(windowsRuntime, /if \(\$IncludeLicensedUniver\)/)
   assert.match(windowsRuntime, /vendor\\dsh-univer-office/)
-  assert.match(windowsRuntime, /univer-public-release\.mjs[^\r\n]*sanitize/)
+  assert.doesNotMatch(windowsRuntime, /univer-public-release\.mjs[^\r\n]*sanitize/)
   const windowsPack = readFileSync(join(scripts, 'pack-win.ps1'), 'utf8')
   assert.match(windowsPack, /resources\\runtime\\node\\node\.exe/)
-  assert.match(windowsPack, /\[switch\]\$IncludeLicensedUniver/)
+  assert.match(windowsPack, /\[switch\]\$IncludeLicensedUniver\s*=\s*\$true/)
   assert.match(windowsPack, /install-univer-runtime-deps\.mjs/)
   assert.match(windowsPack, /verify-product[^\r\n]*--required/)
   assert.match(windowsPack, /univer-public-release\.mjs[\s\S]+assert-tree/)

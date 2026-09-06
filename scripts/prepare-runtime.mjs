@@ -10,6 +10,8 @@
 //
 // The dsh tree must already contain built lib/ output, apps/web/dist, and a
 // platform-correct node_modules (run `pnpm install --prod` in it first).
+// The product must include the pinned Office plugin with target-platform
+// dependencies installed by install-univer-runtime-deps.mjs.
 
 import { cpSync, existsSync, mkdirSync, rmSync, statSync, chmodSync, copyFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'

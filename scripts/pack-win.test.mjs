@@ -103,17 +103,27 @@ test('v3.6.0 and later packaging rejects stale-runtime reuse switches', (t) => {
   }
 })
 
-test('licensed Univer packaging is explicit, freshly materialized, and verified as required', () => {
-  assert.match(packSource, /\[switch\]\$IncludeLicensedUniver/)
+test('official Univer is included by default, freshly materialized, and verified as required', () => {
+  assert.match(packSource, /\[switch\]\$IncludeLicensedUniver\s*=\s*\$true/)
   assert.match(packSource, /IncludeLicensedUniver[\s\S]*materialize-dsh-univer-office\.mjs/)
   assert.match(packSource, /IncludeLicensedUniver[\s\S]*install-univer-runtime-deps\.mjs/)
   assert.match(packSource, /prepare-win-runtime\.ps1[^\r\n]*-IncludeLicensedUniver/)
   assert.match(packSource, /DINCLUDE_LICENSED_UNIVER=1/)
   assert.match(packSource, /installer-univer-lifecycle\.mjs"\) verify-product[^\r\n]*--required/)
-  assert.match(prepareRuntimeSource, /\[switch\]\$IncludeLicensedUniver/)
+  assert.match(prepareRuntimeSource, /\[switch\]\$IncludeLicensedUniver\s*=\s*\$true/)
   assert.match(prepareRuntimeSource, /vendor\\dsh-univer-office/)
-  assert.match(prepareRuntimeSource, /installer-univer-lifecycle\.mjs"\) verify-product[^\r\n]*--required/)
-  assert.match(prepareRuntimeSource, /if \(\$IncludeLicensedUniver\)[\s\S]*else[\s\S]*univer-public-release\.mjs"\) sanitize/)
+  assert.match(prepareRuntimeSource, /univer-public-release\.mjs"\) assert-tree \$Product/)
+  assert.doesNotMatch(prepareRuntimeSource, /univer-public-release\.mjs[^\r\n]*sanitize/)
+  assert.doesNotMatch(runtimePayloadSource, /removeBundledUniverFromProduct/)
+  assert.match(runtimePayloadSource, /vendor\/dsh-univer-office/)
+  assert.match(runtimePayloadSource, /runtime:\s*false/)
+})
+
+test('Windows packaging rejects an explicit attempt to omit official Office before building', (t) => {
+  const result = makeToolchainFixture(t, 0, { version: '3.6.2', extraArgs: ['-IncludeLicensedUniver:$false'] })
+  assert.notEqual(result.status, 0)
+  assert.match(`${result.stdout}\n${result.stderr}`, /require the complete official Univer Office plugin/)
+  assert.deepEqual(result.log, [])
 })
 
 test('Windows packaging preserves and validates the explicit clean CAD runtime', () => {

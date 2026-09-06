@@ -3,11 +3,12 @@ param(
   [switch]$DirOnly,
   [switch]$ReuseUnpacked,
   [switch]$ToolchainOnly,
-  [switch]$IncludeLicensedUniver,
+  [switch]$IncludeLicensedUniver = $true,
   [string]$CadCleanOutput = $env:AGENT_PI_CAD_CLEAN_OUTPUT
 )
 
 $ErrorActionPreference = "Stop"
+if (-not $IncludeLicensedUniver) { throw "Desktop releases require the complete official Univer Office plugin" }
 $Root = Split-Path -Parent $PSScriptRoot
 $Desktop = Join-Path $Root "apps\desktop"
 $AppVersion = (Get-Content (Join-Path $Desktop "package.json") -Raw | ConvertFrom-Json).version
@@ -252,15 +253,19 @@ if ($ToolchainOnly) {
 }
 
 if ($IncludeLicensedUniver) {
-  # Private/OEM build path only. This explicit switch does not grant a Univer
-  # Pro redistribution license; the builder must hold the applicable rights.
-  & node (Join-Path $Root "scripts\materialize-dsh-univer-office.mjs")
-  if ($LASTEXITCODE -ne 0) { throw "licensed Univer materialization failed" }
-  $licensedUniver = Join-Path $Root "vendor\dsh-univer-office"
-  & node (Join-Path $Root "scripts\install-univer-runtime-deps.mjs") $licensedUniver
-  if ($LASTEXITCODE -ne 0) { throw "licensed Univer runtime dependency installation failed" }
+  # Ship the complete pinned upstream plugin, including its original licenses.
+  & node (Join-Path $Root "scripts\univer-public-release.mjs") assert-tree $Root *> $null
+  if ($LASTEXITCODE -ne 0) {
+    & node (Join-Path $Root "scripts\materialize-dsh-univer-office.mjs")
+    if ($LASTEXITCODE -ne 0) { throw "official Univer materialization failed" }
+    $licensedUniver = Join-Path $Root "vendor\dsh-univer-office"
+    & node (Join-Path $Root "scripts\install-univer-runtime-deps.mjs") $licensedUniver
+    if ($LASTEXITCODE -ne 0) { throw "official Univer runtime dependency installation failed" }
+  }
   & node (Join-Path $Root "scripts\installer-univer-lifecycle.mjs") verify-product $Root --required
   if ($LASTEXITCODE -ne 0) { throw "licensed Univer source verification failed" }
+  & node (Join-Path $Root "scripts\univer-public-release.mjs") assert-tree $Root
+  if ($LASTEXITCODE -ne 0) { throw "official Univer source verification failed" }
 }
 
 if (-not $CadCleanOutput) { $CadCleanOutput = Join-Path $Root ".codex-temp\cad-clean-output" }
@@ -330,10 +335,8 @@ if (-not (Test-Path (Join-Path $Biz "node_modules\zod"))) {
   Write-Host "Installing business-core dependencies..."
   Invoke-NpmInstall $Biz "business-core"
 }
-if (-not (Test-Path (Join-Path $TenderHost "node_modules\pdf-lib"))) {
-  Write-Host "Installing tender-host locked dependencies..."
-  Invoke-NpmCi $TenderHost "tender-host"
-}
+Write-Host "Installing tender-host locked dependencies, including the product Codex CLI..."
+Invoke-NpmCi $TenderHost "tender-host"
 
 Write-Host "Using verified clean MLightCAD viewer from $CadCleanOutput"
 
@@ -450,7 +453,7 @@ if (Test-Path $unpackedProduct) {
     & node (Join-Path $Root "scripts\installer-univer-lifecycle.mjs") verify-product $unpackedProduct --required
     if ($LASTEXITCODE -ne 0) { throw "unpacked licensed Univer verification failed" }
   } else {
-    & node (Join-Path $Root "scripts\univer-public-release.mjs") sanitize $unpackedProduct
+    & node (Join-Path $Root "scripts\univer-public-release.mjs") assert-tree $unpackedProduct
     if ($LASTEXITCODE -ne 0) { throw "unpacked public Univer release boundary failed" }
   }
   $retiredSkill = Join-Path $unpackedProduct "skills\j-space"
@@ -468,10 +471,8 @@ if (Test-Path $unpackedProduct) {
     }
   }
 }
-if (-not $IncludeLicensedUniver) {
-  & node (Join-Path $Root "scripts\univer-public-release.mjs") assert-tree $unpackedProduct
-  if ($LASTEXITCODE -ne 0) { throw "unpacked product contains a bundled Univer Pro integration" }
-}
+& node (Join-Path $Root "scripts\univer-public-release.mjs") assert-tree $unpackedProduct
+if ($LASTEXITCODE -ne 0) { throw "unpacked official Univer distribution is incomplete" }
 $unpackedCadViewer = Join-Path $unpackedProduct "bundles\tender-web\lib\cad-viewer"
 Install-CadCleanRuntime $unpackedCadViewer "unpacked runtime"
 # ReuseUnpacked keeps the previous electron-builder asar. The NSIS filename

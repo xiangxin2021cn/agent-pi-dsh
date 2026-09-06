@@ -1,11 +1,12 @@
 param(
   [switch]$FullCopy,
   [switch]$Measure,
-  [switch]$IncludeLicensedUniver,
+  [switch]$IncludeLicensedUniver = $true,
   [string]$DshBuildReceipt
 )
 
 $ErrorActionPreference = "Stop"
+if (-not $IncludeLicensedUniver) { throw "Desktop releases require the complete official Univer Office plugin" }
 $Root = Split-Path -Parent $PSScriptRoot
 $Desktop = Join-Path $Root "apps\desktop"
 $Runtime = Join-Path $Desktop "runtime"
@@ -96,8 +97,7 @@ $productItems = @(
   "vendor\anysearch-dsh.pin"
 )
 if ($IncludeLicensedUniver) {
-  # Private/OEM build path only. The switch is technical opt-in and does not
-  # grant redistribution rights; the caller must hold the applicable license.
+  # Keep the official plugin and its upstream licenses in every desktop build.
   $productItems += @(
     "vendor\dsh-univer-office",
     "vendor\dsh-univer-office.pin"
@@ -149,16 +149,8 @@ function Stage-ProjectNodeModules([string]$projectRelative, [string]$requiredPac
 Stage-ProjectNodeModules "packages\business-core" "zod"
 Stage-ProjectNodeModules "bundles\tender-host" "pdf-lib"
 
-if ($IncludeLicensedUniver) {
-  & $node (Join-Path $Product "scripts\installer-univer-lifecycle.mjs") verify-product $Product --required
-  if ($LASTEXITCODE -ne 0) { throw "licensed Univer runtime verification failed" }
-} else {
-  # Public builds keep the optional Office integration in the market. They do
-  # not redistribute its commercial Univer Pro runtime or an obsolete vendor
-  # link left by an earlier build.
-  & $node (Join-Path $Root "scripts\univer-public-release.mjs") sanitize $Product
-  if ($LASTEXITCODE -ne 0) { throw "public Univer release boundary failed" }
-}
+& $node (Join-Path $Root "scripts\univer-public-release.mjs") assert-tree $Product
+if ($LASTEXITCODE -ne 0) { throw "official Univer runtime verification failed" }
 
 $dshLink = Get-Item -LiteralPath $Dsh
 if ($dshLink.LinkType) {

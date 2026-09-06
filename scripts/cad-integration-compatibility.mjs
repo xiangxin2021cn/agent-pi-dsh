@@ -51,6 +51,12 @@ function inputTree(root, commit) {
   return entries
 }
 
+function noticesOutsideOffice(text) {
+  const section = /^## (?:Optional )?dsh-univer-office integration\r?\n(?:(?!^## )[\s\S])*/gm
+  if ([...text.matchAll(section)].length !== 1) return null
+  return text.replace(section, '')
+}
+
 // Call after verifyCadCleanRelease: this supplements, never replaces, archive,
 // source, toolchain, evidence and runtime hash verification.
 export function assertCadIntegrationUnchanged({ root, manifest, releaseCommit = 'HEAD' }) {
@@ -73,7 +79,18 @@ export function assertCadIntegrationUnchanged({ root, manifest, releaseCommit = 
   const original = inputTree(root, source.commit)
   const current = inputTree(root, target)
   const changed = [...new Set([...original.keys(), ...current.keys()])]
-    .filter((path) => original.get(path) !== current.get(path))
+    .filter((path) => {
+      if (original.get(path) === current.get(path)) return false
+      // Office notices do not enter the CAD build. All other notices and the
+      // file's mode/type remain bound to the original corresponding source.
+      if (path === 'THIRD_PARTY_NOTICES.md'
+          && original.get(path)?.split(' ').slice(0, 2).join(' ') === current.get(path)?.split(' ').slice(0, 2).join(' ')) {
+        const before = noticesOutsideOffice(git(root, ['show', `${source.commit}:${path}`]))
+        const after = noticesOutsideOffice(git(root, ['show', `${target}:${path}`]))
+        if (before !== null && before === after) return false
+      }
+      return true
+    })
   if (changed.length > 0) fail(`CAD inputs changed since ${source.commit}: ${changed.join(', ')}`)
   if (git(root, ['status', '--porcelain=v1', '--untracked-files=all', '--', ...CAD_INPUT_PATHS]).trim()) {
     fail('CAD inputs have uncommitted changes')

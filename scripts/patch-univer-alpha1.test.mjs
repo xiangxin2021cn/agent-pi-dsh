@@ -127,7 +127,7 @@ test('development and materialization entrypoints enforce Univer alpha.1 compati
   }
 })
 
-test('development vendoring and explicit licensed packaging keep the materializer while public packages sanitize Univer', () => {
+test('development vendoring and all desktop packages materialize the official compatible Office plugin', () => {
   const root = join(import.meta.dirname, '..')
   const vendorSource = readFileSync(join(root, 'scripts/vendor-dsh-plugins.ps1'), 'utf8')
   const windowsSource = readFileSync(join(root, 'scripts/pack-win.ps1'), 'utf8')
@@ -139,6 +139,7 @@ test('development vendoring and explicit licensed packaging keep the materialize
   assert.match(windowsSource, /materialize-dsh-univer-office/)
   assert.match(windowsSource, /univer-public-release/)
   assert.match(portableSource, /univer-public-release/)
-  assert.doesNotMatch(portableSource, /materialize-dsh-univer-office/)
-  assert.doesNotMatch(portableSource, /verifyMaterializedUniver/)
+  assert.match(portableSource, /materialize-dsh-univer-office/)
+  assert.match(portableSource, /await materializeDshUniverOffice\(/)
+  assert.doesNotMatch(portableSource, /removeBundledUniverFromProduct|sanitize/)
 })

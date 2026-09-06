@@ -12,6 +12,7 @@ import {
 import { liveWorkerLimitLineEn } from './concurrency.ts'
 import { formatSelectedKbContext } from './kb.ts'
 import { projectMemoryContextForSession } from './orchestration.ts'
+import { businessProjectForAgent } from './business-activation.ts'
 
 const TENDER_PROMPT = `You are running inside Agent Pi DSH: DeepSeek Harness plus a construction tender/delivery/investment workbench.
 
@@ -51,7 +52,7 @@ Delivery and investment modules use the same rule: skills write packs on disk un
 
 export function registerPrompt(ctx: {
   systemPrompt?: {
-    section: (section: { name: string; order: number; text: string }) => unknown
+    section: (section: { name: string; order: number; text: string | ((assemble: { agent?: Parameters<typeof businessProjectForAgent>[0] }) => string) }) => unknown
     context?: (context: {
       name: string
       order: number
@@ -174,7 +175,7 @@ export function registerPrompt(ctx: {
   ctx.systemPrompt?.section({
     name: 'agent-pi:tender',
     order: 42,
-    text: TENDER_PROMPT,
+    text: (assemble) => businessProjectForAgent(assemble.agent) ? TENDER_PROMPT : '',
   })
   ctx.systemPrompt?.context?.({
     name: 'agent-pi:kb-catalog',

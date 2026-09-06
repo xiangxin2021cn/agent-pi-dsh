@@ -1469,8 +1469,16 @@ window.__ModuleLoader__.load({
 		//#region src/client/knowledge-base-panel.js
 		function createKnowledgeBasePanel(dependencies) {
 			const { Icon, KB_PRESET_CATEGORIES, React, apJoin, api, apiBlob, desktopApi, diskPathOf, downloadBlob, ensureKbFileInput, fileIconClass, fileIconName, fileName, formatKbBytes, groupKbEntries, h, kbCategoryHint, kbCategoryLabel, kbChatImportCopy, kbFidelityLabel, kbIngestKind, kbIngestLabel, kbLandingCardVisible, kbPickPatch, kbPickState, kbPickUpsert, kbProgressText, kbTitle, mergeKbEntries, normalizePickedPaths, parkKbFileInput, resolveSessionId, runtime, sortKbCategories, tAp, uploadKbBytes, useApLang } = dependencies;
+			const newDraftKey = () => "kb-draft:" + Date.now().toString(36) + ":" + Math.random().toString(36).slice(2);
+			let draftKey = newDraftKey();
+			const kbDraftKey = () => draftKey;
+			const pendingSelections = /* @__PURE__ */ new Map();
+			function kbSessionKey(sessionId) {
+				const sid = String(sessionId || "").trim();
+				return sid && sid !== "active" ? sid : draftKey;
+			}
 			function kbTaskStorageKey(sessionId) {
-				return "ap-kb-task:" + (sessionId || "active");
+				return "ap-kb-task:" + kbSessionKey(sessionId);
 			}
 			function readKbTaskSlugs(sessionId) {
 				try {
@@ -1489,7 +1497,7 @@ window.__ModuleLoader__.load({
 				return window.__apKbTask || (window.__apKbTask = { bySession: {} });
 			}
 			function publishKbTask(sessionId, slugs, entries) {
-				const sid = sessionId || "active";
+				const sid = kbSessionKey(sessionId);
 				const picked = (entries || []).filter((entry) => entry && slugs.indexOf(entry.slug) >= 0);
 				kbTaskStore().bySession[sid] = {
 					slugs: (slugs || []).slice(),
@@ -1498,13 +1506,56 @@ window.__ModuleLoader__.load({
 				writeKbTaskSlugs(sid, slugs);
 			}
 			function kbTaskOf(sessionId) {
-				const sid = sessionId || "active";
+				const sid = kbSessionKey(sessionId);
 				const published = kbTaskStore().bySession[sid];
 				if (published && Array.isArray(published.slugs)) return published;
 				return {
 					slugs: readKbTaskSlugs(sid),
 					entries: []
 				};
+			}
+			function persistKbTask(sessionId, slugs, entries, cwd) {
+				const sid = kbSessionKey(sessionId);
+				publishKbTask(sid, slugs, entries);
+				if (sid === draftKey) return Promise.resolve(slugs);
+				const published = kbTaskStore().bySession[sid];
+				const request = (pendingSelections.get(sid) || Promise.resolve()).catch(() => {}).then(() => api("/api/agent-pi/kb", cwd || "", {
+					method: "POST",
+					body: JSON.stringify({
+						action: "select",
+						slugs,
+						sessionId: sid
+					})
+				})).then((body) => {
+					if (kbTaskStore().bySession[sid] === published && body && Array.isArray(body.selectedSlugs)) publishKbTask(sid, body.selectedSlugs.map(String), entries);
+					return kbTaskOf(sid).slugs;
+				});
+				pendingSelections.set(sid, request);
+				request.then(() => {
+					if (pendingSelections.get(sid) === request) pendingSelections.delete(sid);
+				}, () => {});
+				return request;
+			}
+			function resetDraftKbTask() {
+				delete kbTaskStore().bySession[draftKey];
+				try {
+					sessionStorage.removeItem(kbTaskStorageKey(draftKey));
+				} catch {}
+				draftKey = newDraftKey();
+			}
+			function claimDraftKbTask(sessionId, createdFromDraft = false, expectedDraftKey = draftKey) {
+				const sid = String(sessionId || "").trim();
+				if (!createdFromDraft || expectedDraftKey !== draftKey || !sid || sid === "active") return Promise.resolve([]);
+				const task = kbTaskOf(draftKey);
+				resetDraftKbTask();
+				return persistKbTask(sid, task.slugs, task.entries);
+			}
+			async function flushKbTaskSelection(sessionId) {
+				const sid = kbSessionKey(sessionId);
+				while (pendingSelections.has(sid)) await pendingSelections.get(sid);
+			}
+			function hasKbTaskSelectionSave(sessionId) {
+				return pendingSelections.has(kbSessionKey(sessionId));
 			}
 			function formatKbTaskBlock(sessionId) {
 				const task = kbTaskOf(sessionId);
@@ -1520,7 +1571,7 @@ window.__ModuleLoader__.load({
 			function KnowledgeBasePanel(props) {
 				useApLang();
 				const cwd = props.cwd || "";
-				const sessionId = props.sessionId || resolveSessionId(props) || runtime.sessionId || "active";
+				const sessionId = kbSessionKey(props.sessionId || resolveSessionId(props) || runtime.sessionId);
 				const inputStyle = {
 					flex: "1 1 160px",
 					minWidth: 0,
@@ -1540,7 +1591,18 @@ window.__ModuleLoader__.load({
 				const [customCategory, setCustomCategory] = React.useState("");
 				const [addName, setAddName] = React.useState("");
 				const [pickedLabel, setPickedLabel] = React.useState("");
-				const [selectedSlugs, setSelectedSlugs] = React.useState(() => readKbTaskSlugs(sessionId));
+				const [selection, setSelection] = React.useState(() => ({
+					sessionId,
+					slugs: readKbTaskSlugs(sessionId)
+				}));
+				const selectedSlugs = selection.sessionId === sessionId ? selection.slugs : kbTaskOf(sessionId).slugs;
+				const setSelectedSlugs = (slugs) => setSelection({
+					sessionId,
+					slugs
+				});
+				const sessionRef = React.useRef(sessionId);
+				sessionRef.current = sessionId;
+				const loadVersion = React.useRef(0);
 				const selectedRef = React.useRef(selectedSlugs);
 				selectedRef.current = selectedSlugs;
 				const [query, setQuery] = React.useState("");
@@ -1559,27 +1621,21 @@ window.__ModuleLoader__.load({
 				const PRESET_CATEGORIES = KB_PRESET_CATEGORIES;
 				const resolveCategory = () => addCategory === "__custom__" ? customCategory.trim() || "未分类" : addCategory.trim() || "规范";
 				const persistSelection = React.useCallback((slugs, entries) => {
+					setError("");
 					selectedRef.current = slugs;
-					publishKbTask(sessionId, slugs, entries || []);
-					return api("/api/agent-pi/kb", cwd, {
-						method: "POST",
-						body: JSON.stringify({
-							action: "select",
-							slugs,
-							sessionId
-						})
-					}).then((body) => {
-						if (body && Array.isArray(body.selectedSlugs)) {
-							const next = body.selectedSlugs.map(String);
-							selectedRef.current = next;
-							publishKbTask(sessionId, next, entries || []);
-							return next;
-						}
+					return persistKbTask(sessionId, slugs, entries || [], cwd).then((next) => {
+						if (sessionRef.current === sessionId) selectedRef.current = next;
+						return next;
+					}).catch((e) => {
+						if (sessionRef.current === sessionId) setError(String(e.message || e));
 						return slugs;
-					}).catch(() => slugs);
+					});
 				}, [cwd, sessionId]);
 				const load = React.useCallback((preferredSlugs) => {
+					const version = ++loadVersion.current;
+					const before = kbTaskStore().bySession[sessionId];
 					return api("/api/agent-pi/kb?sessionId=" + encodeURIComponent(sessionId), cwd, { method: "GET" }).then((body) => {
+						if (sessionRef.current !== sessionId || version !== loadVersion.current) return body;
 						const merged = mergeKbEntries(body && body.entries || [], kbPickState.entries);
 						kbPickState.entries = merged.filter((entry) => String(entry && entry.slug || "").indexOf("local:") === 0);
 						if (!kbLandingCardVisible(kbPickState.pickedLabel, merged)) {
@@ -1596,13 +1652,16 @@ window.__ModuleLoader__.load({
 						setError(kbPickState.error || "");
 						const fromServer = Object.prototype.hasOwnProperty.call(body, "selectedSlugs") && Array.isArray(body.selectedSlugs) ? body.selectedSlugs.map(String) : null;
 						const local = readKbTaskSlugs(sessionId);
-						const next = preferredSlugs || (fromServer && fromServer.length ? fromServer : null) || (local.length ? local : fromServer || []);
+						const current = kbTaskStore().bySession[sessionId];
+						const next = current && (current !== before || pendingSelections.has(sessionId) || sessionId === draftKey) ? current.slugs : fromServer || preferredSlugs || local;
 						selectedRef.current = next;
 						setSelectedSlugs(next);
 						publishKbTask(sessionId, next, body && body.entries || []);
 						if (body && !Object.prototype.hasOwnProperty.call(body, "mineru")) setNotice(tAp("kb.oldHostMineru"));
 						return body;
-					}).catch((e) => setError(String(e.message || e)));
+					}).catch((e) => {
+						if (sessionRef.current === sessionId && version === loadVersion.current) setError(String(e.message || e));
+					});
 				}, [cwd, sessionId]);
 				React.useEffect(() => {
 					load();
@@ -1649,10 +1708,6 @@ window.__ModuleLoader__.load({
 							return kbTitle(entries.find((item) => item.slug === slug));
 						}).join("、") }));
 						setNotice("");
-						const next = selectedRef.current.concat(newlyReady).filter((item, index, all) => all.indexOf(item) === index);
-						selectedRef.current = next;
-						setSelectedSlugs(next);
-						persistSelection(next, entries);
 					}
 					parsingRef.current = parsing;
 					if (!parsing.length) return void 0;
@@ -2140,12 +2195,21 @@ window.__ModuleLoader__.load({
 						sessionId,
 						force: options && options.force === true,
 						preferMineru: options && options.force === true
-					}, "parse").then((result) => {
+					}, "parse").then(async (result) => {
 						if (!result) return;
 						const started = result.started || [];
+						const requested = started.concat(result.skipped || []);
+						const next = kbTaskOf(sessionId).slugs.concat(requested).filter((item, index, all) => all.indexOf(item) === index);
+						if (requested.length) await persistKbTask(sessionId, next, data && data.entries || [], cwd);
+						if (sessionRef.current !== sessionId) return result;
+						selectedRef.current = next;
+						setSelectedSlugs(next);
 						if (started.length) setNotice(tAp("kb.parseStarted", { n: started.length }));
 						else setNotice(tAp("kb.parseNone"));
-						return load(selectedRef.current);
+						return load(next);
+					}).catch((e) => {
+						if (sessionRef.current === sessionId) setError(String(e.message || e));
+						return null;
 					});
 				};
 				const doSearch = () => {
@@ -2617,8 +2681,66 @@ window.__ModuleLoader__.load({
 			return {
 				KnowledgeBasePanel,
 				formatKbTaskBlock,
-				kbTaskOf
+				kbTaskOf,
+				claimDraftKbTask,
+				flushKbTaskSelection,
+				hasKbTaskSelectionSave,
+				resetDraftKbTask,
+				kbDraftKey
 			};
+		}
+		//#endregion
+		//#region src/client/kb-session-bridge.js
+		const installed = /* @__PURE__ */ new WeakSet();
+		const workspacesInstalled = /* @__PURE__ */ new WeakSet();
+		/** Native workspace navigation may reuse a blank instead of creating a session. */
+		function installKbWorkspaceBridge(sessions, uiWorkspace, kb) {
+			if (!sessions || !uiWorkspace || typeof uiWorkspace.connectWorkspace !== "function" || workspacesInstalled.has(uiWorkspace)) return;
+			workspacesInstalled.add(uiWorkspace);
+			const connect = uiWorkspace.connectWorkspace.bind(uiWorkspace);
+			uiWorkspace.connectWorkspace = async (...args) => {
+				const snapshot = sessions.list?.getSnapshot?.();
+				const epoch = snapshot && !snapshot.current ? kb.kbDraftKey() : null;
+				const sessionId = await connect(...args);
+				if (epoch) kb.claimDraftKbTask(sessionId, true, epoch).catch(() => {});
+				return sessionId;
+			};
+		}
+		/** Only a successful native create owns selections made in the no-session draft. */
+		function installKbSessionBridge(sessions, kb, onSelection) {
+			if (!sessions || installed.has(sessions)) return;
+			installed.add(sessions);
+			if (typeof sessions.create === "function") {
+				const create = sessions.create.bind(sessions);
+				sessions.create = async (options) => {
+					const snapshot = sessions.list?.getSnapshot?.();
+					const epoch = snapshot && !snapshot.current && !options?.sessionId ? kb.kbDraftKey() : null;
+					const sessionId = await create(options);
+					if (epoch) kb.claimDraftKbTask(sessionId, true, epoch).catch(() => {});
+					return sessionId;
+				};
+			}
+			if (typeof sessions.clear === "function") {
+				const clear = sessions.clear.bind(sessions);
+				sessions.clear = (...args) => {
+					const result = clear(...args);
+					if (!sessions.list?.getSnapshot?.()?.current) {
+						kb.resetDraftKbTask();
+						onSelection("");
+					}
+					return result;
+				};
+			}
+			for (const method of ["open", "openSubagent"]) {
+				if (typeof sessions[method] !== "function") continue;
+				const open = sessions[method].bind(sessions);
+				sessions[method] = (...args) => {
+					const result = open(...args);
+					kb.resetDraftKbTask();
+					onSelection(sessions.list?.getSnapshot?.()?.current || "");
+					return result;
+				};
+			}
 		}
 		//#endregion
 		//#region src/client/native-attachment-adapter.js
@@ -3598,11 +3720,28 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 `;
 		//#endregion
 		//#region src/codex-turn.ts
-		function buildCodexTurnDelegation(task, model) {
+		function codexTurnModel(status, selectedModel) {
+			return status.models?.find((model) => model.id === (selectedModel || status.defaultModel)) ?? (!selectedModel ? status.model ?? null : null);
+		}
+		function codexSupportsEffort(model, effort) {
+			return !!effort && model?.supportedReasoningEfforts?.some((item) => item.reasoningEffort === effort) === true;
+		}
+		function resolveCodexTurnSelection(status, selectedModel, selectedEffort) {
+			const model = codexTurnModel(status, selectedModel);
+			if (!selectedModel && status.modelError) throw new Error("无法确认默认 Codex 模型，请刷新模型列表或选择可用模型后重试。");
+			if (selectedModel && !model) throw new Error("所选 Codex 模型当前不可用，请刷新模型列表并重新选择。");
+			if (selectedEffort && !codexSupportsEffort(model, selectedEffort)) throw new Error("所选 Codex 思考等级当前不可用，请刷新模型列表并重新选择。");
+			const inherited = codexSupportsEffort(model, status.selectedReasoningEffort) ? status.selectedReasoningEffort : codexSupportsEffort(model, model?.defaultReasoningEffort) ? model?.defaultReasoningEffort : null;
+			return {
+				model: selectedModel || status.defaultModel || null,
+				reasoningEffort: selectedEffort || inherited || null
+			};
+		}
+		function buildCodexTurnDelegation(task, model, reasoningEffort) {
 			const original = String(task || "").trim();
 			if (!original) throw new Error("Codex delegation requires a non-empty task");
 			return `【Codex 执行模式】
-你是 DSH 主智能体。必须立即调用 subagent_codex，将 run_in_background=false；不要先自行完成任务。请把下方用户任务、明确文件路径、必要上下文和验收目标整理成独立委派，等待 Codex 完成，核验实际结果后再向用户汇报。${model ? `\n本次 Codex 模型由用户指定：调用 subagent_codex 时必须设置 model=${JSON.stringify(model)}，不要替换为其他模型。` : ""}
+你是 DSH 主智能体。必须立即调用 subagent_codex，将 run_in_background=false；不要先自行完成任务。请把下方用户任务、明确文件路径、必要上下文和验收目标整理成独立委派，等待 Codex 完成，核验实际结果后再向用户汇报。${model ? `\n本次 Codex 模型由用户指定：调用 subagent_codex 时必须设置 model=${JSON.stringify(model)}，不要替换为其他模型。` : ""}${reasoningEffort ? `\n本次 Codex 思考等级：调用 subagent_codex 时必须设置 reasoningEffort=${JSON.stringify(reasoningEffort)}。` : ""}
 
 【用户原始任务】
 ${original}`;
@@ -5381,7 +5520,9 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			return {
 				phase: "idle",
 				selectedModel: "",
+				selectedReasoningEffort: "",
 				capturedModel: null,
+				capturedReasoningEffort: null,
 				capturedNativeAttachmentIds: [],
 				latestProps: latestProps || null,
 				attemptToken: null,
@@ -5425,10 +5566,17 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			const phase = codexTurnPhase(props);
 			return phase === "armed" || phase === "preparing" || phase === "submitting";
 		}
-		function setCodexTurnModel(props, model) {
+		function setCodexTurnModel(props, model, status) {
 			const controller = codexTurnController(props, true);
 			if (controller.phase !== "idle" && controller.phase !== "armed") return;
 			controller.selectedModel = String(model || "");
+			if (!codexSupportsEffort(codexTurnModel(status || {}, controller.selectedModel), controller.selectedReasoningEffort)) controller.selectedReasoningEffort = "";
+			notifyCodexTurn();
+		}
+		function setCodexTurnReasoningEffort(props, effort) {
+			const controller = codexTurnController(props, true);
+			if (controller.phase !== "idle" && controller.phase !== "armed") return;
+			controller.selectedReasoningEffort = String(effort || "");
 			notifyCodexTurn();
 		}
 		function setCodexTurnArmed(props, armed) {
@@ -5472,6 +5620,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			controller.originalDraft = "";
 			controller.framedDraft = "";
 			controller.capturedModel = null;
+			controller.capturedReasoningEffort = null;
 			controller.capturedNativeAttachmentIds = [];
 			controller.capturedAttachmentIds = [];
 			controller.capturedAttachments = [];
@@ -5668,7 +5817,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			}
 			const live = controller.latestProps;
 			const attachmentIds = codexAttachmentIds(codexAttachItems(key));
-			if (!sessionSnapshot || !inputSnapshot || inputSnapshot.phase !== "plain" || typeof inputSnapshot.draft !== "string" || inputSnapshot.draft !== controller.originalDraft || !live || codexTurnKey(live) !== key || !sameCodexAttachmentIds(attachmentIds, controller.capturedAttachmentIds) || !sameCodexAttachmentIds(nativeCodexAttachmentIds(inputSnapshot), controller.capturedNativeAttachmentIds)) {
+			if (!sessionSnapshot || !inputSnapshot || inputSnapshot.phase !== "plain" || typeof inputSnapshot.draft !== "string" || inputSnapshot.draft !== controller.originalDraft || !live || codexTurnKey(live) !== key || !sameCodexAttachmentIds(attachmentIds, controller.capturedAttachmentIds) || !sameCodexAttachmentIds(nativeCodexAttachmentIds(inputSnapshot), controller.capturedNativeAttachmentIds) || !sameCodexAttachmentIds(kbTaskOf(key).slugs, controller.capturedKbSlugs)) {
 				rearmCodexTurn(key, controller);
 				return null;
 			}
@@ -5709,6 +5858,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			disposeCodexTurnSessionSubscription(controller);
 			controller.phase = "idle";
 			controller.selectedModel = "";
+			controller.selectedReasoningEffort = "";
 			if (capturedIds.length) setCodexAttachItems(key, remaining);
 			notifyCodexTurn();
 		}
@@ -7820,7 +7970,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			}
 			const live = controller.latestProps;
 			const attachmentIds = codexAttachmentIds(codexAttachItems(key));
-			if (!sessionSnapshot || !inputSnapshot || inputSnapshot.phase !== "plain" || inputSnapshot.draft !== controller.originalDraft || !live || attachmentTurnKey(live) !== key || !sameCodexAttachmentIds(attachmentIds, controller.capturedAttachmentIds)) {
+			if (!sessionSnapshot || !inputSnapshot || inputSnapshot.phase !== "plain" || inputSnapshot.draft !== controller.originalDraft || !live || attachmentTurnKey(live) !== key || !sameCodexAttachmentIds(attachmentIds, controller.capturedAttachmentIds) || !sameCodexAttachmentIds(nativeCodexAttachmentIds(inputSnapshot), controller.capturedNativeAttachmentIds) || !sameCodexAttachmentIds(kbTaskOf(key).slugs, controller.capturedKbSlugs)) {
 				abortAttachmentTurn(key, controller);
 				return null;
 			}
@@ -7835,7 +7985,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			const clean = stripMentionArtifacts(controller.originalDraft);
 			const attachLine = formatAttachVisible(controller.capturedAttachments);
 			const block = formatKbTaskBlock(key);
-			const fallback = controller.capturedAttachments.length ? "请结合附件作答。" : "";
+			const fallback = controller.capturedAttachments.length || controller.capturedNativeAttachmentIds.length ? "请结合附件作答。" : "";
 			const body = [clean, attachLine].filter(Boolean).join("\n\n");
 			const draft = block ? body ? block + "\n\n" + body : block + (fallback ? "\n\n" + fallback : "") : body || fallback;
 			const marker = attachmentTransactionMarker(token);
@@ -7844,6 +7994,15 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		async function prepareAttachmentTurn(key, token) {
 			const controller = attachmentTurnControllers.get(key);
 			if (!controller || controller.phase !== "preparing" || controller.attemptToken !== token) return;
+			try {
+				await flushKbTaskSelection(key);
+			} catch {
+				token.prepareSettled = true;
+				abortAttachmentTurn(key, controller);
+				showToast("知识库选项尚未保存，请重试选择后再发送。");
+				return;
+			}
+			if (!preparingAttachmentTurn(key, token)) return;
 			if (controller.capturedAttachments.some((item) => item.cwd && controller.cwd && normPath(item.cwd) !== normPath(controller.cwd))) {
 				token.prepareSettled = true;
 				abortAttachmentTurn(key, controller);
@@ -7913,6 +8072,13 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				cancelAttachmentTurnHost(key, controller, token);
 				failAttachmentTurn(key, controller, prepared.inputStore);
 				showToast(String(error && error.message || error));
+				return;
+			}
+			try {
+				if (hasKbTaskSelectionSave(key)) await flushKbTaskSelection(key);
+			} catch {
+				abortAttachmentTurn(key, controller);
+				showToast("知识库选项尚未保存，请重试选择后再发送。");
 				return;
 			}
 			prepared = preparingAttachmentTurn(key, token);
@@ -8008,6 +8174,8 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				framedDraft: "",
 				capturedAttachments: attachments,
 				capturedAttachmentIds: codexAttachmentIds(attachments),
+				capturedNativeAttachmentIds: nativeCodexAttachmentIds(inputSnapshot),
+				capturedKbSlugs: kbTaskOf(key).slugs.slice(),
 				preSubmitUserNodeWatermark: -1,
 				preSubmitPromptErrorRef: sessionSnapshot.promptError || null,
 				preSubmitPromptErrorToken: JSON.stringify(sessionSnapshot.promptError || null),
@@ -8046,13 +8214,19 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			const block = formatKbTaskBlock(key);
 			const fallback = items.length || controller.capturedNativeAttachmentIds.length ? "请结合附件作答。" : "";
 			const body = [clean, attachLine].filter(Boolean).join("\n\n");
-			const delegation = buildCodexTurnDelegation(block ? body ? block + "\n\n" + body : block + (fallback ? "\n\n" + fallback : "") : body || fallback, controller.capturedModel);
+			const delegation = buildCodexTurnDelegation(block ? body ? block + "\n\n" + body : block + (fallback ? "\n\n" + fallback : "") : body || fallback, controller.capturedModel, controller.capturedReasoningEffort);
 			const marker = attachmentTransactionMarker(token);
 			return marker ? delegation + "\n\n" + marker : delegation;
 		}
 		async function prepareCodexTurn(key, token) {
 			const desktop = window.agentPiDesktop;
 			let status;
+			try {
+				await flushKbTaskSelection(key);
+			} catch {
+				failCodexPreparation(key, token, "知识库选项尚未保存，请重试选择后再发送。");
+				return;
+			}
 			try {
 				status = !desktop || typeof desktop.codexAuthStatus !== "function" ? null : await desktop.codexAuthStatus();
 				if (!status || status.available !== true || status.state !== "logged-in") throw new Error("Codex unavailable");
@@ -8062,16 +8236,14 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			}
 			let prepared = preparingCodexTurn(key, token);
 			if (!prepared) return;
-			const selectedModel = prepared.controller.selectedModel;
-			if (!selectedModel && status.modelError) {
-				failCodexPreparation(key, token, "无法确认默认 Codex 模型，请刷新模型列表或选择可用模型后重试。");
+			try {
+				const selected = resolveCodexTurnSelection(status, prepared.controller.selectedModel, prepared.controller.selectedReasoningEffort);
+				prepared.controller.capturedModel = selected.model;
+				prepared.controller.capturedReasoningEffort = selected.reasoningEffort;
+			} catch (error) {
+				failCodexPreparation(key, token, error.message);
 				return;
 			}
-			if (selectedModel && !(status.models || []).some((model) => model.id === selectedModel)) {
-				failCodexPreparation(key, token, "所选 Codex 模型当前不可用，请刷新模型列表并重新选择。");
-				return;
-			}
-			prepared.controller.capturedModel = selectedModel || status.defaultModel || null;
 			const items = prepared.controller.capturedAttachments;
 			const cwd = prepared.live && prepared.live.cwd || workspaceCwd(prepared.live);
 			if (items.some((item) => item.cwd && cwd && normPath(item.cwd) !== normPath(cwd))) {
@@ -8143,6 +8315,12 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				cancelAttachmentTurnHost(key, controller, token);
 				failCodexTurn(key, controller, prepared.inputStore);
 				showToast(String(error && error.message || error));
+				return;
+			}
+			try {
+				if (hasKbTaskSelectionSave(key)) await flushKbTaskSelection(key);
+			} catch {
+				failCodexPreparation(key, token, "知识库选项尚未保存，请重试选择后再发送。");
 				return;
 			}
 			prepared = preparingCodexTurn(key, token);
@@ -8229,6 +8407,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			controller.phase = "preparing";
 			controller.attemptToken = token;
 			controller.capturedNativeAttachmentIds = nativeCodexAttachmentIds(inputSnapshot);
+			controller.capturedKbSlugs = kbTaskOf(key).slugs.slice();
 			controller.originalDraft = inputSnapshot.draft;
 			controller.framedDraft = "";
 			controller.capturedAttachments = attachments;
@@ -8265,12 +8444,12 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				restoreCleanDraft(live);
 				const sid = sessionHint(live) || runtime.sessionId || "active";
 				const hasAttach = codexAttachItems(attachmentKey).length > 0;
-				const hasKb = kbTaskOf(sid).slugs.length > 0;
+				const hasKb = kbTaskOf(sid).slugs.length > 0 || hasKbTaskSelectionSave(sid);
 				if (hasAttach) {
 					submitAttachmentTurn(live);
 					return;
 				}
-				if (hasKb && stripMentionArtifacts(currentDraft(live))) {
+				if (hasKb && (stripMentionArtifacts(currentDraft(live)) || nativeCodexAttachmentIds(live.input).length)) {
 					submitAttachmentTurn(live);
 					return;
 				}
@@ -8740,7 +8919,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				onClick: () => props.onToggle(path)
 			}, "移除")))) : h("p", { className: "ap-sub" }, "可暂不添加，进入项目后继续上传。"));
 		}
-		const { KnowledgeBasePanel, formatKbTaskBlock, kbTaskOf } = createKnowledgeBasePanel({
+		const { KnowledgeBasePanel, formatKbTaskBlock, kbTaskOf, claimDraftKbTask, flushKbTaskSelection, hasKbTaskSelectionSave, resetDraftKbTask, kbDraftKey } = createKnowledgeBasePanel({
 			Icon,
 			KB_PRESET_CATEGORIES,
 			React: react,
@@ -10705,48 +10884,10 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				alt: item.name
 			}) : Icon(item.kind === "folder" ? "folder" : item.kind === "text" ? "fileText" : "file", 16)), item.kind === "image" ? null : h("div", { className: "ap-attach-meta" }, h("strong", { title: item.path || item.relativePath || item.name }, item.name))))));
 		}
-		function ProfessionalProjectStarter(props) {
-			const session = props && props.session;
-			const cwd = props && props.cwd;
-			const pending = session && Array.isArray(session.pendingSubmissions) ? session.pendingSubmissions.length : 0;
-			const queued = session && Array.isArray(session.queue) ? session.queue.length : 0;
-			if (!cwd || !session || session.blank !== true || session.running || pending || queued) return null;
-			const choices = [
-				{
-					module: MODULES.tender,
-					label: "投标项目"
-				},
-				{
-					module: MODULES.delivery,
-					label: "项管项目"
-				},
-				{
-					module: MODULES.investment,
-					label: "投资项目"
-				}
-			];
-			return h("section", {
-				className: "ap-project-starter",
-				"aria-label": "新建专业工作台项目"
-			}, h("div", { className: "ap-project-starter-copy" }, h("strong", null, "新建专业工作台项目"), h("span", null, "当前主对话将绑定项目；登记资料后，从工作台明确点击推进并在这里开始执行。")), h("div", { className: "ap-project-starter-actions" }, choices.map((choice) => h("button", {
-				key: choice.module.id,
-				type: "button",
-				className: "ap-btn" + (choice.module.id === "tender" ? " primary" : ""),
-				onClick: () => window.dispatchEvent(new CustomEvent("agent-pi-open-create", { detail: {
-					cwd,
-					module: choice.module.id,
-					mode: "create",
-					source: "blank-conversation"
-				} }))
-			}, moduleIconNode(choice.module, 14), choice.label))));
-		}
 		function AttachmentDock(props) {
-			const cwd = captureComposerFace(props);
+			captureComposerFace(props);
 			wrapComposerSubmit(snapshotComposer());
-			return h(ProfessionalProjectStarter, {
-				session: props && props.session,
-				cwd
-			});
+			return null;
 		}
 		function ensureComposerAttachHost() {
 			const card = document.querySelector("[data-composer-card]");
@@ -11980,8 +12121,13 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			const zh = useApLang() === "zh";
 			const controller = codexTurnController(composer, false);
 			const selectedModel = controller && controller.selectedModel || "";
+			const selectedEffort = controller && controller.selectedReasoningEffort || "";
 			const models = auth.models || [];
 			const model = auth.model;
+			const turnModel = codexTurnModel(auth, selectedModel);
+			const efforts = turnModel && turnModel.supportedReasoningEfforts || [];
+			const inheritedEffort = codexSupportsEffort(turnModel, auth.selectedReasoningEffort) ? auth.selectedReasoningEffort : turnModel && turnModel.defaultReasoningEffort;
+			const inheritedLabel = auth.selectedReasoningEffort && !codexSupportsEffort(turnModel, auth.selectedReasoningEffort) ? zh ? "使用本模型默认" : "Use this model’s default" : zh ? "跟随设置" : "Use saved setting";
 			const defaultLabel = model && (model.displayName || model.id) || auth.defaultModel;
 			const locked = codexTurnPhase(composer) !== "armed";
 			return h("span", { className: "ap-codex-model-control" }, h("select", {
@@ -11990,14 +12136,28 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				title: zh ? "仅用于下一条 Codex 执行消息" : "Applies only to the next Codex message",
 				value: selectedModel,
 				disabled: locked || refreshing || auth.state !== "logged-in" || !models.length,
-				onChange: (event) => setCodexTurnModel(composer, event.target.value)
+				onChange: (event) => setCodexTurnModel(composer, event.target.value, auth)
 			}, h("option", { value: "" }, refreshing ? zh ? "正在读取模型…" : "Loading models…" : (zh ? "默认模型" : "Default model") + (defaultLabel ? " · " + defaultLabel : "")), selectedModel && !models.some((entry) => entry.id === selectedModel) && h("option", {
 				value: selectedModel,
 				disabled: true
 			}, selectedModel + (zh ? "（不可用）" : " (unavailable)")), models.map((entry) => h("option", {
 				key: entry.id,
 				value: entry.id
-			}, entry.displayName || entry.id))), !refreshing && (!models.length || auth.modelError) && h("button", {
+			}, entry.displayName || entry.id))), h("select", {
+				className: "ap-codex-model-select",
+				"aria-label": zh ? "本次 Codex 思考等级" : "Codex reasoning effort for this message",
+				title: zh ? "仅用于下一条 Codex 执行消息；未选择时使用与本次模型兼容的默认等级" : "Applies to the next Codex message; otherwise use a compatible default effort",
+				value: selectedEffort,
+				disabled: locked || refreshing || auth.state !== "logged-in" || !efforts.length,
+				onChange: (event) => setCodexTurnReasoningEffort(composer, event.target.value)
+			}, h("option", { value: "" }, inheritedLabel + (inheritedEffort ? " · " + inheritedEffort : "")), selectedEffort && !codexSupportsEffort(turnModel, selectedEffort) && h("option", {
+				value: selectedEffort,
+				disabled: true
+			}, selectedEffort + (zh ? "（不可用）" : " (unavailable)")), efforts.map((entry) => h("option", {
+				key: entry.reasoningEffort,
+				value: entry.reasoningEffort,
+				title: entry.description
+			}, entry.reasoningEffort))), !refreshing && (!models.length || auth.modelError) && h("button", {
 				type: "button",
 				className: "ap-toolbtn",
 				disabled: locked,
@@ -12082,6 +12242,22 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					setModelBusy(false);
 				}
 			};
+			const saveReasoningEffort = async (effort) => {
+				if (modelBusy || !desktop || typeof desktop.codexSetDefaultReasoningEffort !== "function") return;
+				setModelBusy(true);
+				setModelMessage("");
+				try {
+					const next = await desktop.codexSetDefaultReasoningEffort(effort || null);
+					if (!next || next.state !== "logged-in") throw new Error("Invalid Codex reasoning preference");
+					setAuth(next);
+					setModelMessage(zh ? "默认思考等级已保存，下次 Codex 调用生效。" : "Default reasoning effort saved for the next Codex call.");
+					window.dispatchEvent(new Event("agent-pi-codex-model-changed"));
+				} catch {
+					setModelMessage(zh ? "思考等级保存失败，请刷新列表后重试。" : "Could not save the reasoning effort. Refresh the list and retry.");
+				} finally {
+					setModelBusy(false);
+				}
+			};
 			const saveCompaction = async () => {
 				if (!compactionBridgeAvailable || compactionBusy) return;
 				const nextEnabled = !compactionEnabled;
@@ -12144,10 +12320,25 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			}, auth.selectedModel + (zh ? "（不可用）" : " (unavailable)")), (auth.models || []).map((entry) => h("option", {
 				key: entry.id,
 				value: entry.id
-			}, entry.displayName || entry.id))), h("p", { className: "ap-sub" }, zh ? "用于 Codex 子智能体调用；主对话开启“Codex 执行”后可单独选择本次模型。" : "Used for Codex subagent calls. Enable Codex execution in the composer to override it for one message."), (auth.modelError || modelMessage) && h("p", {
+			}, entry.displayName || entry.id))), h("label", { htmlFor: "ap-codex-default-reasoning" }, zh ? "默认 Codex 思考等级" : "Default Codex reasoning effort"), h("select", {
+				id: "ap-codex-default-reasoning",
+				className: "ap-codex-model-select",
+				value: auth.selectedReasoningEffort || "",
+				disabled: modelBusy || refreshing || !model || typeof desktop.codexSetDefaultReasoningEffort !== "function",
+				onChange: (event) => {
+					saveReasoningEffort(event.target.value);
+				}
+			}, h("option", { value: "" }, (zh ? "跟随模型默认" : "Use the model default") + (model && model.defaultReasoningEffort ? " · " + model.defaultReasoningEffort : "")), auth.selectedReasoningEffort && !codexSupportsEffort(model, auth.selectedReasoningEffort) && h("option", {
+				value: auth.selectedReasoningEffort,
+				disabled: true
+			}, auth.selectedReasoningEffort + (zh ? "（不可用）" : " (unavailable)")), (model && model.supportedReasoningEfforts || []).map((entry) => h("option", {
+				key: entry.reasoningEffort,
+				value: entry.reasoningEffort,
+				title: entry.description
+			}, entry.reasoningEffort))), h("p", { className: "ap-sub" }, zh ? "用于 Codex 子智能体调用；主对话开启“Codex 执行”后可单独选择本次模型和思考等级。切换默认模型会清除不兼容的已保存等级。" : "Used for Codex subagent calls. Enable Codex execution to choose a model and effort for one message. Changing the default model clears an incompatible saved effort."), (auth.modelError || auth.reasoningEffortError || modelMessage) && h("p", {
 				className: "ap-sub",
 				role: "status"
-			}, auth.modelError || modelMessage)), loggedIn && h("p", { className: "ap-sub" }, model ? [
+			}, auth.modelError || auth.reasoningEffortError || modelMessage)), loggedIn && h("p", { className: "ap-sub" }, model ? [
 				h("strong", { key: "id" }, model.id),
 				h("br", { key: "break" }),
 				zh ? "上下文窗口：" : "Context window: ",
@@ -12277,8 +12468,29 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			ctx.inject(["sessions"], (scope) => {
 				runtime.sessions = scope.sessions || ctx.sessions || (typeof scope.get === "function" ? scope.get("sessions") : null) || runtime.sessions;
 				guardArchivedSessionView(runtime.sessions);
+				installKbSessionBridge(runtime.sessions, {
+					claimDraftKbTask,
+					resetDraftKbTask,
+					kbDraftKey
+				}, (sessionId) => {
+					runtime.sessionId = sessionId;
+					composerFace.sessionId = sessionId;
+					composerFace.inputActions = null;
+					if (!sessionId) {
+						runtime.cwd = "";
+						composerFace.cwd = "";
+						composerFace.draft = "";
+						composerFace.input = { draft: "" };
+					}
+				});
 				watchWorkbenchTransactionRestore();
 				ensureUserRequirementWatcher(runtime.sessionId);
+			});
+			ctx.inject(["sessions", "uiWorkspace"], (scope) => {
+				installKbWorkspaceBridge(scope.sessions || runtime.sessions, scope.uiWorkspace || ctx.uiWorkspace, {
+					claimDraftKbTask,
+					kbDraftKey
+				});
 			});
 			ctx.inject(["conversation"], (scope) => {
 				runtime.conversation = scope.conversation || ctx.conversation || (typeof scope.get === "function" ? scope.get("conversation") : null) || runtime.conversation;

@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 import {
   expectedDshCommit,
+  verifyCodexRuntime,
   verifyDshRuntime,
 } from './verify-dsh-runtime.mjs'
 
@@ -24,6 +25,12 @@ function fixture() {
     )
   }
   writeFileSync(join(product, 'DSH_PIN'), `${expectedDshCommit}\n`)
+  const host = join(product, 'bundles', 'tender-host')
+  const codex = join(host, 'node_modules', '@openai', 'codex')
+  mkdirSync(join(codex, 'bin'), { recursive: true })
+  writeFileSync(join(host, 'package.json'), '{"dependencies":{"@openai/codex":"0.153.4"}}\n')
+  writeFileSync(join(codex, 'package.json'), '{"name":"@openai/codex","version":"0.153.4"}\n')
+  writeFileSync(join(codex, 'bin', 'codex.js'), "console.log('codex-cli 0.153.4')\n")
   return { root, dsh, product }
 }
 
@@ -82,4 +89,20 @@ test('native CLI check fails if either staged dependency is absent', (t) => {
   ], { encoding: 'utf8' })
   assert.notEqual(result.status, 0)
   assert.match(result.stderr, /Cannot find module 'fs-ext'/)
+})
+
+test('Codex runtime gate rejects an old CLI, missing native executable, or mismatched executable version', (t) => {
+  const { root, product } = fixture()
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const codex = join(product, 'bundles/tender-host/node_modules/@openai/codex')
+  assert.equal(verifyCodexRuntime(product).version, '0.153.4')
+  writeFileSync(join(codex, 'package.json'), '{"version":"0.149.1"}\n')
+  assert.throws(() => verifyCodexRuntime(product), /exact dependency pin/)
+  writeFileSync(join(codex, 'package.json'), '{"version":"0.153.4"}\n')
+  for (const script of ["console.log('codex-cli 0.149.1')", 'process.exitCode = 1']) {
+    writeFileSync(join(codex, 'bin/codex.js'), script)
+    assert.throws(() => verifyCodexRuntime(product), /executable is missing, incompatible, or differs/)
+  }
+  rmSync(join(codex, 'bin/codex.js'))
+  assert.throws(() => verifyCodexRuntime(product), /Cannot find module|Codex CLI executable is missing/)
 })

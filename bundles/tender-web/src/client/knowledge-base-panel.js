@@ -39,8 +39,16 @@ export function createKnowledgeBasePanel(dependencies) {
     useApLang,
   } = dependencies
 
+    const newDraftKey = () => 'kb-draft:' + Date.now().toString(36) + ':' + Math.random().toString(36).slice(2)
+    let draftKey = newDraftKey()
+    const kbDraftKey = () => draftKey
+    const pendingSelections = new Map()
+    function kbSessionKey(sessionId) {
+      const sid = String(sessionId || '').trim()
+      return sid && sid !== 'active' ? sid : draftKey
+    }
     function kbTaskStorageKey(sessionId) {
-      return 'ap-kb-task:' + (sessionId || 'active')
+      return 'ap-kb-task:' + kbSessionKey(sessionId)
     }
     function readKbTaskSlugs(sessionId) {
       try {
@@ -55,16 +63,55 @@ export function createKnowledgeBasePanel(dependencies) {
       return window.__apKbTask || (window.__apKbTask = { bySession: {} })
     }
     function publishKbTask(sessionId, slugs, entries) {
-      const sid = sessionId || 'active'
+      const sid = kbSessionKey(sessionId)
       const picked = (entries || []).filter((entry) => entry && slugs.indexOf(entry.slug) >= 0)
       kbTaskStore().bySession[sid] = { slugs: (slugs || []).slice(), entries: picked }
       writeKbTaskSlugs(sid, slugs)
     }
     function kbTaskOf(sessionId) {
-      const sid = sessionId || 'active'
+      const sid = kbSessionKey(sessionId)
       const published = kbTaskStore().bySession[sid]
       if (published && Array.isArray(published.slugs)) return published
       return { slugs: readKbTaskSlugs(sid), entries: [] }
+    }
+    function persistKbTask(sessionId, slugs, entries, cwd) {
+      const sid = kbSessionKey(sessionId)
+      publishKbTask(sid, slugs, entries)
+      if (sid === draftKey) return Promise.resolve(slugs)
+      const published = kbTaskStore().bySession[sid]
+      const previous = pendingSelections.get(sid) || Promise.resolve()
+      const request = previous.catch(() => {}).then(() => api('/api/agent-pi/kb', cwd || '', {
+        method: 'POST', body: JSON.stringify({ action: 'select', slugs, sessionId: sid }),
+      })).then((body) => {
+        if (kbTaskStore().bySession[sid] === published && body && Array.isArray(body.selectedSlugs)) {
+          publishKbTask(sid, body.selectedSlugs.map(String), entries)
+        }
+        return kbTaskOf(sid).slugs
+      })
+      pendingSelections.set(sid, request)
+      request.then(() => {
+        if (pendingSelections.get(sid) === request) pendingSelections.delete(sid)
+      }, () => {})
+      return request
+    }
+    function resetDraftKbTask() {
+      delete kbTaskStore().bySession[draftKey]
+      try { sessionStorage.removeItem(kbTaskStorageKey(draftKey)) } catch {}
+      draftKey = newDraftKey()
+    }
+    function claimDraftKbTask(sessionId, createdFromDraft = false, expectedDraftKey = draftKey) {
+      const sid = String(sessionId || '').trim()
+      if (!createdFromDraft || expectedDraftKey !== draftKey || !sid || sid === 'active') return Promise.resolve([])
+      const task = kbTaskOf(draftKey)
+      resetDraftKbTask()
+      return persistKbTask(sid, task.slugs, task.entries)
+    }
+    async function flushKbTaskSelection(sessionId) {
+      const sid = kbSessionKey(sessionId)
+      while (pendingSelections.has(sid)) await pendingSelections.get(sid)
+    }
+    function hasKbTaskSelectionSave(sessionId) {
+      return pendingSelections.has(kbSessionKey(sessionId))
     }
     function formatKbTaskBlock(sessionId) {
       const task = kbTaskOf(sessionId)
@@ -84,7 +131,7 @@ export function createKnowledgeBasePanel(dependencies) {
     function KnowledgeBasePanel(props) {
       useApLang()
       const cwd = props.cwd || ''
-      const sessionId = props.sessionId || resolveSessionId(props) || runtime.sessionId || 'active'
+      const sessionId = kbSessionKey(props.sessionId || resolveSessionId(props) || runtime.sessionId)
       const inputStyle = { flex: '1 1 160px', minWidth: 0, padding: '7px 10px', borderRadius: 8, border: '1px solid var(--dsw-border, rgba(127,127,127,.35))', background: 'transparent', color: 'inherit', font: 'inherit' }
       const [data, setData] = React.useState(null)
       const [error, setError] = React.useState('')
@@ -95,7 +142,12 @@ export function createKnowledgeBasePanel(dependencies) {
       const [customCategory, setCustomCategory] = React.useState('')
       const [addName, setAddName] = React.useState('')
       const [pickedLabel, setPickedLabel] = React.useState('')
-      const [selectedSlugs, setSelectedSlugs] = React.useState(() => readKbTaskSlugs(sessionId))
+      const [selection, setSelection] = React.useState(() => ({ sessionId, slugs: readKbTaskSlugs(sessionId) }))
+      const selectedSlugs = selection.sessionId === sessionId ? selection.slugs : kbTaskOf(sessionId).slugs
+      const setSelectedSlugs = (slugs) => setSelection({ sessionId, slugs })
+      const sessionRef = React.useRef(sessionId)
+      sessionRef.current = sessionId
+      const loadVersion = React.useRef(0)
       const selectedRef = React.useRef(selectedSlugs)
       selectedRef.current = selectedSlugs
       const [query, setQuery] = React.useState('')
@@ -117,24 +169,18 @@ export function createKnowledgeBasePanel(dependencies) {
         : (addCategory.trim() || '规范')
 
       const persistSelection = React.useCallback((slugs, entries) => {
+        setError('')
         selectedRef.current = slugs
-        publishKbTask(sessionId, slugs, entries || [])
-        return api('/api/agent-pi/kb', cwd, {
-          method: 'POST',
-          body: JSON.stringify({ action: 'select', slugs: slugs, sessionId: sessionId }),
-        }).then((body) => {
-          if (body && Array.isArray(body.selectedSlugs)) {
-            const next = body.selectedSlugs.map(String)
-            selectedRef.current = next
-            publishKbTask(sessionId, next, entries || [])
-            return next
-          }
-          return slugs
-        }).catch(() => slugs)
+        return persistKbTask(sessionId, slugs, entries || [], cwd)
+          .then((next) => { if (sessionRef.current === sessionId) selectedRef.current = next; return next })
+          .catch((e) => { if (sessionRef.current === sessionId) setError(String(e.message || e)); return slugs })
       }, [cwd, sessionId])
       const load = React.useCallback((preferredSlugs) => {
+        const version = ++loadVersion.current
+        const before = kbTaskStore().bySession[sessionId]
         return api('/api/agent-pi/kb?sessionId=' + encodeURIComponent(sessionId), cwd, { method: 'GET' })
           .then((body) => {
+            if (sessionRef.current !== sessionId || version !== loadVersion.current) return body
             const merged = mergeKbEntries((body && body.entries) || [], kbPickState.entries)
             kbPickState.entries = merged.filter((entry) => String(entry && entry.slug || '').indexOf('local:') === 0)
             if (!kbLandingCardVisible(kbPickState.pickedLabel, merged)) {
@@ -147,9 +193,10 @@ export function createKnowledgeBasePanel(dependencies) {
               ? body.selectedSlugs.map(String)
               : null
             const local = readKbTaskSlugs(sessionId)
-            const next = preferredSlugs
-              || (fromServer && fromServer.length ? fromServer : null)
-              || (local.length ? local : (fromServer || []))
+            const current = kbTaskStore().bySession[sessionId]
+            const next = current && (current !== before || pendingSelections.has(sessionId) || sessionId === draftKey)
+              ? current.slugs
+              : fromServer || preferredSlugs || local
             selectedRef.current = next
             setSelectedSlugs(next)
             publishKbTask(sessionId, next, (body && body.entries) || [])
@@ -158,7 +205,7 @@ export function createKnowledgeBasePanel(dependencies) {
             }
             return body
           })
-          .catch((e) => setError(String(e.message || e)))
+          .catch((e) => { if (sessionRef.current === sessionId && version === loadVersion.current) setError(String(e.message || e)) })
       }, [cwd, sessionId])
       React.useEffect(() => { load() }, [load])
       React.useEffect(() => {
@@ -200,10 +247,6 @@ export function createKnowledgeBasePanel(dependencies) {
           }).join('、')
           setSuccess(tAp('kb.ingestedOk', { names: names }))
           setNotice('')
-          const next = selectedRef.current.concat(newlyReady).filter((item, index, all) => all.indexOf(item) === index)
-          selectedRef.current = next
-          setSelectedSlugs(next)
-          persistSelection(next, entries)
         }
         parsingRef.current = parsing
         if (!parsing.length) return undefined
@@ -642,16 +685,22 @@ export function createKnowledgeBasePanel(dependencies) {
           sessionId,
           force: options && options.force === true,
           preferMineru: options && options.force === true,
-        }, 'parse').then((result) => {
+        }, 'parse').then(async (result) => {
           if (!result) return
           const started = result.started || []
+          const requested = started.concat(result.skipped || [])
+          const next = kbTaskOf(sessionId).slugs.concat(requested).filter((item, index, all) => all.indexOf(item) === index)
+          if (requested.length) await persistKbTask(sessionId, next, (data && data.entries) || [], cwd)
+          if (sessionRef.current !== sessionId) return result
+          selectedRef.current = next
+          setSelectedSlugs(next)
           if (started.length) {
             setNotice(tAp('kb.parseStarted', { n: started.length }))
           } else {
             setNotice(tAp('kb.parseNone'))
           }
-          return load(selectedRef.current)
-        })
+          return load(next)
+        }).catch((e) => { if (sessionRef.current === sessionId) setError(String(e.message || e)); return null })
       }
       const doSearch = () => {
         const value = query.trim()
@@ -1089,5 +1138,5 @@ export function createKnowledgeBasePanel(dependencies) {
         ) : null,
       )
     }
-  return { KnowledgeBasePanel, formatKbTaskBlock, kbTaskOf }
+  return { KnowledgeBasePanel, formatKbTaskBlock, kbTaskOf, claimDraftKbTask, flushKbTaskSelection, hasKbTaskSelectionSave, resetDraftKbTask, kbDraftKey }
 }

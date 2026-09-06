@@ -31,16 +31,16 @@ distribution, the standard BSD 3-Clause text is carried as
 the author identity on the tagged commit. No upstream `NOTICE` is claimed or
 synthesized.
 
-## Optional dsh-univer-office integration
+## dsh-univer-office integration
 
-Agent Pi DSH public builds do **not** distribute `dsh-univer-office` or its
-Univer Pro runtime. The plugin remains discoverable in the in-app market. Its
-Apache-2.0 wrapper and its separate commercial runtime have different license
-boundaries; users must obtain and comply with the applicable Univer commercial
-license before installing or using it. The 3.6.1 compatibility work targets
-wrapper 0.2.13 with DSH 0.1.3-alpha.1; technical validation does not establish
-redistribution rights. Explicit private/OEM builds may preinstall the runtime
-only under the applicable authorization; they are not public release assets.
+Agent Pi DSH distributes the complete official `dsh-univer-office` 0.2.13
+package, pinned by `vendor/dsh-univer-office.pin`, with the compatibility
+adapter for DSH 0.1.3-alpha.1. The upstream package declares Apache-2.0;
+its original LICENSE, bundled Gateway, Viewer, workers, converters and license
+materials are retained in the verified package inventory. Platform runtime
+dependencies are installed from the tracked production lock and retain their
+own upstream terms. The package license does not relicense separately licensed
+dependencies; upstream authorization checks and license files are unchanged.
 
 Source: https://github.com/dream-num/dsh-univer-office
 

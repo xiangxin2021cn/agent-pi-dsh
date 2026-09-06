@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -45,6 +46,24 @@ export function verifyDshRuntime(dshRoot, productRoot) {
   return { dsh, product }
 }
 
+export function verifyCodexRuntime(productRoot) {
+  const host = join(resolve(productRoot), 'bundles', 'tender-host', 'package.json')
+  const version = readJson(host).dependencies?.['@openai/codex']
+  const require = createRequire(host)
+  const installed = readJson(require.resolve('@openai/codex/package.json'))
+  if (!/^\d+\.\d+\.\d+$/.test(version || '') || installed.version !== version) {
+    throw new Error('product Codex CLI does not match its exact dependency pin')
+  }
+  const wrapper = require.resolve('@openai/codex/bin/codex.js')
+  const result = spawnSync(process.execPath, [wrapper, '--version'], {
+    encoding: 'utf8', windowsHide: true, timeout: 10_000,
+  })
+  if (result.error || result.status !== 0 || result.stdout.trim() !== `codex-cli ${version}`) {
+    throw new Error('product Codex CLI executable is missing, incompatible, or differs from its package version')
+  }
+  return { version, wrapper }
+}
+
 export function main(args = process.argv.slice(2)) {
   const checkNative = args.at(-1) === '--native'
   const paths = checkNative ? args.slice(0, -1) : args
@@ -56,6 +75,7 @@ export function main(args = process.argv.slice(2)) {
     const require = createRequire(join(verified.dsh, 'packages', 'session', 'session-persistence-jsonl', 'package.json'))
     require('fs-ext')
     require('koffi')
+    if (verified.product) verifyCodexRuntime(verified.product)
   }
   process.stdout.write(`DSH ${expectedDshVersion} runtime verified: ${verified.dsh}\n`)
 }

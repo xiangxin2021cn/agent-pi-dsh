@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
-import { readFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
 import { test } from 'node:test'
@@ -8,7 +9,39 @@ import { runInNewContext } from 'node:vm'
 import {
   createCodexAuthController,
   parseCodexLoginStatus,
+  resolveCodexWrapper,
 } from '../codex-auth.mjs'
+
+test('desktop resolves only the product Codex package and never the old DSH or PATH CLI', (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'agent-pi-product-codex-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const oldPackage = join(root, 'packages/subagent/subagent-codex/node_modules/@openai/codex')
+  mkdirSync(join(oldPackage, 'bin'), { recursive: true })
+  writeFileSync(join(oldPackage, 'package.json'), JSON.stringify({ version: '0.149.1', bin: { codex: 'bin/codex.js' } }))
+  writeFileSync(join(oldPackage, 'bin/codex.js'), 'old DSH wrapper')
+  const fakePath = join(root, 'global-bin')
+  mkdirSync(fakePath)
+  writeFileSync(join(fakePath, 'codex.exe'), 'global CLI must not be used')
+  const beforePath = process.env.PATH
+  try {
+    process.env.PATH = fakePath
+    assert.equal(resolveCodexWrapper(root), null)
+    const productPackage = join(root, 'bundles/tender-host/node_modules/@openai/codex')
+    mkdirSync(join(productPackage, 'bin'), { recursive: true })
+    writeFileSync(join(productPackage, 'package.json'), JSON.stringify({ version: '0.153.4', bin: { codex: 'bin/codex.js' } }))
+    const wrapper = join(productPackage, 'bin/codex.js')
+    writeFileSync(wrapper, 'product wrapper')
+    assert.equal(resolveCodexWrapper(root), wrapper)
+    rmSync(wrapper)
+    assert.equal(resolveCodexWrapper(root), null)
+  } finally {
+    if (beforePath === undefined) delete process.env.PATH
+    else process.env.PATH = beforePath
+  }
+  const main = readFileSync(new URL('../main.mjs', import.meta.url), 'utf8')
+  assert.match(main, /resolveCodexWrapper\(productRoot\)/)
+  assert.doesNotMatch(main, /resolveCodexWrapper\(dshRoot\)/)
+})
 
 test('Codex login status exposes only normalized authentication state', () => {
   assert.deepEqual(
@@ -142,6 +175,28 @@ test('an unavailable saved model is visible and requires a new selection', async
   assert.match(status.modelError, /重新选择/)
 })
 
+test('saving reasoning uses the isolated account and refuses logged-out writes', async () => {
+  let loggedIn = true
+  const calls = []
+  const codexHome = join(process.cwd(), '.tmp', 'codex-auth-reasoning-test')
+  const controller = createCodexAuthController({
+    nodePath: 'node.exe', wrapperPath: 'codex.js', codexHome,
+    baseEnv: { CODEX_HOME: 'unrelated-home', OPENAI_API_KEY: 'must-not-cross' },
+    spawnSync() { return { status: loggedIn ? 0 : 1, stdout: loggedIn ? 'Logged in using ChatGPT' : 'Not logged in' } },
+    async setDefaultReasoningEffort(options, effort) {
+      calls.push(effort)
+      assert.equal(options.env.CODEX_HOME, codexHome)
+      assert.equal(options.env.OPENAI_API_KEY, undefined)
+      return { selectedReasoningEffort: effort }
+    },
+  })
+  assert.equal((await controller.setDefaultReasoningEffort('ultra')).selectedReasoningEffort, 'ultra')
+  assert.equal((await controller.setDefaultReasoningEffort(null)).selectedReasoningEffort, null)
+  loggedIn = false
+  await assert.rejects(controller.setDefaultReasoningEffort('medium'), /先登录/)
+  assert.deepEqual(calls, ['ultra', null])
+})
+
 test('Electron exposes only normalized Codex auth operations to the renderer', () => {
   const desktop = join(import.meta.dirname, '..')
   const main = readFileSync(join(desktop, 'main.mjs'), 'utf8')
@@ -150,11 +205,13 @@ test('Electron exposes only normalized Codex auth operations to the renderer', (
   assert.match(main, /ipcMain\.handle\('codex-auth-status'/)
   assert.match(main, /ipcMain\.handle\('codex-auth-login'/)
   assert.match(main, /ipcMain\.handle\('codex-auth-logout'/)
+  assert.match(main, /ipcMain\.handle\('codex-set-default-reasoning-effort'/)
   assert.match(main, /delete env\.OPENAI_API_KEY/)
   assert.match(main, /delete env\.CODEX_ACCESS_TOKEN/)
   assert.match(preload, /codexAuthStatus/)
   assert.match(preload, /codexAuthLogin/)
   assert.match(preload, /codexAuthLogout/)
+  assert.match(preload, /codexSetDefaultReasoningEffort/)
   assert.doesNotMatch(preload, /auth\.json|token|OPENAI_API_KEY/i)
 })
 

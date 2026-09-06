@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('agentPiDesktop', {
   codexAuthLogin: () => ipcRenderer.invoke('codex-auth-login'),
   codexAuthLogout: () => ipcRenderer.invoke('codex-auth-logout'),
   codexSetDefaultModel: (model) => ipcRenderer.invoke('codex-set-default-model', model),
+  codexSetDefaultReasoningEffort: (effort) => ipcRenderer.invoke('codex-set-default-reasoning-effort', effort),
   checkUpdate: () => ipcRenderer.invoke('update-check'),
   downloadUpdate: () => ipcRenderer.invoke('update-download'),
   installUpdate: () => ipcRenderer.invoke('update-install'),

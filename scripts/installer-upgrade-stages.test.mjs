@@ -158,3 +158,66 @@ test('production NSIS upgrade stages preserve shared peers and gate the final in
     }
   })
 })
+
+test('production NSIS Office gate rejects missing helpers, failing verification, and process launch errors', {
+  skip: process.platform !== 'win32' && 'Production NSIS Office gate requires Windows',
+  timeout: 120000,
+}, async (t) => {
+  const base = join(repository, '.codex-temp')
+  mkdirSync(base, { recursive: true })
+  const fixture = mkdtempSync(join(realpathSync(base), 'installer-office-gate-'))
+  t.after(() => {
+    assert.equal(realpathSync(fixture), fixture)
+    assert.ok(fixture.startsWith(realpathSync(base) + sep))
+    rmSync(fixture, { recursive: true, force: true })
+  })
+  const compiler = [process.env.MAKENSIS, process.env.NSIS_HOME && join(process.env.NSIS_HOME, 'makensis.exe'), process.env['ProgramFiles(x86)'] && join(process.env['ProgramFiles(x86)'], 'NSIS/makensis.exe'), process.env.ProgramFiles && join(process.env.ProgramFiles, 'NSIS/makensis.exe')].find(path => path && existsSync(path))
+  assert.ok(compiler, 'makensis.exe is required')
+  const setup = readFileSync(new URL('./nsis/setup.nsi', import.meta.url), 'utf8')
+  const workingDirectory = setup.match(/DetailPrint "Repairing DeepSeek Harness plugin links\.\.\."\s+(SetOutPath [^\r\n]+)/)?.[1]
+  const gate = setup.match(/  DetailPrint "Verifying dsh-univer-office install boundary\.\.\."[\s\S]*?  univer_verify_ok:/)?.[0]
+  assert.ok(workingDirectory && gate, 'missing production Office gate or its inherited runtime working directory')
+  // Observe the actual nsExec return value without changing its production branch.
+  const observedGate = instrumentProduction(gate).replace('  Pop $0', '  Pop $0\n  FileOpen $9 "$INSTDIR\\status.txt" w\n  FileWrite $9 "$0"\n  FileClose $9')
+  const cases = [
+    { name: 'success', helper: true, node: true, helperExit: 0, exitCode: 0, status: '0' },
+    { name: 'missing-helper', helper: false, node: true, helperExit: 0, exitCode: 8, status: '1' },
+    { name: 'verification-failed', helper: true, node: true, helperExit: 37, exitCode: 8, status: '37' },
+    { name: 'launch-error', helper: true, node: false, helperExit: 0, exitCode: 8, status: 'error' },
+  ]
+  for (const item of cases) await t.test(item.name, () => {
+    const area = join(fixture, item.name)
+    const install = join(area, 'install with spaces')
+    const runtime = join(install, 'resources/runtime')
+    const plugins = join(area, 'trusted-plugins')
+    const invocation = join(area, 'invocation.json')
+    mkdirSync(runtime, { recursive: true })
+    mkdirSync(plugins, { recursive: true })
+    assert.ok(realpathSync(install).startsWith(fixture + sep) && realpathSync(plugins).startsWith(fixture + sep))
+    if (item.node) copyFileSync(process.execPath, join(plugins, 'node.exe'))
+    if (item.helper) write(join(runtime, 'product/scripts/installer-univer-lifecycle.mjs'), `import fs from 'node:fs'\nfs.writeFileSync(${JSON.stringify(invocation)}, JSON.stringify({cwd:process.cwd(),execPath:process.execPath,args:process.argv.slice(2)}))\nprocess.exitCode=${item.helperExit}\n`)
+    const sentinel = join(area, 'untouched.txt')
+    write(sentinel, 'unrelated fixture state')
+    const rollbackFunctions = ['RollbackUniverVendor', 'RollbackAppAsar'].map(name => `Function ${name}\nFileOpen $9 "$INSTDIR\\${name}.txt" w\nFileWrite $9 "rollback called"\nFileClose $9\nFunctionEnd`).join('\n')
+    const binary = join(area, 'office-gate-probe.exe')
+    const probe = join(area, 'office-gate-probe.nsi')
+    // Only the production gate is executed. Rollback writes isolated markers;
+    // no product Install/Uninstall section, registry, profile, or startup is used.
+    write(probe, `Unicode true\nName "Isolated production Office gate probe"\nRequestExecutionLevel user\nSilentInstall silent\nAutoCloseWindow true\nOutFile "${nsisString(binary)}"\n!define INCLUDE_LICENSED_UNIVER\nVar ProbePluginsDir\n${rollbackFunctions}\nSection\nStrCpy $INSTDIR "${nsisString(install)}"\nStrCpy $ProbePluginsDir "${nsisString(plugins)}"\n${workingDirectory}\n${observedGate}\nFileOpen $9 "$INSTDIR\\continued.txt" w\nFileWrite $9 "verified"\nFileClose $9\nSectionEnd\n`)
+    const compile = run(compiler, ['/V2', probe], area, join(area, 'compiler.log'))
+    assert.equal(compile.status, 0, `${compile.stdout}\n${compile.stderr}`)
+    const result = run(binary, [], area, join(area, 'run.log'))
+    assert.equal(result.status, item.exitCode, result.stderr)
+    assert.equal(readFileSync(join(install, 'status.txt'), 'utf8'), item.status)
+    assert.equal(existsSync(join(install, 'continued.txt')), item.exitCode === 0)
+    for (const name of ['RollbackUniverVendor', 'RollbackAppAsar']) assert.equal(existsSync(join(install, `${name}.txt`)), item.exitCode !== 0)
+    assert.equal(readFileSync(sentinel, 'utf8'), 'unrelated fixture state')
+    assert.equal(existsSync(invocation), item.helper && item.node)
+    if (item.helper && item.node) {
+      const observed = JSON.parse(readFileSync(invocation))
+      assert.equal(realpathSync(observed.cwd), realpathSync(runtime))
+      assert.equal(realpathSync(observed.execPath), realpathSync(join(plugins, 'node.exe')))
+      assert.deepEqual(observed.args, ['verify-product', 'product', '--required'])
+    }
+  })
+})

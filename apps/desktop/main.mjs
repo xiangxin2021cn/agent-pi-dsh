@@ -232,7 +232,7 @@ let codexAuthController = null
 
 function getCodexAuthController() {
   if (codexAuthController) return codexAuthController
-  const wrapperPath = resolveCodexWrapper(dshRoot)
+  const wrapperPath = resolveCodexWrapper(productRoot)
   if (!wrapperPath) return null
   codexAuthController = createCodexAuthController({
     nodePath: resolveNode(),
@@ -985,6 +985,11 @@ ipcMain.handle('codex-set-default-model', (_event, model) => {
   const controller = getCodexAuthController()
   if (!controller) throw new Error('Codex 运行时不可用。')
   return controller.setDefaultModel(model)
+})
+ipcMain.handle('codex-set-default-reasoning-effort', (_event, effort) => {
+  const controller = getCodexAuthController()
+  if (!controller) throw new Error('Codex 运行时不可用。')
+  return controller.setDefaultReasoningEffort(effort)
 })
 ipcMain.handle('update-check', async () => {
   const info = await checkForUpdate().catch((error) => ({ error: String(error?.message ?? error) }))

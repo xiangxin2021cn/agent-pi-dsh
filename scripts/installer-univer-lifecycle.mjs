@@ -83,9 +83,8 @@ function installedVendorFiles(pluginRoot) {
 
 /**
  * Verify a bundled wrapper after the installer has extracted it into a fresh
- * directory. This is a technical integrity check only. It does not grant or
- * imply permission to redistribute Univer Pro; public builds remain governed
- * by univer-public-release.mjs and require separate OEM authorization.
+ * directory. This checks the complete upstream distribution and its platform
+ * dependencies; upstream licenses remain unchanged in the verified inventory.
  */
 function verifyLockedUniverRuntime(pluginRoot, productRoot) {
   const verifier = join(productRoot, 'scripts', 'install-univer-runtime-deps.mjs')

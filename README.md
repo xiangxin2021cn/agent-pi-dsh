@@ -39,7 +39,7 @@
 通用办公助手陪你聊天，**Agent Pi DSH 替你干活**：吃透投标、实施、投资的垂直作业系统。长程任务不断档、目标不偏离、证据可追溯——数十份标书文件一次搞定，数千条 BOQ 逐项推导，成果直接落盘为正式文档。
 
 > [!NOTE]
-> **3.6.2**：支持设置默认 Codex 模型及主对话单次模型选择，统一使用 DSH 原生附件入口；内核继续固定到官方 `dsh-v0.1.3-alpha.1`（`d347e70390`）。公开安装包不预装 `dsh-univer-office` 及 Univer Pro 商业运行时。最新已发布版本以 [GitHub Latest Release](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/latest) 为准。
+> **3.6.2**：支持设置默认 Codex 模型、思考等级及主对话单次选择，统一使用 DSH 原生附件入口；内核继续固定到官方 `dsh-v0.1.3-alpha.1`（`d347e70390`）。安装包包含官方 `dsh-univer-office` 0.2.13 完整插件，保留其原始许可与授权校验。最新已发布版本以 [GitHub Latest Release](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/latest) 为准。
 
 > [!IMPORTANT]
 > **3.6.2**：投标流程保持“DSH 唯一执行、工作台轻量控制、一次点击一次派发”；核心依赖固定到 **`dsh-v0.1.3-alpha.1`**（`d347e70390`）。Agent Pi 适配继续位于产品层启动迁移、profile overlay 和 bundle，DSH 官方源码保持干净。DWG 预览由固定源码与工具链重建，并随 Release 提供对应源码归档。
@@ -93,7 +93,7 @@
 | **出处芯片** | 只显示源文件、页或行、题目；证据正文不贴进正式稿 |
 | **本地知识库** | 两条入库路、按文档章节切条款、MinerU 转可读表、用户模板、`.apkb` 传递包 |
 | **崩溃只救没递交的工人** | 已完工任务不重读、不重派；只找回还没递交成果的工人 |
-| **企业级插件** | 技能、工具、工作台页、验收门禁都可以加；Univer Office 0.2.13 已适配新服务路径，含 Pro 运行时的预装仍仅用于明确授权的许可构建 |
+| **企业级插件** | 技能、工具、工作台页、验收门禁都可以加；官方 Univer Office 0.2.13 随安装包提供，支持软件内 Office 编辑与预览 |
 
 ---
 

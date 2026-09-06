@@ -5,6 +5,7 @@ import { registerPrompt } from './prompt.ts'
 import { importDsh } from './dsh.ts'
 import { repairKimiCodingSettings } from './llm-settings.ts'
 import type { LlmStreamRuntime } from './prompt-optimize.ts'
+import { registerBusinessActivation } from './business-activation.ts'
 
 /**
  * Packaged Electron often hands the host a PATH that has System32 but not
@@ -40,11 +41,9 @@ const { createUserMessage } = await importDsh<{
 }>('packages/llm/llm/src/message.ts')
 
 export function apply(ctx: {
-  tools: { register: (definition: unknown) => unknown }
-  systemPrompt?: {
-    section: (section: { name: string; order: number; text: string }) => unknown
-    context?: (context: { name: string; order: number; text: string | (() => string) }) => unknown
-  }
+  tools: { register: (definition: unknown) => unknown; schemas: () => Array<{ name: string }> }
+  on: (event: string, listener: (...args: any[]) => unknown) => unknown
+  systemPrompt?: Parameters<typeof registerPrompt>[0]['systemPrompt']
   get?: (name: string) => unknown
   inject: (deps: string[], callback: (inner: {
     webServer?: { register: (route: unknown) => unknown }
@@ -55,6 +54,7 @@ export function apply(ctx: {
   repairKimiCodingSettings()
   registerPrompt(ctx, createUserMessage)
   registerTools({ tools: ctx.tools }, defineTool)
+  registerBusinessActivation(ctx as Parameters<typeof registerBusinessActivation>[0])
   ctx.inject(['webServer'], (inner) => {
     attachHttp({
       webServer: inner.webServer,

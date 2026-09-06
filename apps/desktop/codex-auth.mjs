@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { spawn as nodeSpawn, spawnSync as nodeSpawnSync } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
-import { probeCodexModels, setCodexDefaultModel } from './codex-models.mjs'
+import { probeCodexModels, setCodexDefaultModel, setCodexDefaultReasoningEffort } from './codex-models.mjs'
 
 const CREDENTIAL_ENV = [
   'OPENAI_API_KEY',
@@ -10,10 +10,10 @@ const CREDENTIAL_ENV = [
   'CODEX_ACCESS_TOKEN',
 ]
 
-export function resolveCodexWrapper(dshRoot) {
+export function resolveCodexWrapper(productRoot) {
   const packageJson = join(
-    dshRoot,
-    'packages/subagent/subagent-codex/node_modules/@openai/codex/package.json',
+    productRoot,
+    'bundles/tender-host/node_modules/@openai/codex/package.json',
   )
   if (!existsSync(packageJson)) return null
   try {
@@ -115,6 +115,7 @@ export function createCodexAuthController(options) {
         ...parsed,
         models: [],
         selectedModel: null,
+        selectedReasoningEffort: null,
         defaultModel: null,
         model: null,
         modelError: error?.code === 'timeout' ? 'Codex 模型查询超时，请重试。' : '无法读取 Codex 模型信息，请重试。',
@@ -129,6 +130,17 @@ export function createCodexAuthController(options) {
     if (parsed.state !== 'logged-in') throw new Error('请先登录 ChatGPT 再选择 Codex 模型。')
     const catalog = await queryModels((queryOptions) => (
       (options.setDefaultModel ?? setCodexDefaultModel)(queryOptions, model)
+    ))
+    authRevision += 1
+    modelRequest = null
+    return { ...parsed, ...catalog }
+  }
+
+  const setDefaultReasoningEffort = async (effort) => {
+    const parsed = authStatus()
+    if (parsed.state !== 'logged-in') throw new Error('请先登录 ChatGPT 再选择 Codex 思考等级。')
+    const catalog = await queryModels((queryOptions) => (
+      (options.setDefaultReasoningEffort ?? setCodexDefaultReasoningEffort)(queryOptions, effort)
     ))
     authRevision += 1
     modelRequest = null
@@ -183,5 +195,5 @@ export function createCodexAuthController(options) {
     loginChild = null
   }
 
-  return { status, login, logout, setDefaultModel, dispose }
+  return { status, login, logout, setDefaultModel, setDefaultReasoningEffort, dispose }
 }

@@ -14,8 +14,8 @@ const AGENT_PI_UNIVER = {
     npm: 'dsh-univer-office',
     category: 'tools',
     description: {
-        zh: '可选 Office 预览插件。其运行依赖 Univer Pro 商业组件，安装和使用前须自行取得适用的商业许可；与 DSH 0.1.2-rc.1 的兼容性仍待验证，本版本不预装。',
-        en: 'Optional Office preview plugin. Its runtime depends on commercial Univer Pro components; obtain the applicable commercial license before installing or using it. Compatibility with DSH 0.1.2-rc.1 is pending verification, and it is not preinstalled.',
+        zh: '官方 Office 插件 0.2.13 已预装，可在对话中创建、编辑和预览表格、文档及演示文稿。插件采用 Apache-2.0，完整保留上游组件及其附带许可证。',
+        en: 'Official Office plugin 0.2.13 is preinstalled for creating, editing, and previewing sheets, docs, and slides in conversations. The Apache-2.0 plugin retains its complete upstream components and bundled licenses.',
     },
     install: 'dsh plugin --profile tender add dsh-univer-office',
     added: '2026-09-04',

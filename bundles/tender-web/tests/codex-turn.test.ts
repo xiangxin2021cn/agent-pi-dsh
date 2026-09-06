@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import vm from 'node:vm'
-import { buildCodexTurnDelegation, codexCanRun } from '../src/codex-turn.ts'
+import { buildCodexTurnDelegation, codexCanRun, resolveCodexTurnSelection } from '../src/codex-turn.ts'
 
 const client = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../lib/client.js'), 'utf8')
 
@@ -60,6 +60,8 @@ function loadShippedComposer(options = {}) {
   }
   const window = {
     __ModuleLoader__: { load(next) { definition = next } },
+    __apFlushKbSelection: options.flushKbSelection,
+    __apHasKbSelectionSave: options.hasKbSelectionSave,
     agentPiDesktop: { codexAuthStatus: options.codexAuthStatus || (async () => ({ available: true, state: 'logged-in' })) },
     addEventListener() {},
     removeEventListener() {},
@@ -76,13 +78,15 @@ function loadShippedComposer(options = {}) {
     useCallback(fn) { return fn },
   }
   const source = client
+    .replaceAll('await flushKbTaskSelection(key);', options.flushKbSelection ? 'await window.__apFlushKbSelection(key);' : 'await flushKbTaskSelection(key);')
+    .replaceAll('hasKbTaskSelectionSave(sid)', options.hasKbSelectionSave ? 'window.__apHasKbSelectionSave(sid)' : 'hasKbTaskSelectionSave(sid)')
     .replace(
       /actions\.__apLatestProps\s*=\s*props;?/,
       "$&\n      ;(window.__apCodexTurnProps || (window.__apCodexTurnProps = new Map())).set(codexTurnKey(props), props)",
     )
     .replace(
       /(\s*return module\.exports;)/,
-      "\n    window.__apCodexTurnTest = { ComposerTools, codexTurnControllers, codexTurnArmed, setCodexTurnArmed, setCodexTurnModel, setAttachItems: (items, props) => setAttachItemsFor(attachSessionId(props), items), attachItemsOf, attachState, mergeImportedItems, attachmentTurnControllers: typeof attachmentTurnControllers === 'undefined' ? null : attachmentTurnControllers };\n$1",
+      "\n    window.__apCodexTurnTest = { ComposerTools, codexTurnControllers, codexTurnArmed, setCodexTurnArmed, setCodexTurnModel, setCodexTurnReasoningEffort, setAttachItems: (items, props) => setAttachItemsFor(attachSessionId(props), items), attachItemsOf, attachState, mergeImportedItems, attachmentTurnControllers: typeof attachmentTurnControllers === 'undefined' ? null : attachmentTurnControllers };\n$1",
     )
   vm.runInNewContext(source, {
     window,
@@ -139,6 +143,7 @@ function loadShippedComposer(options = {}) {
   })
   return {
     api: window.__apCodexTurnTest,
+    window,
     runTimers() { timers.splice(0).forEach((timer) => { if (timer.active) timer.fn() }) },
     runFrames() { frames.splice(0).forEach((fn) => fn()) },
     publishFallbackSession(sessionId, snapshot) { fallbackSessionFor(sessionId).set(snapshot) },
@@ -247,6 +252,154 @@ async function flush() {
 const modelStatus = () => Promise.resolve({
   available: true, state: 'logged-in', defaultModel: 'codex-default',
   models: [{ id: 'codex-default' }, { id: 'codex-override' }],
+})
+
+const effortStatus = {
+  available: true, state: 'logged-in', defaultModel: 'codex-default', selectedReasoningEffort: 'ultra',
+  models: [
+    { id: 'codex-default', defaultReasoningEffort: 'medium', supportedReasoningEfforts: [{ reasoningEffort: 'medium' }, { reasoningEffort: 'ultra' }, { reasoningEffort: 'future-effort' }] },
+    { id: 'codex-override', defaultReasoningEffort: 'low', supportedReasoningEfforts: [{ reasoningEffort: 'low' }, { reasoningEffort: 'high' }] },
+  ],
+}
+
+test('normal and Codex sends wait for KB selection persistence and retain drafts on failure', async (t) => {
+  assert.ok(client.includes('await flushKbTaskSelection(key);'))
+  for (const mode of ['normal attachment', 'empty KB selection', 'native attachment', 'Codex']) await t.test(mode, async () => {
+    const draft = mode === 'native attachment' ? '' : 'keep this draft'
+    const composer = publicComposer('kb-save-' + mode, draft)
+    if (mode === 'native attachment') composer.input.set({ ...composer.input.getSnapshot(), attachmentIds: ['native-file'] })
+    const saving = deferred()
+    let retry = false
+    let saves = 0
+    const { api } = loadShippedComposer({
+      runtime: publicRuntime(composer),
+      hasKbSelectionSave: ['empty KB selection', 'native attachment'].includes(mode) ? () => true : undefined,
+      flushKbSelection: (sessionId) => {
+        assert.equal(sessionId, composer.sessionId)
+        saves++
+        return retry ? Promise.resolve() : saving.promise
+      },
+    })
+    api.ComposerTools(composer.props())
+    if (mode === 'Codex') api.setCodexTurnArmed(composer.props(), true)
+    else if (mode === 'normal attachment') api.setAttachItems([{ id: 'kb-file', name: 'photo.png', kind: 'image' }], composer.props())
+    composer.actions.submit()
+    await flush()
+    assert.equal(composer.sent.length, 0)
+    saving.reject(new Error('KB save failed'))
+    await flush()
+    assert.equal(composer.sent.length, 0)
+    assert.equal(composer.input.getSnapshot().draft, draft)
+    retry = true
+    composer.actions.submit()
+    await flush()
+    assert.equal(saves, 2)
+    assert.equal(composer.sent.length, 1)
+    if (mode === 'native attachment') assert.deepEqual(composer.input.getSnapshot().attachmentIds, ['native-file'])
+  })
+})
+
+test('ordinary native attachments and KB choices cannot change during a pending send', async (t) => {
+  for (const change of ['native attachment', 'KB selection']) await t.test(change, async () => {
+    const composer = publicComposer('kb-change-' + change, '')
+    composer.input.set({ ...composer.input.getSnapshot(), attachmentIds: ['native-original'] })
+    const saved = deferred()
+    const { api, window } = loadShippedComposer({
+      runtime: publicRuntime(composer), hasKbSelectionSave: () => true, flushKbSelection: () => saved.promise,
+    })
+    api.ComposerTools(composer.props())
+    composer.actions.submit()
+    await flush()
+    if (change === 'native attachment') composer.input.set({ ...composer.input.getSnapshot(), attachmentIds: ['native-replacement'] })
+    else window.__apKbTask = { bySession: { [composer.sessionId]: { slugs: ['new-choice'], entries: [] } } }
+    saved.resolve()
+    await flush()
+    assert.equal(composer.sent.length, 0)
+    assert.equal(composer.input.getSnapshot().draft, '')
+    assert.equal(attachmentControllerPhase(api, composer.sessionId), undefined)
+  })
+})
+
+test('changing KB selection during Codex discovery cancels the prepared delegation', async () => {
+  const composer = publicComposer('kb-codex-change', 'keep this draft')
+  const status = deferred()
+  const { api, window } = loadShippedComposer({ runtime: publicRuntime(composer), codexAuthStatus: () => status.promise })
+  api.ComposerTools(composer.props())
+  api.setCodexTurnArmed(composer.props(), true)
+  composer.actions.submit()
+  await flush()
+  window.__apKbTask = { bySession: { [composer.sessionId]: { slugs: ['new-choice'], entries: [] } } }
+  status.resolve(await modelStatus())
+  await flush()
+  assert.equal(composer.sent.length, 0)
+  assert.equal(composer.input.getSnapshot().draft, 'keep this draft')
+  assert.equal(controllerPhase(api, composer.sessionId), 'armed')
+})
+
+test('reasoning inheritance follows the selected model without leaking an incompatible saved effort', () => {
+  assert.deepEqual(resolveCodexTurnSelection(effortStatus), { model: 'codex-default', reasoningEffort: 'ultra' })
+  assert.deepEqual(resolveCodexTurnSelection(effortStatus, 'codex-override'), { model: 'codex-override', reasoningEffort: 'low' })
+  assert.equal(resolveCodexTurnSelection(effortStatus, null, 'future-effort').reasoningEffort, 'future-effort')
+  assert.throws(() => resolveCodexTurnSelection(effortStatus, 'codex-override', 'ultra'), /思考等级当前不可用/)
+  assert.throws(() => resolveCodexTurnSelection({ ...effortStatus, modelError: 'stale catalog' }), /无法确认默认/)
+  assert.equal(resolveCodexTurnSelection({ ...effortStatus, selectedReasoningEffort: null }).reasoningEffort, 'medium')
+})
+
+test('one-turn reasoning stays isolated, survives retry, and clears after accepted submission', async () => {
+  const left = publicComposer('effort-left', 'left reasoning task')
+  const right = publicComposer('effort-right', 'right reasoning task')
+  let rejectSubmit = true
+  left.actions.submit = () => {
+    if (rejectSubmit) throw new Error('send rejected')
+    left.sent.push(left.input.getSnapshot().draft)
+    left.input.set({ ...left.input.getSnapshot(), phase: 'submitting' })
+  }
+  const { api } = loadShippedComposer({ runtime: publicRuntime(left, right), codexAuthStatus: async () => effortStatus })
+  for (const composer of [left, right]) {
+    api.ComposerTools(composer.props())
+    api.setCodexTurnArmed(composer.props(), true)
+  }
+  api.setCodexTurnReasoningEffort(left.props(), 'future-effort')
+  api.setCodexTurnModel(right.props(), 'codex-override', effortStatus)
+  left.actions.submit()
+  right.actions.submit()
+  await flush()
+  assert.equal(api.codexTurnControllers.get(left.sessionId).selectedReasoningEffort, 'future-effort')
+  assert.equal(left.input.getSnapshot().draft, 'left reasoning task')
+  assert.match(right.sent[0], /reasoningEffort="low"/)
+  rejectSubmit = false
+  left.actions.submit()
+  api.setCodexTurnReasoningEffort(left.props(), 'ultra')
+  await flush()
+  assert.match(left.sent[0], /reasoningEffort="future-effort"/)
+  left.session.set({ nodes: [userNode(1, left.sent[0])], promptError: null })
+  assert.equal(api.codexTurnControllers.get(left.sessionId).selectedReasoningEffort, '')
+})
+
+test('switching the one-turn model clears incompatible reasoning and keeps compatible selections', () => {
+  const composer = publicComposer('effort-switch', 'model switch')
+  const { api } = loadShippedComposer({ runtime: publicRuntime(composer) })
+  api.setCodexTurnArmed(composer.props(), true)
+  api.setCodexTurnReasoningEffort(composer.props(), 'ultra')
+  api.setCodexTurnModel(composer.props(), 'codex-default', effortStatus)
+  assert.equal(api.codexTurnControllers.get(composer.sessionId).selectedReasoningEffort, 'ultra')
+  api.setCodexTurnModel(composer.props(), 'codex-override', effortStatus)
+  assert.equal(api.codexTurnControllers.get(composer.sessionId).selectedReasoningEffort, '')
+})
+
+test('fresh discovery rejects a removed effort before sending and preserves the original draft', async () => {
+  const status = deferred()
+  const composer = publicComposer('effort-stale', 'keep reasoning draft')
+  const { api } = loadShippedComposer({ runtime: publicRuntime(composer), codexAuthStatus: () => status.promise })
+  api.ComposerTools(composer.props())
+  api.setCodexTurnArmed(composer.props(), true)
+  api.setCodexTurnReasoningEffort(composer.props(), 'ultra')
+  composer.actions.submit()
+  status.resolve({ ...effortStatus, models: [{ ...effortStatus.models[0], supportedReasoningEfforts: [{ reasoningEffort: 'medium' }] }] })
+  await flush()
+  assert.equal(composer.sent.length, 0)
+  assert.equal(composer.input.getSnapshot().draft, 'keep reasoning draft')
+  assert.equal(controllerPhase(api, composer.sessionId), 'armed')
 })
 
 test('Codex model overrides stay within one session and clear only after accepted submission', async () => {

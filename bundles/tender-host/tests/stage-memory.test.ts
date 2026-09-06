@@ -82,14 +82,17 @@ function writeReadyDocumentCapability(cwd: string, projectId: string): string {
   return packPath
 }
 
-test('system prompt keeps execution telemetry optional and never mandates heartbeats', () => {
-  const sections: Array<{ name: string; text: string }> = []
+test('bound project system prompt keeps execution telemetry optional and never mandates heartbeats', () => {
+  const { cwd, project } = projectFixture('prompt-telemetry')
+  bindProjectSession(cwd, project, 'bound-prompt')
+  const sections: Array<{ name: string; text: unknown }> = []
   registerPrompt({
     systemPrompt: {
       section: (entry) => { sections.push(entry) },
     },
   })
-  const prompt = sections.find((entry) => entry.name === 'agent-pi:tender')?.text ?? ''
+  const render = sections.find((entry) => entry.name === 'agent-pi:tender')?.text as (assemble: unknown) => string
+  const prompt = render({ agent: { session: { id: 'bound-prompt', header: { cwd } } } })
   assert.match(prompt, /execution_update is optional sparse telemetry/)
   assert.match(prompt, /never a heartbeat/)
   assert.doesNotMatch(prompt, /must call status, then execution_update|as a heartbeat|record the assignment with execution_update/)

@@ -102,6 +102,7 @@ jobs:
         run: |
           (cd payload/product/packages/business-core && npm ci --omit=dev --no-fund --no-audit)
           (cd payload/product/bundles/tender-host && npm ci --omit=dev --no-fund --no-audit)
+          node payload/product/scripts/install-univer-runtime-deps.mjs payload/product/vendor/dsh-univer-office
           node payload/product/scripts/univer-public-release.mjs assert-tree payload/product
 
       - name: Download Node runtime binary
@@ -110,6 +111,7 @@ jobs:
           mkdir -p node-runtime
           tar -xf node-runtime.archive -C node-runtime --strip-components=1
           node-runtime/bin/node --version
+          node-runtime/bin/node payload/product/scripts/install-univer-runtime-deps.mjs payload/product/vendor/dsh-univer-office --verify-only
 
       - name: Verify DSH session native modules with packaged Node
         run: |

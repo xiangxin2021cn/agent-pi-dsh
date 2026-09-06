@@ -1399,7 +1399,7 @@ export interface KbSearchOptions {
 
 function candidateEntries(options: KbSearchOptions): KbEntry[] {
   let entries = listKbEntries().filter((entry) => !entry.parseStatus || entry.parseStatus === 'ready')
-  if (options.slugs && options.slugs.length > 0) {
+  if (options.slugs) {
     const wanted = new Set(options.slugs)
     entries = entries.filter((entry) => wanted.has(entry.slug))
   }
@@ -1410,20 +1410,18 @@ function candidateEntries(options: KbSearchOptions): KbEntry[] {
   return entries
 }
 
-function corpusSearchKey(): string {
-  return `${kbRoot()}::${listKbEntries()
-    .filter((entry) => !entry.parseStatus || entry.parseStatus === 'ready')
+function corpusSearchKey(entries: KbEntry[]): string {
+  return `${kbRoot()}::${entries
     .map((entry) => `${entry.slug}:${entry.updatedAt}:${entry.chunkCount}`)
     .join('|')}`
 }
 
-function getCorpusMiniSearch(): ReturnType<typeof createKbMiniSearch> {
-  const key = corpusSearchKey()
+function getCorpusMiniSearch(entries: KbEntry[]): ReturnType<typeof createKbMiniSearch> {
+  const key = corpusSearchKey(entries)
   if (searchIndexCache?.key === key) return searchIndexCache.index
   const index = createKbMiniSearch()
   const documents = []
-  for (const entry of listKbEntries()) {
-    if (entry.parseStatus && entry.parseStatus !== 'ready') continue
+  for (const entry of entries) {
     const manifest = loadManifest(entry.slug)
     if (!manifest) continue
     for (const chunk of manifest.chunks) {
@@ -1490,9 +1488,10 @@ function searchKbLexical(normalizedQuery: string, tokens: string[], options: KbS
 }
 
 function searchKbMiniSearch(query: string, normalizedQuery: string, tokens: string[], options: KbSearchOptions): KbSearchHit[] {
-  const allowed = new Set(candidateEntries(options).map((entry) => entry.slug))
+  const entries = candidateEntries(options)
+  const allowed = new Set(entries.map((entry) => entry.slug))
   if (allowed.size === 0) return []
-  const results = getCorpusMiniSearch().search(query, {
+  const results = getCorpusMiniSearch(entries).search(query, {
     filter: (result) => typeof result.slug === 'string' && allowed.has(result.slug),
   })
   const hits: KbSearchHit[] = []
@@ -1672,7 +1671,8 @@ function loadTaskSelection(): KbTaskSelection {
 }
 
 function sessionKey(sessionId?: string): string {
-  return String(sessionId || '').trim() || 'active'
+  const id = String(sessionId || '').trim()
+  return id === 'active' ? '' : id
 }
 
 function knownSlugs(): Set<string> {
@@ -1681,16 +1681,20 @@ function knownSlugs(): Set<string> {
 
 /** Slugs the user checked as in-scope for this conversation / task. */
 export function getKbTaskSlugs(sessionId?: string): string[] {
+  const key = sessionKey(sessionId)
+  if (!key) return []
   const known = knownSlugs()
-  const stored = loadTaskSelection().bySession[sessionKey(sessionId)] || []
+  const stored = loadTaskSelection().bySession[key] || []
   return stored.map(String).filter((slug) => known.has(slug))
 }
 
 export function setKbTaskSlugs(sessionId: string | undefined, slugs: string[]): string[] {
+  const key = sessionKey(sessionId)
+  if (!key) return []
   const known = knownSlugs()
   const next = [...new Set(slugs.map(String))].filter((slug) => known.has(slug))
   const stored = loadTaskSelection()
-  stored.bySession[sessionKey(sessionId)] = next
+  stored.bySession[key] = next
   writeJson(taskSelectionPath(), stored)
   return next
 }

@@ -41,6 +41,7 @@ import {
   setProjectUserRequirementStatus,
   executionControlState,
   updateProjectExecution,
+  bindProjectSession,
 } from './orchestration.ts'
 import { listUserRequirements } from './user-requirements.ts'
 import {
@@ -429,18 +430,19 @@ export function registerTools(ctx: {
     parameters: {
       query: { type: 'string', required: true },
       limit: { type: 'number', description: 'Max hits, default 8, cap 20' },
-      slugs: { type: 'array', items: { type: 'string' }, description: 'Restrict to specific entries (also lifts the 3-per-entry cap)' },
+      slugs: { type: 'array', items: { type: 'string' }, description: 'Specific entries requested by the user. Defaults to entries selected for this conversation; an empty selection searches nothing.' },
       category: { type: 'string', description: 'Restrict to a category substring' },
     },
     output: jsonOut(),
-    async execute(args: Record<string, unknown>) {
-      seedBundledKnowledge()
+    async execute(args: Record<string, unknown>, exec: { agent?: { session?: { id?: string } } } = {}) {
+      const slugs = Array.isArray(args.slugs) ? args.slugs.map(String) : getKbTaskSlugs(exec.agent?.session?.id)
+      if (slugs.length > 0) seedBundledKnowledge()
       const hits = searchKb(String(args.query ?? ''), {
         limit: args.limit ? Number(args.limit) : undefined,
-        slugs: Array.isArray(args.slugs) ? args.slugs.map(String) : undefined,
+        slugs,
         category: args.category ? String(args.category) : undefined,
       })
-      return textResult({ query: String(args.query ?? ''), hits, hint: hits.length === 0 ? '无命中。可先 kb_list 查看条目，或换关键词/条款号重试。' : '用 kb_read_chunk(slug, chunkId) 读全文并引用 citation。' })
+      return textResult({ query: String(args.query ?? ''), hits, hint: slugs.length === 0 ? '本对话尚未选用知识库。请由用户选择条目，或按用户明确指定的条目传入 slugs。' : hits.length === 0 ? '无命中。可先 kb_list 查看条目，或换关键词/条款号重试。' : '用 kb_read_chunk(slug, chunkId) 读全文并引用 citation。' })
     },
   }))
 
@@ -449,15 +451,16 @@ export function registerTools(ctx: {
     description: 'Locate a clause/section number (e.g. "A1.2.3", "5.2.3") by structured unit id. Exact id first, then child subclauses. Follow with kb_read_chunk for the complete unit text.',
     parameters: {
       value: { type: 'string', required: true, description: 'Clause or section number' },
-      slugs: { type: 'array', items: { type: 'string' } },
+      slugs: { type: 'array', items: { type: 'string' }, description: 'User-requested entries; defaults to this conversation selection, never the entire library.' },
       limit: { type: 'number' },
     },
     output: jsonOut(),
-    async execute(args: Record<string, unknown>) {
-      seedBundledKnowledge()
+    async execute(args: Record<string, unknown>, exec: { agent?: { session?: { id?: string } } } = {}) {
+      const slugs = Array.isArray(args.slugs) ? args.slugs.map(String) : getKbTaskSlugs(exec.agent?.session?.id)
+      if (slugs.length > 0) seedBundledKnowledge()
       return textResult(findKbClause(String(args.value ?? ''), {
         limit: args.limit ? Number(args.limit) : undefined,
-        slugs: Array.isArray(args.slugs) ? args.slugs.map(String) : undefined,
+        slugs,
       }))
     },
   }))
@@ -467,15 +470,16 @@ export function registerTools(ctx: {
     description: 'Locate tables or BOQ item codes inside knowledge-base entries by caption, header keyword, or item number (e.g. "51.02"). MinerU tables are whole units; cite [kb:slug:table-…].',
     parameters: {
       value: { type: 'string', required: true, description: 'Table header keyword or BOQ item code' },
-      slugs: { type: 'array', items: { type: 'string' } },
+      slugs: { type: 'array', items: { type: 'string' }, description: 'User-requested entries; defaults to this conversation selection, never the entire library.' },
       limit: { type: 'number' },
     },
     output: jsonOut(),
-    async execute(args: Record<string, unknown>) {
-      seedBundledKnowledge()
+    async execute(args: Record<string, unknown>, exec: { agent?: { session?: { id?: string } } } = {}) {
+      const slugs = Array.isArray(args.slugs) ? args.slugs.map(String) : getKbTaskSlugs(exec.agent?.session?.id)
+      if (slugs.length > 0) seedBundledKnowledge()
       return textResult(findKbTable(String(args.value ?? ''), {
         limit: args.limit ? Number(args.limit) : undefined,
-        slugs: Array.isArray(args.slugs) ? args.slugs.map(String) : undefined,
+        slugs,
       }))
     },
   }))
@@ -570,9 +574,9 @@ export function registerTools(ctx: {
 
   ctx.tools.register(defineTool({
     name: 'tender_project',
-    description: 'Create, adopt, configure, or list Agent Pi workbench projects in the current workspace. configure persists the end-to-end project goal and terminal deliverables used by every DSH stage.',
+    description: 'Only when the user explicitly requests a tender, delivery, investment, or custom business workbench project: create, adopt, or bind it to this conversation. Never use this for an ordinary chat, coding task, or generic software project. configure persists the business project goal and terminal deliverables.',
     parameters: {
-      action: { type: 'string', required: true, description: 'create | adopt | configure | list | get' },
+      action: { type: 'string', required: true, description: 'create | adopt | bind | configure | list | get' },
       module: { type: 'string', description: 'Workbench module id (tender / delivery / investment / user module)' },
       projectId: { type: 'string' },
       name: { type: 'string' },
@@ -584,9 +588,16 @@ export function registerTools(ctx: {
     async execute(args: Record<string, unknown>, exec: { agent?: { session?: { header?: { cwd?: string } } } }) {
       const cwd = sessionCwd(exec)
       const module = (args.module ? String(args.module) : 'tender') as BusinessModuleId
+      const sessionId = (exec.agent?.session as { id?: string } | undefined)?.id
       if (args.action === 'list') return textResult(listBusinessProjects(cwd, module))
       if (args.action === 'get') {
         return textResult(getBusinessProject(cwd, module, String(args.projectId)))
+      }
+      if (args.action === 'bind') {
+        const project = getBusinessProject(cwd, module, String(args.projectId))
+        if (!project || !sessionId) throw new Error('绑定项目需要已有项目和明确的当前会话。')
+        bindProjectSession(cwd, project, sessionId)
+        return textResult(project)
       }
       if (args.action === 'configure') {
         return textResult(updateBusinessProjectContract(cwd, module, String(args.projectId), {
@@ -595,15 +606,18 @@ export function registerTools(ctx: {
         }))
       }
       if (args.action === 'adopt') {
-        return textResult(adoptWorkspace(cwd, {
+        const adopted = adoptWorkspace(cwd, {
           module,
           name: args.name ? String(args.name) : undefined,
           projectId: args.projectId ? String(args.projectId) : undefined,
           inputPaths: Array.isArray(args.inputPaths) ? args.inputPaths.map(String) : undefined,
           projectGoal: args.projectGoal ? String(args.projectGoal) : undefined,
           terminalDeliverables: Array.isArray(args.terminalDeliverables) ? args.terminalDeliverables.map(String) : undefined,
-        }))
+        })
+        if (sessionId) bindProjectSession(cwd, adopted.project, sessionId)
+        return textResult(adopted)
       }
+      if (args.action !== 'create') throw new Error('Unknown tender_project action')
       const projectId = String(args.projectId ?? `p${Date.now()}`)
       const workflow = workflowFor(module)
       const project = createBusinessProject({
@@ -627,6 +641,7 @@ export function registerTools(ctx: {
           // already initialized
         }
       }
+      if (sessionId) bindProjectSession(cwd, project, sessionId)
       return textResult(project)
     },
   }))

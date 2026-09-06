@@ -24,11 +24,29 @@ function modelFromEntry(entry) {
   return result
 }
 
-export function codexModelSelection({ models, selectedModel }) {
+function supportsReasoningEffort(model, effort) {
+  return model?.supportedReasoningEfforts?.some((item) => item.reasoningEffort === effort) === true
+}
+
+export function codexModelSelection({ models, selectedModel, selectedReasoningEffort = null }) {
   const model = selectedModel
     ? models.find((entry) => entry.id === selectedModel) ?? null
     : models.find((entry) => entry.isDefault) ?? models[0] ?? null
-  return { models, selectedModel, defaultModel: model?.id ?? null, model }
+  return {
+    models, selectedModel, selectedReasoningEffort, defaultModel: model?.id ?? null, model,
+    ...(selectedReasoningEffort && model && !supportsReasoningEffort(model, selectedReasoningEffort)
+      ? { reasoningEffortError: '已保存的 Codex 思考等级不适用于当前模型，请重新选择。' }
+      : {}),
+  }
+}
+
+function selectionFromConfig(models, config) {
+  return codexModelSelection({
+    models,
+    selectedModel: typeof config?.model === 'string' && config.model.trim() ? config.model : null,
+    selectedReasoningEffort: typeof config?.model_reasoning_effort === 'string' && config.model_reasoning_effort.trim()
+      ? config.model_reasoning_effort : null,
+  })
 }
 
 function queryFailure(code) {
@@ -139,8 +157,7 @@ export async function probeCodexModels(options) {
   return withAppServer(options, async (request) => {
     const models = await listModels(request)
     const { config } = await request('config/read', { includeLayers: false })
-    const selectedModel = typeof config?.model === 'string' && config.model.trim() ? config.model : null
-    return codexModelSelection({ models, selectedModel })
+    return selectionFromConfig(models, config)
   })
 }
 
@@ -153,11 +170,49 @@ export async function setCodexDefaultModel(options, selectedModel) {
     if (selectedModel !== null && !models.some((model) => model.id === selectedModel)) {
       throw new Error('所选 Codex 模型已不可用，请刷新模型列表后重新选择。')
     }
-    await request('config/value/write', { keyPath: 'model', value: selectedModel, mergeStrategy: 'replace' })
+    const before = await request('config/read', { includeLayers: false })
+    const previous = selectionFromConfig(models, before.config)
+    const nextModel = codexModelSelection({ models, selectedModel }).model
+    const clearReasoning = previous.selectedReasoningEffort !== null
+      && !supportsReasoningEffort(nextModel, previous.selectedReasoningEffort)
+    const modelEdit = { keyPath: 'model', value: selectedModel, mergeStrategy: 'replace' }
+    if (clearReasoning) {
+      await request('config/batchWrite', { edits: [
+        modelEdit,
+        { keyPath: 'model_reasoning_effort', value: null, mergeStrategy: 'replace' },
+      ] })
+    } else {
+      await request('config/value/write', modelEdit)
+    }
     const { config } = await request('config/read', { includeLayers: false })
     if ((config?.model ?? null) !== selectedModel) {
       throw new Error('Codex 模型设置未生效，请检查配置限制后重试。')
     }
-    return codexModelSelection({ models, selectedModel })
+    if (clearReasoning && config?.model_reasoning_effort != null) {
+      throw new Error('Codex 思考等级设置未生效，请检查配置限制后重试。')
+    }
+    return selectionFromConfig(models, config)
+  })
+}
+
+export async function setCodexDefaultReasoningEffort(options, selectedReasoningEffort) {
+  if (selectedReasoningEffort !== null && (typeof selectedReasoningEffort !== 'string' || !selectedReasoningEffort.trim())) {
+    throw new TypeError('请选择有效的 Codex 思考等级。')
+  }
+  return withAppServer(options, async (request) => {
+    const models = await listModels(request)
+    const before = await request('config/read', { includeLayers: false })
+    const selected = selectionFromConfig(models, before.config)
+    if (selectedReasoningEffort !== null && !supportsReasoningEffort(selected.model, selectedReasoningEffort)) {
+      throw new Error('当前 Codex 模型不支持所选思考等级，请刷新后重新选择。')
+    }
+    await request('config/value/write', {
+      keyPath: 'model_reasoning_effort', value: selectedReasoningEffort, mergeStrategy: 'replace',
+    })
+    const { config } = await request('config/read', { includeLayers: false })
+    if ((config?.model_reasoning_effort ?? null) !== selectedReasoningEffort) {
+      throw new Error('Codex 思考等级设置未生效，请检查配置限制后重试。')
+    }
+    return selectionFromConfig(models, config)
   })
 }

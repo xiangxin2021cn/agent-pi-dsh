@@ -3,11 +3,12 @@ import * as ReactDOM from 'react-dom'
 import { createAgentPiApiClient } from './api-client.js'
 import { createFilePreviewOverlay } from './file-preview-overlay.js'
 import { createKnowledgeBasePanel } from './knowledge-base-panel.js'
+import { installKbSessionBridge, installKbWorkspaceBridge } from './kb-session-bridge.js'
 import { addNativeComposerFiles } from './native-attachment-adapter.js'
 import { createWorkbenchSessionMonitor } from './session-monitor.js'
 import { createWorkbenchView } from './workbench-view.js'
 import { clientCss } from './styles.js'
-import { buildCodexTurnDelegation } from '../codex-turn.ts'
+import { buildCodexTurnDelegation, codexTurnModel, codexSupportsEffort, resolveCodexTurnSelection } from '../codex-turn.ts'
 import { fileIconClass, fileIconMeta, fileIconName } from '../file-icons.ts'
 import {
   PREVIEW_HEAD_CHARS,
@@ -1118,7 +1119,9 @@ const h = React.createElement
       return {
         phase: 'idle',
         selectedModel: '',
+        selectedReasoningEffort: '',
         capturedModel: null,
+        capturedReasoningEffort: null,
         capturedNativeAttachmentIds: [],
         latestProps: latestProps || null,
         attemptToken: null,
@@ -1162,10 +1165,19 @@ const h = React.createElement
       const phase = codexTurnPhase(props)
       return phase === 'armed' || phase === 'preparing' || phase === 'submitting'
     }
-    function setCodexTurnModel(props, model) {
+    function setCodexTurnModel(props, model, status) {
       const controller = codexTurnController(props, true)
       if (controller.phase !== 'idle' && controller.phase !== 'armed') return
       controller.selectedModel = String(model || '')
+      if (!codexSupportsEffort(codexTurnModel(status || {}, controller.selectedModel), controller.selectedReasoningEffort)) {
+        controller.selectedReasoningEffort = ''
+      }
+      notifyCodexTurn()
+    }
+    function setCodexTurnReasoningEffort(props, effort) {
+      const controller = codexTurnController(props, true)
+      if (controller.phase !== 'idle' && controller.phase !== 'armed') return
+      controller.selectedReasoningEffort = String(effort || '')
       notifyCodexTurn()
     }
     function setCodexTurnArmed(props, armed) {
@@ -1210,6 +1222,7 @@ const h = React.createElement
       controller.originalDraft = ''
       controller.framedDraft = ''
       controller.capturedModel = null
+      controller.capturedReasoningEffort = null
       controller.capturedNativeAttachmentIds = []
       controller.capturedAttachmentIds = []
       controller.capturedAttachments = []
@@ -1399,7 +1412,8 @@ const h = React.createElement
       if (!sessionSnapshot || !inputSnapshot || inputSnapshot.phase !== 'plain' || typeof inputSnapshot.draft !== 'string'
         || inputSnapshot.draft !== controller.originalDraft || !live || codexTurnKey(live) !== key
         || !sameCodexAttachmentIds(attachmentIds, controller.capturedAttachmentIds)
-        || !sameCodexAttachmentIds(nativeCodexAttachmentIds(inputSnapshot), controller.capturedNativeAttachmentIds)) {
+        || !sameCodexAttachmentIds(nativeCodexAttachmentIds(inputSnapshot), controller.capturedNativeAttachmentIds)
+        || !sameCodexAttachmentIds(kbTaskOf(key).slugs, controller.capturedKbSlugs)) {
         rearmCodexTurn(key, controller)
         return null
       }
@@ -1434,6 +1448,7 @@ const h = React.createElement
       disposeCodexTurnSessionSubscription(controller)
       controller.phase = 'idle'
       controller.selectedModel = ''
+      controller.selectedReasoningEffort = ''
       if (capturedIds.length) setCodexAttachItems(key, remaining)
       notifyCodexTurn()
     }
@@ -3747,7 +3762,9 @@ const h = React.createElement
       const attachmentIds = codexAttachmentIds(codexAttachItems(key))
       if (!sessionSnapshot || !inputSnapshot || inputSnapshot.phase !== 'plain'
         || inputSnapshot.draft !== controller.originalDraft || !live || attachmentTurnKey(live) !== key
-        || !sameCodexAttachmentIds(attachmentIds, controller.capturedAttachmentIds)) {
+        || !sameCodexAttachmentIds(attachmentIds, controller.capturedAttachmentIds)
+        || !sameCodexAttachmentIds(nativeCodexAttachmentIds(inputSnapshot), controller.capturedNativeAttachmentIds)
+        || !sameCodexAttachmentIds(kbTaskOf(key).slugs, controller.capturedKbSlugs)) {
         abortAttachmentTurn(key, controller)
         return null
       }
@@ -3758,7 +3775,7 @@ const h = React.createElement
       const clean = stripMentionArtifacts(controller.originalDraft)
       const attachLine = formatAttachVisible(controller.capturedAttachments)
       const block = formatKbTaskBlock(key)
-      const fallback = controller.capturedAttachments.length ? '请结合附件作答。' : ''
+      const fallback = controller.capturedAttachments.length || controller.capturedNativeAttachmentIds.length ? '请结合附件作答。' : ''
       const body = [clean, attachLine].filter(Boolean).join('\n\n')
       const draft = block
         ? (body ? block + '\n\n' + body : block + (fallback ? '\n\n' + fallback : ''))
@@ -3770,6 +3787,15 @@ const h = React.createElement
     async function prepareAttachmentTurn(key, token) {
       const controller = attachmentTurnControllers.get(key)
       if (!controller || controller.phase !== 'preparing' || controller.attemptToken !== token) return
+      try {
+        await flushKbTaskSelection(key)
+      } catch {
+        token.prepareSettled = true
+        abortAttachmentTurn(key, controller)
+        showToast('知识库选项尚未保存，请重试选择后再发送。')
+        return
+      }
+      if (!preparingAttachmentTurn(key, token)) return
       const workspaceMismatch = controller.capturedAttachments.some((item) => item.cwd && controller.cwd
         && normPath(item.cwd) !== normPath(controller.cwd))
       if (workspaceMismatch) {
@@ -3849,6 +3875,13 @@ const h = React.createElement
           showToast(String(error && error.message || error))
           return
         }
+      }
+      try {
+        if (hasKbTaskSelectionSave(key)) await flushKbTaskSelection(key)
+      } catch {
+        abortAttachmentTurn(key, controller)
+        showToast('知识库选项尚未保存，请重试选择后再发送。')
+        return
       }
       prepared = preparingAttachmentTurn(key, token)
       if (!prepared) return
@@ -3947,6 +3980,8 @@ const h = React.createElement
         framedDraft: '',
         capturedAttachments: attachments,
         capturedAttachmentIds: codexAttachmentIds(attachments),
+        capturedNativeAttachmentIds: nativeCodexAttachmentIds(inputSnapshot),
+        capturedKbSlugs: kbTaskOf(key).slugs.slice(),
         preSubmitUserNodeWatermark: -1,
         preSubmitPromptErrorRef: sessionSnapshot.promptError || null,
         preSubmitPromptErrorToken: JSON.stringify(sessionSnapshot.promptError || null),
@@ -3991,7 +4026,7 @@ const h = React.createElement
       const text = block
         ? (body ? block + '\n\n' + body : block + (fallback ? '\n\n' + fallback : ''))
         : (body || fallback)
-      const delegation = buildCodexTurnDelegation(text, controller.capturedModel)
+      const delegation = buildCodexTurnDelegation(text, controller.capturedModel, controller.capturedReasoningEffort)
       const marker = attachmentTransactionMarker(token)
       return marker ? delegation + '\n\n' + marker : delegation
     }
@@ -3999,6 +4034,12 @@ const h = React.createElement
     async function prepareCodexTurn(key, token) {
       const desktop = window.agentPiDesktop
       let status
+      try {
+        await flushKbTaskSelection(key)
+      } catch {
+        failCodexPreparation(key, token, '知识库选项尚未保存，请重试选择后再发送。')
+        return
+      }
       try {
         status = !desktop || typeof desktop.codexAuthStatus !== 'function'
           ? null
@@ -4010,16 +4051,14 @@ const h = React.createElement
       }
       let prepared = preparingCodexTurn(key, token)
       if (!prepared) return
-      const selectedModel = prepared.controller.selectedModel
-      if (!selectedModel && status.modelError) {
-        failCodexPreparation(key, token, '无法确认默认 Codex 模型，请刷新模型列表或选择可用模型后重试。')
+      try {
+        const selected = resolveCodexTurnSelection(status, prepared.controller.selectedModel, prepared.controller.selectedReasoningEffort)
+        prepared.controller.capturedModel = selected.model
+        prepared.controller.capturedReasoningEffort = selected.reasoningEffort
+      } catch (error) {
+        failCodexPreparation(key, token, error.message)
         return
       }
-      if (selectedModel && !(status.models || []).some((model) => model.id === selectedModel)) {
-        failCodexPreparation(key, token, '所选 Codex 模型当前不可用，请刷新模型列表并重新选择。')
-        return
-      }
-      prepared.controller.capturedModel = selectedModel || status.defaultModel || null
       const items = prepared.controller.capturedAttachments
       const cwd = prepared.live && prepared.live.cwd || workspaceCwd(prepared.live)
       const workspaceMismatch = items.some((item) => item.cwd && cwd && normPath(item.cwd) !== normPath(cwd))
@@ -4099,6 +4138,12 @@ const h = React.createElement
           showToast(String(error && error.message || error))
           return
         }
+      }
+      try {
+        if (hasKbTaskSelectionSave(key)) await flushKbTaskSelection(key)
+      } catch {
+        failCodexPreparation(key, token, '知识库选项尚未保存，请重试选择后再发送。')
+        return
       }
       prepared = preparingCodexTurn(key, token)
       if (!prepared) return
@@ -4186,6 +4231,7 @@ const h = React.createElement
       controller.phase = 'preparing'
       controller.attemptToken = token
       controller.capturedNativeAttachmentIds = nativeCodexAttachmentIds(inputSnapshot)
+      controller.capturedKbSlugs = kbTaskOf(key).slugs.slice()
       controller.originalDraft = inputSnapshot.draft
       controller.framedDraft = ''
       controller.capturedAttachments = attachments
@@ -4223,12 +4269,12 @@ const h = React.createElement
         restoreCleanDraft(live)
         const sid = sessionHint(live) || runtime.sessionId || 'active'
         const hasAttach = codexAttachItems(attachmentKey).length > 0
-        const hasKb = kbTaskOf(sid).slugs.length > 0
+        const hasKb = kbTaskOf(sid).slugs.length > 0 || hasKbTaskSelectionSave(sid)
         if (hasAttach) {
           submitAttachmentTurn(live)
           return
         }
-        if (hasKb && stripMentionArtifacts(currentDraft(live))) {
+        if (hasKb && (stripMentionArtifacts(currentDraft(live)) || nativeCodexAttachmentIds(live.input).length)) {
           submitAttachmentTurn(live)
           return
         }
@@ -4753,7 +4799,7 @@ const h = React.createElement
       )
     }
 
-    const { KnowledgeBasePanel, formatKbTaskBlock, kbTaskOf } = createKnowledgeBasePanel({
+    const { KnowledgeBasePanel, formatKbTaskBlock, kbTaskOf, claimDraftKbTask, flushKbTaskSelection, hasKbTaskSelectionSave, resetDraftKbTask, kbDraftKey } = createKnowledgeBasePanel({
       Icon,
       KB_PRESET_CATEGORIES,
       React,
@@ -6929,39 +6975,10 @@ const h = React.createElement
       )
     }
 
-    function ProfessionalProjectStarter(props) {
-      const session = props && props.session
-      const cwd = props && props.cwd
-      const pending = session && Array.isArray(session.pendingSubmissions) ? session.pendingSubmissions.length : 0
-      const queued = session && Array.isArray(session.queue) ? session.queue.length : 0
-      if (!cwd || !session || session.blank !== true || session.running || pending || queued) return null
-      const choices = [
-        { module: MODULES.tender, label: '投标项目' },
-        { module: MODULES.delivery, label: '项管项目' },
-        { module: MODULES.investment, label: '投资项目' },
-      ]
-      return h('section', { className: 'ap-project-starter', 'aria-label': '新建专业工作台项目' },
-        h('div', { className: 'ap-project-starter-copy' },
-          h('strong', null, '新建专业工作台项目'),
-          h('span', null, '当前主对话将绑定项目；登记资料后，从工作台明确点击推进并在这里开始执行。'),
-        ),
-        h('div', { className: 'ap-project-starter-actions' },
-          choices.map((choice) => h('button', {
-            key: choice.module.id,
-            type: 'button',
-            className: 'ap-btn' + (choice.module.id === 'tender' ? ' primary' : ''),
-            onClick: () => window.dispatchEvent(new CustomEvent('agent-pi-open-create', {
-              detail: { cwd, module: choice.module.id, mode: 'create', source: 'blank-conversation' },
-            })),
-          }, moduleIconNode(choice.module, 14), choice.label)),
-        ),
-      )
-    }
-
     function AttachmentDock(props) {
-      const cwd = captureComposerFace(props)
+      captureComposerFace(props)
       wrapComposerSubmit(snapshotComposer())
-      return h(ProfessionalProjectStarter, { session: props && props.session, cwd })
+      return null
     }
 
     function ensureComposerAttachHost() {
@@ -8227,8 +8244,15 @@ const h = React.createElement
       const zh = useApLang() === 'zh'
       const controller = codexTurnController(composer, false)
       const selectedModel = controller && controller.selectedModel || ''
+      const selectedEffort = controller && controller.selectedReasoningEffort || ''
       const models = auth.models || []
       const model = auth.model
+      const turnModel = codexTurnModel(auth, selectedModel)
+      const efforts = turnModel && turnModel.supportedReasoningEfforts || []
+      const inheritedEffort = codexSupportsEffort(turnModel, auth.selectedReasoningEffort)
+        ? auth.selectedReasoningEffort : turnModel && turnModel.defaultReasoningEffort
+      const inheritedLabel = auth.selectedReasoningEffort && !codexSupportsEffort(turnModel, auth.selectedReasoningEffort)
+        ? (zh ? '使用本模型默认' : 'Use this model’s default') : (zh ? '跟随设置' : 'Use saved setting')
       const defaultLabel = model && (model.displayName || model.id) || auth.defaultModel
       const locked = codexTurnPhase(composer) !== 'armed'
       return h('span', { className: 'ap-codex-model-control' },
@@ -8238,7 +8262,7 @@ const h = React.createElement
           title: zh ? '仅用于下一条 Codex 执行消息' : 'Applies only to the next Codex message',
           value: selectedModel,
           disabled: locked || refreshing || auth.state !== 'logged-in' || !models.length,
-          onChange: (event) => setCodexTurnModel(composer, event.target.value),
+          onChange: (event) => setCodexTurnModel(composer, event.target.value, auth),
         },
         h('option', { value: '' }, refreshing
           ? (zh ? '正在读取模型…' : 'Loading models…')
@@ -8246,6 +8270,18 @@ const h = React.createElement
         selectedModel && !models.some((entry) => entry.id === selectedModel)
           && h('option', { value: selectedModel, disabled: true }, selectedModel + (zh ? '（不可用）' : ' (unavailable)')),
         models.map((entry) => h('option', { key: entry.id, value: entry.id }, entry.displayName || entry.id))),
+        h('select', {
+          className: 'ap-codex-model-select',
+          'aria-label': zh ? '本次 Codex 思考等级' : 'Codex reasoning effort for this message',
+          title: zh ? '仅用于下一条 Codex 执行消息；未选择时使用与本次模型兼容的默认等级' : 'Applies to the next Codex message; otherwise use a compatible default effort',
+          value: selectedEffort,
+          disabled: locked || refreshing || auth.state !== 'logged-in' || !efforts.length,
+          onChange: (event) => setCodexTurnReasoningEffort(composer, event.target.value),
+        },
+        h('option', { value: '' }, inheritedLabel + (inheritedEffort ? ' · ' + inheritedEffort : '')),
+        selectedEffort && !codexSupportsEffort(turnModel, selectedEffort)
+          && h('option', { value: selectedEffort, disabled: true }, selectedEffort + (zh ? '（不可用）' : ' (unavailable)')),
+        efforts.map((entry) => h('option', { key: entry.reasoningEffort, value: entry.reasoningEffort, title: entry.description }, entry.reasoningEffort))),
         !refreshing && (!models.length || auth.modelError) && h('button', {
           type: 'button', className: 'ap-toolbtn', disabled: locked,
           title: auth.modelError || (zh ? '登录后刷新 Codex 模型' : 'Sign in, then refresh Codex models'),
@@ -8322,6 +8358,23 @@ const h = React.createElement
           window.dispatchEvent(new Event('agent-pi-codex-model-changed'))
         } catch {
           setModelMessage(zh ? '模型保存失败，请刷新列表后重试。' : 'Could not save the model. Refresh the list and retry.')
+        } finally {
+          setModelBusy(false)
+        }
+      }
+
+      const saveReasoningEffort = async (effort) => {
+        if (modelBusy || !desktop || typeof desktop.codexSetDefaultReasoningEffort !== 'function') return
+        setModelBusy(true)
+        setModelMessage('')
+        try {
+          const next = await desktop.codexSetDefaultReasoningEffort(effort || null)
+          if (!next || next.state !== 'logged-in') throw new Error('Invalid Codex reasoning preference')
+          setAuth(next)
+          setModelMessage(zh ? '默认思考等级已保存，下次 Codex 调用生效。' : 'Default reasoning effort saved for the next Codex call.')
+          window.dispatchEvent(new Event('agent-pi-codex-model-changed'))
+        } catch {
+          setModelMessage(zh ? '思考等级保存失败，请刷新列表后重试。' : 'Could not save the reasoning effort. Refresh the list and retry.')
         } finally {
           setModelBusy(false)
         }
@@ -8409,10 +8462,24 @@ const h = React.createElement
             auth.selectedModel && !(auth.models || []).some((entry) => entry.id === auth.selectedModel)
               && h('option', { value: auth.selectedModel, disabled: true }, auth.selectedModel + (zh ? '（不可用）' : ' (unavailable)')),
             (auth.models || []).map((entry) => h('option', { key: entry.id, value: entry.id }, entry.displayName || entry.id))),
+            h('label', { htmlFor: 'ap-codex-default-reasoning' }, zh ? '默认 Codex 思考等级' : 'Default Codex reasoning effort'),
+            h('select', {
+              id: 'ap-codex-default-reasoning',
+              className: 'ap-codex-model-select',
+              value: auth.selectedReasoningEffort || '',
+              disabled: modelBusy || refreshing || !model || typeof desktop.codexSetDefaultReasoningEffort !== 'function',
+              onChange: (event) => { void saveReasoningEffort(event.target.value) },
+            },
+            h('option', { value: '' }, (zh ? '跟随模型默认' : 'Use the model default') + (model && model.defaultReasoningEffort ? ' · ' + model.defaultReasoningEffort : '')),
+            auth.selectedReasoningEffort && !codexSupportsEffort(model, auth.selectedReasoningEffort)
+              && h('option', { value: auth.selectedReasoningEffort, disabled: true }, auth.selectedReasoningEffort + (zh ? '（不可用）' : ' (unavailable)')),
+            (model && model.supportedReasoningEfforts || []).map((entry) => h('option', {
+              key: entry.reasoningEffort, value: entry.reasoningEffort, title: entry.description,
+            }, entry.reasoningEffort))),
             h('p', { className: 'ap-sub' }, zh
-              ? '用于 Codex 子智能体调用；主对话开启“Codex 执行”后可单独选择本次模型。'
-              : 'Used for Codex subagent calls. Enable Codex execution in the composer to override it for one message.'),
-            (auth.modelError || modelMessage) && h('p', { className: 'ap-sub', role: 'status' }, auth.modelError || modelMessage),
+              ? '用于 Codex 子智能体调用；主对话开启“Codex 执行”后可单独选择本次模型和思考等级。切换默认模型会清除不兼容的已保存等级。'
+              : 'Used for Codex subagent calls. Enable Codex execution to choose a model and effort for one message. Changing the default model clears an incompatible saved effort.'),
+            (auth.modelError || auth.reasoningEffortError || modelMessage) && h('p', { className: 'ap-sub', role: 'status' }, auth.modelError || auth.reasoningEffortError || modelMessage),
           ),
           loggedIn && h('p', { className: 'ap-sub' }, model
             ? [
@@ -8552,8 +8619,22 @@ const h = React.createElement
           || (typeof scope.get === 'function' ? scope.get('sessions') : null)
           || runtime.sessions
         guardArchivedSessionView(runtime.sessions)
+        installKbSessionBridge(runtime.sessions, { claimDraftKbTask, resetDraftKbTask, kbDraftKey }, (sessionId) => {
+          runtime.sessionId = sessionId
+          composerFace.sessionId = sessionId
+          composerFace.inputActions = null
+          if (!sessionId) {
+            runtime.cwd = ''
+            composerFace.cwd = ''
+            composerFace.draft = ''
+            composerFace.input = { draft: '' }
+          }
+        })
         watchWorkbenchTransactionRestore()
         ensureUserRequirementWatcher(runtime.sessionId)
+      })
+      ctx.inject(['sessions', 'uiWorkspace'], (scope) => {
+        installKbWorkspaceBridge(scope.sessions || runtime.sessions, scope.uiWorkspace || ctx.uiWorkspace, { claimDraftKbTask, kbDraftKey })
       })
       ctx.inject(['conversation'], (scope) => {
         runtime.conversation = scope.conversation

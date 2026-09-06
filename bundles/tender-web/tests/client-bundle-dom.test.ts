@@ -186,17 +186,20 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     let loginCalls = 0
     let codexLoggedIn = false
     let selectedModel: string | null = null
+    let selectedReasoningEffort: string | null = null
     let rejectModelSave = false
+    let rejectEffortSave = false
     const modelSaveCalls: Array<string | null> = []
+    const effortSaveCalls: Array<string | null> = []
     const codexModels = [
-      { id: 'gpt-5.4', displayName: 'GPT-5.4' },
-      { id: 'gpt-5.3-codex', displayName: 'GPT-5.3-Codex' },
+      { id: 'gpt-5.4', displayName: 'GPT-5.4', defaultReasoningEffort: 'low', supportedReasoningEfforts: [{ reasoningEffort: 'low' }, { reasoningEffort: 'high' }] },
+      { id: 'gpt-5.3-codex', displayName: 'GPT-5.3-Codex', defaultReasoningEffort: 'medium', supportedReasoningEfforts: [{ reasoningEffort: 'medium' }, { reasoningEffort: 'ultra' }, { reasoningEffort: 'future-effort' }] },
     ]
     const codexAuthSnapshot = () => ({
       available: true,
       state: codexLoggedIn ? 'logged-in' : 'logged-out',
       ...(codexLoggedIn ? {
-        models: codexModels, selectedModel, defaultModel: 'gpt-5.4',
+        models: codexModels, selectedModel, selectedReasoningEffort, defaultModel: selectedModel || 'gpt-5.4',
         model: {
           ...codexModels.find((model) => model.id === (selectedModel || 'gpt-5.4')),
           contextWindow: 128_000, maxTokens: 32_000,
@@ -219,6 +222,12 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
         modelSaveCalls.push(modelId)
         if (rejectModelSave) throw new Error('preference write failed')
         selectedModel = modelId
+        return codexAuthSnapshot()
+      },
+      codexSetDefaultReasoningEffort: async (effort: string | null) => {
+        effortSaveCalls.push(effort)
+        if (rejectEffortSave) throw new Error('preference write failed')
+        selectedReasoningEffort = effort
         return codexAuthSnapshot()
       },
       compactionFallbackStatus: async () => ({ enabled: true }),
@@ -298,6 +307,16 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     assert.equal(selectedModel, 'gpt-5.3-codex')
     assert.equal(defaultModelSelect().value, 'gpt-5.3-codex')
     assert.match(mount.textContent || '', /默认模型已保存/)
+    const defaultEffortSelect = () => mount.querySelector<HTMLSelectElement>('#ap-codex-default-reasoning')!
+    assert.deepEqual(Array.from(defaultEffortSelect().options, (option) => option.value), ['', 'medium', 'ultra', 'future-effort'])
+    assert.match(defaultEffortSelect().options[0].textContent || '', /跟随模型默认 · medium/)
+    await act(async () => {
+      defaultEffortSelect().value = 'ultra'
+      defaultEffortSelect().dispatchEvent(new dom.window.Event('change', { bubbles: true }))
+      await new Promise((resolveTick) => setTimeout(resolveTick, 0))
+    })
+    assert.equal(selectedReasoningEffort, 'ultra')
+    assert.match(mount.textContent || '', /默认思考等级已保存/)
 
     await act(async () => rootView!.unmount())
     rootView = createRoot(mount)
@@ -306,6 +325,23 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
       await new Promise((resolveTick) => setTimeout(resolveTick, 0))
     })
     assert.equal(defaultModelSelect().value, 'gpt-5.3-codex', 'reopening settings must restore the saved model')
+    assert.equal(defaultEffortSelect().value, 'ultra', 'reopening settings must restore the saved effort')
+    rejectEffortSave = true
+    await act(async () => {
+      defaultEffortSelect().value = 'future-effort'
+      defaultEffortSelect().dispatchEvent(new dom.window.Event('change', { bubbles: true }))
+      await new Promise((resolveTick) => setTimeout(resolveTick, 0))
+    })
+    assert.equal(defaultEffortSelect().value, 'ultra')
+    assert.match(mount.textContent || '', /思考等级保存失败/)
+    rejectEffortSave = false
+    await act(async () => {
+      defaultEffortSelect().value = ''
+      defaultEffortSelect().dispatchEvent(new dom.window.Event('change', { bubbles: true }))
+      await new Promise((resolveTick) => setTimeout(resolveTick, 0))
+    })
+    assert.equal(defaultEffortSelect().value, '')
+    assert.deepEqual(effortSaveCalls, ['ultra', 'future-effort', null])
     rejectModelSave = true
     await act(async () => {
       defaultModelSelect().value = 'gpt-5.4'
@@ -317,6 +353,38 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     assert.equal(defaultModelSelect().value, 'gpt-5.3-codex', 'a failed save must leave the confirmed model selected')
     assert.equal(defaultModelSelect().disabled, false)
     assert.match(mount.textContent || '', /模型保存失败/)
+
+    selectedReasoningEffort = 'ultra'
+    await act(async () => rootView!.unmount())
+    rootView = createRoot(mount)
+    const ReasoningComposerTools = registered.get('agent-pi-composer-tools')
+    await act(async () => {
+      rootView!.render(React.createElement(ReasoningComposerTools, { sessionId: 'effort-ui', input: { draft: 'reasoning UI task' }, inputActions: { submit() {} } }))
+      await new Promise((resolveTick) => setTimeout(resolveTick, 0))
+    })
+    const codexToggle = mount.querySelector<HTMLButtonElement>('.ap-codex-turn')!
+    assert.ok(codexToggle)
+    await act(async () => {
+      codexToggle.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }))
+      await new Promise((resolveTick) => setTimeout(resolveTick, 0))
+    })
+    const turnModel = () => mount.querySelector<HTMLSelectElement>('[aria-label="本次 Codex 模型"]')!
+    const turnEffort = () => mount.querySelector<HTMLSelectElement>('[aria-label="本次 Codex 思考等级"]')!
+    assert.deepEqual(Array.from(turnEffort().options, (option) => option.value), ['', 'medium', 'ultra', 'future-effort'])
+    assert.match(turnEffort().options[0].textContent || '', /跟随设置 · ultra/)
+    await act(async () => {
+      turnEffort().value = 'future-effort'
+      turnEffort().dispatchEvent(new dom.window.Event('change', { bubbles: true }))
+    })
+    assert.equal(turnEffort().value, 'future-effort')
+    await act(async () => {
+      turnModel().value = 'gpt-5.4'
+      turnModel().dispatchEvent(new dom.window.Event('change', { bubbles: true }))
+    })
+    assert.equal(turnEffort().value, '', 'model changes must clear an incompatible one-turn effort')
+    assert.deepEqual(Array.from(turnEffort().options, (option) => option.value), ['', 'low', 'high'])
+    assert.match(turnEffort().options[0].textContent || '', /使用本模型默认 · low/)
+    assert.equal(selectedReasoningEffort, 'ultra', 'one-turn choices must not modify the saved preference')
 
     await act(async () => rootView!.unmount())
     rootView = createRoot(mount)
@@ -341,14 +409,13 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
       ))
       await new Promise((resolveTick) => setTimeout(resolveTick, 0))
     })
-    assert.match(mount.textContent || '', /新建专业工作台项目/)
-    assert.match(mount.textContent || '', /投标项目/)
-    assert.match(mount.textContent || '', /项管项目/)
-    assert.match(mount.textContent || '', /投资项目/)
-    const tenderStarter = Array.from(mount.querySelectorAll('button')).find((button) => button.textContent === '投标项目')
-    assert.ok(tenderStarter)
+    assert.equal(mount.querySelector('.ap-project-starter'), null)
+    assert.doesNotMatch(mount.textContent || '', /新建专业工作台项目|投标项目|项管项目|投资项目/)
+    assert.equal(fetchCalls.some((call) => call.url.includes('/api/agent-pi/stage') || call.url.includes('/api/agent-pi/projects')), false)
     await act(async () => {
-      tenderStarter.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }))
+      dom.window.dispatchEvent(new dom.window.CustomEvent('agent-pi-open-create', {
+        detail: { cwd: 'C:/workspace', module: 'tender', mode: 'create', source: 'workbench' },
+      }))
       await new Promise((resolveTick) => setTimeout(resolveTick, 0))
     })
     assert.match(mount.textContent || '', /新建.*投标.*项目/)

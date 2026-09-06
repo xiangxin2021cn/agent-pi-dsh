@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
 import { PassThrough } from 'node:stream'
 import { test } from 'node:test'
-import { codexModelSelection, probeCodexModels, setCodexDefaultModel } from '../codex-models.mjs'
+import { codexModelSelection, probeCodexModels, setCodexDefaultModel, setCodexDefaultReasoningEffort } from '../codex-models.mjs'
 
 function server(handler) {
   const calls = []
@@ -49,12 +49,16 @@ function server(handler) {
   return { options, calls, child }
 }
 
-function catalogServer(entries, selectedModel = null) {
+function catalogServer(entries, selectedModel = null, selectedReasoningEffort = null) {
+  const config = { model: selectedModel, model_reasoning_effort: selectedReasoningEffort, unrelated: 'preserved' }
   return server((message, { reply }) => {
     if (message.method === 'model/list') reply(message.id, { data: entries, nextCursor: null })
-    else if (message.method === 'config/read') reply(message.id, { config: { model: selectedModel } })
+    else if (message.method === 'config/read') reply(message.id, { config })
     else if (message.method === 'config/value/write') {
-      selectedModel = message.params.value
+      config[message.params.keyPath] = message.params.value
+      reply(message.id, {})
+    } else if (message.method === 'config/batchWrite') {
+      for (const edit of message.params.edits) config[edit.keyPath] = edit.value
       reply(message.id, {})
     } else assert.fail('unexpected request')
   })
@@ -180,4 +184,74 @@ test('does not report a model preference as saved if effective config rejects it
     else if (message.method === 'config/read') reply(message.id, { config: { model: 'managed-model' } })
   })
   await assert.rejects(setCodexDefaultModel(fixture.options, 'model-a'), /未生效/)
+})
+
+const reasoningModels = [
+  { id: 'model-a', isDefault: true, defaultReasoningEffort: 'medium', supportedReasoningEfforts: [
+    { reasoningEffort: 'medium', description: 'Balanced' }, { reasoningEffort: 'ultra', description: 'Deep' },
+    { reasoningEffort: 'future-effort', description: 'Future provider capability' },
+  ] },
+  { id: 'model-b', defaultReasoningEffort: 'medium', supportedReasoningEfforts: [{ reasoningEffort: 'medium' }] },
+]
+
+test('reads the saved reasoning preference and dynamic supported efforts without hardcoding levels', async () => {
+  const fixture = catalogServer(reasoningModels, null, 'future-effort')
+  const result = await probeCodexModels(fixture.options)
+  assert.equal(result.selectedReasoningEffort, 'future-effort')
+  assert.deepEqual(result.model.supportedReasoningEfforts, reasoningModels[0].supportedReasoningEfforts)
+  assert.equal(result.model.defaultReasoningEffort, 'medium')
+  assert.equal(result.reasoningEffortError, undefined)
+})
+
+test('persists and clears reasoning only through the official config RPC', async () => {
+  for (const effort of ['future-effort', null]) {
+    const fixture = catalogServer(reasoningModels, 'model-a', 'ultra')
+    const result = await setCodexDefaultReasoningEffort(fixture.options, effort)
+    assert.equal(result.selectedReasoningEffort, effort)
+    assert.equal(result.selectedModel, 'model-a')
+    assert.deepEqual(fixture.calls.filter(({ method }) => method === 'config/value/write').map(({ params }) => params), [
+      { keyPath: 'model_reasoning_effort', value: effort, mergeStrategy: 'replace' },
+    ])
+  }
+})
+
+test('rejects unsupported or malformed reasoning choices before writing', async () => {
+  const fixture = catalogServer(reasoningModels, 'model-b')
+  await assert.rejects(setCodexDefaultReasoningEffort(fixture.options, 'ultra'), /不支持/)
+  assert.equal(fixture.calls.some(({ method }) => method.startsWith('config/') && method !== 'config/read'), false)
+  for (const invalid of ['', ' ', {}, undefined]) {
+    await assert.rejects(setCodexDefaultReasoningEffort(fixture.options, invalid), TypeError)
+  }
+})
+
+test('switching models atomically clears incompatible reasoning and keeps compatible reasoning', async () => {
+  for (const effort of ['ultra', 'medium']) {
+    const fixture = catalogServer(reasoningModels, 'model-a', effort)
+    const result = await setCodexDefaultModel(fixture.options, 'model-b')
+    assert.equal(result.selectedModel, 'model-b')
+    assert.equal(result.selectedReasoningEffort, effort === 'ultra' ? null : effort)
+    const batch = fixture.calls.find(({ method }) => method === 'config/batchWrite')
+    if (effort === 'ultra') assert.deepEqual(batch.params.edits, [
+      { keyPath: 'model', value: 'model-b', mergeStrategy: 'replace' },
+      { keyPath: 'model_reasoning_effort', value: null, mergeStrategy: 'replace' },
+    ])
+    else assert.equal(batch, undefined)
+  }
+})
+
+test('an invalid saved reasoning preference is visible without mutating config on read', async () => {
+  const fixture = catalogServer(reasoningModels, 'model-b', 'ultra')
+  const result = await probeCodexModels(fixture.options)
+  assert.equal(result.selectedReasoningEffort, 'ultra')
+  assert.match(result.reasoningEffortError, /不适用/)
+  assert.equal(fixture.calls.some(({ method }) => method === 'config/value/write'), false)
+})
+
+test('managed config rejection cannot be reported as a successful reasoning save', async () => {
+  const fixture = server((message, { reply }) => {
+    if (message.method === 'model/list') reply(message.id, { data: reasoningModels, nextCursor: null })
+    else if (message.method === 'config/read') reply(message.id, { config: { model: 'model-a', model_reasoning_effort: 'medium' } })
+    else if (message.method === 'config/value/write') reply(message.id, {})
+  })
+  await assert.rejects(setCodexDefaultReasoningEffort(fixture.options, 'ultra'), /未生效/)
 })

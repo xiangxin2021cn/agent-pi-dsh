@@ -381,24 +381,27 @@ Section "Install"
 
   extract_ok:
   DetailPrint "Repairing DeepSeek Harness plugin links..."
-  nsExec::ExecToLog '"$INSTDIR\resources\runtime\node\node.exe" "$INSTDIR\resources\runtime\product\scripts\repair-dsh-links.mjs" repair "$INSTDIR\resources\runtime\deepseek-harness"'
+  SetOutPath "$INSTDIR\resources\runtime"
+  nsExec::ExecToLog '"$PLUGINSDIR\node.exe" "product\scripts\repair-dsh-links.mjs" repair "deepseek-harness"'
   Pop $0
-  IntCmp $0 0 repair_ok
+  StrCmp $0 "0" repair_ok
     Call RollbackUniverVendor
     Call RollbackAppAsar
+    SetErrorLevel 7
     MessageBox MB_OK|MB_ICONSTOP "Failed to repair plugin links ($0)."
     Abort
   repair_ok:
   DetailPrint "Verifying dsh-univer-office install boundary..."
   !ifdef INCLUDE_LICENSED_UNIVER
-  nsExec::ExecToLog '"$INSTDIR\resources\runtime\node\node.exe" "$INSTDIR\resources\runtime\product\scripts\installer-univer-lifecycle.mjs" verify-product "$INSTDIR\resources\runtime\product" --required'
+  nsExec::ExecToLog '"$PLUGINSDIR\node.exe" "product\scripts\installer-univer-lifecycle.mjs" verify-product "product" --required'
   !else
-  nsExec::ExecToLog '"$INSTDIR\resources\runtime\node\node.exe" "$INSTDIR\resources\runtime\product\scripts\installer-univer-lifecycle.mjs" verify-product "$INSTDIR\resources\runtime\product"'
+  nsExec::ExecToLog '"$PLUGINSDIR\node.exe" "product\scripts\installer-univer-lifecycle.mjs" verify-product "product"'
   !endif
   Pop $0
-  IntCmp $0 0 univer_verify_ok
+  StrCmp $0 "0" univer_verify_ok
     Call RollbackUniverVendor
     Call RollbackAppAsar
+    SetErrorLevel 8
     MessageBox MB_OK|MB_ICONSTOP "dsh-univer-office 校验失败。已尝试恢复旧 Office 和应用入口，但不保证整套运行时已恢复。请点「显示详情」查看具体错误，并在原目录重试安装。$\r$\n$\r$\ndsh-univer-office verification failed. Restoration of the previous Office and app archive was attempted; the entire runtime is not rolled back. See Show details for the error and reinstall to the same directory."
     Abort
   univer_verify_ok:

@@ -71,6 +71,23 @@ test('permits installer and publication changes while retaining the original CAD
   assert.notEqual(proof.releaseCommit, proof.sourceCommit)
 })
 
+test('permits only the Office notice section to change while retaining all CAD notices and provenance', (t) => {
+  const value = fixture(t)
+  const path = join(value.root, 'THIRD_PARTY_NOTICES.md')
+  const before = '# Notices\n\n## Optional dsh-univer-office integration\n\nOld Office policy.\n\n## CAD\n\nOriginal CAD terms.\n'
+  write(path, before)
+  const source = value.manifest.sources.agentPiDshCadIntegration
+  source.commit = commit(value.root)
+  source.tree = git(value.root, 'rev-parse', 'HEAD^{tree}')
+  const after = before.replace('Optional dsh-univer-office', 'dsh-univer-office').replace('Old Office policy.', 'Official Office distribution and original licenses.')
+  write(path, after)
+  commit(value.root)
+  assert.equal(assertCadIntegrationUnchanged(value).sourceCommit, source.commit)
+  write(path, after.replace('Original CAD terms.', 'Changed CAD terms.'))
+  commit(value.root)
+  assert.throws(() => assertCadIntegrationUnchanged(value), /CAD inputs changed.*THIRD_PARTY_NOTICES/)
+})
+
 for (const input of CAD_INPUT_PATHS) {
   test(`rejects a committed CAD input change: ${input}`, (t) => {
     const value = fixture(t)

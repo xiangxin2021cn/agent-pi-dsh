@@ -34,8 +34,8 @@ import { verifyDshRuntime } from './verify-dsh-runtime.mjs'
 import { verifyRuntimePayloadStage } from './verify-runtime-payload-stage.mjs'
 import {
   assertUniverPublicReleaseTree,
-  removeBundledUniverFromProduct,
 } from './univer-public-release.mjs'
+import { materializeDshUniverOffice } from './materialize-dsh-univer-office.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const desktop = join(root, 'apps', 'desktop')
@@ -106,6 +106,12 @@ function verifyCadViewerAssets(dir, label) {
 
 run(process.execPath, [join(root, 'scripts', 'kernel-version-policy.mjs'), '--history'])
 run(process.execPath, [join(root, 'scripts', 'apply-dsh-patches.mjs')])
+try {
+  assertUniverPublicReleaseTree(root, { runtime: false })
+} catch {
+  await materializeDshUniverOffice({ root })
+}
+assertUniverPublicReleaseTree(root, { runtime: false })
 const dshSrc = realpathSync(join(root, 'vendor', 'deepseek-harness'))
 buildDshWithReceipt({ dshRoot: dshSrc, productRoot: root, receiptPath: dshBuildReceipt })
 verifyDshBuildReceipt({
@@ -158,9 +164,9 @@ const productItems = [
   'skills', 'knowledge', 'bundles', 'packages', 'scripts',
   'package.json', 'LICENSE', 'README.md', 'THIRD_PARTY_NOTICES.md', 'DSH_PIN', '.gitmodules',
   'vendor/dsh-super-injector', 'vendor/dsh-router-standard', 'vendor/dshmarket',
-  'vendor/anysearch-dsh',
+  'vendor/anysearch-dsh', 'vendor/dsh-univer-office',
   'vendor/README.md', 'vendor/dsh-super-injector.pin', 'vendor/dsh-router-standard.pin',
-  'vendor/anysearch-dsh.pin',
+  'vendor/anysearch-dsh.pin', 'vendor/dsh-univer-office.pin',
 ]
 for (const item of productItems) {
   const src = join(root, item)
@@ -168,14 +174,13 @@ for (const item of productItems) {
   const dest = join(productDest, item)
   if (statSync(src).isDirectory()) {
     // node_modules stay out; CI installs per-platform dependencies.
-    robocopy(src, dest, ['/XD', 'node_modules', '.git', '/XF', '.git'])
+    robocopy(src, dest, ['/XD', 'node_modules', '.git', '/XF', '.git', 'AGENT-PI-UNIVER-RUNTIME-RECEIPT.json'])
   } else {
     mkdirSync(join(dest, '..'), { recursive: true })
     cpSync(src, dest)
   }
 }
-removeBundledUniverFromProduct(productDest)
-assertUniverPublicReleaseTree(productDest)
+assertUniverPublicReleaseTree(productDest, { runtime: false })
 const stagedCadViewer = join(productDest, 'bundles', 'tender-web', 'lib', 'cad-viewer')
 rmSync(stagedCadViewer, { recursive: true, force: true })
 mkdirSync(dirname(stagedCadViewer), { recursive: true })
