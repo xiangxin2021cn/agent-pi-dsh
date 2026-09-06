@@ -7,7 +7,7 @@ const forbiddenNames = new Set(['.git', 'node_modules'])
 
 export function verifyRuntimePayloadStage(stage) {
   const root = resolve(stage)
-  assertUniverPublicReleaseTree(root)
+  assertUniverPublicReleaseTree(join(root, 'product'), { runtime: false })
   const pending = [root]
   while (pending.length > 0) {
     const directory = pending.pop()

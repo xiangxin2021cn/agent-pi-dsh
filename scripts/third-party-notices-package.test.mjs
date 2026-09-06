@@ -27,9 +27,9 @@ test('repository carries the declared business-core and super-injector licenses'
   assert.match(notices, /`vendor\/dsh-super-injector\/LICENSE`/)
   assert.match(notices, /No upstream `NOTICE` is claimed or\s+synthesized/)
 
-  assert.match(notices, /does \*\*not\*\* distribute `dsh-univer-office` or its Univer\s+Pro runtime/)
-  assert.match(notices, /obtain and comply with the applicable Univer commercial\s+license/)
-  assert.match(notices, /DSH 0\.1\.2-rc\.1.*pending verification/s)
+  assert.match(notices, /distributes the complete official `dsh-univer-office` 0\.2\.13/)
+  assert.match(notices, /DSH 0\.1\.3-alpha\.1/)
+  assert.match(notices, /upstream authorization checks and license files are unchanged/)
 })
 
 test('license notices ship in Windows and cross-platform runtime manifests', () => {
