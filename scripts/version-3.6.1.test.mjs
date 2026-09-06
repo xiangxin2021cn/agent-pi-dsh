@@ -15,7 +15,7 @@ function readText(...parts) {
   return readFileSync(join(root, ...parts), 'utf8')
 }
 
-test('3.6.1 source manifests are ready while published downloads and the website fallback stay unchanged', () => {
+test('3.6.1 source manifests and release downloads agree while the verified website fallback stays unchanged', () => {
   const rootPackage = readJson('package.json')
   const desktopPackage = readJson('apps', 'desktop', 'package.json')
   const desktopLock = readJson('apps', 'desktop', 'package-lock.json')
@@ -39,8 +39,8 @@ test('3.6.1 source manifests are ready while published downloads and the website
   assert.equal(existsSync(join(root, 'release', 'publish-v3.6.1-release.mjs')), true)
 
   const readme = readText('README.md')
-  assert.match(readme, /releases\/download\/v3\.6\.0\/Agent-Pi-DSH-3\.6\.0-x64\.exe/)
-  assert.match(readme, /3\.6\.1 正在开发与验收，尚未发布/)
+  assert.match(readme, /releases\/download\/v3\.6\.1\/Agent-Pi-DSH-3\.6\.1-x64\.exe/)
+  assert.match(readme, /公开安装包不预装 `dsh-univer-office` 及 Univer Pro 商业运行时/)
   assert.match(readme, /dsh-v0\.1\.3-alpha\.1/)
   assert.match(readme, /d347e70390/)
   assert.match(readme, /正式 SHA256 以同一 Release 中的 `\.sha256` 资产为准/)

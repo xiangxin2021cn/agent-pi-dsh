@@ -25,11 +25,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.0/Agent-Pi-DSH-3.6.0-x64.exe"><b>Windows x64</b></a>
+  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.1/Agent-Pi-DSH-3.6.1-x64.exe"><b>Windows x64</b></a>
   ·
-  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.0/Agent-Pi-DSH-3.6.0-mac-arm64.dmg"><b>macOS arm64</b></a>
+  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.1/Agent-Pi-DSH-3.6.1-mac-arm64.dmg"><b>macOS arm64</b></a>
   ·
-  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.0/Agent-Pi-DSH-3.6.0-linux-x86_64.AppImage"><b>Linux AppImage</b></a>
+  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.1/Agent-Pi-DSH-3.6.1-linux-x86_64.AppImage"><b>Linux AppImage</b></a>
   ·
   <a href="https://www.agent-pi.app">官网</a>
   ·
@@ -39,12 +39,12 @@
 通用办公助手陪你聊天，**Agent Pi DSH 替你干活**：吃透投标、实施、投资的垂直作业系统。长程任务不断档、目标不偏离、证据可追溯——数十份标书文件一次搞定，数千条 BOQ 逐项推导，成果直接落盘为正式文档。
 
 > [!NOTE]
-> **3.6.1 正在开发与验收，尚未发布**：开发分支已升级到官方 `dsh-v0.1.3-alpha.1`（`d347e70390`），并继续完善 Office 与 DWG 本地工程文件工作台。下方下载地址仍指向已发布的 3.6.0，不会在 3.6.1 资产通过不可变发布闸门前提前切换。
+> **3.6.1**：升级到官方 `dsh-v0.1.3-alpha.1`（`d347e70390`），完善 DWG 完整本地预览、附件处理与 Windows 安装保护。公开安装包不预装 `dsh-univer-office` 及 Univer Pro 商业运行时。最新已发布版本以 [GitHub Latest Release](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/latest) 为准。
 
 > [!IMPORTANT]
-> **3.6.0 正式版**：投标流程保持“DSH 唯一执行、工作台轻量控制、一次点击一次派发”；核心依赖升级到 **`dsh-v0.1.2-rc.1`**（`a66e470204`）。Agent Pi 适配继续位于产品层启动迁移、profile overlay 和 bundle，DSH 官方源码保持干净。DWG 预览由固定源码与工具链重建，并随 Release 提供对应源码归档。
+> **3.6.1**：投标流程保持“DSH 唯一执行、工作台轻量控制、一次点击一次派发”；核心依赖固定到 **`dsh-v0.1.3-alpha.1`**（`d347e70390`）。Agent Pi 适配继续位于产品层启动迁移、profile overlay 和 bundle，DSH 官方源码保持干净。DWG 预览由固定源码与工具链重建，并随 Release 提供对应源码归档。
 >
-> 本仓库是 **3.x DSH 版源码**，与 [2.6.5 经典版（Craft Agents OSS）](https://github.com/xiangxin2021cn/agent-pi) 分库维护。3.6.0 安装包见 [DSH Releases](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/tag/v3.6.0)。完整产品页：[www.agent-pi.app](https://www.agent-pi.app)
+> 本仓库是 **3.x DSH 版源码**，与 [2.6.5 经典版（Craft Agents OSS）](https://github.com/xiangxin2021cn/agent-pi) 分库维护。安装包见 [DSH Releases](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/latest)。完整产品页：[www.agent-pi.app](https://www.agent-pi.app)
 
 <p align="center">
   <img src="docs/assets/screenshot-market.jpg" alt="Agent Pi DSH 插件市场 · 亮色工作台" width="92%">
@@ -138,12 +138,12 @@ flowchart LR
 
 | 平台 | 文件 |
 | --- | --- |
-| Windows x64 | [Agent-Pi-DSH-3.6.0-x64.exe](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.0/Agent-Pi-DSH-3.6.0-x64.exe) |
-| macOS Apple Silicon | [Agent-Pi-DSH-3.6.0-mac-arm64.dmg](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.0/Agent-Pi-DSH-3.6.0-mac-arm64.dmg) · [zip](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.0/Agent-Pi-DSH-3.6.0-mac-arm64.zip) |
-| Linux x64 | [AppImage](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.0/Agent-Pi-DSH-3.6.0-linux-x86_64.AppImage) · [deb](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.0/Agent-Pi-DSH-3.6.0-linux-amd64.deb) |
+| Windows x64 | [Agent-Pi-DSH-3.6.1-x64.exe](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.1/Agent-Pi-DSH-3.6.1-x64.exe) |
+| macOS Apple Silicon | [Agent-Pi-DSH-3.6.1-mac-arm64.dmg](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.1/Agent-Pi-DSH-3.6.1-mac-arm64.dmg) · [zip](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.1/Agent-Pi-DSH-3.6.1-mac-arm64.zip) |
+| Linux x64 | [AppImage](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.1/Agent-Pi-DSH-3.6.1-linux-x86_64.AppImage) · [deb](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.1/Agent-Pi-DSH-3.6.1-linux-amd64.deb) |
 | 2.6.5 经典版 | [可与 3.x 并存](https://github.com/xiangxin2021cn/agent-pi/releases/tag/v2.6.5) |
 
-国内镜像（Windows）：[gh-proxy.com](https://gh-proxy.com/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.0/Agent-Pi-DSH-3.6.0-x64.exe) · [ghfast.top](https://ghfast.top/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.0/Agent-Pi-DSH-3.6.0-x64.exe)
+国内镜像（Windows）：[gh-proxy.com](https://gh-proxy.com/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.1/Agent-Pi-DSH-3.6.1-x64.exe) · [ghfast.top](https://ghfast.top/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.1/Agent-Pi-DSH-3.6.1-x64.exe)
 
 Windows 安装包的正式 SHA256 以同一 Release 中的 `.sha256` 资产为准；发布脚本会在上线前重新计算并核对本地文件与 GitHub 资产。
 
@@ -162,7 +162,7 @@ Windows 安装包的正式 SHA256 以同一 Release 中的 `.sha256` 资产为�
 
 | 版本 | 一句话 |
 | --- | --- |
-| [3.6.1（开发中）](./release/notes-3.6.1.md) | DSH 0.1.3-alpha.1；Office 0.2.13 新服务路径；DWG 完整本地预览与取景、性能收敛 |
+| [3.6.1](./release/github-notes-3.6.1.md) | DSH 0.1.3-alpha.1；Office 0.2.13 新服务路径；DWG 完整本地预览与取景、性能收敛 |
 | [3.6.0](./release/notes-3.6.0.md) | DSH rc.1；DWG 只读预览；固定工具链重建与对应源码发布 |
 | [3.5.2](./release/notes-3.5.2.md) | DSH alpha.3 正式升级；长会话与图片投递适配；内核升级必须提升应用版本 |
 | [3.5.1](./release/notes-3.5.1.md) | 一次点击一次派发；停止重复扫描；BOQ 与最终冻结门禁修复 |
