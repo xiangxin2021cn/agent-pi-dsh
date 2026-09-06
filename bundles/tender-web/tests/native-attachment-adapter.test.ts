@@ -4,12 +4,13 @@ import { addNativeComposerFiles } from '../src/client/native-attachment-adapter.
 
 const files = [{ name: 'drawing.png' }]
 
-test('DSH 0.1.3 draft attachments use the session-addressed composer contract', () => {
+test('DSH 0.1.3 forwards mixed image and document files through the session-addressed composer contract', () => {
   const calls: unknown[][] = []
-  const drafts = [{ id: 'draft-1' }]
+  const mixedFiles = [files[0], { name: 'contract.pdf' }, { name: 'quantities.xlsx' }]
+  const drafts = mixedFiles.map((_, index) => ({ id: `draft-${index + 1}` }))
   const result = addNativeComposerFiles({
     sessionId: 'session-1',
-    files,
+    files: mixedFiles,
     conversation: {
       createDrafts(sessionId: string, incoming: unknown[]) {
         calls.push([sessionId, incoming])
@@ -21,14 +22,14 @@ test('DSH 0.1.3 draft attachments use the session-addressed composer contract', 
     },
     actions: {
       addAttachments(ids: string[]) {
-        assert.deepEqual(ids, ['draft-1'])
+        assert.deepEqual(ids, ['draft-1', 'draft-2', 'draft-3'])
         return true
       },
     },
   })
 
   assert.equal(result.status, 'added')
-  assert.deepEqual(calls, [['session-1', files]])
+  assert.deepEqual(calls, [['session-1', mixedFiles]])
 })
 
 test('DSH 0.1.3 rejected drafts are released atomically', () => {

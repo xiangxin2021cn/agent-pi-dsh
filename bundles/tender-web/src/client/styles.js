@@ -264,6 +264,13 @@ html.ap-simple-nav [data-slot="sidebar"] button[class*="brand"] svg[viewBox="0 0
 .ap-toolbtn:disabled{opacity:.4;cursor:default}
 .ap-codex-turn{display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 8px;border:1px solid var(--dsw-alias-border-l2);border-radius:7px;background:transparent;color:var(--dsw-alias-label-secondary);font-size:11px;cursor:pointer}
 .ap-codex-turn:hover,.ap-codex-turn.on{color:var(--ap-accent);border-color:color-mix(in srgb,var(--ap-accent) 45%,var(--dsw-alias-border-l2));background:color-mix(in srgb,var(--ap-accent) 12%,transparent)}
+.ap-codex-model-control{display:inline-flex;align-items:center;gap:4px;min-width:0}
+.ap-codex-model-select{height:28px;max-width:210px;min-width:0;padding:0 6px;border:1px solid var(--dsw-alias-border-l2);border-radius:7px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font:inherit;font-size:11px}
+.ap-codex-model-select:disabled{opacity:.55}
+.ap-codex-model-setting{display:grid;gap:8px;margin-top:18px}
+.ap-codex-model-setting label{font-weight:600;font-size:13px}
+.ap-codex-model-setting .ap-codex-model-select{height:36px;max-width:100%;width:100%;font-size:13px}
+.ap-codex-model-setting .ap-sub{margin:0}
 .ap-header-tool{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:32px;height:32px;min-width:32px;padding:0;border:1px solid var(--dsw-alias-border-l2);border-radius:18px;background:transparent;color:var(--dsw-alias-label-primary);cursor:pointer}
 .ap-header-tool:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}
 .ap-header-tool:disabled{opacity:.4;cursor:default}

@@ -7,7 +7,10 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const DISABLED_CODEX_TOOL = /(^[ \t]*- id:\s*tool-subagent-codex\s*\r?\n^[ \t]+name:\s*['"]?@deepseek-ai\/dsh-tool-subagent['"]?\s*\r?\n)^[ \t]+disabled:\s*true\s*\r?\n/gm
 
 export function enableCodexInText(text) {
-  return text.replace(DISABLED_CODEX_TOOL, '$1')
+  return text.replace(DISABLED_CODEX_TOOL, '$1').replace(
+    /(^[ \t]*- id:\s*tool-subagent-codex\s*\r?\n^[ \t]+name:\s*)['"]?@deepseek-ai\/dsh-tool-subagent['"]?/gm,
+    '$1dsh-tender-host/codex-tool',
+  )
 }
 
 export function enableCodexInFile(file) {

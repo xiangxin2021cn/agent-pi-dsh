@@ -981,6 +981,11 @@ ipcMain.handle('codex-auth-login', () => (
 ipcMain.handle('codex-auth-logout', () => (
   getCodexAuthController()?.logout() ?? { available: false, state: 'unavailable' }
 ))
+ipcMain.handle('codex-set-default-model', (_event, model) => {
+  const controller = getCodexAuthController()
+  if (!controller) throw new Error('Codex 运行时不可用。')
+  return controller.setDefaultModel(model)
+})
 ipcMain.handle('update-check', async () => {
   const info = await checkForUpdate().catch((error) => ({ error: String(error?.message ?? error) }))
   return info

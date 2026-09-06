@@ -3305,6 +3305,13 @@ html.ap-simple-nav [data-slot="sidebar"] button[class*="brand"] svg[viewBox="0 0
 .ap-toolbtn:disabled{opacity:.4;cursor:default}
 .ap-codex-turn{display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 8px;border:1px solid var(--dsw-alias-border-l2);border-radius:7px;background:transparent;color:var(--dsw-alias-label-secondary);font-size:11px;cursor:pointer}
 .ap-codex-turn:hover,.ap-codex-turn.on{color:var(--ap-accent);border-color:color-mix(in srgb,var(--ap-accent) 45%,var(--dsw-alias-border-l2));background:color-mix(in srgb,var(--ap-accent) 12%,transparent)}
+.ap-codex-model-control{display:inline-flex;align-items:center;gap:4px;min-width:0}
+.ap-codex-model-select{height:28px;max-width:210px;min-width:0;padding:0 6px;border:1px solid var(--dsw-alias-border-l2);border-radius:7px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font:inherit;font-size:11px}
+.ap-codex-model-select:disabled{opacity:.55}
+.ap-codex-model-setting{display:grid;gap:8px;margin-top:18px}
+.ap-codex-model-setting label{font-weight:600;font-size:13px}
+.ap-codex-model-setting .ap-codex-model-select{height:36px;max-width:100%;width:100%;font-size:13px}
+.ap-codex-model-setting .ap-sub{margin:0}
 .ap-header-tool{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:32px;height:32px;min-width:32px;padding:0;border:1px solid var(--dsw-alias-border-l2);border-radius:18px;background:transparent;color:var(--dsw-alias-label-primary);cursor:pointer}
 .ap-header-tool:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}
 .ap-header-tool:disabled{opacity:.4;cursor:default}
@@ -3591,11 +3598,11 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 `;
 		//#endregion
 		//#region src/codex-turn.ts
-		function buildCodexTurnDelegation(task) {
+		function buildCodexTurnDelegation(task, model) {
 			const original = String(task || "").trim();
 			if (!original) throw new Error("Codex delegation requires a non-empty task");
 			return `【Codex 执行模式】
-你是 DSH 主智能体。必须立即调用 subagent_codex，将 run_in_background=false；不要先自行完成任务。请把下方用户任务、明确文件路径、必要上下文和验收目标整理成独立委派，等待 Codex 完成，核验实际结果后再向用户汇报。
+你是 DSH 主智能体。必须立即调用 subagent_codex，将 run_in_background=false；不要先自行完成任务。请把下方用户任务、明确文件路径、必要上下文和验收目标整理成独立委派，等待 Codex 完成，核验实际结果后再向用户汇报。${model ? `\n本次 Codex 模型由用户指定：调用 subagent_codex 时必须设置 model=${JSON.stringify(model)}，不要替换为其他模型。` : ""}
 
 【用户原始任务】
 ${original}`;
@@ -5373,6 +5380,9 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		function createCodexTurnController(latestProps) {
 			return {
 				phase: "idle",
+				selectedModel: "",
+				capturedModel: null,
+				capturedNativeAttachmentIds: [],
 				latestProps: latestProps || null,
 				attemptToken: null,
 				originalDraft: "",
@@ -5415,6 +5425,12 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			const phase = codexTurnPhase(props);
 			return phase === "armed" || phase === "preparing" || phase === "submitting";
 		}
+		function setCodexTurnModel(props, model) {
+			const controller = codexTurnController(props, true);
+			if (controller.phase !== "idle" && controller.phase !== "armed") return;
+			controller.selectedModel = String(model || "");
+			notifyCodexTurn();
+		}
 		function setCodexTurnArmed(props, armed) {
 			const key = codexTurnKey(props);
 			if (armed && attachmentTurnControllers.has(key)) {
@@ -5455,6 +5471,8 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			controller.attemptToken = null;
 			controller.originalDraft = "";
 			controller.framedDraft = "";
+			controller.capturedModel = null;
+			controller.capturedNativeAttachmentIds = [];
 			controller.capturedAttachmentIds = [];
 			controller.capturedAttachments = [];
 			controller.preSubmitUserNodeWatermark = -1;
@@ -5611,6 +5629,10 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			for (let i = 0; i < left.length; i++) if (left[i] !== right[i]) return false;
 			return true;
 		}
+		function nativeCodexAttachmentIds(input) {
+			if (Array.isArray(input && input.attachmentIds)) return input.attachmentIds.slice();
+			return Array.isArray(input && input.imageIds) ? input.imageIds.slice() : [];
+		}
 		function preparingCodexTurn(key, token) {
 			const controller = codexTurnControllers.get(key);
 			if (!controller || controller.phase !== "preparing" || controller.attemptToken !== token) return null;
@@ -5646,7 +5668,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			}
 			const live = controller.latestProps;
 			const attachmentIds = codexAttachmentIds(codexAttachItems(key));
-			if (!sessionSnapshot || !inputSnapshot || inputSnapshot.phase !== "plain" || typeof inputSnapshot.draft !== "string" || inputSnapshot.draft !== controller.originalDraft || !live || codexTurnKey(live) !== key || !sameCodexAttachmentIds(attachmentIds, controller.capturedAttachmentIds)) {
+			if (!sessionSnapshot || !inputSnapshot || inputSnapshot.phase !== "plain" || typeof inputSnapshot.draft !== "string" || inputSnapshot.draft !== controller.originalDraft || !live || codexTurnKey(live) !== key || !sameCodexAttachmentIds(attachmentIds, controller.capturedAttachmentIds) || !sameCodexAttachmentIds(nativeCodexAttachmentIds(inputSnapshot), controller.capturedNativeAttachmentIds)) {
 				rearmCodexTurn(key, controller);
 				return null;
 			}
@@ -5686,6 +5708,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			resetCodexTurnAttempt(key, controller);
 			disposeCodexTurnSessionSubscription(controller);
 			controller.phase = "idle";
+			controller.selectedModel = "";
 			if (capturedIds.length) setCodexAttachItems(key, remaining);
 			notifyCodexTurn();
 		}
@@ -8021,16 +8044,17 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			const items = controller.capturedAttachments;
 			const attachLine = formatAttachVisible(items);
 			const block = formatKbTaskBlock(key);
-			const fallback = items.length ? "请结合附件作答。" : "";
+			const fallback = items.length || controller.capturedNativeAttachmentIds.length ? "请结合附件作答。" : "";
 			const body = [clean, attachLine].filter(Boolean).join("\n\n");
-			const delegation = buildCodexTurnDelegation(block ? body ? block + "\n\n" + body : block + (fallback ? "\n\n" + fallback : "") : body || fallback);
+			const delegation = buildCodexTurnDelegation(block ? body ? block + "\n\n" + body : block + (fallback ? "\n\n" + fallback : "") : body || fallback, controller.capturedModel);
 			const marker = attachmentTransactionMarker(token);
 			return marker ? delegation + "\n\n" + marker : delegation;
 		}
 		async function prepareCodexTurn(key, token) {
 			const desktop = window.agentPiDesktop;
+			let status;
 			try {
-				const status = !desktop || typeof desktop.codexAuthStatus !== "function" ? null : await desktop.codexAuthStatus();
+				status = !desktop || typeof desktop.codexAuthStatus !== "function" ? null : await desktop.codexAuthStatus();
 				if (!status || status.available !== true || status.state !== "logged-in") throw new Error("Codex unavailable");
 			} catch {
 				failCodexPreparation(key, token, "Codex 尚未登录或运行时不可用，请到设置 → Codex 智能体完成登录。");
@@ -8038,6 +8062,16 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			}
 			let prepared = preparingCodexTurn(key, token);
 			if (!prepared) return;
+			const selectedModel = prepared.controller.selectedModel;
+			if (!selectedModel && status.modelError) {
+				failCodexPreparation(key, token, "无法确认默认 Codex 模型，请刷新模型列表或选择可用模型后重试。");
+				return;
+			}
+			if (selectedModel && !(status.models || []).some((model) => model.id === selectedModel)) {
+				failCodexPreparation(key, token, "所选 Codex 模型当前不可用，请刷新模型列表并重新选择。");
+				return;
+			}
+			prepared.controller.capturedModel = selectedModel || status.defaultModel || null;
 			const items = prepared.controller.capturedAttachments;
 			const cwd = prepared.live && prepared.live.cwd || workspaceCwd(prepared.live);
 			if (items.some((item) => item.cwd && cwd && normPath(item.cwd) !== normPath(cwd))) {
@@ -8194,6 +8228,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			};
 			controller.phase = "preparing";
 			controller.attemptToken = token;
+			controller.capturedNativeAttachmentIds = nativeCodexAttachmentIds(inputSnapshot);
 			controller.originalDraft = inputSnapshot.draft;
 			controller.framedDraft = "";
 			controller.capturedAttachments = attachments;
@@ -10534,7 +10569,6 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			const draft = readDraft();
 			const [busy, setBusy] = react.useState(false);
 			const [items, setItems] = useAttachItems();
-			const fileInput = react.useRef(null);
 			wrapComposerSubmit(live);
 			react.useEffect(() => {
 				if (items.length) stripComposerMentions(items);
@@ -10624,7 +10658,6 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					showToast("润色失败：" + String(err && err.message || err));
 				}).finally(() => setBusy(false));
 			};
-			const uploaded = items.filter((item) => item.kind !== "image").length;
 			return h("div", { className: "ap-composer-tools" }, h("div", {
 				className: "ap-row",
 				style: { gap: 2 }
@@ -10642,17 +10675,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				title: armed ? "下一条消息将由 Codex 子智能体执行" : "仅将下一条消息交给 Codex 子智能体",
 				onMouseDown: (event) => event.preventDefault(),
 				onClick: () => setCodexTurnArmed(propsRef.current, !armed)
-			}, Icon("sparkles", 14), "Codex 执行"), h("button", {
-				type: "button",
-				className: "ap-toolbtn",
-				title: uploaded ? "已加入 " + uploaded + " 个文件" : "上传文件到对话（回形针）",
-				onMouseDown: (e) => e.preventDefault(),
-				onClick: (e) => {
-					e.preventDefault();
-					e.stopPropagation();
-					chooseAndUpload(cwd, snapshotComposer(), "files", { fileInput }).catch((err) => showToast("上传失败：" + String(err && err.message || err)));
-				}
-			}, Icon("paperclip", 15), uploaded ? h("span", { className: "ap-badge" }, uploaded > 9 ? "9+" : uploaded) : null), h("button", {
+			}, Icon("sparkles", 14), "Codex 执行"), armed && h(ComposerCodexModelSelector, { composer: live }), h("button", {
 				type: "button",
 				className: "ap-toolbtn",
 				title: tAp("files.addFolder"),
@@ -10662,23 +10685,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					e.stopPropagation();
 					chooseFolderForChat(cwd, snapshotComposer()).catch((err) => showToast("加入文件夹失败：" + String(err && err.message || err)));
 				}
-			}, Icon("folder", 15)), h("input", {
-				ref: fileInput,
-				type: "file",
-				multiple: true,
-				style: {
-					position: "fixed",
-					width: 1,
-					height: 1,
-					opacity: 0,
-					pointerEvents: "none"
-				},
-				onChange: (e) => {
-					const list = snapshotFileList(e.target.files);
-					e.target.value = "";
-					if (list.length) uploadFileList(cwd, list, snapshotComposer()).catch((err) => showToast("上传失败：" + String(err && err.message || err)));
-				}
-			})));
+			}, Icon("folder", 15))));
 		}
 		function renderAttachRail(items, onRemove) {
 			return h("div", {
@@ -11927,39 +11934,91 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			hideArchivedWorkspaceGroups();
 			injectWorkspaceArchiveMenu(document);
 		}
-		function CodexSettingsSection() {
+		function useCodexStatus() {
 			const desktop = window.agentPiDesktop;
-			const zh = useApLang() === "zh";
 			const [auth, setAuth] = react.useState({
 				available: true,
 				state: "checking"
 			});
+			const [refreshing, setRefreshing] = react.useState(false);
+			const latestRequest = react.useRef(0);
+			const refresh = react.useCallback(async () => {
+				const request = ++latestRequest.current;
+				setRefreshing(true);
+				try {
+					const next = desktop && typeof desktop.codexAuthStatus === "function" ? await desktop.codexAuthStatus() : {
+						available: false,
+						state: "unavailable"
+					};
+					if (request === latestRequest.current) setAuth(next);
+				} catch {
+					if (request === latestRequest.current) setAuth({
+						available: false,
+						state: "unavailable"
+					});
+				} finally {
+					if (request === latestRequest.current) setRefreshing(false);
+				}
+			}, [desktop]);
+			react.useEffect(() => {
+				refresh();
+				window.addEventListener("agent-pi-codex-model-changed", refresh);
+				return () => {
+					latestRequest.current += 1;
+					window.removeEventListener("agent-pi-codex-model-changed", refresh);
+				};
+			}, [refresh]);
+			return {
+				auth,
+				setAuth,
+				refresh,
+				refreshing
+			};
+		}
+		function ComposerCodexModelSelector({ composer }) {
+			const { auth, refresh, refreshing } = useCodexStatus();
+			const zh = useApLang() === "zh";
+			const controller = codexTurnController(composer, false);
+			const selectedModel = controller && controller.selectedModel || "";
+			const models = auth.models || [];
+			const model = auth.model;
+			const defaultLabel = model && (model.displayName || model.id) || auth.defaultModel;
+			const locked = codexTurnPhase(composer) !== "armed";
+			return h("span", { className: "ap-codex-model-control" }, h("select", {
+				className: "ap-codex-model-select",
+				"aria-label": zh ? "本次 Codex 模型" : "Codex model for this message",
+				title: zh ? "仅用于下一条 Codex 执行消息" : "Applies only to the next Codex message",
+				value: selectedModel,
+				disabled: locked || refreshing || auth.state !== "logged-in" || !models.length,
+				onChange: (event) => setCodexTurnModel(composer, event.target.value)
+			}, h("option", { value: "" }, refreshing ? zh ? "正在读取模型…" : "Loading models…" : (zh ? "默认模型" : "Default model") + (defaultLabel ? " · " + defaultLabel : "")), selectedModel && !models.some((entry) => entry.id === selectedModel) && h("option", {
+				value: selectedModel,
+				disabled: true
+			}, selectedModel + (zh ? "（不可用）" : " (unavailable)")), models.map((entry) => h("option", {
+				key: entry.id,
+				value: entry.id
+			}, entry.displayName || entry.id))), !refreshing && (!models.length || auth.modelError) && h("button", {
+				type: "button",
+				className: "ap-toolbtn",
+				disabled: locked,
+				title: auth.modelError || (zh ? "登录后刷新 Codex 模型" : "Sign in, then refresh Codex models"),
+				onClick: () => {
+					refresh();
+				}
+			}, zh ? "刷新模型" : "Refresh models"));
+		}
+		function CodexSettingsSection() {
+			const desktop = window.agentPiDesktop;
+			const zh = useApLang() === "zh";
+			const { auth, setAuth, refresh, refreshing } = useCodexStatus();
 			const [busy, setBusy] = react.useState(false);
+			const [modelBusy, setModelBusy] = react.useState(false);
+			const [modelMessage, setModelMessage] = react.useState("");
 			const compactionBridgeAvailable = !!desktop && typeof desktop.compactionFallbackStatus === "function" && typeof desktop.setCompactionFallback === "function";
 			const [compactionEnabled, setCompactionEnabled] = react.useState(true);
 			const lastConfirmedCompaction = react.useRef(true);
 			const [compactionBusy, setCompactionBusy] = react.useState(compactionBridgeAvailable);
 			const [compactionMessage, setCompactionMessage] = react.useState("");
-			const refresh = react.useCallback(async () => {
-				if (!desktop || typeof desktop.codexAuthStatus !== "function") {
-					setAuth({
-						available: false,
-						state: "unavailable"
-					});
-					return;
-				}
-				try {
-					setAuth(await desktop.codexAuthStatus());
-				} catch {
-					setAuth({
-						available: false,
-						state: "unavailable"
-					});
-				}
-			}, [desktop]);
-			react.useEffect(() => {
-				refresh();
-			}, [refresh]);
 			react.useEffect(() => {
 				if (auth.state !== "pending") return void 0;
 				const timer = setInterval(() => {
@@ -11997,6 +12056,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				setBusy(true);
 				try {
 					setAuth(await desktop[method]());
+					window.dispatchEvent(new Event("agent-pi-codex-model-changed"));
 				} catch {
 					setAuth({
 						available: true,
@@ -12004,6 +12064,22 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					});
 				} finally {
 					setBusy(false);
+				}
+			};
+			const saveModel = async (modelId) => {
+				if (modelBusy || !desktop || typeof desktop.codexSetDefaultModel !== "function") return;
+				setModelBusy(true);
+				setModelMessage("");
+				try {
+					const next = await desktop.codexSetDefaultModel(modelId || null);
+					if (!next || next.state !== "logged-in") throw new Error("Invalid Codex model preference");
+					setAuth(next);
+					setModelMessage(zh ? "默认模型已保存，下次 Codex 调用生效。" : "Default model saved for the next Codex call.");
+					window.dispatchEvent(new Event("agent-pi-codex-model-changed"));
+				} catch {
+					setModelMessage(zh ? "模型保存失败，请刷新列表后重试。" : "Could not save the model. Refresh the list and retry.");
+				} finally {
+					setModelBusy(false);
 				}
 			};
 			const saveCompaction = async () => {
@@ -12054,7 +12130,24 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				official: "Verified catalog",
 				estimated: "Conservative estimate"
 			};
-			return h("section", { className: "ap-codex-settings" }, h("h1", null, zh ? "Codex 智能体" : "Codex Agent"), h("p", { className: "ap-codex-lead" }, zh ? "DeepSeek DSH 保持主智能体和投标流程控制权，Codex 作为独立子智能体处理明确委派的代码、审查与修复任务。" : "DeepSeek DSH remains the primary agent and tender orchestrator. Codex handles self-contained coding, review, and repair delegations."), h("div", { className: "ap-codex-card" }, h("div", { className: "ap-codex-status" }, h("strong", null, "ChatGPT / Codex"), h("span", { className: statusClass }, labels[auth.state] || auth.state)), h("p", { className: "ap-sub" }, zh ? "使用 ChatGPT 账号在系统浏览器中授权，无需 API Key。凭据仅保存在本机 Agent Pi 专属 Codex 目录。" : "Authorize with your ChatGPT account in the system browser. No API key is required; credentials stay in Agent Pi’s private local Codex directory."), loggedIn && h("p", { className: "ap-sub" }, model ? [
+			return h("section", { className: "ap-codex-settings" }, h("h1", null, zh ? "Codex 智能体" : "Codex Agent"), h("p", { className: "ap-codex-lead" }, zh ? "DeepSeek DSH 保持主智能体和投标流程控制权，Codex 作为独立子智能体处理明确委派的代码、审查与修复任务。" : "DeepSeek DSH remains the primary agent and tender orchestrator. Codex handles self-contained coding, review, and repair delegations."), h("div", { className: "ap-codex-card" }, h("div", { className: "ap-codex-status" }, h("strong", null, "ChatGPT / Codex"), h("span", { className: statusClass }, labels[auth.state] || auth.state)), h("p", { className: "ap-sub" }, zh ? "使用 ChatGPT 账号在系统浏览器中授权，无需 API Key。凭据仅保存在本机 Agent Pi 专属 Codex 目录。" : "Authorize with your ChatGPT account in the system browser. No API key is required; credentials stay in Agent Pi’s private local Codex directory."), loggedIn && h("div", { className: "ap-codex-model-setting" }, h("label", { htmlFor: "ap-codex-default-model" }, zh ? "默认 Codex 模型" : "Default Codex model"), h("select", {
+				id: "ap-codex-default-model",
+				className: "ap-codex-model-select",
+				value: auth.selectedModel || "",
+				disabled: modelBusy || refreshing || !(auth.models || []).length || typeof desktop.codexSetDefaultModel !== "function",
+				onChange: (event) => {
+					saveModel(event.target.value);
+				}
+			}, h("option", { value: "" }, zh ? "跟随 Codex 推荐模型" : "Use the Codex recommended model"), auth.selectedModel && !(auth.models || []).some((entry) => entry.id === auth.selectedModel) && h("option", {
+				value: auth.selectedModel,
+				disabled: true
+			}, auth.selectedModel + (zh ? "（不可用）" : " (unavailable)")), (auth.models || []).map((entry) => h("option", {
+				key: entry.id,
+				value: entry.id
+			}, entry.displayName || entry.id))), h("p", { className: "ap-sub" }, zh ? "用于 Codex 子智能体调用；主对话开启“Codex 执行”后可单独选择本次模型。" : "Used for Codex subagent calls. Enable Codex execution in the composer to override it for one message."), (auth.modelError || modelMessage) && h("p", {
+				className: "ap-sub",
+				role: "status"
+			}, auth.modelError || modelMessage)), loggedIn && h("p", { className: "ap-sub" }, model ? [
 				h("strong", { key: "id" }, model.id),
 				h("br", { key: "break" }),
 				zh ? "上下文窗口：" : "Context window: ",
@@ -12079,7 +12172,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			}, pending ? zh ? "等待授权…" : "Waiting…" : zh ? "使用 ChatGPT 登录" : "Sign in with ChatGPT"), h("button", {
 				type: "button",
 				className: "ap-btn",
-				disabled: busy,
+				disabled: busy || refreshing || modelBusy,
 				onClick: () => {
 					refresh();
 				}

@@ -184,13 +184,43 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
       load(definition: { factory: typeof factory }) { factory = definition.factory },
     }
     let loginCalls = 0
+    let codexLoggedIn = false
+    let selectedModel: string | null = null
+    let rejectModelSave = false
+    const modelSaveCalls: Array<string | null> = []
+    const codexModels = [
+      { id: 'gpt-5.4', displayName: 'GPT-5.4' },
+      { id: 'gpt-5.3-codex', displayName: 'GPT-5.3-Codex' },
+    ]
+    const codexAuthSnapshot = () => ({
+      available: true,
+      state: codexLoggedIn ? 'logged-in' : 'logged-out',
+      ...(codexLoggedIn ? {
+        models: codexModels, selectedModel, defaultModel: 'gpt-5.4',
+        model: {
+          ...codexModels.find((model) => model.id === (selectedModel || 'gpt-5.4')),
+          contextWindow: 128_000, maxTokens: 32_000,
+          contextWindowSource: 'provider', maxTokensSource: 'provider',
+        },
+      } : {}),
+    })
     ;(dom.window as typeof dom.window & { agentPiDesktop: unknown }).agentPiDesktop = {
-      codexAuthStatus: async () => ({ available: true, state: 'logged-out' }),
+      codexAuthStatus: async () => codexAuthSnapshot(),
       codexAuthLogin: async () => {
         loginCalls += 1
-        return { available: true, state: 'logged-in' }
+        codexLoggedIn = true
+        return codexAuthSnapshot()
       },
-      codexAuthLogout: async () => ({ available: true, state: 'logged-out' }),
+      codexAuthLogout: async () => {
+        codexLoggedIn = false
+        return codexAuthSnapshot()
+      },
+      codexSetDefaultModel: async (modelId: string | null) => {
+        modelSaveCalls.push(modelId)
+        if (rejectModelSave) throw new Error('preference write failed')
+        selectedModel = modelId
+        return codexAuthSnapshot()
+      },
       compactionFallbackStatus: async () => ({ enabled: true }),
       setCompactionFallback: async (enabled: boolean) => ({ enabled, restartRequired: false }),
     }
@@ -257,6 +287,36 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     })
     assert.equal(loginCalls, 1)
     assert.match(mount.textContent || '', /已通过 ChatGPT 登录/)
+    const defaultModelSelect = () => mount.querySelector<HTMLSelectElement>('#ap-codex-default-model')!
+    assert.deepEqual(Array.from(defaultModelSelect().options, (option) => option.value), ['', 'gpt-5.4', 'gpt-5.3-codex'])
+    assert.equal(defaultModelSelect().value, '')
+    await act(async () => {
+      defaultModelSelect().value = 'gpt-5.3-codex'
+      defaultModelSelect().dispatchEvent(new dom.window.Event('change', { bubbles: true }))
+      await new Promise((resolveTick) => setTimeout(resolveTick, 0))
+    })
+    assert.equal(selectedModel, 'gpt-5.3-codex')
+    assert.equal(defaultModelSelect().value, 'gpt-5.3-codex')
+    assert.match(mount.textContent || '', /默认模型已保存/)
+
+    await act(async () => rootView!.unmount())
+    rootView = createRoot(mount)
+    await act(async () => {
+      rootView!.render(React.createElement(CodexSettings))
+      await new Promise((resolveTick) => setTimeout(resolveTick, 0))
+    })
+    assert.equal(defaultModelSelect().value, 'gpt-5.3-codex', 'reopening settings must restore the saved model')
+    rejectModelSave = true
+    await act(async () => {
+      defaultModelSelect().value = 'gpt-5.4'
+      defaultModelSelect().dispatchEvent(new dom.window.Event('change', { bubbles: true }))
+      await new Promise((resolveTick) => setTimeout(resolveTick, 0))
+    })
+    assert.deepEqual(modelSaveCalls, ['gpt-5.3-codex', 'gpt-5.4'])
+    assert.equal(selectedModel, 'gpt-5.3-codex')
+    assert.equal(defaultModelSelect().value, 'gpt-5.3-codex', 'a failed save must leave the confirmed model selected')
+    assert.equal(defaultModelSelect().disabled, false)
+    assert.match(mount.textContent || '', /模型保存失败/)
 
     await act(async () => rootView!.unmount())
     rootView = createRoot(mount)
@@ -406,6 +466,8 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     })
     assert.ok(mount.querySelector('.ap-files-dock'), 'right-side files rail did not render for an active session')
     assert.match(mount.textContent || '', /资源文件/)
+    assert.ok(mount.querySelector('.ap-files button[title="上传文件到对话"]'), 'workspace document import must remain available in the files rail')
+    assert.ok(mount.querySelector('.ap-files input[type="file"]'), 'workspace document import must retain its file picker')
 
     await act(async () => rootView!.unmount())
     rootView = createRoot(mount)
@@ -433,6 +495,9 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
       ))
       await new Promise((resolveTick) => setTimeout(resolveTick, 0))
     })
+    assert.equal(mount.querySelector('.ap-composer-tools input[type="file"]'), null, 'main chat file selection belongs to the native DSH attachment control')
+    assert.equal(mount.querySelector('.ap-composer-tools button[title*="上传文件到对话"]'), null, 'the native attachment button must not have a duplicate custom uploader')
+    assert.ok(mount.querySelector('.ap-composer-tools button[title="加入文件夹地址（不上传文件）"]'), 'folder references must remain available in the composer')
     await act(async () => {
       dom.window.dispatchEvent(new dom.window.CustomEvent('agent-pi-attach-file', {
         detail: {
