@@ -26,7 +26,25 @@ test('grey model supports an empty catalog and leaves an explicit existing entry
   assert.match(ensureDeepSeekGreyModel('llm-deepseek:\n  models: []\n'), /models: *\n    - id: deepseek-v4\.1/)
   const explicit = `llm-deepseek:\n  models:\n    - id: '${DEEPSEEK_GREY_MODEL}' # custom\n      maxTokens: 8192\n`
   assert.equal(ensureDeepSeekGreyModel(explicit), explicit)
-  assert.equal(DEEPSEEK_MODEL_CAPACITIES[DEEPSEEK_GREY_MODEL], undefined)
+  assert.deepEqual(DEEPSEEK_MODEL_CAPACITIES[DEEPSEEK_GREY_MODEL], DEEPSEEK_MODEL_CAPACITIES['deepseek-v4-flash-vision-exp'])
+})
+
+test('repairs the original 3.6.3 grey entry with vision capacities and native image input', () => {
+  const source = `llm-deepseek:\n  models:\n    - id: ${DEEPSEEK_GREY_MODEL}\n      name: DeepSeek-V4.1-Flash (Grey, expires 09-10)\nagent-default-model:\n  model: deepseek-v4-flash-vision-exp\n`
+  const repaired = repairDeepSeekModelCapacities(source)
+  assert.equal(repaired.changed, true)
+  assert.match(repaired.yaml, /contextWindow: 1000000\n      maxTokens: 384000\n      inputModalities: \[text, image\]/)
+  assert.ok(repaired.yaml.endsWith('agent-default-model:\n  model: deepseek-v4-flash-vision-exp\n'))
+  assert.deepEqual(repairDeepSeekModelCapacities(repaired.yaml), { yaml: repaired.yaml, changed: false })
+})
+
+test('grey capabilities preserve user limits and unrelated models', () => {
+  const source = `llm-deepseek:\r\n  models:\r\n    - id: '${DEEPSEEK_GREY_MODEL}' # custom\r\n      contextWindow: 500000\r\n      maxTokens: 8192\r\n    - id: custom-model\r\n      name: Custom\r\n`
+  const repaired = repairDeepSeekModelCapacities(source)
+  assert.equal(repaired.yaml, source.replace(" # custom\r\n", " # custom\r\n      inputModalities: [text, image]\r\n"))
+  const fresh = ensureDeepSeekGreyModel('llm-deepseek:\n  models: []\n')
+  assert.match(fresh, /contextWindow: 1000000\n      maxTokens: 384000\n      inputModalities: \[text, image\]/)
+  assert.equal(repairDeepSeekModelCapacities(fresh).changed, false)
 })
 
 const officialFields = `      contextWindow: 1000000
@@ -150,6 +168,7 @@ test('initializer templates official fields and repairs settings after managed p
   assert.match(init, /deepseek-v4-flash-vision-exp[\s\S]*?contextWindow: 1000000[\s\S]*?maxTokens: 384000/)
   assert.match(init, /deepseek-v4-flash\r?\n[\s\S]*?contextWindow: 1000000[\s\S]*?maxTokens: 384000/)
   assert.match(init, /deepseek-v4-pro\r?\n[\s\S]*?contextWindow: 1000000[\s\S]*?maxTokens: 384000/)
+  assert.match(init, /deepseek-v4\.1-flash-expires-on-0910\r?\n\s+name:[^\n]+\r?\n\s+contextWindow: 1000000\r?\n\s+maxTokens: 384000\r?\n\s+inputModalities: \[text, image\]/)
   assert.match(init, /if \(repaired\.changed\) writeFileSync\(settingsPath, repaired\.yaml\)/)
   assert.ok(init.lastIndexOf('repairExistingDeepSeekModelCapacities()')
     > init.lastIndexOf('writeManagedPatch(dependencies)'))

@@ -2,6 +2,7 @@ export const DEEPSEEK_MODEL_CAPACITIES = Object.freeze({
   'deepseek-v4-flash': Object.freeze({ contextWindow: 1_000_000, maxTokens: 384_000 }),
   'deepseek-v4-pro': Object.freeze({ contextWindow: 1_000_000, maxTokens: 384_000 }),
   'deepseek-v4-flash-vision-exp': Object.freeze({ contextWindow: 1_000_000, maxTokens: 384_000 }),
+  'deepseek-v4.1-flash-expires-on-0910': Object.freeze({ contextWindow: 1_000_000, maxTokens: 384_000 }),
 })
 
 export const DEEPSEEK_GREY_MODEL = 'deepseek-v4.1-flash-expires-on-0910'
@@ -28,6 +29,9 @@ export function ensureDeepSeekGreyModel(text) {
   lines.splice(models + 1, 0,
     { content: `${indent}- id: ${DEEPSEEK_GREY_MODEL}`, eol },
     { content: `${indent}  name: DeepSeek-V4.1-Flash (Grey, expires 09-10)`, eol },
+    { content: `${indent}  contextWindow: 1000000`, eol },
+    { content: `${indent}  maxTokens: 384000`, eol },
+    { content: `${indent}  inputModalities: [text, image]`, eol },
   )
   return lines.map(({ content, eol }) => content + eol).join('')
 }
@@ -136,6 +140,10 @@ export function repairDeepSeekModelCapacities(yamlText) {
         }
         if (!directLines.some((line) => /^[ \t]*(?:maxTokens|"maxTokens"|'maxTokens')\s*:/.test(line))) {
           missing.push(`${propertyIndent}maxTokens: ${capacity.maxTokens}`)
+        }
+        if (modelId === DEEPSEEK_GREY_MODEL
+          && !directLines.some((line) => /^[ \t]*(?:inputModalities|"inputModalities"|'inputModalities')\s*:/.test(line))) {
+          missing.push(`${propertyIndent}inputModalities: [text, image]`)
         }
         if (missing.length > 0) insertions.push({ after: itemIndex, lines: missing })
       }

@@ -4,7 +4,8 @@
 
 基于 3.6.2 融入官方 DSH `dsh-v0.1.5-alpha.1`，固定提交为 [`2faa751be9`](https://github.com/deepseek-ai/deepseek-harness/commit/2faa751be99c8fbee0524e478f4c53d93b408131)。产品适配保留在独立 overlay 和 bundle，官方内核源码不做补丁。
 
-- DeepSeek 模型列表增加 `deepseek-v4.1-flash-expires-on-0910`，供用户手动选择。保留稳定默认模型与用户自定义参数；灰度模型权限和有效期由服务端决定，没有未经核实地写入容量或图片能力。
+- DeepSeek 模型列表增加 `deepseek-v4.1-flash-expires-on-0910`，供用户手动选择。按官方灰度能力配置为与 `deepseek-v4-flash-vision-exp` 一致：1,000,000 token 上下文、384,000 token 最大输出，原生支持文本和图片理解。保留稳定默认模型与用户自定义参数；灰度模型权限和有效期由服务端决定。
+- 本次重新发布修正初版 3.6.3 遗漏的灰度模型能力声明；启动时自动补齐既有模型条目缺失的容量和图片输入配置，Windows、macOS、Linux 安装包均重新构建。
 - 保留 Codex CLI 0.153.4、设置页默认模型/思考等级、主对话单次覆盖及 DSH 原生附件上传。
 - 保留普通对话的原生 DSH 流程、显式投标绑定与知识库手动引用边界。
 - 保留官方 `dsh-univer-office` 0.2.13 完整插件、原始许可及授权校验。

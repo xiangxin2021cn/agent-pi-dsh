@@ -325,6 +325,9 @@ function buildManagedPatch(deps) {
         maxTokens: 384000
       - id: deepseek-v4.1-flash-expires-on-0910
         name: DeepSeek-V4.1-Flash (Grey, expires 09-10)
+        contextWindow: 1000000
+        maxTokens: 384000
+        inputModalities: [text, image]
 - id: agent-default-model
   config:
     provider: deepseek-official
