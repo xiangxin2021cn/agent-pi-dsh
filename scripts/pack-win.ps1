@@ -271,7 +271,7 @@ if ($IncludeLicensedUniver) {
 if (-not $CadCleanOutput) { $CadCleanOutput = Join-Path $Root ".codex-temp\cad-clean-output" }
 $CadCleanOutput = (Resolve-Path -LiteralPath $CadCleanOutput -ErrorAction Stop).Path
 $CadViewer = Join-Path $CadCleanOutput "cad-viewer"
-$CadSourceName = "Agent-Pi-DSH-$AppVersion-CAD-corresponding-source.tar.gz"
+$CadSourceName = (Get-Content (Join-Path $Root "scripts\cad-clean-pins.json") -Raw | ConvertFrom-Json).sourceArchive
 $CadSourceArchive = Join-Path $CadCleanOutput $CadSourceName
 $CadSourceChecksum = "$CadSourceArchive.sha256"
 Assert-CadCleanRelease $CadViewer "clean build input"

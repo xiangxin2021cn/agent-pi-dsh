@@ -1,11 +1,12 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { closeSync, existsSync, mkdtempSync, openSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-export const expectedDshCommit = 'd347e703908d0406b7a7ef80e3a0e594d86b2215'
-export const expectedDshVersion = '0.1.3-alpha.1'
+export const expectedDshCommit = '2faa751be99c8fbee0524e478f4c53d93b408131'
+export const expectedDshVersion = '0.1.5-alpha.1'
 
 function readJson(path) {
   return JSON.parse(readFileSync(path, 'utf8'))
@@ -64,7 +65,7 @@ export function verifyCodexRuntime(productRoot) {
   return { version, wrapper }
 }
 
-export function main(args = process.argv.slice(2)) {
+export async function main(args = process.argv.slice(2)) {
   const checkNative = args.at(-1) === '--native'
   const paths = checkNative ? args.slice(0, -1) : args
   if (paths.length < 1 || paths.length > 2) {
@@ -73,11 +74,22 @@ export function main(args = process.argv.slice(2)) {
   const verified = verifyDshRuntime(paths[0], paths[1])
   if (checkNative) {
     const require = createRequire(join(verified.dsh, 'packages', 'session', 'session-persistence-jsonl', 'package.json'))
-    require('fs-ext')
+    const { tryLockExclusive } = await import(pathToFileURL(require.resolve('@deepseek-ai/node-addon-system/flock')).href)
+    if (typeof tryLockExclusive !== 'function') throw new Error('official system flock entry is missing')
+    // Import is lazy: exercise the native binary on POSIX instead of only
+    // checking its JavaScript entry. Windows persistence uses koffi below.
+    if (process.platform !== 'win32') {
+      const directory = mkdtempSync(join(tmpdir(), 'agent-pi-flock-check-'))
+      const fd = openSync(join(directory, 'lock'), 'wx')
+      try { await tryLockExclusive(fd) } finally {
+        closeSync(fd)
+        rmSync(directory, { recursive: true, force: true })
+      }
+    }
     require('koffi')
     if (verified.product) verifyCodexRuntime(verified.product)
   }
   process.stdout.write(`DSH ${expectedDshVersion} runtime verified: ${verified.dsh}\n`)
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main()
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main()

@@ -72,15 +72,24 @@ export function assertCadIntegrationUnchanged({ root, manifest, releaseCommit = 
   const sourceTree = git(root, ['rev-parse', '--verify', `${source.commit}^{tree}`]).trim()
   if (sourceTree !== source.tree) fail('original CAD source commit does not match its recorded tree')
   const target = git(root, ['rev-parse', '--verify', '--end-of-options', `${releaseCommit}^{commit}`]).trim()
-  const pkg = JSON.parse(git(root, ['show', `${target}:package.json`]))
+  const originalPackage = git(root, ['show', `${source.commit}:package.json`])
+  const pkg = JSON.parse(originalPackage)
   if (manifest.releaseVersion !== pkg.version || source.tag !== `v${pkg.version}`) {
-    fail('original CAD release version/tag does not match the release package')
+    fail('original CAD release version/tag does not match the original package')
   }
   const original = inputTree(root, source.commit)
   const current = inputTree(root, target)
   const changed = [...new Set([...original.keys(), ...current.keys()])]
     .filter((path) => {
       if (original.get(path) === current.get(path)) return false
+      // Only the application version may differ. Preserve the original CAD
+      // release identity and compare every other byte, including dependencies.
+      if (path === 'package.json'
+          && original.get(path)?.split(' ').slice(0, 2).join(' ') === current.get(path)?.split(' ').slice(0, 2).join(' ')) {
+        const after = git(root, ['show', `${target}:package.json`])
+        if (JSON.parse(after).version !== pkg.version
+            && after.replace(/("version"\s*:\s*")[^"]+"/, `$1${pkg.version}"`) === originalPackage) return false
+      }
       // Office notices do not enter the CAD build. All other notices and the
       // file's mode/type remain bound to the original corresponding source.
       if (path === 'THIRD_PARTY_NOTICES.md'

@@ -207,12 +207,12 @@ export async function auditCase({ kind, relativeSession, sourceHome, runRoot, re
     const second = await openRead(runtime, targetSessions, compression, String(first.header.id))
     const migratedArtifacts = (await readdir(staged.targetDir)).filter(name => SESSION_ARTIFACT.test(name)).sort()
     const currentName = `session.v${first.header.version}.jsonl${compression === 'zstd' ? '.zstd' : ''}`
-    if (Number(first.header.version) !== 2 || !migratedArtifacts.includes(currentName)) {
-      throw new Error(`migration did not publish a v2 successor; header=${String(first.header.version)}`)
+    if (Number(first.header.version) !== 3 || !migratedArtifacts.includes(currentName)) {
+      throw new Error(`migration did not publish a v3 successor; header=${String(first.header.version)}`)
     }
-    if (second.events.length !== first.events.length) throw new Error('migrated v2 event count changed on reopen')
+    if (second.events.length !== first.events.length) throw new Error('migrated v3 event count changed on reopen')
     if (JSON.stringify(eventTypeCounts(second.events)) !== JSON.stringify(eventCounts)) {
-      throw new Error('migrated v2 event types changed on reopen')
+      throw new Error('migrated v3 event types changed on reopen')
     }
     for (const artifact of staged.artifacts) {
       if (await sha256(artifact.target) !== artifact.before) {
@@ -294,7 +294,7 @@ async function main() {
   }
   const report = {
     schema: 1,
-    dshSessionFormat: 2,
+    dshSessionFormat: 3,
     sourceHomeId: anonymousId(sourceHome),
     runId: basename(runRoot),
     credentialsCopied: false,

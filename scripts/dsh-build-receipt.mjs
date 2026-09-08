@@ -75,6 +75,9 @@ function isExcludedFile(relativePath) {
   const parts = normalized.split('/')
   const name = parts.at(-1)
   return parts.slice(0, -1).some((part) => excludedDirectoryNames.has(part))
+    // Built per platform after extracting the portable receipt. The native
+    // runtime gate exercises the actual flock binary with the packaged Node.
+    || dshRuntimeFilePolicy.platformBuiltFiles.includes(normalized)
     || excludedFileNames.has(name)
     || excludedFileSuffixes.some((suffix) => name.endsWith(suffix))
 }

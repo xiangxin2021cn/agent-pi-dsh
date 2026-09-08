@@ -71,6 +71,21 @@ test('permits installer and publication changes while retaining the original CAD
   assert.notEqual(proof.releaseCommit, proof.sourceCommit)
 })
 
+test('reuses original CAD source across an application-only version bump, rejecting dependency changes', (t) => {
+  const value = fixture(t)
+  const path = join(value.root, 'package.json')
+  const original = readFileSync(path, 'utf8')
+  const next = original.replace('3.6.2', '3.6.3')
+  write(path, next)
+  commit(value.root)
+  const manifest = structuredClone(value.manifest)
+  assert.equal(assertCadIntegrationUnchanged(value).sourceCommit, manifest.sources.agentPiDshCadIntegration.commit)
+  assert.deepEqual(value.manifest, manifest)
+  write(path, next.replace('"license"', '"dependencies":{"new-cad":"1.0.0"},"license"'))
+  commit(value.root)
+  assert.throws(() => assertCadIntegrationUnchanged(value), /CAD inputs changed.*package.json/)
+})
+
 test('permits only the Office notice section to change while retaining all CAD notices and provenance', (t) => {
   const value = fixture(t)
   const path = join(value.root, 'THIRD_PARTY_NOTICES.md')

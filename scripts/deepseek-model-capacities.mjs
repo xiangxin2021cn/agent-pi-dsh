@@ -4,6 +4,34 @@ export const DEEPSEEK_MODEL_CAPACITIES = Object.freeze({
   'deepseek-v4-flash-vision-exp': Object.freeze({ contextWindow: 1_000_000, maxTokens: 384_000 }),
 })
 
+export const DEEPSEEK_GREY_MODEL = 'deepseek-v4.1-flash-expires-on-0910'
+
+// User settings replace the managed catalog. Extend an existing block list
+// without changing its models, limits, comments, or the selected default.
+export function ensureDeepSeekGreyModel(text) {
+  const lines = splitLines(text)
+  const provider = lines.findIndex(({ content }) => /^llm-deepseek:\s*(?:#.*)?$/.test(content))
+  if (provider < 0) return text
+  const end = blockEnd(lines, provider, 0)
+  const models = lines.findIndex(({ content }, index) => index > provider && index < end
+    && /^ +models:\s*(?:\[\])?\s*(?:#.*)?$/.test(content))
+  if (models < 0) return text
+  const modelEnd = blockEnd(lines, models, indentation(lines[models].content).length)
+  if (lines.slice(models + 1, modelEnd).some(({ content }) => {
+    const id = content.match(/^\s*-\s*id:\s*(.*?)\s*$/)
+    return id && scalarValue(id[1]) === DEEPSEEK_GREY_MODEL
+  })) return text
+  const eol = lines[models].eol || '\n'
+  const indent = indentation(lines[models].content) + '  '
+  lines[models].content = lines[models].content.replace(/\[\]/, '')
+  lines[models].eol = eol
+  lines.splice(models + 1, 0,
+    { content: `${indent}- id: ${DEEPSEEK_GREY_MODEL}`, eol },
+    { content: `${indent}  name: DeepSeek-V4.1-Flash (Grey, expires 09-10)`, eol },
+  )
+  return lines.map(({ content, eol }) => content + eol).join('')
+}
+
 function splitLines(text) {
   const lines = []
   const pattern = /([^\r\n]*)(\r\n|\n|\r)/g

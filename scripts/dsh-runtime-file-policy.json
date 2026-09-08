@@ -23,6 +23,14 @@
     "*.map",
     "*.tsbuildinfo"
   ],
+  "platformBuiltFiles": [
+    "native/system/packages/darwin-arm64/bin/system.node",
+    "native/system/packages/darwin-x64/bin/system.node",
+    "native/system/packages/linux-arm64/bin/glibc/system.node",
+    "native/system/packages/linux-arm64/bin/musl/system.node",
+    "native/system/packages/linux-x64/bin/glibc/system.node",
+    "native/system/packages/linux-x64/bin/musl/system.node"
+  ],
   "excludedFileSuffixes": [
     ".map",
     ".tsbuildinfo"

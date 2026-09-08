@@ -14,7 +14,7 @@ import {
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
-import { repairDeepSeekModelCapacities } from './deepseek-model-capacities.mjs'
+import { repairDeepSeekModelCapacities, ensureDeepSeekGreyModel } from './deepseek-model-capacities.mjs'
 import { removeProductParallelCap } from './heal-agent-loop-settings.mjs'
 import { migrateLegacyAgentPresetSessions } from './migrate-legacy-agent-preset-sessions.mjs'
 import {
@@ -323,6 +323,8 @@ function buildManagedPatch(deps) {
         name: DeepSeek-V4-Pro
         contextWindow: 1000000
         maxTokens: 384000
+      - id: deepseek-v4.1-flash-expires-on-0910
+        name: DeepSeek-V4.1-Flash (Grey, expires 09-10)
 - id: agent-default-model
   config:
     provider: deepseek-official
@@ -419,7 +421,7 @@ function retireVisionRouterResidue() {
   if (!existsSync(settingsPath)) return
   let text = readFileSync(settingsPath, 'utf8')
   const next = text.replace(/(?:^|\n)vision-router:\s*\n(?:[ \t].*\n)*/g, '\n')
-  const withCatalog = ensureOfficialVisionCatalog(next)
+  const withCatalog = ensureDeepSeekGreyModel(ensureOfficialVisionCatalog(next))
   const withDefault = ensureDefaultVisionModel(withCatalog)
   const healed = removeProductParallelCap(withDefault)
   if (healed !== text) writeFileSync(settingsPath, healed)

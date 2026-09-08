@@ -135,6 +135,20 @@ test('fails closed when an unreceipted runtime source file is added', () => {
   }
 })
 
+test('platform flock builds do not change the portable source receipt; unexpected native files fail closed', () => {
+  const value = fixture()
+  try {
+    const directory = join(value.dsh, 'native/system/packages/linux-x64/bin/glibc')
+    mkdirSync(directory, { recursive: true })
+    writeFileSync(join(directory, 'system.node'), 'platform build')
+    assert.doesNotThrow(() => verifyDshBuildReceipt(value))
+    writeFileSync(join(directory, 'unexpected.node'), 'unexpected')
+    assert.throws(() => verifyDshBuildReceipt(value), /inventory length mismatch/)
+  } finally {
+    rmSync(value.root, { recursive: true, force: true })
+  }
+})
+
 test('installed verification permits old unused source and artifacts while strict verification still rejects them', () => {
   const value = fixture()
   try {

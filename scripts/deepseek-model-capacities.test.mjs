@@ -6,9 +6,28 @@ import { test } from 'node:test'
 import {
   DEEPSEEK_MODEL_CAPACITIES,
   repairDeepSeekModelCapacities,
+  ensureDeepSeekGreyModel,
+  DEEPSEEK_GREY_MODEL,
 } from './deepseek-model-capacities.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
+
+test('grey model extends an existing catalog without changing custom limits or default', () => {
+  const source = 'llm-deepseek:\r\n  models:\r\n    - id: custom-model\r\n      maxTokens: 1234\r\n  baseURL: https://example.invalid\r\nagent-default-model:\r\n  model: custom-model\r\n'
+  const result = ensureDeepSeekGreyModel(source)
+  assert.ok(result.includes(DEEPSEEK_GREY_MODEL))
+  assert.ok(result.endsWith(source.slice(source.indexOf('    - id: custom-model'))))
+  assert.equal(ensureDeepSeekGreyModel(result), result)
+  assert.equal(ensureDeepSeekGreyModel('llm-deepseek:\n  apiKey: secret\n'), 'llm-deepseek:\n  apiKey: secret\n')
+  assert.equal(ensureDeepSeekGreyModel('other:\n  models: []\n'), 'other:\n  models: []\n')
+})
+
+test('grey model supports an empty catalog and leaves an explicit existing entry intact', () => {
+  assert.match(ensureDeepSeekGreyModel('llm-deepseek:\n  models: []\n'), /models: *\n    - id: deepseek-v4\.1/)
+  const explicit = `llm-deepseek:\n  models:\n    - id: '${DEEPSEEK_GREY_MODEL}' # custom\n      maxTokens: 8192\n`
+  assert.equal(ensureDeepSeekGreyModel(explicit), explicit)
+  assert.equal(DEEPSEEK_MODEL_CAPACITIES[DEEPSEEK_GREY_MODEL], undefined)
+})
 
 const officialFields = `      contextWindow: 1000000
       maxTokens: 384000
