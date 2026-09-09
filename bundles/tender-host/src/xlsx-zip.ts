@@ -88,9 +88,10 @@ export function zipStore(files: Array<{ name: string; data: Buffer | string }>):
 }
 
 /** Read a ZIP produced by `zipStore` (store/DEFLATE, no extra fields). */
-export function unzipStore(archive: Buffer): Map<string, Buffer> {
+export function unzipStore(archive: Buffer, maxRawBytes = Infinity): Map<string, Buffer> {
   const files = new Map<string, Buffer>()
   let offset = 0
+  let total = 0
   while (offset + 4 <= archive.length && archive.toString('binary', offset, offset + 4) === 'PK\u0003\u0004') {
     const method = archive.readUInt16LE(offset + 8)
     const compressedSize = archive.readUInt32LE(offset + 18)
@@ -100,7 +101,10 @@ export function unzipStore(archive: Buffer): Map<string, Buffer> {
     const name = archive.toString('utf8', offset + 30, offset + 30 + nameLen)
     const start = offset + 30 + nameLen + extraLen
     const payload = archive.subarray(start, start + compressedSize)
-    const raw = method === 8 ? inflateRawSync(payload) : Buffer.from(payload)
+    if (rawSize > maxRawBytes - total) throw new Error('Office 文件解压后超过自动检查大小限制，请打开文件审阅。')
+    const raw = method === 8 ? inflateRawSync(payload, Number.isFinite(maxRawBytes) ? { maxOutputLength: maxRawBytes - total } : undefined) : Buffer.from(payload)
+    total += raw.length
+    if (total > maxRawBytes) throw new Error('Office 文件解压后超过自动检查大小限制，请打开文件审阅。')
     if (raw.length !== rawSize && method === 8) {
       // CRC already proved the writer; keep the inflated bytes.
     }

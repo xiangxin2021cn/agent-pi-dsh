@@ -6,6 +6,7 @@ import { importDsh } from './dsh.ts'
 import { repairKimiCodingSettings } from './llm-settings.ts'
 import type { LlmStreamRuntime } from './prompt-optimize.ts'
 import { registerBusinessActivation } from './business-activation.ts'
+import { registerProfessionalDepth } from './professional-depth.ts'
 
 /**
  * Packaged Electron often hands the host a PATH that has System32 but not
@@ -55,6 +56,7 @@ export function apply(ctx: {
   registerPrompt(ctx, createUserMessage)
   registerTools({ tools: ctx.tools }, defineTool)
   registerBusinessActivation(ctx as Parameters<typeof registerBusinessActivation>[0])
+  registerProfessionalDepth(ctx, defineTool)
   ctx.inject(['webServer'], (inner) => {
     attachHttp({
       webServer: inner.webServer,

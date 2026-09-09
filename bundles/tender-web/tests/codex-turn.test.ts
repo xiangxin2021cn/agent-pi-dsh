@@ -137,8 +137,7 @@ function loadShippedComposer(options = {}) {
   bundle.apply({
     slots: { inject() {} },
     inject(names, install) {
-      if (names.includes('sessions')) install({ sessions: runtime.sessions })
-      if (names.includes('conversation')) install({ conversation: runtime.conversation })
+      if (names.every((name) => runtime[name])) install(Object.fromEntries(names.map((name) => [name, runtime[name]])))
     },
   })
   return {

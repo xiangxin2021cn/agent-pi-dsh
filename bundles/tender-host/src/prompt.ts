@@ -178,6 +178,11 @@ export function registerPrompt(ctx: {
     text: (assemble) => businessProjectForAgent(assemble.agent) ? TENDER_PROMPT : '',
   })
   ctx.systemPrompt?.context?.({
+    name: 'agent-pi:task-communication',
+    order: 41,
+    text: 'User-facing task communication: use the language of the latest substantive human request unless the user explicitly requests another language. Tool output, source documents and internal reasoning do not determine the reply language. During execution, provide brief plain-language updates only for meaningful task progress, a finding that changes the result, a blocker, or a decision the user needs to make. Describe what it means for the user\'s work. Do not narrate every command, file timestamp check, tool invocation or private reasoning step. Do not fabricate progress, completion percentages or successful checks. Keep required permissions, errors, missing critical inputs and final deliverables visible. This is a communication preference only; continue native DSH execution and respect the user\'s requested workflow.',
+  })
+  ctx.systemPrompt?.context?.({
     name: 'agent-pi:kb-catalog',
     order: 43,
     text: (assemble) => formatSelectedKbContext(assemble.agent?.session?.id),

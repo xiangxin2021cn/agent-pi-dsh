@@ -8,6 +8,9 @@ import { addNativeComposerFiles } from './native-attachment-adapter.js'
 import { createWorkbenchSessionMonitor } from './session-monitor.js'
 import { createWorkbenchView } from './workbench-view.js'
 import { clientCss } from './styles.js'
+import { createProfessionalDepth, professionalDepthCss } from './professional-depth.js'
+import { createTaskProcess, taskProcessCss } from './task-process.js'
+import { installNativeWorkFilePreviews } from './native-work-file-preview.js'
 import { buildCodexTurnDelegation, codexTurnModel, codexSupportsEffort, resolveCodexTurnSelection } from '../codex-turn.ts'
 import { fileIconClass, fileIconMeta, fileIconName } from '../file-icons.ts'
 import {
@@ -38,7 +41,7 @@ const h = React.createElement
     const MARKUP_RE = /[`*!\[]/
     const HTML_SPECIAL_RE = /[&<>"]/
 
-    const css = clientCss
+    const css = clientCss + professionalDepthCss + taskProcessCss
     if (typeof document !== 'undefined') {
       const existing = document.querySelector('style[data-plugin-css="dsh-tender-web"]')
       if (existing) existing.remove()
@@ -6814,6 +6817,31 @@ const h = React.createElement
     })
 
 
+    const TaskProcess = createTaskProcess({
+      React,
+      language: () => document.documentElement.lang?.startsWith('en') ? 'en' : 'zh',
+      snapshot: (id) => sessionSnapshotWithChat(id, codexTurnAuthorities(id)?.session),
+      subscribe: (id, listener) => subscribeSessionWithChat(id, codexTurnAuthorities(id)?.session, listener),
+    })
+    function TaskProcessHeader(props) {
+      const id = props.useSessions((state) => state.current || '')
+      return h(TaskProcess, { sessionId: id })
+    }
+
+    const ProfessionalDepth = createProfessionalDepth({
+      React, api,
+      fillDraft: fillComposer,
+      run: (composer, instruction) => {
+        const draft = currentDraft(composer).trim()
+        fillComposer(composer, draft ? `${draft}\n\n${instruction}` : instruction)
+        requestAnimationFrame(() => composer.inputActions?.submit?.())
+      },
+      subscribe: (id, listener) => {
+        const authorities = codexTurnAuthorities(id)
+        return subscribeSessionWithChat(id, authorities?.session, listener)
+      },
+    })
+
     function ComposerTools(props) {
       captureComposerFace(props)
       const live = snapshotComposer()
@@ -6930,7 +6958,8 @@ const h = React.createElement
             onMouseDown: (event) => event.preventDefault(),
             onClick: () => setCodexTurnArmed(propsRef.current, !armed),
           }, Icon('sparkles', 14), 'Codex 执行'),
-          armed && h(ComposerCodexModelSelector, { composer: live }),
+            armed && h(ComposerCodexModelSelector, { composer: live }),
+            h(ProfessionalDepth, { key: live.sessionId || 'draft', composer: live }),
           h('button', {
             type: 'button',
             className: 'ap-toolbtn',
@@ -8610,6 +8639,7 @@ const h = React.createElement
     }
 
     export function apply(ctx) {
+      installNativeWorkFilePreviews(ctx, { React, ReactDOM, FilePreviewOverlay })
       runtime.workspaces = ctx.workspaces || runtime.workspaces
       runtime.remote = ctx.remote || runtime.remote
       watchArchivedWorkspaces()
@@ -8785,6 +8815,10 @@ const h = React.createElement
           inputTriggers.registerSource(source)
         }
       })
+      ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register(
+        { name: 'conversation.session.header.utilities', id: 'agent-pi-task-process', order: 10, label: '执行详情' },
+        TaskProcessHeader,
+      ))
       ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register(
         { name: 'conversation.session.header.utilities', id: 'agent-pi-files', order: 40, label: '资源文件' },
         FilesToggle,
