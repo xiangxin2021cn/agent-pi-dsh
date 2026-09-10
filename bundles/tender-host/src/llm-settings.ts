@@ -26,3 +26,25 @@ export function repairKimiCodingSettings(home = process.env.DSH_HOME): boolean {
   writeFileSync(path, after)
   return true
 }
+
+/** Append a native selection when an old conversation resumes on the expired grey route. */
+export function migrateRetiredDeepSeekSession(session: {
+  snapshotEvents: () => readonly { type: string; data: any }[]
+  append: (type: string, data: unknown) => unknown
+}): boolean {
+  const events = session.snapshotEvents()
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index]
+    const selection = event.type === 'model/selection' ? event.data
+      : event.type === 'request/header' ? event.data.header.config : undefined
+    if (!selection) continue
+    if (selection.provider !== 'deepseek-official'
+      || selection.model !== 'deepseek-v4.1-flash-expires-on-0910') return false
+    session.append('model/selection', {
+      provider: selection.provider, model: 'deepseek-flash',
+      ...(selection.reasoningEffort === undefined ? {} : { reasoningEffort: selection.reasoningEffort }),
+    })
+    return true
+  }
+  return false
+}

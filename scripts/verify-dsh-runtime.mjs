@@ -5,8 +5,8 @@ import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-export const expectedDshCommit = 'dd393c18202b25f9734d51cb61aac8fa8b2c5ecf'
-export const expectedDshVersion = '0.1.5-alpha.2'
+export const expectedDshCommit = '1ef9c1fa9afbea78c5537bfc8b6d1c27d598798e'
+export const expectedDshVersion = '0.1.5-rc.1'
 
 function readJson(path) {
   return JSON.parse(readFileSync(path, 'utf8'))

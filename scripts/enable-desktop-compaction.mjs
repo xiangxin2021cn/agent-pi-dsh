@@ -12,7 +12,7 @@ export function configureCompactionInText(text, { fallbackEnabled = true } = {})
     ? [
         '        summarizationFallbacks:',
         '          - provider: deepseek-official',
-        '            model: deepseek-v4-flash-vision-exp',
+        '            model: deepseek-flash',
         '            maxTokens: 32768',
       ]
     : []

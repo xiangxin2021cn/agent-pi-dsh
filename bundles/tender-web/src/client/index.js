@@ -10,7 +10,7 @@ import { createWorkbenchView } from './workbench-view.js'
 import { clientCss } from './styles.js'
 import { createProfessionalDepth, professionalDepthCss } from './professional-depth.js'
 import { createTaskProcess, taskProcessCss } from './task-process.js'
-import { installNativeWorkFilePreviews } from './native-work-file-preview.js'
+import { installNativeWorkFilePreviews, nativeWorkFilePreviewCss } from './native-work-file-preview.js'
 import { buildCodexTurnDelegation, codexTurnModel, codexSupportsEffort, resolveCodexTurnSelection } from '../codex-turn.ts'
 import { fileIconClass, fileIconMeta, fileIconName } from '../file-icons.ts'
 import {
@@ -41,7 +41,7 @@ const h = React.createElement
     const MARKUP_RE = /[`*!\[]/
     const HTML_SPECIAL_RE = /[&<>"]/
 
-    const css = clientCss + professionalDepthCss + taskProcessCss
+    const css = clientCss + professionalDepthCss + taskProcessCss + nativeWorkFilePreviewCss
     if (typeof document !== 'undefined') {
       const existing = document.querySelector('style[data-plugin-css="dsh-tender-web"]')
       if (existing) existing.remove()
@@ -7141,6 +7141,8 @@ const h = React.createElement
       const preview = stack.length > 0 ? stack[stack.length - 1] : null
       React.useEffect(() => {
         const onOpen = () => {
+          if (runtime.sidebarRight?.isExpanded()) runtime.sidebarRight.toggleExpanded()
+          window.dispatchEvent(new Event('agent-pi-close-native-preview'))
           setRailOpen(true)
         }
         window.addEventListener('agent-pi-open-files', onOpen)
@@ -7148,7 +7150,7 @@ const h = React.createElement
           const detail = event && event.detail
           const path = detail && detail.path
           if (!path) return
-          setRailOpen(true)
+          onOpen()
           setStack((prev) => {
             const top = prev.length > 0 ? prev[prev.length - 1] : null
             if (top && top.type === 'file' && top.file && top.file.path === path && (!detail.kbSlug || top.file.kbSlug === detail.kbSlug)) return prev
@@ -7191,6 +7193,7 @@ const h = React.createElement
         }
       }, [])
       const openFile = React.useCallback((file, fromFolder) => {
+        window.dispatchEvent(new Event('agent-pi-close-native-preview'))
         setStack(fromFolder
           ? [{ type: 'folder', file: fromFolder }, { type: 'file', file: file }]
           : [{ type: 'file', file: file }])
@@ -8571,8 +8574,8 @@ const h = React.createElement
             }, h('span', { className: 'ap-switch-knob' })),
           ),
           h('p', { className: 'ap-sub' }, zh
-            ? '当上下文用量达到约 72% 时自动压缩，先尝试当前会话模型。启用兜底后，如果主摘要发生可兜底的失败，旧对话历史可能会发送给 deepseek-v4-flash-vision-exp；这可能产生一次 DeepSeek 调用费用，并会跨供应商处理该段历史。'
-            : 'Automatic compaction starts near 72% context usage and tries the current session model first. When fallback is enabled and the primary summary has an eligible failure, older conversation history may be sent to deepseek-v4-flash-vision-exp. This may create one DeepSeek charge and processes that history across provider boundaries.'),
+            ? '当上下文用量达到约 72% 时自动压缩，先尝试当前会话模型。启用兜底后，如果主摘要发生可兜底的失败，旧对话历史可能会发送给 deepseek-flash；这可能产生一次 DeepSeek 调用费用，并会跨供应商处理该段历史。'
+            : 'Automatic compaction starts near 72% context usage and tries the current session model first. When fallback is enabled and the primary summary has an eligible failure, older conversation history may be sent to deepseek-flash. This may create one DeepSeek charge and processes that history across provider boundaries.'),
           !compactionBridgeAvailable && h('p', { className: 'ap-sub' }, zh
             ? '此设置仅在打包的桌面应用中可用。'
             : 'This setting is available only in the packaged desktop app.'),
@@ -8640,6 +8643,10 @@ const h = React.createElement
 
     export function apply(ctx) {
       installNativeWorkFilePreviews(ctx, { React, ReactDOM, FilePreviewOverlay })
+      ctx.inject(['sidebarRight'], (scope) => {
+        runtime.sidebarRight = scope.sidebarRight
+        scope.on('dispose', () => { runtime.sidebarRight = undefined })
+      })
       runtime.workspaces = ctx.workspaces || runtime.workspaces
       runtime.remote = ctx.remote || runtime.remote
       watchArchivedWorkspaces()

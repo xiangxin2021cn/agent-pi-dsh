@@ -193,7 +193,7 @@ test('missing preference enables one complete fallback while the session model s
     assert.equal((preset.match(/thresholdRatio: 0\.72/g) ?? []).length, 1)
     assert.equal((preset.match(/summarizationFallbacks:/g) ?? []).length, 1)
     assert.match(preset, /provider: deepseek-official/)
-    assert.match(preset, /model: deepseek-v4-flash-vision-exp/)
+    assert.match(preset, /model: deepseek-flash/)
     assert.match(preset, /maxTokens: 32768/)
     assert.doesNotMatch(preset, /summarizationProvider|summarizationModel/)
   }

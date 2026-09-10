@@ -2,14 +2,15 @@ export const DEEPSEEK_MODEL_CAPACITIES = Object.freeze({
   'deepseek-v4-flash': Object.freeze({ contextWindow: 1_000_000, maxTokens: 384_000 }),
   'deepseek-v4-pro': Object.freeze({ contextWindow: 1_000_000, maxTokens: 384_000 }),
   'deepseek-v4-flash-vision-exp': Object.freeze({ contextWindow: 1_000_000, maxTokens: 384_000 }),
-  'deepseek-v4.1-flash-expires-on-0910': Object.freeze({ contextWindow: 1_000_000, maxTokens: 384_000 }),
+  'deepseek-flash': Object.freeze({ contextWindow: 1_000_000, maxTokens: 256_000 }),
 })
 
-export const DEEPSEEK_GREY_MODEL = 'deepseek-v4.1-flash-expires-on-0910'
+export const DEEPSEEK_OFFICIAL_MODEL = 'deepseek-flash'
+const RETIRED_GREY_MODEL = 'deepseek-v4.1-flash-expires-on-0910'
 
-// User settings replace the managed catalog. Extend an existing block list
-// without changing its models, limits, comments, or the selected default.
-export function ensureDeepSeekGreyModel(text) {
+// Only user catalogs need an entry: new profiles inherit the upstream catalog.
+// Remove the expired product entry without touching unrelated models/settings.
+export function ensureDeepSeekOfficialModel(text) {
   const lines = splitLines(text)
   const provider = lines.findIndex(({ content }) => /^llm-deepseek:\s*(?:#.*)?$/.test(content))
   if (provider < 0) return text
@@ -18,21 +19,45 @@ export function ensureDeepSeekGreyModel(text) {
     && /^ +models:\s*(?:\[\])?\s*(?:#.*)?$/.test(content))
   if (models < 0) return text
   const modelEnd = blockEnd(lines, models, indentation(lines[models].content).length)
-  if (lines.slice(models + 1, modelEnd).some(({ content }) => {
+  for (let index = modelEnd - 1; index > models; index -= 1) {
+    const id = lines[index].content.match(/^\s*-\s*id:\s*(.*?)\s*$/)
+    if (id && scalarValue(id[1]) === RETIRED_GREY_MODEL) {
+      const itemEnd = blockEnd(lines, index, indentation(lines[index].content).length)
+      lines.splice(index, itemEnd - index)
+    }
+  }
+  const currentEnd = blockEnd(lines, models, indentation(lines[models].content).length)
+  if (lines.slice(models + 1, currentEnd).some(({ content }) => {
     const id = content.match(/^\s*-\s*id:\s*(.*?)\s*$/)
-    return id && scalarValue(id[1]) === DEEPSEEK_GREY_MODEL
-  })) return text
+    return id && scalarValue(id[1]) === DEEPSEEK_OFFICIAL_MODEL
+  })) return lines.map(({ content, eol }) => content + eol).join('')
   const eol = lines[models].eol || '\n'
   const indent = indentation(lines[models].content) + '  '
   lines[models].content = lines[models].content.replace(/\[\]/, '')
   lines[models].eol = eol
   lines.splice(models + 1, 0,
-    { content: `${indent}- id: ${DEEPSEEK_GREY_MODEL}`, eol },
-    { content: `${indent}  name: DeepSeek-V4.1-Flash (Grey, expires 09-10)`, eol },
+    { content: `${indent}- id: ${DEEPSEEK_OFFICIAL_MODEL}`, eol },
+    { content: `${indent}  name: DeepSeek-V41-Flash`, eol },
     { content: `${indent}  contextWindow: 1000000`, eol },
-    { content: `${indent}  maxTokens: 384000`, eol },
     { content: `${indent}  inputModalities: [text, image]`, eol },
+    { content: `${indent}  systemPromptUpdate: in-history`, eol },
   )
+  return lines.map(({ content, eol }) => content + eol).join('')
+}
+
+export function migrateDeepSeekDefault(text) {
+  const lines = splitLines(text)
+  const start = lines.findIndex(({ content }) => /^agent-default-model:\s*(?:#.*)?$/.test(content))
+  if (start < 0) return text
+  const end = blockEnd(lines, start, 0)
+  const provider = lines.slice(start + 1, end).find(({ content }) => /^ +provider:/.test(content))
+  if (provider && scalarValue(provider.content.replace(/^ +provider:\s*/, '')) !== 'deepseek-official') return text
+  for (let index = start + 1; index < end; index += 1) {
+    const match = lines[index].content.match(/^( +model:\s*)(.*?)(\s+#.*)?$/)
+    if (match && [RETIRED_GREY_MODEL, 'deepseek-v4-flash', 'deepseek-v4-flash-vision-exp'].includes(scalarValue(match[2]))) {
+      lines[index].content = `${match[1]}${DEEPSEEK_OFFICIAL_MODEL}${match[3] || ''}`
+    }
+  }
   return lines.map(({ content, eol }) => content + eol).join('')
 }
 
@@ -141,9 +166,13 @@ export function repairDeepSeekModelCapacities(yamlText) {
         if (!directLines.some((line) => /^[ \t]*(?:maxTokens|"maxTokens"|'maxTokens')\s*:/.test(line))) {
           missing.push(`${propertyIndent}maxTokens: ${capacity.maxTokens}`)
         }
-        if (modelId === DEEPSEEK_GREY_MODEL
+        if (modelId === DEEPSEEK_OFFICIAL_MODEL
           && !directLines.some((line) => /^[ \t]*(?:inputModalities|"inputModalities"|'inputModalities')\s*:/.test(line))) {
           missing.push(`${propertyIndent}inputModalities: [text, image]`)
+        }
+        if (modelId === DEEPSEEK_OFFICIAL_MODEL
+          && !directLines.some((line) => /^[ \t]*systemPromptUpdate\s*:/.test(line))) {
+          missing.push(`${propertyIndent}systemPromptUpdate: in-history`)
         }
         if (missing.length > 0) insertions.push({ after: itemIndex, lines: missing })
       }

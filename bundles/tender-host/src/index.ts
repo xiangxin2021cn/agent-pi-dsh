@@ -3,7 +3,7 @@ import { registerTools } from './tools.ts'
 import { attachHttp, setHttpLlm } from './http.ts'
 import { registerPrompt } from './prompt.ts'
 import { importDsh } from './dsh.ts'
-import { repairKimiCodingSettings } from './llm-settings.ts'
+import { repairKimiCodingSettings, migrateRetiredDeepSeekSession } from './llm-settings.ts'
 import type { LlmStreamRuntime } from './prompt-optimize.ts'
 import { registerBusinessActivation } from './business-activation.ts'
 import { registerProfessionalDepth } from './professional-depth.ts'
@@ -53,6 +53,7 @@ export function apply(ctx: {
 }): void {
   ensureWindowsNativeOpenPath()
   repairKimiCodingSettings()
+  ctx.on('agent/created', ({ agent }) => migrateRetiredDeepSeekSession(agent.session))
   registerPrompt(ctx, createUserMessage)
   registerTools({ tools: ctx.tools }, defineTool)
   registerBusinessActivation(ctx as Parameters<typeof registerBusinessActivation>[0])

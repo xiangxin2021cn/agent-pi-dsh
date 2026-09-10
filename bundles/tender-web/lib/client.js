@@ -4156,14 +4156,23 @@ html[data-ap-process-view="details"] [data-turn-process-member]{content-visibili
 					const file = parseFileAddress(tab.contentId);
 					const cwd = props.useSessions((state) => file?.scope === "session" ? state.byId[file.sessionId]?.cwd || "" : "");
 					const [open, setOpen] = React.useState(true);
-					React.useEffect(() => {
+					const showPreview = () => {
+						window.dispatchEvent(new Event("agent-pi-close-preview"));
 						setOpen(true);
-					}, [tab.contentId]);
+					};
+					React.useEffect(() => {
+						showPreview();
+					}, [tab.contentId, tab.navigation.revision]);
+					React.useEffect(() => {
+						const close = () => setOpen(false);
+						window.addEventListener("agent-pi-close-native-preview", close);
+						return () => window.removeEventListener("agent-pi-close-native-preview", close);
+					}, []);
 					if (!file || file.scope !== "session" || !cwd) return h("p", null, "文件所属对话尚未就绪，请重新打开该对话。");
 					const name = file.path.replaceAll("\\", "/").split("/").at(-1);
 					return h(React.Fragment, null, h("div", { style: { padding: 20 } }, h("p", null, name), h("button", {
 						type: "button",
-						onClick: () => setOpen(true)
+						onClick: showPreview
 					}, "打开 Office / CAD 预览")), open && ReactDOM.createPortal(h(FilePreviewOverlay, {
 						key: tab.contentId,
 						cwd,
@@ -4202,6 +4211,13 @@ html[data-ap-process-view="details"] [data-turn-process-member]{content-visibili
 				}, WorkFilePreview));
 			});
 		}
+		const nativeWorkFilePreviewCss = `
+/* The native preview owns the right column while open; restore the product
+   file rail when it closes, without reserving the width twice. */
+html:has([data-sidebar-right-open]) .ap-files-dock{display:none}
+html.ap-files-rail:has([data-sidebar-right-open]) [data-phase]{margin-right:0}
+html.ap-files-rail:has([data-sidebar-right-open]) .ap-wb-page{right:0}
+`;
 		//#endregion
 		//#region src/codex-turn.ts
 		function codexTurnModel(status, selectedModel) {
@@ -4502,7 +4518,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		const { api, apiBlob, downloadBlob, rawFileUrl } = createAgentPiApiClient();
 		const MARKUP_RE = /[`*!\[]/;
 		const HTML_SPECIAL_RE = /[&<>"]/;
-		const css = clientCss + professionalDepthCss + taskProcessCss;
+		const css = clientCss + professionalDepthCss + taskProcessCss + nativeWorkFilePreviewCss;
 		if (typeof document !== "undefined") {
 			const existing = document.querySelector("style[data-plugin-css=\"dsh-tender-web\"]");
 			if (existing) existing.remove();
@@ -11535,6 +11551,8 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			const preview = stack.length > 0 ? stack[stack.length - 1] : null;
 			react.useEffect(() => {
 				const onOpen = () => {
+					if (runtime.sidebarRight?.isExpanded()) runtime.sidebarRight.toggleExpanded();
+					window.dispatchEvent(new Event("agent-pi-close-native-preview"));
 					setRailOpen(true);
 				};
 				window.addEventListener("agent-pi-open-files", onOpen);
@@ -11542,7 +11560,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					const detail = event && event.detail;
 					const path = detail && detail.path;
 					if (!path) return;
-					setRailOpen(true);
+					onOpen();
 					setStack((prev) => {
 						const top = prev.length > 0 ? prev[prev.length - 1] : null;
 						if (top && top.type === "file" && top.file && top.file.path === path && (!detail.kbSlug || top.file.kbSlug === detail.kbSlug)) return prev;
@@ -11591,6 +11609,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				};
 			}, []);
 			const openFile = react.useCallback((file, fromFolder) => {
+				window.dispatchEvent(new Event("agent-pi-close-native-preview"));
 				setStack(fromFolder ? [{
 					type: "folder",
 					file: fromFolder
@@ -12896,7 +12915,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				onClick: () => {
 					saveCompaction();
 				}
-			}, h("span", { className: "ap-switch-knob" }))), h("p", { className: "ap-sub" }, zh ? "当上下文用量达到约 72% 时自动压缩，先尝试当前会话模型。启用兜底后，如果主摘要发生可兜底的失败，旧对话历史可能会发送给 deepseek-v4-flash-vision-exp；这可能产生一次 DeepSeek 调用费用，并会跨供应商处理该段历史。" : "Automatic compaction starts near 72% context usage and tries the current session model first. When fallback is enabled and the primary summary has an eligible failure, older conversation history may be sent to deepseek-v4-flash-vision-exp. This may create one DeepSeek charge and processes that history across provider boundaries."), !compactionBridgeAvailable && h("p", { className: "ap-sub" }, zh ? "此设置仅在打包的桌面应用中可用。" : "This setting is available only in the packaged desktop app."), compactionMessage && h("p", { className: "ap-sub" }, compactionMessage)));
+			}, h("span", { className: "ap-switch-knob" }))), h("p", { className: "ap-sub" }, zh ? "当上下文用量达到约 72% 时自动压缩，先尝试当前会话模型。启用兜底后，如果主摘要发生可兜底的失败，旧对话历史可能会发送给 deepseek-flash；这可能产生一次 DeepSeek 调用费用，并会跨供应商处理该段历史。" : "Automatic compaction starts near 72% context usage and tries the current session model first. When fallback is enabled and the primary summary has an eligible failure, older conversation history may be sent to deepseek-flash. This may create one DeepSeek charge and processes that history across provider boundaries."), !compactionBridgeAvailable && h("p", { className: "ap-sub" }, zh ? "此设置仅在打包的桌面应用中可用。" : "This setting is available only in the packaged desktop app."), compactionMessage && h("p", { className: "ap-sub" }, compactionMessage)));
 		}
 		function CompanyLockup(props) {
 			const ref = usePlaced("ap-mount-company");
@@ -12975,6 +12994,12 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				React: react,
 				ReactDOM: react_dom,
 				FilePreviewOverlay
+			});
+			ctx.inject(["sidebarRight"], (scope) => {
+				runtime.sidebarRight = scope.sidebarRight;
+				scope.on("dispose", () => {
+					runtime.sidebarRight = void 0;
+				});
 			});
 			runtime.workspaces = ctx.workspaces || runtime.workspaces;
 			runtime.remote = ctx.remote || runtime.remote;

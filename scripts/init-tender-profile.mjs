@@ -14,7 +14,7 @@ import {
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
-import { repairDeepSeekModelCapacities, ensureDeepSeekGreyModel } from './deepseek-model-capacities.mjs'
+import { repairDeepSeekModelCapacities, ensureDeepSeekOfficialModel, migrateDeepSeekDefault } from './deepseek-model-capacities.mjs'
 import { removeProductParallelCap } from './heal-agent-loop-settings.mjs'
 import { migrateLegacyAgentPresetSessions } from './migrate-legacy-agent-preset-sessions.mjs'
 import {
@@ -302,36 +302,8 @@ function buildManagedPatch(deps) {
 # Profile overlay (applied after every bundle layer). Auto-rewritten on app
 # start while the marker line above is present; delete it to customize.
 
-# Official catalog: Flash / Pro stay text-only; Flash Vision Exp understands
-# images natively via Files API (rc.2) with inline fallback. Do not load
-# dsh-vision-router — a leftover stealth hijack would hide llm-deepseek.
-# This product defaults new sessions to the vision model; stock dsh-base
-# still ships Flash.
-- id: llm-deepseek
-  config:
-    models:
-      - id: deepseek-v4-flash-vision-exp
-        name: DeepSeek-V4-Flash-Vision-Exp
-        contextWindow: 1000000
-        maxTokens: 384000
-        inputModalities: [text, image]
-      - id: deepseek-v4-flash
-        name: DeepSeek-V4-Flash
-        contextWindow: 1000000
-        maxTokens: 384000
-      - id: deepseek-v4-pro
-        name: DeepSeek-V4-Pro
-        contextWindow: 1000000
-        maxTokens: 384000
-      - id: deepseek-v4.1-flash-expires-on-0910
-        name: DeepSeek-V4.1-Flash (Grey, expires 09-10)
-        contextWindow: 1000000
-        maxTokens: 384000
-        inputModalities: [text, image]
-- id: agent-default-model
-  config:
-    provider: deepseek-official
-    model: deepseek-v4-flash-vision-exp
+# Model catalog and default selection come directly from the official dsh-base.
+# Do not shadow upstream multimodal capabilities with a product catalog.
 
 # Agent Pi copies the shipped presets into its own system root before applying
 # product-only Codex, web-fetch and compaction configuration. The official DSH
@@ -411,63 +383,15 @@ function repairLegacyAgentPresetDefault() {
   if (repaired !== current) writeFileSync(settingsPath, repaired)
 }
 
-const OFFICIAL_VISION_MODEL = `    - id: deepseek-v4-flash-vision-exp
-      name: DeepSeek-V4-Flash-Vision-Exp
-      inputModalities:
-        - text
-        - image
-`
-
-/** Drop leftover vision-router settings and keep the official vision model listed. */
+/** Retire the old router and grey model; let new profiles inherit DSH defaults. */
 function retireVisionRouterResidue() {
   const settingsPath = join(home, 'settings.yaml')
   if (!existsSync(settingsPath)) return
-  let text = readFileSync(settingsPath, 'utf8')
+  const text = readFileSync(settingsPath, 'utf8')
   const next = text.replace(/(?:^|\n)vision-router:\s*\n(?:[ \t].*\n)*/g, '\n')
-  const withCatalog = ensureDeepSeekGreyModel(ensureOfficialVisionCatalog(next))
-  const withDefault = ensureDefaultVisionModel(withCatalog)
-  const healed = removeProductParallelCap(withDefault)
+  const withCatalog = ensureDeepSeekOfficialModel(next)
+  const healed = removeProductParallelCap(migrateDeepSeekDefault(withCatalog))
   if (healed !== text) writeFileSync(settingsPath, healed)
-}
-
-const DEFAULT_VISION_SETTINGS = `agent-default-model:
-  provider: deepseek-official
-  model: deepseek-v4-flash-vision-exp
-`
-
-/** Factory default is Vision Exp. Only rewrite a missing or old Flash default. */
-function ensureDefaultVisionModel(text) {
-  if (!/(?:^|\n)agent-default-model:\s*\n/.test(text)) {
-    return `${DEFAULT_VISION_SETTINGS}${text.replace(/^\uFEFF?/, '')}`
-  }
-  return text.replace(
-    /((?:^|\n)agent-default-model:\s*\n(?:[ \t].*\n)*?[ \t]+model:\s*)deepseek-v4-flash(?:[ \t]*\r?\n)/,
-    '$1deepseek-v4-flash-vision-exp\n',
-  )
-}
-
-function visionExpDeclaresImage(entry) {
-  return /inputModalities:\s*\[[^\]]*\bimage\b/.test(entry)
-    || /\n[ \t]+-\s+image\b/.test(entry)
-}
-
-function repairOfficialVisionModalities(text) {
-  const match = text.match(/([ \t]+)- id: deepseek-v4-flash-vision-exp\r?\n(?:[ \t]+.+\r?\n)*/ )
-  if (!match) return text
-  if (visionExpDeclaresImage(match[0])) return text
-  return text.replace(match[0], OFFICIAL_VISION_MODEL.endsWith('\n')
-    ? OFFICIAL_VISION_MODEL
-    : `${OFFICIAL_VISION_MODEL}\n`)
-}
-
-function ensureOfficialVisionCatalog(text) {
-  if (text.includes('deepseek-v4-flash-vision-exp')) return repairOfficialVisionModalities(text)
-  const match = text.match(/(?:^|\n)(llm-deepseek:\s*\n(?:[ \t].*\n)*)/)
-  if (!match) return text
-  const block = match[1]
-  if (!/\n[ \t]+models:\s*\n/.test(block)) return text
-  const updated = `${block.replace(/\s*$/, '\n')}${OFFICIAL_VISION_MODEL}`
-  return text.replace(block, updated)
 }
 
 function hasCommand(name) {
