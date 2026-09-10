@@ -305,6 +305,11 @@ function buildManagedPatch(deps) {
 # Model catalog and default selection come directly from the official dsh-base.
 # Do not shadow upstream multimodal capabilities with a product catalog.
 
+# Keep one file-management entry: Agent Pi owns outputs, uploads and KB actions.
+# Native document previews and delivery cards stay enabled.
+- id: ui-sidebar-files
+  disabled: true
+
 # Agent Pi copies the shipped presets into its own system root before applying
 # product-only Codex, web-fetch and compaction configuration. The official DSH
 # checkout remains byte-clean and the user-authored preset root stays enabled.

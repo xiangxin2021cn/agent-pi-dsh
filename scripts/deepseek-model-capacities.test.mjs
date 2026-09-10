@@ -173,6 +173,8 @@ tail: value
 test('initializer inherits the official catalog and migrates existing user settings', () => {
   const init = readFileSync(join(root, 'scripts/init-tender-profile.mjs'), 'utf8')
   assert.doesNotMatch(init, /- id: llm-deepseek|expires-on-0910|OFFICIAL_VISION_MODEL/)
+  assert.match(init, /- id: ui-sidebar-files\r?\n  disabled: true/)
+  assert.doesNotMatch(init, /- id: ui-sidebar-documentpreview\r?\n  disabled: true/)
   assert.match(init, /ensureDeepSeekOfficialModel\(next\)/)
   assert.match(init, /migrateDeepSeekDefault\(withCatalog\)/)
   assert.ok(init.lastIndexOf('repairExistingDeepSeekModelCapacities()') > init.lastIndexOf('writeManagedPatch(dependencies)'))

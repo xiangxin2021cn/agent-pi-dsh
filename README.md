@@ -39,7 +39,7 @@
 通用办公助手陪你聊天，**Agent Pi DSH 替你干活**：吃透投标、实施、投资的垂直作业系统。长程任务不断档、目标不偏离、证据可追溯——数十份标书文件一次搞定，数千条 BOQ 逐项推导，成果直接落盘为正式文档。
 
 > [!NOTE]
-> **3.6.5**：融入新版 DSH 内核，新增可选“专业深度”：自动整理用途、专业要求、依据、格式与验收项，支持中途修订及文件检查。主对话默认精简过程，保留有用进度、错误与交付成果，可切换执行详情。采用官方 V4.1 Flash（`deepseek-flash`）原生文字与图片理解，移除过期灰度模型；模型目录和新对话默认值跟随官方 DSH。保留 Codex 模型与思考等级选择、原生附件入口；内核固定到官方 `dsh-v0.1.5-rc.1`（`1ef9c1fa9a`）。安装包包含官方 `dsh-univer-office` 0.2.13 完整插件，保留其原始许可与授权校验。最新已发布版本以 [GitHub Latest Release](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/latest) 为准。
+> **3.6.5**：融入新版 DSH 内核，保留可选“专业深度”：自动整理用途、专业要求、依据、格式与验收项，支持中途修订及文件检查。主对话默认精简过程，保留有用进度、错误与交付成果，可切换执行详情。采用官方 V4.1 Flash（`deepseek-flash`）原生文字与图片理解，移除过期灰度模型；模型目录和新对话默认值跟随官方 DSH。保留 Codex 模型与思考等级选择、原生附件入口；内核固定到官方 `dsh-v0.1.5-rc.1`（`1ef9c1fa9a`）。安装包包含官方 `dsh-univer-office` 0.2.13 完整插件，保留其原始许可与授权校验。最新已发布版本以 [GitHub Latest Release](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/latest) 为准。
 
 > [!IMPORTANT]
 > **3.6.5**：投标流程保持“DSH 唯一执行、工作台轻量控制、一次点击一次派发”；核心依赖固定到 **`dsh-v0.1.5-rc.1`**（`1ef9c1fa9a`）。Agent Pi 适配继续位于产品层启动迁移、profile overlay 和 bundle，DSH 官方源码保持干净。DWG 预览由固定源码与工具链重建，并随 Release 提供对应源码归档。
