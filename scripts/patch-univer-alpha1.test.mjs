@@ -76,7 +76,7 @@ for (const version of ['0.2.9', '0.2.10']) {
 }
 
 test('refuses an unverified Univer version without changing it', () => {
-  const pluginRoot = fixture('0.2.14', nativeClient)
+  const pluginRoot = fixture('0.2.15', nativeClient)
 
   assert.throws(
     () => patchUniverForDshAlpha1({ pluginRoot }),
@@ -85,8 +85,8 @@ test('refuses an unverified Univer version without changing it', () => {
   assert.equal(readFileSync(join(pluginRoot, 'lib/client.js'), 'utf8'), nativeClient)
 })
 
-test('accepts the verified native 0.2.13 conversation adapter without changing one byte', () => {
-  const pluginRoot = fixture('0.2.13', nativeClient)
+for (const version of ['0.2.13', '0.2.14']) test(`accepts the verified native ${version} conversation adapter without changing one byte`, () => {
+  const pluginRoot = fixture(version, nativeClient)
 
   assert.equal(patchUniverForDshAlpha1({ pluginRoot }), 'native-compatible')
   assert.equal(readFileSync(join(pluginRoot, 'lib/client.js'), 'utf8'), nativeClient)

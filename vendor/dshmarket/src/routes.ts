@@ -1001,6 +1001,10 @@ export function mountMarketRoutes(
             sendJson(response, 400, { error: 'the market cannot uninstall itself; use the dsh CLI' })
             return
           }
+          if (name === 'dsh-agent-pi-compaction') {
+            sendJson(response, 400, { error: '此组件由应用的对话预设引用，单独卸载会导致对话加载失败。组件随主应用维护；如需移除，须同时将预设恢复为官方压缩组件。' })
+            return
+          }
           if (readInstalled(config.profile, activeProfileDir)[name] === undefined) {
             sendJson(response, 400, { error: 'plugin is not installed' })
             return

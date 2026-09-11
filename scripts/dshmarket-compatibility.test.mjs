@@ -12,6 +12,21 @@ import {
 } from '../vendor/dshmarket/compatibility.js'
 import { verifyActivation } from '../vendor/dshmarket/src/verify.ts'
 
+test('built-in compaction is a preset module, but a missing entry still fails validation', (t) => {
+  const { profile } = profileFixture(t)
+  const name = 'dsh-agent-pi-compaction'
+  const dir = join(profile, 'node_modules', name)
+  write(join(dir, 'package.json'), JSON.stringify({ name, version: '3.6.6', main: 'index.js', dsh: { agentPi: { presetModule: true } } }))
+  assert.equal(verifyActivation('tender', name, new Set(), profile).state, 'broken')
+  write(join(dir, 'index.js'), 'export {}')
+  const pending = verifyActivation('tender', name, new Set(), profile)
+  assert.equal(pending.state, 'preset')
+  assert.match(pending.reasons[0], /由对话预设加载/)
+  const live = verifyActivation('tender', name, new Set([name]), profile)
+  assert.equal(live.state, 'live')
+  assert.equal(live.bundle, false)
+})
+
 function write(path, content) {
   mkdirSync(dirname(path), { recursive: true })
   writeFileSync(path, content)

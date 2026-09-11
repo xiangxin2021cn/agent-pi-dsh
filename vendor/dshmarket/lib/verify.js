@@ -84,6 +84,17 @@ export function verifyActivation(profile, name, live = new Set(listHotMounts()),
         return { state: 'missing', reasons: ['未安装 / not installed'], bundle: inBundles, hot: false };
     }
     const dir = join(activeProfileDir, 'node_modules', name);
+    if (dsh.agentPi?.presetModule === true && name === 'dsh-agent-pi-compaction') {
+        const loaded = liveIncludes(live, name);
+        const entryExists = hasLoadableEntry(activeProfileDir, name);
+        return {
+            state: !entryExists ? 'broken' : loaded ? 'live' : 'preset',
+            reasons: [!entryExists ? '预设模块入口缺失 / preset module entry is missing'
+                    : loaded ? '已由对话预设加载；自动压缩组件 / loaded by the conversation preset; automatic compaction'
+                        : '内置预设模块，由对话预设加载；无需作为独立插件启用 / built-in preset module; loaded by conversation presets, not a standalone bundle'],
+            bundle: false, hot: loaded,
+        };
+    }
     if (!hasDshManifest(dir)) {
         return {
             state: 'broken',

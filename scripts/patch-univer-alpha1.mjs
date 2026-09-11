@@ -4,7 +4,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const legacyPatchVersions = new Set(['0.2.9', '0.2.10'])
-const nativeCompatibleVersion = '0.2.13'
+const nativeCompatibleVersions = new Set(['0.2.13', '0.2.14'])
 const replacements = [
   {
     before: 'var inject = ["slots", "locale", "conversationEvents"];',
@@ -85,7 +85,7 @@ export function assertUniverClientCompatibility({ version, source }) {
     }
     return 'legacy-patched'
   }
-  if (version === nativeCompatibleVersion) {
+  if (nativeCompatibleVersions.has(version)) {
     for (const marker of nativeMarkers) {
       if (!source.includes(marker)) {
         throw new Error(`dsh-univer-office ${version} native client layout does not match the compatibility contract`)
@@ -113,7 +113,7 @@ export function patchUniverForDshAlpha1({ pluginRoot }) {
 
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
   if (manifest.name !== 'dsh-univer-office'
-      || (!legacyPatchVersions.has(manifest.version) && manifest.version !== nativeCompatibleVersion)) {
+      || (!legacyPatchVersions.has(manifest.version) && !nativeCompatibleVersions.has(manifest.version))) {
     throw new Error(
       'Unsupported dsh-univer-office for the current DSH conversation API: '
       + (manifest.name || 'unknown') + '@' + (manifest.version || 'unknown'),
@@ -121,7 +121,7 @@ export function patchUniverForDshAlpha1({ pluginRoot }) {
   }
 
   let source = readFileSync(clientPath, 'utf8')
-  if (manifest.version === nativeCompatibleVersion) {
+  if (nativeCompatibleVersions.has(manifest.version)) {
     assertUniverClientCompatibility({ version: manifest.version, source })
     return 'native-compatible'
   }

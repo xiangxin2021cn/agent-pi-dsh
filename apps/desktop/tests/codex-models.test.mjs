@@ -79,7 +79,7 @@ test('discovers all model pages after the initialized handshake and selects the 
   const result = await probeCodexModels(fixture.options)
   assert.deepEqual(fixture.calls.map(({ method }) => method),
     ['initialize', 'initialized', 'model/list', 'model/list', 'config/read'])
-  assert.equal(fixture.calls[0].params.clientInfo.version, '3.6.5')
+  assert.equal(fixture.calls[0].params.clientInfo.version, '3.6.6')
   assert.equal(result.models.length, 2)
   assert.equal(result.defaultModel, 'model-b')
   assert.equal(result.selectedModel, 'model-b')

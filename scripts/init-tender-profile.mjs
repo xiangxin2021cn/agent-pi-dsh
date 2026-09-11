@@ -41,12 +41,16 @@ const GENUI_NAME = '@omdsh-dev/dsh-genui'
 const ANYSEARCH_NAME = '@anysearch/anysearch-dsh'
 const UNIVER_NAME = UNIVER_OFFICE_NAME
 const WEB_FETCH_HTTP = '@deepseek-ai/dsh-web-fetch-http'
+import { TEAM_PACKAGES, TEAM_BUNDLES, configureTeamPreset } from './agent-teams-profile.mjs'
+const pluginRecovery = process.env.AGENT_PI_PLUGIN_RECOVERY === '1'
+const teamsEnabled = !pluginRecovery && process.env.AGENT_PI_AGENT_TEAMS === '1'
 const CODEX_SUBAGENT = '@deepseek-ai/dsh-subagent-codex'
 const AGENT_PI_COMPACTION = 'dsh-agent-pi-compaction'
 const DSH_IM_NAME = '@xmanrui/dsh-im'
 const bundles = [
   '@deepseek-ai/dsh-base',
   '@deepseek-ai/dsh-web-app',
+  ...(teamsEnabled ? TEAM_BUNDLES : []),
   CODEX_SUBAGENT,
   INJECTOR_NAME,
   'dsh-tender-host',
@@ -145,6 +149,7 @@ const agentPiCompactionDir = join(root, 'bundles/agent-pi-compaction')
 wireAgentPiCompactionRuntimeDeps(agentPiCompactionDir)
 
 const localPlugins = [
+  ...TEAM_PACKAGES.map(name => ({ name: `@deepseek-ai/dsh-experimental-${name}`, dir: join(dsh, 'packages/experimental', name) })),
   { name: 'dsh-tender-host', dir: join(root, 'bundles/tender-host') },
   { name: 'dsh-tender-web', dir: join(root, 'bundles/tender-web') },
   { name: AGENT_PI_COMPACTION, dir: agentPiCompactionDir },
@@ -237,6 +242,8 @@ function composeBundles(deps) {
   const hidden = new Set([WEB_FETCH_HTTP])
   const extras = []
   const add = (name) => {
+    if (pluginRecovery) return
+    if (TEAM_BUNDLES.includes(name) && !teamsEnabled) return
     if (!name || hidden.has(name) || isRetiredPluginName(name) || isRuntimeIncompatibleBundle(name) || bundles.includes(name) || extras.includes(name)) return
     extras.push(name)
   }
@@ -728,6 +735,9 @@ syncSystemPresets()
 enableDesktopCompaction()
 enableDesktopWebFetch()
 enableDesktopCodex()
+if (teamsEnabled) {
+  for (const file of desktopPresetFiles()) writeFileSync(file, configureTeamPreset(readFileSync(file, 'utf8')))
+}
 removeRetiredJSpace()
 removeRetiredVisionRouter()
 dropFactoryGenuiSkill()

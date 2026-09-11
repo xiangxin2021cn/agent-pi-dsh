@@ -151,6 +151,7 @@ window.__ModuleLoader__.load({ id: "dshmarket", factory: (require) => {
 			toastTheme: "已启用。到 设置 → 插件市场 → 主题 可随时切换",
 			gotIt: "知道了",
 			stateLive: "兼容（已生效）",
+			statePreset: "内置组件（按对话加载）",
 			stateRestart: "兼容，待重启",
 			stateInert: "不兼容",
 			stateBroken: "不兼容（校验失败）",
@@ -310,6 +311,7 @@ window.__ModuleLoader__.load({ id: "dshmarket", factory: (require) => {
 			toastTheme: "is now active. Switch any time in Settings → Plugin Market → Themes",
 			gotIt: "Got it",
 			stateLive: "Compatible (active)",
+			statePreset: "Built-in (loaded per conversation)",
 			stateRestart: "Compatible — restart pending",
 			stateInert: "Incompatible",
 			stateBroken: "Incompatible (validation failed)",
@@ -788,6 +790,7 @@ window.__ModuleLoader__.load({ id: "dshmarket", factory: (require) => {
 		*/
 		/** The state label + dot for one activation result (P0-2). */
 		function activationMeta(state, t) {
+			if (state === "preset") return { label: t("statePreset"), dot: "done" };
 			if (state === "live") return {
 				label: t("stateLive"),
 				dot: "done"

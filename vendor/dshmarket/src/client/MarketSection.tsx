@@ -45,6 +45,7 @@ import type {
 /** The state label + dot for one activation result (P0-2). */
 function activationMeta(state: ActivationState, t: Translate): { label: string; dot: 'done' | 'warning' | 'error' } {
   if (state === 'live') return { label: t('stateLive'), dot: 'done' }
+  if (state === 'preset') return { label: t('statePreset'), dot: 'done' }
   if (state === 'restart') return { label: t('stateRestart'), dot: 'warning' }
   if (state === 'inert') return { label: t('stateInert'), dot: 'warning' }
   if (state === 'broken') return { label: t('stateBroken'), dot: 'error' }

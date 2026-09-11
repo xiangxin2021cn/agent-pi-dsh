@@ -29,6 +29,7 @@ const univerPeerNames = [
 ]
 const scriptNames = [
   'init-tender-profile.mjs',
+  'agent-teams-profile.mjs',
   'deepseek-model-capacities.mjs',
   'heal-agent-loop-settings.mjs',
   'patch-univer-alpha1.mjs',
@@ -83,6 +84,9 @@ function createFixture(t) {
   writePackage(root, 'vendor/anysearch-dsh', '@anysearch/anysearch-dsh', { lib: true })
 
   const dsh = join(root, 'dsh-checkout')
+  for (const name of ['agent-team-profile', 'agent-team-web-profile', 'agent-team', 'tool-agent-team', 'client-ui-agent-team']) {
+    writePackage(dsh, `packages/experimental/${name}`, `@deepseek-ai/dsh-experimental-${name}`, { lib: true })
+  }
   writePackage(dsh, 'packages/subagent/subagent-codex', '@deepseek-ai/dsh-subagent-codex')
   writePackage(dsh, 'packages/web/web-fetch-http', '@deepseek-ai/dsh-web-fetch-http', { lib: true })
   writePackage(dsh, 'packages/compaction/compaction-basic', '@deepseek-ai/dsh-compaction-basic', { bundle: false, lib: true })
@@ -143,13 +147,14 @@ function createFixture(t) {
   }
 }
 
-function runInitializer(fixture, fallbackPreference) {
+function runInitializer(fixture, fallbackPreference, overrides = {}) {
   const env = {
     ...process.env,
     DSH_CHECKOUT: fixture.dsh,
     DSH_HOME: fixture.home,
     AGENT_PI_SKIP_UNIVER_INSTALL: '1',
     AGENT_PI_OFFICIAL_PLUGIN_ADD: '0',
+    ...overrides,
   }
   delete env.AGENT_PI_SKILLS_ROOT
   delete env.DSH_BUNDLED_SKILL_DIR
@@ -177,6 +182,30 @@ function presetTexts(fixture) {
     readFileSync(join(fixture.home, '.agent-presets/router-standard/agent.cordis.yml'), 'utf8'),
   ]
 }
+
+test('Teams opt-in is reversible and recovery keeps external plugin dependencies without loading them', t => {
+  const fixture = createFixture(t)
+  const manifestPath = join(fixture.home, 'profiles/tender/package.json')
+  const manifest = () => JSON.parse(readFileSync(manifestPath, 'utf8'))
+  const teamBundles = ['@deepseek-ai/dsh-experimental-agent-team-profile', '@deepseek-ai/dsh-experimental-agent-team-web-profile']
+  runInitializer(fixture, undefined, { AGENT_PI_AGENT_TEAMS: '0', AGENT_PI_PLUGIN_RECOVERY: '0' })
+  assert.ok(teamBundles.every(name => !manifest().dsh.profile.bundles.includes(name)))
+  runInitializer(fixture, undefined, { AGENT_PI_AGENT_TEAMS: '1', AGENT_PI_PLUGIN_RECOVERY: '0' })
+  assert.ok(teamBundles.every(name => manifest().dsh.profile.bundles.includes(name)))
+  const profile = join(fixture.home, 'profiles/tender')
+  writePackage(profile, 'node_modules/external-broken-test', 'external-broken-test', { lib: true })
+  const changed = manifest()
+  changed.dependencies['external-broken-test'] = '1.0.0'
+  changed.dsh.profile.bundles.push('external-broken-test')
+  writeFileSync(manifestPath, JSON.stringify(changed))
+  runInitializer(fixture, undefined, { AGENT_PI_AGENT_TEAMS: '1', AGENT_PI_PLUGIN_RECOVERY: '1' })
+  assert.equal(manifest().dependencies['external-broken-test'], '1.0.0')
+  assert.ok(!manifest().dsh.profile.bundles.includes('external-broken-test'))
+  assert.ok(teamBundles.every(name => !manifest().dsh.profile.bundles.includes(name)))
+  runInitializer(fixture, undefined, { AGENT_PI_AGENT_TEAMS: '0', AGENT_PI_PLUGIN_RECOVERY: '0' })
+  assert.ok(manifest().dsh.profile.bundles.includes('external-broken-test'))
+  assert.ok(teamBundles.every(name => !manifest().dsh.profile.bundles.includes(name)))
+})
 
 test('missing preference enables one complete fallback while the session model stays primary', (t) => {
   const fixture = createFixture(t)

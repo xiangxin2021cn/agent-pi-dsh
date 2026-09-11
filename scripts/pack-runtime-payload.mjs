@@ -149,7 +149,7 @@ for (const sourcePath of [cadSourceArchive, cadSourceChecksum]) {
 // 1. desktop shell (whitelist: only what electron-builder needs)
 const desktopDest = join(stage, 'desktop')
 mkdirSync(join(desktopDest, 'build'), { recursive: true })
-for (const file of ['main.mjs', 'dsh-web-url.mjs', 'codex-auth.mjs', 'codex-models.mjs', 'compaction-preferences.mjs', 'preload.cjs', 'boot.html', 'after-pack.cjs', 'package.json', 'package-lock.json']) {
+for (const file of ['main.mjs', 'dsh-web-url.mjs', 'codex-auth.mjs', 'codex-models.mjs', 'compaction-preferences.mjs', 'agent-team-preferences.mjs', 'startup-diagnostics.mjs', 'preload.cjs', 'boot.html', 'after-pack.cjs', 'package.json', 'package-lock.json']) {
   cpSync(join(desktop, file), join(desktopDest, file))
 }
 cpSync(join(desktop, 'brand'), join(desktopDest, 'brand'), { recursive: true })

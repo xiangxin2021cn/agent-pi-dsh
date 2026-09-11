@@ -71,7 +71,7 @@ export interface MarketStatus {
 }
 
 /** Post-install activation state (P0-2), per installed package. */
-export type ActivationState = 'live' | 'restart' | 'inert' | 'broken' | 'missing'
+export type ActivationState = 'live' | 'preset' | 'restart' | 'inert' | 'broken' | 'missing'
 
 export interface ActivationInfo {
   state: ActivationState

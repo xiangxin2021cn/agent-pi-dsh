@@ -5,8 +5,8 @@ import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-export const expectedDshCommit = '1ef9c1fa9afbea78c5537bfc8b6d1c27d598798e'
-export const expectedDshVersion = '0.1.5-rc.1'
+export const expectedDshCommit = '59f2e3be330e37bc2ab91c92da4a081bc3281988'
+export const expectedDshVersion = '0.1.5-rc.2'
 
 function readJson(path) {
   return JSON.parse(readFileSync(path, 'utf8'))
@@ -73,6 +73,9 @@ export async function main(args = process.argv.slice(2)) {
   }
   const verified = verifyDshRuntime(paths[0], paths[1])
   if (checkNative) {
+    const { verifyProductDependencyClosure } = await import('./verify-runtime-dependencies.mjs')
+    const closure = verifyProductDependencyClosure(verified.dsh, verified.product)
+    process.stdout.write(`Runtime dependency closure verified: ${closure.packages} packages\n`)
     const require = createRequire(join(verified.dsh, 'packages', 'session', 'session-persistence-jsonl', 'package.json'))
     const { tryLockExclusive } = await import(pathToFileURL(require.resolve('@deepseek-ai/node-addon-system/flock')).href)
     if (typeof tryLockExclusive !== 'function') throw new Error('official system flock entry is missing')

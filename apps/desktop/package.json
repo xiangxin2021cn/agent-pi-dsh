@@ -1,6 +1,6 @@
 {
   "name": "agent-pi-dsh-desktop",
-  "version": "3.6.5",
+  "version": "3.6.6",
   "private": true,
   "license": "GPL-3.0-only",
   "author": "agent-pi-DSH",
@@ -36,6 +36,8 @@
       "codex-auth.mjs",
       "codex-models.mjs",
       "compaction-preferences.mjs",
+      "agent-team-preferences.mjs",
+      "startup-diagnostics.mjs",
       "preload.cjs",
       "boot.html",
       "brand/**/*"

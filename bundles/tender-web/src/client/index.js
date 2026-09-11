@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { createAgentTeamsSettings } from './agent-teams-settings.js'
 import * as ReactDOM from 'react-dom'
 import { createAgentPiApiClient } from './api-client.js'
 import { createFilePreviewOverlay } from './file-preview-overlay.js'
@@ -36,6 +37,7 @@ import {
 } from '../session-wake.ts'
 
 const h = React.createElement
+const AgentTeamsSettings = createAgentTeamsSettings(React)
 
     const { api, apiBlob, downloadBlob, rawFileUrl } = createAgentPiApiClient()
     const MARKUP_RE = /[`*!\[]/
@@ -8581,6 +8583,7 @@ const h = React.createElement
             : 'This setting is available only in the packaged desktop app.'),
           compactionMessage && h('p', { className: 'ap-sub' }, compactionMessage),
         ),
+        h(AgentTeamsSettings, { desktop, zh }),
       )
     }
 

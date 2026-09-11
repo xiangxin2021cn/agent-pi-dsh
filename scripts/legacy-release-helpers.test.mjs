@@ -15,7 +15,7 @@ const helpers = [
   },
   {
     path: join(root, 'release', 'push-workflow.mjs'),
-    replacement: /publish-win-and-trigger-platforms\.ps1 -Tag v3\.6\.0/,
+    replacement: /publish-win-and-trigger-platforms\.ps1 -Tag v3\.\d+\.\d+/,
   },
 ]
 

@@ -970,6 +970,10 @@ export function mountMarketRoutes(host, config, commandRuntime) {
                         sendJson(response, 400, { error: 'the market cannot uninstall itself; use the dsh CLI' });
                         return;
                     }
+                    if (name === 'dsh-agent-pi-compaction') {
+                        sendJson(response, 400, { error: '此组件由应用的对话预设引用，单独卸载会导致对话加载失败。组件随主应用维护；如需移除，须同时将预设恢复为官方压缩组件。' });
+                        return;
+                    }
                     if (readInstalled(config.profile, activeProfileDir)[name] === undefined) {
                         sendJson(response, 400, { error: 'plugin is not installed' });
                         return;
@@ -1132,6 +1136,10 @@ export function mountMarketRoutes(host, config, commandRuntime) {
                         // every later pnpm run — of anything. Cancelled runs keep their
                         // partial state on purpose (the user sees the diff and decides).
                         const manifestBefore = readManifestDeps(config.profile, activeProfileDir);
+                        // Git-hosted plugins run prepare on add. pnpm ≥10 blocks that
+                        // until allowBuilds lists the *package* name (often scoped) plus
+                        // the stable name@git+https://… key. Write both before spawning
+                        // so the first Confirm does not fail and wait for a second 放行.
                         if (target.startsWith('github:')) {
                             const approved = setAllowBuilds(config.profile, gitAllowBuildsKeys(entry, target), activeProfileDir);
                             logEvent('info', 'install', `${entry.name}: pre-approved build scripts: ${approved.join(', ')}`);

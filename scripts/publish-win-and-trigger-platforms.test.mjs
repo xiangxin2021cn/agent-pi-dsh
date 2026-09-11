@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -10,6 +10,16 @@ import { test } from 'node:test'
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const publishScript = join(root, 'scripts', 'publish-win-and-trigger-platforms.ps1')
 const powershell = join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+
+// This fixture exercises the historical pre-CAD dispatch branch. Keep its
+// source manifest beside the copied script instead of using today's checkout.
+function fixturePublisher(fixture) {
+  mkdirSync(join(fixture, 'scripts'), { recursive: true })
+  writeFileSync(join(fixture, 'package.json'), '{"version":"3.4.0"}')
+  const path = join(fixture, 'scripts/publish-win-and-trigger-platforms.ps1')
+  writeFileSync(path, readFileSync(publishScript))
+  return path
+}
 
 function writeSha256(path) {
   const hash = createHash('sha256').update(readFileSync(path)).digest('hex')
@@ -32,7 +42,7 @@ test('v3 releases dispatch the runtime-payload desktop asset workflow', (t) => {
   const result = spawnSync(powershell, [
     '-NoProfile',
     '-ExecutionPolicy', 'Bypass',
-    '-File', publishScript,
+    '-File', fixturePublisher(fixture),
     '-Tag', 'v3.4.0',
     '-Repo', 'xiangxin2021cn/agent-pi-dsh',
     '-Installer', installer,
@@ -69,7 +79,7 @@ test('v3 release refuses to dispatch when the runtime payload is missing', (t) =
   const result = spawnSync(powershell, [
     '-NoProfile',
     '-ExecutionPolicy', 'Bypass',
-    '-File', publishScript,
+    '-File', fixturePublisher(fixture),
     '-Tag', 'v3.4.0',
     '-Repo', 'xiangxin2021cn/agent-pi-dsh',
     '-Installer', installer,
@@ -100,7 +110,7 @@ test('v3 release refuses to upload when an asset checksum does not match', (t) =
   writeFileSync(join(fixture, 'gh.cmd'), '@echo off\r\n>>"%GH_LOG%" echo %*\r\nexit /b 0\r\n')
 
   const result = spawnSync(powershell, [
-    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', publishScript,
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', fixturePublisher(fixture),
     '-Tag', 'v3.4.0', '-Installer', installer,
   ], {
     cwd: root,

@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('agentPiDesktop', {
   openPath: (path) => ipcRenderer.invoke('open-path', path),
   revealPath: (path) => ipcRenderer.invoke('reveal-path', path),
   appVersion: () => ipcRenderer.invoke('app-version'),
+  agentTeamsStatus: () => ipcRenderer.invoke('agent-teams-status'),
+  setAgentTeams: (enabled) => ipcRenderer.invoke('set-agent-teams', enabled),
   compactionFallbackStatus: () => ipcRenderer.invoke('compaction-fallback-status'),
   setCompactionFallback: (enabled) => ipcRenderer.invoke('set-compaction-fallback', enabled),
   codexAuthStatus: () => ipcRenderer.invoke('codex-auth-status'),

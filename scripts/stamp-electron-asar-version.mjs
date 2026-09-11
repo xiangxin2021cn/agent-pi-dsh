@@ -36,11 +36,16 @@ try {
 const wantedMain = readFileSync(mainSrc)
 const wantedDshWebUrl = readFileSync(dshWebUrlSrc)
 const wantedPreload = readFileSync(preloadSrc)
+const helpers = ['agent-team-preferences.mjs', 'startup-diagnostics.mjs']
+const helperBytes = helpers.map(name => [name, readFileSync(join(root, 'apps/desktop', name))])
+const helpersOk = helperBytes.every(([name, bytes]) => {
+  try { return asar.extractFile(archive, name).equals(bytes) } catch { return false }
+})
 const versionOk = current.version === wanted
 const mainOk = Buffer.compare(currentMain, wantedMain) === 0
 const dshWebUrlOk = Buffer.compare(currentDshWebUrl, wantedDshWebUrl) === 0
 const preloadOk = Buffer.compare(currentPreload, wantedPreload) === 0
-if (versionOk && mainOk && dshWebUrlOk && preloadOk) {
+if (helpersOk && versionOk && mainOk && dshWebUrlOk && preloadOk) {
   process.stdout.write(`asar already ${wanted} with current desktop entry files\n`)
   process.exit(0)
 }
@@ -56,6 +61,7 @@ try {
   writeFileSync(join(dir, 'dsh-web-url.mjs'), wantedDshWebUrl)
   rmSync(join(dir, 'preload.mjs'), { force: true })
   writeFileSync(join(dir, 'preload.cjs'), wantedPreload)
+  for (const [name, bytes] of helperBytes) writeFileSync(join(dir, name), bytes)
   await asar.createPackage(dir, archive)
   const stamped = JSON.parse(readFileSync(manifestPath, 'utf8'))
   if (stamped.version !== wanted) {

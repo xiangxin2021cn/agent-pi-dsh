@@ -1,6 +1,8 @@
+import { normalizeAgentTeamsPreference, createAgentTeamsPreferenceUpdate } from './agent-team-preferences.mjs'
+import { sanitizeStartupLog, startupFailureDetail } from './startup-diagnostics.mjs'
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, session, shell, Tray } from 'electron'
 import { spawn, spawnSync } from 'node:child_process'
-import { copyFileSync, createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { appendFileSync, copyFileSync, createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { randomBytes } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { createServer } from 'node:net'
@@ -17,6 +19,9 @@ import {
 import { createDshWebUrlTracker, isAuthenticatedDshWebUrl } from './dsh-web-url.mjs'
 
 const APP_NAME = 'agent-pi-DSH'
+const pluginRecovery = process.argv.includes('--agent-pi-plugin-recovery')
+let startupOutput = ''
+let showingStartupFailure = false
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(here, '../..')
 const packaged = app.isPackaged
@@ -184,6 +189,8 @@ function runtimeEnv() {
     DSH_CHECKOUT: dshRoot,
     DSH_BUNDLED_SKILL_DIR: join(productRoot, 'skills'),
     AGENT_PI_DESKTOP: '1',
+    AGENT_PI_PLUGIN_RECOVERY: pluginRecovery ? '1' : '0',
+    AGENT_PI_AGENT_TEAMS: normalizeAgentTeamsPreference(readPrefs()).enabled ? '1' : '0',
     CODEX_HOME: codexHome,
   }, readPrefs())
   // Packaged runtimes are fully materialized and receipt-verified before the
@@ -332,16 +339,41 @@ function ensureProfile() {
   const result = spawnSync(resolveNode(), [initScript], {
     cwd: productRoot,
     env: runtimeEnv(),
-    stdio: 'inherit',
+    encoding: 'utf8',
     windowsHide: true,
     shell: resolveNode() === 'node' && process.platform === 'win32',
   })
   if (result.status !== 0) {
+    startupOutput = sanitizeStartupLog(`${result.stdout || ''}\n${result.stderr || ''}\n${result.error?.message || ''}`)
+    appendFileSync(launchLog(), `[${new Date().toISOString()}] profile init failed\n${startupOutput}\n`)
     throw new Error(`tender profile init failed (${result.status ?? 'spawn'})`)
   }
 }
 
+async function showStartupFailure(error) {
+  if (showingStartupFailure || app.isQuitting) return
+  showingStartupFailure = true
+  try {
+    let response
+    do {
+      response = (await dialog.showMessageBox(mainWindow, {
+        type: 'error', title: APP_NAME + ' 无法启动', message: '工作台启动失败',
+        detail: startupFailureDetail(error, startupOutput, launchLog()),
+        buttons: ['重试', '插件恢复模式', '查看日志', '退出'], defaultId: 0, cancelId: 3,
+      })).response
+      if (response === 2) await shell.openPath(launchLog())
+    } while (response === 2)
+    if (response === 0 || response === 1) {
+      const args = process.argv.slice(1).filter(arg => arg !== '--agent-pi-plugin-recovery')
+      if (response === 1) args.push('--agent-pi-plugin-recovery')
+      app.relaunch({ args })
+    }
+    app.quit()
+  } finally { showingStartupFailure = false }
+}
+
 function startDsh(port) {
+  startupOutput = ''
   dshPort = Number.isInteger(port) ? port : dshPort
   appUrl = `http://127.0.0.1:${dshPort}`
   mkdirSync(app.getPath('userData'), { recursive: true })
@@ -368,7 +400,8 @@ function startDsh(port) {
   }
   const prefix = (stream) => (chunk) => {
     const text = String(chunk)
-    launchLogStream?.write(`[${stream}] ${text}`)
+    startupOutput = (startupOutput + sanitizeStartupLog(text)).slice(-24000)
+    launchLogStream?.write(`[${new Date().toISOString()}][${stream}] ${sanitizeStartupLog(text)}`)
     process.stderr.write(text)
   }
   const stdoutLog = prefix('out')
@@ -389,29 +422,23 @@ function startDsh(port) {
     launchLogStream?.end()
     launchLogStream = null
     child = null
-    if (app.isQuitting) return
+    if (app.isQuitting || showingStartupFailure) return
     if (!requested && !code) return
     if (!requested && dshRestartCount >= DSH_RESTART_LIMIT) {
-      dialog.showErrorBox(
-        `${APP_NAME} 无法启动`,
-        `dsh web exited ${code}\n日志: ${launchLog()}`,
-      )
+      void showStartupFailure(new Error(`dsh web exited ${code}`))
       return
     }
     if (!requested) dshRestartCount += 1
     else dshRestartCount = 0
     setTimeout(() => {
-      if (app.isQuitting) return
+      if (app.isQuitting || showingStartupFailure) return
       startDsh(dshPort)
       void waitForDshUrl().then((url) => {
         appUrl = url
         dshRestartCount = 0
         if (mainWindow && !mainWindow.isDestroyed()) void mainWindow.loadURL(appUrl)
       }).catch((error) => {
-        dialog.showErrorBox(
-          `${APP_NAME} 无法启动`,
-          `${String(error?.message ?? error)}\n日志: ${launchLog()}`,
-        )
+        void showStartupFailure(error)
       })
     }, 800).unref()
   })
@@ -964,6 +991,13 @@ ipcMain.handle('app-relaunch', () => {
   return true
 })
 ipcMain.handle('app-version', () => app.getVersion())
+ipcMain.handle('agent-teams-status', () => normalizeAgentTeamsPreference(readPrefs()))
+ipcMain.handle('set-agent-teams', (_event, enabled) => {
+  const update = createAgentTeamsPreferenceUpdate(enabled)
+  writePrefs(update)
+  if (readPrefs().agentTeamsEnabled !== enabled) throw new Error('无法保存团队协作设置')
+  return { enabled: update.agentTeamsEnabled, restartRequired: true }
+})
 ipcMain.handle('compaction-fallback-status', () => (
   normalizeCompactionFallbackPreference(readPrefs())
 ))
@@ -1324,10 +1358,13 @@ if (!gotLock) {
       if (launchedDsh) appUrl = await waitForDshUrl()
       else await waitForUrl(appUrl)
       await win.loadURL(appUrl)
+      if (pluginRecovery) {
+        win.setTitle('Agent Pi DSH · 插件恢复模式')
+        await dialog.showMessageBox(win, { type: 'info', message: '已进入插件恢复模式', detail: '本次暂不启用外部插件及团队协作。插件、账号配置和会话均保留；可进入插件市场回退或移除故障插件。关闭应用后从快捷方式正常启动即可恢复。' })
+      }
       applyWindowIcon(win)
     } catch (error) {
-      dialog.showErrorBox(`${APP_NAME} 无法启动`, String(error?.message ?? error))
-      app.quit()
+      await showStartupFailure(error)
     }
   })
 }
