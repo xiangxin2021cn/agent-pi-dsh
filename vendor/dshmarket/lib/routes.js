@@ -22,7 +22,7 @@ import { createThemeManager } from './themes.js';
 import { readJsonBody, sameOrigin, sendJson } from './http.js';
 import { restartAllowed, scheduleRestart, trustedRestartRequest, trustedDownloadRequest } from './restart.js';
 import { verifyActivation } from './verify.js';
-import { reconcileKnownPluginCompatibility } from '../compatibility.js';
+import { reconcileKnownPluginCompatibility, isTeamComponent, TEAM_MANAGED_REASON } from '../compatibility.js';
 import { createProfileBackup, downloadWebdav, MAX_BACKUP_BYTES, restoreProfileBackup, uploadWebdav, } from './backup.js';
 const PROFILE_RE = /^[A-Za-z0-9_-]+$/;
 /**
@@ -112,6 +112,8 @@ export function mountMarketRoutes(host, config, commandRuntime) {
      * activateTheme instead so the Themes tab's exclusivity stays intact.
      */
     async function setPluginEnabled(name, enabled) {
+        if (isTeamComponent(name))
+            return { ok: false, reason: TEAM_MANAGED_REASON };
         const dir = activeProfileDir;
         if (enabled)
             disabled.delete(name);
@@ -972,6 +974,10 @@ export function mountMarketRoutes(host, config, commandRuntime) {
                     }
                     if (name === 'dsh-agent-pi-compaction') {
                         sendJson(response, 400, { error: '此组件由应用的对话预设引用，单独卸载会导致对话加载失败。组件随主应用维护；如需移除，须同时将预设恢复为官方压缩组件。' });
+                        return;
+                    }
+                    if (isTeamComponent(name)) {
+                        sendJson(response, 400, { error: TEAM_MANAGED_REASON });
                         return;
                     }
                     if (readInstalled(config.profile, activeProfileDir)[name] === undefined) {

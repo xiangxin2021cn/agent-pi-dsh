@@ -20,6 +20,7 @@ import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { logEvent } from './log.ts'
+import { isTeamComponent, TEAM_MANAGED_REASON } from '../compatibility.js'
 
 interface HotRow {
   id: string
@@ -278,6 +279,7 @@ export async function hotUnmount(packageName: string): Promise<boolean> {
  * "this package can never hot-mount").
  */
 export async function hotMount(ctx: HotContext, profileDir: string, packageName: string): Promise<HotMountResult> {
+  if (isTeamComponent(packageName)) return { ok: false, reason: TEAM_MANAGED_REASON }
   try {
     const HotTree = await loadHotTreeClass()
     if (HotTree === null) {
@@ -364,7 +366,7 @@ export async function mountClientOnlyDeps(ctx: HotContext, profileDir: string): 
   const userManaged = readUserPatchControls(profileDir)
   const mounted: string[] = []
   for (const name of deps) {
-    if (hotHandles.has(name) || disabled.has(name)) continue
+    if (isTeamComponent(name) || hotHandles.has(name) || disabled.has(name)) continue
     // Packages the USER's patch layer already manages (insert or disable
     // rows in cordis.patch.yml, e.g. via dsh-web-plugin-manager) are theirs
     // to control — a shim here would override a user's "disabled" choice on

@@ -27,6 +27,7 @@ import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { logEvent } from './log.js';
+import { isTeamComponent, TEAM_MANAGED_REASON } from '../compatibility.js';
 const HOT_DIR = '.dsh-market';
 let hotTreeClass;
 /**
@@ -48,7 +49,7 @@ async function loadHotTreeClass() {
         // unpublished), so it resolves at runtime through the profile fallback but
         // is not typecheckable as a dependency.
         const specifier = '@deepseek-ai/cordis-plugin-include';
-        const mod = (await import(__rewriteRelativeImportExtension(specifier)));
+        const mod = (await import(__rewriteRelativeImportExtension(specifier, true)));
         const Include = mod.Include;
         if (Include === undefined)
             throw new Error('no Include export');
@@ -237,6 +238,8 @@ export async function hotUnmount(packageName) {
  * "this package can never hot-mount").
  */
 export async function hotMount(ctx, profileDir, packageName) {
+    if (isTeamComponent(packageName))
+        return { ok: false, reason: TEAM_MANAGED_REASON };
     try {
         const HotTree = await loadHotTreeClass();
         if (HotTree === null) {
@@ -320,7 +323,7 @@ export async function mountClientOnlyDeps(ctx, profileDir) {
     const userManaged = readUserPatchControls(profileDir);
     const mounted = [];
     for (const name of deps) {
-        if (hotHandles.has(name) || disabled.has(name))
+        if (isTeamComponent(name) || hotHandles.has(name) || disabled.has(name))
             continue;
         // Packages the USER's patch layer already manages (insert or disable
         // rows in cordis.patch.yml, e.g. via dsh-web-plugin-manager) are theirs

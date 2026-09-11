@@ -9,8 +9,49 @@ import {
   inspectKnownPluginCompatibility,
   prepareKnownPluginCompatibility,
   reconcileKnownPluginCompatibility,
+  TEAM_COMPONENTS,
 } from '../vendor/dshmarket/compatibility.js'
 import { verifyActivation } from '../vendor/dshmarket/src/verify.ts'
+import { hotMount, mountClientOnlyDeps } from '../vendor/dshmarket/src/hot.ts'
+
+test('official Team components report managed/off, configured, live and missing artifacts accurately', async (t) => {
+  const { profile } = profileFixture(t)
+  const prefix = '@deepseek-ai/dsh-experimental-'
+  for (const name of TEAM_COMPONENTS) {
+    const dir = join(profile, 'node_modules', name)
+    const carrier = name.endsWith('-profile')
+    const client = name.endsWith('client-ui-agent-team')
+    write(join(dir, 'package.json'), JSON.stringify({ name, main: 'lib/index.js',
+      ...(carrier ? { dsh: { bundle: { patch: './cordis.patch.yml' } } } : client ? { dsh: { client: { platform: 'web' } } } : {}) }))
+    write(join(dir, 'lib/index.js'), 'export {}')
+    if (carrier) write(join(dir, 'cordis.patch.yml'), '- insert: []')
+    if (client) write(join(dir, 'lib/client.js'), 'export {}')
+  }
+  const manifest = { dependencies: Object.fromEntries(TEAM_COMPONENTS.map(name => [name, '*'])), dsh: { profile: { bundles: [] } } }
+  write(join(profile, 'package.json'), JSON.stringify(manifest))
+  for (const name of TEAM_COMPONENTS) {
+    const result = verifyActivation('tender', name, new Set(), profile)
+    assert.equal(result.state, 'preset', name)
+    assert.match(result.reasons[0], /团队协作尚未开启/)
+    assert.match(result.reasons[0], /设置/)
+  }
+  const host = { plugin() { throw new Error('The market must never independently mount Team components') } }
+  assert.deepEqual(await mountClientOnlyDeps(host, profile), [])
+  for (const name of TEAM_COMPONENTS) assert.equal((await hotMount(host, profile, name)).ok, false)
+  manifest.dsh.profile.bundles = [`${prefix}agent-team-profile`, `${prefix}agent-team-web-profile`]
+  write(join(profile, 'package.json'), JSON.stringify(manifest))
+  const live = new Set([`${prefix}agent-team`, `${prefix}tool-agent-team`, `${prefix}client-ui-agent-team`])
+  for (const name of TEAM_COMPONENTS) {
+    assert.equal(verifyActivation('tender', name, new Set(), profile).state, 'restart', name)
+    assert.equal(verifyActivation('tender', name, live, profile).state, 'live', name)
+  }
+  rmSync(join(profile, 'node_modules', `${prefix}agent-team-profile`, 'cordis.patch.yml'))
+  assert.equal(verifyActivation('tender', `${prefix}agent-team-profile`, live, profile).state, 'broken')
+  rmSync(join(profile, 'node_modules', `${prefix}client-ui-agent-team`, 'lib/client.js'))
+  assert.equal(verifyActivation('tender', `${prefix}client-ui-agent-team`, live, profile).state, 'broken')
+  rmSync(join(profile, 'node_modules', `${prefix}tool-agent-team`, 'lib/index.js'))
+  assert.equal(verifyActivation('tender', `${prefix}tool-agent-team`, live, profile).state, 'broken')
+})
 
 test('built-in compaction is a preset module, but a missing entry still fails validation', (t) => {
   const { profile } = profileFixture(t)

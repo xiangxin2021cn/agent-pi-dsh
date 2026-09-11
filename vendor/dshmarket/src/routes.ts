@@ -30,7 +30,7 @@ import { createThemeManager, type LoaderEntry } from './themes.ts'
 import { readJsonBody, sameOrigin, sendJson } from './http.ts'
 import { restartAllowed, scheduleRestart, trustedRestartRequest, trustedDownloadRequest } from './restart.ts'
 import { verifyActivation } from './verify.ts'
-import { reconcileKnownPluginCompatibility } from '../compatibility.js'
+import { reconcileKnownPluginCompatibility, isTeamComponent, TEAM_MANAGED_REASON } from '../compatibility.js'
 import {
   createProfileBackup, downloadWebdav, MAX_BACKUP_BYTES, restoreProfileBackup, secretFileCount, uploadWebdav,
 } from './backup.ts'
@@ -152,6 +152,7 @@ export function mountMarketRoutes(
    * activateTheme instead so the Themes tab's exclusivity stays intact.
    */
   async function setPluginEnabled(name: string, enabled: boolean): Promise<{ ok: boolean; reason?: string }> {
+    if (isTeamComponent(name)) return { ok: false, reason: TEAM_MANAGED_REASON }
     const dir = activeProfileDir
     if (enabled) disabled.delete(name)
     else disabled.add(name)
@@ -1003,6 +1004,10 @@ export function mountMarketRoutes(
           }
           if (name === 'dsh-agent-pi-compaction') {
             sendJson(response, 400, { error: '此组件由应用的对话预设引用，单独卸载会导致对话加载失败。组件随主应用维护；如需移除，须同时将预设恢复为官方压缩组件。' })
+            return
+          }
+          if (isTeamComponent(name)) {
+            sendJson(response, 400, { error: TEAM_MANAGED_REASON })
             return
           }
           if (readInstalled(config.profile, activeProfileDir)[name] === undefined) {

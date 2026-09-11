@@ -3,6 +3,14 @@ import { isAbsolute, join, relative, resolve } from 'node:path'
 
 export const DSH_IM_PACKAGE = '@xmanrui/dsh-im'
 
+export const TEAM_COMPONENTS = ['agent-team', 'tool-agent-team', 'agent-team-profile', 'agent-team-web-profile', 'client-ui-agent-team']
+  .map(name => `@deepseek-ai/dsh-experimental-${name}`)
+export const TEAM_MANAGED_REASON = 'Agent Teams 内置组件，由设置 → Codex 智能体 → Agent Teams 统一开启或关闭，保存后重启；请勿单独安装、启停或卸载 / built-in Agent Teams component; use Settings → Codex agent → Agent Teams and restart; do not manage components individually'
+
+export function isTeamComponent(name) {
+  return TEAM_COMPONENTS.includes(name)
+}
+
 const DIRECT_TYPERT_CHECK = /typeof\s+([A-Za-z_$][\w$]*)\?\.typertGateway\?\.stream\s*={2,3}\s*(["'])function\2/g
 const CONTEXT_TYPERT_LOOKUP = /\.get(?:\?\.)?\(\s*["']typertGateway["']/
 

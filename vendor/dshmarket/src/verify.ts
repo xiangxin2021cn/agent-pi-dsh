@@ -18,11 +18,11 @@
  *   missing – not present in node_modules
  */
 
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { listHotMounts, parseSimplePatch } from './hot.ts'
 import { hasDshManifest, hasLoadableEntry, profileDir } from './profile.ts'
-import { inspectKnownPluginCompatibility } from '../compatibility.js'
+import { inspectKnownPluginCompatibility, isTeamComponent, TEAM_MANAGED_REASON } from '../compatibility.js'
 
 export type ActivationState = 'live' | 'preset' | 'restart' | 'inert' | 'broken' | 'missing'
 
@@ -113,6 +113,25 @@ export function verifyActivation(
   }
 
   const dir = join(activeProfileDir, 'node_modules', name)
+  if (isTeamComponent(name)) {
+    const prefix = '@deepseek-ai/dsh-experimental-'
+    const hostBundle = `${prefix}agent-team-profile`
+    const webBundle = `${prefix}agent-team-web-profile`
+    const targets = name === hostBundle ? [`${prefix}agent-team`, `${prefix}tool-agent-team`]
+      : name === webBundle ? [`${prefix}client-ui-agent-team`] : [name]
+    const entries = [name, ...targets]
+    const complete = entries.every(target => hasLoadableEntry(activeProfileDir, target))
+      && (![hostBundle, webBundle].includes(name) || existsSync(join(dir, 'cordis.patch.yml')))
+      && (name !== `${prefix}client-ui-agent-team` || existsSync(join(dir, 'lib/client.js')))
+    const enabled = bundles.has(hostBundle) && bundles.has(webBundle)
+    const loaded = enabled && targets.every(target => liveIncludes(live, target))
+    return {
+      state: !complete ? 'broken' : loaded ? 'live' : enabled ? 'restart' : 'preset',
+      reasons: [!complete ? `Team 组件入口或加载层文件缺失，请修复安装 / Team component artifacts are missing; repair the installation`
+        : `${loaded ? '官方 Team 加载层已生效' : enabled ? '已配置 Team 加载层，但尚未检测到运行实例；重启后若仍如此，请检查启动日志' : '团队协作尚未开启'} / ${loaded ? 'official Team layer is active' : enabled ? 'Team layers configured but not observed running; restart, then check startup logs if unresolved' : 'team collaboration is off'}。${TEAM_MANAGED_REASON}`],
+      bundle: inBundles, hot: loaded,
+    }
+  }
   if (dsh.agentPi?.presetModule === true && name === 'dsh-agent-pi-compaction') {
     const loaded = liveIncludes(live, name)
     const entryExists = hasLoadableEntry(activeProfileDir, name)
