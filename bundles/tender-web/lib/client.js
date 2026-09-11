@@ -70,7 +70,7 @@ window.__ModuleLoader__.load({
 				return h("div", {
 					className: "ap-codex-card",
 					style: { marginTop: 14 }
-				}, h("div", { className: "ap-codex-status" }, h("strong", null, zh ? "Agent Teams 团队协作（实验）" : "Agent Teams (experimental)"), h("button", {
+				}, h("div", { className: "ap-codex-status" }, h("strong", null, zh ? "Agent Teams · AI 智能体团队协作（实验）" : "Agent Teams · AI collaboration (experimental)"), h("button", {
 					type: "button",
 					role: "switch",
 					className: "ap-switch" + (enabled ? " on" : ""),
@@ -78,7 +78,7 @@ window.__ModuleLoader__.load({
 					"aria-checked": enabled,
 					disabled: busy || !available,
 					onClick: toggle
-				}, h("span", { className: "ap-switch-knob" }))), h("p", { className: "ap-sub" }, zh ? "默认关闭。开启并重启后，可在对话标题处查看官方团队成员和共享任务板。只有明确要求团队协作时才创建成员；成员共享工作目录。Codex 执行仍作为独立子智能体。" : "Off by default. After enabling and restarting, the conversation header provides the official roster and task board. Teammates are created only when explicitly requested and share the workspace. Codex execution remains a separate subagent."), !available && h("p", { className: "ap-sub" }, zh ? "此开关需要桌面应用。" : "This switch requires the desktop app."), message && h("p", {
+				}, h("span", { className: "ap-switch-knob" }))), h("p", { className: "ap-sub" }, zh ? "由多个 AI 智能体分工完成任务，通过消息和共享任务板协作。默认关闭，开启并重启后，可在对话标题处查看团队成员和任务板。只有明确要求团队协作时才创建成员；成员共享工作目录。Codex 执行仍作为独立子智能体。" : "Multiple AI agents divide tasks and coordinate through messages and a shared task board. Off by default; enable and restart to show the roster and task board in the conversation header. Teammates are created only when explicitly requested and share the workspace. Codex execution remains a separate subagent."), !available && h("p", { className: "ap-sub" }, zh ? "此开关需要桌面应用。" : "This switch requires the desktop app."), message && h("p", {
 					className: "ap-sub",
 					role: "status"
 				}, message));
