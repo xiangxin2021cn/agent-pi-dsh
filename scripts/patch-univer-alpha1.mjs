@@ -4,7 +4,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const legacyPatchVersions = new Set(['0.2.9', '0.2.10'])
-const nativeCompatibleVersions = new Set(['0.2.13', '0.2.14'])
+const nativeCompatibleVersions = new Set(['0.2.13', '0.2.14', '0.3.0'])
 const replacements = [
   {
     before: 'var inject = ["slots", "locale", "conversationEvents"];',
@@ -86,6 +86,21 @@ export function assertUniverClientCompatibility({ version, source }) {
     return 'legacy-patched'
   }
   if (nativeCompatibleVersions.has(version)) {
+    if (version === '0.3.0') {
+      for (const marker of [
+        'var inject = ["slots", "locale", "conversation"];',
+        'const uiConversation = ctx.get("uiConversation");',
+        'uiConversation.events.register(univerTurnDefinition);',
+        'props.useChat((snapshot) => snapshot.timeline)',
+        'throw new Error("dsh-univer-office: active DSH Client exposes no uiConversation service");',
+      ]) {
+        if (!source.includes(marker)) throw new Error(`dsh-univer-office ${version} native client layout does not match the compatibility contract`)
+      }
+      if (source.includes('conversationEvents') || source.includes('props.useSession(')) {
+        throw new Error(`dsh-univer-office ${version} native client contains an obsolete conversation API`)
+      }
+      return 'native-compatible'
+    }
     for (const marker of nativeMarkers) {
       if (!source.includes(marker)) {
         throw new Error(`dsh-univer-office ${version} native client layout does not match the compatibility contract`)
@@ -102,6 +117,26 @@ export function assertUniverClientCompatibility({ version, source }) {
     return 'native-compatible'
   }
   throw new Error(`Unsupported dsh-univer-office for the current DSH conversation API: dsh-univer-office@${version || 'unknown'}`)
+}
+
+export function patchUniverViewerProxy(source) {
+  // The 0.3.0 SDK appends its collaboration ticket to the tunnel URL. Forward
+  // that ticket, and retain WebSocket text/binary framing in both directions.
+  const fixes = [
+    ['const upstreamUrl = new URL(target, rewriteLoopback(await resolveOrigin()));', 'const upstreamUrl = new URL(target, rewriteLoopback(await resolveOrigin()));\n      const sessionTicket = new URL(req.url, "http://localhost").searchParams.get("sessionTicket");\n      if (sessionTicket !== null) upstreamUrl.searchParams.set("sessionTicket", sessionTicket);'],
+    ['client.on("message", (data) => {', 'client.on("message", (data, isBinary) => {'],
+    ['upstream.send(data);', 'upstream.send(data, { binary: isBinary });'],
+    ['pending.push(toBuffer(data));', 'pending.push({ data: toBuffer(data), isBinary });'],
+    ['upstream.send(frame);', 'upstream.send(frame.data, { binary: frame.isBinary });'],
+    ['upstream.on("message", (data) => {', 'upstream.on("message", (data, isBinary) => {'],
+    ['client.send(data);', 'client.send(data, { binary: isBinary });'],
+  ]
+  for (const [before, after] of fixes) {
+    if (source.includes(after)) continue
+    if (source.split(before).length !== 2) throw new Error('dsh-univer-office 0.3.0 Viewer proxy layout does not match the compatibility patch')
+    source = source.replace(before, after)
+  }
+  return source
 }
 
 export function patchUniverForDshAlpha1({ pluginRoot }) {
@@ -123,6 +158,12 @@ export function patchUniverForDshAlpha1({ pluginRoot }) {
   let source = readFileSync(clientPath, 'utf8')
   if (nativeCompatibleVersions.has(manifest.version)) {
     assertUniverClientCompatibility({ version: manifest.version, source })
+    if (manifest.version === '0.3.0') {
+      const hostPath = join(pluginRoot, 'lib/index.js')
+      const original = readFileSync(hostPath, 'utf8')
+      const patched = patchUniverViewerProxy(original)
+      if (patched !== original) writeFileSync(hostPath, patched, 'utf8')
+    }
     return 'native-compatible'
   }
   let changed = false

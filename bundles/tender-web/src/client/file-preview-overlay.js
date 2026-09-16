@@ -1,3 +1,5 @@
+import { scopeUniverViewerUrl } from './univer-viewer-url.js'
+
 export function createFilePreviewOverlay(dependencies) {
   const {
     DocBtn,
@@ -884,13 +886,14 @@ export function createFilePreviewOverlay(dependencies) {
           })
           : h('div', { className: 'ap-doc-status' }, '二维 CAD 预览资源尚未就绪。')
       } else if (isUniver) {
-        body = h('iframe', {
+        const viewerUrl = scopeUniverViewerUrl(office.viewerUrl, attachSessionId(props.sessionProps || props))
+        body = viewerUrl ? h('iframe', {
           ref: univerRef,
           className: 'ap-univer-frame',
           title: file.name,
-          src: office.viewerUrl,
+          src: viewerUrl,
           allow: 'clipboard-read; clipboard-write; fullscreen',
-        })
+        }) : h('div', { className: 'ap-doc-status' }, tAp('请先打开或创建一个对话，再预览 Office 文件。', 'Open or create a conversation before previewing Office files.'))
       } else if (isOffice) {
         body = renderOffice()
       } else if (kind === 'binary') {

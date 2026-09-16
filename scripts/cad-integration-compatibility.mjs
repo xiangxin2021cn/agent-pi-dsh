@@ -59,9 +59,15 @@ function noticesOutsideNonCadSections(text) {
   return text.replace(section, '').replace(report, '')
 }
 
-// Normalize only the reviewed studio identity change in shared UI/HTTP files.
+// Normalize only reviewed studio identity and Office URL changes in shared files.
 // Every other byte (including CAD routes, styles and file modes) stays pinned.
-function withStudioIdentity(path, text) {
+function withReviewedNonCadChanges(path, text) {
+  if (path === 'bundles/tender-web/src/client/file-preview-overlay.js') {
+    return "import { scopeUniverViewerUrl } from './univer-viewer-url.js'\n\n" + text
+      .replace("      } else if (isUniver) {\n        body = h('iframe', {", "      } else if (isUniver) {\n        const viewerUrl = scopeUniverViewerUrl(office.viewerUrl, attachSessionId(props.sessionProps || props))\n        body = viewerUrl ? h('iframe', {")
+      .replace('          src: office.viewerUrl,', '          src: viewerUrl,')
+      .replace("          allow: 'clipboard-read; clipboard-write; fullscreen',\n        })", "          allow: 'clipboard-read; clipboard-write; fullscreen',\n        }) : h('div', { className: 'ap-doc-status' }, tAp('请先打开或创建一个对话，再预览 Office 文件。', 'Open or create a conversation before previewing Office files.'))")
+  }
   if (path === 'bundles/tender-host/src/http.ts') {
     return text.replace("  'company.png': 'image/png',\n  'company-mark.png': 'image/png',\n", '')
   }
@@ -114,11 +120,11 @@ export function assertCadIntegrationUnchanged({ root, manifest, releaseCommit = 
         const after = noticesOutsideNonCadSections(git(root, ['show', `${target}:${path}`]))
         if (before !== null && before === after) return false
       }
-      if (['bundles/tender-host/src/http.ts', 'bundles/tender-web/src/client/styles.js'].includes(path)
+      if (['bundles/tender-host/src/http.ts', 'bundles/tender-web/src/client/styles.js', 'bundles/tender-web/src/client/file-preview-overlay.js'].includes(path)
           && original.get(path)?.split(' ').slice(0, 2).join(' ') === current.get(path)?.split(' ').slice(0, 2).join(' ')) {
         const before = git(root, ['show', `${source.commit}:${path}`])
         const after = git(root, ['show', `${target}:${path}`])
-        if (withStudioIdentity(path, before) === after) return false
+        if (withReviewedNonCadChanges(path, before) === after) return false
       }
       return true
     })

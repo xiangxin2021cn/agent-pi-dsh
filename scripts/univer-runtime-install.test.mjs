@@ -48,12 +48,12 @@ test('profile startup uses preinstalled Office while platform builds prepare and
   assert.match(workflow, /univer-public-release\.mjs assert-tree/)
 })
 
-test('tracked Univer production lock exactly matches the pinned 0.2.13 dependency graph', () => {
+test('tracked Univer production lock exactly matches the pinned 0.3.0 dependency graph', () => {
   assert.deepEqual(pinnedDependencies, {
     '@puppeteer/browsers': '^3.2.0',
     '@univerjs-pro/cli-assets': '0.1.0',
-    '@univerjs-pro/engine-formula-rust-binding': '1.0.0-insiders.20260829-2e3c387',
-    '@univerjs-pro/exchange-node-binding': '0.1.1',
+    '@univerjs-pro/engine-formula-rust-binding': '1.0.0-insiders.20260910-22fe9c7',
+    '@univerjs-pro/exchange-node-binding': '0.1.2',
     libsql: '^0.5.29',
     'puppeteer-core': '^25.7.0',
   })
@@ -69,15 +69,9 @@ test('tracked Univer production lock exactly matches the pinned 0.2.13 dependenc
     assert.match(entry.integrity, /^sha512-/, name)
   }
   for (const suffix of ['darwin-arm64', 'linux-arm64-gnu', 'linux-x64-gnu', 'win32-x64-msvc']) {
-    assert.equal(
-      lock.packages[`node_modules/@univerjs-pro/engine-formula-rust-binding-${suffix}`].version,
-      '1.0.0-insiders.20260829-2e3c387',
-    )
-    assert.equal(
-      lock.packages[`node_modules/@univerjs-pro/exchange-node-binding-${suffix}`].version,
-      '0.1.1',
-    )
+    assert.equal(lock.packages[`node_modules/@libsql/${suffix}`].version, '0.5.29')
   }
+
 })
 
 test('Windows package requires complete official Office by default and verifies the shipped runtime', () => {
@@ -261,4 +255,14 @@ test('npm ci runs through npm-cli.js adjacent to the current Node executable', (
     () => resolveNpmInvocation(join(root, 'isolated', 'node.exe')),
     /npm-cli\.js is not adjacent/,
   )
+})
+
+test('0.3.0 native worker dependencies are supplied without mutating the official manifest', () => {
+  const dependencies = {'@puppeteer/browsers':'^3.2.0','@univerjs-pro/cli-assets':'0.1.0',libsql:'^0.5.29','puppeteer-core':'^25.7.0'}
+  const manifest = {name:'dsh-univer-office',version:'0.3.0',dependencies}
+  const original = structuredClone(manifest)
+  assert.deepEqual(productionRuntimeManifest(manifest).dependencies,pinnedDependencies)
+  assert.deepEqual(manifest,original)
+  assert.equal(validateUniverRuntimeLock(manifest,lock),lock)
+  assert.deepEqual(productionRuntimeManifest({...manifest,version:'0.2.13'}).dependencies,dependencies)
 })

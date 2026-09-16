@@ -1,3 +1,4 @@
+import { viewerProxyFixture } from './fixtures/univer-viewer-proxy.mjs'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
@@ -23,7 +24,7 @@ function fixture(t) {
   const files = [
     ['LICENSE', 'Apache License\nVersion 2.0, January 2004\n'],
     ['README.md', 'Complete official Gateway, Viewer and converter distribution.\n'],
-    ['lib/index.js', 'export {}\n'], ['lib/client.js', nativeClient],
+    ['lib/index.js', viewerProxyFixture], ['lib/client.js', nativeClient],
     ['artifacts/gateway.cjs', 'module.exports = {}\n'],
     ['artifacts/unit-content-worker.mjs', 'export {}\n'],
     ['artifacts/viewer/index.html', '<html><div id="app"></div></html>'],
@@ -54,27 +55,18 @@ function archive(item) {
 }
 
 const nativeClient = [
-  'function CombinedSnapshotPreviewCard(props) {',
-  '  const timeline = props.useSession((snapshot) => snapshot.chat.timeline);',
-  '}',
-  'function SplitSnapshotPreviewCard(props) {',
+  'function PreviewCard(props) {',
   '  const timeline = props.useChat((snapshot) => snapshot.timeline);',
   '}',
-  'function registerConversationDefinition(ctx, definition) {',
+  'function apply(ctx) {',
   '  const uiConversation = ctx.get("uiConversation");',
-  '  if (uiConversation !== void 0) {',
-  '    registerDefinition(uiConversation.events, definition);',
-  '    return "split";',
+  '  if (uiConversation === void 0) {',
+  '    throw new Error("dsh-univer-office: active DSH Client exposes no uiConversation service");',
   '  }',
-  '  const conversationEvents = ctx.get("conversationEvents");',
-  '  if (conversationEvents === void 0) {',
-  '    throw new Error("dsh-univer-office: active conversation service exposes no event registry");',
-  '  }',
-  '  registerDefinition(conversationEvents, definition);',
-  '  return "combined";',
+  '  uiConversation.events.register(univerTurnDefinition);',
   '}',
   'var inject = ["slots", "locale", "conversation"];',
-  'const PreviewCard = conversationApi === "split" ? SplitSnapshotPreviewCard : CombinedSnapshotPreviewCard;',
+  '',
 ].join('\n')
 
 

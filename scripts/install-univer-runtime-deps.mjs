@@ -13,10 +13,17 @@ export const defaultUniverRuntimeLockPath = join(scriptDir, 'dsh-univer-office-r
 export const univerRuntimeReceiptName = 'AGENT-PI-UNIVER-RUNTIME-RECEIPT.json'
 
 export function productionRuntimeManifest(pluginManifest) {
+  // 0.3.0's bundled 1.0.0-rc.0 workers require these native packages, but
+  // its published manifest omits them. Keep the official files unchanged and
+  // install the SDK's exact dependencies through our verified runtime lock.
+  const workerDependencies = pluginManifest?.name === 'dsh-univer-office' && pluginManifest.version === '0.3.0' ? {
+    '@univerjs-pro/engine-formula-rust-binding': '1.0.0-insiders.20260910-22fe9c7',
+    '@univerjs-pro/exchange-node-binding': '0.1.2',
+  } : {}
   return {
     name: 'agent-pi-univer-runtime',
     private: true,
-    dependencies: pluginManifest?.dependencies ?? {},
+    dependencies: { ...pluginManifest?.dependencies, ...workerDependencies },
   }
 }
 

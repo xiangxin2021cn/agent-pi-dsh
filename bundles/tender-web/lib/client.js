@@ -155,6 +155,15 @@ window.__ModuleLoader__.load({
 			};
 		}
 		//#endregion
+		//#region src/client/univer-viewer-url.js
+		function scopeUniverViewerUrl(viewerUrl, sessionId) {
+			if (!viewerUrl.startsWith("/univer-viewer/")) return viewerUrl;
+			if (!sessionId) return "";
+			const url = new URL(viewerUrl, "http://localhost");
+			url.searchParams.set("sessionId", sessionId);
+			return url.pathname + url.search + url.hash;
+		}
+		//#endregion
 		//#region src/client/file-preview-overlay.js
 		function createFilePreviewOverlay(dependencies) {
 			const { DocBtn, FileContextMenu, Icon, PREVIEW_HEAD_CHARS, PREVIEW_TABLE_ROW_CAP, React, ReactDOM, api, apiBlob, attachFolderPath, attachItemsOf, attachSessionId, buildPreviewSelectionFollowup, captureComposerFace, chooseAndUpload, chooseFolderForChat, codexTurnArmed, codexTurnListeners, currentDraft, dispatchToConversation, displayFileName, downloadBlob, escapeHtml, fileIconClass, fileIconName, fillComposer, fillMdTables, flattenFiles, foldAndSubmit, h, htmlToMarkdown, importWorkspaceFileToKb, looksLikeKbPackName, mdToHtml, mentionInChat, openInExplorer, previewIsHeavy, rawFileUrl, readDraft, readReasoningEffort, readWorkspaceCwd, replaceChildren, runtime, setCodexTurnArmed, showToast, slicePreviewMarkdown, snapshotComposer, snapshotFileList, sourceLabel, stitchMarkdown, stripComposerMentions, tAp, uploadFileList, useApLang, useAttachItems, wrapComposerSubmit } = dependencies;
@@ -996,14 +1005,16 @@ window.__ModuleLoader__.load({
 					src: cadUrl,
 					sandbox: "allow-same-origin allow-scripts"
 				}) : h("div", { className: "ap-doc-status" }, "二维 CAD 预览资源尚未就绪。");
-				else if (isUniver) body = h("iframe", {
-					ref: univerRef,
-					className: "ap-univer-frame",
-					title: file.name,
-					src: office.viewerUrl,
-					allow: "clipboard-read; clipboard-write; fullscreen"
-				});
-				else if (isOffice) body = renderOffice();
+				else if (isUniver) {
+					const viewerUrl = scopeUniverViewerUrl(office.viewerUrl, attachSessionId(props.sessionProps || props));
+					body = viewerUrl ? h("iframe", {
+						ref: univerRef,
+						className: "ap-univer-frame",
+						title: file.name,
+						src: viewerUrl,
+						allow: "clipboard-read; clipboard-write; fullscreen"
+					}) : h("div", { className: "ap-doc-status" }, tAp("请先打开或创建一个对话，再预览 Office 文件。", "Open or create a conversation before previewing Office files."));
+				} else if (isOffice) body = renderOffice();
 				else if (kind === "binary") body = h("div", { className: "ap-doc-status" }, "二进制文件无法在预览中排版。可用右上角下载原件，或右键加入对话后让智能体读取。");
 				else if (canEdit && mode === "edit" && !isOffice) body = h("div", null, h("p", { className: "ap-doc-hint" }, dirty ? kbSlug ? "未保存 · Ctrl+S 覆盖解析稿并重建知识库" : "未保存 · Ctrl+S 写回源文件" : sourceMode ? "源码模式。切回所见即所得后继续排版。" : tablesReady ? kbSlug ? "改的是解析稿 Markdown，不是源 PDF/Word。Ctrl+S 保存后重建该条。" : heavy ? "文档较大，所见即所得只渲染前 " + PREVIEW_HEAD_CHARS + " 字和大表前 " + PREVIEW_TABLE_ROW_CAP + " 行。保存时会把未显示部分拼回原文件。" : "直接在文档里改字，工具栏改标题/列表。Ctrl+S 保存。" : "正在渲染表格，完成后即可直接改。"), h("div", { className: "ap-doc-toolbar" }, DocBtn("一级标题", () => format("h1"), "H1"), DocBtn("二级标题", () => format("h2"), "H2"), DocBtn("三级标题", () => format("h3"), "H3"), DocBtn("粗体", () => format("b"), "B"), DocBtn("斜体", () => format("i"), "I"), DocBtn("无序列表", () => format("ul"), "列表"), DocBtn("有序列表", () => format("ol"), "编号"), DocBtn("引用", () => format("quote"), "引用"), DocBtn("代码块", () => format("code"), "代码"), DocBtn("表格", () => format("table"), "表格"), kind === "markdown" ? h("button", {
 					type: "button",

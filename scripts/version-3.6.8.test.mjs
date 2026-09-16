@@ -42,7 +42,7 @@ test('3.6.8 source manifests and release downloads agree while the verified webs
 
   const readme = readText('README.md')
   assert.match(readme, /releases\/download\/v3\.6\.8\/Agent-Pi-DSH-3\.6\.8-x64\.exe/)
-  assert.match(readme, /安装包包含官方 `dsh-univer-office` 0\.2\.13 完整插件/)
+  assert.match(readme, /安装包包含官方 `dsh-univer-office` 0\.3\.0 完整插件/)
   assert.match(readme, /dsh-v0\.1\.6-alpha\.1/)
   assert.match(readme, /0a15e36e7f/)
   assert.match(readme, /正式 SHA256 以同一 Release 中的 `\.sha256` 资产为准/)

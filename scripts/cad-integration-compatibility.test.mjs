@@ -123,9 +123,12 @@ test('permits one report-skill notice without permitting CAD notice changes or d
   }
 })
 
-test('permits the reviewed studio identity change but rejects adjacent CAD and mode changes', (t) => {
+test('permits reviewed studio and Office URL changes but rejects adjacent CAD and mode changes', (t) => {
   const value = fixture(t)
   const cases = [
+    ['bundles/tender-web/src/client/file-preview-overlay.js',
+      '          src: office.viewerUrl,\n// CAD route remains pinned\n',
+      "import { scopeUniverViewerUrl } from './univer-viewer-url.js'\n\n          src: viewerUrl,\n// CAD route remains pinned\n"],
     ['bundles/tender-host/src/http.ts',
       "const BRAND_FILES = {\n  'company.png': 'image/png',\n  'company-mark.png': 'image/png',\n}\n// CAD route remains pinned\n",
       "const BRAND_FILES = {\n}\n// CAD route remains pinned\n"],

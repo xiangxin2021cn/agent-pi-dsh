@@ -6,7 +6,8 @@ Agent Pi DSH 由 **Always π AI studio** 独立开发和维护。
 
 - 统一应用启动页、工作台、官网和项目介绍的产品标识与工作室归属。
 - 更新产品界面展示，保持普通对话、专业深度、手动复用模板和 huashu-report 报告技能。
-- 核对安装包依赖完整性，保留 Codex CLI 0.153.4、官方 Univer Office 0.2.13 完整插件、CAD、文件栏和可选 Agent Teams。
+- 升级官方 Univer Office 0.3.0，原生兼容当前 DSH 内核，接入同源 Office 预览并保留文件栏入口；支持 Windows Edge 检测及官方截图附件修复。
+- 核对安装包依赖完整性，保留 Codex CLI 0.153.4、完整 Office 插件、CAD、文件栏和可选 Agent Teams。
 - 内核继续固定为官方 DSH `dsh-v0.1.6-alpha.1`，未修改官方内核。
 
 CAD 对应源码沿用已验证的 `Agent-Pi-DSH-3.6.2-CAD-corresponding-source.tar.gz`，来源提交 `1aef6820ebc450125788158a4b2d1706115cdd10`。
