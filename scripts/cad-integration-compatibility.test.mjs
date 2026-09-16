@@ -123,6 +123,39 @@ test('permits one report-skill notice without permitting CAD notice changes or d
   }
 })
 
+test('permits the reviewed studio identity change but rejects adjacent CAD and mode changes', (t) => {
+  const value = fixture(t)
+  const cases = [
+    ['bundles/tender-host/src/http.ts',
+      "const BRAND_FILES = {\n  'company.png': 'image/png',\n  'company-mark.png': 'image/png',\n}\n// CAD route remains pinned\n",
+      "const BRAND_FILES = {\n}\n// CAD route remains pinned\n"],
+    ['bundles/tender-web/src/client/styles.js',
+      '.ap-nav-host,.ap-company,.ap-pi{width:100%;flex:none}\n.ap-company{display:flex;align-items:center;justify-content:center;padding:4px 2px 10px}\n.ap-company img{display:block;width:100%;height:auto;max-height:34px;object-fit:contain;object-position:center;user-select:none}\n[data-sidebar-collapsed] #ap-mount-company{display:none}\n[data-phase="hero"]::before,\n[data-phase="active"]::before,\n[data-phase="settling"]::before{\n  content:"";display:block;flex:none;box-sizing:border-box;\n  height:44px;margin:8px 24px 2px;pointer-events:none;\n  background:url("/api/agent-pi/brand/company.png?v=5") center / contain no-repeat;\n}\n.ap-cad{display:block}\n',
+      '.ap-nav-host,.ap-studio,.ap-pi{width:100%;flex:none}\n.ap-studio{text-align:center;padding:4px 2px 10px;font-size:11px;color:var(--dsw-alias-label-secondary)}\n[data-sidebar-collapsed] #ap-mount-studio{display:none}\n.ap-cad{display:block}\n'],
+  ]
+  for (const [path, before] of cases) write(join(value.root, path), before)
+  const source = value.manifest.sources.agentPiDshCadIntegration
+  source.commit = commit(value.root)
+  source.tree = git(value.root, 'rev-parse', 'HEAD^{tree}')
+  for (const [path, , after] of cases) write(join(value.root, path), after)
+  commit(value.root)
+  const originalManifest = structuredClone(value.manifest)
+  assert.equal(assertCadIntegrationUnchanged(value).sourceCommit, source.commit)
+  assert.deepEqual(value.manifest, originalManifest)
+  for (const [path, , after] of cases) {
+    write(join(value.root, path), after + '// changed CAD integration\n')
+    commit(value.root)
+    assert.throws(() => assertCadIntegrationUnchanged(value), /CAD inputs changed/)
+    write(join(value.root, path), after)
+    commit(value.root)
+    git(value.root, 'update-index', '--chmod=+x', path)
+    git(value.root, 'commit', '-qm', 'changed shared file mode')
+    assert.throws(() => assertCadIntegrationUnchanged(value), /CAD inputs changed/)
+    git(value.root, 'update-index', '--chmod=-x', path)
+    git(value.root, 'commit', '-qm', 'restore shared file mode')
+  }
+})
+
 for (const input of CAD_INPUT_PATHS) {
   test(`rejects a committed CAD input change: ${input}`, (t) => {
     const value = fixture(t)

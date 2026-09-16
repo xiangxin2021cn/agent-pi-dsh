@@ -59,6 +59,20 @@ function noticesOutsideNonCadSections(text) {
   return text.replace(section, '').replace(report, '')
 }
 
+// Normalize only the reviewed studio identity change in shared UI/HTTP files.
+// Every other byte (including CAD routes, styles and file modes) stays pinned.
+function withStudioIdentity(path, text) {
+  if (path === 'bundles/tender-host/src/http.ts') {
+    return text.replace("  'company.png': 'image/png',\n  'company-mark.png': 'image/png',\n", '')
+  }
+  if (path !== 'bundles/tender-web/src/client/styles.js') return text
+  return text
+    .replace('.ap-nav-host,.ap-company,.ap-pi{width:100%;flex:none}', '.ap-nav-host,.ap-studio,.ap-pi{width:100%;flex:none}')
+    .replace('.ap-company{display:flex;align-items:center;justify-content:center;padding:4px 2px 10px}\n.ap-company img{display:block;width:100%;height:auto;max-height:34px;object-fit:contain;object-position:center;user-select:none}', '.ap-studio{text-align:center;padding:4px 2px 10px;font-size:11px;color:var(--dsw-alias-label-secondary)}')
+    .replace('[data-sidebar-collapsed] #ap-mount-company{display:none}', '[data-sidebar-collapsed] #ap-mount-studio{display:none}')
+    .replace('[data-phase="hero"]::before,\n[data-phase="active"]::before,\n[data-phase="settling"]::before{\n  content:"";display:block;flex:none;box-sizing:border-box;\n  height:44px;margin:8px 24px 2px;pointer-events:none;\n  background:url("/api/agent-pi/brand/company.png?v=5") center / contain no-repeat;\n}\n', '')
+}
+
 // Call after verifyCadCleanRelease: this supplements, never replaces, archive,
 // source, toolchain, evidence and runtime hash verification.
 export function assertCadIntegrationUnchanged({ root, manifest, releaseCommit = 'HEAD' }) {
@@ -99,6 +113,12 @@ export function assertCadIntegrationUnchanged({ root, manifest, releaseCommit = 
         const before = noticesOutsideNonCadSections(git(root, ['show', `${source.commit}:${path}`]))
         const after = noticesOutsideNonCadSections(git(root, ['show', `${target}:${path}`]))
         if (before !== null && before === after) return false
+      }
+      if (['bundles/tender-host/src/http.ts', 'bundles/tender-web/src/client/styles.js'].includes(path)
+          && original.get(path)?.split(' ').slice(0, 2).join(' ') === current.get(path)?.split(' ').slice(0, 2).join(' ')) {
+        const before = git(root, ['show', `${source.commit}:${path}`])
+        const after = git(root, ['show', `${target}:${path}`])
+        if (withStudioIdentity(path, before) === after) return false
       }
       return true
     })
