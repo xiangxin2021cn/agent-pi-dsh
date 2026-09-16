@@ -14,7 +14,7 @@
  */
 import { readdirSync, rmSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
-import { logEvent } from './log.js';
+import { logEvent } from "./log.js";
 /** pnpm store tmp staging prefix: `_tmp_<pid>_<random-hex>/`. */
 const ORPHAN_TMP_RE = /^_tmp_(\d+)_/;
 /** True when the process with this pid is still running (EPERM = exists). */

@@ -1,10 +1,10 @@
 /** Shared HTTP client for every AnySearch provider and tool operation. */
-import type { AnySearchDomainsResponse, AnySearchSearchRequest, AnySearchSearchResponse, AnySearchSubDomainsResponse } from './types.ts';
+import type { AnySearchDomainsResponse, AnySearchExtractRequest, AnySearchExtractResponse, AnySearchSearchRequest, AnySearchSearchResponse, AnySearchSubDomainsResponse } from './types.ts';
 export { ANYSEARCH_DSH_CLIENT_ID } from './version.ts';
 /** Public AnySearch API origin. */
 export declare const ANYSEARCH_DEFAULT_BASE_URL = "https://api.anysearch.com";
 /** AnySearch operation names retained in safe diagnostics. */
-export type AnySearchOperation = 'search' | 'domains' | 'sub_domains';
+export type AnySearchOperation = 'search' | 'extract' | 'domains' | 'sub_domains';
 /** Resolved AnySearch client configuration. */
 export interface AnySearchClientOptions {
     /** Resolve the API key for one operation; `undefined` uses anonymous access. */
@@ -28,6 +28,8 @@ export declare class AnySearchClientError extends Error {
     readonly requestId?: string;
     /** Upstream retry delay retained for diagnostics; the client never retries. */
     readonly retryAfter?: string;
+    /** Stable AnySearch business error code when the response supplied one. */
+    readonly errorCode?: string;
     constructor(message: string, options: {
         kind?: 'aborted' | 'provider';
         operation: AnySearchOperation;
@@ -35,6 +37,7 @@ export declare class AnySearchClientError extends Error {
         authentication?: 'anonymous' | 'credential';
         requestId?: string;
         retryAfter?: string;
+        errorCode?: string;
         cause?: unknown;
     });
 }
@@ -46,6 +49,8 @@ export declare class AnySearchClient {
     available(): boolean;
     /** Execute one search and validate its complete response. */
     search(request: AnySearchSearchRequest, signal?: AbortSignal): Promise<AnySearchSearchResponse>;
+    /** Extract and validate the cleaned content of one public HTTP(S) URL. */
+    extract(request: AnySearchExtractRequest, signal?: AbortSignal): Promise<AnySearchExtractResponse>;
     /** List all top-level domains in the dynamic capability catalog. */
     listDomains(signal?: AbortSignal): Promise<AnySearchDomainsResponse>;
     /** Read detailed capabilities for the supplied ordered domain names. */

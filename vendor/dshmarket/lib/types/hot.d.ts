@@ -15,6 +15,8 @@
  * tree changes back to the file it read (see dsh's agent-presets PresetTree
  * for the in-tree precedent).
  */
+import { type Channel } from './channels.ts';
+import { type Region } from './regions.ts';
 interface HotRow {
     id: string;
     name: string;
@@ -30,6 +32,37 @@ interface HotContext {
         warn(message: string): void;
     };
 }
+/**
+ * Profile-scoped resolution for hot-mount rows: turn a bare package name into
+ * the absolute `file://` entry URL of the package just installed into
+ * `profileDir`.
+ *
+ * Include-tree rows reach `Include.import` as BARE names (`name:
+ * '@scope/pkg'`), and the base class resolves them against the LOADER's own
+ * location — the host closure
+ * (`closures/<fp>/node_modules/…/cordis-plugin-loader`), whose parent walk
+ * can never reach `home/profiles/<profile>/node_modules/`. Under a host whose
+ * loader sits in an immutable dependency closure, EVERY market hot mount dies
+ * with `Cannot find module '<pkg>' from '…/cordis-plugin-loader/…'` and falls
+ * back to "restart required", blaming the plugin for what is a resolution
+ * anchor problem.
+ *
+ * Resolving the row name HERE, against the profile the package was actually
+ * installed into, is anchor-independent: `require.resolve` walks
+ * `profileDir/node_modules` natively, so the tree hands the loader a
+ * `file://` URL needing no further resolution. Non-bare specifiers (relative
+ * paths, `file://`, `cordis:` builtins) and names that do not resolve under
+ * the profile pass through unchanged, preserving base-class semantics for
+ * every shape this fix does not own.
+ *
+ * The fallback keeps the name bare rather than synthesising a URL: a package
+ * whose entry cannot be located via `require.resolve` (no `main`/exports —
+ * the market's own `entryArtifactExists` heuristic covers those shapes before
+ * an install is accepted) is not something this resolver should guess about.
+ * Client-only shims never reach this function (their rows are replaced by a
+ * no-op host module before the file is written).
+ */
+export declare function resolveProfileEntry(profileDir: string, name: string): string;
 /**
  * Insert rows of a plugin's bundle patch, or null when the patch contains
  * anything beyond plain `id`/`name` insert rows (config blocks, disables,
@@ -49,14 +82,101 @@ export interface MarketState {
     groups: Record<string, string[]>;
     /** Display order of group names; "ungrouped" is implicit and never listed. */
     groupOrder: string[];
+    /**
+     * The user's own one-line note per installed plugin (#347).
+     *
+     * A catalog description answers "what is this", written by its author for
+     * strangers and often in a language the reader did not pick. It cannot
+     * answer "why did I install this" — which is the question someone with
+     * forty plugins is actually asking. So a note REPLACES the description on
+     * that row, and the original stays one click away.
+     *
+     * Local state like the disable list and the groups beside it: never sent
+     * anywhere, and carried by a backup because it is part of how this profile
+     * is set up.
+     *
+     * Optional on the way IN: several callers build a state object from the
+     * few fields they own and hand it to writeMarketState. Requiring this one
+     * would make every such call a silent way to erase every note — the exact
+     * shape of #339, where a partial snapshot dropped a field nobody was
+     * thinking about. Omitting it means "leave them alone" instead.
+     */
+    notes?: Record<string, string>;
+    /**
+     * The release channel the user PICKED, absent until they pick one.
+     *
+     * Absent is not the same as 'stable': with no choice on record the channel
+     * is derived from the running build, so installing a prerelease by hand
+     * puts you on the beta channel without a second step. Once chosen, the
+     * choice is the answer — including "stable" while a beta is running, which
+     * is how someone gets back off the channel.
+     */
+    channel?: Channel;
+    /**
+     * The download region in force, absent until something has decided one.
+     *
+     * Absent means "nobody has decided yet", which is what triggers the
+     * one-time network probe. Once a value is here — whether the probe wrote
+     * it or the user picked it — no further probing happens, so the market
+     * does not silently change routes between runs.
+     */
+    region?: Region;
+    /**
+     * Whether `region` was chosen by the probe rather than by the user.
+     *
+     * Only drives a one-time notice explaining why the market picked what it
+     * picked. A user who never learns a route was chosen for them has no way
+     * to know the setting exists, and no reason to look for it when something
+     * downloads oddly.
+     */
+    regionAuto?: boolean;
+    /**
+     * Catalog entry URLs the user bookmarked for later install (#414).
+     * Keys are registry `url` strings, not package names — favorites are a
+     * pre-install list, unlike groups/notes which target installed packages.
+     */
+    favorites?: string[];
+    /** User-supplied HTTPS prefix used when the built-in GitHub routes fail. */
+    githubProxy?: string;
 }
+/** Upper bound on bookmarked catalog URLs kept in state.json (#414). */
+export declare const MAX_FAVORITES = 500;
 /**
  * Read the whole market state. Legacy `disabledSkins` (the pre-#60
  * theme-only key) still loads; every new write uses the generic `disabled`
  * key (#60).
  */
+/** A note is a label, not a document: one line, bounded so state.json cannot
+ * grow without limit from a paste. */
+export declare const MAX_NOTE = 200;
 export declare function readMarketState(profileDir: string): MarketState;
-/** Persist the whole market state; `disabled` is the single written key. */
+/**
+ * Persist the whole market state.
+ *
+ * Every field a caller does not carry forward is taken from disk rather than
+ * dropped. Several callers legitimately know about only one part of the
+ * state — `writeMarketState(dir, { disabled, groups, groupOrder })` appears
+ * at five call sites in routes.ts — and before #435 that shape silently
+ * erased whatever else the user had chosen:
+ *
+ * - `channel` and `region` had no fallback at all, so toggling any plugin
+ *   threw away the user's update channel and download region. Both are
+ *   deliberate choices made through the settings card, and neither has a
+ *   "clear it" path: once picked they only ever move to another value. So
+ *   an absent one always means "the caller has nothing to say", never
+ *   "the user unchose it".
+ * `notes` keeps its original rule — an explicit object wins, including an
+ * empty one, because deleting the last note has to be expressible. What made
+ * #435 lose notes was not this function but a caller: the note route wrote
+ * through a fresh read while the long-lived `marketState` in routes.ts still
+ * carried `notes: {}` from boot, and the next write from that object put the
+ * empty one back. The fix for that belongs at the call site, where the two
+ * copies are, not here — see the note route.
+ *
+ * Reading before writing costs one small JSON parse on an operation that is
+ * already doing filesystem work, and it is what makes "this function writes
+ * the whole document" safe for callers that only hold part of it.
+ */
 export declare function writeMarketState(profileDir: string, state: MarketState): void;
 /** Plugins the user switched off; skipped by the boot re-mount. */
 export declare function readDisabled(profileDir: string): Set<string>;
@@ -119,4 +239,14 @@ export declare function patchLayerManages(controls: {
     ids: Set<string>;
     names: Set<string>;
 }, name: string): boolean;
+/**
+ * Delete the market's own state directory.
+ *
+ * `cleanHotDir` wipes the ephemeral hot-mount inputs on every boot but
+ * deliberately preserves `state.json` — the disable list and custom groups
+ * are the user's durable choices. Uninstalling the market is the one moment
+ * where removing them is the right thing, and only when the user asked.
+ * @returns true when a directory was there to remove.
+ */
+export declare function purgeMarketState(profileDir: string): boolean;
 export {};

@@ -61,6 +61,8 @@ Typical rejects:
 
 ## Self-check
 
+For a file deliverable, also read `file-delivery`. Material claims distinguish source facts, user decisions, derived results, proposals and assumptions. Preserve locators, units, scope and calculation inputs; template/example figures are not project evidence. Validate the final saved format, content and applicable rendering/editability before native DSH `present`, and state any unperformed checks.
+
 Before handing off:
 
 - Zero filler hits from the forbidden list

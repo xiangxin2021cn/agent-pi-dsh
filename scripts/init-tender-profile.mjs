@@ -73,6 +73,8 @@ function findDshPackage(names) {
       schemastery: [join(dsh, 'vendor/schemastery')],
       '@deepseek-ai/dsh-credentials': [join(dsh, 'packages/credentials/credentials')],
       '@deepseek-ai/dsh-web': [join(dsh, 'packages/web/web')],
+      '@deepseek-ai/dsh-tool-web': [join(dsh, 'packages/web/tool-web')],
+      '@deepseek-ai/dsh-system-prompt': [join(dsh, 'packages/core/system-prompt')],
       '@deepseek-ai/dsh-attachment': [join(dsh, 'packages/attachment/attachment')],
       '@deepseek-ai/dsh-host-webserver': [join(dsh, 'packages/host/webserver')],
       '@deepseek-ai/dsh-session': [join(dsh, 'packages/core/session')],
@@ -604,6 +606,10 @@ function wireAnysearchPeers() {
     ['@deepseek-ai/dsh-web', ['@deepseek-ai/dsh-web']],
     ['@deepseek-ai/schemastery', ['@deepseek-ai/schemastery', 'schemastery']],
   ]
+  const declaredPeers = JSON.parse(readFileSync(join(pluginDir, 'package.json'), 'utf8')).peerDependencies || {}
+  for (const name of ['@deepseek-ai/dsh-tool-web', '@deepseek-ai/dsh-system-prompt']) {
+    if (declaredPeers[name]) peers.push([name, [name]])
+  }
   for (const [destName, names] of peers) {
     const source = findDshPackage(names)
     if (!source) {
@@ -613,6 +619,23 @@ function wireAnysearchPeers() {
   }
 }
 wireAnysearchPeers()
+
+// The bundled market uses the same lock-installed runtime dependencies as
+// tender-host. User-managed registry installations retain their own closure.
+const bundledMarket = join(root, 'vendor/dshmarket')
+const marketPeers = JSON.parse(readFileSync(join(bundledMarket, 'package.json'), 'utf8')).peerDependencies || {}
+if (marketPeers['@deepseek-ai/schemastery']) {
+  const source = findDshPackage(['@deepseek-ai/schemastery'])
+  if (!source) throw new Error('market cannot resolve @deepseek-ai/schemastery')
+  ensureJunction(source, join(bundledMarket, 'node_modules/@deepseek-ai/schemastery'))
+}
+for (const name of ['js-yaml', 'undici']) {
+  if (JSON.parse(readFileSync(join(bundledMarket, 'package.json'), 'utf8')).dependencies?.[name]) {
+    const source = join(root, 'bundles/tender-host/node_modules', name)
+    if (!existsSync(join(source, 'package.json'))) throw new Error(`market runtime dependency missing: ${name}`)
+    ensureJunction(source, join(bundledMarket, 'node_modules', name))
+  }
+}
 
 writeManifest(dependencies)
 writeManagedPatch(dependencies)

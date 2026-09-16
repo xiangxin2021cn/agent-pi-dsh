@@ -24,7 +24,6 @@ import { Context } from 'cordis';
 import type Loader from '@deepseek-ai/cordis-plugin-loader';
 import type SystemPrompt from '@deepseek-ai/dsh-system-prompt';
 import type ToolRegistry from '@deepseek-ai/dsh-tools';
-import z from 'schemastery';
 type AppContext = Context & {
     loader: Loader;
     tools: ToolRegistry;
@@ -50,30 +49,6 @@ export interface Config {
         match: string;
     }>;
 }
-export declare const Config: z<Schemastery.ObjectS<{
-    registryFile: z<string, string>;
-    profileNodeModules: z<string, string>;
-    autoRestore: z<boolean, boolean>;
-    intervalMs: z<number, number>;
-    watches: z<({
-        dir?: string | null | undefined;
-        match?: string | null | undefined;
-    } & import("@deepseek-ai/cosmokit").Dict)[], Schemastery.ObjectT<{
-        dir: z<string, string>;
-        match: z<string, string>;
-    }>[]>;
-}>, Schemastery.ObjectT<{
-    registryFile: z<string, string>;
-    profileNodeModules: z<string, string>;
-    autoRestore: z<boolean, boolean>;
-    intervalMs: z<number, number>;
-    watches: z<({
-        dir?: string | null | undefined;
-        match?: string | null | undefined;
-    } & import("@deepseek-ai/cosmokit").Dict)[], Schemastery.ObjectT<{
-        dir: z<string, string>;
-        match: z<string, string>;
-    }>[]>;
-}>>;
+export declare const Config: Config;
 export declare function apply(ctx: AppContext, config: Config): void;
 export {};

@@ -29,7 +29,24 @@ export interface ProfileBackup {
     files: BackupFile[];
 }
 /** Serialize every profile file except dependencies, lock state, and market cache. */
-export declare function createProfileBackup(profile: string, explicitDir?: string): ProfileBackup;
+export interface BackupOptions {
+    /** Partial export: only these plugins (dependency names) are kept. */
+    includeDeps?: string[];
+    /**
+     * With includeDeps, also carry the profile's other configuration files.
+     * Config files are profile-scoped and cannot be attributed to individual
+     * plugins, so this is all-or-nothing — the UI warns about secrets before
+     * enabling it (the backup itself is one-to-one, never masked).
+     */
+    includeConfig?: boolean;
+}
+/**
+ * Serialize every profile file except dependencies, lock state, and market
+ * cache — or, with {@link BackupOptions.includeDeps}, only the manifest with
+ * the selected plugins (plus, optionally, the other config files).
+ */
+export declare function createProfileBackup(profile: string, explicitDir?: string, opts?: BackupOptions): ProfileBackup;
+export declare function validatedBackup(value: unknown): ProfileBackup;
 /** Atomically overwrite backed-up files and return a rollback for install failure. */
 export declare function restoreProfileBackup(profile: string, value: unknown, explicitDir?: string): {
     files: number;
@@ -71,4 +88,44 @@ export declare function isPublicIpv6(ip: string): boolean;
 /** Resolve once, reject every unsafe answer, and return the address to pin. */
 export declare function resolvePublicAddress(hostname: string): Promise<PublicAddress>;
 export declare function downloadWebdav(url: string, username: string, password: string): Promise<unknown>;
+export interface PluginSelection {
+    deps: Record<string, string>;
+    bundles: string[];
+}
+/**
+ * The selected plugins' dependency specs and bundle entries from a backup's
+ * manifest. Only string specs survive — everything else in the manifest is
+ * untrusted and ignored (partial restore touches nothing but these).
+ */
+export declare function extractPluginSelection(backup: ProfileBackup, includeDeps: string[]): PluginSelection;
+/**
+ * Merge a backup's manifest into the profile's current manifest so a restore
+ * never deletes plugins the target machine already has: current deps stay,
+ * backup specs win on name conflicts; bundle lists are unioned. When
+ * `selection` is given, only the selected plugins are merged in.
+ */
+/**
+ * Dependencies whose spec points at an absolute local path — `link:/Users/…`
+ * or `file:/home/…` (#205 by @Rudyy898).
+ *
+ * These are perfectly valid on the machine that wrote them and meaningless
+ * anywhere else, so a backup carrying one restores a manifest that `pnpm
+ * install` cannot satisfy: the path does not exist on the new machine and
+ * the whole restore fails on it.
+ *
+ * Reported, NOT rewritten. Turning `link:/Users/me/dev/plugin` into
+ * something portable means deciding where those files should live and
+ * whether to carry them at all, which is a design question and not
+ * something a restore should answer on the user's behalf. Naming them lets
+ * the operator decide before the install runs — which is the part that was
+ * missing.
+ *
+ * Relative `file:./vendor/x` specs are left alone: they resolve against the
+ * profile directory, which the restore recreates, so they travel fine.
+ */
+export declare function unportableDeps(dependencies: unknown): Array<{
+    name: string;
+    spec: string;
+}>;
+export declare function mergeRestoreManifest(backupManifest: Record<string, unknown>, current: Record<string, unknown>, selection?: PluginSelection): Record<string, unknown>;
 export {};

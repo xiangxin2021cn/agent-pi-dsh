@@ -103,6 +103,25 @@ test('permits only the Office notice section to change while retaining all CAD n
   assert.throws(() => assertCadIntegrationUnchanged(value), /CAD inputs changed.*THIRD_PARTY_NOTICES/)
 })
 
+test('permits the reviewed injector release provenance update but no unrelated notice edits', (t) => {
+  const value = fixture(t)
+  const path = join(value.root, 'THIRD_PARTY_NOTICES.md')
+  const before = '# Notices\n\n## dsh-univer-office integration\n\nOffice terms.\n\n## dsh-super-injector\n\n`@dsh-external/dsh-super-injector` 0.3.1\nupstream `v0.3.1` release\ndsh-super-injector/tree/v0.3.1\n8b4099535976d1af85137ef9e93815cf14c3f094\n1dfa8623b09684343843150600c4a9c58f2da1d9d0edfff7134a24091c99db4e\n\n## CAD\n\nOriginal CAD terms.\n'
+  write(path, before)
+  const source = value.manifest.sources.agentPiDshCadIntegration
+  source.commit = commit(value.root)
+  source.tree = git(value.root, 'rev-parse', 'HEAD^{tree}')
+  const after = before.replaceAll('0.3.1', '0.3.3')
+    .replace('8b4099535976d1af85137ef9e93815cf14c3f094', 'f4ef59fb31439225abefe45d6e793235a2a9d5e0')
+    .replace('1dfa8623b09684343843150600c4a9c58f2da1d9d0edfff7134a24091c99db4e', '355238fa8e51bc45c0801066af51e0e122f3b21411b193f601ee54e534391f48')
+  write(path, after)
+  commit(value.root)
+  assert.equal(assertCadIntegrationUnchanged(value).sourceCommit, source.commit)
+  write(path, after.replace('Original CAD terms.', 'Changed CAD terms.'))
+  commit(value.root)
+  assert.throws(() => assertCadIntegrationUnchanged(value), /CAD inputs changed.*THIRD_PARTY_NOTICES/)
+})
+
 test('permits one report-skill notice without permitting CAD notice changes or duplicate sections', (t) => {
   const value = fixture(t)
   const path = join(value.root, 'THIRD_PARTY_NOTICES.md')

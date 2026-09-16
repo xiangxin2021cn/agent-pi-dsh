@@ -1,5 +1,5 @@
 param(
-  [string]$InjectorVersion = "0.3.1",
+  [string]$InjectorVersion = "0.3.3",
   [string]$RouterCommit = "b39112dce54b90e67b50b166c2773861d7945d1f"
 )
 

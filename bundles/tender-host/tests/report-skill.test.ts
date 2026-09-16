@@ -20,3 +20,12 @@ test('report guidance resets on the next unrelated user task and never activates
   claim({ agent, message: user('你好') })
   assert.equal(prompt.text({ agent }), '')
 })
+
+test('reading, troubleshooting, quoted examples and instructional questions do not request creation', () => {
+  for (const text of ['请阅读这份关于如何编制报告的说明', '帮我总结这份写得很好的报告', '分析这份生成失败的报告日志', '修复生成报告时报错的问题', '请翻译：write a report', 'Read the draft report', 'Explain how to prepare a report', '能解释一下如何写报告吗？', '做一下调研，看看这个插件兼容吗', '检查报告里的“撰写研究报告”这句话', '不用 huashu-report，只打开文件']) {
+    assert.equal(isReportWritingRequest(user(text)), false, text)
+  }
+  for (const text of ['这份报告请帮我重写', '不要写报告。请生成一份技术标', '请编制项目可研报告，先阅读指定资料', 'Revise the attached report using the source spreadsheet']) {
+    assert.equal(isReportWritingRequest(user(text)), true, text)
+  }
+})

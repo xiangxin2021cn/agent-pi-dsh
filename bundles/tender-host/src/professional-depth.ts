@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto'
-import { extname } from 'node:path'
-import { unzipStore } from './xlsx-zip.ts'
+import { inspectDeliverable } from './deliverable-format.ts'
 import { createDepthStore } from './professional-depth-store.mjs'
 import { createDepthTemplates } from './professional-depth-templates.mjs'
 
@@ -124,25 +123,6 @@ export function admitDepthMessages(session: Session, messages: any[]) {
   }
 }
 
-function fileText(bytes: Uint8Array, path: string): string {
-  const buffer = Buffer.from(bytes)
-  const ext = extname(path).toLowerCase()
-  if (['.docx', '.xlsx', '.pptx'].includes(ext)) {
-    const files = unzipStore(buffer, 64 * 1024 * 1024)
-    const root = ext === '.docx' ? 'word/document.xml' : ext === '.xlsx' ? 'xl/workbook.xml' : 'ppt/presentation.xml'
-    if (!files.has('[Content_Types].xml') || !files.has(root)) throw new Error('文件内容不是对应的 Office 格式。')
-    // Content checks are literal evidence, not layout/formula correctness claims.
-    return [...files.entries()].filter(([name]) => name.endsWith('.xml')).map(([, data]) => data.toString('utf8').replace(/<[^>]*>/g, '')).join('\n')
-  }
-  if (ext === '.pdf') {
-    if (buffer.subarray(0, 5).toString() !== '%PDF-') throw new Error('文件没有有效 PDF 标识。')
-    return ''
-  }
-  if (ext === '.univer' && buffer.subarray(0, 16).toString() === 'SQLite format 3\0') return ''
-  if (ext === '.json' || ext === '.univer') JSON.parse(buffer.toString('utf8'))
-  return buffer.toString('utf8')
-}
-
 /** Reads through the current agent's DSH filesystem and records byte evidence. */
 export async function checkDepth(session: Session, fs: any, input: Record<string, any>, signal?: AbortSignal): Promise<DepthState> {
   const state = depthState(session)
@@ -161,10 +141,11 @@ export async function checkDepth(session: Session, fs: any, input: Record<string
       if (!info || info.type !== 'file') throw new Error('交付文件不存在或不是普通文件。')
       const bytes = await fs.readBytes(target, signal, 32 * 1024 * 1024)
       if (!bytes.length) throw new Error('交付文件为空。')
-      const text = fileText(bytes, criterion.path!)
-      if (criterion.kind === 'json') JSON.parse(text)
-      if (criterion.kind === 'contains' && !text.includes(criterion.expected!)) throw new Error('文件中未找到约定内容。')
-      checks.push({ id: criterion.id, status: 'passed', detail: criterion.kind === 'file' ? '文件存在且非空，已检查支持格式的文件标识；不代表专业内容或版式已验收。' : '约定的内容检查通过。', path: criterion.path, sha256: createHash('sha256').update(bytes).digest('hex') })
+      const { text, evidence } = await inspectDeliverable(bytes, criterion.path!)
+      if (criterion.kind !== 'file' && text === null) throw new Error('此格式不支持自动文本条件检查，请使用对应工具提取内容或改为专业审阅项。')
+      if (criterion.kind === 'json') JSON.parse(text!)
+      if (criterion.kind === 'contains' && !text!.includes(criterion.expected!)) throw new Error('文件中未找到约定内容。')
+      checks.push({ id: criterion.id, status: 'passed', detail: `${criterion.kind === 'file' ? '文件存在且非空。' : '约定的内容检查通过。'}${evidence} 不代表专业内容或版式已验收。`, path: criterion.path, sha256: createHash('sha256').update(bytes).digest('hex') })
     } catch (error) {
       signal?.throwIfAborted()
       checks.push({ id: criterion.id, status: 'failed', detail: String((error as Error).message), path: criterion.path })

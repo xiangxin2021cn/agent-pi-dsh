@@ -57,6 +57,11 @@ function noticesOutsideNonCadSections(text) {
   const report = /^## huashu-report\r?\n(?:(?!^## )[\s\S])*/gm
   if ([...text.matchAll(report)].length > 1) return null
   return text.replace(section, '').replace(report, '')
+    .replace('\x60@dsh-external/dsh-super-injector\x60 0.3.3', '\x60@dsh-external/dsh-super-injector\x60 0.3.1')
+    .replace('upstream \x60v0.3.3\x60 release', 'upstream \x60v0.3.1\x60 release')
+    .replace('dsh-super-injector/tree/v0.3.3', 'dsh-super-injector/tree/v0.3.1')
+    .replace('f4ef59fb31439225abefe45d6e793235a2a9d5e0', '8b4099535976d1af85137ef9e93815cf14c3f094')
+    .replace('355238fa8e51bc45c0801066af51e0e122f3b21411b193f601ee54e534391f48', '1dfa8623b09684343843150600c4a9c58f2da1d9d0edfff7134a24091c99db4e')
 }
 
 // Normalize only reviewed studio identity and Office URL changes in shared files.

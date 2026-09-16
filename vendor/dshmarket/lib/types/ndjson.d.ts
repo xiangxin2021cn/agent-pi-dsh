@@ -34,6 +34,12 @@ export interface ProgressSnapshot {
     seen: boolean;
     /** Last fatal error message carried by the stream, if any. */
     error: string | null;
+    /**
+     * pnpm's own error CODE from that same event (`ERR_PNPM_…`), when it
+     * carried one. The code is the part that classifies reliably: the message
+     * is prose and gets reworded between pnpm releases (#244).
+     */
+    errorCode: string | null;
     /** Package names pnpm reported as having ignored build scripts. */
     ignoredBuilds: string[];
 }

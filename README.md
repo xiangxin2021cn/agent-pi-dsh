@@ -27,11 +27,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.8/Agent-Pi-DSH-3.6.8-x64.exe"><b>Windows x64</b></a>
+  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.9/Agent-Pi-DSH-3.6.9-x64.exe"><b>Windows x64</b></a>
   ·
-  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.8/Agent-Pi-DSH-3.6.8-mac-arm64.dmg"><b>macOS arm64</b></a>
+  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.9/Agent-Pi-DSH-3.6.9-mac-arm64.dmg"><b>macOS arm64</b></a>
   ·
-  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.8/Agent-Pi-DSH-3.6.8-linux-x86_64.AppImage"><b>Linux AppImage</b></a>
+  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.9/Agent-Pi-DSH-3.6.9-linux-x86_64.AppImage"><b>Linux AppImage</b></a>
   ·
   <a href="https://www.agent-pi.app">官网</a>
   ·
@@ -41,10 +41,10 @@
 通用办公助手陪你聊天，**Agent Pi DSH 替你干活**：吃透投标、实施、投资的垂直作业系统。长程任务不断档、目标不偏离、证据可追溯——数十份标书文件一次搞定，数千条 BOQ 逐项推导，成果直接落盘为正式文档。
 
 > [!NOTE]
-> **3.6.8**：统一 Always π AI studio 产品标识与独立开发归属，完成安装包依赖核验，升级官方 Univer Office 0.3.0。延续 3.6.7 功能：升级 DSH 0.1.6-alpha.1，专业深度改为只启用、等待实际需求；修复旧对话历史，增加用户手动保存与选用模板，接入 huashu-report 专业报告技能。增加默认关闭、重启生效的官方 Agent Teams 协作开关，修复内置压缩组件的市场状态并增加启动诊断与插件恢复模式。保留可选“专业深度”：自动整理用途、专业要求、依据、格式与验收项，支持中途修订及文件检查。主对话默认精简过程，保留有用进度、错误与交付成果，可切换执行详情。采用官方 V4.1 Flash（`deepseek-flash`）原生文字与图片理解，移除过期灰度模型；模型目录和新对话默认值跟随官方 DSH。保留 Codex 模型与思考等级选择、原生附件入口；内核固定到官方 `dsh-v0.1.6-alpha.1`（`0a15e36e7f`）。安装包包含官方 `dsh-univer-office` 0.3.0 完整插件，保留其原始许可与授权校验。最新已发布版本以 [GitHub Latest Release](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/latest) 为准。
+> **3.6.9**：增强事实来源区分与实际文件验收，减少报告技能误触发；升级插件市场 1.47.0、AnySearch 0.1.4 与注入器 0.3.3，保持官方 Univer Office 0.3.0。延续 3.6.7 功能：升级 DSH 0.1.6-alpha.1，专业深度改为只启用、等待实际需求；修复旧对话历史，增加用户手动保存与选用模板，接入 huashu-report 专业报告技能。增加默认关闭、重启生效的官方 Agent Teams 协作开关，修复内置压缩组件的市场状态并增加启动诊断与插件恢复模式。保留可选“专业深度”：自动整理用途、专业要求、依据、格式与验收项，支持中途修订及文件检查。主对话默认精简过程，保留有用进度、错误与交付成果，可切换执行详情。采用官方 V4.1 Flash（`deepseek-flash`）原生文字与图片理解，移除过期灰度模型；模型目录和新对话默认值跟随官方 DSH。保留 Codex 模型与思考等级选择、原生附件入口；内核固定到官方 `dsh-v0.1.6-alpha.1`（`0a15e36e7f`）。安装包包含官方 `dsh-univer-office` 0.3.0 完整插件，保留其原始许可与授权校验。最新已发布版本以 [GitHub Latest Release](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/latest) 为准。
 
 > [!IMPORTANT]
-> **3.6.8**：投标流程保持“DSH 唯一执行、工作台轻量控制、一次点击一次派发”；核心依赖固定到 **`dsh-v0.1.6-alpha.1`**（`0a15e36e7f`）。Agent Pi 适配继续位于产品层启动迁移、profile overlay 和 bundle，DSH 官方源码保持干净。DWG 预览由固定源码与工具链重建，并随 Release 提供对应源码归档。
+> **3.6.9**：投标流程保持“DSH 唯一执行、工作台轻量控制、一次点击一次派发”；核心依赖固定到 **`dsh-v0.1.6-alpha.1`**（`0a15e36e7f`）。Agent Pi 适配继续位于产品层启动迁移、profile overlay 和 bundle，DSH 官方源码保持干净。DWG 预览由固定源码与工具链重建，并随 Release 提供对应源码归档。
 >
 > 本仓库是 **3.x DSH 版源码**，与 [2.6.5 经典版（Craft Agents OSS）](https://github.com/xiangxin2021cn/agent-pi) 分库维护。安装包见 [DSH Releases](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/latest)。完整产品页：[www.agent-pi.app](https://www.agent-pi.app)
 
@@ -140,12 +140,12 @@ flowchart LR
 
 | 平台 | 文件 |
 | --- | --- |
-| Windows x64 | [Agent-Pi-DSH-3.6.8-x64.exe](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.8/Agent-Pi-DSH-3.6.8-x64.exe) |
-| macOS Apple Silicon | [Agent-Pi-DSH-3.6.8-mac-arm64.dmg](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.8/Agent-Pi-DSH-3.6.8-mac-arm64.dmg) · [zip](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.8/Agent-Pi-DSH-3.6.8-mac-arm64.zip) |
-| Linux x64 | [AppImage](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.8/Agent-Pi-DSH-3.6.8-linux-x86_64.AppImage) · [deb](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.8/Agent-Pi-DSH-3.6.8-linux-amd64.deb) |
+| Windows x64 | [Agent-Pi-DSH-3.6.9-x64.exe](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.9/Agent-Pi-DSH-3.6.9-x64.exe) |
+| macOS Apple Silicon | [Agent-Pi-DSH-3.6.9-mac-arm64.dmg](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.9/Agent-Pi-DSH-3.6.9-mac-arm64.dmg) · [zip](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.9/Agent-Pi-DSH-3.6.9-mac-arm64.zip) |
+| Linux x64 | [AppImage](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.9/Agent-Pi-DSH-3.6.9-linux-x86_64.AppImage) · [deb](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.9/Agent-Pi-DSH-3.6.9-linux-amd64.deb) |
 | 2.6.5 经典版 | [可与 3.x 并存](https://github.com/xiangxin2021cn/agent-pi/releases/tag/v2.6.5) |
 
-国内镜像（Windows）：[gh-proxy.com](https://gh-proxy.com/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.8/Agent-Pi-DSH-3.6.8-x64.exe) · [ghfast.top](https://ghfast.top/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.8/Agent-Pi-DSH-3.6.8-x64.exe)
+国内镜像（Windows）：[gh-proxy.com](https://gh-proxy.com/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.9/Agent-Pi-DSH-3.6.9-x64.exe) · [ghfast.top](https://ghfast.top/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.6.9/Agent-Pi-DSH-3.6.9-x64.exe)
 
 Windows 安装包的正式 SHA256 以同一 Release 中的 `.sha256` 资产为准；发布脚本会在上线前重新计算并核对本地文件与 GitHub 资产。
 
@@ -164,7 +164,7 @@ Windows 安装包的正式 SHA256 以同一 Release 中的 `.sha256` 资产为�
 
 | 版本 | 一句话 |
 | --- | --- |
-| [3.6.8](./release/github-notes-3.6.8.md) | Always π AI studio 独立产品标识；安装包依赖核验 |
+| [3.6.9](./release/github-notes-3.6.9.md) | Always π AI studio 独立产品标识；安装包依赖核验 |
 | [3.6.7](./release/github-notes-3.6.7.md) | DSH 0.1.6-alpha.1；专业深度与历史修复；手动模板及报告技能 |
 | [3.6.6](./release/github-notes-3.6.6.md) | DSH rc.2；主动开启官方 Agent Teams；启动恢复与依赖验证 |
 | [3.6.5](./release/github-notes-3.6.5.md) | DSH rc.1；官方 V4.1 Flash 原生图片能力；保留资源文件栏 |

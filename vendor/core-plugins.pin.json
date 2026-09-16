@@ -1,0 +1,24 @@
+{
+  "checkedAt": "2026-09-16",
+  "packages": [
+    {
+      "name": "dshmarket",
+      "version": "1.47.0",
+      "integrity": "sha512-pVmakGEyZajwoDwXh7jGfHxtHtI5LCT5/4qmzfoU4gZKYD9F34AbJTF8MdU7Hfw0fBENs/Pkb0WF3kBZEf8QVg==",
+      "shasum": "51965550c255cdb7f9f65c6d2a66a195a0691e3f",
+      "archiveBytes": 826386
+    },
+    {
+      "name": "@anysearch/anysearch-dsh",
+      "version": "0.1.4",
+      "integrity": "sha512-v7jb1oTrMcfq+DxMoRvwDZQ8xVCvU/Pf4MJKnGXAKt35GUzsLFfJW8eKgSg837/kzEVZTGg64lM94UwgiNMUuQ==",
+      "shasum": "de37a51bb6686e2e7ebeb02f138bbab2e5d4bcf6",
+      "archiveBytes": 168851
+    }
+  ],
+  "injector": {
+    "version": "0.3.3",
+    "commit": "f4ef59fb31439225abefe45d6e793235a2a9d5e0",
+    "sha256": "355238fa8e51bc45c0801066af51e0e122f3b21411b193f601ee54e534391f48"
+  }
+}

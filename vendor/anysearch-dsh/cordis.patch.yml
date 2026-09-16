@@ -1,6 +1,7 @@
 - id: web
   config:
     searchProvider: anysearch
+    fetchProvider: anysearch
 
 - insert:
     - id: web-search-anysearch

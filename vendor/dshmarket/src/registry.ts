@@ -1,19 +1,29 @@
 /**
- * Registry access: fetch the curated list from awesome-dsh-plugin.com with an
- * in-memory cache, falling back to the bundled snapshot when offline.
+ * Registry access: the curated list from awesome-dsh-plugin.com, fetched
+ * fresh on every request. See `loadRegistry` for why there is nothing
+ * behind it any more.
  */
 
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
+import { configuredProxy, marketFetch } from './net.ts'
+import { catalogFromPackage } from './catalog-npm.ts'
+import { activeRegion, routesFor, type CatalogSource, type Region } from './regions.ts'
 
 export interface RegistryPlugin {
   name: string
   owner: string
   url: string
-  category: string
+  /** One legacy category id or several category ids. */
+  category: string | string[]
   description: Record<string, string>
   npm?: string | null
+  tarball?: string | null
   stars?: number | null
+  /**
+   * npm downloads in the last 30 days, when the entry has a published
+   * package. `null`/absent means "no npm package" — a coverage gap, not a
+   * zero — so sorting must not read it as "less popular than 0".
+   */
+  downloads?: number | null
   install: string
   added: string
   /**
@@ -26,6 +36,24 @@ export interface RegistryPlugin {
   replacement?: string
 }
 
+/**
+ * Category ids for one catalog entry, de-duplicated in declaration order.
+ *
+ * Catalog JSON is an external input, so malformed array members are omitted
+ * here and an entry with no usable category is rejected by `asRegistry`.
+ */
+export function pluginCategories(plugin: Pick<RegistryPlugin, 'category'>): string[] {
+  const values: unknown[] = Array.isArray(plugin.category) ? plugin.category : [plugin.category]
+  const categories: string[] = []
+  const seen = new Set<string>()
+  for (const value of values) {
+    if (typeof value !== 'string' || value === '' || seen.has(value)) continue
+    seen.add(value)
+    categories.push(value)
+  }
+  return categories
+}
+
 export interface Registry {
   updated: string
   count: number
@@ -33,56 +61,197 @@ export interface Registry {
   plugins: RegistryPlugin[]
 }
 
-const REGISTRY_URL = 'https://awesome-dsh-plugin.com/plugins.json'
-const TTL_MS = 60 * 60 * 1000
+/**
+ * Where the curated list comes from now lives in the region routing table
+ * (src/regions.ts), because it is one of several addresses that move
+ * together when a user changes download region.
+ *
+ * `DSHM_REGISTRY_URL` keeps its meaning there, unchanged: overridable
+ * through the process environment ONLY — the layer-3 e2e points it at a
+ * local fixture catalog so the install route can be driven end to end
+ * without publishing anything.
+ *
+ * This does not weaken the install route's registry check. That check exists
+ * to stop a malicious PAGE from POSTing an arbitrary source at the local
+ * server; a page cannot set environment variables, and anyone who can set
+ * this process's environment already controls the process. What the override
+ * changes is WHICH list is curated, never WHETHER the check runs.
+ */
 
-let cache: { at: number; data: Registry } | null = null
+/**
+ * How long to wait for the catalog.
+ *
+ * Generous on purpose. It used to be 4s with a bundled snapshot behind it,
+ * so a slow link quietly became a 39%-smaller catalog. Now that a failure is
+ * reported rather than papered over, cutting off a link that WOULD have
+ * answered is the expensive mistake — 282KB over TLS from a far-away network
+ * is not a 4-second job.
+ */
+const FETCH_TIMEOUT_MS = 15_000
 
-const AGENT_PI_UNIVER: RegistryPlugin = {
-  name: 'dsh-univer-office',
-  owner: 'dream-num',
-  url: 'https://github.com/dream-num/dsh-univer-office',
-  npm: 'dsh-univer-office',
-  category: 'tools',
-  description: {
-    zh: '可选 Office 预览插件。其运行依赖 Univer Pro 商业组件，安装和使用前须自行取得适用的商业许可；与 DSH 0.1.2-rc.1 的兼容性仍待验证，本版本不预装。',
-    en: 'Optional Office preview plugin. Its runtime depends on commercial Univer Pro components; obtain the applicable commercial license before installing or using it. Compatibility with DSH 0.1.2-rc.1 is pending verification, and it is not preinstalled.',
-  },
-  install: 'dsh plugin --profile tender add dsh-univer-office',
-  added: '2026-09-04',
+/**
+ * The catalog we were last served, with the validator identifying it.
+ *
+ * This is NOT the cache that was removed, and the difference is the whole
+ * point. That cache SKIPPED the request for an hour and answered from
+ * memory — it asserted freshness without ever asking. This asks the origin
+ * every single time; the validator only lets the origin answer "still the
+ * same" (304) instead of resending a megabyte. Freshness is verified on
+ * every call either way, so `data` below is only ever returned when the
+ * server has just confirmed it is current.
+ *
+ * In memory rather than on disk: a restart is rare enough that paying one
+ * full download for it costs nothing, and a file would be one more thing
+ * that can be found on a machine and mistaken for the catalog itself.
+ *
+ * Measured against the live origin (GitHub Pages behind Fastly, which
+ * serves both `etag` and `last-modified`): 295 KB and 1.3s unconditional,
+ * 0 bytes and 0.5s for a 304. The reporter whose fetch took 9.9s was
+ * downloading the full 1.07 MB every time they opened the market.
+ */
+let served: {
+  /** Which source issued this, so a validator is never sent to another one. */
+  key: string
+  etag: string | null
+  modified: string | null
+  /** The published version, for the npm route — its equivalent of an ETag. */
+  version: string | null
+  data: Registry
+} | null = null
+
+/** Identity of a catalog source, for scoping the validator to its origin. */
+function sourceKey(source: CatalogSource): string {
+  return source.kind === 'npm' ? `npm:${source.registry}/${source.pkg}` : `url:${source.url}`
+}
+
+/** A parsed catalog, or a thrown explanation of why it is not one. */
+function asRegistry(value: unknown): Registry {
+  const data = value as Registry
+  if (!Array.isArray(data.plugins) || data.plugins.length === 0) throw new Error('the catalog came back empty')
+  const plugins = data.plugins.map((plugin, index) => {
+    const category = pluginCategories(plugin)
+    if (category.length === 0) throw new Error(`catalog plugin ${String(index)} carries no usable category`)
+    return { ...plugin, category }
+  })
+  return applyAgentPiUniverPolicy({ ...data, plugins })
+}
+
+/**
+ * Drop what we remember, so the next call is unconditional.
+ *
+ * Exists for tests: the memo is module state, and a spec that asserted a
+ * 304 would otherwise leak a validator into the next one.
+ */
+export function forgetCatalog(): void {
+  served = null
+}
+
+/**
+ * The catalog, revalidated every time it is asked for.
+ *
+ * There used to be three answers here — live, a one-hour in-memory cache,
+ * and a snapshot bundled into the npm package — and only the first was
+ * correct. The other two were indistinguishable from it on screen, so a
+ * machine that could not reach the registry browsed the publish-time file
+ * (839 entries against 1367 live, and frozen forever for anyone on an older
+ * release), while a machine that COULD reach it still saw an hour-old
+ * listing of a catalog that grows by ~250 entries a day.
+ *
+ * For a catalog, stale is not a degraded answer, it is a wrong one: a plugin
+ * published this morning reads as "does not exist". So there is one source
+ * now, and a failure is a failure — the caller reports it and offers a
+ * retry, which is a state the user can act on. In particular a network
+ * failure is NEVER answered from `served`: an origin that cannot be reached
+ * has not confirmed anything, and quietly handing back the last catalog
+ * would rebuild exactly the fallback this replaced.
+ * @throws when the catalog cannot be fetched or does not look like one.
+ */
+export async function loadRegistry(region: Region = activeRegion()): Promise<Registry> {
+  const started = Date.now()
+  let last: unknown
+  let attempts = 0
+  // Sources in order, each a fallback for the one before it. The catalog is
+  // the FIRST request the market makes, so a mirror that has gone down must
+  // mean a slow market rather than an empty one — the list ends at the
+  // address that has always worked.
+  for (const source of routesFor(region).catalog) {
+    const key = sourceKey(source)
+    // Two attempts each. A catalog fetch crossing a long, lossy path fails
+    // transiently often enough that one retry is worth more than the second
+    // or two it costs — and with nothing behind this call any more, a
+    // transient failure is a market with no plugins in it.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      attempts += 1
+      try {
+        // A validator only ever goes back to the source that issued it.
+        // Carried across a region switch it could earn a "not modified" from
+        // an origin whose body we have never seen.
+        const reusable = served?.key === key ? served : null
+        if (source.kind === 'npm') {
+          const { version, data } = await catalogFromPackage(
+            source.registry, source.pkg, reusable?.version ?? undefined,
+          )
+          // `data === null` means the published version is the one in hand.
+          if (data === null && reusable !== null) return reusable.data
+          if (data === null) throw new Error('the catalog package reported no change with nothing to reuse')
+          const parsed = asRegistry(data)
+          served = { key, etag: null, modified: null, version, data: parsed }
+          return parsed
+        }
+        // ETag first: it is exact, while a date has one-second resolution and
+        // a catalog republished twice within the same second would validate
+        // as unchanged. Only one is sent — an origin given both must satisfy
+        // both, which turns a weak ETag match into an unnecessary 200.
+        const headers: Record<string, string> = {}
+        if (reusable?.etag != null) headers['if-none-match'] = reusable.etag
+        else if (reusable?.modified != null) headers['if-modified-since'] = reusable.modified
+
+        const res = await marketFetch(source.url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), headers })
+        if (res.status === 304) {
+          // Only reachable when we sent a validator, so `reusable` is present.
+          // Guarded anyway: answering a 304 with nothing to reuse would
+          // otherwise surface as a confusing parse error on an empty body.
+          if (reusable === null) throw new Error('the catalog answered "not modified" with nothing to revalidate')
+          return reusable.data
+        }
+        if (!res.ok) throw new Error(`HTTP ${String(res.status)}`)
+        const data = asRegistry(await res.json())
+        served = {
+          key, etag: res.headers.get('etag'), modified: res.headers.get('last-modified'), version: null, data,
+        }
+        return data
+      } catch (error) {
+        last = error
+      }
+    }
+  }
+  throw new Error(describeFetchFailure(last, Date.now() - started, attempts))
+}
+
+/**
+ * A catalog failure with the facts needed to classify it, in the message
+ * itself.
+ *
+ * The market shows this string and the log export carries it, so it is the
+ * whole of what a bug report will contain. "The operation was aborted due to
+ * timeout" alone cannot distinguish a slow link from a blocked one from a
+ * proxy this process cannot use — and Node's `fetch` ignores HTTP_PROXY
+ * entirely (measured on Node 25), so a machine whose only route out is a
+ * proxy fails here every time while every other tool on it works.
+ */
+export function describeFetchFailure(error: unknown, elapsedMs: number, attempts = 2): string {
+  const reason = error instanceof Error ? error.message : String(error)
+  const proxy = configuredProxy()
+  const parts = [`${reason} (${String(Math.round(elapsedMs / 1000))}s, ${String(attempts)} attempts)`]
+  if (proxy !== null) {
+    parts.push(`tried through the configured proxy ${proxy.replace(/\/\/[^@]*@/u, '//***@')}`)
+  }
+  return parts.join(' · ')
 }
 
 export function applyAgentPiUniverPolicy(registry: Registry): Registry {
-  const plugins = registry.plugins.map((plugin) => {
-    if (plugin.name !== AGENT_PI_UNIVER.name && plugin.npm !== AGENT_PI_UNIVER.npm) return plugin
-    return { ...plugin, description: AGENT_PI_UNIVER.description }
-  })
-  if (!plugins.some((plugin) => plugin.name === AGENT_PI_UNIVER.name || plugin.npm === AGENT_PI_UNIVER.npm)) {
-    plugins.push(AGENT_PI_UNIVER)
-  }
+  const bundled: RegistryPlugin = { name: 'dsh-univer-office', owner: 'dream-num', url: 'https://github.com/dream-num/dsh-univer-office', npm: 'dsh-univer-office', category: 'tools', install: 'dsh plugin --profile tender add dsh-univer-office', added: '2026-09-16', description: { zh: '官方 Office 插件 0.3.0 已预装，可创建、编辑和预览文档、表格及演示文稿；完整保留上游组件及许可证。', en: 'Official Office plugin 0.3.0 is preinstalled for creating, editing and previewing docs, sheets and slides; upstream components and licenses are retained.' } }
+  const plugins = registry.plugins.map(plugin => plugin.name === bundled.name || plugin.npm === bundled.npm ? { ...plugin, description: bundled.description } : plugin)
+  if (!plugins.some(plugin => plugin.name === bundled.name || plugin.npm === bundled.npm)) plugins.push(bundled)
   return { ...registry, count: plugins.length, plugins }
-}
-
-function snapshot(): Registry {
-  const path = fileURLToPath(new URL('../data/registry-snapshot.json', import.meta.url))
-  return JSON.parse(readFileSync(path, 'utf8')) as Registry
-}
-
-export async function loadRegistry(): Promise<{ registry: Registry; source: 'live' | 'cache' | 'snapshot' }> {
-  if (cache && Date.now() - cache.at < TTL_MS) {
-    return { registry: applyAgentPiUniverPolicy(cache.data), source: 'cache' }
-  }
-  try {
-    const res = await fetch(REGISTRY_URL, { signal: AbortSignal.timeout(4000) })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const data = (await res.json()) as Registry
-    if (!Array.isArray(data.plugins) || data.plugins.length === 0) throw new Error('empty registry')
-    cache = { at: Date.now(), data }
-    return { registry: applyAgentPiUniverPolicy(data), source: 'live' }
-  } catch {
-    return {
-      registry: applyAgentPiUniverPolicy(cache?.data ?? snapshot()),
-      source: cache ? 'cache' : 'snapshot',
-    }
-  }
 }

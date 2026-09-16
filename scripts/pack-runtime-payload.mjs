@@ -167,6 +167,7 @@ const productItems = [
   'vendor/anysearch-dsh', 'vendor/dsh-univer-office',
   'vendor/README.md', 'vendor/dsh-super-injector.pin', 'vendor/dsh-router-standard.pin',
   'vendor/anysearch-dsh.pin', 'vendor/dsh-univer-office.pin',
+  'vendor/core-plugins.pin.json',
 ]
 for (const item of productItems) {
   const src = join(root, item)

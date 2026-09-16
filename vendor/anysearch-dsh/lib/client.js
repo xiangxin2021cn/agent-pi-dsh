@@ -22,6 +22,8 @@ export class AnySearchClientError extends Error {
     requestId;
     /** Upstream retry delay retained for diagnostics; the client never retries. */
     retryAfter;
+    /** Stable AnySearch business error code when the response supplied one. */
+    errorCode;
     constructor(message, options) {
         super(message, options.cause === undefined ? undefined : { cause: options.cause });
         this.name = 'AnySearchClientError';
@@ -35,6 +37,8 @@ export class AnySearchClientError extends Error {
             this.requestId = options.requestId;
         if (options.retryAfter !== undefined)
             this.retryAfter = options.retryAfter;
+        if (options.errorCode !== undefined)
+            this.errorCode = options.errorCode;
     }
 }
 /** HTTP client shared by the native Provider and AnySearch-specific tools. */
@@ -61,6 +65,14 @@ export class AnySearchClient {
             }),
         }, signal);
         return parseOperationData('search', envelope, parseSearchData);
+    }
+    /** Extract and validate the cleaned content of one public HTTP(S) URL. */
+    async extract(request, signal) {
+        const envelope = await this.request('/v1/extract', 'extract', {
+            method: 'POST',
+            body: JSON.stringify({ url: request.url }),
+        }, signal);
+        return parseOperationData('extract', envelope, parseExtractData);
     }
     /** List all top-level domains in the dynamic capability catalog. */
     async listDomains(signal) {
@@ -145,9 +157,10 @@ export class AnySearchClient {
             clearTimeout(timeout);
         }
         const diagnosticRequestId = optionalStringField(value, 'request_id');
+        const diagnosticErrorCode = optionalStringField(value, 'error_code');
         if (!response.ok) {
             const message = messageField(value) ?? 'API error';
-            throw upstreamError(operation, message, response.status, authentication, diagnosticRequestId, retryAfter);
+            throw upstreamError(operation, message, response.status, authentication, diagnosticRequestId, retryAfter, diagnosticErrorCode);
         }
         try {
             const envelope = record(value, 'response');
@@ -155,7 +168,7 @@ export class AnySearchClient {
             const code = numberField(envelope, 'code', 'code');
             const message = stringField(envelope, 'message', 'message');
             if (code !== 0) {
-                throw upstreamError(operation, message.length > 0 ? message : `API error ${code}`, response.status, authentication, requestId, retryAfter);
+                throw upstreamError(operation, message.length > 0 ? message : `API error ${code}`, response.status, authentication, requestId, retryAfter, optionalStringRecordField(envelope, 'error_code', 'error_code'));
             }
             return {
                 data: record(envelope.data, 'data'),
@@ -241,6 +254,18 @@ function parseSearchData(envelope) {
             totalResults: nonNegativeIntegerField(metadata, 'total_results', 'data.metadata.total_results'),
             searchTimeMs: nonNegativeIntegerField(metadata, 'search_time_ms', 'data.metadata.search_time_ms'),
         },
+    };
+}
+function parseExtractData(envelope) {
+    const data = envelope.data;
+    const url = absoluteHTTPURLField(data, 'url', 'data.url');
+    const title = stringField(data, 'title', 'data.title');
+    const content = stringField(data, 'content', 'data.content');
+    return {
+        ...envelope.requestId === undefined ? {} : { requestId: envelope.requestId },
+        url,
+        title,
+        content,
     };
 }
 function parseSearchResult(value, index) {
@@ -331,6 +356,20 @@ function stringField(value, key, path) {
         throw new TypeError(`${path} must be a string`);
     return field;
 }
+function absoluteHTTPURLField(value, key, path) {
+    const field = stringField(value, key, path);
+    let url;
+    try {
+        url = new URL(field);
+    }
+    catch {
+        throw new TypeError(`${path} must be an absolute HTTP(S) URL`);
+    }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+        throw new TypeError(`${path} must be an absolute HTTP(S) URL`);
+    }
+    return field;
+}
 function optionalStringRecordField(value, key, path) {
     const field = value[key];
     if (field === undefined)
@@ -379,7 +418,7 @@ function messageField(value) {
     const message = value.message;
     return typeof message === 'string' && message.trim().length > 0 ? message.trim() : undefined;
 }
-function upstreamError(operation, detail, httpStatus, authentication, requestId, retryAfter) {
+function upstreamError(operation, detail, httpStatus, authentication, requestId, retryAfter, errorCode) {
     const facts = [
         `HTTP ${httpStatus}`,
         `auth ${authentication}`,
@@ -392,6 +431,7 @@ function upstreamError(operation, detail, httpStatus, authentication, requestId,
         authentication,
         ...requestId === undefined ? {} : { requestId },
         ...retryAfter === undefined ? {} : { retryAfter },
+        ...errorCode === undefined ? {} : { errorCode },
     });
 }
 function boundedUpstreamDetail(detail) {

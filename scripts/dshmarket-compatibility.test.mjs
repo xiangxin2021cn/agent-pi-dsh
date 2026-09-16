@@ -181,14 +181,14 @@ test('client-only plugins are compatible and honestly reported as pending restar
 
 test('market labels expose compatible, incompatible, and pending-restart states', () => {
   const locales = readFileSync(new URL('../vendor/dshmarket/src/client/locales.ts', import.meta.url), 'utf8')
-  assert.match(locales, /stateLive:\s*'兼容（已生效）'/)
-  assert.match(locales, /stateRestart:\s*'兼容，待重启'/)
-  assert.match(locales, /stateInert:\s*'不兼容'/)
+  assert.match(locales, /stateLive:\s*'已生效'/)
+  assert.match(locales, /stateRestart:\s*'已安装，重启后生效'/)
+  assert.match(locales, /stateInert:\s*'已安装，未生效'/)
   assert.doesNotMatch(locales, /已安装但未成为 profile 层/)
   const compiled = readFileSync(new URL('../vendor/dshmarket/client/client.js', import.meta.url), 'utf8')
-  assert.match(compiled, /stateLive: "兼容（已生效）"/)
-  assert.match(compiled, /stateRestart: "兼容，待重启"/)
-  assert.match(compiled, /stateInert: "不兼容"/)
+  assert.match(compiled, /stateLive: "已生效"/)
+  assert.match(compiled, /stateRestart: "已安装，重启后生效"/)
+  assert.match(compiled, /stateInert: "已安装，未生效"/)
   assert.doesNotMatch(compiled, /已安装但未成为 profile 层/)
 })
 

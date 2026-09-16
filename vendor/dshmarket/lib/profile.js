@@ -3,9 +3,28 @@
  * profile directory (manifest, lockfile, installed package trees). Pure
  * functions of the directory contents; no processes, no network.
  */
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { existsSync, readdirSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
+import { resolveDshHome } from "./home-paths.js";
+import { githubRemoteIdentities, githubRepoIdentities, isGitHostedSpec } from "./sources.js";
+/**
+ * Whether a profile name follows DSH's own directory-name contract.
+ *
+ * Keep this aligned with `@deepseek-ai/dsh-app-boot`'s
+ * `resolveProfileDir`: dots, spaces, and Unicode are ordinary name
+ * characters; only empty, traversal-shaped, launcher-owned, or
+ * separator-bearing names are refused.
+ */
+export function isDshProfileName(profile) {
+    return profile !== ''
+        && profile !== '.'
+        && profile !== '..'
+        && profile !== 'node_modules'
+        && !profile.includes('/')
+        && !profile.includes('\\')
+        && !profile.includes('\0');
+}
 /**
  * Resolve a profile name to its directory under DSH_HOME (default ~/.dsh).
  * An explicit directory is used by hosts, such as DSH Desktop, that own the
@@ -14,8 +33,9 @@ import { join } from 'node:path';
 export function profileDir(profile, explicitDir) {
     if (explicitDir !== undefined)
         return explicitDir;
-    const home = process.env.DSH_HOME ?? join(homedir(), '.dsh');
-    return join(home, 'profiles', profile);
+    if (!isDshProfileName(profile))
+        throw new Error(`dsh-market: invalid profile name ${JSON.stringify(profile)}`);
+    return join(resolveDshHome(), 'profiles', profile);
 }
 /**
  * The in-box bundles dsh's profile templates install themselves — the ONLY
@@ -24,7 +44,7 @@ export function profileDir(profile, explicitDir) {
  * filter would make them invisible and fail install validation.
  * (Diagnosis and fix proposed in #28 by @Lograthmic.)
  */
-const INBOX_BUNDLES = new Set([
+export const INBOX_BUNDLES = new Set([
     '@deepseek-ai/dsh-base',
     '@deepseek-ai/dsh-web-app',
     '@deepseek-ai/dsh-headless',
@@ -58,18 +78,45 @@ export function readManifestDeps(profile, explicitDir) {
         return {};
     }
 }
+function objectRecord(value) {
+    return typeof value === 'object' && value !== null && !Array.isArray(value)
+        ? value
+        : undefined;
+}
+/** Read dependencies and the exact `dsh.profile.bundles` field before a package operation. */
+export function readProfileManifestSnapshot(profile, explicitDir) {
+    try {
+        const manifest = JSON.parse(readFileSync(join(profileDir(profile, explicitDir), 'package.json'), 'utf8'));
+        const profileManifest = objectRecord(manifest.dsh?.profile);
+        const present = profileManifest !== undefined && Object.hasOwn(profileManifest, 'bundles');
+        return {
+            dependencies: { ...manifest.dependencies },
+            profileBundles: present
+                ? { present: true, value: structuredClone(profileManifest.bundles) }
+                : { present: false },
+        };
+    }
+    catch {
+        return { dependencies: {}, profileBundles: { present: false } };
+    }
+}
+/** String package names carried by one valid bundle-list value. */
+function bundleNames(value) {
+    return Array.isArray(value) ? value.filter((name) => typeof name === 'string') : [];
+}
 /**
- * Restore the profile manifest's dependency map to a pre-operation snapshot,
- * leaving every other manifest field untouched. pnpm writes package.json
- * BEFORE it finishes installing (#65, #69: a 404/blocked-build failure lands
- * after the write), so a failed add leaves ghost dependencies that break
- * every later pnpm run — and pnpm itself can no longer remove them (the same
- * failure re-fires on any mutation). Direct manifest surgery is the only
- * reliable rollback; the lockfile is left as-is (pnpm reconciles it from the
- * manifest on the next run).
+ * Restore the profile manifest fields a package operation may mutate:
+ * `dependencies` and `dsh.profile.bundles`. pnpm and `dsh plugin add` can
+ * write both before a later fetch or build-script failure (#65, #69, #339),
+ * leaving either an unresolvable dependency or a bundle the next boot cannot
+ * activate. Every unrelated manifest field remains untouched. The lockfile is
+ * left as-is; pnpm reconciles it from the manifest on the next run.
+ *
+ * The write is atomic because rollback runs after another operation already
+ * failed; a partial repair must not turn a valid profile into invalid JSON.
  * @returns names whose entries were dropped or reverted, empty when nothing changed.
  */
-export function restoreManifestDeps(profile, snapshot, explicitDir) {
+export function restoreProfileManifest(profile, snapshot, explicitDir) {
     const file = join(profileDir(profile, explicitDir), 'package.json');
     let manifest;
     try {
@@ -80,17 +127,96 @@ export function restoreManifestDeps(profile, snapshot, explicitDir) {
     }
     const current = manifest.dependencies ?? {};
     const touched = new Set();
-    for (const name of Object.keys(current))
-        if (current[name] !== snapshot[name])
+    for (const name of Object.keys(current)) {
+        if (current[name] !== snapshot.dependencies[name])
             touched.add(name);
-    for (const name of Object.keys(snapshot))
-        if (current[name] !== snapshot[name])
+    }
+    for (const name of Object.keys(snapshot.dependencies)) {
+        if (current[name] !== snapshot.dependencies[name])
             touched.add(name);
+    }
+    const currentDsh = objectRecord(manifest.dsh);
+    const currentProfile = objectRecord(currentDsh?.profile);
+    const currentBundles = currentProfile !== undefined && Object.hasOwn(currentProfile, 'bundles')
+        ? { present: true, value: currentProfile.bundles }
+        : { present: false };
+    const bundlesChanged = currentBundles.present !== snapshot.profileBundles.present
+        || (currentBundles.present && snapshot.profileBundles.present
+            && !isDeepStrictEqual(currentBundles.value, snapshot.profileBundles.value));
+    if (bundlesChanged) {
+        const currentNames = new Set(currentBundles.present ? bundleNames(currentBundles.value) : []);
+        const snapshotNames = new Set(snapshot.profileBundles.present ? bundleNames(snapshot.profileBundles.value) : []);
+        let namedBundleChange = false;
+        for (const name of currentNames) {
+            if (!snapshotNames.has(name)) {
+                touched.add(name);
+                namedBundleChange = true;
+            }
+        }
+        for (const name of snapshotNames) {
+            if (!currentNames.has(name)) {
+                touched.add(name);
+                namedBundleChange = true;
+            }
+        }
+        // Presence, order, duplicates, or a malformed non-array value can differ
+        // without changing the set of package names. Still report that rollback.
+        if (!namedBundleChange)
+            touched.add('dsh.profile.bundles');
+    }
     if (touched.size === 0)
         return [];
-    manifest.dependencies = { ...snapshot };
-    writeFileSync(file, `${JSON.stringify(manifest, null, 2)}\n`);
+    manifest.dependencies = { ...snapshot.dependencies };
+    if (snapshot.profileBundles.present) {
+        const dsh = currentDsh ?? {};
+        const profileManifest = currentProfile ?? {};
+        manifest.dsh = dsh;
+        dsh.profile = profileManifest;
+        profileManifest.bundles = structuredClone(snapshot.profileBundles.value);
+    }
+    else if (currentProfile !== undefined) {
+        delete currentProfile.bundles;
+    }
+    writeManifestAtomic(file, manifest);
     return [...touched];
+}
+/**
+ * Remove a package from BOTH manifest lists — dependencies and
+ * dsh.profile.bundles. The uninstall counterpart of restoreProfileManifest:
+ * pnpm can fail a remove after deleting node_modules but before saving
+ * package.json (the #65 write-order's mirror image — a file locked mid-
+ * unlink aborts the run), leaving the manifest pointing at a package that
+ * no longer exists on disk. The next boot then fails to activate the ghost
+ * dependency. When disk truth says the package is gone, this finishes the
+ * removal the CLI could not. Every other manifest field is untouched.
+ *
+ * Written atomically because it runs only after something already went wrong
+ * mid-uninstall, so it is the worst place to leave a half-written manifest.
+ * @returns true when either list still mentioned the package.
+ */
+export function dropFromManifest(profile, name, explicitDir) {
+    const file = join(profileDir(profile, explicitDir), 'package.json');
+    let manifest;
+    try {
+        manifest = JSON.parse(readFileSync(file, 'utf8'));
+    }
+    catch {
+        return false;
+    }
+    let touched = false;
+    if (manifest.dependencies !== undefined && manifest.dependencies[name] !== undefined) {
+        delete manifest.dependencies[name];
+        touched = true;
+    }
+    const bundles = manifest.dsh?.profile?.bundles;
+    if (Array.isArray(bundles) && bundles.includes(name)) {
+        manifest.dsh.profile.bundles = bundles.filter(bundle => bundle !== name);
+        touched = true;
+    }
+    if (!touched)
+        return false;
+    writeManifestAtomic(file, manifest);
+    return true;
 }
 /** The version actually present in the profile's node_modules, or null. */
 export function readInstalledVersion(profile, name, explicitDir) {
@@ -101,6 +227,240 @@ export function readInstalledVersion(profile, name, explicitDir) {
     catch {
         return null;
     }
+}
+/** The installed package manifest, or null when absent or malformed. */
+export function readInstalledManifest(profile, name, explicitDir) {
+    try {
+        return JSON.parse(readFileSync(join(profileDir(profile, explicitDir), 'node_modules', name, 'package.json'), 'utf8'));
+    }
+    catch {
+        return null;
+    }
+}
+/**
+ * Whether a package or one of its direct dependencies ships a native addon.
+ *
+ * The question behind it: can unloading this plugin actually free its files?
+ * For ordinary JavaScript, yes — and on POSIX it does not even matter,
+ * because replacing an open file leaves the old inode to whoever holds it.
+ * For a native addon it is no on both counts: Node has no dlclose, so once a
+ * `.node` is loaded the process holds it until it exits. On Windows that
+ * turns "uninstall, then install again" into an EPERM on the rename, which
+ * is what @yandidan1 hit with node-hid (#441) — and no amount of disabling,
+ * unmounting or uninstalling from inside the running process can fix it.
+ *
+ * Deliberately a cheap structural check rather than a scan. Walking a
+ * dependency's tree for `*.node` means recursing through packages that can
+ * be tens of thousands of files, on the uninstall path, to answer a question
+ * three `existsSync` calls answer for every native module built or shipped
+ * the conventional way: node-gyp's `build/Release`, prebuild's `prebuilds/`,
+ * and the `binding.gyp` that names the addon in the first place.
+ *
+ * Direct dependencies are included because that is where these live: the
+ * plugin is JavaScript and the addon is a package it depends on, hoisted to
+ * the profile root beside it.
+ * @param profile - profile name.
+ * @param name - the installed package to ask about.
+ * @param explicitDir - resolved profile directory, when the caller has it.
+ * @returns true when a native addon is present in the package or a direct dependency.
+ */
+export function holdsNativeAddon(profile, name, explicitDir) {
+    const modules = join(profileDir(profile, explicitDir), 'node_modules');
+    const shipsAddon = (packageName) => {
+        const dir = join(modules, packageName);
+        return existsSync(join(dir, 'build', 'Release'))
+            || existsSync(join(dir, 'prebuilds'))
+            || existsSync(join(dir, 'binding.gyp'));
+    };
+    if (shipsAddon(name))
+        return true;
+    const manifest = readInstalledManifest(profile, name, explicitDir);
+    if (manifest === null || typeof manifest !== 'object')
+        return false;
+    const dependencies = manifest.dependencies;
+    if (dependencies === null || typeof dependencies !== 'object')
+        return false;
+    return Object.keys(dependencies)
+        .filter(dependency => PACKAGE_NAME_RE.test(dependency))
+        .some(shipsAddon);
+}
+const PACKAGE_NAME_RE = /^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/i;
+function localSpecDirectory(root, spec) {
+    const match = /^(?:link|file):(.+)$/i.exec(spec);
+    if (match === null)
+        return null;
+    let path = match[1];
+    try {
+        path = decodeURIComponent(path);
+    }
+    catch { /* keep the literal pnpm path */ }
+    // file:// URLs are uncommon in profile manifests; reject them rather than
+    // guessing across platforms. Normal pnpm link:/file: directory specs reach
+    // this code as absolute or profile-relative filesystem paths.
+    if (path.startsWith('//'))
+        return null;
+    const candidate = isAbsolute(path) ? path : resolve(root, path);
+    try {
+        return statSync(candidate).isDirectory() ? realpathSync(candidate) : null;
+    }
+    catch {
+        return null;
+    }
+}
+function installedPackageDirectory(root, name) {
+    try {
+        const candidate = join(root, 'node_modules', name);
+        return statSync(candidate).isDirectory() ? realpathSync(candidate) : null;
+    }
+    catch {
+        return null;
+    }
+}
+function manifestAt(dir) {
+    try {
+        const value = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
+        return typeof value === 'object' && value !== null ? value : null;
+    }
+    catch {
+        return null;
+    }
+}
+function manifestRepository(manifest) {
+    const repository = manifest?.repository;
+    if (typeof repository === 'string')
+        return { url: repository, directory: null };
+    if (typeof repository !== 'object' || repository === null)
+        return null;
+    const value = repository;
+    if (typeof value.url !== 'string')
+        return null;
+    return { url: value.url, directory: typeof value.directory === 'string' ? value.directory : null };
+}
+function gitConfigPath(marker, worktreeRoot) {
+    try {
+        if (statSync(marker).isDirectory()) {
+            const direct = join(marker, 'config');
+            return existsSync(direct) ? direct : null;
+        }
+        const pointer = /^gitdir:\s*(.+)$/im.exec(readFileSync(marker, 'utf8'));
+        if (pointer === null)
+            return null;
+        const gitDir = resolve(worktreeRoot, pointer[1].trim());
+        const direct = join(gitDir, 'config');
+        if (existsSync(direct))
+            return direct;
+        const commonDir = readFileSync(join(gitDir, 'commondir'), 'utf8').trim();
+        const common = join(resolve(gitDir, commonDir), 'config');
+        return existsSync(common) ? common : null;
+    }
+    catch {
+        return null;
+    }
+}
+function originFromConfig(file) {
+    try {
+        let origin = false;
+        for (const line of readFileSync(file, 'utf8').split(/\r?\n/)) {
+            const section = /^\s*\[remote\s+"([^"]+)"\]\s*$/.exec(line);
+            if (section !== null) {
+                origin = section[1] === 'origin';
+                continue;
+            }
+            if (!origin)
+                continue;
+            const url = /^\s*url\s*=\s*(.+?)\s*$/.exec(line);
+            if (url !== null)
+                return url[1];
+        }
+    }
+    catch { /* unreadable git metadata carries no identity */ }
+    return null;
+}
+function gitCheckout(start) {
+    let current = start;
+    while (true) {
+        const marker = join(current, '.git');
+        if (existsSync(marker)) {
+            const config = gitConfigPath(marker, current);
+            const origin = config === null ? null : originFromConfig(config);
+            return origin === null ? null : { root: current, origin };
+        }
+        const parent = dirname(current);
+        if (parent === current)
+            return null;
+        current = parent;
+    }
+}
+function checkoutSubpath(root, packageDir) {
+    const value = relative(root, packageDir).replaceAll('\\', '/');
+    return value === '' || value === '.' || value.startsWith('../') ? null : value;
+}
+/**
+ * Strong repository identities for a locally linked dependency (#141).
+ * Explicit github: specs already carry this evidence; only link:/file: need
+ * filesystem discovery. This compatibility wrapper returns only declared
+ * package.json identities; Git origins are exposed separately as hints.
+ */
+export function readInstalledRepoIdentities(profile, name, spec, explicitDir) {
+    return readInstalledRepoEvidence(profile, name, spec, explicitDir).identities;
+}
+/**
+ * Discover declared repository identities and weaker local-origin hints. A
+ * package.json repository declaration is authoritative; Git origin is only a
+ * disambiguation hint because a checkout may legitimately point at a fork.
+ *
+ * Read for local AND registry specs, but never for a spec that already names
+ * its own source (#544 by @QinYupan; boundary from @bulingbuling688 in #548).
+ *
+ * The bug: two same-named catalog entries and an ordinary npm install. The
+ * manifest's `repository` — `git+https://github.com/MrmoLabs/dsh-mermaid.git`
+ * — is the one fact that says WHICH of the two is installed, and it sits in
+ * the same package.json for an npm install as for a local one. This returned
+ * empty for anything not `link:`/`file:`, so the client fell back to name
+ * matching, found two candidates, and matched NEITHER: the Discover card kept
+ * offering Install on a plugin that was running.
+ *
+ * Why a `github:`/URL install must NOT be read the same way: its spec already
+ * states the source, and the manifest can disagree with it. A fork installed
+ * as `github:myfork/plugin` usually still declares the UPSTREAM repository,
+ * because almost nobody edits that field when forking. Adding it as an
+ * identity made the upstream's card read as installed — measured, and the
+ * same mistake as #485: a weaker signal allowed to outvote a definite one.
+ * The first version of this fix widened to every spec kind and had exactly
+ * that hole.
+ *
+ * What stays local-only for the same reason it always was: the git-origin
+ * hint (there is no checkout to read for a registry install) and the local
+ * source directory walk.
+ */
+export function readInstalledRepoEvidence(profile, name, spec, explicitDir) {
+    if (!PACKAGE_NAME_RE.test(name))
+        return { identities: [], hints: [] };
+    const local = /^(?:link|file):/i.test(spec);
+    // A spec that names its own source is the authority on it; see above.
+    if (!local && (isGitHostedSpec(spec) || /^https?:/i.test(spec.trim()))) {
+        return { identities: [], hints: [] };
+    }
+    const root = profileDir(profile, explicitDir);
+    const sourceDir = local ? localSpecDirectory(root, spec) : null;
+    const installedDir = installedPackageDirectory(root, name);
+    const manifestDir = installedDir ?? sourceDir;
+    const manifest = manifestDir === null ? readInstalledManifest(profile, name, explicitDir) : manifestAt(manifestDir);
+    const repository = manifestRepository(typeof manifest === 'object' && manifest !== null ? manifest : null);
+    const checkoutDir = sourceDir ?? (installedDir !== null && /^(?:link):/i.test(spec) ? installedDir : null);
+    const checkout = checkoutDir === null ? null : gitCheckout(checkoutDir);
+    if (repository !== null) {
+        const identities = githubRepoIdentities(repository.url, repository.directory);
+        if (identities.length > 0)
+            return { identities, hints: [] };
+    }
+    if (checkout !== null) {
+        return { identities: [], hints: githubRemoteIdentities(checkout.origin, checkoutSubpath(checkout.root, checkoutDir)) };
+    }
+    // node_modules is intentionally not searched upward for .git: a copied
+    // file: package may sit inside an unrelated profile checkout. Only the
+    // explicit local source directory is valid Git-origin evidence.
+    return { identities: [], hints: [] };
 }
 /** Pinned commit per `owner/repo` from the profile lockfile's codeload tarball URLs. */
 export function readLockCommits(profile, explicitDir) {
@@ -113,6 +473,47 @@ export function readLockCommits(profile, explicitDir) {
     }
     catch { /* no lockfile — no git installs to report */ }
     return commits;
+}
+/**
+ * Commit recorded for a non-codeload git resolution (`type: git` in pnpm's
+ * lockfile). Matched against the install spec so a Gitea/GitLab URL can
+ * compare HEAD without mistaking a same-named npm package (#525).
+ */
+export function readGitResolutionCommit(profile, spec, explicitDir) {
+    const want = normalizeGitRepoKey(spec);
+    if (want === null)
+        return null;
+    try {
+        const lock = readFileSync(join(profileDir(profile, explicitDir), 'pnpm-lock.yaml'), 'utf8');
+        for (const m of lock.matchAll(/resolution:\s*\{([^}]*)\}/g)) {
+            const body = m[1];
+            const commit = /\bcommit:\s*([0-9a-f]{40})\b/i.exec(body);
+            const repo = /\brepo:\s*([^\s,}]+)/.exec(body);
+            if (commit === null || repo === null)
+                continue;
+            if (normalizeGitRepoKey(repo[1]) === want)
+                return commit[1].toLowerCase();
+        }
+    }
+    catch { /* no lockfile */ }
+    return null;
+}
+/** Lowercased transport-agnostic key for comparing two git remote spellings. */
+function normalizeGitRepoKey(spec) {
+    let remote = spec.trim().replace(/^git\+/i, '');
+    const scp = /^git@([^:]+):(.+)$/.exec(remote);
+    if (scp !== null)
+        remote = `https://${scp[1]}/${scp[2].replace(/^\/*/, '')}`;
+    const hash = remote.indexOf('#');
+    if (hash !== -1)
+        remote = remote.slice(0, hash);
+    const query = remote.indexOf('?');
+    if (query !== -1)
+        remote = remote.slice(0, query);
+    remote = remote.replace(/\/+$/, '').toLowerCase();
+    if (!/^https?:\/\//.test(remote) && !remote.includes('.git'))
+        return null;
+    return remote;
 }
 /** True when the installed package's manifest declares a dsh plugin surface. */
 export function hasDshManifest(dir) {
@@ -172,36 +573,99 @@ export function bundlePatchEntryIds(dir) {
     return readBundlePatchRows(dir).ids;
 }
 /**
+ * Loader entry ids the patch INSERTS — the rows the package owns, as opposed
+ * to rows of OTHER plugins it merely configures (#147).
+ *
+ * A bundle patch has two kinds of entry:
+ *
+ *     - insert:                     ← rows this package brings into the tree
+ *         - id: vision-router
+ *           name: dsh-vision-router
+ *     - id: attachment-local        ← someone else's row, only reconfigured
+ *       config: { maxImageBytes: … }
+ *
+ * Treating both as "this package's rows" made disabling one plugin write
+ * `disabled: true` onto the official rows it tuned — killing attachments and
+ * the DeepSeek model with it.
+ */
+export function bundlePatchInsertedIds(dir) {
+    return readBundlePatchRows(dir).insertedIds;
+}
+/**
  * `name:` and `id:` rows of the package's declared bundle patch. Line-wise
  * on purpose: the strict hot-mount parser rejects config/expression rows,
- * but for "what does this bundle bring in" any row counts.
+ * but for "what does this bundle bring in" any row counts. `insertedIds` is
+ * the subset nested under an `insert:` key (#147).
  */
-function readBundlePatchRows(dir) {
-    let patchPath;
-    try {
-        const manifest = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
-        const declared = manifest.dsh?.bundle?.patch;
-        if (typeof declared !== 'string' || declared === '')
-            return { names: [], ids: [] };
-        patchPath = join(dir, declared);
-    }
-    catch {
-        return { names: [], ids: [] };
-    }
+/**
+ * Rows of one patch file. Exported because a package may ship its patch at
+ * the conventional path INSTEAD of declaring `dsh.bundle.patch`, and the
+ * patch layer has to read that one by the same rules — a second hand-rolled
+ * scan drifted from this one and re-introduced #147 on that path (it closed
+ * the insert block only on `id:` lines, so `- disable:` followed by nested
+ * ids claimed the neighbour's rows).
+ */
+export function parsePatchRows(text) {
     const names = [];
     const ids = [];
-    try {
-        for (const line of readFileSync(patchPath, 'utf8').split('\n')) {
+    const insertedIds = [];
+    {
+        // `insert:` opens a nested list; every id below it, at deeper
+        // indentation, is a row this package brings in. A row at or above the
+        // `insert:` indentation closes the block — those target OTHER plugins.
+        let insertIndent = null;
+        // CRLF too, for consistency with the hot-mount parser, which a
+        // Windows-authored patch genuinely broke. Here it changes no outcome
+        // today — every row pattern below is `^`-anchored and a comment line
+        // always starts with `#`, so an unstripped comment matches nothing —
+        // and it is deliberately NOT covered by a spec, because a test that
+        // passes with or without the change tests nothing.
+        for (const raw of text.split(/\r?\n/)) {
+            const line = raw.replace(/#.*$/, '');
+            if (line.trim() === '')
+                continue;
+            const indent = line.length - line.trimStart().length;
+            if (insertIndent !== null && indent <= insertIndent && !/^\s*-?\s*(id|name|config):/u.test(line)) {
+                insertIndent = null;
+            }
+            if (/^\s*-?\s*insert:\s*$/u.test(line)) {
+                insertIndent = indent;
+                continue;
+            }
             const name = /^\s*-?\s*name:\s*['"]?([^'"\s]+)/.exec(line);
             if (name !== null && !names.includes(name[1]))
                 names.push(name[1]);
             const id = /^\s*-?\s*id:\s*['"]?([^'"\s]+)/.exec(line);
-            if (id !== null && !ids.includes(id[1]))
-                ids.push(id[1]);
+            if (id !== null) {
+                if (!ids.includes(id[1]))
+                    ids.push(id[1]);
+                // A top-level `- id:` row closes any open insert block: it is a
+                // sibling of `- insert:`, not a member of it.
+                if (insertIndent !== null && indent > insertIndent) {
+                    if (!insertedIds.includes(id[1]))
+                        insertedIds.push(id[1]);
+                }
+                else if (indent <= (insertIndent ?? -1)) {
+                    insertIndent = null;
+                }
+            }
         }
     }
-    catch { /* unreadable patch — nothing to report */ }
-    return { names, ids };
+    return { names, ids, insertedIds };
+}
+/** Rows of the patch a package DECLARES through `dsh.bundle.patch`. */
+function readBundlePatchRows(dir) {
+    const empty = { names: [], ids: [], insertedIds: [] };
+    try {
+        const manifest = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
+        const declared = manifest.dsh?.bundle?.patch;
+        if (typeof declared !== 'string' || declared === '')
+            return empty;
+        return parsePatchRows(readFileSync(join(dir, declared), 'utf8'));
+    }
+    catch {
+        return empty;
+    }
 }
 /** The profile manifest's `dsh.profile.bundles` — what the CLI reconciled. */
 export function readProfileBundles(profileDirectory) {
@@ -215,6 +679,65 @@ export function readProfileBundles(profileDirectory) {
     }
 }
 /**
+ * Write the profile manifest atomically: a temp file in the same directory is
+ * written first, then renamed over package.json, so a crash mid-toggle never
+ * leaves a half-written manifest (the same guarantee order.ts's writer gives
+ * the reorder path). The trailing newline + 2-space indent match how every
+ * other writer in this repo serializes the manifest.
+ */
+function writeManifestAtomic(manifestPath, manifest) {
+    const temp = `${manifestPath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    writeFileSync(temp, `${JSON.stringify(manifest, null, 2)}\n`);
+    renameSync(temp, manifestPath);
+}
+/**
+ * Drop one bundle from the profile manifest's `dsh.profile.bundles`, leaving
+ * the package installed as a dependency. This is the carrier-bundle half of a
+ * toggle-off (#224): a bundle whose patch reconfigures plugins it does NOT own
+ * (dsh-postgres-backends disables session-persistence-jsonl and reroutes
+ * storage-domain) keeps applying those side-effect rows on every boot while it
+ * stays in the stack, and the #147 ownership rule deliberately never writes
+ * them — so removing the bundle from the stack is the only thing that stops
+ * them all at once. The package itself stays installed; enabling re-adds it.
+ * @returns true when the bundle was present and removed.
+ */
+export function removeProfileBundle(profileDirectory, name) {
+    const manifestPath = join(profileDirectory, 'package.json');
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    const bundles = manifest.dsh?.profile?.bundles;
+    if (!Array.isArray(bundles))
+        return false;
+    const next = bundles.filter((entry) => typeof entry !== 'string' || entry !== name);
+    if (next.length === bundles.length)
+        return false;
+    manifest.dsh ??= {};
+    manifest.dsh.profile ??= {};
+    manifest.dsh.profile.bundles = next;
+    writeManifestAtomic(manifestPath, manifest);
+    return true;
+}
+/**
+ * Re-add a bundle to `dsh.profile.bundles` after a carrier toggle-off (#224).
+ * Idempotent: a bundle already present is left untouched. The name is appended
+ * (the install flow appends too); the loader re-validates ordering on the next
+ * composition, so a declared before/after rule surfaces there rather than here.
+ * @returns true when the bundle was added, false when it was already present.
+ */
+export function addProfileBundle(profileDirectory, name) {
+    const manifestPath = join(profileDirectory, 'package.json');
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    manifest.dsh ??= {};
+    manifest.dsh.profile ??= {};
+    const existing = manifest.dsh.profile.bundles;
+    const bundles = Array.isArray(existing) ? existing.filter((entry) => typeof entry === 'string') : [];
+    if (bundles.includes(name))
+        return false;
+    bundles.push(name);
+    manifest.dsh.profile.bundles = bundles;
+    writeManifestAtomic(manifestPath, manifest);
+    return true;
+}
+/**
  * Loader entry ids a newly added package would collide on with bundles the
  * profile ALREADY loads (#122).
  *
@@ -226,14 +749,19 @@ export function readProfileBundles(profileDirectory) {
  * @returns colliding ids mapped to the already-installed bundle that owns them.
  */
 export function conflictingEntryIds(profileDirectory, candidate, installedBundles) {
-    const mine = bundlePatchEntryIds(join(profileDirectory, 'node_modules', candidate));
+    // INSERTED ids on both sides, not every id in the file. What bricks the
+    // next boot is two entries created under one id; a row that merely
+    // CONFIGURES another plugin's entry creates nothing, so counting it here
+    // refuses a legitimate plugin outright — the same distinction #147 drew
+    // for the disable path, which this guard was left out of.
+    const mine = bundlePatchInsertedIds(join(profileDirectory, 'node_modules', candidate));
     if (mine.length === 0)
         return [];
     const conflicts = [];
     for (const bundle of installedBundles) {
         if (bundle === candidate)
             continue;
-        const theirs = new Set(bundlePatchEntryIds(join(profileDirectory, 'node_modules', bundle)));
+        const theirs = new Set(bundlePatchInsertedIds(join(profileDirectory, 'node_modules', bundle)));
         for (const id of mine) {
             if (theirs.has(id) && !conflicts.some(hit => hit.id === id))
                 conflicts.push({ id, owner: bundle });
@@ -260,11 +788,20 @@ export function hasLoadableEntry(profileDirectory, name) {
     if (entryArtifactExists(dir))
         return true;
     // A carrier is only sound when something it mounts is itself loadable.
-    // Targets resolve hoisted (the dsh profile default) or nested under it.
+    // Targets resolve hoisted (the dsh profile default), nested under the
+    // carrier, or — #203 — one level up: pnpm hoists shared/in-box packages to
+    // `<profiles>/node_modules` when the profile is a workspace member, the
+    // same workspace-root fallback readProfileVisibleVersion (check.ts) already
+    // uses. A carrier naming an in-box package (@deepseek-ai/dsh-mcp-client and
+    // similar) resolves there and nowhere this function used to look, so pnpm
+    // exiting 0 was immediately followed by the market removing what it had
+    // just, correctly, installed.
+    const workspaceRoot = dirname(profileDirectory);
     return bundlePatchTargets(dir)
         .filter(target => target !== name)
         .some(target => entryArtifactExists(join(profileDirectory, 'node_modules', target))
-        || entryArtifactExists(join(dir, 'node_modules', target)));
+        || entryArtifactExists(join(dir, 'node_modules', target))
+        || entryArtifactExists(join(workspaceRoot, 'node_modules', target)));
 }
 /** Plugin subdirectories (depth 2) of a collection checkout, as relative paths. */
 export function pluginSubdirs(root) {
@@ -332,11 +869,21 @@ export function setAllowBuilds(profile, packages, explicitDir) {
         yaml = readFileSync(file, 'utf8');
     }
     catch { /* created below */ }
-    const blockRe = /allowBuilds:\n((?:[ \t]+[^\n]*\n?)*)/;
+    // `\r?\n`, not `\n`: a CRLF pnpm-workspace.yaml (every Windows editor, and
+    // git with core.autocrlf=true) put a `\r` between `allowBuilds:` and the
+    // newline, so the old pattern never matched an EXISTING block and appended
+    // a second one. Two top-level `allowBuilds:` keys is invalid YAML, and pnpm
+    // then refuses every install in that profile — not just the one that
+    // triggered it (#231 by @MichengAI).
+    const blockRe = /allowBuilds:[ \t]*\r?\n((?:[ \t]+[^\r\n]*\r?\n?)*)/g;
     const map = {};
-    const blockMatch = blockRe.exec(yaml);
-    if (blockMatch !== null) {
-        for (const line of blockMatch[1].split('\n')) {
+    // Every block, not just the first: a profile already broken by the bug
+    // above carries two, and merging them is what repairs it — dropping the
+    // extra silently would also drop whatever approvals it held.
+    const blockMatches = [...yaml.matchAll(blockRe)];
+    const blockMatch = blockMatches[0] ?? null;
+    for (const match of blockMatches) {
+        for (const line of match[1].split(/\r?\n/)) {
             // The key itself may contain colons: git-hosted deps are only matched
             // by a `name@git+https://…` key (#68). The anchored boolean tail makes
             // the split land on the LAST colon, never inside a `://` — and doubles
@@ -361,12 +908,33 @@ export function setAllowBuilds(profile, packages, explicitDir) {
     // Bare package names, or the server-derived stable git form
     // `name@git+https://github.com/owner/repo.git` (#68) — nothing else.
     const GIT_KEY_RE = /^[A-Za-z0-9@/_.-]+@git\+https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\.git$/;
+    // The commit-pinned form pnpm below 11.21 matches instead (#285). Held to
+    // the same shape as the one above rather than loosened into "anything with
+    // a URL in it": this list is what stops a caller writing arbitrary text
+    // into a file pnpm parses, and a wider pattern would spend that guarantee
+    // to save a line.
+    const CODELOAD_KEY_RE = /^[A-Za-z0-9@/_.-]+@https:\/\/codeload\.github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/tar\.gz\/[0-9a-f]{40}$/;
     for (const pkg of packages) {
-        if (/^[A-Za-z0-9@/_.-]+$/.test(pkg) || GIT_KEY_RE.test(pkg))
+        if (/^[A-Za-z0-9@/_.-]+$/.test(pkg) || GIT_KEY_RE.test(pkg) || CODELOAD_KEY_RE.test(pkg))
             map[pkg] = 'true';
     }
-    const block = Object.entries(map).map(([k, v]) => `  ${quoteYamlKey(k)}: ${v}`).join('\n');
-    const blockText = `allowBuilds:\n${block}\n`;
-    writeFileSync(file, blockMatch !== null ? yaml.replace(blockRe, blockText) : `${yaml.replace(/\n?$/, '\n')}${blockText}`);
+    // Write back in the file's OWN line ending. Rewriting a CRLF workspace
+    // file with LF would leave it mixed, which is the same class of mess this
+    // fix exists to clean up.
+    const eol = /\r\n/.test(yaml) ? '\r\n' : '\n';
+    const block = Object.entries(map).map(([k, v]) => `  ${quoteYamlKey(k)}: ${v}`).join(eol);
+    const blockText = `allowBuilds:${eol}${block}${eol}`;
+    let next;
+    if (blockMatch === null) {
+        next = `${yaml.replace(/\r?\n?$/, eol)}${blockText}`;
+    }
+    else {
+        // The merged block replaces the first occurrence; any further ones are
+        // the duplicates this bug created and are dropped — their entries are
+        // already folded into `map` above, so nothing is lost.
+        let seen = 0;
+        next = yaml.replace(blockRe, () => (seen++ === 0 ? blockText : ''));
+    }
+    writeFileSync(file, next);
     return Object.keys(map);
 }

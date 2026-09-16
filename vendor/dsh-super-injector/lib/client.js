@@ -41,13 +41,8 @@ window.__ModuleLoader__.load({
 			}).then((r) => r.json());
 		}
 		function apply(ctx) {
-			// Local patch (agent-pi-dsh): the section below uses a `component:{render()}`
-			// DOM protocol from another host generation; this DSH renders the second
-			// register argument as a React component, so the entry mounts undefined and
-			// crashes ('settings.section' React #130). Injection management lives in the
-			// native plugins page + dshmarket; the host-side /super-injector/api stays.
-			return;
-			// eslint-disable-next-line no-unreachable
+      // Agent Pi: native settings use React, not the upstream DOM-render slot.
+      return;
 			ctx.effect(() => ctx.slots.inject("settings.section", () => ctx.slots.register({
 				name: "settings.section",
 				id: "super-injector-plugins",

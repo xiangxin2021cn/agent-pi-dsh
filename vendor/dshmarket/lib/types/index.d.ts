@@ -6,5 +6,5 @@ import type { Context } from '@deepseek-ai/cordis';
 import { type MarketConfig } from './routes.ts';
 export declare const name = "dsh-market";
 /** Optional cordis.yml configuration; profile defaults to `web`. */
-export type Config = Partial<Pick<MarketConfig, 'profile' | 'allowRestart'>>;
+export type Config = Partial<Pick<MarketConfig, 'profile' | 'allowRestart' | 'maxSnapshots'>>;
 export declare function apply(ctx: Context, config?: Config): void;

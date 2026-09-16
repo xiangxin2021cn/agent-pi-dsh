@@ -27,13 +27,13 @@ does not claim or synthesize one.
 
 ## dsh-super-injector
 
-Agent Pi DSH distributes `@dsh-external/dsh-super-injector` 0.3.1 from the
-upstream `v0.3.1` release, pinned locally by `vendor/dsh-super-injector.pin`.
-The tag resolves to commit `8b4099535976d1af85137ef9e93815cf14c3f094`,
+Agent Pi DSH distributes `@dsh-external/dsh-super-injector` 0.3.3 from the
+upstream `v0.3.3` release, pinned locally by `vendor/dsh-super-injector.pin`.
+The tag resolves to commit `f4ef59fb31439225abefe45d6e793235a2a9d5e0`,
 and the release archive is identified by
-`sha256:1dfa8623b09684343843150600c4a9c58f2da1d9d0edfff7134a24091c99db4e`.
+`sha256:355238fa8e51bc45c0801066af51e0e122f3b21411b193f601ee54e534391f48`.
 
-Source: https://github.com/yjh051108/dsh-super-injector/tree/v0.3.1
+Source: https://github.com/yjh051108/dsh-super-injector/tree/v0.3.3
 
 The upstream package manifest declares `BSD-3-Clause`. The tagged source tree
 and the published release archive contain no `LICENSE` or `NOTICE` file. To

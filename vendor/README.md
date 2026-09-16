@@ -1,41 +1,24 @@
 # Vendored DSH plugins
 
-These packages are **not** DeepSeek Harness. They are third-party DSH plugins
-that Agent Pi DSH ships so a packaged Windows build can initialize offline.
+Agent Pi DSH 3.6.9 uses the official `dsh-v0.1.6-alpha.1` core pinned by `DSH_PIN`. Official core plugins, including Agent Teams, ship from that same unmodified source revision. No whole-system-prompt replacement is applied.
 
-| Directory | Upstream | Role |
-|-----------|----------|------|
-| `dsh-super-injector/` | [dsh-super-injector v0.3.1](https://github.com/yjh051108/dsh-super-injector) release tarball | Official-assembly injector (`@dsh-external/dsh-super-injector`). After one profile add, runtime tools (`dev_inject_plugin`, …) can load more local plugins without restart. |
-| `dsh-router-standard/` | [dsh-router-standard](https://github.com/yjh051108/dsh-router-standard) (from [dsh-routing-suite](https://github.com/yjh051108/dsh-routing-suite)) | User agent preset **Router Standard (experimental)**. Installed under `$DSH_HOME/.agent-presets/router-standard`. Optional in the session picker — not forced as the default. |
-| `dshmarket/` | [dshmarket 1.10.1](https://www.npmjs.com/package/dshmarket) npm tarball | Visual plugin market inside Settings (发现/主题/已安装/备份与恢复). Preinstalled offline; keeps itself current through its own update channel. |
-| `dsh-vision-router/` | retired in 3.3.1 | Kept on disk for rollback only. Not installed, not packed. Official `deepseek-v4-flash-vision-exp` understands images. |
-| `dsh-genui/` | [dsh-genui 0.8.7](https://github.com/omdsh-dev/dsh-genui) source + built `lib/` | Retired from the factory profile. Not packed, not linked. A leftover `$DSH_HOME` install can be uninstalled in Settings; later installs go through the market / GitHub URL. |
-| `anysearch-dsh/` | [anysearch-dsh 0.1.1](https://github.com/anysearch-team/anysearch-dsh) source + built `lib/` | Web search provider + tools. Preinstalled as a `link:` junction. Official docs say `--profile web`; this product uses `tender`. |
-| `dsh-univer-office/` | [dsh-univer-office](https://github.com/dream-num/dsh-univer-office) | Optional market install only. Public 3.6.0 packages do not preinstall the wrapper or its Univer Pro commercial runtime; rc.1 compatibility remains pending verification. |
+| Directory | Bundled version | Product role |
+|---|---|---|
+| dshmarket | 1.47.0 | Settings plugin market, with Electron restart and managed-component protection retained. |
+| anysearch-dsh | 0.1.4 | Native search/fetch provider and tools; already-built official npm artifact. |
+| dsh-super-injector | 0.3.3 | Local plugin injection host; incompatible legacy DOM settings section stays disabled. |
+| dsh-router-standard | b39112dce54b90e67b50b166c2773861d7945d1f | Optional Router Standard preset; existing DSH compatibility overlay retained. |
+| dsh-univer-office | 0.3.0 | Complete official Office plugin with same-origin viewer, platform runtime and upstream licenses. |
+| dsh-genui | not bundled | Retired from factory profile; market installation remains a user choice. |
+| dsh-vision-router | not bundled | Retired; official DeepSeek model handles native images. |
 
-Local modifications:
+## Product compatibility changes
 
-- `dsh-super-injector/lib/client.js` (and the `lib/client/index.js` mirror): `apply()` short-circuits before registering its `settings.section`. That section speaks a `component:{render()}` DOM protocol from a different host generation; on this DSH the slot renderer mounts the second register argument as a React component, so the entry rendered `undefined` and crashed the settings panel (React #130). Injection management is covered by the native plugins page and dshmarket; the host half (`/super-injector/api`, `dev_inject_plugin`) is untouched.
-- `dsh-vision-router/` is retired from the factory profile in 3.3.1. Leftover `link:` / registry installs are stripped on the next managed boot.
-- `dshmarket` install / approve-builds: catalog names omit the npm scope (`dsh-genui` vs `@omdsh-dev/dsh-genui`). pnpm `allowBuilds` matches the *package* name plus `name@git+https://github.com/owner/repo.git`. Write every candidate before `dsh plugin add`, and treat `@owner/name` as the same plugin when the market later retries. Confirm does not mean the first add already had a valid key — that was why 放行 still failed.
-- `dshmarket` restart banner: the status poll is the only writer of `hostBusy`. Stopping it after install/update/uninstall must clear that lock, or 「立即重启」 stays disabled. On Agent Pi the button prefers `window.agentPiDesktop.relaunch()` (Electron `app.relaunch`). Hosts with `AGENT_PI_DESKTOP=1` or `DSH_BUNDLED_SKILL_DIR` never spawn a second raw `dsh`; they write `request-relaunch.json` and exit so the shell owns the replacement.
-- `dsh-genui/`: kept on disk for rollback only. Factory profile no longer links or packs it. Do not run `pnpm prepare` on the copy.
-- `anysearch-dsh/`: vendored at 0.1.1 with upstream `lib/` already built. Do not run `pnpm prepare` (`tsc`). `node_modules` stay out of the copy; `init-tender-profile.mjs` junctions `@deepseek-ai/*` peers plus `schemastery` into the running DSH checkout. Managed overlay sets `searchProvider: anysearch` when the bundle is present.
-- `dsh-univer-office/`: development-only materialization metadata may remain in the source checkout, but public packagers remove the wrapper, pin, runtime lock, Pro dependency closure and vendor receipt. `init-tender-profile.mjs` preserves a user's registry installation and only removes a missing `link:` / `file:` dependency left by an older Agent Pi package. The market states the commercial-license boundary and that DSH 0.1.2-rc.1 compatibility is pending.
-- Desktop `web_fetch` overlay: `scripts/enable-desktop-web-fetch.mjs` sets `tool-web.fetch: true` in the pinned DSH `standard`/`code`/`cordis` presets and in `dsh-router-standard`. Stock DSH leaves fetch off; this machine is a local workbench. Host-plane `web-fetch-http` is junctioned by `init-tender-profile.mjs` and must **not** be listed in the profile `package.json` dependencies (the market would show a false verification failure — the package has no `dsh` metadata).
-- Conversation / injector installs that declare `dsh.bundle` stay in `dsh.profile.bundles` across restarts. `init-tender-profile.mjs` no longer overwrites the list with a fixed factory set.
+- Market: `compatibility.js` preserves the known IM boundary and the application-managed Team/compaction state. `src/verify.ts`, `hot.ts` and `routes.ts` retain these checks around activation and mutations. `src/restart.ts` delegates supervised restarts to Electron; the client uses the desktop relaunch API when present. Upstream's newer approval, rollback, dependency and origin checks remain in place. Office catalog text describes the actual bundled version. `node scripts/build-dshmarket.mjs` rebuilds the adapted host/client using the existing DSH toolchain. Source and compiled artifacts are shipped together.
+- Market runtime: `js-yaml` and `undici` are pinned by tender-host's production lock and wired locally during profile initialization; schemastery resolves to the bundled DSH package. No dependency is downloaded on application launch.
+- AnySearch: the published peer ranges predate DSH 0.1.6. The product wires the native tool-web/system-prompt peers and verifies startup and native fetch registration against the actual core. The upstream implementation is retained unchanged; ordinary web fetch stays on the existing product provider choice.
+- Injector: retain the native settings compatibility fix in both client entry artifacts; the 0.3.3 host includes its dependencies and DSH_HOME/path fixes. Package pins and archive integrity are recorded in `core-plugins.pin.json` and the individual pins.
+- Office: `dsh-univer-office.pin` locks the original archive. Product materialization applies the reviewed session-ticket/text-frame viewer proxy fixes, records patched file hashes and supplements the two omitted native dependencies through `scripts/install-univer-runtime-deps.mjs`. Keep authorization and session/workspace checks intact. `scripts/univer-public-release.mjs` gates all platforms.
+- User-installed registry plugins remain user-owned; upgrading the application does not install, update or remove the user's IM/mail packages. Their data and configuration are preserved. Incompatible IM generations stay inactive instead of breaking startup.
 
-Refresh copies:
-
-```powershell
-.\scripts\vendor-dsh-plugins.ps1
-```
-
-For local compatibility research only (never as a public-package input), the
-pinned wrapper can be materialized with:
-
-```powershell
-node .\scripts\materialize-dsh-univer-office.mjs
-```
-
-`vendor/deepseek-harness` is pinned by `DSH_PIN` to the official `dsh-v0.1.2-rc.1` release (`a66e470204`). The old Agent Pi patch targets `dsh-v0.1.1-rc.2` and is retained only as a porting inventory; it must not be applied to the current kernel. Agent Pi compatibility stays in product startup migration, profile overlays and bundles so the official checkout remains byte-clean.
+Developer-only DSH `.agents/skills` are excluded from the product runtime. The product skill directory is discovered through native DSH skills; file-delivery and report references load on demand. Templates and knowledge selections remain explicit user actions.

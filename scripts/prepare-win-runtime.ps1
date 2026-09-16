@@ -95,6 +95,7 @@ $productItems = @(
   "vendor\dsh-super-injector.pin",
   "vendor\dsh-router-standard.pin",
   "vendor\anysearch-dsh.pin"
+  "vendor\core-plugins.pin.json"
 )
 if ($IncludeLicensedUniver) {
   # Keep the official plugin and its upstream licenses in every desktop build.

@@ -311,7 +311,7 @@ if (-not (Test-Path (Join-Path $Root "bundles\agent-pi-compaction\lib\index.js")
   throw "bundles/agent-pi-compaction incomplete"
 }
 if (-not (Test-Path (Join-Path $Root "vendor\anysearch-dsh\lib\index.js"))) {
-  throw "vendor/anysearch-dsh incomplete. Copy anysearch-dsh 0.1.1 with built lib/"
+  throw "vendor/anysearch-dsh incomplete. Materialize the pinned anysearch-dsh package with built lib/"
 }
 function Find-BrandPython {
   $resolved = Get-Command python -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -436,6 +436,7 @@ if (Test-Path $unpackedProduct) {
     "vendor\README.md",
     "vendor\dsh-router-standard.pin",
     "vendor\anysearch-dsh.pin"
+    "vendor\core-plugins.pin.json"
   )) {
     $src = Join-Path $Root $item
     $dest = Join-Path $unpackedProduct $item

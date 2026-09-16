@@ -185,7 +185,7 @@ test('market describes the bundled official Office without the obsolete rc.1 exc
   assert.ok(plugin)
   assert.match(plugin.description.zh, /预装|内置/)
   assert.match(plugin.description.en, /bundled|preinstalled/i)
-  assert.match(plugin.description.zh + plugin.description.en, /0\.2\.13/)
+  assert.match(plugin.description.zh + plugin.description.en, /0\.3\.0/)
   assert.doesNotMatch(plugin.description.zh + plugin.description.en, /rc\.1|待验证|pending verification|不预装|not preinstalled/i)
   assert.equal(registry.count, 1)
 })

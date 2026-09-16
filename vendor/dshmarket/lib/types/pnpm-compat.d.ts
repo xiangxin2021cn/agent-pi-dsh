@@ -9,8 +9,9 @@
  *   pnpm 10/11 succeed.
  * - `add -w` where NO pnpm-workspace.yaml exists: ALL majors fail with
  *   "--workspace-root may only be used inside a workspace".
- * - modules dir built by pnpm 9, then pnpm 10/11 mutate it:
- *   ERR_PNPM_PUBLIC_HOIST_PATTERN_DIFF (defaults drifted between majors).
+ * - modules dir built by pnpm 9, then pnpm 10/11 mutate it: a modules-layout
+ *   compatibility error (public-hoist-pattern on Unix; virtual-store path
+ *   length can be the first mismatch pnpm reports on Windows).
  */
 /**
  * Decide the argv for a `dsh plugin <add|remove> …` call in the given profile.
@@ -24,12 +25,40 @@
  */
 export declare function pluginArgsFor(profileDir: string, pluginArgs: string[]): string[];
 /** One recognized pnpm failure, with a bilingual explanation for the UI. */
+/**
+ * The namespace whose packages the dsh runtime provides rather than npm.
+ *
+ * A peer dependency on one of these is a statement about the host, not a
+ * package to download — and several of them are never published at all.
+ */
+export declare const HOST_NAMESPACE_RE: RegExp;
 export interface PnpmFailure {
-    code: 'adding-to-root' | 'not-a-workspace' | 'hoist-pattern-diff' | 'pnpm-missing' | 'release-age-violation' | 'ignored-builds' | 'git-prepare-not-allowed' | 'fetch-404' | 'transient-network' | 'fetch-timeout';
+    code: 'adding-to-root' | 'not-a-workspace' | 'hoist-pattern-diff' | 'pnpm-missing' | 'release-age-violation' | 'ignored-builds' | 'git-prepare-not-allowed' | 'git-prepare-failed' | 'tarball-url-mismatch' | 'fetch-404' | 'no-matching-version' | 'transient-network' | 'fetch-timeout' | 'unexpected-store' | 'patch-failed' | 'missing-tarball-integrity' | 'windows-file-locked' | 'pnpm-unusable' | 'missing-local-dependency';
     /** Bilingual, actionable message shown to the user instead of the raw wall of text. */
     message: string;
     /** True when re-running `pnpm install` in the profile is the documented recovery. */
     recoverable: boolean;
+    /**
+     * Show this message INSTEAD of the captured output, not after it.
+     *
+     * Normally the raw text is worth keeping: it is pnpm's own account of what
+     * happened, and the explanation sits under it. Set only where the captured
+     * bytes carry nothing a user can read — cmd.exe writes its errors in the
+     * OEM code page, which arrives here as replacement characters, so pasting
+     * them under an explanation adds noise and hides the explanation (#502).
+     */
+    replaceOutput?: boolean;
+    /**
+     * The package pnpm could not resolve, when the failure names one.
+     *
+     * Exposed because the NAME alone does not say what went wrong: the same
+     * 404 is a ghost entry the user must delete when the package is a direct
+     * dependency of the profile, and an unpublished host peer the market can
+     * retry around when it is not (#289). Only a caller holding the profile
+     * manifest can tell those apart, so the classifier reports the fact and
+     * leaves the judgement to it.
+     */
+    pkg?: string;
 }
 /**
  * Momentary network failures — worth exactly one automatic retry (#83).
@@ -55,6 +84,10 @@ export declare function isFetchTimeoutFailure(output: string): boolean;
  * dsh's own wrapper line ("dsh: pnpm failed in profile directory …") names no
  * cause, so the market must recognize pnpm's real diagnostics itself (#20).
  * @param output - stdout+stderr of the failed run.
+ * @param exitCode - the run's exit status, when the caller has it (null when
+ *   the process was signalled). Only a
+ *   failure whose whole signal IS the status reads it (#502); everything else
+ *   is recognized from what pnpm said.
  * @returns the classified failure, or null when unrecognized (raw output is then shown as-is).
  */
-export declare function classifyPnpmFailure(output: string): PnpmFailure | null;
+export declare function classifyPnpmFailure(output: string, exitCode?: number | null): PnpmFailure | null;

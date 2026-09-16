@@ -27,6 +27,7 @@ export function emptyProgress() {
         size: null,
         seen: false,
         error: null,
+        errorCode: null,
         ignoredBuilds: [],
     };
 }
@@ -128,8 +129,13 @@ export function createProgressTracker() {
         if (name === 'pnpm' && msg.level === 'error') {
             const err = (msg.err ?? {});
             const message = typeof err.message === 'string' ? err.message : '';
+            // Keep more than the old 400: ERR_PNPM_UNEXPECTED_STORE spends most of
+            // its message naming two absolute store paths, and truncating them is
+            // exactly the information a user needs to fix it by hand (#244).
             if (message !== '')
-                snap.error = message.slice(0, 400);
+                snap.error = message.slice(0, 2000);
+            if (typeof err.code === 'string' && err.code !== '')
+                snap.errorCode = err.code;
             return;
         }
     }

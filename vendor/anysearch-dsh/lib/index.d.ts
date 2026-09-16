@@ -5,14 +5,15 @@ export { ANYSEARCH_DEFAULT_BASE_URL, AnySearchClient, AnySearchClientError, } fr
 export { ANYSEARCH_DSH_CLIENT_ID, ANYSEARCH_DSH_VERSION, } from './version.ts';
 export type { AnySearchClientOptions, AnySearchOperation, } from './client.ts';
 export { ANYSEARCH_PROVIDER_ID, AnySearchProvider, mapAnySearchResponse, mapAnySearchResult, } from './provider.ts';
+export { ANYSEARCH_FETCH_PROVIDER_ID, AnySearchFetchProvider, mapAnySearchExtractResponse, } from './fetch-provider.ts';
 export { ANYSEARCH_BATCH_SEARCH_TOOL_NAME, executeBatchSearch, formatBatchSearchOutput, parseBatchSearchItems, registerBatchSearchTool, } from './tools/batch.ts';
 export type { AnySearchBatchFailure, AnySearchBatchItem, AnySearchBatchOutput, AnySearchBatchSuccess, } from './tools/batch.ts';
 export { ANYSEARCH_CAPABILITIES_TOOL_NAME, formatDomains, formatSubDomains, parseCapabilityDomains, registerCapabilitiesTool, } from './tools/capabilities.ts';
 export { ANYSEARCH_SEARCH_TOOL_NAME, DEFAULT_MAX_RENDERED_CONTENT_CHARS, formatAdvancedSearchOutput, parseAdvancedSearchArgs, registerAdvancedSearchTool, } from './tools/search.ts';
-export type { AnySearchDomainCapability, AnySearchDomainsResponse, AnySearchDomainSummary, AnySearchMetadata, AnySearchParamInfo, AnySearchParamValue, AnySearchResult, AnySearchSearchRequest, AnySearchSearchResponse, AnySearchSubDomain, AnySearchSubDomainsResponse, } from './types.ts';
+export type { AnySearchDomainCapability, AnySearchDomainsResponse, AnySearchDomainSummary, AnySearchExtractRequest, AnySearchExtractResponse, AnySearchMetadata, AnySearchParamInfo, AnySearchParamValue, AnySearchResult, AnySearchSearchRequest, AnySearchSearchResponse, AnySearchSubDomain, AnySearchSubDomainsResponse, } from './types.ts';
 /** Cordis plugin name used in loader diagnostics. */
 export declare const name = "web-search-anysearch";
-/** Capability seams required by the Provider and advanced tools. */
+/** Capability seams required by the Providers and model-facing tools. */
 export declare const inject: string[];
 /** AnySearch plugin configuration. */
 export interface Config {
