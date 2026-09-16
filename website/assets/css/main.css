@@ -118,8 +118,6 @@ p { margin: 0 0 1em; }
   max-width: var(--maxw); margin: 0 auto; padding: 0 24px;
   height: 68px; display: flex; align-items: center; gap: 28px;
 }
-.company-logo { height: 24px; width: auto; margin-right: 20px; }
-html[data-theme="dark"] .company-logo { filter: brightness(1.4) saturate(0.9); }
 .brand { display: flex; align-items: center; gap: 11px; font-weight: 700; font-size: 1.06rem; color: var(--text); letter-spacing: -0.01em; }
 .brand:hover { text-decoration: none; }
 .brand img { width: 34px; height: 34px; object-fit: contain; }
@@ -568,7 +566,6 @@ html[data-theme="light"] .cta-banner.on-flow .rl-note { color: #8593ab; }
 
 /* ---------- Responsive ---------- */
 @media (max-width: 960px) {
-  .company-logo { height: 17px; margin-right: 10px; }
   .brand { flex-shrink: 0; white-space: nowrap; }
   .nav-inner { gap: 10px; }
   .grid.cols-3, .grid.cols-4 { grid-template-columns: repeat(2, 1fr); }

@@ -7810,7 +7810,6 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
 
     const BRAND_LOGO = '/api/agent-pi/brand/logo.png?v=8'
     const BRAND_FAVICON = '/api/agent-pi/brand/favicon.png?v=8'
-    const COMPANY_LOGO = '/api/agent-pi/brand/company.png?v=5'
     const PRODUCT_NAME = 'Agent Pi DSH'
 
     let placingSidebar = false
@@ -7867,7 +7866,7 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
       if (!parts || !parts.root || !parts.logoRow || !parts.newSession) return
       placingSidebar = true
       try {
-        const company = ensureMount('ap-mount-company')
+        const studio = ensureMount('ap-mount-studio')
         const lang = ensureMount('ap-mount-lang')
         lang.classList.add('ap-mount-lang')
         const wb = ensureMount('ap-mount-wb')
@@ -7880,11 +7879,11 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
         if (lang.parentElement !== parts.logoRow || lang.nextElementSibling !== logoToggle) {
           parts.logoRow.insertBefore(lang, logoToggle || null)
         }
-        const seq = [parts.logoRow, company, wb, kb, archive, parts.newSession, parts.region, parts.foot, pi].filter(Boolean)
+        const seq = [parts.logoRow, studio, wb, kb, archive, parts.newSession, parts.region, parts.foot, pi].filter(Boolean)
         for (let i = 0; i < seq.length; i++) {
           if (parts.root.children[i] !== seq[i]) parts.root.insertBefore(seq[i], parts.root.children[i] || null)
         }
-        ;['ap-mount-company', 'ap-mount-lang', 'ap-mount-wb', 'ap-mount-kb', 'ap-mount-archive'].forEach((id) => {
+        ;['ap-mount-studio', 'ap-mount-lang', 'ap-mount-wb', 'ap-mount-kb', 'ap-mount-archive'].forEach((id) => {
           const mount = document.getElementById(id)
           const node = document.querySelector('[data-ap-place="' + id + '"]')
           if (mount && node && node.parentElement !== mount) mount.appendChild(node)
@@ -8019,8 +8018,6 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
         h(Workbench, Object.assign({}, props, { onClose: () => setWorkbenchOpen(false) })),
       )
     }
-
-    const COMPANY_MARK = '/api/agent-pi/brand/company-mark.png?v=5'
 
     function rewriteBrandText(value) {
       return String(value || PRODUCT_NAME)
@@ -8593,12 +8590,12 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
       )
     }
 
-    function CompanyLockup(props) {
-      const ref = usePlaced('ap-mount-company')
-      if (!props.wide) return h('span', { ref, 'data-ap-place': 'ap-mount-company', style: { display: 'none' } })
-      return h('div', { ref, className: 'ap-company', 'data-ap-place': 'ap-mount-company', 'aria-label': '中国建筑第二工程局有限公司' },
-        h('img', { src: COMPANY_LOGO, alt: '中国建筑第二工程局有限公司', draggable: false }),
-      )
+    function StudioCredit(props) {
+      const ref = usePlaced('ap-mount-studio')
+      const zh = useApLang() === 'zh'
+      if (!props.wide) return h('span', { ref, 'data-ap-place': 'ap-mount-studio', style: { display: 'none' } })
+      return h('div', { ref, className: 'ap-studio', 'data-ap-place': 'ap-mount-studio',
+        title: zh ? '由 Always π AI studio 独立开发和维护' : 'Independently developed and maintained by Always π AI studio' }, 'Always π AI studio')
     }
 
     function SidebarBrandMark(props) {
@@ -8856,8 +8853,8 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
         HeroBrandMark,
       ))
       ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register(
-        { name: 'sidebar.footer.action', id: 'agent-pi-company', order: 0, label: '中建二局' },
-        CompanyLockup,
+        { name: 'sidebar.footer.action', id: 'agent-pi-studio', order: 0, label: 'Always π AI studio' },
+        StudioCredit,
       ))
       ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register(
         { name: 'sidebar.footer.action', id: 'agent-pi-lang', order: 1, label: 'Language' },

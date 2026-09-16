@@ -8,6 +8,8 @@
 
 <h1 align="center">Agent Pi DSH</h1>
 
+<p align="center">由 Always π AI studio 独立开发和维护<br>Independently developed and maintained by Always π AI studio.</p>
+
 <p align="center">
   工程企业的垂直智能体<br>
   <strong>长程任务，一次跑完</strong>
@@ -203,11 +205,11 @@ Windows 打包：`.\scripts\pack-win.ps1`。生成物不进入 Git；正式二�
 ---
 
 <p align="center">
-  <img src="docs/assets/studio-logo.png" alt="Always π AI Studio" width="180">
+  <img src="docs/assets/studio-logo.png" alt="Always π AI studio" width="180">
 </p>
 
 <p align="center">
   <a href="https://www.agent-pi.app"><b>www.agent-pi.app</b></a>
-  · Always π AI Studio
+  · Always π AI studio
   · pinned: dsh-v0.1.1-rc.2
 </p>

@@ -1,9 +1,9 @@
 {
   "name": "agent-pi-dsh-desktop",
-  "version": "3.6.7",
+  "version": "3.6.8",
   "private": true,
   "license": "GPL-3.0-only",
-  "author": "agent-pi-DSH",
+  "author": "Always π AI studio",
   "homepage": "https://github.com/xiangxin2021cn/agent-pi-dsh",
   "description": "Thin Electron shell over dsh web --profile tender",
   "main": "main.mjs",
@@ -100,7 +100,7 @@
       "category": "Office",
       "executableName": "agent-pi-dsh",
       "artifactName": "Agent-Pi-DSH-${version}-linux-${arch}.${ext}",
-      "maintainer": "agent-pi-DSH"
+      "maintainer": "Always π AI studio"
     },
     "nsis": {
       "oneClick": false,

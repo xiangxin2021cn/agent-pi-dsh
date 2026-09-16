@@ -194,7 +194,7 @@ html.ap-files-rail.ap-files-collapsed .ap-wb-page{right:56px}
 .ap-nav:hover{background:color-mix(in srgb, var(--dsw-alias-label-primary) 6%, transparent);color:var(--dsw-alias-label-primary)}
 .ap-nav.on{background:color-mix(in srgb, var(--ap-accent) 14%, transparent);color:var(--ap-accent)}
 .ap-nav.rail{width:36px;height:36px;padding:0;margin:0 0 8px;justify-content:center}
-.ap-nav-host,.ap-company,.ap-pi{width:100%;flex:none}
+.ap-nav-host,.ap-studio,.ap-pi{width:100%;flex:none}
 .ap-arch-lead{margin:0 0 12px;font-size:13px;line-height:1.6;color:var(--dsw-alias-label-secondary)}
 .ap-arch-group{margin:0 0 16px}
 .ap-arch-group-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 8px}
@@ -227,20 +227,12 @@ html.ap-simple-nav [data-slot="sidebar"] button[class*="brand"] svg[viewBox="0 0
   font-size:13px;font-weight:650;letter-spacing:-0.03em;line-height:1.3;
   color:var(--dsw-alias-label-primary);white-space:nowrap;
 }
-.ap-company{display:flex;align-items:center;justify-content:center;padding:4px 2px 10px}
-.ap-company img{display:block;width:100%;height:auto;max-height:34px;object-fit:contain;object-position:center;user-select:none}
+.ap-studio{text-align:center;padding:4px 2px 10px;font-size:11px;color:var(--dsw-alias-label-secondary)}
 .ap-pi{display:flex;align-items:center;justify-content:center;margin:8px 0 2px;padding:4px 4px 6px;background:transparent;box-sizing:border-box}
 .ap-pi img{display:block;width:100%;max-width:140px;height:auto;max-height:100px;object-fit:contain;object-position:center;user-select:none;pointer-events:none}
 .ap-pi.rail{width:36px;height:36px;margin:6px auto 4px;padding:0}
 .ap-pi.rail img{width:32px;height:32px;max-height:32px}
-[data-sidebar-collapsed] #ap-mount-company{display:none}
-[data-phase="hero"]::before,
-[data-phase="active"]::before,
-[data-phase="settling"]::before{
-  content:"";display:block;flex:none;box-sizing:border-box;
-  height:44px;margin:8px 24px 2px;pointer-events:none;
-  background:url("/api/agent-pi/brand/company.png?v=5") center / contain no-repeat;
-}
+[data-sidebar-collapsed] #ap-mount-studio{display:none}
 .ap-files{height:100%;display:flex;flex-direction:column;min-height:0;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font-size:12px;position:relative}
 .ap-files-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 12px 8px;border-bottom:1px solid var(--dsw-alias-border-l1);flex-shrink:0}
 .ap-files-hd strong{font-size:12px;font-weight:600;color:var(--dsw-alias-label-secondary)}

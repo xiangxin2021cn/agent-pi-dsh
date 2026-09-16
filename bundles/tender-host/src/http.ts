@@ -91,8 +91,6 @@ const BRAND_FILES: Record<string, string> = {
   'favicon.svg': 'image/svg+xml',
   'favicon.png': 'image/png',
   'favicon.ico': 'image/x-icon',
-  'company.png': 'image/png',
-  'company-mark.png': 'image/png',
 }
 
 function readBody(req: IncomingMessage): Promise<string> {

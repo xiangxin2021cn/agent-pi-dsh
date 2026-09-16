@@ -245,7 +245,7 @@ if (!polishedNoLlm.fallback || !polishedNoLlm.optimizedPrompt.includes('任务�
   throw new Error('prompt polish should fall back when no model runtime is injected')
 }
 const brandDir = join(import.meta.dirname, '../bundles/tender-web/lib/brand')
-if (!existsSync(join(brandDir, 'logo.png')) || !existsSync(join(brandDir, 'hero.png')) || !existsSync(join(brandDir, 'symbol.png')) || !existsSync(join(brandDir, 'favicon.svg')) || !existsSync(join(brandDir, 'company.png')) || !existsSync(join(brandDir, 'company-mark.png'))) {
+if (!existsSync(join(brandDir, 'logo.png')) || !existsSync(join(brandDir, 'hero.png')) || !existsSync(join(brandDir, 'symbol.png')) || !existsSync(join(brandDir, 'favicon.svg'))) {
   throw new Error('Agent Pi brand assets missing')
 }
 
