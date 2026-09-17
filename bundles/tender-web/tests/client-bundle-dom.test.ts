@@ -102,7 +102,7 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     refresh: async () => {},
     open: (sessionId: string) => { openedSessionIds.push(sessionId) },
     list: {
-      getSnapshot: () => ({ current: 'session-1', byId: { 'session-1': { cwd: 'C:/workspace', blank: sessionSnapshot.blank } } }),
+      getSnapshot: () => ({ byId: { 'session-1': { id: 'session-1', retainedBy: { mainView: 1 }, cwd: 'C:/workspace', blank: sessionSnapshot.blank } } }),
       subscribe: () => () => {},
     },
   }
@@ -247,7 +247,8 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     client.apply({
       inject(deps: unknown, callback: (scope: object) => void) {
         const names = Array.isArray(deps) ? deps : [deps]
-        const scope: Record<string, unknown> = {}
+        if (names.some(name => !['sessions', 'conversation', 'uiWorkspace'].includes(String(name)))) return
+        const scope: Record<string, unknown> = { slots: this.slots, on() {}, uiWorkspace: { openSession: (id) => openedSessionIds.push(id) } }
         if (names.includes('sessions')) scope.sessions = sessionService
         if (names.includes('conversation')) {
           scope.conversation = { input: { for: () => ({ state: attachmentInputStore }) } }
@@ -257,7 +258,7 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
       slots: {
         inject(_name: string, callback: () => void) { callback() },
         register(definition: { id?: string; name: string }, component: unknown) {
-          registered.set(definition.id || definition.name, component)
+          registered.set(definition.id || definition.name, ['agent-pi-composer-tools', 'agent-pi-attachments'].includes(definition.id || '') ? (props) => React.createElement(component, { useSessions: select => select({ byId: { [props.sessionId]: { id: props.sessionId, retainedBy: { mainView: 1 }, cwd: 'C:/workspace' } } }), ...props }) : component)
         },
       },
       remote: {
@@ -279,6 +280,21 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     const CodexSettings = registered.get('agent-pi-codex')
     assert.equal(typeof CodexSettings, 'function')
     const mount = dom.window.document.getElementById('root')!
+    rootView = createRoot(mount)
+    const sidebar = dom.window.document.createElement('div')
+    sidebar.dataset.slot = 'sidebar'
+    sidebar.innerHTML = '<div><div><button class="test_toggle">Toggle</button></div><button>New</button><div><div data-slot="sidebar.workspaces"></div></div><div><div data-slot="sidebar.settings"></div></div></div>'
+    dom.window.document.body.appendChild(sidebar)
+    const StudioCredit = registered.get('agent-pi-studio')
+    for (const wide of [true, false, true]) {
+      await act(async () => { rootView!.render(React.createElement(StudioCredit, { wide })) })
+      const credit = sidebar.querySelector('#ap-mount-studio [data-ap-place]')!
+      assert.ok(credit, 'Sidebar content must be owned by its React portal')
+      assert.equal(credit.textContent?.includes('Always π AI studio'), wide)
+    }
+    await act(async () => rootView!.unmount())
+    assert.equal(sidebar.querySelector('#ap-mount-studio')?.children.length, 0)
+    sidebar.remove()
     rootView = createRoot(mount)
     await act(async () => {
       rootView!.render(React.createElement(CodexSettings))
@@ -395,7 +411,7 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     const blankSession = {
       sessionId: 'session-1', blank: true, running: false, queue: [], pendingSubmissions: [],
     }
-    const blankSessions = { current: 'session-1', byId: { 'session-1': { cwd: 'C:/workspace', blank: true } } }
+    const blankSessions = { byId: { 'session-1': { id: 'session-1', retainedBy: { mainView: 1 }, cwd: 'C:/workspace', blank: true } } }
     await act(async () => {
       rootView!.render(React.createElement(React.Fragment, null,
         React.createElement(AttachmentDock, {
@@ -523,7 +539,7 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     rootView = createRoot(mount)
     const FilesRail = registered.get('tender-files')
     assert.equal(typeof FilesRail, 'function')
-    const sessions = { current: 'session-1', byId: { 'session-1': { cwd: 'C:\\workspace' } } }
+    const sessions = { byId: { 'session-1': { id: 'session-1', retainedBy: { mainView: 1 }, cwd: 'C:\\workspace' } } }
     await act(async () => {
       rootView!.render(React.createElement(FilesRail, {
         sessionId: 'session-1',
@@ -677,7 +693,7 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     rootView = createRoot(mount)
     dom.window.sessionStorage.setItem('ap-wb-module', 'modules')
     sessionSnapshot.blank = false
-    const nonblankSessions = { current: 'session-1', byId: { 'session-1': { cwd: 'C:/workspace', blank: false } } }
+    const nonblankSessions = { byId: { 'session-1': { id: 'session-1', retainedBy: { mainView: 1 }, cwd: 'C:/workspace', blank: false } } }
     await act(async () => {
       rootView!.render(React.createElement(Workbench, {
         sessionId: 'session-1',

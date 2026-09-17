@@ -1,57 +1,43 @@
 const installed = new WeakSet()
 const workspacesInstalled = new WeakSet()
 
-/** Native workspace navigation may reuse a blank instead of creating a session. */
+/** Alpha.2 catalogs membership; the main view owns its own reference. */
+export function mainSessionId(snapshot) {
+  return Object.values(snapshot?.byId || {}).find(row => (row.retainedBy?.mainView || 0) > 0)?.id || ''
+}
+
+/** Only main workspace navigation can claim choices from the no-session draft. */
 export function installKbWorkspaceBridge(sessions, uiWorkspace, kb) {
-  if (!sessions || !uiWorkspace || typeof uiWorkspace.connectWorkspace !== 'function' || workspacesInstalled.has(uiWorkspace)) return
+  if (!sessions || !uiWorkspace || typeof uiWorkspace.connectWorkspace !== 'function' || workspacesInstalled.has(uiWorkspace)) return () => {}
   workspacesInstalled.add(uiWorkspace)
-  const connect = uiWorkspace.connectWorkspace.bind(uiWorkspace)
-  uiWorkspace.connectWorkspace = async (...args) => {
-    const snapshot = sessions.list?.getSnapshot?.()
-    const epoch = snapshot && !snapshot.current ? kb.kbDraftKey() : null
-    const sessionId = await connect(...args)
-    if (epoch) void kb.claimDraftKbTask(sessionId, true, epoch).catch(() => {})
+  const connect = uiWorkspace.connectWorkspace
+  let active = true
+  const wrapped = async (...args) => {
+    const epoch = !mainSessionId(sessions.list.getSnapshot()) ? kb.kbDraftKey() : null
+    const sessionId = await connect.apply(uiWorkspace, args)
+    if (active && epoch) void kb.claimDraftKbTask(sessionId, true, epoch).catch(() => {})
     return sessionId
+  }
+  uiWorkspace.connectWorkspace = wrapped
+  return () => {
+    active = false
+    if (uiWorkspace.connectWorkspace === wrapped) uiWorkspace.connectWorkspace = connect
+    workspacesInstalled.delete(uiWorkspace)
   }
 }
 
-/** Only a successful native create owns selections made in the no-session draft. */
+/** Observe main-view ownership without intercepting background/teammate creation. */
 export function installKbSessionBridge(sessions, kb, onSelection) {
-  if (!sessions || installed.has(sessions)) return
+  if (!sessions || installed.has(sessions)) return () => {}
   installed.add(sessions)
-  if (typeof sessions.create === 'function') {
-    const create = sessions.create.bind(sessions)
-    sessions.create = async (options) => {
-      const snapshot = sessions.list?.getSnapshot?.()
-      const epoch = snapshot && !snapshot.current && !options?.sessionId ? kb.kbDraftKey() : null
-      const sessionId = await create(options)
-      if (epoch) {
-        // Creation already succeeded. Keep failed saves attached to this exact
-        // session; the send boundary will surface the error and retain its draft.
-        void kb.claimDraftKbTask(sessionId, true, epoch).catch(() => {})
-      }
-      return sessionId
-    }
-  }
-  if (typeof sessions.clear === 'function') {
-    const clear = sessions.clear.bind(sessions)
-    sessions.clear = (...args) => {
-      const result = clear(...args)
-      if (!sessions.list?.getSnapshot?.()?.current) {
-        kb.resetDraftKbTask()
-        onSelection('')
-      }
-      return result
-    }
-  }
-  for (const method of ['open', 'openSubagent']) {
-    if (typeof sessions[method] !== 'function') continue
-    const open = sessions[method].bind(sessions)
-    sessions[method] = (...args) => {
-      const result = open(...args)
-      kb.resetDraftKbTask()
-      onSelection(sessions.list?.getSnapshot?.()?.current || '')
-      return result
-    }
-  }
+  let current = mainSessionId(sessions.list.getSnapshot())
+  onSelection(current)
+  const stop = sessions.list.subscribe(() => {
+    const next = mainSessionId(sessions.list.getSnapshot())
+    if (next === current) return
+    current = next
+    kb.resetDraftKbTask()
+    onSelection(next)
+  })
+  return () => { stop(); installed.delete(sessions) }
 }

@@ -86,6 +86,7 @@ export function setHttpLlm(llm?: LlmStreamRuntime): void {
 const BRAND_DIR = join(dirname(fileURLToPath(import.meta.url)), '../../tender-web/lib/brand')
 const BRAND_FILES: Record<string, string> = {
   'logo.png': 'image/png',
+  'studio.png': 'image/png',
   'hero.png': 'image/png',
   'symbol.png': 'image/png',
   'favicon.svg': 'image/svg+xml',

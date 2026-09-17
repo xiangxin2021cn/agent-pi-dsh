@@ -1,107 +1,76 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { installKbSessionBridge, installKbWorkspaceBridge } from '../src/client/kb-session-bridge.js'
+import { installKbSessionBridge, installKbWorkspaceBridge, mainSessionId } from '../src/client/kb-session-bridge.js'
 
 function fixture() {
-  let current = ''
+  let byId = {}
   let epoch = 'draft-1'
-  let finish: (id: string) => void
-  const claims: unknown[][] = []
-  const selected: string[] = []
+  let finish
+  const listeners = new Set()
+  const claims = [], selected = []
   const sessions = {
-    list: { getSnapshot: () => ({ current }) },
-    create: async (_options?: unknown) => new Promise<string>((resolve) => { finish = resolve }),
-    open(id: string) { current = id },
-    clear() { current = '' },
+    list: { getSnapshot: () => ({ byId }), subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn) } },
+    create: async () => new Promise(resolve => { finish = resolve }),
+  }
+  const select = (id, sidebar = '') => {
+    byId = Object.fromEntries([[id, 'mainView'], [sidebar, 'sidebarChat']].filter(([key]) => key).map(([key, source]) => [key, { id: key, retainedBy: { [source]: 1 } }]))
+    listeners.forEach(fn => fn())
   }
   const kb = {
     kbDraftKey: () => epoch,
     resetDraftKbTask() { epoch += '-new' },
-    async claimDraftKbTask(id: string, created: boolean, captured: string) {
+    async claimDraftKbTask(id, created, captured) {
       if (epoch === captured) { claims.push([id, created, captured]); this.resetDraftKbTask() }
     },
   }
-  installKbSessionBridge(sessions, kb, (id) => selected.push(id))
-  return { sessions, kb, claims, selected, finish: (id: string) => finish(id) }
+  const stop = installKbSessionBridge(sessions, kb, id => selected.push(id))
+  const workspace = { connectWorkspace: () => sessions.create() }
+  installKbWorkspaceBridge(sessions, workspace, kb)
+  return { sessions, workspace, kb, claims, selected, select, stop, finish: id => finish(id) }
 }
 
-test('only native create from the current no-session draft claims the exact returned id', async () => {
+test('main selection ignores a retained sidebar teammate', () => {
   const f = fixture()
-  const pending = f.sessions.create({ cwd: 'C:/workspace' })
-  f.finish('new-id')
-  assert.equal(await pending, 'new-id')
-  assert.deepEqual(f.claims, [['new-id', true, 'draft-1']])
-  f.sessions.open('new-id')
-  f.sessions.open('historical-blank')
+  f.select('main', 'child')
+  f.select('main', 'other-child')
+  assert.equal(mainSessionId(f.sessions.list.getSnapshot()), 'main')
+  assert.deepEqual(f.selected, ['', 'main'])
+  f.select('', 'child')
+  assert.equal(mainSessionId(f.sessions.list.getSnapshot()), '')
+  assert.deepEqual(f.selected, ['', 'main', ''])
+  f.stop(); f.select('after-dispose')
+  assert.deepEqual(f.selected, ['', 'main', ''])
+})
+
+test('main workspace navigation claims its new or reused blank exactly once', async () => {
+  const f = fixture()
+  const pending = f.workspace.connectWorkspace()
+  f.finish('blank'); assert.equal(await pending, 'blank')
+  assert.deepEqual(f.claims, [['blank', true, 'draft-1']])
+  f.select('blank')
+  f.select('history')
+  const next = f.workspace.connectWorkspace(); f.finish('another'); await next
   assert.equal(f.claims.length, 1)
-  f.sessions.clear()
-  const next = f.sessions.create()
-  f.finish('second-new-id')
-  await next
-  assert.equal(f.claims.at(-1)?.[0], 'second-new-id')
-  assert.ok(f.selected.includes(''))
 })
 
-test('opening history or starting another draft invalidates an in-flight create claim', async () => {
-  for (const action of ['open', 'clear']) {
-    const f = fixture()
-    const pending = f.sessions.create()
-    if (action === 'open') f.sessions.open('historical-blank')
-    else f.sessions.clear()
-    f.finish('late-created-id')
-    await pending
-    assert.deepEqual(f.claims, [])
-  }
-})
-
-test('active-session creates and explicit adoption never claim draft choices', async () => {
+test('background creation never consumes no-session knowledge choices', async () => {
   const f = fixture()
-  f.sessions.open('existing')
-  let pending = f.sessions.create()
-  f.finish('background-created')
-  await pending
-  f.sessions.clear()
-  pending = f.sessions.create({ sessionId: 'adopted' })
-  f.finish('adopted')
-  await pending
+  const pending = f.sessions.create(); f.finish('background'); await pending
+  assert.deepEqual(f.claims, [])
+  f.select('', 'background')
+  assert.equal(f.kb.kbDraftKey(), 'draft-1')
+})
+
+test('navigation to history invalidates a late workspace claim', async () => {
+  const f = fixture()
+  const pending = f.workspace.connectWorkspace()
+  f.select('history'); f.finish('late'); await pending
   assert.deepEqual(f.claims, [])
 })
 
-test('failed selection persistence never turns a successful native create into a creation failure', async () => {
+test('failed persistence does not turn a successful workspace connection into failure', async () => {
   const f = fixture()
   f.kb.claimDraftKbTask = async () => { throw new Error('save failed') }
-  const pending = f.sessions.create()
-  f.finish('created-but-selection-pending')
-  assert.equal(await pending, 'created-but-selection-pending')
-  f.sessions.open('created-but-selection-pending')
-  assert.equal(f.sessions.list.getSnapshot().current, 'created-but-selection-pending')
-})
-
-test('native workspace navigation claims its reused blank but history navigation does not', async () => {
-  const f = fixture()
-  const workspace = { connectWorkspace: async () => 'reused-blank' }
-  installKbWorkspaceBridge(f.sessions, workspace, f.kb)
-  const id = await workspace.connectWorkspace()
-  assert.deepEqual(f.claims, [['reused-blank', true, 'draft-1']])
-  f.sessions.open(id)
-  f.sessions.open('history')
-  assert.equal(f.claims.length, 1)
-  await workspace.connectWorkspace()
-  assert.equal(f.claims.length, 1, 'an active historical session never transfers no-session choices')
-})
-
-test('workspace navigation cannot consume a stale draft or double-claim a real new session', async () => {
-  const f = fixture()
-  const workspace = { connectWorkspace: () => f.sessions.create() }
-  installKbWorkspaceBridge(f.sessions, workspace, f.kb)
-  let pending = workspace.connectWorkspace()
-  f.finish('new-through-workspace')
-  await pending
-  assert.equal(f.claims.length, 1)
-  f.sessions.clear()
-  pending = workspace.connectWorkspace()
-  f.sessions.open('historical-blank')
-  f.finish('late-workspace')
-  await pending
-  assert.equal(f.claims.length, 1)
+  const pending = f.workspace.connectWorkspace(); f.finish('created')
+  assert.equal(await pending, 'created')
 })

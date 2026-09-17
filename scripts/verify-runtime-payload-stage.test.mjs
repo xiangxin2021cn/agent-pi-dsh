@@ -11,28 +11,22 @@ const pin = JSON.parse(readFileSync(new URL('../vendor/dsh-univer-office.pin', i
 const patch = readFileSync(new URL('./patch-univer-alpha1.mjs', import.meta.url))
 const sha = bytes => createHash('sha256').update(bytes).digest('hex')
 const nativeClient = [
-  'function CombinedSnapshotPreviewCard(props) {',
-  '  const timeline = props.useSession((snapshot) => snapshot.chat.timeline);',
-  '}',
-  'function SplitSnapshotPreviewCard(props) {',
+  'function PreviewCard(props) {',
+  'const matched = selectUniverTurn(props);',
   '  const timeline = props.useChat((snapshot) => snapshot.timeline);',
   '}',
-  'function registerConversationDefinition(ctx, definition) {',
+  'function apply(ctx) {',
   '  const uiConversation = ctx.get("uiConversation");',
-  '  if (uiConversation !== void 0) {',
-  '    registerDefinition(uiConversation.events, definition);',
-  '    return "split";',
+  '  if (uiConversation === void 0) {',
+  '    throw new Error("dsh-univer-office: active DSH Client exposes no uiConversation service");',
   '  }',
-  '  const conversationEvents = ctx.get("conversationEvents");',
-  '  if (conversationEvents === void 0) {',
-  '    throw new Error("dsh-univer-office: active conversation service exposes no event registry");',
-  '  }',
-  '  registerDefinition(conversationEvents, definition);',
-  '  return "combined";',
+  '  uiConversation.events.register(univerTurnDefinition);',
   '}',
   'var inject = ["slots", "locale", "conversation"];',
-  'const PreviewCard = conversationApi === "split" ? SplitSnapshotPreviewCard : CombinedSnapshotPreviewCard;',
+  'id: "univer-turn-preview",',
+  '',
 ].join('\n')
+
 
 function write(path, content) {
   mkdirSync(dirname(path), { recursive: true })

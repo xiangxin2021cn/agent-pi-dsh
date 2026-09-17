@@ -48,7 +48,7 @@ test('profile startup uses preinstalled Office while platform builds prepare and
   assert.match(workflow, /univer-public-release\.mjs assert-tree/)
 })
 
-test('tracked Univer production lock exactly matches the pinned 0.3.0 dependency graph', () => {
+test('tracked Univer production lock exactly matches the pinned 0.3.2 dependency graph', () => {
   assert.deepEqual(pinnedDependencies, {
     '@puppeteer/browsers': '^3.2.0',
     '@univerjs-pro/cli-assets': '0.1.0',

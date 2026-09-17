@@ -30,6 +30,90 @@ window.__ModuleLoader__.load({
 		react = __toESM(react, 1);
 		let react_dom = require("react-dom");
 		react_dom = __toESM(react_dom, 1);
+		//#region src/client/archive-session-view.js
+		/** Archived conversations use an independent native reference, never main selection. */
+		function installArchiveSessionView(ctx, { React, useLanguage }) {
+			const h = React.createElement;
+			const slot = "agent-pi.archive.conversation";
+			function FixedChat({ renderSlot }) {
+				return renderSlot("conversation.session", { view: "chat" });
+			}
+			function Conversation({ renderFactorySlot }) {
+				return renderFactorySlot("conversation.content", {
+					variant: "embedded",
+					phase: "active",
+					hero: false
+				}, { slots: { views: FixedChat } });
+			}
+			function ArchiveViewer(props) {
+				const language = useLanguage();
+				const t = (zh, en) => language === "zh" ? zh : en;
+				const [id, setId] = React.useState("");
+				const [reference, setReference] = React.useState(null);
+				const [error, setError] = React.useState("");
+				React.useEffect(() => {
+					const open = (event) => setId(event.detail?.sessionId || "");
+					window.addEventListener("agent-pi-view-archive", open);
+					return () => window.removeEventListener("agent-pi-view-archive", open);
+				}, []);
+				React.useEffect(() => {
+					if (!id) {
+						setReference(null);
+						return;
+					}
+					let active = true;
+					const owned = props.sessions.retain(id, { source: "agentPiArchive" });
+					setReference(owned);
+					setError("");
+					owned.ready.catch((reason) => {
+						if (active) setError(String(reason?.message || reason));
+					});
+					return () => {
+						active = false;
+						owned.release();
+					};
+				}, [id, props.sessions]);
+				if (!id) return null;
+				return h("div", {
+					className: "ap-overlay",
+					style: { zIndex: 180 },
+					role: "dialog",
+					"aria-label": t("归档对话", "Archived conversation")
+				}, h("div", { style: {
+					background: "var(--dsw-alias-background-primary,white)",
+					width: "min(1200px,94vw)",
+					height: "90vh",
+					display: "flex",
+					flexDirection: "column",
+					borderRadius: 16,
+					padding: 16
+				} }, h("button", {
+					type: "button",
+					onClick: () => setId(""),
+					style: { alignSelf: "flex-end" }
+				}, t("关闭归档对话", "Close archived conversation")), error && h("p", { role: "alert" }, error), reference?.sessionId === id && h("div", { style: {
+					flex: 1,
+					minHeight: 0,
+					overflow: "auto"
+				} }, h(props.SessionProvider, { session: reference }, props.renderSlot(slot, {})))));
+			}
+			ctx.inject(["sessions"], (scope) => {
+				scope.slots.inject("shell.overlay", () => scope.slots.register({
+					name: "shell.overlay",
+					id: "agent-pi-archive-viewer",
+					order: 30,
+					children: { [slot]: {
+						kind: "single",
+						scope: "session"
+					} }
+				}, (props) => h(ArchiveViewer, {
+					...props,
+					sessions: scope.sessions
+				})));
+				scope.slots.inject(slot, () => scope.slots.register({ name: slot }, Conversation));
+			});
+		}
+		//#endregion
 		//#region src/client/agent-teams-settings.js
 		function createAgentTeamsSettings(React) {
 			const h = React.createElement;
@@ -2759,54 +2843,46 @@ window.__ModuleLoader__.load({
 		//#region src/client/kb-session-bridge.js
 		const installed = /* @__PURE__ */ new WeakSet();
 		const workspacesInstalled = /* @__PURE__ */ new WeakSet();
-		/** Native workspace navigation may reuse a blank instead of creating a session. */
+		/** Alpha.2 catalogs membership; the main view owns its own reference. */
+		function mainSessionId(snapshot) {
+			return Object.values(snapshot?.byId || {}).find((row) => (row.retainedBy?.mainView || 0) > 0)?.id || "";
+		}
+		/** Only main workspace navigation can claim choices from the no-session draft. */
 		function installKbWorkspaceBridge(sessions, uiWorkspace, kb) {
-			if (!sessions || !uiWorkspace || typeof uiWorkspace.connectWorkspace !== "function" || workspacesInstalled.has(uiWorkspace)) return;
+			if (!sessions || !uiWorkspace || typeof uiWorkspace.connectWorkspace !== "function" || workspacesInstalled.has(uiWorkspace)) return () => {};
 			workspacesInstalled.add(uiWorkspace);
-			const connect = uiWorkspace.connectWorkspace.bind(uiWorkspace);
-			uiWorkspace.connectWorkspace = async (...args) => {
-				const snapshot = sessions.list?.getSnapshot?.();
-				const epoch = snapshot && !snapshot.current ? kb.kbDraftKey() : null;
-				const sessionId = await connect(...args);
-				if (epoch) kb.claimDraftKbTask(sessionId, true, epoch).catch(() => {});
+			const connect = uiWorkspace.connectWorkspace;
+			let active = true;
+			const wrapped = async (...args) => {
+				const epoch = !mainSessionId(sessions.list.getSnapshot()) ? kb.kbDraftKey() : null;
+				const sessionId = await connect.apply(uiWorkspace, args);
+				if (active && epoch) kb.claimDraftKbTask(sessionId, true, epoch).catch(() => {});
 				return sessionId;
 			};
+			uiWorkspace.connectWorkspace = wrapped;
+			return () => {
+				active = false;
+				if (uiWorkspace.connectWorkspace === wrapped) uiWorkspace.connectWorkspace = connect;
+				workspacesInstalled.delete(uiWorkspace);
+			};
 		}
-		/** Only a successful native create owns selections made in the no-session draft. */
+		/** Observe main-view ownership without intercepting background/teammate creation. */
 		function installKbSessionBridge(sessions, kb, onSelection) {
-			if (!sessions || installed.has(sessions)) return;
+			if (!sessions || installed.has(sessions)) return () => {};
 			installed.add(sessions);
-			if (typeof sessions.create === "function") {
-				const create = sessions.create.bind(sessions);
-				sessions.create = async (options) => {
-					const snapshot = sessions.list?.getSnapshot?.();
-					const epoch = snapshot && !snapshot.current && !options?.sessionId ? kb.kbDraftKey() : null;
-					const sessionId = await create(options);
-					if (epoch) kb.claimDraftKbTask(sessionId, true, epoch).catch(() => {});
-					return sessionId;
-				};
-			}
-			if (typeof sessions.clear === "function") {
-				const clear = sessions.clear.bind(sessions);
-				sessions.clear = (...args) => {
-					const result = clear(...args);
-					if (!sessions.list?.getSnapshot?.()?.current) {
-						kb.resetDraftKbTask();
-						onSelection("");
-					}
-					return result;
-				};
-			}
-			for (const method of ["open", "openSubagent"]) {
-				if (typeof sessions[method] !== "function") continue;
-				const open = sessions[method].bind(sessions);
-				sessions[method] = (...args) => {
-					const result = open(...args);
-					kb.resetDraftKbTask();
-					onSelection(sessions.list?.getSnapshot?.()?.current || "");
-					return result;
-				};
-			}
+			let current = mainSessionId(sessions.list.getSnapshot());
+			onSelection(current);
+			const stop = sessions.list.subscribe(() => {
+				const next = mainSessionId(sessions.list.getSnapshot());
+				if (next === current) return;
+				current = next;
+				kb.resetDraftKbTask();
+				onSelection(next);
+			});
+			return () => {
+				stop();
+				installed.delete(sessions);
+			};
 		}
 		//#endregion
 		//#region src/client/native-attachment-adapter.js
@@ -3458,9 +3534,9 @@ html.ap-simple-nav [data-slot="sidebar"] button[class*="brand"] svg[viewBox="0 0
 }
 .ap-studio{text-align:center;padding:4px 2px 10px;font-size:11px;color:var(--dsw-alias-label-secondary)}
 .ap-pi{display:flex;align-items:center;justify-content:center;margin:8px 0 2px;padding:4px 4px 6px;background:transparent;box-sizing:border-box}
-.ap-pi img{display:block;width:100%;max-width:140px;height:auto;max-height:100px;object-fit:contain;object-position:center;user-select:none;pointer-events:none}
-.ap-pi.rail{width:36px;height:36px;margin:6px auto 4px;padding:0}
-.ap-pi.rail img{width:32px;height:32px;max-height:32px}
+.ap-pi img{display:block;width:112px;max-width:100%;height:112px;max-height:112px;border-radius:50%;object-fit:contain;object-position:center;user-select:none;pointer-events:none}
+.ap-pi.rail,[data-sidebar-collapsed] .ap-pi{width:36px;height:36px;margin:6px auto 4px;padding:0}
+.ap-pi.rail img,[data-sidebar-collapsed] .ap-pi img{width:32px;height:32px;max-height:32px}
 [data-sidebar-collapsed] #ap-mount-studio{display:none}
 .ap-files{height:100%;display:flex;flex-direction:column;min-height:0;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font-size:12px;position:relative}
 .ap-files-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 12px 8px;border-bottom:1px solid var(--dsw-alias-border-l1);flex-shrink:0}
@@ -6583,13 +6659,13 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		function captureComposerFace(props) {
 			if (!props) return runtime.cwd || composerFace.cwd || "";
 			const previousSessionId = runtime.sessionId || composerFace.sessionId || "";
-			const hinted = sessionHint(props) || runtime.sessionId;
+			const hinted = sessionHint(props);
 			let sessionId = hinted;
 			let sessionCwd = "";
 			if (typeof props.useSessions === "function") {
-				sessionId = props.useSessions((s) => hinted || s && s.current || "") || hinted;
+				sessionId = props.useSessions((s) => hinted || mainSessionId(s) || "") || hinted;
 				sessionCwd = props.useSessions((s) => {
-					const id = hinted || s && s.current || "";
+					const id = hinted || mainSessionId(s) || "";
 					const row = id && s && s.byId ? s.byId[id] : null;
 					return row && row.cwd ? row.cwd : "";
 				}) || "";
@@ -7193,7 +7269,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			const remote = runtime.remote;
 			if (!sourceId) throw new Error("请先打开或新建一个主对话，再进入创造模式。");
 			if (!remote || !remote.agentPresets || typeof remote.agentPresets.select !== "function" || !remote.session || typeof remote.session.create !== "function") throw new Error("当前 DSH Typert Gateway 未提供创造模式所需的 agentPresets/session 接口。");
-			if (!runtime.sessions || typeof runtime.sessions.open !== "function" || typeof runtime.sessions.refresh !== "function") throw new Error("当前 DSH 会话服务尚未就绪。");
+			if (!runtime.uiWorkspace || typeof runtime.uiWorkspace.openSession !== "function" || typeof runtime.sessions?.refresh !== "function") throw new Error("当前 DSH 会话服务尚未就绪。");
 			let targetId = sourceId;
 			if (blank) {
 				remoteResultValue(await remote.agentPresets.select(sourceId, "cordis"), "切换原生创造模式");
@@ -7206,7 +7282,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				targetId = created && created.sessionId;
 				if (!targetId) throw new Error("DSH 未返回创造模式会话 id。");
 				await runtime.sessions.refresh();
-				runtime.sessions.open(targetId);
+				runtime.uiWorkspace.openSession(targetId);
 			}
 			await waitForSessionFace(targetId, 0);
 			await dispatchToConversation({}, prompt + moduleSourceSuffix(Object.assign({}, context, { sessionId: sourceId })), targetId);
@@ -11390,7 +11466,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			subscribe: (id, listener) => subscribeSessionWithChat(id, codexTurnAuthorities(id)?.session, listener)
 		});
 		function TaskProcessHeader(props) {
-			return h(TaskProcess, { sessionId: props.useSessions((state) => state.current || "") });
+			return h(TaskProcess, { sessionId: props.sessionId || "" });
 		}
 		const ProfessionalDepth = createProfessionalDepth({
 			React: react,
@@ -11405,6 +11481,14 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				return subscribeSessionWithChat(id, codexTurnAuthorities(id)?.session, listener);
 			}
 		});
+		function MainComposerTools(props) {
+			const main = props.useSessions(mainSessionId);
+			return props.sessionId === main ? h(ComposerTools, props) : null;
+		}
+		function MainAttachmentDock(props) {
+			const main = props.useSessions(mainSessionId);
+			return props.sessionId === main ? h(AttachmentDock, props) : null;
+		}
 		function ComposerTools(props) {
 			captureComposerFace(props);
 			const live = snapshotComposer();
@@ -11827,9 +11911,23 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				}
 			}, Icon("folder", 16));
 		}
+		function harvestPaths(owner) {
+			const data = owner && owner.turn && owner.turn.data && typeof owner.turn.data.get === "function" ? owner.turn.data.get("deliverables") : null;
+			const produced = data && data.produced ? data.produced : [];
+			const paths = [];
+			const seen = /* @__PURE__ */ new Set();
+			for (let i = 0; i < produced.length; i++) {
+				const row = produced[i];
+				if (!row || !row.path || seen.has(row.path)) continue;
+				if (typeof owner.seq === "number" && row.seq > owner.seq) continue;
+				seen.add(row.path);
+				paths.push(row.path);
+			}
+			return paths.length ? paths : null;
+		}
 		function HarvestOutputs(props) {
-			const cwd = readWorkspaceCwd(props);
-			const paths = props.matched || [];
+			const cwd = props.useSessions((state) => state.byId[props.sessionId]?.cwd || "");
+			const paths = harvestPaths(props) || [];
 			react.useEffect(() => {
 				if (!cwd || !paths.length) return;
 				api("/api/agent-pi/files/harvest", cwd, {
@@ -11844,7 +11942,6 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		function LanguageToggle(props) {
 			const lang = useApLang();
 			return h("div", {
-				ref: usePlaced("ap-mount-lang"),
 				className: "ap-lang-host" + (props && props.wide ? "" : " rail"),
 				"data-ap-place": "ap-mount-lang"
 			}, props && props.wide ? h("select", {
@@ -12003,7 +12100,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			if (list && typeof list.getSnapshot === "function") return list.getSnapshot();
 			return {
 				byId: {},
-				current: void 0
+				ids: []
 			};
 		}
 		function archiveSessionById(sessionId) {
@@ -12131,42 +12228,14 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				list.subscribe(() => hideArchivedWorkspaceGroups());
 			}
 		}
-		function guardArchivedSessionView(sessions, workspaces) {
-			const sessionApi = sessions || runtime.sessions;
-			if (sessionApi && !sessionApi.__apArchiveGuard) {
-				const origClear = typeof sessionApi.clear === "function" ? sessionApi.clear.bind(sessionApi) : null;
-				const origOpen = typeof sessionApi.open === "function" ? sessionApi.open.bind(sessionApi) : null;
-				if (origClear) sessionApi.clear = function() {
-					const snap = sessionApi.list && typeof sessionApi.list.getSnapshot === "function" ? sessionApi.list.getSnapshot() : null;
-					const current = snap && snap.current;
-					if (current && window.__apViewingArchived === current) return;
-					window.__apViewingArchived = "";
-					return origClear();
-				};
-				if (origOpen) sessionApi.open = function(sessionId) {
-					if (window.__apViewingArchived && window.__apViewingArchived !== sessionId) window.__apViewingArchived = "";
-					return origOpen(sessionId);
-				};
-				sessionApi.__apArchiveGuard = true;
-			}
-			const workspaceApi = workspaces || runtime.workspaces;
-			if (workspaceApi && typeof workspaceApi.startSession === "function" && !workspaceApi.__apArchiveGuard) {
-				const origStart = workspaceApi.startSession.bind(workspaceApi);
-				workspaceApi.startSession = function() {
-					window.__apViewingArchived = "";
-					return origStart.apply(this, arguments);
-				};
-				workspaceApi.__apArchiveGuard = true;
-			}
-		}
 		function openArchivedSession(sessionId) {
-			if (!sessionId || !runtime.sessions || typeof runtime.sessions.open !== "function") {
+			if (!sessionId || !runtime.sessions || typeof runtime.sessions.retain !== "function") {
 				showToast("会话服务还没就绪");
 				return;
 			}
 			window.__apViewingArchived = sessionId;
 			setWorkbenchOpen(false);
-			runtime.sessions.open(sessionId);
+			window.dispatchEvent(new CustomEvent("agent-pi-view-archive", { detail: { sessionId } }));
 		}
 		function ArchiveSession(props) {
 			useApLang();
@@ -12233,7 +12302,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					rememberArchiveStore(body);
 					if (window.__apViewingArchived === sessionId) {
 						window.__apViewingArchived = "";
-						if (runtime.sessions && typeof runtime.sessions.clear === "function") runtime.sessions.clear();
+						window.dispatchEvent(new CustomEvent("agent-pi-view-archive", { detail: { sessionId: "" } }));
 					}
 					setTick((value) => value + 1);
 				}).catch((err) => showToast(tAp("session.deleteFailed") + "：" + String(err && err.message || err))).finally(() => setBusy(""));
@@ -12300,6 +12369,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			});
 		}
 		const BRAND_LOGO = "/api/agent-pi/brand/logo.png?v=8";
+		const STUDIO_LOGO = "/api/agent-pi/brand/studio.png?v=3.7.0";
 		const BRAND_FAVICON = "/api/agent-pi/brand/favicon.png?v=8";
 		const PRODUCT_NAME = "Agent Pi DSH";
 		let placingSidebar = false;
@@ -12352,10 +12422,10 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			if (!wrap) {
 				wrap = document.createElement("div");
 				wrap.className = "ap-pi";
-				wrap.setAttribute("aria-label", "Agent Pi DSH");
+				wrap.setAttribute("aria-label", "Always π AI studio");
 				const img = document.createElement("img");
-				img.src = BRAND_LOGO;
-				img.alt = "Agent Pi DSH";
+				img.src = STUDIO_LOGO;
+				img.alt = "Always π AI studio";
 				img.draggable = false;
 				wrap.appendChild(img);
 				mount.appendChild(wrap);
@@ -12377,9 +12447,11 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				const pi = ensureMount("ap-mount-pi");
 				const staleSessions = document.getElementById("ap-mount-sessions");
 				if (staleSessions) staleSessions.remove();
-				const logoToggle = parts.logoRow.lastElementChild;
-				if (lang.parentElement !== parts.logoRow || lang.nextElementSibling !== logoToggle) parts.logoRow.insertBefore(lang, logoToggle || null);
-				const seq = [
+				const logoToggle = parts.logoRow.querySelector("button[class*=\"toggle\"]");
+				if (lang.parentElement !== parts.logoRow) parts.logoRow.appendChild(lang);
+				if (lang.style.order !== "1") lang.style.order = "1";
+				if (logoToggle && logoToggle.style.order !== "2") logoToggle.style.order = "2";
+				const fixed = [
 					parts.logoRow,
 					studio,
 					wb,
@@ -12387,34 +12459,28 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					archive,
 					parts.newSession,
 					parts.region,
-					parts.foot,
-					pi
+					parts.foot
 				].filter(Boolean);
+				const remaining = Array.from(parts.root.children).filter((node) => !fixed.includes(node) && node !== pi && !node.hasAttribute("data-ap-mount"));
+				const seq = [
+					...fixed,
+					...remaining,
+					pi
+				];
 				for (let i = 0; i < seq.length; i++) if (parts.root.children[i] !== seq[i]) parts.root.insertBefore(seq[i], parts.root.children[i] || null);
-				[
-					"ap-mount-studio",
-					"ap-mount-lang",
-					"ap-mount-wb",
-					"ap-mount-kb",
-					"ap-mount-archive"
-				].forEach((id) => {
-					const mount = document.getElementById(id);
-					const node = document.querySelector("[data-ap-place=\"" + id + "\"]");
-					if (mount && node && node.parentElement !== mount) mount.appendChild(node);
-				});
 				fillPiMount(pi);
 			} finally {
 				placingSidebar = false;
 			}
 		}
-		function usePlaced(mountId) {
-			const ref = react.useRef(null);
-			react.useLayoutEffect(() => {
-				const node = ref.current;
-				if (node) node.setAttribute("data-ap-place", mountId);
-				syncSidebarLayout();
-			});
-			return ref;
+		function placedSidebar(Component, mountId) {
+			return function PlacedSidebar(props) {
+				const mount = ensureMount(mountId);
+				react.useLayoutEffect(() => {
+					syncSidebarLayout();
+				});
+				return react_dom.createPortal(h(Component, props), mount);
+			};
 		}
 		function KnowledgeBaseNav(props) {
 			useApLang();
@@ -12442,7 +12508,6 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				};
 			}, []);
 			return h("div", {
-				ref: usePlaced("ap-mount-kb"),
 				className: "ap-nav-host",
 				"data-ap-place": "ap-mount-kb"
 			}, h("button", {
@@ -12487,7 +12552,6 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			}, []);
 			const on = open && page !== "kb" && page !== "archive" && page !== "modules";
 			return h("div", {
-				ref: usePlaced("ap-mount-wb"),
 				className: "ap-nav-host",
 				"data-ap-place": "ap-mount-wb"
 			}, h("button", {
@@ -12530,7 +12594,6 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				};
 			}, []);
 			return h("div", {
-				ref: usePlaced("ap-mount-archive"),
 				className: "ap-nav-host",
 				"data-ap-place": "ap-mount-archive"
 			}, h("button", {
@@ -13062,15 +13125,12 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			}));
 		}
 		function StudioCredit(props) {
-			const ref = usePlaced("ap-mount-studio");
 			const zh = useApLang() === "zh";
 			if (!props.wide) return h("span", {
-				ref,
 				"data-ap-place": "ap-mount-studio",
 				style: { display: "none" }
 			});
 			return h("div", {
-				ref,
 				className: "ap-studio",
 				"data-ap-place": "ap-mount-studio",
 				title: zh ? "由 Always π AI studio 独立开发和维护" : "Independently developed and maintained by Always π AI studio"
@@ -13131,6 +13191,10 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			});
 		}
 		function apply(ctx) {
+			installArchiveSessionView(ctx, {
+				React: react,
+				useLanguage: useApLang
+			});
 			installNativeWorkFilePreviews(ctx, {
 				React: react,
 				ReactDOM: react_dom,
@@ -13147,8 +13211,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			watchArchivedWorkspaces();
 			ctx.inject(["sessions"], (scope) => {
 				runtime.sessions = scope.sessions || ctx.sessions || (typeof scope.get === "function" ? scope.get("sessions") : null) || runtime.sessions;
-				guardArchivedSessionView(runtime.sessions);
-				installKbSessionBridge(runtime.sessions, {
+				const stopKbSelection = installKbSessionBridge(runtime.sessions, {
 					claimDraftKbTask,
 					resetDraftKbTask,
 					kbDraftKey
@@ -13156,6 +13219,9 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					runtime.sessionId = sessionId;
 					composerFace.sessionId = sessionId;
 					composerFace.inputActions = null;
+					composerFace.session = null;
+					composerFace.draft = "";
+					composerFace.input = { draft: "" };
 					if (!sessionId) {
 						runtime.cwd = "";
 						composerFace.cwd = "";
@@ -13163,14 +13229,16 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 						composerFace.input = { draft: "" };
 					}
 				});
+				scope.on("dispose", stopKbSelection);
 				watchWorkbenchTransactionRestore();
 				ensureUserRequirementWatcher(runtime.sessionId);
 			});
 			ctx.inject(["sessions", "uiWorkspace"], (scope) => {
-				installKbWorkspaceBridge(scope.sessions || runtime.sessions, scope.uiWorkspace || ctx.uiWorkspace, {
+				runtime.uiWorkspace = scope.uiWorkspace || ctx.uiWorkspace;
+				scope.on("dispose", installKbWorkspaceBridge(scope.sessions || runtime.sessions, runtime.uiWorkspace, {
 					claimDraftKbTask,
 					kbDraftKey
-				});
+				}));
 			});
 			ctx.inject(["conversation"], (scope) => {
 				runtime.conversation = scope.conversation || ctx.conversation || (typeof scope.get === "function" ? scope.get("conversation") : null) || runtime.conversation;
@@ -13225,16 +13293,15 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				id: "agent-pi-attachments",
 				order: 5,
 				label: "附件"
-			}, AttachmentDock));
+			}, MainAttachmentDock));
 			ctx.slots.inject("conversation.input.left", () => ctx.slots.register({
 				name: "conversation.input.left",
 				id: "agent-pi-composer-tools",
 				order: 20,
 				label: "指令润色"
-			}, ComposerTools));
+			}, MainComposerTools));
 			ctx.inject(["workspaces"], (scope) => {
 				runtime.workspaces = scope.workspaces || ctx.workspaces || (typeof scope.get === "function" ? scope.get("workspaces") : null) || runtime.workspaces;
-				guardArchivedSessionView(runtime.sessions, runtime.workspaces);
 				watchArchivedWorkspaces();
 			});
 			ctx.inject(["locale"], (scope) => {
@@ -13263,21 +13330,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			ctx.slots.inject("conversation.chat.turnTail", () => ctx.slots.register({
 				name: "conversation.chat.turnTail",
 				id: "agent-pi-harvest",
-				order: 80,
-				select: (owner) => {
-					const data = owner && owner.turn && owner.turn.data && typeof owner.turn.data.get === "function" ? owner.turn.data.get("deliverables") : null;
-					const produced = data && data.produced ? data.produced : [];
-					const paths = [];
-					const seen = /* @__PURE__ */ new Set();
-					for (let i = 0; i < produced.length; i++) {
-						const row = produced[i];
-						if (!row || !row.path || seen.has(row.path)) continue;
-						if (typeof owner.seq === "number" && row.seq > owner.seq) continue;
-						seen.add(row.path);
-						paths.push(row.path);
-					}
-					return paths.length ? paths : null;
-				}
+				order: 80
 			}, HarvestOutputs));
 			ctx.inject(["inputTriggers", "sessions"], (scope) => {
 				runtime.sessions = scope.sessions || (typeof scope.get === "function" ? scope.get("sessions") : null);
@@ -13344,31 +13397,31 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				id: "agent-pi-studio",
 				order: 0,
 				label: "Always π AI studio"
-			}, StudioCredit));
+			}, placedSidebar(StudioCredit, "ap-mount-studio")));
 			ctx.slots.inject("sidebar.footer.action", () => ctx.slots.register({
 				name: "sidebar.footer.action",
 				id: "agent-pi-lang",
 				order: 1,
 				label: "Language"
-			}, LanguageToggle));
+			}, placedSidebar(LanguageToggle, "ap-mount-lang")));
 			ctx.slots.inject("sidebar.footer.action", () => ctx.slots.register({
 				name: "sidebar.footer.action",
 				id: "tender-workbench-nav",
 				order: 2,
 				label: WORKBENCH_LABEL
-			}, WorkbenchNav));
+			}, placedSidebar(WorkbenchNav, "ap-mount-wb")));
 			ctx.slots.inject("sidebar.footer.action", () => ctx.slots.register({
 				name: "sidebar.footer.action",
 				id: "agent-pi-kb-nav",
 				order: 3,
 				label: "知识库"
-			}, KnowledgeBaseNav));
+			}, placedSidebar(KnowledgeBaseNav, "ap-mount-kb")));
 			ctx.slots.inject("sidebar.footer.action", () => ctx.slots.register({
 				name: "sidebar.footer.action",
 				id: "agent-pi-archive-nav",
 				order: 4,
 				label: "归档"
-			}, ArchiveNav));
+			}, placedSidebar(ArchiveNav, "ap-mount-archive")));
 		}
 		//#endregion
 		exports.apply = apply;

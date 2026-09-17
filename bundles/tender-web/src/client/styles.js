@@ -229,9 +229,9 @@ html.ap-simple-nav [data-slot="sidebar"] button[class*="brand"] svg[viewBox="0 0
 }
 .ap-studio{text-align:center;padding:4px 2px 10px;font-size:11px;color:var(--dsw-alias-label-secondary)}
 .ap-pi{display:flex;align-items:center;justify-content:center;margin:8px 0 2px;padding:4px 4px 6px;background:transparent;box-sizing:border-box}
-.ap-pi img{display:block;width:100%;max-width:140px;height:auto;max-height:100px;object-fit:contain;object-position:center;user-select:none;pointer-events:none}
-.ap-pi.rail{width:36px;height:36px;margin:6px auto 4px;padding:0}
-.ap-pi.rail img{width:32px;height:32px;max-height:32px}
+.ap-pi img{display:block;width:112px;max-width:100%;height:112px;max-height:112px;border-radius:50%;object-fit:contain;object-position:center;user-select:none;pointer-events:none}
+.ap-pi.rail,[data-sidebar-collapsed] .ap-pi{width:36px;height:36px;margin:6px auto 4px;padding:0}
+.ap-pi.rail img,[data-sidebar-collapsed] .ap-pi img{width:32px;height:32px;max-height:32px}
 [data-sidebar-collapsed] #ap-mount-studio{display:none}
 .ap-files{height:100%;display:flex;flex-direction:column;min-height:0;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font-size:12px;position:relative}
 .ap-files-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 12px 8px;border-bottom:1px solid var(--dsw-alias-border-l1);flex-shrink:0}

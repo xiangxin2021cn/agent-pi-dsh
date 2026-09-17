@@ -4,7 +4,28 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const legacyPatchVersions = new Set(['0.2.9', '0.2.10'])
-const nativeCompatibleVersions = new Set(['0.2.13', '0.2.14', '0.3.0'])
+const nativeCompatibleVersions = new Set(['0.2.13', '0.2.14', '0.3.0', '0.3.2'])
+const alpha2TurnTailReplacements = [
+  ['name: "conversation.chat.turnTail",\n              priority: -10,', 'name: "conversation.chat.turnTail",\n              id: "univer-turn-preview",\n              order: -10,'],
+  ['              select: selectUniverTurn,\n', ''],
+  ['return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(PreviewCardContent, { ...props, timeline, cwd });', 'const matched = selectUniverTurn(props);\n      if (matched === null) return null;\n      return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(PreviewCardContent, { ...props, matched, timeline, cwd });'],
+]
+
+/** alpha.2 changed turnTail from a matching chain to an additive list. */
+export function patchUniverTurnTail(source) {
+  if (source.includes('id: "univer-turn-preview"')) {
+    if (!source.includes('const matched = selectUniverTurn(props);') || source.includes('select: selectUniverTurn,')) {
+      throw new Error('dsh-univer-office 0.3.2 partial turn-tail compatibility patch')
+    }
+    return source
+  }
+  let result = source
+  for (const [before, after] of alpha2TurnTailReplacements) {
+    if (result.split(before).length !== 2) throw new Error('dsh-univer-office 0.3.2 native client turn-tail layout does not match')
+    result = result.replace(before, after)
+  }
+  return result
+}
 const replacements = [
   {
     before: 'var inject = ["slots", "locale", "conversationEvents"];',
@@ -86,7 +107,7 @@ export function assertUniverClientCompatibility({ version, source }) {
     return 'legacy-patched'
   }
   if (nativeCompatibleVersions.has(version)) {
-    if (version === '0.3.0') {
+    if (version === '0.3.0' || version === '0.3.2') {
       for (const marker of [
         'var inject = ["slots", "locale", "conversation"];',
         'const uiConversation = ctx.get("uiConversation");',
@@ -98,6 +119,9 @@ export function assertUniverClientCompatibility({ version, source }) {
       }
       if (source.includes('conversationEvents') || source.includes('props.useSession(')) {
         throw new Error(`dsh-univer-office ${version} native client contains an obsolete conversation API`)
+      }
+      if (version === '0.3.2' && (!source.includes('id: "univer-turn-preview"') || !source.includes('const matched = selectUniverTurn(props);') || source.includes('select: selectUniverTurn,'))) {
+        throw new Error('dsh-univer-office 0.3.2 native client requires the alpha.2 turn-tail adapter')
       }
       return 'native-compatible'
     }
@@ -157,6 +181,12 @@ export function patchUniverForDshAlpha1({ pluginRoot }) {
 
   let source = readFileSync(clientPath, 'utf8')
   if (nativeCompatibleVersions.has(manifest.version)) {
+    if (manifest.version === '0.3.2') {
+      const patched = patchUniverTurnTail(source)
+      assertUniverClientCompatibility({ version: manifest.version, source: patched })
+      if (patched !== source) writeFileSync(clientPath, patched, 'utf8')
+      return 'alpha2-adapted'
+    }
     assertUniverClientCompatibility({ version: manifest.version, source })
     if (manifest.version === '0.3.0') {
       const hostPath = join(pluginRoot, 'lib/index.js')

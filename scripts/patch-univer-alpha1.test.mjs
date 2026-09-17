@@ -4,7 +4,36 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { patchUniverForDshAlpha1, patchUniverViewerProxy } from './patch-univer-alpha1.mjs'
+import { patchUniverForDshAlpha1, patchUniverViewerProxy, patchUniverTurnTail } from './patch-univer-alpha1.mjs'
+
+test('alpha.2 list adapter preserves selected Office card data and skips unrelated turns', () => {
+  const source = `
+    function PreviewCard(props) {
+      const timeline = props.useChat((snapshot) => snapshot.timeline);
+      const cwd = props.useSessions((state) => state.byId[props.sessionId]?.cwd);
+      return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(PreviewCardContent, { ...props, timeline, cwd });
+    }
+    const registration = {
+      name: "conversation.chat.turnTail",
+              priority: -10,
+              select: selectUniverTurn,
+    };
+    return { PreviewCard, registration };
+  `
+  const adapted = patchUniverTurnTail(source)
+  assert.equal(patchUniverTurnTail(adapted), adapted)
+  assert.throws(() => patchUniverTurnTail(source.replace('priority: -10', 'priority: -20')), /layout does not match/)
+  const { PreviewCard, registration } = new Function('import_jsx_runtime3', 'PreviewCardContent', 'selectUniverTurn', adapted)(
+    { jsx: (_type, props) => props }, 'content', owner => owner.turn.files.length ? owner.turn : null,
+  )
+  assert.equal(registration.id, 'univer-turn-preview')
+  assert.equal(registration.order, -10)
+  assert.equal(registration.select, undefined)
+  const props = { sessionId: 's', turn: { files: ['sheet.univer'], turn: 2 }, useChat: fn => fn({ timeline: 'timeline' }), useSessions: fn => fn({ byId: { s: { cwd: '/work' } } }) }
+  assert.equal(PreviewCard(props).matched, props.turn)
+  assert.equal(PreviewCard(props).cwd, '/work')
+  assert.equal(PreviewCard({ ...props, turn: { files: [] } }), null)
+})
 
 const newline = String.fromCharCode(10)
 const legacyClient = [

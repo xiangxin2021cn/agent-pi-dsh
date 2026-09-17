@@ -18,8 +18,8 @@ test('desktop language catalog exposes the common ten-language set', () => {
 })
 
 test('language selector is placed in the top brand row instead of staying in the footer stack', () => {
-  assert.match(source, /usePlaced\('ap-mount-lang'\)/)
-  assert.match(source, /parts\.logoRow\.insertBefore\(lang, logoToggle \|\| null\)/)
+  assert.match(source, /placedSidebar\(LanguageToggle, 'ap-mount-lang'\)/)
+  assert.match(source, /parts\.logoRow\.appendChild\(lang\)/)
   assert.match(source, /h\('select', \{/)
   assert.match(styles, /\.ap-mount\.ap-mount-lang/)
   assert.match(styles, /\[data-sidebar-collapsed\] #ap-mount-lang\{display:none!important\}/)

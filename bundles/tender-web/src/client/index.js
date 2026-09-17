@@ -1,10 +1,11 @@
 import * as React from 'react'
+import { installArchiveSessionView } from './archive-session-view.js'
 import { createAgentTeamsSettings } from './agent-teams-settings.js'
 import * as ReactDOM from 'react-dom'
 import { createAgentPiApiClient } from './api-client.js'
 import { createFilePreviewOverlay } from './file-preview-overlay.js'
 import { createKnowledgeBasePanel } from './knowledge-base-panel.js'
-import { installKbSessionBridge, installKbWorkspaceBridge } from './kb-session-bridge.js'
+import { installKbSessionBridge, installKbWorkspaceBridge, mainSessionId } from './kb-session-bridge.js'
 import { addNativeComposerFiles } from './native-attachment-adapter.js'
 import { createWorkbenchSessionMonitor } from './session-monitor.js'
 import { createWorkbenchView } from './workbench-view.js'
@@ -1549,13 +1550,13 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
     function captureComposerFace(props) {
       if (!props) return runtime.cwd || composerFace.cwd || ''
       const previousSessionId = runtime.sessionId || composerFace.sessionId || ''
-      const hinted = sessionHint(props) || runtime.sessionId
+      const hinted = sessionHint(props)
       let sessionId = hinted
       let sessionCwd = ''
       if (typeof props.useSessions === 'function') {
-        sessionId = props.useSessions((s) => hinted || (s && s.current) || '') || hinted
+        sessionId = props.useSessions((s) => hinted || mainSessionId(s) || '') || hinted
         sessionCwd = props.useSessions((s) => {
-          const id = hinted || (s && s.current) || ''
+          const id = hinted || mainSessionId(s) || ''
           const row = id && s && s.byId ? s.byId[id] : null
           return row && row.cwd ? row.cwd : ''
         }) || ''
@@ -2235,7 +2236,7 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
         || !remote.session || typeof remote.session.create !== 'function') {
         throw new Error('当前 DSH Typert Gateway 未提供创造模式所需的 agentPresets/session 接口。')
       }
-      if (!runtime.sessions || typeof runtime.sessions.open !== 'function' || typeof runtime.sessions.refresh !== 'function') {
+      if (!runtime.uiWorkspace || typeof runtime.uiWorkspace.openSession !== 'function' || typeof runtime.sessions?.refresh !== 'function') {
         throw new Error('当前 DSH 会话服务尚未就绪。')
       }
       let targetId = sourceId
@@ -2250,7 +2251,7 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
         targetId = created && created.sessionId
         if (!targetId) throw new Error('DSH 未返回创造模式会话 id。')
         await runtime.sessions.refresh()
-        runtime.sessions.open(targetId)
+        runtime.uiWorkspace.openSession(targetId)
       }
       await waitForSessionFace(targetId, 0)
       await dispatchToConversation({}, prompt + moduleSourceSuffix(Object.assign({}, context, { sessionId: sourceId })), targetId)
@@ -6832,7 +6833,7 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
       subscribe: (id, listener) => subscribeSessionWithChat(id, codexTurnAuthorities(id)?.session, listener),
     })
     function TaskProcessHeader(props) {
-      const id = props.useSessions((state) => state.current || '')
+      const id = props.sessionId || ''
       return h(TaskProcess, { sessionId: id })
     }
 
@@ -6849,6 +6850,16 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
         return subscribeSessionWithChat(id, authorities?.session, listener)
       },
     })
+
+    function MainComposerTools(props) {
+      const main = props.useSessions(mainSessionId)
+      return props.sessionId === main ? h(ComposerTools, props) : null
+    }
+
+    function MainAttachmentDock(props) {
+      const main = props.useSessions(mainSessionId)
+      return props.sessionId === main ? h(AttachmentDock, props) : null
+    }
 
     function ComposerTools(props) {
       captureComposerFace(props)
@@ -7271,9 +7282,26 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
       }, Icon('folder', 16))
     }
 
+    function harvestPaths(owner) {
+      const data = owner && owner.turn && owner.turn.data && typeof owner.turn.data.get === 'function'
+        ? owner.turn.data.get('deliverables')
+        : null
+      const produced = data && data.produced ? data.produced : []
+      const paths = []
+      const seen = new Set()
+      for (let i = 0; i < produced.length; i++) {
+        const row = produced[i]
+        if (!row || !row.path || seen.has(row.path)) continue
+        if (typeof owner.seq === 'number' && row.seq > owner.seq) continue
+        seen.add(row.path)
+        paths.push(row.path)
+      }
+      return paths.length ? paths : null
+    }
+
     function HarvestOutputs(props) {
-      const cwd = readWorkspaceCwd(props)
-      const paths = props.matched || []
+      const cwd = props.useSessions(state => state.byId[props.sessionId]?.cwd || '')
+      const paths = harvestPaths(props) || []
       React.useEffect(() => {
         if (!cwd || !paths.length) return
         api('/api/agent-pi/files/harvest', cwd, {
@@ -7288,9 +7316,8 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
 
     function LanguageToggle(props) {
       const lang = useApLang()
-      const ref = usePlaced('ap-mount-lang')
+
       return h('div', {
-        ref,
         className: 'ap-lang-host' + (props && props.wide ? '' : ' rail'),
         'data-ap-place': 'ap-mount-lang',
       }, props && props.wide ? h('select', {
@@ -7450,7 +7477,7 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
     function readSessionListSnap() {
       const list = runtime.sessions && runtime.sessions.list
       if (list && typeof list.getSnapshot === 'function') return list.getSnapshot()
-      return { byId: {}, current: undefined }
+      return { byId: {}, ids: [] }
     }
 
     function archiveSessionById(sessionId) {
@@ -7593,51 +7620,14 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
       }
     }
 
-    function guardArchivedSessionView(sessions, workspaces) {
-      const sessionApi = sessions || runtime.sessions
-      if (sessionApi && !sessionApi.__apArchiveGuard) {
-        const origClear = typeof sessionApi.clear === 'function' ? sessionApi.clear.bind(sessionApi) : null
-        const origOpen = typeof sessionApi.open === 'function' ? sessionApi.open.bind(sessionApi) : null
-        if (origClear) {
-          sessionApi.clear = function () {
-            const snap = sessionApi.list && typeof sessionApi.list.getSnapshot === 'function'
-              ? sessionApi.list.getSnapshot()
-              : null
-            const current = snap && snap.current
-            if (current && window.__apViewingArchived === current) return
-            window.__apViewingArchived = ''
-            return origClear()
-          }
-        }
-        if (origOpen) {
-          sessionApi.open = function (sessionId) {
-            if (window.__apViewingArchived && window.__apViewingArchived !== sessionId) {
-              window.__apViewingArchived = ''
-            }
-            return origOpen(sessionId)
-          }
-        }
-        sessionApi.__apArchiveGuard = true
-      }
-      const workspaceApi = workspaces || runtime.workspaces
-      if (workspaceApi && typeof workspaceApi.startSession === 'function' && !workspaceApi.__apArchiveGuard) {
-        const origStart = workspaceApi.startSession.bind(workspaceApi)
-        workspaceApi.startSession = function () {
-          window.__apViewingArchived = ''
-          return origStart.apply(this, arguments)
-        }
-        workspaceApi.__apArchiveGuard = true
-      }
-    }
-
     function openArchivedSession(sessionId) {
-      if (!sessionId || !runtime.sessions || typeof runtime.sessions.open !== 'function') {
+      if (!sessionId || !runtime.sessions || typeof runtime.sessions.retain !== 'function') {
         showToast('会话服务还没就绪')
         return
       }
       window.__apViewingArchived = sessionId
       setWorkbenchOpen(false)
-      runtime.sessions.open(sessionId)
+      window.dispatchEvent(new CustomEvent('agent-pi-view-archive', { detail: { sessionId } }))
     }
 
     function ArchiveSession(props) {
@@ -7713,7 +7703,7 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
             rememberArchiveStore(body)
             if (window.__apViewingArchived === sessionId) {
               window.__apViewingArchived = ''
-              if (runtime.sessions && typeof runtime.sessions.clear === 'function') runtime.sessions.clear()
+              window.dispatchEvent(new CustomEvent('agent-pi-view-archive', { detail: { sessionId: '' } }))
             }
             setTick((value) => value + 1)
           })
@@ -7809,6 +7799,7 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
     }
 
     const BRAND_LOGO = '/api/agent-pi/brand/logo.png?v=8'
+    const STUDIO_LOGO = '/api/agent-pi/brand/studio.png?v=3.7.0'
     const BRAND_FAVICON = '/api/agent-pi/brand/favicon.png?v=8'
     const PRODUCT_NAME = 'Agent Pi DSH'
 
@@ -7849,10 +7840,10 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
       if (!wrap) {
         wrap = document.createElement('div')
         wrap.className = 'ap-pi'
-        wrap.setAttribute('aria-label', 'Agent Pi DSH')
+        wrap.setAttribute('aria-label', 'Always π AI studio')
         const img = document.createElement('img')
-        img.src = BRAND_LOGO
-        img.alt = 'Agent Pi DSH'
+        img.src = STUDIO_LOGO
+        img.alt = 'Always π AI studio'
         img.draggable = false
         wrap.appendChild(img)
         mount.appendChild(wrap)
@@ -7875,33 +7866,28 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
         const pi = ensureMount('ap-mount-pi')
         const staleSessions = document.getElementById('ap-mount-sessions')
         if (staleSessions) staleSessions.remove()
-        const logoToggle = parts.logoRow.lastElementChild
-        if (lang.parentElement !== parts.logoRow || lang.nextElementSibling !== logoToggle) {
-          parts.logoRow.insertBefore(lang, logoToggle || null)
-        }
-        const seq = [parts.logoRow, studio, wb, kb, archive, parts.newSession, parts.region, parts.foot, pi].filter(Boolean)
+        const logoToggle = parts.logoRow.querySelector('button[class*="toggle"]')
+        if (lang.parentElement !== parts.logoRow) parts.logoRow.appendChild(lang)
+        if (lang.style.order !== '1') lang.style.order = '1'
+        if (logoToggle && logoToggle.style.order !== '2') logoToggle.style.order = '2'
+        const fixed = [parts.logoRow, studio, wb, kb, archive, parts.newSession, parts.region, parts.foot].filter(Boolean)
+        const remaining = Array.from(parts.root.children).filter(node => !fixed.includes(node) && node !== pi && !node.hasAttribute('data-ap-mount'))
+        const seq = [...fixed, ...remaining, pi]
         for (let i = 0; i < seq.length; i++) {
           if (parts.root.children[i] !== seq[i]) parts.root.insertBefore(seq[i], parts.root.children[i] || null)
         }
-        ;['ap-mount-studio', 'ap-mount-lang', 'ap-mount-wb', 'ap-mount-kb', 'ap-mount-archive'].forEach((id) => {
-          const mount = document.getElementById(id)
-          const node = document.querySelector('[data-ap-place="' + id + '"]')
-          if (mount && node && node.parentElement !== mount) mount.appendChild(node)
-        })
         fillPiMount(pi)
       } finally {
         placingSidebar = false
       }
     }
 
-    function usePlaced(mountId) {
-      const ref = React.useRef(null)
-      React.useLayoutEffect(() => {
-        const node = ref.current
-        if (node) node.setAttribute('data-ap-place', mountId)
-        syncSidebarLayout()
-      })
-      return ref
+    function placedSidebar(Component, mountId) {
+      return function PlacedSidebar(props) {
+        const mount = ensureMount(mountId)
+        React.useLayoutEffect(() => { syncSidebarLayout() })
+        return ReactDOM.createPortal(h(Component, props), mount)
+      }
     }
 
     function KnowledgeBaseNav(props) {
@@ -7923,8 +7909,8 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
           window.removeEventListener('agent-pi-wb-changed', sync)
         }
       }, [])
-      const ref = usePlaced('ap-mount-kb')
-      return h('div', { ref, className: 'ap-nav-host', 'data-ap-place': 'ap-mount-kb' },
+
+      return h('div', { className: 'ap-nav-host', 'data-ap-place': 'ap-mount-kb' },
         h('button', {
           type: 'button',
           className: 'ap-nav' + (open && kbOn ? ' on' : '') + (props.wide ? '' : ' rail'),
@@ -7960,8 +7946,8 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
         }
       }, [])
       const on = open && page !== 'kb' && page !== 'archive' && page !== 'modules'
-      const ref = usePlaced('ap-mount-wb')
-      return h('div', { ref, className: 'ap-nav-host', 'data-ap-place': 'ap-mount-wb' },
+
+      return h('div', { className: 'ap-nav-host', 'data-ap-place': 'ap-mount-wb' },
         h('button', {
           type: 'button',
           className: 'ap-nav' + (on ? ' on' : '') + (props.wide ? '' : ' rail'),
@@ -7995,8 +7981,8 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
           window.removeEventListener('agent-pi-wb-changed', sync)
         }
       }, [])
-      const ref = usePlaced('ap-mount-archive')
-      return h('div', { ref, className: 'ap-nav-host', 'data-ap-place': 'ap-mount-archive' },
+
+      return h('div', { className: 'ap-nav-host', 'data-ap-place': 'ap-mount-archive' },
         h('button', {
           type: 'button',
           className: 'ap-nav' + (open && on ? ' on' : '') + (props.wide ? '' : ' rail'),
@@ -8591,10 +8577,10 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
     }
 
     function StudioCredit(props) {
-      const ref = usePlaced('ap-mount-studio')
+
       const zh = useApLang() === 'zh'
-      if (!props.wide) return h('span', { ref, 'data-ap-place': 'ap-mount-studio', style: { display: 'none' } })
-      return h('div', { ref, className: 'ap-studio', 'data-ap-place': 'ap-mount-studio',
+      if (!props.wide) return h('span', { 'data-ap-place': 'ap-mount-studio', style: { display: 'none' } })
+      return h('div', { className: 'ap-studio', 'data-ap-place': 'ap-mount-studio',
         title: zh ? '由 Always π AI studio 独立开发和维护' : 'Independently developed and maintained by Always π AI studio' }, 'Always π AI studio')
     }
 
@@ -8648,6 +8634,7 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
     }
 
     export function apply(ctx) {
+      installArchiveSessionView(ctx, { React, useLanguage: useApLang })
       installNativeWorkFilePreviews(ctx, { React, ReactDOM, FilePreviewOverlay })
       ctx.inject(['sidebarRight'], (scope) => {
         runtime.sidebarRight = scope.sidebarRight
@@ -8661,11 +8648,13 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
           || ctx.sessions
           || (typeof scope.get === 'function' ? scope.get('sessions') : null)
           || runtime.sessions
-        guardArchivedSessionView(runtime.sessions)
-        installKbSessionBridge(runtime.sessions, { claimDraftKbTask, resetDraftKbTask, kbDraftKey }, (sessionId) => {
+        const stopKbSelection = installKbSessionBridge(runtime.sessions, { claimDraftKbTask, resetDraftKbTask, kbDraftKey }, (sessionId) => {
           runtime.sessionId = sessionId
           composerFace.sessionId = sessionId
           composerFace.inputActions = null
+          composerFace.session = null
+          composerFace.draft = ''
+          composerFace.input = { draft: '' }
           if (!sessionId) {
             runtime.cwd = ''
             composerFace.cwd = ''
@@ -8673,11 +8662,13 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
             composerFace.input = { draft: '' }
           }
         })
+        scope.on('dispose', stopKbSelection)
         watchWorkbenchTransactionRestore()
         ensureUserRequirementWatcher(runtime.sessionId)
       })
       ctx.inject(['sessions', 'uiWorkspace'], (scope) => {
-        installKbWorkspaceBridge(scope.sessions || runtime.sessions, scope.uiWorkspace || ctx.uiWorkspace, { claimDraftKbTask, kbDraftKey })
+        runtime.uiWorkspace = scope.uiWorkspace || ctx.uiWorkspace
+        scope.on('dispose', installKbWorkspaceBridge(scope.sessions || runtime.sessions, runtime.uiWorkspace, { claimDraftKbTask, kbDraftKey }))
       })
       ctx.inject(['conversation'], (scope) => {
         runtime.conversation = scope.conversation
@@ -8726,18 +8717,17 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
       ))
       ctx.slots.inject('conversation.input.dock', () => ctx.slots.register(
         { name: 'conversation.input.dock', id: 'agent-pi-attachments', order: 5, label: '附件' },
-        AttachmentDock,
+        MainAttachmentDock,
       ))
       ctx.slots.inject('conversation.input.left', () => ctx.slots.register(
         { name: 'conversation.input.left', id: 'agent-pi-composer-tools', order: 20, label: '指令润色' },
-        ComposerTools,
+        MainComposerTools,
       ))
       ctx.inject(['workspaces'], (scope) => {
         runtime.workspaces = scope.workspaces
           || ctx.workspaces
           || (typeof scope.get === 'function' ? scope.get('workspaces') : null)
           || runtime.workspaces
-        guardArchivedSessionView(runtime.sessions, runtime.workspaces)
         watchArchivedWorkspaces()
       })
       ctx.inject(['locale'], (scope) => {
@@ -8765,22 +8755,6 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
           name: 'conversation.chat.turnTail',
           id: 'agent-pi-harvest',
           order: 80,
-          select: (owner) => {
-            const data = owner && owner.turn && owner.turn.data && typeof owner.turn.data.get === 'function'
-              ? owner.turn.data.get('deliverables')
-              : null
-            const produced = data && data.produced ? data.produced : []
-            const paths = []
-            const seen = new Set()
-            for (let i = 0; i < produced.length; i++) {
-              const row = produced[i]
-              if (!row || !row.path || seen.has(row.path)) continue
-              if (typeof owner.seq === 'number' && row.seq > owner.seq) continue
-              seen.add(row.path)
-              paths.push(row.path)
-            }
-            return paths.length ? paths : null
-          },
         },
         HarvestOutputs,
       ))
@@ -8854,22 +8828,22 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
       ))
       ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register(
         { name: 'sidebar.footer.action', id: 'agent-pi-studio', order: 0, label: 'Always π AI studio' },
-        StudioCredit,
+        placedSidebar(StudioCredit, 'ap-mount-studio'),
       ))
       ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register(
         { name: 'sidebar.footer.action', id: 'agent-pi-lang', order: 1, label: 'Language' },
-        LanguageToggle,
+        placedSidebar(LanguageToggle, 'ap-mount-lang'),
       ))
       ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register(
         { name: 'sidebar.footer.action', id: 'tender-workbench-nav', order: 2, label: WORKBENCH_LABEL },
-        WorkbenchNav,
+        placedSidebar(WorkbenchNav, 'ap-mount-wb'),
       ))
       ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register(
         { name: 'sidebar.footer.action', id: 'agent-pi-kb-nav', order: 3, label: '知识库' },
-        KnowledgeBaseNav,
+        placedSidebar(KnowledgeBaseNav, 'ap-mount-kb'),
       ))
       ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register(
         { name: 'sidebar.footer.action', id: 'agent-pi-archive-nav', order: 4, label: '归档' },
-        ArchiveNav,
+        placedSidebar(ArchiveNav, 'ap-mount-archive'),
       ))
     }

@@ -25,6 +25,7 @@ function harness({ holdTurn = false } = {}) {
       }
     },
     subagents: {
+      resolveMaxDepth(configured?: number | 'provider-managed') { return configured === 'provider-managed' ? undefined : configured ?? 1 },
       registerProvider(provider: any) { providers.set(provider.name, provider); return () => {} },
       getProvider(name: string) { return providers.get(name) },
       async start(name: string, request: any) {

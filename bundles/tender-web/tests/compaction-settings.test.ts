@@ -7,7 +7,7 @@ import { clientSource } from './client-source.ts'
 
 const client = clientSource
 const start = client.indexOf('function CodexSettingsSection()')
-const end = client.indexOf('function CompanyLockup', start)
+const end = client.indexOf('function StudioCredit', start)
 const section = client.slice(start, end)
 
 test('compaction settings explain the trigger, target, charge, and provider boundary', () => {
@@ -15,7 +15,7 @@ test('compaction settings explain the trigger, target, charge, and provider boun
   assert.notEqual(end, -1)
   assert.match(section, /对话自动压缩/)
   assert.match(section, /约 72%/)
-  assert.match(section, /deepseek-v4-flash-vision-exp/)
+  assert.match(section, /deepseek-flash/)
   assert.match(section, /DeepSeek 调用费用/)
   assert.match(section, /跨供应商/)
   assert.match(section, /当前会话模型/)

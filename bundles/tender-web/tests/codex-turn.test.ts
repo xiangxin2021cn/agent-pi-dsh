@@ -134,10 +134,11 @@ function loadShippedComposer(options = {}) {
     },
   }
   const runtime = options.runtime || fallbackRuntime
+  runtime.sessions.list ||= { getSnapshot: () => ({ byId: {} }), subscribe: () => () => {} }
   bundle.apply({
     slots: { inject() {} },
     inject(names, install) {
-      if (names.every((name) => runtime[name])) install(Object.fromEntries(names.map((name) => [name, runtime[name]])))
+      if (names.every((name) => runtime[name])) install({ ...Object.fromEntries(names.map((name) => [name, runtime[name]])), slots: this.slots, on() {} })
     },
   })
   return {

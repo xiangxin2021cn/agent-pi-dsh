@@ -1,17 +1,17 @@
 {
   "schema": "agent-pi-dsh/univer-office-pin/v1",
   "name": "dsh-univer-office",
-  "version": "0.3.0",
+  "version": "0.3.2",
   "license": "Apache-2.0",
-  "tarball": "https://registry.npmjs.org/dsh-univer-office/-/dsh-univer-office-0.3.0.tgz",
-  "integrity": "sha512-GTA2C8Yg0uolFQHqAbSh8Xn0ooyTyudUjQCC/DgcQzpQEa9vpGSinGTZO6t97jClmytTUF7oXT7ycx2DehdJCg==",
-  "shasum": "a982cc2bd9aa1f33b5baccf91735fb80744329bb",
-  "archiveBytes": 42442578,
-  "archiveEntries": 281,
+  "tarball": "https://registry.npmjs.org/dsh-univer-office/-/dsh-univer-office-0.3.2.tgz",
+  "integrity": "sha512-88Rq+5GvWS1wQe3zCS483uUAA+wo9MFd3lSS1gUXw7FVLxW8eUIg7p/mGd/yG9W/CHxvSuP3SUd3rPtRJY0Xzg==",
+  "shasum": "33b1d407000eafb51a53fe7f272b993be460dc3b",
+  "archiveBytes": 42442378,
+  "archiveEntries": 280,
   "source": {
     "repository": "https://github.com/dream-num/dsh-univer-office",
-    "tag": "v0.3.0",
-    "tagObject": "ed46cd6e433ce1f80de2d9c692a49f71613afefb",
-    "commit": "ed46cd6e433ce1f80de2d9c692a49f71613afefb"
+    "tag": "v0.3.2",
+    "tagObject": "952e6223ce4986a17214f4b3acd0215273712699",
+    "commit": "952e6223ce4986a17214f4b3acd0215273712699"
   }
 }

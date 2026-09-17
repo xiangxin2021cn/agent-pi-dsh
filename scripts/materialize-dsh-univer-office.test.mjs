@@ -1,3 +1,4 @@
+import { patchUniverTurnTail } from './patch-univer-alpha1.mjs'
 import { viewerProxyFixture } from './fixtures/univer-viewer-proxy.mjs'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
@@ -24,6 +25,7 @@ import {
 
 const nativeClient = [
   'function PreviewCard(props) {',
+  'return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(PreviewCardContent, { ...props, timeline, cwd });',
   '  const timeline = props.useChat((snapshot) => snapshot.timeline);',
   '}',
   'function apply(ctx) {',
@@ -34,6 +36,9 @@ const nativeClient = [
   '  uiConversation.events.register(univerTurnDefinition);',
   '}',
   'var inject = ["slots", "locale", "conversation"];',
+  'name: "conversation.chat.turnTail",',
+  '              priority: -10,',
+  '              select: selectUniverTurn,',
   '',
 ].join('\n')
 
@@ -61,7 +66,7 @@ function fixture(t, {
   const packageRoot = join(directory, 'source', 'package')
   write(join(packageRoot, 'package.json'), `${JSON.stringify({
     name: 'dsh-univer-office',
-    version: '0.3.0',
+    version: '0.3.2',
     license,
   })}\n`)
   write(join(packageRoot, 'LICENSE'), 'Apache License\nVersion 2.0, January 2004\n')
@@ -71,7 +76,7 @@ function fixture(t, {
   if (symbolicLink) symlinkSync('LICENSE', join(packageRoot, 'LICENSE.link'), 'file')
   if (outsideEntry) write(join(directory, 'source', 'outside.txt'), 'outside package root\n')
 
-  const archivePath = join(directory, 'dsh-univer-office-0.3.0.tgz')
+  const archivePath = join(directory, 'dsh-univer-office-0.3.2.tgz')
   const archiveItems = outsideEntry ? ['package', 'outside.txt'] : ['package']
   runTar(['-czf', archivePath, '-C', join(directory, 'source'), ...archiveItems])
   const bytes = readFileSync(archivePath)
@@ -79,16 +84,16 @@ function fixture(t, {
   const pin = {
     schema: 'agent-pi-dsh/univer-office-pin/v1',
     name: 'dsh-univer-office',
-    version: '0.3.0',
+    version: '0.3.2',
     license: 'Apache-2.0',
-    tarball: 'https://registry.npmjs.org/dsh-univer-office/-/dsh-univer-office-0.3.0.tgz',
+    tarball: 'https://registry.npmjs.org/dsh-univer-office/-/dsh-univer-office-0.3.2.tgz',
     integrity: `sha512-${createHash('sha512').update(bytes).digest('base64')}`,
     shasum: createHash('sha1').update(bytes).digest('hex'),
     archiveBytes: bytes.length,
     archiveEntries,
     source: {
       repository: 'https://github.com/dream-num/dsh-univer-office',
-      tag: 'v0.3.0',
+      tag: 'v0.3.2',
       tagObject: 'a'.repeat(40),
       commit: 'b'.repeat(40),
     },
@@ -98,28 +103,28 @@ function fixture(t, {
   return { archivePath, directory, pin, pinPath, root }
 }
 
-test('tracked pin binds Univer 0.3.0 to the npm tarball and upstream source commit', () => {
+test('tracked pin binds Univer 0.3.2 to the npm tarball and upstream source commit', () => {
   const pin = loadUniverPin(join(import.meta.dirname, '..', 'vendor', 'dsh-univer-office.pin'))
-  assert.equal(pin.version, '0.3.0')
+  assert.equal(pin.version, '0.3.2')
   assert.equal(pin.license, 'Apache-2.0')
-  assert.equal(pin.source.tag, 'v0.3.0')
-  assert.equal(pin.source.tagObject, 'ed46cd6e433ce1f80de2d9c692a49f71613afefb')
-  assert.equal(pin.source.commit, 'ed46cd6e433ce1f80de2d9c692a49f71613afefb')
-  assert.equal(pin.tarball, 'https://registry.npmjs.org/dsh-univer-office/-/dsh-univer-office-0.3.0.tgz')
-  assert.equal(pin.integrity, 'sha512-GTA2C8Yg0uolFQHqAbSh8Xn0ooyTyudUjQCC/DgcQzpQEa9vpGSinGTZO6t97jClmytTUF7oXT7ycx2DehdJCg==')
-  assert.equal(pin.shasum, 'a982cc2bd9aa1f33b5baccf91735fb80744329bb')
-  assert.equal(pin.archiveBytes, 42_442_578)
-  assert.equal(pin.archiveEntries, 281)
+  assert.equal(pin.source.tag, 'v0.3.2')
+  assert.equal(pin.source.tagObject, '952e6223ce4986a17214f4b3acd0215273712699')
+  assert.equal(pin.source.commit, '952e6223ce4986a17214f4b3acd0215273712699')
+  assert.equal(pin.tarball, 'https://registry.npmjs.org/dsh-univer-office/-/dsh-univer-office-0.3.2.tgz')
+  assert.equal(pin.integrity, 'sha512-88Rq+5GvWS1wQe3zCS483uUAA+wo9MFd3lSS1gUXw7FVLxW8eUIg7p/mGd/yG9W/CHxvSuP3SUd3rPtRJY0Xzg==')
+  assert.equal(pin.shasum, '33b1d407000eafb51a53fe7f272b993be460dc3b')
+  assert.equal(pin.archiveBytes, 42_442_378)
+  assert.equal(pin.archiveEntries, 280)
 })
 
-test('materializes, receipts, and verifies the clean native package without changing its client bytes', async (t) => {
+test('materializes, receipts, and verifies the clean native package with the reviewed alpha.2 turn-tail adapter', async (t) => {
   const item = fixture(t)
   const result = await materializeDshUniverOffice(item)
   const plugin = join(item.root, 'vendor', 'dsh-univer-office')
   assert.equal(result.destination, plugin)
-  assert.equal(verifyMaterializedUniver(plugin, item.pinPath).package.version, '0.3.0')
+  assert.equal(verifyMaterializedUniver(plugin, item.pinPath).package.version, '0.3.2')
   const client = readFileSync(join(plugin, 'lib', 'client.js'), 'utf8')
-  assert.equal(client, nativeClient)
+  assert.equal(client, patchUniverTurnTail(nativeClient))
   assert.match(client, /uiConversation\.events\.register\(univerTurnDefinition\)/)
   assert.doesNotMatch(client, /conversationEvents|props\.useSession\(/)
   assert.equal(existsSync(join(plugin, 'AGENT-PI-VENDOR-RECEIPT.json')), true)

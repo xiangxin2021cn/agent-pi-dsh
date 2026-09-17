@@ -56,6 +56,7 @@ function archive(item) {
 
 const nativeClient = [
   'function PreviewCard(props) {',
+  'const matched = selectUniverTurn(props);',
   '  const timeline = props.useChat((snapshot) => snapshot.timeline);',
   '}',
   'function apply(ctx) {',
@@ -66,6 +67,7 @@ const nativeClient = [
   '  uiConversation.events.register(univerTurnDefinition);',
   '}',
   'var inject = ["slots", "locale", "conversation"];',
+  'id: "univer-turn-preview",',
   '',
 ].join('\n')
 

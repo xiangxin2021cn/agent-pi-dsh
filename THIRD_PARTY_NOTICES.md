@@ -45,23 +45,23 @@ synthesized.
 
 ## dsh-univer-office integration
 
-Agent Pi DSH distributes the complete official `dsh-univer-office` 0.3.0
+Agent Pi DSH distributes the complete official `dsh-univer-office` 0.3.2
 package, pinned by `vendor/dsh-univer-office.pin`, with native support for
-DSH 0.1.6-alpha.1. The upstream package declares Apache-2.0;
+DSH 0.1.6-alpha.2. The upstream package declares Apache-2.0;
 its original LICENSE, bundled Gateway, Viewer, workers, converters and license
 materials are retained in the verified package inventory. Platform runtime
 dependencies are installed from the tracked production lock and retain their
 own upstream terms. The package license does not relicense separately licensed
 dependencies; upstream authorization checks and license files are unchanged.
 
-The 0.3.0 workers also require native packages omitted from its published
-dependency manifest. The production lock supplies the exact dependencies of
-the bundled 1.0.0-rc.0 SDK: `@univerjs-pro/exchange-node-binding` 0.1.2 and
-`@univerjs-pro/engine-formula-rust-binding` 1.0.0-insiders.20260910-22fe9c7,
-including the matching platform binaries and their original licenses.
-The recorded compatibility patch preserves the Viewer WebSocket session ticket
-and text/binary message framing. Official browser authentication and workspace
-scope checks remain intact; the native DSH client integration is unchanged.
+The 0.3.2 official manifest declares both native worker packages:
+`@univerjs-pro/exchange-node-binding` 0.1.2 and
+`@univerjs-pro/engine-formula-rust-binding` 1.0.0-insiders.20260910-22fe9c7.
+The production lock includes matching platform binaries and original licenses.
+Upstream also includes the Viewer WebSocket session-ticket and text/binary
+framing fixes. The product retains the original official host bytes, authorization and
+workspace scope checks. A recorded browser adapter changes the turn-tail card
+from the older matching-chain contract to the DSH alpha.2 list-slot contract.
 
 Source: https://github.com/dream-num/dsh-univer-office
 

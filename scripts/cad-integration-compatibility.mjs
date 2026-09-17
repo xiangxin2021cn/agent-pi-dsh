@@ -75,9 +75,13 @@ function withReviewedNonCadChanges(path, text) {
   }
   if (path === 'bundles/tender-host/src/http.ts') {
     return text.replace("  'company.png': 'image/png',\n  'company-mark.png': 'image/png',\n", '')
+      .replace("  'logo.png': 'image/png',", "  'logo.png': 'image/png',\n  'studio.png': 'image/png',")
   }
   if (path !== 'bundles/tender-web/src/client/styles.js') return text
   return text
+    .replace('.ap-pi.rail{', '.ap-pi.rail,[data-sidebar-collapsed] .ap-pi{')
+    .replace('.ap-pi.rail img{', '.ap-pi.rail img,[data-sidebar-collapsed] .ap-pi img{')
+    .replace('.ap-pi img{display:block;width:100%;max-width:140px;height:auto;max-height:100px;object-fit:contain;object-position:center;user-select:none;pointer-events:none}', '.ap-pi img{display:block;width:112px;max-width:100%;height:112px;max-height:112px;border-radius:50%;object-fit:contain;object-position:center;user-select:none;pointer-events:none}')
     .replace('.ap-nav-host,.ap-company,.ap-pi{width:100%;flex:none}', '.ap-nav-host,.ap-studio,.ap-pi{width:100%;flex:none}')
     .replace('.ap-company{display:flex;align-items:center;justify-content:center;padding:4px 2px 10px}\n.ap-company img{display:block;width:100%;height:auto;max-height:34px;object-fit:contain;object-position:center;user-select:none}', '.ap-studio{text-align:center;padding:4px 2px 10px;font-size:11px;color:var(--dsw-alias-label-secondary)}')
     .replace('[data-sidebar-collapsed] #ap-mount-company{display:none}', '[data-sidebar-collapsed] #ap-mount-studio{display:none}')
