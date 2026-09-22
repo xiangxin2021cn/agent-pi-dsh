@@ -211,9 +211,27 @@ export function classifyPnpmFailure(output: string, exitCode?: number | null): P
   if (output.includes('ERR_PNPM_UNEXPECTED_STORE')) {
     const linked = /currently linked from the store at "([^"]+)"/.exec(output)?.[1]
     const wanted = /wants to use the store at "([^"]+)"/.exec(output)?.[1]
+    const modulesDir = /The dependencies at "([^"]+)"/.exec(output)?.[1]
     const detail = linked !== undefined && wanted !== undefined
       ? `\n  node_modules → ${linked}\n  pnpm 现在想用 / pnpm now wants → ${wanted}`
       : ''
+    // DSH Desktop installs market plugins in a staging workspace under
+    // $DSH_HOME/profiles/.generations/staging/. When that staging tree
+    // carries no pnpm-workspace.yaml of its own, pnpm resolves the
+    // workspace root by walking the ancestor chain — and a
+    // pnpm-workspace.yaml ABOVE the staging tree (a home folder used as a
+    // pnpm workspace is the usual one) claims the install together with
+    // ITS store. The profile's own node_modules is not the one that
+    // mismatched, so the ordinary profile-relink advice is wrong here.
+    // Match only .generations/staging — a .generations/live path is not
+    // the disposable staging workspace.
+    if (modulesDir !== undefined && /[/\\]\.generations[/\\]staging[/\\]/.test(modulesDir)) {
+      return {
+        code: 'unexpected-store',
+        recoverable: false,
+        message: `桌面端的插件安装暂存目录（.generations/staging）被上层的 pnpm workspace 接管（通常是 ~/pnpm-workspace.yaml，它的 node_modules 链到另一个 store），pnpm 因此拒绝在暂存目录里安装。这不是 profile 的 node_modules。处理办法（任选其一）：用那个上层 workspace 自己的 pnpm 大版本重新链接它的 node_modules；或不需要那份祖先 workspace 的话，删掉它的 pnpm-workspace.yaml。暂存目录 → ${modulesDir}${detail} / the desktop client's install staging directory (.generations/staging) was claimed by a pnpm workspace above it (usually ~/pnpm-workspace.yaml, whose node_modules links a different pnpm store), so pnpm refuses to install there. This is not the profile's node_modules. Fix (any one): relink that outer workspace's node_modules with its own pnpm major; or remove that ancestor pnpm-workspace.yaml if you do not need it. Staging directory → ${modulesDir}${detail}`,
+      }
+    }
     return {
       code: 'unexpected-store',
       recoverable: false,
@@ -308,7 +326,7 @@ export function classifyPnpmFailure(output: string, exitCode?: number | null): P
   // before ANY later mutation — uninstalling even an unrelated plugin fails
   // (MINIMUM_RELEASE_AGE_VIOLATION), and a later add can fail re-resolving
   // the young dep (NO_MATURE_MATCHING_VERSION). Recovery is a one-shot
-  // --config.minimumReleaseAge=0 retry, automated in withHoistRecovery.
+  // --config.minimum-release-age=0 retry, automated in withHoistRecovery.
   if (output.includes('ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION')
     || output.includes('ERR_PNPM_NO_MATURE_MATCHING_VERSION')) {
     return {
@@ -426,7 +444,10 @@ export function classifyPnpmFailure(output: string, exitCode?: number | null): P
   // win, because that process is the thing holding the handles; retrying
   // would only turn one clear failure into several slow ones. So this names
   // the cause and the ways out instead of guessing.
-  if (/ERR_PNPM_EPERM|EPERM: operation not permitted, rename/i.test(output)) {
+  // pnpm 12 (the native CLI) says it differently and carries no ERR_PNPM_
+  // code: `failed to remove existing directory "…" prior to swap: …` — same
+  // refused swap over the open directory, so the same answer.
+  if (/ERR_PNPM_EPERM|EPERM: operation not permitted, rename|failed to remove existing directory .* prior to swap/i.test(output)) {
     // Read through the NDJSON reporter like the integrity classifier does:
     // in production this arrives JSON-escaped, so every separator is doubled
     // and a single-character class silently matches nothing.
@@ -439,7 +460,7 @@ export function classifyPnpmFailure(output: string, exitCode?: number | null): P
       code: 'windows-file-locked',
       recoverable: false,
       ...(pkg === undefined ? {} : { pkg }),
-      message: `Windows 不允许替换正在被打开的文件。pnpm 要用新目录替换${zh === '' ? '一个已装好的包' : ` ${pkg!}`}，而它的文件正被运行中的 DeepSeek Harness 打开着，改名因此失败，这一步没有生效——已经装好的内容没有被破坏。\n如果这个包带原生模块（.node 文件，例如 node-hid 这类），那么停用插件、甚至卸载插件都不够：原生模块一旦被加载，在进程退出前都不会释放。刚卸载完立刻重装同一个插件在 Windows 上失败，通常就是这个原因。\n可行的做法：完全退出 DeepSeek Harness（不是刷新页面），重新启动后再操作一次；或退出后在命令行执行。杀毒软件或文件索引临时占用目录也会报同样的错，若都不适用可稍后重试。 / Windows will not replace a file that is open. pnpm tried to swap a new directory over${en === '' ? ' an installed package' : en}, whose files the running DeepSeek Harness holds open, so the rename failed and this step did not apply — what was already installed is intact. If that package ships a native module (a .node file, node-hid and friends), disabling the plugin — even uninstalling it — is not enough: once a native module is loaded it is not released until the process exits, which is the usual reason reinstalling a plugin right after uninstalling it fails on Windows. What works: quit DeepSeek Harness completely (not a page refresh), start it again, and repeat the operation; or run it from the command line with the app closed. Antivirus or a file indexer holding the directory produces the same error, so a later retry is worth trying if neither applies.`,
+      message: `Windows 不允许替换正在被打开的文件。pnpm 要用新目录替换${zh === '' ? '一个已装好的包' : ` ${pkg!}`}，而它的文件正被运行中的 DeepSeek Harness 打开着，改名因此失败，这一步没有生效。\n要注意的是：pnpm 在重试改名之前会尽量把目标目录清掉，所以**被占用文件旁边的内容可能已经被删**——不一定只是「没换成」而已。市场遇到这种失败时不再尝试回滚（同一个改名会撞同一批句柄），而是把 package.json 与 pnpm-lock.yaml 恢复成操作前的样子，并检查原构建的入口是否还在——结论以那次检查为准。\n如果这个包带原生模块（.node 文件，例如 node-hid 这类），那么停用插件、甚至卸载插件都不够：原生模块一旦被加载，在进程退出前都不会释放。刚卸载完立刻重装同一个插件在 Windows 上失败，通常就是这个原因。\n可行的做法：完全退出 DeepSeek Harness（不是刷新页面），重新启动后再操作一次；或退出后在命令行执行。杀毒软件或文件索引临时占用目录也会报同样的错，若都不适用可稍后重试。 / Windows will not replace a file that is open. pnpm tried to swap a new directory over${en === '' ? ' an installed package' : en}, whose files the running DeepSeek Harness holds open, so the rename failed and this step did not apply. Note that pnpm clears as much of the target directory as it can before retrying the rename, so content BESIDE the file it could not remove may already be gone — this is not always only "the swap did not happen". On this failure the market no longer attempts a rollback (the same rename would meet the same open handles); it restores package.json and pnpm-lock.yaml to how they were and then checks whether the previous build still has a loadable entry — that check is the answer. If that package ships a native module (a .node file, node-hid and friends), disabling the plugin — even uninstalling it — is not enough: once a native module is loaded it is not released until the process exits, which is the usual reason reinstalling a plugin right after uninstalling it fails on Windows. What works: quit DeepSeek Harness completely (not a page refresh), start it again, and repeat the operation; or run it from the command line with the app closed. Antivirus or a file indexer holding the directory produces the same error, so a later retry is worth trying if neither applies.`,
     }
   }
   // #83: pnpm replays the WHOLE dependency tree on every add/remove, so a

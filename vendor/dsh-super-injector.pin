@@ -1,3 +1,3 @@
-v0.3.3
-https://github.com/yjh051108/dsh-super-injector/releases/download/v0.3.3/dsh-external-dsh-super-injector-0.3.3.tgz
-Agent Pi React settings compatibility retained.
+v0.3.5
+https://github.com/yjh051108/dsh-super-injector/releases/download/v0.3.5/dsh-external-dsh-super-injector-0.3.5.tgz
+Agent Pi: retain React settings and host unhandled-rejection diagnostics.

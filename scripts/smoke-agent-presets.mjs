@@ -114,8 +114,9 @@ try {
   await page.locator('button[aria-haspopup="menu"]').filter({ hasText: /极简模式|Minimal mode/ }).first()
     .waitFor({ state: 'visible', timeout: 10_000 })
 
-  const settings = readFileSync(join(effectiveDshHome, 'settings.yaml'), 'utf8')
-  assert.match(settings, /agent-presets:\r?\n  default: standard/)
+  const settings = readFileSync(join(effectiveDshHome, 'profiles/tender/cordis.patch.yml'), 'utf8')
+  assert.match(settings, /id: agent-preset-registry/)
+  assert.match(settings, /selectedDefault: standard/)
   assert.doesNotMatch(settings, /default: code/)
   const migratedSession = readFileSync(legacySessionFile)
   const migratedHeader = JSON.parse(zstdDecompressSync(migratedSession).toString('utf8'))
@@ -137,6 +138,7 @@ try {
   mkdirSync(artifactDir, { recursive: true })
   if (page) await page.screenshot({ path: join(artifactDir, 'agent-preset-smoke-failure.png'), fullPage: true }).catch(() => {})
   const diagnostics = [String(error?.stack || error), '', 'Electron output:', processOutput || '(empty)'].join('\n')
+    .replace(/(token=)[^\s]+/g, '$1<redacted>')
   writeFileSync(join(artifactDir, 'agent-preset-smoke-failure.log'), diagnostics)
   throw new Error(diagnostics)
 } finally {

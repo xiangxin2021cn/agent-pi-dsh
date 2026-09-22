@@ -34,6 +34,20 @@ export declare function readInstalled(profile: string, explicitDir?: string): Re
  * a filtered view would delete @deepseek-ai/dsh-base and friends.
  */
 export declare function readManifestDeps(profile: string, explicitDir?: string): Record<string, string>;
+/**
+ * For each installed package, the OTHER installed package that declares it —
+ * as a dependency or a peer dependency — in its own manifest.
+ *
+ * pnpm's auto-install-peers writes a plugin's peers into the profile manifest
+ * as direct dependencies, so a native binding a plugin needs shows up in the
+ * installed list looking exactly like a plugin the user chose (#634). What
+ * separates them is that somebody else asked for it.
+ *
+ * Ownership is decided by the first owner in sorted order, so the answer does
+ * not depend on the manifest's key order. A package that declares itself is
+ * ignored, and so is a cycle's other half once one owner is chosen.
+ */
+export declare function readDependencyOwners(profile: string, names: readonly string[], explicitDir?: string): Record<string, string>;
 /** Exact rollback state owned by one profile package operation. */
 export interface ProfileManifestSnapshot {
     dependencies: Record<string, string>;
@@ -79,7 +93,8 @@ export declare function readInstalledVersion(profile: string, name: string, expl
 /** The installed package manifest, or null when absent or malformed. */
 export declare function readInstalledManifest(profile: string, name: string, explicitDir?: string): unknown | null;
 /**
- * Whether a package or one of its direct dependencies ships a native addon.
+ * Whether a package or one of its direct dependencies (including
+ * optionalDependencies) ships a native addon.
  *
  * The question behind it: can unloading this plugin actually free its files?
  * For ordinary JavaScript, yes — and on POSIX it does not even matter,
@@ -97,13 +112,16 @@ export declare function readInstalledManifest(profile: string, name: string, exp
  * the conventional way: node-gyp's `build/Release`, prebuild's `prebuilds/`,
  * and the `binding.gyp` that names the addon in the first place.
  *
- * Direct dependencies are included because that is where these live: the
- * plugin is JavaScript and the addon is a package it depends on, hoisted to
- * the profile root beside it.
+ * Direct `dependencies` and `optionalDependencies` are included because
+ * that is where these live: the plugin is JavaScript and the addon is a
+ * package it depends on, hoisted to the profile root beside it.
+ * optionalDependencies is the same kind of direct declaration —
+ * SinglePlayer ships node-hid there (#441), and asking only `dependencies`
+ * treated that uninstall as ordinary JavaScript.
  * @param profile - profile name.
  * @param name - the installed package to ask about.
  * @param explicitDir - resolved profile directory, when the caller has it.
- * @returns true when a native addon is present in the package or a direct dependency.
+ * @returns true when a native addon is present in the package or a direct (optional) dependency.
  */
 export declare function holdsNativeAddon(profile: string, name: string, explicitDir?: string): boolean;
 /**
@@ -147,12 +165,27 @@ export interface InstalledRepoEvidence {
  * source directory walk.
  */
 export declare function readInstalledRepoEvidence(profile: string, name: string, spec: string, explicitDir?: string): InstalledRepoEvidence;
-/** Pinned commit per `owner/repo` from the profile lockfile's codeload tarball URLs. */
+/**
+ * Pinned commit per `host/owner/repo` from the archive tarball URLs in the
+ * profile lockfile.
+ *
+ * Keyed by host, not by `owner/repo` alone: gitlab.com and bitbucket.org
+ * hand out the same short owner/repo names GitHub does, and an unqualified
+ * key would let one host's commit answer for a plugin installed from
+ * another — reporting a rollback or an update check against a repository
+ * the user never installed. `hostedRepoKey` builds the same key from a
+ * spec, and is how callers should look one up.
+ */
 export declare function readLockCommits(profile: string, explicitDir?: string): Map<string, string>;
 /**
  * Commit recorded for a non-codeload git resolution (`type: git` in pnpm's
  * lockfile). Matched against the install spec so a Gitea/GitLab URL can
  * compare HEAD without mistaking a same-named npm package (#525).
+ *
+ * Two packages of one monorepo resolve from the SAME remote and differ only
+ * by pnpm's `path:` selector, so the spec's subpath has to match too — and
+ * when the spec names no subpath while several entries of that remote do,
+ * there is no answer rather than the first sibling's commit (#632).
  */
 export declare function readGitResolutionCommit(profile: string, spec: string, explicitDir?: string): string | null;
 /** True when the installed package's manifest declares a dsh plugin surface. */
@@ -213,6 +246,21 @@ export declare function parsePatchRows(text: string): {
     ids: string[];
     insertedIds: string[];
 };
+/** Rows of the patch a package DECLARES through `dsh.bundle.patch`. */
+/**
+ * Where a package's bundle patch lives, according to the package itself.
+ *
+ * `dsh.bundle.patch` is the package's own declaration and the only place the
+ * answer is written down: the path may be a subdirectory (`aegis` declares
+ * `./extensions/dsh/cordis.patch.yml`), not just the package root. Callers
+ * that assumed the root file made a plugin with a declared patch look like
+ * one with none (#646) — so the resolution rule lives here, once.
+ *
+ * @param dir - the installed package directory.
+ * @returns the declared patch file's path, or null when the manifest names
+ *   none (or the manifest cannot be read).
+ */
+export declare function declaredBundlePatchFile(dir: string): string | null;
 /** The profile manifest's `dsh.profile.bundles` — what the CLI reconciled. */
 export declare function readProfileBundles(profileDirectory: string): string[];
 /**

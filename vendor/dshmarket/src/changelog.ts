@@ -268,7 +268,7 @@ export async function updateNotesFor(
     let current: string | null = null
     if (key !== null && key.startsWith('https://github.com/')) {
       const repo = key.slice('https://github.com/'.length).split('#')[0]!.toLowerCase()
-      current = readLockCommits(profile, activeProfileDir).get(repo) ?? null
+      current = readLockCommits(profile, activeProfileDir).get(`github.com/${repo}`) ?? null
     } else {
       const statuses = await checkUpdates(profile, false, explicitDir).catch(() => null)
       current = statuses?.[name]?.current ?? null

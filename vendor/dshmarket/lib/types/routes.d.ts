@@ -48,6 +48,16 @@ export interface MarketConfig {
     profile: string;
     /** Host-authoritative profile directory; ordinary DSH derives it from DSH_HOME. */
     profileDirectory?: string;
+    /**
+     * Whether a DSH Desktop shell serves this process — the shell owns the
+     * window and the process lifecycle, which is what the capability bits mean
+     * by "desktop".
+     *
+     * Kept separate from `profileDirectory` on purpose: since #639 the dsh
+     * launcher hands every profile its own directory, so an explicit directory
+     * no longer tells a desktop shell apart from an ordinary `dsh` run.
+     */
+    desktopHost?: boolean;
     /** Detached self-restart is unsafe under systemd/launchd/pm2; operators can disable it (#14). */
     allowRestart?: boolean;
     /** Which release channel the market offers ITSELF from; other plugins never follow it. */

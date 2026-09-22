@@ -23,6 +23,8 @@ if (-not $DshBuildReceipt) {
 }
 $NodeDir = Join-Path $Runtime "node"
 $Product = Join-Path $Runtime "product"
+& node (Join-Path $Root "scripts\verify-project-plan-runtime.mjs") $Root
+if ($LASTEXITCODE -ne 0) { throw "Project plan runtime is missing or stale; run scripts/build-project-plan.mjs" }
 $IconSrc = Join-Path $Desktop "brand\app-logo.png"
 if (-not (Test-Path $IconSrc)) { $IconSrc = Join-Path $Root "AgentPI-logo-2.png" }
 $IconDest = Join-Path $Desktop "build\icon.png"
@@ -115,12 +117,15 @@ foreach ($item in $productItems) {
     # /XJ: node_modules junctions (injector / AnySearch peers) point
     # into this machine's DSH checkout; init-tender-profile rebuilds them on
     # the install machine, and following them here explodes the pnpm chain.
-    robocopy $src $dest /E /XJ /NFL /NDL /NJH /NJS /NP | Out-Null
+    robocopy $src $dest /E /XJ /NFL /NDL /NJH /NJS /NP /XD (Join-Path $Root "bundles\project-plan\target") | Out-Null
     if ($LASTEXITCODE -ge 8) { throw "robocopy $item failed: $LASTEXITCODE" }
   } else {
     Copy-Item -Force $src $dest
   }
 }
+
+& node (Join-Path $Root "scripts\verify-project-plan-runtime.mjs") $Product
+if ($LASTEXITCODE -ne 0) { throw "Staged project plan runtime verification failed" }
 
 function Stage-ProjectNodeModules([string]$projectRelative, [string]$requiredPackage) {
   $sourceModules = Join-Path $Root "$projectRelative\node_modules"

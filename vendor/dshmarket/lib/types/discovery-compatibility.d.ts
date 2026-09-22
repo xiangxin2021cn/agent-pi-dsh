@@ -74,7 +74,17 @@ export declare class DiscoveryManifestIndex {
     /** One semaphore for the whole index, including overlapping HTTP batches. */
     private withFetchPermit;
     private fetchOne;
-    /** Look up a bounded batch while never exceeding the configured fan-out. */
-    lookup(names: readonly string[], registry: string): Promise<Record<string, NpmManifestFacts | null>>;
+    /**
+     * Look up a bounded batch while never exceeding the configured fan-out.
+     *
+     * `record: false` answers the caller from the cache or the network but
+     * writes nothing back — not a success, not a failure, not the outage
+     * counters. A pre-flight check uses this: it runs before an operation is
+     * allowed to proceed, so whatever it learns must not decide what the
+     * diagnostics panel sees next (#619).
+     */
+    lookup(names: readonly string[], registry: string, options?: {
+        record?: boolean;
+    }): Promise<Record<string, NpmManifestFacts | null>>;
 }
 export {};

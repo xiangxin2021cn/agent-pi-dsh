@@ -79,6 +79,57 @@ export declare function proxyEnvForPnpm(env?: NodeJS.ProcessEnv, region?: Region
  */
 export declare function toolSearchDirs(platform?: string, env?: NodeJS.ProcessEnv, home?: string): string[];
 /**
+ * Stop git asking for credentials down a channel nobody is listening on
+ * (#587).
+ *
+ * `CI=true` below is the same defence one layer up, and pnpm reads it. git
+ * does not — it has its own switch, and it was not set. The gap only opens
+ * when a spec reaches pnpm's git fetcher instead of the codeload tarball
+ * path `accelerate.ts` describes: `github:owner/repo#path:/sub` is one, and
+ * pnpm really does shell out to `git` for it, trying HTTPS first.
+ *
+ * git's credential prompt opens the controlling terminal, not stdin. There
+ * is no terminal here, so the question is never seen and never answered:
+ * the reporter caught `git.exe` alive for eight minutes having burned 0.05s
+ * of CPU, and only the fifteen-minute install timeout ended it. Refusing
+ * the prompt turns that into a fast, readable failure.
+ *
+ * It is a default, not an override: a value the caller set wins, and blank
+ * counts as unset because an empty `GIT_TERMINAL_PROMPT` is not a setting
+ * git can parse either. Credential helpers and `GIT_ASKPASS` are untouched
+ * and still answer first — this closes only the terminal fallback, which is
+ * precisely the branch that cannot work from a spawned child.
+ *
+ * Scope, stated plainly because it is narrower than the issue title
+ * suggests: this is the HTTPS half. pnpm falls back to `git@github.com:`
+ * when HTTPS fails, and the ssh side needs `GIT_SSH_COMMAND`, which
+ * overrides `core.sshCommand` and `GIT_SSH` — the two ordinary ways to
+ * choose an identity — and whose `BatchMode=yes` would disable
+ * `SSH_ASKPASS`, breaking key-passphrase installs that work today. That
+ * half needs a policy decision, so it is not made here. Note also that on
+ * POSIX `runDshPlugin` spawns detached, so the subtree has no controlling
+ * terminal and the prompt already dies instantly; the hang the issue
+ * reports needs Windows, where the spawn is not detached.
+ */
+export declare function gitEnvForPnpm(env?: NodeJS.ProcessEnv): NodeJS.ProcessEnv;
+/**
+ * Every `--config.<key>=<value>` override in the argv, repeated as the
+ * `PNPM_CONFIG_<KEY>` environment variable that pnpm 12 still reads.
+ *
+ * pnpm 12 ignores some `--config.<key>` overrides on the command line, in
+ * either spelling, without a word: `fetchTimeout` (#615; measured on
+ * 12.2.1, 12.3.0 and 12.4.1) and `auto-install-peers` (12.4.1 auto-installs
+ * the peer with the flag present and not with the variable), so the retries
+ * that carry them ran exactly like the first attempt. `PNPM_CONFIG_*` is
+ * honoured by 11.8, 11.21 and 12.4 alike, so the argument stays for the
+ * versions that read it and the variable carries the same value for the
+ * ones that do not. Scoped to the run that carries the flag; nothing is set
+ * otherwise, so a user's own values are untouched on every other run. Keys
+ * are accepted in either spelling, so respelling a constant (as #600 did
+ * for the release-age one) cannot silently drop the variable.
+ */
+export declare function pnpmConfigEnvForArgs(pluginArgs: readonly string[]): NodeJS.ProcessEnv;
+/**
  * Windows npm/corepack/pnpm are `.cmd` shims. Node's `spawn` without a shell
  * cannot start them (ENOENT / EINVAL). Same pattern as dsh's `plugin` forwarder.
  */
@@ -234,12 +285,48 @@ export declare function killChild(child: ChildProcess): void;
  * @returns true when there was one to cancel.
  */
 export declare function cancelActive(): boolean;
+/**
+ * The package manager the host itself supplies, as the launcher hands it
+ * over (`profileContext.packageManager`).
+ *
+ * This is not a PATH executable. A packaged host ships its own runtime and
+ * describes it as a whole invocation — command, args AND env — because each
+ * part carries meaning: the desktop host passes the location of its embedded
+ * Node through `env`, so an implementation that keeps only `command` reaches
+ * a tool it still cannot execute, which is the reported failure (#653).
+ */
+export interface HostPackageManager {
+    readonly command: string;
+    readonly args: readonly string[];
+    readonly env: NodeJS.ProcessEnv;
+}
+/**
+ * Register the host's package manager for this process, or clear it with
+ * `null`. Cached probe answers are dropped only when the invocation really
+ * changes, so a repeated mount does not re-probe a toolchain that works.
+ */
+export declare function setHostPackageManager(invocation: HostPackageManager | null): void;
+/** The host-supplied package manager, for callers that must name it. */
+export declare function hostPackageManagerInvocation(): HostPackageManager | null;
+/** Why the host-supplied package manager last failed, or null. */
+export declare function lastHostPackageManagerFailure(): {
+    command: string;
+    output: string;
+} | null;
 /** Why `pnpm --version` last failed, or null when it has not failed. */
 export declare function lastPnpmProbeFailure(): {
     kind: 'missing' | 'failed';
     output: string;
 } | null;
-/** Probe `pnpm --version` on PATH. */
+/**
+ * Whether a package manager is usable — the host-supplied one first.
+ *
+ * The tiers are ordered by what the machine can actually run: a packaged
+ * host's bundled runtime exists whether or not PATH was inherited from a
+ * shell, and on the reported machine only that tier can work at all (#653).
+ * A host tier that fails falls through to the PATH probe, so a host that
+ * publishes a broken invocation cannot make things worse than they were.
+ */
 export declare function probePnpm(): Promise<boolean>;
 /**
  * Provision pnpm without user involvement: corepack (ships with Node) first,

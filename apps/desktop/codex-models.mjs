@@ -115,7 +115,7 @@ async function withAppServer(options, operation) {
   }
   try {
     await request('initialize', {
-      clientInfo: { name: 'agent-pi-dsh', version: '3.7.0' },
+      clientInfo: { name: 'agent-pi-dsh', version: '3.7.1' },
       capabilities: {},
     })
     child.stdin.write(`${JSON.stringify({ method: 'initialized', params: {} })}\n`)

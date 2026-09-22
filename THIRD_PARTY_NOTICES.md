@@ -27,13 +27,13 @@ does not claim or synthesize one.
 
 ## dsh-super-injector
 
-Agent Pi DSH distributes `@dsh-external/dsh-super-injector` 0.3.3 from the
-upstream `v0.3.3` release, pinned locally by `vendor/dsh-super-injector.pin`.
-The tag resolves to commit `f4ef59fb31439225abefe45d6e793235a2a9d5e0`,
+Agent Pi DSH distributes `@dsh-external/dsh-super-injector` 0.3.5 from the
+upstream `v0.3.5` release, pinned locally by `vendor/dsh-super-injector.pin`.
+The tag resolves to commit `735c212b136e3fb3f9769e1f07266cd091570a55`,
 and the release archive is identified by
-`sha256:355238fa8e51bc45c0801066af51e0e122f3b21411b193f601ee54e534391f48`.
+`sha256:49dc9c868704da0e73658976b37b55050bfefa8c22be5606dc290cdb77906f41`.
 
-Source: https://github.com/yjh051108/dsh-super-injector/tree/v0.3.3
+Source: https://github.com/yjh051108/dsh-super-injector/tree/v0.3.5
 
 The upstream package manifest declares `BSD-3-Clause`. The tagged source tree
 and the published release archive contain no `LICENSE` or `NOTICE` file. To
@@ -164,3 +164,11 @@ The unmodified `SourceHanSansCN-Regular.otf` Simplified Chinese subset is used
 as the offline CAD text fallback. Copyright 2014-2025 Adobe, with Reserved Font
 Name `Source`. Its complete SIL Open Font License 1.1 text is included as
 `cad-viewer/licenses/SourceHanSansCN-OFL-1.1.txt` and beside the font payload.
+
+## Local project plan engine (MPXJ)
+
+MPP, Project XML and Primavera P6 previews use MPXJ 16.7.0 (LGPL-2.1-or-later)
+with a local Java 17 runtime. The unmodified MPXJ jar, dependency source archives,
+upstream license files and rebuild instructions are distributed in
+`bundles/project-plan`. See `bundles/project-plan/THIRD_PARTY_NOTICES.md` for
+component licenses, corresponding-source locations and replacement instructions.

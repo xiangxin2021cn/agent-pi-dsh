@@ -31,6 +31,7 @@ import {
   verifyDshBuildReceipt,
 } from './dsh-build-receipt.mjs'
 import { verifyDshRuntime } from './verify-dsh-runtime.mjs'
+import { verifyProjectPlanRuntime } from './verify-project-plan-runtime.mjs'
 import { verifyRuntimePayloadStage } from './verify-runtime-payload-stage.mjs'
 import {
   assertUniverPublicReleaseTree,
@@ -112,6 +113,7 @@ try {
   await materializeDshUniverOffice({ root })
 }
 assertUniverPublicReleaseTree(root, { runtime: false })
+verifyProjectPlanRuntime(root)
 const dshSrc = realpathSync(join(root, 'vendor', 'deepseek-harness'))
 buildDshWithReceipt({ dshRoot: dshSrc, productRoot: root, receiptPath: dshBuildReceipt })
 verifyDshBuildReceipt({
@@ -175,13 +177,16 @@ for (const item of productItems) {
   const dest = join(productDest, item)
   if (statSync(src).isDirectory()) {
     // node_modules stay out; CI installs per-platform dependencies.
-    robocopy(src, dest, ['/XD', 'node_modules', '.git', '/XF', '.git', 'AGENT-PI-UNIVER-RUNTIME-RECEIPT.json'])
+    robocopy(src, dest, ['/XD', 'node_modules', '.git',
+      join(root, 'bundles/project-plan/target'), join(root, 'bundles/project-plan/runtime/jre'),
+      '/XF', '.git', 'AGENT-PI-UNIVER-RUNTIME-RECEIPT.json'])
   } else {
     mkdirSync(join(dest, '..'), { recursive: true })
     cpSync(src, dest)
   }
 }
 assertUniverPublicReleaseTree(productDest, { runtime: false })
+verifyProjectPlanRuntime(productDest, { portable: true })
 const stagedCadViewer = join(productDest, 'bundles', 'tender-web', 'lib', 'cad-viewer')
 rmSync(stagedCadViewer, { recursive: true, force: true })
 mkdirSync(dirname(stagedCadViewer), { recursive: true })

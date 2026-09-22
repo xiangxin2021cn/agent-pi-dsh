@@ -49,6 +49,12 @@ export interface UpdateStatus {
     channelSwitch?: string;
 }
 /**
+ * HEAD for an arbitrary smart-HTTP git remote (Gitea, GitLab, …). Same
+ * advertisement format as GitHub's info/refs; kept here so accelerate.ts
+ * does not need to import sources.ts.
+ */
+export declare function resolveGitRemoteHead(spec: string, ref?: string): Promise<string | null>;
+/**
  * Semver precedence: negative / 0 / positive like a comparator, or null when
  * either side isn't a plain semver version. Build metadata is ignored, a
  * release outranks any prerelease of the same core, and prerelease

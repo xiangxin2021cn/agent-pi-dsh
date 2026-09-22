@@ -14,6 +14,8 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
+import { createRequire } from 'node:module'
+const yamlRequire = createRequire(new URL('../vendor/deepseek-harness/packages/settings/settings/package.json', import.meta.url))
 
 const sourceRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
 const univerPeerNames = [
@@ -29,6 +31,8 @@ const univerPeerNames = [
 ]
 const scriptNames = [
   'init-tender-profile.mjs',
+  'migrate-settings-017.mjs',
+  'preset-bundle-017.mjs',
   'agent-teams-profile.mjs',
   'deepseek-model-capacities.mjs',
   'heal-agent-loop-settings.mjs',
@@ -86,7 +90,10 @@ function createFixture(t) {
   writePackage(root, 'vendor/anysearch-dsh', '@anysearch/anysearch-dsh', { lib: true })
 
   const dsh = join(root, 'dsh-checkout')
-  for (const name of ['agent-team-profile', 'agent-team-web-profile', 'agent-team', 'tool-agent-team', 'client-ui-agent-team']) {
+  const yamlRoot = dirname(yamlRequire.resolve('yaml/package.json'))
+  cpSync(yamlRoot, join(dsh, 'packages/settings/settings/node_modules/yaml'), { recursive: true })
+  writePackage(dsh, 'packages/settings/settings', '@deepseek-ai/dsh-settings')
+  for (const name of ['agent-team-profile', 'agent-team', 'tool-agent-team', 'client-ui-agent-team']) {
     writePackage(dsh, `packages/experimental/${name}`, `@deepseek-ai/dsh-experimental-${name}`, { lib: true })
   }
   writePackage(dsh, 'packages/subagent/subagent-codex', '@deepseek-ai/dsh-subagent-codex')
@@ -132,8 +139,8 @@ function createFixture(t) {
 `
   for (const id of ['standard', 'ptc', 'minimal', 'cordis']) {
     writeFixtureFile(
-      join(dsh, 'packages/preset/agent-presets/presets', id, 'agent.cordis.yml'),
-      preset,
+      join(dsh, 'packages/bundle/web-app/presets', `${id}.patch.yml`),
+      `- insert:\n    - id: preset-${id}\n      config:\n        plugins:\n` + preset.split('\n').map(line => line ? '          ' + line : '').join('\n'),
     )
   }
   for (const name of ['agent.cordis.yml', 'preset.yml', 'router-bootstrap.mjs', 'router-core.mjs']) {
@@ -144,7 +151,8 @@ function createFixture(t) {
     root,
     dsh,
     home: join(root, 'dsh-home'),
-    patchPath: join(root, 'dsh-home/profiles/tender/cordis.patch.yml'),
+    patchPath: join(root, 'dsh-home/.agent-pi-presets/product-defaults.patch.yml'),
+    userPatchPath: join(root, 'dsh-home/profiles/tender/cordis.patch.yml'),
     settingsPath: join(root, 'dsh-home/settings.yaml'),
   }
 }
@@ -189,7 +197,7 @@ test('Teams opt-in is reversible and recovery keeps external plugin dependencies
   const fixture = createFixture(t)
   const manifestPath = join(fixture.home, 'profiles/tender/package.json')
   const manifest = () => JSON.parse(readFileSync(manifestPath, 'utf8'))
-  const teamBundles = ['@deepseek-ai/dsh-experimental-agent-team-profile', '@deepseek-ai/dsh-experimental-agent-team-web-profile']
+  const teamBundles = ['@deepseek-ai/dsh-experimental-agent-team-profile']
   runInitializer(fixture, undefined, { AGENT_PI_AGENT_TEAMS: '0', AGENT_PI_PLUGIN_RECOVERY: '0' })
   assert.ok(teamBundles.every(name => !manifest().dsh.profile.bundles.includes(name)))
   runInitializer(fixture, undefined, { AGENT_PI_AGENT_TEAMS: '1', AGENT_PI_PLUGIN_RECOVERY: '0' })
@@ -238,9 +246,8 @@ test('Agent Pi system preset copies receive the Codex product overlay without mu
   for (const id of ['standard', 'ptc', 'cordis']) {
     const official = readFileSync(join(
       fixture.dsh,
-      'packages/preset/agent-presets/presets',
-      id,
-      'agent.cordis.yml',
+      'packages/bundle/web-app/presets',
+      `${id}.patch.yml`,
     ), 'utf8')
     const product = readFileSync(join(
       fixture.home,
@@ -367,14 +374,14 @@ test('legacy code preset default migrates to standard while valid defaults remai
   writeFixtureFile(fixture.settingsPath, 'agent-presets:\n  default: code\nlocale:\n  preference: zh\n')
   runInitializer(fixture)
   const migrated = readFileSync(fixture.settingsPath, 'utf8')
-  assert.match(migrated, /agent-presets:\r?\n  default: standard/)
+  assert.match(migrated, /agent-preset-registry:\r?\n  selectedDefault: standard/)
   assert.match(migrated, /locale:\r?\n  preference: zh/)
   assert.doesNotMatch(migrated, /default: code/)
 
   writeFixtureFile(fixture.settingsPath, 'agent-presets:\n  default: router-standard\n')
   runInitializer(fixture)
   const preserved = readFileSync(fixture.settingsPath, 'utf8')
-  assert.match(preserved, /agent-presets:\r?\n  default: router-standard/)
+  assert.match(preserved, /agent-preset-registry:\r?\n  selectedDefault: router-standard/)
   assert.doesNotMatch(preserved, /default: standard/)
 })
 
@@ -426,11 +433,11 @@ test('an unmarked custom overlay is preserved byte-for-byte', (t) => {
   config:
     keep: exactly
 `
-  writeFixtureFile(fixture.patchPath, customPatch)
+  writeFixtureFile(fixture.userPatchPath, customPatch)
 
   runInitializer(fixture)
 
-  assert.equal(readFileSync(fixture.patchPath, 'utf8'), customPatch)
+  assert.equal(readFileSync(fixture.userPatchPath, 'utf8'), customPatch)
 })
 
 test('alpha.1 preserves dsh-im installation but does not activate the incompatible bundle', (t) => {

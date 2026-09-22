@@ -8,7 +8,6 @@ import {
   readFileSync,
   realpathSync,
   readdirSync,
-  rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs'
@@ -18,7 +17,7 @@ import { expectedDshCommit, expectedDshVersion } from './verify-dsh-runtime.mjs'
 
 export const dshBuildReceiptName = 'DSH-BUILD-RECEIPT.json'
 export const dshBuildReceiptSchema = 1
-export const dshBuildCommands = ['pnpm run build:lib', 'pnpm run build:web']
+export const dshBuildCommands = ['pnpm run clean', 'pnpm run build']
 export const dshRuntimeFilePolicy = Object.freeze(JSON.parse(readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), 'dsh-runtime-file-policy.json'),
   'utf8',
@@ -144,27 +143,6 @@ export function assertExactCleanDsh(dshRoot, productRoot) {
   return { dsh, product, commit, version, pin }
 }
 
-function removeOldArtifacts(dsh) {
-  const candidates = []
-  function walk(directory, depth = 0) {
-    for (const entry of readdirSync(directory, { withFileTypes: true })) {
-      if (!entry.isDirectory() || entry.isSymbolicLink()) continue
-      if (entry.name === '.git' || entry.name === 'node_modules') continue
-      const absolute = join(directory, entry.name)
-      const rel = normalizePath(dsh, absolute)
-      if (rel === 'apps/web/dist' || (
-        entry.name === 'lib' && ['apps', 'packages', 'vendor', 'native'].includes(rel.split('/')[0])
-      )) {
-        candidates.push(absolute)
-        continue
-      }
-      if (depth < 8) walk(absolute, depth + 1)
-    }
-  }
-  walk(dsh)
-  for (const directory of candidates) rmSync(directory, { recursive: true, force: true })
-}
-
 export function writeDshBuildReceipt({ dshRoot, productRoot, receiptPath }) {
   const identity = assertExactCleanDsh(dshRoot, productRoot)
   const inventory = runtimeInventory(identity.dsh)
@@ -187,14 +165,13 @@ export function writeDshBuildReceipt({ dshRoot, productRoot, receiptPath }) {
 
 export function buildDshWithReceipt({ dshRoot, productRoot, receiptPath }) {
   const identity = assertExactCleanDsh(dshRoot, productRoot)
-  removeOldArtifacts(identity.dsh)
   const corepackPnpm = join(dirname(process.execPath), 'node_modules', 'corepack', 'dist', 'pnpm.js')
   const pnpm = process.platform === 'win32' ? process.execPath : 'pnpm'
   const prefix = process.platform === 'win32' ? [corepackPnpm] : []
   if (process.platform === 'win32' && !existsSync(corepackPnpm)) {
     throw new Error(`Corepack pnpm launcher missing: ${corepackPnpm}`)
   }
-  for (const script of ['build:lib', 'build:web']) {
+  for (const script of ['clean', 'build']) {
     run(pnpm, [...prefix, 'run', script], { cwd: identity.dsh, stdio: 'inherit' })
   }
   const receipt = writeDshBuildReceipt({ dshRoot: identity.dsh, productRoot, receiptPath })

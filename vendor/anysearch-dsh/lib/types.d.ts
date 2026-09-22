@@ -1,9 +1,14 @@
+/** JSON values shared across DSH releases, independent of moved upstream exports. */
+export type JsonValue = null | boolean | number | string | JsonValue[] | {
+    [key: string]: JsonValue;
+};
 /** Scalar value accepted by AnySearch vertical-search parameters. */
 export type AnySearchParamValue = string | number | boolean;
 /** One result returned by the AnySearch public search API. */
 export interface AnySearchResult {
     title: string;
-    url: string;
+    /** Citeable HTTP(S) source URL. Omitted for valid structured data without a web source. */
+    url?: string;
     snippet?: string;
     content?: string;
 }
@@ -20,6 +25,10 @@ export interface AnySearchSearchRequest {
 export interface AnySearchMetadata {
     totalResults: number;
     searchTimeMs: number;
+    /** Results retained as structured data without a citeable source URL. */
+    urlLessResults?: number;
+    /** Results discarded because a non-empty URL was not an absolute HTTP(S) URL. */
+    droppedInvalidUrlResults?: number;
 }
 /** Validated AnySearch search response. */
 export interface AnySearchSearchResponse {

@@ -82,6 +82,17 @@ export declare function repoOfTarget(spec: string): string | null;
  */
 export declare function githubRefOfTarget(spec: string): string | null;
 /**
+ * The same question for every OTHER git source — a host shorthand or a plain
+ * remote URL.
+ *
+ * Their update check asks the remote for `HEAD`, which is the default branch.
+ * For an install that selected a branch or tag, that compares the installed
+ * commit against a line the user never chose: the row then offers an update
+ * forever, and the update itself re-resolves inside the same selector and
+ * never moves. That is #446, reached from a different direction.
+ */
+export declare function gitRefOfTarget(spec: string): string | null;
+/**
  * An immutable GitHub commit already carried by an install target.
  *
  * Build-script approval on pnpm below 11.21 needs the exact commit-pinned
@@ -132,6 +143,21 @@ export declare function gitAllowBuildsKey(name: string, spec: string): string | 
  * @param sha - the commit the install will actually fetch.
  * @returns the key, or null when the spec is not github-hosted.
  */
+/**
+ * The pinned allowBuilds key for a NON-GitHub git source — the other half of
+ * the pair `codeloadAllowBuildsKey` gives GitHub, for the same reason (#285):
+ * the stable clone-URL key is what pnpm 12 matches, while pnpm 11.8.0 — the
+ * version DSH Desktop bundles — matches only the commit-pinned id it names in
+ * its own error.
+ *
+ * Measured on 11.8.0: the stable key leaves a bitbucket install's build
+ * ignored, and `name@https://bitbucket.org/owner/repo/get/<sha>.tar.gz`
+ * authorizes it; for a plain remote the working key is
+ * `name@git+<remote>#<sha>`. Like the codeload one this goes stale the moment
+ * the repository is pushed to, which is why it is written ALONGSIDE the
+ * stable key and never instead of it.
+ */
+export declare function pinnedGitAllowBuildsKey(name: string, spec: string, sha: string): string | null;
 export declare function codeloadAllowBuildsKey(name: string, spec: string, sha: string): string | null;
 /**
  * The pnpm install target for a registry entry. Repo-verified npm packages
@@ -146,8 +172,40 @@ export declare function installTargetFor(entry: {
 }): string | null;
 /** True for profile specs that are a local checkout or tarball, not a registry pin. */
 export declare function isLocalSpec(spec: string): boolean;
+export interface HostShorthand {
+    /** Lowercased scheme, i.e. the manifest's own spelling of the host. */
+    scheme: string;
+    /** The host that scheme resolves to. */
+    host: string;
+    /** `owner/repo`, or a nested group path on GitLab. No `.git`, no fragment. */
+    path: string;
+    /** Everything after `#`, empty when the spec carries no selector. */
+    fragment: string;
+}
 /**
- * True when the install came from a git remote — GitHub shortcuts, codeload
+ * Split `<scheme>:<path>[#<selector>]` into its parts, or null when the spec
+ * is not one of the shorthands above or its path does not fit that host's
+ * shape. Used where a URL or an identity has to be BUILT from the spec;
+ * classification asks `hostShorthandScheme`, which is deliberately looser
+ * because pnpm hands the whole scheme to git regardless of what follows.
+ */
+export declare function parseHostShorthand(spec: string): HostShorthand | null;
+/**
+ * `host/path`, lowercased: the identity a git-hosted install keeps across
+ * its spellings — the shorthand, the clone URL it was typed as, and the
+ * archive tarball pnpm resolved it to.
+ *
+ * Host-qualified on purpose. `owner/repo` alone is not an identity: the
+ * same pair exists on github.com, gitlab.com and bitbucket.org, and a bare
+ * key would let one host's commit answer for another host's plugin.
+ *
+ * This answers "which repository is this", not "is this a git source" — it
+ * will happily key a registry tarball URL by its host. Ask `isGitHostedSpec`
+ * first, the way every caller here does.
+ */
+export declare function hostedRepoKey(spec: string): string | null;
+/**
+ * True when the install came from a git remote — host shorthands, codeload
  * tarballs, and any other host (Gitea, GitLab self-host, raw `git+https://…`).
  *
  * Update detection used to ask only `repoOfTarget` (GitHub spellings). A
@@ -162,6 +220,23 @@ export declare function isGitHostedSpec(spec: string): boolean;
  */
 export declare function gitCommitOfTarget(spec: string): string | null;
 /**
+ * Pin a non-shortcut git URL to one immutable commit: the remote as spelled,
+ * with any ref, pin or selector fragment replaced by the commit, which pnpm
+ * re-resolves to exactly that commit. GitHub shortcuts and codeload URLs keep
+ * `githubTargetAtCommit` (#632).
+ *
+ * Three spellings are refused rather than promised:
+ * - a `path:` selector, because the `&` that carries it alongside a commit is
+ *   outside the host's target grammar;
+ * - the scp-like `git@host:owner/repo.git`, which pnpm does not read as a git
+ *   source at all — measured on 9.15.4 and 12.4.1, `pnpm add git@host:o/r.git`
+ *   exits 0 having written a `link:` dependency literally named `git`;
+ * - a bare `https://host/owner/repo.git`, which pnpm 12 clones but pnpm 11 —
+ *   what DSH Desktop still bundles — downloads as a tarball; it is returned
+ *   with the `git+` prefix that means the same thing to both.
+ */
+export declare function gitTargetAtCommit(spec: string, sha: string): string | null;
+/**
  * pnpm add target for updating a non-shortcut git install: drop a full-SHA
  * pin so the remote re-resolves to HEAD, keep any branch/tag fragment.
  * GitHub-hosted `git+https://github.com/…` is rewritten to `github:` — the
@@ -169,6 +244,15 @@ export declare function gitCommitOfTarget(spec: string): string | null;
  * dependency that way and later check/update/rollback can use the first-class
  * GitHub path. This turn still installs through the generic-git target slot
  * (no region acceleration on the rewritten shortcut itself).
+ *
+ * A gitlab/bitbucket shorthand is sent BACK to pnpm as the same shorthand,
+ * and deliberately not rewritten to `git+https://host/owner/repo.git`. Both
+ * install (measured on 12.4.1), but pnpm writes the shorthand into the
+ * manifest either way — so rewriting would send one spelling and get the
+ * other one back, leaving the target we sent, the manifest we then read, the
+ * duplicate-install guard and the allowBuilds key disagreeing about what was
+ * installed. Passthrough keeps all four on the single spelling pnpm itself
+ * settles on.
  */
 export declare function gitUpdateTarget(spec: string): string | null;
 /**

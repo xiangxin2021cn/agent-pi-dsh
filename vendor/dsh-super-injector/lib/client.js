@@ -41,7 +41,7 @@ window.__ModuleLoader__.load({
 			}).then((r) => r.json());
 		}
 		function apply(ctx) {
-      // Agent Pi: native settings use React, not the upstream DOM-render slot.
+      // Agent Pi provides React settings; the upstream DOM slot is incompatible.
       return;
 			ctx.effect(() => ctx.slots.inject("settings.section", () => ctx.slots.register({
 				name: "settings.section",

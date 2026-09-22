@@ -48,6 +48,11 @@ export interface RegistryPlugin {
    * package. Absent means "no npm package" — a coverage gap, not a zero.
    */
   downloads?: number | null
+  /**
+   * Catalog npm `latest` (awesome-dsh-plugin / dsh-market#348). Shown in the
+   * discover byline only when it is a non-empty string.
+   */
+  version?: string | null
   added?: string
   install?: string
   /**
@@ -211,6 +216,8 @@ export interface ActivationInfo {
   reasons: string[]
   bundle: boolean
   hot: boolean
+  /** Set when this package is a library another installed plugin pulled in (#634). */
+  dependencyOf?: string
 }
 
 /** The /dsh-market/installed payload (fields the market UI consumes). */
@@ -764,66 +771,6 @@ function looseMatches(plugin: RegistryPlugin, name: string): boolean {
   return false
 }
 
-/**
- * The same memo, for the branch #262 left behind (#589).
- *
- * `looseMatchCount` above covers dependencies installed by version. A
- * `link:` or `file:` dependency takes the other branch, into
- * `findCatalogEntryForLocal`, which walks the whole catalog at least twice
- * per call — once to filter by name, once to collect `/tree/` repos — and
- * up to twice more when there are identities to probe. Both callers below
- * run once per rendered card. The reporter profiled ~300ms per repaint at
- * 24 cards against a 3,627-entry catalog where a version-pinned dependency
- * paid 1.1ms; a local benchmark measured ~38ms per render at that shape,
- * and ~1.4s at 96 cards with eight local dependencies.
- *
- * The inner key carries the EVIDENCE, not just the name. Installing a plugin
- * hands the next render a fresh identities array while the catalog array
- * stays the same, so a name-only key would answer the post-install question
- * with the pre-install result — which is the same-named-fork confusion #485
- * asked this matcher to stop making, reintroduced as a cache bug.
- *
- * A miss is cached as `null`, which is why the "not cached yet" sentinel
- * has to be `undefined`: `null` is a real answer here, and it costs the
- * same full scan to establish as a hit does. It is also the common case —
- * a checkout you are developing is usually not in the catalog at all.
- *
- * The invariant this rests on, stated because the WeakMap cannot enforce it:
- * the catalog array and the entries inside it are frozen once handed here. A
- * refetch replaces the array — which is what the outer key is for — but an
- * in-place `push`, `sort` or `reverse`, or editing a row's `url`, would keep
- * the key and change the answer. Order is load-bearing too: the matcher
- * returns the FIRST row that fits. Nothing in the client does any of this
- * today; `visiblePlugins` and `themePlugins` both sort copies.
- */
-const localMatchCache = new WeakMap<RegistryPlugin[], Map<string, RegistryPlugin | null>>()
-
-function cachedEntryForLocal(
-  plugins: RegistryPlugin[],
-  name: string,
-  identities: readonly string[],
-  hints: readonly string[],
-): RegistryPlugin | null {
-  let byKey = localMatchCache.get(plugins)
-  if (byKey === undefined) {
-    byKey = new Map<string, RegistryPlugin | null>()
-    localMatchCache.set(plugins, byKey)
-  }
-  // JSON, not a delimiter-joined string. `[]` and `['']` join to the same
-  // thing and they are NOT the same question: an empty-but-present identity
-  // list has size 1, so it enters the evidence branch and refuses to guess,
-  // while an absent one falls through to the unique-name match. A key that
-  // cannot tell those apart lets whichever ran first answer for both, which
-  // is the guess this matcher exists to refuse. Stringifying the arrays is
-  // injective for free, and its cost is noise beside the scan it replaces.
-  const key = JSON.stringify([name, identities, hints])
-  const hit = byKey.get(key)
-  if (hit !== undefined) return hit
-  const entry = findCatalogEntryForLocal(plugins, name, identities, hints)
-  byKey.set(key, entry)
-  return entry
-}
-
 /** The installed dependency name a registry entry corresponds to, or null. */
 export function matchInstalledName(
   plugin: RegistryPlugin,
@@ -842,7 +789,7 @@ export function matchInstalledName(
     // else's fork as installed (#485).
     if (/^(?:link|file):/i.test(specStr)) {
       if (plugins === undefined) continue
-      const entry = cachedEntryForLocal(plugins, name, repos, repoHints[name] ?? [])
+      const entry = findCatalogEntryForLocal(plugins, name, repos, repoHints[name] ?? [])
       if (entry !== null && entry.url === plugin.url) return name
       continue
     }
@@ -1038,6 +985,34 @@ function safeScreenshot(value: unknown): string | null {
   if (parsed.protocol !== 'https:' || !SCREENSHOT_HOSTS.has(parsed.hostname)) return null
   if (/\.svg$/iu.test(parsed.pathname)) return null
   return value
+}
+
+/**
+ * Prepare a GitHub release body for the update-notes dialog's tiny markdown
+ * renderer. HTML — especially pasted `<img>` tags — must not surface as
+ * literal text; markdown syntax is left intact for the dialog to render.
+ */
+export function sanitizeReleaseNotesBody(md: string): string {
+  let s = md.replace(/<!--[\s\S]*?-->/g, '')
+  s = s.replace(/<img\b[^>]*>/gi, '')
+  // Drop remaining tags, keep inner text (`<a href=…>label</a>` → `label`).
+  s = s.replace(/<\/?[a-zA-Z][\w:-]*\b[^>]*>/g, '')
+  s = s.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n')
+  return s.trim()
+}
+
+/**
+ * A whole-line markdown image with an allowlisted https URL, or null.
+ * Relative paths and non-GitHub hosts stay out of the dialog (same gate as
+ * install screenshots).
+ */
+export function releaseNotesHttpsImage(line: string): { alt: string; src: string } | null {
+  const match = /^!\[([^\]]*)\]\(\s*(?:<(https:\/\/[^>]+)>|(https:\/\/[^\s)]+))(?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?\s*\)$/u
+    .exec(line.trim())
+  if (match === null) return null
+  const src = safeScreenshot(match[2] ?? match[3] ?? '')
+  if (src === null) return null
+  return { alt: match[1] ?? '', src }
 }
 
 /** Keep only https URLs on allowlisted image hosts; SVG dropped (logos/badges). */
@@ -1325,6 +1300,66 @@ export function humanOutput(raw: string): string {
   return kept.join('\n').trim()
 }
 
+/** CJK ideographs — enough to tell a Chinese half from a Latin one. */
+const CJK_RE = /[\u3400-\u9FFF\uF900-\uFAFF]/gu
+
+/** Count CJK code points in a string. */
+function cjkCount(text: string): number {
+  return text.match(CJK_RE)?.length ?? 0
+}
+
+/**
+ * Pick one language from a `中文 / English` (or reverse) pair. Ambiguous
+ * strings stay unchanged. Callers that prepend `t(…)` must localize the
+ * server half first, then concatenate — this function does not strip UI chrome.
+ */
+function pickBilingualPair(text: string, lang: 'zh' | 'en'): string {
+  const sep = ' / '
+  const parts = text.split(sep)
+  if (parts.length < 2) return text
+
+  // Prefer the split with the largest CJK contrast when the text has more
+  // than one ` / ` (English prose can contain the same separator).
+  let bestLeft = parts[0]
+  let bestRight = parts.slice(1).join(sep)
+  let bestScore = Math.abs(cjkCount(bestLeft) - cjkCount(bestRight))
+  for (let i = 1; i < parts.length - 1; i++) {
+    const left = parts.slice(0, i + 1).join(sep)
+    const right = parts.slice(i + 1).join(sep)
+    const score = Math.abs(cjkCount(left) - cjkCount(right))
+    if (score > bestScore) {
+      bestScore = score
+      bestLeft = left
+      bestRight = right
+    }
+  }
+  if (bestScore === 0) return text
+  const zhPart = cjkCount(bestLeft) > cjkCount(bestRight) ? bestLeft : bestRight
+  const enPart = cjkCount(bestLeft) > cjkCount(bestRight) ? bestRight : bestLeft
+  return lang === 'zh' ? zhPart : enPart
+}
+
+/**
+ * Pick the locale half of a server bilingual string (`中文 / English` or
+ * `English / 中文`). Multiline input is handled line by line. Ambiguous
+ * strings are returned unchanged.
+ */
+export function localizeBilingual(text: string, lang: 'zh' | 'en'): string {
+  if (text.includes('\n')) {
+    return text.split('\n').map(line => localizeBilingual(line, lang)).join('\n')
+  }
+  return pickBilingualPair(text, lang)
+}
+
+/**
+ * Localize each bilingual reason and join for display. Reasons are separate
+ * diagnoses; do not rejoin them with ` / `, which is the bilingual separator.
+ */
+export function localizeBilingualList(parts: string[], lang: 'zh' | 'en'): string {
+  const sep = lang === 'zh' ? '；' : '; '
+  return parts.map(part => localizeBilingual(part, lang)).filter(part => part !== '').join(sep)
+}
+
 /**
  * The plugin's own name, for display.
  *
@@ -1386,7 +1421,7 @@ export function catalogEntryForInstalled(
   repoHints: readonly string[] = [],
 ): RegistryPlugin | undefined {
   if (/^(?:link|file):/i.test(spec)) {
-    return cachedEntryForLocal(plugins, name, repoIdentities, repoHints) ?? undefined
+    return findCatalogEntryForLocal(plugins, name, repoIdentities, repoHints) ?? undefined
   }
   return entryForDep(plugins, name, spec, repoIdentities, repoHints)
 }

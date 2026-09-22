@@ -80,6 +80,7 @@ test('vendored Router Standard is pinned and patched deterministically', (t) => 
   const pluginRoot = mkdtempSync(join(tmpdir(), 'agent-pi-router-rc1-'))
   t.after(() => rmSync(pluginRoot, { recursive: true, force: true }))
   mkdirSync(join(pluginRoot, 'preset'), { recursive: true })
+  writeFileSync(join(pluginRoot, 'preset', 'agent.cordis.yml'), "    text: You are a helpful software engineer assistant.\n    - id: workflow-worker-thread\n      name: '@deepseek-ai/dsh-workflow-worker-thread'\n")
   writeFileSync(join(pluginRoot, 'package.json'), JSON.stringify({
     name: 'dsh-router-standard',
     version: '0.1.0',
@@ -102,6 +103,10 @@ test('vendored Router Standard is pinned and patched deterministically', (t) => 
   assert.equal(patchRouterStandardForDshRc1({ pluginRoot }), 'already-applied')
   assert.match(readFileSync(join(pluginRoot, 'preset', 'router-core.mjs'), 'utf8'), /snapshotEvents/)
   assert.match(readFileSync(join(pluginRoot, 'preset', 'router-bootstrap.mjs'), 'utf8'), /bandOf, coreFor, extractText/)
+  const composition = readFileSync(join(pluginRoot, 'preset', 'agent.cordis.yml'), 'utf8')
+  assert.match(composition, /prefix: You are a helpful software engineer assistant/)
+  assert.match(composition, /@deepseek-ai\/dsh-workflow-ptc/)
+  assert.doesNotMatch(composition, /workflow-worker-thread/)
 
   const vendorScript = readFileSync(join(root, 'scripts', 'vendor-dsh-plugins.ps1'), 'utf8')
   assert.match(vendorScript, /b39112dce54b90e67b50b166c2773861d7945d1f/)

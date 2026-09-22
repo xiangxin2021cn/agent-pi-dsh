@@ -1,1 +1,2 @@
 patches/*.patch -text whitespace=-blank-at-eol
+scripts/fixtures/*.xer -text whitespace=-blank-at-eol

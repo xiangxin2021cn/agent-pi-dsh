@@ -24,7 +24,7 @@ export function installNativeWorkFilePreviews(ctx, { React, ReactDOM, FilePrevie
       const name = file.path.replaceAll('\\', '/').split('/').at(-1)
       return h(React.Fragment, null,
         h('div', { style: { padding: 20 } }, h('p', null, name),
-          h('button', { type: 'button', onClick: showPreview }, '打开 Office / CAD 预览')),
+          h('button', { type: 'button', onClick: showPreview }, '打开文件预览')),
         open && ReactDOM.createPortal(h(FilePreviewOverlay, {
           key: tab.contentId, cwd, file: { path: resolveWorkspacePath(cwd, file.path), name, type: 'file' },
           sessionProps: { sessionId: file.sessionId, cwd },
@@ -35,7 +35,7 @@ export function installNativeWorkFilePreviews(ctx, { React, ReactDOM, FilePrevie
     }
     scope.effect(() => scope.sidebarRightTabs.register({
       id, kind: 'agent-pi-work-file', priority: 'extension',
-      patterns: ['*.docx', '*.xlsx', '*.pptx', '*.univer', '*.dwg', '*.dxf'],
+      patterns: ['*.docx', '*.xlsx', '*.pptx', '*.univer', '*.dwg', '*.dxf', '*.mpp', '*.xer', '*.pmxml'],
       canOpen: (address) => parseFileAddress(address)?.scope === 'session',
       title: (address) => parseFileAddress(address)?.path.split('/').at(-1) || address,
     }))

@@ -1,8 +1,7 @@
 /** Model-facing AnySearch search tool with dynamic vertical parameters. */
 import type { Context } from '@deepseek-ai/cordis';
-import type { JsonValue } from '@deepseek-ai/dsh-tools';
 import type { AnySearchClient } from '../client.ts';
-import type { AnySearchSearchRequest, AnySearchSearchResponse } from '../types.ts';
+import type { JsonValue, AnySearchSearchRequest, AnySearchSearchResponse } from '../types.ts';
 /** Stable model-facing name for full AnySearch search requests. */
 export declare const ANYSEARCH_SEARCH_TOOL_NAME = "anysearch_search";
 /** Initial model-visible content budget; deployment config may replace it. */
@@ -27,6 +26,7 @@ export declare function formatAdvancedSearchOutput(result: AnySearchSearchRespon
 }, includeContent: boolean, maxRenderedContentChars: number): string;
 /** Register full AnySearch search on the Harness tool registry. */
 export declare function registerAdvancedSearchTool(ctx: Context, client: AnySearchClient, maxRenderedContentChars: number): void;
-/** Retain cleaned content only when the caller explicitly requested it. */
+/** Retain cleaned page content on request and always retain URL-less structured data. */
 export declare function canonicalSearchResults(results: AnySearchSearchResponse['results'], includeContent: boolean): AnySearchSearchResponse['results'];
+export declare function renderableContentCharacters(results: AnySearchSearchResponse['results'], includeContent: boolean): number;
 export {};

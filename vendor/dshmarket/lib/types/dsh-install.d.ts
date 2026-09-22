@@ -2,8 +2,8 @@
 /**
  * The version of the DSH host this market is running inside.
  *
- * Read from the same manifest `findDshInstallDir` already parses to identify
- * the package — the version was sitting in that object and being discarded.
+ * CLI versions come from the host manifest. Flat Desktop shells additionally
+ * require agreement with their bundled split runtime, never profile packages.
  *
  * Worth reporting because the host version has repeatedly been the thing
  * neither side could see. #293 turned on it (the reporter was on

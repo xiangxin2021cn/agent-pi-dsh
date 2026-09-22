@@ -13,6 +13,8 @@
  * instance manages: it is decided at mount from the composition or the
  * command line, and a running instance cannot switch to another one, so
  * offering it as a field would promise something the write cannot deliver.
+ * Desktop registers an empty schema instead: the namespace still admits its
+ * card, but the shell owns restart and no settings value feeds its routes.
  *
  * The release channel is NOT here either, and that is a correction rather
  * than an omission. It was, briefly, and it made this namespace a second
@@ -61,6 +63,8 @@ export interface MarketSettings {
     allowRestart: boolean;
 }
 export declare const MarketSettings: z<MarketSettings>;
+/** Serve the Desktop card without claiming settings-controlled restart. */
+export declare function installDesktopMarketSettings(ctx: Context): void;
 /**
  * Wire the namespace so a saved change reaches the routes immediately.
  *

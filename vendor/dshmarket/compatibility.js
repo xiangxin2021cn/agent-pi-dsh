@@ -2,6 +2,7 @@ import { chmodSync, existsSync, readFileSync, renameSync, rmSync, statSync, writ
 import { isAbsolute, join, relative, resolve } from 'node:path'
 
 export const DSH_IM_PACKAGE = '@xmanrui/dsh-im'
+export const DSH_EMAIL_PACKAGE = 'dsh-email'
 
 export const TEAM_COMPONENTS = ['agent-team', 'tool-agent-team', 'agent-team-profile', 'agent-team-web-profile', 'client-ui-agent-team']
   .map(name => `@deepseek-ai/dsh-experimental-${name}`)
@@ -69,6 +70,17 @@ function replaceFileBreakingHardLinks(path, content) {
  * access; DSH 0.1.2-alpha.1 exposes it reliably through Context#get instead.
  */
 export function inspectKnownPluginCompatibility(profileDirectory, name) {
+  if (name === DSH_EMAIL_PACKAGE) {
+    const info = packageInfo(profileDirectory, name)
+    if (info === null) return result('incompatible', '邮件插件包不完整 / email plugin package is incomplete')
+    for (const entry of ['lib/runtime.js', 'lib/index.js']) {
+      const path = join(info.packageDirectory, entry)
+      if (existsSync(path) && /ctx\.settings\.register\s*\(/.test(readFileSync(path, 'utf8'))) {
+        return result('incompatible', `dsh-email ${info.manifest.version} 使用 DSH 0.1.7 已移除的 settings.register；保留插件和账号配置，等待兼容版本 / plugin uses removed settings.register; package and account configuration are retained`)
+      }
+    }
+    return result('irrelevant', 'no removed email settings API detected; use the host compatibility check')
+  }
   if (name !== DSH_IM_PACKAGE) return result('irrelevant', 'no product compatibility rule')
   const info = packageInfo(profileDirectory, name)
   if (info === null) {

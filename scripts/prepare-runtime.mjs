@@ -17,6 +17,7 @@ import { cpSync, existsSync, mkdirSync, rmSync, statSync, chmodSync, copyFileSyn
 import { join, resolve } from 'node:path'
 import { dshBuildReceiptName, verifyDshBuildReceipt } from './dsh-build-receipt.mjs'
 import { verifyDshRuntime } from './verify-dsh-runtime.mjs'
+import { verifyProjectPlanRuntime } from './verify-project-plan-runtime.mjs'
 import { assertUniverPublicReleaseTree } from './univer-public-release.mjs'
 
 function arg(name, fallback = null) {
@@ -59,6 +60,7 @@ if (!existsSync(join(product, 'package.json'))) {
   process.exit(1)
 }
 assertUniverPublicReleaseTree(product)
+verifyProjectPlanRuntime(product)
 verifyDshBuildReceipt({
   dshRoot: dsh,
   productRoot: product,
@@ -88,6 +90,7 @@ function stage(label, src, dest) {
 stage('product', product, join(runtime, 'product'))
 stage('deepseek-harness', dsh, join(runtime, 'deepseek-harness'))
 assertUniverPublicReleaseTree(join(runtime, 'product'))
+verifyProjectPlanRuntime(join(runtime, 'product'))
 verifyDshBuildReceipt({
   dshRoot: join(runtime, 'deepseek-harness'),
   productRoot: join(runtime, 'product'),

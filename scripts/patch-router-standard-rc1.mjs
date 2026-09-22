@@ -51,7 +51,14 @@ export function patchRouterStandardForDshRc1({ pluginRoot }) {
       after: "    if (sessionEvents(session).some((event) => event.type === 'tool/call')) {",
     },
   ])
-  return coreChanged || bootstrapChanged ? 'applied' : 'already-applied'
+  const personaChanged = patchFile(join(pluginRoot, 'preset', 'agent.cordis.yml'), [{
+    before: '    text: You are a helpful software engineer assistant.',
+    after: '    prefix: You are a helpful software engineer assistant.',
+  }, {
+    before: "    - id: workflow-worker-thread\n      name: '@deepseek-ai/dsh-workflow-worker-thread'",
+    after: "    - id: workflow-ptc\n      name: '@deepseek-ai/dsh-workflow-ptc'",
+  }])
+  return coreChanged || bootstrapChanged || personaChanged ? 'applied' : 'already-applied'
 }
 
 export function main(args = process.argv.slice(2)) {

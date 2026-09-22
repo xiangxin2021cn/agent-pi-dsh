@@ -9,6 +9,14 @@
  * whole feature with `allowRestart: false` — the supervisor owns restarts.
  */
 import type { IncomingMessage } from 'node:http';
+import type { RecoveryConfig } from './recovery.ts';
+/**
+ * What a caller has to know to schedule a restart with a recovery surface:
+ * the plugin inventory and the profile paths, but NOT the port, the log
+ * files, or the respawn invocation — those are decided here, where the
+ * restart actually happens, so no caller can get them subtly wrong.
+ */
+export type RecoveryHandoffConfig = Omit<RecoveryConfig, 'port' | 'logs' | 'spawn' | 'cwd'>;
 /** @internal test hook — production callers use detectedDebugger() only. */
 export declare function setDetectedDebuggerOverride(value: 'inspector' | null | undefined): void;
 /**
@@ -132,6 +140,10 @@ export declare function restartLaunch(): {
  * DSH sandbox tool runners) pops a visible node window. Wrapping the launch
  * in `powershell -WindowStyle Hidden` gives the host a HIDDEN console that
  * children inherit instead. POSIX keeps the plain detached spawn.
+ *
+ * The helper that runs this invocation spawns it with `windowsHide`, because
+ * the helper has no console of its own to hand down and Windows would
+ * otherwise create a visible one for PowerShell (#624).
  */
 export declare function respawnInvocation(launch: {
     file: string;
@@ -149,7 +161,25 @@ export interface RestartResult {
     helperPid: number | undefined;
     logOut: string;
     logErr: string;
+    /** The recovery handoff, when one was written for this restart. */
+    recovery: {
+        config: string;
+        script: string;
+    } | null;
 }
+/**
+ * Where the recovery script lives beside this module.
+ *
+ * The built layout is `lib/restart.js` + `lib/recovery.js`, and the source
+ * layout has no runnable sibling at all (a spawned `node` cannot load a `.ts`
+ * file), so the answer is the built path or nothing. Nothing is a supported
+ * outcome, not a failure: the helper then behaves exactly as it did before the
+ * recovery surface existed — it notes the failure and exits — and every test
+ * that drives the handoff passes its own script instead of relying on a build
+ * having happened.
+ * @returns the absolute path, or null when this checkout has no built copy.
+ */
+export declare function recoveryScriptPath(): string | null;
 /**
  * Source for the detached helper that outlives this process and brings the
  * replacement up.
@@ -183,12 +213,23 @@ export declare function restartHelperSource(spawned: {
 }, logs: {
     out: string;
     err: string;
-}, port: number | null): string;
+}, port: number | null, recovery?: {
+    script: string;
+    config: string;
+} | null): string;
 /**
  * Relaunch this exact DSH entry after a detached handoff, then stop this
  * process. The helper outlives us (detached + unref), waits for our port to
  * be released before starting the replacement, and logs under tmpdir.
+ *
+ * When a recovery config is supplied it is written out BEFORE the helper
+ * starts, because it describes the state of the world this process is about
+ * to leave behind: the plugin inventory as the live loader sees it, and the
+ * exact invocation the replacement needs. Nothing downstream could
+ * reconstruct either — the process that knows them is the one being replaced.
  * @param port - the port this process is serving on, so the helper can wait
  *   for it rather than guessing at a delay.
+ * @param recovery - what the recovery surface needs, when the restart should
+ *   leave one behind; omitted by callers that do not want one.
  */
-export declare function scheduleRestart(port?: number | null): RestartResult;
+export declare function scheduleRestart(port?: number | null, recovery?: RecoveryHandoffConfig): RestartResult;

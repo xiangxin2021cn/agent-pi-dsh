@@ -1,24 +1,28 @@
 {
-  "checkedAt": "2026-09-17",
+  "checkedAt": "2026-09-22",
   "packages": [
     {
       "name": "dshmarket",
-      "version": "1.47.0",
-      "integrity": "sha512-pVmakGEyZajwoDwXh7jGfHxtHtI5LCT5/4qmzfoU4gZKYD9F34AbJTF8MdU7Hfw0fBENs/Pkb0WF3kBZEf8QVg==",
-      "shasum": "51965550c255cdb7f9f65c6d2a66a195a0691e3f",
-      "archiveBytes": 826386
+      "version": "1.55.0",
+      "integrity": "sha512-fQ23lS+kxN7HMcfYXnJQb0Ld6vYNmxQF9Rdx8MKXPCDmoZsQgIDrz5SxKZGv2Gl4wNrcxqsWOVL4waFAcHWrSw==",
+      "shasum": "7b422cca780c857835df39539b2e28a3312fbc70",
+      "archiveBytes": 951900
     },
     {
       "name": "@anysearch/anysearch-dsh",
-      "version": "0.1.4",
-      "integrity": "sha512-v7jb1oTrMcfq+DxMoRvwDZQ8xVCvU/Pf4MJKnGXAKt35GUzsLFfJW8eKgSg837/kzEVZTGg64lM94UwgiNMUuQ==",
-      "shasum": "de37a51bb6686e2e7ebeb02f138bbab2e5d4bcf6",
-      "archiveBytes": 168851
+      "version": "0.1.6",
+      "integrity": "sha512-ZJMehdf0KUjfb7HKgq6YUD2+/4iMszddbRwXZbyo5GV/6l8XfJNAGA7CFtQVssa9HUgmy6yI2OPo4lKVtMhLfA==",
+      "shasum": "353ff21352c91ed90688b8001dc3976e682f8f54",
+      "archiveBytes": 172126
     }
   ],
   "injector": {
-    "version": "0.3.3",
-    "commit": "f4ef59fb31439225abefe45d6e793235a2a9d5e0",
-    "sha256": "355238fa8e51bc45c0801066af51e0e122f3b21411b193f601ee54e534391f48"
+    "version": "0.3.5",
+    "commit": "735c212b136e3fb3f9769e1f07266cd091570a55",
+    "sha256": "49dc9c868704da0e73658976b37b55050bfefa8c22be5606dc290cdb77906f41",
+    "adaptations": [
+      "React settings supplied by Agent Pi",
+      "Preserve host unhandled rejection policy"
+    ]
   }
 }

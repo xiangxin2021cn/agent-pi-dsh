@@ -203,7 +203,7 @@ export class DiscoveryManifestIndex {
             this.fetchWaiters.shift()?.();
         }
     }
-    async fetchOne(name, registry) {
+    async fetchOne(name, registry, record = true) {
         this.load();
         const now = this.now();
         const cached = this.entries.get(name);
@@ -211,7 +211,12 @@ export class DiscoveryManifestIndex {
             return cached.facts;
         if ((this.failures.get(name) ?? 0) > now || this.unavailableUntil > now)
             return null;
-        const pending = this.inflight.get(name);
+        // Advisory and recording lookups keep separate in-flight slots: an
+        // advisory call must not be answered by — or hand its answer to — a
+        // recording one, or `record` would stop meaning anything when the two
+        // overlap on the same package.
+        const key = record ? name : `${name}\u0000advisory`;
+        const pending = this.inflight.get(key);
         if (pending !== undefined)
             return await pending;
         const request = (async () => {
@@ -223,37 +228,50 @@ export class DiscoveryManifestIndex {
                 if (!response.ok)
                     throw new Error(`HTTP ${String(response.status)}`);
                 const facts = manifestFacts(await response.json());
-                this.entries.set(name, { checkedAt: this.now(), facts });
-                this.dirty = true;
-                this.failures.delete(name);
-                this.consecutiveFailures = 0;
+                if (record) {
+                    this.entries.set(name, { checkedAt: this.now(), facts });
+                    this.dirty = true;
+                    this.failures.delete(name);
+                    this.consecutiveFailures = 0;
+                }
                 return facts;
             }
             catch {
-                const failedAt = this.now();
-                this.failures.set(name, failedAt + FAILURE_COOLDOWN_MS);
-                this.consecutiveFailures += 1;
-                if (this.consecutiveFailures >= this.concurrency) {
-                    this.unavailableUntil = failedAt + OUTAGE_COOLDOWN_MS;
+                if (record) {
+                    const failedAt = this.now();
+                    this.failures.set(name, failedAt + FAILURE_COOLDOWN_MS);
+                    this.consecutiveFailures += 1;
+                    if (this.consecutiveFailures >= this.concurrency) {
+                        this.unavailableUntil = failedAt + OUTAGE_COOLDOWN_MS;
+                    }
                 }
                 return null;
             }
             finally {
-                this.inflight.delete(name);
+                this.inflight.delete(key);
             }
         })();
-        this.inflight.set(name, request);
+        this.inflight.set(key, request);
         return await request;
     }
-    /** Look up a bounded batch while never exceeding the configured fan-out. */
-    async lookup(names, registry) {
+    /**
+     * Look up a bounded batch while never exceeding the configured fan-out.
+     *
+     * `record: false` answers the caller from the cache or the network but
+     * writes nothing back — not a success, not a failure, not the outage
+     * counters. A pre-flight check uses this: it runs before an operation is
+     * allowed to proceed, so whatever it learns must not decide what the
+     * diagnostics panel sees next (#619).
+     */
+    async lookup(names, registry, options = {}) {
+        const record = options.record !== false;
         const unique = [...new Set(names)];
         const result = {};
         let next = 0;
         const worker = async () => {
             while (next < unique.length) {
                 const name = unique[next++];
-                result[name] = await this.fetchOne(name, registry);
+                result[name] = await this.fetchOne(name, registry, record);
             }
         };
         await Promise.all(Array.from({ length: Math.min(this.concurrency, unique.length) }, worker));

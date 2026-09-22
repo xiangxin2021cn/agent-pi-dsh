@@ -13,8 +13,19 @@ import { conflictingEntryIds, dropFromManifest, hasDshManifest, hasLoadableEntry
 import { logEvent } from './log.ts'
 import { cleanOrphanedStore } from './store.ts'
 
-/** One-shot bypass for pnpm's fresh-release hold; scoped to a single command. */
-export const RELEASE_AGE_OVERRIDE = '--config.minimumReleaseAge=0'
+/**
+ * One-shot bypass for pnpm's fresh-release hold; scoped to a single command.
+ *
+ * Spelled like the .npmrc key, not the camelCase pnpm-workspace.yaml one:
+ * from pnpm 12.3.0 (the native CLI) `--config.minimumReleaseAge=0` is
+ * silently ignored — no unknown-option error — so the retry ran without the
+ * bypass and failed exactly like the first attempt (#600).
+ * `--config.minimum-release-age=0` is honoured by pnpm 10, 11 and 12 alike.
+ * That is specific to this key, not a rule for `--config.*`: the native CLI
+ * ignores `--config.fetch-timeout` in both spellings, which is why
+ * FETCH_TIMEOUT_OVERRIDE below is not respelled here (#615).
+ */
+export const RELEASE_AGE_OVERRIDE = '--config.minimum-release-age=0'
 
 /**
  * Longer per-request fetch timeout for one retried command. pnpm's default
@@ -22,6 +33,14 @@ export const RELEASE_AGE_OVERRIDE = '--config.minimumReleaseAge=0'
  * WHOLE repo even for a `#path:` subdirectory plugin) on slow networks; a
  * plain retry fails again at the same limit, so the recovery re-runs with
  * this override once. Scoped to a single command like RELEASE_AGE_OVERRIDE.
+ *
+ * pnpm 12 ignores this flag on the command line in either spelling (#615).
+ * On the CLI runner, runDshPlugin repeats every `--config.<key>` override
+ * as PNPM_CONFIG_<KEY>, which pnpm 11 and 12 both read, so the retried
+ * command really does get the longer limit there. The Desktop runtime hands
+ * its host argv only, so on a Desktop host the retry still depends on that
+ * host's pnpm reading the flag. The flag stays: pnpm 11 and earlier read
+ * it, and it costs nothing on the versions that do not.
  */
 export const FETCH_TIMEOUT_OVERRIDE = '--config.fetchTimeout=600000'
 
@@ -41,6 +60,10 @@ export const FETCH_TIMEOUT_OVERRIDE = '--config.fetchTimeout=600000'
  * Verified against pnpm 10.29.3: `peerDependencyRules.ignoreMissing` does
  * NOT prevent the fetch (it only silences the warning), so this flag is the
  * only lever that actually works.
+ *
+ * pnpm 12 ignores this flag on the command line too (12.4.1 auto-installs
+ * the peer regardless); runDshPlugin repeats it as
+ * PNPM_CONFIG_AUTO_INSTALL_PEERS, which 12 reads (#615).
  */
 export const AUTO_INSTALL_PEERS_OFF = '--config.auto-install-peers=false'
 
@@ -87,12 +110,20 @@ export function isUnpublishedHostPeer(
  * Any recognized failure that survives gets its bilingual explanation
  * appended to stderr so the UI shows an actionable message instead of a
  * wall of text (#20 bug 3). Cancelled runs are never recovered.
+ *
+ * The release-age bypass can be declined (`releaseAgeBypass: false`). Its
+ * safety argument above assumes the young package is already installed; a
+ * fresh install pinned to the registry's latest (#594) is the one case
+ * where it is not — there the bypass would be what installs the young
+ * version, over a minimumReleaseAge the profile set on purpose — so the
+ * install route declines it and falls back to the bare name instead.
  */
 export async function withHoistRecovery(
   run: PluginRunner,
   profile: string,
   pluginArgs: string[],
   profileDirectory?: string,
+  options: { releaseAgeBypass?: boolean } = {},
 ): Promise<InstallResult> {
   let result = await run(profile, pluginArgs)
   const ok = (r: InstallResult): boolean => r.exitCode === 0 && !r.timedOut && !r.cancelled
@@ -106,6 +137,7 @@ export async function withHoistRecovery(
       if (ok(rebuild)) result = await run(profile, pluginArgs)
     } else if (
       failure?.code === 'release-age-violation'
+      && options.releaseAgeBypass !== false
       && (pluginArgs[0] === 'add' || pluginArgs[0] === 'remove')
       && !pluginArgs.includes(RELEASE_AGE_OVERRIDE)
     ) {
@@ -189,6 +221,24 @@ export async function withHoistRecovery(
  */
 export function pnpmNeverStarted(result: InstallResult): boolean {
   return classifyPnpmFailure(`${result.stderr}\n${result.stdout}`, result.exitCode)?.code === 'pnpm-unusable'
+}
+
+/**
+ * Whether pnpm failed because the running host holds the package's files
+ * open, so nothing pnpm runs from inside that host can replace them.
+ *
+ * Worth asking for the same reason as pnpmNeverStarted: the update route
+ * answers a failed run by reinstalling the previous build, and that reinstall
+ * performs the very rename that just failed, against the same open handles
+ * (#608 by @Euezb). It cannot win — pnpm retries the rename for about three
+ * minutes before giving up — and the route then told the user their profile
+ * might be broken and to inspect it before restarting, when nothing had been
+ * reinstalled and the previous build was still there to be checked.
+ * @param result - the failed run.
+ * @returns true when pnpm was stopped by files the host holds open.
+ */
+export function pnpmBlockedByOpenFiles(result: InstallResult): boolean {
+  return classifyPnpmFailure(`${result.stderr}\n${result.stdout}`, result.exitCode)?.code === 'windows-file-locked'
 }
 
 /**

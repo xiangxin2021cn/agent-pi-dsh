@@ -17,10 +17,10 @@ function fixture() {
   mkdirSync(join(dsh, 'packages', 'bundle', 'base'), { recursive: true })
   mkdirSync(join(dsh, 'packages', 'bundle', 'sdk-minimal'), { recursive: true })
   mkdirSync(product, { recursive: true })
-  writeFileSync(join(dsh, 'package.json'), '{"version":"0.1.6-alpha.2"}\n')
+  writeFileSync(join(dsh, 'package.json'), '{"version":"0.1.7-alpha.1"}\n')
   const roots = [
     join(dsh, 'apps/cli'),
-    ...['agent-team-profile', 'agent-team-web-profile', 'agent-team', 'tool-agent-team', 'client-ui-agent-team']
+    ...['agent-team-profile', 'agent-team', 'tool-agent-team', 'client-ui-agent-team']
       .map(name => join(dsh, 'packages/experimental', name)),
     join(product, 'packages/business-core'), join(product, 'vendor/dsh-univer-office'),
   ]
@@ -44,7 +44,7 @@ function fixture() {
   return { root, dsh, product }
 }
 
-test('accepts the pinned 0.1.6-alpha.2 JSONL runtime', () => {
+test('accepts the pinned 0.1.7-alpha.1 JSONL runtime', () => {
   const { dsh, product } = fixture()
   assert.doesNotThrow(() => verifyDshRuntime(dsh, product))
 })
@@ -61,11 +61,11 @@ test('rejects a stale removed SQLite persistence package', () => {
 test('rejects a mismatched DSH version or product pin', () => {
   const { root, dsh, product } = fixture()
   writeFileSync(join(dsh, 'package.json'), '{"version":"0.1.2-alpha.5"}\n')
-  assert.throws(() => verifyDshRuntime(dsh, product), /expected 0\.1\.6-alpha\.2/)
+  assert.throws(() => verifyDshRuntime(dsh, product), /expected 0\.1\.7-alpha\.1/)
 
   const replacement = join(root, 'replacement')
   cpSync(dsh, replacement, { recursive: true })
-  writeFileSync(join(replacement, 'package.json'), '{"version":"0.1.6-alpha.2"}\n')
+  writeFileSync(join(replacement, 'package.json'), '{"version":"0.1.7-alpha.1"}\n')
   writeFileSync(join(product, 'DSH_PIN'), '14bab4422b12ab80cd79de59e086c12888fe00be\n')
   assert.throws(() => verifyDshRuntime(replacement, product), /staged DSH_PIN/)
   rmSync(root, { recursive: true, force: true })

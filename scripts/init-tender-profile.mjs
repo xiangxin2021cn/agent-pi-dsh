@@ -14,6 +14,8 @@ import {
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import { createRequire } from 'node:module'
+import { migrateSettings017 } from './migrate-settings-017.mjs'
 import { repairDeepSeekModelCapacities, ensureDeepSeekOfficialModel, migrateDeepSeekDefault } from './deepseek-model-capacities.mjs'
 import { removeProductParallelCap } from './heal-agent-loop-settings.mjs'
 import { migrateLegacyAgentPresetSessions } from './migrate-legacy-agent-preset-sessions.mjs'
@@ -24,7 +26,8 @@ import {
 } from './univer-profile-migration.mjs'
 import { patchUniverForDshAlpha1 } from './patch-univer-alpha1.mjs'
 import { syncManagedUniverSkills } from './univer-skill-sync.mjs'
-import { prepareKnownPluginCompatibility } from '../vendor/dshmarket/compatibility.js'
+import { prepareKnownPluginCompatibility, inspectKnownPluginCompatibility, DSH_EMAIL_PACKAGE } from '../vendor/dshmarket/compatibility.js'
+import { PRODUCT_PRESETS, shippedPresetPlugins, writePresetBundle } from './preset-bundle-017.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const dsh = process.env.DSH_CHECKOUT || join(root, 'vendor/deepseek-harness')
@@ -51,6 +54,7 @@ const DSH_IM_NAME = '@xmanrui/dsh-im'
 const bundles = [
   '@deepseek-ai/dsh-base',
   '@deepseek-ai/dsh-web-app',
+  PRODUCT_PRESETS,
   ...(teamsEnabled ? TEAM_BUNDLES : []),
   CODEX_SUBAGENT,
   INJECTOR_NAME,
@@ -228,6 +232,11 @@ function isRetiredPluginName(name) {
  * strict bundle loader sees it. Unknown majors stay quarantined safely.
  */
 function isRuntimeIncompatibleBundle(name) {
+  if (name === DSH_EMAIL_PACKAGE) {
+    const status = inspectKnownPluginCompatibility(profileDir, name)
+    if (status.status === 'incompatible') process.stderr.write(`${status.reason}\n`)
+    return status.status === 'incompatible'
+  }
   if (name === DSH_IM_NAME) {
     return prepareKnownPluginCompatibility(profileDir, name).status !== 'compatible'
   }
@@ -242,7 +251,7 @@ function isRuntimeIncompatibleBundle(name) {
 }
 
 function composeBundles(deps) {
-  const hidden = new Set([WEB_FETCH_HTTP])
+  const hidden = new Set([WEB_FETCH_HTTP, '@deepseek-ai/dsh-experimental-agent-team-web-profile'])
   const extras = []
   const add = (name) => {
     if (pluginRecovery) return
@@ -256,11 +265,13 @@ function composeBundles(deps) {
   for (const name of readExistingBundles()) {
     if (deps[name] && packageDeclaresBundle(name)) add(name)
   }
-  return [...bundles, ...extras]
+  return [...bundles.filter(name => name !== PRODUCT_PRESETS), ...extras, PRODUCT_PRESETS]
 }
 
 function writeManifest(deps) {
   delete deps[WEB_FETCH_HTTP]
+  // 0.1.7 merges the former Web bundle into agent-team-profile.
+  delete deps['@deepseek-ai/dsh-experimental-agent-team-web-profile']
   for (const name of Object.keys(deps)) {
     if (isRetiredPluginName(name)) delete deps[name]
   }
@@ -278,10 +289,8 @@ const workspacePath = join(profileDir, 'pnpm-workspace.yaml')
 if (!existsSync(workspacePath)) {
   writeFileSync(workspacePath, 'packages:\n  - .\n\nnodeLinker: hoisted\nautoInstallPeers: false\n')
 }
-// Profile overlay defaults. The marker line keeps the file under this
-// script's management: it is rewritten on every start while the marker is
-// present (or while the file is still an empty template), so shipped
-// defaults can evolve. Users who want a custom overlay delete the marker.
+// Product defaults live below the user profile overlay. Keep the legacy marker
+// only to migrate old generated overlays without overwriting saved UI settings.
 const PATCH_MANAGED_MARK = '# agent-pi:managed-defaults'
 const patchPath = join(profileDir, 'cordis.patch.yml')
 function patchIsEmptyTemplate(text) {
@@ -299,18 +308,16 @@ function buildManagedPatch(deps) {
     : 'deepseek-official'
   const univerConfig = activeBundles.includes(UNIVER_NAME)
     ? `# Product privacy default for the licensed Office workbench. The plugin
-# still owns its other defaults; users can take over this overlay by removing
-# the managed marker above.
+# still owns its other defaults; saved profile settings override this bundle.
 - id: univer
   config:
     telemetry: false
 
 `
     : ''
-  const presetRoot = JSON.stringify(systemPresetRoot.replaceAll('\\', '/'))
   return `${PATCH_MANAGED_MARK}
-# Profile overlay (applied after every bundle layer). Auto-rewritten on app
-# start while the marker line above is present; delete it to customize.
+# Generated product defaults. User changes belong in the higher-precedence
+# profile cordis.patch.yml and are preserved across application starts.
 
 # Model catalog and default selection come directly from the official dsh-base.
 # Do not shadow upstream multimodal capabilities with a product catalog.
@@ -328,17 +335,10 @@ function buildManagedPatch(deps) {
 - id: ui-sidebar-files
   disabled: true
 
-# Agent Pi copies the shipped presets into its own system root before applying
-# product-only Codex, web-fetch and compaction configuration. The official DSH
-# checkout remains byte-clean and the user-authored preset root stays enabled.
-- id: agent-presets
+# Presets are declared by the product bundle over official DSH definitions.
+- id: agent-preset-registry
   config:
     default: standard
-    roots:
-      - path: ${presetRoot}
-        trust: system
-    includeShippedRoot: false
-    includeUserRoot: true
 
 # Codex is an isolated product subagent, not a replacement LLM provider.
 # Auto-review remains confined to Codex's native workspace-write sandbox.
@@ -374,14 +374,18 @@ function writeManagedPatch(deps) {
   } catch {
     // Missing overlay: treat as managed.
   }
-  const patchManaged = currentPatch === null
-    || currentPatch.includes(PATCH_MANAGED_MARK)
-    || patchIsEmptyTemplate(currentPatch)
-  const next = buildManagedPatch(deps)
-  if (patchManaged && currentPatch !== next) {
-    writeFileSync(patchPath, next)
+  // DSH 0.1.7 saves UI settings in this profile overlay. Never regenerate it.
+  // Product defaults now live in a lower-precedence bundle of their own.
+  mkdirSync(systemPresetRoot, { recursive: true })
+  writeFileSync(join(systemPresetRoot, 'product-defaults.patch.yml'), buildManagedPatch(deps))
+  if (currentPatch === null || patchIsEmptyTemplate(currentPatch)) {
+    writeFileSync(patchPath, '[]\n')
+  } else if (currentPatch.includes(PATCH_MANAGED_MARK)) {
+    const retained = currentPatch.replace(PATCH_MANAGED_MARK, '# Agent Pi legacy defaults; user settings are preserved here.')
+      .replace(/^- id: agent-presets\r?\n(?:[ \t]+.*(?:\r?\n|$)|\r?\n)*/gm, '')
+    writeFileSync(patchPath, retained)
   }
-  if (patchManaged) retireVisionRouterResidue()
+  retireVisionRouterResidue()
 }
 
 function repairExistingDeepSeekModelCapacities() {
@@ -396,13 +400,10 @@ function repairLegacyAgentPresetDefault() {
   const settingsPath = join(home, 'settings.yaml')
   if (!existsSync(settingsPath)) return
   const current = readFileSync(settingsPath, 'utf8')
-  const repaired = current.replace(
-    /(^|\n)(agent-presets:\s*\r?\n)((?:[ \t]+.*(?:\r?\n|$))*)/g,
-    (block) => block.replace(
-      /^([ \t]+default:\s*)['"]?code['"]?([ \t]*(?:#.*)?(?:\r?\n|$))/m,
-      '$1standard$2',
-    ),
-  )
+  const { parseDocument } = createRequire(join(dsh, 'packages/settings/settings/package.json'))('yaml')
+  const document = parseDocument(current)
+  if (document.errors.length) throw new Error('Cannot migrate invalid legacy settings.yaml')
+  const repaired = migrateSettings017(document).toString()
   if (repaired !== current) writeFileSync(settingsPath, repaired)
 }
 
@@ -641,12 +642,12 @@ writeManifest(dependencies)
 writeManagedPatch(dependencies)
 
 function syncSystemPresets() {
-  rmSync(systemPresetRoot, { recursive: true, force: true })
   mkdirSync(systemPresetRoot, { recursive: true })
   for (const id of systemPresetIds) {
-    const source = join(dsh, 'packages/preset/agent-presets/presets', id)
+    const source = join(dsh, 'packages/bundle/web-app/presets', `${id}.patch.yml`)
     if (!existsSync(source)) throw new Error(`DSH shipped preset missing: ${id}`)
-    cpSync(source, join(systemPresetRoot, id), { recursive: true })
+    mkdirSync(join(systemPresetRoot, id), { recursive: true })
+    writeFileSync(join(systemPresetRoot, id, 'agent.cordis.yml'), shippedPresetPlugins(readFileSync(source, 'utf8')))
   }
 }
 
@@ -770,6 +771,9 @@ enableDesktopCodex()
 if (teamsEnabled) {
   for (const file of desktopPresetFiles()) writeFileSync(file, configureTeamPreset(readFileSync(file, 'utf8')))
 }
+writePresetBundle({ systemRoot: systemPresetRoot, userRoot: join(home, '.agent-presets'), ids: systemPresetIds,
+  parseYaml: createRequire(join(dsh, 'packages/settings/settings/package.json'))('yaml').parse })
+linkLocalBundle(PRODUCT_PRESETS, systemPresetRoot)
 removeRetiredJSpace()
 removeRetiredVisionRouter()
 dropFactoryGenuiSkill()

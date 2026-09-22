@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -23,6 +24,23 @@ export const CAD_INPUT_PATHS = Object.freeze([
   'docs/cad-clean-third-party.md',
   '.github/workflows/build-cad-clean-source.yml',
 ])
+
+// Reviewed 3.7.1 additions are confined to project-plan preview and model settings.
+// Exact file pairs keep every CAD route/asset change blocked until separately reviewed.
+const reviewed371 = {
+  "bundles/tender-host/src/http.ts": [
+    "e93ed84a6d37dacd33f965828c59d466d80590f0e307a36783ff367b2ba77c80",
+    "b08f769e7ab5e0643f77868308a791f149187c82cfdd83416fc17a87af97651b"
+  ],
+  "bundles/tender-web/src/client/file-preview-overlay.js": [
+    "49ed4551ed5c04265b0b316acd565ab42dacc9fd325f2cba5da068c136d7439a",
+    "375e8e3620c0589841a33f3ea78954d14d9edd240c7409471c3b815a06fd578d"
+  ]
+}
+function reviewedNonCadPair(path, before, after) {
+  const pair = reviewed371[path]
+  return pair && [before, after].every((text, index) => createHash('sha256').update(text).digest('hex') === pair[index])
+}
 
 function fail(message) {
   throw new Error(`CAD integration compatibility: ${message}`)
@@ -56,7 +74,15 @@ function noticesOutsideNonCadSections(text) {
   if ([...text.matchAll(section)].length !== 1) return null
   const report = /^## huashu-report\r?\n(?:(?!^## )[\s\S])*/gm
   if ([...text.matchAll(report)].length > 1) return null
+  const plans = /^## Local project plan engine \(MPXJ\)\r?\n(?:(?!^## )[\s\S])*/gm
+  if ([...text.matchAll(plans)].length > 1) return null
   return text.replace(section, '').replace(report, '')
+    .replace(plans, '').trimEnd()
+    .replace('`@dsh-external/dsh-super-injector` 0.3.5', '`@dsh-external/dsh-super-injector` 0.3.3')
+    .replace('upstream `v0.3.5` release', 'upstream `v0.3.3` release')
+    .replace('dsh-super-injector/tree/v0.3.5', 'dsh-super-injector/tree/v0.3.3')
+    .replace('735c212b136e3fb3f9769e1f07266cd091570a55', 'f4ef59fb31439225abefe45d6e793235a2a9d5e0')
+    .replace('49dc9c868704da0e73658976b37b55050bfefa8c22be5606dc290cdb77906f41', '355238fa8e51bc45c0801066af51e0e122f3b21411b193f601ee54e534391f48')
     .replace('\x60@dsh-external/dsh-super-injector\x60 0.3.3', '\x60@dsh-external/dsh-super-injector\x60 0.3.1')
     .replace('upstream \x60v0.3.3\x60 release', 'upstream \x60v0.3.1\x60 release')
     .replace('dsh-super-injector/tree/v0.3.3', 'dsh-super-injector/tree/v0.3.1')
@@ -133,7 +159,7 @@ export function assertCadIntegrationUnchanged({ root, manifest, releaseCommit = 
           && original.get(path)?.split(' ').slice(0, 2).join(' ') === current.get(path)?.split(' ').slice(0, 2).join(' ')) {
         const before = git(root, ['show', `${source.commit}:${path}`])
         const after = git(root, ['show', `${target}:${path}`])
-        if (withReviewedNonCadChanges(path, before) === after) return false
+        if (withReviewedNonCadChanges(path, before) === after || reviewedNonCadPair(path, before, after)) return false
       }
       return true
     })

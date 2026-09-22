@@ -41,7 +41,7 @@ No API key is required for a quick start. Requests use AnySearch's anonymous quo
 - Through Harness's built-in `web_fetch`, AnySearch Extract retrieves and cleans the content of a specific public HTTP(S) URL.
 - Discover searchable domains, vertical categories, and supported parameters in real time, then run advanced searches using tags, regions, languages, and structured parameters.
 - Run one to five searches concurrently; an individual failure does not affect the other results.
-- Advanced search can return cleaned page content on demand for deeper research.
+- Advanced search preserves useful structured results without source URLs, while page-backed results can return cleaned content on demand.
 
 ## Optional API key
 
@@ -99,7 +99,7 @@ To customize it, ask an AI assistant—or edit it manually—to add the complete
 |---|---|---|
 | `apiKeyEnv` | `ANYSEARCH_API_KEY` | DSH credential reference; missing uses anonymous access |
 | `baseURL` | `https://api.anysearch.com` | AnySearch API base URL |
-| `maxRenderedContentChars` | `12000` | Maximum cleaned-content characters rendered to the model per advanced tool call |
+| `maxRenderedContentChars` | `12000` | Maximum result-content characters rendered to the model per advanced tool call |
 
 ## Manage the plugin
 
@@ -118,6 +118,7 @@ npx -y @deepseek-ai/dsh plugin --profile web remove @anysearch/anysearch-dsh
 ## Compatibility and limitations
 
 - DeepSeek Harness is in developer preview and may make compatibility-breaking changes.
+- This source tree covers 20 published DSH releases, from `0.0.1-rc.5` through `0.1.6-alpha.2`, including `0.1.5-rc.2`. See the [version matrix, validation scope, and publication status](docs/dsh-compatibility.md).
 - URL extraction is exposed through Harness's provider-neutral `web_fetch`; the plugin does not add a duplicate `anysearch_extract` tool.
 - Configure the API key through DSH-managed credentials or an environment variable; the DSH settings page does not currently provide a third-party Provider credential field.
 
@@ -137,8 +138,8 @@ Join the AnySearch community to share your experience, report issues, and get te
 <div align="center">
   <table>
     <tr>
-      <td align="center"><strong>WeChat group survey</strong><br><img src="docs/assets/wechat-community-qr.jpg" alt="WeChat group survey QR code" width="180"></td>
-      <td align="center"><strong>Discord invite</strong><br><img src="docs/assets/discord-community-qr.png" alt="Discord invite QR code" width="180"></td>
+      <td align="center"><strong>WeChat group survey</strong><br><img src="docs/assets/discord-community-qr.png" alt="WeChat group survey QR code" width="180"></td>
+      <td align="center"><strong>Discord invite</strong><br><img src="docs/assets/wechat-community-qr.jpg" alt="Discord invite QR code" width="180"></td>
     </tr>
   </table>
 </div>

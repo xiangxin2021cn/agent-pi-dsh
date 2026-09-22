@@ -1,5 +1,5 @@
 param(
-  [string]$InjectorVersion = "0.3.3",
+  [string]$InjectorVersion = "0.3.5",
   [string]$RouterCommit = "b39112dce54b90e67b50b166c2773861d7945d1f"
 )
 
@@ -12,15 +12,25 @@ New-Item -ItemType Directory -Force -Path $Vendor, $Tmp | Out-Null
 $injectorUrl = "https://github.com/yjh051108/dsh-super-injector/releases/download/v$InjectorVersion/dsh-external-dsh-super-injector-$InjectorVersion.tgz"
 $injectorTgz = Join-Path $Tmp "dsh-super-injector.tgz"
 $injectorDest = Join-Path $Vendor "dsh-super-injector"
+$injectorLicense = Get-Content -LiteralPath (Join-Path $injectorDest "LICENSE") -Raw
 
 Write-Host "Downloading injector $InjectorVersion ..."
 Invoke-WebRequest -Uri $injectorUrl -OutFile $injectorTgz
-if (Test-Path $injectorDest) { Remove-Item -Recurse -Force $injectorDest }
+$vendorBoundary = [System.IO.Path]::GetFullPath($Vendor).TrimEnd('\') + '\'
+if (-not [System.IO.Path]::GetFullPath($injectorDest).StartsWith($vendorBoundary, [System.StringComparison]::OrdinalIgnoreCase)) {
+  throw "Injector destination is outside the vendor directory"
+}
+if (Test-Path $injectorDest) { Remove-Item -LiteralPath $injectorDest -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $injectorDest | Out-Null
 tar -xf $injectorTgz -C $injectorDest --strip-components=1
+if (-not (Test-Path (Join-Path $injectorDest "LICENSE"))) {
+  [System.IO.File]::WriteAllText((Join-Path $injectorDest "LICENSE"), $injectorLicense)
+}
 if (-not (Test-Path (Join-Path $injectorDest "lib\index.js"))) {
   throw "injector tarball missing lib/index.js"
 }
+node (Join-Path $Root "scripts\patch-super-injector.mjs") $injectorDest
+if ($LASTEXITCODE -ne 0) { throw "Super Injector product integration failed" }
 
 $routerBase = "https://raw.githubusercontent.com/yjh051108/dsh-router-standard/$RouterCommit"
 $routerDest = Join-Path $Vendor "dsh-router-standard"

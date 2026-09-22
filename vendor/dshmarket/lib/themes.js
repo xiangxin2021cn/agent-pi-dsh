@@ -4,11 +4,40 @@
  * the loader, and keeping exactly one theme active with the choice
  * persisted across restarts.
  */
+import { join } from 'node:path';
 import { loadRegistry, pluginCategories } from "./registry.js";
 import { hotMount, hotUnmount, listHotMounts, writeDisabled } from "./hot.js";
 import { logEvent } from "./log.js";
-import { profileDir, readInstalled } from "./profile.js";
+import { nameMatchesPackage } from "./entry-identity.js";
+import { bundlePatchInsertedIds, profileDir, readInstalled } from "./profile.js";
 import { repoOf } from "./sources.js";
+/**
+ * Whether a loader entry belongs to `packageName`.
+ *
+ * A bundle patch need not name its own package. Two shapes exist (#619, the
+ * toggle-side half of #71):
+ *
+ *  - a SUBPATH entry — `aegis` mounts `aegis/extensions/dsh/index.js`,
+ *    `toolshrink` mounts `toolshrink/harness`. Matched with the same `name/`
+ *    bound `liveIncludes()` uses, so a differently-suffixed package
+ *    (`toolshrink-extra`) can never match.
+ *  - a CARRIER bundle — `@deepseek-ai/dsh-experimental-agent-team-profile`
+ *    mounts entries named `@deepseek-ai/dsh-experimental-agent-team` and
+ *    `@deepseek-ai/dsh-experimental-tool-agent-team`. There is no name
+ *    relation at all, so this falls back to the entry id the package's own
+ *    patch inserts — the rule `carriedRowLive()` uses (#156).
+ */
+function ownsLoaderEntry(entry, packageName, ownedIds) {
+    const entryName = entry.options.name;
+    if (nameMatchesPackage(entryName, packageName))
+        return true;
+    const id = entry.options.id;
+    if (id === undefined || id === '')
+        return false;
+    // Loader ids may carry an include prefix (`include:<key>:<id>`); the bare
+    // id is what a bundle patch declares.
+    return ownedIds.has(id.split(':').pop() ?? id);
+}
 /**
  * Create the theme manager. `disabledThemes` is the live, shared set of
  * themes the user switched off — the caller owns reading it at boot and
@@ -45,8 +74,11 @@ export function createThemeManager(host, profile, disabledThemes, explicitDir) {
      */
     async function setEntryDisabled(name, disabledFlag) {
         let found = false;
+        // The entry ids this package's own patch inserts; empty for a package
+        // that declares no bundle patch. Read once per toggle, not per entry.
+        const ownedIds = new Set(bundlePatchInsertedIds(join(activeProfileDir, 'node_modules', name)));
         for (const entry of host.loader.entries()) {
-            if (entry.options.name !== name)
+            if (!ownsLoaderEntry(entry, name, ownedIds))
                 continue;
             // A disable can land while the entry's init is still in flight: the
             // options flip but the finishing init brings the fiber up anyway, and a

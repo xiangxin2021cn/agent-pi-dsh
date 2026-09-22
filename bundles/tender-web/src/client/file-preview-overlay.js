@@ -1,4 +1,5 @@
 import { scopeUniverViewerUrl } from './univer-viewer-url.js'
+import { createProjectPlanPreview } from './project-plan-preview.js'
 
 export function createFilePreviewOverlay(dependencies) {
   const {
@@ -59,6 +60,7 @@ export function createFilePreviewOverlay(dependencies) {
     useAttachItems,
     wrapComposerSubmit,
   } = dependencies
+  const ProjectPlanPreview = createProjectPlanPreview({ React, api })
 
   const PREVIEW_CACHE_MAX = 8
   const previewCache = new Map()
@@ -107,6 +109,13 @@ export function createFilePreviewOverlay(dependencies) {
       const [aiSel, setAiSel] = React.useState(null)
       const [sheetTab, setSheetTab] = React.useState(0)
       const [univerDirty, setUniverDirty] = React.useState(false)
+      const [planEditState, setPlanEditState] = React.useState({ dirty: false, busy: false })
+      const closePreview = React.useCallback(() => {
+        if (kind === 'project-plan' && (planEditState.busy ||
+            (planEditState.dirty && !window.confirm('关闭将丢弃尚未导出的计划编辑，是否继续？')))) return false
+        props.onClose()
+        return true
+      }, [kind, planEditState, props.onClose])
       const [recalcPrompt, setRecalcPrompt] = React.useState(null)
       const editRef = React.useRef(null)
       const wysiwygRef = React.useRef(null)
@@ -525,7 +534,7 @@ export function createFilePreviewOverlay(dependencies) {
         const onKey = (event) => {
           if (event.key === 'Escape') {
             if (aiSel) { setAiSel(null); return }
-            props.onClose()
+            closePreview()
           }
           if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
             event.preventDefault()
@@ -534,7 +543,7 @@ export function createFilePreviewOverlay(dependencies) {
         }
         window.addEventListener('keydown', onKey)
         return () => window.removeEventListener('keydown', onKey)
-      }, [props.onClose, canEdit, busy, cwd, file.path, draft, text, mode, sourceMode, aiSel, office, officeSaved, univerDirty])
+      }, [closePreview, canEdit, busy, cwd, file.path, draft, text, mode, sourceMode, aiSel, office, officeSaved, univerDirty])
 
       React.useEffect(() => {
         const onMsg = (event) => {
@@ -712,7 +721,7 @@ export function createFilePreviewOverlay(dependencies) {
       }
 
       const remove = () => {
-        if (busy) return
+        if (busy || (kind === 'project-plan' && planEditState.busy)) return
         if (!window.confirm('删除文件「' + file.name + '」？此操作无法撤销。')) return
         setBusy('delete')
         api('/api/agent-pi/memory/impact', cwd, { method: 'POST', body: JSON.stringify({ path: file.path }) })
@@ -864,6 +873,8 @@ export function createFilePreviewOverlay(dependencies) {
       let body = null
       if (loading) {
         body = h('div', { className: 'ap-doc-status' }, '正在打开文件…')
+      } else if (kind === 'project-plan') {
+        body = h(ProjectPlanPreview, { key: file.path, cwd, path: file.path, onEditState: setPlanEditState })
       } else if (kind === 'image') {
         body = h('img', { className: 'ap-doc-img', src: rawFileUrl(cwd, file.path), alt: file.name })
       } else if (kind === 'pdf') {
@@ -970,10 +981,11 @@ export function createFilePreviewOverlay(dependencies) {
           h('div', { className: 'ap-doc-path', title: kbSlug ? (file.name + ' · 解析稿') : file.path }, kbSlug ? ((file.name || kbSlug) + ' · 解析稿') : file.path),
           h('div', { className: 'ap-doc-actions' },
             kbSlug ? null : DocBtn('注入对话', () => {
+              if (kind === 'project-plan' && !closePreview()) return
               mentionInChat(props.sessionProps || props, file)
-              if (typeof props.onClose === 'function') props.onClose()
+              if (kind !== 'project-plan' && typeof props.onClose === 'function') props.onClose()
             }, [Icon('paperclip', 14), '注入对话'], loading),
-            isCad ? null : DocBtn('AI 改', () => openAiSel(), [Icon('sparkles', 14), 'AI 改'], loading || !!busy),
+            isCad || kind === 'project-plan' ? null : DocBtn('AI 改', () => openAiSel(), [Icon('sparkles', 14), 'AI 改'], loading || !!busy),
             canEdit && !isUniver ? DocBtn(mode === 'edit' ? '预览' : '编辑', toggleMode, [
               Icon(mode === 'edit' ? 'eye' : 'pencil', 14),
             ], loading) : null,
@@ -994,12 +1006,12 @@ export function createFilePreviewOverlay(dependencies) {
               DocBtn('导出 PDF', () => exportFile('pdf'), [Icon('download', 14), ' PDF'], !!busy),
               DocBtn('导出 Word', () => exportFile('docx'), [Icon('download', 14), ' DOCX'], !!busy),
             ) : null),
-            kind === 'binary' || kind === 'pdf' || kind === 'image' || isOffice || kind === 'html' || isCad ? DocBtn('下载原件', () => {
+            kind === 'binary' || kind === 'pdf' || kind === 'image' || isOffice || kind === 'html' || isCad || kind === 'project-plan' ? DocBtn('下载原件', () => {
               apiBlob('/api/agent-pi/files/raw?path=' + encodeURIComponent(file.path), cwd, { method: 'GET' })
                 .then((result) => downloadBlob(result.blob, result.filename || file.name))
                 .catch((e) => setError(String(e.message || e)))
             }, [Icon('download', 14)], !!busy) : null,
-            DocBtn('关闭', props.onClose, [Icon('x', 14)]),
+            DocBtn('关闭', closePreview, [Icon('x', 14)]),
           ),
         ),
         h('div', { className: 'ap-doc-scroll' + (isUniver ? ' univer' : (isCad ? ' cad' : '')) },
@@ -1153,6 +1165,7 @@ export function createFilePreviewOverlay(dependencies) {
                 className: 'ap-folder-row',
                 onClick: () => {
                   if (item.type === 'directory') setCurrent(item)
+                  else if (/\.(mpp|xer|pmxml|xml)$/i.test(item.path) && props.onOpenFile) props.onOpenFile(item)
                   else mentionInChat(props.sessionProps || props, item)
                 },
                 onContextMenu: (e) => {

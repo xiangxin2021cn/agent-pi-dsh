@@ -8,7 +8,7 @@ import { resolveHeadCommit } from "./accelerate.js";
 import { marketFetch } from "./net.js";
 import { activeRegion } from "./regions.js";
 import { profileDir, readGitResolutionCommit, readInstalled, readInstalledVersion, readLockCommits } from "./profile.js";
-import { gitCommitOfTarget, gitUploadPackUrl, githubCommitOfTarget, githubRefOfTarget, isGenerationLink, isGitHostedSpec, repoOfTarget } from "./sources.js";
+import { gitCommitOfTarget, gitRefOfTarget, gitUploadPackUrl, hostedRepoKey, githubCommitOfTarget, githubRefOfTarget, isGenerationLink, isGitHostedSpec, repoOfTarget } from "./sources.js";
 const UPDATES_TTL_MS = 30 * 60 * 1000;
 const GIT_REMOTE_HEAD_TIMEOUT_MS = 6000;
 let updatesCache = null;
@@ -17,7 +17,7 @@ let updatesCache = null;
  * advertisement format as GitHub's info/refs; kept here so accelerate.ts
  * does not need to import sources.ts.
  */
-async function resolveGitRemoteHead(spec, ref) {
+export async function resolveGitRemoteHead(spec, ref) {
     const url = gitUploadPackUrl(spec);
     if (url === null)
         return null;
@@ -327,7 +327,7 @@ onlineSourceFor = new Map()) {
                 // A proxied legacy URL or exact `github:#sha` carries its pin in the
                 // spec; a mutable `github:` shortcut keeps it in the lockfile. Prefer
                 // the spec because it is authoritative even if the lockfile is stale.
-                const current = githubCommitOfTarget(spec) ?? lockCommits.get(repo) ?? null;
+                const current = githubCommitOfTarget(spec) ?? lockCommits.get(`github.com/${repo}`) ?? null;
                 // git's own ref advertisement, NOT api.github.com/repos/…/commits.
                 // The REST API allows 60 requests an hour per IP unauthenticated,
                 // shared across every plugin AND every check — a handful of
@@ -350,9 +350,17 @@ onlineSourceFor = new Map()) {
                 // as an update and then installed over the git source (#525).
                 // Reuse kind `github` as "git-sourced" so the existing Installed UI
                 // keeps treating the row as a VCS install without a client change.
+                // Three readings, because pnpm records a git install in three
+                // different ways: the spec's own pin, a `type: git` resolution for a
+                // cloned remote, and — for the hosts that serve an archive tarball —
+                // the commit inside that tarball's URL (#637).
+                const archiveKey = hostedRepoKey(spec);
                 const current = gitCommitOfTarget(spec)
-                    ?? readGitResolutionCommit(profile, spec, activeProfileDir);
-                const latest = await resolveGitRemoteHead(spec);
+                    ?? readGitResolutionCommit(profile, spec, activeProfileDir)
+                    ?? (archiveKey === null ? null : lockCommits.get(archiveKey) ?? null);
+                // Ask about the ref the install actually names, exactly as the
+                // github branch above does (#446).
+                const latest = await resolveGitRemoteHead(spec, gitRefOfTarget(spec) ?? undefined);
                 result[name] = {
                     kind: 'github', version, current, latest,
                     updateAvailable: current !== null && latest !== null && current !== latest,

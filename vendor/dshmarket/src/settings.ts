@@ -13,6 +13,8 @@
  * instance manages: it is decided at mount from the composition or the
  * command line, and a running instance cannot switch to another one, so
  * offering it as a field would promise something the write cannot deliver.
+ * Desktop registers an empty schema instead: the namespace still admits its
+ * card, but the shell owns restart and no settings value feeds its routes.
  *
  * The release channel is NOT here either, and that is a correction rather
  * than an omission. It was, briefly, and it made this namespace a second
@@ -77,16 +79,16 @@ if (!NAMESPACE_PATTERN.test(MARKET_SETTINGS_NS)) {
  * a type for it on every supported host, and naming only what is called
  * keeps this from breaking again when a neighbouring field moves.
  */
-interface SettingsScope {
-  get: () => MarketSettings
+interface SettingsScope<T> {
+  get: () => T
   watch: (listener: () => void) => void
 }
 interface SettingsService {
-  register: (
+  register: <T>(
     ns: string,
-    schema: z<MarketSettings>,
-    options: { base: MarketSettings },
-  ) => SettingsScope
+    schema: z<T>,
+    options: { base: T },
+  ) => SettingsScope<T>
 }
 
 /** The market settings a user may edit at runtime. */
@@ -97,6 +99,17 @@ export interface MarketSettings {
 export const MarketSettings: z<MarketSettings> = z.object({
   allowRestart: z.boolean().default(true),
 })
+
+/** Serve the Desktop card without claiming settings-controlled restart. */
+export function installDesktopMarketSettings(ctx: Context): void {
+  ctx.inject(['settings'], (scopedCtx: Context) => {
+    const scoped = scopedCtx as unknown as Context & { settings: SettingsService }
+    // The host dispatches cards only for registered namespaces. An empty
+    // schema offers no fields; old stored allowRestart values stay untouched
+    // and are never read or watched into the shell-owned runtime config.
+    if (typeof scoped.settings.register === 'function') scoped.settings.register(MARKET_SETTINGS_NS, z.object({}), { base: {} })
+  })
+}
 
 /**
  * Wire the namespace so a saved change reaches the routes immediately.
@@ -110,7 +123,7 @@ export const MarketSettings: z<MarketSettings> = z.object({
  * @param ctx - the plugin context owning the wiring.
  * @param resolved - the live config object the routes read.
  */
-export function installMarketSettings(ctx: Context, resolved: { allowRestart?: boolean }): void {
+export function installMarketSettings(ctx: Context, resolved: { allowRestart?: boolean }, readLive?: () => boolean | undefined): void {
   // The switch must show what the routes will actually DO, which since #229
   // is not simply "unset means on": under a detected supervisor an unset
   // value means off, because the supervisor owns restarts. Asking
@@ -127,6 +140,11 @@ export function installMarketSettings(ctx: Context, resolved: { allowRestart?: b
   // settings service the callback never runs and the composed entry stands.
   ctx.inject(['settings'], (scopedCtx: Context) => {
     const scoped = scopedCtx as unknown as Context & { settings: SettingsService }
+    if (typeof scoped.settings.register !== 'function') {
+      // 0.1.7 persists the owning entry's volatile Config directly.
+      if (readLive) Object.defineProperty(resolved, 'allowRestart', { configurable: true, enumerable: true, get: readLive })
+      return
+    }
     const scope = scoped.settings.register(MARKET_SETTINGS_NS, MarketSettings, { base: entry })
     source = () => scope.get()
     // Unload restores the composed entry, so a disabled section cannot leave

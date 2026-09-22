@@ -1,10 +1,10 @@
 import { createRequire } from "node:module";
-import { dirname, join, relative, resolve } from "node:path";
 import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, realpathSync, renameSync, rmSync, rmdirSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { dirname, join, relative, resolve } from "node:path";
 import { homedir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
-//#region C:/Users/Eldwen/AppData/Roaming/npm/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/cosmokit/lib/index.js
+//#region <HOME>/AppData/Roaming/npm/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/cosmokit/lib/index.js
 /** Return true when a value is `null` or `undefined`. */
 function isNullable(value) {
 	return value === null || value === void 0;
@@ -239,7 +239,7 @@ var Time;
 	Time.template = template;
 })(Time || (Time = {}));
 //#endregion
-//#region C:/Users/Eldwen/AppData/Roaming/npm/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/cordis/lib/index.js
+//#region <HOME>/AppData/Roaming/npm/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/cordis/lib/index.js
 /** Ordered collection of disposable values with O(1) deletion by value. */
 var DisposableList = class {
 	sn = 0;
@@ -2051,7 +2051,7 @@ var Service = class Service {
 	}
 };
 //#endregion
-//#region C:/Users/Eldwen/AppData/Roaming/npm/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/schemastery/lib/index.mjs
+//#region <HOME>/AppData/Roaming/npm/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/schemastery/lib/index.mjs
 const kSchema = Symbol.for("schemastery");
 const kValidationError = Symbol.for("ValidationError");
 globalThis.__schemastery_index__ ??= 0;
@@ -2645,7 +2645,7 @@ defineMethod("transform", [
 	"preserve"
 ], ({ inner }, isInner) => inner.toString(isInner));
 //#endregion
-//#region C:/Users/Eldwen/AppData/Roaming/npm/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-scope/lib/index.js
+//#region <HOME>/AppData/Roaming/npm/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-scope/lib/index.js
 /**
 * Shared insertion-ordered storage and effect ownership for scope-aware registries.
 *
@@ -2924,162 +2924,163 @@ function scopeTarget(base, key) {
 	return carrier;
 }
 //#endregion
-//#region C:/Users/Eldwen/AppData/Roaming/npm/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-timeout/lib/index.js
-/** Largest delay Node schedules without clamping it to one millisecond. */
-const MAX_TIMER_DELAY_MS = 2147483647;
-//#endregion
-//#region C:/Users/Eldwen/AppData/Roaming/npm/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-llm/lib/index.js
+//#region <HOME>/AppData/Roaming/npm/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-typert-protocol/lib/index.js
+/** The one Remote failure class shared by owners, the Gateway, and consumers. */
 /**
-* Brand a string as a {@link CallId}.
-* @param id - the provider-issued (or synthesized) call id.
-* @returns the same string, branded; no validation is performed.
+* One Remote call failure: a real Error carrying its stable code and typed
+* details. Owners throw it at the failure point; the Host Gateway encodes it
+* onto the wire unchanged; the Client face rebuilds an instance for the
+* `RemoteResult` error branch, so `throw result.error` keeps throw semantics.
+* Discrimination is always by `code`, never by instanceof.
 */
-function CallId(id) {
-	return id;
-}
-/**
-* Deep-freeze a value in place with an iterative traversal, guarding cycles,
-* so later mutation throws without imposing a JavaScript call-stack depth cap.
-* {@link AbortSignal} objects are deliberately skipped because they are the
-* request's live cancellation channel and freezing them breaks abort.
-* @param value - the value to freeze in place.
-* @returns the same value, frozen.
-*/
-function deepFreeze(value) {
-	const seen = /* @__PURE__ */ new WeakSet();
-	const pending = [{
-		kind: "visit",
-		node: value
-	}];
-	while (pending.length > 0) {
-		const task = pending.pop();
-		/* v8 ignore next -- the loop condition guarantees one pending task. */
-		if (task === void 0) continue;
-		if (task.kind === "property") {
-			pending.push({
-				kind: "visit",
-				node: task.source[task.key]
-			});
-			continue;
-		}
-		const node = task.node;
-		if (node === null || typeof node !== "object") continue;
-		if (node instanceof AbortSignal) continue;
-		if (seen.has(node)) continue;
-		seen.add(node);
-		Object.freeze(node);
-		const keys = Object.keys(node);
-		for (let index = keys.length - 1; index >= 0; index--) {
-			const key = keys[index];
-			/* v8 ignore next -- the loop is bounded by the captured key count. */
-			if (key === void 0) continue;
-			pending.push({
-				kind: "property",
-				source: node,
-				key
-			});
-		}
-	}
-	return value;
-}
-/**
-* Harness error base with a stable machine-routable code and chained cause.
-* Package errors extend it so tool results and replay can retain failure class.
-* @module @deepseek-ai/dsh-llm/error
-*/
-/**
-* Base class for all harness errors. Carries a `code` (stable, programmatic —
-* e.g. `NO_ADAPTER`, `INVALID_ARGS`, `INVARIANT`) distinct from the
-* human-readable `message`, and supports `cause` chaining via the standard
-* `ErrorOptions`. `name` defaults to the subclass constructor name.
-*/
-var HarnessError = class extends Error {
-	/** Stable machine-routable failure class (e.g. `RATE_LIMIT`); route on this, never by parsing `message`. */
+var RemoteError = class extends Error {
 	code;
-	constructor(message, code, options) {
+	details;
+	/** Structural marker: cross-realm/bundle identification never uses instanceof. */
+	isDSHRemoteError = true;
+	/**
+	* @param code - stable failure code declared in {@link RemoteErrorDetailsMap}.
+	* @param message - human diagnostic carried across the wire.
+	* @param details - structured payload typed by the code.
+	* @param options - standard Error options (`cause` survives in-process only).
+	*/
+	constructor(code, message, details, options) {
 		super(message, options);
 		this.code = code;
-		this.name = new.target.name;
+		this.details = details;
+		this.name = "RemoteError";
 	}
 };
 /**
-* Canonical provider-neutral code for a response that completed normally but
-* carried no content blocks at all. Providers occasionally emit a degenerate
-* completion (a terminal stop with zero output); adapters classify it as this
-* failure instead of yielding an empty assistant message, because an empty
-* message silently ends the turn with nothing for the user or the loop to act
-* on. The attempt produced nothing durable, so retry policy treats it as safe
-* to repeat.
+* Remote decorators and explicit Gateway bindings backed by versioned
+* descriptors carried on decorated class prototypes. Strict reflection
+* remains a Typert compiler responsibility.
+* @module @deepseek-ai/dsh-typert-protocol
 */
-const EMPTY_RESPONSE_CODE = "EMPTY_RESPONSE";
-new RegExp(String.raw`(?:^|[^a-z0-9])context[\s_-](?:length|window)[\s_-]` + String.raw`(?:exceed(?:ed|s)?|overflow(?:ed)?|limit[\s_-]exceeded)(?:$|[^a-z0-9])`, "i");
-new RegExp(String.raw`\b(?:request|prompt|input|messages?)\s+(?:is\s+|are\s+)?` + String.raw`too\s+(?:large|long)\s+for\s+(?:(?:this|the)\s+)?` + String.raw`(?:model(?:'s)?\s+)?context(?:\s+window)?\b`, "i");
-new RegExp(String.raw`\b(?:input|prompt|request|messages?)\b.{0,40}` + String.raw`\b(?:exceed(?:s|ed)?|overflows?|is\s+larger\s+than)\b.{0,40}` + String.raw`\b(?:the\s+)?(?:model(?:'s)?\s+)?context(?:\s+(?:length|window))?\b`, "i");
+const TYPERT_REMOTE_SEGMENT_PATTERN = /^[A-Za-z0-9_$.-]+$/;
 /**
-* Provider-owned request-retry policy configuration and resolution.
-*
-* Adapters expose one resolved policy per registered provider route; the
-* optional dsh-llm-retry plugin executes it on the agent's failed-step extension point.
-*
-* @module @deepseek-ai/dsh-llm/retry-policy
+* Test one generated Remote name against the Connection endpoint grammar.
+* @param value - namespace, method, lookup, or Context segment.
+* @returns whether the value can cross the shared RPC carrier unchanged.
 */
-const DEFAULT_MAX_RETRIES = 2;
-const DEFAULT_INITIAL_DELAY_MS = 500;
-const DEFAULT_MAX_DELAY_MS = 1e4;
-const DEFAULT_JITTER_RATIO = .1;
-const DEFAULT_RETRYABLE_CODES = Object.freeze([
-	EMPTY_RESPONSE_CODE,
-	"RATE_LIMIT",
-	"SERVER",
-	"TIMEOUT",
-	"TRANSPORT"
-]);
-const backoffSchema = Schema.object({
-	initialDelayMs: Schema.number().max(MAX_TIMER_DELAY_MS).default(DEFAULT_INITIAL_DELAY_MS),
-	maxDelayMs: Schema.number().max(MAX_TIMER_DELAY_MS).default(DEFAULT_MAX_DELAY_MS),
-	jitterRatio: Schema.number().min(0).max(1).default(DEFAULT_JITTER_RATIO)
-});
-const normalPolicySchema = Schema.object({
-	mode: Schema.const("normal").required(),
-	maxRetries: Schema.number().step(1).min(0).max(Number.MAX_SAFE_INTEGER).default(DEFAULT_MAX_RETRIES),
-	retryableCodes: Schema.array(Schema.string()).default([...DEFAULT_RETRYABLE_CODES]),
-	backoff: backoffSchema
-});
-const alwaysPolicySchema = Schema.object({
-	mode: Schema.const("always").required(),
-	backoff: backoffSchema
-});
-Schema.union([normalPolicySchema, alwaysPolicySchema]);
+function isTypertRemoteSegment(value) {
+	return value !== "." && value !== ".." && TYPERT_REMOTE_SEGMENT_PATTERN.test(value);
+}
+const REMOTE_METHOD_DESCRIPTOR = "@deepseek-ai/dsh-typert-protocol/remote-methods";
 /**
-* Centralize the non-secret product identity every provider request sends as `User-Agent`, keeping
-* adapters from drifting. See
-* `.agents/notes/implemented/architecture/2026-06-21-mandatory-app-attribution-headers.md`.
-*
-* App-attribution vocabulary for provider requests.
-* @module @deepseek-ai/dsh-llm/attribution
+* Bind one visible Service field to a Cordis key and Remote namespace.
+* @param service - owning Service instance, normally `this`.
+* @param serviceKey - exact Cordis service key.
+* @param options - optional distinct wire namespace.
+* @returns a frozen, inspectable binding with no compiler-injected metadata.
 */
-const { version } = createRequire(import.meta.url)("../package.json");
+function bindTypertRemote(service, serviceKey, options = {}) {
+	validateName("service key", serviceKey);
+	const namespace = options.namespace ?? serviceKey;
+	validateName("namespace", namespace);
+	return Object.freeze({
+		service,
+		serviceKey,
+		namespace
+	});
+}
+/** Cordis Service base that exposes its registered name through Typert Gateway. */
+var TypertRemoteService = class extends Service {
+	/** Visible binding consumed by the Gateway's source-mode discovery. */
+	typertRemote;
+	/**
+	* Register the Service and bind the same key to Typert Gateway.
+	* @param ctx - owning Cordis Context.
+	* @param serviceKey - exact Cordis service key and default wire namespace.
+	* @param options - optional distinct wire namespace.
+	*/
+	constructor(ctx, serviceKey, options = {}) {
+		super(ctx, serviceKey);
+		this.typertRemote = bindTypertRemote(this, this.name, options);
+	}
+};
+function Remote(methodExportOrOptions, context) {
+	if (typeof methodExportOrOptions === "string") {
+		validateName("Remote export name", methodExportOrOptions);
+		return remoteDecorator({ kind: "direct" }, void 0, methodExportOrOptions);
+	}
+	if (typeof methodExportOrOptions === "object") {
+		if (remoteOptionMode(methodExportOrOptions) !== "stream" || Reflect.ownKeys(methodExportOrOptions).length !== 1) throw new TypeError("typert-protocol: Remote options must contain exactly mode: \"stream\"");
+		return remoteDecorator({ kind: "direct" }, "stream");
+	}
+	if (context === void 0) throw new TypeError("typert-protocol: Remote decorator context is missing");
+	addMarkerInitializer(context, { kind: "direct" });
+}
+function remoteOptionMode(options) {
+	return Reflect.get(options, "mode");
+}
+function remoteDecorator(invocation, mode, exportName) {
+	return function(_method, context) {
+		addMarkerInitializer(context, invocation, mode, exportName);
+	};
+}
+function readRemoteMethodDescriptor(prototype) {
+	const property = Object.getOwnPropertyDescriptor(prototype, REMOTE_METHOD_DESCRIPTOR);
+	if (property === void 0) return void 0;
+	const descriptor = property.value;
+	if (descriptor === null || typeof descriptor !== "object") throw new TypeError("typert-protocol: Remote method descriptor must be an object");
+	const version = Reflect.get(descriptor, "version");
+	if (version !== 1) throw new TypeError(`typert-protocol: unsupported Remote method descriptor version ${String(version)}`);
+	const methods = Reflect.get(descriptor, "methods");
+	if (!Array.isArray(methods)) throw new TypeError("typert-protocol: Remote method descriptor methods must be an array");
+	return descriptor;
+}
+function addMarkerInitializer(context, invocation, mode, exportName) {
+	if (context.private || context.static || typeof context.name !== "string") throw new TypeError("typert-protocol: Remote decorators require a public instance method with a string name");
+	const method = context.name;
+	context.addInitializer(function() {
+		const prototype = Object.getPrototypeOf(this);
+		if (prototype === null) throw new TypeError(`typert-protocol: cannot mark Remote method "${method}" on an object without a prototype`);
+		mark(prototype, method, invocation, mode, exportName);
+	});
+}
+function mark(prototype, method, invocation, mode, exportName) {
+	const descriptor = readRemoteMethodDescriptor(prototype);
+	const marker = Object.freeze({
+		method,
+		...exportName === void 0 || exportName === method ? {} : { exportName },
+		...mode === void 0 ? {} : { mode },
+		invocation: Object.freeze(invocation)
+	});
+	const current = descriptor?.methods.find((candidate) => candidate.method === method);
+	if (current !== void 0) {
+		if (current.exportName === marker.exportName && current.mode === marker.mode && sameInvocation(current.invocation, invocation)) return;
+		throw new Error(`typert-protocol: Remote method "${method}" has conflicting invocation markers`);
+	}
+	Object.defineProperty(prototype, REMOTE_METHOD_DESCRIPTOR, {
+		configurable: true,
+		value: Object.freeze({
+			version: 1,
+			methods: Object.freeze([...descriptor?.methods ?? [], marker])
+		})
+	});
+}
+function sameInvocation(left, right) {
+	if (left.kind === "direct") return right.kind === "direct";
+	if (right.kind === "direct") return false;
+	return left.context === right.context;
+}
+function validateName(subject, value) {
+	if (!isTypertRemoteSegment(value)) throw new TypeError(`typert-protocol: ${subject} must contain only RPC endpoint segment characters`);
+}
+//#endregion
+//#region <HOME>/AppData/Roaming/npm/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-util-values/lib/index.js
+/** Duplicate-install-safe JSON and immutable-value helpers. @module @deepseek-ai/dsh-util-values */
 /**
-* Exhaustiveness helper for closed core unions. Use {@link assertNever} at the default branch so a
-* new variant fails compilation at every required handler. Do not use it for declaration-merged
-* unions such as session events or content blocks: handle known variants and explicitly fall
-* through because plugins may add valid unknown cases.
-* @module @deepseek-ai/dsh-llm/never
-*/
-/**
-* Mark an unreachable closed-union branch. A newly unhandled typed variant fails at the call site;
-* a value that escaped its type throws with diagnostics at runtime.
-* @param value - the impossible value; typed `never` so an unhandled variant fails compilation at the call site.
-* @param context - optional label (e.g. the switch site) prefixed into the throw message.
-* @returns never — it always throws, with the offending value JSON-rendered in the message.
+* Mark an unreachable closed-union branch.
+* @param value - impossible value; an unhandled typed variant fails at the call site.
+* @param context - optional switch-site label included in the failure message.
+* @returns never; a runtime value that escaped its type always throws.
 */
 function assertNever(value, context) {
 	const rendered = JSON.stringify(value) ?? String(value);
 	throw new Error(`unreachable variant${context ? ` in ${context}` : ""}: ${rendered}`);
 }
-//#endregion
-//#region C:/Users/Eldwen/AppData/Roaming/npm/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-session/lib/index.js
-/** Lossless-JSON validation and detached snapshots for durable session data. @module @deepseek-ai/dsh-session/json */
 /** Whether a realm-owned intrinsic prototype is backed by its native constructor. */
 function hasIntrinsicConstructor$1(prototype, name) {
 	const constructor = Object.getOwnPropertyDescriptor(prototype, "constructor")?.value;
@@ -3222,34 +3223,1224 @@ function walkJsonValue(value, detach) {
 	return detach ? root : true;
 }
 /**
-* Validate and detach lossless JSON in one read per property, so a stateful
-* getter cannot change between validation and copying. Traversal is iterative,
-* so valid nesting is bounded by available memory rather than the JavaScript
-* call stack. Accepts ordinary arrays, plain or null-prototype objects, and JSON
-* scalars; rejects sparse, cyclic, exotic, negative-zero, and non-finite values.
-* Getter throws propagate.
-*
-* @param value - the candidate value to validate and detach.
-* @returns the detached snapshot, or `undefined` when the value is not
-*   losslessly JSON-serializable.
+* Validate and detach lossless JSON in one read per property.
+* @param value - candidate value to validate and detach.
+* @returns the detached snapshot, or `undefined` when the value is not losslessly JSON-serializable.
 */
 function snapshotJsonValue(value) {
 	return walkJsonValue(value, true);
 }
 /**
-* Test the same lossless JSON boundary as {@link snapshotJsonValue} without
-* detaching it. Only own enumerable string properties participate; `toJSON`
-* is ignored and getters run, so persistence boundaries use the snapshotter.
-* @param value - the candidate event data to test.
-* @returns whether `value` survives JSON round-trip losslessly.
+* Test the same lossless JSON rules as {@link snapshotJsonValue} without detaching the value.
+* @param value - candidate value to test.
+* @returns whether the value survives a JSON round trip without loss.
 */
 function isJsonValue(value) {
 	return walkJsonValue(value, false) === true;
 }
-//#endregion
-//#region C:/Users/Eldwen/AppData/Roaming/npm/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-tools/lib/index.js
 /**
-* Enforced JSON Schema subset shared by tool outputs, generated Code Mode
+* Deep-freeze an object graph in place while leaving live AbortSignal objects mutable.
+* @param value - value to freeze.
+* @returns the same value after every reachable enumerable child is frozen.
+*/
+function deepFreeze(value) {
+	const seen = /* @__PURE__ */ new WeakSet();
+	const pending = [{
+		kind: "visit",
+		node: value
+	}];
+	while (pending.length > 0) {
+		const task = pending.pop();
+		/* v8 ignore next -- the loop condition guarantees one pending task. */
+		if (task === void 0) continue;
+		if (task.kind === "property") {
+			pending.push({
+				kind: "visit",
+				node: task.source[task.key]
+			});
+			continue;
+		}
+		const node = task.node;
+		if (node === null || typeof node !== "object") continue;
+		if (node instanceof AbortSignal) continue;
+		if (seen.has(node)) continue;
+		seen.add(node);
+		Object.freeze(node);
+		const keys = Object.keys(node);
+		for (let index = keys.length - 1; index >= 0; index--) {
+			const key = keys[index];
+			/* v8 ignore next -- the loop is bounded by the captured key count. */
+			if (key === void 0) continue;
+			pending.push({
+				kind: "property",
+				source: node,
+				key
+			});
+		}
+	}
+	return value;
+}
+//#endregion
+//#region <HOME>/AppData/Roaming/npm/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-util-crypto/lib/index.js
+/**
+* Random v4 UUID, minted from `crypto.getRandomValues`.
+* @returns the UUID string.
+*/
+function randomUUID() {
+	const bytes = globalThis.crypto.getRandomValues(/* @__PURE__ */ new Uint8Array(16));
+	const hex = Array.from(bytes, (byte, index) => {
+		return (index === 6 ? byte & 15 | 64 : index === 8 ? byte & 63 | 128 : byte).toString(16).padStart(2, "0");
+	}).join("");
+	return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+//#endregion
+//#region <HOME>/AppData/Roaming/npm/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-brand/lib/index.js
+/**
+* Duplicate-install-safe nominal primitive helpers.
+*
+* A brand makes structurally identical strings or numbers non-interchangeable
+* at the type level: a `SessionId` cannot be passed where a `ToolCallId` is
+* expected, and an event sequence cannot be passed as a log offset. Comparison,
+* logging, and serialization retain the underlying primitive behavior.
+*
+* This package owns no concrete domain value and keeps no runtime identity or mutable
+* state, so independently installed copies produce interchangeable values.
+*
+* @module @deepseek-ai/dsh-brand
+*/
+/**
+* Apply a compile-time string brand without changing the value.
+* @param value - string admitted by the domain that owns the target brand.
+* @returns the same string with the requested compile-time brand.
+*/
+function brandString(value) {
+	return value;
+}
+//#endregion
+//#region <HOME>/AppData/Roaming/npm/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-timeout/lib/index.js
+/** Largest delay Node schedules without clamping it to one millisecond. */
+const MAX_TIMER_DELAY_MS = 2147483647;
+//#endregion
+//#region <HOME>/AppData/Roaming/npm/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-llm/lib/index.js
+/**
+* Detach and deep-freeze a message whose identity already exists.
+* @param message - complete message, including its stable identity.
+* @returns an immutable snapshot that preserves the identity.
+*/
+function freezeMessage(message) {
+	return deepFreeze(structuredClone(message));
+}
+/**
+* Create one identified message and freeze it before publication.
+* @param input - complete role, content, and source for a new message.
+* @returns an immutable message with a fresh stable identity.
+*/
+function createMessage(input) {
+	return freezeMessage({
+		...input,
+		id: brandString(randomUUID())
+	});
+}
+/**
+* Create one identified user-role message and freeze it before publication.
+* @param input - complete content and source for a new user message.
+* @returns an immutable user message with a fresh stable identity.
+*/
+function createUserMessage(input) {
+	return createMessage({
+		...input,
+		role: "user"
+	});
+}
+/**
+* Harness error base with a stable machine-routable code and chained cause.
+* Package errors extend it so tool results and replay can retain failure class.
+* @module @deepseek-ai/dsh-llm/error
+*/
+/**
+* Base class for all harness errors. Carries a `code` (stable, programmatic —
+* e.g. `NO_ADAPTER`, `INVALID_ARGS`, `INVARIANT`) distinct from the
+* human-readable `message`, and supports `cause` chaining via the standard
+* `ErrorOptions`. `name` defaults to the subclass constructor name.
+*/
+var HarnessError = class extends Error {
+	/** Stable machine-routable failure class (e.g. `RATE_LIMIT`); route on this, never by parsing `message`. */
+	code;
+	constructor(message, code, options) {
+		super(message, options);
+		this.code = code;
+		this.name = new.target.name;
+	}
+};
+/**
+* Canonical provider-neutral code for a response that completed normally but
+* carried no content blocks at all. Providers occasionally emit a degenerate
+* completion (a terminal stop with zero output); adapters classify it as this
+* failure instead of yielding an empty assistant message, because an empty
+* message silently ends the turn with nothing for the user or the loop to act
+* on. The attempt produced nothing durable, so retry policy treats it as safe
+* to repeat.
+*/
+const EMPTY_RESPONSE_CODE = "EMPTY_RESPONSE";
+new RegExp(String.raw`(?:^|[^a-z0-9])context[\s_-](?:length|window)[\s_-]` + String.raw`(?:exceed(?:ed|s)?|overflow(?:ed)?|limit[\s_-]exceeded)(?:$|[^a-z0-9])`, "i");
+new RegExp(String.raw`\b(?:request|prompt|input|messages?)\s+(?:is\s+|are\s+)?` + String.raw`too\s+(?:large|long)\s+for\s+(?:(?:this|the)\s+)?` + String.raw`(?:model(?:'s)?\s+)?context(?:\s+window)?\b`, "i");
+new RegExp(String.raw`\b(?:input|prompt|request|messages?)\b.{0,40}` + String.raw`\b(?:exceed(?:s|ed)?|overflows?|is\s+larger\s+than)\b.{0,40}` + String.raw`\b(?:the\s+)?(?:model(?:'s)?\s+)?context(?:\s+(?:length|window))?\b`, "i");
+/**
+* Provider-owned request-retry policy configuration and resolution.
+*
+* Adapters expose one resolved policy per registered provider route; the
+* optional dsh-llm-retry plugin executes it on the agent's failed-step extension point.
+*
+* @module @deepseek-ai/dsh-llm/retry-policy
+*/
+const DEFAULT_MAX_RETRIES = 5;
+const DEFAULT_INITIAL_DELAY_MS = 500;
+const DEFAULT_MAX_DELAY_MS = 1e4;
+const DEFAULT_JITTER_RATIO = .1;
+const DEFAULT_RETRYABLE_CODES = Object.freeze([
+	EMPTY_RESPONSE_CODE,
+	"RATE_LIMIT",
+	"SERVER",
+	"TIMEOUT",
+	"TRANSPORT"
+]);
+const backoffSchema = Schema.object({
+	initialDelayMs: Schema.number().max(MAX_TIMER_DELAY_MS).default(DEFAULT_INITIAL_DELAY_MS),
+	maxDelayMs: Schema.number().max(MAX_TIMER_DELAY_MS).default(DEFAULT_MAX_DELAY_MS),
+	jitterRatio: Schema.number().min(0).max(1).default(DEFAULT_JITTER_RATIO)
+});
+const normalPolicySchema = Schema.object({
+	mode: Schema.const("normal").required(),
+	maxRetries: Schema.number().step(1).min(0).max(Number.MAX_SAFE_INTEGER).default(DEFAULT_MAX_RETRIES),
+	retryableCodes: Schema.array(Schema.string()).default([...DEFAULT_RETRYABLE_CODES]),
+	backoff: backoffSchema
+});
+const alwaysPolicySchema = Schema.object({
+	mode: Schema.const("always").required(),
+	backoff: backoffSchema
+});
+Schema.union([normalPolicySchema, alwaysPolicySchema]);
+const NORMAL_POLICY_KEYS = /* @__PURE__ */ new Set([
+	"mode",
+	"maxRetries",
+	"retryableCodes",
+	"backoff"
+]);
+const ALWAYS_POLICY_KEYS = /* @__PURE__ */ new Set([
+	"mode",
+	"maxRetries",
+	"retryableCodes",
+	"backoff"
+]);
+const BACKOFF_KEYS = /* @__PURE__ */ new Set([
+	"initialDelayMs",
+	"maxDelayMs",
+	"jitterRatio"
+]);
+function validateKeys(value, allowed, path) {
+	for (const key of Object.keys(value)) if (!allowed.has(key)) throw new Error(`${path}: unknown key "${key}"`);
+}
+function resolveBackoff(config, path) {
+	if (config !== void 0) validateKeys(config, BACKOFF_KEYS, path);
+	const initialDelayMs = config?.initialDelayMs ?? DEFAULT_INITIAL_DELAY_MS;
+	const maxDelayMs = config?.maxDelayMs ?? DEFAULT_MAX_DELAY_MS;
+	const jitterRatio = config?.jitterRatio ?? DEFAULT_JITTER_RATIO;
+	if (!Number.isFinite(initialDelayMs) || initialDelayMs <= 0 || initialDelayMs > 2147483647) throw new Error(`${path}.initialDelayMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`);
+	if (!Number.isFinite(maxDelayMs) || maxDelayMs <= 0 || maxDelayMs > 2147483647) throw new Error(`${path}.maxDelayMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`);
+	if (initialDelayMs > maxDelayMs) throw new Error(`${path}.initialDelayMs must be less than or equal to maxDelayMs`);
+	if (!Number.isFinite(jitterRatio) || jitterRatio < 0 || jitterRatio > 1) throw new Error(`${path}.jitterRatio must be between 0 and 1`);
+	return Object.freeze({
+		initialDelayMs,
+		maxDelayMs,
+		jitterRatio
+	});
+}
+/**
+* Validate, default, and detach one provider-owned retry policy.
+* @param config - optional provider configuration; omission selects normal defaults.
+* @param path - diagnostic path naming the provider config that owns the value.
+* @returns an immutable policy safe to capture in provider registration state.
+*/
+function resolveRetryPolicy(config, path) {
+	if (config === void 0) return Object.freeze({
+		mode: "normal",
+		maxRetries: DEFAULT_MAX_RETRIES,
+		retryableCodes: DEFAULT_RETRYABLE_CODES,
+		...resolveBackoff(void 0, `${path}.backoff`)
+	});
+	switch (config.mode) {
+		case "normal": {
+			validateKeys(config, NORMAL_POLICY_KEYS, path);
+			const maxRetries = config.maxRetries ?? DEFAULT_MAX_RETRIES;
+			const retryableCodes = config.retryableCodes ?? [...DEFAULT_RETRYABLE_CODES];
+			if (!Number.isSafeInteger(maxRetries) || maxRetries < 0) throw new Error(`${path}.maxRetries must be a non-negative safe integer`);
+			if (retryableCodes.length === 0) throw new Error(`${path}.retryableCodes must not be empty`);
+			if (retryableCodes.some((code) => typeof code !== "string" || code.length === 0)) throw new Error(`${path}.retryableCodes must contain only non-empty strings`);
+			if (new Set(retryableCodes).size !== retryableCodes.length) throw new Error(`${path}.retryableCodes must not contain duplicates`);
+			return Object.freeze({
+				mode: "normal",
+				maxRetries,
+				retryableCodes: Object.freeze([...retryableCodes]),
+				...resolveBackoff(config.backoff, `${path}.backoff`)
+			});
+		}
+		case "always":
+			validateKeys(config, ALWAYS_POLICY_KEYS, path);
+			return Object.freeze({
+				mode: "always",
+				...resolveBackoff(config.backoff, `${path}.backoff`)
+			});
+		default: throw new Error(`${path}.mode must be "normal" or "always"`);
+	}
+}
+/**
+* Field-wise equality over {@link LlmCallConfig} — the comparison a caller
+* runs to decide whether a proposed configuration is a real change (worth a
+* logged header snapshot) or the held one restated.
+* @param a - one configuration.
+* @param b - the other.
+* @returns whether every field (including the `stop` list, element-wise) matches.
+*/
+function callConfigEquals(a, b) {
+	if (a.provider !== b.provider || a.model !== b.model || a.reasoningEffort !== b.reasoningEffort || a.temperature !== b.temperature || a.maxTokens !== b.maxTokens) return false;
+	if (a.stop === void 0 || b.stop === void 0) return a.stop === b.stop;
+	return a.stop.length === b.stop.length && a.stop.every((s, i) => s === b.stop?.[i]);
+}
+/**
+* Normalization for values thrown by a final LLM adapter boundary.
+*
+* @module @deepseek-ai/dsh-llm/adapter-failure
+*/
+/**
+* Detach serializable provider facts from a value thrown by an adapter.
+* @param value - arbitrary value thrown during adapter dispatch or iteration.
+* @returns immutable provider-neutral facts suitable for a terminal finish chunk.
+* @internal
+*/
+function normalizeLlmFailure(value) {
+	const error = value instanceof Error ? value : new HarnessError(thrownMessage(value), "UNKNOWN", { cause: value });
+	const carried = ownFailureSnapshot(error);
+	if (carried !== void 0 && carried.code === ownErrorCode(error)) return carried;
+	return Object.freeze({
+		message: errorMessage$1(error),
+		code: harnessErrorCode(error)
+	});
+}
+/** Render a non-Error throw without letting hostile coercion escape normalization. */
+function thrownMessage(value) {
+	try {
+		const message = String(value);
+		return message.length > 0 ? message : "LLM adapter failed";
+	} catch (_hostileThrownValue) {
+		return "LLM adapter failed";
+	}
+}
+/** Read a foreign error's own data-backed `code` without invoking accessors. */
+function ownErrorCode(error) {
+	try {
+		const descriptor = Object.getOwnPropertyDescriptor(error, "code");
+		return descriptor !== void 0 && "value" in descriptor ? descriptor.value : void 0;
+	} catch (_sdkPropertyTrap) {
+		return;
+	}
+}
+/** Snapshot an own data property without invoking an SDK-defined accessor. */
+function ownFailureSnapshot(error) {
+	try {
+		const descriptor = Object.getOwnPropertyDescriptor(error, "failure");
+		return descriptor !== void 0 && "value" in descriptor ? failureSnapshot(descriptor.value) : void 0;
+	} catch (_sdkPropertyTrap) {
+		return;
+	}
+}
+/** Validate and detach an arbitrary serializable failure payload. */
+function failureSnapshot(value) {
+	if (typeof value !== "object" || value === null) return void 0;
+	try {
+		const candidate = value;
+		const message = candidate.message;
+		const code = candidate.code;
+		const status = candidate.status;
+		const providerRetryAfterMs = candidate.providerRetryAfterMs;
+		const requestId = candidate.requestId;
+		if (typeof message !== "string" || message.length === 0 || typeof code !== "string" || code.length === 0 || status !== void 0 && (!Number.isInteger(status) || status < 100 || status > 599) || providerRetryAfterMs !== void 0 && (!Number.isFinite(providerRetryAfterMs) || providerRetryAfterMs <= 0) || requestId !== void 0 && (typeof requestId !== "string" || requestId.length === 0)) return void 0;
+		return Object.freeze({
+			message,
+			code,
+			...status === void 0 ? {} : { status },
+			...providerRetryAfterMs === void 0 ? {} : { providerRetryAfterMs },
+			...requestId === void 0 ? {} : { requestId }
+		});
+	} catch (_sdkFailureGetter) {
+		return;
+	}
+}
+/** Read an SDK error message without letting an accessor replace the primary failure. */
+function errorMessage$1(error) {
+	try {
+		const message = error.message;
+		if (typeof message === "string" && message.length > 0) return message;
+	} catch (_sdkMessageGetter) {}
+	return "LLM adapter failed";
+}
+/** Trust only Harness-owned codes; third-party SDK codes are not our taxonomy. */
+function harnessErrorCode(error) {
+	return error instanceof HarnessError ? error.code : "UNKNOWN";
+}
+function quoted(value) {
+	return JSON.stringify(value);
+}
+/**
+* Stable text shown to a model that cannot accept one durable image reference.
+* @param ref - durable normalized attachment omitted from the request.
+* @returns deterministic text-only placeholder.
+*/
+function textOnlyImageText(ref) {
+	return `[image omitted because this model accepts text only; attachment sha256:${String(ref.attachmentId).slice(7, 15)}]`;
+}
+/**
+* True when typed model content contains an image block, walking nested
+* tool-result content. This is the one recursive image walk shared by every
+* image policy (capability gating, text-only serialization, compaction
+* survey), so a consumer cannot silently diverge on nesting depth.
+* @param content - typed model content blocks.
+* @returns whether any nested block is an image.
+*/
+function contentHasImage(content) {
+	return content.some((block) => block.type === "image" || block.type === "tool-result" && contentHasImage(block.content));
+}
+/**
+* True when typed model content contains a file block, walking nested
+* tool-result content on the same recursion every file policy shares.
+* Reads current content on every call without retaining scan results.
+* @param content - typed model content blocks.
+* @returns whether any nested block is a file.
+*/
+function contentHasFile(content) {
+	for (const block of content) if (block.type === "file" || block.type === "tool-result" && contentHasFile(block.content)) return true;
+	return false;
+}
+/**
+* Stable model-facing handle for one durable file reference: the address of
+* the verbatim stored copy and the instruction to read it on demand. This is
+* the only representation a provider ever receives for a file.
+* @param ref - durable verbatim file reference.
+* @param readonlyPath - execution-world path of the stored copy, when resolvable.
+* @returns deterministic handle text naming the file, its size, and its address.
+*/
+function fileHandleText(ref, readonlyPath) {
+	const digest = String(ref.attachmentId).slice(7, 15);
+	const identity = `File ${quoted(ref.name)} (${ref.bytes} bytes, sha256:${digest})`;
+	if (readonlyPath === void 0) return `[${identity} was uploaded, but the current execution environment cannot access a readable path. Report that limitation if its contents are needed; do not claim to have read it.]`;
+	return `[${identity}: verbatim read-only copy saved at ${quoted(readonlyPath)}. Read that path with your file tools when its contents are needed; copy it to a writable location before modifying it. When delegating file work, include this saved path in the delegation prompt; only subagents sharing this execution environment can read it.]`;
+}
+/** Replace every file occurrence, including nested tool results, with handle text. */
+function replaceFilesWithHandles(blocks, resolvePath) {
+	let next;
+	for (const [index, block] of blocks.entries()) {
+		if (block.type === "file") {
+			next ??= blocks.slice(0, index);
+			next.push({
+				type: "text",
+				text: fileHandleText(block.attachment, resolvePath(block.attachment))
+			});
+			continue;
+		}
+		if (block.type === "tool-result") {
+			const content = replaceFilesWithHandles(block.content, resolvePath);
+			if (content !== block.content) {
+				next ??= blocks.slice(0, index);
+				next.push({
+					...block,
+					content
+				});
+				continue;
+			}
+		}
+		next?.push(block);
+	}
+	return next ?? blocks;
+}
+/**
+* Project durable file history into deterministic handle text for every model
+* route. Unlike images, no provider receives file blocks natively, so this
+* projection is unconditional in request assembly.
+* @param messages - complete request history.
+* @param resolvePath - resolve one reference's current execution-world read path.
+* @returns the original list without files, otherwise shallow message copies with handle text.
+*/
+function projectFilesToText(messages, resolvePath) {
+	if (!messages.some((message) => contentHasFile(message.content))) return messages;
+	return messages.map((message) => {
+		const content = replaceFilesWithHandles(message.content, resolvePath);
+		return content === message.content ? message : {
+			...message,
+			content
+		};
+	});
+}
+/** Replace every image occurrence, including nested tool results, for a text-only model. */
+function replaceImagesForTextModel(blocks) {
+	let next;
+	for (const [index, block] of blocks.entries()) {
+		if (block.type === "image") {
+			next ??= blocks.slice(0, index);
+			next.push({
+				type: "text",
+				text: textOnlyImageText(block.attachment)
+			});
+			continue;
+		}
+		if (block.type === "tool-result") {
+			const content = replaceImagesForTextModel(block.content);
+			if (content !== block.content) {
+				next ??= blocks.slice(0, index);
+				next.push({
+					...block,
+					content
+				});
+				continue;
+			}
+		}
+		next?.push(block);
+	}
+	return next ?? blocks;
+}
+/**
+* Project durable image history into deterministic text for an exact text-only model.
+* @param messages - complete request history.
+* @returns the original list without images, otherwise shallow message copies with stable placeholders.
+*/
+function projectImagesForTextModel(messages) {
+	if (!messages.some((message) => contentHasImage(message.content))) return messages;
+	return messages.map((message) => {
+		const content = replaceImagesForTextModel(message.content);
+		return content === message.content ? message : {
+			...message,
+			content
+		};
+	});
+}
+/**
+* Centralize the non-secret product identity every provider request sends as `User-Agent`, keeping
+* adapters from drifting. See
+* `.agents/notes/implemented/architecture/2026-06-21-mandatory-app-attribution-headers.md`.
+*
+* App-attribution vocabulary for provider requests.
+* @module @deepseek-ai/dsh-llm/attribution
+*/
+const { version } = createRequire(import.meta.url)("../package.json");
+/**
+* LLM service: adapter registry with a waterfall-interceptable streaming call
+* API. Exports the `LlmRuntime` default, the abstract `LlmAdapter` for
+* provider backends, and `BlockAssembler` for chunk assembly.
+*
+* @module @deepseek-ai/dsh-llm
+*/
+var __runInitializers = function(thisArg, initializers, value) {
+	var useValue = arguments.length > 2;
+	for (var i = 0; i < initializers.length; i++) value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
+	return useValue ? value : void 0;
+};
+var __esDecorate = function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
+	function accept(f) {
+		if (f !== void 0 && typeof f !== "function") throw new TypeError("Function expected");
+		return f;
+	}
+	var kind = contextIn.kind, key = kind === "getter" ? "get" : kind === "setter" ? "set" : "value";
+	var target = !descriptorIn && ctor ? contextIn["static"] ? ctor : ctor.prototype : null;
+	var descriptor = descriptorIn || (target ? Object.getOwnPropertyDescriptor(target, contextIn.name) : {});
+	var _, done = false;
+	for (var i = decorators.length - 1; i >= 0; i--) {
+		var context = {};
+		for (var p in contextIn) context[p] = p === "access" ? {} : contextIn[p];
+		for (var p in contextIn.access) context.access[p] = contextIn.access[p];
+		context.addInitializer = function(f) {
+			if (done) throw new TypeError("Cannot add initializers after decoration has completed");
+			extraInitializers.push(accept(f || null));
+		};
+		var result = (0, decorators[i])(kind === "accessor" ? {
+			get: descriptor.get,
+			set: descriptor.set
+		} : descriptor[key], context);
+		if (kind === "accessor") {
+			if (result === void 0) continue;
+			if (result === null || typeof result !== "object") throw new TypeError("Object expected");
+			if (_ = accept(result.get)) descriptor.get = _;
+			if (_ = accept(result.set)) descriptor.set = _;
+			if (_ = accept(result.init)) initializers.unshift(_);
+		} else if (_ = accept(result)) if (kind === "field") initializers.unshift(_);
+		else descriptor[key] = _;
+	}
+	if (target) Object.defineProperty(target, contextIn.name, descriptor);
+	done = true;
+};
+/**
+* Typed error for LLM-related failures. Extends {@link HarnessError}, so the
+* `code` string (e.g. `AUTH`, `RATE_LIMIT`, `NO_ADAPTER`) is shared taxonomy.
+*/
+var LlmError = class extends HarnessError {
+	/** Serializable facts retained beside this live Error. */
+	failure;
+	/**
+	* @param message - non-empty human-readable failure summary.
+	* @param code - non-empty stable provider-neutral machine code.
+	* @param options - optional cause and validated serializable provider facts.
+	*/
+	constructor(message, code, options) {
+		if (typeof message !== "string" || message.length === 0) throw new Error("LlmError message must be a non-empty string");
+		if (typeof code !== "string" || code.length === 0) throw new Error("LlmError code must be a non-empty string");
+		if (options?.status !== void 0 && (!Number.isInteger(options.status) || options.status < 100 || options.status > 599)) throw new Error("LlmError status must be an integer from 100 through 599");
+		if (options?.providerRetryAfterMs !== void 0 && (!Number.isFinite(options.providerRetryAfterMs) || options.providerRetryAfterMs <= 0)) throw new Error("LlmError providerRetryAfterMs must be a positive finite number");
+		if (options?.requestId !== void 0 && (typeof options.requestId !== "string" || options.requestId.length === 0)) throw new Error("LlmError requestId must be a non-empty string");
+		super(message, code, options);
+		this.name = "LlmError";
+		this.failure = Object.freeze({
+			message,
+			code,
+			...options?.status === void 0 ? {} : { status: options.status },
+			...options?.providerRetryAfterMs === void 0 ? {} : { providerRetryAfterMs: options.providerRetryAfterMs },
+			...options?.requestId === void 0 ? {} : { requestId: options.requestId }
+		});
+	}
+};
+(() => {
+	let _classSuper = TypertRemoteService;
+	let _instanceExtraInitializers = [];
+	let _listProviders_decorators;
+	let _listConfigurableProviders_decorators;
+	let _remoteDiscoverModels_decorators;
+	return class LlmRuntime extends _classSuper {
+		static {
+			const _metadata = typeof Symbol === "function" && Symbol.metadata ? Object.create(_classSuper[Symbol.metadata] ?? null) : void 0;
+			_listProviders_decorators = [Remote];
+			_listConfigurableProviders_decorators = [Remote];
+			_remoteDiscoverModels_decorators = [Remote("discoverModels")];
+			__esDecorate(this, null, _listProviders_decorators, {
+				kind: "method",
+				name: "listProviders",
+				static: false,
+				private: false,
+				access: {
+					has: (obj) => "listProviders" in obj,
+					get: (obj) => obj.listProviders
+				},
+				metadata: _metadata
+			}, null, _instanceExtraInitializers);
+			__esDecorate(this, null, _listConfigurableProviders_decorators, {
+				kind: "method",
+				name: "listConfigurableProviders",
+				static: false,
+				private: false,
+				access: {
+					has: (obj) => "listConfigurableProviders" in obj,
+					get: (obj) => obj.listConfigurableProviders
+				},
+				metadata: _metadata
+			}, null, _instanceExtraInitializers);
+			__esDecorate(this, null, _remoteDiscoverModels_decorators, {
+				kind: "method",
+				name: "remoteDiscoverModels",
+				static: false,
+				private: false,
+				access: {
+					has: (obj) => "remoteDiscoverModels" in obj,
+					get: (obj) => obj.remoteDiscoverModels
+				},
+				metadata: _metadata
+			}, null, _instanceExtraInitializers);
+			if (_metadata) Object.defineProperty(this, Symbol.metadata, {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value: _metadata
+			});
+		}
+		adapters = (__runInitializers(this, _instanceExtraInitializers), /* @__PURE__ */ new Map());
+		directory = /* @__PURE__ */ new Map();
+		discoveries = /* @__PURE__ */ new Map();
+		constructor(ctx) {
+			super(ctx, "llm");
+		}
+		/** Notify topology observers without letting one broken listener veto the commit. */
+		emitAdaptersUpdated() {
+			let invariantFailure;
+			for (const listener of this.ctx.events.dispatch("emit", ["llm/adapters-updated"])) try {
+				const returned = listener();
+				if (returned != null && typeof returned.then === "function") Promise.resolve(returned).then(void 0, (error) => {
+					this.warnAdaptersListenerFailure(error);
+				});
+			} catch (error) {
+				if (error?.code === "INVARIANT") {
+					invariantFailure ??= error;
+					continue;
+				}
+				this.warnAdaptersListenerFailure(error);
+			}
+			if (invariantFailure !== void 0) throw invariantFailure;
+		}
+		/** Contained-listener diagnostic shared by the sync and async failure paths. */
+		warnAdaptersListenerFailure(error) {
+			this.ctx.logger.warn("llm: an llm/adapters-updated listener failed");
+			this.ctx.logger.warn(error);
+		}
+		/**
+		* Register an adapter for the given provider routes. Throws `LlmError` with code
+		* `DUPLICATE_ADAPTER` if any provider already has an adapter (all-or-nothing).
+		* Disposed with the fiber.
+		* @param providers - every provider route this adapter should serve.
+		* @param adapter - the adapter that streams calls for those providers.
+		* @returns the disposer, carrying {@link AdapterRegistrationHandle.replace}.
+		*/
+		registerAdapter(providers, adapter) {
+			const owned = /* @__PURE__ */ new Set();
+			let released = false;
+			const dispose = this.ctx.effect(function* () {
+				if (providers.length === 0) throw new LlmError("an adapter must register at least one provider", "INVALID_ADAPTER");
+				this.commitRoutes(owned, this.prepareRoutes(providers, adapter, owned));
+				yield () => {
+					released = true;
+					for (const provider of owned) this.adapters.delete(provider);
+					owned.clear();
+					this.emitAdaptersUpdated();
+				};
+			}.bind(this), "llm.registerAdapter()");
+			const handle = (() => void dispose());
+			handle.replace = (next) => {
+				if (released) throw new LlmError("a disposed adapter registration cannot replace its routes", "REGISTRATION_DISPOSED");
+				this.commitRoutes(owned, this.prepareRoutes(next, adapter, owned));
+			};
+			return handle;
+		}
+		/**
+		* Validate one candidate route set for `adapter`, treating routes this
+		* registration already holds as available. Nothing is mutated: a rejected
+		* candidate leaves the registry exactly as it was.
+		*/
+		prepareRoutes(providers, adapter, owned) {
+			const unique = /* @__PURE__ */ new Set();
+			const registrations = [];
+			for (const provider of providers) {
+				if (provider.length === 0) throw new LlmError("adapter provider names must be non-empty", "INVALID_ADAPTER");
+				if (unique.has(provider) || this.adapters.has(provider) && !owned.has(provider)) throw new LlmError(`an adapter for provider "${provider}" is already registered`, "DUPLICATE_ADAPTER");
+				const info = adapter.providerInfo(provider);
+				if (typeof info.id !== "string" || info.id !== provider || typeof info.name !== "string" || info.name.length === 0) throw new LlmError(`adapter metadata for provider "${provider}" must preserve its id and have a non-empty name`, "INVALID_ADAPTER");
+				unique.add(provider);
+				const retryPolicy = adapter.providerRetryPolicy(provider) ?? resolveRetryPolicy(void 0, `llm: provider "${provider}" retryPolicy`);
+				registrations.push({
+					adapter,
+					provider: {
+						id: info.id,
+						name: info.name
+					},
+					retryPolicy
+				});
+			}
+			return registrations;
+		}
+		/**
+		* Swap this registration's routes for the prepared ones in one synchronous
+		* section, so no observer can see the registry between the release and the
+		* re-registration. The route set's one mutation point is also where
+		* `llm/adapters-updated` is published, so a `replace` announces itself
+		* exactly like a first registration.
+		*/
+		commitRoutes(owned, registrations) {
+			for (const provider of owned) this.adapters.delete(provider);
+			owned.clear();
+			for (const registration of registrations) {
+				this.adapters.set(registration.provider.id, registration);
+				owned.add(registration.provider.id);
+			}
+			this.emitAdaptersUpdated();
+		}
+		/**
+		* Describe provider routes with a registered adapter.
+		* @returns detached provider metadata in registration order.
+		*/
+		listProviders() {
+			return [...this.adapters.values()].map(({ provider }) => ({ ...provider }));
+		}
+		/**
+		* Declare provider routes an adapter plugin can activate through
+		* configuration. Registration is all-or-nothing: an empty list, invalid
+		* entry, or a provider already declared by any registration throws
+		* `LlmError` without registering the rest. Disposed with the fiber.
+		* @param entries - every configurable provider this plugin owns.
+		* @returns a handle that withdraws all of them, and can atomically replace them.
+		*/
+		registerConfigurableProviders(entries) {
+			let held = [];
+			let disposed = false;
+			/**
+			* Validate a candidate set in full against everything this registration
+			* does not already hold, then publish it. Nothing is written until the
+			* whole set passes, so a refused candidate leaves the current entries in
+			* place — the property that makes `replace` a swap rather than a
+			* delete-then-add that can strand the directory empty.
+			*/
+			const commit = (candidates) => {
+				const detached = [];
+				const own = new Set(held.map((entry) => entry.provider));
+				for (const entry of candidates) {
+					if (entry.provider.length === 0 || entry.displayName.length === 0 || entry.settingsNs.length === 0) throw new LlmError("configurable providers need a non-empty provider, displayName, and settingsNs", "INVALID_DIRECTORY");
+					if (entry.settingsPath.some((segment) => segment.length === 0)) throw new LlmError(`configurable provider "${entry.provider}" has an empty settingsPath segment`, "INVALID_DIRECTORY");
+					if (this.directory.has(entry.provider) && !own.has(entry.provider) || detached.some((seen) => seen.provider === entry.provider)) throw new LlmError(`configurable provider "${entry.provider}" is already declared`, "DUPLICATE_DIRECTORY");
+					detached.push({
+						...entry,
+						settingsPath: [...entry.settingsPath]
+					});
+				}
+				for (const entry of held) this.directory.delete(entry.provider);
+				for (const entry of detached) this.directory.set(entry.provider, entry);
+				held = detached;
+				this.emitAdaptersUpdated();
+			};
+			const dispose = this.ctx.effect(function* () {
+				if (entries.length === 0) throw new LlmError("a configurable-provider registration must declare at least one provider", "INVALID_DIRECTORY");
+				commit(entries);
+				yield () => {
+					disposed = true;
+					for (const entry of held) this.directory.delete(entry.provider);
+					held = [];
+					this.emitAdaptersUpdated();
+				};
+			}.bind(this), "llm.registerConfigurableProviders()");
+			const handle = (() => void dispose());
+			handle.replace = (next) => {
+				if (disposed) throw new LlmError("this configurable-provider registration was disposed", "REGISTRATION_DISPOSED");
+				commit(next);
+			};
+			return handle;
+		}
+		/**
+		* List every declared configurable provider, registered or dormant.
+		* @returns detached directory entries in declaration order.
+		*/
+		listConfigurableProviders() {
+			return [...this.directory.values()].map((entry) => ({
+				...entry,
+				settingsPath: [...entry.settingsPath]
+			}));
+		}
+		/**
+		* Offer to interrogate provider endpoints on behalf of the settings
+		* namespace this plugin owns. The namespace is the key because that is what
+		* a configuration surface already holds from the configurable-provider
+		* directory, and because a provider being *added* has no route to name yet.
+		* Disposed with the fiber.
+		* @param settingsNs - the namespace whose profiles this discovery serves.
+		* @param discover - interrogates one endpoint and must honor the supplied signal.
+		* @returns the disposer that withdraws the offer.
+		*/
+		registerModelDiscovery(settingsNs, discover) {
+			const dispose = this.ctx.effect(function* () {
+				if (settingsNs.length === 0) throw new LlmError("model discovery needs a non-empty settings namespace", "INVALID_DISCOVERY");
+				if (this.discoveries.has(settingsNs)) throw new LlmError(`model discovery for "${settingsNs}" is already registered`, "DUPLICATE_DISCOVERY");
+				this.discoveries.set(settingsNs, discover);
+				yield () => {
+					this.discoveries.delete(settingsNs);
+				};
+			}.bind(this), "llm.registerModelDiscovery()");
+			return () => void dispose();
+		}
+		/**
+		* Interrogate one provider endpoint for the models it advertises. The
+		* request describes a draft, not a stored route, so nothing here reads or
+		* writes settings or credentials — the caller owns both, and the reply is
+		* candidate metadata a surface may offer for adoption.
+		* @param settingsNs - namespace whose registered discovery serves this draft.
+		* @param request - the endpoint, protocol, and one-shot credential to use.
+		* @param signal - caller cancellation.
+		* @returns the advertised models, deduplicated in endpoint order.
+		*/
+		async discoverModels(settingsNs, request, signal) {
+			const discover = this.discoveries.get(settingsNs);
+			if (discover === void 0) throw new LlmError(`no model discovery is registered for "${settingsNs}"`, "NO_DISCOVERY");
+			if ((request.provider ?? "").length === 0 && (request.baseURL ?? "").length === 0) throw new LlmError("model discovery needs a provider route or a baseURL", "INVALID_DISCOVERY");
+			const discovered = signal === void 0 ? await discover(request) : await discover(request, signal);
+			const seen = /* @__PURE__ */ new Set();
+			const models = [];
+			for (const model of discovered) {
+				if (typeof model.id !== "string" || model.id.length === 0 || seen.has(model.id)) continue;
+				seen.add(model.id);
+				models.push({
+					id: model.id,
+					...model.name === void 0 ? {} : { name: model.name },
+					...model.contextWindow === void 0 ? {} : { contextWindow: model.contextWindow },
+					...model.maxTokens === void 0 ? {} : { maxTokens: model.maxTokens }
+				});
+			}
+			return models;
+		}
+		/**
+		* Remote adapter for one draft provider interrogation.
+		* @param settingsNs - namespace whose registered discovery serves this draft.
+		* @param request - endpoint, protocol, and one-shot credential to use.
+		* @param signal - caller cancellation supplied by the Remote carrier.
+		* @returns advertised models in endpoint order.
+		* @throws RemoteError with `llm/model-discovery-rejected` when discovery refuses or fails.
+		*/
+		async remoteDiscoverModels(settingsNs, request, signal) {
+			try {
+				return await this.discoverModels(settingsNs, request, signal);
+			} catch (error) {
+				throw new RemoteError("llm/model-discovery-rejected", error instanceof Error ? error.message : String(error), {
+					settingsNs,
+					...request.baseURL === void 0 ? {} : { baseURL: request.baseURL }
+				}, { cause: error });
+			}
+		}
+		/**
+		* Resolve the retry policy captured when one provider route was registered.
+		* @param provider - registered provider route to inspect.
+		* @returns the provider-owned policy, with normal defaults already resolved.
+		*/
+		providerRetryPolicy(provider) {
+			return this.registration(provider).retryPolicy;
+		}
+		/**
+		* Resolve provider-side request-image pricing for one exact route, or
+		* `undefined` when the provider is unregistered or declares none. Unknown
+		* providers degrade to `undefined` rather than throwing because callers
+		* price durable history whose route may no longer be mounted.
+		* @param provider - provider route named by a request header.
+		* @param model - exact model id named by the same header.
+		* @returns the owning adapter's image pricing for the route, when declared.
+		*/
+		imageRequestPricing(provider, model) {
+			return this.adapters.get(provider)?.adapter.imageRequestPricing(provider, model);
+		}
+		/**
+		* Resolve the exact text one durable file occurrence contributes to every
+		* provider request in the current execution environment.
+		* @param ref - durable verbatim file reference from model history.
+		* @returns the same deterministic handle text used at adapter dispatch.
+		*/
+		fileRequestText(ref) {
+			return fileHandleText(ref, this.fileReadPath(ref));
+		}
+		/** Detach typed adapter-owned modality metadata. */
+		detachedModalities(modalities) {
+			return modalities === void 0 ? void 0 : [...modalities];
+		}
+		/**
+		* Discover models advertised by one registered provider. Catalog membership
+		* is advisory and never changes routing or request validation.
+		* @param provider - registered provider route to inspect.
+		* @returns detached model metadata in adapter-preferred order.
+		*/
+		async listModels(provider) {
+			const models = await this.registration(provider).adapter.listModels(provider);
+			const seen = /* @__PURE__ */ new Set();
+			return models.map((model) => {
+				if (typeof model.provider !== "string" || model.provider !== provider || typeof model.id !== "string" || model.id.length === 0 || typeof model.name !== "string" || model.name.length === 0 || model.description !== void 0 && typeof model.description !== "string" || seen.has(model.id)) throw new LlmError(`adapter returned invalid or duplicate model metadata for provider "${provider}"`, "INVALID_CATALOG");
+				seen.add(model.id);
+				const inputModalities = this.detachedModalities(model.inputModalities);
+				return {
+					provider: model.provider,
+					id: model.id,
+					name: model.name,
+					...model.description === void 0 ? {} : { description: model.description },
+					...inputModalities === void 0 ? {} : { inputModalities }
+				};
+			});
+		}
+		/**
+		* Resolve and validate all metadata from the adapter that owns one exact
+		* route. The result is detached from adapter-owned objects; catalog
+		* membership remains advisory and does not control request routing.
+		* @param provider - registered provider route to inspect.
+		* @param model - exact model id passed to the adapter.
+		* @param signal - optional cancellation for adapter-owned asynchronous lookup.
+		* @returns exact model identity plus available context and reasoning metadata.
+		*/
+		async resolveModelInfo(provider, model, signal) {
+			return this.resolveModelInfoFor(this.registration(provider), model, signal);
+		}
+		async resolveModelInfoFor(registration, model, signal) {
+			const resolved = await registration.adapter.resolveModel(registration.provider.id, model, signal);
+			return this.normalizeModelInfo(registration, model, resolved);
+		}
+		/** Validate and detach one adapter-returned exact model result. */
+		normalizeModelInfo(registration, model, resolved) {
+			const provider = registration.provider.id;
+			if (typeof resolved.provider !== "string" || resolved.provider !== provider || typeof resolved.id !== "string" || resolved.id !== model || typeof resolved.name !== "string" || resolved.name.length === 0 || resolved.description !== void 0 && typeof resolved.description !== "string") throw new LlmError(`adapter returned invalid exact model metadata for provider "${provider}" model "${model}"`, "INVALID_MODEL_INFO");
+			const context = resolved.context;
+			if (context !== void 0 && (!Number.isInteger(context.contextWindow) || context.contextWindow <= 0)) throw new LlmError(`adapter returned invalid context metadata for provider "${provider}" model "${model}"`, "INVALID_MODEL_CONTEXT");
+			const inputModalities = this.detachedModalities(resolved.inputModalities);
+			const systemPromptUpdate = resolved.systemPromptUpdate;
+			if (systemPromptUpdate !== void 0 && systemPromptUpdate !== "in-history") throw new LlmError(`adapter returned invalid system prompt update mode for provider "${provider}" model "${model}"`, "INVALID_MODEL_INFO");
+			const defaultMaxTokens = resolved.defaultMaxTokens;
+			if (defaultMaxTokens !== void 0 && (!Number.isSafeInteger(defaultMaxTokens) || defaultMaxTokens <= 0)) throw new LlmError(`adapter returned invalid default maxTokens for provider "${provider}" model "${model}"`, "INVALID_MODEL_MAX_TOKENS");
+			const info = {
+				provider,
+				id: model,
+				name: resolved.name,
+				...resolved.description === void 0 ? {} : { description: resolved.description },
+				...inputModalities === void 0 ? {} : { inputModalities },
+				...context === void 0 ? {} : { context: { contextWindow: context.contextWindow } },
+				...defaultMaxTokens === void 0 ? {} : { defaultMaxTokens },
+				...resolved.systemPromptUpdate === void 0 ? {} : { systemPromptUpdate: resolved.systemPromptUpdate }
+			};
+			const reasoning = resolved.reasoning;
+			if (reasoning === void 0) return info;
+			if (reasoning.efforts.length === 0) throw new LlmError(`adapter returned invalid reasoning metadata for provider "${provider}" model "${model}"`, "INVALID_MODEL_REASONING");
+			const seen = /* @__PURE__ */ new Set();
+			const efforts = reasoning.efforts.map((effort) => {
+				if (typeof effort.id !== "string" || effort.id.length === 0 || typeof effort.name !== "string" || effort.name.length === 0 || effort.description !== void 0 && typeof effort.description !== "string" || seen.has(effort.id)) throw new LlmError(`adapter returned invalid or duplicate reasoning effort metadata for provider "${provider}" model "${model}"`, "INVALID_MODEL_REASONING");
+				seen.add(effort.id);
+				return {
+					id: effort.id,
+					name: effort.name,
+					...effort.description === void 0 ? {} : { description: effort.description }
+				};
+			});
+			if (reasoning.defaultEffort !== void 0 && !seen.has(reasoning.defaultEffort)) throw new LlmError(`adapter returned an unknown default reasoning effort for provider "${provider}" model "${model}"`, "INVALID_MODEL_REASONING");
+			return {
+				...info,
+				reasoning: {
+					efforts,
+					...reasoning.defaultEffort === void 0 ? {} : { defaultEffort: reasoning.defaultEffort }
+				}
+			};
+		}
+		/**
+		* Validate a conversation call config against its exact model capability and
+		* materialize adapter-configured defaults. Unsupported explicit efforts
+		* reject before provider I/O; no clamping or aliasing is performed. This
+		* standalone query does not bind a later dispatch; use {@link prepareCall}
+		* when logging and streaming must share one adapter registration.
+		* @param config - provider/model route and optional request controls.
+		* @param signal - optional cancellation for adapter-owned capability lookup.
+		* @returns a detached config only when a default must be materialized.
+		*/
+		async resolveCallConfig(config, signal) {
+			return (await this.resolveCallFor(this.registration(config.provider), config, signal)).config;
+		}
+		async resolveCallFor(registration, config, signal) {
+			const info = await this.resolveModelInfoFor(registration, config.model, signal);
+			return this.resolveCallWithInfo(config, info);
+		}
+		/** Validate request controls against one already-bound exact model result. */
+		resolveCallWithInfo(config, info) {
+			const defaulted = config.maxTokens === void 0 && info.defaultMaxTokens !== void 0 ? {
+				...config,
+				maxTokens: info.defaultMaxTokens
+			} : config;
+			const reasoning = info.reasoning;
+			const requested = defaulted.reasoningEffort;
+			let resolvedConfig = defaulted;
+			if (reasoning === void 0) {
+				if (requested !== void 0) throw new LlmError(`provider "${config.provider}" model "${config.model}" does not support reasoning effort "${requested}"`, "UNSUPPORTED_REASONING_EFFORT");
+			} else {
+				const effective = requested ?? reasoning.defaultEffort;
+				if (effective !== void 0) {
+					if (!reasoning.efforts.some((effort) => effort.id === effective)) throw new LlmError(`provider "${config.provider}" model "${config.model}" does not support reasoning effort "${effective}"`, "UNSUPPORTED_REASONING_EFFORT");
+					if (requested !== effective) resolvedConfig = {
+						...defaulted,
+						reasoningEffort: effective
+					};
+				}
+			}
+			return {
+				config: resolvedConfig,
+				...info.context === void 0 ? {} : { context: info.context },
+				modelInfo: info
+			};
+		}
+		/**
+		* Resolve one call under its current adapter registration. The returned
+		* one-shot handle keeps that registration across header logging and dispatch,
+		* so HMR cannot combine one adapter's capability result with another adapter.
+		* @param config - provider/model route and optional request controls.
+		* @param signal - optional cancellation for adapter-owned capability lookup.
+		* @returns a prepared config and its registration-bound stream entry point.
+		*/
+		async prepareCall(config, signal) {
+			const registration = this.registration(config.provider);
+			const adapterCall = await registration.adapter.prepareCall(config.provider, config.model, signal);
+			const modelInfo = this.normalizeModelInfo(registration, config.model, adapterCall.model);
+			const resolved = this.resolveCallWithInfo(config, modelInfo);
+			const resolvedConfig = deepFreeze(structuredClone(resolved.config));
+			const context = resolved.context === void 0 ? void 0 : deepFreeze(structuredClone(resolved.context));
+			const adapterDefaults = deepFreeze({
+				...config.reasoningEffort === void 0 && resolvedConfig.reasoningEffort !== void 0 ? { reasoningEffort: true } : {},
+				...config.maxTokens === void 0 && resolvedConfig.maxTokens !== void 0 ? { maxTokens: true } : {}
+			});
+			let dispatched = false;
+			return Object.freeze({
+				config: resolvedConfig,
+				retryPolicy: registration.retryPolicy,
+				adapterDefaults,
+				...context === void 0 ? {} : { context },
+				...modelInfo.inputModalities === void 0 ? {} : { inputModalities: Object.freeze([...modelInfo.inputModalities]) },
+				...modelInfo.systemPromptUpdate === void 0 ? {} : { systemPromptUpdate: modelInfo.systemPromptUpdate },
+				stream: (options) => {
+					if (dispatched) throw new LlmError("a prepared LLM call can only be dispatched once", "INVALID_PREPARED_CALL");
+					if (!callConfigEquals(options, resolvedConfig)) throw new LlmError("prepared LLM call config changed before adapter dispatch", "INVALID_PREPARED_CALL");
+					dispatched = true;
+					return this.streamWithRegistration(options, {
+						registration,
+						config: resolvedConfig,
+						modelInfo,
+						dispatch: (options) => adapterCall.stream(options)
+					});
+				}
+			});
+		}
+		registration(provider) {
+			const registration = this.adapters.get(provider);
+			if (!registration) throw new LlmError(`no adapter registered for provider "${provider}"`, "NO_ADAPTER");
+			return registration;
+		}
+		/** Remove replay state whose historical route is owned by another adapter. */
+		forAdapter(options, adapter) {
+			const messages = options.messages.map((message) => {
+				const source = message.source;
+				if (message.role !== "assistant" || source.kind !== "model" || source.replayState === void 0) return message;
+				if (this.adapters.get(source.provider)?.adapter === adapter) return message;
+				return freezeMessage({
+					...message,
+					source: {
+						kind: "model",
+						provider: source.provider,
+						model: source.model
+					}
+				});
+			});
+			if (messages.every((message, index) => message === options.messages[index])) return options;
+			const filtered = {
+				...options,
+				messages
+			};
+			return Object.isFrozen(options) ? deepFreeze(filtered) : filtered;
+		}
+		/**
+		* Resolve the current execution-world read path of one durable file
+		* reference through the mounted attachment and filesystem providers.
+		*/
+		fileReadPath(ref) {
+			let hostPath;
+			try {
+				hostPath = this.ctx.get("attachments")?.fileHostPath(ref);
+			} catch {
+				return;
+			}
+			if (hostPath === void 0) return void 0;
+			return this.ctx.get("fs")?.processPathFromHostPath(hostPath);
+		}
+		/**
+		* Final adapter boundary. Adapter selection, dispatch, iterator construction,
+		* and iteration failures become one terminal failure chunk. Middleware and
+		* downstream consumer failures remain thrown plugin or consumer errors.
+		*/
+		async *adapterStream(options, prepared) {
+			let iterator;
+			try {
+				const registration = prepared?.registration ?? this.registration(options.provider);
+				const adapter = registration.adapter;
+				let modelInfo;
+				let resolvedConfig;
+				let dispatch;
+				if (prepared === void 0) {
+					const adapterCall = await adapter.prepareCall(options.provider, options.model, options.signal);
+					modelInfo = this.normalizeModelInfo(registration, options.model, adapterCall.model);
+					resolvedConfig = this.resolveCallWithInfo(options, modelInfo).config;
+					dispatch = (options) => adapterCall.stream(options);
+				} else {
+					modelInfo = prepared.modelInfo;
+					resolvedConfig = prepared.config;
+					dispatch = prepared.dispatch;
+				}
+				if (prepared !== void 0 && !callConfigEquals(options, resolvedConfig)) throw new LlmError("prepared LLM call config changed before adapter dispatch", "INVALID_PREPARED_CALL");
+				const resolvedOptions = callConfigEquals(options, resolvedConfig) ? options : Object.isFrozen(options) ? deepFreeze({
+					...options,
+					...resolvedConfig
+				}) : {
+					...options,
+					...resolvedConfig
+				};
+				let projectedMessages = resolvedOptions.messages;
+				if (projectedMessages.some((message) => contentHasFile(message.content))) projectedMessages = projectFilesToText(projectedMessages, (ref) => this.fileReadPath(ref));
+				if (modelInfo.inputModalities !== void 0 && !modelInfo.inputModalities.includes("image") && projectedMessages.some((message) => contentHasImage(message.content))) projectedMessages = projectImagesForTextModel(projectedMessages);
+				const projectedOptions = projectedMessages === resolvedOptions.messages ? resolvedOptions : Object.isFrozen(resolvedOptions) ? deepFreeze({
+					...resolvedOptions,
+					messages: projectedMessages
+				}) : {
+					...resolvedOptions,
+					messages: projectedMessages
+				};
+				iterator = dispatch(this.forAdapter(projectedOptions, adapter))[Symbol.asyncIterator]();
+			} catch (error) {
+				yield adapterFailureChunk(error, options.signal);
+				return;
+			}
+			let completed = false;
+			try {
+				while (true) {
+					let item;
+					try {
+						const next = await iterator.next();
+						item = next.done ? { done: true } : {
+							done: false,
+							value: next.value
+						};
+					} catch (error) {
+						completed = true;
+						yield adapterFailureChunk(error, options.signal);
+						return;
+					}
+					if (item.done) {
+						completed = true;
+						return;
+					}
+					yield item.value;
+				}
+			} finally {
+				if (!completed) {
+					const close = iterator.return?.bind(iterator);
+					if (close) await close();
+				}
+			}
+		}
+		/**
+		* Stream one model call as raw chunks (token-level deltas). Replay state is
+		* retained only when the same adapter instance owns its historical provider
+		* and the target provider. Final adapter selection remains fixed through
+		* asynchronous exact-model resolution and dispatch. Adapter selection,
+		* dispatch, and iteration failures become terminal `error` or `aborted`
+		* finish chunks; middleware, nested-call, cleanup, and consumer failures
+		* remain thrown.
+		* @param options - the full request; `options.provider` selects the adapter.
+		* @returns the chunk stream, possibly wrapped by `llm/stream` listeners.
+		*/
+		stream(options) {
+			return this.streamWithRegistration(options);
+		}
+		streamWithRegistration(options, prepared) {
+			return this.ctx.waterfall(this, "llm/stream", options, () => this.adapterStream(options, prepared));
+		}
+	};
+})();
+/** Convert one adapter throw into the stream protocol's terminal outcome. */
+function adapterFailureChunk(error, signal) {
+	const failure = normalizeLlmFailure(error);
+	return {
+		type: "finish",
+		reason: signal?.aborted || failure.code === "ABORTED" ? {
+			kind: "aborted",
+			failure
+		} : {
+			kind: "error",
+			failure
+		}
+	};
+}
+//#endregion
+//#region <HOME>/AppData/Roaming/npm/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-tools/lib/index.js
+/**
+* Enforced JSON Schema subset shared by tool outputs, generated PTC mode
 * types, subagents, and workflows. The subset accepts any JSON root, an
 * annotation-only schema for unconstrained JSON, one scalar `type`, object
 * `properties`/`required`/boolean `additionalProperties`, array `items`,
@@ -4100,13 +5291,13 @@ function defineTool(options) {
 	return tool;
 }
 /**
-* Code Mode `run_code` transport. Programs call the registry's agent-visible
+* PTC mode `run_code` transport. Programs call the registry's agent-visible
 * tools through nested executions scheduled under the native concurrency
 * contract; each sub-dispatch is logged for reconstruction, while only the
 * outer curated result enters model history.
-* @module @deepseek-ai/dsh-tools/src/code-mode
+* @module @deepseek-ai/dsh-tools/src/ptc
 */
-/** The model-facing name of the Code Mode tool. */
+/** The model-facing name of the PTC mode tool. */
 const RUN_CODE_NAME = "run_code";
 /**
 * The TypeScript flavor: the fallback for a schema read with no runtime
@@ -4115,14 +5306,14 @@ const RUN_CODE_NAME = "run_code";
 * fallback outside its own language.
 */
 const TYPESCRIPT_FLAVOR = {
-	description: "Execute a TypeScript program against the available tools. Takes two required arguments: `code`, the BODY of an async function (erasable syntax only; top-level `await` and `return` work), and `description`, a short summary of what the program does. Call tools as `await tools.name(args)` per the declarations in the system prompt. Only what you print or return comes back — curate it.",
+	description: "Execute a TypeScript program against the available tools. Takes two required arguments: `code`, the BODY of an async function (erasable syntax only; top-level `await` and `return` work), and `description`, a short summary of what the program does. Call tools as `await tools.name(args)` per the declarations in the system prompt. Only what you print or return is program output — curate it. Image-bearing subtool results are attached after the run.",
 	codeDescription: "The program: the body of an async TypeScript function."
 };
 /** Per-language `run_code` schema flavors (see {@link RunCodeFlavor}); one entry per {@link CodeSdkLanguage}. */
 const RUN_CODE_FLAVORS = {
 	typescript: TYPESCRIPT_FLAVOR,
 	python: {
-		description: "Execute a Python program against the available tools. Takes two required arguments: `code`, the BODY of an async function (top-level `await` and `return` work), and `description`, a short summary of what the program does. Call tools as `await tools.name(args)` per the declarations in the system prompt. Answer with `print(...)` and/or `return <value>` — only that comes back, so curate it.",
+		description: "Execute a Python program against the available tools. Takes two required arguments: `code`, the BODY of an async function (top-level `await` and `return` work), and `description`, a short summary of what the program does. Call tools as `await tools.name(args)` per the declarations in the system prompt. Use `print(...)` and/or `return <value>` for program output — curate it. Image-bearing subtool results are attached after the run.",
 		codeDescription: "The program: the body of an async Python function."
 	}
 };
@@ -4424,7 +5615,7 @@ function createRunCodeTool(registry, options) {
 				if (runOver()) throw new Error(`run_code run is over (${String(runController.signal.reason)}); ${name} not dispatched`);
 				const normalized = jsonNormalizeArgs(rawArgs);
 				const n = ++dispatches;
-				const subCallId = CallId(`${String(exec.callId)}:code:${n}`);
+				const subCallId = brandString(`${String(exec.callId)}:ptc:${n}`);
 				const input = {
 					callId: subCallId,
 					rootCallId: exec.rootCallId,
@@ -4456,7 +5647,7 @@ function createRunCodeTool(registry, options) {
 								isError: result.isError,
 								content: result.content
 							});
-							agent.session.append("tool/code-dispatch", {
+							agent.session.append("tool/ptc-dispatch", {
 								rootCallId: exec.rootCallId,
 								parentCallId: exec.callId,
 								subCallId,
@@ -4478,7 +5669,7 @@ function createRunCodeTool(registry, options) {
 							reject(/* @__PURE__ */ new Error(`run_code run is over (${String(runController.signal.reason)}); ${name} tool call abandoned`));
 						},
 						async start() {
-							exec.agent?.session.append("tool/code-dispatch-start", {
+							exec.agent?.session.append("tool/ptc-dispatch-start", {
 								rootCallId: exec.rootCallId,
 								parentCallId: exec.callId,
 								subCallId,
@@ -4508,6 +5699,13 @@ function createRunCodeTool(registry, options) {
 							/* v8 ignore next -- commit() runs only after `settled` flipped, which set parked. */
 							if (parked === void 0) return;
 							const result = parked.kind === "post-result" ? await scheduler.finalize(parked.exec, parked.result) : scheduler.finish(parked.exec, parked.result);
+							if (!result.isError && result.content.some((block) => block.type === "image")) exec.deferContext(createUserMessage({
+								content: result.content,
+								source: {
+									kind: "plugin",
+									plugin: "tools-ptc"
+								}
+							}));
 							for (const context of result.additionalContexts ?? []) exec.deferContext(context);
 							if (result.concludesTurn) exec.concludeTurn();
 							settle(result);
@@ -4589,7 +5787,7 @@ function createRunCodeTool(registry, options) {
 	return definition;
 }
 /**
-* Code Mode codegen: the pure projection from registered tool schemas to the TypeScript SDK
+* PTC mode codegen: the pure projection from registered tool schemas to the TypeScript SDK
 * text the model programs against (the `tools:sdk` prompt section). Sibling of
 * `json-schema.ts` — `schemas()` (native function calling) and this module (the generated
 * `declare const tools` API) are two projections of the same store.
@@ -4796,17 +5994,35 @@ function jsonSchemaToTs(schema, indent = 0) {
 		return "unknown";
 	}
 }
-/** The fixed model-facing usage contract rendered above the declarations (see the Code Mode Agent Note's "What the model sees"). */
+/** The fixed model-facing usage contract rendered above the declarations (see the PTC mode Agent Note's "What the model sees"). */
 const SDK_INSTRUCTIONS$1 = `## Writing code for run_code
 
-\`run_code\` takes two required arguments: \`code\` — the body of an async TypeScript function (erasable syntax only — no \`enum\` or namespaces; type annotations are advisory, the code runs type-stripped) — and \`description\`, a short summary of what the program does. Inside the program:
+\`run_code\` takes two required arguments: \`code\` — the body of an async TypeScript function (erasable syntax only — no \`enum\` or namespaces; type annotations are advisory, the code runs type-stripped) — and \`description\`, a short summary of what the program does. The declarations below are SDK bindings for this program. A declaration does not make its name a directly callable tool; only names supplied as separate tool schemas may be called directly.`;
+const SDK_PROGRAM_INSTRUCTIONS = `Inside the program:
 
 - Call tools as \`await tools.name(args)\` — quoted access for exotic names: \`tools["my-tool"](args)\`. Every call resolves to the tool's typed canonical JSON value. Tool arguments must be lossless JSON.
 - A FAILED tool call rejects with \`ToolCallError\`, whose \`toolName\` identifies the failed tool and whose \`message\` is human-readable — \`try/catch\` it to handle and continue.
 - Independent read-only calls MAY overlap under \`Promise.all\` (safe calls run concurrently; mutating calls run alone, in submission order). Sequence dependent work with \`await\`.
-- Emit results with \`return\` and/or \`console.log(...)\`. ONLY what you print or return comes back to you — intermediate tool results never enter the conversation, so extract just what you need.
+- Emit results with \`return\` and/or \`console.log(...)\`. Only what you print or return is program output. A successful tool result containing an image is attached after the run so you can inspect it on the next step; every other intermediate result stays out of the conversation, so extract just what you need.
 
-The available tools:`;
+Program-only SDK bindings:`;
+/** Whether one string schema accepts the literal used by the bash example. */
+function acceptsExampleString(schema, value) {
+	return schema?.type === "string" && (schema.const === void 0 || schema.const === value) && (schema.enum === void 0 || schema.enum.includes(value));
+}
+/** Render the bash example only when its literal arguments satisfy the current parameter schema. */
+function renderBashExample(schemas) {
+	const bash = schemas.find((schema) => schema.name === "bash");
+	if (bash === void 0) return "";
+	const parameters = bash.parameters;
+	if (parameters.type !== "object") return "";
+	const required = parameters.required ?? [];
+	if (required.some((name) => name !== "command" && name !== "description")) return "";
+	if (!acceptsExampleString(parameters.properties?.command, "pwd")) return "";
+	const needsDescription = required.includes("description");
+	if (needsDescription && !acceptsExampleString(parameters.properties?.description, "Show current directory")) return "";
+	return ` When no separate \`bash\` schema is supplied, invoke a declared \`bash\` binding inside \`run_code\`:\n\n\`run_code({ code: "return await tools.bash({ command: 'pwd'${needsDescription ? ", description: 'Show current directory'" : ""} })", description: "Show current directory" })\``;
+}
 /**
 * Render the full `tools:sdk` prompt section: the fixed usage instructions
 * plus one `declare const tools` interface covering every given tool.
@@ -4828,7 +6044,7 @@ function renderToolsSdk(schemas) {
 		argsMembers.push(`${pad$1(1)}${renderKey(schema.name)}: ${jsonSchemaToTs(schema.parameters, 1)};`);
 		outputMembers.push(`${pad$1(1)}${renderKey(schema.name)}: ${jsonSchemaToTs(schema.output, 1)};`);
 	}
-	return `${SDK_INSTRUCTIONS$1}\n\n\`\`\`ts\ntype JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue }\n\n${[
+	const declaration = [
 		`interface ToolArgsMap {${argsMembers.length > 0 ? `\n${argsMembers.join("\n")}\n` : ""}}`,
 		`interface ToolOutputMap {${outputMembers.length > 0 ? `\n${outputMembers.join("\n")}\n` : ""}}`,
 		"type ToolName = keyof ToolOutputMap",
@@ -4843,16 +6059,17 @@ function renderToolsSdk(schemas) {
 			"  [K in ToolName]: (args: ToolArgsMap[K]) => Promise<ToolOutputMap[K]>;",
 			"}"
 		].join("\n")
-	].join("\n\n")}\n\`\`\``;
+	].join("\n\n");
+	return `${SDK_INSTRUCTIONS$1}${renderBashExample(sorted)}\n\n${SDK_PROGRAM_INSTRUCTIONS}\n\n\`\`\`ts\ntype JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue }\n\n${declaration}\n\`\`\``;
 }
 /**
-* Code Mode codegen — Python flavor. The pure projection from registered tool schemas to the
+* PTC mode codegen — Python flavor. The pure projection from registered tool schemas to the
 * Python SDK text the model programs against under `runtime.language === 'python'`. Sibling of
 * {@link ./ts-types.ts | ts-types.ts}; the two files are two projections of the same registry
 * store, keyed by the loaded {@link @deepseek-ai/dsh-code-runtime#CodeRuntime.language | code
 * runtime's language}.
 *
-* Under `mode: 'code'` the native tool schemas are omitted from the request, so this generated
+* Under `mode: 'ptc'` the native tool schemas are omitted from the request, so this generated
 * SDK is the model's ONLY source for each tool's argument names, required fields, types,
 * descriptions, and canonical output shapes; under `mode: 'both'` the native schemas ship
 * alongside it and it is one of two. Object-shaped arguments and outputs therefore render as one
@@ -4873,7 +6090,7 @@ const IDENTIFIER = /^[\p{XID_Start}_]\p{XID_Continue}*$/u;
 * Python identifiers are not ASCII: `路径` is as legal a field name as `path`,
 * and rejecting it would degrade the whole enclosing object, dropping every
 * field's name, requiredness, and type — information whose only source under
-* `mode: 'code'` is this generated text.
+* `mode: 'ptc'` is this generated text.
 *
 * NFKC stability is a second and separate condition, because CPython
 * normalizes identifiers at compile time while JSON keys are compared as
@@ -5020,7 +6237,7 @@ function pad(indent) {
 * (`SyntaxError: source code string cannot contain null bytes`), whether it
 * sits in a docstring or in a comment, so one such byte anywhere in a schema
 * description would make the whole generated SDK unparseable — under
-* `mode: 'code'`, the model's only declaration of the tools. The rest are
+* `mode: 'ptc'`, the model's only declaration of the tools. The rest are
 * legal but invisible; escaping them with the same rule keeps the emitted text
 * readable and the treatment uniform.
 *
@@ -5086,7 +6303,7 @@ function describe(schema) {
 * Backslashes are doubled first, every quote is escaped, and a trailing
 * backslash cannot survive: a description ending in `"` or an odd backslash
 * would otherwise merge with (or escape) the closing triple quote and make
-* the generated block — Code Mode's only SDK — syntactically invalid Python.
+* the generated block — PTC mode's only SDK — syntactically invalid Python.
 */
 function docLines(description, indent) {
 	const collapsed = describe({ description });
@@ -5478,7 +6695,7 @@ const SDK_INSTRUCTIONS = `## Writing code for run_code
 - Call tools as \`await tools.name(args)\` — subscript access for exotic, reserved, or underscore-leading names: \`await tools["my-tool"](args)\`. Every call resolves to the tool's typed canonical JSON value (each method's return type below). Tool arguments must be lossless JSON.
 - A FAILED tool call raises \`ToolCallError\`, whose \`toolName\` identifies the failed tool and whose message is human-readable — wrap in \`try/except\` to handle and continue.
 - Independent read-only calls MAY overlap under \`asyncio.gather\` (safe calls run concurrently; mutating calls run alone, in submission order). Sequence dependent work with \`await\`.
-- Emit the run's answer with \`print(...)\` and/or a top-level \`return <value>\`; the returned value must be lossless JSON. ONLY what you print and the returned value come back — intermediate tool results never enter the conversation, so extract just what you need.
+- Emit the run's answer with \`print(...)\` and/or a top-level \`return <value>\`; the returned value must be lossless JSON. Only what you print and return is program output. A successful tool result containing an image is attached after the run so you can inspect it on the next step; every other intermediate result stays out of the conversation, so extract just what you need.
 
 The available tools:`;
 /**
@@ -5540,7 +6757,7 @@ function renderToolsSdkPy(schemas) {
 * section under a non-native mode; a runtime whose language is not a key
 * fails the assembly loudly (same idiom as `toolOrder` violations). Adding a
 * new backend language is three parallel edits — a {@link CodeSdkLanguage}
-* member, an entry here, and a `RUN_CODE_FLAVORS` entry in `code-mode.ts` for
+* member, an entry here, and a `RUN_CODE_FLAVORS` entry in `ptc.ts` for
 * its `run_code` schema strings — plus the renderer function this table points
 * at. The `satisfies` clause pins this table's key set to that union, which
 * the flavor table is checked against too, so any of the three left out is a
@@ -5551,17 +6768,11 @@ function renderToolsSdkPy(schemas) {
 * {@link Config.mode} JSDoc.
 */
 /**
-* Prompt order of the `code` collapse statement: after the persona and before
-* the 100-199 per-tool guidance band, so the model reads which tools it may
-* call before it reads what each one is for.
-*/
-const COLLAPSE_SECTION_ORDER = 99;
-/**
-* The model-facing statement of the `code` collapse. Names the consequence
+* The model-facing statement of the `ptc` collapse. Names the consequence
 * (the call fails) and the route (inside the program), because a rule the
 * model can only discover by being denied is one it corrects too late.
 */
-const CODE_ONLY_INSTRUCTION = `\`${RUN_CODE_NAME}\` is the only tool you can call directly — a tool call naming any other tool fails. Reach every tool the SDK declares below from inside the program.`;
+const PTC_ONLY_INSTRUCTION = `\`${RUN_CODE_NAME}\` is the only tool you can call directly — a tool call naming any other tool fails. Reach every tool the SDK declares below from inside the program.`;
 const SDK_RENDERERS = {
 	typescript: renderToolsSdk,
 	python: renderToolsSdkPy
@@ -5703,12 +6914,16 @@ function resolveMaxParallelSubCalls(value) {
 	if (!Number.isInteger(maxParallelSubCalls) || maxParallelSubCalls < 1) throw new Error("maxParallelSubCalls must be a positive integer");
 	return maxParallelSubCalls;
 }
-(class extends Service {
+/**
+* Tool registry and execution pipeline. Scoped registrations shadow globals;
+* one visibility resolver feeds presentation, lookup, and dispatch.
+*/
+var ToolRuntime = class extends Service {
 	static inject = ["systemPrompt"];
 	static Config = Schema.object({
 		mode: Schema.union([
 			"native",
-			"code",
+			"ptc",
 			"both"
 		]).default("native"),
 		maxParallelSubCalls: Schema.natural().min(1).default(10)
@@ -5737,10 +6952,10 @@ function resolveMaxParallelSubCalls(value) {
 	/**
 	* Reserved presentation transport, kept outside the filterable registration
 	* layers. Built on first need rather than at construction: which agents run
-	* a code mode is no longer known when the service is constructed, and the
+	* a PTC mode is no longer known when the service is constructed, and the
 	* transport is stateless beyond its closures over `this`.
 	*/
-	codeTransport;
+	ptcTransport;
 	constructor(ctx, config = {}) {
 		super(ctx, "tools");
 		this.defaultMode = config.mode ?? "native";
@@ -5752,34 +6967,33 @@ function resolveMaxParallelSubCalls(value) {
 		}
 	}
 	/**
-	* The prompt statement of the `code` executor collapse, registered wherever
-	* {@link sdkSection} is and rendering empty outside an effective `code`.
+	* The prompt statement of the `ptc` executor collapse, registered wherever
+	* {@link sdkSection} is and rendering empty outside an effective `ptc`.
 	*
 	* Every tool contributes its own guidance section naming its tool, none of
-	* them qualify how that tool is reached, and they all render before the SDK
-	* (orders 100-199 against {@link SDK_SECTION_ORDER}). Without this the model
-	* reads a catalog of tools it is told to use and no statement that only
-	* `run_code` may be called, so it emits a native call, receives
-	* `UNKNOWN_TOOL` for a tool the prompt just declared, and concludes the
-	* deployment is inconsistent. {@link COLLAPSE_SECTION_ORDER} places the rule
-	* before that guidance rather than after it.
+	* them qualify how that tool is reached, and they all render before the SDK.
+	* Without this the model reads a catalog of tools it is told to use and no
+	* statement that only `run_code` may be called, so it emits a native call,
+	* receives `UNKNOWN_TOOL` for a tool the prompt just declared, and concludes
+	* the deployment is inconsistent. Its order places the rule before that
+	* guidance rather than after it.
 	*
 	* `both` renders empty: native calls do execute there, so the rule is false.
 	* @returns the section registration.
 	*/
 	collapseSection() {
 		return {
-			name: "tools:code-only",
-			order: COLLAPSE_SECTION_ORDER,
-			text: (context) => this.modeFor(context.scope) === "code" ? CODE_ONLY_INSTRUCTION : ""
+			name: "tools:ptc-only",
+			order: this.ctx.systemPrompt.getSectionOrder("PTC_ONLY"),
+			text: (context) => this.modeFor(context.scope) === "ptc" ? PTC_ONLY_INSTRUCTION : ""
 		};
 	}
 	/**
-	* The generated-SDK prompt section, registered globally by a code-mode
+	* The generated-SDK prompt section, registered globally by a PTC mode
 	* deployment and per scope by {@link presentAs}.
 	*
 	* The body regenerates from the CALLING scope, and renders empty for an
-	* agent presenting natively — an agent that opted out under a code-mode
+	* agent presenting natively — an agent that opted out under a PTC mode
 	* deployment still sees the global registration, and an empty section is
 	* dropped from the rendered prompt.
 	* @returns the section registration.
@@ -5787,7 +7001,7 @@ function resolveMaxParallelSubCalls(value) {
 	sdkSection() {
 		return {
 			name: "tools:sdk",
-			order: 150,
+			order: this.ctx.systemPrompt.getSectionOrder("TOOLS_SDK"),
 			text: (context) => {
 				const mode = this.modeFor(context.scope);
 				if (mode === "native") return "";
@@ -5823,13 +7037,13 @@ function resolveMaxParallelSubCalls(value) {
 	* @returns the shared transport definition.
 	*/
 	requireCodeTransport() {
-		this.codeTransport ??= createRunCodeTool(this, {
+		this.ptcTransport ??= createRunCodeTool(this, {
 			requireRuntime: () => this.requireCodeRuntime(this.defaultMode),
 			peekRuntime: () => this.ctx.get("codeRuntime"),
 			maxParallel: this.maxParallelSubCalls,
 			shapeDispatchLog: (dispatch) => this.shapeDispatchLog(dispatch)
 		});
-		return this.codeTransport;
+		return this.ptcTransport;
 	}
 	/**
 	* Present the calling scope's tools in `mode` instead of the deployment
@@ -5837,7 +7051,7 @@ function resolveMaxParallelSubCalls(value) {
 	* declaration covers every agent joined under it.
 	*
 	* Scoped only, and one declaration per scope: this is how an agent preset
-	* composes Code Mode agents beside native ones in the same process, and a
+	* composes PTC mode agents beside native ones in the same process, and a
 	* process-global override would be the `mode` config field instead.
 	* @param mode - the presentation the covered agents' models see.
 	* @returns the exact disposer that restores the deployment default.
@@ -5872,7 +7086,7 @@ function resolveMaxParallelSubCalls(value) {
 		};
 		this.requireCodeRuntime(mode);
 		const schemas = [...view.visible.values()].map((definition) => this.schemaOf(definition, false));
-		if (mode === "code") return {
+		if (mode === "ptc") return {
 			schemas: schemas.filter((schema) => schema.name === RUN_CODE_NAME),
 			knownNames: [RUN_CODE_NAME]
 		};
@@ -5886,16 +7100,14 @@ function resolveMaxParallelSubCalls(value) {
 	* Read at use time (assembly / run_code execution), NOT via static
 	* `inject`: an inject entry would hold `ctx.tools` — and every tool plugin
 	* behind it — hostage to a code runtime existing even under `mode:
-	* 'native'` (the loop's optional-backend idiom, same as
-	* `sessionPersistence`).
+	* 'native'`.
 	*
 	* Assembly and `run_code` execution read separately, so the language is not
 	* bound to a request. Harmless while one published backend exists — both
 	* reads return the same flavor — but a reload that swapped in a second
 	* language between them would hand a program written against one SDK to the
 	* other. Binding it is deferred until a second backend ships (the first
-	* point it is testable); rationale in the
-	* [language-dispatch note](../../../../.agents/notes/implemented/feature/2026-07-31-code-mode-language-dispatch.md).
+	* point it is testable).
 	*/
 	requireCodeRuntime(mode) {
 		const runtime = this.ctx.get("codeRuntime");
@@ -5919,7 +7131,7 @@ function resolveMaxParallelSubCalls(value) {
 		assertSupportedJsonSchema(output.schema);
 		const timeoutMs = definition.timeoutMs;
 		if (timeoutMs !== void 0 && (!Number.isFinite(timeoutMs) || timeoutMs <= 0)) throw new TypeError(`tool "${name}" timeoutMs must be a positive finite number`);
-		if (name === "run_code") throw new Error(`tool name "${RUN_CODE_NAME}" is reserved for the Code Mode presentation transport and cannot be registered or shadowed`);
+		if (name === "run_code") throw new Error(`tool name "${RUN_CODE_NAME}" is reserved for the PTC mode presentation transport and cannot be registered or shadowed`);
 		return this.layers.effect(this.ctx, (layer) => layer.tools.insert(name, definition), { label: "tools.register()" });
 	}
 	/**
@@ -5939,7 +7151,7 @@ function resolveMaxParallelSubCalls(value) {
 			...allow !== void 0 ? { allow: new Set(allow) } : {},
 			...deny !== void 0 ? { deny: new Set(deny) } : {}
 		};
-		if ([...allow ?? [], ...deny ?? []].includes("run_code")) throw new Error(`tools.restrict() cannot name reserved Code Mode presentation transport "${RUN_CODE_NAME}"; restrict end-capability tools instead`);
+		if ([...allow ?? [], ...deny ?? []].includes("run_code")) throw new Error(`tools.restrict() cannot name reserved PTC mode presentation transport "${RUN_CODE_NAME}"; restrict end-capability tools instead`);
 		const known = this.view(scope).restrictableNames;
 		const unknown = [...allow ?? [], ...deny ?? []].filter((name) => !known.has(name));
 		if (unknown.length > 0) throw new Error(`tools.restrict() names unknown global tool${unknown.length > 1 ? "s" : ""} ${unknown.map((n) => `"${n}"`).join(", ")}; known global tools: ${[...known].sort().join(", ") || "(none)"}`);
@@ -5981,9 +7193,9 @@ function resolveMaxParallelSubCalls(value) {
 	* A restriction filters what a scope inherits — the global layer and every
 	* ancestor layer on its chain — and never what its OWN layer registers.
 	* That exemption is what a per-child capability filter has to keep intact:
-	* the delegation runtime registers a child's reporting and structured-output
-	* tools into the child's own layer, and a filter naming the capabilities the
-	* child may use must not strip the machinery it answers through.
+	* the delegation runtime registers a child's structured-output tool into the
+	* child's own layer, and a filter naming the capabilities the child may use
+	* must not strip the machinery it answers through.
 	*
 	* Reading the exempt set as "the global layer" instead of "not mine" held
 	* only while every model-facing tool sat in the host composition. Once
@@ -6035,7 +7247,7 @@ function resolveMaxParallelSubCalls(value) {
 	/**
 	* Resolve the definition that MAY EXECUTE for a call, applying the mode
 	* collapse at the operation boundary that owns it. The registry view
-	* (`get`) is presentation-agnostic; here a MODEL-DIRECT call under `code`
+	* (`get`) is presentation-agnostic; here a MODEL-DIRECT call under `ptc`
 	* may only name the reserved `run_code` transport, while a nested
 	* sub-dispatch (a `parent` token set — the `run_code` SDK calling a tool
 	* it bound) may call any visible tool. Denial surfaces as `UNKNOWN_TOOL`
@@ -6060,7 +7272,7 @@ function resolveMaxParallelSubCalls(value) {
 	schemas(scope) {
 		return [...this.view(scope).visible.values()].map((definition) => this.schemaOf(definition, true));
 	}
-	/** Project visible callable tools onto the generated Code Mode SDK contract. */
+	/** Project visible callable tools onto the generated PTC mode SDK contract. */
 	sdkSchemas(scope) {
 		return [...this.view(scope).visible.values()].filter((definition) => definition.name !== RUN_CODE_NAME).map((definition) => {
 			const output = snapshotJsonValue(definition.output.schema);
@@ -6100,8 +7312,8 @@ function resolveMaxParallelSubCalls(value) {
 		}
 	}
 	/**
-	* Run the `tools/code-dispatch-log` waterfall over one settled sub-dispatch
-	* and return the content the bridge should log on `tool/code-dispatch`.
+	* Run the `tools/ptc-dispatch-log` waterfall over one settled sub-dispatch
+	* and return the content the bridge should log on `tool/ptc-dispatch`.
 	* Contained: when a listener throws, the method logs the original settled
 	* content; that failure must not fail the dispatch or omit the settle event. Private:
 	* the ONE consumer is the `run_code` bridge this registry constructs, which
@@ -6110,20 +7322,20 @@ function resolveMaxParallelSubCalls(value) {
 	*/
 	async shapeDispatchLog(dispatch) {
 		try {
-			return await this.ctx.waterfall(scopeTarget(this, dispatch.agent), "tools/code-dispatch-log", dispatch, () => Promise.resolve(dispatch.content));
+			return await this.ctx.waterfall(scopeTarget(this, dispatch.agent), "tools/ptc-dispatch-log", dispatch, () => Promise.resolve(dispatch.content));
 		} catch (error) {
-			this.ctx.logger.warn(`tools: code-dispatch-log listener failed for ${dispatch.name}: ${errorMessage(error)}; logging the original settled content`);
+			this.ctx.logger.warn(`tools: ptc-dispatch-log listener failed for ${dispatch.name}: ${errorMessage(error)}; logging the original settled content`);
 			return dispatch.content;
 		}
 	}
 	/**
-	* Whether the `code` mode collapse denies a model-direct call: only the
+	* Whether the `ptc` mode collapse denies a model-direct call: only the
 	* reserved `run_code` transport may be named. Nested sub-dispatches (a
 	* `parent` token set) bypass the collapse. One home for the
 	* security-relevant predicate, shared by {@link resolveExecution} and
 	* {@link createExecution} so the two can never drift apart.
 	*
-	* Resolved through {@link modeFor}, NOT `defaultMode`: an agent given `code`
+	* Resolved through {@link modeFor}, NOT `defaultMode`: an agent given `ptc`
 	* by an agent preset under a native deployment is the composition
 	* `dsh-agent-tool-presentation` exists for, and reading the deployment default would
 	* leave exactly that agent uncollapsed — announcing one surface while
@@ -6133,7 +7345,7 @@ function resolveMaxParallelSubCalls(value) {
 	* @param nested - whether the call is a transport sub-dispatch, not a model-direct call.
 	*/
 	collapses(name, scope, nested) {
-		return !nested && this.modeFor(scope) === "code" && name !== "run_code";
+		return !nested && this.modeFor(scope) === "ptc" && name !== "run_code";
 	}
 	/**
 	* Execute through pre-policy, guards, around-dispatch, post-policy,
@@ -6624,7 +7836,7 @@ function resolveMaxParallelSubCalls(value) {
 			value: result.value
 		});
 	}
-});
+};
 /** Mint a same-process correlation token whose identity is its value. */
 function createExecutionToken() {
 	return Symbol("dsh.tool.execution");
@@ -6775,9 +7987,9 @@ link_pkg() {
 echo "=== Linking build dependencies (checkout: $CHECKOUT) ==="
 mkdir -p node_modules/@deepseek-ai
 node -e "const fs=require('fs');fs.rmSync('node_modules/@standard-schema',{recursive:true,force:true})"
-link_pkg cordis vendor/cordis
+link_pkg @deepseek-ai/cordis vendor/cordis
 link_pkg cosmokit vendor/cosmokit
-link_pkg schemastery vendor/schemastery
+link_pkg @deepseek-ai/schemastery vendor/schemastery
 link_pkg @deepseek-ai/dsh-tools packages/core/tools
 link_pkg @deepseek-ai/dsh-llm packages/llm/llm
 link_pkg @deepseek-ai/dsh-system-prompt packages/core/system-prompt
@@ -6838,9 +8050,9 @@ function scaffoldToolkitSrc(pkgName, description) {
  *    首轮请求结构决定整条会话的策略轨迹，锚定在训练对齐的窄工具面再放开，能力不损。
  *    启用方法见 apply() 末尾的注释块。
  */
-import type { Context } from 'cordis'
+import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import z from 'schemastery'
+import z from '@deepseek-ai/schemastery'
 
 export const name = ${JSON.stringify(pkgName)}
 export const inject = ['tools']
@@ -6894,13 +8106,13 @@ function scaffoldDaemonSrc(pkgName, description) {
  * 小 agent loop：timer 驱动自主循环 → 观察 → LLM 决策 → 行动 → 再睡。
  * 插件自身的提示词/循环参数皆可自我优化（改 → build → dev_reload_package）。
  */
-import type { Context } from 'cordis'
+import type { Context } from '@deepseek-ai/cordis'
 import type LlmService from '@deepseek-ai/dsh-llm'
 import { createUserMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import { appendFileSync, mkdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { homedir } from 'node:os'
-import z from 'schemastery'
+import z from '@deepseek-ai/schemastery'
 
 type AppContext = Context & {
   llm: LlmService
@@ -7000,9 +8212,9 @@ function scaffoldUiSrc(pkgName, description) {
  * host 侧：工具 + webServer API；client 侧：conversation.view slot 面板。
  * 构建：npm run build（host tsc）+ npm run build:client（tsdown → lib/client.js）。
  */
-import type { Context } from 'cordis'
+import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import z from 'schemastery'
+import z from '@deepseek-ai/schemastery'
 
 export const name = ${JSON.stringify(pkgName)}
 export const inject = ['tools', 'webServer']
@@ -7084,7 +8296,7 @@ const PLUGIN_ID = ${JSON.stringify(pkgName)}
 
 const CLIENT_EXTERNALS = [
   'react', 'react/jsx-runtime', 'react-dom', 'react-dom/client',
-  'cordis',
+  '@deepseek-ai/cordis',
   '@deepseek-ai/dsh-client-ui-slots',
   '@deepseek-ai/dsh-client-runtime/client',
 ]
@@ -7121,8 +8333,8 @@ function scaffoldPackageJson(pkgName, description, form) {
 	const peerDeps = {
 		"@deepseek-ai/dsh-llm": ">=0.0.1-rc <2",
 		"@deepseek-ai/dsh-tools": ">=0.0.1-rc <2",
-		"cordis": ">=4.0.0-rc <5",
-		"schemastery": "^3.18.0"
+		"@deepseek-ai/cordis": ">=4.0.0-rc <5",
+		"@deepseek-ai/schemastery": "^3.18.2"
 	};
 	if (withClient) peerDeps["@deepseek-ai/dsh-client-ui-slots"] = ">=0.0.1-rc <2";
 	const pkg = {
@@ -7217,14 +8429,24 @@ function fingerprintOf(dir) {
 		return null;
 	}
 }
+/** 定时 resolve（unref：不为了等计时拖住进程退出）。 */
+function sleep(ms) {
+	return new Promise((resolve) => {
+		globalThis.setTimeout(resolve, ms)?.unref?.();
+	});
+}
 /**
 * 操作互斥锁：注入/卸载/重载/安装全部串行执行（多会话并发调用注入器时，
 * 后操作排队等前操作完成——避免同一插件被并发重载/卸载的竞态）。
+*
+* 防毒化（案底 2026-09-07 挂死轮）：一次卡死的操作不能把后续所有注入/卸载
+* 永久排队——链的推进最多等 OP_HOLD_MAX_MS，操作自身的超时接管负责诚实上报。
 */
 let opChain = Promise.resolve();
+const OP_HOLD_MAX_MS = 3e4;
 function withOpLock(fn) {
 	const run = opChain.then(() => fn(), () => fn());
-	opChain = run.then(() => void 0, () => void 0);
+	opChain = Promise.race([run.then(() => void 0, () => void 0), sleep(OP_HOLD_MAX_MS)]);
 	return run;
 }
 function apply(ctx, config) {
@@ -7325,6 +8547,8 @@ function apply(ctx, config) {
 			appendFileSync(selfHealLogFile, `[${(/* @__PURE__ */ new Date()).toISOString()}] ${event}: ${detail}\n`);
 		} catch {}
 	}
+	// Agent Pi: preserve the host fatal-error diagnostics and restart policy.
+
 	/** 日志轮转（D）：超限后滚动 .1/.2，保留 2 代，防长期运行无限增长。 */
 	function rotateLog(file) {
 		try {
@@ -7481,6 +8705,60 @@ function apply(ctx, config) {
 		} catch (e) {
 			logger.error("[super-injector] 自愈排程失败: %s", String(e));
 		}
+	}
+	/** 工具栈内允许等一次交换的时间；到点转后台继续，绝不拖死宿主。 */
+	const HANDOFF_MS = 6e3;
+	/** 后台收口账本（dev_plugin_status 公示——异步化不丢可观测性，不静默）。 */
+	const bgOps = /* @__PURE__ */ new Map();
+	/**
+	* 有界交接：工具调用栈内最多等 ms，到点不傻等——**同一个**操作继续在后台收口
+	* （不重复触发），结果写 bgOps + self-heal.log。
+	*
+	* 案底（开发者两次指出「reload 有问题会导致卡死」）：普通重载分支在工具栈里
+	* `await 目标 fiber.dispose()`，宿主整个挂死、只能重启。机制与本文件自重载处
+	* 既有结论同源（见「v0.3 最终形态：工具只排程、绝不亲自自杀」）：本次工具调用
+	* 占着 dsh-tools 调度槽，而 dispose 要等依赖该服务的 fiber 生命周期走完——互相
+	* 等待成环。自重载早已分离式重启器，普通重载漏了同一课。
+	* 纪律：任何「等别的 fiber 生命周期」的 await 都必须能被超时接管。
+	*/
+	function handoff(kind, key, ms, task) {
+		let settled = false;
+		const note = (state, detail) => {
+			bgOps.set(key, {
+				at: Date.now(),
+				kind,
+				state,
+				detail: detail.slice(0, 400)
+			});
+			try {
+				auditLog(`${kind}-${state}`, `${key}: ${detail.slice(0, 200)}`);
+			} catch {}
+		};
+		const carry = (async () => task())().then((text) => ({
+			failed: false,
+			text
+		}), (e) => ({
+			failed: true,
+			text: "ERROR: " + (e instanceof Error ? e.stack ?? e.message : String(e))
+		}));
+		carry.then((r) => {
+			if (settled) note(r.failed ? "bg-failed" : "bg-done", r.text);
+		});
+		return new Promise((resolve) => {
+			const timer = globalThis.setTimeout(() => {
+				if (settled) return;
+				settled = true;
+				note("running", `超 ${ms}ms 未收口，转后台继续`);
+				resolve(`WARN: ${kind} ${key} 未在 ${ms}ms 内收口（工具栈内等 fiber 生命周期有环风险——案底挂死轮），同一操作已转后台继续（未重复触发）。用 dev_plugin_status 看「后台操作」确认收口；若长期停在 running，说明旧代释放确实卡住，需重启宿主。`);
+			}, ms);
+			timer?.unref?.();
+			carry.then((r) => {
+				if (settled) return;
+				settled = true;
+				globalThis.clearTimeout(timer);
+				resolve(r.text);
+			});
+		});
 	}
 	async function reloadPackage(match, urlMatch) {
 		const internal = ctx.loader.internal;
@@ -7650,31 +8928,35 @@ function apply(ctx, config) {
 				backup.set(u, loadCache.get(u));
 				Map.prototype.delete.call(loadCache, u);
 			}
+			let fresh;
 			try {
-				const fresh = ctx.loader.unwrapExports(await ctx.loader.import(entryUrlFinal, () => []));
-				for (const entry of ctx.loader.entries()) {
-					const opts = entry.options;
-					if (opts?.name && String(opts.name).includes(match)) {
-						const fiber = entry.fiber;
-						if (fiber && typeof fiber === "object") {
-							if (typeof fiber.dispose === "function") try {
-								await fiber.dispose();
-							} catch {}
-							const registry = ctx.registry;
-							if (registry && typeof registry.delete === "function" && typeof registry.plugin === "function") {
-								registry.delete(fiber);
-								const nf = registry.plugin(fresh, entry.options.config ?? {}, () => []);
-								nf.entry = entry;
-								entry.fiber = nf;
-							}
-						}
-					}
-				}
-				return `OK: ${match} 坏缓存兜底重载完成（无旧代回滚）`;
+				fresh = ctx.loader.unwrapExports(await ctx.loader.import(entryUrlFinal, () => []));
 			} catch (e) {
 				for (const [u, job] of backup) loadCache.set(u, job);
 				return "ERROR: 兜底 import 失败，已恢复原缓存: " + (e instanceof Error ? e.stack : String(e));
 			}
+			const targets = [...ctx.loader.entries()].filter((en) => {
+				const o = en.options;
+				return o?.name && String(o.name).includes(match) && en.fiber;
+			});
+			if (!targets.length) return `OK: ${match} 坏缓存兜底重载完成（无 fiber 需重建）`;
+			return handoff("reload", match, HANDOFF_MS, async () => {
+				for (const entry of targets) {
+					const fiber = entry.fiber;
+					if (!fiber || typeof fiber !== "object") continue;
+					if (typeof fiber.dispose === "function") try {
+						await fiber.dispose();
+					} catch {}
+					const registry = ctx.registry;
+					if (registry && typeof registry.delete === "function" && typeof registry.plugin === "function") {
+						registry.delete(fiber);
+						const nf = registry.plugin(fresh, entry.options.config ?? {}, () => []);
+						nf.entry = entry;
+						entry.fiber = nf;
+					}
+				}
+				return `OK: ${match} 坏缓存兜底重载完成（无旧代回滚，重建 ${targets.length} fiber）`;
+			});
 		}
 		const runtime = ctx.registry.get(oldPlugin);
 		if (!runtime) {
@@ -7682,21 +8964,28 @@ function apply(ctx, config) {
 				const o = en.options;
 				return o?.name && String(o.name).includes(match);
 			});
-			if (target?.fiber) try {
-				if (typeof target.fiber.dispose === "function") await target.fiber.dispose();
+			if (target?.fiber) {
 				const backup2 = /* @__PURE__ */ new Map();
 				for (const u of urls) {
 					backup2.set(u, loadCache.get(u));
 					Map.prototype.delete.call(loadCache, u);
 				}
-				const fresh2 = ctx.loader.unwrapExports(await ctx.loader.import(entryUrlFinal, () => []));
-				const nf2 = ctx.registry.plugin(fresh2, target.options.config ?? {}, () => []);
-				nf2.entry = target;
-				target.fiber = nf2;
-				normalizeEntriesByName(match);
-				return `OK: registry 无 runtime，entry.fiber 直接重建（state=${nf2.state}）`;
-			} catch (e) {
-				return "ERROR: entry 重建失败: " + (e instanceof Error ? e.stack : String(e));
+				let fresh2;
+				try {
+					fresh2 = ctx.loader.unwrapExports(await ctx.loader.import(entryUrlFinal, () => []));
+				} catch (e) {
+					for (const [u, job] of backup2) loadCache.set(u, job);
+					return "ERROR: entry 重建 import 失败（旧代保留）: " + (e instanceof Error ? e.stack : String(e));
+				}
+				const staleFiber = target.fiber;
+				return handoff("reload", match, HANDOFF_MS, async () => {
+					if (staleFiber && typeof staleFiber.dispose === "function") await staleFiber.dispose();
+					const nf2 = ctx.registry.plugin(fresh2, target.options.config ?? {}, () => []);
+					nf2.entry = target;
+					target.fiber = nf2;
+					normalizeEntriesByName(match);
+					return `OK: registry 无 runtime，entry.fiber 直接重建（state=${nf2.state}）`;
+				});
 			}
 			return "ERROR: registry 中无该插件 runtime 且 entry 无 fiber";
 		}
@@ -7728,71 +9017,77 @@ function apply(ctx, config) {
 			return fallback;
 		}
 		const fibers = [...runtime.fibers];
-		const failures = [];
-		let rebuilt = 0;
-		try {
-			const config = currentConfigOf(fibers[0]?._config);
-			const oldFiberEntry = [...ctx.loader.entries()].find((en) => {
-				const o = en.options;
-				return o?.name && String(o.name).includes(match);
-			})?.fiber;
-			if (oldFiberEntry && typeof oldFiberEntry.dispose === "function") try {
-				await oldFiberEntry.dispose();
-			} catch {}
-			ctx.registry.delete(oldPlugin);
-			const newFibers = [];
-			for (const oldFiber of fibers) try {
-				const fiber = oldFiber.parent.registry.plugin(fresh, config, () => []);
-				fiber.entry = oldFiber.entry;
-				if (fiber.entry) fiber.entry.fiber = fiber;
-				newFibers.push(fiber);
-				rebuilt++;
-			} catch (e) {
-				failures.push(String(e));
-			}
-			await Promise.allSettled(newFibers.map((f) => {
-				return (typeof f.await === "function" ? f.await() : void 0) ?? Promise.resolve();
-			}));
-		} catch (e) {
-			for (const [u, job] of backup) loadCache.set(u, job);
+		return handoff("reload", match, HANDOFF_MS, async () => {
+			const failures = [];
+			let rebuilt = 0;
 			try {
-				ctx.registry.delete(fresh);
-				for (const oldFiber of fibers) {
-					const fiber = oldFiber.parent.registry.plugin(oldPlugin, currentConfigOf(oldFiber._config), () => []);
+				const config = currentConfigOf(fibers[0]?._config);
+				const oldFiberEntry = [...ctx.loader.entries()].find((en) => {
+					const o = en.options;
+					return o?.name && String(o.name).includes(match);
+				})?.fiber;
+				if (oldFiberEntry && typeof oldFiberEntry.dispose === "function") try {
+					await oldFiberEntry.dispose();
+				} catch {}
+				ctx.registry.delete(oldPlugin);
+				const newFibers = [];
+				for (const oldFiber of fibers) try {
+					const fiber = oldFiber.parent.registry.plugin(fresh, config, () => []);
 					fiber.entry = oldFiber.entry;
 					if (fiber.entry) fiber.entry.fiber = fiber;
+					newFibers.push(fiber);
+					rebuilt++;
+				} catch (e) {
+					failures.push(String(e));
 				}
+				await Promise.allSettled(newFibers.map((f) => {
+					return (typeof f.await === "function" ? f.await() : void 0) ?? Promise.resolve();
+				}));
+			} catch (e) {
+				for (const [u, job] of backup) loadCache.set(u, job);
+				try {
+					ctx.registry.delete(fresh);
+					for (const oldFiber of fibers) {
+						const fiber = oldFiber.parent.registry.plugin(oldPlugin, currentConfigOf(oldFiber._config), () => []);
+						fiber.entry = oldFiber.entry;
+						if (fiber.entry) fiber.entry.fiber = fiber;
+					}
+				} catch {}
+				const message = String(e instanceof Error ? e.stack ?? e.message : e);
+				recordOp("reload", false);
+				if (message.includes("duplicate") || message.includes("already registered")) {
+					const cleaned = clearRoutesByMatch(match);
+					return "ERROR: 检测到未登记的裸注册（" + (e instanceof Error ? e.message : String(e)) + "）——插件必须把资源注册挂到 ctx.effect（登记后 dispose 自动清理，热重载不再残留）。\n已自动清理疑似残留路由：" + (cleaned.length ? cleaned.join(", ") : "（无）") + "\n请重载重试；若仍失败请检查插件源码中的裸注册。";
+				}
+				return "ERROR: 重建失败，已回滚（旧代保留）: " + message;
+			}
+			if (failures.length) {
+				recordOp("reload", rebuilt > 0);
+				return `WARN: ${match} 部分重建（${rebuilt}/${fibers.length}）: ${failures.join("; ")}`;
+			}
+			normalizeEntriesByName(match);
+			const activeEntry = [...ctx.loader.entries()].find((en) => {
+				const o = en.options;
+				return !o.group && String(o.name).includes(match) && en.fiber && FIBER_NAMES[en.fiber.state] === "active";
+			});
+			const fullName = activeEntry?.options.name ?? match;
+			try {
+				const dbg = [`[${(/* @__PURE__ */ new Date()).toISOString()}] reload match=${match} fullName=${fullName}`, `  activeEntry=${activeEntry ? activeEntry.id : "none"} fiberState=${activeEntry?.fiber ? FIBER_NAMES[activeEntry.fiber.state] : "?"} entry.disabled=${activeEntry ? activeEntry.disabled : "?"} options.disabled=${activeEntry ? JSON.stringify(activeEntry.options.disabled) : "?"}`];
+				const cmDbg = ctx.get("clientModules");
+				dbg.push(`  cm=${cmDbg ? "yes" : "no"} clientPath(short)=${cmDbg?.clientPath ? String(cmDbg.clientPath(match)) : "?"} clientPath(full)=${cmDbg?.clientPath ? String(cmDbg.clientPath(fullName)) : "?"}`);
+				if (cmDbg?.table) {
+					const keys = [];
+					for (const k of cmDbg.table.keys()) keys.push(String(k));
+					dbg.push(`  table keys(${keys.length}): ${keys.filter((k) => k.includes("dsh-external")).join(",") || "(none)"}`);
+				}
+				appendFileSync(join(dshHome, "super-injector", "reload-debug.log"), dbg.join("\n") + "\n");
 			} catch {}
-			const message = String(e instanceof Error ? e.stack ?? e.message : e);
-			if (message.includes("duplicate") || message.includes("already registered")) {
-				const cleaned = clearRoutesByMatch(match);
-				return "ERROR: 检测到未登记的裸注册（" + (e instanceof Error ? e.message : String(e)) + "）——插件必须把资源注册挂到 ctx.effect（登记后 dispose 自动清理，热重载不再残留）。\n已自动清理疑似残留路由：" + (cleaned.length ? cleaned.join(", ") : "（无）") + "\n请重载重试；若仍失败请检查插件源码中的裸注册。";
-			}
-			return "ERROR: 重建失败，已回滚（旧代保留）: " + message;
-		}
-		if (failures.length) return `WARN: ${match} 部分重建（${rebuilt}/${fibers.length}）: ${failures.join("; ")}`;
-		normalizeEntriesByName(match);
-		const activeEntry = [...ctx.loader.entries()].find((en) => {
-			const o = en.options;
-			return !o.group && String(o.name).includes(match) && en.fiber && FIBER_NAMES[en.fiber.state] === "active";
+			refreshClientRow(fullName);
+			notifyClientRebuilt(fullName);
+			const client = clientStatus(fullName);
+			recordOp("reload", rebuilt > 0);
+			return `OK: ${match} 热重载完成（清缓存 ${urls.length} 模块，重建 ${rebuilt} fiber）\n- ${client}`;
 		});
-		const fullName = activeEntry?.options.name ?? match;
-		try {
-			const dbg = [`[${(/* @__PURE__ */ new Date()).toISOString()}] reload match=${match} fullName=${fullName}`, `  activeEntry=${activeEntry ? activeEntry.id : "none"} fiberState=${activeEntry?.fiber ? FIBER_NAMES[activeEntry.fiber.state] : "?"} entry.disabled=${activeEntry ? activeEntry.disabled : "?"} options.disabled=${activeEntry ? JSON.stringify(activeEntry.options.disabled) : "?"}`];
-			const cmDbg = ctx.get("clientModules");
-			dbg.push(`  cm=${cmDbg ? "yes" : "no"} clientPath(short)=${cmDbg?.clientPath ? String(cmDbg.clientPath(match)) : "?"} clientPath(full)=${cmDbg?.clientPath ? String(cmDbg.clientPath(fullName)) : "?"}`);
-			if (cmDbg?.table) {
-				const keys = [];
-				for (const k of cmDbg.table.keys()) keys.push(String(k));
-				dbg.push(`  table keys(${keys.length}): ${keys.filter((k) => k.includes("dsh-external")).join(",") || "(none)"}`);
-			}
-			appendFileSync(join(dshHome, "super-injector", "reload-debug.log"), dbg.join("\n") + "\n");
-		} catch {}
-		refreshClientRow(fullName);
-		notifyClientRebuilt(fullName);
-		const client = clientStatus(fullName);
-		recordOp("reload", rebuilt > 0);
-		return `OK: ${match} 热重载完成（清缓存 ${urls.length} 模块，重建 ${rebuilt} fiber）\n- ${client}`;
 	}
 	/** 当前 loader 已装配插件清单（确定性信息：id/name/fiber 状态/入口）。 */
 	function listPlugins() {
@@ -7806,7 +9101,9 @@ function apply(ctx, config) {
 			const injected = injectedNames.has(opts.name) ? " [injected]" : "";
 			lines.push(`- [${state}] ${opts.id} (${opts.name})${injected}${opts.disabled ? " [disabled]" : ""}${entryUrl ? "\n    entry: " + entryUrl : ""}`);
 		}
-		return lines.length ? lines.join("\n") : "（loader 中无已装配插件 entry）";
+		let out = lines.length ? lines.join("\n") : "（loader 中无已装配插件 entry）";
+		if (bgOps.size) out += "\n===== 后台操作（有界交接转后台）=====\n" + [...bgOps.entries()].map(([k, v]) => `- ${k} [${v.state}] ${v.kind} @${new Date(v.at).toISOString()} :: ${v.detail}`).join("\n");
+		return out;
 	}
 	/** 查找匹配的 entry（id 或 name 子串）——优先活跃 entry，跳过 disposed/failed/disabled 残留。 */
 	function findEntry(match) {
@@ -7963,10 +9260,18 @@ function apply(ctx, config) {
 		async execute(a) {
 			const t = staged.get(a.name);
 			if (!t) return `ERROR: staging 无此工具（${a.name}）——dev_stage_list 查看`;
+			const escaped = [];
+			const onRej = (r) => {
+				escaped.push(r instanceof Error ? r.stack ?? r.message : String(r));
+			};
+			process.on("unhandledRejection", onRej);
 			try {
-				return String(await t.execute(a.args ?? {}, ctx));
+				const out = String(await t.execute(a.args ?? {}, ctx));
+				return escaped.length ? out + `\n⚠ 后侧工具「${a.name}」逃逸了未被 await 的 rejection（已降级，宿主未受影响）：\n` + escaped.join("\n") + "\n修法：在该工具里 await 所有异步调用。" : out;
 			} catch (e) {
 				return "ERROR: " + (e instanceof Error ? e.stack ?? e.message : String(e));
+			} finally {
+				process.off("unhandledRejection", onRej);
 			}
 		}
 	}));
@@ -8422,8 +9727,8 @@ function apply(ctx, config) {
 		return `OK: ${pkgName} 已注入（junction=${linkDir}）\n- host ${hostOk ? "✓" : "✗"}\n- ${client}`;
 	}
 	/** 卸载一个已注入的插件包：卸 entry（fiber dispose）→ 清 registry → 删 junction。 */
-	async function uninject(match) {
-		if (match.includes("super-injector")) return "ERROR: 拒绝卸载 dsh-super-injector 自身（引导器不可卸载）";
+	async function uninject(match, allowSelf = false) {
+		if (match.includes("super-injector") && !allowSelf) return "ERROR: 拒绝卸载 dsh-super-injector 自身（引导器不可卸载；自举卸载需 self=true）";
 		const steps = [];
 		let fullName = null;
 		for (const entry of ctx.loader.entries()) {
@@ -8439,7 +9744,7 @@ function apply(ctx, config) {
 			}
 		}
 		if (!steps.some((s) => s.startsWith("entry 已卸载"))) steps.push("（无匹配 entry）");
-		if (fullName) {
+		if (fullName && !allowSelf) {
 			const idShort = fullName.split("/").pop();
 			if (idShort) {
 				const patchFile = join(dirname(profileNodeModules), "cordis.patch.yml");
@@ -8460,7 +9765,7 @@ function apply(ctx, config) {
 			writeRegistry(after);
 			steps.push("registry 已清理");
 		}
-		if (fullName) {
+		if (fullName && !allowSelf) {
 			const parts = fullName.startsWith("@") ? fullName.split("/") : [fullName];
 			const linkDir = join(profileNodeModules, ...parts);
 			try {
@@ -8498,36 +9803,83 @@ function apply(ctx, config) {
 	* 返回问题列表（空 = 健康）。lib 与 src 双检查（只有 lib 无 src 不绕过）。
 	* ⚠️ slot 白名单（2026-08-14 dsh-external-plugins 事件教训）：注册的 slot 名
 	* 必须位于已知合法集合内——早期只认 conversation.view，导致 settings.plugin.item
-	* 等设置页卡片被误判为坏骨架；同时白名单外的陌生 slot 名仍视为异常，防 typo。 */
+	* 等设置页卡片被误判为坏骨架；同时白名单外的陌生 slot 名仍视为异常，防 typo。
+	* 名单来源（2026-09-10 从官方 dsh-client-* 的 client.js 抽取的全集）：早期硬编码 11 项
+	* 漏掉右侧栏/主壳/会话头那一大批，照样误判——**名单必须跟着官方 client 包更新**。 */
 	const KNOWN_SLOTS = [
+		"main",
+		"main.conversation",
+		"root",
+		"sidebar",
+		"sidebar.brand.mark",
+		"sidebar.brand.name",
+		"sidebar.settings",
+		"sidebar.workspaces",
+		"sidebar.workspaces.directoryFlow",
+		"sidebar.footer.action",
+		"sidebar.right.pane.tab",
+		"sidebar.right.pane.tab.title",
+		"sidebar.right.tab.document",
+		"rightbar",
+		"rightbar.session",
 		"conversation.view",
+		"conversation.session",
+		"conversation.session.header",
+		"conversation.session.header.actions",
+		"conversation.session.header.corner",
+		"conversation.session.header.lineage",
+		"conversation.session.header.utilities",
+		"conversation.composer",
+		"conversation.composer.bar",
+		"conversation.composer.dock",
+		"conversation.input.dock",
+		"conversation.input.model",
+		"conversation.input.overlay",
+		"conversation.input.plan",
+		"conversation.input.attachments",
+		"conversation.chat.node",
+		"conversation.chat.assistant-actions",
+		"conversation.chat.turnTail",
+		"conversation.hero.agentPreset",
+		"conversation.hero.workspace",
+		"conversation.hero.workspace.directoryFlow",
+		"conversation.message.images",
+		"conversation.trajectory.images",
+		"conversation.approval.detail",
+		"settings.trigger",
+		"settings.header",
+		"settings.close",
+		"settings.section",
+		"settings.action",
+		"settings.general.item",
 		"settings.plugin.item",
 		"settings.plugins.tab",
-		"settings.section",
-		"settings.general.item",
-		"conversation.session.header.actions",
-		"conversation.session.header.utilities",
-		"conversation.input.dock",
-		"conversation.composer.dock",
-		"sidebar.footer.action",
+		"settings.onboarding",
+		"tool.call.images",
+		"tool.call.toolview",
 		"shell.overlay"
 	];
 	const SLOT_ALT = KNOWN_SLOTS.map((s) => s.replace(/\./g, "\\.")).join("|");
-	const REGISTER_NAME = new RegExp(`register\\(\\{[\\s\\S]*?name:\\s*['"](${SLOT_ALT})['"]`);
+	const REGISTER_NAME = new RegExp(`register\\(\\{[\\s\\S]{0,400}?name:\\s*['"](${SLOT_ALT})['"]`);
 	function clientSkeletonProblems(base) {
 		const problems = [];
+		const usesSlots = (text) => /ctx\.slots|slots\.register/.test(text);
 		try {
 			const libClient = join(base, "lib", "client.js");
 			if (existsSync(libClient)) {
 				const lib = readFileSync(libClient, "utf8");
-				if (!/inject\s*=\s*\[[^\]]*['"]slots['"]/.test(lib) && !/inject\s*:\s*\[[^\]]*['"]slots['"]/.test(lib)) problems.push("lib/client.js 缺 inject 含 slots（apply 用 ctx.slots 必须声明——cordis 服务注入契约）");
-				if (!REGISTER_NAME.test(lib)) problems.push(`lib/client.js 的 register 缺合法 name（应为已知 slot：${KNOWN_SLOTS.join(" / ")}）`);
+				if (usesSlots(lib)) {
+					if (!/inject\s*=\s*\[[^\]]*['"]slots['"]/.test(lib) && !/inject\s*:\s*\[[^\]]*['"]slots['"]/.test(lib)) problems.push("lib/client.js 用了 ctx.slots 却缺 inject 含 slots（cordis 服务注入契约）");
+					if (!REGISTER_NAME.test(lib)) problems.push(`lib/client.js 的 register 缺合法 name（应为已知 slot：${KNOWN_SLOTS.join(" / ")}）`);
+				}
 			}
 			const clientSrcPath = join(base, "src", "client", "index.ts");
 			if (existsSync(clientSrcPath)) {
 				const src = readFileSync(clientSrcPath, "utf8");
-				if (!/export const inject\s*=\s*\[[^\]]*['"]slots['"]/.test(src)) problems.push("src/client/index.ts 缺 export const inject = ['slots']（apply 用 ctx.slots 必须声明，否则报 cannot get property 'slots' without inject）");
-				if (!REGISTER_NAME.test(src)) problems.push(`slots.register 缺合法 name（应为已知 slot：${KNOWN_SLOTS.join(" / ")}——缺了报 slot undefined is not declared）`);
+				if (usesSlots(src)) {
+					if (!/export const inject\s*=\s*\[[^\]]*['"]slots['"]/.test(src)) problems.push("src/client/index.ts 用了 ctx.slots 却缺 export const inject = ['slots']（否则报 cannot get property 'slots' without inject）");
+					if (!REGISTER_NAME.test(src)) problems.push(`slots.register 缺合法 name（应为已知 slot：${KNOWN_SLOTS.join(" / ")}——缺了报 slot undefined is not declared）`);
+				}
 			}
 		} catch {}
 		return problems;
@@ -8653,13 +10005,33 @@ function apply(ctx, config) {
 		}
 		return healed;
 	}
+	/**
+	* 读 profile `package.json` 的 `dsh.profile.bundles` 列表（**只读，失败 ⇒ 空数组**）。
+	* ★ 用途：**bundles 防重护栏**（见 `restore()` ②）—— 判断"这个包是不是已经由 bundles 装配"。
+	* ⚠️ 路径写死 `profiles/web`：与 `profileNodeModules` 的缺省形态一致（那里也写死 web）。
+	*/
+	function readProfileBundles() {
+		try {
+			const pkgPath = join(dshHome, "profiles", "web", "package.json");
+			const list = JSON.parse(readFileSync(pkgPath, "utf8"))?.dsh?.profile?.bundles;
+			return Array.isArray(list) ? list.filter((x) => typeof x === "string") : [];
+		} catch {
+			return [];
+		}
+	}
 	async function restore() {
 		try {
 			healProfileLinks();
 		} catch (err) {
 			logger.warn("[super-injector] junction 自愈扫描失败: %s", String(err));
 		}
+		const bundlesOwned = new Set(readProfileBundles());
 		for (const e of readRegistry()) try {
+			if (bundlesOwned.has(e.name)) {
+				auditLog("restore-skip-bundles-owned", `${e.name} 已由 profile bundles 装配，跳过 registry 恢复（防双实例）`);
+				logger.info("[super-injector] %s 由 bundles 装配，跳过 registry 恢复（防双实例）", e.name);
+				continue;
+			}
 			if (hasActiveEntry(e.name)) continue;
 			const problems = clientSkeletonProblems(e.dir);
 			const fresh = buildFreshnessProblems(e.dir);
@@ -8777,7 +10149,7 @@ function apply(ctx, config) {
 				auditLog("inject-stale-artifacts", `${dir}: ${fresh.warn.join("; ")}`);
 				logger.warn("[super-injector] 注入 %s 构建产物可能过期（未阻断）: %s", dir, fresh.warn.join("; "));
 			}
-			return withOpLock(() => inject(dir));
+			return handoff("inject", dir, HANDOFF_MS, () => withOpLock(() => inject(dir)));
 		}
 	}));
 	safeRegister(defineTool({
@@ -8799,11 +10171,17 @@ function apply(ctx, config) {
 	safeRegister(defineTool({
 		name: "dev_uninject_plugin",
 		description: "超级模组卸载器：卸载已注入的插件包——卸 loader entry（fiber dispose，工具/监听全清理）→ 清注入清单 → 删 profile junction → 另写 profile patch disabled 条目（防 include.refresh 加回），免重启。参数 = 包名子串（如 dsh-toy-supermod）",
-		parameters: { match: {
-			type: "string",
-			required: true,
-			description: "包名/路径子串（如 dsh-toy-supermod 或 @dsh-external/dsh-toy-supermod）"
-		} },
+		parameters: {
+			match: {
+				type: "string",
+				required: true,
+				description: "包名/路径子串（如 dsh-toy-supermod 或 @dsh-external/dsh-toy-supermod）"
+			},
+			self: {
+				type: "boolean",
+				description: "自举卸载（仅对 dsh-super-injector 自身）：卸运行时 entry，保留 registry/junction/bundles 装配链，重启后自动装回"
+			}
+		},
 		output: {
 			schema: { type: "string" },
 			render: (_args, value) => [{
@@ -8814,7 +10192,7 @@ function apply(ctx, config) {
 		async execute(args) {
 			const match = String(args?.match ?? "").trim();
 			if (!match) return "ERROR: match 必填（包名/路径子串）";
-			return withOpLock(() => uninject(match));
+			return handoff("uninject", match, HANDOFF_MS, () => withOpLock(() => uninject(match, Boolean(args.self))));
 		}
 	}));
 	safeRegister(defineTool({
@@ -8856,7 +10234,7 @@ function apply(ctx, config) {
 	}));
 	safeRegister(defineTool({
 		name: "dev_reload_package",
-		description: "确定性热重载已加载的 bundle 插件包（清缓存 → 重新 import → registry 重建 fiber，失败回滚保留旧代）。不带参数时返回当下已装配插件清单；带参数重载并给出重载前后 fiber 状态对比。",
+		description: "热重载已加载的 bundle 插件包（清缓存 → 重新 import → 释放旧 fiber → registry 重建 fiber，失败回滚保留旧代）。不带参数 = 只列已装配清单（含「后台操作」收口结果）；带 packageName = 重载并给出前后 fiber 状态。安全网（案底 2026-09-07：工具栈内 await dispose 与工具调度器成环，挂死宿主需重启）：交换最多在内联等 6s，到点即转后台继续同一操作（不重复触发），回执为 WARN +「已转后台」——此时用本工具不带参数看「后台操作」确认 done/failed，长期 running 才需重启宿主。",
 		parameters: { packageName: {
 			type: "string",
 			description: "包路径子串（缺省 = 只列插件清单，不重载）"
@@ -8872,10 +10250,72 @@ function apply(ctx, config) {
 			if (!args.packageName) return "===== 当前已装配插件（loader entries）=====\n" + listPlugins();
 			const entry = findEntry(args.packageName);
 			const before = entry ? stateOf(entry) : "（未找到）";
-			const result = await withOpLock(() => reloadPackage(args.packageName));
+			const result = await handoff("reload", args.packageName, HANDOFF_MS, () => withOpLock(() => reloadPackage(args.packageName)));
 			const freshEntry = findEntry(args.packageName);
 			const after = freshEntry ? await waitFiberStable(freshEntry) : "（未找到）";
-			return result + "\n--- 重载前后状态 ---\nbefore: [" + before + "]\nafter: [" + after + "]";
+			const bg = bgOps.get(args.packageName);
+			return result + (bg && String(result).startsWith("WARN") ? `\n- 后台操作：[${bg.state}] ${bg.detail}` : "") + "\n--- 重载前后状态 ---\nbefore: [" + before + "]\nafter: [" + after + "]";
+		}
+	}));
+	safeRegister(defineTool({
+		name: "dev_reload_preset",
+		description: "预设热更新（agent-presets 新一代，绕 ESM 缓存）：给 .agent-presets/<preset>/agent.cordis.yml 的相对 .mjs 引用加 ?v=N query（N 自增）——组合文件指纹变化 → 新会话挂载新一代 → 新 URL 无缓存命中 → 改代码无需换文件名/重启即可生效。已运行会话保持旧代。",
+		parameters: { preset: {
+			type: "string",
+			description: "预设 id（缺省 = 全部）"
+		} },
+		output: {
+			schema: { type: "string" },
+			render: (_args, value) => [{
+				type: "text",
+				text: String(value)
+			}]
+		},
+		async execute(args) {
+			const presetsRoot = join(dshHome, ".agent-presets");
+			const names = args.preset ? [args.preset] : (() => {
+				try {
+					return readdirSync(presetsRoot).filter((d) => !d.startsWith("."));
+				} catch {
+					return [];
+				}
+			})();
+			if (!names.length) return "ERROR: 未找到任何预设（" + presetsRoot + "）";
+			const out = [];
+			for (const name of names) {
+				const ymlFile = join(presetsRoot, name, "agent.cordis.yml");
+				if (!existsSync(ymlFile)) {
+					out.push("[" + name + "] 无 agent.cordis.yml（跳过）");
+					continue;
+				}
+				let yml = "";
+				try {
+					yml = readFileSync(ymlFile, "utf8");
+				} catch {
+					out.push("[" + name + "] 读取失败（跳过）");
+					continue;
+				}
+				const refs = [...yml.matchAll(/(name: \.\/[A-Za-z0-9._-]+\.mjs)(\?v=\d+)?/g)];
+				if (!refs.length) {
+					out.push("[" + name + "] 无相对 .mjs 引用（无需热更新）");
+					continue;
+				}
+				const changed = [];
+				for (const m of refs) {
+					const base = m[1];
+					const cur = m[2] ? Number(m[2].slice(3)) : 0;
+					yml = yml.replace(m[0], base + "?v=" + (cur + 1));
+					changed.push(base.split("/").pop() + " -> ?v=" + (cur + 1));
+				}
+				try {
+					writeFileSync(ymlFile, yml, "utf8");
+				} catch {
+					out.push("[" + name + "] 写入失败（跳过）");
+					continue;
+				}
+				out.push("[" + name + "] " + changed.join(", "));
+			}
+			return "OK: 预设热更新\n- " + out.join("\n- ") + "\n注：新会话挂载新一代（新 URL 绕 ESM 缓存）；已运行会话保持旧代";
 		}
 	}));
 	safeRegister(defineTool({
@@ -9416,7 +10856,7 @@ function apply(ctx, config) {
 					license: "BSD-3-Clause",
 					peerDependencies: {
 						"@deepseek-ai/dsh-tools": ">=0.0.1-rc <2",
-						"cordis": ">=4.0.0-rc <5"
+						"@deepseek-ai/cordis": ">=4.0.0-rc <5"
 					},
 					devDependencies: {
 						"@types/node": "^24.13.3",
@@ -9425,8 +10865,8 @@ function apply(ctx, config) {
 					scripts: { build: "bash scripts/build.sh" }
 				}, null, 2) + "\n", "utf8");
 				writeFileSync(join(tmpDir, "tsconfig.json"), "{\n  \"compilerOptions\": {\n    \"target\": \"ES2023\", \"module\": \"NodeNext\", \"moduleResolution\": \"NodeNext\", \"lib\": [\"ES2023\"],\n    \"strict\": true, \"types\": [\"node\"], \"declaration\": true, \"declarationDir\": \"lib/types\",\n    \"outDir\": \"lib\", \"rootDir\": \"src\", \"skipLibCheck\": true, \"esModuleInterop\": true,\n    \"sourceMap\": true\n  },\n  \"include\": [\"src\"]\n}\n", "utf8");
-				writeFileSync(join(tmpDir, "src", "index.ts"), `import type { Context } from 'cordis'\nimport { defineTool } from '@deepseek-ai/dsh-tools'\nexport const name = ${JSON.stringify(TEST_PKG)}\nexport const inject = ['tools']\nexport function apply(ctx: Context): void {\n  ctx.effect(() => ctx.tools.register(defineTool({\n    name: 'self_test_hello',\n    description: 'self test',\n    parameters: {},\n    output: { schema: { type: 'string' }, render: (_a: unknown, v: unknown) => [{ type: 'text', text: String(v) }] },\n    async execute() { return 'hello' },\n  })), 'self-test')\n}\n`, "utf8");
-				writeFileSync(join(tmpDir, "scripts", "build.sh"), `#!/bin/bash\nset -euo pipefail\nROOT="$(cd "$(dirname "$0")/.." && pwd)"\ncd "$ROOT"\nCHECKOUT="\${DSH_CHECKOUT:-}"\nif [ -z "$CHECKOUT" ] || [ ! -d "$CHECKOUT/packages" ]; then echo "no checkout" >&2; exit 1; fi\nTSC="$CHECKOUT/node_modules/.bin/tsc"\nlink_pkg() {\n  node -e "const fs=require('fs');const path=require('path');const l=path.resolve(process.argv[1]);const t=path.resolve(process.argv[2]);fs.rmSync(l,{recursive:true,force:true});fs.mkdirSync(path.dirname(l),{recursive:true});fs.symlinkSync(t,l,process.platform==='win32'?'junction':'dir');" "node_modules/$1" "$2"\n}\nmkdir -p node_modules/@deepseek-ai\nnode -e "const fs=require('fs');fs.rmSync('node_modules/@standard-schema',{recursive:true,force:true})"\nlink_pkg cordis "$CHECKOUT/vendor/cordis"\nlink_pkg cosmokit "$CHECKOUT/vendor/cosmokit"\nlink_pkg schemastery "$CHECKOUT/vendor/schemastery"\nlink_pkg @deepseek-ai/dsh-tools "$CHECKOUT/packages/core/tools"\nlink_pkg @types/node "$CHECKOUT/node_modules/@types/node"\n"$TSC" -p tsconfig.json\n`, "utf8");
+				writeFileSync(join(tmpDir, "src", "index.ts"), `import type { Context } from '@deepseek-ai/cordis'\nimport { defineTool } from '@deepseek-ai/dsh-tools'\nexport const name = ${JSON.stringify(TEST_PKG)}\nexport const inject = ['tools']\nexport function apply(ctx: Context): void {\n  ctx.effect(() => ctx.tools.register(defineTool({\n    name: 'self_test_hello',\n    description: 'self test',\n    parameters: {},\n    output: { schema: { type: 'string' }, render: (_a: unknown, v: unknown) => [{ type: 'text', text: String(v) }] },\n    async execute() { return 'hello' },\n  })), 'self-test')\n}\n`, "utf8");
+				writeFileSync(join(tmpDir, "scripts", "build.sh"), `#!/bin/bash\nset -euo pipefail\nROOT="$(cd "$(dirname "$0")/.." && pwd)"\ncd "$ROOT"\nCHECKOUT="\${DSH_CHECKOUT:-}"\nif [ -z "$CHECKOUT" ] || [ ! -d "$CHECKOUT/packages" ]; then echo "no checkout" >&2; exit 1; fi\nTSC="$CHECKOUT/node_modules/.bin/tsc"\nlink_pkg() {\n  node -e "const fs=require('fs');const path=require('path');const l=path.resolve(process.argv[1]);const t=path.resolve(process.argv[2]);fs.rmSync(l,{recursive:true,force:true});fs.mkdirSync(path.dirname(l),{recursive:true});fs.symlinkSync(t,l,process.platform==='win32'?'junction':'dir');" "node_modules/$1" "$2"\n}\nmkdir -p node_modules/@deepseek-ai\nnode -e "const fs=require('fs');fs.rmSync('node_modules/@standard-schema',{recursive:true,force:true})"\nlink_pkg @deepseek-ai/cordis "$CHECKOUT/vendor/cordis"\nlink_pkg cosmokit "$CHECKOUT/vendor/cosmokit"\nlink_pkg @deepseek-ai/schemastery "$CHECKOUT/vendor/schemastery"\nlink_pkg @deepseek-ai/dsh-tools "$CHECKOUT/packages/core/tools"\nlink_pkg @types/node "$CHECKOUT/node_modules/@types/node"\n"$TSC" -p tsconfig.json\n`, "utf8");
 				const checkout = detectCheckout();
 				if (!checkout) {
 					check("checkout 探测", false, "无 DSH_CHECKOUT");

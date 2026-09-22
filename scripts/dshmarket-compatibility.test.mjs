@@ -197,3 +197,16 @@ test('profile initialization prepares v4 before applying the bundle filter', () 
   assert.match(init, /prepareKnownPluginCompatibility/)
   assert.doesNotMatch(init, /return name === DSH_IM_NAME/)
 })
+
+test('email using the removed settings registration is explicitly incompatible and untouched', t => {
+  const { profile } = profileFixture(t)
+  const plugin = join(profile, 'node_modules/dsh-email')
+  write(join(plugin, 'package.json'), JSON.stringify({ name: 'dsh-email', version: '0.13.2', main: 'lib/index.js' }))
+  const source = 'const settingsScope = ctx.settings.register("email", schema)\n'
+  write(join(plugin, 'lib/runtime.js'), source)
+  const status = inspectKnownPluginCompatibility(profile, 'dsh-email')
+  assert.equal(status.status, 'incompatible')
+  assert.match(status.reason, /settings\.register/)
+  assert.match(status.reason, /保留插件和账号配置/)
+  assert.equal(readFileSync(join(plugin, 'lib/runtime.js'), 'utf8'), source)
+})

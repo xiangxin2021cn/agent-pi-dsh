@@ -48,12 +48,12 @@ import {
   saveWorkspaceText,
 } from './preview-export.ts'
 import { cadViewerUrl, readCadViewerAsset } from './cad-viewer-assets.ts'
+import { isProjectPlan, readProjectPlan, exportProjectPlan } from './project-plan.mjs'
 import { inspectPricingSave } from './pricing-recalc.ts'
 import { optimizePromptWithLlm, type LlmStreamRuntime } from './prompt-optimize.ts'
 import {
   cancelPendingVisionContext,
   commitPendingVisionContext,
-  currentDefaultModel,
   pendingVisionTransactionStatus,
   readVisionImages,
 } from './attachment-context.ts'
@@ -220,6 +220,7 @@ export function attachHttp(ctx: {
     tapIndex?: (transform: (html: string) => string) => () => void
   }
   getUniver?: () => UniverOfficeService | null | undefined
+  getDefaultModel?: () => { provider: string; model: string; reasoningEffort?: string } | undefined
 }): void {
   const webServer = ctx.webServer
   if (!webServer) return
@@ -1000,8 +1001,20 @@ export function attachHttp(ctx: {
           return
         }
 
+        if (req.method === 'GET' && url.pathname === '/api/agent-pi/files/plan') {
+          send(res, 200, await readProjectPlan(cwd, url.searchParams.get('path') ?? ''))
+          return
+        }
+        if (req.method === 'POST' && url.pathname === '/api/agent-pi/files/plan/export') {
+          send(res, 200, await exportProjectPlan(cwd, JSON.parse(await readBody(req) || '{}')))
+          return
+        }
         if (req.method === 'GET' && url.pathname === '/api/agent-pi/files/content') {
           const path = url.searchParams.get('path') ?? ''
+          if (await isProjectPlan(cwd, path)) {
+            send(res, 200, { kind: 'project-plan', ...describeWorkspaceBinary(cwd, path) })
+            return
+          }
           const kind = previewKind(path)
           if (kind === 'cad') {
             const file = describeWorkspaceBinary(cwd, path)
@@ -1195,15 +1208,15 @@ export function attachHttp(ctx: {
             connectionName?: string
             reasoningEffort?: string
           }
-          const current = currentDefaultModel()
+          const current = ctx.getDefaultModel?.()
           send(res, 200, await optimizePromptWithLlm({
             input: String(body.input ?? ''),
             attachments: body.attachments,
             workingDirectory: cwd,
             provider: String(body.provider || current?.provider || ''),
-            model: String(body.model || current?.id || ''),
-            connectionName: String(body.connectionName || current?.name || ''),
-            reasoningEffort: body.reasoningEffort,
+            model: String(body.model || current?.model || ''),
+            connectionName: String(body.connectionName || ''),
+            reasoningEffort: body.reasoningEffort ?? current?.reasoningEffort,
           }, llmRuntime))
           return
         }

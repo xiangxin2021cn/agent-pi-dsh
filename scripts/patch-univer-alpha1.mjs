@@ -1,6 +1,31 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+/** Minimal Office 0.3.2 adaptation to DSH 0.1.7's entry-backed settings. */
+function replaceOnce(source, before, after) {
+  if (source.includes(after)) return source
+  if (source.split(before).length !== 2) throw new Error('Univer 0.3.2 settings layout changed; refusing a partial adaptation')
+  return source.replace(before, after)
+}
+
+export function patchUniver017Host(source) {
+  source = replaceOnce(source, '  telemetry: z.boolean().default(true)\n',
+    '  autoOpenLivePreview: z.boolean().default(true).volatile(),\n  telemetry: z.boolean().default(true)\n')
+  return replaceOnce(source, '  ctx.plugin(plugin_exports2);',
+    '  // DSH 0.1.7 projects the root univer Config into settings; no legacy settings.register child.')
+}
+
+export function patchUniver017Client(source) {
+  source = replaceOnce(source, 'var UNIVER_SETTINGS_NAMESPACE = "univer-office";', 'var UNIVER_SETTINGS_NAMESPACE = "univer";')
+  source = replaceOnce(source, 'ctx.inject(["settingsScope"], (settingsCtx) => {', 'ctx.inject(["configForms"], (settingsCtx) => {')
+  source = replaceOnce(source,
+    'const settings = settingsCtx.settingsScope.bind({\n          namespace: UNIVER_SETTINGS_NAMESPACE\n        });',
+    'const settings = settingsCtx.configForms.get(UNIVER_SETTINGS_NAMESPACE);')
+  source = replaceOnce(source, 'settingsCtx.slots.inject(\n          "settings.plugin.item",', 'settingsCtx.slots.inject(\n          "settings.section",')
+  return replaceOnce(source, 'name: "settings.plugin.item",\n              key: UNIVER_SETTINGS_NAMESPACE,',
+    'name: "settings.section",\n              id: "univer-office",\n              order: 35,\n              label: "Univer Office",')
+}
+
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const legacyPatchVersions = new Set(['0.2.9', '0.2.10'])
@@ -182,10 +207,14 @@ export function patchUniverForDshAlpha1({ pluginRoot }) {
   let source = readFileSync(clientPath, 'utf8')
   if (nativeCompatibleVersions.has(manifest.version)) {
     if (manifest.version === '0.3.2') {
-      const patched = patchUniverTurnTail(source)
+      const patched = patchUniver017Client(patchUniverTurnTail(source))
       assertUniverClientCompatibility({ version: manifest.version, source: patched })
+      const hostPath = join(pluginRoot, 'lib/index.js')
+      const originalHost = readFileSync(hostPath, 'utf8')
+      const patchedHost = patchUniver017Host(originalHost)
+      if (patchedHost !== originalHost) writeFileSync(hostPath, patchedHost, 'utf8')
       if (patched !== source) writeFileSync(clientPath, patched, 'utf8')
-      return 'alpha2-adapted'
+      return '017-adapted'
     }
     assertUniverClientCompatibility({ version: manifest.version, source })
     if (manifest.version === '0.3.0') {

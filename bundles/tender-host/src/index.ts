@@ -63,6 +63,12 @@ export function apply(ctx: {
   ctx.inject(['webServer'], (inner) => {
     attachHttp({
       webServer: inner.webServer,
+      getDefaultModel: () => {
+        const service = ctx.get?.('agentDefaultModel') as {
+          currentSelection?: () => { provider: string; model: string; reasoningEffort?: string }
+        } | undefined
+        return service?.currentSelection?.()
+      },
       getUniver: () => {
         try {
           const service = ctx.get?.('univer')

@@ -29,6 +29,7 @@ import { Script } from 'node:vm';
 import { join } from 'node:path';
 import { listHotMounts, parseSimplePatch } from "./hot.js";
 import { userPatchPackageReferences } from "./patch.js";
+import { nameMatchesPackage } from "./entry-identity.js";
 import { bundlePatchInsertedIds, hasDshManifest, hasLoadableEntry, profileDir, readInstalled } from "./profile.js";
 /** The profile manifest's `dsh.profile.bundles` — what the CLI reconciled. */
 function readBundles(profile, explicitDir) {
@@ -53,11 +54,8 @@ function readBundles(profile, explicitDir) {
  * must not — the `/` bound keeps the match a real subpath.
  */
 function liveIncludes(live, packageName) {
-    if (live.has(packageName))
-        return true;
-    const prefix = `${packageName}/`;
     for (const name of live)
-        if (name.startsWith(prefix))
+        if (nameMatchesPackage(name, packageName))
             return true;
     return false;
 }
