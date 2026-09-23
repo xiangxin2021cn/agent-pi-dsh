@@ -27,4 +27,10 @@ if (!host.includes(hostMarker)) {
   host = host.slice(0, start) + '\t' + hostMarker + '\n\n' + host.slice(end)
   writeFileSync(hostPath, host)
 }
+// Embedded PTC image context must use the official V4 producer source.
+const legacyPtcSource = /kind: "plugin",\n\s*plugin: "tools-ptc"/g
+if (legacyPtcSource.test(host)) {
+  host = host.replace(legacyPtcSource, 'kind: "ptc-mode"')
+  writeFileSync(hostPath, host)
+}
 console.log('Super Injector 0.3.5 product integration applied')

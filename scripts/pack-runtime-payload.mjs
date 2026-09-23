@@ -116,6 +116,7 @@ assertUniverPublicReleaseTree(root, { runtime: false })
 verifyProjectPlanRuntime(root)
 const dshSrc = realpathSync(join(root, 'vendor', 'deepseek-harness'))
 buildDshWithReceipt({ dshRoot: dshSrc, productRoot: root, receiptPath: dshBuildReceipt })
+run(process.execPath, ['--test', join(root, 'scripts/attachment-message-v4.test.mjs')])
 verifyDshBuildReceipt({
   dshRoot: dshSrc,
   productRoot: root,

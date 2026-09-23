@@ -187,7 +187,7 @@ export async function optimizePromptWithLlm(
 
   try {
     const { createUserMessage } = await importDsh<{
-      createUserMessage: (input: { content: Array<{ type: 'text'; text: string }>; source: { kind: 'plugin'; plugin: string } }) => unknown
+      createUserMessage: (input: { content: Array<{ type: 'text'; text: string }>; source: { kind: 'plugin:tender-host' } }) => unknown
     }>('packages/llm/llm/src/message.ts')
     const instruction = buildPromptOptimizationInstruction(context)
     const controller = new AbortController()
@@ -199,7 +199,7 @@ export async function optimizePromptWithLlm(
         system: '只输出优化后的提示词正文。不要解释，不要加标题说明，不要包裹代码块。',
         messages: [createUserMessage({
           content: [{ type: 'text', text: instruction }],
-          source: { kind: 'plugin', plugin: 'tender-host' },
+          source: { kind: 'plugin:tender-host' },
         })],
         temperature: 0.2,
         maxTokens: 2400,

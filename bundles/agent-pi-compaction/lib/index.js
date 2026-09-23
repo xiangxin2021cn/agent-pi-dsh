@@ -84,7 +84,7 @@ async function summarizeWithTarget(ctx, target, input, agent, signal) {
     ...input.messages,
     createUserMessage({
       content: [{ type: 'text', text: COMPACTION_INSTRUCTION }],
-      source: { kind: 'plugin', plugin: 'dsh-agent-pi-compaction' },
+      source: { kind: 'plugin:dsh-agent-pi-compaction' },
     }),
   ]
   const options = {

@@ -208,7 +208,7 @@ export function deliverPendingVisionContextForMessage(sessionId: string, message
   const candidate = asRecord(message)
   const source = asRecord(candidate.source)
   const messageId = textOf(candidate.id).trim()
-  if (!messageId || textOf(source.kind) !== 'plugin' || textOf(source.plugin) !== 'tender-host'
+  if (!messageId || textOf(source.kind) !== 'plugin:tender-host'
     || textOf(source.form) !== 'instructions') return false
   const matches = [...(pendingRows(sessionId)?.values() || [])]
     .filter((row) => row.state === 'claimed' && row.deliveryMessageId === messageId)

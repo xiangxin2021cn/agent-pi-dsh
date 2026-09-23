@@ -64,7 +64,7 @@ export function registerPrompt(ctx: {
   on?: (event: string, listener: (...args: any[]) => unknown) => unknown
 }, createUserMessage: (input: {
   content: Array<{ type: 'text'; text: string }>
-  source: { kind: 'plugin'; plugin: string; form: 'instructions' }
+  source: { kind: 'plugin:tender-host'; form: 'instructions' }
 }) => unknown): void {
   const sessionIdOf = (agent: unknown): string => {
     const row = agent && typeof agent === 'object' ? agent as { id?: unknown; session?: { id?: unknown } } : {}
@@ -139,7 +139,7 @@ export function registerPrompt(ctx: {
     }
     const instructionMessage = createUserMessage({
       content: [{ type: 'text', text }],
-      source: { kind: 'plugin', plugin: 'tender-host', form: 'instructions' },
+      source: { kind: 'plugin:tender-host', form: 'instructions' },
     }) as { id?: unknown }
     if (!bindPendingVisionDeliveryMessage(sessionId, transactionId, String(instructionMessage.id || ''))) {
       failPendingVisionContext(sessionId, transactionId)

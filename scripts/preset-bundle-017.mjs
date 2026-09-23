@@ -47,7 +47,7 @@ export function writePresetBundle({ systemRoot, userRoot, ids, parseYaml }) {
   writeFileSync(join(systemRoot, 'cordis.patch.yml'), rows.join('\n') + '\n')
   patches.push('./cordis.patch.yml', './product-defaults.patch.yml')
   writeFileSync(join(systemRoot, 'package.json'), JSON.stringify({
-    name: PRODUCT_PRESETS, version: '3.7.1', private: true, type: 'module',
+    name: PRODUCT_PRESETS, version: '3.7.2', private: true, type: 'module',
     dsh: { bundle: { patch: patches } },
   }, null, 2) + '\n')
 }

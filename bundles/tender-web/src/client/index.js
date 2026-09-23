@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { installAttachmentMessageView } from './attachment-message-view.js'
 import { installArchiveSessionView } from './archive-session-view.js'
 import { createAgentTeamsSettings } from './agent-teams-settings.js'
 import * as ReactDOM from 'react-dom'
@@ -8634,6 +8635,7 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
     }
 
     export function apply(ctx) {
+      installAttachmentMessageView(ctx, React)
       installArchiveSessionView(ctx, { React, useLanguage: useApLang })
       installNativeWorkFilePreviews(ctx, { React, ReactDOM, FilePreviewOverlay })
       ctx.inject(['sidebarRight'], (scope) => {

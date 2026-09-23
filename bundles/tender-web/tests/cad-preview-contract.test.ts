@@ -43,7 +43,7 @@ test('CAD frame reports opened, error, and external-open events to its parent', 
 
 test('CAD preview keeps download and system-open actions without embedding its runtime in the main client', () => {
   assert.match(overlay, /isCad \? DocBtn\('系统打开'[\s\S]*?openInExplorer\(cwd, file\.path/)
-  assert.match(overlay, /kind === 'binary' \|\| kind === 'pdf' \|\| kind === 'image' \|\| isOffice \|\| kind === 'html' \|\| isCad \? DocBtn\('下载原件'/)
+  assert.match(overlay, /kind === 'binary' \|\| kind === 'pdf' \|\| kind === 'image' \|\| isOffice \|\| kind === 'html' \|\| isCad \|\| kind === 'project-plan' \? DocBtn\('下载原件'/)
   assert.match(overlay, /apiBlob\('\/api\/agent-pi\/files\/raw\?path=' \+ encodeURIComponent\(file\.path\)/)
 
   assert.ok(mainClient.includes('ap-cad-frame'), 'generated client must include the CAD overlay bridge')

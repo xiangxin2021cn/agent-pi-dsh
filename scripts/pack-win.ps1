@@ -294,6 +294,8 @@ if ($LASTEXITCODE -ne 0) { throw "official DSH build and receipt generation fail
 & node (Join-Path $Root "scripts\dsh-build-receipt.mjs") verify `
   --dsh $Dsh --product $Root --receipt $DshBuildReceipt --source
 if ($LASTEXITCODE -ne 0) { throw "DSH source build receipt verification failed: $LASTEXITCODE" }
+& node --test (Join-Path $Root "scripts\attachment-message-v4.test.mjs")
+if ($LASTEXITCODE -ne 0) { throw "official V4 attachment message regression failed: $LASTEXITCODE" }
 
 if (-not (Test-Path (Join-Path $Dsh "package.json"))) {
   throw "vendor/deepseek-harness missing"

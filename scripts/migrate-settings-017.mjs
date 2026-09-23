@@ -15,6 +15,15 @@ export function migrateSettings017(document) {
   // The official DeepSeek adapter now speaks Messages only; other providers are untouched.
   const deepseek = document.get('llm-deepseek', true)
   if (deepseek?.delete) deepseek.delete('protocol')
+  const spill = document.get('spill-policy', true)
+  if (spill?.has?.('maxInlineBytes')) {
+    const bytes = spill.get('maxInlineBytes')
+    if (Number.isInteger(bytes) && bytes >= 0) {
+      // Match the upstream default migration: 50000 bytes -> 12500 estimated tokens.
+      if (!spill.has('maxInlineTokens')) spill.set('maxInlineTokens', Math.floor(bytes / 4))
+      spill.delete('maxInlineBytes')
+    }
+  }
   const office = document.get('univer-office', true)
   if (office?.get) {
     if (!document.has('univer')) document.set('univer', document.createNode({}))

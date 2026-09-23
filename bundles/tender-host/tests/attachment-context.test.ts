@@ -233,7 +233,7 @@ test('pre-step injects attachment instructions only for one claimed user marker 
   assert.equal(first.kind, 'enter')
   assert.equal(first.messages[0], matchingMarker)
   assert.equal(first.messages.length, 2)
-  assert.deepEqual(first.messages[1]?.source, { kind: 'plugin', plugin: 'tender-host', form: 'instructions' })
+  assert.deepEqual(first.messages[1]?.source, { kind: 'plugin:tender-host', form: 'instructions' })
   assert.match(first.messages[1]?.content?.[0]?.text || '', /claimed\.pdf/)
   assert.equal(nextCalls, 3)
 

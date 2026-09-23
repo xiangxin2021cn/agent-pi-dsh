@@ -4,6 +4,17 @@ import { createRequire } from 'node:module'
 import { migrateSettings017 } from './migrate-settings-017.mjs'
 const { parseDocument } = createRequire(new URL('../vendor/deepseek-harness/packages/settings/settings/package.json', import.meta.url))('yaml')
 
+test('alpha.2 spill budget converts bytes to estimated tokens without replacing an explicit token budget', () => {
+  for (const [text, expected] of [
+    ['maxInlineBytes: 50000', 12500], ['maxInlineBytes: 0', 0],
+    ['maxInlineBytes: 50000, maxInlineTokens: 7000', 7000],
+  ]) {
+    const doc = parseDocument(`spill-policy: {${text}}`)
+    assert.deepEqual(migrateSettings017(doc).toJS(), { 'spill-policy': { maxInlineTokens: expected } })
+    assert.deepEqual(migrateSettings017(doc).toJS(), { 'spill-policy': { maxInlineTokens: expected } })
+  }
+})
+
 test('legacy settings keep secrets and unrelated providers, migrating only removed fields', () => {
   const document = parseDocument(`agent-presets:
   default: code

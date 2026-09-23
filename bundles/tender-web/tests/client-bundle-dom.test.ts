@@ -257,6 +257,8 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
       },
       slots: {
         inject(_name: string, callback: () => void) { callback() },
+        entries() { return [] },
+        subscribe() { return () => {} },
         register(definition: { id?: string; name: string }, component: unknown) {
           registered.set(definition.id || definition.name, ['agent-pi-composer-tools', 'agent-pi-attachments'].includes(definition.id || '') ? (props) => React.createElement(component, { useSessions: select => select({ byId: { [props.sessionId]: { id: props.sessionId, retainedBy: { mainView: 1 }, cwd: 'C:/workspace' } } }), ...props }) : component)
         },

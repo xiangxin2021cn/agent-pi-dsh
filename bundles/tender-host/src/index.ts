@@ -38,7 +38,7 @@ const { defineTool } = await importDsh<{ defineTool: (options: Record<string, un
 const { createUserMessage } = await importDsh<{
   createUserMessage: (input: {
     content: Array<{ type: 'text'; text: string }>
-    source: { kind: 'plugin'; plugin: string; form: 'instructions' }
+    source: { kind: 'plugin:tender-host'; form: 'instructions' }
   }) => unknown
 }>('packages/llm/llm/src/message.ts')
 

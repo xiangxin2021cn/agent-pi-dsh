@@ -5702,8 +5702,7 @@ function createRunCodeTool(registry, options) {
 							if (!result.isError && result.content.some((block) => block.type === "image")) exec.deferContext(createUserMessage({
 								content: result.content,
 								source: {
-									kind: "plugin",
-									plugin: "tools-ptc"
+									kind: "ptc-mode"
 								}
 							}));
 							for (const context of result.additionalContexts ?? []) exec.deferContext(context);
