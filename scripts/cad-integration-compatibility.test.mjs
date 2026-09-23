@@ -103,6 +103,25 @@ test('permits only the Office notice section to change while retaining all CAD n
   assert.throws(() => assertCadIntegrationUnchanged(value), /CAD inputs changed.*THIRD_PARTY_NOTICES/)
 })
 
+test('permits one official Office runtime notice but rejects CAD edits and duplicate sections', (t) => {
+  const value = fixture(t)
+  const path = join(value.root, 'THIRD_PARTY_NOTICES.md')
+  const before = '# Notices\n\n## dsh-univer-office integration\n\nOffice terms.\n\n## CAD\n\nOriginal CAD terms.\n'
+  write(path, before)
+  const source = value.manifest.sources.agentPiDshCadIntegration
+  source.commit = commit(value.root)
+  source.tree = git(value.root, 'rev-parse', 'HEAD^{tree}')
+  const office = '\n## Official DSH Office runtime\n\nLibreOffice Kit MPL-2.0, independent of CAD.\n'
+  write(path, before + office)
+  commit(value.root)
+  assert.equal(assertCadIntegrationUnchanged(value).sourceCommit, source.commit)
+  for (const invalid of [(before + office).replace('Original CAD terms.', 'Changed CAD terms.'), before + office + office]) {
+    write(path, invalid)
+    commit(value.root)
+    assert.throws(() => assertCadIntegrationUnchanged(value), /CAD inputs changed.*THIRD_PARTY_NOTICES/)
+  }
+})
+
 test('permits the reviewed injector release provenance update but no unrelated notice edits', (t) => {
   const value = fixture(t)
   const path = join(value.root, 'THIRD_PARTY_NOTICES.md')

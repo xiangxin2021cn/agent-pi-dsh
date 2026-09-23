@@ -76,8 +76,10 @@ function noticesOutsideNonCadSections(text) {
   if ([...text.matchAll(report)].length > 1) return null
   const plans = /^## Local project plan engine \(MPXJ\)\r?\n(?:(?!^## )[\s\S])*/gm
   if ([...text.matchAll(plans)].length > 1) return null
+  const officeRuntime = /^## Official DSH Office runtime\r?\n(?:(?!^## )[\s\S])*/gm
+  if ([...text.matchAll(officeRuntime)].length > 1) return null
   return text.replace(section, '').replace(report, '')
-    .replace(plans, '').trimEnd()
+    .replace(plans, '').replace(officeRuntime, '').trimEnd()
     .replace('`@dsh-external/dsh-super-injector` 0.3.5', '`@dsh-external/dsh-super-injector` 0.3.3')
     .replace('upstream `v0.3.5` release', 'upstream `v0.3.3` release')
     .replace('dsh-super-injector/tree/v0.3.5', 'dsh-super-injector/tree/v0.3.3')

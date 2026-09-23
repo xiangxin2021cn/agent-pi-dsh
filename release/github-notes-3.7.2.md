@@ -18,6 +18,8 @@ MPP 支持读取、预览、字段编辑及导出 Microsoft Project XML；P6 支
 
 升级前请退出正在运行的 Agent Pi DSH，再运行对应平台安装包。对于 3.7.1 中已经失败的任务，请重新添加附件并发送。Windows 包未进行代码签名。文件校验以本 Release 的 `.sha256` 为准。
 
+Windows 建议使用默认或较短安装目录。官方 Office 引擎在普通安装路径长度下已通过 XLSX 转 PDF 验证；极深的自定义路径仍可能出现上游组件加载失败。
+
 本产品由 **Always π AI studio** 独立开发。发行许可为 **GPL-3.0-only**；CAD 对应源码归档随本 Release 提供。
 
 [官方内核更新说明](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.7-rc.1)
