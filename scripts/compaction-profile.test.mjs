@@ -8,6 +8,7 @@ import {
   mkdirSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -90,6 +91,9 @@ function createFixture(t) {
   writePackage(root, 'vendor/anysearch-dsh', '@anysearch/anysearch-dsh', { lib: true })
 
   const dsh = join(root, 'dsh-checkout')
+  mkdirSync(join(dsh, 'packages/boot'), { recursive: true })
+  symlinkSync(join(sourceRoot, 'vendor/deepseek-harness/packages/boot/app-boot'),
+    join(dsh, 'packages/boot/app-boot'), process.platform === 'win32' ? 'junction' : 'dir')
   const yamlRoot = dirname(yamlRequire.resolve('yaml/package.json'))
   cpSync(yamlRoot, join(dsh, 'packages/settings/settings/node_modules/yaml'), { recursive: true })
   writePackage(dsh, 'packages/settings/settings', '@deepseek-ai/dsh-settings')
@@ -192,6 +196,25 @@ function presetTexts(fixture) {
     readFileSync(join(fixture.home, '.agent-presets/router-standard/agent.cordis.yml'), 'utf8'),
   ]
 }
+
+test('incompatible AnySearch retains installation but managed defaults select official search', t => {
+  const fixture = createFixture(t)
+  const path = join(fixture.root, 'vendor/anysearch-dsh/package.json')
+  const plugin = JSON.parse(readFileSync(path, 'utf8'))
+  plugin.peerDependencies = { '@deepseek-ai/dsh-web': '<=0.1.6-alpha.2' }
+  writeFileSync(path, JSON.stringify(plugin))
+  runInitializer(fixture)
+  const profile = join(fixture.home, 'profiles/tender')
+  const manifest = JSON.parse(readFileSync(join(profile, 'package.json'), 'utf8'))
+  assert.ok(manifest.dependencies['@anysearch/anysearch-dsh'])
+  const patch = readFileSync(join(fixture.home, '.agent-pi-presets/product-defaults.patch.yml'), 'utf8')
+  assert.match(patch, /searchProvider: deepseek-official/)
+  assert.deepEqual(JSON.parse(readFileSync(path, 'utf8')).peerDependencies, plugin.peerDependencies)
+  plugin.peerDependencies = { '@deepseek-ai/dsh-web': '>=0.1.7-rc.1' }
+  writeFileSync(path, JSON.stringify(plugin))
+  runInitializer(fixture)
+  assert.match(readFileSync(join(fixture.home, '.agent-pi-presets/product-defaults.patch.yml'), 'utf8'), /searchProvider: anysearch/)
+})
 
 test('Teams opt-in is reversible and recovery keeps external plugin dependencies without loading them', t => {
   const fixture = createFixture(t)

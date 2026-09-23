@@ -5,8 +5,8 @@ import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-export const expectedDshCommit = '00102833dfaee1da9f48a3a8eae9d34005a75218'
-export const expectedDshVersion = '0.1.7-alpha.2'
+export const expectedDshCommit = '46a7f68b0922371ce7144b668b90e377d8e799f4'
+export const expectedDshVersion = '0.1.7-rc.1'
 
 function readJson(path) {
   return JSON.parse(readFileSync(path, 'utf8'))
@@ -65,6 +65,21 @@ export function verifyCodexRuntime(productRoot) {
   return { version, wrapper }
 }
 
+export function verifyOfficeRuntime(dshRoot) {
+  const consumer = join(resolve(dshRoot), 'packages/skill/skill-office/package.json')
+  const require = createRequire(consumer)
+  const cli = require.resolve('@deepseek-ai/libreoffice-kit/cli')
+  // The platform engine is optional to npm, but mandatory for our desktop.
+  // Its CLI checks the engine manifest and resources on the running platform.
+  const result = spawnSync(process.execPath, [cli, 'capabilities', '--json'], {
+    encoding: 'utf8', windowsHide: true, timeout: 30_000,
+  })
+  if (result.error || result.status !== 0) {
+    throw new Error(`official Office engine is unavailable: ${result.error?.message || result.stderr || result.stdout}`)
+  }
+  return JSON.parse(result.stdout)
+}
+
 export async function main(args = process.argv.slice(2)) {
   const checkNative = args.at(-1) === '--native'
   const paths = checkNative ? args.slice(0, -1) : args
@@ -90,6 +105,7 @@ export async function main(args = process.argv.slice(2)) {
       }
     }
     require('koffi')
+    verifyOfficeRuntime(verified.dsh)
     if (verified.product) verifyCodexRuntime(verified.product)
   }
   process.stdout.write(`DSH ${expectedDshVersion} runtime verified: ${verified.dsh}\n`)

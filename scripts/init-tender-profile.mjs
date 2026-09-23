@@ -12,7 +12,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { migrateSettings017 } from './migrate-settings-017.mjs'
@@ -31,6 +31,9 @@ import { PRODUCT_PRESETS, shippedPresetPlugins, writePresetBundle } from './pres
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const dsh = process.env.DSH_CHECKOUT || join(root, 'vendor/deepseek-harness')
+const { evaluatePluginCompatibility, readProfileVersionExemptions } = await import(
+  pathToFileURL(join(dsh, 'packages/boot/app-boot/lib/index.js')).href
+)
 const home = process.env.DSH_HOME || join(root, '.dsh-home')
 const profileDir = join(home, 'profiles/tender')
 const manifestPath = join(profileDir, 'package.json')
@@ -303,7 +306,13 @@ function patchIsEmptyTemplate(text) {
 }
 function buildManagedPatch(deps) {
   const activeBundles = composeBundles(deps)
-  const searchProvider = activeBundles.includes('@anysearch/anysearch-dsh')
+  // The native loader disables incompatible bundles. Do not select a provider
+  // from a disabled bundle; preserve it and any user-owned exemption unchanged.
+  const anysearchManifest = activeBundles.includes(ANYSEARCH_NAME)
+    ? JSON.parse(readFileSync(join(moduleDest(ANYSEARCH_NAME), 'package.json'), 'utf8')) : null
+  const anysearchIssue = anysearchManifest
+    ? evaluatePluginCompatibility(anysearchManifest, readProfileVersionExemptions(profileDir)) : null
+  const searchProvider = anysearchManifest && (!anysearchIssue || anysearchIssue.exempted)
     ? 'anysearch'
     : 'deepseek-official'
   const univerConfig = activeBundles.includes(UNIVER_NAME)
@@ -356,7 +365,7 @@ function buildManagedPatch(deps) {
 
 ${univerConfig}# Desktop workbench: alpha.1 dsh-base already owns web-fetch-http. Reuse that
 # row; inserting it again makes the loader reject the profile as a duplicate.
-# searchProvider is anysearch when the vendored (or later-installed) bundle is present.
+# Select AnySearch only when the native compatibility gate permits its bundle.
 - id: web
   config:
     searchProvider: ${searchProvider}

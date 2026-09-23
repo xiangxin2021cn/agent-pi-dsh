@@ -172,3 +172,11 @@ with a local Java 17 runtime. The unmodified MPXJ jar, dependency source archive
 upstream license files and rebuild instructions are distributed in
 `bundles/project-plan`. See `bundles/project-plan/THIRD_PARTY_NOTICES.md` for
 component licenses, corresponding-source locations and replacement instructions.
+
+## Official DSH Office runtime
+
+DSH 0.1.7-rc.1 includes `@deepseek-ai/libreoffice-kit` 0.1.0 (MPL-2.0),
+from https://github.com/deepseek-harness/libreoffice-kit. Its matching platform
+engine is distributed with the upstream integrity manifest, `sources/` recipes
+and patches, and `licenses/` notices intact. Windows/macOS use native engines;
+Linux uses the upstream WASM engine. These terms do not change Univer licensing.

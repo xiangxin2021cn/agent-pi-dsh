@@ -22,7 +22,7 @@
 
 <p align="center">
   <a href="https://www.agent-pi.app"><img src="https://img.shields.io/badge/官网-agent--pi.app-2f6df0?style=flat-square" alt="Website"></a>
-  <a href="https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.7-alpha.2"><img src="https://img.shields.io/badge/source-DSH%20dsh--v0.1.7--alpha.2-2f6df0?style=flat-square" alt="DSH dsh-v0.1.7-alpha.2"></a>
+  <a href="https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.7-rc.1"><img src="https://img.shields.io/badge/source-DSH%20dsh--v0.1.7--rc.1-2f6df0?style=flat-square" alt="DSH dsh-v0.1.7-rc.1"></a>
   <a href="https://www.agent-pi.app/docs.html"><img src="https://img.shields.io/badge/文档-Docs-0fb5c9?style=flat-square" alt="Docs"></a>
 </p>
 
@@ -41,10 +41,10 @@
 通用办公助手陪你聊天，**Agent Pi DSH 替你干活**：吃透投标、实施、投资的垂直作业系统。长程任务不断档、目标不偏离、证据可追溯——数十份标书文件一次搞定，数千条 BOQ 逐项推导，成果直接落盘为正式文档。
 
 > [!NOTE]
-> **3.7.2**：修复附件提交时的 V4 消息来源校验错误，隐藏已提交消息中的内部附件事务标记，升级官方 DSH 0.1.7-alpha.2。保留本机 MPXJ 项目计划预览与编辑：MPP 可读取并导出 Project XML，P6 支持 XER / PMXML；不包含完整排程计算。安装包包含官方 `dsh-univer-office` 0.3.2 完整插件，保留 CAD、资源文件栏、可选 Agent Teams、Codex、专业深度、手动模板及报告技能。普通对话与知识库显式选择保持原有边界。本次基于稳定版 3.7.1，不合入 RSI 实验功能。最新已发布版本以 [GitHub Latest Release](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/latest) 为准。
+> **3.7.2**：修复附件提交时的 V4 消息来源校验错误，隐藏已提交消息中的内部附件事务标记，升级官方 DSH 0.1.7-rc.1。保留本机 MPXJ 项目计划预览与编辑：MPP 可读取并导出 Project XML，P6 支持 XER / PMXML；不包含完整排程计算。安装包包含官方 `dsh-univer-office` 0.3.2 完整插件，保留 CAD、资源文件栏、可选 Agent Teams、Codex、专业深度、手动模板及报告技能。普通对话与知识库显式选择保持原有边界。本次基于稳定版 3.7.1，不合入 RSI 实验功能。最新已发布版本以 [GitHub Latest Release](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/latest) 为准。
 
 > [!IMPORTANT]
-> **3.7.2**：投标流程保持“DSH 唯一执行、工作台轻量控制、一次点击一次派发”；核心依赖固定到 **`dsh-v0.1.7-alpha.2`**（`00102833df`）。Agent Pi 适配继续位于产品层启动迁移、profile overlay 和 bundle，DSH 官方源码保持干净。DWG 预览由固定源码与工具链重建，并随 Release 提供对应源码归档。
+> **3.7.2**：投标流程保持“DSH 唯一执行、工作台轻量控制、一次点击一次派发”；核心依赖固定到 **`dsh-v0.1.7-rc.1`**（`46a7f68b09`）。Agent Pi 适配继续位于产品层启动迁移、profile overlay 和 bundle，DSH 官方源码保持干净。DWG 预览由固定源码与工具链重建，并随 Release 提供对应源码归档。
 >
 > 本仓库是 **3.x DSH 版源码**，与 [2.6.5 经典版（Craft Agents OSS）](https://github.com/xiangxin2021cn/agent-pi) 分库维护。安装包见 [DSH Releases](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/latest)。完整产品页：[www.agent-pi.app](https://www.agent-pi.app)
 
@@ -164,7 +164,7 @@ Windows 安装包的正式 SHA256 以同一 Release 中的 `.sha256` 资产为�
 
 | 版本 | 一句话 |
 | --- | --- |
-| [3.7.2](./release/github-notes-3.7.2.md) | DSH 0.1.7-alpha.2；附件消息兼容性与显示修复 |
+| [3.7.2](./release/github-notes-3.7.2.md) | DSH 0.1.7-rc.1；附件消息兼容性与显示修复 |
 | [3.7.1](./release/github-notes-3.7.1.md) | DSH 0.1.7；项目计划预览编辑；插件与设置迁移 |
 | [3.7.0](./release/github-notes-3.7.0.md) | DSH 0.1.6-alpha.2；Univer 0.3.2；工作室标识 |
 | [3.6.7](./release/github-notes-3.6.7.md) | DSH 0.1.6-alpha.2；专业深度与历史修复；手动模板及报告技能 |
@@ -207,7 +207,7 @@ Agent Pi DSH 自 3.6.0 起的项目代码和发行物按 [GNU GPL v3](./LICENSE)
 
 ## 开发 / Develop
 
-当前开发分支钉住 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 `dsh-v0.1.7-alpha.2`（`00102833df`），具体提交见 [DSH_PIN](./DSH_PIN)。所有兼容能力均通过 Agent Pi 产品层启动迁移、preset overlay 和 bundle 适配实现；发布门禁要求官方 DSH 子模块保持字节干净。最初迁移记录见 [3.4.0 内核迁移计划](./docs/superpowers/plans/2026-08-29-dsh-0.1.2-alpha.1-migration.md)，后续能力记录见 [3.4.2 WorkSurface 实施记录](./docs/superpowers/specs/2026-08-30-pageindex-worksurface-3.4.2-implementation.md) 和 [3.5.0 阶段记忆实施规格](./docs/superpowers/specs/2026-08-30-stage-memory-3.5.0-implementation.md)。
+当前开发分支钉住 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 `dsh-v0.1.7-rc.1`（`46a7f68b09`），具体提交见 [DSH_PIN](./DSH_PIN)。所有兼容能力均通过 Agent Pi 产品层启动迁移、preset overlay 和 bundle 适配实现；发布门禁要求官方 DSH 子模块保持字节干净。最初迁移记录见 [3.4.0 内核迁移计划](./docs/superpowers/plans/2026-08-29-dsh-0.1.2-alpha.1-migration.md)，后续能力记录见 [3.4.2 WorkSurface 实施记录](./docs/superpowers/specs/2026-08-30-pageindex-worksurface-3.4.2-implementation.md) 和 [3.5.0 阶段记忆实施规格](./docs/superpowers/specs/2026-08-30-stage-memory-3.5.0-implementation.md)。
 
 ---
 
@@ -218,5 +218,5 @@ Agent Pi DSH 自 3.6.0 起的项目代码和发行物按 [GNU GPL v3](./LICENSE)
 <p align="center">
   <a href="https://www.agent-pi.app"><b>www.agent-pi.app</b></a>
   · Always π AI studio
-  · development kernel: dsh-v0.1.7-alpha.2
+  · development kernel: dsh-v0.1.7-rc.1
 </p>

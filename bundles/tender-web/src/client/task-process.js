@@ -1,10 +1,6 @@
-/** Presentation only: native events, tools and trajectory stay intact. */
+/** Task status only; native Chat settings own work-details presentation. */
 export const taskProcessCss = `
-html[data-ap-process-view="concise"] [data-chat-flow-kind="assistant-step"] [data-variant="think"]{display:none!important}
-html[data-ap-process-view="concise"] [data-chat-flow-kind="tool-call"]:not(:has([data-state="error"],[data-state="stopped"],[data-state="warning"],[role="alert"],[role="dialog"],input,textarea,[data-tool*="ask"],[data-tool*="approval"],[data-tool*="confirm"],[data-tool="present"])){display:none!important}
-html[data-ap-process-view="concise"] [data-chat-flow-kind="tool-call"]:has([data-state="error"],[data-state="stopped"],[data-state="warning"],[role="alert"],[role="dialog"],input,textarea,[data-tool*="ask"],[data-tool*="approval"],[data-tool*="confirm"]){content-visibility:visible!important;display:block!important}
-html[data-ap-process-view="details"] [data-turn-process-member]{content-visibility:visible!important;display:block!important}
-.ap-task-process{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text-secondary,#687280);max-width:520px}.ap-task-process span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ap-task-process button{white-space:nowrap;border:1px solid var(--border,#ddd);border-radius:8px;padding:5px 10px;background:transparent;color:inherit;cursor:pointer}
+.ap-task-process{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text-secondary,#687280);max-width:520px}.ap-task-process span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 `
 
 export function taskProcessSummary(snapshot, fallbackLanguage = 'zh') {
@@ -27,15 +23,7 @@ export function taskProcessSummary(snapshot, fallbackLanguage = 'zh') {
 export function createTaskProcess({ React, snapshot, subscribe, language }) {
   const h = React.createElement
   return function TaskProcess({ sessionId }) {
-    const [details, setDetails] = React.useState(() => {
-      try { return localStorage.getItem('agent-pi:execution-details') === 'true' } catch { return false }
-    })
     const [, refresh] = React.useState(0)
-    React.useEffect(() => {
-      document.documentElement.dataset.apProcessView = details ? 'details' : 'concise'
-      try { localStorage.setItem('agent-pi:execution-details', String(details)) } catch {}
-      return () => { delete document.documentElement.dataset.apProcessView }
-    }, [details])
     React.useEffect(() => {
       let timer
       const stop = subscribe(sessionId, () => {
@@ -45,10 +33,9 @@ export function createTaskProcess({ React, snapshot, subscribe, language }) {
       return () => { clearTimeout(timer); stop?.() }
     }, [sessionId])
     const summary = taskProcessSummary(snapshot(sessionId), language())
-    const zh = summary.language === 'zh'
+    if (!summary.text) return null
     return h('div', { className: 'ap-task-process' },
-      summary.text && h('span', { role: 'status', 'aria-live': 'polite' }, summary.text),
-      h('button', { type: 'button', 'aria-pressed': details, onClick: () => setDetails((value) => !value), title: zh ? '切换工具和推理详情；完整记录仍在轨迹与 Session 日志中' : 'Toggle tool and reasoning details; full records remain in Trajectory and Session logs' }, details ? (zh ? '收起执行详情' : 'Hide execution details') : (zh ? '执行详情' : 'Execution details')),
+      h('span', { role: 'status', 'aria-live': 'polite' }, summary.text),
     )
   }
 }

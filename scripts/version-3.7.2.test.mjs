@@ -31,10 +31,10 @@ test('3.7.2 source manifests and release downloads agree while the verified webs
   assert.match(codexModels, /clientInfo: \{ name: 'agent-pi-dsh', version: '3\.7\.2' \}/)
 
   const githubNotes = readText('release', 'github-notes-3.7.2.md')
-  assert.match(githubNotes, /dsh-v0\.1\.7-alpha\.2/)
+  assert.match(githubNotes, /dsh-v0\.1\.7-rc\.1/)
   assert.match(githubNotes, /GPL-3\.0-only/)
   assert.match(githubNotes, /"appVersion":"3\.7\.2"/)
-  assert.match(githubNotes, /"commit":"00102833dfaee1da9f48a3a8eae9d34005a75218"/)
+  assert.match(githubNotes, /"commit":"46a7f68b0922371ce7144b668b90e377d8e799f4"/)
   assert.equal(existsSync(join(root, 'release', 'publish-v3.7.2-release.mjs')), true)
   const cadPins = readJson('scripts', 'cad-clean-pins.json')
   assert.equal(cadPins.releaseVersion, '3.6.2')
@@ -43,8 +43,8 @@ test('3.7.2 source manifests and release downloads agree while the verified webs
   const readme = readText('README.md')
   assert.match(readme, /releases\/download\/v3\.7\.2\/Agent-Pi-DSH-3\.7\.2-x64\.exe/)
   assert.match(readme, /安装包包含官方 `dsh-univer-office` 0\.3\.2 完整插件/)
-  assert.match(readme, /dsh-v0\.1\.7-alpha\.2/)
-  assert.match(readme, /00102833df/)
+  assert.match(readme, /dsh-v0\.1\.7-rc\.1/)
+  assert.match(readme, /46a7f68b09/)
   assert.match(readme, /正式 SHA256 以同一 Release 中的 `\.sha256` 资产为准/)
   assert.doesNotMatch(readme, /releases\/download\/v3\.5\.2/)
 

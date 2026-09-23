@@ -8,6 +8,7 @@ import {
   expectedDshCommit,
   verifyCodexRuntime,
   verifyDshRuntime,
+  verifyOfficeRuntime,
 } from './verify-dsh-runtime.mjs'
 
 function fixture() {
@@ -17,7 +18,7 @@ function fixture() {
   mkdirSync(join(dsh, 'packages', 'bundle', 'base'), { recursive: true })
   mkdirSync(join(dsh, 'packages', 'bundle', 'sdk-minimal'), { recursive: true })
   mkdirSync(product, { recursive: true })
-  writeFileSync(join(dsh, 'package.json'), '{"version":"0.1.7-alpha.2"}\n')
+  writeFileSync(join(dsh, 'package.json'), '{"version":"0.1.7-rc.1"}\n')
   const roots = [
     join(dsh, 'apps/cli'),
     ...['agent-team-profile', 'agent-team', 'tool-agent-team', 'client-ui-agent-team']
@@ -41,10 +42,23 @@ function fixture() {
   writeFileSync(join(host, 'package.json'), '{"dependencies":{"@openai/codex":"0.153.4"}}\n')
   writeFileSync(join(codex, 'package.json'), '{"name":"@openai/codex","version":"0.153.4"}\n')
   writeFileSync(join(codex, 'bin', 'codex.js'), "console.log('codex-cli 0.153.4')\n")
+  const office = join(dsh, 'packages/skill/skill-office/node_modules/@deepseek-ai/libreoffice-kit')
+  mkdirSync(office, { recursive: true })
+  writeFileSync(join(office, 'package.json'), '{"exports":{"./cli":"./cli.js"}}\n')
+  writeFileSync(join(office, 'cli.js'), 'console.log(JSON.stringify({backend:"native"}))\n')
   return { root, dsh, product }
 }
 
-test('accepts the pinned 0.1.7-alpha.2 JSONL runtime', () => {
+test('Office gate rejects a missing optional platform engine despite a successful package install', (t) => {
+  const { root, dsh } = fixture()
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  assert.equal(verifyOfficeRuntime(dsh).backend, 'native')
+  writeFileSync(join(dsh, 'packages/skill/skill-office/node_modules/@deepseek-ai/libreoffice-kit/cli.js'),
+    'console.error("Installed LibreOfficeKit package is incomplete"); process.exit(1)\n')
+  assert.throws(() => verifyOfficeRuntime(dsh), /official Office engine is unavailable.*incomplete/)
+})
+
+test('accepts the pinned 0.1.7-rc.1 JSONL runtime', () => {
   const { dsh, product } = fixture()
   assert.doesNotThrow(() => verifyDshRuntime(dsh, product))
 })
@@ -61,11 +75,11 @@ test('rejects a stale removed SQLite persistence package', () => {
 test('rejects a mismatched DSH version or product pin', () => {
   const { root, dsh, product } = fixture()
   writeFileSync(join(dsh, 'package.json'), '{"version":"0.1.2-alpha.5"}\n')
-  assert.throws(() => verifyDshRuntime(dsh, product), /expected 0\.1\.7-alpha\.2/)
+  assert.throws(() => verifyDshRuntime(dsh, product), /expected 0\.1\.7-rc\.1/)
 
   const replacement = join(root, 'replacement')
   cpSync(dsh, replacement, { recursive: true })
-  writeFileSync(join(replacement, 'package.json'), '{"version":"0.1.7-alpha.2"}\n')
+  writeFileSync(join(replacement, 'package.json'), '{"version":"0.1.7-rc.1"}\n')
   writeFileSync(join(product, 'DSH_PIN'), '14bab4422b12ab80cd79de59e086c12888fe00be\n')
   assert.throws(() => verifyDshRuntime(replacement, product), /staged DSH_PIN/)
   rmSync(root, { recursive: true, force: true })
