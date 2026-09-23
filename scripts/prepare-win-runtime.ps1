@@ -214,6 +214,8 @@ if ($FullCopy) {
   if ($LASTEXITCODE -ne 0) { throw "write dsh link manifest failed" }
   node (Join-Path $Root "scripts\repair-dsh-links.mjs") repair $dshTarget
   if ($LASTEXITCODE -ne 0) { throw "repair dsh links failed" }
+  node (Join-Path $Root "scripts\stage-office-engine.mjs") $dshTarget
+  if ($LASTEXITCODE -ne 0) { throw "stage official Office engine failed" }
   Copy-Item -LiteralPath $DshBuildReceipt -Destination (Join-Path $dshTarget $DshReceiptName) -Force
 } else {
   cmd /c "mklink /J `"$dshTarget`" `"$Dsh`"" | Out-Null
