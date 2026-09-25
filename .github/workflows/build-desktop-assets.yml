@@ -16,6 +16,12 @@ on:
         required: true
         type: string
 
+      assemble_windows:
+        description: Restore a locally verified Windows installer from draft release parts
+        required: false
+        default: false
+        type: boolean
+
 permissions:
   contents: write
 
@@ -24,6 +30,7 @@ env:
 
 jobs:
   build:
+    if: ${{ !inputs.assemble_windows }}
     name: ${{ matrix.platform }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -195,3 +202,17 @@ jobs:
           done
           gh release upload "${{ inputs.tag }}" "${assets[@]}" "${checksum_assets[@]}" \
             --repo "${{ github.repository }}"
+
+  assemble-windows:
+    if: ${{ inputs.assemble_windows }}
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          sparse-checkout: scripts/assemble-release-parts.mjs
+          sparse-checkout-cone-mode: false
+      - name: Restore and verify original Windows installer
+        run: node scripts/assemble-release-parts.mjs
