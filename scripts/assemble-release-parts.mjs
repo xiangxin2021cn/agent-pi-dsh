@@ -37,8 +37,8 @@ async function main() {
   let object = api(`git/ref/tags/${tag}`).object
   while (object.type === 'tag') object = api(`git/tags/${object.sha}`).object
   assert.equal(object.type, 'commit')
-  const release = api(`releases/tags/${tag}`)
-  assert(release.draft, 'assembly is allowed only on a draft')
+  const release = api('releases?per_page=100').find(item => item.tag_name === tag)
+  assert(release?.draft, 'assembly is allowed only on an existing draft')
   assert(!release.assets.some(asset => asset.name === name), 'installer already exists')
   const dir = 'release-parts'
   mkdirSync(dir)
@@ -79,3 +79,4 @@ async function main() {
   console.log(`Verified and uploaded original installer: ${name}, sha256 ${manifest.sha256}`)
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main()
+
