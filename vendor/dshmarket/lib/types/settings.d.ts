@@ -46,18 +46,42 @@
  *   SyntaxError: The requested module '@deepseek-ai/dsh-settings' does not
  *   provide an export named 'installSettingsSection'
  *
- * The service itself never changed — `sctx.settings.register(ns, schema,
- * { base })` is identical in 0.1.0-rc.7 and 0.1.2-alpha.2. Only the two
- * wrappers went away. So this inlines what the wrapper did (verified against
- * its source: an inject, a register, a watch, and an unload effect) and
- * validates the namespace here. Nothing about the graceful-degradation story
- * changes; it just stops being conditional on an export that upstream is
- * free to move.
+ * The service itself did not change then — `sctx.settings.register(ns,
+ * schema, { base })` is identical in 0.1.0-rc.7 and 0.1.2-alpha.2. Only the
+ * two wrappers went away. So this inlines what the wrapper did (verified
+ * against its source: an inject, a register, a watch, and an unload effect)
+ * and validates the namespace here.
+ *
+ * It DID change in 0.1.7 (#677): `SettingsService` there has `describe` and
+ * `update` and no `register` — namespaces are derived from a plugin's Config
+ * schema instead. The `settings` service still exists, so the inject callback
+ * runs and `register` threw a TypeError that cordis swallowed. Both entry
+ * points now check for the method and, without it, leave the composed entry
+ * standing and say so once in the host log. That is a stop-gap, not the
+ * migration: on 0.1.7 the allowRestart switch is absent until the market
+ * moves to the new model.
  */
 import type { Context } from '@deepseek-ai/cordis';
 import z from '@deepseek-ai/schemastery';
 /** Namespace the card on the browser side keys itself to. */
 export declare const MARKET_SETTINGS_NS = "dsh-market";
+/**
+ * What happened when the market offered its namespace to the host (#677).
+ *
+ * Reported rather than kept private because it is the difference between two
+ * host generations, and nothing else in the system can state it: 0.1.7
+ * derives settings from a plugin's Config schema and serves no third-party
+ * namespace at all, so the market's plugin-configuration card cannot be
+ * dispatched there. That is the host's model, not a profile defect — and a
+ * test that cannot tell the two apart either demands a namespace a host
+ * cannot serve, or passes while proving nothing.
+ *
+ * `pending` is the honest third answer: the market boots before the settings
+ * service settles, so a reader can be asked too early to have an answer.
+ */
+export type SettingsNamespaceState = 'pending' | 'registered' | 'unsupported-by-host';
+/** The state as of the last attempt to register the namespace. */
+export declare function settingsNamespaceState(): SettingsNamespaceState;
 /** The market settings a user may edit at runtime. */
 export interface MarketSettings {
     allowRestart: boolean;
@@ -79,4 +103,4 @@ export declare function installDesktopMarketSettings(ctx: Context): void;
  */
 export declare function installMarketSettings(ctx: Context, resolved: {
     allowRestart?: boolean;
-}): void;
+}, readLive?: () => boolean | undefined): void;

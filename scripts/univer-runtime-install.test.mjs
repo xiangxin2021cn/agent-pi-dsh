@@ -48,12 +48,12 @@ test('profile startup uses preinstalled Office while platform builds prepare and
   assert.match(workflow, /univer-public-release\.mjs assert-tree/)
 })
 
-test('tracked Univer production lock exactly matches the pinned 0.3.2 dependency graph', () => {
+test('tracked Univer production lock exactly matches the pinned 0.3.5 dependency graph', () => {
   assert.deepEqual(pinnedDependencies, {
     '@puppeteer/browsers': '^3.2.0',
     '@univerjs-pro/cli-assets': '0.1.0',
-    '@univerjs-pro/engine-formula-rust-binding': '1.0.0-insiders.20260910-22fe9c7',
-    '@univerjs-pro/exchange-node-binding': '0.1.2',
+    '@univerjs-pro/engine-formula-rust-binding': '1.0.1',
+    '@univerjs-pro/exchange-node-binding': '1.0.1',
     libsql: '^0.5.29',
     'puppeteer-core': '^25.7.0',
   })
@@ -261,8 +261,12 @@ test('0.3.0 native worker dependencies are supplied without mutating the officia
   const dependencies = {'@puppeteer/browsers':'^3.2.0','@univerjs-pro/cli-assets':'0.1.0',libsql:'^0.5.29','puppeteer-core':'^25.7.0'}
   const manifest = {name:'dsh-univer-office',version:'0.3.0',dependencies}
   const original = structuredClone(manifest)
-  assert.deepEqual(productionRuntimeManifest(manifest).dependencies,pinnedDependencies)
+  assert.deepEqual(productionRuntimeManifest(manifest).dependencies, {
+    ...dependencies,
+    '@univerjs-pro/engine-formula-rust-binding': '1.0.0-insiders.20260910-22fe9c7',
+    '@univerjs-pro/exchange-node-binding': '0.1.2',
+  })
   assert.deepEqual(manifest,original)
-  assert.equal(validateUniverRuntimeLock(manifest,lock),lock)
+  assert.throws(() => validateUniverRuntimeLock(manifest,lock), /does not match the pinned plugin manifest/)
   assert.deepEqual(productionRuntimeManifest({...manifest,version:'0.2.13'}).dependencies,dependencies)
 })

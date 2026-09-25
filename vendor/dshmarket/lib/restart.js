@@ -10,6 +10,7 @@
  */
 import { spawn } from 'node:child_process';
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { loopbackAuthority } from "./http.js";
 import inspector from 'node:inspector';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -185,6 +186,12 @@ export function trustedRestartRequest(request) {
         return false;
     const origin = request.headers.origin;
     const host = request.headers.host;
+    // A loopback PEER is not enough: a DNS-rebinding page reaches 127.0.0.1
+    // through a name it controls, so the address proves nothing and Host/Origin
+    // both carry the attacker's domain (#678). Host is what the attack cannot
+    // forge, so it has to name a loopback authority.
+    if (!loopbackAuthority(host))
+        return false;
     if (origin === undefined || host === undefined)
         return false;
     try {
@@ -214,7 +221,8 @@ export function trustedDownloadRequest(request) {
         return false;
     const origin = request.headers.origin;
     const host = request.headers.host;
-    if (host === undefined)
+    // Same rebinding rule as the restart fence above (#678).
+    if (!loopbackAuthority(host))
         return false;
     if (origin === undefined)
         return true; // plain browser download navigation

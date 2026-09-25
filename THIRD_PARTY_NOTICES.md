@@ -45,23 +45,23 @@ synthesized.
 
 ## dsh-univer-office integration
 
-Agent Pi DSH distributes the complete official `dsh-univer-office` 0.3.2
+Agent Pi DSH distributes the complete official `dsh-univer-office` 0.3.5
 package, pinned by `vendor/dsh-univer-office.pin`, with native support for
-DSH 0.1.6-alpha.2. The upstream package declares Apache-2.0;
+DSH 0.1.7. The upstream package declares Apache-2.0;
 its original LICENSE, bundled Gateway, Viewer, workers, converters and license
 materials are retained in the verified package inventory. Platform runtime
 dependencies are installed from the tracked production lock and retain their
 own upstream terms. The package license does not relicense separately licensed
 dependencies; upstream authorization checks and license files are unchanged.
 
-The 0.3.2 official manifest declares both native worker packages:
-`@univerjs-pro/exchange-node-binding` 0.1.2 and
-`@univerjs-pro/engine-formula-rust-binding` 1.0.0-insiders.20260910-22fe9c7.
+The 0.3.5 official manifest declares both native worker packages:
+`@univerjs-pro/exchange-node-binding` 1.0.1 and
+`@univerjs-pro/engine-formula-rust-binding` 1.0.1.
 The production lock includes matching platform binaries and original licenses.
 Upstream also includes the Viewer WebSocket session-ticket and text/binary
 framing fixes. The product retains the original official host bytes, authorization and
-workspace scope checks. A recorded browser adapter changes the turn-tail card
-from the older matching-chain contract to the DSH alpha.2 list-slot contract.
+workspace scope checks. Upstream natively supports the current list-slot and
+entry-backed settings contracts; no product host or client patch is applied.
 
 Source: https://github.com/dream-num/dsh-univer-office
 
@@ -175,7 +175,7 @@ component licenses, corresponding-source locations and replacement instructions.
 
 ## Official DSH Office runtime
 
-DSH 0.1.7-rc.1 includes `@deepseek-ai/libreoffice-kit` 0.1.0 (MPL-2.0),
+DSH 0.1.7-rc.2 includes `@deepseek-ai/libreoffice-kit` 0.1.1 (MPL-2.0),
 from https://github.com/deepseek-harness/libreoffice-kit. Its matching platform
 engine is distributed with the upstream integrity manifest, `sources/` recipes
 and patches, and `licenses/` notices intact. Windows/macOS use native engines;

@@ -58,6 +58,16 @@ export interface OperationRecord {
   blockedBuilds?: string[]
   /** Set with `done` when the change needs a page refresh to be visible. */
   needsRefresh?: boolean
+  /**
+   * Set with `warned` when the profile's own minimumReleaseAge is what kept
+   * this install off the newest release (#635).
+   *
+   * The plugin IS installed and works; it is simply not the newest one, and
+   * the hold is the profile's policy rather than a failure. Carried on the
+   * record so the row can say both things and offer the version the hold
+   * refused — the one action a reader of that row would want.
+   */
+  heldRelease?: { latest: string; installed: string | null; because: string }
 }
 
 /**

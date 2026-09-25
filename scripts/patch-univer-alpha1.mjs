@@ -29,7 +29,7 @@ export function patchUniver017Client(source) {
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const legacyPatchVersions = new Set(['0.2.9', '0.2.10'])
-const nativeCompatibleVersions = new Set(['0.2.13', '0.2.14', '0.3.0', '0.3.2'])
+const nativeCompatibleVersions = new Set(['0.2.13', '0.2.14', '0.3.0', '0.3.2', '0.3.5'])
 const alpha2TurnTailReplacements = [
   ['name: "conversation.chat.turnTail",\n              priority: -10,', 'name: "conversation.chat.turnTail",\n              id: "univer-turn-preview",\n              order: -10,'],
   ['              select: selectUniverTurn,\n', ''],
@@ -132,6 +132,22 @@ export function assertUniverClientCompatibility({ version, source }) {
     return 'legacy-patched'
   }
   if (nativeCompatibleVersions.has(version)) {
+    if (version === '0.3.5') {
+      // Upstream now handles the list slot and entry-backed settings itself.
+      // Its guarded legacy fallbacks are retained; do not rewrite the bundle.
+      for (const marker of [
+        'var inject = ["slots", "locale", "conversation", "uiConversation"];',
+        'uiConversation.events.register(univerTurnDefinition);',
+        'props.useChat((snapshot) => snapshot.timeline)',
+        'const matched = selectUniverTurn(props);',
+        'id: "univer-turn-preview",',
+        'forms.get(UNIVER_CONFIG_ENTRY_ID)',
+        'name: "plugins.bundle.config",',
+      ]) {
+        if (!source.includes(marker)) throw new Error(`dsh-univer-office ${version} native client layout does not match the compatibility contract`)
+      }
+      return 'native-compatible'
+    }
     if (version === '0.3.0' || version === '0.3.2') {
       for (const marker of [
         'var inject = ["slots", "locale", "conversation"];',

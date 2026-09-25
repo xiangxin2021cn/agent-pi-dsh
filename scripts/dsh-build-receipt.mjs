@@ -8,6 +8,7 @@ import {
   readFileSync,
   realpathSync,
   readdirSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs'
@@ -17,7 +18,13 @@ import { expectedDshCommit, expectedDshVersion } from './verify-dsh-runtime.mjs'
 
 export const dshBuildReceiptName = 'DSH-BUILD-RECEIPT.json'
 export const dshBuildReceiptSchema = 1
-export const dshBuildCommands = ['pnpm run clean', 'pnpm run build']
+export const dshBuildCommands = ['pnpm exec tsx scripts/.agent-pi-clean-rc2.ts', 'pnpm run build']
+
+export function adaptRc2Cleaner(source) {
+  const before = ': typesDirectory === nativeEntryOutput'
+  if (source.split(before).length !== 2) throw new Error('rc.2 cleaner layout changed; review the build adapter')
+  return source.replace(before, ": typesDirectory === nativeEntryOutput || typesDirectory === join(this.root, 'lib/desktop-keyboard-test-types')")
+}
 export const dshRuntimeFilePolicy = Object.freeze(JSON.parse(readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), 'dsh-runtime-file-policy.json'),
   'utf8',
@@ -65,6 +72,7 @@ function describeFile(root, path) {
 function isArtifact(relativePath) {
   if (relativePath.endsWith('.map') || relativePath.endsWith('.tsbuildinfo')) return false
   if (relativePath.startsWith('apps/web/dist/')) return true
+  if (relativePath.startsWith('lib/desktop-keyboard-test-types/')) return true
   const parts = relativePath.split('/')
   return parts.includes('lib') && ['apps', 'packages', 'vendor', 'native'].includes(parts[0])
 }
@@ -171,9 +179,17 @@ export function buildDshWithReceipt({ dshRoot, productRoot, receiptPath }) {
   if (process.platform === 'win32' && !existsSync(corepackPnpm)) {
     throw new Error(`Corepack pnpm launcher missing: ${corepackPnpm}`)
   }
-  for (const script of ['clean', 'build']) {
-    run(pnpm, [...prefix, 'run', script], { cwd: identity.dsh, stdio: 'inherit' })
+  // rc.2 adds this test output but its cleaner only accepts /types outputs.
+  // Execute a temporary, narrowly adapted copy; never modify tracked DSH source.
+  const cleanAdapter = join(identity.dsh, 'scripts', '.agent-pi-clean-rc2.ts')
+  if (existsSync(cleanAdapter)) throw new Error(`unexpected cleaner adapter already exists: ${cleanAdapter}`)
+  writeFileSync(cleanAdapter, adaptRc2Cleaner(readFileSync(join(identity.dsh, 'scripts', 'clean.ts'), 'utf8')), { flag: 'wx' })
+  try {
+    run(pnpm, [...prefix, 'exec', 'tsx', 'scripts/.agent-pi-clean-rc2.ts'], { cwd: identity.dsh, stdio: 'inherit' })
+  } finally {
+    rmSync(cleanAdapter)
   }
+  run(pnpm, [...prefix, 'run', 'build'], { cwd: identity.dsh, stdio: 'inherit' })
   const receipt = writeDshBuildReceipt({ dshRoot: identity.dsh, productRoot, receiptPath })
   verifyDshBuildReceipt({ dshRoot: identity.dsh, productRoot, receiptPath, requireGit: true })
   return receipt

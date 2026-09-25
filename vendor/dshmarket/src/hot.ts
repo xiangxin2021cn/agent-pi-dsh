@@ -276,6 +276,55 @@ export interface MarketState {
   favorites?: string[]
   /** User-supplied HTTPS prefix used when the built-in GitHub routes fail. */
   githubProxy?: string
+  /**
+   * Packages the market removed from the profile's own declarations because
+   * the build on disk can no longer compose (#663).
+   *
+   * The case this exists for: an update blocked by open files leaves the
+   * target directory incomplete, `keepLockedBuild` cannot keep the previous
+   * build, and the profile goes on declaring a package whose `package.json`
+   * is missing. The next start dies in composition — on Desktop the window
+   * never opens — and the only way out was uninstalling the plugin by hand.
+   * So the declaration is dropped instead (a rename or a delete of the
+   * directory itself cannot be attempted: the same lock that stopped pnpm
+   * refuses the market's move too), and this map is what keeps that from
+   * being silent. The plugin disappears from the installed list; this is the
+   * record saying why, and what spec to reinstall.
+   *
+   * Optional on the way in, like `notes`: several callers write a state
+   * object built from the few fields they own, and requiring this one would
+   * make every such call a way to erase every entry (#339's shape).
+   */
+  brokenPlugins?: Record<string, BrokenPlugin>
+}
+
+/** Why a package is no longer declared, and what to put back. */
+export interface BrokenPlugin {
+  /** The dependency spec it had before removal — the reinstall target. */
+  spec: string
+  /** Machine-readable cause; the UI owns the wording. */
+  reason: 'incomplete-build-locked'
+  /** When the market removed the declaration (ISO 8601). */
+  at: string
+}
+
+const BROKEN_REASONS = new Set(['incomplete-build-locked'])
+
+/** The on-disk shape of {@link MarketState.brokenPlugins}, sanitized. */
+function brokenPluginsFromUnknown(value: unknown): Record<string, BrokenPlugin> | undefined {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const out: Record<string, BrokenPlugin> = {}
+  for (const [name, raw] of Object.entries(value)) {
+    if (name === '' || raw === null || typeof raw !== 'object' || Array.isArray(raw)) continue
+    const record = raw as { spec?: unknown; reason?: unknown; at?: unknown }
+    if (typeof record.reason !== 'string' || !BROKEN_REASONS.has(record.reason)) continue
+    out[name] = {
+      spec: typeof record.spec === 'string' ? record.spec.slice(0, MAX_NOTE) : '',
+      reason: 'incomplete-build-locked',
+      at: typeof record.at === 'string' ? record.at : '',
+    }
+  }
+  return Object.keys(out).length > 0 ? out : undefined
 }
 
 /** Unique non-empty strings in `value`, order preserved. */
@@ -321,6 +370,7 @@ export function readMarketState(profileDir: string): MarketState {
       githubProxy?: unknown
       notes?: unknown
       favorites?: unknown
+      brokenPlugins?: unknown
     }
     const disabled = uniqueStrings(state.disabled !== undefined ? state.disabled : state.disabledSkins)
     const groups: Record<string, string[]> = {}
@@ -338,6 +388,7 @@ export function readMarketState(profileDir: string): MarketState {
       }
     }
     const githubProxy = normalizeGithubProxy(state.githubProxy)
+    const brokenPlugins = brokenPluginsFromUnknown(state.brokenPlugins)
     return {
       disabled: new Set(disabled),
       groups,
@@ -350,6 +401,7 @@ export function readMarketState(profileDir: string): MarketState {
       regionAuto: state.regionAuto === true && asRegion(state.region) !== null ? true : undefined,
       favorites: favoriteUrls(state.favorites),
       ...(githubProxy === null ? {} : { githubProxy }),
+      ...(brokenPlugins === undefined ? {} : { brokenPlugins }),
     }
   } catch {
     return { disabled: new Set(), groups: {}, groupOrder: [], notes: {}, favorites: [] }
@@ -403,6 +455,9 @@ export function writeMarketState(profileDir: string, state: MarketState): void {
   const githubProxy = Object.prototype.hasOwnProperty.call(state, 'githubProxy')
     ? state.githubProxy
     : onDisk.githubProxy
+  const broken = Object.prototype.hasOwnProperty.call(state, 'brokenPlugins')
+    ? state.brokenPlugins
+    : onDisk.brokenPlugins
   writeFileSync(stateFile(profileDir), JSON.stringify({
     disabled: [...state.disabled],
     groups: state.groups,
@@ -418,6 +473,10 @@ export function writeMarketState(profileDir: string, state: MarketState): void {
     ...(region === undefined ? {} : { region }),
     ...(regionAuto === true ? { regionAuto: true } : {}),
     ...(githubProxy === undefined ? {} : { githubProxy }),
+    // Omission preserves, explicit undefined clears — the same contract as
+    // githubProxy above, and the one a repaired plugin needs: the entry
+    // exists only while the declaration is still missing.
+    ...(broken === undefined ? {} : { brokenPlugins: broken }),
   }))
 }
 

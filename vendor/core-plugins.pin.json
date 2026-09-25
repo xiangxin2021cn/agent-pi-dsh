@@ -1,12 +1,12 @@
 {
-  "checkedAt": "2026-09-22",
+  "checkedAt": "2026-09-25",
   "packages": [
     {
       "name": "dshmarket",
-      "version": "1.55.0",
-      "integrity": "sha512-fQ23lS+kxN7HMcfYXnJQb0Ld6vYNmxQF9Rdx8MKXPCDmoZsQgIDrz5SxKZGv2Gl4wNrcxqsWOVL4waFAcHWrSw==",
-      "shasum": "7b422cca780c857835df39539b2e28a3312fbc70",
-      "archiveBytes": 951900
+      "version": "1.65.1",
+      "integrity": "sha512-UN7QONom3kKYmvoE4B8UWyuQivwyVH1aMY3cLMKcFK3sYRwox7tnHwai8hyFkUA8N/ZUD3bzbiRvpg0NyETeJg==",
+      "shasum": "f02a3c7ae5fb3e659bccf0a8333bb8ca0f575174",
+      "archiveBytes": 1035125
     },
     {
       "name": "@anysearch/anysearch-dsh",

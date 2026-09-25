@@ -3,7 +3,9 @@
  * composes the webServer and shell services.
  */
 import z from '@deepseek-ai/schemastery';
+import { dirname, isAbsolute } from 'node:path';
 import { createDesktopPluginRuntime, setHostPackageManager } from "./dsh-cli.js";
+import { createOfficialDesktopRuntime } from "./official-desktop.js";
 import { isDshProfileName } from "./profile.js";
 import { mountMarketRoutes } from "./routes.js";
 import { installDesktopMarketSettings, installMarketSettings } from "./settings.js";
@@ -102,6 +104,42 @@ export function apply(ctx, config) {
             // its name, and never with somebody else's.
             const profileContext = ctx.get('profileContext');
             const launched = launchedProfile(profileContext);
+            // The official Electron app owns this profile. Its CLI explicitly
+            // refuses `--profile desktop`; use the app's pluginManager service.
+            // Looking it up at request time lets the market mount before the
+            // service while still failing closed if it never becomes available.
+            // The dsh CLI refuses a profile by NAME — `profile.toLowerCase() ===
+            // "desktop"` (@deepseek-ai/dsh 0.1.7-alpha.2) — so a launched profile
+            // with that name can never be changed through `dsh plugin`, whatever
+            // the install layout. Detection follows the same rule rather than the
+            // app.asar anchor shape an earlier draft keyed on: the official desktop
+            // host is not published, its layout could not be checked, and a host
+            // that missed the anchor test fell straight back to the CLI and failed
+            // every install (#702). A third-party shell announces itself through
+            // `desktopProfiles`, and this whole block runs only when that service
+            // is absent, so this never takes a third-party shell's profile.
+            const officialElectron = launched !== undefined && launched.name.toLowerCase() === 'desktop';
+            if (officialElectron && config?.profile === undefined) {
+                const runtime = createOfficialDesktopRuntime(() => hostCtx.get('pluginManager'), launched.name, launched.dir);
+                const resolved = {
+                    profile: launched.name,
+                    profileDirectory: launched.dir,
+                    desktopHost: true,
+                    allowRestart: false,
+                    maxSnapshots: config?.maxSnapshots,
+                    ...(typeof profileContext?.installAnchor === 'string' && isAbsolute(profileContext.installAnchor)
+                        ? { dshInstallDir: dirname(profileContext.installAnchor) } : {}),
+                };
+                installDesktopMarketSettings(ctx);
+                host.effect(() => {
+                    const disposeRoutes = mountMarketRoutes(host, resolved, runtime, agentsLookupOf(ctx));
+                    return async () => {
+                        disposeRoutes();
+                        await runtime.dispose();
+                    };
+                }, 'dsh-market: official Desktop routes and package operations');
+                return;
+            }
             // The launcher's own package manager, when it publishes one. Registering
             // it here covers both the pnpm probe and every install spawn, since the
             // invocation's environment reaches both through spawnEnv (#653).
@@ -147,7 +185,10 @@ export function apply(ctx, config) {
             const desktopHost = desktopCtx;
             installDesktopMarketSettings(desktopCtx);
             desktopHost.effect(() => {
-                const disposeRoutes = mountMarketRoutes(host, resolved, runtime, agentsLookupOf(ctx));
+                // The host that publishes `desktopProfiles` is the one that may own
+                // activation (#551): hand it the bridge it published, if any, so the
+                // market can ask for a replay instead of mounting a second entry.
+                const disposeRoutes = mountMarketRoutes(host, resolved, runtime, agentsLookupOf(ctx), desktopProfiles.pluginActivation);
                 return async () => {
                     disposeRoutes();
                     await runtime.dispose();

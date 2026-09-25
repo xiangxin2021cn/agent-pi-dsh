@@ -8,11 +8,21 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import {
   dshBuildCommands,
+  adaptRc2Cleaner,
   dshBuildReceiptSchema,
   verifyDshBuildReceipt,
 } from './dsh-build-receipt.mjs'
 import { writeManifest } from './repair-dsh-links.mjs'
 import { expectedDshCommit, expectedDshVersion } from './verify-dsh-runtime.mjs'
+
+test('rc.2 cleaner adapter retains the official boundary checks and rejects drift', () => {
+  const source = readFileSync(new URL('../vendor/deepseek-harness/scripts/clean.ts', import.meta.url), 'utf8')
+  const adapted = adaptRc2Cleaner(source)
+  assert.equal(adapted.replace(" || typesDirectory === join(this.root, 'lib/desktop-keyboard-test-types')", ''), source)
+  assert.match(adapted, /this\.assertRepositoryTarget\(outputDirectory\)/)
+  assert.match(adapted, /await realpath\(dirname\(path\)\)/)
+  assert.throws(() => adaptRc2Cleaner(source.replace(': typesDirectory === nativeEntryOutput', ': changed')), /layout changed/)
+})
 
 function sha256(file) {
   return createHash('sha256').update(readFileSync(file)).digest('hex')

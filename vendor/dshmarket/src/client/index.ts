@@ -7,6 +7,7 @@
  */
 import { createElement as h } from 'react'
 import * as primitives from '@deepseek-ai/dsh-client-ui-primitives'
+import { missingIcons } from './icons.ts'
 import { en, zh } from './locales.ts'
 import { InstallToast } from './InstallToast.tsx'
 import { MarketErrorBoundary } from './ErrorBoundary.tsx'
@@ -50,6 +51,16 @@ interface SettingsScopeHost {
   }
 }
 
+/**
+ * The package name the host keys a bundle's own configuration by.
+ *
+ * `plugins.bundle.config` on dsh 0.1.7+ is keyed by the BUNDLE's package
+ * name. The market's is `dshmarket` — the name `dsh plugin add dshmarket`
+ * installs and the one its own `package.json` declares — which is not the
+ * same string as the locale namespace (`dsh-market`) this file uses for copy.
+ */
+const MARKET_PACKAGE_NAME = 'dshmarket'
+
 /** The subset of the theme service this plugin touches. */
 interface ThemeService {
   getTheme(): ThemeSnapshot | null
@@ -90,10 +101,19 @@ export function apply(ctx: MarketClientContext): void {
   // Older hosts resolve the primitives module but lack the rc.6 exports the
   // market renders with. Skip registration (market simply absent from the
   // settings list) rather than throwing mid-render and blanking the dialog.
-  const gaps = missingPrimitives(primitives as unknown as Record<string, unknown>)
+  // Icons are different (#671): 0.1.7 renamed …14/…16 to weight names with no
+  // alias. icons.ts accepts either spelling and skips a missing glyph so the
+  // next rename costs one icon, not the whole page — do not fold icon gaps
+  // into this hard disable.
+  const mod = primitives as unknown as Record<string, unknown>
+  const gaps = missingPrimitives(mod)
   if (gaps.length > 0) {
     console.warn('[dsh-market] host ui-primitives missing ' + gaps.join(', ') + ' — market section disabled (dsh web >= 0.1.0-rc.6 required)')
     return
+  }
+  const iconGaps = missingIcons(mod)
+  if (iconGaps.length > 0) {
+    console.warn('[dsh-market] host ui-primitives missing icons ' + iconGaps.join(', ') + ' — rendering without them')
   }
 
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-market: dictionaries')
@@ -196,6 +216,35 @@ export function apply(ctx: MarketClientContext): void {
       inject: () => ({ t }),
     }, () => h(SettingsCard, { t, onRemoved: () => { sectionGate.retire() } })))
   })
+
+  // The card's seat on 0.1.7+ (#677). The host moved a plugin's own
+  // configuration onto its bundle's page in the sidebar's Plugins page, and
+  // states in its own slot contract where a THIRD-PARTY bundle's
+  // configuration belongs: `plugins.item` is "OCCUPIED by the official
+  // settings pages", and "a bundle's configuration belongs in
+  // `plugins.bundle.config` or `plugins.row.config` instead". So this is the
+  // same seat `settings.plugin.item` was on the older line, under its new
+  // name — not a place chosen here.
+  //
+  // Detection is the slot itself: `slots.inject` waits for the slot to exist,
+  // so a host that never declares it (every release before 0.1.7) never runs
+  // this, and no version string is consulted.
+  const bundleConfigCtx = ctx as unknown as {
+    slots: {
+      inject(name: string, register: () => unknown): void
+      register(options: Record<string, unknown>, render: (ownerProps: { view?: string }) => unknown): unknown
+    }
+  }
+  bundleConfigCtx.slots.inject('plugins.bundle.config', () => bundleConfigCtx.slots.register({
+    name: 'plugins.bundle.config',
+    key: MARKET_PACKAGE_NAME,
+    locale: NS,
+    inject: () => ({ t }),
+  }, (ownerProps: { view?: string } = {}) => ownerProps.view === 'summary'
+    // `summary` is this entry's one-liner in the list, which the market's own
+    // description already carries; the card is the page.
+    ? null
+    : h(SettingsCard, { t, onRemoved: () => { sectionGate.retire() } })))
 
   const Toast = () => h(InstallToast, { t })
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({

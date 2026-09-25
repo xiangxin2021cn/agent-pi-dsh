@@ -189,6 +189,9 @@
 .themeResultBar{display:flex;align-items:center;min-height:24px;padding:0 4px 8px;color:var(--dsw-alias-label-tertiary,#8b93a1);font-size:12px;line-height:18px}
 .favoritesSectionHead{margin:16px 0 8px;padding:0 4px;font-size:13px;font-weight:600;line-height:20px;color:var(--dsw-alias-label-primary,#1f2328)}
 .favoritesSectionHead:first-of-type{margin-top:0}
+.brokenPluginNotice{display:flex;flex-direction:column;gap:8px;margin:0 0 8px}
+.brokenPluginItem{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 10px;border:1px solid var(--dsw-alias-state-warn-tertiary,rgba(180,83,9,.2));border-radius:8px;background:var(--dsw-alias-state-warn-tertiary,rgba(180,83,9,.06));color:var(--dsw-alias-state-warn-primary,#b45309);font-size:12px;line-height:18px}
+.brokenPluginText{display:flex;flex-direction:column;gap:2px;min-width:0}
 .favoritesStaleBar{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:0 0 8px;padding:8px 10px;border:1px solid var(--dsw-alias-state-warn-tertiary,rgba(180,83,9,.2));border-radius:8px;background:var(--dsw-alias-state-warn-tertiary,rgba(180,83,9,.06));color:var(--dsw-alias-state-warn-primary,#b45309);font-size:12px;line-height:18px}
 .favoritesStaleOnly{display:flex;flex-direction:column;align-items:flex-start;gap:10px}
 .themeGallery{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));align-items:stretch;gap:10px}
@@ -588,8 +591,19 @@
 .irowMissing{filter:grayscale(1);opacity:.5}
 .irow>.src,.irow>.owner{white-space:nowrap;flex-shrink:0}
 .irow button{white-space:nowrap;flex-shrink:0}
-.tabSearchRow{display:flex;padding:0 4px 6px}
-.tabSearch{width:100%}
+.tabSearchRow{display:flex;align-items:center;gap:8px;padding:0 4px 12px}
+.tabSearch{flex:1;min-width:0}
+.searchField{position:relative;min-width:0;box-sizing:border-box}
+/* The primitives' Input applies className to its padded OUTER span, not the
+   native input, so the reserved space for the clear button belongs here and
+   the button itself is positioned against .searchField. Doubled class for
+   specificity against the sheet's other input rules, and border-box for the
+   grid case in #305: 34px of padding on a 100%-wide box is 34px more than the
+   grid cell otherwise. */
+.searchInput.searchInput{width:100%;min-width:0;box-sizing:border-box;padding-right:34px}
+.searchClear{position:absolute;right:5px;top:50%;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;border:0;border-radius:4px;background:transparent;color:var(--dsw-alias-label-secondary,#59636e);font:inherit;font-size:20px;line-height:1;cursor:pointer}
+.searchClear:hover{background:var(--dsw-alias-bg-layer-2,#f3f4f6);color:var(--dsw-alias-label-primary,#1f2328)}
+.searchClear:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary,#4f6ef7);outline-offset:1px}
 /* Buttons sharing the row with a description must keep one line (#26, thanks @yanshuai2002) */
 .spec{font-size:11px;color:var(--dsw-alias-label-secondary,#9ca3af);font-family:ui-monospace,Menlo,monospace;overflow-wrap:anywhere;min-width:0}
 .specTag{display:inline-flex;align-items:center;height:16px;padding:0 5px;border-radius:4px;font-size:10px;font-weight:600;white-space:nowrap;flex-shrink:0}
@@ -636,18 +650,54 @@
 .viewBtn:hover{color:var(--dsw-alias-brand-primary,#4f6ef7)}
 .viewOn{background:var(--dsw-alias-bg-layer-2,#eef0f4);color:var(--dsw-alias-label-primary,#1f2328);font-weight:600}
 .groupRow{background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:12px;padding:12px 14px;margin-bottom:10px}
-.groupHead{display:flex;align-items:center;gap:10px;min-width:0}
+.groupHead{display:flex;align-items:center;gap:10px;min-width:0;flex-wrap:wrap}
+.groupCollapse{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;padding:0;border:none;border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary,#6b7280);cursor:pointer;flex-shrink:0}
+.groupCollapse:hover{background:var(--dsw-alias-bg-layer-2,#eef0f4);color:var(--dsw-alias-label-primary,#1f2328)}
+.groupTitle{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1 1 auto}
+.groupTitle .groupHint{margin-top:0}
 .groupName{font-weight:600;font-size:13px;line-height:20px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.groupActions{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.groupMeta{font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary,#8b93a1)}
+.groupActions{display:flex;align-items:center;gap:6px;flex-shrink:0;flex-wrap:wrap;margin-left:auto}
 .groupMembers{display:flex;flex-direction:column;gap:6px;margin-top:10px}
-.groupMember{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;background:var(--dsw-alias-bg-layer-2,#f7f8fa);font-size:12px;line-height:18px}
+.groupMember{display:flex;align-items:center;gap:8px;min-width:0;padding:6px 8px;border-radius:8px;background:var(--dsw-alias-bg-layer-2,#f7f8fa);font-size:12px;line-height:18px}
 .groupMember .nm{font-size:12px;flex:1;min-width:0}
+/* Name takes the row up to the switch. Do not add a flex spacer beside it —
+   that spacer was splitting the row and ellipsizing the name early. */
+.memberName{display:flex;align-items:center;gap:6px;min-width:0;flex:1 1 auto}
+.memberName .nm{flex:0 1 auto;min-width:0}
+.memberKind{flex:0 0 auto;font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary,#8b93a1);white-space:nowrap}
+.themeSlot{box-shadow:inset 0 -1px 0 var(--dsw-alias-border-l2,#e5e7eb);border-radius:8px 8px 0 0;margin-bottom:4px}
+.groupMember>.switch,.groupMember>button{flex-shrink:0}
+.groupMemberAction{flex:0 0 auto;margin-left:auto}
+.groupMemberAction button{white-space:nowrap}
 .groupAddPanel{display:flex;flex-direction:column;gap:6px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--dsw-alias-border-l2,#e5e7eb)}
+.groupAddModalBody{display:flex;flex-direction:column;gap:10px;min-width:0}
+.groupAddFilters{display:flex;flex-wrap:wrap;gap:6px}
+.groupAddModalList{display:flex;flex-direction:column;gap:6px;max-height:min(50vh,360px);overflow-y:auto;padding-right:2px}
+.groupAddModalHint{font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#6b7280);margin:0}
+.groupAddPick{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:var(--dsw-alias-bg-layer-2,#f7f8fa);cursor:pointer;min-width:0}
+.groupAddPick:hover{background:var(--dsw-alias-bg-layer-2,#eef0f4)}
+.groupAddPick input{flex-shrink:0;margin:0}
+.groupAddPick .nm{font-size:12px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.groupAddFooterMeta{margin-right:auto;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#6b7280);align-self:center}
+.groupOrgHint{font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary,#8b93a1);margin:4px 0 0}
+.groupRenameField{display:flex;flex-direction:column;gap:6px;min-width:min(100%,320px)}
+.groupRenameField label{font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#6b7280)}
+.groupRenameField .inlineInput{width:100%}
 .groupCreate{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.groupCreateInline{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.groupCreateInline .inlineInput{width:160px;flex:none}
 .inlineInput{flex:1;min-width:120px}
-.assignRow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.assignSelect{border:1px solid var(--dsw-alias-border-l2,#e5e7eb);background:var(--dsw-alias-bg-layer-1,#fff);color:var(--dsw-alias-label-primary,#1f2328);border-radius:6px;padding:3px 6px;font:inherit;font-size:12px;line-height:18px}
+/* One flex row: name, state, truncated note, assign. Do not reuse .act —
+   that class carries the card's margin-top and drops the state off the line. */
+.ungroupedRow{flex-wrap:nowrap}
+.ungroupedRow>.nm{flex:0 1 auto;font-size:12px;line-height:18px;max-width:42%}
+.ungroupedState{display:inline-flex;align-items:center;flex:0 1 auto;min-width:0;max-width:46%;margin:0}
+.ungroupedState > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ungroupedDesc{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary,#8b93a1)}
+.ungroupedDesc.noteMine{color:var(--dsw-alias-label-primary,#1f2328)}
 .groupHint{font-size:11px;color:var(--dsw-alias-label-tertiary,#8b93a1)}
+.sect{margin:14px 2px 8px;font-size:12px;font-weight:600;color:var(--dsw-alias-label-secondary,#6b7280)}
 .sectAction{margin:14px 2px 8px;font-size:12px;font-weight:600;color:var(--dsw-alias-label-secondary,#6b7280);display:flex;align-items:center;gap:8px}
 
 /* #61: profile backup & restore */

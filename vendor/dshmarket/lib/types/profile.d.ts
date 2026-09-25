@@ -90,6 +90,11 @@ export declare function restoreProfileManifest(profile: string, snapshot: Profil
 export declare function dropFromManifest(profile: string, name: string, explicitDir?: string): boolean;
 /** The version actually present in the profile's node_modules, or null. */
 export declare function readInstalledVersion(profile: string, name: string, explicitDir?: string): string | null;
+/**
+ * The `name` in the package.json of the directory a dependency is installed
+ * under, or null. DSH Desktop requires it to equal the dependency key (#694).
+ */
+export declare function readInstalledPackageName(profile: string, name: string, explicitDir?: string): string | null;
 /** The installed package manifest, or null when absent or malformed. */
 export declare function readInstalledManifest(profile: string, name: string, explicitDir?: string): unknown | null;
 /**
@@ -323,3 +328,25 @@ export declare function pluginSubdirs(root: string): string[];
  * @returns every package now allowed.
  */
 export declare function setAllowBuilds(profile: string, packages: string[], explicitDir?: string): string[];
+/**
+ * Remove the allowBuilds keys pnpm cannot parse as a version range, and say
+ * which (#698).
+ *
+ * pnpm reads an allowBuilds key as `name@<version union>`, and on 10.26 to
+ * the latest 10.x and on 11.0 to 11.5 a git or archive source there —
+ * `name@git+https://…`, `name@https://codeload…` — is rejected as
+ * "Invalid versions union … Use exact versions only". Not the one entry: the
+ * whole workspace file, so EVERY later pnpm command in the profile fails,
+ * including installs that have nothing to do with it. Measured on 9.15,
+ * 10.0 through 10.29, 11.0 through 11.8, 11.21 and 12.4; 10.25 and below
+ * ignore allowBuilds and 11.6 and above accept these keys.
+ *
+ * Those are exactly the keys the market writes for a git source (#68, #285,
+ * #637), because the pnpm versions that need them to authorize anything
+ * read them fine. On the versions in between, a bare name is what
+ * authorizes a git dependency — measured on 10.29 — and it is kept.
+ *
+ * @returns the keys removed; empty when nothing matched, in which case the
+ *   file is left untouched.
+ */
+export declare function dropUnparseableBuildKeys(profile: string, explicitDir?: string): string[];

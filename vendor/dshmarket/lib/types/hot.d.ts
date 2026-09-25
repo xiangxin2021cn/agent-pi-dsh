@@ -138,6 +138,35 @@ export interface MarketState {
     favorites?: string[];
     /** User-supplied HTTPS prefix used when the built-in GitHub routes fail. */
     githubProxy?: string;
+    /**
+     * Packages the market removed from the profile's own declarations because
+     * the build on disk can no longer compose (#663).
+     *
+     * The case this exists for: an update blocked by open files leaves the
+     * target directory incomplete, `keepLockedBuild` cannot keep the previous
+     * build, and the profile goes on declaring a package whose `package.json`
+     * is missing. The next start dies in composition — on Desktop the window
+     * never opens — and the only way out was uninstalling the plugin by hand.
+     * So the declaration is dropped instead (a rename or a delete of the
+     * directory itself cannot be attempted: the same lock that stopped pnpm
+     * refuses the market's move too), and this map is what keeps that from
+     * being silent. The plugin disappears from the installed list; this is the
+     * record saying why, and what spec to reinstall.
+     *
+     * Optional on the way in, like `notes`: several callers write a state
+     * object built from the few fields they own, and requiring this one would
+     * make every such call a way to erase every entry (#339's shape).
+     */
+    brokenPlugins?: Record<string, BrokenPlugin>;
+}
+/** Why a package is no longer declared, and what to put back. */
+export interface BrokenPlugin {
+    /** The dependency spec it had before removal — the reinstall target. */
+    spec: string;
+    /** Machine-readable cause; the UI owns the wording. */
+    reason: 'incomplete-build-locked';
+    /** When the market removed the declaration (ISO 8601). */
+    at: string;
 }
 /** Upper bound on bookmarked catalog URLs kept in state.json (#414). */
 export declare const MAX_FAVORITES = 500;

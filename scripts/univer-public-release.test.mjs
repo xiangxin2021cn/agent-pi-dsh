@@ -66,8 +66,10 @@ const nativeClient = [
   '  }',
   '  uiConversation.events.register(univerTurnDefinition);',
   '}',
-  'var inject = ["slots", "locale", "conversation"];',
+  'var inject = ["slots", "locale", "conversation", "uiConversation"];',
   'id: "univer-turn-preview",',
+  'forms.get(UNIVER_CONFIG_ENTRY_ID)',
+  'name: "plugins.bundle.config",',
   '',
 ].join('\n')
 

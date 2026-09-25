@@ -18,7 +18,7 @@ function fixture() {
   mkdirSync(join(dsh, 'packages', 'bundle', 'base'), { recursive: true })
   mkdirSync(join(dsh, 'packages', 'bundle', 'sdk-minimal'), { recursive: true })
   mkdirSync(product, { recursive: true })
-  writeFileSync(join(dsh, 'package.json'), '{"version":"0.1.7-rc.1"}\n')
+  writeFileSync(join(dsh, 'package.json'), '{"version":"0.1.7-rc.2"}\n')
   const roots = [
     join(dsh, 'apps/cli'),
     ...['agent-team-profile', 'agent-team', 'tool-agent-team', 'client-ui-agent-team']
@@ -58,7 +58,7 @@ test('Office gate rejects a missing optional platform engine despite a successfu
   assert.throws(() => verifyOfficeRuntime(dsh), /official Office engine is unavailable.*incomplete/)
 })
 
-test('accepts the pinned 0.1.7-rc.1 JSONL runtime', () => {
+test('accepts the pinned 0.1.7-rc.2 JSONL runtime', () => {
   const { dsh, product } = fixture()
   assert.doesNotThrow(() => verifyDshRuntime(dsh, product))
 })
@@ -75,11 +75,11 @@ test('rejects a stale removed SQLite persistence package', () => {
 test('rejects a mismatched DSH version or product pin', () => {
   const { root, dsh, product } = fixture()
   writeFileSync(join(dsh, 'package.json'), '{"version":"0.1.2-alpha.5"}\n')
-  assert.throws(() => verifyDshRuntime(dsh, product), /expected 0\.1\.7-rc\.1/)
+  assert.throws(() => verifyDshRuntime(dsh, product), /expected 0\.1\.7-rc\.2/)
 
   const replacement = join(root, 'replacement')
   cpSync(dsh, replacement, { recursive: true })
-  writeFileSync(join(replacement, 'package.json'), '{"version":"0.1.7-rc.1"}\n')
+  writeFileSync(join(replacement, 'package.json'), '{"version":"0.1.7-rc.2"}\n')
   writeFileSync(join(product, 'DSH_PIN'), '14bab4422b12ab80cd79de59e086c12888fe00be\n')
   assert.throws(() => verifyDshRuntime(replacement, product), /staged DSH_PIN/)
   rmSync(root, { recursive: true, force: true })

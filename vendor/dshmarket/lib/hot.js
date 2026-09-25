@@ -199,6 +199,26 @@ export function cleanHotDir(profileDir) {
 function stateFile(profileDir) {
     return join(profileDir, HOT_DIR, 'state.json');
 }
+const BROKEN_REASONS = new Set(['incomplete-build-locked']);
+/** The on-disk shape of {@link MarketState.brokenPlugins}, sanitized. */
+function brokenPluginsFromUnknown(value) {
+    if (value === null || typeof value !== 'object' || Array.isArray(value))
+        return undefined;
+    const out = {};
+    for (const [name, raw] of Object.entries(value)) {
+        if (name === '' || raw === null || typeof raw !== 'object' || Array.isArray(raw))
+            continue;
+        const record = raw;
+        if (typeof record.reason !== 'string' || !BROKEN_REASONS.has(record.reason))
+            continue;
+        out[name] = {
+            spec: typeof record.spec === 'string' ? record.spec.slice(0, MAX_NOTE) : '',
+            reason: 'incomplete-build-locked',
+            at: typeof record.at === 'string' ? record.at : '',
+        };
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+}
 /** Unique non-empty strings in `value`, order preserved. */
 function uniqueStrings(value) {
     if (!Array.isArray(value))
@@ -247,6 +267,7 @@ export function readMarketState(profileDir) {
             }
         }
         const githubProxy = normalizeGithubProxy(state.githubProxy);
+        const brokenPlugins = brokenPluginsFromUnknown(state.brokenPlugins);
         return {
             disabled: new Set(disabled),
             groups,
@@ -259,6 +280,7 @@ export function readMarketState(profileDir) {
             regionAuto: state.regionAuto === true && asRegion(state.region) !== null ? true : undefined,
             favorites: favoriteUrls(state.favorites),
             ...(githubProxy === null ? {} : { githubProxy }),
+            ...(brokenPlugins === undefined ? {} : { brokenPlugins }),
         };
     }
     catch {
@@ -312,6 +334,9 @@ export function writeMarketState(profileDir, state) {
     const githubProxy = Object.prototype.hasOwnProperty.call(state, 'githubProxy')
         ? state.githubProxy
         : onDisk.githubProxy;
+    const broken = Object.prototype.hasOwnProperty.call(state, 'brokenPlugins')
+        ? state.brokenPlugins
+        : onDisk.brokenPlugins;
     writeFileSync(stateFile(profileDir), JSON.stringify({
         disabled: [...state.disabled],
         groups: state.groups,
@@ -327,6 +352,10 @@ export function writeMarketState(profileDir, state) {
         ...(region === undefined ? {} : { region }),
         ...(regionAuto === true ? { regionAuto: true } : {}),
         ...(githubProxy === undefined ? {} : { githubProxy }),
+        // Omission preserves, explicit undefined clears — the same contract as
+        // githubProxy above, and the one a repaired plugin needs: the entry
+        // exists only while the declaration is still missing.
+        ...(broken === undefined ? {} : { brokenPlugins: broken }),
     }));
 }
 /** Plugins the user switched off; skipped by the boot re-mount. */

@@ -37,6 +37,24 @@ export declare function sendJson(response: ServerResponse, status: number, paylo
  * @param request - the incoming request.
  * @returns whether the request may mutate market state.
  */
+/**
+ * Whether a `Host` header names a loopback authority (#678).
+ *
+ * `Origin === Host` alone does not stop a DNS-rebinding page: the attacker
+ * serves their page from `evil.com`, resolves that name to 127.0.0.1, and
+ * the browser then connects to the loopback listener while sending
+ * `Origin: http://evil.com` AND `Host: evil.com` — an equality that holds
+ * for the attacker. `Host` is the one header the attack cannot forge, so it
+ * is what has to name a loopback authority.
+ *
+ * `localhost` is included because browsers and RFC 6761 pin it to loopback;
+ * a subdomain like `localhost.evil.com` does not match, and the port is
+ * dropped before comparing.
+ *
+ * @param host - the request's `Host` header.
+ * @returns whether it names a loopback authority.
+ */
+export declare function loopbackAuthority(host: string | undefined): boolean;
 export declare function sameOrigin(request: IncomingMessage): boolean;
 /** Read and parse a JSON request body, rejecting anything over 4 KiB. */
 export declare function readJsonBody(request: IncomingMessage, maxBytes?: number): Promise<unknown>;

@@ -43,7 +43,7 @@ function assertHex(value, length, label) {
 export function loadUniverPin(pinPath = defaultPinPath) {
   const pin = JSON.parse(readFileSync(resolve(pinPath), 'utf8'))
   if (pin.schema !== 'agent-pi-dsh/univer-office-pin/v1') fail('unsupported dsh-univer-office pin schema')
-  if (pin.name !== 'dsh-univer-office' || pin.version !== '0.3.2') fail('unexpected dsh-univer-office identity')
+  if (pin.name !== 'dsh-univer-office' || pin.version !== '0.3.5') fail('unexpected dsh-univer-office identity')
   if (pin.license !== 'Apache-2.0') fail('dsh-univer-office pin must declare Apache-2.0')
   if (pin.tarball !== `https://registry.npmjs.org/${pin.name}/-/${pin.name}-${pin.version}.tgz`) {
     fail('dsh-univer-office tarball URL does not match the pinned package')
