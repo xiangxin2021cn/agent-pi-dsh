@@ -1,11 +1,9 @@
 import { delimiter, join } from 'node:path'
-import { registerTools } from './tools.ts'
 import { attachHttp, setHttpLlm } from './http.ts'
 import { registerPrompt } from './prompt.ts'
 import { importDsh } from './dsh.ts'
 import { repairKimiCodingSettings, migrateRetiredDeepSeekSession } from './llm-settings.ts'
 import type { LlmStreamRuntime } from './prompt-optimize.ts'
-import { registerBusinessActivation } from './business-activation.ts'
 import { registerProfessionalDepth } from './professional-depth.ts'
 import { registerReportSkillRouting } from './report-skill.ts'
 
@@ -48,6 +46,7 @@ export function apply(ctx: {
   systemPrompt?: Parameters<typeof registerPrompt>[0]['systemPrompt']
   get?: (name: string) => unknown
   inject: (deps: string[], callback: (inner: {
+    effect: (install: () => (() => void)) => unknown
     webServer?: { register: (route: unknown) => unknown }
     llm?: LlmStreamRuntime
   }) => void) => void
@@ -56,13 +55,13 @@ export function apply(ctx: {
   repairKimiCodingSettings()
   ctx.on('agent/created', ({ agent }) => migrateRetiredDeepSeekSession(agent.session))
   registerPrompt(ctx, createUserMessage)
-  registerTools({ tools: ctx.tools }, defineTool)
-  registerBusinessActivation(ctx as Parameters<typeof registerBusinessActivation>[0])
   registerProfessionalDepth(ctx, defineTool)
   registerReportSkillRouting(ctx)
   ctx.inject(['webServer'], (inner) => {
     attachHttp({
       webServer: inner.webServer,
+      effect: (fn) => inner.effect(fn),
+      getCapabilities: () => ({ workbench: Boolean(ctx.get?.('workbench')), knowledge: Boolean(ctx.get?.('agentPiKnowledge')) }),
       getDefaultModel: () => {
         const service = ctx.get?.('agentDefaultModel') as {
           currentSelection?: () => { provider: string; model: string; reasoningEffort?: string }
@@ -77,7 +76,7 @@ export function apply(ctx: {
           return undefined
         }
       },
-    })
+    }, 'host')
   })
   ctx.inject(['llm'], (inner) => {
     setHttpLlm(inner.llm)

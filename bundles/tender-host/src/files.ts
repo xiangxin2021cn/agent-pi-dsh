@@ -288,7 +288,7 @@ export function promoteFile(cwd: string, sourcePath: string, projectId?: string)
   const projects = listBusinessProjects(cwd)
   const id = projectId
     || (projects.length === 1 ? projects[0]?.projectId : undefined)
-    || projects.find((project) => usesTenderControlProfile(project.module))?.projectId
+    || projects.find((project) => usesTenderControlProfile(project))?.projectId
     || projects[0]?.projectId
     || 'workspace'
   const destDir = officialOutputsDir(cwd, id, 'inbox')

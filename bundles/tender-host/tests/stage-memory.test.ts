@@ -6,7 +6,7 @@ import { test } from 'node:test'
 import { createBusinessProject, listBusinessProjects, type BusinessProjectRecord } from '../../../packages/business-projects/index.ts'
 import { bindProjectSession, inspectBoard, projectMemoryContextForSession, saveBoard, type StageSlice } from '../src/orchestration.ts'
 import { officialStageDir } from '../src/outputs.ts'
-import { registerPrompt } from '../src/prompt.ts'
+import { registerWorkbenchPrompt } from '../src/prompt.ts'
 import { saveWorkspaceText } from '../src/preview-export.ts'
 import {
   commitStageHandoff,
@@ -86,7 +86,7 @@ test('bound project system prompt keeps execution telemetry optional and never m
   const { cwd, project } = projectFixture('prompt-telemetry')
   bindProjectSession(cwd, project, 'bound-prompt')
   const sections: Array<{ name: string; text: unknown }> = []
-  registerPrompt({
+  registerWorkbenchPrompt({
     systemPrompt: {
       section: (entry) => { sections.push(entry) },
     },
@@ -231,7 +231,7 @@ test('N3-scale source volume stays out of the dynamic prompt and survives compac
   bindProjectSession(cwd, project, 'session-after-compaction', 'bid-risk-decision')
 
   const contexts: Array<{ name: string; text: unknown }> = []
-  registerPrompt({
+  registerWorkbenchPrompt({
     systemPrompt: {
       section: () => undefined,
       context: (entry) => { contexts.push(entry); return undefined },

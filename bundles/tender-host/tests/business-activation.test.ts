@@ -6,8 +6,10 @@ import { test } from 'node:test'
 import { createBusinessProject } from '../../../packages/business-projects/index.ts'
 import { bindProjectSession, projectForBoundSession } from '../src/orchestration.ts'
 import { businessProjectForAgent, registerBusinessActivation, withBusinessGoalBoundary } from '../src/business-activation.ts'
-import { registerPrompt } from '../src/prompt.ts'
+import { registerWorkbenchPrompt, registerKnowledgePrompt } from '../src/prompt.ts'
 import { registerTools } from '../src/tools.ts'
+import { WorkbenchRegistry } from '../../../packages/business-projects/workbench-registry.ts'
+import { WORKFLOWS } from '../src/workflows.ts'
 
 function fixture() {
   const cwd = mkdtempSync(join(tmpdir(), 'ap-business-activation-'))
@@ -32,7 +34,7 @@ test('business prompt activates only the explicitly bound session and its actual
   f.agent('worker', parent.id)
   const grandchild = f.agent('nested-worker', 'worker')
   const sections = new Map<string, any>()
-  registerPrompt({ systemPrompt: { section: (entry) => sections.set(entry.name, entry) } }, () => ({}))
+  registerWorkbenchPrompt({ systemPrompt: { section: (entry) => sections.set(entry.name, entry) } })
   const render = sections.get('agent-pi:tender').text
   assert.equal(render({ agent: ordinary }), '')
   assert.equal(render({ agent: parent }), '')
@@ -72,7 +74,7 @@ test('official goal driver sees ordinary goals while bound projects cannot start
   const selected = f.agent('selected')
   const active = { phase: 'active', activation: 'armed' }
   const goals = { calls: 0, get() { this.calls += 1; return active }, disarm() { this.calls += 1 } }
-  const original = { goals, marker: 7, readMarker() { return this.marker } }
+  const original = { goals, get: (name: string) => name === 'workbench' ? {} : undefined, marker: 7, readMarker() { return this.marker } }
   const wrapped = withBusinessGoalBoundary(original)
   assert.equal(wrapped.goals.get(ordinary), active)
   bindProjectSession(f.cwd, f.project, selected.id)
@@ -82,6 +84,27 @@ test('official goal driver sees ordinary goals while bound projects cannot start
   assert.equal(goals.calls, 2)
   assert.equal(wrapped.readMarker(), 7)
   assert.equal(original.goals, goals)
+  const inactive = withBusinessGoalBoundary({ goals, get: () => undefined })
+  assert.equal(inactive.goals.get(selected), active, 'unloading the workbench restores the native goal lifecycle')
+})
+
+test('tools added by a domain plugin are restricted on the next ordinary step and cleaned on unload', () => {
+  const f = fixture()
+  const agent = f.agent('ordinary-hotload')
+  const tools = ['tender_stage']
+  const listeners = new Map<string, Function>()
+  let dispose: () => void
+  registerBusinessActivation({
+    tools: { schemas: () => tools.map(name => ({ name })) },
+    on: (event, listener) => listeners.set(event, listener),
+    effect: install => { dispose = install() },
+  })
+  listeners.get('agent/created')!({ agent })
+  tools.push('tender_knowledge')
+  listeners.get('agent/pre-step')!({ agent })
+  assert.deepEqual(f.denied.get(agent.id), tools)
+  dispose!()
+  assert.equal(f.denied.has(agent.id), false)
 })
 
 test('only explicit project create or bind activates the caller; listing and unknown actions do not', async () => {
@@ -106,4 +129,35 @@ test('product profile preserves native preset tools and routes only the goal dri
   const patch = readFileSync(new URL('../cordis.patch.yml', import.meta.url), 'utf8')
   assert.match(patch, /id: goal-round-driver\s+name: dsh-tender-host\/goal-round-driver/)
   assert.doesNotMatch(patch, /id: (?:goal|tool-goal|command-goal|plan-mode|tool-todo)\s+disabled: true/)
+})
+
+test('custom workbench prompts use user requirements and stop when the provider is removed', () => {
+  const f = fixture()
+  const workflow = { ...structuredClone(WORKFLOWS.delivery), module: 'inspection', id: 'inspection-main', controlProfile: undefined }
+  const project = createBusinessProject({ workspaceRootPath: f.cwd, rootPath: f.cwd, createDirectory: false,
+    module: workflow.module, projectId: 'custom', name: 'Custom', workflowId: workflow.id, workflowSnapshot: workflow })
+  const agent = f.agent('custom-session')
+  bindProjectSession(f.cwd, project, agent.id)
+  const registry = new WorkbenchRegistry()
+  const dispose = registry.registerModule({ owner: 'test/custom', workflow })
+  const sections = new Map<string, any>()
+  registerWorkbenchPrompt({ systemPrompt: { section: entry => sections.set(entry.name, entry) } }, registry)
+  const render = sections.get('agent-pi:tender').text
+  assert.match(render({ agent }), /user-configured workbench/)
+  assert.doesNotMatch(render({ agent }), /DeepSeek Harness plus a construction/)
+  dispose()
+  assert.equal(render({ agent }), '')
+})
+
+test('knowledge plugin adds no policy or catalog when the user has selected no materials', () => {
+  const previousRoot = process.env.AGENT_PI_KB_ROOT
+  process.env.AGENT_PI_KB_ROOT = mkdtempSync(join(tmpdir(), 'ap-kb-prompt-'))
+  try {
+    const contexts = new Map<string, any>()
+    registerKnowledgePrompt({ systemPrompt: { section() {}, context: entry => contexts.set(entry.name, entry) } })
+    for (const entry of contexts.values()) assert.equal(entry.text({ agent: { session: { id: 'unselected' } } }), '')
+  } finally {
+    if (previousRoot === undefined) delete process.env.AGENT_PI_KB_ROOT
+    else process.env.AGENT_PI_KB_ROOT = previousRoot
+  }
 })

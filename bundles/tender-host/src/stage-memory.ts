@@ -196,7 +196,7 @@ export function validateStageHandoff(value: unknown): StageHandoff {
 }
 
 export function loadStageMemorySnapshot(cwd: string, project: BusinessProjectRecord): StageMemorySnapshot {
-  const workflow = workflowFor(project.module)
+  const workflow = workflowFor(project)
   const stages: Record<string, StageMemoryEntry> = {}
   for (const stage of workflow.stages) {
     const files = stageFiles(cwd, project, stage.id)
@@ -261,7 +261,7 @@ function collectArtifacts(
   stageId: string,
   slice: CompletionSlice,
 ): StageMemoryArtifact[] {
-  const stage = workflowFor(project.module).stages.find((item) => item.id === stageId)
+  const stage = workflowFor(project).stages.find((item) => item.id === stageId)
   const summaryName = stage?.summaryDeliverable?.fileName
   const seen = new Set<string>()
   const out: StageMemoryArtifact[] = []
@@ -276,7 +276,7 @@ function collectArtifacts(
   for (const path of walkFiles(officialStageDir(cwd, project.projectId, stageId))) {
     add(path, summaryName && basename(path) === summaryName ? 'summary' : 'official-output')
   }
-  if (stageId === workflowFor(project.module).setupStageId) {
+  if (stageId === workflowFor(project).setupStageId) {
     for (const path of project.inputPaths) add(path, 'registered-source')
   }
   for (const task of slice.tasks) {
@@ -410,7 +410,7 @@ export function commitStageHandoff(
   stageId: string,
   slice: CompletionSlice,
 ): StageMemoryEntry {
-  const workflow = workflowFor(project.module)
+  const workflow = workflowFor(project)
   const stage = workflow.stages.find((item) => item.id === stageId)
   if (!stage) throw new Error(`Unknown stage ${stageId}`)
   const snapshot = loadStageMemorySnapshot(cwd, project)
@@ -486,7 +486,7 @@ function capabilityChanged(cwd: string, project: BusinessProjectRecord, row: Sta
 }
 
 export function downstreamStageIds(project: BusinessProjectRecord, sourceStageId: string): string[] {
-  const workflow = workflowFor(project.module)
+  const workflow = workflowFor(project)
   const affected = new Set<string>([sourceStageId])
   let changed = true
   while (changed) {
@@ -541,7 +541,7 @@ function invalidateStages(
 
 export function refreshStageMemorySnapshot(cwd: string, project: BusinessProjectRecord): StageMemorySnapshot {
   let snapshot = loadStageMemorySnapshot(cwd, project)
-  const workflow = workflowFor(project.module)
+  const workflow = workflowFor(project)
   for (const stage of workflow.stages) {
     const entry = snapshot.stages[stage.id]
     if (!entry || entry.status === 'stale') continue
@@ -569,7 +569,7 @@ export function memoryImpactForPath(cwd: string, project: BusinessProjectRecord,
     entry.status === 'current' && entry.handoff.outputs.some((item) => samePath(item.path, path))
   ))
   if (!source) return { affected: false, stageIds: [], stageLabels: [], requiresReapproval: false }
-  const workflow = workflowFor(project.module)
+  const workflow = workflowFor(project)
   const stageIds = downstreamStageIds(project, source.stageId)
   const requiresReapproval = stageIds.some((stageId) => workflow.stages.find((item) => item.id === stageId)?.approvalGate)
   return {
@@ -662,7 +662,7 @@ export function renderProjectMemoryContext(
   stageStatuses: Record<string, string>,
 ): string {
   const snapshot = loadStageMemorySnapshot(cwd, project)
-  const workflow = workflowFor(project.module)
+  const workflow = workflowFor(project)
   const current = workflow.stages.find((stage) => stage.id === currentStageId)
   const projectGoal = project.projectGoal || workflow.projectGoal
   const terminalDeliverables = project.terminalDeliverables?.length

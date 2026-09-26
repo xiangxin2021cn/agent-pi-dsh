@@ -98,10 +98,12 @@ function loadShippedComposer(options = {}) {
     clearInterval() {},
     CustomEvent: class { constructor(type, init) { this.type = type; this.detail = init?.detail } },
     Event: class { constructor(type) { this.type = type } },
-    fetch: options.fetch || (async (_url, init = {}) => {
+    fetch: async (url, init = {}) => {
+      if (String(url).includes('/api/agent-pi/capabilities')) return okJsonResponse({}, { workbench: true, knowledge: true })
+      if (options.fetch) return options.fetch(url, init)
       const body = JSON.parse(String(init.body || '{}'))
       return okJsonResponse(body)
-    }),
+    },
     MutationObserver: class { observe() {} disconnect() {} },
     AbortController,
     URLSearchParams,
@@ -136,6 +138,7 @@ function loadShippedComposer(options = {}) {
   const runtime = options.runtime || fallbackRuntime
   runtime.sessions.list ||= { getSnapshot: () => ({ byId: {} }), subscribe: () => () => {} }
   bundle.apply({
+    effect(install) { install() },
     slots: { inject() {} },
     inject(names, install) {
       if (names.every((name) => runtime[name])) install({ ...Object.fromEntries(names.map((name) => [name, runtime[name]])), slots: this.slots, on() {} })

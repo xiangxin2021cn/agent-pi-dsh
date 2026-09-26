@@ -1,0 +1,4 @@
+- insert:
+    - id: agent-pi-knowledge
+      name: dsh-agent-pi-knowledge
+      inject: [tools, systemPrompt]

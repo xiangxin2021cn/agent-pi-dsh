@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { AP_LANGUAGE_DEFINITIONS } from '../src/client/locales/catalog.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const source = readFileSync(join(here, '../src/client/index.js'), 'utf8')
@@ -10,7 +11,7 @@ const styles = readFileSync(join(here, '../src/client/styles.js'), 'utf8')
 
 test('desktop language catalog exposes the common ten-language set', () => {
   for (const id of ['zh', 'en', 'es', 'fr', 'de', 'ja', 'ko', 'pt', 'ru', 'ar']) {
-    assert.match(source, new RegExp(`\\{ id: '${id}', label:`))
+    assert.ok(AP_LANGUAGE_DEFINITIONS.some((language) => language.id === id && language.label))
   }
   assert.match(source, /runtime\.locale\.addLanguage/)
   assert.match(source, /agent-pi:language:v1/)

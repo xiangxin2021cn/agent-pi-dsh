@@ -10,6 +10,11 @@ const here = dirname(fileURLToPath(import.meta.url))
  */
 export const clientSource = [
   '../src/client/index.js',
+  '../src/client/locales/catalog.js',
+  '../src/client/locales/workflow-editor.js',
+  '../src/client/locales/workbench-fields.js',
+  '../src/client/workflow-editor.js',
+  '../src/client/product-capabilities.js',
   '../src/client/api-client.js',
   '../src/client/file-preview-overlay.js',
   '../src/client/knowledge-base-panel.js',

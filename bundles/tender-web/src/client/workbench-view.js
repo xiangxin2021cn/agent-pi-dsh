@@ -20,10 +20,10 @@ export function createWorkbenchView(dependencies) {
               h('button', {
                 type: 'button',
                 className: 'ap-btn',
-                disabled: !props.cwd,
+                disabled: !props.cwd || props.current?.available === false,
                 onClick: props.onAdopt,
               }, Icon('layout', 16), tAp('wb.upgrade')),
-              h('button', { type: 'button', className: 'ap-btn primary', onClick: props.onCreate },
+              h('button', { type: 'button', className: 'ap-btn primary', disabled: props.current?.available === false, onClick: props.onCreate },
                 Icon('plus', 16), tAp('wb.create')),
             ),
           ),
@@ -66,13 +66,13 @@ export function createWorkbenchView(dependencies) {
             className: 'ap-mod' + (props.module === item.id ? ' on' : ''),
             onClick: () => props.onSelectModule(item.id),
           }, moduleIconNode(item, 15), moduleLabel(item))),
-          h('button', {
+          props.capabilities?.knowledge === false ? null : h('button', {
             type: 'button',
             className: 'ap-mod' + (props.module === 'kb' ? ' on' : ''),
             title: tAp('wb.kbTitle'),
             onClick: () => props.onSelectModule('kb'),
           }, Icon('book', 15), tAp('wb.kb')),
-          h('button', {
+          props.capabilities?.workbench === false ? null : h('button', {
             type: 'button',
             className: 'ap-mod' + (props.module === 'modules' ? ' on' : ''),
             title: tAp('wb.modulesTitle'),
@@ -91,11 +91,11 @@ export function createWorkbenchView(dependencies) {
           h('button', {
             type: 'button',
             className: 'ap-btn',
-            disabled: !props.cwd,
+            disabled: !props.cwd || props.current?.available === false,
             title: tAp('wb.adoptTitle'),
             onClick: props.onAdopt,
           }, Icon('layout', 14), tAp('wb.adopt')),
-          h('button', { type: 'button', className: 'ap-btn primary', onClick: props.onCreate },
+          h('button', { type: 'button', className: 'ap-btn primary', disabled: props.current?.available === false, onClick: props.onCreate },
             Icon('plus', 14), tAp('wb.create')),
         ),
       ),

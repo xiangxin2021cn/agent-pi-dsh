@@ -13,6 +13,8 @@ import { liveWorkerLimitLineEn } from './concurrency.ts'
 import { formatSelectedKbContext } from './kb.ts'
 import { projectMemoryContextForSession } from './orchestration.ts'
 import { businessProjectForAgent } from './business-activation.ts'
+import { listWorkbenchModules, usesTenderControlProfile } from './modules.ts'
+import type { WorkbenchRegistry } from '../../../packages/business-projects/workbench-registry.ts'
 
 const TENDER_PROMPT = `You are running inside Agent Pi DSH: DeepSeek Harness plus a construction tender/delivery/investment workbench.
 
@@ -31,20 +33,11 @@ Business tools:
 
 Citations: every spec/contract/method factual sentence ends with a locator token — [kb:slug:chunkId] or [src:path#L10-L25]. Tokens are annotations, not quotations: do not paste source excerpts or evidence blocks into Official Outputs. The reader clicks the chip to see the source file, page or lines, and heading. No token = write the fact as a gap. Reviews and organize verify tokens; orphans come back for rework.
 
-Knowledge base (kb_* tools — local, durable, user-managed):
-- Only entries the user checks as 本次任务选用 are injected into this conversation. If none are listed below, do not pull the KB into this task unless the user asks.
-- Retrieval discipline: before writing spec/contract/method facts from a selected entry, kb_search (pass slugs) or kb_find_clause / kb_find_table first, then kb_read_chunk, and cite the returned citation (slug:chunkId). If the selected KB has no hit and no registered source covers it, mark the fact as a gap — do not fill from memory.
-- kb_list shows what exists (bundled method standards and exemplars are seeded on first use). Categories: 规范/合同/范文/方法标准/用户模板. 范文 is style. 用户模板 is a user-owned document whose format, heading tree, and depth this turn must clone.
-- Growing the KB: reusable specs/exemplars (not project-specific bid files) can enter two ways, both ending on the same structured index. Path 1 — Knowledge Base page (left sidebar「知识库」, or workbench top bar): choose files → they land in 原始文档区 → 「解析入库」. Born-digital PDFs extract locally; scans and complex layouts go through MinerU. MinerU HTML tables are converted to Markdown tables on ingest. Path 2 — right-hand files rail: right-click 「一键导入知识库」 (same stage+parse; a knowledge pack is ready immediately). When the user attaches a PDF and asks to 准确整理 / 整理完整内容 / 全文转录 / 知识库 / 知识包 — even without the word 知识库 — YOU must call kb_prepare_document on that PDF. The host does not convert it first. Official read/read_image cannot open PDF. The tool writes page PNGs by default; then you call read_image on each PNG (Flash Vision Exp) and rewrite the manuscript from the printed page. Pass images:false only to skip PNGs. Read skill kb-vision-pack. Never call vision_*. Never ask the user to export pages. kb_add accepts a disk path or a pack folder. Do not ask the user to restart.
-- KB manuscript layout (source documents and 用户模板 only — not every stage draft): the preview opens manuscript.md. A raw PDF extract is a draft. Rewrite it as readable Markdown that mirrors the printed page (ATX CHAPTER/PART/clause headings, TOC as a list, Markdown tables, restored word spaces). Do not import a wall of text. kb_prepare_document writes page PNGs by default — read_image them and rewrite from the printed layout. Do not add this rule to ordinary writing turns.
-- Stage drafts list bound method standards and exemplar templates (方法标准与范文模板). Read them before writing to match depth, TOC, and register; copy structure and craft, never project facts.
-- User templates (知识库「用户模板」, also accept 用户模版): when the user checks one, or says 按这个模板写 / 照这个大纲 / 复刻格式 / 套这个格式 / 完美复刻, read skill kb-user-template. Clone format, outline, heading register, and content depth. Fill with THIS project's facts. Do not copy names, quantities, dates, or clause answers from the template.
-
 Customer-facing work products belong in Official Outputs: Agent Pi Outputs/<projectId>/<stage>/. Structured JSON ledgers stay in .agent-pi/business/<module>/<projectId>/orchestration/reports/. The files rail harvests existing workbench Markdown into Official Outputs; it does not spawn workers.
 
 Project memory: every completed stage commits an immutable StageMemory handoff under the project orchestration directory. The small project-status capsule injected each turn tells you which prior revisions the active stage consumes. Chat history and compaction summaries are navigation aids, never the business baseline: after restart or compaction, follow the handoff path and read only the exact artifact needed. Project prices, employer conditions and project assumptions stay in project StageMemory; reusable specifications may enter the global KB; only a method explicitly accepted by the user may become a skill or workbench module.
 
-Vision: DeepSeek-V4-Flash and DeepSeek-V4-Pro are text-only — they cannot see pixels. If this turn has images and the current model is one of those, say so and ask to switch to DeepSeek-V4-Flash-Vision-Exp; do not invent what a picture contains. DeepSeek-V4-Flash-Vision-Exp can see native image parts already on this user message — look at those pixels, do not claim you cannot see a pasted picture, and do not call vision_describe / vision_ocr / vision_crop / vision_ground (those tools are not installed). For PNG/JPEG/WebP/GIF files that exist only on disk, use the official read_image tool; it is available only on the vision model. A PDF is not an image and is not converted until you call kb_prepare_document; then read_image the PNGs it wrote. Never paste full document contents into the chat. Do not invent contract form, spec clauses, geology, calendar, subcontracting, or sequence facts from pixels or memory.
+Vision: use the selected model’s declared image-input capability. Do not infer support from a retired model name. Inspect actual source images; if the selected model cannot accept them, explain the limitation and request a supported model.
 
 Writing: follow skill tender-formal-writing. No AI filler. Employer's terms, clause numbers, BOQ codes.
 
@@ -172,11 +165,6 @@ export function registerPrompt(ctx: {
     clearPendingVisionContext(sessionId)
   })
 
-  ctx.systemPrompt?.section({
-    name: 'agent-pi:tender',
-    order: 42,
-    text: (assemble) => businessProjectForAgent(assemble.agent) ? TENDER_PROMPT : '',
-  })
   ctx.systemPrompt?.context?.({
     name: 'agent-pi:task-and-delivery',
     order: 40,
@@ -187,10 +175,23 @@ export function registerPrompt(ctx: {
     order: 41,
     text: 'User-facing task communication: use the language of the latest substantive human request unless the user explicitly requests another language. Tool output, source documents and internal reasoning do not determine the reply language. During execution, provide brief plain-language updates only for meaningful task progress, a finding that changes the result, a blocker, or a decision the user needs to make. Describe what it means for the user\'s work. Do not narrate every command, file timestamp check, tool invocation or private reasoning step. Do not fabricate progress, completion percentages or successful checks. Keep required permissions, errors, missing critical inputs and final deliverables visible. This is a communication preference only; continue native DSH execution and respect the user\'s requested workflow.',
   })
-  ctx.systemPrompt?.context?.({
-    name: 'agent-pi:kb-catalog',
-    order: 43,
-    text: (assemble) => formatSelectedKbContext(assemble.agent?.session?.id),
+}
+
+const CUSTOM_WORKBENCH_PROMPT = 'This conversation is bound to a user-configured workbench project. Follow its captured stage requirements, selected skills, explicitly selected knowledge sources, deliverables and human approval gates. Use tender_stage for stage handoffs and status; its historical tool name does not make this a tender project. DSH remains the planner and executor. Do not add tender pricing, tender document structure or construction requirements unless the user workflow requires them. Preserve source facts and project scope. Present actual verified files using native DSH present. Saving a reusable skill or workflow requires the user to ask for it.'
+
+export function registerWorkbenchPrompt(ctx: Parameters<typeof registerPrompt>[0], registry?: WorkbenchRegistry): void {
+  const activeProject = (agent: Parameters<typeof businessProjectForAgent>[0]) => {
+    const project = businessProjectForAgent(agent)
+    if (!project || !registry) return project
+    return registry.run(() => listWorkbenchModules().modules.some((item) => item.id === project.module)) ? project : null
+  }
+  ctx.systemPrompt?.section({
+    name: 'agent-pi:tender',
+    order: 42,
+    text: (assemble) => {
+      const project = activeProject(assemble.agent)
+      return project ? (usesTenderControlProfile(project) ? TENDER_PROMPT : CUSTOM_WORKBENCH_PROMPT) : ''
+    },
   })
   ctx.systemPrompt?.context?.({
     name: 'agent-pi:project-memory',
@@ -198,7 +199,20 @@ export function registerPrompt(ctx: {
     text: (assemble) => {
       const session = assemble.agent?.session
       if (!session?.id || !session.header?.cwd) return ''
-      return projectMemoryContextForSession(String(session.header.cwd), String(session.id))
+      if (!activeProject(assemble.agent)) return ''
+      const render = () => projectMemoryContextForSession(String(session.header.cwd), String(session.id))
+      return registry ? registry.run(render) : render()
     },
+  })
+}
+
+const KNOWLEDGE_PROMPT = "Knowledge base (kb_* tools — local, durable, user-managed):\n- Only entries the user checks as 本次任务选用 are injected into this conversation. If none are listed below, do not pull the KB into this task unless the user asks.\n- Retrieval discipline: before writing spec/contract/method facts from a selected entry, kb_search (pass slugs) or kb_find_clause / kb_find_table first, then kb_read_chunk, and cite the returned citation (slug:chunkId). If the selected KB has no hit and no registered source covers it, mark the fact as a gap — do not fill from memory.\n- kb_list shows what exists (bundled method standards and exemplars are seeded on first use). Categories: 规范/合同/范文/方法标准/用户模板. 范文 is style. 用户模板 is a user-owned document whose format, heading tree, and depth this turn must clone.\n- Growing the KB: reusable specs/exemplars (not project-specific bid files) can enter two ways, both ending on the same structured index. Path 1 — Knowledge Base page (left sidebar「知识库」, or workbench top bar): choose files → they land in 原始文档区 → 「解析入库」. Born-digital PDFs extract locally; scans and complex layouts go through MinerU. MinerU HTML tables are converted to Markdown tables on ingest. Path 2 — right-hand files rail: right-click 「一键导入知识库」 (same stage+parse; a knowledge pack is ready immediately). When the user attaches a PDF and asks to 准确整理 / 整理完整内容 / 全文转录 / 知识库 / 知识包 — even without the word 知识库 — YOU must call kb_prepare_document on that PDF. The host does not convert it first. Official read/read_image cannot open PDF. The tool writes page PNGs by default; then you call read_image on each PNG (with a model that supports image input) and rewrite the manuscript from the printed page. Pass images:false only to skip PNGs. Read skill kb-vision-pack. Never call vision_*. Never ask the user to export pages. kb_add accepts a disk path or a pack folder. Do not ask the user to restart.\n- KB manuscript layout (source documents and 用户模板 only — not every stage draft): the preview opens manuscript.md. A raw PDF extract is a draft. Rewrite it as readable Markdown that mirrors the printed page (ATX CHAPTER/PART/clause headings, TOC as a list, Markdown tables, restored word spaces). Do not import a wall of text. kb_prepare_document writes page PNGs by default — read_image them and rewrite from the printed layout. Do not add this rule to ordinary writing turns.\n- Stage drafts list bound method standards and exemplar templates (方法标准与范文模板). Read them before writing to match depth, TOC, and register; copy structure and craft, never project facts.\n- User templates (知识库「用户模板」, also accept 用户模版): when the user checks one, or says 按这个模板写 / 照这个大纲 / 复刻格式 / 套这个格式 / 完美复刻, read skill kb-user-template. Clone format, outline, heading register, and content depth. Fill with THIS project's facts. Do not copy names, quantities, dates, or clause answers from the template."
+
+export function registerKnowledgePrompt(ctx: Parameters<typeof registerPrompt>[0]): void {
+  ctx.systemPrompt?.context?.({ name: 'agent-pi:knowledge-policy', order: 42, text: (assemble) => formatSelectedKbContext(assemble.agent?.session?.id) ? KNOWLEDGE_PROMPT : '' })
+  ctx.systemPrompt?.context?.({
+    name: 'agent-pi:kb-catalog',
+    order: 43,
+    text: (assemble) => formatSelectedKbContext(assemble.agent?.session?.id),
   })
 }

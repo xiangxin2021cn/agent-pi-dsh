@@ -31,18 +31,22 @@ export function businessProjectForAgent(agent?: Agent) {
 export function registerBusinessActivation(ctx: {
   tools: { schemas: () => Array<{ name: string }> }
   on: (event: string, listener: (...args: any[]) => unknown) => unknown
+  effect?: (install: () => (() => void)) => unknown
   get?: (name: string) => { list?: () => Agent[] } | undefined
 }) {
-  const tools = ctx.tools.schemas().map((tool) => tool.name)
-    .filter((name) => name.startsWith('tender_') && name !== 'tender_project')
-  const restrictions = new Map<Agent, () => void>()
+  const restrictions = new Map<Agent, { signature: string; dispose: () => void }>()
+  ctx.effect?.(() => () => { for (const item of restrictions.values()) item.dispose(); restrictions.clear() })
   const sync = (agent?: Agent) => {
-    if (!agent?.ctx?.tools || !tools.length) return
-    if (businessProjectForAgent(agent)) {
-      restrictions.get(agent)?.()
+    if (!agent?.ctx?.tools) return
+    const tools = ctx.tools.schemas().map((tool) => tool.name)
+      .filter((name) => name.startsWith('tender_') && name !== 'tender_project')
+    const signature = tools.join('\n')
+    if (businessProjectForAgent(agent) || !tools.length) {
+      restrictions.get(agent)?.dispose()
       restrictions.delete(agent)
-    } else if (!restrictions.has(agent)) {
-      restrictions.set(agent, agent.ctx.tools.restrict({ deny: tools }))
+    } else if (restrictions.get(agent)?.signature !== signature) {
+      restrictions.get(agent)?.dispose()
+      restrictions.set(agent, { signature, dispose: agent.ctx.tools.restrict({ deny: tools }) })
     }
   }
   ctx.on('agent/created', ({ agent }) => sync(agent))
@@ -51,7 +55,7 @@ export function registerBusinessActivation(ctx: {
     return typeof next === 'function' ? next() : { kind: 'enter', messages: payload.messages || [] }
   })
   ctx.on('agent/disposed', ({ agent }) => {
-    restrictions.get(agent)?.()
+    restrictions.get(agent)?.dispose()
     restrictions.delete(agent)
   })
   for (const agent of ctx.get?.('agents')?.list?.() || []) sync(agent)
@@ -61,7 +65,7 @@ export function registerBusinessActivation(ctx: {
 export function withBusinessGoalBoundary(ctx: Record<string, any>) {
   const goals = new Proxy(ctx.goals, {
     get(target, key) {
-      if (key === 'get') return (agent: Agent) => businessProjectForAgent(agent) ? undefined : target.get(agent)
+      if (key === 'get') return (agent: Agent) => ctx.get?.('workbench') && businessProjectForAgent(agent) ? undefined : target.get(agent)
       const value = Reflect.get(target, key, target)
       return typeof value === 'function' ? value.bind(target) : value
     },

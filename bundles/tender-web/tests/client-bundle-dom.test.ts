@@ -126,7 +126,8 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
         : {}
       fetchCalls.push({ url, action: request.action, text: request.text, transactionId: request.transactionId, files: request.files })
       let body: unknown = { files: [], outputFiles: [] }
-      if (url.includes('/api/agent-pi/workbench')) body = {
+      if (url.includes('/api/agent-pi/capabilities')) body = { workbench: true, knowledge: true }
+      else if (url.includes('/api/agent-pi/workbench')) body = {
         ...workbenchSnapshot,
         projects: workbenchSnapshot.projects.map((item) => ({
           ...item,
@@ -178,6 +179,7 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
   }
 
   let rootView: ReturnType<typeof createRoot> | undefined
+  const disposers: Array<() => void> = []
   try {
     let factory: ((require: (id: string) => unknown) => Record<string, unknown>) | undefined
     ;(dom.window as typeof dom.window & { __ModuleLoader__: unknown }).__ModuleLoader__ = {
@@ -245,6 +247,7 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
 
     const registered = new Map<string, unknown>()
     client.apply({
+      effect(install: () => (() => void)) { disposers.push(install()) },
       inject(deps: unknown, callback: (scope: object) => void) {
         const names = Array.isArray(deps) ? deps : [deps]
         if (names.some(name => !['sessions', 'conversation', 'uiWorkspace'].includes(String(name)))) return
@@ -714,6 +717,7 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     assert.equal(openedSessionIds.at(-1), 'session-create-mode')
     assert.match(promptTexts.at(-1) || '', /项目根目录：C:[\\/]workspace/)
   } finally {
+    for (const dispose of disposers.reverse()) dispose?.()
     if (rootView) await act(async () => rootView!.unmount())
     dom.window.close()
     for (const [key, descriptor] of previous) {

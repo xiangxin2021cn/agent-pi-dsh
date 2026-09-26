@@ -1,3 +1,4 @@
+import { currentWorkbench } from '../../../packages/business-projects/workbench-registry.ts'
 import { createHash } from 'node:crypto'
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { existsSync, readFileSync, readdirSync, renameSync, statSync } from 'node:fs'
@@ -289,7 +290,7 @@ function requirementStageId(
   project: BusinessProjectRecord,
   requestedStageId = '',
 ): string {
-  const workflow = workflowFor(project.module)
+  const workflow = workflowFor(project)
   const board = loadBoard(cwd, project.projectId, project.module)
   const candidate = requestedStageId || board.currentStageId
     || workflow.stages.find((stage) => board.stages[stage.id]?.status !== 'done')?.id
@@ -584,7 +585,7 @@ function analysisHardGatesReady(cwd: string, project: BusinessProjectRecord, sta
   const userOverride = acceptedUserRequirementOverride(cwd, project, stageId)
   let summaryName = '投标分析底稿.md'
   try {
-    const stage = workflowFor(project.module).stages.find((item) => item.id === stageId)
+    const stage = workflowFor(project).stages.find((item) => item.id === stageId)
     if (stage?.summaryDeliverable?.fileName) summaryName = stage.summaryDeliverable.fileName
   } catch { /* factory name stands */ }
   return (userOverride || (deliverableReady(join(dir, summaryName)) && assessAnalysisSuite(dir).ok))
@@ -606,14 +607,14 @@ function pricingHardGatesReady(cwd: string, projectId: string, stageId: string):
 }
 
 function stageHardGatesReady(cwd: string, project: BusinessProjectRecord, stageId: string): boolean {
-  const stage = workflowFor(project.module).stages.find((item) => item.id === stageId)
+  const stage = workflowFor(project).stages.find((item) => item.id === stageId)
   const userOverride = acceptedUserRequirementOverride(cwd, project, stageId)
   const summaryReady = userOverride || !stage?.summaryDeliverable
     || deliverableReady(join(officialStageDir(cwd, project.projectId, stageId), stage.summaryDeliverable.fileName))
   const workbookReady = userOverride || !pricingWorkbookMissing(cwd, project.projectId, stageId)
-  const capabilitiesReady = !usesTenderControlProfile(project.module)
+  const capabilitiesReady = !usesTenderControlProfile(project)
     || tenderCapabilityGaps(cwd, project.projectId, stageId).length === 0
-  const planningReady = userOverride || !usesTenderControlProfile(project.module)
+  const planningReady = userOverride || !usesTenderControlProfile(project)
     || planningDeliverableGaps(cwd, project, stageId).length === 0
   return summaryReady
     && workbookReady
@@ -664,7 +665,7 @@ function attachSetupRestorePaths(
   project: BusinessProjectRecord,
   slice: StageSlice,
 ): StageSlice {
-  const setupId = workflowFor(project.module).setupStageId
+  const setupId = workflowFor(project).setupStageId
   if (!setupId || slice.stageId !== setupId) return slice
   return {
     ...slice,
@@ -740,7 +741,7 @@ function backfillCompletedStageMemories(
   project: BusinessProjectRecord,
   board: OrchestrationBoard,
 ): void {
-  const workflow = workflowFor(project.module)
+  const workflow = workflowFor(project)
   let snapshot = loadStageMemorySnapshot(cwd, project)
   for (const stage of workflow.stages) {
     const slice = board.stages[stage.id]
@@ -762,7 +763,7 @@ function reconcileBoardWithStageMemory(
   board: OrchestrationBoard,
   snapshot: ReturnType<typeof refreshStageMemorySnapshot>,
 ): void {
-  const workflow = workflowFor(project.module)
+  const workflow = workflowFor(project)
   let firstInvalidIndex = Number.POSITIVE_INFINITY
   for (const [index, stage] of workflow.stages.entries()) {
     const memory = snapshot.stages[stage.id]
@@ -796,7 +797,7 @@ export function inspectBoard(cwd: string, project: BusinessProjectRecord): Orche
       inspectSlice(slice, stageHardGatesReady(cwd, project, id)),
     )
   }
-  if (usesTenderControlProfile(project.module)) {
+  if (usesTenderControlProfile(project)) {
     try { assessEvidence(cwd, project.projectId) } catch { /* ignore */ }
   }
   syncProjectOutputs(cwd, project.projectId, project.module, next.currentStageId)
@@ -823,12 +824,21 @@ export function workbenchSnapshot(cwd: string, module?: string) {
     return projectSnapshot(cwd, project)
   })
   const catalog = listWorkbenchModules()
+  const historical = new Map<string, ReturnType<typeof workflowFor>>()
+  for (const project of projects) {
+    if (!catalog.modules.some((item) => item.id === project.module)) historical.set(project.module, workflowFor(project))
+  }
   return {
     cwd,
     knowledge: knowledgeStatus(),
-    modules: catalog.modules.map(({ workflow: _workflow, ...info }) => info),
+    modules: [
+      ...catalog.modules.map(({ workflow: _workflow, ...info }) => ({ ...info, available: true })),
+      ...[...historical].map(([id, workflow]) => ({ id, label: workflow.label, labelZh: workflow.labelZh, icon: 'archive', disabled: false, available: false })),
+    ],
     moduleErrors: catalog.errors,
-    workflows: module ? [workflowFor(module)] : catalog.modules.map((item) => item.workflow),
+    workflows: module
+      ? [catalog.modules.find((item) => item.id === module)?.workflow ?? (projects[0] ? workflowFor(projects[0]) : workflowFor(module))]
+      : catalog.modules.map((item) => item.workflow),
     projects: inspected,
     inspectedAt: new Date().toISOString(),
   }
@@ -839,7 +849,7 @@ export function projectSnapshot(cwd: string, project: BusinessProjectRecord) {
   // is the material/deliverable folder named in stage drafts, never a state root.
   const board = loadBoard(cwd, project.projectId, project.module)
   const current = board.currentStageId ? board.stages[board.currentStageId] : undefined
-  const evidence = usesTenderControlProfile(project.module)
+  const evidence = usesTenderControlProfile(project)
     ? evidencePolicy(cwd, project.projectId)
     : null
   const outputs = listOfficialOutputs(cwd, project.projectId, project.module)
@@ -849,7 +859,7 @@ export function projectSnapshot(cwd: string, project: BusinessProjectRecord) {
   try { citationAudit = loadCitationAudit(cwd, project.projectId, project.module) } catch { /* stale ledger */ }
   const restores = listSetupRestores(cwd, project.projectId)
   const userRequirements = listUserRequirements(cwd, project)
-  const workSurface = usesTenderControlProfile(project.module)
+  const workSurface = usesTenderControlProfile(project)
     ? (() => {
         const coverageLedger = loadAnalysisCoverage(cwd, project.projectId)
         const coverage = assessAnalysisCoverage(coverageLedger)
@@ -876,7 +886,7 @@ export function projectSnapshot(cwd: string, project: BusinessProjectRecord) {
     : null
   return {
     project,
-    workflow: workflowFor(project.module),
+    workflow: workflowFor(project),
     stage: current
       ? {
           schemaVersion: 1 as const,
@@ -917,10 +927,11 @@ export function projectExecutionForSession(
 
 /** Resolved bindings for one stage; empty when the module/profile declares none. */
 export function stageBindings(project: BusinessProjectRecord, stageId: string): BindingFile[] {
+  if (currentWorkbench()?.knowledgeEnabled() === false) return []
   let area: BindingFile['area'] | undefined
   let pack: string[] | undefined
   try {
-    const workflow = workflowFor(project.module)
+    const workflow = workflowFor(project)
     area = workflow.bindingAreaByStage?.[stageId]
     pack = workflow.kbPack?.[area ?? 'analysis']
   } catch {
@@ -969,7 +980,7 @@ function bindingLines(rows: BindingFile[]): string {
 }
 
 export function buildStageDraft(project: BusinessProjectRecord, stage: WorkflowStage, extra = ''): string {
-  const workflow = workflowFor(project.module)
+  const workflow = workflowFor(project)
   const projectGoal = project.projectGoal || workflow.projectGoal
   const terminalDeliverables = project.terminalDeliverables?.length
     ? project.terminalDeliverables
@@ -1138,7 +1149,7 @@ export function buildRecoveryDraft(
   slice: StageSlice,
   extra = '',
 ): string {
-  const workflow = workflowFor(project.module)
+  const workflow = workflowFor(project)
   const projectGoal = project.projectGoal || workflow.projectGoal
   const terminalDeliverables = project.terminalDeliverables?.length
     ? project.terminalDeliverables
@@ -1354,10 +1365,10 @@ function listSourceTasks(
     }
   }
   briefBindings.citationRule = '规范/合同/方法事实句只给出处令牌：[kb:slug:chunkId] 或 [src:路径#L起-L止]。令牌是标注，不是原文；禁止粘贴大段证据。给不出令牌的写成缺口。'
-  if (usesTenderControlProfile(project.module)) {
+  if (usesTenderControlProfile(project)) {
     briefBindings.evidencePolicy = evidencePolicy(cwd, project.projectId)
   }
-  const selectedSlugs = [...new Set(selectedKnowledgeSlugs.map((slug) => String(slug).trim()).filter(Boolean))]
+  const selectedSlugs = currentWorkbench()?.knowledgeEnabled() === false ? [] : [...new Set(selectedKnowledgeSlugs.map((slug) => String(slug).trim()).filter(Boolean))]
   if (selectedSlugs.length > 0) {
     briefBindings.selectedKnowledgeSlugs = selectedSlugs
     briefBindings.selectedKnowledgeRule = '这些 slug 是用户为本任务勾选的知识范围。先 kb_search({ slugs }) / kb_find_clause / kb_find_table，再 kb_read_chunk；事实句用 [kb:slug:chunkId]，不得把未勾选条目当作本任务依据。'
@@ -1451,7 +1462,7 @@ export function prepareStage(
   stageId: string,
   selectedKnowledgeSlugs: string[] = [],
 ): { state: StageState; draft: string; blocked?: string; board: OrchestrationBoard; dispatch?: { stageId: string; key: string } } {
-  const workflow = workflowFor(project.module)
+  const workflow = workflowFor(project)
   const stage = workflow.stages.find((item) => item.id === stageId)
   if (!stage) throw new Error(`Unknown stage ${stageId}`)
   const existingBoard = inspectBoard(cwd, project)
@@ -1482,7 +1493,7 @@ export function prepareStage(
 
   const setupStageId = workflow.setupStageId
   if (setupStageId && stageId !== setupStageId) {
-    const policy = usesTenderControlProfile(project.module) ? evidencePolicy(cwd, project.projectId) : null
+    const policy = usesTenderControlProfile(project) ? evidencePolicy(cwd, project.projectId) : null
     if (policy && policy.blocking && stageId !== 'bid-risk-decision' && stageId !== 'tender-document-analysis') {
       const blocked = `项目特征证据门禁仍阻塞（${policy.ledger.blockingGapCount} 个缺口）。请补传资料或强制放行。`
       const slice: StageSlice = {
@@ -1522,10 +1533,10 @@ export function prepareStage(
     dispatch: previousSlice?.dispatch,
   }, stageHardGatesReady(cwd, project, stageId))
   const board = putSlice(cwd, project, slice)
-  if (usesTenderControlProfile(project.module)) assessEvidence(cwd, project.projectId)
+  if (usesTenderControlProfile(project)) assessEvidence(cwd, project.projectId)
   syncProjectOutputs(cwd, project.projectId, project.module, stageId)
   let extra = ''
-  if (usesTenderControlProfile(project.module) && stageId === 'boq-five-step-pricing') {
+  if (usesTenderControlProfile(project) && stageId === 'boq-five-step-pricing') {
     seedEnterpriseProductivityMemo(cwd, project.projectId)
     extra = enterpriseProductivityDraftNote(cwd, project.projectId)
   }
@@ -1543,7 +1554,7 @@ export function prepareStage(
  * status and currentStageId alone.
  */
 export function refreshSourceBriefsAfterRestore(cwd: string, project: BusinessProjectRecord): void {
-  const workflow = workflowFor(project.module)
+  const workflow = workflowFor(project)
   const board = loadBoard(cwd, project.projectId, project.module)
   const setupId = workflow.setupStageId
   if (setupId && board.stages[setupId]?.status !== 'done') return
@@ -1577,7 +1588,7 @@ export function completeSetup(
   nextStageId?: string
   dispatch?: { stageId: string; key: string }
 } {
-  const workflow = workflowFor(project.module)
+  const workflow = workflowFor(project)
   const setupStageId = workflow.setupStageId
   if (!setupStageId) {
     throw new Error(`模块 ${project.module} 没有资料登记步骤；直接 prepare 第一阶段（${workflow.stages[0]?.id}）。`)
@@ -1597,7 +1608,7 @@ export function completeSetup(
       blocked: slice.blockedReason,
     }
   }
-  if (usesTenderControlProfile(project.module)) {
+  if (usesTenderControlProfile(project)) {
     registerProjectSources(cwd, project.projectId, { title: project.name, inputPaths: project.inputPaths })
   }
   const now = new Date().toISOString()
@@ -1650,7 +1661,7 @@ export function completeStage(
   project: BusinessProjectRecord,
   stageId: string,
 ): { state: StageState; board: OrchestrationBoard } {
-  const workflow = workflowFor(project.module)
+  const workflow = workflowFor(project)
   const stage = workflow.stages.find((item) => item.id === stageId)
   if (!stage) throw new Error(`Unknown stage ${stageId}`)
   const board = inspectBoard(cwd, project)
@@ -1689,13 +1700,13 @@ export function completeStage(
   if (stage.approvalGate) {
     throw new Error(`阶段「${stage.labelZh}」等待用户人工决策。请停止自动推进，由用户在工作台点击「${stage.approvalGate.approveLabelZh}」${stage.approvalGate.rejectLabelZh ? `或「${stage.approvalGate.rejectLabelZh}」` : ''}。`)
   }
-  if (usesTenderControlProfile(project.module)) {
+  if (usesTenderControlProfile(project)) {
     const capabilityGaps = tenderCapabilityGaps(cwd, project.projectId, stageId)
     if (capabilityGaps.length > 0) {
       throw new Error(`阶段能力包未就绪：${capabilityGaps.join('；')}。请先 tender_capability replace/validate，并处理 stale 依赖。`)
     }
   }
-  const planningGaps = usesTenderControlProfile(project.module) && !userOverride
+  const planningGaps = usesTenderControlProfile(project) && !userOverride
     ? planningDeliverableGaps(cwd, project, stageId)
     : []
   if (planningGaps.length > 0) {
@@ -1748,7 +1759,7 @@ export function decideApprovalStage(
   decision: 'approved' | 'rejected',
   note = '',
 ): { state: StageState; board: OrchestrationBoard } {
-  const workflow = workflowFor(project.module)
+  const workflow = workflowFor(project)
   const stage = workflow.stages.find((item) => item.id === stageId)
   if (!stage) throw new Error(`Unknown stage ${stageId}`)
   if (!stage.approvalGate) throw new Error(`阶段「${stage.labelZh}」不是人工决策门。`)
@@ -1781,7 +1792,7 @@ export function decideApprovalStage(
       throw new Error(`请先完成《${stage.summaryDeliverable.fileName}》再提交人工决策。`)
     }
   }
-  if (usesTenderControlProfile(project.module)) {
+  if (usesTenderControlProfile(project)) {
     const capabilityGaps = tenderCapabilityGaps(cwd, project.projectId, stageId)
     if (capabilityGaps.length > 0) {
       throw new Error(`人工决策前能力包未就绪：${capabilityGaps.join('；')}。`)
@@ -2005,7 +2016,7 @@ export function collectStageReality(
   board: OrchestrationBoard,
   citationAudit: CitationAudit,
 ): StageReality {
-  const workflow = workflowFor(project.module)
+  const workflow = workflowFor(project)
   const stage = workflow.stages.find((item) => item.id === stageId) ?? workflow.stages[0]!
   const slice = board.stages[stage.id]
   const tasks = slice?.tasks ?? []
@@ -2022,7 +2033,7 @@ export function collectStageReality(
     }
   }
   let evidence: StageReality['evidence']
-  if (usesTenderControlProfile(project.module)) {
+  if (usesTenderControlProfile(project)) {
     try {
       const policy = evidencePolicy(cwd, project.projectId)
       evidence = { blocking: policy.blocking, gapCount: policy.gaps.length, waived: policy.gateWaived }
@@ -2132,7 +2143,7 @@ export interface ProjectReality {
 export function projectReality(cwd: string, project: BusinessProjectRecord): ProjectReality {
   const citationAudit = auditProjectCitations(cwd, project)
   const board = inspectBoard(cwd, project)
-  const workflow = workflowFor(project.module)
+  const workflow = workflowFor(project)
   return {
     generatedAt: new Date().toISOString(),
     stages: workflow.stages.map((stage) => collectStageReality(cwd, project, stage.id, board, citationAudit)),
@@ -2364,7 +2375,7 @@ export function organizeDeliverables(
   const published = syncProjectOutputs(cwd, project.projectId, project.module, stageId).published
   const citationAudit = auditProjectCitations(cwd, project)
   const board = inspectBoard(cwd, project)
-  const workflow = workflowFor(project.module)
+  const workflow = workflowFor(project)
   const stage = workflow.stages.find((item) => item.id === stageId) ?? workflow.stages[0]!
   const reality = collectStageReality(cwd, project, stageId, board, citationAudit)
   const closed = reality.stageStatus === 'done' && !reality.needsQc
@@ -2517,7 +2528,7 @@ export function resumeUnfinished(
   options: { sessionId?: string } = {},
 ): ResumeResult {
   const board = inspectBoard(cwd, project)
-  const workflow = workflowFor(project.module)
+  const workflow = workflowFor(project)
   const setupStageId = workflow.setupStageId
   if (setupStageId && board.stages[setupStageId]?.status !== 'done') {
     return {

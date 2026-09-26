@@ -1,3 +1,4 @@
+import { WORKBENCH_PLUGIN_DEFAULTS, workbenchPluginDefaults } from './workbench-plugin-defaults.mjs'
 import {
   copyFileSync,
   cpSync,
@@ -54,6 +55,10 @@ const teamsEnabled = !pluginRecovery && process.env.AGENT_PI_AGENT_TEAMS === '1'
 const CODEX_SUBAGENT = '@deepseek-ai/dsh-subagent-codex'
 const AGENT_PI_COMPACTION = 'dsh-agent-pi-compaction'
 const DSH_IM_NAME = '@xmanrui/dsh-im'
+const workbenchSeedPath = join(profileDir, '.agent-pi-workbench-defaults.json')
+const workbenchPriorDeps = existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath, 'utf8')).dependencies || {} : {}
+const workbenchSeeded = existsSync(workbenchSeedPath) ? JSON.parse(readFileSync(workbenchSeedPath, 'utf8')) : []
+const workbenchDefaults = workbenchPluginDefaults(workbenchPriorDeps, workbenchSeeded)
 const bundles = [
   '@deepseek-ai/dsh-base',
   '@deepseek-ai/dsh-web-app',
@@ -62,6 +67,7 @@ const bundles = [
   CODEX_SUBAGENT,
   INJECTOR_NAME,
   'dsh-tender-host',
+  ...workbenchDefaults.map(([name]) => name),
   'dsh-tender-web',
   'dshmarket',
   ANYSEARCH_NAME,
@@ -159,6 +165,7 @@ const agentPiCompactionDir = join(root, 'bundles/agent-pi-compaction')
 wireAgentPiCompactionRuntimeDeps(agentPiCompactionDir)
 
 const localPlugins = [
+  ...workbenchDefaults.map(([name, dir]) => ({ name, dir: join(root, 'bundles', dir) })),
   ...TEAM_PACKAGES.map(name => ({ name: `@deepseek-ai/dsh-experimental-${name}`, dir: join(dsh, 'packages/experimental', name) })),
   { name: 'dsh-tender-host', dir: join(root, 'bundles/tender-host') },
   { name: 'dsh-tender-web', dir: join(root, 'bundles/tender-web') },
@@ -805,3 +812,5 @@ if (!legacyPresetMigration.skipped && (legacyPresetMigration.migrated > 0 || leg
 process.stdout.write(`tender profile ready at ${profileDir}\n`)
 process.stdout.write(`router-standard preset at ${routerPresetDest}\n`)
 process.stdout.write(readFileSync(manifestPath, 'utf8'))
+
+writeFileSync(workbenchSeedPath, JSON.stringify(WORKBENCH_PLUGIN_DEFAULTS.map(([name]) => name)) + '\n')

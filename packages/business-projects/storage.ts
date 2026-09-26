@@ -98,6 +98,7 @@ export function createBusinessProject(input: CreateBusinessProjectInput): Busine
     name: input.name,
     rootPath,
     workflowId: input.workflowId,
+    workflowSnapshot: input.workflowSnapshot ? structuredClone(input.workflowSnapshot) : undefined,
     inputPaths: normalizeInputPaths(input.inputPaths),
     projectGoal: normalizeProjectGoal(input.projectGoal),
     terminalDeliverables: normalizeTerminalDeliverables(input.terminalDeliverables),

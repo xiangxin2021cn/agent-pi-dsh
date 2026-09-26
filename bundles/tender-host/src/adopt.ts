@@ -1,3 +1,4 @@
+import { workflowForCreation } from './modules.ts'
 import { basename, join, resolve } from 'node:path'
 import { existsSync, readdirSync, statSync } from 'node:fs'
 import {
@@ -10,7 +11,7 @@ import type { BusinessModuleId } from '../../../packages/business-projects/types
 import { UPLOADS_DIR } from './files.ts'
 import { listOfficialOutputs } from './outputs.ts'
 import { prepareStage, projectSnapshot } from './orchestration.ts'
-import { usesTenderControlProfile, workflowFor } from './modules.ts'
+import { usesTenderControlProfile } from './modules.ts'
 import { registerProjectSources } from './workspace.ts'
 
 const SUGGEST_CAP = 80
@@ -129,7 +130,7 @@ export function adoptWorkspace(cwd: string, input: AdoptWorkspaceInput) {
   if (listBusinessProjects(preview.cwd).some((project) => project.module === module && project.projectId === projectId)) {
     throw new Error(`Business project ${module}/${projectId} already exists`)
   }
-  const workflow = workflowFor(module)
+  const workflow = workflowForCreation(module)
   const project = createBusinessProject({
     workspaceRootPath: preview.cwd,
     projectId,
@@ -137,6 +138,7 @@ export function adoptWorkspace(cwd: string, input: AdoptWorkspaceInput) {
     name: input.name?.trim() || preview.name,
     rootPath: preview.cwd,
     workflowId: workflow.id,
+    workflowSnapshot: workflow,
     createDirectory: false,
     inputPaths: input.inputPaths ?? preview.suggestedInputs,
     projectGoal: input.projectGoal ?? workflow.projectGoal,

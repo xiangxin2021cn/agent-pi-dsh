@@ -1,3 +1,5 @@
+import { workflowForCreation, assertModuleEnabled } from './modules.ts'
+import { routeOwner, WORKBENCH_ROUTES, type ProductPluginOwner } from './plugin-ownership.ts'
 import { IncomingMessage, ServerResponse } from 'node:http'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
@@ -174,7 +176,7 @@ function createProject(cwd: string, body: {
   const module = body.module ?? 'tender'
   const projectId = body.projectId ?? `p${Date.now()}`
   const rootPath = body.rootPath || cwd
-  const workflow = workflowFor(module)
+  const workflow = workflowForCreation(module)
   const project = createBusinessProject({
     workspaceRootPath: cwd,
     projectId,
@@ -182,6 +184,7 @@ function createProject(cwd: string, body: {
     name: body.name ?? projectId,
     rootPath,
     workflowId: workflow.id,
+    workflowSnapshot: workflow,
     createDirectory: body.createDirectory !== false,
     inputPaths: body.inputPaths ?? [],
     projectGoal: body.projectGoal ?? workflow.projectGoal,
@@ -219,31 +222,40 @@ export function attachHttp(ctx: {
     }) => unknown
     tapIndex?: (transform: (html: string) => string) => () => void
   }
+  effect?: (install: () => (() => void)) => unknown
+  run?: <T>(fn: () => T) => T
+  getCapabilities?: () => { workbench: boolean; knowledge: boolean }
   getUniver?: () => UniverOfficeService | null | undefined
   getDefaultModel?: () => { provider: string; model: string; reasoningEffort?: string } | undefined
-}): void {
+}, owner?: ProductPluginOwner): void {
   const webServer = ctx.webServer
   if (!webServer) return
 
-  webServer.tapIndex?.((html) => html
+  const install = (fn: () => (() => void)) => ctx.effect ? ctx.effect(fn) : fn()
+  if (!owner || owner === 'host') install(() => webServer.tapIndex?.((html) => html
     .replaceAll('<title>DeepSeek Harness</title>', '<title>Agent Pi</title>')
     .replaceAll('<title>DSH Local Build</title>', '<title>Agent Pi</title>')
     .replaceAll('href="/favicon.svg"', 'href="/api/agent-pi/brand/favicon.png"')
     .replaceAll('src": "/favicon.svg"', 'src": "/api/agent-pi/brand/favicon.png"')
     .replaceAll('"name": "DeepSeek Harness"', '"name": "Agent Pi"')
     .replaceAll('"name": "DSH Local Build"', '"name": "Agent Pi"')
-    .replaceAll('"short_name": "DSH"', '"short_name": "Agent Pi"'))
+    .replaceAll('"short_name": "DSH"', '"short_name": "Agent Pi"')) ?? (() => {}))
 
-  webServer.register({
-    kind: 'prefix',
-    path: '/api/agent-pi',
-    handler: async (req, res) => {
+  const handler = async (req: IncomingMessage, res: ServerResponse) => {
       try {
         if (req.method === 'OPTIONS') {
           send(res, 204, {})
           return
         }
         const url = new URL(req.url ?? '/', 'http://127.0.0.1')
+        if (owner && routeOwner(url.pathname) !== owner) {
+          send(res, 404, { error: 'The plugin for this capability is not active' })
+          return
+        }
+        if (req.method === 'GET' && url.pathname === '/api/agent-pi/capabilities') {
+          send(res, 200, ctx.getCapabilities?.() ?? { workbench: true, knowledge: true })
+          return
+        }
         if (req.method === 'GET' && url.pathname.startsWith('/api/agent-pi/brand/')) {
           sendBrand(res, decodeURIComponent(url.pathname.slice('/api/agent-pi/brand/'.length)))
           return
@@ -574,10 +586,12 @@ export function attachHttp(ctx: {
               labelZh?: string
               disabled?: boolean
               definition?: unknown
+              createOnly?: boolean
+              expectedRevision?: string
             }
             const action = body.action || 'list'
             if (action === 'save') {
-              send(res, 200, saveUserModule(body.definition))
+              send(res, 200, saveUserModule(body.definition, { createOnly: body.createOnly, expectedRevision: body.expectedRevision }))
               return
             }
             if (action === 'copy') {
@@ -881,8 +895,9 @@ export function attachHttp(ctx: {
             send(res, 404, { error: `project ${module}/${projectId} not found` })
             return
           }
-          const stageId = body.stageId ?? workflowFor(module).stages[0]?.id ?? 'project-setup'
+          const stageId = body.stageId ?? workflowFor(project).stages[0]?.id ?? 'project-setup'
           const action = body.action || 'prepare'
+          if (!['status', 'check', 'bind_session', 'execution_status'].includes(action)) assertModuleEnabled(module)
           const selectedKnowledgeSlugs = getKbTaskSlugs(body.sessionId)
           if (body.sessionId) bindProjectSession(cwd, project, body.sessionId, body.stageId || '')
           if (action === 'bind_session') {
@@ -1225,6 +1240,10 @@ export function attachHttp(ctx: {
       } catch (error) {
         send(res, 500, { error: error instanceof Error ? error.message : String(error) })
       }
-    },
-  })
+  }
+  const paths = owner === 'knowledge' ? ['kb'] : owner === 'workbench' ? WORKBENCH_ROUTES : ['']
+  for (const suffix of paths) install(() => webServer.register({
+    kind: 'prefix', path: '/api/agent-pi' + (suffix ? '/' + suffix : ''),
+    handler: (req, res) => ctx.run ? ctx.run(() => handler(req, res)) : handler(req, res),
+  }) as () => void)
 }

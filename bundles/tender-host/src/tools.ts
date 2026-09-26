@@ -1,3 +1,5 @@
+import { workflowForCreation } from './modules.ts'
+import { toolOwner, type ProductToolOwner } from './plugin-ownership.ts'
 import { isAbsolute, resolve } from 'node:path'
 import {
   createBusinessProject,
@@ -133,9 +135,12 @@ function jsonOut() {
 
 export function registerTools(ctx: {
   tools: { register: (definition: unknown) => unknown }
-}, defineTool: DefineTool): void {
+}, defineTool: DefineTool, owner?: ProductToolOwner): void {
+  const tools = { register: (definition: any) => {
+    if (!owner || toolOwner(definition.name) === owner) return ctx.tools.register(definition)
+  } }
 
-  ctx.tools.register(defineTool({
+  tools.register(defineTool({
     name: 'tender_knowledge',
     description: 'Route and inspect tender knowledge across document/table/graph surfaces. PageIndex is a shadow navigator for long narrative setup manuscripts only; its preview is never evidence and it must never answer BOQ quantities. Use evidence_record to freeze claims with source hash and an immutable locator, then cite the returned [ev:claimId] token. Coverage actions record the five required analysis domains.',
     parameters: {
@@ -261,7 +266,7 @@ export function registerTools(ctx: {
     },
   }))
 
-  ctx.tools.register(defineTool({
+  tools.register(defineTool({
     name: 'tender_workspace',
     description: 'Create or update the tender workspace JSON (documents, requirements, criteria, deliverables) and run a deterministic readiness audit. Use init first, then upsert_documents after registering bid files.',
     parameters: {
@@ -294,7 +299,7 @@ export function registerTools(ctx: {
     },
   }))
 
-  ctx.tools.register(defineTool({
+  tools.register(defineTool({
     name: 'tender_capability',
     description: 'Write or validate a tender capability pack (document_analysis, boq_reconciliation, boq_five_step_pricing, etc.) using business-core schema/audit. init is an alias of replace; configure confirms the already-enabled capability and returns status. Call action=schema before the first boq_five_step_pricing replace — top-level keys are currency/pricingStatus/itemBuildUps/assumptions (plus optional pricingStandard/vatTreatment/indirectCostPolicy/resourceSummary). Do not invent missing specs.',
     parameters: {
@@ -338,7 +343,7 @@ export function registerTools(ctx: {
     },
   }))
 
-  ctx.tools.register(defineTool({
+  tools.register(defineTool({
     name: 'tender_pricing_workbook',
     description: 'Generate the formula BOQ unit-cost workbook (xlsx) from the packed boq_five_step_pricing data. Call after chapter Markdown and 《BOQ 组价总报告.md》. Layout matches the factory template: Summary + Rates + one sheet per item; F=D*E, block SUM, header RATE formulas. Blue/yellow cells are inputs.',
     parameters: {
@@ -361,7 +366,7 @@ export function registerTools(ctx: {
     },
   }))
 
-  ctx.tools.register(defineTool({
+  tools.register(defineTool({
     name: 'tender_evidence',
     description: 'Project-characteristic evidence gate: assess gaps, read policy, waive the gate, or force-pass (waive + authorize web diligence on the listed gaps). waive_pricing / force_pass_pricing unlock the BOQ supplier-productivity pack so planning may use web quotes and derived outputs after 《组价依据说明.md》. Never fill characteristic facts from model memory.',
     parameters: {
@@ -383,7 +388,7 @@ export function registerTools(ctx: {
     },
   }))
 
-  ctx.tools.register(defineTool({
+  tools.register(defineTool({
     name: 'tender_outputs',
     description: 'Optionally copy a customer-facing file into Agent Pi Outputs/<projectId>/. Prefer writing Markdown directly to brief.markdownPath. JSON ledgers stay in orchestration/reports. action=list scans Official Outputs plus the catalog.',
     parameters: {
@@ -406,7 +411,7 @@ export function registerTools(ctx: {
     },
   }))
 
-  ctx.tools.register(defineTool({
+  tools.register(defineTool({
     name: 'kb_list',
     description: 'List local knowledge-base entries grouped by category (slug, name, clauseCount, coverage, source). Seeds the bundled method-standard/exemplar packs on first use. Start here when unsure what the KB contains.',
     parameters: {
@@ -424,7 +429,7 @@ export function registerTools(ctx: {
     },
   }))
 
-  ctx.tools.register(defineTool({
+  tools.register(defineTool({
     name: 'kb_search',
     description: 'Search the local knowledge base (specs, method standards, exemplars) with MiniSearch BM25. Field boost is clause id, then title, heading path, then body. Returns scored units with citations (slug:chunkId); read the manuscript with kb_read_chunk. Cross-corpus searches keep at most 3 hits per entry so results span documents; pass slugs to search one document exhaustively. Locate a known clause number with kb_find_clause, not this tool. When a spec/standard fact matters, search here and cite the unit instead of quoting from memory.',
     parameters: {
@@ -446,7 +451,7 @@ export function registerTools(ctx: {
     },
   }))
 
-  ctx.tools.register(defineTool({
+  tools.register(defineTool({
     name: 'kb_find_clause',
     description: 'Locate a clause/section number (e.g. "A1.2.3", "5.2.3") by structured unit id. Exact id first, then child subclauses. Follow with kb_read_chunk for the complete unit text.',
     parameters: {
@@ -465,7 +470,7 @@ export function registerTools(ctx: {
     },
   }))
 
-  ctx.tools.register(defineTool({
+  tools.register(defineTool({
     name: 'kb_find_table',
     description: 'Locate tables or BOQ item codes inside knowledge-base entries by caption, header keyword, or item number (e.g. "51.02"). MinerU tables are whole units; cite [kb:slug:table-…].',
     parameters: {
@@ -484,7 +489,7 @@ export function registerTools(ctx: {
     },
   }))
 
-  ctx.tools.register(defineTool({
+  tools.register(defineTool({
     name: 'kb_read_chunk',
     description: 'Read one knowledge-base unit by slicing the parse manuscript at the stored span. Use after kb_search / kb_find_clause / kb_find_table. Cite [kb:slug:clauseId].',
     parameters: {
@@ -497,7 +502,7 @@ export function registerTools(ctx: {
     },
   }))
 
-  ctx.tools.register(defineTool({
+  tools.register(defineTool({
     name: 'kb_prepare_document',
     description: 'You call this. The host does not convert a PDF until you do. Official read/read_image cannot open PDF. When the user uploads a PDF and asks to 准确整理/整理完整内容/全文转录, or to build a knowledge pack, call this on the PDF path first. It writes <stem>-知识包/, a draft manuscript.md when a text layer exists, and by default rasterizes up to 20 pages to PNG. Then you read_image those PNGs (Flash Vision Exp) and rewrite manuscript.md as readable Markdown that mirrors the printed page (ATX headings, TOC, tables) — do not import the raw extract. Pass images:false only to skip PNGs. Use startPage/endPage for later batches. Never call vision_*. Never ask the user to export pages.',
     parameters: {
@@ -521,7 +526,7 @@ export function registerTools(ctx: {
     },
   }))
 
-  ctx.tools.register(defineTool({
+  tools.register(defineTool({
     name: 'kb_add',
     description: 'Register a file or knowledge pack into the local knowledge base. A pack folder (pack.json + manuscript.md) indexes immediately with the pack units. Text (.md/.txt/.json) indexes immediately. To transcribe a PDF in chat, call kb_prepare_document first, then import the pack folder. Raw PDF/Word/Excel/PPT/images can also be parsed on the Knowledge Base page (local text layer or MinerU). Re-adding the same file rebuilds the entry.',
     parameters: {
@@ -548,7 +553,7 @@ export function registerTools(ctx: {
     },
   }))
 
-  ctx.tools.register(defineTool({
+  tools.register(defineTool({
     name: 'kb_remove',
     description: 'Remove one knowledge-base entry (registry row, index, managed copy). Removed seeded entries stay removed until explicitly re-added.',
     parameters: {
@@ -560,7 +565,7 @@ export function registerTools(ctx: {
     },
   }))
 
-  ctx.tools.register(defineTool({
+  tools.register(defineTool({
     name: 'kb_reindex',
     description: 'Rebuild unit indexes for one entry or all entries, even when the manuscript hash is unchanged. MinerU entries rebuild from the managed Markdown parse, not the original PDF/Office file.',
     parameters: {
@@ -572,7 +577,7 @@ export function registerTools(ctx: {
     },
   }))
 
-  ctx.tools.register(defineTool({
+  tools.register(defineTool({
     name: 'tender_project',
     description: 'Only when the user explicitly requests a tender, delivery, investment, or custom business workbench project: create, adopt, or bind it to this conversation. Never use this for an ordinary chat, coding task, or generic software project. configure persists the business project goal and terminal deliverables.',
     parameters: {
@@ -619,7 +624,7 @@ export function registerTools(ctx: {
       }
       if (args.action !== 'create') throw new Error('Unknown tender_project action')
       const projectId = String(args.projectId ?? `p${Date.now()}`)
-      const workflow = workflowFor(module)
+      const workflow = workflowForCreation(module)
       const project = createBusinessProject({
         workspaceRootPath: cwd,
         projectId,
@@ -627,6 +632,7 @@ export function registerTools(ctx: {
         name: String(args.name ?? projectId),
         rootPath: cwd,
         workflowId: workflow.id,
+        workflowSnapshot: workflow,
         createDirectory: true,
         inputPaths: Array.isArray(args.inputPaths) ? args.inputPaths.map(String) : [],
         projectGoal: args.projectGoal ? String(args.projectGoal) : workflow.projectGoal,
@@ -646,7 +652,7 @@ export function registerTools(ctx: {
     },
   }))
 
-  ctx.tools.register(defineTool({
+  tools.register(defineTool({
     name: 'tender_stage',
     description: 'Prepare or inspect a workbench stage. DSH is the only executor; the workbench provides disk facts, light coverage checks and explicit human stops. User requirements from the bound parent chat outrank default soft gates. execution_update is optional sparse progress telemetry only, never a heartbeat or a second planner. status returns pending work plus execution/fact alignment. Does not spawn subagents.',
     parameters: tenderStageParameters,
@@ -735,7 +741,7 @@ export function registerTools(ctx: {
       if (args.action === 'resume') {
         return textResult(resumeUnfinished(cwd, project, selectedKnowledgeSlugs, { sessionId }))
       }
-      const stageId = String(args.stageId ?? workflowFor(module).stages[0]?.id)
+      const stageId = String(args.stageId ?? workflowFor(project).stages[0]?.id)
       if (args.action === 'reset' || args.action === 'reset_orchestration') {
         return textResult(resetOrchestration(cwd, project, stageId))
       }
@@ -746,7 +752,7 @@ export function registerTools(ctx: {
     },
   }))
 
-  ctx.tools.register(defineTool({
+  tools.register(defineTool({
     name: 'tender_citations',
     description: 'Verify every citation token ([kb:slug:chunkId], [src:path#L10-L25]) inside the project\'s Official Outputs Markdown. Returns totals plus orphans (unresolvable tokens) with file, line, and reason. Run before claiming a stage QA-clean; fix orphans, then re-run.',
     parameters: {
@@ -763,7 +769,7 @@ export function registerTools(ctx: {
     },
   }))
 
-  ctx.tools.register(defineTool({
+  tools.register(defineTool({
     name: 'workbench_module_list',
     description: 'List workbench business modules: built-ins (tender/delivery/investment) and user-created domain modules, including disabled ones and load errors from broken module files.',
     parameters: {},
@@ -773,7 +779,7 @@ export function registerTools(ctx: {
     },
   }))
 
-  ctx.tools.register(defineTool({
+  tools.register(defineTool({
     name: 'workbench_module_save',
     description: 'Create or replace a user-defined workbench module. You derive and pass the definition; never ask the user to paste JSON. A module is a complete workbench package (tab + stage monitor + setup + review/approval gates + skills), rendered by this app — do not invent a new UI. Shape: { schemaVersion: 1, id, labelZh, controlProfile?: "tender", setupStageId?, bindingAreaByStage?, kbPack?, stages: [{ id, labelZh, prompt, hintZh?, skillSlugs?, reviewSkillSlugs?, reviewPolicy?, approvalGate?, listsSources?, summaryDeliverable? }] }. Use controlProfile: "tender" only for a workflow copied from the built-in tender process with its canonical stage ids; it preserves deterministic BOQ/evidence/capability/final-freeze controls after the module is renamed. Built-in ids cannot be overridden. Read skill workbench-domain-builder first.',
     parameters: {
@@ -785,7 +791,7 @@ export function registerTools(ctx: {
     },
   }))
 
-  ctx.tools.register(defineTool({
+  tools.register(defineTool({
     name: 'workbench_module_copy',
     description: 'Clone a built-in or user workbench module into a new user-module file. Built-ins stay untouched. Pass source id; optional newId and labelZh (defaults: <id>-copy and 「原名（副本）」). The copy is live immediately.',
     parameters: {
@@ -802,7 +808,7 @@ export function registerTools(ctx: {
     },
   }))
 
-  ctx.tools.register(defineTool({
+  tools.register(defineTool({
     name: 'workbench_module_remove',
     description: 'Delete a user-created workbench module definition file. Built-ins cannot be removed (disable instead). Existing projects of that module keep their data but lose workflow resolution — warn the user first.',
     parameters: {
@@ -814,9 +820,9 @@ export function registerTools(ctx: {
     },
   }))
 
-  ctx.tools.register(defineTool({
+  tools.register(defineTool({
     name: 'workbench_module_set_enabled',
-    description: 'Enable or disable a workbench module (built-in or user). Disabled modules disappear from the workbench module bar and project creation; existing projects keep working.',
+    description: 'Enable or disable a workbench module (built-in or user). Disabled modules cannot create projects or start new business execution. Existing project snapshots and files remain readable. This does not cancel a tool call already in progress.',
     parameters: {
       id: { type: 'string', required: true },
       enabled: { type: 'boolean', required: true },
@@ -827,7 +833,7 @@ export function registerTools(ctx: {
     },
   }))
 
-  ctx.tools.register(defineTool({
+  tools.register(defineTool({
     name: 'workbench_skill_save',
     description: 'Persist a domain method skill to the user skill root ($DSH_HOME/skills/<slug>/SKILL.md). Hot-loads without restart and survives upgrades. Use when distilling a finished piece of work into a reusable workbench module: write the method, structure, and the user\'s hard rules learned during revisions into the skill, then reference the slug from the module stages\' skillSlugs. Frontmatter name must equal the slug and description must say when to use it.',
     parameters: {

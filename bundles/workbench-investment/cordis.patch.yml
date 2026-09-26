@@ -1,0 +1,4 @@
+- insert:
+    - id: agent-pi-workbench-investment
+      name: dsh-agent-pi-workbench-investment
+      inject: [workbench]

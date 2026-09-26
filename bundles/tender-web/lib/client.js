@@ -30,6 +30,1817 @@ window.__ModuleLoader__.load({
 		react = __toESM(react, 1);
 		let react_dom = require("react-dom");
 		react_dom = __toESM(react_dom, 1);
+		//#region src/client/product-capabilities.js
+		function createProductCapabilities(React) {
+			let value = {
+				workbench: false,
+				knowledge: false
+			};
+			const listeners = /* @__PURE__ */ new Set();
+			return {
+				install() {
+					let disposed = false;
+					let pending = false;
+					const refresh = async () => {
+						if (pending) return;
+						pending = true;
+						try {
+							const response = await fetch("/api/agent-pi/capabilities");
+							if (!response.ok) return;
+							const next = await response.json();
+							if (!disposed && (next.workbench !== value.workbench || next.knowledge !== value.knowledge)) {
+								value = {
+									workbench: next.workbench === true,
+									knowledge: next.knowledge === true
+								};
+								for (const notify of listeners) notify(value);
+							}
+						} finally {
+							pending = false;
+						}
+					};
+					const update = () => {
+						refresh().catch(() => {});
+					};
+					update();
+					const timer = setInterval(update, 5e3);
+					window.addEventListener("focus", update);
+					return () => {
+						disposed = true;
+						clearInterval(timer);
+						window.removeEventListener("focus", update);
+					};
+				},
+				use() {
+					const [state, setState] = React.useState(value);
+					React.useEffect(() => {
+						listeners.add(setState);
+						setState(value);
+						return () => listeners.delete(setState);
+					}, []);
+					return state;
+				}
+			};
+		}
+		//#endregion
+		//#region src/client/workflow-editor.js
+		function patchWorkflowStage(draft, index, patch) {
+			const oldId = draft.stages[index].id;
+			const stages = draft.stages.map((stage, i) => {
+				const next = i === index ? {
+					...stage,
+					...patch
+				} : { ...stage };
+				if (patch.id !== void 0 && Array.isArray(next.consumes)) next.consumes = next.consumes.map((item) => item.kind === "handoff" && item.stageId === oldId ? {
+					...item,
+					stageId: patch.id
+				} : item);
+				return next;
+			});
+			return {
+				...draft,
+				stages,
+				setupStageId: patch.id !== void 0 && draft.setupStageId === oldId ? patch.id : draft.setupStageId
+			};
+		}
+		function workflowDependencyError(stages) {
+			const seen = /* @__PURE__ */ new Set();
+			for (const stage of stages) {
+				for (const item of stage.consumes || []) if (item.kind === "handoff" && !seen.has(item.stageId)) return {
+					stage: stage.labelZh || stage.id,
+					dependency: item.stageId
+				};
+				seen.add(stage.id);
+			}
+			return null;
+		}
+		function moveWorkflowStage(draft, index, delta) {
+			const dest = index + delta;
+			if (dest < 0 || dest >= draft.stages.length) return draft;
+			const stages = draft.stages.slice();
+			const [stage] = stages.splice(index, 1);
+			stages.splice(dest, 0, stage);
+			return {
+				...draft,
+				stages
+			};
+		}
+		function stageDependents(draft, id) {
+			return draft.stages.filter((stage) => (stage.consumes || []).some((item) => item.kind === "handoff" && item.stageId === id));
+		}
+		function removeWorkflowStage(draft, index) {
+			if (draft.stages.length <= 1 || stageDependents(draft, draft.stages[index].id).length) return draft;
+			const stages = draft.stages.filter((_, i) => i !== index);
+			return {
+				...draft,
+				stages,
+				setupStageId: draft.setupStageId === draft.stages[index].id ? stages[0].id : draft.setupStageId
+			};
+		}
+		function nextStageId(stages) {
+			const ids = new Set(stages.map((stage) => stage.id));
+			for (let n = 1;; n++) if (!ids.has("stage-" + n)) return "stage-" + n;
+		}
+		//#endregion
+		//#region src/client/locales/workflow-editor.js
+		const WORKFLOW_EDITOR_I18N = {
+			zh: {
+				"wb.pluginDisabled": "此功能的插件已停用。可以在插件管理中重新启用。",
+				"mm.exportDefinition": "导出流程",
+				"mm.controlProfile": "流程约束",
+				"mm.freeWorkflow": "自定义流程",
+				"mm.tenderControls": "保留内置投标校验",
+				"mm.freeWorkflowConfirm": "转为自定义流程后，将解除内置投标专属校验和能力依赖，现有人工确认节点仍保留。是否继续？",
+				"mm.newWorkflow": "自己新建工作台",
+				"mm.dependencies": "依赖的前置阶段",
+				"mm.noSetupStage": "无手动资料登记阶段",
+				"mm.dependencyError": "“{stage}”依赖“{dependency}”，请先调整依赖再移动阶段。",
+				"mm.removeDependency": "以下阶段仍依赖本阶段：{stages}。请先取消或修改依赖。",
+				"mm.lead": "直接新建、复制和编辑自己的工作台，设置阶段、技能、知识库和交付要求。也可以选用对话辅助设计。",
+				"mm.editLead": "调整阶段、依赖、技能和知识库。保存用于新项目，已有项目保留创建时的流程。",
+				"mm.saveConfirm": "保存此工作台定义？新项目采用新流程，已有项目保留原流程。",
+				"mm.deleteConfirm": "删除自定义工作台“{name}”？已有项目的数据和流程快照保留。",
+				"mm.labelZh": "显示名称（可使用你的语言）",
+				"mm.stageZh": "阶段名称",
+				"mm.createTitle": "对话辅助设计（可选）",
+				"mm.design": "让对话辅助设计",
+				"mm.pickKind": "也可以描述需求，请智能体拟定方案；检查并确认后再保存。"
+			},
+			en: {
+				"wb.pluginDisabled": "The plugin for this feature is disabled. You can enable it in plugin management.",
+				"mm.exportDefinition": "Export workflow",
+				"mm.controlProfile": "Workflow constraints",
+				"mm.freeWorkflow": "Custom workflow",
+				"mm.tenderControls": "Keep built-in tender validation",
+				"mm.freeWorkflowConfirm": "Switching to a custom workflow removes built-in tender checks and capability dependencies. Existing human approval stages remain. Continue?",
+				"mm.newWorkflow": "Create your own workbench",
+				"mm.dependencies": "Prerequisite stages",
+				"mm.noSetupStage": "No manual intake stage",
+				"mm.dependencyError": "“{stage}” depends on “{dependency}”. Update its dependencies before moving it.",
+				"mm.removeDependency": "These stages still depend on this stage: {stages}. Update their dependencies first.",
+				"mm.lead": "Create, copy and edit your workbenches, including stages, skills, knowledge sources and deliverable requirements. Conversation-assisted design is optional.",
+				"mm.editLead": "Edit stages, dependencies, skills and knowledge sources. Changes apply to new projects; existing projects retain their original workflow.",
+				"mm.saveConfirm": "Save this workbench definition? New projects use it; existing projects retain their original workflow.",
+				"mm.deleteConfirm": "Delete custom workbench “{name}”? Existing project data and workflow snapshots are retained.",
+				"mm.labelZh": "Display name (in your language)",
+				"mm.stageZh": "Stage name",
+				"mm.createTitle": "Conversation-assisted design (optional)",
+				"mm.design": "Design with the assistant",
+				"mm.pickKind": "Describe your needs to draft a proposal, then review and confirm before saving."
+			},
+			es: {
+				"mm.newWorkflow": "Crear un entorno de trabajo propio",
+				"mm.dependencies": "Etapas previas requeridas",
+				"mm.noSetupStage": "Sin etapa de registro manual",
+				"mm.dependencyError": "«{stage}» depende de «{dependency}». Modifique las dependencias antes de moverla.",
+				"mm.removeDependency": "Estas etapas aún dependen de esta etapa: {stages}. Modifique primero las dependencias."
+			},
+			fr: {
+				"mm.newWorkflow": "Créer mon atelier",
+				"mm.dependencies": "Étapes préalables requises",
+				"mm.noSetupStage": "Aucune étape de saisie manuelle",
+				"mm.dependencyError": "« {stage} » dépend de « {dependency} ». Modifiez les dépendances avant de la déplacer.",
+				"mm.removeDependency": "Ces étapes dépendent encore de cette étape : {stages}. Modifiez d’abord leurs dépendances."
+			},
+			de: {
+				"mm.newWorkflow": "Eigene Arbeitsoberfläche erstellen",
+				"mm.dependencies": "Erforderliche vorherige Phasen",
+				"mm.noSetupStage": "Keine manuelle Erfassungsphase",
+				"mm.dependencyError": "„{stage}“ hängt von „{dependency}“ ab. Passen Sie vor dem Verschieben die Abhängigkeiten an.",
+				"mm.removeDependency": "Diese Phasen hängen noch von dieser Phase ab: {stages}. Passen Sie zuerst die Abhängigkeiten an."
+			},
+			ja: {
+				"mm.newWorkflow": "独自のワークベンチを作成",
+				"mm.dependencies": "前提となる工程",
+				"mm.noSetupStage": "手動の資料登録工程なし",
+				"mm.dependencyError": "「{stage}」は「{dependency}」に依存しています。移動する前に依存関係を変更してください。",
+				"mm.removeDependency": "次の工程がこの工程に依存しています：{stages}。先に依存関係を変更してください。"
+			},
+			ko: {
+				"mm.newWorkflow": "내 작업대 만들기",
+				"mm.dependencies": "필수 선행 단계",
+				"mm.noSetupStage": "수동 자료 등록 단계 없음",
+				"mm.dependencyError": "“{stage}” 단계는 “{dependency}”에 종속됩니다. 이동 전에 종속 관계를 수정하세요.",
+				"mm.removeDependency": "다음 단계가 이 단계에 종속됩니다: {stages}. 먼저 종속 관계를 수정하세요."
+			},
+			pt: {
+				"mm.newWorkflow": "Criar minha bancada de trabalho",
+				"mm.dependencies": "Etapas prévias obrigatórias",
+				"mm.noSetupStage": "Sem etapa de cadastro manual",
+				"mm.dependencyError": "“{stage}” depende de “{dependency}”. Altere as dependências antes de mover a etapa.",
+				"mm.removeDependency": "Estas etapas ainda dependem desta etapa: {stages}. Altere primeiro as dependências."
+			},
+			ru: {
+				"mm.newWorkflow": "Создать собственную рабочую панель",
+				"mm.dependencies": "Необходимые предшествующие этапы",
+				"mm.noSetupStage": "Без ручного ввода материалов",
+				"mm.dependencyError": "Этап «{stage}» зависит от «{dependency}». Измените зависимости перед перемещением.",
+				"mm.removeDependency": "Эти этапы зависят от данного этапа: {stages}. Сначала измените их зависимости."
+			},
+			ar: {
+				"mm.newWorkflow": "إنشاء لوحة عمل خاصة",
+				"mm.dependencies": "المراحل السابقة المطلوبة",
+				"mm.noSetupStage": "بدون مرحلة تسجيل يدوي للمواد",
+				"mm.dependencyError": "تعتمد «{stage}» على «{dependency}». عدّل التبعيات قبل نقل المرحلة.",
+				"mm.removeDependency": "لا تزال هذه المراحل تعتمد على هذه المرحلة: {stages}. عدّل تبعياتها أولاً."
+			}
+		};
+		//#endregion
+		//#region src/client/locales/workbench-fields.js
+		const WORKBENCH_FIELDS = {
+			es: {
+				"mm.lead": "Cree, copie y edite sus entornos de trabajo: etapas, habilidades, fuentes y entregables. La asistencia por conversación es opcional.",
+				"mm.lead2": "Los módulos integrados y los flujos de proyectos existentes se conservan.",
+				"mm.design": "Diseñar con el asistente",
+				"mm.createTitle": "Diseño asistido por conversación (opcional)",
+				"mm.editTitle": "Editar módulo · {name}",
+				"mm.moduleId": "Identificador del módulo (letras latinas minúsculas; no use tender, delivery ni investment)",
+				"mm.kbPack": "Fuentes de conocimiento seleccionadas",
+				"mm.kbPackLead": "Seleccione las fuentes que este flujo puede utilizar. La selección sustituye las referencias predeterminadas de cada área.",
+				"mm.kbOwnOnly": "Usar únicamente las fuentes seleccionadas, sin ejemplos predeterminados",
+				"mm.kbEmpty": "Importe primero los documentos en la base de conocimiento y después selecciónelos aquí.",
+				"mm.area.analysis": "Análisis y documentación",
+				"mm.area.pricing": "Cálculo de precios",
+				"mm.area.planning": "Planificación y redacción",
+				"mm.listsSources": "Agrupar tareas por volumen o nombre de documento (PDF y DOCX homónimos cuentan como uno)",
+				"mm.builtinLocked": "Cree una copia para editar un módulo integrado. Los proyectos existentes conservan su flujo original.",
+				"mm.copyThenEdit": "Copiar y editar",
+				"mm.title": "Gestión de módulos",
+				"mm.labelZh": "Nombre visible (en su idioma)",
+				"mm.labelEn": "Nombre en inglés (opcional)",
+				"mm.setupStage": "Etapa de registro de documentación",
+				"mm.controlProfile": "Restricciones del flujo de trabajo",
+				"mm.freeWorkflow": "Flujo de trabajo personalizado",
+				"mm.tenderControls": "Conservar las validaciones de licitación",
+				"mm.exportDefinition": "Exportar flujo de trabajo",
+				"mm.cancel": "Cancelar",
+				"mm.stageN": "Etapa {n}",
+				"mm.moveUp": "Subir",
+				"mm.moveDown": "Bajar",
+				"mm.deleteStage": "Eliminar etapa",
+				"mm.stageId": "Identificador de etapa (letras latinas minúsculas)",
+				"mm.stageZh": "Nombre de la etapa",
+				"mm.stageHint": "Descripción breve",
+				"mm.stagePrompt": "Requisitos de la etapa",
+				"mm.skillSlugs": "Identificadores de habilidades (separados por comas)",
+				"mm.reviewSlugs": "Habilidades de revisión (opcional)",
+				"mm.reviewPolicy": "Alcance de la revisión",
+				"mm.reviewRisk": "Revisión por riesgo, cambios y muestreo",
+				"mm.reviewAll": "Revisar todos los archivos",
+				"mm.approvalGate": "Exigir aprobación humana antes de continuar",
+				"mm.approvalPrompt": "Decisión que debe confirmar el usuario",
+				"mm.approveLabel": "Texto del botón de aprobación",
+				"mm.rejectLabel": "Texto del botón de pausa o rechazo (opcional)",
+				"mm.binding": "Fuentes de conocimiento",
+				"mm.bindNone": "Ninguna",
+				"mm.bindAnalysis": "Análisis",
+				"mm.bindPricing": "Cálculo de precios",
+				"mm.bindPlanning": "Planificación",
+				"mm.summaryFile": "Nombre del informe de síntesis (opcional)",
+				"mm.summaryOutline": "Esquema del informe (un elemento por línea)",
+				"mm.addStage": "Añadir etapa",
+				"mm.saving": "Guardando…",
+				"mm.saveLive": "Guardar definición",
+				"mm.list": "Módulos ({n})",
+				"mm.builtin": "Integrado",
+				"mm.custom": "Personalizado",
+				"mm.stageCount": "{n} etapas",
+				"mm.editStages": "Editar etapas",
+				"mm.copyAsCustom": "Crear copia personalizada",
+				"mm.delete": "Eliminar",
+				"mm.enable": "Activar",
+				"mm.disable": "Desactivar",
+				"mm.enabled": "Se ha activado {name}",
+				"mm.disabled": "Se ha desactivado {name}",
+				"mm.saved": "Módulo {id} guardado",
+				"mm.saveConfirm": "¿Guardar la definición? Los nuevos proyectos la utilizarán; los existentes conservarán su flujo de trabajo original.",
+				"mm.deleteConfirm": "¿Eliminar el entorno personalizado «{name}»? Se conservarán los datos y las instantáneas de flujo de los proyectos existentes.",
+				"mm.editLead": "Edite etapas, dependencias, habilidades y fuentes de conocimiento. Los cambios se aplican a nuevos proyectos; los existentes conservan su flujo original.",
+				"mm.freeWorkflowConfirm": "Se eliminarán las validaciones específicas de licitación y sus dependencias de capacidades. Se conservarán las etapas de aprobación humana. ¿Continuar?",
+				"wb.pluginDisabled": "El complemento de esta función está desactivado. Puede activarlo en la gestión de complementos."
+			},
+			fr: {
+				"mm.lead": "Créez, copiez et modifiez vos ateliers : étapes, compétences, sources et livrables. La conception par dialogue est facultative.",
+				"mm.lead2": "Les modules intégrés et les processus des projets existants sont conservés.",
+				"mm.design": "Concevoir avec l’assistant",
+				"mm.createTitle": "Conception par dialogue (facultative)",
+				"mm.editTitle": "Modifier le module · {name}",
+				"mm.moduleId": "Identifiant du module (lettres latines minuscules ; tender, delivery et investment sont réservés)",
+				"mm.kbPack": "Sources de connaissances sélectionnées",
+				"mm.kbPackLead": "Sélectionnez les sources utilisables par ce processus. Elles remplacent les références prédéfinies de chaque domaine.",
+				"mm.kbOwnOnly": "Utiliser uniquement les sources sélectionnées, sans exemples prédéfinis",
+				"mm.kbEmpty": "Importez d’abord les documents dans la base de connaissances, puis sélectionnez-les ici.",
+				"mm.area.analysis": "Analyse et documentation",
+				"mm.area.pricing": "Chiffrage",
+				"mm.area.planning": "Planification et rédaction",
+				"mm.listsSources": "Regrouper les tâches par volume ou nom de document (PDF et DOCX de même nom comptent pour un)",
+				"mm.builtinLocked": "Créez une copie pour modifier un module intégré. Les projets existants conservent leur processus initial.",
+				"mm.copyThenEdit": "Copier et modifier",
+				"mm.title": "Gestion des modules",
+				"mm.labelZh": "Nom affiché (dans votre langue)",
+				"mm.labelEn": "Nom en anglais (facultatif)",
+				"mm.setupStage": "Étape de dépôt des documents",
+				"mm.controlProfile": "Contraintes du processus",
+				"mm.freeWorkflow": "Processus personnalisé",
+				"mm.tenderControls": "Conserver les contrôles des appels d’offres",
+				"mm.exportDefinition": "Exporter le processus",
+				"mm.cancel": "Annuler",
+				"mm.stageN": "Étape {n}",
+				"mm.moveUp": "Monter",
+				"mm.moveDown": "Descendre",
+				"mm.deleteStage": "Supprimer l’étape",
+				"mm.stageId": "Identifiant de l’étape (lettres latines minuscules)",
+				"mm.stageZh": "Nom de l’étape",
+				"mm.stageHint": "Description courte",
+				"mm.stagePrompt": "Exigences de l’étape",
+				"mm.skillSlugs": "Identifiants des compétences (séparés par des virgules)",
+				"mm.reviewSlugs": "Compétences de révision (facultatif)",
+				"mm.reviewPolicy": "Périmètre de la révision",
+				"mm.reviewRisk": "Révision selon les risques, les modifications et l’échantillonnage",
+				"mm.reviewAll": "Réviser tous les fichiers",
+				"mm.approvalGate": "Exiger une validation humaine avant de poursuivre",
+				"mm.approvalPrompt": "Décision à confirmer par l’utilisateur",
+				"mm.approveLabel": "Libellé du bouton de validation",
+				"mm.rejectLabel": "Libellé du bouton de pause ou de rejet (facultatif)",
+				"mm.binding": "Sources de connaissances",
+				"mm.bindNone": "Aucune",
+				"mm.bindAnalysis": "Analyse",
+				"mm.bindPricing": "Établissement des prix",
+				"mm.bindPlanning": "Planification",
+				"mm.summaryFile": "Nom du fichier de synthèse (facultatif)",
+				"mm.summaryOutline": "Plan de synthèse (un élément par ligne)",
+				"mm.addStage": "Ajouter une étape",
+				"mm.saving": "Enregistrement…",
+				"mm.saveLive": "Enregistrer la définition",
+				"mm.list": "Modules ({n})",
+				"mm.builtin": "Intégré",
+				"mm.custom": "Personnalisé",
+				"mm.stageCount": "{n} étapes",
+				"mm.editStages": "Modifier les étapes",
+				"mm.copyAsCustom": "Créer une copie personnalisée",
+				"mm.delete": "Supprimer",
+				"mm.enable": "Activer",
+				"mm.disable": "Désactiver",
+				"mm.enabled": "{name} activé",
+				"mm.disabled": "{name} désactivé",
+				"mm.saved": "Module {id} enregistré",
+				"mm.saveConfirm": "Enregistrer la définition ? Les nouveaux projets l’utiliseront ; les projets existants conserveront leur processus initial.",
+				"mm.deleteConfirm": "Supprimer l’atelier personnalisé « {name} » ? Les données et les instantanés de processus des projets existants seront conservés.",
+				"mm.editLead": "Modifiez les étapes, dépendances, compétences et sources de connaissances. Les modifications concernent les nouveaux projets ; les projets existants conservent leur processus initial.",
+				"mm.freeWorkflowConfirm": "Les contrôles propres aux appels d’offres et leurs dépendances de capacités seront retirés. Les étapes de validation humaine seront conservées. Continuer ?",
+				"wb.pluginDisabled": "Le plugin de cette fonctionnalité est désactivé. Vous pouvez l’activer dans la gestion des plugins."
+			},
+			de: {
+				"mm.lead": "Erstellen, kopieren und bearbeiten Sie eigene Arbeitsoberflächen mit Phasen, Fähigkeiten, Quellen und Ergebnissen. Dialoggestützte Gestaltung ist optional.",
+				"mm.lead2": "Integrierte Module und Abläufe bestehender Projekte bleiben erhalten.",
+				"mm.design": "Mit dem Assistenten gestalten",
+				"mm.createTitle": "Dialoggestützte Gestaltung (optional)",
+				"mm.editTitle": "Modul bearbeiten · {name}",
+				"mm.moduleId": "Modulkennung (lateinische Kleinbuchstaben; tender, delivery und investment sind reserviert)",
+				"mm.kbPack": "Ausgewählte Wissensquellen",
+				"mm.kbPackLead": "Wählen Sie die Quellen für diesen Ablauf. Sie ersetzen die vordefinierten Referenzen im jeweiligen Bereich.",
+				"mm.kbOwnOnly": "Nur ausgewählte Quellen verwenden, ohne vordefinierte Beispiele",
+				"mm.kbEmpty": "Importieren Sie zunächst Dokumente in die Wissensbasis und wählen Sie sie anschließend hier aus.",
+				"mm.area.analysis": "Analyse und Unterlagen",
+				"mm.area.pricing": "Preiskalkulation",
+				"mm.area.planning": "Planung und Ausarbeitung",
+				"mm.listsSources": "Aufgaben nach Band oder Dokumentname bündeln (gleichnamige PDF- und DOCX-Dateien zählen als ein Dokument)",
+				"mm.builtinLocked": "Erstellen Sie zum Bearbeiten eine Kopie des integrierten Moduls. Bestehende Projekte behalten ihren ursprünglichen Ablauf.",
+				"mm.copyThenEdit": "Kopieren und bearbeiten",
+				"mm.title": "Modulverwaltung",
+				"mm.labelZh": "Anzeigename (in Ihrer Sprache)",
+				"mm.labelEn": "Englischer Name (optional)",
+				"mm.setupStage": "Phase zur Erfassung der Unterlagen",
+				"mm.controlProfile": "Vorgaben für den Arbeitsablauf",
+				"mm.freeWorkflow": "Benutzerdefinierter Arbeitsablauf",
+				"mm.tenderControls": "Integrierte Angebotsprüfungen beibehalten",
+				"mm.exportDefinition": "Arbeitsablauf exportieren",
+				"mm.cancel": "Abbrechen",
+				"mm.stageN": "Phase {n}",
+				"mm.moveUp": "Nach oben",
+				"mm.moveDown": "Nach unten",
+				"mm.deleteStage": "Phase löschen",
+				"mm.stageId": "Phasenkennung (lateinische Kleinbuchstaben)",
+				"mm.stageZh": "Phasenname",
+				"mm.stageHint": "Kurzbeschreibung",
+				"mm.stagePrompt": "Anforderungen dieser Phase",
+				"mm.skillSlugs": "Skill-Kennungen (durch Kommas getrennt)",
+				"mm.reviewSlugs": "Skills für die Prüfung (optional)",
+				"mm.reviewPolicy": "Prüfumfang",
+				"mm.reviewRisk": "Risiko-, änderungs- und stichprobenbasierte Prüfung",
+				"mm.reviewAll": "Alle Dateien prüfen",
+				"mm.approvalGate": "Vor dem Fortfahren eine menschliche Freigabe verlangen",
+				"mm.approvalPrompt": "Vom Benutzer zu bestätigende Entscheidung",
+				"mm.approveLabel": "Beschriftung der Freigabeschaltfläche",
+				"mm.rejectLabel": "Beschriftung für Pause oder Ablehnung (optional)",
+				"mm.binding": "Wissensquellen",
+				"mm.bindNone": "Keine",
+				"mm.bindAnalysis": "Analyse",
+				"mm.bindPricing": "Preiskalkulation",
+				"mm.bindPlanning": "Planung",
+				"mm.summaryFile": "Dateiname des zusammenfassenden Berichts (optional)",
+				"mm.summaryOutline": "Berichtsgliederung (ein Punkt pro Zeile)",
+				"mm.addStage": "Phase hinzufügen",
+				"mm.saving": "Wird gespeichert…",
+				"mm.saveLive": "Definition speichern",
+				"mm.list": "Module ({n})",
+				"mm.builtin": "Integriert",
+				"mm.custom": "Benutzerdefiniert",
+				"mm.stageCount": "{n} Phasen",
+				"mm.editStages": "Phasen bearbeiten",
+				"mm.copyAsCustom": "Eigene Kopie erstellen",
+				"mm.delete": "Löschen",
+				"mm.enable": "Aktivieren",
+				"mm.disable": "Deaktivieren",
+				"mm.enabled": "{name} aktiviert",
+				"mm.disabled": "{name} deaktiviert",
+				"mm.saved": "Modul {id} gespeichert",
+				"mm.saveConfirm": "Definition speichern? Neue Projekte verwenden sie; bestehende Projekte behalten ihren ursprünglichen Arbeitsablauf.",
+				"mm.deleteConfirm": "Benutzerdefinierte Arbeitsoberfläche „{name}“ löschen? Daten und gespeicherte Arbeitsabläufe bestehender Projekte bleiben erhalten.",
+				"mm.editLead": "Bearbeiten Sie Phasen, Abhängigkeiten, Skills und Wissensquellen. Änderungen gelten für neue Projekte; bestehende Projekte behalten ihren ursprünglichen Ablauf.",
+				"mm.freeWorkflowConfirm": "Die integrierten Angebotsprüfungen und ihre Fähigkeitsabhängigkeiten werden entfernt. Menschliche Freigaben bleiben erhalten. Fortfahren?",
+				"wb.pluginDisabled": "Das Plugin für diese Funktion ist deaktiviert. Sie können es in der Pluginverwaltung aktivieren."
+			},
+			ja: {
+				"mm.lead": "工程、スキル、参照資料、成果物の要件を設定して、独自のワークベンチを作成・複製・編集できます。対話による設計支援は任意です。",
+				"mm.lead2": "組み込みモジュールと既存プロジェクトのワークフローは保持されます。",
+				"mm.design": "アシスタントと設計",
+				"mm.createTitle": "対話による設計支援（任意）",
+				"mm.editTitle": "モジュールを編集 · {name}",
+				"mm.moduleId": "モジュール ID（半角英小文字。tender、delivery、investment は予約済み）",
+				"mm.kbPack": "選択した参照資料",
+				"mm.kbPackLead": "このワークフローで使用する資料を選択します。各分野の既定の参照資料はこの選択に置き換わります。",
+				"mm.kbOwnOnly": "選択した資料だけを使用し、既定の例文は使用しない",
+				"mm.kbEmpty": "先にナレッジベースに資料を取り込み、ここで選択してください。",
+				"mm.area.analysis": "分析・資料整理",
+				"mm.area.pricing": "価格積算",
+				"mm.area.planning": "計画・文書作成",
+				"mm.listsSources": "分冊または文書名ごとにタスクをまとめる（同名の PDF と DOCX は 1 件）",
+				"mm.builtinLocked": "組み込みモジュールは複製してから編集してください。既存プロジェクトは元のワークフローを保持します。",
+				"mm.copyThenEdit": "複製して編集",
+				"mm.title": "モジュール管理",
+				"mm.labelZh": "表示名（任意の言語）",
+				"mm.labelEn": "英語名（任意）",
+				"mm.setupStage": "資料登録の工程",
+				"mm.controlProfile": "ワークフローの制約",
+				"mm.freeWorkflow": "カスタムワークフロー",
+				"mm.tenderControls": "組み込みの入札検証を維持",
+				"mm.exportDefinition": "ワークフローをエクスポート",
+				"mm.cancel": "キャンセル",
+				"mm.stageN": "工程 {n}",
+				"mm.moveUp": "上へ",
+				"mm.moveDown": "下へ",
+				"mm.deleteStage": "工程を削除",
+				"mm.stageId": "工程ID（半角英小文字）",
+				"mm.stageZh": "工程名",
+				"mm.stageHint": "簡単な説明",
+				"mm.stagePrompt": "工程の要件",
+				"mm.skillSlugs": "スキルID（カンマ区切り）",
+				"mm.reviewSlugs": "レビュースキルID（任意）",
+				"mm.reviewPolicy": "レビュー範囲",
+				"mm.reviewRisk": "リスク・変更点・サンプリングに基づくレビュー",
+				"mm.reviewAll": "すべてのファイルをレビュー",
+				"mm.approvalGate": "次の工程に進む前にユーザーの承認を必須にする",
+				"mm.approvalPrompt": "ユーザーに確認する事項",
+				"mm.approveLabel": "承認ボタンの表示名",
+				"mm.rejectLabel": "一時停止・差し戻しボタンの表示名（任意）",
+				"mm.binding": "参照するナレッジ",
+				"mm.bindNone": "なし",
+				"mm.bindAnalysis": "分析",
+				"mm.bindPricing": "価格算定",
+				"mm.bindPlanning": "計画",
+				"mm.summaryFile": "総括報告書のファイル名（任意）",
+				"mm.summaryOutline": "報告書の構成（1行1項目）",
+				"mm.addStage": "工程を追加",
+				"mm.saving": "保存中…",
+				"mm.saveLive": "定義を保存",
+				"mm.list": "モジュール（{n}）",
+				"mm.builtin": "組み込み",
+				"mm.custom": "カスタム",
+				"mm.stageCount": "{n}工程",
+				"mm.editStages": "工程を編集",
+				"mm.copyAsCustom": "カスタムとして複製",
+				"mm.delete": "削除",
+				"mm.enable": "有効化",
+				"mm.disable": "無効化",
+				"mm.enabled": "{name}を有効にしました",
+				"mm.disabled": "{name}を無効にしました",
+				"mm.saved": "モジュール{id}を保存しました",
+				"mm.saveConfirm": "定義を保存しますか？新規プロジェクトに適用され、既存プロジェクトは元のワークフローを維持します。",
+				"mm.deleteConfirm": "カスタムワークベンチ「{name}」を削除しますか？既存プロジェクトのデータとワークフローのスナップショットは保持されます。",
+				"mm.editLead": "工程、依存関係、スキル、ナレッジを編集できます。変更は新規プロジェクトに適用され、既存プロジェクトは元のワークフローを維持します。",
+				"mm.freeWorkflowConfirm": "入札専用の検証と機能の依存関係を解除します。既存のユーザー承認工程は維持されます。続行しますか？",
+				"wb.pluginDisabled": "この機能のプラグインは無効です。プラグイン管理で有効にできます。"
+			},
+			ko: {
+				"mm.lead": "단계, 스킬, 자료와 산출물 요건을 설정하여 작업대를 만들고 복사하고 편집하세요. 대화형 설계 지원은 선택 사항입니다.",
+				"mm.lead2": "기본 제공 모듈과 기존 프로젝트의 작업 흐름은 유지됩니다.",
+				"mm.design": "어시스턴트와 설계",
+				"mm.createTitle": "대화형 설계 지원 (선택 사항)",
+				"mm.editTitle": "모듈 편집 · {name}",
+				"mm.moduleId": "모듈 ID (영문 소문자, tender·delivery·investment는 예약됨)",
+				"mm.kbPack": "선택한 지식 자료",
+				"mm.kbPackLead": "이 작업 흐름에서 사용할 자료를 선택하세요. 각 영역의 기본 참조 자료가 이 선택으로 대체됩니다.",
+				"mm.kbOwnOnly": "선택한 자료만 사용하고 기본 예시는 제외",
+				"mm.kbEmpty": "먼저 지식 베이스에 자료를 가져온 뒤 여기에서 선택하세요.",
+				"mm.area.analysis": "분석 및 자료 정리",
+				"mm.area.pricing": "가격 산정",
+				"mm.area.planning": "계획 및 문서 작성",
+				"mm.listsSources": "권별 또는 문서명별로 작업 묶기 (같은 이름의 PDF와 DOCX는 하나로 처리)",
+				"mm.builtinLocked": "기본 제공 모듈은 복사한 뒤 편집하세요. 기존 프로젝트는 원래 작업 흐름을 유지합니다.",
+				"mm.copyThenEdit": "복사 후 편집",
+				"mm.title": "모듈 관리",
+				"mm.labelZh": "표시 이름 (원하는 언어)",
+				"mm.labelEn": "영문 이름 (선택 사항)",
+				"mm.setupStage": "자료 등록 단계",
+				"mm.controlProfile": "워크플로 제약 조건",
+				"mm.freeWorkflow": "사용자 지정 워크플로",
+				"mm.tenderControls": "기본 입찰 검증 유지",
+				"mm.exportDefinition": "워크플로 내보내기",
+				"mm.cancel": "취소",
+				"mm.stageN": "{n}단계",
+				"mm.moveUp": "위로",
+				"mm.moveDown": "아래로",
+				"mm.deleteStage": "단계 삭제",
+				"mm.stageId": "단계 ID (영문 소문자)",
+				"mm.stageZh": "단계 이름",
+				"mm.stageHint": "간단한 설명",
+				"mm.stagePrompt": "단계 요구 사항",
+				"mm.skillSlugs": "스킬 ID (쉼표로 구분)",
+				"mm.reviewSlugs": "검토 스킬 ID (선택 사항)",
+				"mm.reviewPolicy": "검토 범위",
+				"mm.reviewRisk": "위험·변경·표본 기반 검토",
+				"mm.reviewAll": "모든 파일 검토",
+				"mm.approvalGate": "다음 단계 전에 사용자 승인 필요",
+				"mm.approvalPrompt": "사용자 확인 사항",
+				"mm.approveLabel": "승인 버튼 이름",
+				"mm.rejectLabel": "일시 정지 또는 반려 버튼 이름 (선택 사항)",
+				"mm.binding": "참조 지식 자료",
+				"mm.bindNone": "없음",
+				"mm.bindAnalysis": "분석",
+				"mm.bindPricing": "가격 산정",
+				"mm.bindPlanning": "계획",
+				"mm.summaryFile": "종합 보고서 파일 이름 (선택 사항)",
+				"mm.summaryOutline": "보고서 목차 (한 줄에 한 항목)",
+				"mm.addStage": "단계 추가",
+				"mm.saving": "저장 중…",
+				"mm.saveLive": "정의 저장",
+				"mm.list": "모듈 ({n})",
+				"mm.builtin": "기본 제공",
+				"mm.custom": "사용자 지정",
+				"mm.stageCount": "{n}개 단계",
+				"mm.editStages": "단계 편집",
+				"mm.copyAsCustom": "사용자 지정 사본 만들기",
+				"mm.delete": "삭제",
+				"mm.enable": "활성화",
+				"mm.disable": "비활성화",
+				"mm.enabled": "{name} 활성화됨",
+				"mm.disabled": "{name} 비활성화됨",
+				"mm.saved": "모듈 {id} 저장됨",
+				"mm.saveConfirm": "정의를 저장할까요? 새 프로젝트에 적용되며 기존 프로젝트는 원래 워크플로를 유지합니다.",
+				"mm.deleteConfirm": "사용자 지정 작업대 “{name}”을 삭제할까요? 기존 프로젝트 데이터와 워크플로 스냅샷은 보존됩니다.",
+				"mm.editLead": "단계, 종속 관계, 스킬, 지식 자료를 편집하세요. 변경 사항은 새 프로젝트에 적용되며 기존 프로젝트는 원래 워크플로를 유지합니다.",
+				"mm.freeWorkflowConfirm": "입찰 전용 검증과 기능 종속 관계가 해제됩니다. 기존 사용자 승인 단계는 유지됩니다. 계속할까요?",
+				"wb.pluginDisabled": "이 기능의 플러그인이 비활성화되었습니다. 플러그인 관리에서 활성화할 수 있습니다."
+			},
+			pt: {
+				"mm.lead": "Crie, copie e edite suas bancadas: etapas, habilidades, fontes e entregáveis. O apoio por conversa é opcional.",
+				"mm.lead2": "Os módulos integrados e os fluxos dos projetos existentes são preservados.",
+				"mm.design": "Projetar com o assistente",
+				"mm.createTitle": "Projeto assistido por conversa (opcional)",
+				"mm.editTitle": "Editar módulo · {name}",
+				"mm.moduleId": "Identificador do módulo (letras latinas minúsculas; tender, delivery e investment são reservados)",
+				"mm.kbPack": "Fontes de conhecimento selecionadas",
+				"mm.kbPackLead": "Selecione as fontes que este fluxo pode usar. A seleção substitui as referências predefinidas de cada área.",
+				"mm.kbOwnOnly": "Usar apenas as fontes selecionadas, sem exemplos predefinidos",
+				"mm.kbEmpty": "Importe primeiro os documentos na base de conhecimento e depois selecione-os aqui.",
+				"mm.area.analysis": "Análise e documentação",
+				"mm.area.pricing": "Composição de preços",
+				"mm.area.planning": "Planejamento e redação",
+				"mm.listsSources": "Agrupar tarefas por volume ou nome do documento (PDF e DOCX com o mesmo nome contam como um)",
+				"mm.builtinLocked": "Crie uma cópia para editar um módulo integrado. Os projetos existentes mantêm o fluxo original.",
+				"mm.copyThenEdit": "Copiar e editar",
+				"mm.title": "Gerenciamento de módulos",
+				"mm.labelZh": "Nome de exibição (no seu idioma)",
+				"mm.labelEn": "Nome em inglês (opcional)",
+				"mm.setupStage": "Etapa de cadastro de documentos",
+				"mm.controlProfile": "Restrições do fluxo de trabalho",
+				"mm.freeWorkflow": "Fluxo de trabalho personalizado",
+				"mm.tenderControls": "Manter validações de licitação integradas",
+				"mm.exportDefinition": "Exportar fluxo de trabalho",
+				"mm.cancel": "Cancelar",
+				"mm.stageN": "Etapa {n}",
+				"mm.moveUp": "Mover para cima",
+				"mm.moveDown": "Mover para baixo",
+				"mm.deleteStage": "Excluir etapa",
+				"mm.stageId": "Identificador da etapa (letras latinas minúsculas)",
+				"mm.stageZh": "Nome da etapa",
+				"mm.stageHint": "Descrição breve",
+				"mm.stagePrompt": "Requisitos da etapa",
+				"mm.skillSlugs": "Identificadores de habilidades (separados por vírgulas)",
+				"mm.reviewSlugs": "Habilidades de revisão (opcional)",
+				"mm.reviewPolicy": "Escopo da revisão",
+				"mm.reviewRisk": "Revisão por risco, alterações e amostragem",
+				"mm.reviewAll": "Revisar todos os arquivos",
+				"mm.approvalGate": "Exigir aprovação humana antes de continuar",
+				"mm.approvalPrompt": "Decisão a ser confirmada pelo usuário",
+				"mm.approveLabel": "Texto do botão de aprovação",
+				"mm.rejectLabel": "Texto do botão de pausa ou rejeição (opcional)",
+				"mm.binding": "Fontes de conhecimento",
+				"mm.bindNone": "Nenhuma",
+				"mm.bindAnalysis": "Análise",
+				"mm.bindPricing": "Composição de preços",
+				"mm.bindPlanning": "Planejamento",
+				"mm.summaryFile": "Nome do arquivo do relatório de síntese (opcional)",
+				"mm.summaryOutline": "Estrutura do relatório (um item por linha)",
+				"mm.addStage": "Adicionar etapa",
+				"mm.saving": "Salvando…",
+				"mm.saveLive": "Salvar definição",
+				"mm.list": "Módulos ({n})",
+				"mm.builtin": "Integrado",
+				"mm.custom": "Personalizado",
+				"mm.stageCount": "{n} etapas",
+				"mm.editStages": "Editar etapas",
+				"mm.copyAsCustom": "Criar cópia personalizada",
+				"mm.delete": "Excluir",
+				"mm.enable": "Ativar",
+				"mm.disable": "Desativar",
+				"mm.enabled": "{name} ativado",
+				"mm.disabled": "{name} desativado",
+				"mm.saved": "Módulo {id} salvo",
+				"mm.saveConfirm": "Salvar a definição? Novos projetos a utilizarão; os existentes manterão o fluxo de trabalho original.",
+				"mm.deleteConfirm": "Excluir a bancada personalizada “{name}”? Os dados e as versões do fluxo de trabalho dos projetos existentes serão preservados.",
+				"mm.editLead": "Edite etapas, dependências, habilidades e fontes de conhecimento. As alterações se aplicam a novos projetos; os existentes mantêm o fluxo original.",
+				"mm.freeWorkflowConfirm": "As validações específicas de licitação e suas dependências de capacidades serão removidas. As etapas de aprovação humana serão mantidas. Continuar?",
+				"wb.pluginDisabled": "O plugin desta função está desativado. Você pode ativá-lo no gerenciamento de plugins."
+			},
+			ru: {
+				"mm.lead": "Создавайте, копируйте и редактируйте рабочие панели: этапы, навыки, источники и требования к результатам. Помощь в диалоге необязательна.",
+				"mm.lead2": "Встроенные модули и процессы существующих проектов сохраняются.",
+				"mm.design": "Разработать с помощником",
+				"mm.createTitle": "Разработка в диалоге (необязательно)",
+				"mm.editTitle": "Редактировать модуль · {name}",
+				"mm.moduleId": "Идентификатор модуля (строчная латиница; tender, delivery и investment зарезервированы)",
+				"mm.kbPack": "Выбранные источники знаний",
+				"mm.kbPackLead": "Выберите источники для этого процесса. Они заменят предустановленные материалы в соответствующих разделах.",
+				"mm.kbOwnOnly": "Использовать только выбранные источники, без предустановленных примеров",
+				"mm.kbEmpty": "Сначала импортируйте документы в базу знаний, затем выберите их здесь.",
+				"mm.area.analysis": "Анализ и материалы",
+				"mm.area.pricing": "Расчёт стоимости",
+				"mm.area.planning": "Планирование и подготовка документов",
+				"mm.listsSources": "Объединять задачи по тому или имени документа (одноимённые PDF и DOCX считаются одним документом)",
+				"mm.builtinLocked": "Для редактирования встроенного модуля создайте копию. Существующие проекты сохранят исходный процесс.",
+				"mm.copyThenEdit": "Скопировать и редактировать",
+				"mm.title": "Управление модулями",
+				"mm.labelZh": "Отображаемое имя (на вашем языке)",
+				"mm.labelEn": "Название на английском (необязательно)",
+				"mm.setupStage": "Этап регистрации документов",
+				"mm.controlProfile": "Ограничения рабочего процесса",
+				"mm.freeWorkflow": "Настраиваемый рабочий процесс",
+				"mm.tenderControls": "Сохранить встроенные проверки тендера",
+				"mm.exportDefinition": "Экспортировать рабочий процесс",
+				"mm.cancel": "Отмена",
+				"mm.stageN": "Этап {n}",
+				"mm.moveUp": "Вверх",
+				"mm.moveDown": "Вниз",
+				"mm.deleteStage": "Удалить этап",
+				"mm.stageId": "Идентификатор этапа (строчные латинские буквы)",
+				"mm.stageZh": "Название этапа",
+				"mm.stageHint": "Краткое описание",
+				"mm.stagePrompt": "Требования этапа",
+				"mm.skillSlugs": "Идентификаторы навыков (через запятую)",
+				"mm.reviewSlugs": "Навыки проверки (необязательно)",
+				"mm.reviewPolicy": "Объём проверки",
+				"mm.reviewRisk": "Проверка по рискам, изменениям и выборке",
+				"mm.reviewAll": "Проверять все файлы",
+				"mm.approvalGate": "Требовать подтверждение пользователя перед продолжением",
+				"mm.approvalPrompt": "Решение, которое должен подтвердить пользователь",
+				"mm.approveLabel": "Надпись на кнопке подтверждения",
+				"mm.rejectLabel": "Надпись на кнопке паузы или отклонения (необязательно)",
+				"mm.binding": "Источники знаний",
+				"mm.bindNone": "Нет",
+				"mm.bindAnalysis": "Анализ",
+				"mm.bindPricing": "Расчёт цен",
+				"mm.bindPlanning": "Планирование",
+				"mm.summaryFile": "Имя файла сводного отчёта (необязательно)",
+				"mm.summaryOutline": "План отчёта (один пункт в строке)",
+				"mm.addStage": "Добавить этап",
+				"mm.saving": "Сохранение…",
+				"mm.saveLive": "Сохранить определение",
+				"mm.list": "Модули ({n})",
+				"mm.builtin": "Встроенный",
+				"mm.custom": "Пользовательский",
+				"mm.stageCount": "Этапов: {n}",
+				"mm.editStages": "Изменить этапы",
+				"mm.copyAsCustom": "Создать пользовательскую копию",
+				"mm.delete": "Удалить",
+				"mm.enable": "Включить",
+				"mm.disable": "Отключить",
+				"mm.enabled": "{name}: включено",
+				"mm.disabled": "{name}: отключено",
+				"mm.saved": "Модуль {id} сохранён",
+				"mm.saveConfirm": "Сохранить определение? Новые проекты будут использовать его; существующие сохранят исходный рабочий процесс.",
+				"mm.deleteConfirm": "Удалить пользовательскую рабочую панель «{name}»? Данные и снимки рабочих процессов существующих проектов сохранятся.",
+				"mm.editLead": "Редактируйте этапы, зависимости, навыки и источники знаний. Изменения применяются к новым проектам; существующие сохраняют исходный процесс.",
+				"mm.freeWorkflowConfirm": "Специальные проверки тендера и зависимости от встроенных возможностей будут сняты. Этапы подтверждения пользователем сохранятся. Продолжить?",
+				"wb.pluginDisabled": "Плагин этой функции отключён. Его можно включить в управлении плагинами."
+			},
+			ar: {
+				"mm.lead": "أنشئ لوحات عملك وانسخها وعدّل مراحلها ومهاراتها ومصادرها ومتطلبات مخرجاتها. المساعدة عبر المحادثة اختيارية.",
+				"mm.lead2": "تُحفظ الوحدات المدمجة ومسارات عمل المشاريع القائمة دون تغيير.",
+				"mm.design": "التصميم بمساعدة المساعد",
+				"mm.createTitle": "التصميم عبر المحادثة (اختياري)",
+				"mm.editTitle": "تعديل الوحدة · {name}",
+				"mm.moduleId": "معرّف الوحدة (أحرف لاتينية صغيرة؛ tender وdelivery وinvestment محجوزة)",
+				"mm.kbPack": "مصادر المعرفة المختارة",
+				"mm.kbPackLead": "اختر المصادر التي يمكن لمسار العمل استخدامها. تحل هذه الاختيارات محل المراجع الافتراضية لكل مجال.",
+				"mm.kbOwnOnly": "استخدام المصادر المحددة فقط، دون الأمثلة الافتراضية",
+				"mm.kbEmpty": "استورد المستندات في قاعدة المعرفة أولاً، ثم اخترها هنا.",
+				"mm.area.analysis": "التحليل والمستندات",
+				"mm.area.pricing": "حساب الأسعار",
+				"mm.area.planning": "التخطيط وإعداد المستندات",
+				"mm.listsSources": "تجميع المهام حسب المجلد أو اسم المستند (ملفا PDF وDOCX بالاسم نفسه يُحسبان مستنداً واحداً)",
+				"mm.builtinLocked": "أنشئ نسخة لتعديل وحدة مدمجة. تحتفظ المشاريع القائمة بمسار عملها الأصلي.",
+				"mm.copyThenEdit": "نسخ ثم تعديل",
+				"mm.title": "إدارة الوحدات",
+				"mm.labelZh": "الاسم المعروض (بلغتك)",
+				"mm.labelEn": "الاسم بالإنجليزية (اختياري)",
+				"mm.setupStage": "مرحلة تسجيل المستندات",
+				"mm.controlProfile": "قيود سير العمل",
+				"mm.freeWorkflow": "سير عمل مخصص",
+				"mm.tenderControls": "الإبقاء على فحوصات المناقصة المدمجة",
+				"mm.exportDefinition": "تصدير سير العمل",
+				"mm.cancel": "إلغاء",
+				"mm.stageN": "المرحلة {n}",
+				"mm.moveUp": "نقل لأعلى",
+				"mm.moveDown": "نقل لأسفل",
+				"mm.deleteStage": "حذف المرحلة",
+				"mm.stageId": "معرّف المرحلة (أحرف لاتينية صغيرة)",
+				"mm.stageZh": "اسم المرحلة",
+				"mm.stageHint": "وصف موجز",
+				"mm.stagePrompt": "متطلبات المرحلة",
+				"mm.skillSlugs": "معرّفات المهارات (مفصولة بفواصل)",
+				"mm.reviewSlugs": "مهارات المراجعة (اختياري)",
+				"mm.reviewPolicy": "نطاق المراجعة",
+				"mm.reviewRisk": "المراجعة حسب المخاطر والتغييرات والعينات",
+				"mm.reviewAll": "مراجعة جميع الملفات",
+				"mm.approvalGate": "اشتراط موافقة المستخدم قبل المتابعة",
+				"mm.approvalPrompt": "القرار المطلوب من المستخدم تأكيده",
+				"mm.approveLabel": "نص زر الموافقة",
+				"mm.rejectLabel": "نص زر الإيقاف المؤقت أو الرفض (اختياري)",
+				"mm.binding": "مصادر المعرفة",
+				"mm.bindNone": "بدون",
+				"mm.bindAnalysis": "التحليل",
+				"mm.bindPricing": "تحليل الأسعار",
+				"mm.bindPlanning": "التخطيط",
+				"mm.summaryFile": "اسم ملف التقرير التجميعي (اختياري)",
+				"mm.summaryOutline": "مخطط التقرير (عنصر واحد في كل سطر)",
+				"mm.addStage": "إضافة مرحلة",
+				"mm.saving": "جارٍ الحفظ…",
+				"mm.saveLive": "حفظ التعريف",
+				"mm.list": "الوحدات ({n})",
+				"mm.builtin": "مدمج",
+				"mm.custom": "مخصص",
+				"mm.stageCount": "عدد المراحل: {n}",
+				"mm.editStages": "تعديل المراحل",
+				"mm.copyAsCustom": "إنشاء نسخة مخصصة",
+				"mm.delete": "حذف",
+				"mm.enable": "تفعيل",
+				"mm.disable": "تعطيل",
+				"mm.enabled": "تم تفعيل {name}",
+				"mm.disabled": "تم تعطيل {name}",
+				"mm.saved": "تم حفظ الوحدة {id}",
+				"mm.saveConfirm": "هل تريد حفظ التعريف؟ ستستخدمه المشاريع الجديدة، وستحتفظ المشاريع الحالية بسير عملها الأصلي.",
+				"mm.deleteConfirm": "هل تريد حذف لوحة العمل المخصصة «{name}»؟ ستُحفظ بيانات المشاريع الحالية ولقطات سير عملها.",
+				"mm.editLead": "عدّل المراحل والتبعيات والمهارات ومصادر المعرفة. تسري التغييرات على المشاريع الجديدة، بينما تحتفظ المشاريع الحالية بسير عملها الأصلي.",
+				"mm.freeWorkflowConfirm": "ستُزال فحوصات المناقصة الخاصة وتبعيات القدرات المدمجة. ستبقى مراحل موافقة المستخدم. هل تريد المتابعة؟",
+				"wb.pluginDisabled": "تم تعطيل الملحق الخاص بهذه الميزة. يمكنك تفعيله من إدارة الملحقات."
+			}
+		};
+		//#endregion
+		//#region src/client/locales/catalog.js
+		const AP_I18N = {
+			zh: {
+				"workbench.title": "专业化工作台",
+				"files.openExplorer": "在资源管理器中打开",
+				"files.opening": "正在打开资源管理器…",
+				"files.openFailed": "无法打开文件夹",
+				"files.noCwd": "还没有工作区路径",
+				"files.uploadFiles": "上传文件到对话",
+				"files.uploadFolder": "上传文件夹",
+				"files.title": "资源文件",
+				"files.official": "工作成果",
+				"files.officialName": "Official Outputs",
+				"files.officialEmpty": "还没有正式产出。会话里改过的报告、地图等会自动落到这里。",
+				"files.officialHint": "这里展示会话与工作台的正式产出，不依赖模型自己选目录。",
+				"files.workspace": "工作区",
+				"files.uploads": "上传资料",
+				"files.pickWorkspace": "先选择工作区",
+				"files.collapse": "收起资源文件",
+				"files.expand": "展开资源文件",
+				"files.refresh": "刷新",
+				"files.addFolder": "加入文件夹地址（不上传文件）",
+				"files.resize": "拖动调整宽度",
+				"nav.kb": "知识库",
+				"nav.kbTitle": "本地知识库：规范、合同、范文与用户模板，按文档结构精确索引",
+				"wb.back": "返回对话",
+				"wb.noCwd": "未选择工作区 · 聊天仍是默认路径，工作台只加速阶段准备",
+				"wb.kb": "知识库",
+				"wb.kbTitle": "跨项目共享的规范、合同、范文与用户模板；勾选用户模板后本轮复刻其格式与深度",
+				"wb.modules": "模块管理",
+				"wb.modulesTitle": "直接新建、编辑和管理自己的工作台，也可选用对话辅助设计",
+				"wb.refresh": "刷新",
+				"wb.adopt": "升级当前工作",
+				"wb.adoptTitle": "把当前会话工作区登记为所选模块的专业项目，不另建目录",
+				"wb.create": "新建项目",
+				"wb.upgrade": "将当前工作升级",
+				"wb.landing": "这就是这个流程的步骤。先开一个项目，或把当前工作升级上来，监控条才会出现并跟着走。",
+				"wb.projects": "项目",
+				"wb.pickProject": "选择一个项目",
+				"wb.moduleErrors": "有 {n} 个模块定义文件加载失败（见模块管理）。",
+				"module.tender": "投标全流程",
+				"module.delivery": "实施控制",
+				"module.investment": "投资尽调",
+				"create.close": "关闭",
+				"create.titleAdopt": "将当前工作升级为专业项目",
+				"create.titleNew": "新建{name}项目",
+				"create.hintAdopt": "沿用当前会话工作区和已有正式成果，只补一张专业盘面。可选投标、实施、尽调或任意自建模块。",
+				"create.hintNew": "使用现有对话执行内核，建立独立项目目录、明确资料边界并按专业流程推进。登记资料时可附企业工效表，有则优先于网络调研。",
+				"create.whichModule": "升级到哪个专业模块？不会改写已有正式成果。",
+				"create.step.module": "选择模块",
+				"create.step.info": "项目信息",
+				"create.step.folder": "项目文件夹",
+				"create.step.files": "依据资料",
+				"create.step.confirmAdopt": "确认升级",
+				"create.step.confirmNew": "流程确认",
+				"session.archive": "归档对话",
+				"session.archiveTitle": "归档当前对话。完整记录在左侧「归档」里查看，归档后也可删除。",
+				"session.archiveFailed": "归档失败",
+				"session.delete": "删除对话",
+				"session.deleteConfirm": "从侧栏和归档中移除？完整记录不再列出（本机日志仍保留）。",
+				"session.deleteFailed": "删除失败",
+				"archive.title": "归档",
+				"archive.lead": "完成的工作区先归档，不占进行中列表。点开仍是完整对话记录；归档的工作区和对话都可以删除。",
+				"archive.empty": "还没有归档。侧栏工作区菜单选「归档工作区」，或对单条会话选「归档会话」。",
+				"archive.open": "打开完整记录",
+				"archive.delete": "删除",
+				"archive.ungrouped": "未分组",
+				"archive.workspace": "归档工作区",
+				"archive.workspaceConfirm": "归档后，这个工作区和里面的对话会从进行中列表移到「归档」。完整记录仍可打开，归档后也可以删除。",
+				"archive.workspaceFailed": "工作区归档失败",
+				"archive.workspaceLive": "工作区仍在进行中",
+				"archive.workspaceEmpty": "这个工作区没有对话。",
+				"archive.deleteWorkspace": "删除工作区",
+				"archive.deleteWorkspaceConfirm": "删除这个工作区登记？目录和已归档对话还在。",
+				"kb.title": "本地知识库",
+				"kb.refresh": "刷新",
+				"kb.reindexAll": "全部重建",
+				"kb.reindexing": "重建中…",
+				"kb.reindexTitle": "按原路径（若仍存在）重新切块并更新索引",
+				"kb.import": "导入",
+				"kb.tokenOk": "Token 有效",
+				"kb.tokenBad": "Token 无效",
+				"kb.mineruSaved": "MinerU 已保存",
+				"kb.mineruMissing": "MinerU 未配置",
+				"kb.mineruNeedRestart": "MinerU 需重启宿主",
+				"kb.path1Title": "路径一 · 本页导入",
+				"kb.path1Body": "用「选择文件」或多选拖入。文件先落入下方原始文档区，不会自动解析。有文本层的 PDF 本机抽文本（快）；扫描件和复杂版式再点「解析入库」走 MinerU。MinerU 的 HTML 表会收成 Markdown 表；已入库的点「全部重建」即可。索引按文档自己的章/节/条/Clause 切。",
+				"kb.path2Title": "路径二 · 对话导入知识库",
+				"kb.path2Warn": "只把 PDF 丢进主对话、不说话，不会进知识库。贴上文件后发送下面这句：",
+				"kb.path2After": "也能说：知识库、入库、知识包、准确整理、完整内容、全文转录。模型写好「…-知识包」文件夹后，右侧对该文件夹或 pack.json 右键「一键导入知识包」，立刻可检索。普通文件仍可右键「一键导入知识库」，和本页是同一套解析。",
+				"kb.tplTitle": "用户模板 · 复刻版式",
+				"kb.tplBody": "把你已经编好的较好文档入库为「用户模板」，再勾选「本次任务选用」。本轮业务稿复刻它的格式、大纲、章节顺序和内容深度；项目事实仍走规范、合同和本项目资料，不从模板抄数字、地名或合同号。文件名以「模板」结尾时，右侧一键入库会自动归入此类。",
+				"kb.packTitle": "传递包 · 仅本应用",
+				"kb.packBody": "每条知识库文件、用户模板、本机技能后面都可以「导出」成 .apkb。这是本应用密封的传递包，用 zip / Office / 记事本打不开。对方在本页点「导入传递包」，条目会回到原来的分类和子目录（例如规范 → COTO 2020）。",
+				"kb.pickTitle": "选择文件后立刻出现在下方，不会自动解析",
+				"kb.picking": "正在落入存储区…",
+				"kb.pickFiles": "选择文件",
+				"kb.importPackTitle": "导入 Agent Pi 传递包（.apkb），其他工具无法解析",
+				"kb.importing": "导入中…",
+				"kb.importPack": "导入传递包",
+				"kb.parseTitle": "对已落入原始文档区的文件做解析并写入知识库",
+				"kb.parsing": "解析中…",
+				"kb.parseIn": "解析入库",
+				"kb.category": "分类",
+				"kb.customCategory": "自定义分类…",
+				"kb.customCategoryPh": "自定义分类名",
+				"kb.customNamePh": "自定义名称（可选，默认用文件名）",
+				"kb.thisPick": "本次选择：{name}",
+				"kb.multiHint": "支持多选。选完先落入原始文档区，不会自动解析。",
+				"kb.parseFailed": "解析失败",
+				"kb.stagedWait": "已落入原始文档区，等待解析入库",
+				"kb.progress": "进度 {n}%",
+				"kb.parsingChip": "解析中",
+				"kb.failedChip": "失败",
+				"kb.pendingChip": "待解析",
+				"kb.retry": "重试",
+				"kb.remove": "移除",
+				"kb.landing": "已选中，正在落入原始文档区…",
+				"kb.landingProgress": "正在落入原始文档区…",
+				"kb.mineruSummary": "MinerU Token（大文件 / 精度抽取）",
+				"kb.mineruCurrent": "当前：{hint}。不回显全文。",
+				"kb.mineruSavedHint": "已保存",
+				"kb.mineruUnconfigured": "未配置。小于 10MB 可走免登录轻量接口；更大文件需要 Token。申请：https://mineru.net/apiManage/token",
+				"kb.mineruOldHost": "当前窗口还是旧宿主，粘贴后点保存也不会落盘。请关掉 Agent Pi DSH 再打开，然后重新粘贴并点保存。",
+				"kb.mineruTokenPh": "粘贴 MinerU Token 后点保存",
+				"kb.saving": "保存中…",
+				"kb.saveToken": "保存 Token",
+				"kb.probeTitle": "向 MinerU 探测鉴权，不提交解析任务",
+				"kb.probing": "验证中…",
+				"kb.probe": "验证是否有效",
+				"kb.clear": "清除",
+				"kb.mineruOcr": "有文本层的 PDF 会关闭 OCR；扫描件才开 OCR。超过官方页数或体积上限时自动拆段、串行解析、合并成一条。",
+				"kb.pastePath": "或粘贴已有文件路径",
+				"kb.pastePathPh": "原文件路径、知识包文件夹，或 MinerU 产物文件夹",
+				"kb.staging": "落入中…",
+				"kb.stage": "落入存储区",
+				"kb.searchPreview": "检索预览",
+				"kb.searchPh": "关键词 / 条款号 / 表头（与模型 kb_search 相同的 MiniSearch BM25）",
+				"kb.search": "检索",
+				"kb.noHits": "无命中。",
+				"kb.score": "分值 {n}",
+				"kb.entries": "条目（{n} 个）",
+				"kb.entriesLead": "每行是一份原文档。点名称用右侧同一套文件预览打开解析稿 Markdown（可改，保存后重建切片）。分类下可建子目录归类（例如规范 → COTO 2020）；入库时能认出 COTO / COLTO / FIDIC 章节名会自动归入。每行「归入」可改挂到哪个节点。MinerU 表若仍露出 HTML 标签，点「全部重建」收成 Markdown 表。预览若是整页一段、词中空格，那是抽文本墙：回主对话贴上 PDF，发送「{say}」，或点「MinerU 重解析」。打勾「本次任务选用」即时生效。已选用 {n} 条。",
+				"kb.empty": "知识库为空。预置方法标准与范文会在首次使用时自动入库；也可以在上方导入规范、范文，或把你编好的文档导入为用户模板。",
+				"kb.taskSelect": "本次任务选用",
+				"kb.openPreview": "打开解析稿预览",
+				"kb.ready": "已入知识库",
+				"kb.fidelityTitle": "索引只存条款地址；阅读时从解析稿按偏移切片",
+				"kb.inTask": "本次任务",
+				"kb.seeded": "预置",
+				"kb.home": "归入",
+				"kb.homeTitle": "归入子目录",
+				"kb.unfiled": "未归类",
+				"kb.newFolder": "新建子目录…",
+				"kb.reparseMineru": "MinerU 重解析",
+				"kb.reparseTitle": "跳过本机文本层，用 MinerU 重做排版稿并重建切片",
+				"kb.export": "导出",
+				"kb.exportTitle": "导出为本应用传递包（.apkb），其他工具无法打开",
+				"kb.delete": "删除",
+				"kb.count": "{n} 个",
+				"kb.addFolder": "新增子目录",
+				"kb.addFolderTitle": "在此分类下新建子目录，用来归类入库文件",
+				"kb.folderOk": "新建",
+				"kb.folderCancel": "取消",
+				"kb.confirmOk": "确定",
+				"kb.exportFolder": "导出此目录",
+				"kb.exportFolderTitle": "把此子目录下已入库文件打成一个传递包",
+				"kb.deleteFolder": "删除子目录",
+				"kb.deleteFolderTitle": "删除子目录，文件留在本分类下",
+				"kb.emptyFolder": "空目录。用文件行的「归入」挂进来。",
+				"kb.skills": "本机技能（{n} 个）",
+				"kb.skillsLead": "这里是你装在本机技能目录里的方法（$DSH_HOME/skills），不是出厂捆绑技能。导出同样打成 .apkb，对方导入后热加载，不用重装应用。",
+				"kb.skillsEmpty": "还没有本机技能。把方法沉淀成技能后会出现在这里。",
+				"kb.exportSkillTitle": "导出为本应用传递包",
+				"kb.oldHostMineru": "当前窗口还是旧宿主：MinerU Token 保存不会落盘。请关掉 Agent Pi DSH 再打开（刷新不够）。",
+				"kb.ingestedOk": "知识库入库成功：{names}",
+				"kb.transferEntries": "{n} 个知识条目",
+				"kb.transferSkills": "{n} 个技能",
+				"kb.transferEmpty": "空",
+				"kb.transferImported": "已导入传递包：{parts}{detail}",
+				"kb.transferSaved": "传递包已写入本机。只可用 Agent Pi DSH 打开 .apkb。",
+				"kb.stagedNotice": "已落入原始文档区：{name}。点「解析入库」开始处理。",
+				"kb.skipUnchanged": "内容未变化，已选用到本次任务：{name}。下一轮发送立即生效，无需重启。",
+				"kb.replacedTask": "已重建并选用到本次任务：{name}。下一轮发送立即生效，无需重启。",
+				"kb.ingestedTask": "已入库并选用到本次任务：{name}。下一轮发送立即生效，无需重启。",
+				"kb.needFile": "请先选择要入库的文件",
+				"kb.badTypes": "请选择 PDF、Word、Excel、PPT、图片、.md / .txt / .json，或本应用传递包 .apkb。",
+				"kb.skippedTypes": "已跳过不支持的格式：{names}",
+				"kb.needToken": "请填写 MinerU Token",
+				"kb.saveNoDisk": "保存没有写到本机。刷新不够，当前窗口还是旧宿主。请关掉 Agent Pi DSH 再打开，然后重新粘贴并点保存。",
+				"kb.oldHostSave": "当前窗口还是旧宿主，Token 接口还不存在。请关掉 Agent Pi DSH 再打开后再保存（刷新不够）。",
+				"kb.needTokenOrSave": "请先粘贴 Token，或先保存后再验证",
+				"kb.probeMissing": "验证接口还不存在。请关掉 Agent Pi DSH 再打开后再试（刷新不够）。",
+				"kb.cleared": "已清除本机 MinerU Token",
+				"kb.clearFailed": "清除失败。当前窗口还是旧宿主，请关掉 Agent Pi DSH 再打开。",
+				"kb.parseRetry": "解析失败，请重新选择该文件入库",
+				"kb.deleteEntryConfirm": "删除知识库条目「{name}」？索引与托管副本会一起删除{seeded}。",
+				"kb.deleteSeeded": "；预置条目删除后不会自动恢复",
+				"kb.deleted": "已删除 {slug}",
+				"kb.reindexed": "已重建 {n} 个条目{missing}",
+				"kb.missingSrc": "；缺源：{list}",
+				"kb.folderPrompt": "子目录名称，例如 COTO 2020",
+				"kb.folderCreated": "已新增子目录「{name}」",
+				"kb.deleteFolderConfirm": "删除子目录「{name}」？文件仍留在「{category}」下，不会删文件。",
+				"kb.folderDeleted": "已删除子目录「{name}」",
+				"kb.exported": "已导出传递包 {name}。只可用本应用导入，其他工具打不开。",
+				"kb.newFolderPrompt": "新建子目录，例如 COTO 2020",
+				"kb.parseStarted": "已开始解析 {n} 个文件。MinerU 可能较久，请看下方进度。",
+				"kb.parseNone": "没有新的解析任务。",
+				"kb.cat.规范": "规范",
+				"kb.cat.合同": "合同",
+				"kb.cat.范文": "范文",
+				"kb.cat.方法标准": "方法标准",
+				"kb.cat.用户模板": "用户模板",
+				"kb.cat.用户模版": "用户模板",
+				"kb.cat.自定义": "自定义",
+				"kb.cat.未分类": "未分类",
+				"kb.hint.用户模板": "勾选后，本轮写作复刻其格式、大纲与内容深度",
+				"mm.title": "模块管理",
+				"mm.lead": "本页用来看已上线的模块、开关和拷贝。新模块不要在这里填字段，到下面的创造模式进对话。",
+				"mm.lead2": "内置投标不会被改写。进行中的老项目不会自动改盘面。",
+				"mm.designTitle": "回到对话，用人机交互生成完整工作台模块包",
+				"mm.design": "去对话里创造",
+				"mm.createTitle": "模块创造模式",
+				"mm.createLead": "不要先导入 JSON。点下面一条路，本应用会进入 DSH 原生「创造模式」，用对话把这次做成的成果和修订经验沉淀为完整业务模块包：顶栏、阶段监控、资料登记、流程控制、配套方法和知识库。",
+				"mm.createWarn": "原生创造模式只是创作驾驶舱，最终保存的是专业工作台业务模块，不会改 DSH 官方预设。当前对话为空时原地切换；已有历史时会新建创造模式对话。",
+				"mm.createAdvanced": "只有已经拿到本应用校验过的模块定义时，才在这里粘贴。普通使用请走上面的创造对话。",
+				"mm.packNotJson": "完整模块包，不是一段 JSON",
+				"mm.pickKind": "选你们属于哪一种。选完回到对话，用大白话问一两句；模型直接装上，你不用粘贴定义。",
+				"mm.card.distill": "做过一单，照这个来",
+				"mm.card.distillBody": "把这次对话里已经认可的成果，整理成以后同类工作的标准。范文进知识库，做法记下来。",
+				"mm.card.copy": "步骤和投标全流程一样，规矩不同",
+				"mm.card.copyBody": "沿用当前投标流程的阶段和人工确认门禁，拷贝一份，再挂上你们的评分办法、组价表或投标函。",
+				"mm.card.custom": "步骤就不一样",
+				"mm.card.customBody": "例如先资格再技术再商务、没有组价。用中文说清几步，新标签和监控条按这几步画。",
+				"mm.advanced": "高级 · 粘贴模块定义（开发者）",
+				"mm.installing": "安装中…",
+				"mm.install": "校验并安装",
+				"mm.copyTitle": "拷贝为自建模块",
+				"mm.copyLead": "从「{name}」复制阶段、技能和总报告门槛。内置投标不会被改写；副本保存后立刻出现在顶栏，并可继续改阶段。",
+				"mm.labelZh": "中文名",
+				"mm.moduleId": "模块 id（小写英文，不能用 tender / delivery / investment）",
+				"mm.cancel": "取消",
+				"mm.copying": "拷贝中…",
+				"mm.copyOpen": "拷贝并打开编辑器",
+				"mm.copyLive": "拷贝并上线",
+				"mm.editTitle": "编辑模块 · {name}",
+				"mm.editLead": "可增删改阶段、调整顺序和总报告门槛。保存即覆盖这份自建定义。进行中项目不会自动迁盘面。",
+				"mm.labelEn": "英文名（可选）",
+				"mm.setupStage": "开工阶段",
+				"mm.kbPack": "规范包",
+				"mm.kbPackLead": "挂你们公司的规范、组价表、投标函范文。不改阶段结构。勾选后阶段稿只点名这些知识库条目，不再带出厂范文的磁盘路径。",
+				"mm.kbOwnOnly": "只用勾选的知识库（不带出厂范文）",
+				"mm.kbEmpty": "知识库还是空的。先到「知识库」页导入规范或范文，再回到这里勾选。",
+				"mm.area.analysis": "解析 / 资料阶段",
+				"mm.area.pricing": "组价阶段",
+				"mm.area.planning": "策划出稿阶段",
+				"mm.stageN": "阶段 {n}",
+				"mm.moveUp": "上移",
+				"mm.moveDown": "下移",
+				"mm.deleteStage": "删除阶段",
+				"mm.stageId": "阶段 id（小写英文）",
+				"mm.stageZh": "阶段中文名",
+				"mm.stageHint": "一句话提示",
+				"mm.stagePrompt": "阶段要求（写给模型看）",
+				"mm.skillSlugs": "技能 slug（逗号分隔）",
+				"mm.reviewSlugs": "评审技能 slug（逗号分隔，可空）",
+				"mm.reviewPolicy": "审查范围",
+				"mm.reviewRisk": "按风险 / 变更 / 抽样审查",
+				"mm.reviewAll": "逐文件全部审查",
+				"mm.approvalGate": "本阶段需要人工确认后才能继续",
+				"mm.approvalPrompt": "确认事项（显示给用户）",
+				"mm.approveLabel": "确认按钮文字",
+				"mm.rejectLabel": "暂停 / 退回按钮文字（可空）",
+				"mm.binding": "知识库绑定",
+				"mm.bindNone": "不绑定",
+				"mm.bindAnalysis": "解析 analysis",
+				"mm.bindPricing": "组价 pricing",
+				"mm.bindPlanning": "策划 planning",
+				"mm.listsSources": "按册/同名打包任务（pdf+docx 算一份）",
+				"mm.summaryFile": "总报告文件名（空=不设门槛）",
+				"mm.summaryOutline": "总报告大纲（一行一条）",
+				"mm.addStage": "新增阶段",
+				"mm.saving": "保存中…",
+				"mm.saveLive": "保存并上线",
+				"mm.list": "模块（{n}）",
+				"mm.builtin": "内置",
+				"mm.custom": "自建",
+				"mm.stageCount": "{n} 个阶段",
+				"mm.collapse": "收起阶段",
+				"mm.expand": "查看阶段",
+				"mm.copyThenEdit": "拷贝后编辑",
+				"mm.editStages": "编辑阶段",
+				"mm.copyAsCustom": "拷贝为自建",
+				"mm.defFile": "定义文件",
+				"mm.defFileTitle": "在文件管理器中查看定义文件",
+				"mm.delete": "删除",
+				"mm.enable": "启用",
+				"mm.disable": "停用",
+				"mm.noStages": "此模块没有阶段定义",
+				"mm.loadFailed": "加载失败的定义文件",
+				"mm.enabled": "已启用 {name}",
+				"mm.disabled": "已停用 {name}",
+				"mm.deleteConfirm": "删除自建模块「{name}」？该模块下已有项目会失去流程定义（数据保留）。",
+				"mm.deleted": "已删除 {id}",
+				"mm.jsonFail": "JSON 解析失败：{err}",
+				"mm.installed": "已安装模块 {id}",
+				"mm.copySuffix": "（副本）",
+				"mm.copied": "已拷贝为自建模块 {id}，顶栏现已可见",
+				"mm.builtinLocked": "内置模块不能直接改。先拷贝一份自建模块，再改副本的阶段。进行中项目不会自动迁过去。",
+				"mm.saveConfirm": "保存后立即生效。改阶段 id 不会自动迁移进行中项目的盘面。",
+				"mm.saved": "已保存模块 {id}",
+				"mm.markLists": "按册/同名打包任务",
+				"mm.markSummary": "总报告：{name}",
+				"mm.markSkills": "技能 {list}",
+				"mm.markReview": "评审 {list}",
+				"lang.zh": "中文",
+				"lang.en": "English",
+				"lang.title": "语言",
+				"lang.switchFailed": "语言切换失败，请重试"
+			},
+			en: {
+				"workbench.title": "Workbench",
+				"files.openExplorer": "Open in File Explorer",
+				"files.opening": "Opening File Explorer…",
+				"files.openFailed": "Could not open folder",
+				"files.noCwd": "No workspace path yet",
+				"files.uploadFiles": "Upload files",
+				"files.uploadFolder": "Upload folder",
+				"files.title": "Files",
+				"files.official": "Work results",
+				"files.officialName": "Official Outputs",
+				"files.officialEmpty": "No official outputs yet. Edited reports and maps from this session are copied here automatically.",
+				"files.officialHint": "Official outputs from the session and workbench appear here. The model does not pick this folder.",
+				"files.workspace": "Workspace",
+				"files.uploads": "Uploads",
+				"files.pickWorkspace": "Choose a workspace first",
+				"files.collapse": "Collapse files",
+				"files.expand": "Expand files",
+				"files.refresh": "Refresh",
+				"files.addFolder": "Add a folder path (do not upload the files)",
+				"files.resize": "Drag to resize",
+				"nav.kb": "Knowledge base",
+				"nav.kbTitle": "Local knowledge base: specs, contracts, exemplars, and user templates, indexed by document structure",
+				"wb.back": "Back to chat",
+				"wb.noCwd": "No workspace selected. Chat still uses the default path; the workbench only speeds up stage prep.",
+				"wb.kb": "Knowledge base",
+				"wb.kbTitle": "Shared specs, contracts, exemplars, and user templates. Checked user templates set this round’s format and depth.",
+				"wb.modules": "Modules",
+				"wb.modulesTitle": "Create, edit and manage your workbenches. Conversation-assisted design is optional.",
+				"wb.refresh": "Refresh",
+				"wb.adopt": "Upgrade current work",
+				"wb.adoptTitle": "Register this session workspace as a project in the selected module. No new folder is created.",
+				"wb.create": "New project",
+				"wb.upgrade": "Upgrade current work",
+				"wb.landing": "These are the steps for this workflow. Start a project or upgrade the current work so the monitor bar appears and stays in sync.",
+				"wb.projects": "Projects",
+				"wb.pickProject": "Select a project",
+				"wb.moduleErrors": "{n} module definition file(s) failed to load. See Modules.",
+				"module.tender": "Tender process",
+				"module.delivery": "Delivery control",
+				"module.investment": "Investment review",
+				"create.close": "Close",
+				"create.titleAdopt": "Upgrade current work to a professional project",
+				"create.titleNew": "New {name} project",
+				"create.hintAdopt": "Keep this session workspace and existing official outputs. Add a professional board only. Choose tender, delivery, investment review, or any custom module.",
+				"create.hintNew": "Use the current chat runtime. Create a separate project folder, set the source boundary, and follow the professional workflow. You may attach an enterprise productivity file; it outranks web research.",
+				"create.whichModule": "Which module should this work join? Existing official outputs stay as they are.",
+				"create.step.module": "Choose module",
+				"create.step.info": "Project info",
+				"create.step.folder": "Project folder",
+				"create.step.files": "Source files",
+				"create.step.confirmAdopt": "Confirm upgrade",
+				"create.step.confirmNew": "Confirm workflow",
+				"session.archive": "Archive conversation",
+				"session.archiveTitle": "Archive this conversation. Open the full record from Archive in the sidebar. You can still delete it after archiving.",
+				"session.archiveFailed": "Could not archive",
+				"session.delete": "Delete conversation",
+				"session.deleteConfirm": "Remove it from the sidebar and Archive? The log stays on disk but will no longer be listed.",
+				"session.deleteFailed": "Could not delete",
+				"archive.title": "Archive",
+				"archive.lead": "Archive finished workspaces so they leave the live list. Open a row to read the full conversation. You can still delete archived workspaces and chats.",
+				"archive.empty": "Nothing archived yet. Choose Archive workspace in the sidebar menu, or Archive session on a single chat.",
+				"archive.open": "Open full record",
+				"archive.delete": "Delete",
+				"archive.ungrouped": "Ungrouped",
+				"archive.workspace": "Archive workspace",
+				"archive.workspaceConfirm": "Archive this workspace? It and its conversations will move from the live list to Archive. You can still open the full records or delete them later.",
+				"archive.workspaceFailed": "Could not archive the workspace",
+				"archive.workspaceLive": "Workspace is still active",
+				"archive.workspaceEmpty": "This workspace has no conversations.",
+				"archive.deleteWorkspace": "Delete workspace",
+				"archive.deleteWorkspaceConfirm": "Remove this workspace from the list? The folder and archived conversations stay on disk.",
+				"kb.title": "Local knowledge base",
+				"kb.refresh": "Refresh",
+				"kb.reindexAll": "Rebuild all",
+				"kb.reindexing": "Rebuilding…",
+				"kb.reindexTitle": "Recut chunks from the original path (if it still exists) and refresh the index",
+				"kb.import": "Import",
+				"kb.tokenOk": "Token valid",
+				"kb.tokenBad": "Token invalid",
+				"kb.mineruSaved": "MinerU saved",
+				"kb.mineruMissing": "MinerU not configured",
+				"kb.mineruNeedRestart": "Restart the host to use MinerU",
+				"kb.path1Title": "Path 1 · Import on this page",
+				"kb.path1Body": "Use Choose files or drop several files here. They land in the staging area below and are not parsed yet. PDFs with a text layer are extracted locally (fast). Scans and complex layouts wait for Parse into library, which uses MinerU. MinerU HTML tables become Markdown tables; already imported entries only need Rebuild all. The index cuts on the document’s own chapters, sections, and clauses.",
+				"kb.path2Title": "Path 2 · Import from chat",
+				"kb.path2Warn": "Dropping a PDF into the main chat without a message does not add it to the knowledge base. After attaching the file, send this line:",
+				"kb.path2After": "You can also say: 知识库, 入库, 知识包, 准确整理, 完整内容, 全文转录. After the model writes a “…-知识包” folder, right-click that folder or pack.json in the files rail and choose Import knowledge pack. It is searchable immediately. Ordinary files can still use Import to knowledge base — the same parser as this page.",
+				"kb.tplTitle": "User templates · Match the layout",
+				"kb.tplBody": "Import a document you already wrote well as a User template, then check Use in this task. This round’s draft copies its format, outline, section order, and depth. Project facts still come from specs, contracts, and this project’s files — do not copy numbers, place names, or contract numbers from the template. A file name ending in “模板” or “template” is filed here automatically from the files rail.",
+				"kb.packTitle": "Transfer pack · This app only",
+				"kb.packBody": "Every knowledge file, user template, and local skill can Export to .apkb. That is a sealed pack for this app; zip, Office, and Notepad cannot open it. The other person chooses Import transfer pack on this page, and entries return to their original category and folder (for example Specs → COTO 2020).",
+				"kb.pickTitle": "Chosen files appear below immediately and are not parsed yet",
+				"kb.picking": "Saving to storage…",
+				"kb.pickFiles": "Choose files",
+				"kb.importPackTitle": "Import an Agent Pi transfer pack (.apkb). Other tools cannot read it.",
+				"kb.importing": "Importing…",
+				"kb.importPack": "Import transfer pack",
+				"kb.parseTitle": "Parse files already in the staging area and write them into the knowledge base",
+				"kb.parsing": "Parsing…",
+				"kb.parseIn": "Parse into library",
+				"kb.category": "Category",
+				"kb.customCategory": "Custom category…",
+				"kb.customCategoryPh": "Custom category name",
+				"kb.customNamePh": "Custom name (optional; defaults to the file name)",
+				"kb.thisPick": "This selection: {name}",
+				"kb.multiHint": "Multiple files are allowed. They land in the staging area first and are not parsed yet.",
+				"kb.parseFailed": "Parse failed",
+				"kb.stagedWait": "In the staging area, waiting to be parsed",
+				"kb.progress": "Progress {n}%",
+				"kb.parsingChip": "Parsing",
+				"kb.failedChip": "Failed",
+				"kb.pendingChip": "Pending",
+				"kb.retry": "Retry",
+				"kb.remove": "Remove",
+				"kb.landing": "Selected, saving to the staging area…",
+				"kb.landingProgress": "Saving to the staging area…",
+				"kb.mineruSummary": "MinerU token (large files / high-accuracy extract)",
+				"kb.mineruCurrent": "Current: {hint}. The full token is not shown again.",
+				"kb.mineruSavedHint": "Saved",
+				"kb.mineruUnconfigured": "Not configured. Files under 10MB can use the anonymous light API; larger files need a token. Apply at https://mineru.net/apiManage/token",
+				"kb.mineruOldHost": "This window is still the old host. Saving a token here will not persist. Quit Agent Pi DSH completely, open it again, then paste and save.",
+				"kb.mineruTokenPh": "Paste the MinerU token, then save",
+				"kb.saving": "Saving…",
+				"kb.saveToken": "Save token",
+				"kb.probeTitle": "Check MinerU authentication. This does not start a parse job.",
+				"kb.probing": "Checking…",
+				"kb.probe": "Check token",
+				"kb.clear": "Clear",
+				"kb.mineruOcr": "PDFs with a text layer skip OCR; scanned pages turn OCR on. Files over the official page or size limit are split, parsed in series, and merged into one entry.",
+				"kb.pastePath": "Or paste an existing file path",
+				"kb.pastePathPh": "Original file path, knowledge-pack folder, or MinerU output folder",
+				"kb.staging": "Saving…",
+				"kb.stage": "Save to storage",
+				"kb.searchPreview": "Search preview",
+				"kb.searchPh": "Keyword / clause number / table header (same MiniSearch BM25 as kb_search)",
+				"kb.search": "Search",
+				"kb.noHits": "No hits.",
+				"kb.score": "Score {n}",
+				"kb.entries": "Entries ({n})",
+				"kb.entriesLead": "Each row is one source document. Click the name to open the parsed Markdown in the same files preview on the right (you can edit it; save rebuilds the chunks). Categories can have folders (for example Specs → COTO 2020). Import can file COTO / COLTO / FIDIC chapter names automatically. Use File under on a row to change the folder. If MinerU tables still show HTML tags, choose Rebuild all to turn them into Markdown tables. If the preview is one wall of text with spaces inside words, that is a raw text extract: attach the PDF in the main chat and send “{say}”, or choose Reparse with MinerU. Checking Use in this task takes effect immediately. {n} selected.",
+				"kb.empty": "The knowledge base is empty. Preset method standards and exemplars are imported on first use. You can also import specs or exemplars above, or import a document you already wrote as a user template.",
+				"kb.taskSelect": "Use in this task",
+				"kb.openPreview": "Open the parsed markdown preview",
+				"kb.ready": "In library",
+				"kb.fidelityTitle": "The index stores clause addresses only. Reading slices the parsed manuscript by offset.",
+				"kb.inTask": "This task",
+				"kb.seeded": "Preset",
+				"kb.home": "File under",
+				"kb.homeTitle": "Move into a folder",
+				"kb.unfiled": "Unfiled",
+				"kb.newFolder": "New folder…",
+				"kb.reparseMineru": "Reparse with MinerU",
+				"kb.reparseTitle": "Skip the local text layer. Rebuild the layout manuscript and chunks with MinerU.",
+				"kb.export": "Export",
+				"kb.exportTitle": "Export as an app transfer pack (.apkb). Other tools cannot open it.",
+				"kb.delete": "Delete",
+				"kb.count": "{n}",
+				"kb.addFolder": "Add folder",
+				"kb.addFolderTitle": "Create a folder in this category to group imported files",
+				"kb.folderOk": "Create",
+				"kb.folderCancel": "Cancel",
+				"kb.confirmOk": "OK",
+				"kb.exportFolder": "Export this folder",
+				"kb.exportFolderTitle": "Pack the imported files in this folder into one transfer pack",
+				"kb.deleteFolder": "Delete folder",
+				"kb.deleteFolderTitle": "Delete the folder. Files stay in this category.",
+				"kb.emptyFolder": "Empty folder. Use File under on a file row to move it here.",
+				"kb.skills": "Local skills ({n})",
+				"kb.skillsLead": "These are methods in your local skills folder ($DSH_HOME/skills), not factory-bundled skills. Export also writes .apkb. The other person can import and hot-load them without reinstalling the app.",
+				"kb.skillsEmpty": "No local skills yet. Methods saved as skills appear here.",
+				"kb.exportSkillTitle": "Export as an app transfer pack",
+				"kb.oldHostMineru": "This window is still the old host: saving a MinerU token will not persist. Quit Agent Pi DSH completely and open it again (refresh is not enough).",
+				"kb.ingestedOk": "Imported into the knowledge base: {names}",
+				"kb.transferEntries": "{n} knowledge entries",
+				"kb.transferSkills": "{n} skills",
+				"kb.transferEmpty": "empty",
+				"kb.transferImported": "Imported transfer pack: {parts}{detail}",
+				"kb.transferSaved": "The transfer pack is on this machine. Only Agent Pi DSH can open .apkb files.",
+				"kb.stagedNotice": "Saved to the staging area: {name}. Choose Parse into library to start.",
+				"kb.skipUnchanged": "Content unchanged. Selected for this task: {name}. The next send uses it immediately. No restart needed.",
+				"kb.replacedTask": "Rebuilt and selected for this task: {name}. The next send uses it immediately. No restart needed.",
+				"kb.ingestedTask": "Imported and selected for this task: {name}. The next send uses it immediately. No restart needed.",
+				"kb.needFile": "Choose a file to import first",
+				"kb.badTypes": "Choose a PDF, Word, Excel, PowerPoint, image, .md / .txt / .json, or an .apkb transfer pack.",
+				"kb.skippedTypes": "Skipped unsupported formats: {names}",
+				"kb.needToken": "Enter a MinerU token",
+				"kb.saveNoDisk": "The save did not reach disk. Refresh is not enough; this window is still the old host. Quit Agent Pi DSH, open it again, then paste and save.",
+				"kb.oldHostSave": "This window is still the old host, so the token API is missing. Quit Agent Pi DSH, open it again, then save (refresh is not enough).",
+				"kb.needTokenOrSave": "Paste a token first, or save it before checking",
+				"kb.probeMissing": "The check API is missing. Quit Agent Pi DSH, open it again, then retry (refresh is not enough).",
+				"kb.cleared": "Cleared the local MinerU token",
+				"kb.clearFailed": "Could not clear. This window is still the old host. Quit Agent Pi DSH and open it again.",
+				"kb.parseRetry": "Parse failed. Choose the file again to import.",
+				"kb.deleteEntryConfirm": "Delete knowledge entry “{name}”? The index and hosted copy are removed{seeded}.",
+				"kb.deleteSeeded": "; a preset entry will not come back automatically",
+				"kb.deleted": "Deleted {slug}",
+				"kb.reindexed": "Rebuilt {n} entries{missing}",
+				"kb.missingSrc": "; missing source: {list}",
+				"kb.folderPrompt": "Folder name, for example COTO 2020",
+				"kb.folderCreated": "Created folder “{name}”",
+				"kb.deleteFolderConfirm": "Delete folder “{name}”? Files stay under “{category}”. Files are not deleted.",
+				"kb.folderDeleted": "Deleted folder “{name}”",
+				"kb.exported": "Exported transfer pack {name}. Only this app can import it.",
+				"kb.newFolderPrompt": "New folder name, for example COTO 2020",
+				"kb.parseStarted": "Started parsing {n} file(s). MinerU can take a while; watch the progress below.",
+				"kb.parseNone": "No new parse jobs.",
+				"kb.cat.规范": "Specs",
+				"kb.cat.合同": "Contracts",
+				"kb.cat.范文": "Exemplars",
+				"kb.cat.方法标准": "Method standards",
+				"kb.cat.用户模板": "User templates",
+				"kb.cat.用户模版": "User templates",
+				"kb.cat.自定义": "Custom",
+				"kb.cat.未分类": "Uncategorized",
+				"kb.hint.用户模板": "When checked, this round copies its format, outline, and depth",
+				"mm.title": "Modules",
+				"mm.lead": "Review live modules, toggle them, and copy them. Do not fill fields here for a new module. Use Create mode below to continue in chat.",
+				"mm.lead2": "Built-in tender is not rewritten. Live projects do not migrate their boards automatically.",
+				"mm.designTitle": "Return to chat and generate a complete workbench module pack through conversation",
+				"mm.design": "Create in chat",
+				"mm.createTitle": "Module create mode",
+				"mm.createLead": "Do not start by importing JSON. Pick a path below and this app opens DSH native Create mode, where conversation distils accepted outputs and revision experience into a complete business module pack: top bar, stage monitor, source registration, workflow gates, methods, and knowledge.",
+				"mm.createWarn": "Native Create mode is the authoring cockpit; the saved product is a professional-workbench business module and never edits a shipped DSH preset. A blank chat switches in place; a chat with history opens a new Create-mode session.",
+				"mm.createAdvanced": "Paste here only when you already have a module definition this app has validated. Everyday use should go through the create conversation above.",
+				"mm.packNotJson": "A complete module pack, not a JSON snippet",
+				"mm.pickKind": "Pick the case that matches you. Then return to chat and ask in plain language. The model installs it; you do not paste a definition.",
+				"mm.card.distill": "We finished one job — use this as the standard",
+				"mm.card.distillBody": "Turn the accepted results from this chat into the standard for later work of the same kind. Exemplars go to the knowledge base; the method is written down.",
+				"mm.card.copy": "Same steps as Tender process, different rules",
+				"mm.card.copyBody": "Keep the current tender stages and human-approval gates, then attach your scoring rules, rate tables, or letters to a copy.",
+				"mm.card.custom": "The steps are different",
+				"mm.card.customBody": "For example qualification, then technical, then commercial — no pricing. Say the steps in plain language. The new tab and monitor bar follow those steps.",
+				"mm.advanced": "Advanced · Paste a module definition (developers)",
+				"mm.installing": "Installing…",
+				"mm.install": "Validate and install",
+				"mm.copyTitle": "Copy as a custom module",
+				"mm.copyLead": "Copy stages, skills, and summary-report gates from “{name}”. Built-in tender is not rewritten. The copy appears in the top bar as soon as it is saved, and you can keep editing stages.",
+				"mm.labelZh": "Chinese name",
+				"mm.moduleId": "Module id (lowercase English; cannot be tender, delivery, or investment)",
+				"mm.cancel": "Cancel",
+				"mm.copying": "Copying…",
+				"mm.copyOpen": "Copy and open editor",
+				"mm.copyLive": "Copy and go live",
+				"mm.editTitle": "Edit module · {name}",
+				"mm.editLead": "Add, remove, or edit stages, reorder them, and set summary-report gates. Saving overwrites this custom definition. Live projects do not migrate their boards.",
+				"mm.labelEn": "English name (optional)",
+				"mm.setupStage": "Kickoff stage",
+				"mm.kbPack": "Spec pack",
+				"mm.kbPackLead": "Attach your company specs, rate tables, and letter exemplars. Stage structure stays the same. When checked, stage drafts name only these knowledge entries and no longer carry factory exemplar disk paths.",
+				"mm.kbOwnOnly": "Use only the checked knowledge entries (no factory exemplars)",
+				"mm.kbEmpty": "The knowledge base is still empty. Import specs or exemplars on the Knowledge base page, then come back and check them.",
+				"mm.area.analysis": "Analysis / source stage",
+				"mm.area.pricing": "Pricing stage",
+				"mm.area.planning": "Planning / drafting stage",
+				"mm.stageN": "Stage {n}",
+				"mm.moveUp": "Move up",
+				"mm.moveDown": "Move down",
+				"mm.deleteStage": "Delete stage",
+				"mm.stageId": "Stage id (lowercase English)",
+				"mm.stageZh": "Stage Chinese name",
+				"mm.stageHint": "One-line hint",
+				"mm.stagePrompt": "Stage requirements (for the model)",
+				"mm.skillSlugs": "Skill slugs (comma-separated)",
+				"mm.reviewSlugs": "Review skill slugs (comma-separated, optional)",
+				"mm.reviewPolicy": "Review scope",
+				"mm.reviewRisk": "Risk / change / sample review",
+				"mm.reviewAll": "Review every file",
+				"mm.approvalGate": "Require human approval before the next stage",
+				"mm.approvalPrompt": "Decision prompt shown to the user",
+				"mm.approveLabel": "Approve button label",
+				"mm.rejectLabel": "Pause / reject button label (optional)",
+				"mm.binding": "Knowledge binding",
+				"mm.bindNone": "None",
+				"mm.bindAnalysis": "Analysis",
+				"mm.bindPricing": "Pricing",
+				"mm.bindPlanning": "Planning",
+				"mm.listsSources": "Pack tasks by volume / same name (pdf+docx count as one)",
+				"mm.summaryFile": "Summary report file name (empty = no gate)",
+				"mm.summaryOutline": "Summary outline (one item per line)",
+				"mm.addStage": "Add stage",
+				"mm.saving": "Saving…",
+				"mm.saveLive": "Save and go live",
+				"mm.list": "Modules ({n})",
+				"mm.builtin": "Built-in",
+				"mm.custom": "Custom",
+				"mm.stageCount": "{n} stages",
+				"mm.collapse": "Hide stages",
+				"mm.expand": "View stages",
+				"mm.copyThenEdit": "Copy then edit",
+				"mm.editStages": "Edit stages",
+				"mm.copyAsCustom": "Copy as custom",
+				"mm.defFile": "Definition file",
+				"mm.defFileTitle": "Reveal the definition file in File Explorer",
+				"mm.delete": "Delete",
+				"mm.enable": "Enable",
+				"mm.disable": "Disable",
+				"mm.noStages": "This module has no stages",
+				"mm.loadFailed": "Definition files that failed to load",
+				"mm.enabled": "Enabled {name}",
+				"mm.disabled": "Disabled {name}",
+				"mm.deleteConfirm": "Delete custom module “{name}”? Existing projects under it lose the workflow definition. Data is kept.",
+				"mm.deleted": "Deleted {id}",
+				"mm.jsonFail": "JSON parse failed: {err}",
+				"mm.installed": "Installed module {id}",
+				"mm.copySuffix": " (copy)",
+				"mm.copied": "Copied as custom module {id}. It is now in the top bar.",
+				"mm.builtinLocked": "Built-in modules cannot be edited directly. Copy one as a custom module, then edit the copy. Live projects do not migrate automatically.",
+				"mm.saveConfirm": "Saving takes effect immediately. Changing a stage id does not migrate live project boards.",
+				"mm.saved": "Saved module {id}",
+				"mm.markLists": "Pack tasks by volume / same name",
+				"mm.markSummary": "Summary: {name}",
+				"mm.markSkills": "Skills {list}",
+				"mm.markReview": "Review {list}",
+				"lang.zh": "中文",
+				"lang.en": "English",
+				"lang.title": "Language",
+				"lang.switchFailed": "Could not switch language. Please try again."
+			}
+		};
+		const AP_LANGUAGE_DEFINITIONS = [
+			{
+				id: "zh",
+				label: "中文",
+				documentLang: "zh-CN",
+				fallback: "en"
+			},
+			{
+				id: "en",
+				label: "English",
+				documentLang: "en",
+				fallback: "en"
+			},
+			{
+				id: "es",
+				label: "Español",
+				documentLang: "es",
+				fallback: "en"
+			},
+			{
+				id: "fr",
+				label: "Français",
+				documentLang: "fr",
+				fallback: "en"
+			},
+			{
+				id: "de",
+				label: "Deutsch",
+				documentLang: "de",
+				fallback: "en"
+			},
+			{
+				id: "ja",
+				label: "日本語",
+				documentLang: "ja",
+				fallback: "en"
+			},
+			{
+				id: "ko",
+				label: "한국어",
+				documentLang: "ko",
+				fallback: "en"
+			},
+			{
+				id: "pt",
+				label: "Português",
+				documentLang: "pt",
+				fallback: "en"
+			},
+			{
+				id: "ru",
+				label: "Русский",
+				documentLang: "ru",
+				fallback: "en"
+			},
+			{
+				id: "ar",
+				label: "العربية",
+				documentLang: "ar",
+				fallback: "en",
+				rtl: true
+			}
+		];
+		Object.assign(AP_I18N.zh, { "codex.title": "Codex 智能体" });
+		Object.assign(AP_I18N.en, { "codex.title": "Codex Agent" });
+		Object.assign(AP_I18N, {
+			es: {
+				"workbench.title": "Espacio de trabajo",
+				"files.title": "Archivos",
+				"files.official": "Resultados",
+				"files.workspace": "Área de trabajo",
+				"files.uploads": "Cargas",
+				"files.refresh": "Actualizar",
+				"files.collapse": "Contraer archivos",
+				"files.expand": "Expandir archivos",
+				"nav.kb": "Base de conocimiento",
+				"wb.back": "Volver al chat",
+				"wb.kb": "Base de conocimiento",
+				"wb.modules": "Módulos",
+				"wb.refresh": "Actualizar",
+				"wb.adopt": "Convertir trabajo actual",
+				"wb.create": "Nuevo proyecto",
+				"wb.projects": "Proyectos",
+				"module.tender": "Proceso de licitación",
+				"module.delivery": "Control de ejecución",
+				"module.investment": "Análisis de inversión",
+				"create.close": "Cerrar",
+				"session.archive": "Archivar conversación",
+				"session.delete": "Eliminar conversación",
+				"archive.title": "Archivo",
+				"archive.open": "Abrir registro",
+				"archive.delete": "Eliminar",
+				"kb.title": "Base de conocimiento local",
+				"kb.refresh": "Actualizar",
+				"kb.import": "Importar",
+				"kb.search": "Buscar",
+				"mm.title": "Módulos",
+				"codex.title": "Agente Codex",
+				"lang.title": "Idioma"
+			},
+			fr: {
+				"workbench.title": "Espace de travail",
+				"files.title": "Fichiers",
+				"files.official": "Résultats",
+				"files.workspace": "Espace de travail",
+				"files.uploads": "Téléversements",
+				"files.refresh": "Actualiser",
+				"files.collapse": "Réduire les fichiers",
+				"files.expand": "Développer les fichiers",
+				"nav.kb": "Base de connaissances",
+				"wb.back": "Retour au chat",
+				"wb.kb": "Base de connaissances",
+				"wb.modules": "Modules",
+				"wb.refresh": "Actualiser",
+				"wb.adopt": "Convertir le travail actuel",
+				"wb.create": "Nouveau projet",
+				"wb.projects": "Projets",
+				"module.tender": "Processus d'appel d'offres",
+				"module.delivery": "Contrôle d'exécution",
+				"module.investment": "Analyse d'investissement",
+				"create.close": "Fermer",
+				"session.archive": "Archiver la conversation",
+				"session.delete": "Supprimer la conversation",
+				"archive.title": "Archives",
+				"archive.open": "Ouvrir le dossier",
+				"archive.delete": "Supprimer",
+				"kb.title": "Base de connaissances locale",
+				"kb.refresh": "Actualiser",
+				"kb.import": "Importer",
+				"kb.search": "Rechercher",
+				"mm.title": "Modules",
+				"codex.title": "Agent Codex",
+				"lang.title": "Langue"
+			},
+			de: {
+				"workbench.title": "Arbeitsbereich",
+				"files.title": "Dateien",
+				"files.official": "Ergebnisse",
+				"files.workspace": "Arbeitsbereich",
+				"files.uploads": "Uploads",
+				"files.refresh": "Aktualisieren",
+				"files.collapse": "Dateien einklappen",
+				"files.expand": "Dateien ausklappen",
+				"nav.kb": "Wissensbasis",
+				"wb.back": "Zurück zum Chat",
+				"wb.kb": "Wissensbasis",
+				"wb.modules": "Module",
+				"wb.refresh": "Aktualisieren",
+				"wb.adopt": "Aktuelle Arbeit übernehmen",
+				"wb.create": "Neues Projekt",
+				"wb.projects": "Projekte",
+				"module.tender": "Ausschreibungsprozess",
+				"module.delivery": "Ausführungskontrolle",
+				"module.investment": "Investitionsprüfung",
+				"create.close": "Schließen",
+				"session.archive": "Unterhaltung archivieren",
+				"session.delete": "Unterhaltung löschen",
+				"archive.title": "Archiv",
+				"archive.open": "Datensatz öffnen",
+				"archive.delete": "Löschen",
+				"kb.title": "Lokale Wissensbasis",
+				"kb.refresh": "Aktualisieren",
+				"kb.import": "Importieren",
+				"kb.search": "Suchen",
+				"mm.title": "Module",
+				"codex.title": "Codex-Agent",
+				"lang.title": "Sprache"
+			},
+			ja: {
+				"workbench.title": "専門ワークベンチ",
+				"files.title": "ファイル",
+				"files.official": "成果物",
+				"files.workspace": "ワークスペース",
+				"files.uploads": "アップロード",
+				"files.refresh": "更新",
+				"files.collapse": "ファイルを閉じる",
+				"files.expand": "ファイルを開く",
+				"nav.kb": "ナレッジベース",
+				"wb.back": "チャットに戻る",
+				"wb.kb": "ナレッジベース",
+				"wb.modules": "モジュール",
+				"wb.refresh": "更新",
+				"wb.adopt": "現在の作業を登録",
+				"wb.create": "新規プロジェクト",
+				"wb.projects": "プロジェクト",
+				"module.tender": "入札プロセス",
+				"module.delivery": "施工管理",
+				"module.investment": "投資調査",
+				"create.close": "閉じる",
+				"session.archive": "会話をアーカイブ",
+				"session.delete": "会話を削除",
+				"archive.title": "アーカイブ",
+				"archive.open": "記録を開く",
+				"archive.delete": "削除",
+				"kb.title": "ローカルナレッジベース",
+				"kb.refresh": "更新",
+				"kb.import": "インポート",
+				"kb.search": "検索",
+				"mm.title": "モジュール",
+				"codex.title": "Codex エージェント",
+				"lang.title": "言語"
+			},
+			ko: {
+				"workbench.title": "전문 워크벤치",
+				"files.title": "파일",
+				"files.official": "작업 결과",
+				"files.workspace": "작업 공간",
+				"files.uploads": "업로드",
+				"files.refresh": "새로 고침",
+				"files.collapse": "파일 접기",
+				"files.expand": "파일 펼치기",
+				"nav.kb": "지식 베이스",
+				"wb.back": "채팅으로 돌아가기",
+				"wb.kb": "지식 베이스",
+				"wb.modules": "모듈",
+				"wb.refresh": "새로 고침",
+				"wb.adopt": "현재 작업 등록",
+				"wb.create": "새 프로젝트",
+				"wb.projects": "프로젝트",
+				"module.tender": "입찰 프로세스",
+				"module.delivery": "시공 관리",
+				"module.investment": "투자 검토",
+				"create.close": "닫기",
+				"session.archive": "대화 보관",
+				"session.delete": "대화 삭제",
+				"archive.title": "보관함",
+				"archive.open": "기록 열기",
+				"archive.delete": "삭제",
+				"kb.title": "로컬 지식 베이스",
+				"kb.refresh": "새로 고침",
+				"kb.import": "가져오기",
+				"kb.search": "검색",
+				"mm.title": "모듈",
+				"codex.title": "Codex 에이전트",
+				"lang.title": "언어"
+			},
+			pt: {
+				"workbench.title": "Área de trabalho",
+				"files.title": "Arquivos",
+				"files.official": "Resultados",
+				"files.workspace": "Área de trabalho",
+				"files.uploads": "Envios",
+				"files.refresh": "Atualizar",
+				"files.collapse": "Recolher arquivos",
+				"files.expand": "Expandir arquivos",
+				"nav.kb": "Base de conhecimento",
+				"wb.back": "Voltar ao chat",
+				"wb.kb": "Base de conhecimento",
+				"wb.modules": "Módulos",
+				"wb.refresh": "Atualizar",
+				"wb.adopt": "Converter trabalho atual",
+				"wb.create": "Novo projeto",
+				"wb.projects": "Projetos",
+				"module.tender": "Processo de licitação",
+				"module.delivery": "Controle de execução",
+				"module.investment": "Análise de investimento",
+				"create.close": "Fechar",
+				"session.archive": "Arquivar conversa",
+				"session.delete": "Excluir conversa",
+				"archive.title": "Arquivo",
+				"archive.open": "Abrir registro",
+				"archive.delete": "Excluir",
+				"kb.title": "Base de conhecimento local",
+				"kb.refresh": "Atualizar",
+				"kb.import": "Importar",
+				"kb.search": "Pesquisar",
+				"mm.title": "Módulos",
+				"codex.title": "Agente Codex",
+				"lang.title": "Idioma"
+			},
+			ru: {
+				"workbench.title": "Рабочая панель",
+				"files.title": "Файлы",
+				"files.official": "Результаты",
+				"files.workspace": "Рабочая область",
+				"files.uploads": "Загрузки",
+				"files.refresh": "Обновить",
+				"files.collapse": "Свернуть файлы",
+				"files.expand": "Развернуть файлы",
+				"nav.kb": "База знаний",
+				"wb.back": "Назад к чату",
+				"wb.kb": "База знаний",
+				"wb.modules": "Модули",
+				"wb.refresh": "Обновить",
+				"wb.adopt": "Подключить текущую работу",
+				"wb.create": "Новый проект",
+				"wb.projects": "Проекты",
+				"module.tender": "Тендерный процесс",
+				"module.delivery": "Контроль исполнения",
+				"module.investment": "Инвестиционный анализ",
+				"create.close": "Закрыть",
+				"session.archive": "Архивировать беседу",
+				"session.delete": "Удалить беседу",
+				"archive.title": "Архив",
+				"archive.open": "Открыть запись",
+				"archive.delete": "Удалить",
+				"kb.title": "Локальная база знаний",
+				"kb.refresh": "Обновить",
+				"kb.import": "Импорт",
+				"kb.search": "Поиск",
+				"mm.title": "Модули",
+				"codex.title": "Агент Codex",
+				"lang.title": "Язык"
+			},
+			ar: {
+				"workbench.title": "مساحة العمل",
+				"files.title": "الملفات",
+				"files.official": "النتائج",
+				"files.workspace": "مساحة العمل",
+				"files.uploads": "التحميلات",
+				"files.refresh": "تحديث",
+				"files.collapse": "طي الملفات",
+				"files.expand": "توسيع الملفات",
+				"nav.kb": "قاعدة المعرفة",
+				"wb.back": "العودة إلى المحادثة",
+				"wb.kb": "قاعدة المعرفة",
+				"wb.modules": "الوحدات",
+				"wb.refresh": "تحديث",
+				"wb.adopt": "اعتماد العمل الحالي",
+				"wb.create": "مشروع جديد",
+				"wb.projects": "المشاريع",
+				"module.tender": "عملية المناقصة",
+				"module.delivery": "مراقبة التنفيذ",
+				"module.investment": "تحليل الاستثمار",
+				"create.close": "إغلاق",
+				"session.archive": "أرشفة المحادثة",
+				"session.delete": "حذف المحادثة",
+				"archive.title": "الأرشيف",
+				"archive.open": "فتح السجل",
+				"archive.delete": "حذف",
+				"kb.title": "قاعدة المعرفة المحلية",
+				"kb.refresh": "تحديث",
+				"kb.import": "استيراد",
+				"kb.search": "بحث",
+				"mm.title": "الوحدات",
+				"codex.title": "وكيل Codex",
+				"lang.title": "اللغة"
+			}
+		});
+		for (const [locale, messages] of Object.entries(WORKFLOW_EDITOR_I18N)) Object.assign(AP_I18N[locale], messages);
+		for (const [locale, messages] of Object.entries(WORKBENCH_FIELDS)) Object.assign(AP_I18N[locale], messages);
+		Object.assign(AP_I18N.es, {
+			"workbench.title": "Panel profesional",
+			"files.workspace": "Carpeta de trabajo",
+			"module.delivery": "Control de proyectos"
+		});
+		Object.assign(AP_I18N.fr, {
+			"workbench.title": "Atelier professionnel",
+			"files.workspace": "Dossier de travail",
+			"module.delivery": "Pilotage de projet"
+		});
+		Object.assign(AP_I18N.de, {
+			"workbench.title": "Facharbeitsbereich",
+			"files.workspace": "Arbeitsverzeichnis",
+			"module.delivery": "Projektsteuerung"
+		});
+		Object.assign(AP_I18N.ja, {
+			"workbench.title": "専門ワークベンチ",
+			"files.workspace": "作業フォルダー",
+			"module.delivery": "プロジェクト管理"
+		});
+		Object.assign(AP_I18N.ko, {
+			"workbench.title": "전문 작업대",
+			"files.workspace": "작업 폴더",
+			"module.delivery": "프로젝트 관리"
+		});
+		Object.assign(AP_I18N.pt, {
+			"workbench.title": "Bancada profissional",
+			"files.workspace": "Pasta de trabalho",
+			"module.delivery": "Controle de projetos"
+		});
+		Object.assign(AP_I18N.ru, {
+			"workbench.title": "Профессиональная рабочая панель",
+			"files.workspace": "Рабочая папка",
+			"module.delivery": "Управление проектом"
+		});
+		Object.assign(AP_I18N.ar, {
+			"workbench.title": "لوحة العمل المتخصصة",
+			"files.workspace": "مجلد العمل",
+			"module.delivery": "ضبط المشروع"
+		});
+		//#endregion
 		//#region src/client/attachment-message-view.js
 		const slot = "conversation.chat.node";
 		/** Strip only product transport markers from a presentation copy, never the log. */
@@ -3536,11 +5347,12 @@ window.__ModuleLoader__.load({
 				if (!specialModule) body = props.projects.length === 0 && !props.error ? h("div", { className: "ap-landing" }, h("div", { className: "ap-landing-inner" }, moduleIconNode(props.current, 32), h("h1", null, props.current ? moduleLabel(props.current) : tAp("workbench.title")), h("p", null, tAp("wb.landing")), h("div", { className: "ap-landing-actions" }, h("button", {
 					type: "button",
 					className: "ap-btn",
-					disabled: !props.cwd,
+					disabled: !props.cwd || props.current?.available === false,
 					onClick: props.onAdopt
 				}, Icon("layout", 16), tAp("wb.upgrade")), h("button", {
 					type: "button",
 					className: "ap-btn primary",
+					disabled: props.current?.available === false,
 					onClick: props.onCreate
 				}, Icon("plus", 16), tAp("wb.create"))))) : h("div", { className: "ap-ov" }, h("aside", { className: "ap-col" }, h("div", { className: "ap-col-hd" }, tAp("wb.projects")), props.projects.map((item) => h("button", {
 					key: item.project.projectId,
@@ -3563,12 +5375,12 @@ window.__ModuleLoader__.load({
 					type: "button",
 					className: "ap-mod" + (props.module === item.id ? " on" : ""),
 					onClick: () => props.onSelectModule(item.id)
-				}, moduleIconNode(item, 15), moduleLabel(item))), h("button", {
+				}, moduleIconNode(item, 15), moduleLabel(item))), props.capabilities?.knowledge === false ? null : h("button", {
 					type: "button",
 					className: "ap-mod" + (props.module === "kb" ? " on" : ""),
 					title: tAp("wb.kbTitle"),
 					onClick: () => props.onSelectModule("kb")
-				}, Icon("book", 15), tAp("wb.kb")), h("button", {
+				}, Icon("book", 15), tAp("wb.kb")), props.capabilities?.workbench === false ? null : h("button", {
 					type: "button",
 					className: "ap-mod" + (props.module === "modules" ? " on" : ""),
 					title: tAp("wb.modulesTitle"),
@@ -3585,12 +5397,13 @@ window.__ModuleLoader__.load({
 				}, Icon("refresh", 14, props.refreshing ? "ap-spin" : ""), tAp("wb.refresh")), h("button", {
 					type: "button",
 					className: "ap-btn",
-					disabled: !props.cwd,
+					disabled: !props.cwd || props.current?.available === false,
 					title: tAp("wb.adoptTitle"),
 					onClick: props.onAdopt
 				}, Icon("layout", 14), tAp("wb.adopt")), h("button", {
 					type: "button",
 					className: "ap-btn primary",
+					disabled: props.current?.available === false,
 					onClick: props.onCreate
 				}, Icon("plus", 14), tAp("wb.create")))), props.moduleErrorCount ? h("div", {
 					className: "ap-err",
@@ -3646,7 +5459,7 @@ body[data-ds-dark-theme]{
 .ap-path{margin-top:6px;display:flex;align-items:center;gap:6px;color:var(--dsw-alias-label-tertiary);font-size:12px;min-width:0}
 .ap-path span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ap-toolbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;padding:10px 24px;border-bottom:1px solid var(--dsw-alias-border-l1);background:color-mix(in srgb, var(--dsw-alias-label-primary) 3%, var(--dsw-alias-bg-layer-1));flex-shrink:0}
-.ap-mods{display:flex;gap:4px}
+.ap-mods{display:flex;flex-wrap:wrap;gap:4px}
 .ap-mod{display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:12px;font-weight:500}
 .ap-mod:hover{color:var(--dsw-alias-label-primary);background:color-mix(in srgb, var(--dsw-alias-label-primary) 6%, transparent)}
 .ap-mod.on{color:var(--ap-accent);background:color-mix(in srgb, var(--ap-accent) 12%, transparent)}
@@ -3749,14 +5562,14 @@ body[data-ds-dark-theme]{
 .ap-codex-note code{color:var(--ap-accent)}
 :root{--ap-files-w:300px}
 .ap-files-dock{
-  position:fixed;top:0;right:0;bottom:0;width:var(--ap-files-w);
+  position:fixed;top:0;inset-inline-end:0;bottom:0;width:var(--ap-files-w);
   pointer-events:auto;z-index:21;
-  border-left:1px solid var(--dsw-alias-border-l2);
+  border-inline-start:1px solid var(--dsw-alias-border-l2);
   background:var(--dsw-alias-bg-layer-1);
   box-shadow:-8px 0 24px color-mix(in srgb, var(--dsw-alias-label-primary) 6%, transparent);
 }
 .ap-files-resizer{
-  position:absolute;left:-4px;top:0;bottom:0;width:10px;z-index:4;
+  position:absolute;inset-inline-start:-4px;top:0;bottom:0;width:10px;z-index:4;
   cursor:col-resize;touch-action:none;
 }
 .ap-files-resizer::after{
@@ -3795,19 +5608,24 @@ html.ap-rail-resizing{cursor:col-resize;user-select:none}
 .ap-files-dock.collapsed .ap-files-toggle{margin-top:auto}
 html.ap-files-rail [data-phase="hero"],
 html.ap-files-rail [data-phase="active"],
-html.ap-files-rail [data-phase="settling"]{margin-right:var(--ap-files-w)}
+html.ap-files-rail [data-phase="settling"]{margin-inline-end:var(--ap-files-w)}
 html.ap-files-rail.ap-files-collapsed [data-phase="hero"],
 html.ap-files-rail.ap-files-collapsed [data-phase="active"],
-html.ap-files-rail.ap-files-collapsed [data-phase="settling"]{margin-right:56px}
+html.ap-files-rail.ap-files-collapsed [data-phase="settling"]{margin-inline-end:56px}
 html.ap-wb-open [data-shell-overlay]{z-index:20}
 .ap-wb-page{
-  position:absolute;top:0;right:0;bottom:0;pointer-events:auto;z-index:6;
+  position:absolute;top:0;inset-inline-end:0;bottom:0;pointer-events:auto;z-index:6;
   background:var(--dsw-alias-bg-layer-1);
-  border-left:1px solid var(--dsw-alias-border-l1);
+  border-inline-start:1px solid var(--dsw-alias-border-l1);
   overflow:auto;
 }
-html.ap-files-rail .ap-wb-page{right:var(--ap-files-w)}
-html.ap-files-rail.ap-files-collapsed .ap-wb-page{right:56px}
+html.ap-files-rail .ap-wb-page{inset-inline-end:var(--ap-files-w)}
+html.ap-files-rail.ap-files-collapsed .ap-wb-page{inset-inline-end:56px}
+@media(max-width:760px){
+  html.ap-wb-open .ap-files-dock{display:none}
+  html.ap-files-rail .ap-wb-page{inset-inline-end:0}
+  .ap-wb .ap-ov-hd,.ap-wb .ap-mm-row{flex-wrap:wrap}
+}
 .ap-nav{
   display:flex;align-items:center;gap:8px;width:100%;height:36px;margin:0 0 6px;
   border:0;border-radius:8px;padding:0 10px;cursor:pointer;
@@ -5432,985 +7250,6 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			}, nodes.map((node, i) => h(node[0], Object.assign({ key: i }, node[1]))));
 		}
 		const WORKBENCH_LABEL = "专业化工作台";
-		const AP_I18N = {
-			zh: {
-				"workbench.title": "专业化工作台",
-				"files.openExplorer": "在资源管理器中打开",
-				"files.opening": "正在打开资源管理器…",
-				"files.openFailed": "无法打开文件夹",
-				"files.noCwd": "还没有工作区路径",
-				"files.uploadFiles": "上传文件到对话",
-				"files.uploadFolder": "上传文件夹",
-				"files.title": "资源文件",
-				"files.official": "工作成果",
-				"files.officialName": "Official Outputs",
-				"files.officialEmpty": "还没有正式产出。会话里改过的报告、地图等会自动落到这里。",
-				"files.officialHint": "这里展示会话与工作台的正式产出，不依赖模型自己选目录。",
-				"files.workspace": "工作区",
-				"files.uploads": "上传资料",
-				"files.pickWorkspace": "先选择工作区",
-				"files.collapse": "收起资源文件",
-				"files.expand": "展开资源文件",
-				"files.refresh": "刷新",
-				"files.addFolder": "加入文件夹地址（不上传文件）",
-				"files.resize": "拖动调整宽度",
-				"nav.kb": "知识库",
-				"nav.kbTitle": "本地知识库：规范、合同、范文与用户模板，按文档结构精确索引",
-				"wb.back": "返回对话",
-				"wb.noCwd": "未选择工作区 · 聊天仍是默认路径，工作台只加速阶段准备",
-				"wb.kb": "知识库",
-				"wb.kbTitle": "跨项目共享的规范、合同、范文与用户模板；勾选用户模板后本轮复刻其格式与深度",
-				"wb.modules": "模块管理",
-				"wb.modulesTitle": "看已上线模块；新模块走创造对话，不要先导入 JSON",
-				"wb.refresh": "刷新",
-				"wb.adopt": "升级当前工作",
-				"wb.adoptTitle": "把当前会话工作区登记为所选模块的专业项目，不另建目录",
-				"wb.create": "新建项目",
-				"wb.upgrade": "将当前工作升级",
-				"wb.landing": "这就是这个流程的步骤。先开一个项目，或把当前工作升级上来，监控条才会出现并跟着走。",
-				"wb.projects": "项目",
-				"wb.pickProject": "选择一个项目",
-				"wb.moduleErrors": "有 {n} 个模块定义文件加载失败（见模块管理）。",
-				"module.tender": "投标全流程",
-				"module.delivery": "实施控制",
-				"module.investment": "投资尽调",
-				"create.close": "关闭",
-				"create.titleAdopt": "将当前工作升级为专业项目",
-				"create.titleNew": "新建{name}项目",
-				"create.hintAdopt": "沿用当前会话工作区和已有正式成果，只补一张专业盘面。可选投标、实施、尽调或任意自建模块。",
-				"create.hintNew": "使用现有对话执行内核，建立独立项目目录、明确资料边界并按专业流程推进。登记资料时可附企业工效表，有则优先于网络调研。",
-				"create.whichModule": "升级到哪个专业模块？不会改写已有正式成果。",
-				"create.step.module": "选择模块",
-				"create.step.info": "项目信息",
-				"create.step.folder": "项目文件夹",
-				"create.step.files": "依据资料",
-				"create.step.confirmAdopt": "确认升级",
-				"create.step.confirmNew": "流程确认",
-				"session.archive": "归档对话",
-				"session.archiveTitle": "归档当前对话。完整记录在左侧「归档」里查看，归档后也可删除。",
-				"session.archiveFailed": "归档失败",
-				"session.delete": "删除对话",
-				"session.deleteConfirm": "从侧栏和归档中移除？完整记录不再列出（本机日志仍保留）。",
-				"session.deleteFailed": "删除失败",
-				"archive.title": "归档",
-				"archive.lead": "完成的工作区先归档，不占进行中列表。点开仍是完整对话记录；归档的工作区和对话都可以删除。",
-				"archive.empty": "还没有归档。侧栏工作区菜单选「归档工作区」，或对单条会话选「归档会话」。",
-				"archive.open": "打开完整记录",
-				"archive.delete": "删除",
-				"archive.ungrouped": "未分组",
-				"archive.workspace": "归档工作区",
-				"archive.workspaceConfirm": "归档后，这个工作区和里面的对话会从进行中列表移到「归档」。完整记录仍可打开，归档后也可以删除。",
-				"archive.workspaceFailed": "工作区归档失败",
-				"archive.workspaceLive": "工作区仍在进行中",
-				"archive.workspaceEmpty": "这个工作区没有对话。",
-				"archive.deleteWorkspace": "删除工作区",
-				"archive.deleteWorkspaceConfirm": "删除这个工作区登记？目录和已归档对话还在。",
-				"kb.title": "本地知识库",
-				"kb.refresh": "刷新",
-				"kb.reindexAll": "全部重建",
-				"kb.reindexing": "重建中…",
-				"kb.reindexTitle": "按原路径（若仍存在）重新切块并更新索引",
-				"kb.import": "导入",
-				"kb.tokenOk": "Token 有效",
-				"kb.tokenBad": "Token 无效",
-				"kb.mineruSaved": "MinerU 已保存",
-				"kb.mineruMissing": "MinerU 未配置",
-				"kb.mineruNeedRestart": "MinerU 需重启宿主",
-				"kb.path1Title": "路径一 · 本页导入",
-				"kb.path1Body": "用「选择文件」或多选拖入。文件先落入下方原始文档区，不会自动解析。有文本层的 PDF 本机抽文本（快）；扫描件和复杂版式再点「解析入库」走 MinerU。MinerU 的 HTML 表会收成 Markdown 表；已入库的点「全部重建」即可。索引按文档自己的章/节/条/Clause 切。",
-				"kb.path2Title": "路径二 · 对话导入知识库",
-				"kb.path2Warn": "只把 PDF 丢进主对话、不说话，不会进知识库。贴上文件后发送下面这句：",
-				"kb.path2After": "也能说：知识库、入库、知识包、准确整理、完整内容、全文转录。模型写好「…-知识包」文件夹后，右侧对该文件夹或 pack.json 右键「一键导入知识包」，立刻可检索。普通文件仍可右键「一键导入知识库」，和本页是同一套解析。",
-				"kb.tplTitle": "用户模板 · 复刻版式",
-				"kb.tplBody": "把你已经编好的较好文档入库为「用户模板」，再勾选「本次任务选用」。本轮业务稿复刻它的格式、大纲、章节顺序和内容深度；项目事实仍走规范、合同和本项目资料，不从模板抄数字、地名或合同号。文件名以「模板」结尾时，右侧一键入库会自动归入此类。",
-				"kb.packTitle": "传递包 · 仅本应用",
-				"kb.packBody": "每条知识库文件、用户模板、本机技能后面都可以「导出」成 .apkb。这是本应用密封的传递包，用 zip / Office / 记事本打不开。对方在本页点「导入传递包」，条目会回到原来的分类和子目录（例如规范 → COTO 2020）。",
-				"kb.pickTitle": "选择文件后立刻出现在下方，不会自动解析",
-				"kb.picking": "正在落入存储区…",
-				"kb.pickFiles": "选择文件",
-				"kb.importPackTitle": "导入 Agent Pi 传递包（.apkb），其他工具无法解析",
-				"kb.importing": "导入中…",
-				"kb.importPack": "导入传递包",
-				"kb.parseTitle": "对已落入原始文档区的文件做解析并写入知识库",
-				"kb.parsing": "解析中…",
-				"kb.parseIn": "解析入库",
-				"kb.category": "分类",
-				"kb.customCategory": "自定义分类…",
-				"kb.customCategoryPh": "自定义分类名",
-				"kb.customNamePh": "自定义名称（可选，默认用文件名）",
-				"kb.thisPick": "本次选择：{name}",
-				"kb.multiHint": "支持多选。选完先落入原始文档区，不会自动解析。",
-				"kb.parseFailed": "解析失败",
-				"kb.stagedWait": "已落入原始文档区，等待解析入库",
-				"kb.progress": "进度 {n}%",
-				"kb.parsingChip": "解析中",
-				"kb.failedChip": "失败",
-				"kb.pendingChip": "待解析",
-				"kb.retry": "重试",
-				"kb.remove": "移除",
-				"kb.landing": "已选中，正在落入原始文档区…",
-				"kb.landingProgress": "正在落入原始文档区…",
-				"kb.mineruSummary": "MinerU Token（大文件 / 精度抽取）",
-				"kb.mineruCurrent": "当前：{hint}。不回显全文。",
-				"kb.mineruSavedHint": "已保存",
-				"kb.mineruUnconfigured": "未配置。小于 10MB 可走免登录轻量接口；更大文件需要 Token。申请：https://mineru.net/apiManage/token",
-				"kb.mineruOldHost": "当前窗口还是旧宿主，粘贴后点保存也不会落盘。请关掉 Agent Pi DSH 再打开，然后重新粘贴并点保存。",
-				"kb.mineruTokenPh": "粘贴 MinerU Token 后点保存",
-				"kb.saving": "保存中…",
-				"kb.saveToken": "保存 Token",
-				"kb.probeTitle": "向 MinerU 探测鉴权，不提交解析任务",
-				"kb.probing": "验证中…",
-				"kb.probe": "验证是否有效",
-				"kb.clear": "清除",
-				"kb.mineruOcr": "有文本层的 PDF 会关闭 OCR；扫描件才开 OCR。超过官方页数或体积上限时自动拆段、串行解析、合并成一条。",
-				"kb.pastePath": "或粘贴已有文件路径",
-				"kb.pastePathPh": "原文件路径、知识包文件夹，或 MinerU 产物文件夹",
-				"kb.staging": "落入中…",
-				"kb.stage": "落入存储区",
-				"kb.searchPreview": "检索预览",
-				"kb.searchPh": "关键词 / 条款号 / 表头（与模型 kb_search 相同的 MiniSearch BM25）",
-				"kb.search": "检索",
-				"kb.noHits": "无命中。",
-				"kb.score": "分值 {n}",
-				"kb.entries": "条目（{n} 个）",
-				"kb.entriesLead": "每行是一份原文档。点名称用右侧同一套文件预览打开解析稿 Markdown（可改，保存后重建切片）。分类下可建子目录归类（例如规范 → COTO 2020）；入库时能认出 COTO / COLTO / FIDIC 章节名会自动归入。每行「归入」可改挂到哪个节点。MinerU 表若仍露出 HTML 标签，点「全部重建」收成 Markdown 表。预览若是整页一段、词中空格，那是抽文本墙：回主对话贴上 PDF，发送「{say}」，或点「MinerU 重解析」。打勾「本次任务选用」即时生效。已选用 {n} 条。",
-				"kb.empty": "知识库为空。预置方法标准与范文会在首次使用时自动入库；也可以在上方导入规范、范文，或把你编好的文档导入为用户模板。",
-				"kb.taskSelect": "本次任务选用",
-				"kb.openPreview": "打开解析稿预览",
-				"kb.ready": "已入知识库",
-				"kb.fidelityTitle": "索引只存条款地址；阅读时从解析稿按偏移切片",
-				"kb.inTask": "本次任务",
-				"kb.seeded": "预置",
-				"kb.home": "归入",
-				"kb.homeTitle": "归入子目录",
-				"kb.unfiled": "未归类",
-				"kb.newFolder": "新建子目录…",
-				"kb.reparseMineru": "MinerU 重解析",
-				"kb.reparseTitle": "跳过本机文本层，用 MinerU 重做排版稿并重建切片",
-				"kb.export": "导出",
-				"kb.exportTitle": "导出为本应用传递包（.apkb），其他工具无法打开",
-				"kb.delete": "删除",
-				"kb.count": "{n} 个",
-				"kb.addFolder": "新增子目录",
-				"kb.addFolderTitle": "在此分类下新建子目录，用来归类入库文件",
-				"kb.folderOk": "新建",
-				"kb.folderCancel": "取消",
-				"kb.confirmOk": "确定",
-				"kb.exportFolder": "导出此目录",
-				"kb.exportFolderTitle": "把此子目录下已入库文件打成一个传递包",
-				"kb.deleteFolder": "删除子目录",
-				"kb.deleteFolderTitle": "删除子目录，文件留在本分类下",
-				"kb.emptyFolder": "空目录。用文件行的「归入」挂进来。",
-				"kb.skills": "本机技能（{n} 个）",
-				"kb.skillsLead": "这里是你装在本机技能目录里的方法（$DSH_HOME/skills），不是出厂捆绑技能。导出同样打成 .apkb，对方导入后热加载，不用重装应用。",
-				"kb.skillsEmpty": "还没有本机技能。把方法沉淀成技能后会出现在这里。",
-				"kb.exportSkillTitle": "导出为本应用传递包",
-				"kb.oldHostMineru": "当前窗口还是旧宿主：MinerU Token 保存不会落盘。请关掉 Agent Pi DSH 再打开（刷新不够）。",
-				"kb.ingestedOk": "知识库入库成功：{names}",
-				"kb.transferEntries": "{n} 个知识条目",
-				"kb.transferSkills": "{n} 个技能",
-				"kb.transferEmpty": "空",
-				"kb.transferImported": "已导入传递包：{parts}{detail}",
-				"kb.transferSaved": "传递包已写入本机。只可用 Agent Pi DSH 打开 .apkb。",
-				"kb.stagedNotice": "已落入原始文档区：{name}。点「解析入库」开始处理。",
-				"kb.skipUnchanged": "内容未变化，已选用到本次任务：{name}。下一轮发送立即生效，无需重启。",
-				"kb.replacedTask": "已重建并选用到本次任务：{name}。下一轮发送立即生效，无需重启。",
-				"kb.ingestedTask": "已入库并选用到本次任务：{name}。下一轮发送立即生效，无需重启。",
-				"kb.needFile": "请先选择要入库的文件",
-				"kb.badTypes": "请选择 PDF、Word、Excel、PPT、图片、.md / .txt / .json，或本应用传递包 .apkb。",
-				"kb.skippedTypes": "已跳过不支持的格式：{names}",
-				"kb.needToken": "请填写 MinerU Token",
-				"kb.saveNoDisk": "保存没有写到本机。刷新不够，当前窗口还是旧宿主。请关掉 Agent Pi DSH 再打开，然后重新粘贴并点保存。",
-				"kb.oldHostSave": "当前窗口还是旧宿主，Token 接口还不存在。请关掉 Agent Pi DSH 再打开后再保存（刷新不够）。",
-				"kb.needTokenOrSave": "请先粘贴 Token，或先保存后再验证",
-				"kb.probeMissing": "验证接口还不存在。请关掉 Agent Pi DSH 再打开后再试（刷新不够）。",
-				"kb.cleared": "已清除本机 MinerU Token",
-				"kb.clearFailed": "清除失败。当前窗口还是旧宿主，请关掉 Agent Pi DSH 再打开。",
-				"kb.parseRetry": "解析失败，请重新选择该文件入库",
-				"kb.deleteEntryConfirm": "删除知识库条目「{name}」？索引与托管副本会一起删除{seeded}。",
-				"kb.deleteSeeded": "；预置条目删除后不会自动恢复",
-				"kb.deleted": "已删除 {slug}",
-				"kb.reindexed": "已重建 {n} 个条目{missing}",
-				"kb.missingSrc": "；缺源：{list}",
-				"kb.folderPrompt": "子目录名称，例如 COTO 2020",
-				"kb.folderCreated": "已新增子目录「{name}」",
-				"kb.deleteFolderConfirm": "删除子目录「{name}」？文件仍留在「{category}」下，不会删文件。",
-				"kb.folderDeleted": "已删除子目录「{name}」",
-				"kb.exported": "已导出传递包 {name}。只可用本应用导入，其他工具打不开。",
-				"kb.newFolderPrompt": "新建子目录，例如 COTO 2020",
-				"kb.parseStarted": "已开始解析 {n} 个文件。MinerU 可能较久，请看下方进度。",
-				"kb.parseNone": "没有新的解析任务。",
-				"kb.cat.规范": "规范",
-				"kb.cat.合同": "合同",
-				"kb.cat.范文": "范文",
-				"kb.cat.方法标准": "方法标准",
-				"kb.cat.用户模板": "用户模板",
-				"kb.cat.用户模版": "用户模板",
-				"kb.cat.自定义": "自定义",
-				"kb.cat.未分类": "未分类",
-				"kb.hint.用户模板": "勾选后，本轮写作复刻其格式、大纲与内容深度",
-				"mm.title": "模块管理",
-				"mm.lead": "本页用来看已上线的模块、开关和拷贝。新模块不要在这里填字段，到下面的创造模式进对话。",
-				"mm.lead2": "内置投标不会被改写。进行中的老项目不会自动改盘面。",
-				"mm.designTitle": "回到对话，用人机交互生成完整工作台模块包",
-				"mm.design": "去对话里创造",
-				"mm.createTitle": "模块创造模式",
-				"mm.createLead": "不要先导入 JSON。点下面一条路，本应用会进入 DSH 原生「创造模式」，用对话把这次做成的成果和修订经验沉淀为完整业务模块包：顶栏、阶段监控、资料登记、流程控制、配套方法和知识库。",
-				"mm.createWarn": "原生创造模式只是创作驾驶舱，最终保存的是专业工作台业务模块，不会改 DSH 官方预设。当前对话为空时原地切换；已有历史时会新建创造模式对话。",
-				"mm.createAdvanced": "只有已经拿到本应用校验过的模块定义时，才在这里粘贴。普通使用请走上面的创造对话。",
-				"mm.packNotJson": "完整模块包，不是一段 JSON",
-				"mm.pickKind": "选你们属于哪一种。选完回到对话，用大白话问一两句；模型直接装上，你不用粘贴定义。",
-				"mm.card.distill": "做过一单，照这个来",
-				"mm.card.distillBody": "把这次对话里已经认可的成果，整理成以后同类工作的标准。范文进知识库，做法记下来。",
-				"mm.card.copy": "步骤和投标全流程一样，规矩不同",
-				"mm.card.copyBody": "沿用当前投标流程的阶段和人工确认门禁，拷贝一份，再挂上你们的评分办法、组价表或投标函。",
-				"mm.card.custom": "步骤就不一样",
-				"mm.card.customBody": "例如先资格再技术再商务、没有组价。用中文说清几步，新标签和监控条按这几步画。",
-				"mm.advanced": "高级 · 粘贴模块定义（开发者）",
-				"mm.installing": "安装中…",
-				"mm.install": "校验并安装",
-				"mm.copyTitle": "拷贝为自建模块",
-				"mm.copyLead": "从「{name}」复制阶段、技能和总报告门槛。内置投标不会被改写；副本保存后立刻出现在顶栏，并可继续改阶段。",
-				"mm.labelZh": "中文名",
-				"mm.moduleId": "模块 id（小写英文，不能用 tender / delivery / investment）",
-				"mm.cancel": "取消",
-				"mm.copying": "拷贝中…",
-				"mm.copyOpen": "拷贝并打开编辑器",
-				"mm.copyLive": "拷贝并上线",
-				"mm.editTitle": "编辑模块 · {name}",
-				"mm.editLead": "可增删改阶段、调整顺序和总报告门槛。保存即覆盖这份自建定义。进行中项目不会自动迁盘面。",
-				"mm.labelEn": "英文名（可选）",
-				"mm.setupStage": "开工阶段",
-				"mm.kbPack": "规范包",
-				"mm.kbPackLead": "挂你们公司的规范、组价表、投标函范文。不改阶段结构。勾选后阶段稿只点名这些知识库条目，不再带出厂范文的磁盘路径。",
-				"mm.kbOwnOnly": "只用勾选的知识库（不带出厂范文）",
-				"mm.kbEmpty": "知识库还是空的。先到「知识库」页导入规范或范文，再回到这里勾选。",
-				"mm.area.analysis": "解析 / 资料阶段",
-				"mm.area.pricing": "组价阶段",
-				"mm.area.planning": "策划出稿阶段",
-				"mm.stageN": "阶段 {n}",
-				"mm.moveUp": "上移",
-				"mm.moveDown": "下移",
-				"mm.deleteStage": "删除阶段",
-				"mm.stageId": "阶段 id（小写英文）",
-				"mm.stageZh": "阶段中文名",
-				"mm.stageHint": "一句话提示",
-				"mm.stagePrompt": "阶段要求（写给模型看）",
-				"mm.skillSlugs": "技能 slug（逗号分隔）",
-				"mm.reviewSlugs": "评审技能 slug（逗号分隔，可空）",
-				"mm.reviewPolicy": "审查范围",
-				"mm.reviewRisk": "按风险 / 变更 / 抽样审查",
-				"mm.reviewAll": "逐文件全部审查",
-				"mm.approvalGate": "本阶段需要人工确认后才能继续",
-				"mm.approvalPrompt": "确认事项（显示给用户）",
-				"mm.approveLabel": "确认按钮文字",
-				"mm.rejectLabel": "暂停 / 退回按钮文字（可空）",
-				"mm.binding": "知识库绑定",
-				"mm.bindNone": "不绑定",
-				"mm.bindAnalysis": "解析 analysis",
-				"mm.bindPricing": "组价 pricing",
-				"mm.bindPlanning": "策划 planning",
-				"mm.listsSources": "按册/同名打包任务（pdf+docx 算一份）",
-				"mm.summaryFile": "总报告文件名（空=不设门槛）",
-				"mm.summaryOutline": "总报告大纲（一行一条）",
-				"mm.addStage": "新增阶段",
-				"mm.saving": "保存中…",
-				"mm.saveLive": "保存并上线",
-				"mm.list": "模块（{n}）",
-				"mm.builtin": "内置",
-				"mm.custom": "自建",
-				"mm.stageCount": "{n} 个阶段",
-				"mm.collapse": "收起阶段",
-				"mm.expand": "查看阶段",
-				"mm.copyThenEdit": "拷贝后编辑",
-				"mm.editStages": "编辑阶段",
-				"mm.copyAsCustom": "拷贝为自建",
-				"mm.defFile": "定义文件",
-				"mm.defFileTitle": "在文件管理器中查看定义文件",
-				"mm.delete": "删除",
-				"mm.enable": "启用",
-				"mm.disable": "停用",
-				"mm.noStages": "此模块没有阶段定义",
-				"mm.loadFailed": "加载失败的定义文件",
-				"mm.enabled": "已启用 {name}",
-				"mm.disabled": "已停用 {name}",
-				"mm.deleteConfirm": "删除自建模块「{name}」？该模块下已有项目会失去流程定义（数据保留）。",
-				"mm.deleted": "已删除 {id}",
-				"mm.jsonFail": "JSON 解析失败：{err}",
-				"mm.installed": "已安装模块 {id}",
-				"mm.copySuffix": "（副本）",
-				"mm.copied": "已拷贝为自建模块 {id}，顶栏现已可见",
-				"mm.builtinLocked": "内置模块不能直接改。先拷贝一份自建模块，再改副本的阶段。进行中项目不会自动迁过去。",
-				"mm.saveConfirm": "保存后立即生效。改阶段 id 不会自动迁移进行中项目的盘面。",
-				"mm.saved": "已保存模块 {id}",
-				"mm.markLists": "按册/同名打包任务",
-				"mm.markSummary": "总报告：{name}",
-				"mm.markSkills": "技能 {list}",
-				"mm.markReview": "评审 {list}",
-				"lang.zh": "中文",
-				"lang.en": "English",
-				"lang.title": "语言",
-				"lang.switchFailed": "语言切换失败，请重试"
-			},
-			en: {
-				"workbench.title": "Workbench",
-				"files.openExplorer": "Open in File Explorer",
-				"files.opening": "Opening File Explorer…",
-				"files.openFailed": "Could not open folder",
-				"files.noCwd": "No workspace path yet",
-				"files.uploadFiles": "Upload files",
-				"files.uploadFolder": "Upload folder",
-				"files.title": "Files",
-				"files.official": "Work results",
-				"files.officialName": "Official Outputs",
-				"files.officialEmpty": "No official outputs yet. Edited reports and maps from this session are copied here automatically.",
-				"files.officialHint": "Official outputs from the session and workbench appear here. The model does not pick this folder.",
-				"files.workspace": "Workspace",
-				"files.uploads": "Uploads",
-				"files.pickWorkspace": "Choose a workspace first",
-				"files.collapse": "Collapse files",
-				"files.expand": "Expand files",
-				"files.refresh": "Refresh",
-				"files.addFolder": "Add a folder path (do not upload the files)",
-				"files.resize": "Drag to resize",
-				"nav.kb": "Knowledge base",
-				"nav.kbTitle": "Local knowledge base: specs, contracts, exemplars, and user templates, indexed by document structure",
-				"wb.back": "Back to chat",
-				"wb.noCwd": "No workspace selected. Chat still uses the default path; the workbench only speeds up stage prep.",
-				"wb.kb": "Knowledge base",
-				"wb.kbTitle": "Shared specs, contracts, exemplars, and user templates. Checked user templates set this round’s format and depth.",
-				"wb.modules": "Modules",
-				"wb.modulesTitle": "Review live modules. Create new ones in chat; do not start by importing JSON.",
-				"wb.refresh": "Refresh",
-				"wb.adopt": "Upgrade current work",
-				"wb.adoptTitle": "Register this session workspace as a project in the selected module. No new folder is created.",
-				"wb.create": "New project",
-				"wb.upgrade": "Upgrade current work",
-				"wb.landing": "These are the steps for this workflow. Start a project or upgrade the current work so the monitor bar appears and stays in sync.",
-				"wb.projects": "Projects",
-				"wb.pickProject": "Select a project",
-				"wb.moduleErrors": "{n} module definition file(s) failed to load. See Modules.",
-				"module.tender": "Tender process",
-				"module.delivery": "Delivery control",
-				"module.investment": "Investment review",
-				"create.close": "Close",
-				"create.titleAdopt": "Upgrade current work to a professional project",
-				"create.titleNew": "New {name} project",
-				"create.hintAdopt": "Keep this session workspace and existing official outputs. Add a professional board only. Choose tender, delivery, investment review, or any custom module.",
-				"create.hintNew": "Use the current chat runtime. Create a separate project folder, set the source boundary, and follow the professional workflow. You may attach an enterprise productivity file; it outranks web research.",
-				"create.whichModule": "Which module should this work join? Existing official outputs stay as they are.",
-				"create.step.module": "Choose module",
-				"create.step.info": "Project info",
-				"create.step.folder": "Project folder",
-				"create.step.files": "Source files",
-				"create.step.confirmAdopt": "Confirm upgrade",
-				"create.step.confirmNew": "Confirm workflow",
-				"session.archive": "Archive conversation",
-				"session.archiveTitle": "Archive this conversation. Open the full record from Archive in the sidebar. You can still delete it after archiving.",
-				"session.archiveFailed": "Could not archive",
-				"session.delete": "Delete conversation",
-				"session.deleteConfirm": "Remove it from the sidebar and Archive? The log stays on disk but will no longer be listed.",
-				"session.deleteFailed": "Could not delete",
-				"archive.title": "Archive",
-				"archive.lead": "Archive finished workspaces so they leave the live list. Open a row to read the full conversation. You can still delete archived workspaces and chats.",
-				"archive.empty": "Nothing archived yet. Choose Archive workspace in the sidebar menu, or Archive session on a single chat.",
-				"archive.open": "Open full record",
-				"archive.delete": "Delete",
-				"archive.ungrouped": "Ungrouped",
-				"archive.workspace": "Archive workspace",
-				"archive.workspaceConfirm": "Archive this workspace? It and its conversations will move from the live list to Archive. You can still open the full records or delete them later.",
-				"archive.workspaceFailed": "Could not archive the workspace",
-				"archive.workspaceLive": "Workspace is still active",
-				"archive.workspaceEmpty": "This workspace has no conversations.",
-				"archive.deleteWorkspace": "Delete workspace",
-				"archive.deleteWorkspaceConfirm": "Remove this workspace from the list? The folder and archived conversations stay on disk.",
-				"kb.title": "Local knowledge base",
-				"kb.refresh": "Refresh",
-				"kb.reindexAll": "Rebuild all",
-				"kb.reindexing": "Rebuilding…",
-				"kb.reindexTitle": "Recut chunks from the original path (if it still exists) and refresh the index",
-				"kb.import": "Import",
-				"kb.tokenOk": "Token valid",
-				"kb.tokenBad": "Token invalid",
-				"kb.mineruSaved": "MinerU saved",
-				"kb.mineruMissing": "MinerU not configured",
-				"kb.mineruNeedRestart": "Restart the host to use MinerU",
-				"kb.path1Title": "Path 1 · Import on this page",
-				"kb.path1Body": "Use Choose files or drop several files here. They land in the staging area below and are not parsed yet. PDFs with a text layer are extracted locally (fast). Scans and complex layouts wait for Parse into library, which uses MinerU. MinerU HTML tables become Markdown tables; already imported entries only need Rebuild all. The index cuts on the document’s own chapters, sections, and clauses.",
-				"kb.path2Title": "Path 2 · Import from chat",
-				"kb.path2Warn": "Dropping a PDF into the main chat without a message does not add it to the knowledge base. After attaching the file, send this line:",
-				"kb.path2After": "You can also say: 知识库, 入库, 知识包, 准确整理, 完整内容, 全文转录. After the model writes a “…-知识包” folder, right-click that folder or pack.json in the files rail and choose Import knowledge pack. It is searchable immediately. Ordinary files can still use Import to knowledge base — the same parser as this page.",
-				"kb.tplTitle": "User templates · Match the layout",
-				"kb.tplBody": "Import a document you already wrote well as a User template, then check Use in this task. This round’s draft copies its format, outline, section order, and depth. Project facts still come from specs, contracts, and this project’s files — do not copy numbers, place names, or contract numbers from the template. A file name ending in “模板” or “template” is filed here automatically from the files rail.",
-				"kb.packTitle": "Transfer pack · This app only",
-				"kb.packBody": "Every knowledge file, user template, and local skill can Export to .apkb. That is a sealed pack for this app; zip, Office, and Notepad cannot open it. The other person chooses Import transfer pack on this page, and entries return to their original category and folder (for example Specs → COTO 2020).",
-				"kb.pickTitle": "Chosen files appear below immediately and are not parsed yet",
-				"kb.picking": "Saving to storage…",
-				"kb.pickFiles": "Choose files",
-				"kb.importPackTitle": "Import an Agent Pi transfer pack (.apkb). Other tools cannot read it.",
-				"kb.importing": "Importing…",
-				"kb.importPack": "Import transfer pack",
-				"kb.parseTitle": "Parse files already in the staging area and write them into the knowledge base",
-				"kb.parsing": "Parsing…",
-				"kb.parseIn": "Parse into library",
-				"kb.category": "Category",
-				"kb.customCategory": "Custom category…",
-				"kb.customCategoryPh": "Custom category name",
-				"kb.customNamePh": "Custom name (optional; defaults to the file name)",
-				"kb.thisPick": "This selection: {name}",
-				"kb.multiHint": "Multiple files are allowed. They land in the staging area first and are not parsed yet.",
-				"kb.parseFailed": "Parse failed",
-				"kb.stagedWait": "In the staging area, waiting to be parsed",
-				"kb.progress": "Progress {n}%",
-				"kb.parsingChip": "Parsing",
-				"kb.failedChip": "Failed",
-				"kb.pendingChip": "Pending",
-				"kb.retry": "Retry",
-				"kb.remove": "Remove",
-				"kb.landing": "Selected, saving to the staging area…",
-				"kb.landingProgress": "Saving to the staging area…",
-				"kb.mineruSummary": "MinerU token (large files / high-accuracy extract)",
-				"kb.mineruCurrent": "Current: {hint}. The full token is not shown again.",
-				"kb.mineruSavedHint": "Saved",
-				"kb.mineruUnconfigured": "Not configured. Files under 10MB can use the anonymous light API; larger files need a token. Apply at https://mineru.net/apiManage/token",
-				"kb.mineruOldHost": "This window is still the old host. Saving a token here will not persist. Quit Agent Pi DSH completely, open it again, then paste and save.",
-				"kb.mineruTokenPh": "Paste the MinerU token, then save",
-				"kb.saving": "Saving…",
-				"kb.saveToken": "Save token",
-				"kb.probeTitle": "Check MinerU authentication. This does not start a parse job.",
-				"kb.probing": "Checking…",
-				"kb.probe": "Check token",
-				"kb.clear": "Clear",
-				"kb.mineruOcr": "PDFs with a text layer skip OCR; scanned pages turn OCR on. Files over the official page or size limit are split, parsed in series, and merged into one entry.",
-				"kb.pastePath": "Or paste an existing file path",
-				"kb.pastePathPh": "Original file path, knowledge-pack folder, or MinerU output folder",
-				"kb.staging": "Saving…",
-				"kb.stage": "Save to storage",
-				"kb.searchPreview": "Search preview",
-				"kb.searchPh": "Keyword / clause number / table header (same MiniSearch BM25 as kb_search)",
-				"kb.search": "Search",
-				"kb.noHits": "No hits.",
-				"kb.score": "Score {n}",
-				"kb.entries": "Entries ({n})",
-				"kb.entriesLead": "Each row is one source document. Click the name to open the parsed Markdown in the same files preview on the right (you can edit it; save rebuilds the chunks). Categories can have folders (for example Specs → COTO 2020). Import can file COTO / COLTO / FIDIC chapter names automatically. Use File under on a row to change the folder. If MinerU tables still show HTML tags, choose Rebuild all to turn them into Markdown tables. If the preview is one wall of text with spaces inside words, that is a raw text extract: attach the PDF in the main chat and send “{say}”, or choose Reparse with MinerU. Checking Use in this task takes effect immediately. {n} selected.",
-				"kb.empty": "The knowledge base is empty. Preset method standards and exemplars are imported on first use. You can also import specs or exemplars above, or import a document you already wrote as a user template.",
-				"kb.taskSelect": "Use in this task",
-				"kb.openPreview": "Open the parsed markdown preview",
-				"kb.ready": "In library",
-				"kb.fidelityTitle": "The index stores clause addresses only. Reading slices the parsed manuscript by offset.",
-				"kb.inTask": "This task",
-				"kb.seeded": "Preset",
-				"kb.home": "File under",
-				"kb.homeTitle": "Move into a folder",
-				"kb.unfiled": "Unfiled",
-				"kb.newFolder": "New folder…",
-				"kb.reparseMineru": "Reparse with MinerU",
-				"kb.reparseTitle": "Skip the local text layer. Rebuild the layout manuscript and chunks with MinerU.",
-				"kb.export": "Export",
-				"kb.exportTitle": "Export as an app transfer pack (.apkb). Other tools cannot open it.",
-				"kb.delete": "Delete",
-				"kb.count": "{n}",
-				"kb.addFolder": "Add folder",
-				"kb.addFolderTitle": "Create a folder in this category to group imported files",
-				"kb.folderOk": "Create",
-				"kb.folderCancel": "Cancel",
-				"kb.confirmOk": "OK",
-				"kb.exportFolder": "Export this folder",
-				"kb.exportFolderTitle": "Pack the imported files in this folder into one transfer pack",
-				"kb.deleteFolder": "Delete folder",
-				"kb.deleteFolderTitle": "Delete the folder. Files stay in this category.",
-				"kb.emptyFolder": "Empty folder. Use File under on a file row to move it here.",
-				"kb.skills": "Local skills ({n})",
-				"kb.skillsLead": "These are methods in your local skills folder ($DSH_HOME/skills), not factory-bundled skills. Export also writes .apkb. The other person can import and hot-load them without reinstalling the app.",
-				"kb.skillsEmpty": "No local skills yet. Methods saved as skills appear here.",
-				"kb.exportSkillTitle": "Export as an app transfer pack",
-				"kb.oldHostMineru": "This window is still the old host: saving a MinerU token will not persist. Quit Agent Pi DSH completely and open it again (refresh is not enough).",
-				"kb.ingestedOk": "Imported into the knowledge base: {names}",
-				"kb.transferEntries": "{n} knowledge entries",
-				"kb.transferSkills": "{n} skills",
-				"kb.transferEmpty": "empty",
-				"kb.transferImported": "Imported transfer pack: {parts}{detail}",
-				"kb.transferSaved": "The transfer pack is on this machine. Only Agent Pi DSH can open .apkb files.",
-				"kb.stagedNotice": "Saved to the staging area: {name}. Choose Parse into library to start.",
-				"kb.skipUnchanged": "Content unchanged. Selected for this task: {name}. The next send uses it immediately. No restart needed.",
-				"kb.replacedTask": "Rebuilt and selected for this task: {name}. The next send uses it immediately. No restart needed.",
-				"kb.ingestedTask": "Imported and selected for this task: {name}. The next send uses it immediately. No restart needed.",
-				"kb.needFile": "Choose a file to import first",
-				"kb.badTypes": "Choose a PDF, Word, Excel, PowerPoint, image, .md / .txt / .json, or an .apkb transfer pack.",
-				"kb.skippedTypes": "Skipped unsupported formats: {names}",
-				"kb.needToken": "Enter a MinerU token",
-				"kb.saveNoDisk": "The save did not reach disk. Refresh is not enough; this window is still the old host. Quit Agent Pi DSH, open it again, then paste and save.",
-				"kb.oldHostSave": "This window is still the old host, so the token API is missing. Quit Agent Pi DSH, open it again, then save (refresh is not enough).",
-				"kb.needTokenOrSave": "Paste a token first, or save it before checking",
-				"kb.probeMissing": "The check API is missing. Quit Agent Pi DSH, open it again, then retry (refresh is not enough).",
-				"kb.cleared": "Cleared the local MinerU token",
-				"kb.clearFailed": "Could not clear. This window is still the old host. Quit Agent Pi DSH and open it again.",
-				"kb.parseRetry": "Parse failed. Choose the file again to import.",
-				"kb.deleteEntryConfirm": "Delete knowledge entry “{name}”? The index and hosted copy are removed{seeded}.",
-				"kb.deleteSeeded": "; a preset entry will not come back automatically",
-				"kb.deleted": "Deleted {slug}",
-				"kb.reindexed": "Rebuilt {n} entries{missing}",
-				"kb.missingSrc": "; missing source: {list}",
-				"kb.folderPrompt": "Folder name, for example COTO 2020",
-				"kb.folderCreated": "Created folder “{name}”",
-				"kb.deleteFolderConfirm": "Delete folder “{name}”? Files stay under “{category}”. Files are not deleted.",
-				"kb.folderDeleted": "Deleted folder “{name}”",
-				"kb.exported": "Exported transfer pack {name}. Only this app can import it.",
-				"kb.newFolderPrompt": "New folder name, for example COTO 2020",
-				"kb.parseStarted": "Started parsing {n} file(s). MinerU can take a while; watch the progress below.",
-				"kb.parseNone": "No new parse jobs.",
-				"kb.cat.规范": "Specs",
-				"kb.cat.合同": "Contracts",
-				"kb.cat.范文": "Exemplars",
-				"kb.cat.方法标准": "Method standards",
-				"kb.cat.用户模板": "User templates",
-				"kb.cat.用户模版": "User templates",
-				"kb.cat.自定义": "Custom",
-				"kb.cat.未分类": "Uncategorized",
-				"kb.hint.用户模板": "When checked, this round copies its format, outline, and depth",
-				"mm.title": "Modules",
-				"mm.lead": "Review live modules, toggle them, and copy them. Do not fill fields here for a new module. Use Create mode below to continue in chat.",
-				"mm.lead2": "Built-in tender is not rewritten. Live projects do not migrate their boards automatically.",
-				"mm.designTitle": "Return to chat and generate a complete workbench module pack through conversation",
-				"mm.design": "Create in chat",
-				"mm.createTitle": "Module create mode",
-				"mm.createLead": "Do not start by importing JSON. Pick a path below and this app opens DSH native Create mode, where conversation distils accepted outputs and revision experience into a complete business module pack: top bar, stage monitor, source registration, workflow gates, methods, and knowledge.",
-				"mm.createWarn": "Native Create mode is the authoring cockpit; the saved product is a professional-workbench business module and never edits a shipped DSH preset. A blank chat switches in place; a chat with history opens a new Create-mode session.",
-				"mm.createAdvanced": "Paste here only when you already have a module definition this app has validated. Everyday use should go through the create conversation above.",
-				"mm.packNotJson": "A complete module pack, not a JSON snippet",
-				"mm.pickKind": "Pick the case that matches you. Then return to chat and ask in plain language. The model installs it; you do not paste a definition.",
-				"mm.card.distill": "We finished one job — use this as the standard",
-				"mm.card.distillBody": "Turn the accepted results from this chat into the standard for later work of the same kind. Exemplars go to the knowledge base; the method is written down.",
-				"mm.card.copy": "Same steps as Tender process, different rules",
-				"mm.card.copyBody": "Keep the current tender stages and human-approval gates, then attach your scoring rules, rate tables, or letters to a copy.",
-				"mm.card.custom": "The steps are different",
-				"mm.card.customBody": "For example qualification, then technical, then commercial — no pricing. Say the steps in plain language. The new tab and monitor bar follow those steps.",
-				"mm.advanced": "Advanced · Paste a module definition (developers)",
-				"mm.installing": "Installing…",
-				"mm.install": "Validate and install",
-				"mm.copyTitle": "Copy as a custom module",
-				"mm.copyLead": "Copy stages, skills, and summary-report gates from “{name}”. Built-in tender is not rewritten. The copy appears in the top bar as soon as it is saved, and you can keep editing stages.",
-				"mm.labelZh": "Chinese name",
-				"mm.moduleId": "Module id (lowercase English; cannot be tender, delivery, or investment)",
-				"mm.cancel": "Cancel",
-				"mm.copying": "Copying…",
-				"mm.copyOpen": "Copy and open editor",
-				"mm.copyLive": "Copy and go live",
-				"mm.editTitle": "Edit module · {name}",
-				"mm.editLead": "Add, remove, or edit stages, reorder them, and set summary-report gates. Saving overwrites this custom definition. Live projects do not migrate their boards.",
-				"mm.labelEn": "English name (optional)",
-				"mm.setupStage": "Kickoff stage",
-				"mm.kbPack": "Spec pack",
-				"mm.kbPackLead": "Attach your company specs, rate tables, and letter exemplars. Stage structure stays the same. When checked, stage drafts name only these knowledge entries and no longer carry factory exemplar disk paths.",
-				"mm.kbOwnOnly": "Use only the checked knowledge entries (no factory exemplars)",
-				"mm.kbEmpty": "The knowledge base is still empty. Import specs or exemplars on the Knowledge base page, then come back and check them.",
-				"mm.area.analysis": "Analysis / source stage",
-				"mm.area.pricing": "Pricing stage",
-				"mm.area.planning": "Planning / drafting stage",
-				"mm.stageN": "Stage {n}",
-				"mm.moveUp": "Move up",
-				"mm.moveDown": "Move down",
-				"mm.deleteStage": "Delete stage",
-				"mm.stageId": "Stage id (lowercase English)",
-				"mm.stageZh": "Stage Chinese name",
-				"mm.stageHint": "One-line hint",
-				"mm.stagePrompt": "Stage requirements (for the model)",
-				"mm.skillSlugs": "Skill slugs (comma-separated)",
-				"mm.reviewSlugs": "Review skill slugs (comma-separated, optional)",
-				"mm.reviewPolicy": "Review scope",
-				"mm.reviewRisk": "Risk / change / sample review",
-				"mm.reviewAll": "Review every file",
-				"mm.approvalGate": "Require human approval before the next stage",
-				"mm.approvalPrompt": "Decision prompt shown to the user",
-				"mm.approveLabel": "Approve button label",
-				"mm.rejectLabel": "Pause / reject button label (optional)",
-				"mm.binding": "Knowledge binding",
-				"mm.bindNone": "None",
-				"mm.bindAnalysis": "Analysis",
-				"mm.bindPricing": "Pricing",
-				"mm.bindPlanning": "Planning",
-				"mm.listsSources": "Pack tasks by volume / same name (pdf+docx count as one)",
-				"mm.summaryFile": "Summary report file name (empty = no gate)",
-				"mm.summaryOutline": "Summary outline (one item per line)",
-				"mm.addStage": "Add stage",
-				"mm.saving": "Saving…",
-				"mm.saveLive": "Save and go live",
-				"mm.list": "Modules ({n})",
-				"mm.builtin": "Built-in",
-				"mm.custom": "Custom",
-				"mm.stageCount": "{n} stages",
-				"mm.collapse": "Hide stages",
-				"mm.expand": "View stages",
-				"mm.copyThenEdit": "Copy then edit",
-				"mm.editStages": "Edit stages",
-				"mm.copyAsCustom": "Copy as custom",
-				"mm.defFile": "Definition file",
-				"mm.defFileTitle": "Reveal the definition file in File Explorer",
-				"mm.delete": "Delete",
-				"mm.enable": "Enable",
-				"mm.disable": "Disable",
-				"mm.noStages": "This module has no stages",
-				"mm.loadFailed": "Definition files that failed to load",
-				"mm.enabled": "Enabled {name}",
-				"mm.disabled": "Disabled {name}",
-				"mm.deleteConfirm": "Delete custom module “{name}”? Existing projects under it lose the workflow definition. Data is kept.",
-				"mm.deleted": "Deleted {id}",
-				"mm.jsonFail": "JSON parse failed: {err}",
-				"mm.installed": "Installed module {id}",
-				"mm.copySuffix": " (copy)",
-				"mm.copied": "Copied as custom module {id}. It is now in the top bar.",
-				"mm.builtinLocked": "Built-in modules cannot be edited directly. Copy one as a custom module, then edit the copy. Live projects do not migrate automatically.",
-				"mm.saveConfirm": "Saving takes effect immediately. Changing a stage id does not migrate live project boards.",
-				"mm.saved": "Saved module {id}",
-				"mm.markLists": "Pack tasks by volume / same name",
-				"mm.markSummary": "Summary: {name}",
-				"mm.markSkills": "Skills {list}",
-				"mm.markReview": "Review {list}",
-				"lang.zh": "中文",
-				"lang.en": "English",
-				"lang.title": "Language",
-				"lang.switchFailed": "Could not switch language. Please try again."
-			}
-		};
-		const AP_LANGUAGE_DEFINITIONS = [
-			{
-				id: "zh",
-				label: "中文",
-				documentLang: "zh-CN",
-				fallback: "en"
-			},
-			{
-				id: "en",
-				label: "English",
-				documentLang: "en",
-				fallback: "en"
-			},
-			{
-				id: "es",
-				label: "Español",
-				documentLang: "es",
-				fallback: "en"
-			},
-			{
-				id: "fr",
-				label: "Français",
-				documentLang: "fr",
-				fallback: "en"
-			},
-			{
-				id: "de",
-				label: "Deutsch",
-				documentLang: "de",
-				fallback: "en"
-			},
-			{
-				id: "ja",
-				label: "日本語",
-				documentLang: "ja",
-				fallback: "en"
-			},
-			{
-				id: "ko",
-				label: "한국어",
-				documentLang: "ko",
-				fallback: "en"
-			},
-			{
-				id: "pt",
-				label: "Português",
-				documentLang: "pt",
-				fallback: "en"
-			},
-			{
-				id: "ru",
-				label: "Русский",
-				documentLang: "ru",
-				fallback: "en"
-			},
-			{
-				id: "ar",
-				label: "العربية",
-				documentLang: "ar",
-				fallback: "en",
-				rtl: true
-			}
-		];
-		Object.assign(AP_I18N.zh, { "codex.title": "Codex 智能体" });
-		Object.assign(AP_I18N.en, { "codex.title": "Codex Agent" });
-		Object.assign(AP_I18N, {
-			es: {
-				"workbench.title": "Espacio de trabajo",
-				"files.title": "Archivos",
-				"files.official": "Resultados",
-				"files.workspace": "Área de trabajo",
-				"files.uploads": "Cargas",
-				"files.refresh": "Actualizar",
-				"files.collapse": "Contraer archivos",
-				"files.expand": "Expandir archivos",
-				"nav.kb": "Base de conocimiento",
-				"wb.back": "Volver al chat",
-				"wb.kb": "Base de conocimiento",
-				"wb.modules": "Módulos",
-				"wb.refresh": "Actualizar",
-				"wb.adopt": "Convertir trabajo actual",
-				"wb.create": "Nuevo proyecto",
-				"wb.projects": "Proyectos",
-				"module.tender": "Proceso de licitación",
-				"module.delivery": "Control de ejecución",
-				"module.investment": "Análisis de inversión",
-				"create.close": "Cerrar",
-				"session.archive": "Archivar conversación",
-				"session.delete": "Eliminar conversación",
-				"archive.title": "Archivo",
-				"archive.open": "Abrir registro",
-				"archive.delete": "Eliminar",
-				"kb.title": "Base de conocimiento local",
-				"kb.refresh": "Actualizar",
-				"kb.import": "Importar",
-				"kb.search": "Buscar",
-				"mm.title": "Módulos",
-				"codex.title": "Agente Codex",
-				"lang.title": "Idioma"
-			},
-			fr: {
-				"workbench.title": "Espace de travail",
-				"files.title": "Fichiers",
-				"files.official": "Résultats",
-				"files.workspace": "Espace de travail",
-				"files.uploads": "Téléversements",
-				"files.refresh": "Actualiser",
-				"files.collapse": "Réduire les fichiers",
-				"files.expand": "Développer les fichiers",
-				"nav.kb": "Base de connaissances",
-				"wb.back": "Retour au chat",
-				"wb.kb": "Base de connaissances",
-				"wb.modules": "Modules",
-				"wb.refresh": "Actualiser",
-				"wb.adopt": "Convertir le travail actuel",
-				"wb.create": "Nouveau projet",
-				"wb.projects": "Projets",
-				"module.tender": "Processus d'appel d'offres",
-				"module.delivery": "Contrôle d'exécution",
-				"module.investment": "Analyse d'investissement",
-				"create.close": "Fermer",
-				"session.archive": "Archiver la conversation",
-				"session.delete": "Supprimer la conversation",
-				"archive.title": "Archives",
-				"archive.open": "Ouvrir le dossier",
-				"archive.delete": "Supprimer",
-				"kb.title": "Base de connaissances locale",
-				"kb.refresh": "Actualiser",
-				"kb.import": "Importer",
-				"kb.search": "Rechercher",
-				"mm.title": "Modules",
-				"codex.title": "Agent Codex",
-				"lang.title": "Langue"
-			},
-			de: {
-				"workbench.title": "Arbeitsbereich",
-				"files.title": "Dateien",
-				"files.official": "Ergebnisse",
-				"files.workspace": "Arbeitsbereich",
-				"files.uploads": "Uploads",
-				"files.refresh": "Aktualisieren",
-				"files.collapse": "Dateien einklappen",
-				"files.expand": "Dateien ausklappen",
-				"nav.kb": "Wissensbasis",
-				"wb.back": "Zurück zum Chat",
-				"wb.kb": "Wissensbasis",
-				"wb.modules": "Module",
-				"wb.refresh": "Aktualisieren",
-				"wb.adopt": "Aktuelle Arbeit übernehmen",
-				"wb.create": "Neues Projekt",
-				"wb.projects": "Projekte",
-				"module.tender": "Ausschreibungsprozess",
-				"module.delivery": "Ausführungskontrolle",
-				"module.investment": "Investitionsprüfung",
-				"create.close": "Schließen",
-				"session.archive": "Unterhaltung archivieren",
-				"session.delete": "Unterhaltung löschen",
-				"archive.title": "Archiv",
-				"archive.open": "Datensatz öffnen",
-				"archive.delete": "Löschen",
-				"kb.title": "Lokale Wissensbasis",
-				"kb.refresh": "Aktualisieren",
-				"kb.import": "Importieren",
-				"kb.search": "Suchen",
-				"mm.title": "Module",
-				"codex.title": "Codex-Agent",
-				"lang.title": "Sprache"
-			},
-			ja: {
-				"workbench.title": "専門ワークベンチ",
-				"files.title": "ファイル",
-				"files.official": "成果物",
-				"files.workspace": "ワークスペース",
-				"files.uploads": "アップロード",
-				"files.refresh": "更新",
-				"files.collapse": "ファイルを閉じる",
-				"files.expand": "ファイルを開く",
-				"nav.kb": "ナレッジベース",
-				"wb.back": "チャットに戻る",
-				"wb.kb": "ナレッジベース",
-				"wb.modules": "モジュール",
-				"wb.refresh": "更新",
-				"wb.adopt": "現在の作業を登録",
-				"wb.create": "新規プロジェクト",
-				"wb.projects": "プロジェクト",
-				"module.tender": "入札プロセス",
-				"module.delivery": "施工管理",
-				"module.investment": "投資調査",
-				"create.close": "閉じる",
-				"session.archive": "会話をアーカイブ",
-				"session.delete": "会話を削除",
-				"archive.title": "アーカイブ",
-				"archive.open": "記録を開く",
-				"archive.delete": "削除",
-				"kb.title": "ローカルナレッジベース",
-				"kb.refresh": "更新",
-				"kb.import": "インポート",
-				"kb.search": "検索",
-				"mm.title": "モジュール",
-				"codex.title": "Codex エージェント",
-				"lang.title": "言語"
-			},
-			ko: {
-				"workbench.title": "전문 워크벤치",
-				"files.title": "파일",
-				"files.official": "작업 결과",
-				"files.workspace": "작업 공간",
-				"files.uploads": "업로드",
-				"files.refresh": "새로 고침",
-				"files.collapse": "파일 접기",
-				"files.expand": "파일 펼치기",
-				"nav.kb": "지식 베이스",
-				"wb.back": "채팅으로 돌아가기",
-				"wb.kb": "지식 베이스",
-				"wb.modules": "모듈",
-				"wb.refresh": "새로 고침",
-				"wb.adopt": "현재 작업 등록",
-				"wb.create": "새 프로젝트",
-				"wb.projects": "프로젝트",
-				"module.tender": "입찰 프로세스",
-				"module.delivery": "시공 관리",
-				"module.investment": "투자 검토",
-				"create.close": "닫기",
-				"session.archive": "대화 보관",
-				"session.delete": "대화 삭제",
-				"archive.title": "보관함",
-				"archive.open": "기록 열기",
-				"archive.delete": "삭제",
-				"kb.title": "로컬 지식 베이스",
-				"kb.refresh": "새로 고침",
-				"kb.import": "가져오기",
-				"kb.search": "검색",
-				"mm.title": "모듈",
-				"codex.title": "Codex 에이전트",
-				"lang.title": "언어"
-			},
-			pt: {
-				"workbench.title": "Área de trabalho",
-				"files.title": "Arquivos",
-				"files.official": "Resultados",
-				"files.workspace": "Área de trabalho",
-				"files.uploads": "Envios",
-				"files.refresh": "Atualizar",
-				"files.collapse": "Recolher arquivos",
-				"files.expand": "Expandir arquivos",
-				"nav.kb": "Base de conhecimento",
-				"wb.back": "Voltar ao chat",
-				"wb.kb": "Base de conhecimento",
-				"wb.modules": "Módulos",
-				"wb.refresh": "Atualizar",
-				"wb.adopt": "Converter trabalho atual",
-				"wb.create": "Novo projeto",
-				"wb.projects": "Projetos",
-				"module.tender": "Processo de licitação",
-				"module.delivery": "Controle de execução",
-				"module.investment": "Análise de investimento",
-				"create.close": "Fechar",
-				"session.archive": "Arquivar conversa",
-				"session.delete": "Excluir conversa",
-				"archive.title": "Arquivo",
-				"archive.open": "Abrir registro",
-				"archive.delete": "Excluir",
-				"kb.title": "Base de conhecimento local",
-				"kb.refresh": "Atualizar",
-				"kb.import": "Importar",
-				"kb.search": "Pesquisar",
-				"mm.title": "Módulos",
-				"codex.title": "Agente Codex",
-				"lang.title": "Idioma"
-			},
-			ru: {
-				"workbench.title": "Рабочая панель",
-				"files.title": "Файлы",
-				"files.official": "Результаты",
-				"files.workspace": "Рабочая область",
-				"files.uploads": "Загрузки",
-				"files.refresh": "Обновить",
-				"files.collapse": "Свернуть файлы",
-				"files.expand": "Развернуть файлы",
-				"nav.kb": "База знаний",
-				"wb.back": "Назад к чату",
-				"wb.kb": "База знаний",
-				"wb.modules": "Модули",
-				"wb.refresh": "Обновить",
-				"wb.adopt": "Подключить текущую работу",
-				"wb.create": "Новый проект",
-				"wb.projects": "Проекты",
-				"module.tender": "Тендерный процесс",
-				"module.delivery": "Контроль исполнения",
-				"module.investment": "Инвестиционный анализ",
-				"create.close": "Закрыть",
-				"session.archive": "Архивировать беседу",
-				"session.delete": "Удалить беседу",
-				"archive.title": "Архив",
-				"archive.open": "Открыть запись",
-				"archive.delete": "Удалить",
-				"kb.title": "Локальная база знаний",
-				"kb.refresh": "Обновить",
-				"kb.import": "Импорт",
-				"kb.search": "Поиск",
-				"mm.title": "Модули",
-				"codex.title": "Агент Codex",
-				"lang.title": "Язык"
-			},
-			ar: {
-				"workbench.title": "مساحة العمل",
-				"files.title": "الملفات",
-				"files.official": "النتائج",
-				"files.workspace": "مساحة العمل",
-				"files.uploads": "التحميلات",
-				"files.refresh": "تحديث",
-				"files.collapse": "طي الملفات",
-				"files.expand": "توسيع الملفات",
-				"nav.kb": "قاعدة المعرفة",
-				"wb.back": "العودة إلى المحادثة",
-				"wb.kb": "قاعدة المعرفة",
-				"wb.modules": "الوحدات",
-				"wb.refresh": "تحديث",
-				"wb.adopt": "اعتماد العمل الحالي",
-				"wb.create": "مشروع جديد",
-				"wb.projects": "المشاريع",
-				"module.tender": "عملية المناقصة",
-				"module.delivery": "مراقبة التنفيذ",
-				"module.investment": "تحليل الاستثمار",
-				"create.close": "إغلاق",
-				"session.archive": "أرشفة المحادثة",
-				"session.delete": "حذف المحادثة",
-				"archive.title": "الأرشيف",
-				"archive.open": "فتح السجل",
-				"archive.delete": "حذف",
-				"kb.title": "قاعدة المعرفة المحلية",
-				"kb.refresh": "تحديث",
-				"kb.import": "استيراد",
-				"kb.search": "بحث",
-				"mm.title": "الوحدات",
-				"codex.title": "وكيل Codex",
-				"lang.title": "اللغة"
-			}
-		});
 		function localeIdOf(value) {
 			const primary = String(value || "").toLowerCase().split("-")[0];
 			return AP_LANGUAGE_DEFINITIONS.some((language) => language.id === primary) ? primary : "zh";
@@ -6456,6 +7295,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			});
 			return text;
 		}
+		const productCapabilities = createProductCapabilities(react);
 		function useApLang() {
 			const [lang, setLang] = react.useState(langState.lang);
 			react.useEffect(() => {
@@ -6490,7 +7330,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		function moduleLabel(info) {
 			if (!info) return "";
 			if (info.id && AP_I18N.zh["module." + info.id]) return tAp("module." + info.id);
-			if (langState.lang !== "zh" && info.labelEn) return info.labelEn;
+			if (langState.lang !== "zh" && (info.labelEn || info.label)) return info.labelEn || info.label;
 			return info.labelZh || info.label || info.id || "";
 		}
 		function moduleIconNode(info, size) {
@@ -6503,7 +7343,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			return Icon("clipboardCheck", size);
 		}
 		function moduleList(data) {
-			return (data && Array.isArray(data.modules) && data.modules.length ? data.modules : Object.values(MODULES)).filter((item) => !item.disabled);
+			return (data && Array.isArray(data.modules) ? data.modules : Object.values(MODULES)).filter((item) => !item.disabled);
 		}
 		function normPath(value) {
 			return String(value || "").replace(/\\/g, "/").replace(/\/+$/, "");
@@ -9982,15 +10822,15 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			return {
 				id: "stage-" + String(index + 1),
 				label: "",
-				labelZh: "新阶段",
+				labelZh: tAp("mm.stageN", { n: index + 1 }),
 				hintZh: "",
-				prompt: "写明这一步要完成什么、交出什么成果。",
+				prompt: "",
 				skillSlugs: "",
 				reviewSkillSlugs: "",
 				reviewPolicy: "risk-based",
 				approvalEnabled: false,
 				approvalPrompt: "",
-				approveLabel: "确认并继续",
+				approveLabel: tAp("kb.confirmOk"),
 				rejectLabel: "",
 				listsSources: false,
 				binding: "",
@@ -10004,11 +10844,12 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			const stages = Array.isArray(workflow.stages) ? workflow.stages : [];
 			return {
 				id: row.id,
+				revision: row.revision,
 				label: workflow.label || row.label || "",
 				labelZh: workflow.labelZh || row.labelZh || moduleLabel(row),
 				icon: row.icon || "",
 				controlProfile: workflow.controlProfile || "",
-				setupStageId: workflow.setupStageId || stages[0] && stages[0].id || "",
+				setupStageId: workflow.setupStageId || "",
 				kbPack: {
 					analysis: (workflow.kbPack && workflow.kbPack.analysis || []).slice(),
 					pricing: (workflow.kbPack && workflow.kbPack.pricing || []).slice(),
@@ -10061,7 +10902,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					listsSources: stage.listsSources ? true : void 0,
 					summaryDeliverable: fileName ? {
 						fileName,
-						outlineZh: outline.length ? outline : ["待补大纲"]
+						outlineZh: outline
 					} : void 0
 				};
 			});
@@ -10072,7 +10913,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				labelZh: String(draft.labelZh || "").trim(),
 				icon: String(draft.icon || "").trim() || void 0,
 				controlProfile: draft.controlProfile === "tender" ? "tender" : void 0,
-				setupStageId: draft.setupStageId || stages[0] && stages[0].id,
+				setupStageId: draft.setupStageId || void 0,
 				bindingAreaByStage: Object.keys(bindingAreaByStage).length ? bindingAreaByStage : void 0,
 				kbPack: function pack() {
 					const next = {
@@ -10198,37 +11039,67 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				});
 			};
 			const patchDraft = (patch) => setEditing((current) => current ? Object.assign({}, current, patch) : current);
-			const patchStage = (index, patch) => setEditing((current) => {
-				if (!current) return current;
-				const stages = current.stages.slice();
-				stages[index] = Object.assign({}, stages[index], patch);
-				const next = Object.assign({}, current, { stages });
-				if (patch.id && current.setupStageId === current.stages[index].id) next.setupStageId = patch.id;
-				return next;
-			});
-			const moveStage = (index, delta) => setEditing((current) => {
-				if (!current) return current;
-				const dest = index + delta;
-				if (dest < 0 || dest >= current.stages.length) return current;
-				const stages = current.stages.slice();
-				const [item] = stages.splice(index, 1);
-				stages.splice(dest, 0, item);
-				return Object.assign({}, current, { stages });
-			});
+			const patchStage = (index, patch) => setEditing((current) => current ? patchWorkflowStage(current, index, patch) : current);
+			const moveStage = (index, delta) => {
+				const next = moveWorkflowStage(editing, index, delta);
+				const issue = workflowDependencyError(next.stages);
+				if (issue) {
+					setError(tAp("mm.dependencyError", issue));
+					return;
+				}
+				setError("");
+				setEditing(next);
+			};
 			const addStage = () => setEditing((current) => {
 				if (!current || current.stages.length >= 12) return current;
-				return Object.assign({}, current, { stages: current.stages.concat([blankStage(current.stages.length)]) });
+				const stage = {
+					...blankStage(current.stages.length),
+					id: nextStageId(current.stages),
+					consumes: []
+				};
+				return {
+					...current,
+					stages: current.stages.concat([stage])
+				};
 			});
-			const removeStage = (index) => setEditing((current) => {
-				if (!current || current.stages.length <= 1) return current;
-				const stages = current.stages.filter((_, i) => i !== index);
-				const removed = current.stages[index];
-				const setupStageId = current.setupStageId === removed.id ? stages[0] && stages[0].id : current.setupStageId;
-				return Object.assign({}, current, {
-					stages,
-					setupStageId
+			const removeStage = (index) => {
+				const dependents = stageDependents(editing, editing.stages[index].id);
+				if (dependents.length) {
+					setError(tAp("mm.removeDependency", { stages: dependents.map((stage) => stage.labelZh || stage.id).join(", ") }));
+					return;
+				}
+				setError("");
+				setEditing(removeWorkflowStage(editing, index));
+			};
+			const beginCreate = () => {
+				const taken = new Set(rows.map((row) => row.id));
+				let n = 1;
+				while (taken.has("my-workflow-" + n)) n++;
+				const stage = {
+					...blankStage(0),
+					consumes: []
+				};
+				setEditing({
+					id: "my-workflow-" + n,
+					isNew: true,
+					label: "",
+					labelZh: "",
+					icon: "",
+					controlProfile: "",
+					setupStageId: "",
+					kbPack: {
+						analysis: [],
+						pricing: [],
+						planning: []
+					},
+					useOwnKbPack: true,
+					stages: [stage]
 				});
-			});
+				setCopying(null);
+				setViewingId("");
+				setError("");
+				setNotice("");
+			};
 			const beginEdit = (row) => {
 				if (row.builtin) {
 					setNotice(tAp("mm.builtinLocked"));
@@ -10256,10 +11127,17 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			});
 			const saveEdit = () => {
 				if (!editing) return;
+				const issue = workflowDependencyError(editing.stages);
+				if (issue) {
+					setError(tAp("mm.dependencyError", issue));
+					return;
+				}
 				if (!window.confirm(tAp("mm.saveConfirm"))) return;
 				act("edit", {
 					action: "save",
-					definition: draftToDefinition(editing)
+					definition: draftToDefinition(editing),
+					createOnly: !!editing.isNew,
+					expectedRevision: editing.revision
 				}, (saved) => {
 					setNotice(tAp("mm.saved", { id: saved && saved.id ? saved.id : "" }));
 					setEditing(null);
@@ -10292,6 +11170,10 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				style: { marginTop: 4 }
 			}, tAp("mm.lead2"))), h("div", { className: "ap-actions" }, h("button", {
 				type: "button",
+				className: "ap-btn primary",
+				onClick: beginCreate
+			}, Icon("plus", 14), tAp("mm.newWorkflow")), h("button", {
+				type: "button",
 				className: "ap-btn",
 				onClick: () => load()
 			}, Icon("refresh", 14), tAp("kb.refresh")), h("button", {
@@ -10302,7 +11184,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			}, Icon("sparkles", 14), tAp("mm.design")))), error ? h("div", { className: "ap-err" }, error) : null, notice ? h("div", {
 				className: "ap-sub",
 				style: { padding: "6px 0" }
-			}, notice) : null, h("section", { className: "ap-sec" }, h("h2", null, createCopy.title), h("div", { className: "ap-create-lead" }, h("strong", null, tAp("mm.packNotJson")), h("p", {
+			}, notice) : null, h("details", { className: "ap-sec" }, h("summary", { style: { cursor: "pointer" } }, createCopy.title), h("div", { className: "ap-create-lead" }, h("strong", null, tAp("mm.packNotJson")), h("p", {
 				className: "ap-sub",
 				style: { margin: 0 }
 			}, createCopy.lead), h("p", {
@@ -10404,16 +11286,33 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				className: "ap-btn primary",
 				disabled: busy === "copy" || !copyId.trim() || !copyLabel.trim(),
 				onClick: submitCopy
-			}, busy === "copy" ? tAp("mm.copying") : copyThenEdit ? tAp("mm.copyOpen") : tAp("mm.copyLive")))) : null, editing ? h("section", { className: "ap-sec" }, h("h2", null, tAp("mm.editTitle", { name: editing.labelZh || editing.id })), h("p", { className: "ap-sub" }, tAp("mm.editLead")), h("label", { className: "ap-mm-field" }, tAp("mm.labelZh"), h("input", {
+			}, busy === "copy" ? tAp("mm.copying") : copyThenEdit ? tAp("mm.copyOpen") : tAp("mm.copyLive")))) : null, editing ? h("section", { className: "ap-sec" }, h("h2", null, tAp("mm.editTitle", { name: editing.labelZh || editing.id })), h("p", { className: "ap-sub" }, tAp("mm.editLead")), editing.isNew ? h("label", { className: "ap-mm-field" }, tAp("mm.moduleId"), h("input", {
+				value: editing.id,
+				onChange: (e) => patchDraft({ id: e.target.value })
+			})) : null, h("label", { className: "ap-mm-field" }, tAp("mm.labelZh"), h("input", {
 				value: editing.labelZh,
 				onChange: (e) => patchDraft({ labelZh: e.target.value })
 			})), h("label", { className: "ap-mm-field" }, tAp("mm.labelEn"), h("input", {
 				value: editing.label,
 				onChange: (e) => patchDraft({ label: e.target.value })
-			})), h("label", { className: "ap-mm-field" }, tAp("mm.setupStage"), h("select", {
+			})), h("label", { className: "ap-mm-field" }, tAp("mm.controlProfile"), h("select", {
+				value: editing.controlProfile,
+				onChange: (e) => {
+					if (e.target.value === "" && editing.controlProfile === "tender") {
+						if (!window.confirm(tAp("mm.freeWorkflowConfirm"))) return;
+						patchDraft({
+							controlProfile: "",
+							stages: editing.stages.map((stage) => ({
+								...stage,
+								consumes: (stage.consumes || []).filter((item) => item.kind !== "capability")
+							}))
+						});
+					} else patchDraft({ controlProfile: e.target.value });
+				}
+			}, h("option", { value: "" }, tAp("mm.freeWorkflow")), editing.controlProfile === "tender" ? h("option", { value: "tender" }, tAp("mm.tenderControls")) : null)), h("label", { className: "ap-mm-field" }, tAp("mm.setupStage"), h("select", {
 				value: editing.setupStageId,
 				onChange: (e) => patchDraft({ setupStageId: e.target.value })
-			}, editing.stages.map((stage) => h("option", {
+			}, h("option", { value: "" }, tAp("mm.noSetupStage")), editing.stages.map((stage) => h("option", {
 				key: stage.id,
 				value: stage.id
 			}, (stage.labelZh || stage.id) + " · " + stage.id)))), h("div", { className: "ap-mm-ed-stage" }, h("strong", null, tAp("mm.kbPack")), h("p", { className: "ap-sub" }, tAp("mm.kbPackLead")), h("div", { className: "ap-mm-checks" }, h("label", null, h("input", {
@@ -10439,7 +11338,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					onChange: (e) => toggleKb(area, entry.slug, e.target.checked)
 				}), " " + (typeof kbTitle === "function" ? kbTitle(entry) : entry.name) + (entry.category ? " · " + kbCategoryLabel(entry.category) : ""))));
 			})), editing.stages.map((stage, index) => h("div", {
-				key: stage.id + ":" + index,
+				key: index,
 				className: "ap-mm-ed-stage"
 			}, h("div", {
 				className: "ap-row",
@@ -10481,7 +11380,18 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			})), h("label", { className: "ap-mm-field" }, tAp("mm.skillSlugs"), h("input", {
 				value: stage.skillSlugs,
 				onChange: (e) => patchStage(index, { skillSlugs: e.target.value })
-			})), h("label", { className: "ap-mm-field" }, tAp("mm.reviewSlugs"), h("input", {
+			})), index > 0 ? h("fieldset", { className: "ap-mm-checks" }, h("legend", null, tAp("mm.dependencies")), editing.stages.slice(0, index).map((upstream) => h("label", { key: upstream.id }, h("input", {
+				type: "checkbox",
+				checked: (stage.consumes || []).some((item) => item.kind === "handoff" && item.stageId === upstream.id),
+				onChange: (e) => {
+					const consumes = (stage.consumes || []).filter((item) => item.kind !== "handoff" || item.stageId !== upstream.id);
+					if (e.target.checked) consumes.push({
+						kind: "handoff",
+						stageId: upstream.id
+					});
+					patchStage(index, { consumes });
+				}
+			}), " " + (upstream.labelZh || upstream.id)))) : null, h("label", { className: "ap-mm-field" }, tAp("mm.reviewSlugs"), h("input", {
 				value: stage.reviewSkillSlugs,
 				onChange: (e) => patchStage(index, { reviewSkillSlugs: e.target.value })
 			})), h("label", { className: "ap-mm-field" }, tAp("mm.reviewPolicy"), h("select", {
@@ -10568,7 +11478,20 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					className: "ap-btn link",
 					disabled: !!busy,
 					onClick: () => beginCopy(row, false)
-				}, tAp("mm.copyAsCustom")), row.sourcePath ? h("button", {
+				}, tAp("mm.copyAsCustom")), h("button", {
+					type: "button",
+					className: "ap-btn link",
+					onClick: () => {
+						const definition = draftToDefinition(workflowToDraft(row));
+						if (row.builtin) definition.id = suggestCopyId(row.id);
+						const url = URL.createObjectURL(new Blob([JSON.stringify(definition, null, 2)], { type: "application/json" }));
+						const link = document.createElement("a");
+						link.href = url;
+						link.download = definition.id + ".workbench.json";
+						link.click();
+						setTimeout(() => URL.revokeObjectURL(url), 1e3);
+					}
+				}, tAp("mm.exportDefinition")), row.sourcePath ? h("button", {
 					type: "button",
 					className: "ap-btn link",
 					disabled: !!busy,
@@ -10607,6 +11530,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		});
 		function Workbench(props) {
 			useApLang();
+			const capabilities = productCapabilities.use();
 			const LIVE_POLL_MS = 45e3;
 			const [data, setData] = react.useState(null);
 			const [error, setError] = react.useState("");
@@ -10678,6 +11602,15 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				selectModule(added[added.length - 1].id);
 			}, [data]);
 			const refresh = react.useCallback((silent) => {
+				if (!capabilities.workbench) {
+					setData({
+						modules: [],
+						projects: [],
+						workflows: []
+					});
+					setError("");
+					return Promise.resolve();
+				}
 				if (!cwd) {
 					setError("先选择一个工作区");
 					return Promise.resolve();
@@ -10690,7 +11623,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				}).catch((e) => {
 					if (!silent) setError(String(e.message || e));
 				}).finally(() => setRefreshing(false));
-			}, [cwd]);
+			}, [cwd, capabilities.workbench]);
 			react.useEffect(() => {
 				if (module === "archive") {
 					setError("");
@@ -11375,7 +12308,12 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					}).finally(() => setBusy(""));
 				}
 			}) : null;
+			if (module === "kb" ? !capabilities.knowledge : module === "archive" ? false : !capabilities.workbench) return h("div", { className: "ap-landing" }, h("p", null, tAp("wb.pluginDisabled")), h("button", {
+				className: "ap-btn",
+				onClick: props.onClose
+			}, tAp("wb.back")));
 			return h(WorkbenchView, {
+				capabilities,
 				cwd,
 				onClose: props.onClose,
 				catalog,
@@ -12051,10 +12989,11 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				event.stopPropagation();
 				const startX = event.clientX;
 				const startW = clampFilesRailWidth(railWidthRef.current);
+				const direction = document.documentElement.dir === "rtl" ? -1 : 1;
 				setResizing(true);
 				document.documentElement.classList.add("ap-rail-resizing");
 				const onMove = (ev) => {
-					const next = clampFilesRailWidth(startW + (startX - ev.clientX));
+					const next = clampFilesRailWidth(startW + direction * (startX - ev.clientX));
 					railWidthRef.current = next;
 					setRailWidth(next);
 					document.documentElement.style.setProperty("--ap-files-w", next + "px");
@@ -12780,6 +13719,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		}
 		function KnowledgeBaseNav(props) {
 			useApLang();
+			const capabilities = productCapabilities.use();
 			const open = useWorkbenchOpen();
 			const [kbOn, setKbOn] = react.useState(() => {
 				try {
@@ -12803,6 +13743,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					window.removeEventListener("agent-pi-wb-changed", sync);
 				};
 			}, []);
+			if (!capabilities.knowledge) return null;
 			return h("div", {
 				className: "ap-nav-host",
 				"data-ap-place": "ap-mount-kb"
@@ -12823,6 +13764,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		}
 		function WorkbenchNav(props) {
 			useApLang();
+			const capabilities = productCapabilities.use();
 			const open = useWorkbenchOpen();
 			const [page, setPage] = react.useState(() => {
 				try {
@@ -12847,6 +13789,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				};
 			}, []);
 			const on = open && page !== "kb" && page !== "archive" && page !== "modules";
+			if (!capabilities.workbench) return null;
 			return h("div", {
 				className: "ap-nav-host",
 				"data-ap-place": "ap-mount-wb"
@@ -12909,7 +13852,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			if (!open) return h("span", { style: { pointerEvents: "none" } });
 			return h("div", {
 				className: "ap-wb-page",
-				style: { left: left + "px" }
+				style: { insetInlineStart: left + "px" }
 			}, h(Workbench, Object.assign({}, props, { onClose: () => setWorkbenchOpen(false) })));
 		}
 		function rewriteBrandText(value) {
@@ -13487,6 +14430,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			});
 		}
 		function apply(ctx) {
+			ctx.effect(() => productCapabilities.install());
 			installAttachmentMessageView(ctx, react);
 			installArchiveSessionView(ctx, {
 				React: react,

@@ -248,7 +248,7 @@ function assertInsideCwd(cwd: string, target: string): string {
 
 function harvestProjectId(cwd: string): string {
   const projects = listBusinessProjects(cwd)
-  const tender = projects.find((project) => usesTenderControlProfile(project.module))
+  const tender = projects.find((project) => usesTenderControlProfile(project))
   if (tender) return tender.projectId
   const named = projects.find((project) => project.projectId === basename(resolve(cwd)))
   if (named) return named.projectId

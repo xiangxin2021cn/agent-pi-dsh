@@ -1,0 +1,4 @@
+- insert:
+    - id: agent-pi-workbench
+      name: dsh-agent-pi-workbench
+      inject: [tools, systemPrompt]

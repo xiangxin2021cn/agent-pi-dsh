@@ -1,3 +1,6 @@
+import { currentWorkbench } from '../../../packages/business-projects/workbench-registry.ts'
+import { createHash } from 'node:crypto'
+import type { BusinessProjectRecord } from '../../../packages/business-projects/types.ts'
 /**
  * Workbench module registry: built-in modules (tender/delivery/investment, defined in
  * workflows.ts) plus user-created domain modules stored as one JSON file per module.
@@ -8,8 +11,8 @@
  *
  * A user module file is `<id>.json` following ModuleFile below. Invalid files never
  * brick the workbench: they are skipped and surfaced as errors in list results and the
- * workbench API. Disabling (built-in or user) only hides a module from listing and
- * project creation — existing projects keep resolving their workflow.
+ * workbench API. Disabled modules cannot create projects or start new stage work.
+ * Existing projects retain their captured workflow for inspection.
  */
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -64,6 +67,7 @@ export interface WorkbenchModuleInfo {
   stageCount: number
   /** User module JSON file; absent for built-ins. */
   sourcePath?: string
+  revision?: string
   workflow: WorkflowDefinition
 }
 
@@ -131,7 +135,7 @@ export function validateModuleFile(value: unknown): ModuleFile {
   if (raw.schemaVersion !== 1) fail('schemaVersion 必须是 1')
   const id = String(raw.id ?? '')
   if (!MODULE_ID_PATTERN.test(id)) fail(`模块 id "${id}" 不合法：小写字母开头，2-32 位小写字母/数字/连字符`)
-  if (WORKFLOWS[id]) fail(`模块 id "${id}" 是内置模块，不可覆盖；请换一个 id`)
+  if (WORKFLOWS[id] || registeredWorkflows()[id]) fail(`模块 id "${id}" 是内置模块，不可覆盖；请换一个 id`)
   const labelZh = String(raw.labelZh ?? '').trim()
   if (!labelZh) fail('labelZh（模块中文名）不能为空')
   const label = raw.label === undefined ? undefined : String(raw.label).trim() || undefined
@@ -315,6 +319,7 @@ function toWorkflow(file: ModuleFile): WorkflowDefinition {
 }
 
 function userModulePath(id: string): string {
+  if (!MODULE_ID_PATTERN.test(id)) fail('Invalid module id')
   return join(modulesRoot(), `${id}.json`)
 }
 
@@ -355,7 +360,7 @@ export function listWorkbenchModules(options: { includeDisabled?: boolean } = {}
   const disabled = new Set(loadConfig().disabled)
   const { files, errors } = loadUserModules()
   const modules: WorkbenchModuleInfo[] = []
-  for (const [id, workflow] of Object.entries(WORKFLOWS)) {
+  for (const [id, workflow] of Object.entries(registeredWorkflows())) {
     modules.push({
       id,
       label: workflow.label,
@@ -378,6 +383,7 @@ export function listWorkbenchModules(options: { includeDisabled?: boolean } = {}
       disabled: disabled.has(file.id),
       stageCount: workflow.stages.length,
       sourcePath: path,
+      revision: moduleRevision(path),
       workflow,
     })
   }
@@ -387,11 +393,23 @@ export function listWorkbenchModules(options: { includeDisabled?: boolean } = {}
 
 /**
  * Resolve the workflow for a module id. Built-ins resolve from code; user modules from
- * their JSON file. Disabled modules still resolve so existing projects keep working.
+ * their JSON file. Project snapshots remain readable after a module is disabled.
  * @throws Error naming the module when it does not exist (or its file is invalid).
  */
-export function workflowFor(module: string): WorkflowDefinition {
-  const builtin = WORKFLOWS[module]
+export function workflowFor(input: string | BusinessProjectRecord): WorkflowDefinition {
+  const module = typeof input === 'string' ? input : input.module
+  if (typeof input !== 'string') {
+    if (input.workflowSnapshot) return structuredClone(input.workflowSnapshot)
+    // Legacy projects did not store snapshots. Retained definitions let them keep
+    // the workflow that existed at creation, even after the user edits/deletes it.
+    const history = readModuleHistory(module)
+    const revision = history.filter((item) => !item.from || item.from <= input.createdAt).at(-1)
+    if (revision) return structuredClone(revision.workflow)
+    // Pre-snapshot built-in projects must remain readable after their provider
+    // is uninstalled. Execution still goes through assertModuleEnabled.
+    if (WORKFLOWS[module]) return structuredClone(WORKFLOWS[module])
+  }
+  const builtin = registeredWorkflows()[module]
   if (builtin) return builtin
   const path = userModulePath(module)
   if (existsSync(path)) {
@@ -402,8 +420,24 @@ export function workflowFor(module: string): WorkflowDefinition {
 }
 
 /** True for the built-in tender workflow and user modules copied from it. */
-export function usesTenderControlProfile(module: string): boolean {
+export function usesTenderControlProfile(module: string | BusinessProjectRecord): boolean {
   return workflowFor(module).controlProfile === 'tender'
+}
+
+/** UI visibility is not authorization: enforce availability at execution entry points. */
+export function assertModuleEnabled(id: string): void {
+  const module = listWorkbenchModules().modules.find((item) => item.id === id)
+  if (!module) {
+    throw new Error(`Workbench module is disabled or unavailable: ${id}`)
+  }
+  if (module.workflow.controlProfile === 'tender' && currentWorkbench() && !registeredWorkflows().tender) {
+    throw new Error('This workflow requires the tender domain plugin to be enabled')
+  }
+}
+
+export function workflowForCreation(id: string): WorkflowDefinition {
+  assertModuleEnabled(id)
+  return workflowFor(id)
 }
 
 /**
@@ -411,11 +445,16 @@ export function usesTenderControlProfile(module: string): boolean {
  * @param value - untrusted module JSON (tool args / HTTP body).
  * @returns the stored module info.
  */
-export function saveUserModule(value: unknown): WorkbenchModuleInfo {
+export function saveUserModule(value: unknown, options: { createOnly?: boolean; expectedRevision?: string } = {}): WorkbenchModuleInfo {
   const file = validateModuleFile(value)
   const path = userModulePath(file.id)
-  writeJson(path, file)
+  if (options.createOnly && existsSync(path)) fail('Module already exists; choose another id')
+  if (options.expectedRevision !== undefined && options.expectedRevision !== moduleRevision(path)) {
+    fail('Module changed since you opened it. Reload before saving.')
+  }
   const workflow = toWorkflow(file)
+  retainModuleHistory(file.id, workflow)
+  writeJson(path, file)
   return {
     id: file.id,
     label: workflow.label,
@@ -425,6 +464,7 @@ export function saveUserModule(value: unknown): WorkbenchModuleInfo {
     disabled: loadConfig().disabled.includes(file.id),
     stageCount: workflow.stages.length,
     sourcePath: path,
+    revision: moduleRevision(path),
     workflow,
   }
 }
@@ -465,7 +505,7 @@ export function workflowToModuleFile(
 
 function takenModuleIds(): Set<string> {
   return new Set([
-    ...Object.keys(WORKFLOWS),
+    ...Object.keys(registeredWorkflows()),
     ...loadUserModules().files.map((item) => item.file.id),
   ])
 }
@@ -499,13 +539,13 @@ export function copyWorkbenchModule(
 
 /**
  * Delete a user module file. Built-ins cannot be removed (disable them instead).
- * Existing projects of the removed module keep their data but lose workflow resolution,
- * so the caller should warn when projects still reference it.
+ * Project snapshots and retained legacy definitions survive removal.
  */
 export function removeUserModule(id: string): { removed: boolean; id: string; sourcePath: string } {
   if (WORKFLOWS[id]) fail(`内置模块 ${id} 不可删除；如不需要可禁用。`)
   const path = userModulePath(id)
   if (!existsSync(path)) return { removed: false, id, sourcePath: path }
+  retainModuleHistory(id)
   rmSync(path)
   return { removed: true, id, sourcePath: path }
 }
@@ -610,11 +650,10 @@ export function readUserSkill(slugRaw: string): { slug: string; markdown: string
 }
 
 /**
- * Hide or unhide a module from listing and project creation. Existing projects are
- * unaffected: workflowFor still resolves disabled modules.
+ * Enable or disable new execution. Existing project snapshots remain readable.
  */
 export function setModuleDisabled(id: string, disabledFlag: boolean): { id: string; disabled: boolean } {
-  const known = Boolean(WORKFLOWS[id]) || existsSync(userModulePath(id))
+  const known = Boolean(registeredWorkflows()[id]) || existsSync(userModulePath(id))
   if (!known) fail(`未知模块 ${id}`)
   const config = loadConfig()
   const set = new Set(config.disabled)
@@ -622,4 +661,28 @@ export function setModuleDisabled(id: string, disabledFlag: boolean): { id: stri
   else set.delete(id)
   writeJson(configPath(), { schemaVersion: 1, disabled: [...set].sort() })
   return { id, disabled: disabledFlag }
+}
+
+interface WorkflowRevision { from: string | null; workflow: WorkflowDefinition }
+function historyPath(id: string): string {
+  userModulePath(id) // Validate before constructing a path from API input.
+  return join(modulesRoot(), '.history', id + '.json')
+}
+function readModuleHistory(id: string): WorkflowRevision[] {
+  return readJson<WorkflowRevision[]>(historyPath(id), [])
+}
+function moduleRevision(path: string): string {
+  return existsSync(path) ? createHash('sha256').update(readFileSync(path)).digest('hex') : ''
+}
+function retainModuleHistory(id: string, next?: WorkflowDefinition): void {
+  const history = readModuleHistory(id)
+  const path = userModulePath(id)
+  if (!history.length && existsSync(path)) history.push({ from: null, workflow: workflowFor(id) })
+  if (next) history.push({ from: new Date().toISOString(), workflow: next })
+  if (history.length) writeJson(historyPath(id), history)
+}
+
+function registeredWorkflows(): Record<string, WorkflowDefinition> {
+  const runtime = currentWorkbench()
+  return runtime ? Object.fromEntries(runtime.list().map((item) => [item.workflow.module, item.workflow])) : WORKFLOWS
 }
