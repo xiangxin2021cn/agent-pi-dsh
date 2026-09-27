@@ -37,9 +37,26 @@ const reviewed371 = {
     "375e8e3620c0589841a33f3ea78954d14d9edd240c7409471c3b815a06fd578d"
   ]
 }
+// Reviewed 3.7.5 pairs include native workbench/task capability wiring, project-plan
+// preview and logical file-rail layout. CAD iframe, routes and CAD-specific styles
+// remain unchanged. Accept these exact bytes only; further edits require review.
+const reviewed375 = {
+  "bundles/tender-host/src/http.ts": [
+    "e93ed84a6d37dacd33f965828c59d466d80590f0e307a36783ff367b2ba77c80",
+    "54568ace9028ad8f88a159a115e90fa5fa25e04dbedcf68e54e31f66a4b61de5"
+  ],
+  "bundles/tender-web/src/client/file-preview-overlay.js": [
+    "49ed4551ed5c04265b0b316acd565ab42dacc9fd325f2cba5da068c136d7439a",
+    "f6894a287956ba954255dde3e4a40bc1576670ccd7222801ce2f1ff80326346a"
+  ],
+  "bundles/tender-web/src/client/styles.js": [
+    "c1784d427a0c8ae2df46ccc6c6fb4504dcabcc0668d56a5a32d13af775defd19",
+    "55977fc3b1a5a32cd2398c3ef577bf6e336fa18417839613fc6d74766ff89567"
+  ]
+}
 function reviewedNonCadPair(path, before, after) {
-  const pair = reviewed371[path]
-  return pair && [before, after].every((text, index) => createHash('sha256').update(text).digest('hex') === pair[index])
+  return [reviewed371[path], reviewed375[path]].some((pair) => pair &&
+    [before, after].every((text, index) => createHash('sha256').update(text).digest('hex') === pair[index]))
 }
 
 function fail(message) {

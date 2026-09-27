@@ -47,8 +47,16 @@ powershell -NoProfile -File scripts/pack-win.ps1 -CadCleanOutput .codex-temp/cad
 - `release/Agent-Pi-DSH-3.7.5-x64.exe.build.json`
 - `.codex-temp/pack-win-3.7.5.log`
 
-校验值读取同批次 `.sha256`；构建记录绑定源码提交、版本、DSH pin、安装包、载荷、CAD 源码/运行时及 DSH 构建字节，避免在文档里复制过期哈希。本次不对外发布，不改已发布 3.7.4 下载地址。
+校验值读取同批次 `.sha256`；构建记录绑定源码提交、版本、DSH pin、安装包、载荷、CAD 源码/运行时及 DSH 构建字节，避免在文档里复制过期哈希。首次本地交付未对外发布；后续按客户授权执行 GitHub 完整多平台发布，既有 3.7.4 资产保持不可变。
 
 ## 专业验收边界
 
 已验证的是代码行为、真实源文件抽取、界面与发行构建链。没有调用付费模型完成一个真实客户投标项目，也没有宣称所有国别法规、扫描图纸、供应商回价或正式签署已自动完成。全球规范须逐项目发现、核验版本与适用性；CAD 几何及工程推导须实际专业复核。能力和工具描述保留插件原文，任务核心控件支持中英文，其他界面语言使用英文回退。
+
+## GitHub 发布补充
+
+发布校验工具独立于安装包源码标签更新；安装包和跨平台载荷继续绑定 `v3.7.5 / b25c5dd78d6fd2ceb09dedfb29a9924ad0472dce`，不改写标签或重新声明其构建来源。
+
+旧 CAD 对应源码保持原始提交和运行时收据。复核了共享 HTTP、文件预览和样式文件的完整差异：新增任务能力类型、既有工作台/计划预览和逻辑资源栏布局属于非 CAD 改动；CAD iframe 分支、CAD 专用样式、引擎与对应源码未变。发布工具只接受登记的三个精确前后 SHA256 文件对，继续拒绝其他字节改动及文件模式变化。
+
+发布补充验证：`node --test scripts/cad-integration-compatibility.test.mjs scripts/version-3.7.5.test.mjs scripts/legacy-release-helpers.test.mjs`，**32 / 32** 通过，含已复核完整文件及后续篡改/模式变更拒绝案例。草稿保持未公开，直到十五个必需资产全部上传、平台构建成功且 GitHub SHA256 与本地校验文件一致。

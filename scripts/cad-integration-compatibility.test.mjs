@@ -197,6 +197,41 @@ test('permits reviewed studio and Office URL changes but rejects adjacent CAD an
   }
 })
 
+test('permits exact reviewed 3.7.5 shared files while rejecting later CAD edits and mode changes', (t) => {
+  const value = fixture(t)
+  const repository = join(dirname(cli), '..')
+  const paths = [
+    'bundles/tender-host/src/http.ts',
+    'bundles/tender-web/src/client/file-preview-overlay.js',
+    'bundles/tender-web/src/client/styles.js',
+  ]
+  const read = (ref, path) => execFileSync('git', ['show', `${ref}:${path}`], {
+    cwd: repository, encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  for (const path of paths) write(join(value.root, path), read('1aef6820ebc450125788158a4b2d1706115cdd10', path))
+  const source = value.manifest.sources.agentPiDshCadIntegration
+  source.commit = commit(value.root)
+  source.tree = git(value.root, 'rev-parse', 'HEAD^{tree}')
+  const reviewed = new Map(paths.map(path => [path, read('b25c5dd78d6fd2ceb09dedfb29a9924ad0472dce', path)]))
+  for (const [path, text] of reviewed) write(join(value.root, path), text)
+  commit(value.root)
+  const originalManifest = structuredClone(value.manifest)
+  assert.equal(assertCadIntegrationUnchanged(value).sourceCommit, source.commit)
+  assert.deepEqual(value.manifest, originalManifest)
+  for (const [path, text] of reviewed) {
+    write(join(value.root, path), text + '\n// changed CAD integration\n')
+    commit(value.root)
+    assert.throws(() => assertCadIntegrationUnchanged(value), /CAD inputs changed/)
+    write(join(value.root, path), text)
+    commit(value.root)
+    git(value.root, 'update-index', '--chmod=+x', path)
+    git(value.root, 'commit', '-qm', 'changed reviewed file mode')
+    assert.throws(() => assertCadIntegrationUnchanged(value), /CAD inputs changed/)
+    git(value.root, 'update-index', '--chmod=-x', path)
+    git(value.root, 'commit', '-qm', 'restore reviewed file mode')
+  }
+})
+
 for (const input of CAD_INPUT_PATHS) {
   test(`rejects a committed CAD input change: ${input}`, (t) => {
     const value = fixture(t)
