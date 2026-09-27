@@ -90,7 +90,7 @@ async function renderPageWithPdfjs(
     page.cleanup()
     return { width: Math.ceil(viewport.width), height: Math.ceil(viewport.height) }
   } finally {
-    await pdf.destroy()
+    await pdf.loadingTask.destroy()
   }
 }
 

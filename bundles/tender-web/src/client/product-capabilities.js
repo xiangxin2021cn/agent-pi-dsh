@@ -1,5 +1,5 @@
 export function createProductCapabilities(React) {
-  let value = { workbench: false, knowledge: false }
+  let value = { workbench: false, knowledge: false, taskGuide: false }
   const listeners = new Set()
   return {
     install() {
@@ -12,8 +12,8 @@ export function createProductCapabilities(React) {
           const response = await fetch('/api/agent-pi/capabilities')
           if (!response.ok) return
           const next = await response.json()
-          if (!disposed && (next.workbench !== value.workbench || next.knowledge !== value.knowledge)) {
-            value = { workbench: next.workbench === true, knowledge: next.knowledge === true }
+          if (!disposed && (next.workbench !== value.workbench || next.knowledge !== value.knowledge || next.taskGuide !== value.taskGuide)) {
+            value = { workbench: next.workbench === true, knowledge: next.knowledge === true, taskGuide: next.taskGuide === true }
             for (const notify of listeners) notify(value)
           }
         } finally { pending = false }

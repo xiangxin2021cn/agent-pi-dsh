@@ -17,7 +17,11 @@ Every labour, plant, material, water, and haul number in `itemBuildUps` must be 
 
 Write the site string on every labour/plant/material `rateBasis.location` (e.g. `KwaZulu-Natal / eThekwini / N3`). Never write `South Africa average`.
 
-## AnySearch — use the full toolset
+## Actual tools and jurisdiction
+
+Respect the current task webDiligence policy, including rate searches. Only use AnySearch when its tools are actually registered; otherwise use native web_search/web_fetch. China uses appropriate domestic sources/language; Namibia and other countries use their own laws, standards and local sources. BCCEI, EPWP, SANRAL, COTO, G2/G5/G7, rand and the international queries below are South African examples, applicable only when the project supports that jurisdiction.
+
+## AnySearch — when available
 
 `web_search` is the ordinary page search. For local intelligence, use the three AnySearch extensions. Do **not** guess `tag` or `params`.
 
@@ -48,7 +52,7 @@ If `anysearch_capabilities` returns a company / local-business tag, run `anysear
 
 ## Productivity is local too
 
-Read [local-productivity.md](local-productivity.md). Do not copy the C5.1 illustration `2,500 m³/天` or `0.25` weather factor. Do not apply a Chinese highway norm or domestic plant brochure.
+Read [local-productivity.md](local-productivity.md). Do not copy the C5.1 illustration `2,500 m³/天` or `0.25` weather factor. Chinese or any other foreign norms need verified project applicability, version and adjustments; do not reject applicable Chinese norms for a Chinese project.
 
 - Search this province / metro / corridor first (`anysearch_capabilities` → `anysearch_batch_search` `zone: "intl"`).
 - Theoretical output comes from width, speed, passes, and the **contract** hour.

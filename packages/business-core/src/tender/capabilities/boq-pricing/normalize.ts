@@ -58,7 +58,7 @@ export function parseTenderBoqFiveStepPricingDataLenient(
   const currency = normalizeCurrency(record.currency, warnings) ?? fallbackCurrency;
   const skeleton: Omit<TenderBoqFiveStepPricingData, 'itemBuildUps'> = {
     currency,
-    pricingStandard: 'c51_pure_direct_cost_v1',
+    pricingStandard: typeof record.pricingStandard === 'string' && record.pricingStandard.trim() ? record.pricingStandard.trim() : 'generic_direct_cost_v1',
     vatTreatment: 'exclusive',
     indirectCostPolicy: 'excluded_from_item_direct_cost',
     pricingStatus: normalizeEnum(record.pricingStatus, ['draft', 'reviewed', 'blocked'] as const) ?? 'draft',

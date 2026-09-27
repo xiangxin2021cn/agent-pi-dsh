@@ -36,10 +36,12 @@ import {
   IconSparkle16,
   IconWarningOutline16,
 } from './icons.ts'
+import { HostCheckbox, HostSwitch, HostTag } from './optional-primitives.ts'
 import css from './Market.module.css'
 import { MARK_BLOCK_RADIUS, MARK_BLOCK_SIZE, MARK_GRID_BLOCKS, MARK_PLUG_BLOCK, MARK_VIEW_BOX } from './market-mark.ts'
 import { CommentsModal } from './CommentsModal.tsx'
 import { SearchInput } from './SearchInput.tsx'
+import { downloadStatsText } from './download-stats.ts'
 import { OperationsPanel } from './OperationsPanel.tsx'
 import { applyRecovery, fetchRecovery, initialKeep, RecoveryPanel, watchRestart, type RecoveryView } from './RecoveryPanel.tsx'
 import { clearSettled, drop, enqueue, patch as patchRecord, recordForUrl } from './operations.ts'
@@ -48,7 +50,7 @@ import { Diagnostics } from './Diagnostics.tsx'
 import { exportMarketLog } from './self-check.ts'
 import {
   api, applyGithubRouting, avatarColor, catalogEntryForInstalled, entryForDep, githubRouteCandidates, groupSwitchState, humanOutput, installedForCatalog, isGenerationSpec, isInstalled, localizeBilingual, localizeBilingualList, looksTerminal, matchInstalledName, orderedCategories, pluginCategories,
-  formatCount, pageItems, pluginName, pluginScreenshotCandidates, pluginScreenshots, pluginsForFavorites, rankThemeScreenshots, readSession, releaseNotesHttpsImage, rememberGithubRoute, resetScreenshotsCache, resolveCatalogRestore, safeScreenshots, sanitizeReleaseNotesBody, staleFavoriteUrls, themePlugins as themePluginsOf, themeSwatch, TIME_RANGE_DAYS, visiblePlugins,
+  formatCount, pageItems, pluginName, pluginScreenshotCandidates, pluginScreenshots, pluginsForFavorites, queuedRowApplies, rankThemeScreenshots, readSession, releaseNotesHttpsImage, rememberGithubRoute, resetScreenshotsCache, resolveCatalogRestore, safeScreenshots, sanitizeReleaseNotesBody, staleFavoriteUrls, themePlugins as themePluginsOf, themeSwatch, TIME_RANGE_DAYS, visiblePlugins,
 } from './market-data.ts'
 import type {
 ActivationInfo, ActivationState, GistExportResult, InstalledMap, InstalledRepoHints, InstalledRepoIdentities, MarketStatus, Registry, RegistryPlugin,
@@ -1123,10 +1125,20 @@ function BookmarkMark({ size = 14, filled = false, className }: { size?: number;
   )
 }
 
-/**
- * Catalog npm latest in the card byline (#348). Same quiet style as ↓ / ★;
- * omitted when absent so github-only and not-yet-backfilled rows stay clean.
- */
+/** A compact rolling-period label, with source metadata on hover or focus. */
+function DownloadCount({ plugin, t }: { plugin: RegistryPlugin; t: Translate }) {
+  const tip = downloadStatsText(plugin, t)
+  if (tip === null) return null
+  return (
+    <Tooltip label={tip} side="top">
+      <span className={css.star} tabIndex={0} aria-label={tip}>
+        {'· ↓ ' + formatCount(plugin.downloads!) + ' / ' + t('downloadsPeriod')}
+      </span>
+    </Tooltip>
+  )
+}
+
+/** Catalog npm latest, omitted for github-only and not-yet-backfilled rows. */
 function CatalogVersionMark({ version, tip }: { version: string | null | undefined; tip: string }) {
   if (typeof version !== 'string' || version.length === 0) return null
   const label = /^v/i.test(version) ? version : `v${version}`
@@ -1216,6 +1228,41 @@ function isRecordOfRecords(value: unknown): value is Record<string, { spec?: str
 function sameInstalledMap(left: InstalledMap, right: InstalledMap): boolean {
   const names = Object.keys(left)
   return names.length === Object.keys(right).length && names.every(name => left[name] === right[name])
+}
+
+/**
+ * Whether one installed plugin has a pending update (either an ordinary
+ * upgrade via npm/git/restore, or a host-managed generation release), and has
+ * not already been updated in the current session.
+ *
+ * THE answer to that question. It used to have three copies that disagreed —
+ * the reminder count, the card's pill, and the installed list's ordering —
+ * which is the shape this repository already paid for once
+ * (`src/entry-identity.ts`: one assumption, several copies, each fixed at a
+ * different time). Callers now pass the two things that are genuinely their
+ * own policy:
+ *
+ * - `ignored`: a session-level "ignore this update" (#657). The NOTICE
+ *   surfaces pass it — the badge and the ordering, because a row the user
+ *   dismissed should not keep jumping to the top or counting toward
+ *   attention. The row's own pill does NOT, because the pill answers "is
+ *   there an update" (which dismissing does not change) and the row shows the
+ *   dismissal right beside it.
+ * - whether a disabled plugin counts, which the reminder count says no to and
+ *   the list says yes to: a disabled row is still a row someone may want to
+ *   update from the list, but it is not asking for attention.
+ */
+function isPluginUpdatable(
+  name: string,
+  spec: string,
+  status: UpdateStatus | undefined,
+  updatedNames: readonly string[],
+  ignored: ReadonlySet<string> = new Set<string>(),
+): boolean {
+  if (updatedNames.includes(name) || ignored.has(name) || status === undefined) return false
+  if (status.updateAvailable === true) return true
+  const generation = status.kind === 'generation' || isGenerationSpec(spec)
+  return generation && status.latest != null
 }
 
 /** Sort field choices in the filter panel. */
@@ -1340,6 +1387,118 @@ export function MarketSection(props: MarketSectionProps) {
   const recoveredInstall = useRef<{ id: string; url: string; name?: string } | null>(null)
   /** The synthetic task rebuilt from dshm-updating after this section remounts. */
   const recoveredUpdateRecordId = useRef<string | null>(null)
+  /**
+   * The install queue: agents-busy 409s become `queued` records instead of
+   * failures, and drain automatically when agents go idle (see drainQueue).
+   * Persisted in localStorage so a refresh keeps the queue; only `queued`
+   * records persist — `running` recovery stays on the dshm-pending paths.
+   */
+  const queueRestoredRef = useRef(false)
+  useEffect(() => {
+    if (queueRestoredRef.current) return
+    let saved: unknown = null
+    try {
+      saved = JSON.parse(localStorage.getItem('dshm-queue-v1') ?? 'null')
+    } catch { saved = null }
+    if (!Array.isArray(saved) || saved.length === 0) {
+      queueRestoredRef.current = true
+      return
+    }
+    if (data === null) return
+    queueRestoredRef.current = true
+    // Consumed only once the rows can actually be restored. Removing it
+    // earlier lost the queue outright: this effect runs on the first render,
+    // where `data === null` (the catalog has not arrived), and the run that
+    // follows found the storage empty — so a REFRESH with a pending queue, the
+    // case this feature exists for, threw it away.
+    try { localStorage.removeItem('dshm-queue-v1') } catch { /* storage unavailable */ }
+    /**
+     * A queued row may only run while the world it was queued in still holds.
+     *
+     * It drains with no confirmation — that is what queueing is — so a row
+     * that has gone stale is a destructive operation launched from an old
+     * decision: queue an uninstall at 10:00, uninstall it by hand (or change
+     * your mind), open the market at 15:00 and it runs. Each kind therefore
+     * has to be true RIGHT NOW, and a row that no longer is gets REPORTED
+     * rather than executed or silently dropped — the user queued it, so the
+     * user is told what became of it.
+     */
+    const judged = (saved as unknown[]).flatMap((entry): Array<
+      { ok: true; row: { kind: OperationRecord['kind']; name: string; url?: string } }
+      | { ok: false; kind: OperationRecord['kind']; name: string; url?: string; reason: string }
+    > => {
+      if (entry === null || typeof entry !== 'object') return []
+      const row = entry as Record<string, unknown>
+      const kindRaw = row.kind
+      if (kindRaw !== 'install' && kindRaw !== 'update' && kindRaw !== 'uninstall') return []
+      if (typeof row.name !== 'string' || row.name === '') return []
+      if (row.url !== undefined && typeof row.url !== 'string') return []
+      const kind: OperationRecord['kind'] = kindRaw
+      const name = row.name
+      const url = typeof row.url === 'string' ? row.url : undefined
+      const stale = (reason: string) => [{ ok: false as const, kind, name, url, reason }]
+      const verdict = queuedRowApplies({ kind, name, ...(url === undefined ? {} : { url }) }, { installed, updates, plugins: data.plugins })
+      if (verdict !== null) return stale(verdict === 'gone' ? t('agentQueueStaleGone') : t('agentQueueStaleNoUpdate'))
+      if (kind === 'install' && url === undefined) return []
+      return [{ ok: true as const, row: { kind, name, ...(url === undefined ? {} : { url }) } }]
+    })
+    const valid = judged.flatMap(verdict => verdict.ok ? [verdict.row] : [])
+    const stale = judged.flatMap(verdict => verdict.ok ? [] : [verdict])
+    if (valid.length === 0 && stale.length === 0) {
+      return
+    }
+    setRecords(prev => {
+      const kept = [...prev]
+      for (const entry of valid) {
+        const dup = kept.some(record =>
+          record.state === 'queued'
+          && record.kind === entry.kind
+          && record.name === entry.name
+          && (entry.kind !== 'install' || record.url === entry.url))
+        if (dup) continue
+        recordSeq.current += 1
+        kept.push({
+          id: `op-${String(recordSeq.current)}`,
+          kind: entry.kind,
+          name: entry.name,
+          ...(entry.url === undefined ? {} : { url: entry.url }),
+          state: 'queued',
+          reason: t('agentBusyQueued'),
+        })
+      }
+      for (const row of stale) {
+        recordSeq.current += 1
+        kept.push({
+          id: `op-${String(recordSeq.current)}`,
+          kind: row.kind,
+          name: row.name,
+          ...(row.url === undefined ? {} : { url: row.url }),
+          // Reported, not executed and not hidden: the row is the user's, and
+          // "we did not do this, here is why" is the only honest end for it.
+          state: 'failed',
+          reason: row.reason,
+        })
+      }
+      return kept
+    })
+    setOperationsOpen(true)
+  }, [data, t])
+  useEffect(() => {
+    // Never write before the restore has read. On the first render `records`
+    // is empty, and this effect would then delete the stored queue that the
+    // restore — which waits for the catalog — is about to load: every refresh
+    // with a cold catalog silently lost the user's queued work. The restore is
+    // this queue's only reader, so waiting for it is also what makes the
+    // consume safe.
+    if (!queueRestoredRef.current) return
+    try {
+      const queued = records
+        .filter(record => record.state === 'queued')
+        .map(record => ({ kind: record.kind, name: record.name, ...(record.url === undefined ? {} : { url: record.url }) }))
+      if (queued.length === 0) localStorage.removeItem('dshm-queue-v1')
+      else localStorage.setItem('dshm-queue-v1', JSON.stringify(queued))
+    } catch { /* storage unavailable */ }
+  }, [records])
   /** Raised by the card marker, so "查看详情" lands on the record itself. */
   const [operationsOpen, setOperationsOpen] = useState(false)
   const openOperations = useCallback(() => setOperationsOpen(true), [])
@@ -1699,6 +1858,7 @@ export function MarketSection(props: MarketSectionProps) {
   const [presetOpen, setPresetOpen] = useState(false)
   /** Install-command disclosure inside the confirm dialog. */
   const [cmdOpen, setCmdOpen] = useState(false)
+  const [capsOpen, setCapsOpen] = useState(false)
   /** Per-row "why is it not live" disclosure (installed tab). */
   const [whyOpen, setWhyOpen] = useState<string | null>(null)
   /** Restore-confirm dialog (replaces window.confirm). */
@@ -1729,6 +1889,14 @@ export function MarketSection(props: MarketSectionProps) {
    * `catsOpen` in sync so unstuck restores the user's choice. */
   const [stuckExpanded, setStuckExpanded] = useState(false)
   const [catsSentinel, setCatsSentinel] = useState<HTMLDivElement | null>(null)
+  /**
+   * Latest /status sample for the queue drain: `busy` gates pnpm execution,
+   * `runningAgents` gates the agent-file guard. A ref (not state) because the
+   * drain interval is mount-once and must never read a stale closure.
+   */
+  const statusRef = useRef<{ busy: boolean; runningAgents: string[] }>({ busy: false, runningAgents: [] })
+  /** True while the drain is executing one queued request (no parallel starts). */
+  const drainingRef = useRef(false)
 
   const refreshInstalled = useCallback((force?: boolean) => {
     fetch(api('/dsh-market/installed'), { cache: 'no-store' })
@@ -1892,6 +2060,10 @@ export function MarketSection(props: MarketSectionProps) {
     fetch(api('/dsh-market/status'), { cache: 'no-store' })
       .then(res => res.json())
       .then(status => {
+        statusRef.current = {
+          busy: status.busy === true,
+          runningAgents: Array.isArray(status.runningAgents) ? status.runningAgents.map(String) : [],
+        }
         setEnvReady(status.pnpm !== false)
         // Applied before anything renders a github.com URL. The catalog this
         // page draws from is a larger request through the same server, so it
@@ -2037,6 +2209,10 @@ export function MarketSection(props: MarketSectionProps) {
       fetch(api('/dsh-market/status'), { cache: 'no-store' })
         .then(res => res.json())
         .then(status => {
+          statusRef.current = {
+            busy: status.busy === true,
+            runningAgents: Array.isArray(status.runningAgents) ? status.runningAgents.map(String) : [],
+          }
           setHostBusy(status.busy === true)
           setDebuggerLatch(typeof status.debugger === 'string' ? status.debugger : null)
           if (status.active) {
@@ -2383,10 +2559,16 @@ export function MarketSection(props: MarketSectionProps) {
           refreshInstalled()
         } else {
           if (status === 409) {
-            const busyReason = body.agentsBusy === true
-              ? t('agentBusyInstall') + (Array.isArray(body.runningAgents) && body.runningAgents.length > 0 ? ` (${body.runningAgents.join(', ')})` : '')
-              : t('busyWait')
-            setRecords(list => patchRecord(list, recordId, { state: 'failed', reason: busyReason }))
+            if (body.agentsBusy === true) {
+              // Agents-busy is a queue, not a failure: keep the record as
+              // `queued` so the drain below runs it when agents go idle.
+              // The host changed nothing (it refuses before touching pnpm),
+              // so there is nothing to roll back and nothing to decide.
+              setRecords(list => patchRecord(list, recordId, { state: 'queued', reason: t('agentBusyQueued') }))
+              setOperationsOpen(true)
+              return
+            }
+            setRecords(list => patchRecord(list, recordId, { state: 'failed', reason: t('busyWait') }))
             setOperationsOpen(true)
             return
           }
@@ -2746,9 +2928,11 @@ export function MarketSection(props: MarketSectionProps) {
         } else {
           if (status === 409) {
             if (body.agentsBusy === true) {
-              const running = Array.isArray(body.runningAgents) && body.runningAgents.length > 0 ? ` (${body.runningAgents.join(', ')})` : ''
-              setRecords(list => patchRecord(list, updateRecordId, { state: 'failed', reason: t('agentBusyUpdate') + running }))
-              setInstallError(t('agentBusyUpdate') + running)
+              // Same queue treatment as installs: the host refused before
+              // touching pnpm, so this becomes a `queued` record the drain
+              // runs when agents go idle.
+              setRecords(list => patchRecord(list, updateRecordId, { state: 'queued', reason: t('agentBusyUpdateQueued') }))
+              setOperationsOpen(true)
               return
             }
             setRecords(list => patchRecord(list, updateRecordId, { state: 'failed', reason: t('busyWait') }))
@@ -3062,6 +3246,10 @@ export function MarketSection(props: MarketSectionProps) {
     setInstallError(null)
     setActivationWarnings([])
     setRemovingName(name)
+    // Uninstalls join the same operation records as installs/updates, so an
+    // agents-busy refusal can queue them and the drain can run them later.
+    const uninstallRecordId = nextRecordId()
+    setRecords(list => enqueue(list, { id: uninstallRecordId, kind: 'uninstall', name, state: 'running' }))
     return fetch(api('/dsh-market/uninstall'), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -3069,6 +3257,12 @@ export function MarketSection(props: MarketSectionProps) {
     })
       .then(res => res.json().then(body => ({ status: res.status, body })))
       .then(({ status, body }) => {
+        if (status === 409 && body.agentsBusy === true) {
+          setRecords(list => patchRecord(list, uninstallRecordId, { state: 'queued', reason: t('agentBusyUninstallQueued') }))
+          setOperationsOpen(true)
+          return
+        }
+        setRecords(list => drop(list, uninstallRecordId))
         if (status === 200 && body.ok) {
           if (!body.hot) setRemovedCount(n => n + 1)
           // A client-part plugin stays injected until a page reload — the same
@@ -3113,7 +3307,98 @@ export function MarketSection(props: MarketSectionProps) {
       .finally(() => setRemovingName(null))
     // hotNames/refreshNames are read above to tell a plugin this page loaded
     // from one installed inside it, so they belong in the closure.
-  }, [refreshInstalled, hotNames, refreshNames])
+  }, [refreshInstalled, hotNames, refreshNames, nextRecordId, t])
+
+  // Drain-loop refs, assigned after doInstall/doUpdate/doUninstall exist
+  // (the mount-once drain effect below only reads refs, never closures).
+  const busyUrlRef = useRef<string | null>(null)
+  busyUrlRef.current = busyUrl
+  const updatingNameRef = useRef<string | null>(null)
+  updatingNameRef.current = updatingName
+  const removingNameRef = useRef<string | null>(null)
+  removingNameRef.current = removingName
+  const dataRef = useRef<typeof data>(null)
+  dataRef.current = data
+  const doInstallRef = useRef<((plugin: RegistryPlugin) => void) | null>(null)
+  doInstallRef.current = doInstall
+  const doUpdateRef = useRef<((name: string, force?: boolean, restore?: boolean) => Promise<void>) | null>(null)
+  doUpdateRef.current = doUpdate
+  const doUninstallRef = useRef<((name: string) => Promise<void>) | null>(null)
+  doUninstallRef.current = doUninstall
+
+  /**
+   * The install queue drain: agents-busy 409s no longer ask the user to come
+   * back later — the queued record runs itself once agents go idle and the
+   * operation lock is free. Self-sufficient by design: when every operation
+   * is queued, nothing else polls /status, so this loop fetches it itself
+   * (only while a queued record exists, so an idle page makes no requests).
+   * One mutation at a time — the host still serializes via its lock, and a
+   * re-refused drain simply re-queues instead of failing.
+   */
+  useEffect(() => {
+    let disposed = false
+    const timer = setInterval(() => {
+      if (drainingRef.current) return
+      if (busyUrlRef.current !== null || updatingNameRef.current !== null || removingNameRef.current !== null) return
+      void fetch(api('/dsh-market/status'), { cache: 'no-store' })
+        .then(res => res.json())
+        .then(status => {
+          if (disposed) return
+          const runningAgents: string[] = Array.isArray(status.runningAgents) ? status.runningAgents.map(String) : []
+          const busy = status.busy === true
+          statusRef.current = { busy, runningAgents }
+          if (busy || runningAgents.length > 0) return
+          if (busyUrlRef.current !== null || updatingNameRef.current !== null || removingNameRef.current !== null) return
+          let next: OperationRecord | null = null
+          let hasRunning = false
+          setRecords(prev => {
+            hasRunning = prev.some(record => record.state === 'running')
+            const found = prev.find(record => record.state === 'queued')
+            next = found ?? null
+            return found === undefined ? prev : prev.filter(record => record.id !== found.id)
+          })
+          if (next === null || hasRunning) return
+          const task: OperationRecord = next
+          drainingRef.current = true
+          try {
+            if (task.kind === 'install') {
+              const plugin = dataRef.current?.plugins.find(candidate => candidate.url === task.url)
+              if (plugin !== undefined) doInstallRef.current?.(plugin)
+            } else if (task.kind === 'update') {
+              void doUpdateRef.current?.(task.name)
+            } else {
+              void doUninstallRef.current?.(task.name)
+            }
+          } finally {
+            drainingRef.current = false
+          }
+        })
+        .catch(() => { /* retry on the next tick */ })
+    }, 2000)
+    return () => {
+      disposed = true
+      clearInterval(timer)
+    }
+  }, [])
+
+  /** A queued record's "run now": retry immediately instead of waiting for idle. */
+  const runQueuedNow = useCallback((record: OperationRecord) => {
+    if (record.kind === 'install') {
+      const plugin = data?.plugins.find(candidate => candidate.url === record.url)
+      if (plugin === undefined) {
+        setRecords(prev => drop(prev, record.id))
+        return
+      }
+      setRecords(prev => drop(prev, record.id))
+      doInstall(plugin)
+    } else if (record.kind === 'update') {
+      setRecords(prev => drop(prev, record.id))
+      void doUpdate(record.name)
+    } else {
+      setRecords(prev => drop(prev, record.id))
+      void doUninstall(record.name)
+    }
+  }, [data, doInstall, doUpdate, doUninstall])
 
   /** Live enable/disable of one installed plugin (#60). `reload` opts the
    * card-level theme flow into a page refresh so the visual result lands
@@ -3327,10 +3612,8 @@ export function MarketSection(props: MarketSectionProps) {
   const selfName = installed['dshmarket'] !== undefined ? 'dshmarket' : 'dsh-market'
   const updatableNames = Object.keys(installed).filter(
     name => name !== selfName
-      && !updatedNames.includes(name)
       && !effectiveDisabledSet.has(name)
-      && updates[name]
-      && updates[name].updateAvailable,
+      && isPluginUpdatable(name, String(installed[name]), updates[name], updatedNames),
   )
   // Replacing a local source with its catalog source is deliberately not a
   // batch update: every such plugin has an existing, explicit confirmation
@@ -3609,6 +3892,31 @@ export function MarketSection(props: MarketSectionProps) {
   const showHostPending = hostPendingNames.length > 0 && !restartNoticeDismissed && sessionPendingRestart === 0
   const pendingRestart = sessionPendingRestart > 0 ? sessionPendingRestart : (showHostPending ? hostPendingNames.length : 0)
   const displayedInstalled = pendingBackup === null ? installed : { ...pendingDependencies, ...installed }
+  /**
+   * Installed entries ordered for the list view.
+   *
+   * The order settles once and then holds, so rows never reshuffle under a
+   * pointer that is already aiming at one (#631). The single moment that has
+   * to reorder is when the update check lands: `/installed` is a local read
+   * and `/updates` is a network probe over every package, so the list is
+   * always rendered BEFORE the answer exists — freezing on the view alone
+   * would leave it in manifest order forever. `updatesLoaded` is therefore
+   * the one part of `updates` allowed in, as a boolean: it flips once when
+   * the result arrives, and every later change (a newer check, a row the user
+   * just updated) leaves the boolean and the order alone.
+   */
+  const isInstalledListActive = tab === 'installed' && installedView === 'list'
+  const updatesLoaded = Object.keys(updates).length > 0
+  const orderedInstalledEntries = useMemo(() => {
+    return Object.entries(displayedInstalled)
+      .filter(([name]) => name !== selfName)
+      .sort(([nameA, specA], [nameB, specB]) => {
+        const aUp = isPluginUpdatable(nameA, String(specA), updates[nameA], updatedNames, ignoredUpdateSet) ? 1 : 0
+        const bUp = isPluginUpdatable(nameB, String(specB), updates[nameB], updatedNames, ignoredUpdateSet) ? 1 : 0
+        return bUp - aUp
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `updatesLoaded` stands in for `updates`/`updatedNames`: reorder when the check lands, then hold (#631)
+  }, [isInstalledListActive, displayedInstalled, selfName, updatesLoaded])
   const missingRestoreCount = Object.keys(pendingDependencies).filter(name => !installedFiles.includes(name)).length
   // Self-update lives in the header button and the settings card, not this
   // tab's row list (the market itself is filtered out below) — so a pending
@@ -3652,6 +3960,167 @@ export function MarketSection(props: MarketSectionProps) {
     )
   }
 
+  /**
+   * Chip label for one capability name, or the scanner's own name.
+   *
+   * `network` has a label; a name this build has never seen (`dynamic-code`
+   * arrived after the first integration) shows as itself rather than
+   * disappearing — an unlabelled fact is still a fact, and a missing chip
+   * would read as "does not do that".
+   */
+  const capabilityLabel = (name: string): string => {
+    const key = 'cap' + name.split('-').map(part => part.charAt(0).toUpperCase() + part.slice(1)).join('')
+    const label = t(key)
+    return label === key ? name : label
+  }
+
+  /**
+   * The scanner's red-line sentences, in the reader's language.
+   *
+   * The scanner emits a fixed set of shapes — one per rule family — and every
+   * one of them is translated here. A sentence from a family this build does
+   * not know stays in the scanner's own words on purpose: a mistranslation of
+   * a security fact is worse than a foreign word, and this is the one line on
+   * the card a reader must not misread. The shapes are matched by their stable
+   * prefix rather than in full, so the parenthesised detail the scanner
+   * attaches can change without falling back to English.
+   */
+  const redLineLabel = (line: string): string => {
+    if (line === 'reads credentials/secrets AND has network access') return t('capRedCredentialsNetwork')
+    const plaintext = /^uses plaintext http:\/\/ to (.+)$/.exec(line)
+    if (plaintext !== null) return t('capRedPlaintextHttp').replace('{0}', plaintext[1]!)
+    const literalIp = /^uses literal IP (.+) for network access$/.exec(line)
+    if (literalIp !== null) return t('capRedLiteralIp').replace('{0}', literalIp[1]!)
+    const installScript = /^runs code at install time(?: \((.+)\))?$/.exec(line)
+    if (installScript !== null) {
+      return installScript[1] === undefined
+        ? t('capRedInstallScript')
+        : t('capRedInstallScriptScripts').replace('{0}', installScript[1])
+    }
+    // The parenthesised detail is not a name. The scanner emits exactly two
+    // shapes — "overrides bundle <id>" and "disables bundle <id>" — and pasting
+    // either through leaves the verb in English. That verb is the fact: the
+    // install would replace a part of DSH, or switch one off.
+    const coreVerb = /^tampers with a core bundle \((overrides|disables) bundle (.+)\)$/.exec(line)
+    if (coreVerb !== null) {
+      const key = coreVerb[1] === 'overrides' ? 'capRedCoreOverride' : 'capRedCoreDisable'
+      return t(key).replace('{0}', coreVerb[2]!)
+    }
+    const coreTamper = /^tampers with a core bundle(?: \((.+)\))?$/.exec(line)
+    if (coreTamper !== null) {
+      return coreTamper[1] === undefined
+        ? t('capRedCoreTamper')
+        : t('capRedCoreTamperDetail').replace('{0}', coreTamper[1])
+    }
+    return line
+  }
+
+  /**
+   * Whether a red line is one a reader has to weigh BEFORE installing, rather
+   * than a fact about what the plugin does once it runs.
+   *
+   * Two families qualify, for one reason: they happen at install time. There is
+   * no "afterwards" to inspect, so this is the last moment the decision can be
+   * made. The other families — credentials+network above all, 73% of every red
+   * line the catalog holds — describe what plugins normally do, and calling
+   * that urgent is how a warning gets trained away.
+   */
+  const redLineIsUrgent = (line: string): boolean =>
+    line.startsWith('runs code at install time') || line.startsWith('tampers with a core bundle')
+
+  /**
+   * What the static scan found (#401), in the detail dialog and nowhere else.
+   *
+   * It used to sit on both cards. It does not any more, for three reasons that
+   * all pointed the same way: a capability list does not help anyone choose a
+   * plugin, most of it cannot be acted on, and — the one that decided it — a
+   * line every card carries is a line nobody reads, including the install-time
+   * script that IS worth stopping for. So the card says nothing about this, the
+   * dialog leads with the one thing that needs a decision before you press
+   * install, and the rest of the facts are one click away.
+   *
+   * Which lines count as that one thing is `redLineIsUrgent`, not a guess made
+   * here: a rare rule that fires at install time, never a description of what
+   * plugins normally do.
+   */
+  const capabilityDetail = (p: RegistryPlugin) => {
+    const redLines = p.capabilityRedLines ?? []
+    return (
+      <>
+        {redLines.filter(redLineIsUrgent).map(line => (
+          <p key={line} className={css.warnLine}>
+            <IconWarningOutline16 size={14} className={css.bannerIcon} />
+            {' ' + redLineLabel(line)}
+          </p>
+        ))}
+        <DisclosureRow
+          icon={<IconQuestionOutline14 size={16} />}
+          title={t('capabilityTitle')}
+          open={capsOpen}
+          expandable
+          expandOnRowClick
+          onToggle={() => setCapsOpen(o => !o)}
+        >
+          <div className={css.caps}>
+            {p.capabilities === undefined
+              ? <span className={css.capMuted} data-state="unchecked">{t('capabilityUnchecked')}</span>
+              : p.capabilities.length === 0
+                ? <span className={css.capMuted} data-state="none">{t('capabilityNone')}</span>
+                : p.capabilities.map(name => (HostTag !== null
+                    ? <HostTag key={name} tone="outline" className={css.capChip}>{capabilityLabel(name)}</HostTag>
+                    : <span key={name} className={css.capChip}>{capabilityLabel(name)}</span>
+                  ))}
+            {redLines.filter(line => !redLineIsUrgent(line)).map(line => (
+              <span key={line} className={css.capFact}>{redLineLabel(line)}</span>
+            ))}
+          </div>
+          <p className={css.capCaveat}>{t('capabilityNote')}</p>
+          {typeof p.capabilityCheckedAt === 'string' && p.capabilityCheckedAt.length > 0 && (
+            <p className={css.capCaveat}>{t('capabilityScannedAt').replace('{0}', p.capabilityCheckedAt.slice(0, 10))}</p>
+          )}
+        </DisclosureRow>
+      </>
+    )
+  }
+
+  /**
+   * The enable/disable control, wherever it appears — the installed row, a
+   * group member row, the plugin detail view. One helper because they were
+   * three copies of the same markup, and because the host has this component:
+   * its own plugin list uses `Switch`, so the market's rows should look like
+   * the list they sit in. Before 0.1.7-rc.2 the market's own switch renders,
+   * with the same `role="switch"` contract either way.
+   */
+  const onOffSwitch = (opts: { label: string; on: boolean; disabled: boolean; toggle: () => void }) => (HostSwitch !== null
+    ? <HostSwitch checked={opts.on} onChange={() => opts.toggle()} label={opts.label} disabled={opts.disabled} />
+    : (
+        <button
+          type="button"
+          role="switch"
+          aria-checked={opts.on}
+          aria-label={opts.label}
+          className={opts.on ? `${css.switch} ${css.switchOn}` : css.switch}
+          disabled={opts.disabled}
+          onClick={opts.toggle}
+        >
+          <span className={css.switchKnob} />
+        </button>
+      ))
+
+  /**
+   * A labelled checkbox: the host's when it has one, the market's label+input
+   * otherwise. Only the simple ones go through here — see `HostCheckbox` for
+   * why the export rows and the recovery panel keep their own markup.
+   */
+  const labelledCheckbox = (opts: { label: string; checked: boolean; disabled?: boolean; className?: string; onChange: (next: boolean) => void }) => (HostCheckbox !== null
+    ? <HostCheckbox checked={opts.checked} onChange={opts.onChange} label={opts.label} disabled={opts.disabled} className={opts.className} />
+    : (
+        <label className={opts.className}>
+          <input type="checkbox" checked={opts.checked} disabled={opts.disabled} onChange={event => opts.onChange(event.target.checked)} />
+          {opts.label}
+        </label>
+      ))
+
   const pluginCard = (p: RegistryPlugin) => {
     const desc = (p.description && (p.description[lang] || p.description.en)) || ''
     const done = doneUrls.includes(p.url) || hotUrls.includes(p.url)
@@ -3663,6 +4132,7 @@ export function MarketSection(props: MarketSectionProps) {
     // is the obvious next move — which is how the same clash gets hit twice.
     const record = recordForUrl(records, p.url)
     const blocked = record !== null && (record.state === 'input' || record.state === 'failed')
+    const queued = record !== null && record.state === 'queued'
     const compatibility = typeof p.npm === 'string' ? hostCompatibility[p.npm] : undefined
     const hostRequirementLabel = compatibility?.requirement !== null && compatibility?.requirement !== undefined
       ? t('hostRequirement').replace('{0}', compatibility.requirement)
@@ -3695,11 +4165,7 @@ export function MarketSection(props: MarketSectionProps) {
               <OwnerAvatar name={p.name} owner={p.owner || ''} />
               <span className={css.owner} title={p.owner}>{p.owner}</span>
               <CatalogVersionMark version={p.version} tip={catalogVersionTip} />
-              {typeof p.downloads === 'number' && (
-                <Tooltip label={String(p.downloads)} side="top">
-                  <span className={css.star}>{'· ↓ ' + formatCount(p.downloads)}</span>
-                </Tooltip>
-              )}
+              <DownloadCount plugin={p} t={t} />
               {typeof p.stars === 'number' && (
                 <Tooltip label={String(p.stars)} side="top">
                   <span className={css.star}>{'· ★ ' + formatCount(p.stars)}</span>
@@ -3718,7 +4184,14 @@ export function MarketSection(props: MarketSectionProps) {
                 ? <span className={css.okState}>{t('alreadyInstalled')}</span>
                 : busy
                   ? <Button variant="primary" size="sm" className={css.installBtn} disabled>{t('installing')}</Button>
-                  : blocked
+                  : queued
+                    ? (
+                        <button type="button" className={css.cardBlockedMark} onClick={openOperations}>
+                          <IconWarningOutline16 size={13} />
+                          {t('queuedBadge')}
+                        </button>
+                      )
+                    : blocked
                     ? (
                         <button type="button" className={css.cardBlockedMark} onClick={openOperations}>
                           <IconWarningOutline16 size={13} />
@@ -3817,6 +4290,7 @@ export function MarketSection(props: MarketSectionProps) {
     const busy = busyUrl === p.url
     const record = recordForUrl(records, p.url)
     const blocked = record !== null && (record.state === 'input' || record.state === 'failed')
+    const themeQueued = record !== null && record.state === 'queued'
     // A theme switched off via the Installed-tab toggle (or a group switch)
     // stays in the boot manifest, so the disabled set must veto the badge.
     const mounted = instName !== null
@@ -3837,11 +4311,7 @@ export function MarketSection(props: MarketSectionProps) {
                 <OwnerAvatar name={p.name} owner={p.owner || ''} />
                 <span className={css.owner} title={p.owner}>{p.owner}</span>
                 <CatalogVersionMark version={p.version} tip={catalogVersionTip} />
-                {typeof p.downloads === 'number' && (
-                  <Tooltip label={String(p.downloads)} side="top">
-                    <span className={css.star}>{'· ↓ ' + formatCount(p.downloads)}</span>
-                  </Tooltip>
-                )}
+                <DownloadCount plugin={p} t={t} />
                 {typeof p.stars === 'number' && (
                   <Tooltip label={String(p.stars)} side="top">
                     <span className={css.star}>{'· ★ ' + formatCount(p.stars)}</span>
@@ -3886,7 +4356,14 @@ export function MarketSection(props: MarketSectionProps) {
                   ? <span className={css.okState}>{t('installedBadge')}</span>
                   : busy
                     ? <Button variant="primary" size="sm" className={css.installBtn} disabled>{t('installing')}</Button>
-                    : blocked
+                    : themeQueued
+                      ? (
+                          <button type="button" className={css.cardBlockedMark} onClick={openOperations}>
+                            <IconWarningOutline16 size={13} />
+                            {t('queuedBadge')}
+                          </button>
+                        )
+                      : blocked
                       ? (
                           <button type="button" className={css.cardBlockedMark} onClick={openOperations}>
                             <IconWarningOutline16 size={13} />
@@ -4228,6 +4705,7 @@ export function MarketSection(props: MarketSectionProps) {
               setRecords(list => drop(list, record.id))
               doInstall(plugin, true)
             }}
+            onRunNow={runQueuedNow}
             onApproveBuilds={(record) => {
               const names = record.blockedBuilds ?? []
               if (names.length === 0) return
@@ -4540,7 +5018,12 @@ export function MarketSection(props: MarketSectionProps) {
                     <Button variant="primary" size="sm" disabled={backupBusy || webdavUrl.trim() === ''} onClick={() => runWebdav('backup')}>{backupBusy ? t('backupWorking') : t('webdavUpload')}</Button>
                     <Button variant="outline" size="sm" disabled={backupBusy || webdavUrl.trim() === ''} onClick={() => runWebdav('restore')}>{t('webdavRestore')}</Button>
                   </div>
-                  <label className={css.backupCheck}><input type="checkbox" checked={autoBackup} onChange={e => setAutoBackup(e.target.checked)} />{t('autoBackup')}</label>
+                  {labelledCheckbox({
+                    label: t('autoBackup'),
+                    checked: autoBackup,
+                    className: css.backupCheck,
+                    onChange: setAutoBackup,
+                  })}
                   <p>{t('webdavNote')}</p>
                   <p className={css.backupWarn}>{t('credsWarning')}</p>
                 </section>
@@ -4919,6 +5402,12 @@ export function MarketSection(props: MarketSectionProps) {
                                             ? <IconChevronRightOutline14 size={14} />
                                             : <IconChevronDownOutline14 size={14} />}
                                         </button>
+                                        {/* Deliberately NOT onOffSwitch: a group's state is
+                                            three-valued (all on / all off / mixed), and the
+                                            host's Switch is a boolean control — routing this
+                                            through it would flatten "mixed" into one of the
+                                            two, which is the one thing this switch must not
+                                            say. */}
                                         <button
                                           type="button"
                                           role="switch"
@@ -4998,17 +5487,12 @@ export function MarketSection(props: MarketSectionProps) {
                                                 {installedThemeNames.has(member) && <span className={css.memberKind}>· {t('groupThemeBadge')}</span>}
                                               </span>
                                               {effectiveDisabledSet.has(member) && <span className={css.spec}>{t('disabledState')}</span>}
-                                              <button
-                                                type="button"
-                                                role="switch"
-                                                aria-checked={!effectiveDisabledSet.has(member)}
-                                                aria-label={(effectiveDisabledSet.has(member) ? t('enable') : t('disable')) + ' ' + member}
-                                                className={effectiveDisabledSet.has(member) ? css.switch : `${css.switch} ${css.switchOn}`}
-                                                disabled={togglingName !== null}
-                                                onClick={() => doToggle(member, effectiveDisabledSet.has(member))}
-                                              >
-                                                <span className={css.switchKnob} />
-                                              </button>
+                                              {onOffSwitch({
+                                                label: (effectiveDisabledSet.has(member) ? t('enable') : t('disable')) + ' ' + member,
+                                                on: !effectiveDisabledSet.has(member),
+                                                disabled: togglingName !== null,
+                                                toggle: () => doToggle(member, effectiveDisabledSet.has(member)),
+                                              })}
                                               <Button variant="ghost" size="sm" onClick={() => doRemoveMember(gid, member)}>{t('groupRemove')}</Button>
                                             </div>
                                           ))}
@@ -5113,15 +5597,12 @@ export function MarketSection(props: MarketSectionProps) {
                             <p className={css.groupOrgHint}>{t('groupOrgHint')}</p>
                           </>
                         )
-                      : Object.keys(displayedInstalled).filter(name => name !== selfName).length === 0
+                      : orderedInstalledEntries.length === 0
                         ? <div className={css.empty}>{t('installedEmpty')}</div>
                         : (
                           <Masonry
-                            items={Object.entries(displayedInstalled)
+                            items={orderedInstalledEntries
                             .filter(([name, spec]) => {
-                              // The market manages itself from its own settings
-                              // card, not as a row in this list (#188-adjacent).
-                              if (name === selfName) return false
                               const needle = qInstalled.trim().toLowerCase()
                               if (needle === '') return true
                               if (name.toLowerCase().includes(needle)) return true
@@ -5258,7 +5739,7 @@ export function MarketSection(props: MarketSectionProps) {
                                       one quiet line in the flow the row already
                                       reserves for conditional content, so rows
                                       without it are pixel-identical to before. */}
-                                  {status !== undefined && (status.updateAvailable || (generation && status.latest != null)) && (
+                                  {isPluginUpdatable(name, String(spec), status, []) && (
                                     <div className={css.noteRow}>
                                       <button
                                         type="button"
@@ -5349,17 +5830,12 @@ export function MarketSection(props: MarketSectionProps) {
                                   </span>
                                 )}
                                 {toggleable && (
-                                  <button
-                                    type="button"
-                                    role="switch"
-                                    aria-checked={!off}
-                                    aria-label={(off ? t('enable') : t('disable')) + ' ' + name}
-                                    className={off ? css.switch : `${css.switch} ${css.switchOn}`}
-                                    disabled={togglingName !== null || busyUrl !== null || updatingName !== null || removingName !== null}
-                                    onClick={() => doToggle(name, off)}
-                                  >
-                                    <span className={css.switchKnob} />
-                                  </button>
+                                  onOffSwitch({
+                                    label: (off ? t('enable') : t('disable')) + ' ' + name,
+                                    on: !off,
+                                    disabled: togglingName !== null || busyUrl !== null || updatingName !== null || removingName !== null,
+                                    toggle: () => doToggle(name, off),
+                                  })
                                 )}
                                 {/* State and switch pack left, the operations
                                     pack right: with everything in one flow the
@@ -5620,11 +6096,7 @@ export function MarketSection(props: MarketSectionProps) {
             <OwnerAvatar name={confirming.name} owner={confirming.owner || ''} />
             <span className={css.owner} title={confirming.owner}>{confirming.owner}</span>
             <CatalogVersionMark version={confirming.version} tip={catalogVersionTip} />
-            {typeof confirming.downloads === 'number' && (
-              <Tooltip label={String(confirming.downloads)} side="top">
-                <span className={css.star}>{'· ↓ ' + formatCount(confirming.downloads)}</span>
-              </Tooltip>
-            )}
+            <DownloadCount plugin={confirming} t={t} />
             {typeof confirming.stars === 'number' && (
               <Tooltip label={String(confirming.stars)} side="top">
                 <span className={css.star}>{'· ★ ' + formatCount(confirming.stars)}</span>
@@ -5638,6 +6110,9 @@ export function MarketSection(props: MarketSectionProps) {
             ))}
           </div>
           {confirming.added && <div className={css.metaInline}>{t('published') + ' ' + confirming.added}</div>}
+          {downloadStatsText(confirming, t) !== null && (
+            <div className={css.metaInline}>{downloadStatsText(confirming, t)}</div>
+          )}
           {/* The Modal primitive's own `description` prop is sized for a
               one-line subtitle under the title — a full plugin description
               rendered there read as an oversized heading, not body text
@@ -5646,6 +6121,7 @@ export function MarketSection(props: MarketSectionProps) {
               description, then screenshots. */}
           <CardDesc text={(confirming.description && (confirming.description[lang] || confirming.description.en)) || ''} t={t} />
           <ScreenshotStrip plugin={confirming} onOpen={openLightbox} />
+          {capabilityDetail(confirming)}
           <DisclosureRow
             icon={<IconCodeOutline16 size={16} />}
             title={t('cmdDetails')}
@@ -6020,10 +6496,12 @@ export function MarketSection(props: MarketSectionProps) {
                   </label>
                 ))}
               </div>
-              <label className={css.backupCheck}>
-                <input type="checkbox" checked={exportIncludeConfig} onChange={e => setExportIncludeConfig(e.target.checked)} />
-                {t('gistIncludeConfig')}
-              </label>
+              {labelledCheckbox({
+                label: t('gistIncludeConfig'),
+                checked: exportIncludeConfig,
+                className: css.backupCheck,
+                onChange: setExportIncludeConfig,
+              })}
               {exportIncludeConfig && <p className={css.backupWarn}>{t('credsWarning')}</p>}
               {exportError !== null && <p className={css.backupWarn}>{exportError}</p>}
             </>

@@ -267,7 +267,9 @@
 .row1{display:flex;align-items:flex-start;gap:10px;min-width:0}
 .cardAction{flex-shrink:0;display:inline-flex;align-items:center}
 .installBtn.installBtn{min-width:64px}
-.av{width:16px;height:16px;border-radius:50%;display:grid;place-items:center;font-weight:700;color:#fff;font-size:9px;flex-shrink:0;object-fit:cover;background:var(--dsw-alias-bg-layer-2,#f3f4f6)}
+/* The avatar letter sits on `bg-layer-2`, which is white in the light theme:
+   a hardcoded white was invisible there. Ink on a surface is `label-primary`. */
+.av{width:16px;height:16px;border-radius:50%;display:grid;place-items:center;font-weight:700;color:var(--dsw-alias-label-primary,#1f2328);font-size:9px;flex-shrink:0;object-fit:cover;background:var(--dsw-alias-bg-layer-2,#f3f4f6)}
 /* The plugin name carries the card, so it is the one thing sized up; the
    author sits under it as a signature. Same reading order as a post
    header — you take in who wrote it in one glance and spend the rest on
@@ -572,7 +574,7 @@
    same way .installBtn and .catsToggle do. */
 .dangerBtn.dangerBtn{color:var(--dsw-alias-state-error-primary,#dc2626);border-color:var(--dsw-alias-state-error-primary,#dc2626)}
 .dangerBtn.dangerBtn:hover:not(:disabled){background:var(--dsw-alias-state-error-primary,#dc2626);color:#fff}
-.dangerArmed.dangerArmed{background:var(--dsw-alias-state-error-primary,#dc2626);border-color:var(--dsw-alias-state-error-primary,#dc2626);color:#fff}
+.dangerArmed.dangerArmed{background:var(--dsw-alias-state-error-primary,#dc2626);border-color:var(--dsw-alias-state-error-primary,#dc2626);color:var(--dsw-alias-label-primary-foreground,#fff)}
 .retryBtn{margin-top:4px}
 .irow{background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l2,#e5e7eb);
       border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;min-width:0}
@@ -593,6 +595,21 @@
 .irow button{white-space:nowrap;flex-shrink:0}
 .tabSearchRow{display:flex;align-items:center;gap:8px;padding:0 4px 12px}
 .tabSearch{flex:1;min-width:0}
+/* Capability disclosure (#401). Quiet by design: these are facts beside the
+   install button, not a warning banner — the one loud element is a red line,
+   and it borrows the warning colour rather than inventing a severity scale. */
+.caps{display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:0 2px 6px;font-size:11px;line-height:1.5;min-width:0}
+.capsTitle{color:var(--dsw-alias-label-secondary,#8b949e);cursor:help}
+.capChip{border:1px solid var(--dsw-alias-border-l2,#30363d);border-radius:999px;padding:0 6px;color:var(--dsw-alias-label-primary,#c9d1d9);white-space:nowrap}
+.capMuted{border:1px dashed var(--dsw-alias-border-l2,#30363d);border-radius:999px;padding:0 6px;color:var(--dsw-alias-label-secondary,#8b949e);white-space:nowrap}
+/* The scanned facts that are not warnings: same quiet tone as the chips they
+   sit beside, because they are the same kind of thing — a statement about the
+   plugin, not a judgement about it. */
+.capFact{color:var(--dsw-alias-label-secondary,#8b949e)}
+/* The honesty clause under the facts. It was a hover tooltip while this row sat
+   on a card; it is body copy now, because the reader who opened this is the
+   reader who needs it. */
+.capCaveat{color:var(--dsw-alias-label-tertiary,#8b93a1);font-size:11px;line-height:16px;margin:6px 0 0}
 .searchField{position:relative;min-width:0;box-sizing:border-box}
 /* The primitives' Input applies className to its padded OUTER span, not the
    native input, so the reserved space for the clear button belongs here and
@@ -607,8 +624,11 @@
 /* Buttons sharing the row with a description must keep one line (#26, thanks @yanshuai2002) */
 .spec{font-size:11px;color:var(--dsw-alias-label-secondary,#9ca3af);font-family:ui-monospace,Menlo,monospace;overflow-wrap:anywhere;min-width:0}
 .specTag{display:inline-flex;align-items:center;height:16px;padding:0 5px;border-radius:4px;font-size:10px;font-weight:600;white-space:nowrap;flex-shrink:0}
-.specTagGit{color:#0b7285;background:rgba(18,163,196,.12)}
-.specTagFile{color:#b07d1b;background:rgba(240,180,41,.14)}
+/* The text colour comes from the host palette like everything else here; the
+   wash behind it stays a local tint, because the host has no "tinted chip" role
+   to borrow. Fallbacks are the values these had hardcoded. */
+.specTagGit{color:var(--dsw-alias-state-business-primary,#0b7285);background:rgba(18,163,196,.12)}
+.specTagFile{color:var(--dsw-alias-state-warn-primary,#b07d1b);background:rgba(240,180,41,.14)}
 .backupCheckList .grow{flex:1 1 70%;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .backupCheckList .spec{flex:0 1 30%;max-width:30%;text-align:right;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 /* A row, with room between the two buttons. `.err` sets break-all for long
@@ -734,10 +754,19 @@
 .diagVal{font-size:12px;font-weight:500;color:var(--dsw-alias-label-primary,#1f2328);font-family:ui-monospace,Menlo,monospace;overflow-wrap:anywhere;min-width:0}
 .diagIndex{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:9px;background:var(--dsw-alias-bg-layer-2,#f3f4f6);color:var(--dsw-alias-label-secondary,#6b7280);font-size:11px;font-weight:600;flex-shrink:0}
 .diagArrow{color:var(--dsw-alias-label-tertiary,#9ca3af);font-size:12px;flex-shrink:0}
-.diagBadgeOfficial{display:inline-flex;align-items:center;padding:0 8px;height:18px;border-radius:9px;background:var(--dsw-alias-brand-primary,#4f6ef7);color:#fff;font-size:11px;font-weight:600;flex-shrink:0}
+/* The filled badge pair (#731). `--dsw-alias-brand-primary` is an INK token:
+   near-black in the light theme, near-white in the dark one — the host uses it
+   for text and strokes, never as a surface. The market had it as a background
+   with a hardcoded #fff, so in dark mode the badge and its label were both
+   #f9fafb: white on white, invisible, and only on the one host line whose theme
+   resolves that token that way. The host's own filled primary pair is
+   `button-primary-fill` + `label-primary-foreground`, which is what a filled
+   badge has to use — both fall back to the old pair for hosts that predate
+   them. */
+.diagBadgeOfficial{display:inline-flex;align-items:center;padding:0 8px;height:18px;border-radius:9px;background:var(--dsw-alias-button-primary-fill,var(--dsw-alias-brand-primary,#4f6ef7));color:var(--dsw-alias-label-primary-foreground,#fff);font-size:11px;font-weight:600;flex-shrink:0}
 .diagBadgeCommunity{display:inline-flex;align-items:center;padding:0 8px;height:18px;border-radius:9px;background:var(--dsw-alias-bg-layer-2,#f3f4f6);color:var(--dsw-alias-label-secondary,#6b7280);font-size:11px;flex-shrink:0}
-.diagBadgeShadow{display:inline-flex;align-items:center;padding:0 8px;height:18px;border-radius:9px;background:var(--dsw-alias-state-error-primary,#dc2626);color:#fff;font-size:11px;font-weight:600;flex-shrink:0}
-.diagBadgeWarn{display:inline-flex;align-items:center;padding:0 8px;height:18px;border-radius:9px;background:var(--dsw-alias-state-warn-primary,#b45309);color:#fff;font-size:11px;font-weight:600;flex-shrink:0;white-space:nowrap}
+.diagBadgeShadow{display:inline-flex;align-items:center;padding:0 8px;height:18px;border-radius:9px;background:var(--dsw-alias-state-error-primary,#dc2626);color:var(--dsw-alias-label-primary-foreground,#fff);font-size:11px;font-weight:600;flex-shrink:0}
+.diagBadgeWarn{display:inline-flex;align-items:center;padding:0 8px;height:18px;border-radius:9px;background:var(--dsw-alias-state-warn-primary,#b45309);color:var(--dsw-alias-label-primary-foreground,#fff);font-size:11px;font-weight:600;flex-shrink:0;white-space:nowrap}
 .diagBadgeInfo{display:inline-flex;align-items:center;padding:0 8px;height:18px;border-radius:9px;background:var(--dsw-alias-bg-layer-2,#f3f4f6);color:var(--dsw-alias-label-secondary,#6b7280);font-size:11px;flex-shrink:0;white-space:nowrap}
 .diagList{display:flex;flex-direction:column;gap:6px}
 
@@ -746,10 +775,10 @@
 .diagAlert{color:var(--dsw-alias-state-warn-primary,#b45309)}
 .ovRow{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:12px;line-height:18px;background:var(--dsw-alias-bg-layer-2,#f7f8fa);border-radius:8px;padding:6px 10px;min-width:0}
 .ovArrow{color:var(--dsw-alias-label-tertiary,#9ca3af);font-size:12px;flex-shrink:0}
-.ovByTag{display:inline-flex;align-items:center;padding:0 8px;height:18px;border-radius:9px;background:var(--dsw-alias-brand-primary,#4f6ef7);color:#fff;font-size:11px;font-weight:600;flex-shrink:0;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ovByTag{display:inline-flex;align-items:center;padding:0 8px;height:18px;border-radius:9px;background:var(--dsw-alias-button-primary-fill,var(--dsw-alias-brand-primary,#4f6ef7));color:var(--dsw-alias-label-primary-foreground,#fff);font-size:11px;font-weight:600;flex-shrink:0;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ovFrom{color:var(--dsw-alias-label-secondary,#6b7280);font-size:12px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .orphRow{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:12px;line-height:18px;background:var(--dsw-alias-bg-layer-2,#f7f8fa);border-radius:8px;padding:6px 10px;min-width:0}
-.orphBadge{display:inline-flex;align-items:center;padding:0 8px;height:18px;border-radius:9px;background:var(--dsw-alias-state-warn-primary,#b45309);color:#fff;font-size:11px;font-weight:600;flex-shrink:0;white-space:nowrap}
+.orphBadge{display:inline-flex;align-items:center;padding:0 8px;height:18px;border-radius:9px;background:var(--dsw-alias-state-warn-primary,#b45309);color:var(--dsw-alias-label-primary-foreground,#fff);font-size:11px;font-weight:600;flex-shrink:0;white-space:nowrap}
 .dragHandle{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;color:var(--dsw-alias-label-tertiary,#9ca3af);cursor:grab;flex-shrink:0;user-select:none;font-size:12px;line-height:20px}
 .dragOver{outline:2px dashed var(--dsw-alias-brand-primary,#4f6ef7);outline-offset:2px;border-radius:8px;background:var(--dsw-alias-bg-layer-2,#f0f2f8)}
 .dragging{opacity:.45;background:var(--dsw-alias-bg-layer-2,#f3f4f6)}
@@ -775,6 +804,9 @@
    text block, so the user can still copy it by hand. */
 .fixFallback{display:flex;flex-direction:column;gap:6px;margin:8px 0}
 .fixFallbackText{width:100%;box-sizing:border-box;font-family:ui-monospace,Menlo,monospace;font-size:11px;line-height:16px;color:var(--dsw-alias-label-primary,#1f2328);background:var(--dsw-alias-bg-layer-2,#f3f4f6);border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:6px;padding:8px 10px;resize:vertical;white-space:pre-wrap;word-break:break-all}
+/* #336: the build-environment editor on the market's own card — same
+   sheet-metal as the AI-fix fallback textarea, so both read as one format. */
+.envEditor{width:100%;box-sizing:border-box;font-family:ui-monospace,Menlo,monospace;font-size:11px;line-height:16px;color:var(--dsw-alias-label-primary,#1f2328);background:var(--dsw-alias-bg-layer-2,#f3f4f6);border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:6px;padding:8px 10px;resize:vertical;white-space:pre-wrap;word-break:break-all}
 /* Plugin-configuration card (dsh >= rc.7). Drawn here rather than imported:
    the section's own cards live in a package whose value import would fail
    the client bundle-purity gate, so a card owns its appearance. Matches the

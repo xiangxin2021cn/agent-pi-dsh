@@ -35,23 +35,6 @@ export function missingPrimitives(mod: Record<string, unknown>, required: readon
 }
 
 /**
- * The host surface the settings card needs, present only on rc.7+.
- *
- * The card no longer reads or writes settings — it manages the market's own
- * package — but `settingsScope` stays as the INJECTION KEY, because its
- * presence is what distinguishes a host that has the plugin configuration
- * page from one that does not. The market's namespace (registered in
- * settings.ts) is likewise still required: the page dispatches a card keyed
- * by a namespace it serves, so dropping it would take the card with it.
- */
-interface SettingsScopeHost {
-  slots: {
-    inject(name: string, register: () => unknown): void
-    register(options: Record<string, unknown>, render: () => unknown): unknown
-  }
-}
-
-/**
  * The package name the host keys a bundle's own configuration by.
  *
  * `plugins.bundle.config` on dsh 0.1.7+ is keyed by the BUNDLE's package
@@ -199,24 +182,6 @@ export function apply(ctx: MarketClientContext): void {
     ;(ctx as unknown as { provide: (name: string, value: unknown) => void }).provide('market', marketControl)
   }
 
-  // The settings card (dsh >= 0.1.0-rc.7). Registered through a NESTED
-  // inject on purpose: naming settingsScope in the module-level `inject`
-  // would keep this whole plugin unmounted on any host without that
-  // service — the market's own page would vanish on rc.6 to gain a card
-  // rc.6 cannot render. Nested, the card simply never appears there.
-  const settingsCtx = ctx as unknown as {
-    inject(services: string[], callback: (scoped: SettingsScopeHost) => void): void
-  }
-  settingsCtx.inject(['configForms'], (scoped) => {
-    scoped.slots.inject('settings.plugins.tab', () => scoped.slots.register({
-      name: 'settings.plugins.tab',
-      id: NS,
-      label: () => t('title'),
-      locale: NS,
-      inject: () => ({ t }),
-    }, () => h(SettingsCard, { t, onRemoved: () => { sectionGate.retire() } })))
-  })
-
   // The card's seat on 0.1.7+ (#677). The host moved a plugin's own
   // configuration onto its bundle's page in the sidebar's Plugins page, and
   // states in its own slot contract where a THIRD-PARTY bundle's
@@ -245,6 +210,41 @@ export function apply(ctx: MarketClientContext): void {
     // description already carries; the card is the page.
     ? null
     : h(SettingsCard, { t, onRemoved: () => { sectionGate.retire() } })))
+
+  // The seat on the 0.1.7 line (#722). That release renamed the client's
+  // `settingsScope` service to `settings`, so the nested inject above stopped
+  // firing and `settings.plugin.item` — the settings-list card — went silent
+  // with no error anywhere. `settings.plugins.tab` is what that line's slot
+  // contract offers instead: "one page inside the Plugins settings section",
+  // rendered as a tab beside the host's own. Reported as "the settings card
+  // disappeared".
+  //
+  // This does not replace the `plugins.bundle.config` registration above, and
+  // that one did not stop firing: 0.1.7 declares it (`ui-plugin-manager` — "a
+  // bundle's own configuration, keyed by the bundle's package name and
+  // rendered on the bundle's page"), so the market's card is also on the
+  // market bundle's page in the Plugins section. BOTH seats are deliberate:
+  // the tab is where a user opens the market's settings from that section, the
+  // bundle page is where the plugin manager shows them for the installed
+  // bundle. Keep both.
+  //
+  // Detection is the slot itself, as everywhere else here: a host that does
+  // not declare it never runs this, and the older line keeps its card through
+  // `settings.plugin.item`.
+  const pluginsTabCtx = ctx as unknown as {
+    slots: {
+      inject(name: string, register: () => unknown): void
+      register(options: Record<string, unknown>, render: () => unknown): unknown
+    }
+  }
+  pluginsTabCtx.slots.inject('settings.plugins.tab', () => pluginsTabCtx.slots.register({
+    name: 'settings.plugins.tab',
+    id: NS,
+    order: 60,
+    label: () => t('nav'),
+    locale: NS,
+    inject: () => ({ t }),
+  }, () => h(SettingsCard, { t, onRemoved: () => { sectionGate.retire() } })))
 
   const Toast = () => h(InstallToast, { t })
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({

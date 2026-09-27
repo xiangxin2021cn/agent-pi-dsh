@@ -83,7 +83,16 @@ export function auditTenderSubmissionDocuments(
   }
 
   const coveredKinds = new Set(data.items.filter((item) => item.status === 'ready').map((item) => item.kind));
-  for (const kind of REQUIRED_KINDS) {
+  const requiredKinds = data.requiredDeliverableIds === undefined ? REQUIRED_KINDS : [];
+  const requiredIds = data.requiredDeliverableIds === undefined ? [] : [...new Set([...data.requiredDeliverableIds, ...workspace.deliverables.map(row => row.id)])];
+  for (const id of requiredIds) {
+    if (!deliverableIds.has(id)) {
+      issues.push({ code: 'submission_required_deliverable_unknown', severity: 'error', entityType: 'submission_document', entityId: id, message: `Required returnable ${id} is not registered in this tender.` });
+    } else if (!data.items.some(item => item.deliverableId === id && item.status === 'ready')) {
+      issues.push({ code: 'submission_required_deliverable_missing', severity: 'error', entityType: 'submission_document', entityId: id, message: `Actual tender returnable ${id} is not ready.` });
+    }
+  }
+  for (const kind of requiredKinds) {
     if (!coveredKinds.has(kind)) {
       issues.push({
         code: 'submission_document_required_kind_missing',
@@ -112,7 +121,9 @@ export function auditTenderSubmissionDocuments(
       items: data.items.length,
       readyItems: data.items.filter((item) => item.status === 'ready').length,
       blockedItems: data.items.filter((item) => item.status === 'blocked').length,
-      requiredKindsCovered: REQUIRED_KINDS.filter((kind) => coveredKinds.has(kind)).length,
+      requiredKindsCovered: data.requiredDeliverableIds === undefined
+        ? REQUIRED_KINDS.filter((kind) => coveredKinds.has(kind)).length
+        : requiredIds.filter(id => data.items.some(item => item.deliverableId === id && item.status === 'ready')).length,
     },
     issues,
   };

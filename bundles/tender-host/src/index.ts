@@ -61,7 +61,7 @@ export function apply(ctx: {
     attachHttp({
       webServer: inner.webServer,
       effect: (fn) => inner.effect(fn),
-      getCapabilities: () => ({ workbench: Boolean(ctx.get?.('workbench')), knowledge: Boolean(ctx.get?.('agentPiKnowledge')) }),
+      getCapabilities: () => ({ workbench: Boolean(ctx.get?.('workbench')), knowledge: Boolean(ctx.get?.('agentPiKnowledge')), taskGuide: Boolean(ctx.get?.('taskGuide')) }),
       getDefaultModel: () => {
         const service = ctx.get?.('agentDefaultModel') as {
           currentSelection?: () => { provider: string; model: string; reasoningEffort?: string }

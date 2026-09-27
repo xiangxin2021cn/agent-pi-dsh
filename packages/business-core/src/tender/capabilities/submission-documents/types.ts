@@ -23,6 +23,8 @@ export interface TenderSubmissionDocumentItem {
 
 export interface TenderSubmissionDocumentsData {
   items: TenderSubmissionDocumentItem[];
+  /** Actual tender returnables for this assignment; absent retains legacy project checks. */
+  requiredDeliverableIds?: string[];
 }
 
 export interface TenderSubmissionDocumentsAudit {

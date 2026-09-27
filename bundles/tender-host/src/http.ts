@@ -224,7 +224,7 @@ export function attachHttp(ctx: {
   }
   effect?: (install: () => (() => void)) => unknown
   run?: <T>(fn: () => T) => T
-  getCapabilities?: () => { workbench: boolean; knowledge: boolean }
+  getCapabilities?: () => { workbench: boolean; knowledge: boolean; taskGuide?: boolean }
   getUniver?: () => UniverOfficeService | null | undefined
   getDefaultModel?: () => { provider: string; model: string; reasoningEffort?: string } | undefined
 }, owner?: ProductPluginOwner): void {

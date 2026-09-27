@@ -8,6 +8,8 @@
 
 <h1 align="center">Agent Pi DSH</h1>
 
+3.7.5 开发及本地交付新增专业任务引导、项目国别与依据评估、BOQ 成本/资源推导和实际递交清单检查，沿用原生 DSH 执行机制。见[使用说明](docs/professional-task-guide.md)、[实施计划](docs/implementation-plan-3.7.5.md)和[验证记录](docs/verification-3.7.5.md)。下方公开下载继续指向已发布版本。
+
 <p align="center">由 Always π AI studio 独立开发和维护<br>Independently developed and maintained by Always π AI studio.</p>
 
 <p align="center">

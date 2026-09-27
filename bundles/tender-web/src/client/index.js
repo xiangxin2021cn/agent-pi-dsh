@@ -16,6 +16,7 @@ import { createWorkbenchView } from './workbench-view.js'
 import { clientCss } from './styles.js'
 import { createProfessionalDepth, professionalDepthCss, prepareDepthSubmission } from './professional-depth.js'
 import { createTaskProcess, taskProcessCss } from './task-process.js'
+import { createTaskGuide, taskGuideCss } from './task-guide.js'
 import { installNativeWorkFilePreviews, nativeWorkFilePreviewCss } from './native-work-file-preview.js'
 import { buildCodexTurnDelegation, codexTurnModel, codexSupportsEffort, resolveCodexTurnSelection } from '../codex-turn.ts'
 import { fileIconClass, fileIconMeta, fileIconName } from '../file-icons.ts'
@@ -48,7 +49,7 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
     const MARKUP_RE = /[`*!\[]/
     const HTML_SPECIAL_RE = /[&<>"]/
 
-    const css = clientCss + professionalDepthCss + taskProcessCss + nativeWorkFilePreviewCss
+    const css = clientCss + professionalDepthCss + taskProcessCss + nativeWorkFilePreviewCss + taskGuideCss
     if (typeof document !== 'undefined') {
       const existing = document.querySelector('style[data-plugin-css="dsh-tender-web"]')
       if (existing) existing.remove()
@@ -6147,6 +6148,17 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
       return h(TaskProcess, { sessionId: id })
     }
 
+    const TaskGuide = createTaskGuide({ React, api,
+      cwd: () => snapshotComposer()?.cwd || '',
+      language: () => document.documentElement.lang || 'zh',
+      subscribe: (id, listener) => subscribeSessionWithChat(id, codexTurnAuthorities(id)?.session, listener),
+    })
+    function TaskGuideView(props) {
+      useApLang()
+      const capabilities = productCapabilities.use()
+      return capabilities.taskGuide ? h(TaskGuide, { sessionId: props.sessionId || '', onClose: () => props.openView('chat', '') }) : h('p', null, langState.lang === 'zh' ? '任务引导插件未启用。' : 'Task guide plugin is not enabled.')
+    }
+
     const ProfessionalDepth = createProfessionalDepth({
       React, api,
       fillDraft: fillComposer,
@@ -8122,6 +8134,10 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
       ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register(
         { name: 'conversation.session.header.utilities', id: 'agent-pi-task-process', order: 10, label: '执行详情' },
         TaskProcessHeader,
+      ))
+      ctx.slots.inject('conversation.view', () => ctx.slots.register(
+        { name: 'conversation.view', id: 'agent-pi-task-guide', order: 40, label: () => langState.lang === 'zh' ? '本次任务' : 'Current task' },
+        TaskGuideView,
       ))
       ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register(
         { name: 'conversation.session.header.utilities', id: 'agent-pi-files', order: 40, label: '资源文件' },

@@ -317,6 +317,32 @@ export function pnpmConfigEnvForArgs(pluginArgs: readonly string[]): NodeJS.Proc
   return env
 }
 
+/**
+ * The operator-configured build environment (issue #336): environment
+ * variables pinned in the market's config (cordis.yml `buildEnv`) or its
+ * settings section, for hosts — GUI, systemd/launchd, Windows Start menu —
+ * where the dsh process cannot inherit a shell environment.
+ *
+ * The value is read through a live SOURCE rather than copied at mount: the
+ * settings wiring mutates `config.buildEnv` at runtime, and a frozen copy
+ * would quietly keep every later spawn on the boot-time value. The default
+ * source answers nothing, so a host that never configures this (or that
+ * unmounts its routes) gets the exact same env it always did.
+ */
+let buildEnvSource: () => Readonly<Record<string, string>> = () => ({})
+
+/**
+ * Point every future child spawn at the configured build environment.
+ * @param source - Live source of the config's `buildEnv` object, re-read on
+ * every spawn so a settings change reaches the next child immediately.
+ * @returns the previous source, so a caller can restore it on teardown.
+ */
+export function setBuildEnvSource(source: () => Readonly<Record<string, string>>): () => Readonly<Record<string, string>> {
+  const previous = buildEnvSource
+  buildEnvSource = source
+  return previous
+}
+
 function spawnEnv(): NodeJS.ProcessEnv {
   // pnpm v10+ blocks forever on a silent interactive prompt without a TTY;
   // CI mode forces it to act or fail instead of asking.
@@ -332,15 +358,32 @@ function spawnEnv(): NodeJS.ProcessEnv {
   for (const bin of toolSearchDirs()) {
     if (!parts.includes(bin)) parts.push(bin)
   }
+  // Merge order is the feature (#336). The configured build env sits above
+  // BOTH the inherited process.env and the host's own `env` (#653): the
+  // inherited one is what the operator is trying to replace (a `g++` too old
+  // to compile a plugin), and the host's is a default it ships, which an
+  // explicit line is allowed to overrule. That precedence is a decision, not
+  // a property of the order these objects happen to be written in.
+  //
+  // It stays strictly below the two values the market computes for itself.
+  // PATH is its answer to "where is pnpm", CI is its answer to pnpm's
+  // interactive prompt, and either being overridden by a config value would
+  // produce a failure that looks nothing like its cause.
+  //
+  // proxyEnvForPnpm and gitEnvForPnpm are asked about the MERGED env, not
+  // process.env: both are "fill silence, never overwrite speech" guards, and
+  // a `GIT_SSH_COMMAND` pinned here is speech. Reading process.env would make
+  // the market inject its own BatchMode command over the operator's, which is
+  // the silent-overwrite shape #713 exists to end.
+  const withBuildEnv = { ...process.env, ...hostEnv, ...buildEnvSource() }
   // hostEnv follows process.env. PATH is `parts` below: host entries, then
   // the inherited PATH. That PATH is never empty, so dropping the host
   // entries whenever it is already set would leave the bundled Node off
   // the path (#653).
   return {
-    ...process.env,
-    ...hostEnv,
-    ...proxyEnvForPnpm(process.env, activeRegion()),
-    ...gitEnvForPnpm(process.env),
+    ...withBuildEnv,
+    ...proxyEnvForPnpm(withBuildEnv, activeRegion()),
+    ...gitEnvForPnpm(withBuildEnv),
     CI: 'true',
     PATH: parts.join(separator),
   }
@@ -488,6 +531,19 @@ export interface PluginCommandRuntime {
   cancelActive(): boolean
   /** Whether this host can execute an immutable rollback add target. */
   supportsExactRollbackTarget?(target: string): boolean
+  /**
+   * Whether this runtime runs pnpm itself and therefore accepts the market's
+   * own arguments — `--config.*` overrides, `--force`, `--no-frozen-lockfile`.
+   *
+   * The official Electron profile does not (#732): its in-process manager
+   * takes exactly `add <target>` or `remove <target>` and answers any other
+   * argv with exit 127. Every recovery step that decorates a command with an
+   * option is impossible there, and sending it anyway turned a pnpm failure
+   * into "this desktop operation is not supported" — a message about an
+   * operation that is in fact supported, which sent the reporter looking for
+   * a broken profile instead of the option. Absent means "accepts".
+   */
+  acceptsMarketPnpmFlags?: boolean
 }
 
 /** One running package operation, however it was started. */

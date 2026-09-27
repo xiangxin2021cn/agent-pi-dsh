@@ -15,7 +15,7 @@ export const SA_LABOUR_ANYSEARCH = {
 }
 
 export const SA_LABOUR_WAGE_CHECK = {
-  requiredWhen: 'ZAR / SANRAL / COTO / South Africa highway tender',
+  requiredWhen: 'Confirmed South African project and applicable civil-engineering wage scope; currency and reference templates alone are not jurisdiction evidence',
   skillReference: 'skills/tender-boq-five-step-pricing/references/sa-labour-wages.md',
   writePath: 'itemBuildUps[].costComponents[kind=labour].rateBasis.webEvidence',
   anysearch: SA_LABOUR_ANYSEARCH,
@@ -25,22 +25,19 @@ export const SA_LABOUR_WAGE_CHECK = {
 }
 
 export const SA_LABOUR_WAGE_DRAFT_ZH =
-  '南非公路 / ZAR / SANRAL / COTO：人工不得抄 C5.1 范文 R250/R550/R650/R850，也不得用中国定额工日。读 skills/tender-boq-five-step-pricing/references/sa-labour-wages.md。用 anysearch_batch_search（每条 zone=intl、language=en，最多 5 路）核现行 BCCEI 等级工资与现行国家最低工资，再 web_fetch 官方页；写入 labour 组件 rateBasis.webEvidence。普工≠国家最低工资；操作手/技工/工长走 BCCEI。招标属地工/EPWP 以本合同为准。'
-
-const SA_HINT = /zar|south africa|south-africa|sanral|coto|colto|bccei|kwazulu|kzn|gauteng|ethekwini|limpopo|mpumalanga|free state|eastern cape|western cape|northern cape|\bn3\b|\bn2\b/i
+  '仅在南非法域及适用工资制度已核实的项目使用 BCCEI / SANRAL / COTO 参考；ZAR 币种不能单独决定法域。人工不得抄 C5.1 范文 R250/R550/R650/R850，也不得直接套不适用的外国定额工日。读 skills/tender-boq-five-step-pricing/references/sa-labour-wages.md。遵守本次任务联网策略；允许且 AnySearch 可用时用 anysearch_batch_search（每条 zone=intl、language=en，最多 5 路），否则用可用原生 web_search/web_fetch 核现行 BCCEI 和国家最低工资；写入 labour 组件 rateBasis.webEvidence。普工不等于国家最低工资；具体工资等级、属地工/EPWP 均以适用制度及本合同为准。'
 
 export function looksLikeSouthAfricaPricing(
   project: Pick<BusinessProjectRecord, 'name' | 'projectId' | 'inputPaths'>,
-  bindings: BindingFile[] = [],
+  _bindings: BindingFile[] = [],
   extras: { currency?: string; jurisdiction?: string } = {},
 ): boolean {
-  if (/^ZAR$/i.test(extras.currency ?? '')) return true
+  if (extras.jurisdiction?.trim()) return /\b(?:south[ -]africa|ZA|ZAF)\b|南非/i.test(extras.jurisdiction)
   const blob = [
     project.name,
     project.projectId,
     extras.jurisdiction ?? '',
     ...(project.inputPaths ?? []),
-    ...bindings.map((file) => `${file.title ?? ''} ${file.path}`),
   ].join(' ')
-  return SA_HINT.test(blob)
+  return /\b(?:south[ -]africa|ZA|ZAF)\b|南非/i.test(blob) || (/sanral|bccei|kwazulu|gauteng|ethekwini/i.test(blob) && !/namibia|纳米比亚|china|中国/i.test(blob))
 }

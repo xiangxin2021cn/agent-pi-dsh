@@ -78,6 +78,18 @@ dsh plugin --profile web add dshmarket
   **dsh 0.1.7 及更新版本上没有这个开关可关**：宿主改为从插件自己的 Config schema 派生设置，不再为插件注册的设置命名空间提供服务，市场在那里没有可用的控件。用下面的 profile patch，它在所有宿主上都有效。
 
   生效后 `GET /dsh-market/status` 会返回 `"restart": false`。
+- 需要本地编译的插件（原生模块）会在 dsh 进程继承到的环境里构建——而图形界面、systemd/launchd 托管、Windows 开始菜单启动的 dsh **不会**继承你终端的环境。如果插件需要的编译器比机器默认的新（比如系统 `g++` 太老，但其它工作又依赖这个版本，不能全局升级），就用 `config:` 下的 `buildEnv` 固定编译期环境变量——相当于在终端里 `CC=... CXX=... dsh`，且不动任何全局配置。固定的值可以覆盖继承来的环境变量，但绝不会覆盖市场为子进程算好的 `PATH` 和 `CI`（issue #336）：
+
+  ```yaml
+  - id: dsh-market
+    name: dshmarket
+    config:
+      buildEnv:
+        CC: /usr/bin/gcc-11     # 也可以是 CXX、NODE_OPTIONS 等
+        CXX: /usr/bin/g++-11
+  ```
+
+  界面上也可以在**设置 → 插件 → 插件配置 → dshmarket → 编译环境变量**里直接改（每行一个 `KEY=value`；保存后下一次安装即生效，留空保存则回到上面的 profile 配置）。无论在哪里配，`PATH` 和 `CI` 都由市场接管，不能覆盖。
 - 从终端启动时，替代进程脱离原终端，关闭原终端后仍会继续运行
 - 收录 ≠ 背书:插件是第三方代码,请只安装你信任的来源
 

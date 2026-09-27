@@ -1,4 +1,5 @@
 export const WORKBENCH_PLUGIN_DEFAULTS = [
+  ['dsh-agent-pi-task-guide', 'task-guide'],
   ['dsh-agent-pi-workbench', 'workbench'],
   ['dsh-agent-pi-knowledge', 'knowledge'],
   ...['tender', 'delivery', 'investment'].map((domain) => ['dsh-agent-pi-workbench-' + domain, 'workbench-' + domain]),

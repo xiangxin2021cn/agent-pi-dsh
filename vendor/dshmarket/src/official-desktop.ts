@@ -58,7 +58,16 @@ export function createOfficialDesktopRuntime(
     // manager are accepted; silently dropping pnpm flags would change intent.
     const [command, target, ...extra] = argv
     if (extra.length !== 0 || typeof target !== 'string' || !TARGET_RE.test(target)) {
-      return Promise.resolve(failure('this desktop operation is not supported by the official plugin manager', 127))
+      // The market's own options are what usually lands here, and they are
+      // spelled with a leading `-` — and they sit in the TARGET slot, because
+      // the market writes `add <option> <target>`. The OPERATION is supported
+      // here; only the option is not, and reporting that as "this desktop
+      // operation is not supported" is what made #732 read as a broken
+      // profile. Name the option and the way out instead.
+      const options = argv.slice(1).filter(argument => argument.startsWith('-')).join(' ')
+      return Promise.resolve(failure(options === ''
+        ? 'this desktop operation is not supported by the official plugin manager'
+        : `官方桌面客户端自己执行这次安装，不接受市场附加的参数（${options}），这个选项在它这里用不了。可以改用普通 dsh web 安装，或等这个版本过了新版本等待期再试。 / The official desktop app runs this install itself and takes no options from the market (${options}); that option cannot be used here. Install from plain dsh web, or try again once the release is past the fresh-release wait.`, 127))
     }
     const spec = target
     // Only `add` and `remove` map onto the manager. `update` reached here
@@ -136,6 +145,10 @@ export function createOfficialDesktopRuntime(
       return true
     },
     supportsExactRollbackTarget: target => TARGET_RE.test(target),
+    // The reason the flag exists (#732): this manager takes exactly
+    // `add <target>` or `remove <target>`, so every recovery step that needs
+    // an option has to be left out here rather than sent and refused.
+    acceptsMarketPnpmFlags: false,
     dispose: async () => {
       disposed = true
       if (active?.requestId !== undefined) {

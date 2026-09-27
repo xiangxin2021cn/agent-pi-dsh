@@ -239,6 +239,46 @@ export const MAX_FAVORITES = 500;
 function favoriteUrls(value) {
     return uniqueStrings(value).filter(url => url.startsWith('http://') || url.startsWith('https://'));
 }
+/** A POSIX-looking environment variable name: the name part of `KEY=value`. */
+const ENV_KEY_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+/** Upper bound on one pinned env value, so state.json cannot balloon. */
+const MAX_ENV_VALUE = 4096;
+/**
+ * Sanitize an untrusted build-env map (state.json, or the card route's body)
+ * into the shape spawnEnv can merge.
+ *
+ * An empty map and a non-object both read as undefined: clearing the card
+ * must inherit the composition, and a blank line in state.json must not
+ * disable every pinned variable. Only the merge precedence in
+ * src/dsh-cli.ts spawnEnv — never this — protects PATH and CI, but a value
+ * a user typed for them would silently do nothing there, so it is rejected
+ * here with a reason instead.
+ *
+ * `GIT_ASKPASS` and `SSH_ASKPASS` are deliberately NOT rejected, though they
+ * are the two names that can re-open a credential prompt: pointing them at a
+ * program is the supported non-interactive way to answer one, and #587/#596
+ * close the *terminal* fallback (GIT_TERMINAL_PROMPT, BatchMode) rather than
+ * the program one. A user who pins these has already said where the answer
+ * comes from; a user who does not still gets the closed prompt.
+ */
+export function buildEnvFromUnknown(value) {
+    if (value === null || typeof value !== 'object' || Array.isArray(value))
+        return undefined;
+    const out = {};
+    for (const [key, raw] of Object.entries(value)) {
+        if (!ENV_KEY_RE.test(key))
+            continue;
+        if (key === 'PATH' || key === 'CI')
+            continue;
+        if (typeof raw !== 'string')
+            continue;
+        const entry = raw.trim();
+        if (entry === '')
+            continue;
+        out[key] = entry.slice(0, MAX_ENV_VALUE);
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+}
 /**
  * Read the whole market state. Legacy `disabledSkins` (the pre-#60
  * theme-only key) still loads; every new write uses the generic `disabled`
@@ -281,6 +321,7 @@ export function readMarketState(profileDir) {
             favorites: favoriteUrls(state.favorites),
             ...(githubProxy === null ? {} : { githubProxy }),
             ...(brokenPlugins === undefined ? {} : { brokenPlugins }),
+            buildEnv: buildEnvFromUnknown(state.buildEnv),
         };
     }
     catch {
@@ -356,6 +397,11 @@ export function writeMarketState(profileDir, state) {
         // githubProxy above, and the one a repaired plugin needs: the entry
         // exists only while the declaration is still missing.
         ...(broken === undefined ? {} : { brokenPlugins: broken }),
+        ...(state.region === undefined ? {} : { region: state.region }),
+        ...(state.regionAuto === true ? { regionAuto: true } : {}),
+        // Omitted while not saved, so a card that was never touched keeps
+        // inheriting the composition's buildEnv on every boot.
+        ...(state.buildEnv === undefined ? {} : { buildEnv: state.buildEnv }),
     }));
 }
 /** Plugins the user switched off; skipped by the boot re-mount. */

@@ -8,7 +8,7 @@ import { closeSync, existsSync, lstatSync, openSync, readlinkSync, readSync, rmS
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { findDshInstallDir } from "./dsh-install.js";
 import { classifyPnpmFailure, HOST_NAMESPACE_RE } from "./pnpm-compat.js";
-import { conflictingEntryIds, dropFromManifest, hasDshManifest, hasLoadableEntry, pluginSubdirs, profileDir, readInstalled, readManifestDeps, readProfileBundles, dropUnparseableBuildKeys } from "./profile.js";
+import { conflictingEntryIds, dropFromManifest, hasDshManifest, hasLoadableEntry, normalizeReleaseAgeExcludes, pluginSubdirs, profileDir, readInstalled, readManifestDeps, readProfileBundles, dropUnparseableBuildKeys } from "./profile.js";
 import { logEvent } from "./log.js";
 import { cleanOrphanedStore } from "./store.js";
 /**
@@ -108,8 +108,31 @@ export function isUnpublishedHostPeer(pkg, profile, explicitDir) {
  * where it is not — there the bypass would be what installs the young
  * version, over a minimumReleaseAge the profile set on purpose — so the
  * install route declines it and falls back to the bare name instead.
+ *
+ * `marketFlags: false` says the host runs pnpm itself and takes no options
+ * from us (the official Desktop bridge, #732). The four recoveries below
+ * each decorate a command with an option, so on such a host they are skipped
+ * rather than sent and refused — and because their classifier messages say
+ * the market retried, the note appended at the end says it did not.
  */
 export async function withHoistRecovery(run, profile, pluginArgs, profileDirectory, options = {}) {
+    const marketFlags = options.marketFlags !== false;
+    /** The option a recovery step needed and this host does not accept (#732). */
+    let unavailableOption = null;
+    // Before the FIRST run, not after a failure: the two shapes pnpm writes into
+    // `minimumReleaseAgeExclude` (a shadowed duplicate rule, #732; a version
+    // union, #733) hurt pnpm while it RESOLVES the dependency graph, and the
+    // union one aborts the process on an 80 GiB allocation with no error output
+    // at all — nothing to classify, so a repair that waited for a failure would
+    // never fire. Every verb that resolves the graph is covered, not just add and
+    // remove: an `install` or an in-place `update` consults the same key.
+    const verb = pluginArgs.find(argument => !argument.startsWith('-'));
+    if (verb === 'add' || verb === 'remove' || verb === 'install' || verb === 'update') {
+        const normalized = normalizeReleaseAgeExcludes(profile, profileDirectory);
+        if (normalized.length > 0) {
+            logEvent('warn', 'install', `minimumReleaseAgeExclude held a form pnpm cannot read back for ${normalized.join(', ')} (a shadowed duplicate rule, #732, or a version union, which pnpm 12.4.1 aborts on — #733) — rewrote each as one bare package name before running`);
+        }
+    }
     let result = await run(profile, pluginArgs);
     const ok = (r) => r.exitCode === 0 && !r.timedOut && !r.cancelled;
     if (!ok(result) && !result.cancelled) {
@@ -127,19 +150,45 @@ export async function withHoistRecovery(run, profile, pluginArgs, profileDirecto
             }
         }
         else if (failure?.code === 'hoist-pattern-diff') {
-            logEvent('warn', 'install', `modules dir was built by a different pnpm major — rebuilding (pnpm install) and retrying once`);
-            // --no-frozen-lockfile: the market runs pnpm with CI=true (TTY hangs),
-            // where a lockfile written by the old major would otherwise be refused.
-            const rebuild = await run(profile, ['install', '--no-frozen-lockfile']);
-            if (ok(rebuild))
-                result = await run(profile, pluginArgs);
+            if (!marketFlags) {
+                unavailableOption = '--no-frozen-lockfile';
+            }
+            else {
+                logEvent('warn', 'install', `modules dir was built by a different pnpm major — rebuilding (pnpm install) and retrying once`);
+                // --no-frozen-lockfile: the market runs pnpm with CI=true (TTY hangs),
+                // where a lockfile written by the old major would otherwise be refused.
+                const rebuild = await run(profile, ['install', '--no-frozen-lockfile']);
+                if (ok(rebuild))
+                    result = await run(profile, pluginArgs);
+            }
         }
         else if (failure?.code === 'release-age-violation'
-            && options.releaseAgeBypass !== false
-            && (pluginArgs[0] === 'add' || pluginArgs[0] === 'remove')
-            && !pluginArgs.includes(RELEASE_AGE_OVERRIDE)) {
-            logEvent('warn', 'install', `a too-young release blocks pnpm's lockfile verification (#39) — retrying once with ${RELEASE_AGE_OVERRIDE}`);
-            result = await run(profile, [pluginArgs[0], RELEASE_AGE_OVERRIDE, ...pluginArgs.slice(1)]);
+            && (pluginArgs[0] === 'add' || pluginArgs[0] === 'remove')) {
+            // The repair ran before this command, so a rewrite here means pnpm wrote
+            // one of the two broken shapes DURING it — appending a shadowed rule
+            // (#732) or extending a version union (#733). Either way the same
+            // rewrite fixes it, needs no option at all, and so also works on the
+            // desktop bridge that refuses options. Retry the SAME argv afterwards.
+            const normalized = normalizeReleaseAgeExcludes(profile, profileDirectory);
+            if (normalized.length > 0) {
+                logEvent('warn', 'install', `pnpm wrote a minimumReleaseAgeExclude entry it cannot read back for ${normalized.join(', ')} (#732/#733) — rewrote each as one bare package name and retrying once`);
+                result = await run(profile, pluginArgs);
+            }
+            else if (options.releaseAgeBypass === false) {
+                // The caller declined the bypass (#594), and the duplicates were not
+                // what failed: this violation is the profile's own policy doing its
+                // job, so the command stands as it is.
+            }
+            else if (!marketFlags) {
+                unavailableOption = RELEASE_AGE_OVERRIDE;
+            }
+            else if (pluginArgs.includes(RELEASE_AGE_OVERRIDE)) {
+                // Already carrying it (a caller's forced retry): nothing left to add.
+            }
+            else {
+                logEvent('warn', 'install', `a too-young release blocks pnpm's lockfile verification (#39) — retrying once with ${RELEASE_AGE_OVERRIDE}`);
+                result = await run(profile, [pluginArgs[0], RELEASE_AGE_OVERRIDE, ...pluginArgs.slice(1)]);
+            }
         }
         else if ((failure?.code === 'fetch-404' || failure?.code === 'no-matching-version')
             && isUnpublishedHostPeer(failure.pkg, profile, profileDirectory)
@@ -149,8 +198,13 @@ export async function withHoistRecovery(run, profile, pluginArgs, profileDirecto
             // and npm has never carried. Every fresh profile hits this, whatever
             // the plugin, so failing here would be failing for something the user
             // cannot fix and did not cause.
-            logEvent('warn', 'install', `${failure.pkg ?? 'a host package'} is a peer the runtime provides and npm does not carry (#289) — retrying once with ${AUTO_INSTALL_PEERS_OFF}`);
-            result = await run(profile, [pluginArgs[0], AUTO_INSTALL_PEERS_OFF, ...pluginArgs.slice(1)]);
+            if (!marketFlags) {
+                unavailableOption = AUTO_INSTALL_PEERS_OFF;
+            }
+            else {
+                logEvent('warn', 'install', `${failure.pkg ?? 'a host package'} is a peer the runtime provides and npm does not carry (#289) — retrying once with ${AUTO_INSTALL_PEERS_OFF}`);
+                result = await run(profile, [pluginArgs[0], AUTO_INSTALL_PEERS_OFF, ...pluginArgs.slice(1)]);
+            }
         }
         else if (failure?.code === 'transient-network'
             && (pluginArgs[0] === 'add' || pluginArgs[0] === 'remove')) {
@@ -166,8 +220,13 @@ export async function withHoistRecovery(run, profile, pluginArgs, profileDirecto
             // Large tarball / slow network: pnpm's default 60s per-request limit
             // aborted the download. A plain retry fails again at the same limit,
             // so retry once with a longer fetchTimeout.
-            logEvent('warn', 'install', `pnpm's per-request fetch timeout aborted a large download — retrying once with ${FETCH_TIMEOUT_OVERRIDE}`);
-            result = await run(profile, [pluginArgs[0], FETCH_TIMEOUT_OVERRIDE, ...pluginArgs.slice(1)]);
+            if (!marketFlags) {
+                unavailableOption = FETCH_TIMEOUT_OVERRIDE;
+            }
+            else {
+                logEvent('warn', 'install', `pnpm's per-request fetch timeout aborted a large download — retrying once with ${FETCH_TIMEOUT_OVERRIDE}`);
+                result = await run(profile, [pluginArgs[0], FETCH_TIMEOUT_OVERRIDE, ...pluginArgs.slice(1)]);
+            }
         }
     }
     if (!ok(result) && !result.cancelled) {
@@ -206,6 +265,16 @@ export async function withHoistRecovery(run, profile, pluginArgs, profileDirecto
             const code = result.pnpmErrorCode === undefined ? '' : `${result.pnpmErrorCode}: `;
             result = { ...result, stderr: `${result.stderr}\n\n${code}${result.pnpmError}` };
         }
+    }
+    if (unavailableOption !== null && !ok(result) && !result.cancelled) {
+        // #732: this step was skipped because the host runs pnpm itself and takes
+        // no options from us — but the classified message above says the market
+        // retried. Say that it did not, or the user reads a retry that never
+        // happened and looks for the wrong cause.
+        result = {
+            ...result,
+            stderr: `${result.stderr}\n\n这台宿主（官方桌面端）自己执行安装，不接受市场附加的 pnpm 参数（${unavailableOption}），所以这一步没有自动重试。 / This host (the official desktop app) runs the install itself and takes no pnpm options from the market (${unavailableOption}), so that automatic retry could not be attempted.`,
+        };
     }
     return result;
 }

@@ -19,7 +19,7 @@ tender sources.
   `construction_resource_schedule`, and `bidder_commitments` packs.
 - Write the human-readable methodology draft to
   `Agent Pi Outputs/<projectId>/planning/施工策划报告.md` (Official Outputs; stage 4-A gate). Match the depth of the
-  bound N2 planning template from project `bindings.json` / bundled SANRAL knowledge pack.
+  project-applicable planning depth template from `bindings.json`. N2/SANRAL examples supply structure only and require confirmed applicability for technical rules.
 - Do not advance to programme XML or Work Plan DOCX until the user accepts the 4-A report.
 - Treat bidder-confirmed resource, procurement, camp, method, productivity, sequence, and
   subcontract decisions as binding planning inputs. Explain conflicts with calculated BOQ demand;
@@ -27,7 +27,7 @@ tender sources.
 - Assign every reconciled BOQ item to exactly one primary work package.
 - Trace every work package to registered BOQ items, requirements, and source locators.
 - Do not invent productivity, resource quantities, engineering controls, or temporary works.
-- If Official Outputs `项目特征.md` or the stage evidence ledger lists a gap (missing spec, geology, calendar, sequence), do not fill it from model memory. Ask the user to upload the source and re-parse, or to force-pass the stage so web diligence is authorized; then keep `url` + `accessedAt`. Market-rate checks are separate.
+- If Official Outputs `项目特征.md` or the stage evidence ledger lists a gap (missing spec, geology, calendar, sequence), do not fill it from model memory. Use task-authorized public diligence for publicly verifiable gaps, keeping URL, access/effective date, region and applicability. Private geology, bidder commitments and formal quotations require project evidence; keep unresolved conditions explicit. Respect an explicit no-web restriction.
 - Keep HSE controls, environmental controls, interfaces, constraints, and hold points explicit.
 - Label unsupported resource needs `unverified`; never promote them to formal assumptions silently.
 - Do not create or overwrite a Project Delivery Controls baseline.
@@ -67,3 +67,7 @@ Report the revision, readiness, covered BOQ items, reviewed and blocked work pac
 resource needs, user decisions, and audit path. Readiness is a tender-planning control state, not
 construction approval, design approval, or an approved post-award baseline. Keep internal control
 registers out of formal proposal narrative unless the user explicitly requests them.
+
+## Current task applicability and diligence
+
+Read `professional_task status` when available. Current user scope, source versions, project country/contract/specifications and verified applicability govern this assignment. Historical examples are structure/depth references only. Public read-only task-relevant diligence is allowed unless restricted; use available native search/fetch if AnySearch is absent and choose queries/language for the project locality. Do not interpret force-pass as proof or as authorization to invent private project facts. An explicit no-web restriction overrides legacy always-search instructions; retain missing rate evidence as provisional and report the limitation. Supplier RFQs are drafts until the user authorizes sending; generating or web-researching contacts is not a supplier response. Register calculation inputs, coverage gaps, required returnables, scoring links and actual files in the shared task record; retain the native workspace/capability packs as domain records.

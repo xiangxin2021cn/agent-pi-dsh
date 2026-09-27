@@ -103,7 +103,7 @@ export async function readPdfPageText(filePath: string, pageNumber: number): Pro
     const content = await page.getTextContent()
     return itemsToText(content.items as Array<{ str?: string; hasEOL?: boolean }>)
   } finally {
-    await pdf.destroy()
+    await pdf.loadingTask.destroy()
   }
 }
 
@@ -121,7 +121,7 @@ export async function probePdfText(filePath: string): Promise<PdfTextProbe> {
     }
     return { ...classifyPdfText(samples), pageCount, samples }
   } finally {
-    await pdf.destroy()
+    await pdf.loadingTask.destroy()
   }
 }
 
@@ -140,6 +140,23 @@ export async function extractPdfTextMarkdown(filePath: string): Promise<{ markdo
     }
     return { markdown: parts.join('\n\n'), pageCount, chars }
   } finally {
-    await pdf.destroy()
+    await pdf.loadingTask.destroy()
   }
+}
+
+/** Every requested page is represented, including pages needing visual/OCR review. */
+export async function extractPdfPages(filePath: string, start = 1, end?: number, signal?: AbortSignal) {
+  const pdf = await loadPdf(filePath)
+  try {
+    const last = Math.min(end ?? start + 19, pdf.numPages)
+    if (!Number.isInteger(start) || !Number.isInteger(last) || start < 1 || last < start || last - start > 19) throw new Error('Read 1–20 valid pages per call')
+    const pages: Array<{ page: number; text: string }> = []
+    for (let pageNumber = start; pageNumber <= last; pageNumber++) {
+      signal?.throwIfAborted()
+      const page = await pdf.getPage(pageNumber)
+      const content = await page.getTextContent()
+      pages.push({ page: pageNumber, text: itemsToText(content.items as Array<{ str?: string; hasEOL?: boolean }>) })
+    }
+    return { pageCount: pdf.numPages, pages }
+  } finally { await pdf.loadingTask.destroy() }
 }

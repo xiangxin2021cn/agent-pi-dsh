@@ -245,7 +245,11 @@ export function registerProfessionalDepth(ctx: any, defineTool: (definition: any
       throw new Error('未知专业深度操作。')
     },
   }))
-  ctx.systemPrompt?.context?.({ name: 'agent-pi:professional-depth', order: 45, text: ({ agent }: any) => depthContext(agent?.session) })
+  ctx.systemPrompt?.context?.({ name: 'agent-pi:professional-depth', order: 45, text: ({ agent }: any) => {
+    const context = depthContext(agent?.session)
+    const task = agent?.session && ctx.get?.('taskGuide')?.read(agent.session.id)
+    return context && task?.brief.objective ? `${context}\n本次任务引导目标与用户最新需求：${JSON.stringify(task.brief)}。沿用这份共同目标，深度说明补充本次交付的研判与验收，不建立相互冲突的第二个任务目标。` : context
+  } })
   const restrictions = new Map<any, () => void>()
   const sync = (agent: any) => {
     if (!agent?.ctx?.tools || !agent.session) return

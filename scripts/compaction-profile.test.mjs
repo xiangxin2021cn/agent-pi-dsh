@@ -32,6 +32,7 @@ const univerPeerNames = [
 ]
 const scriptNames = [
   'init-tender-profile.mjs',
+  'workbench-plugin-defaults.mjs',
   'migrate-settings-017.mjs',
   'preset-bundle-017.mjs',
   'agent-teams-profile.mjs',
@@ -85,6 +86,10 @@ function createFixture(t) {
   writePackage(root, 'bundles/tender-host', 'dsh-tender-host')
   writeFixtureFile(join(root, 'bundles/tender-host/src/professional-depth-store.mjs'), readFileSync(join(sourceRoot, 'bundles/tender-host/src/professional-depth-store.mjs')))
   writePackage(root, 'bundles/tender-web', 'dsh-tender-web')
+  for (const [name, folder] of [
+    ['dsh-agent-pi-task-guide', 'task-guide'], ['dsh-agent-pi-workbench', 'workbench'], ['dsh-agent-pi-knowledge', 'knowledge'],
+    ...['tender', 'delivery', 'investment'].map(domain => ['dsh-agent-pi-workbench-' + domain, 'workbench-' + domain]),
+  ]) writePackage(root, 'bundles/' + folder, name)
   writePackage(root, 'vendor/dsh-super-injector', '@dsh-external/dsh-super-injector', { lib: true })
   writePackage(root, 'vendor/dshmarket', 'dshmarket')
   copyFileSync(join(sourceRoot, 'vendor/dshmarket/compatibility.js'), join(root, 'vendor/dshmarket/compatibility.js'))

@@ -13,8 +13,14 @@
  * instance manages: it is decided at mount from the composition or the
  * command line, and a running instance cannot switch to another one, so
  * offering it as a field would promise something the write cannot deliver.
- * Desktop registers an empty schema instead: the namespace still admits its
- * card, but the shell owns restart and no settings value feeds its routes.
+ *
+ * `buildEnv` (issue #336) is deliberately NOT here. It is a map, so it
+ * wants a form, and the market's own settings card is the form that renders
+ * one — editing it there persists through the market's state.json and
+ * reaches children through spawnEnv. Registering it here as well would make
+ * this namespace a SECOND writer for a value that already has an editor:
+ * the settings layer and the card would overwrite each other on their next
+ * events, the exact shape of the channel bug documented below.
  *
  * The release channel is NOT here either, and that is a correction rather
  * than an omission. It was, briefly, and it made this namespace a second

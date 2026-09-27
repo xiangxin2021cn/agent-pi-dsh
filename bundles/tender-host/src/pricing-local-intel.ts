@@ -28,10 +28,10 @@ export const PRICING_INTEL_MEMOS: PricingIntelFileSpec[] = [
   {
     fileName: PRICING_DILIGENCE_FILE,
     minChars: PRICING_DILIGENCE_MIN_CHARS,
-    mustHave: ['项目地址|地点|location', 'AnySearch|anysearch', '供应商', '邮箱|email', '电话|联系', '材料', '设备', '检索|来源'],
+    mustHave: ['项目地址|地点|location', 'AnySearch|anysearch|web_search|web_fetch|网络|来源', '供应商', '邮箱|email', '电话|联系', '材料', '设备', '检索|来源'],
     outlineZh: [
       '本标地址（省 / 都会 / 走廊，摘自项目特征）',
-      'AnySearch 检索记录（capabilities → search / batch，zone=intl）',
+      '实际可用工具的检索或来源记录（按项目国别选地区、语言；受限时记录缺口）',
       '当地人工、柴油、水、机械、骨料市场摘录（带 url 与日期）',
       '材料与设备供应商名录：电话、邮箱、网址、可询价范围',
       '仍须人工询价的资源清单',
@@ -40,13 +40,13 @@ export const PRICING_INTEL_MEMOS: PricingIntelFileSpec[] = [
   {
     fileName: PRICING_PRODUCTIVITY_FILE,
     minChars: PRICING_PRODUCTIVITY_MIN_CHARS,
-    mustHave: ['项目地址|地点|location', 'AnySearch|anysearch', '工效|产量|productivity', '当地|local', '国际|international', '中国|定额'],
+    mustHave: ['项目地址|地点|location', 'AnySearch|anysearch|web_search|web_fetch|网络|来源', '工效|产量|productivity', '当地|local', '国际|international', '依据|定额|手册|basis'],
     outlineZh: [
       '本标地址、工时、雨季、运距（摘自项目特征）',
       '企业登记工效文件最高优先；文件已有的日产禁止用网页覆盖',
-      'AnySearch 只补企业文件没有的工序（capabilities → batch，zone=intl）',
+      '联网允许时只补适用企业资料未覆盖的工序；AnySearch 可用时先 capabilities，否则原生 web_search/web_fetch',
       '当地核到的日产 / 循环 / 有效系数（url + accessedAt）',
-      '当地无公开产量时：国际手册 × 当地特征推定，禁止套中国定额',
+      '当地无公开产量时：适用定额或国际手册 × 当地特征推导；中国定额须证实项目适用范围和版本',
       '写入 planningBasis 的 source：enterprise / human_reviewed / local_verified / international_adjusted',
     ],
   },
@@ -226,7 +226,7 @@ export function evaluatePricingIntelGate(dir: string, waived: boolean): PricingI
 }
 
 export function pricingLocalIntelRejectReason(status: PricingLocalIntelStatus): string {
-  return `组价当地供应商尽调 / 工效尽调 / 询价单未达标：${status.shortGaps}。读 local-site-intel.md、local-productivity.md、supplier-rfq.md。条件不具备时可 tender_evidence waive_pricing（或对本阶段 tender_stage force_pass），再写《${PRICING_WAIVER_FILE}》后进入策划。禁止用 C5.1 范文供应商或中国定额填空。`
+  return `组价当地供应商尽调 / 工效尽调 / 询价单未达标：${status.shortGaps}。读 local-site-intel.md、local-productivity.md、supplier-rfq.md。条件不具备时可 tender_evidence waive_pricing（或对本阶段 tender_stage force_pass），再写《${PRICING_WAIVER_FILE}》后进入策划。禁止用 C5.1 范文供应商或不适用的中国定额填空。`
 }
 
 export function pricingIntelGateRejectReason(gate: PricingIntelGate): string {
@@ -273,7 +273,7 @@ ${renderPricingIntelBlock(status)}
 ${outlines}
 - ${PRICING_RFQ_DIR}/ 下至少一份中英双语询价单（规格、数量、交货地）
 
-先 anysearch_capabilities，再用 anysearch_batch_search（zone=intl, language=en）搜本标地址的机械/材料商与当地工效；电话和邮箱必须 web_fetch 官方页后才写入。禁止抄 C5.1 范文、中国厂商或中国定额。已完成的章节组价不要重做。
+先遵守本次任务联网策略；允许时用实际可用工具搜本标地址的机械/材料商与工效。AnySearch 可用时先 capabilities 再 batch（中国项目用适用国内地区/语言，南非等用 zone=intl, language=en），否则 web_search/web_fetch。电话和邮箱核验官方页后才写入；跨国供应商需证明供货适用性，中国定额需核实依据和版本，不得抄 C5.1 范文。已完成的章节组价不要重做。
 
 询价回不齐或当地工效网页核不到时：tender_evidence waive_pricing（或 tender_stage force_pass，stageId=boq-five-step-pricing），再写《${PRICING_WAIVER_FILE}》，注明策划依据是网络询价 + 工效推导。`
 }
@@ -346,7 +346,7 @@ anysearch_capabilities 后 anysearch_batch_search（zone=intl, language=en）搜
 
 ## 工效 / productivity
 
-当地产量以打开的页面为准。禁止套用中国公路定额或国内台班。未核到则推定并标 international_adjusted。
+当地产量以打开的页面为准。中国公路定额或国内台班须按项目适用范围和版本核实，不得跨法域直接套用。未核到则推定并标 international_adjusted。
 
 ${'当地工效检索摘录，不是上一单日产。'.repeat(55)}
 `
@@ -366,13 +366,13 @@ ${'网络询价与工效推导仅作策划输入，待正式回价替换。'.rep
 }
 
 export const PRICING_LOCAL_INTEL_DRAFT_ZH =
-  '本标地址绑定：工效优先级为企业登记文件 > 本标人工复核 > 当地网页 > 国际手册×当地特征。禁止抄 C5.1 范文日产、兰特价或中国定额。创建项目时若已附企业工效表，直接采用文件数字，只对文件没有的资源做 anysearch_capabilities → anysearch_search / anysearch_batch_search（每条 zone=intl、language=en）。web_fetch 官方页后写入 rateBasis.webEvidence 与《当地工效尽调.md》。用户在章节稿改过的工效/关键资源价是本标人工复核准确数，保存确认后全局重算数量。收阶段交付《当地供应商尽调.md》《当地工效尽调.md》《询价单总表.md》和 询价单/ 中英询价单。询价回不齐时 tender_evidence waive_pricing（或对本阶段 tender_stage force_pass），再写《组价依据说明.md》，注明策划依据是网络询价+推导。读 local-site-intel.md、local-productivity.md、supplier-rfq.md。'
+  '本标地址绑定：工效优先级为企业登记文件 > 本标人工复核 > 当地网页 > 国际手册×当地特征。禁止抄 C5.1 范文日产、兰特价或未经适用性核实的中国定额。创建项目时若已附企业工效表，直接采用文件数字，只对文件未覆盖且适用性未解决的资源补证。遵守本次任务联网策略；允许时使用实际工具，AnySearch 可用才先 capabilities → search / batch，中国项目选择适用国内地区和语言，南非等可用 zone=intl、language=en，否则原生 web_search/web_fetch。web_fetch 官方页后写入 rateBasis.webEvidence 与《当地工效尽调.md》。用户在章节稿改过的工效/关键资源价是本标人工复核准确数，保存确认后全局重算数量。收阶段交付《当地供应商尽调.md》《当地工效尽调.md》《询价单总表.md》和 询价单/ 中英询价单。询价回不齐时 tender_evidence waive_pricing（或对本阶段 tender_stage force_pass），再写《组价依据说明.md》，注明策划依据是网络询价+推导。读 local-site-intel.md、local-productivity.md、supplier-rfq.md。'
 
 export const PRICING_LOCAL_INTEL_CHECK = {
   required: true,
   tools: ['anysearch_capabilities', 'anysearch_search', 'anysearch_batch_search', 'web_search', 'web_fetch'] as const,
-  zone: 'intl' as const,
-  language: 'en',
+  zone: 'project_applicable' as const,
+  language: 'project_applicable',
   skillReferences: [
     'skills/tender-boq-five-step-pricing/references/local-site-intel.md',
     'skills/tender-boq-five-step-pricing/references/local-productivity.md',

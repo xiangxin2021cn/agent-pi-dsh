@@ -1,0 +1,283 @@
+{
+  "checkedAt": "2026-09-27",
+  "applicationVersion": "3.7.5",
+  "packages": [
+    {
+      "name": "@napi-rs/canvas",
+      "folder": "bundles/tender-host",
+      "from": "0.1.100",
+      "to": "1.0.9",
+      "declared": "1.0.9",
+      "latest": "1.0.9",
+      "decision": "upgrade",
+      "reason": "Official latest tested in this release",
+      "source": "https://registry.npmjs.org/%40napi-rs%2Fcanvas/latest",
+      "engines": {
+        "node": ">= 10"
+      }
+    },
+    {
+      "name": "@openai/codex",
+      "folder": "bundles/tender-host",
+      "from": "0.153.4",
+      "to": "0.157.1",
+      "declared": "0.157.1",
+      "latest": "0.157.1",
+      "decision": "upgrade",
+      "reason": "Official latest tested in this release",
+      "source": "https://registry.npmjs.org/%40openai%2Fcodex/latest",
+      "engines": {
+        "node": ">=16"
+      }
+    },
+    {
+      "name": "beautiful-mermaid",
+      "folder": "bundles/tender-host",
+      "from": "1.1.3",
+      "to": "1.1.3",
+      "declared": "^1.1.3",
+      "latest": "1.1.3",
+      "decision": "retain",
+      "reason": "Official latest tested in this release",
+      "source": "https://registry.npmjs.org/beautiful-mermaid/latest",
+      "engines": null
+    },
+    {
+      "name": "js-yaml",
+      "folder": "bundles/tender-host",
+      "from": "4.1.1",
+      "to": "4.1.1",
+      "declared": "4.1.1",
+      "latest": "5.4.2",
+      "decision": "retain",
+      "reason": "Retain compatible major required by vendored market; no major-range bypass",
+      "source": "https://registry.npmjs.org/js-yaml/latest",
+      "engines": null
+    },
+    {
+      "name": "marked",
+      "folder": "bundles/tender-host",
+      "from": "17.0.6",
+      "to": "18.0.14",
+      "declared": "18.0.14",
+      "latest": "18.0.14",
+      "decision": "upgrade",
+      "reason": "Official latest tested in this release",
+      "source": "https://registry.npmjs.org/marked/latest",
+      "engines": {
+        "node": ">= 20"
+      }
+    },
+    {
+      "name": "minisearch",
+      "folder": "bundles/tender-host",
+      "from": "7.2.0",
+      "to": "7.2.0",
+      "declared": "^7.2.0",
+      "latest": "7.2.0",
+      "decision": "retain",
+      "reason": "Official latest tested in this release",
+      "source": "https://registry.npmjs.org/minisearch/latest",
+      "engines": null
+    },
+    {
+      "name": "pdf-lib",
+      "folder": "bundles/tender-host",
+      "from": "1.17.1",
+      "to": "1.17.1",
+      "declared": "^1.17.1",
+      "latest": "1.17.1",
+      "decision": "retain",
+      "reason": "Official latest tested in this release",
+      "source": "https://registry.npmjs.org/pdf-lib/latest",
+      "engines": null
+    },
+    {
+      "name": "pdfjs-dist",
+      "folder": "bundles/tender-host",
+      "from": "4.10.38",
+      "to": "6.3.289",
+      "declared": "6.3.289",
+      "latest": "6.3.289",
+      "decision": "upgrade",
+      "reason": "Official latest tested in this release",
+      "source": "https://registry.npmjs.org/pdfjs-dist/latest",
+      "engines": {
+        "node": ">=22.13.0 || >=24"
+      }
+    },
+    {
+      "name": "undici",
+      "folder": "bundles/tender-host",
+      "from": "7.29.0",
+      "to": "7.29.0",
+      "declared": "7.29.0",
+      "latest": "8.11.2",
+      "decision": "retain",
+      "reason": "Retain compatible major required by vendored market; no major-range bypass",
+      "source": "https://registry.npmjs.org/undici/latest",
+      "engines": {
+        "node": ">=22.19.0"
+      }
+    },
+    {
+      "name": "yaml",
+      "folder": "bundles/tender-host",
+      "from": "2.9.0",
+      "to": "2.9.1",
+      "declared": "2.9.1",
+      "latest": "2.9.1",
+      "decision": "upgrade",
+      "reason": "Official latest tested in this release",
+      "source": "https://registry.npmjs.org/yaml/latest",
+      "engines": {
+        "node": ">= 14.6"
+      }
+    },
+    {
+      "name": "electron",
+      "folder": "apps/desktop",
+      "from": "43.4.1",
+      "to": "44.4.5",
+      "declared": "44.4.5",
+      "latest": "44.4.5",
+      "decision": "upgrade",
+      "reason": "Official latest tested in this release",
+      "source": "https://registry.npmjs.org/electron/latest",
+      "engines": {
+        "node": ">= 22.12.0"
+      }
+    },
+    {
+      "name": "electron-builder",
+      "folder": "apps/desktop",
+      "from": "26.15.3",
+      "to": "26.15.3",
+      "declared": "26.15.3",
+      "latest": "26.15.3",
+      "decision": "retain",
+      "reason": "Official latest tested in this release",
+      "source": "https://registry.npmjs.org/electron-builder/latest",
+      "engines": {
+        "node": ">=14.0.0"
+      }
+    },
+    {
+      "name": "zod",
+      "folder": "packages/business-core",
+      "from": "4.4.3",
+      "to": "4.6.5",
+      "declared": "4.6.5",
+      "latest": "4.6.5",
+      "decision": "upgrade",
+      "reason": "Official latest tested in this release",
+      "source": "https://registry.npmjs.org/zod/latest",
+      "engines": null
+    },
+    {
+      "name": "@types/bun",
+      "folder": "packages/business-core",
+      "from": "1.3.14",
+      "to": "1.3.14",
+      "declared": "latest",
+      "latest": "1.4.2",
+      "decision": "retain",
+      "reason": "Retain existing compatible locked version",
+      "source": "https://registry.npmjs.org/%40types%2Fbun/latest",
+      "engines": null
+    },
+    {
+      "name": "typescript",
+      "folder": "packages/business-core",
+      "from": "5.9.3",
+      "to": "5.9.3",
+      "declared": "^5.8.2",
+      "latest": "7.0.2",
+      "decision": "retain",
+      "reason": "Retain existing validated toolchain; major 7 requires separate compiler migration",
+      "source": "https://registry.npmjs.org/typescript/latest",
+      "engines": {
+        "node": ">=16.20.0"
+      }
+    }
+  ],
+  "plugins": [
+    {
+      "name": "DSH",
+      "from": "0.1.7-rc.2",
+      "to": "0.1.7-rc.2",
+      "latest": "0.1.7-rc.2",
+      "decision": "retain",
+      "source": "https://github.com/deepseek-ai/deepseek-harness/releases",
+      "commit": "477b4f420553e8a52c2fbccc464d7561b239c443",
+      "note": "Official release page verified; /releases/latest API gives 404 because current releases are prereleases"
+    },
+    {
+      "name": "dshmarket",
+      "from": "1.65.1",
+      "to": "1.66.2",
+      "latest": "1.66.2",
+      "decision": "upgrade",
+      "source": "https://registry.npmjs.org/dshmarket/-/dshmarket-1.66.2.tgz",
+      "integrity": "sha512-BPA03LIJvxBIn+zw2cqTOmpY0Ua6pCeO94iIL4Jg5Y18xXX8niQbyJU9fTkxZRWhm7mpFczPlpuHjYaIRG0vgw==",
+      "note": "Official old/new delta merged; Config, managed component compatibility, and supervised desktop restart adaptations retained; rebuilt host/client; legacy duplicate settings-tab adaptation removed and real UI verified"
+    },
+    {
+      "name": "dsh-univer-office",
+      "from": "0.3.5",
+      "to": "0.3.5",
+      "latest": "0.3.5",
+      "decision": "retain",
+      "source": "https://registry.npmjs.org/dsh-univer-office/latest",
+      "note": "Complete official plugin and bundled licensed runtime retained; standalone runtime is not published to npm"
+    },
+    {
+      "name": "@anysearch/anysearch-dsh",
+      "from": "0.1.6",
+      "to": "0.1.6",
+      "latest": "0.1.6",
+      "decision": "retain-incompatible-inactive",
+      "source": "https://registry.npmjs.org/@anysearch%2Fanysearch-dsh/latest",
+      "note": "Official DSH compatibility gate skips this version on rc.2; task guidance must use native web_search/web_fetch. No exemption added"
+    },
+    {
+      "name": "dsh-super-injector",
+      "from": "0.3.5",
+      "to": "0.3.5",
+      "latest": "0.3.5",
+      "decision": "retain",
+      "source": "https://github.com/yjh051108/dsh-super-injector/releases/tag/v0.3.5",
+      "note": "Existing React settings and rejection-policy product adaptation preserved"
+    },
+    {
+      "name": "dsh-router-standard",
+      "from": "b39112dce54b90e67b50b166c2773861d7945d1f",
+      "to": "b39112dce54b90e67b50b166c2773861d7945d1f",
+      "latestRelease": "v0.3.0",
+      "decision": "retain",
+      "source": "https://github.com/yjh051108/dsh-router-standard/releases/tag/v0.3.0",
+      "comparison": {
+        "status": "behind",
+        "aheadBy": 0,
+        "behindBy": 44,
+        "url": "https://github.com/yjh051108/dsh-router-standard/compare/b39112dce54b90e67b50b166c2773861d7945d1f...v0.3.0"
+      },
+      "note": "Published tag is 44 commits behind the retained pin; do not downgrade"
+    }
+  ],
+  "validation": {
+    "hostAndClientTests": 509,
+    "businessCoreTests": 125,
+    "professionalTaskTypes": "passed",
+    "businessCoreTypes": "passed",
+    "coldStart": {
+      "status": "passed",
+      "electron": "44.4.5",
+      "office": "0.3.5"
+    },
+    "UI": "passed: real Electron/DSH main conversation tab, unchanged right file rail width, Chinese/English, narrow layout, save/reload, actual session tools",
+    "installer": "release/Agent-Pi-DSH-3.7.5-x64.exe.build.json",
+    "profileTests": 18,
+    "releaseCompatibilityTests": 57
+  }
+}

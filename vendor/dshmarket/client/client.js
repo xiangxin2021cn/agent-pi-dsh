@@ -198,9 +198,9 @@ window.__ModuleLoader__.load({
 			setSelfUpdateReady: "有新版本",
 			setSelfUpdateHint: "更新会下载新版本，重启后生效。",
 			setSelfUpToDateHint: "",
-			setSelfHostManagedHint: "这份市场由桌面宿主安装，新版本请在桌面端更新。",
+			setSelfHostManagedHint: "这份市场由桌面端安装，新版本请在桌面端更新。",
 			setSelfUpdate: "更新",
-			setSelfUpdatedHint: "已下载完成。重启 DeepSeek Harness 后新版本才会生效——前端页面会立即更新，服务端不会。",
+			setSelfUpdatedHint: "已下载完成。重启 DeepSeek Harness 后新版本才会生效——页面会先显示新版本号。",
 			setRegion: "下载区域",
 			setRegionGlobal: "全球",
 			setRegionChina: "中国大陆",
@@ -216,6 +216,9 @@ window.__ModuleLoader__.load({
 			setGithubProxyAuto: "恢复自动",
 			setGithubProxyInput: "HTTPS 加速前缀",
 			setGithubProxySave: "保存",
+			setBuildEnv: "构建环境变量",
+			setBuildEnvHint: "作用于市场启动的每个进程（安装、编译、git 等），不只是编译器。每行一个 KEY=value，例如 CC=/usr/bin/gcc-11；PATH 和 CI 由市场管理。留空保存即恢复原有配置。",
+			setBuildEnvSave: "保存环境变量",
 			setChannel: "更新通道",
 			setChannelStable: "稳定版",
 			setChannelBeta: "Beta",
@@ -229,7 +232,7 @@ window.__ModuleLoader__.load({
 			setSelfRemoveHint: "从这个 profile 卸载市场。已装的其它插件不受影响。",
 			setSelfConfirm: "确定要卸载插件市场吗？卸载后需使用命令行重新安装。",
 			setSelfPurge: "同时清除市场自己的数据",
-			setSelfPurgeOn: "将删除：市场的停用清单与自定义分组，以及市场写进 profile 补丁文件的停用行——被市场停用的插件将恢复运行。不涉及密码或令牌，市场从不把它们存在磁盘上。",
+			setSelfPurgeOn: "将删除：市场的停用清单与自定义分组，以及它写进配置文件的停用记录——被停用的插件将恢复运行。不涉及密码或密钥，市场从不把它们存在磁盘上。",
 			setSelfPurgeOff: "保留市场数据。注意：被市场停用的插件会保持停用，且移除后将没有界面可将其重新启用。",
 			setSelfRemoveConfirm: "确认卸载",
 			setSelfCancel: "取消",
@@ -245,9 +248,35 @@ window.__ModuleLoader__.load({
 			searchPh: "搜索插件，例如：通知、终端、记忆…",
 			searchFavoritesPh: "搜索收藏…",
 			clearSearch: "清除搜索",
+			capabilityTitle: "它会做什么",
+			capShell: "能运行命令",
+			capFsRead: "会读你项目里的文件",
+			capFsWrite: "会改你项目里的文件",
+			capNetwork: "会联网",
+			capCredentials: "会用你的密钥",
+			capEnv: "会读你的环境变量",
+			capLlm: "会调用 AI 模型",
+			capSubagent: "会自己开任务干活",
+			capDynamicCode: "会临时下载代码来跑",
+			capHostRuntime: "会改动 DSH 本体",
+			capInstallScript: "安装时就会运行代码",
+			capabilityNone: "没有扫描到。这不等于安全。",
+			capabilityUnchecked: "还没有扫描结果",
+			capabilityNote: "静态扫描只能证明「有」，不能证明「没有」。这不代表它安全。",
+			capabilityScannedAt: "扫描于 {0}",
+			capRedCredentialsNetwork: "会联网，并用到你的密钥",
+			capRedPlaintextHttp: "有连接没有加密（{0}）",
+			/** The families the scanner can emit (#401): one translation per rule. */
+			capRedLiteralIp: "会直接连接固定 IP 地址（{0}）",
+			capRedInstallScript: "安装时会立刻运行它自带的脚本，不需要你打开插件",
+			capRedInstallScriptScripts: "安装时会立刻运行 {0}，不需要你打开插件",
+			capRedCoreTamper: "会改动 DSH 自带的组件",
+			capRedCoreTamperDetail: "会改动 DSH 自带的组件（{0}）",
+			capRedCoreOverride: "会覆盖 DSH 自带的组件（{0}）",
+			capRedCoreDisable: "会禁用 DSH 自带的组件（{0}）",
 			favoriteAdd: "加入收藏",
 			favoriteRemove: "取消收藏",
-			favoritesEmpty: "还没有收藏。在「发现」或「主题」里点书签图标即可加入。",
+			favoritesEmpty: "还没有收藏。在「发现」或「主题」里点书签图标即可收藏。",
 			favoritesResultCount: "共 {0} 个收藏",
 			favoritesPluginsSection: "插件（{0}）",
 			favoritesThemesSection: "主题（{0}）",
@@ -271,9 +300,9 @@ window.__ModuleLoader__.load({
 			uninstallConfirmDesc: "将从当前 profile 中移除该插件。",
 			restartHint: "重启方式：关闭当前 dsh 进程后重新运行（例如 dsh web）",
 			restartHintSupervised: "本进程是 {0} 服务的主进程，重启交给它负责——市场自己重启会连带杀掉 cgroup 里的接管进程，服务将起不来。请执行 systemctl restart <你的 unit>。确认你的配置能承受市场自行重启（如 KillMode=process），可在本插件配置里手动打开「允许重启」。",
-			restartHintDebugged: "当前 dsh 进程正在被调试器附着。请从 IDE 或终端停止该进程后重新启动，市场不能从 UI 里杀掉正在调试的宿主。",
+			restartHintDebugged: "当前 dsh 进程正被调试器连接。请从 IDE 或终端停止该进程后重新启动，市场不能从界面里结束正在调试的 dsh。",
 			confirmTitle: "安装",
-			confirmWarn: "插件是社区第三方代码。安装即表示你信任该来源；构建脚本默认被禁止执行。",
+			confirmWarn: "插件是社区第三方代码。安装即表示你信任该来源；构建脚本默认不会运行。",
 			cancel: "取消",
 			empty: "没有匹配的插件",
 			installedEmpty: "尚未安装社区插件，可前往「发现」页浏览",
@@ -281,28 +310,34 @@ window.__ModuleLoader__.load({
 			loadRetry: "重试",
 			installFail: "安装失败",
 			viewSource: "源码",
-			refreshBanner: "项变更需刷新页面生效",
+			refreshBanner: "项变更，刷新后生效",
 			refresh: "刷新页面",
 			update: "更新",
 			updating: "更新中…",
 			updated: "✓ 已更新，重启后生效",
 			cancelOp: "取消",
 			cancelled: "已取消",
-			busyWait: "已有操作正在进行，请等待其完成（同一时间只执行一个安装/更新/卸载）",
-			agentBusyUpdate: "有 agent 正在运行，请等待其完成或将其取消后再更新——更新会直接替换插件文件，运行中的 agent 可能中途报错或新旧版本混用。",
-			agentBusyInstall: "有 agent 正在运行，请等待其完成或将其取消后再安装——安装会修改插件文件，运行中的 agent 可能中途报错。",
+			busyWait: "另一个安装、更新或卸载还在进行，请等它完成后再试",
+			agentBusyUpdate: "有 Agent 正在运行，请等它完成或先取消，再更新——更新会直接替换插件文件，运行中的 Agent 可能中途报错或新旧版本混用。",
+			agentBusyInstall: "有 Agent 正在运行，请等它完成或先取消，再安装——安装会改动插件文件，运行中的 Agent 可能中途报错。",
+			agentBusyQueued: "Agent 正忙，已排队，空闲后自动安装（可在右上角「任务」里取消）。",
+			agentBusyUpdateQueued: "Agent 正忙，已排队，空闲后自动更新（可在右上角「任务」里取消）。",
+			agentBusyUninstallQueued: "Agent 正忙，已排队，空闲后自动卸载（可在右上角「任务」里取消）。",
+			agentQueueStaleGone: "排队时它还在已安装列表里，现在已不在，因此跳过（没有卸载）。",
+			agentQueueStaleNoUpdate: "排队时它有可用更新，现在没有了，已跳过。",
+			queuedBadge: "排队中",
 			favoriteFailed: "收藏失败，请稍后重试",
 			favoriteUnavailable: "收藏功能暂不可用。请刷新页面或重启 dsh web。",
-			favoriteBusy: "插件操作进行中，收藏已排队，请稍候再试",
-			compatRiskBanner: "检测到兼容性风险，建议重启前到诊断页处理，或一键回滚本次操作。",
+			favoriteBusy: "插件操作未结束，收藏未保存，请稍后重试",
+			compatRiskBanner: "检测到兼容性风险，建议重启前到诊断页处理，或回滚本次操作。",
 			compatRiskBannerNoRollback: "检测到兼容性风险，建议重启前到诊断页处理。",
-			shadowNameBanner: "本次操作让同一个插件名在两个层里同时存在，重启后只有一个会生效：",
-			brokenBundleBanner: "下列插件的前端文件已损坏、无法解析，刷新后界面可能空白，建议回滚：",
-			goDiagnose: "前往诊断页修复",
-			rollbackNow: "回滚本次操作",
+			shadowNameBanner: "此操作后，同一个插件名出现在两处，重启后只有一个会生效：",
+			brokenBundleBanner: "下列插件的界面文件已损坏，刷新后页面可能空白，建议回滚：",
+			goDiagnose: "查看诊断",
+			rollbackNow: "回滚",
 			rollingBack: "回滚中…",
 			rollbackUnavailable: "无法确认更新前的准确来源，自动回滚不可用。",
-			approveBuilds: "放行构建脚本并重试",
+			approveBuilds: "允许构建脚本并重试",
 			buildsSkipped: "该插件需要运行构建脚本才能工作，出于安全考虑已默认阻止。确认来源可信后，可放行并重新安装：",
 			restartNow: "立即重启",
 			dismiss: "关闭提示",
@@ -315,11 +350,11 @@ window.__ModuleLoader__.load({
 			upToDate: "已是最新",
 			linkedDev: "本地开发",
 			hostUpdateReady: "有新版本 {0}",
-			hostUpdateHint: "这份由桌面宿主安装和更新，市场只提醒，不在这里更新",
+			hostUpdateHint: "本市场由桌面端安装和更新，新版本请在桌面端更新",
 			notesLink: "更新内容",
 			notesRelease: "版本说明",
 			notesCommits: "提交记录",
-			notesCommitsRecent: "最近提交（未能对齐你当前安装的版本，仅供参考）",
+			notesCommitsRecent: "最近提交（无法对应你当前安装的版本，仅供参考）",
 			notesNpm: "版本发布时间",
 			notesNone: "该插件未提供更新说明。",
 			notesLoadFail: "暂时读不到更新说明，稍后再试。",
@@ -328,14 +363,14 @@ window.__ModuleLoader__.load({
 			migrateDescription: "这会更改插件的安装来源，而不是普通版本更新。",
 			migrateCurrentSource: "当前来源",
 			migrateTargetSource: "新的 npm 来源",
-			migrateWarning: "npm 包可能由不同发布者维护；仅在确认该目录映射可信时继续。",
-			migrateContinue: "确认换用 npm",
-			migrateFail: "来源迁移失败",
+			migrateWarning: "该 npm 包可能由其他人发布，并非同一插件；确认可信后再继续。",
+			migrateContinue: "确认换用",
+			migrateFail: "换用来源失败",
 			restore: "恢复",
 			restoreOnline: "换用线上版本",
-			restoreHint: "会卸载本地版本，重新安装线上版本，并保持更新检测。无法回退，请二次确认。",
+			restoreHint: "将卸载本地版本并安装线上版本，之后照常检查更新。此操作无法撤销。",
 			hostIncompatibleTitle: "这个新版本要求更新的 DSH",
-			hostIncompatibleBody: "{plugin} 声明它需要 DSH {requirement}，而你现在运行的是 {host}。装上去多半会直接报错，只能手动装回旧版。\n已经停下了，插件还是原来的版本。\n如果你确定这个版本号不准（例如桌面端捆绑的 DSH 不报告版本），也可以继续更新。",
+			hostIncompatibleBody: "{plugin} 声明需要 DSH {requirement}，而你现在运行的是 {host}。装上去很可能用不了，只能手动装回旧版。\n已停止，插件仍是原来的版本。\n如果你确定这个版本号不准（例如桌面端自带的 DSH 不报告版本），仍可继续更新。",
 			hostIncompatibleUnknown: "未知版本",
 			hostIncompatibleSearching: "正在查找还兼容当前 DSH 的版本…",
 			hostIncompatibleFoundInstall: "可以装 {version}：它声明兼容当前 DSH。",
@@ -347,12 +382,12 @@ window.__ModuleLoader__.load({
 			hostIncompatibleRetry: "重试",
 			hostIncompatibleKeep: "保持现在的版本",
 			hostIncompatibleAnyway: "仍然更新",
-			hostStatusCompatible: "兼容性已满足（声明满足）",
+			hostStatusCompatible: "符合宿主要求（依据声明）",
 			hostStatusIncompatible: "确证与当前 DSH 不兼容",
-			hostIncompatibleBodyInstall: "{plugin} 声明它需要 DSH {requirement}，而你现在运行的是 {host}。装上去多半会直接报错。\n已停止，没有安装任何东西。\n如果你确定这个版本号不准（例如桌面端捆绑的 DSH 不报告版本），也可以继续安装。",
+			hostIncompatibleBodyInstall: "{plugin} 声明需要 DSH {requirement}，而你现在运行的是 {host}。装上去很可能用不了。\n已停止，没有安装任何东西。\n如果你确定这个版本号不准（例如桌面端自带的 DSH 不报告版本），仍可继续安装。",
 			hostIncompatibleCancel: "取消安装",
 			hostIncompatibleInstallAnyway: "仍然安装",
-			restoreNameOnlyHint: "你本地这份没有写明来自哪个仓库，市场只能按包名去精选目录里找，找到的是下面这一个——它可能是同名的另一个作者写的插件，不是你这份的来源。确认前请先核对下面的作者和仓库地址。会卸载本地版本并安装它，无法回退。",
+			restoreNameOnlyHint: "本地副本未注明来源仓库，市场只能按包名在精选目录中匹配。下方插件可能是其他作者的同名插件，并非你本地副本的来源。确认前请核对作者和仓库地址。此操作会卸载本地版本并安装该插件，无法撤销。",
 			restoreContinue: "继续更新",
 			restoreProceed: "确认恢复",
 			restoreNoCatalogTitle: "无法恢复",
@@ -360,8 +395,8 @@ window.__ModuleLoader__.load({
 			restoreNoMatch: "精选目录里有同名插件，但与你本地仓库不一致，无法安全恢复。可以卸载本地版，或继续用本地开发。",
 			restoreFail: "恢复失败",
 			exportLog: "导出日志",
-			crashTitle: "插件市场界面出错了",
-			crashHint: "市场没能正常显示，但你的插件都没有受影响，什么都没有被改动。\n点「重新加载」通常就能恢复；如果反复出现，请导出日志发到 issue 里——日志里会带上这次出错的具体位置。\n另外：如果你开了浏览器的网页翻译，请关掉它再试一次，那是已知会让界面出错的一个原因。",
+			crashTitle: "插件市场无法显示",
+			crashHint: "市场界面未能正常显示，你的插件不受影响，也没有任何改动。\n点击「重新加载」通常即可恢复。如反复出现，请导出日志并提交 issue，日志会记录出错位置。\n如果开启了浏览器网页翻译，请关闭后重试，这是已知原因之一。",
 			crashReload: "重新加载",
 			crashDetails: "错误详情",
 			exportingLog: "导出中…",
@@ -371,7 +406,7 @@ window.__ModuleLoader__.load({
 			comments: "评论",
 			commentsTitle: "评论",
 			commentsNote: "评论来自 GitHub Discussions。打开后会连接 giscus.app 与 GitHub；发表评论需要 GitHub 账号。",
-			commentsLoginHint: "在这里登录 GitHub 会离开本页，返回后需要重新打开 dsh web——这不是故障。请直接到 GitHub 上登录和发表评论，本页继续用来阅读。",
+			commentsLoginHint: "在这里登录会离开本页，返回时需重新打开 dsh web——这不是故障。发表评论请到 GitHub，本页只用于阅读。",
 			commentsLoading: "正在加载评论…",
 			commentsError: "评论加载失败。请检查网络连接后重试。",
 			commentsRetry: "重试",
@@ -380,7 +415,7 @@ window.__ModuleLoader__.load({
 			conflictTitle: "无法安装：与已安装的插件冲突",
 			conflictBody: "和已安装的插件冲突，只能留一个：",
 			conflictReverted: "已自动撤销，未改动任何插件",
-			conflictKeep: "保留已安装的插件",
+			conflictKeep: "保留现有插件",
 			conflictKeepNote: "",
 			conflictSwap: "改为安装这个",
 			conflictSwapNote: "被卸载的插件配置会保留，可以再装回来",
@@ -389,7 +424,7 @@ window.__ModuleLoader__.load({
 			conflictOutcomeSkip: "不安装",
 			conflictOutcomeKeep: "保留",
 			conflictOutcomeRemove: "卸载",
-			conflictWhy: "cordis 不接受包含重复条目 id 的插件树，保留该插件将导致 DeepSeek Harness 下次启动失败。",
+			conflictWhy: "cordis 不接受重复的条目 id，保留它会让 DeepSeek Harness 下次启动失败。",
 			opTitle: "任务",
 			opInstalling: "正在安装",
 			opNeedsYou: "项需处理",
@@ -405,6 +440,7 @@ window.__ModuleLoader__.load({
 			opClose: "收起",
 			opClear: "清空已完成",
 			opDequeue: "移出队列",
+			opRunNow: "立即执行",
 			opRetry: "重试",
 			opKind_install: "安装",
 			opKind_update: "更新",
@@ -412,14 +448,14 @@ window.__ModuleLoader__.load({
 			opBlockedCard: "无法安装 · 查看详情",
 			conflictDeclined: "已选择保留现有插件，未安装",
 			conflictReplacing: "正在替换…",
-			conflictReplaceFailed: "替换未完成。下列插件已卸载且未自动恢复，请手动确认：",
+			conflictReplaceFailed: "替换未完成。下列插件已卸载且未恢复，请重新安装：",
 			lightboxClose: "关闭预览",
 			lightboxPrev: "上一张",
 			lightboxNext: "下一张",
 			envMissing: "安装插件前需要先配置 pnpm 环境",
 			envFix: "自动配置",
 			envFixing: "正在配置…",
-			envFixFail: "自动配置失败。请使用「导出日志」，并将文件附在 issue 中",
+			envFixFail: "自动配置失败。请导出日志并附在 issue 中。",
 			loading: "正在加载插件目录…",
 			backTop: "回到顶部",
 			confirm: "确认",
@@ -433,20 +469,26 @@ window.__ModuleLoader__.load({
 			filterTime: "发布时间范围",
 			filterHost: "宿主版本",
 			hostAll: "显示全部",
-			hostCompatible: "适配当前 DSH {0}",
+			hostCompatible: "兼容当前 DSH {0}",
 			hostDetecting: "正在识别宿主版本…",
 			hostUnknown: "宿主版本未知",
 			hostFilterLoading: "正在检查宿主要求 {0}/{1}；未声明或无法确认的插件仍会显示",
-			hostFilterActive: "正在筛选适配 DSH {0} 的插件；未声明或无法确认的插件仍会显示",
+			hostFilterActive: "已按 DSH {0} 筛选；未声明或无法确认兼容性的插件仍会显示",
 			hostRequirement: "DSH {0}",
 			hostRequirementLoading: "正在读取宿主要求…",
 			hostRequirementUndeclared: "未声明宿主要求",
 			hostRequirementUnavailable: "宿主要求未知",
-			sortDownloads: "npm 下载量(近 30 天)",
+			sortDownloads: "npm 下载量（近 30 天）",
+			downloadsPeriod: "近30天",
+			downloadsMeaning: "npm 近30天滚动下载量：{0}。这不是累计下载量，也不代表独立用户数。统计可能延迟，来源核验时间不保证数据完整。",
+			downloadsWindow: "统计区间：{0} 至 {1}。",
+			downloadsWindowUnknown: "统计区间：未提供。",
+			downloadsChecked: "来源核验时间：{0}。",
+			downloadsCheckedUnknown: "来源核验时间：未提供。",
 			/** Discover/theme card byline tooltip for catalog `version`. */
 			catalogNpmLatest: "npm 当前 latest",
-			catalogVersionDated: "目录数据（{0} 刷新）里记录的 npm 版本；在那之后发布的版本要等下一次目录刷新才会出现",
-			catalogVersionUndated: "目录数据里记录的 npm 版本；目录每日刷新，所以可能滞后于 npm 上的实际 latest",
+			catalogVersionDated: "目录（{0} 刷新）记录的 npm 版本；之后发布的版本要等下次刷新才会出现",
+			catalogVersionUndated: "目录记录的 npm 版本；目录每日刷新，可能滞后于 npm 上的实际 latest",
 			sortStars: "Star 数",
 			sortAdded: "发布时间",
 			sortDesc: "降序",
@@ -466,8 +508,8 @@ window.__ModuleLoader__.load({
 			perPage: "每页",
 			marketUpdate: "更新插件市场",
 			updateAll: "全部更新",
-			heldReleaseNotice: "装好了，但不是最新的：这个 profile 的 minimumReleaseAge 把 {0} 按住了，装的是 {1}。",
-			heldReleaseAction: "装 {0}（不等）",
+			heldReleaseNotice: "已安装，但不是最新版：这个 profile 的 minimumReleaseAge 挡住了 {0}，安装的是 {1}。",
+			heldReleaseAction: "仍安装 {0}",
 			ignoreUpdateNotice: "本次不再提醒",
 			ignoreAllUpdateNotices: "本次全部忽略",
 			updateNoticeIgnored: "本次已忽略提醒",
@@ -476,7 +518,7 @@ window.__ModuleLoader__.load({
 			backupLocal: "本地文件",
 			backupDownload: "导出备份",
 			backupImport: "导入并预览",
-			backupHint: "仅包含插件清单和 profile 配置，不包含 node_modules；恢复会按清单重新安装插件。",
+			backupHint: "仅包含插件清单和 profile 配置，不含插件文件；恢复时按清单重新安装。",
 			webdav: "WebDAV",
 			webdavPreset: "服务商预设",
 			webdavUrl: "备份文件 URL",
@@ -486,7 +528,7 @@ window.__ModuleLoader__.load({
 			webdavRestore: "从 WebDAV 恢复",
 			autoBackup: "每天自动备份（打开市场时）",
 			webdavNote: "WebDAV 地址与用户名仅保存在当前浏览器；密码只存于服务端，每次会话需重新输入。",
-			localOnly: "WebDAV 地址和凭证仅保存在当前浏览器。",
+			localOnly: "WebDAV 地址和用户名只保存在此浏览器。",
 			credsWarning: "请注意：备份包含 profile 配置，以及可能含密钥的文件（config.toml、.env 等）。本地导出的文件会原样包含这些内容，上传 WebDAV 前请确认目标可信。",
 			gist: "GitHub Gist",
 			gistToken: "GitHub token（仅本次会话内存，刷新后需重新输入；留空则使用服务端 DSH_GITHUB_TOKEN 或已登录的 gh CLI）",
@@ -500,10 +542,10 @@ window.__ModuleLoader__.load({
 			gistSrcEnv: "环境变量 DSH_GITHUB_TOKEN",
 			gistSrcGh: "gh CLI",
 			gistExportSelect: "选择要导出的插件",
-			gistExportHint: "全部勾选 = 完整备份（含配置文件）；取消勾选 = 仅导出所选插件，可另行勾选「包含配置文件」。",
+			gistExportHint: "全选 = 完整备份（含配置文件）；否则只导出勾选的插件，可另勾「包含配置文件」。",
 			gistSelectAll: "全选",
 			gistSelectNone: "全不选",
-			gistIncludeConfig: "包含配置文件（可能含密钥，请确认）",
+			gistIncludeConfig: "包含配置文件（可能含密钥）",
 			gistNoPlugins: "当前 profile 没有可导出的插件",
 			gistSpecLocal: "本地",
 			gistExportGo: "导出",
@@ -522,9 +564,9 @@ window.__ModuleLoader__.load({
 			backupDone: "备份已上传",
 			restoreDone: "恢复完成，请重启 DeepSeek Harness",
 			restorePartial: "恢复已完成，但下列插件安装失败：",
-			restoreUnportable: "依赖指向另一台机器上的绝对路径，本机不存在。请手动改为本机路径，或重新安装该插件",
+			restoreUnportable: "安装来源是另一台电脑上的本地路径，本机找不到。请重新安装该插件，或改为本机路径",
 			restoreBootError: "恢复后仍无法启动：",
-			orphanBundle: "⚠️ 下次启动会失败：profile 声明了这些 bundle，但它们没有安装。请重新安装，或从 profile 的 package.json 的 dsh.profile.bundles 中删除：",
+			orphanBundle: "⚠️ 下次启动会失败：profile 声明了这些插件，但它们没有安装。请重新安装，或从 profile 的 package.json 的 dsh.profile.bundles 中删除：",
 			restoreConfirm: "恢复将覆盖当前 profile 配置并重新安装插件，确定继续吗？",
 			restorePreviewDone: "备份已导入，请在「已安装」中确认后开始恢复",
 			restoreMissing: "备份中有 {0} 个插件尚未安装",
@@ -541,11 +583,11 @@ window.__ModuleLoader__.load({
 			themeResultCount: "{0} 款主题",
 			themeFullscreen: "全屏浏览",
 			themeExitFullscreen: "退出全屏",
-			progressHint: "首次安装需要下载与解析依赖，大型插件可能需要 1-3 分钟",
+			progressHint: "首次安装需下载插件的依赖包，大型插件可能需 1-3 分钟",
 			toastReady: "已安装并已生效",
-			toastTheme: "已启用。可在 设置 → 插件市场 → 主题 中随时切换",
+			toastTheme: "已启用。可在「设置 → 插件市场 → 主题」中随时切换",
 			toastToggledOn: "已启用",
-			toastToggledOff: "已停用，相关功能立即停止",
+			toastToggledOff: "已停用，功能立即失效",
 			gotIt: "关闭",
 			stateLive: "已生效",
 			statePreset: "内置组件（由应用管理）",
@@ -554,14 +596,14 @@ window.__ModuleLoader__.load({
 			stateDependencyLibrary: "{0} 的依赖库",
 			stateBroken: "已安装，校验未通过",
 			stateDisabled: "已停用",
-			phaseResolving: "解析依赖",
+			phaseResolving: "准备依赖",
 			phaseDownloading: "下载中",
 			phaseLinking: "链接依赖",
 			phaseBuilding: "运行构建脚本",
 			cancelling: "正在取消…",
 			packagesDone: "已处理 {0} 个包",
 			updatedLive: "✓ 已更新，已生效",
-			partialNote: "已取消，部分变更已写入",
+			partialNote: "已取消，部分更改已应用",
 			reconciledNote: "已卸载，但 pnpm 在收尾阶段报错（通常是文件被占用）；配置已同步，无需重试",
 			actWhy: "为什么未生效？",
 			tabList: "列表",
@@ -574,7 +616,7 @@ window.__ModuleLoader__.load({
 			noteMine: "我的备注",
 			noteSave: "保存",
 			notePlaceholder: "用你自己的话描述这个插件，将代替作者简介显示",
-			noteSeeTheirs: "查看作者写的简介",
+			noteSeeTheirs: "查看作者简介",
 			noteSeeMine: "返回我的备注",
 			switchOnLabel: "启用中",
 			enable: "启用",
@@ -583,8 +625,8 @@ window.__ModuleLoader__.load({
 			deprecatedBadge: "已废弃",
 			deprecatedWarn: "该插件已被目录标记为废弃，不建议新用户安装。",
 			brokenPluginTitle: "{0} 更新失败后被移除了",
-			brokenPluginBody: "更新被运行中的 DSH 挡住了，而更新前的版本也已经损坏。市场把它从 profile 里移除，是为了让下一次启动不卡在组装这一步。插件目录还在原处，退出 DSH 之后重新安装它即可。",
-			brokenPluginAction: "去找这个插件",
+			brokenPluginBody: "DSH 正在运行时无法更新，而更新前的版本也已经损坏。为避免下次启动卡住，市场把它从 profile 里移除。插件目录还在原处，退出 DSH 后重新安装即可。",
+			brokenPluginAction: "查找这个插件",
 			viewReplacement: "查看替代品",
 			installReplacement: "安装替代品",
 			replacementHint: "目录建议改用",
@@ -592,7 +634,7 @@ window.__ModuleLoader__.load({
 			groupNamePh: "分组名称",
 			groupRename: "重命名",
 			groupDelete: "删除分组",
-			groupConfirmDelete: "确认删除？",
+			groupConfirmDelete: "删除分组？",
 			groupExpand: "展开 {0}",
 			groupFold: "收起 {0}",
 			groupThemeTaken: "已有主题",
@@ -640,7 +682,7 @@ window.__ModuleLoader__.load({
 			checkErrorsEmpty: "没有错误",
 			checkWarningsEmpty: "没有警告",
 			checkBundles: "插件加载顺序（bundle）",
-			checkBundlesEmpty: "未声明任何插件层",
+			checkBundlesEmpty: "未配置任何插件包",
 			checkOfficial: "官方",
 			checkCommunity: "社区",
 			checkSource: "来源",
@@ -652,34 +694,34 @@ window.__ModuleLoader__.load({
 			checkHoisted: "顶层",
 			checkPeerMismatches: "依赖版本不匹配",
 			checkPeerEmpty: "没有依赖版本不匹配",
-			checkPeerInfo: "另有 {0} 条信息（未确认问题）",
+			checkPeerInfo: "另有 {0} 条待确认信息",
 			checkPeerOverview: "{0} 不匹配 · {1} 条信息",
-			checkRange: "声明范围",
+			checkRange: "要求版本",
 			checkResolved: "实际版本",
 			checkSatisfied: "满足",
 			checkUnsatisfied: "不满足",
 			checkUnknown: "未知",
 			checkPeerRisk: "依赖风险",
-			checkPeerRiskEmpty: "没有风险级依赖不匹配",
+			checkPeerRiskEmpty: "没有依赖风险",
 			checkPeerWarning: "依赖警告",
-			checkPeerWarningEmpty: "没有警告级依赖不匹配",
+			checkPeerWarningEmpty: "没有依赖警告",
 			checkPeerInfoTier: "依赖信息",
-			checkPeerInfoTierEmpty: "没有信息级依赖条目",
+			checkPeerInfoTierEmpty: "没有依赖信息",
 			checkPeerSatisfied: "已满足的依赖",
 			checkPeerSatisfiedEmpty: "没有已满足的依赖条目",
-			peerRiskBelowMin: "低于声明下界",
-			peerRiskAboveMax: "高于显式上界",
+			peerRiskBelowMin: "低于声明下限",
+			peerRiskAboveMax: "高于显式上限",
 			peerWarnOptional: "可选依赖",
-			peerWarnAboveMax: "超出声明上界",
-			peerInfoUnverified: "未达判定",
+			peerWarnAboveMax: "超出声明上限",
+			peerInfoUnverified: "未确认",
 			checkMultiVersion: "核心包多版本",
 			checkMultiEmpty: "没有多版本核心包",
 			checkOverrides: "覆盖关系",
 			checkOverridesEmpty: "没有覆盖关系",
 			checkOverridden: "覆盖了",
 			checkResiduals: "残留目录",
-			checkResidualsEmpty: "没有发现残缺的包目录或 pnpm 临时目录。",
-			checkResidualsHint: "这些目录没有任何声明引用它们，也不妨碍启动；它们是更新被打断时留下的。退出 DSH 之后可以删除，或直接重新安装对应的插件。",
+			checkResidualsEmpty: "没有发现残留目录。",
+			checkResidualsHint: "这些目录不被任何插件使用，也不影响启动，是更新中断后留下的。退出 DSH 后可以删除，或重新安装对应的插件。",
 			checkResidualTmp: "pnpm 临时目录",
 			checkResidualIncomplete: "残缺的包目录（缺少 package.json）",
 			checkOrphans: "无效的配置条目",
@@ -692,7 +734,7 @@ window.__ModuleLoader__.load({
 			orphanNameMismatch: "名称不匹配",
 			orphanReasonOther: "其他",
 			diagExplain: "术语说明",
-			diagExplainText: "本页检查插件之间的冲突、依赖版本不匹配与加载顺序问题。常用术语：",
+			diagExplainText: "本页检查插件冲突、依赖版本不匹配与加载顺序问题。常用术语：",
 			diagTermBundle: "bundle = 一个插件包，会按顺序叠加加载",
 			diagTermEntry: "加载条目 = 插件在运行组合里注册的每一项",
 			diagTermPeer: "对等依赖 = 插件要求宿主环境提供的另一个包",
@@ -711,19 +753,19 @@ window.__ModuleLoader__.load({
 			orderSuggestHint: "建议顺序（按 before/after 规则自动排序）：",
 			orderAutoSort: "自动排序",
 			orderAlreadyOptimal: "当前顺序已满足全部规则与插件依赖，无需调整",
-			orderTrialFail: "静态组合校验未通过：{0}",
+			orderTrialFail: "顺序检查未通过：{0}",
 			orderDiffHint: "该顺序会改变组合：{0} 处覆盖、{1} 个无效条目、{2} 个重复条目",
-			duplicateNames: "同名插件（仅信息展示，不视为冲突）",
+			duplicateNames: "同名插件（仅供参考，不算冲突）",
 			orderReset: "重置草稿",
 			checkRefresh: "重新检查",
 			aiFix: "AI 修复",
 			aiFixHint: "将诊断问题交由新对话中的 Agent 修复（内容已复制到剪贴板，由你决定是否发送）",
 			aiFixIntro: "请帮我修复 DeepSeek Harness 的插件问题（profile：{0}）。诊断发现如下：",
-			aiFixDetect: "【第一步·先判断身份】开始前先判断：当前 Agent 所运行的进程，是否就是这个 profile 对应的 DeepSeek Harness 本机实例（即：诊断出的这套组合，就是你现在运行中的组合）？判断依据：当前工作目录 / $DSH_HOME / 进程命令行是否指向该 profile，或你是否运行在 deepseek-harness 进程内。若无法确定，一律按【是你】处理（更安全）。",
-			aiFixIfSelf: "【是 → 你就是这个 harness】严禁原地改动组合、harness 或核心包：不修改 cordis.patch.yml、不调整 bundle 顺序或启停、不安装/卸载/升级插件、不重新安装依赖、不升级或重启 dsh。三步：① 先只读分析，不改任何东西；② 给出 apply.sh/.bat（本次修复的改动）与 rollback.sh/.bat（完整撤销 apply）；两者都幂等——apply 仅在无已有快照时才创建快照（否则不覆盖；已存在说明 apply 跑过，先回滚或确认再重跑），rollback 从这份快照恢复，因此 apply 跑到一半失败也能回滚、重复回滚也安全；③ 由我在外部终端执行 apply，并将 stdout/stderr 回贴给你判断。每步先说明理由、等我确认；绝不自行执行。",
+			aiFixDetect: "【第一步·先判断身份】开始前先判断：当前 Agent 所运行的进程，是否就是这个 profile 对应的 DeepSeek Harness 本机进程（即：诊断出的这套组合，就是你现在运行中的组合）？判断依据：当前工作目录 / $DSH_HOME / 进程命令行是否指向该 profile，或你是否运行在 deepseek-harness 进程内。若无法确定，一律按【是你】处理（更安全）。",
+			aiFixIfSelf: "【是 → 你就是这个 harness】严禁原地改动组合、harness 或核心包：不修改 cordis.patch.yml、不调整 bundle 顺序或启停、不安装/卸载/升级插件、不重新安装依赖、不升级或重启 dsh。三步：① 先只读分析，不改任何东西；② 给出 apply.sh/.bat（本次修复的改动）与 rollback.sh/.bat（完整撤销 apply）；两者都可重复执行——apply 只在没有快照时创建快照（不覆盖；已有快照说明 apply 跑过，先回滚或确认再重跑），rollback 从快照恢复，因此 apply 跑到一半失败也能回滚、重复回滚也安全；③ 由我在外部终端执行 apply，并将 stdout/stderr 回贴给你判断。每步先说明理由、等我确认；绝不自行执行。",
 			aiFixScope: "【否 → 保守执行】你要是判定自己并非运行在目标 harness 内（独立进程），才可考虑：修改 dsh.profile.bundles 顺序、停用/启用插件、调整 cordis.patch.yml。注意：官方 bundle 不可移动；动手前先说明计划。",
 			aiFixConservative: "请保持保守：只修复上面列出的明确错误（启动失败/重复条目/风险级依赖不匹配）。警告和信息级问题（如可选依赖、未确认的依赖范围）仅在它们与明确错误相关时处理。不要做不必要的升级或重新排序；每项改动前说明理由并等待确认。",
-			aiFixCopied: "已复制修复提示词，请粘贴到新对话后发送",
+			aiFixCopied: "已复制修复说明，请粘贴到新对话中发送",
 			aiFixFail: "无法访问剪贴板，请手动复制下面的诊断内容",
 			catConflict: "冲突",
 			catDeps: "依赖",
@@ -735,7 +777,7 @@ window.__ModuleLoader__.load({
 			checkOrderTip: "社区 bundle 加载顺序与插件声明的 before/after 规则冲突",
 			diagOkAll: "未发现冲突、依赖或加载顺序问题",
 			presetSection: "插件组合",
-			presetHint: "把当前的 bundle 顺序与停用列表保存为组合，随时切换；应用前会做试启动校验并自动创建快照。",
+			presetHint: "把当前的插件顺序和已停用的插件保存为组合，随时切换；应用前会先试启动一次并自动创建快照。",
 			presetName: "组合名称",
 			presetSave: "保存当前状态",
 			presetSaving: "保存中…",
@@ -748,16 +790,16 @@ window.__ModuleLoader__.load({
 			presetNameEmpty: "请输入组合名称",
 			presetFail: "组合操作失败：",
 			presetListFail: "组合列表加载失败：",
-			presetBundleCount: "{0} 个 bundle",
+			presetBundleCount: "{0} 个插件",
 			presetPreview: "预览",
 			presetPreviewTitle: "应用此组合将：",
-			presetReorder: "重排 {0} 个 bundle 的位置",
+			presetReorder: "重排 {0} 个插件的位置",
 			presetEnable: "启用 {0} 个插件",
 			presetDisable: "停用 {0} 个插件",
 			presetNoop: "无变更",
 			presetPreviewFail: "预览失败：",
 			snapSection: "快照与回滚",
-			snapHint: "应用变更前会自动创建快照；也可以手动创建快照，随时回滚到任意状态。",
+			snapHint: "应用变更前会自动创建快照；也可手动创建，随时回滚到任意状态。",
 			snapCreate: "创建快照",
 			snapCreating: "创建中…",
 			snapCreated: "快照已创建",
@@ -769,7 +811,7 @@ window.__ModuleLoader__.load({
 			snapRestored: "已回滚，重启后生效",
 			snapRestoreFail: "回滚失败：",
 			snapRestoreConfirm: "确认回滚",
-			snapRestoreConfirmText: "回滚会用快照覆盖当前 profile 的 package.json 与配置，且不可撤销（可先创建新快照再回滚）。",
+			snapRestoreConfirmText: "回滚会用快照覆盖当前的插件与配置，且不可撤销（可先创建新快照再回滚）。",
 			snapFiles: "包含文件",
 			snapDelete: "删除",
 			snapDeleting: "删除中…",
@@ -778,28 +820,28 @@ window.__ModuleLoader__.load({
 			snapDeleteConfirm: "确认删除",
 			snapDeleteConfirmText: "删除后该快照将无法恢复。",
 			marketNoToggle: "市场自身不能停用",
-			hostDependencyWarning: "插件在 dependencies 中声明了已知的 DSH 共享宿主包，可能遮蔽宿主版本（仅依据清单，未确认运行时重复）：",
-			hostDependencyMore: "另有 {0} 条，已省略",
+			hostDependencyWarning: "插件把 DSH 自带的公共包列进了依赖，可能和 DSH 自己的版本互相干扰（仅依据声明，未确认）：",
+			hostDependencyMore: "另有 {0} 项已省略",
 			recoveryTitle: "启动失败——调整插件",
-			recoveryLead: "这次重启没能起来，dsh 已经退出。勾选你希望下次启动时启用的插件；本次启动报错的插件已标红并取消勾选。",
+			recoveryLead: "本次重启没有成功，dsh 已经退出。勾选你希望下次启动时启用的插件；本次启动报错的插件已标红并取消勾选。",
 			recoveryOption: "调整插件",
 			recoveryBanner: "启动失败：",
 			recoveryOpening: "正在读取失败详情…",
-			recoveryNoSummary: "没有从日志里解析出具体原因",
+			recoveryNoSummary: "日志里没有说明具体原因",
 			recoveryRawLog: "dsh 的原始输出（结尾部分）",
-			recoveryBlamedHint: "下面标红的插件是本次启动点名报错的，取消勾选会在下次启动时禁用它们。",
-			recoveryNoBlameHint: "日志没有点名具体插件，下面按当前开关状态列出可调整的插件。",
-			recoveryCarrier: "停用载体",
+			recoveryBlamedHint: "下面标红的插件在本次启动时报了错，取消勾选后下次启动不再启用它们。",
+			recoveryNoBlameHint: "日志没有指出具体插件，下面按启用状态列出可调整的插件。",
+			recoveryCarrier: "停用其他",
 			recoveryNotToggleable: "本页无法开关",
-			recoveryUnmatched: "DSH 点名但本页无法开关的条目：",
+			recoveryUnmatched: "DSH 指出但本页无法开关的插件：",
 			recoveryLogPath: "完整日志：",
 			recoveryApply: "保存并重启",
-			recoveryApplying: "正在写入并重启…",
+			recoveryApplying: "正在保存并重启…",
 			recoveryStandalone: "打开独立恢复页",
-			recoveryRestarting: "正在重启：dsh 起来后本页会刷新；若又失败，会带着新的报错回到这里。",
-			recoveryApplyFailed: "写入失败：",
-			recoveryWriteFailed: "上次的选择没能完整写入，因此没有重启：",
-			recoveryTimeout: "等待 DeepSeek Harness 启动超时。可以点「调整插件」看看是不是某个插件导致起不来。"
+			recoveryRestarting: "正在重启：dsh 启动后本页会刷新；若又失败，会带着新的报错回到这里。",
+			recoveryApplyFailed: "保存失败：",
+			recoveryWriteFailed: "上次的选择没有全部保存，因此没有重启：",
+			recoveryTimeout: "等待 DeepSeek Harness 启动超时。可点「调整插件」，检查是否某个插件导致无法启动。"
 		};
 		const en = {
 			nav: "Plugin Market",
@@ -808,9 +850,9 @@ window.__ModuleLoader__.load({
 			setSelfUpdateReady: "New version available:",
 			setSelfUpdateHint: "Updating downloads the new version; it takes effect after a restart.",
 			setSelfUpToDateHint: "",
-			setSelfHostManagedHint: "This copy was installed by the desktop host; update it from the desktop app.",
+			setSelfHostManagedHint: "This copy was installed by the desktop app; update it from there.",
 			setSelfUpdate: "Update",
-			setSelfUpdatedHint: "Downloaded. Restart DeepSeek Harness for it to take effect — the frontend updates at once, the server does not.",
+			setSelfUpdatedHint: "Downloaded. Restart DeepSeek Harness for it to take effect — the page will already show the new version.",
 			setRegion: "Download region",
 			setRegionGlobal: "Global",
 			setRegionChina: "China mainland",
@@ -826,6 +868,9 @@ window.__ModuleLoader__.load({
 			setGithubProxyAuto: "Restore automatic",
 			setGithubProxyInput: "HTTPS acceleration prefix",
 			setGithubProxySave: "Save",
+			setBuildEnv: "Build environment",
+			setBuildEnvHint: "Reaches every process the market runs — installs, builds, git — not just the compiler. One KEY=value per line, e.g. CC=/usr/bin/gcc-11. PATH and CI are managed by the market. Saving an empty list restores the original config.",
+			setBuildEnvSave: "Save variables",
 			setChannel: "Update channel",
 			setChannelStable: "Stable",
 			setChannelBeta: "Beta",
@@ -839,7 +884,7 @@ window.__ModuleLoader__.load({
 			setSelfRemoveHint: "Uninstall the market from this profile. Your other plugins are untouched.",
 			setSelfConfirm: "Uninstall the plugin market? Reinstalling it requires the command line.",
 			setSelfPurge: "Also clear the market's own data",
-			setSelfPurgeOn: "Will delete: the market's disable list and custom groups, and the disable rows it wrote into the profile patch file — plugins the market switched off start running again. No passwords or tokens are involved; the market never stores those on disk.",
+			setSelfPurgeOn: "Will delete: the market's disable list and custom groups, plus the disable entries it wrote into your config file — plugins it switched off will run again. No passwords or tokens are involved; the market never stores those on disk.",
 			setSelfPurgeOff: "Keeps the market's data. Note: plugins the market switched off stay off, and once it is removed there is no UI left to switch them back on.",
 			setSelfRemoveConfirm: "Uninstall",
 			setSelfCancel: "Cancel",
@@ -855,9 +900,34 @@ window.__ModuleLoader__.load({
 			searchPh: "Search plugins: notify, terminal, memory…",
 			searchFavoritesPh: "Search favorites…",
 			clearSearch: "Clear search",
+			capabilityTitle: "What it does",
+			capShell: "runs commands",
+			capFsRead: "reads files in your project",
+			capFsWrite: "writes files in your project",
+			capNetwork: "connects to servers",
+			capCredentials: "uses your API keys",
+			capEnv: "reads your environment variables",
+			capLlm: "calls an AI model",
+			capSubagent: "runs its own subagents",
+			capDynamicCode: "downloads and runs code",
+			capHostRuntime: "changes how DSH itself runs",
+			capInstallScript: "runs code when you install",
+			capabilityNone: "Nothing found — which is not the same as safe.",
+			capabilityUnchecked: "Not scanned yet",
+			capabilityNote: "A static scan only shows what it found. “Nothing found” is not “safe”.",
+			capabilityScannedAt: "Scanned {0}",
+			capRedCredentialsNetwork: "connects to servers and uses your API keys",
+			capRedPlaintextHttp: "makes an unencrypted connection to {0}",
+			capRedLiteralIp: "connects to the fixed IP address {0}",
+			capRedInstallScript: "runs its own script the moment you install — you do not have to open the plugin",
+			capRedInstallScriptScripts: "runs {0} the moment you install — you do not have to open the plugin",
+			capRedCoreTamper: "replaces parts of DSH itself",
+			capRedCoreTamperDetail: "replaces parts of DSH itself ({0})",
+			capRedCoreOverride: "overrides a part of DSH itself ({0})",
+			capRedCoreDisable: "disables a part of DSH itself ({0})",
 			favoriteAdd: "Add to favorites",
 			favoriteRemove: "Remove from favorites",
-			favoritesEmpty: "No favorites yet. Bookmark plugins in Discover or Themes to save them here.",
+			favoritesEmpty: "No favorites yet. Click the bookmark icon in Discover or Themes to add one.",
 			favoritesResultCount: "{0} favorites",
 			favoritesPluginsSection: "Plugins ({0})",
 			favoritesThemesSection: "Themes ({0})",
@@ -881,9 +951,9 @@ window.__ModuleLoader__.load({
 			uninstallConfirmDesc: "This removes the plugin from the current profile.",
 			restartHint: "To restart: stop the current dsh process and run it again (e.g. dsh web)",
 			restartHintSupervised: "This process is {0}'s own service process, so restarts belong to it — restarting from here would kill the takeover process along with the cgroup and the service would not come back. Use systemctl restart &lt;your unit&gt;. If your unit can survive a self-restart (KillMode=process), turn Allow restart on in this plugin's configuration.",
-			restartHintDebugged: "This dsh process is under a debugger. Stop it from your IDE or terminal and start it again — the market cannot kill a debug-attached host from the UI.",
+			restartHintDebugged: "This dsh process is under a debugger. Stop it from your IDE or terminal and start it again — the market cannot stop the debugged process from the UI.",
 			confirmTitle: "Install",
-			confirmWarn: "Plugins are third-party community code. Installing means you trust this source; build scripts are blocked by default.",
+			confirmWarn: "Plugins are third-party community code. Installing means you trust the source. Build scripts do not run by default.",
 			cancel: "Cancel",
 			empty: "No plugins match",
 			installedEmpty: "No community plugins yet — browse the Discover tab",
@@ -898,16 +968,22 @@ window.__ModuleLoader__.load({
 			updated: "✓ Updated — restart to apply",
 			cancelOp: "Cancel",
 			cancelled: "Cancelled",
-			busyWait: "Another operation is already running — please wait for it to finish (one install/update/uninstall at a time)",
+			busyWait: "Another install, update or uninstall is still running — wait for it to finish, then try again.",
 			agentBusyUpdate: "An agent is currently working — wait for it to finish (or cancel it) before updating. Updates replace plugin files in place, so a working agent can fail or mix versions mid-turn.",
 			agentBusyInstall: "An agent is currently working — wait for it to finish (or cancel it) before installing. Installing changes plugin files, so a working agent can fail mid-turn.",
+			agentBusyQueued: "Agent is busy — queued and will install automatically when idle (cancel it in Tasks, top right).",
+			agentBusyUpdateQueued: "Agent is busy — queued and will update automatically when idle (cancel it in Tasks, top right).",
+			agentBusyUninstallQueued: "Agent is busy — queued and will uninstall automatically when idle (cancel it in Tasks, top right).",
+			agentQueueStaleGone: "It was installed when you queued this, and is not now — skipped, nothing was uninstalled.",
+			agentQueueStaleNoUpdate: "It had an update available when you queued this, and does not now — skipped.",
+			queuedBadge: "Queued",
 			favoriteFailed: "Could not update favorites. Try again.",
 			favoriteUnavailable: "Favorites are unavailable. Refresh the page or restart dsh web.",
-			favoriteBusy: "A plugin operation is running. Your favorite change is queued — try again in a moment.",
+			favoriteBusy: "A plugin operation is still running. Favorites were not saved — try again shortly.",
 			compatRiskBanner: "Compatibility risk detected — open Diagnostics before restarting, or roll this operation back.",
 			compatRiskBannerNoRollback: "Compatibility risk detected — open Diagnostics before restarting.",
-			shadowNameBanner: "This operation left one plugin name defined in two layers; only one will load after a restart:",
-			brokenBundleBanner: "These plugins now have a client bundle that will not parse; the page may come up blank after a refresh — rolling back is recommended:",
+			shadowNameBanner: "One plugin name is now defined in two places; only one will load after a restart:",
+			brokenBundleBanner: "These plugins have damaged UI files. The page may be blank after a refresh; rolling back is recommended:",
 			goDiagnose: "Open Diagnostics",
 			rollbackNow: "Roll back",
 			rollingBack: "Rolling back…",
@@ -925,25 +1001,25 @@ window.__ModuleLoader__.load({
 			upToDate: "Up to date",
 			linkedDev: "local",
 			hostUpdateReady: "New version {0}",
-			hostUpdateHint: "Installed and updated by the desktop host; the market only reports it",
+			hostUpdateHint: "Installed and updated by the desktop app; update it there.",
 			notesLink: "What changed",
 			notesRelease: "Release notes",
 			notesCommits: "Commits",
-			notesCommitsRecent: "Recent commits (could not be aligned with your installed version — for reference only)",
+			notesCommitsRecent: "Recent commits (do not match your installed version — for reference only)",
 			notesNpm: "Version publish times",
 			notesNone: "This plugin does not publish update notes.",
 			notesLoadFail: "Update notes are unavailable right now — try again later.",
 			migrateNpm: "Use npm version",
 			migrateTitle: "Use npm version?",
-			migrateDescription: "This changes the plugin installation source, not just its version.",
+			migrateDescription: "This changes the plugin's install source rather than its version.",
 			migrateCurrentSource: "Current source",
 			migrateTargetSource: "New npm source",
-			migrateWarning: "The npm package may be maintained by a different publisher. Continue only if you trust this catalog mapping.",
-			migrateContinue: "Confirm npm source",
-			migrateFail: "Source migration failed",
+			migrateWarning: "The npm package may be published by someone else and not be the same plugin. Continue only if you trust it.",
+			migrateContinue: "Confirm switch",
+			migrateFail: "Source switch failed",
 			restore: "Restore",
 			restoreOnline: "Use online version",
-			restoreHint: "This will uninstall the local version, reinstall the catalog version, and keep update checks. This cannot be undone — please confirm again.",
+			restoreHint: "This uninstalls the local version and installs the online version. Update checks continue as usual. This cannot be undone.",
 			hostIncompatibleTitle: "This release needs a newer DSH",
 			hostIncompatibleBody: "{plugin} declares that it needs DSH {requirement}, and you are running {host}. Installing it would most likely break the plugin, leaving a manual downgrade as the only way back.\nNothing was changed — the plugin is still on its current version.\nIf you know the version number is wrong (a bundled DSH that does not report one, for example), you can update anyway.",
 			hostIncompatibleUnknown: "an unknown version",
@@ -962,7 +1038,7 @@ window.__ModuleLoader__.load({
 			hostIncompatibleBodyInstall: "{plugin} declares that it needs DSH {requirement}, and you are running {host}. Installing it would most likely break the plugin.\nNothing was installed.\nIf you know the version number is wrong (a bundled DSH that does not report one, for example), you can install anyway.",
 			hostIncompatibleCancel: "Cancel install",
 			hostIncompatibleInstallAnyway: "Install anyway",
-			restoreNameOnlyHint: "Your local copy does not say which repository it came from, so the market could only match it by package name. The catalog entry below is what that found — it may be a different author's plugin that happens to share the name, not the source of your copy. Check the owner and repository below before confirming. This uninstalls the local version and installs that one, and cannot be undone.",
+			restoreNameOnlyHint: "Your local copy does not name its source repository, so the market could only match it by package name. The plugin below may be another author's plugin with the same name, not the source of your copy. Check the owner and repository before confirming. This uninstalls the local version, installs that plugin, and cannot be undone.",
 			restoreContinue: "Continue update",
 			restoreProceed: "Confirm restore",
 			restoreNoCatalogTitle: "Cannot restore",
@@ -971,7 +1047,7 @@ window.__ModuleLoader__.load({
 			restoreFail: "Restore failed",
 			exportLog: "Export log",
 			crashTitle: "The plugin market could not be displayed",
-			crashHint: "Something went wrong rendering the market. Your plugins are unaffected and nothing was changed.\nReload usually recovers it. If it keeps happening, export the log and attach it to an issue — it now carries where this crash happened.\nAlso worth trying: if your browser is translating this page, turn that off and reload. It is a known cause.",
+			crashHint: "'The market could not be displayed. Your plugins are unaffected and nothing was changed.\nReload usually fixes this. If it keeps happening, export the log and attach it to an issue — the log records where the error occurred.\nIf your browser is translating this page, turn translation off and reload. This is a known cause.'",
 			crashReload: "Reload",
 			crashDetails: "Error details",
 			exportingLog: "Exporting…",
@@ -981,7 +1057,7 @@ window.__ModuleLoader__.load({
 			comments: "Comments",
 			commentsTitle: "Comments",
 			commentsNote: "Comments come from GitHub Discussions. Opening this connects to giscus.app and GitHub; posting needs a GitHub account.",
-			commentsLoginHint: "Signing in here would leave this page, and coming back needs the dsh web link again — nothing is broken. Sign in and post on GitHub; keep reading here.",
+			commentsLoginHint: "Signing in here leaves this page; you will need to reopen dsh web — nothing is broken. Post on GitHub; this page is for reading only.",
 			commentsLoading: "Loading comments…",
 			commentsError: "Comments could not be loaded. Check your connection and try again.",
 			commentsRetry: "Try again",
@@ -990,7 +1066,7 @@ window.__ModuleLoader__.load({
 			conflictTitle: "Cannot install: conflicts with an installed plugin",
 			conflictBody: "It conflicts with an installed plugin — only one can stay:",
 			conflictReverted: "Reverted automatically; nothing was changed",
-			conflictKeep: "Keep the installed plugin",
+			conflictKeep: "Keep existing plugins",
 			conflictKeepNote: "",
 			conflictSwap: "Switch to this one",
 			conflictSwapNote: "Settings of the uninstalled plugins are kept, so you can reinstall later",
@@ -999,7 +1075,7 @@ window.__ModuleLoader__.load({
 			conflictOutcomeSkip: "skip",
 			conflictOutcomeKeep: "keep",
 			conflictOutcomeRemove: "uninstall",
-			conflictWhy: "cordis refuses a plugin tree that contains duplicate entry ids; keeping this plugin would stop DeepSeek Harness from starting.",
+			conflictWhy: "cordis rejects duplicate entry ids; keeping this plugin would stop DeepSeek Harness from starting.",
 			opTitle: "Tasks",
 			opInstalling: "Installing",
 			opNeedsYou: "need attention",
@@ -1015,6 +1091,7 @@ window.__ModuleLoader__.load({
 			opClose: "Collapse",
 			opClear: "Clear finished",
 			opDequeue: "Remove from queue",
+			opRunNow: "Run now",
 			opRetry: "Retry",
 			opKind_install: "Install",
 			opKind_update: "Update",
@@ -1022,21 +1099,21 @@ window.__ModuleLoader__.load({
 			opBlockedCard: "Cannot install · details",
 			conflictDeclined: "You kept the installed plugins; this one was not installed",
 			conflictReplacing: "Replacing…",
-			conflictReplaceFailed: "Replace did not finish. The plugins below were uninstalled and not restored — please check them:",
+			conflictReplaceFailed: "Replace did not finish. These plugins were uninstalled and not restored — reinstall them:",
 			lightboxClose: "Close preview",
 			lightboxPrev: "Previous",
 			lightboxNext: "Next",
 			envMissing: "pnpm needs to be set up before installing plugins",
 			envFix: "Set up automatically",
 			envFixing: "Setting up…",
-			envFixFail: "Automatic setup failed — export the log and attach it to your issue",
+			envFixFail: "Automatic setup failed. Export the log and attach it to your issue.",
 			loading: "Loading the catalog…",
 			backTop: "Back to top",
 			confirm: "Confirm",
 			confirmInstall: "Confirm install",
 			cmdDetails: "Install command",
-			catsMore: "More",
-			catsLess: "Less",
+			catsMore: "More categories",
+			catsLess: "Fewer categories",
 			filter: "Filter",
 			filterSort: "Sort field",
 			filterDir: "Order",
@@ -1047,12 +1124,18 @@ window.__ModuleLoader__.load({
 			hostDetecting: "Detecting host version…",
 			hostUnknown: "Host version unknown",
 			hostFilterLoading: "Checking host requirements {0}/{1}; undeclared or unavailable plugins remain visible",
-			hostFilterActive: "Filtering for DSH {0}; undeclared or unavailable plugins remain visible",
+			hostFilterActive: "Filtered for DSH {0}; undeclared or unconfirmed plugins remain visible",
 			hostRequirement: "DSH {0}",
 			hostRequirementLoading: "Reading host requirement…",
 			hostRequirementUndeclared: "Host requirement undeclared",
 			hostRequirementUnavailable: "Host requirement unknown",
 			sortDownloads: "npm downloads (30d)",
+			downloadsPeriod: "30d",
+			downloadsMeaning: "npm rolling 30-day downloads: {0}. Not lifetime downloads or unique users. Statistics may be delayed; the source check time does not guarantee completeness.",
+			downloadsWindow: "Period: {0} to {1}.",
+			downloadsWindowUnknown: "Period: not provided.",
+			downloadsChecked: "Source checked at: {0}.",
+			downloadsCheckedUnknown: "Source checked at: not provided.",
 			/** Discover/theme card byline tooltip for catalog `version`. */
 			catalogNpmLatest: "npm latest",
 			catalogVersionDated: "the npm version as of the catalog's last refresh ({0}); a release published since then appears after the next refresh",
@@ -1076,17 +1159,17 @@ window.__ModuleLoader__.load({
 			perPage: "Per page",
 			marketUpdate: "Update the plugin market",
 			updateAll: "Update all",
-			heldReleaseNotice: "Installed, but not the newest: this profile's minimumReleaseAge is holding {0} back, so {1} is what got installed.",
+			heldReleaseNotice: "Installed, but not the newest: this profile's minimumReleaseAge held {0} back, so {1} was installed.",
 			heldReleaseAction: "Install {0} anyway",
-			ignoreUpdateNotice: "Ignore for this boot",
-			ignoreAllUpdateNotices: "Ignore all for this boot",
+			ignoreUpdateNotice: "Ignore until restart",
+			ignoreAllUpdateNotices: "Ignore all until restart",
 			updateNoticeIgnored: "Reminder ignored for this boot",
 			tabThemes: "Themes",
 			tabBackup: "Backup & Restore",
 			backupLocal: "Local file",
 			backupDownload: "Export backup",
 			backupImport: "Import and preview",
-			backupHint: "Includes the plugin list and profile configuration, never node_modules. Restore reinstalls plugins from the list.",
+			backupHint: "Includes the plugin list and profile configuration, not the plugin files. Restore reinstalls them from the list.",
 			webdav: "WebDAV",
 			webdavPreset: "Provider preset",
 			webdavUrl: "Backup file URL",
@@ -1096,7 +1179,7 @@ window.__ModuleLoader__.load({
 			webdavRestore: "Restore from WebDAV",
 			autoBackup: "Back up daily (when the market opens)",
 			webdavNote: "The WebDAV URL and username stay in this browser only; the password is kept server-side and must be re-entered each session.",
-			localOnly: "The WebDAV URL and credentials stay in this browser only.",
+			localOnly: "The WebDAV URL and username stay in this browser only.",
 			credsWarning: "Note: backups include profile configuration and files that may hold secrets (config.toml, .env, …). Local exports are unmodified, so upload only to a WebDAV target you trust.",
 			gist: "GitHub Gist",
 			gistToken: "GitHub token (session memory only — re-enter after refresh; leave empty to use server-side DSH_GITHUB_TOKEN or a logged-in gh CLI)",
@@ -1110,7 +1193,7 @@ window.__ModuleLoader__.load({
 			gistSrcEnv: "DSH_GITHUB_TOKEN env var",
 			gistSrcGh: "gh CLI",
 			gistExportSelect: "Select plugins to export",
-			gistExportHint: "All checked = full backup (config included); unchecking any exports only the selected plugins, with an optional “include config” flag.",
+			gistExportHint: "All checked = full backup (config included); otherwise only the checked plugins are exported, plus “include config” if ticked.",
 			gistSelectAll: "Select all",
 			gistSelectNone: "Select none",
 			gistIncludeConfig: "Include config files (may contain secrets)",
@@ -1132,9 +1215,9 @@ window.__ModuleLoader__.load({
 			backupDone: "Backup uploaded",
 			restoreDone: "Restore complete — restart DeepSeek Harness",
 			restorePartial: "Restore completed, but these plugins failed to install:",
-			restoreUnportable: "points at an absolute path from another machine that does not exist here — repoint it locally or reinstall the plugin",
+			restoreUnportable: "installs from a path on another computer that does not exist here — reinstall or point it to a local path",
 			restoreBootError: "Still cannot boot after the restore:",
-			orphanBundle: "⚠️ The next start will fail: the profile declares these bundles but they are not installed. Reinstall them, or remove them from dsh.profile.bundles in the profile package.json:",
+			orphanBundle: "⚠️ The next start will fail: the profile declares these plugins but they are not installed. Reinstall them, or remove them from dsh.profile.bundles in the profile package.json:",
 			restoreConfirm: "Restore will overwrite this profile configuration and reinstall plugins. Continue?",
 			restorePreviewDone: "Backup imported. Review Installed, then start restore.",
 			restoreMissing: "{0} plugins from this backup are not installed",
@@ -1151,7 +1234,7 @@ window.__ModuleLoader__.load({
 			themeResultCount: "{0} themes",
 			themeFullscreen: "Browse full screen",
 			themeExitFullscreen: "Exit full screen",
-			progressHint: "First installs download and resolve dependencies — large plugins can take 1-3 minutes",
+			progressHint: "First installs download the plugin and its dependencies — large plugins can take 1-3 minutes",
 			toastReady: "installed and live",
 			toastTheme: "is now active. Switch any time in Settings → Plugin Market → Themes",
 			toastToggledOn: "is now on",
@@ -1161,10 +1244,10 @@ window.__ModuleLoader__.load({
 			statePreset: "Built-in (managed by app)",
 			stateRestart: "Installed — restart to apply",
 			stateInert: "Installed, not active",
-			stateDependencyLibrary: "Library of {0}",
+			stateDependencyLibrary: "Library for {0}",
 			stateBroken: "Installed, verification failed",
 			stateDisabled: "Disabled",
-			phaseResolving: "Resolving dependencies",
+			phaseResolving: "Preparing dependencies",
 			phaseDownloading: "Downloading",
 			phaseLinking: "Linking",
 			phaseBuilding: "Running build scripts",
@@ -1172,8 +1255,8 @@ window.__ModuleLoader__.load({
 			packagesDone: "{0} packages processed",
 			updatedLive: "✓ Updated — live",
 			partialNote: "Cancelled — some changes were applied",
-			reconciledNote: "Removed, but pnpm reported an error while finishing up (usually a locked file). The profile is already reconciled — no retry needed.",
-			actWhy: "Why not live?",
+			reconciledNote: "Removed, but pnpm reported an error while finishing up (usually a locked file). Your settings are already in sync — no retry needed.",
+			actWhy: "Why is it not active?",
 			tabList: "List",
 			tabGroups: "Groups",
 			repoLink: "View the repository on GitHub",
@@ -1193,7 +1276,7 @@ window.__ModuleLoader__.load({
 			deprecatedBadge: "Deprecated",
 			deprecatedWarn: "This plugin is marked as deprecated by the catalog; new users are advised against installing it.",
 			brokenPluginTitle: "{0} was removed after a failed update",
-			brokenPluginBody: "The running DSH blocked the update, and the version it was replacing was already damaged. The market removed it from the profile so the next start does not fail while composing. Its directory is untouched — quit DSH and install it again.",
+			brokenPluginBody: "The running DSH blocked the update, and the version it was replacing was already damaged. The market removed it from the profile so the next start does not fail. Its directory is untouched — quit DSH and install it again.",
 			brokenPluginAction: "Find this plugin",
 			viewReplacement: "View replacement",
 			installReplacement: "Install replacement",
@@ -1250,7 +1333,7 @@ window.__ModuleLoader__.load({
 			checkErrorsEmpty: "No errors",
 			checkWarningsEmpty: "No warnings",
 			checkBundles: "Plugin load order (bundles)",
-			checkBundlesEmpty: "No plugin layers declared",
+			checkBundlesEmpty: "No plugin packages configured",
 			checkOfficial: "official",
 			checkCommunity: "community",
 			checkSource: "source",
@@ -1259,22 +1342,22 @@ window.__ModuleLoader__.load({
 			checkDir: "directory",
 			checkDuplicates: "Duplicate plugin entries",
 			checkDuplicatesEmpty: "No duplicate plugin entries",
-			checkHoisted: "hoisted",
+			checkHoisted: "top level",
 			checkPeerMismatches: "Dependency version mismatches",
 			checkPeerEmpty: "No dependency version mismatches",
-			checkPeerInfo: "{0} informational entries (unconfirmed)",
+			checkPeerInfo: "{0} more unconfirmed entries",
 			checkPeerOverview: "{0} mismatch(es) · {1} informational",
-			checkRange: "declared range",
+			checkRange: "required version",
 			checkResolved: "resolved version",
 			checkSatisfied: "satisfied",
 			checkUnsatisfied: "not satisfied",
 			checkUnknown: "unknown",
 			checkPeerRisk: "Dependency risks",
-			checkPeerRiskEmpty: "No risk-level dependency mismatches",
+			checkPeerRiskEmpty: "No dependency risks",
 			checkPeerWarning: "Dependency warnings",
-			checkPeerWarningEmpty: "No warning-level dependency mismatches",
+			checkPeerWarningEmpty: "No dependency warnings",
 			checkPeerInfoTier: "Dependency info",
-			checkPeerInfoTierEmpty: "No informational dependency entries",
+			checkPeerInfoTierEmpty: "No dependency info",
 			checkPeerSatisfied: "Satisfied dependencies",
 			checkPeerSatisfiedEmpty: "No satisfied dependency entries",
 			peerRiskBelowMin: "below declared minimum",
@@ -1288,8 +1371,8 @@ window.__ModuleLoader__.load({
 			checkOverridesEmpty: "No overrides",
 			checkOverridden: "overrides",
 			checkResiduals: "Leftover directories",
-			checkResidualsEmpty: "No incomplete package directories or pnpm temp directories.",
-			checkResidualsHint: "Nothing in the profile references these, and none of them stops a start: they are what an interrupted update leaves behind. Quit DSH and either delete them or install the plugin again.",
+			checkResidualsEmpty: "No leftover directories.",
+			checkResidualsHint: "No plugin uses these directories and they do not stop DSH from starting: an interrupted update left them behind. Quit DSH, then delete them or reinstall the affected plugin.",
 			checkResidualTmp: "pnpm temp directory",
 			checkResidualIncomplete: "incomplete package (no package.json)",
 			checkOrphans: "Invalid config entries",
@@ -1301,8 +1384,8 @@ window.__ModuleLoader__.load({
 			orphanPatchTargetMissing: "target not found",
 			orphanNameMismatch: "name mismatch",
 			orphanReasonOther: "other",
-			diagExplain: "About this page",
-			diagExplainText: "This page checks for plugins that conflict with each other, mismatched dependencies, or wrong load order. Terms used:",
+			diagExplain: "Glossary",
+			diagExplainText: "This page checks for plugin conflicts, mismatched dependencies and wrong load order. Terms used:",
 			diagTermBundle: "bundle = one plugin package, applied in order",
 			diagTermEntry: "entry = one item a plugin registers in the running composition",
 			diagTermPeer: "peer dependency = another package a plugin requires from the host",
@@ -1321,7 +1404,7 @@ window.__ModuleLoader__.load({
 			orderSuggestHint: "Suggested order (auto-sorted by before/after rules):",
 			orderAutoSort: "Auto-sort",
 			orderAlreadyOptimal: "Current order already satisfies every rule and plugin dependency — nothing to reorder",
-			orderTrialFail: "Static composition validation failed: {0}",
+			orderTrialFail: "Order check failed: {0}",
 			orderDiffHint: "This order would change the composition: {0} override(s), {1} orphan(s), {2} duplicate(s)",
 			duplicateNames: "Same-name plugins (informational only, not a conflict)",
 			orderReset: "Reset draft",
@@ -1329,8 +1412,8 @@ window.__ModuleLoader__.load({
 			aiFix: "AI fix",
 			aiFixHint: "Hand the diagnostics to a new Agent session (copied to the clipboard; you decide whether to send)",
 			aiFixIntro: "Please help me fix the plugin issues of DeepSeek Harness (profile: {0}). Diagnostics found:",
-			aiFixDetect: "Step 1 — identify yourself first. Before touching anything, determine whether the process you are running in IS the DeepSeek Harness instance this profile belongs to (i.e. this diagnosed composition is the one you are running in right now). Check whether the cwd / $DSH_HOME / command line points at this profile, or whether you are running inside a deepseek-harness process. If you cannot tell, assume the answer is \"yes\" (the safe choice).",
-			aiFixIfSelf: "If YES — you are this harness: never change the live composition, the harness or core packages in place (don't edit cordis.patch.yml, don't reorder/enable/disable bundles, don't install/remove/upgrade a plugin, don't reinstall deps, don't upgrade/restart dsh). Three steps: 1) read-only analysis only, change nothing; 2) produce apply.sh/.bat (this fix's changes) and rollback.sh/.bat (fully reverts it); both are idempotent — apply snapshots only when none exists yet and never overwrites an existing snapshot (an existing one means apply already ran, so roll back or confirm before re-running), while rollback restores from that snapshot, so a half-run apply can still be rolled back and repeated rollback is safe; 3) have me run apply in an external terminal and paste the stdout/stderr back to you. State the reason and wait for my confirmation at each step — never run these yourself.",
+			aiFixDetect: "Step 1 — identify yourself first. Before touching anything, determine whether the process you are running in IS the DeepSeek Harness process this profile belongs to (i.e. this diagnosed composition is the one you are running in right now). Check whether the cwd / $DSH_HOME / command line points at this profile, or whether you are running inside a deepseek-harness process. If you cannot tell, assume the answer is \"yes\" (the safe choice).",
+			aiFixIfSelf: "If YES — you are this harness: never change the live composition, the harness or core packages in place (don't edit cordis.patch.yml, don't reorder/enable/disable bundles, don't install/remove/upgrade a plugin, don't reinstall deps, don't upgrade/restart dsh). Three steps: 1) read-only analysis only, change nothing; 2) produce apply.sh/.bat (this fix's changes) and rollback.sh/.bat (fully reverts it); both are safe to re-run — apply snapshots only when none exists yet and never overwrites an existing snapshot (an existing one means apply already ran, so roll back or confirm before re-running), while rollback restores from that snapshot, so a half-run apply can still be rolled back and repeated rollback is safe; 3) have me run apply in an external terminal and paste the output back to you. State the reason and wait for my confirmation at each step — never run these yourself.",
 			aiFixScope: "If NO — you are a process outside the target harness: you may then consider reordering dsh.profile.bundles, disabling / enabling plugins, or adjusting cordis.patch.yml. Note: official bundles are fixed; state your plan before changing anything.",
 			aiFixConservative: "Be conservative: only fix the clear errors listed above (boot failures / duplicate entries / risk-level dependency mismatches). Treat warnings and informational entries (e.g. optional or unconfirmed peer ranges) only when they relate to a clear error. Do not perform unnecessary upgrades or reordering; explain each change and wait for confirmation.",
 			aiFixCopied: "Fix prompt copied — paste it into a new conversation and send when ready",
@@ -1345,23 +1428,23 @@ window.__ModuleLoader__.load({
 			checkOrderTip: "community bundle load order conflicts with declared before/after rules",
 			diagOkAll: "No conflict, dependency or ordering issues found",
 			presetSection: "Plugin presets",
-			presetHint: "Save the current bundle order and disabled list as a preset and switch anytime; applying runs a trial-start check and creates a snapshot first.",
+			presetHint: "Save the current plugin order and disabled plugins as a preset and switch anytime; applying runs a trial start and creates a snapshot first.",
 			presetName: "Preset name",
 			presetSave: "Save current state",
 			presetSaving: "Saving…",
 			presetSaved: "Preset saved",
 			presetApply: "Apply",
-			presetApplied: "Applied — restart to apply",
+			presetApplied: "Applied — restart to take effect",
 			presetDelete: "Delete",
 			presetDeleted: "Preset deleted",
 			presetEmpty: "No presets saved yet",
 			presetNameEmpty: "Enter a preset name",
 			presetFail: "Preset operation failed: ",
 			presetListFail: "Failed to load presets: ",
-			presetBundleCount: "{0} bundles",
+			presetBundleCount: "{0} plugins",
 			presetPreview: "Preview",
 			presetPreviewTitle: "Applying this preset will:",
-			presetReorder: "reorder {0} bundles",
+			presetReorder: "reorder {0} plugins",
 			presetEnable: "enable {0} plugins",
 			presetDisable: "disable {0} plugins",
 			presetNoop: "no changes",
@@ -1379,7 +1462,7 @@ window.__ModuleLoader__.load({
 			snapRestored: "Restored — restart to apply",
 			snapRestoreFail: "Failed to restore: ",
 			snapRestoreConfirm: "Confirm restore",
-			snapRestoreConfirmText: "Restoring overwrites the current profile package.json and configuration from the snapshot; this cannot be undone (create a fresh snapshot first if unsure).",
+			snapRestoreConfirmText: "Restoring overwrites the current plugins and configuration from the snapshot; this cannot be undone (create a new snapshot first if unsure).",
 			snapFiles: "files",
 			snapDelete: "Delete",
 			snapDeleting: "Deleting…",
@@ -1388,27 +1471,27 @@ window.__ModuleLoader__.load({
 			snapDeleteConfirm: "Confirm delete",
 			snapDeleteConfirmText: "This snapshot cannot be recovered after deletion.",
 			marketNoToggle: "The market itself cannot be disabled",
-			hostDependencyWarning: "A plugin lists known shared DSH host packages in dependencies. This may shadow the host version; the check is manifest-only and does not confirm a duplicate runtime instance:",
-			hostDependencyMore: "{0} more finding(s) omitted",
+			hostDependencyWarning: "A plugin lists packages that DSH already provides, so two copies may clash (declaration only — not confirmed):",
+			hostDependencyMore: "{0} more omitted",
 			recoveryTitle: "Boot failed — adjust plugins",
 			recoveryLead: "This restart never came up, and dsh has exited. Tick the plugins to enable at the next start; the ones this boot blamed are marked in red and left unticked.",
 			recoveryOption: "Adjust plugins",
 			recoveryBanner: "Boot failed: ",
 			recoveryOpening: "Reading the failure details…",
-			recoveryNoSummary: "The log did not name a reason",
+			recoveryNoSummary: "The log does not say why",
 			recoveryRawLog: "The raw dsh output (tail)",
-			recoveryBlamedHint: "The plugins marked in red are the ones this boot named; unticking them disables them at the next start.",
+			recoveryBlamedHint: "The plugins marked in red failed during this boot; unticking them disables them on the next start.",
 			recoveryNoBlameHint: "The log named no plugin in particular; below is what can be adjusted, as it stands now.",
-			recoveryCarrier: "disable-carrier",
+			recoveryCarrier: "disables others",
 			recoveryNotToggleable: "cannot be switched here",
 			recoveryUnmatched: "Named by DSH but not switchable here: ",
 			recoveryLogPath: "Full log: ",
 			recoveryApply: "Save and restart",
-			recoveryApplying: "Writing and restarting…",
+			recoveryApplying: "Saving and restarting…",
 			recoveryStandalone: "Open the standalone recovery page",
 			recoveryRestarting: "Restarting: this page reloads once dsh is up; if it fails again you come back here with the new error.",
-			recoveryApplyFailed: "The write failed: ",
-			recoveryWriteFailed: "The last choice could not be written in full, so nothing was restarted: ",
+			recoveryApplyFailed: "Could not save: ",
+			recoveryWriteFailed: "The last choice was not saved in full, so nothing was restarted: ",
 			recoveryTimeout: "Timed out waiting for DeepSeek Harness to start. \"Adjust plugins\" can tell you whether one of them is what stops it."
 		};
 		//#endregion
@@ -1614,12 +1697,30 @@ window.__ModuleLoader__.load({
 			return categories;
 		}
 		/**
-		* Add active profile Bundles as presence-only catalog entries.
+		* Whether a queued operation still applies — `null` when it does.
 		*
-		* The returned map is for catalog matching only. Update and uninstall flows
-		* must keep using the dependency-only map because a Bundle supplied by the
-		* dsh installation is not owned by the profile package manager.
+		* A queued row drains with NO confirmation; that is what queueing means. So a
+		* row restored from an old session is a destructive operation launched from a
+		* decision the user may have taken back since: queue an uninstall at 10:00,
+		* remove the plugin by hand, open the market at 15:00 and it would run. Every
+		* kind therefore has to be true RIGHT NOW, and this is the one place that
+		* decides — the restore in MarketSection reports what it returns instead of
+		* executing it.
+		*
+		* `install` asks the catalog (the entry may have been delisted), `uninstall`
+		* asks the installed map (it may be gone, or the user may have reinstalled
+		* it), and `update` asks both plus the update check (the pending release may
+		* have landed already).
 		*/
+		function queuedRowApplies(row, world) {
+			if (row.kind === "install") {
+				if (row.url === void 0) return "gone";
+				return world.plugins.some((plugin) => plugin.url === row.url) ? null : "gone";
+			}
+			if (world.installed[row.name] === void 0) return "gone";
+			if (row.kind === "update" && world.updates[row.name]?.updateAvailable !== true) return "no-update";
+			return null;
+		}
 		function installedForCatalog(installed, bundles) {
 			return Object.fromEntries([...bundles.map((name) => [name, "*"]), ...Object.entries(installed)]);
 		}
@@ -2635,8 +2736,28 @@ window.__ModuleLoader__.load({
 			}
 		};
 		//#endregion
+		//#region src/client/optional-primitives.ts
+		function optionalComponent(name) {
+			let value;
+			try {
+				value = _deepseek_ai_dsh_client_ui_primitives[name];
+			} catch {
+				return null;
+			}
+			if (typeof value === "function") return value;
+			if (value !== null && typeof value === "object" && "$$typeof" in value) return value;
+			return null;
+		}
+		/**
+		* `Tag` — the host's read-only chip, for facts with no status meaning
+		* (capabilities, categories). Null on hosts older than 0.1.7-rc.2.
+		*/
+		const HostTag = optionalComponent("Tag");
+		const HostSwitch = optionalComponent("Switch");
+		const HostCheckbox = optionalComponent("Checkbox");
+		//#endregion
 		//#region \0dsh-css:C:\Users\xiang\Desktop\trace\agent-pi-dsh\.worktrees\dsh-3.6.2-codex-model-selection\vendor\dshmarket\src\client\Market.module.css.mjs
-		const css = ".nUhMVa_root{min-width:0;height:100%;color:var(--dsw-alias-label-primary,#1f2328);flex-direction:column;display:flex;position:relative;container-type:inline-size}.nUhMVa_head{flex-direction:column;gap:12px;padding:4px 4px 6px;display:flex}.nUhMVa_title{margin:0;font-size:16px;font-weight:500;line-height:24px}.nUhMVa_sub{color:var(--dsw-alias-label-tertiary,#8b93a1);align-items:center;gap:8px;margin:0;font-size:12px;line-height:18px;display:flex}.nUhMVa_submitLink{color:var(--dsw-alias-label-tertiary,#8b93a1);white-space:nowrap;font-size:11px;line-height:18px;text-decoration:none}.nUhMVa_submitLink:hover{color:var(--dsw-alias-brand-primary,#4f6ef7);text-decoration:underline}.nUhMVa_tabs{border-bottom:1px solid var(--dsw-alias-border-l2,#e5e7eb);align-items:flex-end;gap:2px;display:flex}.nUhMVa_tab{font:inherit;color:var(--dsw-alias-label-secondary,#6b7280);cursor:pointer;white-space:nowrap;background:0 0;border:none;border-bottom:2px solid #0000;padding:7px 12px;font-size:13px}.nUhMVa_tab.nUhMVa_on{color:var(--dsw-alias-brand-primary,#4f6ef7);border-bottom-color:var(--dsw-alias-brand-primary,#4f6ef7);font-weight:600}.nUhMVa_subTabs{align-items:flex-end;gap:2px;margin:-4px 0 4px;display:flex}.nUhMVa_banner{background:var(--dsw-alias-bg-layer-2,#fdf3e3);border:1px solid var(--dsw-alias-border-l2,#f3e3c3);border-radius:8px;align-items:center;gap:8px;margin:0;padding:8px 12px;font-size:12px;display:flex}.nUhMVa_bannerIcon{color:var(--dsw-alias-label-secondary,#6b7280);flex-shrink:0}.nUhMVa_bannerHint{color:var(--dsw-alias-label-tertiary,#8b93a1);cursor:help;display:inline-flex}.nUhMVa_body{overflow-anchor:none;flex:1;padding:12px 4px 24px;overflow-x:hidden;overflow-y:auto}.nUhMVa_stickyHead{z-index:5;background:var(--dsw-alias-bg-layer-2,#f7f8fa);position:sticky;top:-1px}.nUhMVa_stickyHead:before{content:\"\";background:inherit;pointer-events:none;height:14px;position:absolute;bottom:100%;left:0;right:0}.nUhMVa_cats{margin:0 -4px 2px;padding:12px 4px 4px}.nUhMVa_catsRow{align-items:flex-start;gap:8px;display:flex;position:relative}.nUhMVa_star{color:var(--dsw-alias-label-secondary,#9ca3af);white-space:nowrap;flex:none;font-size:11px}.nUhMVa_top{z-index:20;background:var(--dsw-alias-bg-layer-1,#fff);box-shadow:var(--dsw-shadow-lv1,0 4px 12px #1f232814);border-radius:99px;display:inline-flex;position:absolute;bottom:18px;right:18px}.nUhMVa_topBtn{border-radius:99px;width:38px;height:38px;padding:0}.nUhMVa_tag{border:1px solid var(--dsw-alias-border-l3,#d9dde3);color:var(--dsw-alias-label-secondary,#6b7280);border-radius:4px;flex-shrink:0;padding:1px 6px;font-size:11px;line-height:16px}.nUhMVa_hostRequirement{border:1px solid var(--dsw-alias-border-l3,#d9dde3);color:var(--dsw-alias-label-secondary,#6b7280);text-overflow:ellipsis;white-space:nowrap;border-radius:4px;min-width:0;max-width:100%;padding:1px 6px;font-size:11px;line-height:16px;overflow:hidden}.nUhMVa_hostRequirementBad{border-color:var(--dsw-alias-state-error-primary,#dc2626);color:var(--dsw-alias-state-error-primary,#dc2626);background:#dc262614}.nUhMVa_hostFilterNote{color:var(--dsw-alias-label-tertiary,#8b93a1);margin-top:6px;font-size:11px;line-height:16px}.nUhMVa_okState{color:var(--dsw-alias-state-success-primary,#16a34a);white-space:nowrap;font-size:12px;font-weight:600}.nUhMVa_catsWrap{flex-wrap:wrap;flex:1;align-items:center;gap:6px;min-width:0;display:flex}.nUhMVa_catsCollapsed{max-height:62px;overflow:hidden}.nUhMVa_catsToggle.nUhMVa_catsToggle{height:26px;min-height:26px;color:var(--dsw-alias-label-secondary,#6b7280);padding:0 6px}.nUhMVa_shots{-webkit-overflow-scrolling:touch;scrollbar-width:thin;gap:8px;margin:6px 0 8px;padding:2px 0 6px;display:flex;overflow-x:auto}.nUhMVa_shot{object-fit:cover;border:1px solid var(--dsw-alias-border-default,#e5e7eb);background:var(--dsw-alias-bg-layer-2,#f3f4f6);cursor:pointer;border-radius:8px;flex:none;width:220px;height:150px}.nUhMVa_cardShots{-webkit-overflow-scrolling:touch;scrollbar-width:thin;gap:6px;margin:0 0 6px;padding:0 0 2px;display:flex;overflow-x:auto}.nUhMVa_cardShot{object-fit:contain;border:1px solid var(--dsw-alias-border-default,#e5e7eb);background:var(--dsw-alias-bg-layer-2,#f3f4f6);cursor:pointer;border-radius:8px;flex:none;width:132px;height:88px;display:block}.nUhMVa_lightbox{z-index:10000;cursor:zoom-out;background:#000000d9;justify-content:center;align-items:center;display:flex;position:fixed;top:0;bottom:0;left:0;right:0}.nUhMVa_lightboxImg{object-fit:contain;cursor:default;border-radius:4px;max-width:90vw;max-height:85vh}.nUhMVa_lightboxClose{color:#fff;cursor:pointer;background:#ffffff1f;border:none;border-radius:99px;place-items:center;width:36px;height:36px;font-size:22px;line-height:1;display:grid;position:absolute;top:16px;right:16px}.nUhMVa_lightboxClose:hover{background:#ffffff38}.nUhMVa_lightboxNav{color:#fff;cursor:pointer;background:#ffffff1f;border:none;border-radius:99px;place-items:center;width:44px;height:44px;display:grid;position:absolute;top:50%;transform:translateY(-50%)}.nUhMVa_lightboxNav:hover{background:#ffffff38}.nUhMVa_lightboxPrev{left:16px}.nUhMVa_lightboxNext{right:16px}.nUhMVa_lightboxDots{gap:8px;display:flex;position:absolute;bottom:20px;left:50%;transform:translate(-50%)}.nUhMVa_lightboxDot{cursor:pointer;background:#fff6;border-radius:99px;width:7px;height:7px}.nUhMVa_lightboxDotOn{background:#fff}.nUhMVa_cmd{background:var(--dsw-alias-bg-layer-2,#f3f4f6);word-break:break-all;border-radius:6px;margin:8px 0 0;padding:8px 10px;font-family:ui-monospace,Menlo,monospace;font-size:11px;line-height:18px}.nUhMVa_warnLine{color:var(--dsw-alias-state-warn-primary,#b45309);flex-wrap:wrap;align-items:center;gap:4px;margin:0;font-size:12px;font-weight:600;line-height:18px;display:flex}.nUhMVa_modalNote{color:var(--dsw-alias-label-tertiary,#8b93a1);align-items:center;gap:4px;margin:12px 0 0;font-size:12px;line-height:18px;display:flex}.nUhMVa_grid{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;gap:10px;display:grid}.nUhMVa_masonry{align-items:flex-start;gap:10px;display:flex}.nUhMVa_masonryCol{flex-direction:column;flex:1;gap:10px;min-width:0;display:flex}.nUhMVa_masonry>.nUhMVa_masonryCol>*{align-self:stretch;min-width:0}@media (max-width:680px){.nUhMVa_masonry{flex-direction:column}.nUhMVa_masonryCol{width:100%}.nUhMVa_grid{grid-template-columns:minmax(0,1fr)}}.nUhMVa_swatches{border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:8px;gap:0;height:34px;display:flex;overflow:hidden}.nUhMVa_themesGrid{margin-bottom:12px}.nUhMVa_swatches i{flex:1}.nUhMVa_themeToolbar{grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;padding:0 4px 12px;display:grid}.nUhMVa_themeSearch{box-sizing:border-box;width:100%;min-width:0}.nUhMVa_themeToolbarActions{justify-content:flex-end;align-items:center;gap:8px;display:flex}.nUhMVa_themeFullscreenBtn.nUhMVa_themeFullscreenBtn{width:28px;min-width:28px;padding:0}.nUhMVa_themeResultBar{min-height:24px;color:var(--dsw-alias-label-tertiary,#8b93a1);align-items:center;padding:0 4px 8px;font-size:12px;line-height:18px;display:flex}.nUhMVa_favoritesSectionHead{color:var(--dsw-alias-label-primary,#1f2328);margin:16px 0 8px;padding:0 4px;font-size:13px;font-weight:600;line-height:20px}.nUhMVa_favoritesSectionHead:first-of-type{margin-top:0}.nUhMVa_brokenPluginNotice{flex-direction:column;gap:8px;margin:0 0 8px;display:flex}.nUhMVa_brokenPluginItem{border:1px solid var(--dsw-alias-state-warn-tertiary,#b4530933);background:var(--dsw-alias-state-warn-tertiary,#b453090f);color:var(--dsw-alias-state-warn-primary,#b45309);border-radius:8px;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:10px;padding:8px 10px;font-size:12px;line-height:18px;display:flex}.nUhMVa_brokenPluginText{flex-direction:column;gap:2px;min-width:0;display:flex}.nUhMVa_favoritesStaleBar{border:1px solid var(--dsw-alias-state-warn-tertiary,#b4530933);background:var(--dsw-alias-state-warn-tertiary,#b453090f);color:var(--dsw-alias-state-warn-primary,#b45309);border-radius:8px;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;margin:0 0 8px;padding:8px 10px;font-size:12px;line-height:18px;display:flex}.nUhMVa_favoritesStaleOnly{flex-direction:column;align-items:flex-start;gap:10px;display:flex}.nUhMVa_themeGallery{grid-template-columns:repeat(4,minmax(0,1fr));align-items:stretch;gap:10px;display:grid}.nUhMVa_themeCard{border:1px solid var(--dsw-alias-border-l2,#e5e7eb);background:var(--dsw-alias-bg-layer-1,#fff);border-radius:8px;flex-direction:column;min-width:0;transition:border-color .16s cubic-bezier(.16,1,.3,1),box-shadow .16s cubic-bezier(.16,1,.3,1),transform .16s cubic-bezier(.16,1,.3,1);display:flex;overflow:hidden}.nUhMVa_themeCard:hover{border-color:var(--dsw-alias-border-l3,#d9dde3);box-shadow:var(--dsw-shadow-lv1,0 4px 12px #1f232814);transform:translateY(-1px)}.nUhMVa_themeCover{aspect-ratio:16/10;border:0;border-bottom:1px solid var(--dsw-alias-border-l2,#e5e7eb);background:var(--dsw-alias-bg-layer-2,#f3f4f6);width:100%;color:var(--dsw-alias-label-secondary,#6b7280);cursor:zoom-in;border-radius:0;padding:0;display:block;position:relative;overflow:hidden}.nUhMVa_themeCover img{object-fit:contain;background:var(--dsw-alias-bg-layer-2,#f3f4f6);width:100%;height:100%;transition:transform .18s cubic-bezier(.16,1,.3,1);display:block}.nUhMVa_themeCover:hover img{transform:scale(1.012)}.nUhMVa_themeCover:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary,#4f6ef7);outline-offset:-3px}.nUhMVa_themeCoverEmpty{cursor:default;color:var(--dsw-alias-label-tertiary,#8b93a1);flex-direction:column;justify-content:center;align-items:center;gap:8px;font-size:12px;line-height:18px;display:flex}.nUhMVa_themePreviewAction,.nUhMVa_themePreviewCount{color:#fff;-webkit-backdrop-filter:blur(8px);background:#14181fc7;border:1px solid #ffffff57;border-radius:4px;align-items:center;height:24px;padding:0 8px;font-size:11px;line-height:16px;display:inline-flex;position:absolute;bottom:8px}.nUhMVa_themePreviewAction{gap:4px;right:8px}.nUhMVa_themePreviewCount{left:8px}.nUhMVa_themeCardBody{flex-direction:column;flex:1;gap:8px;padding:12px;display:flex}.nUhMVa_themeCardHead{align-items:flex-start;gap:8px;min-width:0;display:flex}.nUhMVa_themeIdentity{flex:1;min-width:0}.nUhMVa_themeStatus,.nUhMVa_themeStatusMuted{white-space:nowrap;border-radius:4px;flex:none;align-items:center;min-height:22px;padding:0 8px;font-size:11px;font-weight:600;display:inline-flex}.nUhMVa_themeStatus{background:var(--dsw-alias-state-success-tertiary,#16a34a1a);color:var(--dsw-alias-state-success-primary,#15803d)}.nUhMVa_themeStatusMuted{background:var(--dsw-alias-bg-layer-2,#f3f4f6);color:var(--dsw-alias-label-secondary,#6b7280)}.nUhMVa_themeDescription{min-height:36px;color:var(--dsw-alias-label-tertiary,#8b93a1);-webkit-line-clamp:3;-webkit-box-orient:vertical;margin:0;font-size:12px;line-height:18px;display:-webkit-box;overflow:hidden}.nUhMVa_themeCardFooter{justify-content:space-between;align-items:center;gap:8px;margin-top:auto;padding-top:4px;display:flex}.nUhMVa_themeLifecycle{min-width:0;color:var(--dsw-alias-label-tertiary,#8b93a1);text-overflow:ellipsis;white-space:nowrap;font-size:11px;line-height:18px;overflow:hidden}.nUhMVa_themeActions{flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:8px;margin-left:auto;display:flex}@container (width<=900px){.nUhMVa_themeGallery{grid-template-columns:repeat(3,minmax(0,1fr))}}@container (width<=680px){.nUhMVa_themeGallery{grid-template-columns:repeat(2,minmax(0,1fr))}}@container (width<=460px){.nUhMVa_themeGallery{grid-template-columns:minmax(0,1fr)}}@container (width<=420px){.nUhMVa_sub{grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:2px 8px;display:grid}.nUhMVa_sub>span:first-child{grid-area:1/1}.nUhMVa_sub>.nUhMVa_grow{display:none}.nUhMVa_submitLink{grid-area:2/1}.nUhMVa_exportLogBtn{flex-shrink:0;grid-area:1/2/span 2}.nUhMVa_themeToolbar{grid-template-columns:minmax(0,1fr)}.nUhMVa_themeCardHead{flex-wrap:wrap}.nUhMVa_themeStatus,.nUhMVa_themeStatusMuted{order:3}}@container (width<=280px){.nUhMVa_themeCardFooter{flex-direction:column;align-items:flex-start}.nUhMVa_themeActions{justify-content:flex-start;width:100%;margin-left:0}}@media (max-width:560px){[role=dialog]:has([data-dsh-market-root])>nav{display:none}[role=dialog]:has([data-dsh-market-root])>div{flex:100%;width:100%;min-width:0}}[role=dialog]:has([data-dsh-market-fullscreen=true]){border-radius:0;width:100vw;max-width:none;height:100vh;max-height:none;position:fixed;top:0;bottom:0;left:0;right:0}@media (prefers-reduced-motion:reduce){.nUhMVa_themeCard,.nUhMVa_themeCover img{transition:none}.nUhMVa_themeCard:hover{transform:none}}.nUhMVa_card{background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:12px;flex-direction:column;align-self:start;gap:12px;padding:12px 14px;display:flex}.nUhMVa_row1{align-items:flex-start;gap:10px;min-width:0;display:flex}.nUhMVa_cardAction{flex-shrink:0;align-items:center;display:inline-flex}.nUhMVa_installBtn.nUhMVa_installBtn{min-width:64px}.nUhMVa_av{color:#fff;object-fit:cover;background:var(--dsw-alias-bg-layer-2,#f3f4f6);border-radius:50%;flex-shrink:0;place-items:center;width:16px;height:16px;font-size:9px;font-weight:700;display:grid}.nUhMVa_nm{text-overflow:ellipsis;white-space:nowrap;font-size:15px;font-weight:600;line-height:22px;overflow:hidden}.nUhMVa_nmLink{color:inherit;text-decoration:none;display:block}.nUhMVa_nmLink:hover{color:var(--dsw-alias-brand-primary,#4f6ef7);text-decoration:underline}.nUhMVa_repoMark{color:var(--dsw-alias-label-secondary,#6b7280);vertical-align:-1px;flex-shrink:0;margin-left:5px;display:inline-block}.nUhMVa_nmLink:hover .nUhMVa_repoMark{color:var(--dsw-alias-brand-primary,#4f6ef7)}.nUhMVa_byline{flex-wrap:wrap;align-items:center;gap:6px;min-width:0;margin-top:2px;display:flex}.nUhMVa_meta{color:var(--dsw-alias-label-secondary,#9ca3af);margin-top:2px;font-size:11px}.nUhMVa_metaInline{color:var(--dsw-alias-label-secondary,#9ca3af);font-size:11px}.nUhMVa_owner{color:var(--dsw-alias-label-secondary,#9ca3af);text-overflow:ellipsis;white-space:nowrap;flex:0 auto;min-width:44px;font-size:11px;overflow:hidden}.nUhMVa_desc{color:var(--dsw-alias-label-tertiary,#8b93a1);margin:0;font-size:12px;line-height:18px}.nUhMVa_descClamp{-webkit-line-clamp:5;-webkit-box-orient:vertical;display:-webkit-box;overflow:hidden}.nUhMVa_descToggle{width:20px;height:16px;color:var(--dsw-alias-label-tertiary,#8b93a1);cursor:pointer;background:0 0;border:none;justify-content:center;align-items:center;margin-top:2px;padding:0;display:flex}.nUhMVa_descToggle:hover{color:var(--dsw-alias-brand-primary,#4f6ef7)}.nUhMVa_foot{flex-wrap:nowrap;align-items:flex-end;gap:8px;display:flex}.nUhMVa_foot .nUhMVa_metaInline,.nUhMVa_foot .nUhMVa_src{white-space:nowrap}.nUhMVa_footTags{flex-wrap:wrap;flex:1 1 0;align-items:center;gap:8px;min-width:0;display:flex}.nUhMVa_grow{flex:1}.nUhMVa_titleRow{align-items:center;gap:10px;display:flex}.nUhMVa_version{color:var(--dsw-alias-label-tertiary,#8b93a1);font-variant-numeric:tabular-nums;flex-shrink:0;font-size:12px;line-height:20px}.nUhMVa_repoLink{color:var(--dsw-alias-label-tertiary,#8b93a1);flex-shrink:0;font-size:12px;line-height:20px;text-decoration:none}.nUhMVa_repoLink:hover{color:var(--dsw-alias-brand-primary,#4f6ef7)}.nUhMVa_noteRow{flex-wrap:wrap;align-items:baseline;gap:6px;min-width:0;display:flex}.nUhMVa_desc.nUhMVa_noteRow,.nUhMVa_desc.nUhMVa_noteRow+.nUhMVa_noteRow,.nUhMVa_noteEdit+.nUhMVa_noteRow{margin-top:6px}.nUhMVa_noteMine{color:var(--dsw-alias-label-primary,#1f2328)}.nUhMVa_noteToggle{font:inherit;color:var(--dsw-alias-label-tertiary,#8b93a1);cursor:pointer;white-space:nowrap;background:0 0;border:none;flex-shrink:0;padding:0;font-size:11px;line-height:16px}.nUhMVa_noteToggle:hover{color:var(--dsw-alias-brand-primary,#4f6ef7);text-decoration:underline}.nUhMVa_noteAction{color:var(--dsw-alias-label-primary,#1f2328);background:var(--dsw-alias-bg-layer-2,#f3f4f6);border:1px solid var(--dsw-alias-border-l3,#d9dde3);border-radius:4px;align-items:center;padding:0 5px;font-weight:600;text-decoration:none;display:inline-flex}.nUhMVa_noteAction:hover{color:var(--dsw-alias-label-primary,#1f2328);border-color:var(--dsw-alias-brand-primary,#4f6ef7);text-decoration:none}.nUhMVa_noteEdit{flex-wrap:wrap;align-items:center;gap:6px;min-width:0;margin-top:6px;display:flex}.nUhMVa_noteInput{flex:1;min-width:160px}.nUhMVa_descTight{min-height:0}.nUhMVa_src{color:var(--dsw-alias-label-secondary,#9ca3af);font-size:11px;text-decoration:none}.nUhMVa_src:hover{color:var(--dsw-alias-brand-primary,#4f6ef7)}.nUhMVa_dot{vertical-align:2px;margin-left:5px}.nUhMVa_act{flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px;font-size:11px;display:flex}.nUhMVa_actLive{color:var(--dsw-alias-state-success-primary,#16a34a);align-items:center;gap:4px;font-weight:600;display:inline-flex}.nUhMVa_actWarn{color:var(--dsw-alias-state-warn-primary,#b45309);align-items:center;gap:4px;font-weight:600;display:inline-flex}.nUhMVa_actBroken{color:var(--dsw-alias-state-error-primary,#dc2626);align-items:center;gap:4px;font-weight:600;display:inline-flex}.nUhMVa_actWhy{color:var(--dsw-alias-label-secondary,#6b7280);margin-top:2px}.nUhMVa_loading{color:var(--dsw-alias-label-secondary,#9ca3af);flex-direction:column;align-items:center;gap:12px;padding:48px;font-size:13px;display:flex}.nUhMVa_spin{color:var(--dsw-alias-brand-primary,#4f6ef7);flex-shrink:0;animation:.8s linear infinite nUhMVa_sp;display:inline-flex}.nUhMVa_logoMark{color:var(--dsw-alias-brand-primary,#4f6ef7);flex-shrink:0;display:inline-flex}.nUhMVa_logoPlug{transform-box:fill-box;transform-origin:50%;animation:1.5s cubic-bezier(.4,0,.2,1) infinite nUhMVa_dshmPlug}@keyframes nUhMVa_dshmPlug{0%,12%{transform:rotate(9deg)}45%,62%{transform:translate(-1.28px,1.27px)rotate(0)}95%,to{transform:rotate(9deg)}}@media (prefers-reduced-motion:reduce){.nUhMVa_logoPlug,.nUhMVa_spin{animation:1.5s ease-in-out infinite nUhMVa_dshmPlugFade}}@keyframes nUhMVa_dshmPlugFade{0%,to{opacity:1}50%{opacity:.35}}@keyframes nUhMVa_sp{to{transform:rotate(360deg)}}.nUhMVa_progress{background:var(--dsw-alias-bg-layer-2,#f3f4f6);border:1px solid var(--dsw-alias-border-l2,#e5e7eb);color:var(--dsw-alias-label-secondary,#6b7280);border-radius:8px;flex-wrap:wrap;align-items:center;gap:9px;margin:0;padding:8px 12px;font-size:12px;display:flex}.nUhMVa_bar{background:var(--dsw-alias-border-l1,#e5e7eb);border-radius:99px;width:100%;height:4px;overflow:hidden}.nUhMVa_barFill{background:var(--dsw-alias-brand-primary,#4f6ef7);border-radius:99px;height:100%;transition:width .6s}.nUhMVa_barWave{width:30%;animation:1.2s ease-in-out infinite nUhMVa_dshmSlide}@keyframes nUhMVa_dshmSlide{0%{margin-left:-30%}to{margin-left:100%}}.nUhMVa_irow .nUhMVa_progress{margin-top:8px}.nUhMVa_progress code{text-overflow:ellipsis;white-space:nowrap;font-family:ui-monospace,Menlo,monospace;font-size:11px;overflow:hidden}.nUhMVa_empty{color:var(--dsw-alias-label-secondary,#9ca3af);text-align:center;padding:32px;font-size:13px}.nUhMVa_err{color:var(--dsw-alias-state-error-primary,#dc2626);white-space:pre-wrap;word-break:break-all;margin:8px 0;font-size:12px}.nUhMVa_cardBlocked{border-color:var(--dsw-alias-state-error-primary,#dc2626)}.nUhMVa_conflictHead{align-items:flex-start;gap:8px;display:flex}.nUhMVa_conflictIcon{color:var(--dsw-alias-state-error-primary,#dc2626);flex-shrink:0;margin-top:1px}.nUhMVa_conflictTitle{color:var(--dsw-alias-state-error-primary,#dc2626);font-size:13px;font-weight:600;line-height:18px}.nUhMVa_conflictBody{margin:0;font-size:12px;line-height:19px}.nUhMVa_roster{background:var(--dsw-alias-border-l2,#e5e7eb);border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:8px;flex-direction:column;gap:1px;display:flex;overflow:hidden}.nUhMVa_rosterRow{background:var(--dsw-alias-bg-layer-1,#fff);align-items:center;gap:8px;padding:7px 10px;display:flex}.nUhMVa_rosterMain{flex-direction:column;min-width:0;display:flex}.nUhMVa_rosterName{text-overflow:ellipsis;white-space:nowrap;min-width:0;font-size:12px;font-weight:600;overflow:hidden}.nUhMVa_rosterAuthor{color:var(--dsw-alias-label-secondary,#9ca3af);text-overflow:ellipsis;white-space:nowrap;font-size:10.5px;overflow:hidden}.nUhMVa_rosterTag{border-radius:4px;flex-shrink:0;margin-left:auto;padding:1px 6px;font-size:10.5px;font-weight:600}.nUhMVa_rosterTagKeep{color:var(--dsw-alias-state-success-primary,#16a34a);background:#16a34a1f}.nUhMVa_rosterTagDrop{color:var(--dsw-alias-state-error-primary,#dc2626);background:#dc26261f}.nUhMVa_rosterRowOut .nUhMVa_rosterName{text-decoration:line-through}.nUhMVa_rosterRowOut{opacity:.62}.nUhMVa_rosterSplit{background:var(--dsw-alias-border-l2,#e5e7eb);height:1px}.nUhMVa_reassure{color:var(--dsw-alias-label-secondary,#6b7280);align-items:center;gap:5px;margin:0;font-size:11.5px;line-height:17px;display:flex}.nUhMVa_reassureOk{color:var(--dsw-alias-state-success-primary,#16a34a);flex-shrink:0}.nUhMVa_conflictWhy{color:var(--dsw-alias-label-tertiary,#8b93a1);overflow-wrap:anywhere;margin-top:2px;font-family:ui-monospace,Menlo,monospace;font-size:11px;line-height:17px}.nUhMVa_conflictWhyText{margin-top:5px;font-family:-apple-system,BlinkMacSystemFont,PingFang SC,sans-serif}.nUhMVa_choices{flex-direction:column;gap:7px;display:flex}.nUhMVa_choice{text-align:left;font:inherit;cursor:pointer;background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l3,#d9dde3);border-radius:9px;align-items:flex-start;gap:9px;padding:9px 11px;display:flex}.nUhMVa_choice:has(input:disabled){cursor:default;opacity:.6}.nUhMVa_choiceOn{border-color:var(--dsw-alias-brand-primary,#4f6ef7);background:var(--dsw-alias-bg-layer-2,#f5f7ff)}.nUhMVa_choiceRadio{width:13px;height:13px;accent-color:var(--dsw-alias-brand-primary,#4f6ef7);flex-shrink:0;margin:2px 0 0}.nUhMVa_choiceMain{flex-direction:column;gap:3px;min-width:0;display:flex}.nUhMVa_choiceTitle{font-size:12px;font-weight:600;line-height:17px}.nUhMVa_choiceNote{color:var(--dsw-alias-label-tertiary,#8b93a1);font-size:11px;line-height:16px}.nUhMVa_choiceSafe{color:var(--dsw-alias-state-success-primary,#16a34a)}.nUhMVa_stateTag{white-space:nowrap;background:var(--dsw-alias-bg-layer-2,#f3f4f6);min-height:20px;color:var(--dsw-alias-label-secondary,#6b7280);border-radius:5px;flex-shrink:0;align-items:center;gap:5px;padding:1px 7px;font-size:11px;line-height:16px;display:inline-flex}.nUhMVa_stateTag[data-on=true]{color:var(--dsw-alias-state-success-primary,#16a34a);background:color-mix(in srgb, var(--dsw-alias-state-success-primary,#16a34a) 10%, transparent)}.nUhMVa_stateDot{background:var(--dsw-alias-label-tertiary,#8b93a1);border-radius:999px;flex:none;width:6px;height:6px}.nUhMVa_stateDot[data-on=true]{background:var(--dsw-alias-state-success-primary,#16a34a)}.nUhMVa_metaTag{text-overflow:ellipsis;white-space:nowrap;background:var(--dsw-alias-bg-layer-2,#f3f4f6);min-width:0;max-width:100%;min-height:20px;color:var(--dsw-alias-label-tertiary,#8b93a1);border-radius:5px;flex-shrink:1;padding:1px 7px;font-size:11px;line-height:18px;display:inline-block;overflow:hidden}.nUhMVa_metaTagOk{color:var(--dsw-alias-state-success-primary,#16a34a);background:color-mix(in srgb, var(--dsw-alias-state-success-primary,#16a34a) 10%, transparent)}.nUhMVa_metaTagAction{font-family:inherit;font-size:11px;line-height:18px;font-weight:inherit;cursor:pointer;background:var(--dsw-alias-bg-layer-2,#f3f4f6);color:var(--dsw-alias-label-secondary,#6b7280);border:none;border-radius:5px;flex-shrink:0;padding:1px 7px}.nUhMVa_metaTagAction:hover:not(:disabled){color:var(--dsw-alias-brand-primary,#4f6ef7)}.nUhMVa_metaTagAction:disabled{opacity:.5;cursor:default}.nUhMVa_irowHead{align-items:flex-start;gap:8px;min-width:0;display:flex}.nUhMVa_irowHead .nUhMVa_irowName{flex:1 1 0;min-width:0}.nUhMVa_irowDevTag{letter-spacing:.02em;white-space:nowrap;cursor:default;-webkit-user-select:none;user-select:none;color:var(--dsw-alias-label-tertiary,#8b93a1);background:color-mix(in srgb, var(--dsw-alias-brand-primary,#4f6ef7) 9%, var(--dsw-alias-bg-layer-2,#f3f4f6));border-radius:99px;flex-shrink:0;padding:2px 8px;font-size:10px;font-weight:600;line-height:14px}.nUhMVa_nameLink{color:inherit;text-decoration:none}.nUhMVa_irowName{text-overflow:clip;flex-wrap:wrap;align-items:baseline;gap:6px;min-width:0;display:flex;overflow:visible}.nUhMVa_irowNameText{overflow-wrap:anywhere;white-space:normal;min-width:0}.nUhMVa_irowName>.nUhMVa_owner{flex:none}.nUhMVa_nameLink:hover{color:var(--dsw-alias-brand-primary,#4f6ef7);text-decoration:underline}.nUhMVa_opWrap{flex-shrink:0;margin-bottom:6px;display:inline-flex;position:relative}.nUhMVa_opEntry{font:inherit;cursor:pointer;white-space:nowrap;color:var(--dsw-alias-label-primary,#1f2328);background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l3,#d9dde3);border-radius:7px;align-items:center;gap:6px;padding:4px 10px;font-size:12px;display:inline-flex;position:relative}.nUhMVa_opEntryQuiet{color:var(--dsw-alias-label-secondary,#6b7280);background:0 0;border-color:#0000}.nUhMVa_opEntryAlert{border-color:var(--dsw-alias-state-error-primary,#dc2626);color:var(--dsw-alias-state-error-primary,#dc2626)}.nUhMVa_opDot{background:var(--dsw-alias-state-error-primary,#dc2626);border-radius:99px;width:8px;height:8px;position:absolute;top:-3px;right:-3px}.nUhMVa_opPanel{z-index:40;background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l3,#d9dde3);border-radius:12px;width:460px;max-width:86vw;max-height:70vh;position:absolute;top:calc(100% + 6px);right:0;overflow-y:auto;box-shadow:0 20px 52px #00000047}.nUhMVa_opHead{border-bottom:1px solid var(--dsw-alias-border-l2,#e5e7eb);align-items:center;gap:8px;padding:9px 14px;display:flex}.nUhMVa_opPanelTitle{font-size:12.5px;font-weight:600}.nUhMVa_opCloseBtn.nUhMVa_opCloseBtn{min-width:0;color:var(--dsw-alias-label-secondary,#6b7280);padding:0 6px}.nUhMVa_opAggregate{border-bottom:1px solid var(--dsw-alias-border-l2,#e5e7eb);background:var(--dsw-alias-bg-layer-2,#f7f8fa);padding:9px 14px}.nUhMVa_opAggregateTop{font-variant-numeric:tabular-nums;font-size:12px;font-weight:600}.nUhMVa_opAggregateHint{color:var(--dsw-alias-label-tertiary,#8b93a1);margin-top:4px;font-size:10.5px}.nUhMVa_opRow{border-bottom:1px solid var(--dsw-alias-border-l2,#e5e7eb);align-items:flex-start;gap:9px;padding:9px 14px;display:flex}.nUhMVa_opRow:last-child{border-bottom:none}.nUhMVa_opRowAlert{background:#dc26260f}.nUhMVa_opIcon{flex-shrink:0;place-items:center;width:14px;margin-top:1px;display:grid}.nUhMVa_opQueuedIcon{color:var(--dsw-alias-label-tertiary,#8b93a1);font-size:12px}.nUhMVa_opMain{flex-direction:column;flex:1;gap:3px;min-width:0;display:flex}.nUhMVa_opTop{align-items:baseline;gap:6px;min-width:0;display:flex}.nUhMVa_opVerb{color:var(--dsw-alias-label-secondary,#6b7280);flex-shrink:0;font-size:12px}.nUhMVa_opName{text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:600;overflow:hidden}.nUhMVa_opStatus{color:var(--dsw-alias-label-tertiary,#8b93a1);overflow-wrap:anywhere;font-size:10.5px;line-height:16px}.nUhMVa_opStatusBad{color:var(--dsw-alias-state-error-primary,#dc2626)}.nUhMVa_opActions{flex-shrink:0;align-items:center;gap:6px;margin-top:1px;display:flex}.nUhMVa_opDecision{border-top:1px dashed var(--dsw-alias-border-l2,#e5e7eb);flex-direction:column;gap:8px;margin-top:8px;padding-top:8px;display:flex}.nUhMVa_opDecisionFoot{align-items:center;gap:8px;display:flex}.nUhMVa_conflictDetailsToggle{font:inherit;cursor:pointer;color:var(--dsw-alias-label-tertiary,#8b93a1);background:0 0;border:none;align-items:center;gap:4px;padding:2px 0;font-size:11px;display:inline-flex}.nUhMVa_conflictDetailsToggle:hover{color:var(--dsw-alias-label-secondary,#6b7280)}.nUhMVa_opEmpty{text-align:center;color:var(--dsw-alias-label-secondary,#6b7280);padding:30px 14px;font-size:12px}.nUhMVa_opEmptyHint{color:var(--dsw-alias-label-tertiary,#8b93a1);margin-top:4px;font-size:11px}.nUhMVa_cardBlockedMark{font:inherit;cursor:pointer;color:var(--dsw-alias-state-error-primary,#dc2626);border:1px solid var(--dsw-alias-state-error-primary,#dc2626);background:#dc262614;border-radius:7px;align-items:center;gap:5px;padding:4px 9px;font-size:11px;display:inline-flex}.nUhMVa_dangerBtn.nUhMVa_dangerBtn{color:var(--dsw-alias-state-error-primary,#dc2626);border-color:var(--dsw-alias-state-error-primary,#dc2626)}.nUhMVa_dangerBtn.nUhMVa_dangerBtn:hover:not(:disabled){background:var(--dsw-alias-state-error-primary,#dc2626);color:#fff}.nUhMVa_dangerArmed.nUhMVa_dangerArmed{background:var(--dsw-alias-state-error-primary,#dc2626);border-color:var(--dsw-alias-state-error-primary,#dc2626);color:#fff}.nUhMVa_retryBtn{margin-top:4px}.nUhMVa_irow{background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:10px;flex-direction:column;gap:10px;min-width:0;padding:12px 14px;display:flex}.nUhMVa_irowActions{flex-wrap:wrap;justify-content:flex-start;align-items:center;gap:8px;min-width:0;display:flex}.nUhMVa_irowTrailing{flex-wrap:nowrap;flex-shrink:0;align-items:center;gap:8px;min-width:0;display:inline-flex}.nUhMVa_irowTrailing .nUhMVa_metaTag{flex-shrink:1;min-width:0}.nUhMVa_irowTrailing .nUhMVa_metaTagAction{flex-shrink:0}.nUhMVa_irowMissing{filter:grayscale();opacity:.5}.nUhMVa_irow>.nUhMVa_src,.nUhMVa_irow>.nUhMVa_owner,.nUhMVa_irow button{white-space:nowrap;flex-shrink:0}.nUhMVa_tabSearchRow{align-items:center;gap:8px;padding:0 4px 12px;display:flex}.nUhMVa_tabSearch{flex:1;min-width:0}.nUhMVa_searchField{box-sizing:border-box;min-width:0;position:relative}.nUhMVa_searchInput.nUhMVa_searchInput{box-sizing:border-box;width:100%;min-width:0;padding-right:34px}.nUhMVa_searchClear{width:24px;height:24px;color:var(--dsw-alias-label-secondary,#59636e);font:inherit;cursor:pointer;background:0 0;border:0;border-radius:4px;justify-content:center;align-items:center;padding:0;font-size:20px;line-height:1;display:flex;position:absolute;top:50%;right:5px;transform:translateY(-50%)}.nUhMVa_searchClear:hover{background:var(--dsw-alias-bg-layer-2,#f3f4f6);color:var(--dsw-alias-label-primary,#1f2328)}.nUhMVa_searchClear:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary,#4f6ef7);outline-offset:1px}.nUhMVa_spec{color:var(--dsw-alias-label-secondary,#9ca3af);overflow-wrap:anywhere;min-width:0;font-family:ui-monospace,Menlo,monospace;font-size:11px}.nUhMVa_specTag{white-space:nowrap;border-radius:4px;flex-shrink:0;align-items:center;height:16px;padding:0 5px;font-size:10px;font-weight:600;display:inline-flex}.nUhMVa_specTagGit{color:#0b7285;background:#12a3c41f}.nUhMVa_specTagFile{color:#b07d1b;background:#f0b42924}.nUhMVa_backupCheckList .nUhMVa_grow{white-space:nowrap;text-overflow:ellipsis;flex:70%;min-width:0;overflow:hidden}.nUhMVa_backupCheckList .nUhMVa_spec{text-align:right;white-space:nowrap;text-overflow:ellipsis;flex:0 30%;max-width:30%;overflow:hidden}.nUhMVa_staleAction{word-break:normal;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;display:flex}.nUhMVa_pct{color:var(--dsw-alias-label-secondary,#6b7280);flex-shrink:0;font-size:11px;font-weight:600}.nUhMVa_pager{flex-wrap:nowrap;justify-content:space-between;align-items:center;gap:8px;margin:16px 0 4px;display:flex}.nUhMVa_pagerPages{flex-wrap:nowrap;flex:1;justify-content:center;align-items:center;gap:4px;min-width:0;display:flex}.nUhMVa_pagerMeta{flex-wrap:nowrap;flex-shrink:0;align-items:center;gap:6px;display:flex}.nUhMVa_pagerPages button,.nUhMVa_pagerMeta button{min-width:0;padding:0 8px}.nUhMVa_pageEllipsis{color:var(--dsw-alias-label-secondary,#9ca3af);padding:0 1px;font-size:12px}.nUhMVa_pageInfo{color:var(--dsw-alias-label-secondary,#6b7280);white-space:nowrap;font-size:12px}@container (width<=544px){.nUhMVa_pager{flex-wrap:wrap;justify-content:center;gap:8px}.nUhMVa_pagerPages{flex-basis:100%}}.nUhMVa_depBadge{border:1px solid var(--dsw-alias-state-warn-primary,#b45309);color:var(--dsw-alias-state-warn-primary,#b45309);white-space:nowrap;border-radius:4px;flex-shrink:0;margin-left:6px;padding:1px 6px;font-size:11px;font-weight:600;line-height:16px}.nUhMVa_deprecate{color:var(--dsw-alias-state-warn-primary,#b45309);background:var(--dsw-alias-bg-layer-2,#fdf3e3);border:1px solid var(--dsw-alias-border-l2,#f3e3c3);border-radius:8px;margin:0;padding:8px 10px;font-size:12px;line-height:18px}.nUhMVa_deprecate a{color:var(--dsw-alias-state-warn-primary,#b45309);text-decoration:underline}.nUhMVa_deprecate .nUhMVa_src{margin-left:8px}.nUhMVa_depLine{flex-wrap:wrap;align-items:center;gap:8px;display:flex}.nUhMVa_switch{border:1px solid var(--dsw-alias-border-l2,#d9dde3);background:var(--dsw-alias-bg-layer-2,#e5e7eb);cursor:pointer;border-radius:99px;flex-shrink:0;width:38px;height:22px;padding:0;transition:background .15s,border-color .15s;position:relative}.nUhMVa_switchOn{background:var(--dsw-alias-state-success-primary,#16a34a);border-color:var(--dsw-alias-state-success-primary,#16a34a)}.nUhMVa_switchMixed{background:var(--dsw-alias-state-warn-primary,#b45309);border-color:var(--dsw-alias-state-warn-primary,#b45309)}.nUhMVa_switchKnob{background:#fff;border-radius:99px;width:16px;height:16px;transition:left .15s;position:absolute;top:2px;left:2px;box-shadow:0 1px 2px #00000040}.nUhMVa_switchOn .nUhMVa_switchKnob,.nUhMVa_switchMixed .nUhMVa_switchKnob{left:18px}.nUhMVa_switch:disabled{opacity:.5;cursor:default}.nUhMVa_viewBar{border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:8px;align-items:center;gap:2px;width:fit-content;margin-bottom:12px;padding:2px;display:flex}.nUhMVa_viewBtn{font:inherit;color:var(--dsw-alias-label-secondary,#6b7280);cursor:pointer;white-space:nowrap;background:0 0;border:none;border-radius:6px;padding:4px 10px;font-size:12px;line-height:18px}.nUhMVa_viewBtn:hover{color:var(--dsw-alias-brand-primary,#4f6ef7)}.nUhMVa_viewOn{background:var(--dsw-alias-bg-layer-2,#eef0f4);color:var(--dsw-alias-label-primary,#1f2328);font-weight:600}.nUhMVa_groupRow{background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:12px;margin-bottom:10px;padding:12px 14px}.nUhMVa_groupHead{flex-wrap:wrap;align-items:center;gap:10px;min-width:0;display:flex}.nUhMVa_groupCollapse{width:22px;height:22px;color:var(--dsw-alias-label-secondary,#6b7280);cursor:pointer;background:0 0;border:none;border-radius:6px;flex-shrink:0;justify-content:center;align-items:center;padding:0;display:inline-flex}.nUhMVa_groupCollapse:hover{background:var(--dsw-alias-bg-layer-2,#eef0f4);color:var(--dsw-alias-label-primary,#1f2328)}.nUhMVa_groupTitle{flex-direction:column;flex:auto;gap:1px;min-width:0;display:flex}.nUhMVa_groupTitle .nUhMVa_groupHint{margin-top:0}.nUhMVa_groupName{text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:600;line-height:20px;overflow:hidden}.nUhMVa_groupMeta{color:var(--dsw-alias-label-tertiary,#8b93a1);font-size:11px;line-height:16px}.nUhMVa_groupActions{flex-wrap:wrap;flex-shrink:0;align-items:center;gap:6px;margin-left:auto;display:flex}.nUhMVa_groupMembers{flex-direction:column;gap:6px;margin-top:10px;display:flex}.nUhMVa_groupMember{background:var(--dsw-alias-bg-layer-2,#f7f8fa);border-radius:8px;align-items:center;gap:8px;min-width:0;padding:6px 8px;font-size:12px;line-height:18px;display:flex}.nUhMVa_groupMember .nUhMVa_nm{flex:1;min-width:0;font-size:12px}.nUhMVa_memberName{flex:auto;align-items:center;gap:6px;min-width:0;display:flex}.nUhMVa_memberName .nUhMVa_nm{flex:0 auto;min-width:0}.nUhMVa_memberKind{color:var(--dsw-alias-label-tertiary,#8b93a1);white-space:nowrap;flex:none;font-size:11px;line-height:16px}.nUhMVa_themeSlot{box-shadow:inset 0 -1px 0 var(--dsw-alias-border-l2,#e5e7eb);border-radius:8px 8px 0 0;margin-bottom:4px}.nUhMVa_groupMember>.nUhMVa_switch,.nUhMVa_groupMember>button{flex-shrink:0}.nUhMVa_groupMemberAction{flex:none;margin-left:auto}.nUhMVa_groupMemberAction button{white-space:nowrap}.nUhMVa_groupAddPanel{border-top:1px dashed var(--dsw-alias-border-l2,#e5e7eb);flex-direction:column;gap:6px;margin-top:10px;padding-top:10px;display:flex}.nUhMVa_groupAddModalBody{flex-direction:column;gap:10px;min-width:0;display:flex}.nUhMVa_groupAddFilters{flex-wrap:wrap;gap:6px;display:flex}.nUhMVa_groupAddModalList{flex-direction:column;gap:6px;max-height:min(50vh,360px);padding-right:2px;display:flex;overflow-y:auto}.nUhMVa_groupAddModalHint{color:var(--dsw-alias-label-secondary,#6b7280);margin:0;font-size:12px;line-height:18px}.nUhMVa_groupAddPick{background:var(--dsw-alias-bg-layer-2,#f7f8fa);cursor:pointer;border-radius:8px;align-items:center;gap:8px;min-width:0;padding:8px 10px;display:flex}.nUhMVa_groupAddPick:hover{background:var(--dsw-alias-bg-layer-2,#eef0f4)}.nUhMVa_groupAddPick input{flex-shrink:0;margin:0}.nUhMVa_groupAddPick .nUhMVa_nm{text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;font-size:12px;overflow:hidden}.nUhMVa_groupAddFooterMeta{color:var(--dsw-alias-label-secondary,#6b7280);align-self:center;margin-right:auto;font-size:12px;line-height:18px}.nUhMVa_groupOrgHint{color:var(--dsw-alias-label-tertiary,#8b93a1);margin:4px 0 0;font-size:11px;line-height:16px}.nUhMVa_groupRenameField{flex-direction:column;gap:6px;min-width:min(100%,320px);display:flex}.nUhMVa_groupRenameField label{color:var(--dsw-alias-label-secondary,#6b7280);font-size:12px;line-height:18px}.nUhMVa_groupRenameField .nUhMVa_inlineInput{width:100%}.nUhMVa_groupCreate{align-items:center;gap:8px;margin-bottom:10px;display:flex}.nUhMVa_groupCreateInline{flex-shrink:0;align-items:center;gap:8px;display:flex}.nUhMVa_groupCreateInline .nUhMVa_inlineInput{flex:none;width:160px}.nUhMVa_inlineInput{flex:1;min-width:120px}.nUhMVa_ungroupedRow{flex-wrap:nowrap}.nUhMVa_ungroupedRow>.nUhMVa_nm{flex:0 auto;max-width:42%;font-size:12px;line-height:18px}.nUhMVa_ungroupedState{flex:0 auto;align-items:center;min-width:0;max-width:46%;margin:0;display:inline-flex}.nUhMVa_ungroupedState>span{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.nUhMVa_ungroupedDesc{text-overflow:ellipsis;white-space:nowrap;min-width:0;color:var(--dsw-alias-label-tertiary,#8b93a1);flex:1 1 0;font-size:12px;line-height:18px;overflow:hidden}.nUhMVa_ungroupedDesc.nUhMVa_noteMine{color:var(--dsw-alias-label-primary,#1f2328)}.nUhMVa_groupHint{color:var(--dsw-alias-label-tertiary,#8b93a1);font-size:11px}.nUhMVa_sect{color:var(--dsw-alias-label-secondary,#6b7280);margin:14px 2px 8px;font-size:12px;font-weight:600}.nUhMVa_sectAction{color:var(--dsw-alias-label-secondary,#6b7280);align-items:center;gap:8px;margin:14px 2px 8px;font-size:12px;font-weight:600;display:flex}.nUhMVa_backupGrid{grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;display:grid}.nUhMVa_backupCard{background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:12px;flex-direction:column;gap:10px;padding:16px;display:flex}.nUhMVa_backupCard h3{margin:0;font-size:14px}.nUhMVa_backupCard p{color:var(--dsw-alias-label-secondary,#6b7280);margin:0;font-size:12px;line-height:18px}.nUhMVa_backupActions{flex-wrap:wrap;gap:8px;display:flex;position:relative}.nUhMVa_hiddenFile{opacity:0;pointer-events:none;width:1px;height:1px;position:absolute}.nUhMVa_backupInput{box-sizing:border-box;width:100%}.nUhMVa_backupCheck{cursor:pointer;align-items:center;gap:6px;font-size:12px;display:flex}.nUhMVa_backupWarn{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-state-warn-primary,#b45309)!important}.nUhMVa_backupMessage{color:var(--dsw-alias-label-secondary,#6b7280);grid-column:1/-1;font-size:12px}.nUhMVa_backupCheckList{flex-direction:column;gap:6px;max-height:260px;margin:10px 0 4px;padding-right:4px;display:flex;overflow-y:auto}.nUhMVa_backupCheckList .nUhMVa_backupCheck{justify-content:space-between;gap:8px}.nUhMVa_diagPage{flex-direction:column;gap:12px;height:100%;min-height:0;display:flex;overflow-y:auto}.nUhMVa_diagSummary{background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:12px;flex-wrap:wrap;align-items:center;gap:12px;padding:10px 14px;font-size:12px;display:flex}.nUhMVa_diagSummaryItem{color:var(--dsw-alias-label-secondary,#6b7280);white-space:nowrap;align-items:center;gap:6px;display:inline-flex}.nUhMVa_diagSummaryMeta{color:var(--dsw-alias-label-tertiary,#9ca3af);text-overflow:ellipsis;white-space:nowrap;max-width:320px;font-family:ui-monospace,Menlo,monospace;font-size:11px;overflow:hidden}.nUhMVa_diagSection{background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:12px;flex-direction:column;gap:8px;padding:12px 14px;display:flex}.nUhMVa_diagSection h3{color:var(--dsw-alias-label-primary,#1f2328);margin:0;font-size:13px;font-weight:600}.nUhMVa_diagCount{color:var(--dsw-alias-label-tertiary,#9ca3af);font-size:11px;font-weight:400}.nUhMVa_diagEmpty{color:var(--dsw-alias-label-secondary,#9ca3af);padding:8px 0;font-size:12px}.nUhMVa_diagBundle{border-top:1px solid var(--dsw-alias-border-l2,#f0f1f3);flex-direction:column;gap:6px;padding-top:8px;display:flex}.nUhMVa_diagBundle:first-of-type{border-top:none;padding-top:0}.nUhMVa_diagRow{flex-wrap:wrap;align-items:center;gap:8px;min-width:0;font-size:12px;line-height:18px;display:flex}.nUhMVa_diagMeta{align-items:baseline;gap:8px;min-width:0;font-size:12px;display:flex}.nUhMVa_diagKey{color:var(--dsw-alias-label-tertiary,#9ca3af);flex-shrink:0;min-width:64px;font-size:11px}.nUhMVa_diagVal{color:var(--dsw-alias-label-primary,#1f2328);overflow-wrap:anywhere;min-width:0;font-family:ui-monospace,Menlo,monospace;font-size:12px;font-weight:500}.nUhMVa_diagIndex{background:var(--dsw-alias-bg-layer-2,#f3f4f6);min-width:18px;height:18px;color:var(--dsw-alias-label-secondary,#6b7280);border-radius:9px;flex-shrink:0;justify-content:center;align-items:center;font-size:11px;font-weight:600;display:inline-flex}.nUhMVa_diagArrow{color:var(--dsw-alias-label-tertiary,#9ca3af);flex-shrink:0;font-size:12px}.nUhMVa_diagBadgeOfficial{background:var(--dsw-alias-brand-primary,#4f6ef7);color:#fff;border-radius:9px;flex-shrink:0;align-items:center;height:18px;padding:0 8px;font-size:11px;font-weight:600;display:inline-flex}.nUhMVa_diagBadgeCommunity{background:var(--dsw-alias-bg-layer-2,#f3f4f6);height:18px;color:var(--dsw-alias-label-secondary,#6b7280);border-radius:9px;flex-shrink:0;align-items:center;padding:0 8px;font-size:11px;display:inline-flex}.nUhMVa_diagBadgeShadow{background:var(--dsw-alias-state-error-primary,#dc2626);color:#fff;border-radius:9px;flex-shrink:0;align-items:center;height:18px;padding:0 8px;font-size:11px;font-weight:600;display:inline-flex}.nUhMVa_diagBadgeWarn{background:var(--dsw-alias-state-warn-primary,#b45309);color:#fff;white-space:nowrap;border-radius:9px;flex-shrink:0;align-items:center;height:18px;padding:0 8px;font-size:11px;font-weight:600;display:inline-flex}.nUhMVa_diagBadgeInfo{background:var(--dsw-alias-bg-layer-2,#f3f4f6);height:18px;color:var(--dsw-alias-label-secondary,#6b7280);white-space:nowrap;border-radius:9px;flex-shrink:0;align-items:center;padding:0 8px;font-size:11px;display:inline-flex}.nUhMVa_diagList{flex-direction:column;gap:6px;display:flex}.nUhMVa_sectionOverview{color:var(--dsw-alias-label-tertiary,#8b93a1);text-overflow:ellipsis;white-space:nowrap;max-width:100%;padding:2px 0 6px;font-size:12px;line-height:18px;overflow:hidden}.nUhMVa_diagAlert{color:var(--dsw-alias-state-warn-primary,#b45309)}.nUhMVa_ovRow{background:var(--dsw-alias-bg-layer-2,#f7f8fa);border-radius:8px;flex-wrap:wrap;align-items:center;gap:8px;min-width:0;padding:6px 10px;font-size:12px;line-height:18px;display:flex}.nUhMVa_ovArrow{color:var(--dsw-alias-label-tertiary,#9ca3af);flex-shrink:0;font-size:12px}.nUhMVa_ovByTag{background:var(--dsw-alias-brand-primary,#4f6ef7);color:#fff;text-overflow:ellipsis;white-space:nowrap;border-radius:9px;flex-shrink:0;align-items:center;max-width:260px;height:18px;padding:0 8px;font-size:11px;font-weight:600;display:inline-flex;overflow:hidden}.nUhMVa_ovFrom{color:var(--dsw-alias-label-secondary,#6b7280);text-overflow:ellipsis;white-space:nowrap;min-width:0;font-size:12px;overflow:hidden}.nUhMVa_orphRow{background:var(--dsw-alias-bg-layer-2,#f7f8fa);border-radius:8px;flex-wrap:wrap;align-items:center;gap:8px;min-width:0;padding:6px 10px;font-size:12px;line-height:18px;display:flex}.nUhMVa_orphBadge{background:var(--dsw-alias-state-warn-primary,#b45309);color:#fff;white-space:nowrap;border-radius:9px;flex-shrink:0;align-items:center;height:18px;padding:0 8px;font-size:11px;font-weight:600;display:inline-flex}.nUhMVa_dragHandle{width:20px;height:20px;color:var(--dsw-alias-label-tertiary,#9ca3af);cursor:grab;-webkit-user-select:none;user-select:none;flex-shrink:0;justify-content:center;align-items:center;font-size:12px;line-height:20px;display:inline-flex}.nUhMVa_dragOver{outline:2px dashed var(--dsw-alias-brand-primary,#4f6ef7);outline-offset:2px;background:var(--dsw-alias-bg-layer-2,#f0f2f8);border-radius:8px}.nUhMVa_dragging{opacity:.45;background:var(--dsw-alias-bg-layer-2,#f3f4f6)}.nUhMVa_collapseHead{font:inherit;color:var(--dsw-alias-label-primary,#1f2328);cursor:pointer;text-align:left;background:0 0;border:none;align-items:center;gap:8px;width:100%;padding:0;font-size:13px;font-weight:600;display:flex}.nUhMVa_collapseIcon{color:var(--dsw-alias-label-secondary,#6b7280);flex-shrink:0;display:inline-flex}.nUhMVa_collapseTitle{flex:1;min-width:0}.nUhMVa_collapseBody{border-top:1px solid var(--dsw-alias-border-l2,#f0f1f3);overflow-wrap:anywhere;flex-direction:column;gap:10px;min-width:0;margin-top:8px;padding-top:10px;display:flex}.nUhMVa_orderPanel{flex-direction:column;gap:10px;min-width:0;display:flex}.nUhMVa_panelNote{color:var(--dsw-alias-label-secondary,#6b7280);margin:0;font-size:12px;line-height:18px}.nUhMVa_panelActions{flex-wrap:wrap;align-items:center;gap:8px;display:flex}.nUhMVa_presetList{flex-direction:column;gap:6px;min-width:0;display:flex}.nUhMVa_presetRow{background:var(--dsw-alias-bg-layer-2,#f7f8fa);border-radius:8px;flex-direction:column;align-items:stretch;gap:6px;min-width:0;max-width:100%;padding:8px 10px;font-size:12px;line-height:18px;display:flex}.nUhMVa_presetName{text-overflow:ellipsis;white-space:nowrap;min-width:0;font-size:13px;font-weight:600;overflow:hidden}.nUhMVa_snapList{flex-direction:column;gap:6px;min-width:0;display:flex}.nUhMVa_snapRow{background:var(--dsw-alias-bg-layer-2,#f7f8fa);border-radius:8px;flex-direction:column;align-items:stretch;gap:8px;padding:10px 12px;font-size:12px;line-height:18px;display:flex}.nUhMVa_snapMeta{flex-wrap:wrap;align-items:center;gap:8px;min-width:0;display:flex}.nUhMVa_snapConfirmText{color:var(--dsw-alias-state-warn-primary,#b45309);margin:0;font-size:12px;line-height:18px}.nUhMVa_confirmRow{flex-wrap:wrap;align-items:center;gap:6px;display:inline-flex}.nUhMVa_fixFallback{flex-direction:column;gap:6px;margin:8px 0;display:flex}.nUhMVa_fixFallbackText{box-sizing:border-box;width:100%;color:var(--dsw-alias-label-primary,#1f2328);background:var(--dsw-alias-bg-layer-2,#f3f4f6);border:1px solid var(--dsw-alias-border-l2,#e5e7eb);resize:vertical;white-space:pre-wrap;word-break:break-all;border-radius:6px;padding:8px 10px;font-family:ui-monospace,Menlo,monospace;font-size:11px;line-height:16px}.nUhMVa_setCard{border:1px solid var(--dsw-alias-border-l2,#e5e7eb);background:var(--dsw-alias-bg-layer-3,#fff);border-radius:12px;list-style:none;transition:border-color .16s,background .16s}.nUhMVa_setCard:hover{border-color:var(--dsw-alias-label-dimmed,#c8ccd4)}.nUhMVa_setCardOpen{background:var(--dsw-alias-bg-layer-2,#f7f8fa);border-color:var(--dsw-alias-label-dimmed,#c8ccd4)}.nUhMVa_setHeader{-webkit-appearance:none;appearance:none;width:100%;font:inherit;color:inherit;text-align:left;cursor:pointer;background:0 0;border:0;border-radius:12px;align-items:center;gap:12px;padding:14px 16px;display:flex}.nUhMVa_setHeader:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#4f6ef7);outline-offset:-2px}.nUhMVa_setHeadText{flex-direction:column;flex:1;gap:4px;min-width:0;display:flex}.nUhMVa_setName{color:var(--dsw-alias-label-primary,#1f2328);font-size:15px;font-weight:600;line-height:1.4}.nUhMVa_setDesc{color:var(--dsw-alias-label-tertiary,#8b93a1);font-size:13px;line-height:1.5}.nUhMVa_setChevron{color:var(--dsw-alias-label-tertiary,#8b93a1);flex:none;transition:transform .16s;display:inline-flex}.nUhMVa_setChevronOpen{transform:rotate(180deg)}.nUhMVa_setBody{border-top:1px solid var(--dsw-alias-border-l2,#e5e7eb);margin:0 16px;padding-bottom:8px}.nUhMVa_setRow{align-items:center;gap:12px;padding:12px 0;display:flex}.nUhMVa_setRow+.nUhMVa_setRow{border-top:1px solid var(--dsw-alias-border-l2,#e5e7eb)}.nUhMVa_setLabelBox{flex-direction:column;flex:1;gap:3px;min-width:0;display:flex}.nUhMVa_setLabel{font-size:13px;line-height:20px}.nUhMVa_setHint{color:var(--dsw-alias-label-tertiary,#8b93a1);font-size:12px;line-height:18px}.nUhMVa_setConfirm{border-top:1px solid var(--dsw-alias-border-l2,#e5e7eb);flex-direction:column;gap:8px;padding:12px 0 4px;display:flex}.nUhMVa_setCheck{cursor:pointer;align-items:center;gap:8px;font-size:12px;line-height:18px;display:flex}.nUhMVa_setActions{border-top:1px solid var(--dsw-alias-border-l2,#e5e7eb);justify-content:flex-end;align-items:center;gap:8px;padding:12px 0 4px;display:flex}.nUhMVa_setInlineActions{flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:6px;display:flex}.nUhMVa_setProxyEditor{border-top:1px solid var(--dsw-alias-border-l2,#e5e7eb);flex-wrap:wrap;align-items:flex-end;gap:10px;padding:12px 0;display:flex}.nUhMVa_setProxyLabel{min-width:180px;color:var(--dsw-alias-label-secondary,#6b7280);flex-direction:column;flex:1;gap:5px;font-size:12px;line-height:18px;display:flex}.nUhMVa_setProxyInput{box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2,#d1d5db);background:var(--dsw-alias-bg-layer-3,#fff);width:100%;min-width:0;color:var(--dsw-alias-label-primary,#1f2328);font:inherit;border-radius:7px;padding:6px 8px;font-size:12px;line-height:18px}.nUhMVa_setProxyInput:focus{border-color:var(--dsw-alias-brand-primary,#4f6ef7);outline:2px solid color-mix(in srgb,var(--dsw-alias-brand-primary,#4f6ef7) 18%,transparent)}.nUhMVa_setDanger{color:var(--dsw-alias-state-error-primary,#dc2626)}.nUhMVa_setSeg{border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:8px;flex-shrink:0;gap:2px;padding:2px;display:inline-flex}.nUhMVa_setSegBtn{font:inherit;color:var(--dsw-alias-label-secondary,#6b7280);cursor:pointer;background:0 0;border:none;border-radius:6px;padding:3px 10px;font-size:12px;line-height:18px}.nUhMVa_setSegBtn:disabled{cursor:default;opacity:.5}.nUhMVa_setSegOn{background:var(--dsw-alias-bg-layer-2,#eef0f4);color:var(--dsw-alias-label-primary,#1f2328);font-weight:600}.nUhMVa_setBetaTag{background:var(--dsw-alias-bg-module-platform,#eef0f4);color:var(--dsw-alias-label-secondary,#6b7280);border-radius:9px;margin-left:6px;padding:0 6px;font-size:11px;font-weight:600;line-height:17px}.nUhMVa_commentsLink{cursor:pointer;white-space:nowrap;color:var(--dsw-alias-label-secondary,#9ca3af);background:0 0;border:0;padding:0;font-size:11px;line-height:16px}.nUhMVa_commentsLink:hover{color:var(--dsw-alias-brand-primary,#4f6ef7)}.nUhMVa_footActions{flex-shrink:0;align-items:center;gap:8px;display:inline-flex}.nUhMVa_favoriteBtn{cursor:pointer;color:var(--dsw-alias-label-secondary,#9ca3af);background:0 0;border:0;align-items:center;padding:0;display:inline-flex}.nUhMVa_favoriteBtn:hover,.nUhMVa_favoriteOn{color:var(--dsw-alias-brand-primary,#4f6ef7)}.nUhMVa_commentsNote{color:var(--dsw-alias-label-secondary,#9ca3af);margin:0 0 8px;font-size:11px;line-height:16px}.nUhMVa_commentsGithubPrompt{border:1px solid color-mix(in srgb,var(--dsw-alias-brand-primary,#4f6ef7) 24%,transparent);background:color-mix(in srgb,var(--dsw-alias-brand-primary,#4f6ef7) 6%,transparent);border-radius:8px;margin:0 0 10px;padding:10px}.nUhMVa_commentsGithubHint{color:var(--dsw-alias-label-primary,#1f2328);margin:0 0 8px;font-size:12px;line-height:17px}.nUhMVa_commentsGithubAction{box-sizing:border-box;border:1px solid var(--dsw-alias-brand-primary,#4f6ef7);min-height:28px;color:var(--dsw-alias-brand-primary,#4f6ef7);border-radius:6px;justify-content:center;align-items:center;padding:5px 10px;font-size:12px;font-weight:600;line-height:16px;text-decoration:none;display:inline-flex}.nUhMVa_commentsGithubAction:hover{background:color-mix(in srgb,var(--dsw-alias-brand-primary,#4f6ef7) 9%,transparent)}.nUhMVa_commentsStatus{color:var(--dsw-alias-label-secondary,#9ca3af);margin:0;font-size:12px}.nUhMVa_commentsStatus:empty{display:none}.nUhMVa_commentsError{color:var(--dsw-alias-label-primary,#1f2328);margin:0 0 8px;font-size:12px}.nUhMVa_commentsFail{flex-direction:column;align-items:flex-start;gap:8px;padding:12px 0;display:flex}.nUhMVa_commentsMount{width:100%;min-height:240px;max-height:56vh;overflow:auto}.nUhMVa_commentsMount iframe{width:100%}.nUhMVa_notesLink{font:inherit;color:var(--dsw-alias-label-secondary,#6b7280);cursor:pointer;text-align:left;background:0 0;border:none;margin:2px 0 0;padding:0;font-size:12px;line-height:18px;display:block}.nUhMVa_notesLink:hover{color:var(--dsw-alias-label-primary,#1f2328)}.nUhMVa_notesModalWide{width:min(640px,92vw);max-width:min(640px,92vw)}.nUhMVa_notesBody{overscroll-behavior:contain;flex-direction:column;flex:0 auto;gap:10px;min-width:0;max-height:min(60vh,520px);padding:0 2px 8px 0;display:flex;overflow-y:auto}.nUhMVa_notesRange{align-items:center;gap:8px;margin-bottom:4px;font-size:12px;line-height:18px;display:flex}.nUhMVa_notesArrow{color:var(--dsw-alias-label-tertiary,#8b93a1)}.nUhMVa_notesMeta{letter-spacing:.02em;text-transform:uppercase;color:var(--dsw-alias-label-secondary,#6b7280);flex-wrap:wrap;align-items:baseline;gap:6px;margin-top:4px;font-size:12px;line-height:18px;display:flex}.nUhMVa_notesBody>.nUhMVa_notesMeta:first-child{margin-top:0}.nUhMVa_notesPre{white-space:pre-wrap;word-break:break-word;background:var(--dsw-alias-bg-layer-2,#eef0f4);border-radius:8px;max-height:40vh;margin:0;padding:10px 12px;font-size:13px;line-height:20px;overflow:auto}.nUhMVa_notesRendered{flex-direction:column;gap:8px;min-width:0;display:flex}.nUhMVa_notesImg{border-radius:6px;max-width:100%;height:auto;margin:4px 0;display:block}.nUhMVa_notesH{margin-top:4px;font-size:13px;font-weight:650;line-height:20px}.nUhMVa_notesP{font-size:13px;line-height:20px}.nUhMVa_notesQuote{border-left:3px solid var(--dsw-alias-border-l3,#d9dde3);background:var(--dsw-alias-bg-layer-2,#f7f8fa);color:var(--dsw-alias-label-primary,#1f2328);border-radius:0 6px 6px 0;margin:0;padding:8px 10px;font-size:13px;line-height:20px}.nUhMVa_notesFence{background:var(--dsw-alias-bg-layer-2,#eef0f4);font-family:var(--dsw-alias-font-mono,ui-monospace,Menlo,monospace);white-space:pre;border-radius:8px;margin:0;padding:10px 12px;font-size:12px;line-height:18px;overflow-x:auto}.nUhMVa_notesFence code{font:inherit;background:0 0;padding:0}.nUhMVa_notesBullets{flex-direction:column;gap:4px;margin:0;padding-left:18px;font-size:13px;line-height:20px;display:flex}.nUhMVa_notesA{color:var(--dsw-alias-brand-primary,#4f6ef7);text-decoration:none}.nUhMVa_notesA:hover{text-decoration:underline}.nUhMVa_notesCode{font-family:var(--dsw-alias-font-mono,ui-monospace,monospace);background:var(--dsw-alias-bg-layer-2,#eef0f4);border-radius:5px;padding:1px 5px;font-size:12px}.nUhMVa_notesList{flex-direction:column;margin:0;padding:0;list-style:none;display:flex}.nUhMVa_notesRow{border-bottom:1px solid var(--dsw-alias-border-l2,#e5e7eb);align-items:baseline;gap:12px;padding:6px 0;display:flex}.nUhMVa_notesRow:last-child{border-bottom:none}.nUhMVa_notesDate{color:var(--dsw-alias-label-tertiary,#8b93a1);font-variant-numeric:tabular-nums;flex-shrink:0;font-size:12px}.nUhMVa_notesMsg{word-break:break-word;word-break:break-word;-webkit-line-clamp:3;-webkit-box-orient:vertical;min-width:0;font-size:13px;line-height:20px;display:-webkit-box;overflow:hidden}.nUhMVa_notesSha{color:var(--dsw-alias-label-secondary,#6b7280);font-variant-numeric:tabular-nums;flex-shrink:0;margin-left:auto;font-size:12px;text-decoration:none}.nUhMVa_recoverySummary{color:var(--dsw-alias-state-error-primary,#dc2626);word-break:break-word;align-items:flex-start;gap:8px;margin-bottom:8px;font-size:12px;display:flex}.nUhMVa_recoveryHint{color:var(--dsw-alias-label-secondary,#6b7280);margin:8px 0;font-size:12px}.nUhMVa_recoveryList{border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:8px;flex-direction:column;max-height:320px;display:flex;overflow-x:hidden;overflow-y:auto}.nUhMVa_recoveryRow{border-top:1px solid var(--dsw-alias-border-l2,#eef0f4);align-items:flex-start;gap:8px;padding:6px 10px;font-size:12px;display:flex}.nUhMVa_recoveryRow:first-child{border-top:none}.nUhMVa_recoveryBlamed{box-shadow:inset 3px 0 0 var(--dsw-alias-state-error-primary,#dc2626);background:#dc262612}.nUhMVa_recoveryMuted{opacity:.6}.nUhMVa_recoveryName{word-break:break-word;flex-direction:column;gap:2px;min-width:0;display:flex}.nUhMVa_recoveryReason{color:var(--dsw-alias-state-error-primary,#dc2626);word-break:break-word;font-size:11px}.nUhMVa_recoveryNote{color:var(--dsw-alias-label-tertiary,#8b93a1);word-break:break-word;margin-top:8px;font-size:11px}.nUhMVa_recoveryBadge{background:var(--dsw-alias-bg-layer-2,#eef0f4);color:var(--dsw-alias-label-secondary,#6b7280);border-radius:5px;margin-left:6px;padding:0 5px;font-size:10px}.nUhMVa_recoveryLog{color:var(--dsw-alias-label-secondary,#6b7280);margin:4px 0 8px;font-size:11px}.nUhMVa_recoveryLog pre{white-space:pre-wrap;word-break:break-word;max-height:180px;margin:6px 0 0;overflow:auto}.nUhMVa_notesSha:hover{color:var(--dsw-alias-label-primary,#1f2328);text-decoration:underline}.nUhMVa_notesVer{color:inherit;font-weight:600;text-decoration:none}.nUhMVa_notesVer:hover{text-decoration:underline}.nUhMVa_migrationSources{flex-direction:column;gap:8px;margin-top:4px;display:flex}.nUhMVa_migrationSource{border:1px solid var(--dsw-alias-border-default,#e5e7eb);border-radius:8px;flex-direction:column;gap:4px;padding:10px 12px;display:flex}.nUhMVa_migrationSource code{overflow-wrap:anywhere;font-family:ui-monospace,Menlo,monospace;font-size:12px}.nUhMVa_migrationLabel{color:var(--dsw-alias-label-secondary,#9ca3af);font-size:11px}.nUhMVa_migrationArrow{text-align:center;color:var(--dsw-alias-label-secondary,#9ca3af)}.nUhMVa_migrationWarning{color:var(--dsw-alias-state-warn-primary,#b45309);align-items:flex-start;gap:6px;margin:12px 0 0;font-size:12px;line-height:18px;display:flex}";
+		const css = ".nUhMVa_root{min-width:0;height:100%;color:var(--dsw-alias-label-primary,#1f2328);flex-direction:column;display:flex;position:relative;container-type:inline-size}.nUhMVa_head{flex-direction:column;gap:12px;padding:4px 4px 6px;display:flex}.nUhMVa_title{margin:0;font-size:16px;font-weight:500;line-height:24px}.nUhMVa_sub{color:var(--dsw-alias-label-tertiary,#8b93a1);align-items:center;gap:8px;margin:0;font-size:12px;line-height:18px;display:flex}.nUhMVa_submitLink{color:var(--dsw-alias-label-tertiary,#8b93a1);white-space:nowrap;font-size:11px;line-height:18px;text-decoration:none}.nUhMVa_submitLink:hover{color:var(--dsw-alias-brand-primary,#4f6ef7);text-decoration:underline}.nUhMVa_tabs{border-bottom:1px solid var(--dsw-alias-border-l2,#e5e7eb);align-items:flex-end;gap:2px;display:flex}.nUhMVa_tab{font:inherit;color:var(--dsw-alias-label-secondary,#6b7280);cursor:pointer;white-space:nowrap;background:0 0;border:none;border-bottom:2px solid #0000;padding:7px 12px;font-size:13px}.nUhMVa_tab.nUhMVa_on{color:var(--dsw-alias-brand-primary,#4f6ef7);border-bottom-color:var(--dsw-alias-brand-primary,#4f6ef7);font-weight:600}.nUhMVa_subTabs{align-items:flex-end;gap:2px;margin:-4px 0 4px;display:flex}.nUhMVa_banner{background:var(--dsw-alias-bg-layer-2,#fdf3e3);border:1px solid var(--dsw-alias-border-l2,#f3e3c3);border-radius:8px;align-items:center;gap:8px;margin:0;padding:8px 12px;font-size:12px;display:flex}.nUhMVa_bannerIcon{color:var(--dsw-alias-label-secondary,#6b7280);flex-shrink:0}.nUhMVa_bannerHint{color:var(--dsw-alias-label-tertiary,#8b93a1);cursor:help;display:inline-flex}.nUhMVa_body{overflow-anchor:none;flex:1;padding:12px 4px 24px;overflow-x:hidden;overflow-y:auto}.nUhMVa_stickyHead{z-index:5;background:var(--dsw-alias-bg-layer-2,#f7f8fa);position:sticky;top:-1px}.nUhMVa_stickyHead:before{content:\"\";background:inherit;pointer-events:none;height:14px;position:absolute;bottom:100%;left:0;right:0}.nUhMVa_cats{margin:0 -4px 2px;padding:12px 4px 4px}.nUhMVa_catsRow{align-items:flex-start;gap:8px;display:flex;position:relative}.nUhMVa_star{color:var(--dsw-alias-label-secondary,#9ca3af);white-space:nowrap;flex:none;font-size:11px}.nUhMVa_top{z-index:20;background:var(--dsw-alias-bg-layer-1,#fff);box-shadow:var(--dsw-shadow-lv1,0 4px 12px #1f232814);border-radius:99px;display:inline-flex;position:absolute;bottom:18px;right:18px}.nUhMVa_topBtn{border-radius:99px;width:38px;height:38px;padding:0}.nUhMVa_tag{border:1px solid var(--dsw-alias-border-l3,#d9dde3);color:var(--dsw-alias-label-secondary,#6b7280);border-radius:4px;flex-shrink:0;padding:1px 6px;font-size:11px;line-height:16px}.nUhMVa_hostRequirement{border:1px solid var(--dsw-alias-border-l3,#d9dde3);color:var(--dsw-alias-label-secondary,#6b7280);text-overflow:ellipsis;white-space:nowrap;border-radius:4px;min-width:0;max-width:100%;padding:1px 6px;font-size:11px;line-height:16px;overflow:hidden}.nUhMVa_hostRequirementBad{border-color:var(--dsw-alias-state-error-primary,#dc2626);color:var(--dsw-alias-state-error-primary,#dc2626);background:#dc262614}.nUhMVa_hostFilterNote{color:var(--dsw-alias-label-tertiary,#8b93a1);margin-top:6px;font-size:11px;line-height:16px}.nUhMVa_okState{color:var(--dsw-alias-state-success-primary,#16a34a);white-space:nowrap;font-size:12px;font-weight:600}.nUhMVa_catsWrap{flex-wrap:wrap;flex:1;align-items:center;gap:6px;min-width:0;display:flex}.nUhMVa_catsCollapsed{max-height:62px;overflow:hidden}.nUhMVa_catsToggle.nUhMVa_catsToggle{height:26px;min-height:26px;color:var(--dsw-alias-label-secondary,#6b7280);padding:0 6px}.nUhMVa_shots{-webkit-overflow-scrolling:touch;scrollbar-width:thin;gap:8px;margin:6px 0 8px;padding:2px 0 6px;display:flex;overflow-x:auto}.nUhMVa_shot{object-fit:cover;border:1px solid var(--dsw-alias-border-default,#e5e7eb);background:var(--dsw-alias-bg-layer-2,#f3f4f6);cursor:pointer;border-radius:8px;flex:none;width:220px;height:150px}.nUhMVa_cardShots{-webkit-overflow-scrolling:touch;scrollbar-width:thin;gap:6px;margin:0 0 6px;padding:0 0 2px;display:flex;overflow-x:auto}.nUhMVa_cardShot{object-fit:contain;border:1px solid var(--dsw-alias-border-default,#e5e7eb);background:var(--dsw-alias-bg-layer-2,#f3f4f6);cursor:pointer;border-radius:8px;flex:none;width:132px;height:88px;display:block}.nUhMVa_lightbox{z-index:10000;cursor:zoom-out;background:#000000d9;justify-content:center;align-items:center;display:flex;position:fixed;top:0;bottom:0;left:0;right:0}.nUhMVa_lightboxImg{object-fit:contain;cursor:default;border-radius:4px;max-width:90vw;max-height:85vh}.nUhMVa_lightboxClose{color:#fff;cursor:pointer;background:#ffffff1f;border:none;border-radius:99px;place-items:center;width:36px;height:36px;font-size:22px;line-height:1;display:grid;position:absolute;top:16px;right:16px}.nUhMVa_lightboxClose:hover{background:#ffffff38}.nUhMVa_lightboxNav{color:#fff;cursor:pointer;background:#ffffff1f;border:none;border-radius:99px;place-items:center;width:44px;height:44px;display:grid;position:absolute;top:50%;transform:translateY(-50%)}.nUhMVa_lightboxNav:hover{background:#ffffff38}.nUhMVa_lightboxPrev{left:16px}.nUhMVa_lightboxNext{right:16px}.nUhMVa_lightboxDots{gap:8px;display:flex;position:absolute;bottom:20px;left:50%;transform:translate(-50%)}.nUhMVa_lightboxDot{cursor:pointer;background:#fff6;border-radius:99px;width:7px;height:7px}.nUhMVa_lightboxDotOn{background:#fff}.nUhMVa_cmd{background:var(--dsw-alias-bg-layer-2,#f3f4f6);word-break:break-all;border-radius:6px;margin:8px 0 0;padding:8px 10px;font-family:ui-monospace,Menlo,monospace;font-size:11px;line-height:18px}.nUhMVa_warnLine{color:var(--dsw-alias-state-warn-primary,#b45309);flex-wrap:wrap;align-items:center;gap:4px;margin:0;font-size:12px;font-weight:600;line-height:18px;display:flex}.nUhMVa_modalNote{color:var(--dsw-alias-label-tertiary,#8b93a1);align-items:center;gap:4px;margin:12px 0 0;font-size:12px;line-height:18px;display:flex}.nUhMVa_grid{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;gap:10px;display:grid}.nUhMVa_masonry{align-items:flex-start;gap:10px;display:flex}.nUhMVa_masonryCol{flex-direction:column;flex:1;gap:10px;min-width:0;display:flex}.nUhMVa_masonry>.nUhMVa_masonryCol>*{align-self:stretch;min-width:0}@media (max-width:680px){.nUhMVa_masonry{flex-direction:column}.nUhMVa_masonryCol{width:100%}.nUhMVa_grid{grid-template-columns:minmax(0,1fr)}}.nUhMVa_swatches{border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:8px;gap:0;height:34px;display:flex;overflow:hidden}.nUhMVa_themesGrid{margin-bottom:12px}.nUhMVa_swatches i{flex:1}.nUhMVa_themeToolbar{grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;padding:0 4px 12px;display:grid}.nUhMVa_themeSearch{box-sizing:border-box;width:100%;min-width:0}.nUhMVa_themeToolbarActions{justify-content:flex-end;align-items:center;gap:8px;display:flex}.nUhMVa_themeFullscreenBtn.nUhMVa_themeFullscreenBtn{width:28px;min-width:28px;padding:0}.nUhMVa_themeResultBar{min-height:24px;color:var(--dsw-alias-label-tertiary,#8b93a1);align-items:center;padding:0 4px 8px;font-size:12px;line-height:18px;display:flex}.nUhMVa_favoritesSectionHead{color:var(--dsw-alias-label-primary,#1f2328);margin:16px 0 8px;padding:0 4px;font-size:13px;font-weight:600;line-height:20px}.nUhMVa_favoritesSectionHead:first-of-type{margin-top:0}.nUhMVa_brokenPluginNotice{flex-direction:column;gap:8px;margin:0 0 8px;display:flex}.nUhMVa_brokenPluginItem{border:1px solid var(--dsw-alias-state-warn-tertiary,#b4530933);background:var(--dsw-alias-state-warn-tertiary,#b453090f);color:var(--dsw-alias-state-warn-primary,#b45309);border-radius:8px;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:10px;padding:8px 10px;font-size:12px;line-height:18px;display:flex}.nUhMVa_brokenPluginText{flex-direction:column;gap:2px;min-width:0;display:flex}.nUhMVa_favoritesStaleBar{border:1px solid var(--dsw-alias-state-warn-tertiary,#b4530933);background:var(--dsw-alias-state-warn-tertiary,#b453090f);color:var(--dsw-alias-state-warn-primary,#b45309);border-radius:8px;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;margin:0 0 8px;padding:8px 10px;font-size:12px;line-height:18px;display:flex}.nUhMVa_favoritesStaleOnly{flex-direction:column;align-items:flex-start;gap:10px;display:flex}.nUhMVa_themeGallery{grid-template-columns:repeat(4,minmax(0,1fr));align-items:stretch;gap:10px;display:grid}.nUhMVa_themeCard{border:1px solid var(--dsw-alias-border-l2,#e5e7eb);background:var(--dsw-alias-bg-layer-1,#fff);border-radius:8px;flex-direction:column;min-width:0;transition:border-color .16s cubic-bezier(.16,1,.3,1),box-shadow .16s cubic-bezier(.16,1,.3,1),transform .16s cubic-bezier(.16,1,.3,1);display:flex;overflow:hidden}.nUhMVa_themeCard:hover{border-color:var(--dsw-alias-border-l3,#d9dde3);box-shadow:var(--dsw-shadow-lv1,0 4px 12px #1f232814);transform:translateY(-1px)}.nUhMVa_themeCover{aspect-ratio:16/10;border:0;border-bottom:1px solid var(--dsw-alias-border-l2,#e5e7eb);background:var(--dsw-alias-bg-layer-2,#f3f4f6);width:100%;color:var(--dsw-alias-label-secondary,#6b7280);cursor:zoom-in;border-radius:0;padding:0;display:block;position:relative;overflow:hidden}.nUhMVa_themeCover img{object-fit:contain;background:var(--dsw-alias-bg-layer-2,#f3f4f6);width:100%;height:100%;transition:transform .18s cubic-bezier(.16,1,.3,1);display:block}.nUhMVa_themeCover:hover img{transform:scale(1.012)}.nUhMVa_themeCover:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary,#4f6ef7);outline-offset:-3px}.nUhMVa_themeCoverEmpty{cursor:default;color:var(--dsw-alias-label-tertiary,#8b93a1);flex-direction:column;justify-content:center;align-items:center;gap:8px;font-size:12px;line-height:18px;display:flex}.nUhMVa_themePreviewAction,.nUhMVa_themePreviewCount{color:#fff;-webkit-backdrop-filter:blur(8px);background:#14181fc7;border:1px solid #ffffff57;border-radius:4px;align-items:center;height:24px;padding:0 8px;font-size:11px;line-height:16px;display:inline-flex;position:absolute;bottom:8px}.nUhMVa_themePreviewAction{gap:4px;right:8px}.nUhMVa_themePreviewCount{left:8px}.nUhMVa_themeCardBody{flex-direction:column;flex:1;gap:8px;padding:12px;display:flex}.nUhMVa_themeCardHead{align-items:flex-start;gap:8px;min-width:0;display:flex}.nUhMVa_themeIdentity{flex:1;min-width:0}.nUhMVa_themeStatus,.nUhMVa_themeStatusMuted{white-space:nowrap;border-radius:4px;flex:none;align-items:center;min-height:22px;padding:0 8px;font-size:11px;font-weight:600;display:inline-flex}.nUhMVa_themeStatus{background:var(--dsw-alias-state-success-tertiary,#16a34a1a);color:var(--dsw-alias-state-success-primary,#15803d)}.nUhMVa_themeStatusMuted{background:var(--dsw-alias-bg-layer-2,#f3f4f6);color:var(--dsw-alias-label-secondary,#6b7280)}.nUhMVa_themeDescription{min-height:36px;color:var(--dsw-alias-label-tertiary,#8b93a1);-webkit-line-clamp:3;-webkit-box-orient:vertical;margin:0;font-size:12px;line-height:18px;display:-webkit-box;overflow:hidden}.nUhMVa_themeCardFooter{justify-content:space-between;align-items:center;gap:8px;margin-top:auto;padding-top:4px;display:flex}.nUhMVa_themeLifecycle{min-width:0;color:var(--dsw-alias-label-tertiary,#8b93a1);text-overflow:ellipsis;white-space:nowrap;font-size:11px;line-height:18px;overflow:hidden}.nUhMVa_themeActions{flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:8px;margin-left:auto;display:flex}@container (width<=900px){.nUhMVa_themeGallery{grid-template-columns:repeat(3,minmax(0,1fr))}}@container (width<=680px){.nUhMVa_themeGallery{grid-template-columns:repeat(2,minmax(0,1fr))}}@container (width<=460px){.nUhMVa_themeGallery{grid-template-columns:minmax(0,1fr)}}@container (width<=420px){.nUhMVa_sub{grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:2px 8px;display:grid}.nUhMVa_sub>span:first-child{grid-area:1/1}.nUhMVa_sub>.nUhMVa_grow{display:none}.nUhMVa_submitLink{grid-area:2/1}.nUhMVa_exportLogBtn{flex-shrink:0;grid-area:1/2/span 2}.nUhMVa_themeToolbar{grid-template-columns:minmax(0,1fr)}.nUhMVa_themeCardHead{flex-wrap:wrap}.nUhMVa_themeStatus,.nUhMVa_themeStatusMuted{order:3}}@container (width<=280px){.nUhMVa_themeCardFooter{flex-direction:column;align-items:flex-start}.nUhMVa_themeActions{justify-content:flex-start;width:100%;margin-left:0}}@media (max-width:560px){[role=dialog]:has([data-dsh-market-root])>nav{display:none}[role=dialog]:has([data-dsh-market-root])>div{flex:100%;width:100%;min-width:0}}[role=dialog]:has([data-dsh-market-fullscreen=true]){border-radius:0;width:100vw;max-width:none;height:100vh;max-height:none;position:fixed;top:0;bottom:0;left:0;right:0}@media (prefers-reduced-motion:reduce){.nUhMVa_themeCard,.nUhMVa_themeCover img{transition:none}.nUhMVa_themeCard:hover{transform:none}}.nUhMVa_card{background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:12px;flex-direction:column;align-self:start;gap:12px;padding:12px 14px;display:flex}.nUhMVa_row1{align-items:flex-start;gap:10px;min-width:0;display:flex}.nUhMVa_cardAction{flex-shrink:0;align-items:center;display:inline-flex}.nUhMVa_installBtn.nUhMVa_installBtn{min-width:64px}.nUhMVa_av{width:16px;height:16px;color:var(--dsw-alias-label-primary,#1f2328);object-fit:cover;background:var(--dsw-alias-bg-layer-2,#f3f4f6);border-radius:50%;flex-shrink:0;place-items:center;font-size:9px;font-weight:700;display:grid}.nUhMVa_nm{text-overflow:ellipsis;white-space:nowrap;font-size:15px;font-weight:600;line-height:22px;overflow:hidden}.nUhMVa_nmLink{color:inherit;text-decoration:none;display:block}.nUhMVa_nmLink:hover{color:var(--dsw-alias-brand-primary,#4f6ef7);text-decoration:underline}.nUhMVa_repoMark{color:var(--dsw-alias-label-secondary,#6b7280);vertical-align:-1px;flex-shrink:0;margin-left:5px;display:inline-block}.nUhMVa_nmLink:hover .nUhMVa_repoMark{color:var(--dsw-alias-brand-primary,#4f6ef7)}.nUhMVa_byline{flex-wrap:wrap;align-items:center;gap:6px;min-width:0;margin-top:2px;display:flex}.nUhMVa_meta{color:var(--dsw-alias-label-secondary,#9ca3af);margin-top:2px;font-size:11px}.nUhMVa_metaInline{color:var(--dsw-alias-label-secondary,#9ca3af);font-size:11px}.nUhMVa_owner{color:var(--dsw-alias-label-secondary,#9ca3af);text-overflow:ellipsis;white-space:nowrap;flex:0 auto;min-width:44px;font-size:11px;overflow:hidden}.nUhMVa_desc{color:var(--dsw-alias-label-tertiary,#8b93a1);margin:0;font-size:12px;line-height:18px}.nUhMVa_descClamp{-webkit-line-clamp:5;-webkit-box-orient:vertical;display:-webkit-box;overflow:hidden}.nUhMVa_descToggle{width:20px;height:16px;color:var(--dsw-alias-label-tertiary,#8b93a1);cursor:pointer;background:0 0;border:none;justify-content:center;align-items:center;margin-top:2px;padding:0;display:flex}.nUhMVa_descToggle:hover{color:var(--dsw-alias-brand-primary,#4f6ef7)}.nUhMVa_foot{flex-wrap:nowrap;align-items:flex-end;gap:8px;display:flex}.nUhMVa_foot .nUhMVa_metaInline,.nUhMVa_foot .nUhMVa_src{white-space:nowrap}.nUhMVa_footTags{flex-wrap:wrap;flex:1 1 0;align-items:center;gap:8px;min-width:0;display:flex}.nUhMVa_grow{flex:1}.nUhMVa_titleRow{align-items:center;gap:10px;display:flex}.nUhMVa_version{color:var(--dsw-alias-label-tertiary,#8b93a1);font-variant-numeric:tabular-nums;flex-shrink:0;font-size:12px;line-height:20px}.nUhMVa_repoLink{color:var(--dsw-alias-label-tertiary,#8b93a1);flex-shrink:0;font-size:12px;line-height:20px;text-decoration:none}.nUhMVa_repoLink:hover{color:var(--dsw-alias-brand-primary,#4f6ef7)}.nUhMVa_noteRow{flex-wrap:wrap;align-items:baseline;gap:6px;min-width:0;display:flex}.nUhMVa_desc.nUhMVa_noteRow,.nUhMVa_desc.nUhMVa_noteRow+.nUhMVa_noteRow,.nUhMVa_noteEdit+.nUhMVa_noteRow{margin-top:6px}.nUhMVa_noteMine{color:var(--dsw-alias-label-primary,#1f2328)}.nUhMVa_noteToggle{font:inherit;color:var(--dsw-alias-label-tertiary,#8b93a1);cursor:pointer;white-space:nowrap;background:0 0;border:none;flex-shrink:0;padding:0;font-size:11px;line-height:16px}.nUhMVa_noteToggle:hover{color:var(--dsw-alias-brand-primary,#4f6ef7);text-decoration:underline}.nUhMVa_noteAction{color:var(--dsw-alias-label-primary,#1f2328);background:var(--dsw-alias-bg-layer-2,#f3f4f6);border:1px solid var(--dsw-alias-border-l3,#d9dde3);border-radius:4px;align-items:center;padding:0 5px;font-weight:600;text-decoration:none;display:inline-flex}.nUhMVa_noteAction:hover{color:var(--dsw-alias-label-primary,#1f2328);border-color:var(--dsw-alias-brand-primary,#4f6ef7);text-decoration:none}.nUhMVa_noteEdit{flex-wrap:wrap;align-items:center;gap:6px;min-width:0;margin-top:6px;display:flex}.nUhMVa_noteInput{flex:1;min-width:160px}.nUhMVa_descTight{min-height:0}.nUhMVa_src{color:var(--dsw-alias-label-secondary,#9ca3af);font-size:11px;text-decoration:none}.nUhMVa_src:hover{color:var(--dsw-alias-brand-primary,#4f6ef7)}.nUhMVa_dot{vertical-align:2px;margin-left:5px}.nUhMVa_act{flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px;font-size:11px;display:flex}.nUhMVa_actLive{color:var(--dsw-alias-state-success-primary,#16a34a);align-items:center;gap:4px;font-weight:600;display:inline-flex}.nUhMVa_actWarn{color:var(--dsw-alias-state-warn-primary,#b45309);align-items:center;gap:4px;font-weight:600;display:inline-flex}.nUhMVa_actBroken{color:var(--dsw-alias-state-error-primary,#dc2626);align-items:center;gap:4px;font-weight:600;display:inline-flex}.nUhMVa_actWhy{color:var(--dsw-alias-label-secondary,#6b7280);margin-top:2px}.nUhMVa_loading{color:var(--dsw-alias-label-secondary,#9ca3af);flex-direction:column;align-items:center;gap:12px;padding:48px;font-size:13px;display:flex}.nUhMVa_spin{color:var(--dsw-alias-brand-primary,#4f6ef7);flex-shrink:0;animation:.8s linear infinite nUhMVa_sp;display:inline-flex}.nUhMVa_logoMark{color:var(--dsw-alias-brand-primary,#4f6ef7);flex-shrink:0;display:inline-flex}.nUhMVa_logoPlug{transform-box:fill-box;transform-origin:50%;animation:1.5s cubic-bezier(.4,0,.2,1) infinite nUhMVa_dshmPlug}@keyframes nUhMVa_dshmPlug{0%,12%{transform:rotate(9deg)}45%,62%{transform:translate(-1.28px,1.27px)rotate(0)}95%,to{transform:rotate(9deg)}}@media (prefers-reduced-motion:reduce){.nUhMVa_logoPlug,.nUhMVa_spin{animation:1.5s ease-in-out infinite nUhMVa_dshmPlugFade}}@keyframes nUhMVa_dshmPlugFade{0%,to{opacity:1}50%{opacity:.35}}@keyframes nUhMVa_sp{to{transform:rotate(360deg)}}.nUhMVa_progress{background:var(--dsw-alias-bg-layer-2,#f3f4f6);border:1px solid var(--dsw-alias-border-l2,#e5e7eb);color:var(--dsw-alias-label-secondary,#6b7280);border-radius:8px;flex-wrap:wrap;align-items:center;gap:9px;margin:0;padding:8px 12px;font-size:12px;display:flex}.nUhMVa_bar{background:var(--dsw-alias-border-l1,#e5e7eb);border-radius:99px;width:100%;height:4px;overflow:hidden}.nUhMVa_barFill{background:var(--dsw-alias-brand-primary,#4f6ef7);border-radius:99px;height:100%;transition:width .6s}.nUhMVa_barWave{width:30%;animation:1.2s ease-in-out infinite nUhMVa_dshmSlide}@keyframes nUhMVa_dshmSlide{0%{margin-left:-30%}to{margin-left:100%}}.nUhMVa_irow .nUhMVa_progress{margin-top:8px}.nUhMVa_progress code{text-overflow:ellipsis;white-space:nowrap;font-family:ui-monospace,Menlo,monospace;font-size:11px;overflow:hidden}.nUhMVa_empty{color:var(--dsw-alias-label-secondary,#9ca3af);text-align:center;padding:32px;font-size:13px}.nUhMVa_err{color:var(--dsw-alias-state-error-primary,#dc2626);white-space:pre-wrap;word-break:break-all;margin:8px 0;font-size:12px}.nUhMVa_cardBlocked{border-color:var(--dsw-alias-state-error-primary,#dc2626)}.nUhMVa_conflictHead{align-items:flex-start;gap:8px;display:flex}.nUhMVa_conflictIcon{color:var(--dsw-alias-state-error-primary,#dc2626);flex-shrink:0;margin-top:1px}.nUhMVa_conflictTitle{color:var(--dsw-alias-state-error-primary,#dc2626);font-size:13px;font-weight:600;line-height:18px}.nUhMVa_conflictBody{margin:0;font-size:12px;line-height:19px}.nUhMVa_roster{background:var(--dsw-alias-border-l2,#e5e7eb);border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:8px;flex-direction:column;gap:1px;display:flex;overflow:hidden}.nUhMVa_rosterRow{background:var(--dsw-alias-bg-layer-1,#fff);align-items:center;gap:8px;padding:7px 10px;display:flex}.nUhMVa_rosterMain{flex-direction:column;min-width:0;display:flex}.nUhMVa_rosterName{text-overflow:ellipsis;white-space:nowrap;min-width:0;font-size:12px;font-weight:600;overflow:hidden}.nUhMVa_rosterAuthor{color:var(--dsw-alias-label-secondary,#9ca3af);text-overflow:ellipsis;white-space:nowrap;font-size:10.5px;overflow:hidden}.nUhMVa_rosterTag{border-radius:4px;flex-shrink:0;margin-left:auto;padding:1px 6px;font-size:10.5px;font-weight:600}.nUhMVa_rosterTagKeep{color:var(--dsw-alias-state-success-primary,#16a34a);background:#16a34a1f}.nUhMVa_rosterTagDrop{color:var(--dsw-alias-state-error-primary,#dc2626);background:#dc26261f}.nUhMVa_rosterRowOut .nUhMVa_rosterName{text-decoration:line-through}.nUhMVa_rosterRowOut{opacity:.62}.nUhMVa_rosterSplit{background:var(--dsw-alias-border-l2,#e5e7eb);height:1px}.nUhMVa_reassure{color:var(--dsw-alias-label-secondary,#6b7280);align-items:center;gap:5px;margin:0;font-size:11.5px;line-height:17px;display:flex}.nUhMVa_reassureOk{color:var(--dsw-alias-state-success-primary,#16a34a);flex-shrink:0}.nUhMVa_conflictWhy{color:var(--dsw-alias-label-tertiary,#8b93a1);overflow-wrap:anywhere;margin-top:2px;font-family:ui-monospace,Menlo,monospace;font-size:11px;line-height:17px}.nUhMVa_conflictWhyText{margin-top:5px;font-family:-apple-system,BlinkMacSystemFont,PingFang SC,sans-serif}.nUhMVa_choices{flex-direction:column;gap:7px;display:flex}.nUhMVa_choice{text-align:left;font:inherit;cursor:pointer;background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l3,#d9dde3);border-radius:9px;align-items:flex-start;gap:9px;padding:9px 11px;display:flex}.nUhMVa_choice:has(input:disabled){cursor:default;opacity:.6}.nUhMVa_choiceOn{border-color:var(--dsw-alias-brand-primary,#4f6ef7);background:var(--dsw-alias-bg-layer-2,#f5f7ff)}.nUhMVa_choiceRadio{width:13px;height:13px;accent-color:var(--dsw-alias-brand-primary,#4f6ef7);flex-shrink:0;margin:2px 0 0}.nUhMVa_choiceMain{flex-direction:column;gap:3px;min-width:0;display:flex}.nUhMVa_choiceTitle{font-size:12px;font-weight:600;line-height:17px}.nUhMVa_choiceNote{color:var(--dsw-alias-label-tertiary,#8b93a1);font-size:11px;line-height:16px}.nUhMVa_choiceSafe{color:var(--dsw-alias-state-success-primary,#16a34a)}.nUhMVa_stateTag{white-space:nowrap;background:var(--dsw-alias-bg-layer-2,#f3f4f6);min-height:20px;color:var(--dsw-alias-label-secondary,#6b7280);border-radius:5px;flex-shrink:0;align-items:center;gap:5px;padding:1px 7px;font-size:11px;line-height:16px;display:inline-flex}.nUhMVa_stateTag[data-on=true]{color:var(--dsw-alias-state-success-primary,#16a34a);background:color-mix(in srgb, var(--dsw-alias-state-success-primary,#16a34a) 10%, transparent)}.nUhMVa_stateDot{background:var(--dsw-alias-label-tertiary,#8b93a1);border-radius:999px;flex:none;width:6px;height:6px}.nUhMVa_stateDot[data-on=true]{background:var(--dsw-alias-state-success-primary,#16a34a)}.nUhMVa_metaTag{text-overflow:ellipsis;white-space:nowrap;background:var(--dsw-alias-bg-layer-2,#f3f4f6);min-width:0;max-width:100%;min-height:20px;color:var(--dsw-alias-label-tertiary,#8b93a1);border-radius:5px;flex-shrink:1;padding:1px 7px;font-size:11px;line-height:18px;display:inline-block;overflow:hidden}.nUhMVa_metaTagOk{color:var(--dsw-alias-state-success-primary,#16a34a);background:color-mix(in srgb, var(--dsw-alias-state-success-primary,#16a34a) 10%, transparent)}.nUhMVa_metaTagAction{font-family:inherit;font-size:11px;line-height:18px;font-weight:inherit;cursor:pointer;background:var(--dsw-alias-bg-layer-2,#f3f4f6);color:var(--dsw-alias-label-secondary,#6b7280);border:none;border-radius:5px;flex-shrink:0;padding:1px 7px}.nUhMVa_metaTagAction:hover:not(:disabled){color:var(--dsw-alias-brand-primary,#4f6ef7)}.nUhMVa_metaTagAction:disabled{opacity:.5;cursor:default}.nUhMVa_irowHead{align-items:flex-start;gap:8px;min-width:0;display:flex}.nUhMVa_irowHead .nUhMVa_irowName{flex:1 1 0;min-width:0}.nUhMVa_irowDevTag{letter-spacing:.02em;white-space:nowrap;cursor:default;-webkit-user-select:none;user-select:none;color:var(--dsw-alias-label-tertiary,#8b93a1);background:color-mix(in srgb, var(--dsw-alias-brand-primary,#4f6ef7) 9%, var(--dsw-alias-bg-layer-2,#f3f4f6));border-radius:99px;flex-shrink:0;padding:2px 8px;font-size:10px;font-weight:600;line-height:14px}.nUhMVa_nameLink{color:inherit;text-decoration:none}.nUhMVa_irowName{text-overflow:clip;flex-wrap:wrap;align-items:baseline;gap:6px;min-width:0;display:flex;overflow:visible}.nUhMVa_irowNameText{overflow-wrap:anywhere;white-space:normal;min-width:0}.nUhMVa_irowName>.nUhMVa_owner{flex:none}.nUhMVa_nameLink:hover{color:var(--dsw-alias-brand-primary,#4f6ef7);text-decoration:underline}.nUhMVa_opWrap{flex-shrink:0;margin-bottom:6px;display:inline-flex;position:relative}.nUhMVa_opEntry{font:inherit;cursor:pointer;white-space:nowrap;color:var(--dsw-alias-label-primary,#1f2328);background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l3,#d9dde3);border-radius:7px;align-items:center;gap:6px;padding:4px 10px;font-size:12px;display:inline-flex;position:relative}.nUhMVa_opEntryQuiet{color:var(--dsw-alias-label-secondary,#6b7280);background:0 0;border-color:#0000}.nUhMVa_opEntryAlert{border-color:var(--dsw-alias-state-error-primary,#dc2626);color:var(--dsw-alias-state-error-primary,#dc2626)}.nUhMVa_opDot{background:var(--dsw-alias-state-error-primary,#dc2626);border-radius:99px;width:8px;height:8px;position:absolute;top:-3px;right:-3px}.nUhMVa_opPanel{z-index:40;background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l3,#d9dde3);border-radius:12px;width:460px;max-width:86vw;max-height:70vh;position:absolute;top:calc(100% + 6px);right:0;overflow-y:auto;box-shadow:0 20px 52px #00000047}.nUhMVa_opHead{border-bottom:1px solid var(--dsw-alias-border-l2,#e5e7eb);align-items:center;gap:8px;padding:9px 14px;display:flex}.nUhMVa_opPanelTitle{font-size:12.5px;font-weight:600}.nUhMVa_opCloseBtn.nUhMVa_opCloseBtn{min-width:0;color:var(--dsw-alias-label-secondary,#6b7280);padding:0 6px}.nUhMVa_opAggregate{border-bottom:1px solid var(--dsw-alias-border-l2,#e5e7eb);background:var(--dsw-alias-bg-layer-2,#f7f8fa);padding:9px 14px}.nUhMVa_opAggregateTop{font-variant-numeric:tabular-nums;font-size:12px;font-weight:600}.nUhMVa_opAggregateHint{color:var(--dsw-alias-label-tertiary,#8b93a1);margin-top:4px;font-size:10.5px}.nUhMVa_opRow{border-bottom:1px solid var(--dsw-alias-border-l2,#e5e7eb);align-items:flex-start;gap:9px;padding:9px 14px;display:flex}.nUhMVa_opRow:last-child{border-bottom:none}.nUhMVa_opRowAlert{background:#dc26260f}.nUhMVa_opIcon{flex-shrink:0;place-items:center;width:14px;margin-top:1px;display:grid}.nUhMVa_opQueuedIcon{color:var(--dsw-alias-label-tertiary,#8b93a1);font-size:12px}.nUhMVa_opMain{flex-direction:column;flex:1;gap:3px;min-width:0;display:flex}.nUhMVa_opTop{align-items:baseline;gap:6px;min-width:0;display:flex}.nUhMVa_opVerb{color:var(--dsw-alias-label-secondary,#6b7280);flex-shrink:0;font-size:12px}.nUhMVa_opName{text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:600;overflow:hidden}.nUhMVa_opStatus{color:var(--dsw-alias-label-tertiary,#8b93a1);overflow-wrap:anywhere;font-size:10.5px;line-height:16px}.nUhMVa_opStatusBad{color:var(--dsw-alias-state-error-primary,#dc2626)}.nUhMVa_opActions{flex-shrink:0;align-items:center;gap:6px;margin-top:1px;display:flex}.nUhMVa_opDecision{border-top:1px dashed var(--dsw-alias-border-l2,#e5e7eb);flex-direction:column;gap:8px;margin-top:8px;padding-top:8px;display:flex}.nUhMVa_opDecisionFoot{align-items:center;gap:8px;display:flex}.nUhMVa_conflictDetailsToggle{font:inherit;cursor:pointer;color:var(--dsw-alias-label-tertiary,#8b93a1);background:0 0;border:none;align-items:center;gap:4px;padding:2px 0;font-size:11px;display:inline-flex}.nUhMVa_conflictDetailsToggle:hover{color:var(--dsw-alias-label-secondary,#6b7280)}.nUhMVa_opEmpty{text-align:center;color:var(--dsw-alias-label-secondary,#6b7280);padding:30px 14px;font-size:12px}.nUhMVa_opEmptyHint{color:var(--dsw-alias-label-tertiary,#8b93a1);margin-top:4px;font-size:11px}.nUhMVa_cardBlockedMark{font:inherit;cursor:pointer;color:var(--dsw-alias-state-error-primary,#dc2626);border:1px solid var(--dsw-alias-state-error-primary,#dc2626);background:#dc262614;border-radius:7px;align-items:center;gap:5px;padding:4px 9px;font-size:11px;display:inline-flex}.nUhMVa_dangerBtn.nUhMVa_dangerBtn{color:var(--dsw-alias-state-error-primary,#dc2626);border-color:var(--dsw-alias-state-error-primary,#dc2626)}.nUhMVa_dangerBtn.nUhMVa_dangerBtn:hover:not(:disabled){background:var(--dsw-alias-state-error-primary,#dc2626);color:#fff}.nUhMVa_dangerArmed.nUhMVa_dangerArmed{background:var(--dsw-alias-state-error-primary,#dc2626);border-color:var(--dsw-alias-state-error-primary,#dc2626);color:var(--dsw-alias-label-primary-foreground,#fff)}.nUhMVa_retryBtn{margin-top:4px}.nUhMVa_irow{background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:10px;flex-direction:column;gap:10px;min-width:0;padding:12px 14px;display:flex}.nUhMVa_irowActions{flex-wrap:wrap;justify-content:flex-start;align-items:center;gap:8px;min-width:0;display:flex}.nUhMVa_irowTrailing{flex-wrap:nowrap;flex-shrink:0;align-items:center;gap:8px;min-width:0;display:inline-flex}.nUhMVa_irowTrailing .nUhMVa_metaTag{flex-shrink:1;min-width:0}.nUhMVa_irowTrailing .nUhMVa_metaTagAction{flex-shrink:0}.nUhMVa_irowMissing{filter:grayscale();opacity:.5}.nUhMVa_irow>.nUhMVa_src,.nUhMVa_irow>.nUhMVa_owner,.nUhMVa_irow button{white-space:nowrap;flex-shrink:0}.nUhMVa_tabSearchRow{align-items:center;gap:8px;padding:0 4px 12px;display:flex}.nUhMVa_tabSearch{flex:1;min-width:0}.nUhMVa_caps{flex-wrap:wrap;align-items:center;gap:4px;min-width:0;padding:0 2px 6px;font-size:11px;line-height:1.5;display:flex}.nUhMVa_capsTitle{color:var(--dsw-alias-label-secondary,#8b949e);cursor:help}.nUhMVa_capChip{border:1px solid var(--dsw-alias-border-l2,#30363d);color:var(--dsw-alias-label-primary,#c9d1d9);white-space:nowrap;border-radius:999px;padding:0 6px}.nUhMVa_capMuted{border:1px dashed var(--dsw-alias-border-l2,#30363d);color:var(--dsw-alias-label-secondary,#8b949e);white-space:nowrap;border-radius:999px;padding:0 6px}.nUhMVa_capFact{color:var(--dsw-alias-label-secondary,#8b949e)}.nUhMVa_capCaveat{color:var(--dsw-alias-label-tertiary,#8b93a1);margin:6px 0 0;font-size:11px;line-height:16px}.nUhMVa_searchField{box-sizing:border-box;min-width:0;position:relative}.nUhMVa_searchInput.nUhMVa_searchInput{box-sizing:border-box;width:100%;min-width:0;padding-right:34px}.nUhMVa_searchClear{width:24px;height:24px;color:var(--dsw-alias-label-secondary,#59636e);font:inherit;cursor:pointer;background:0 0;border:0;border-radius:4px;justify-content:center;align-items:center;padding:0;font-size:20px;line-height:1;display:flex;position:absolute;top:50%;right:5px;transform:translateY(-50%)}.nUhMVa_searchClear:hover{background:var(--dsw-alias-bg-layer-2,#f3f4f6);color:var(--dsw-alias-label-primary,#1f2328)}.nUhMVa_searchClear:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary,#4f6ef7);outline-offset:1px}.nUhMVa_spec{color:var(--dsw-alias-label-secondary,#9ca3af);overflow-wrap:anywhere;min-width:0;font-family:ui-monospace,Menlo,monospace;font-size:11px}.nUhMVa_specTag{white-space:nowrap;border-radius:4px;flex-shrink:0;align-items:center;height:16px;padding:0 5px;font-size:10px;font-weight:600;display:inline-flex}.nUhMVa_specTagGit{color:var(--dsw-alias-state-business-primary,#0b7285);background:#12a3c41f}.nUhMVa_specTagFile{color:var(--dsw-alias-state-warn-primary,#b07d1b);background:#f0b42924}.nUhMVa_backupCheckList .nUhMVa_grow{white-space:nowrap;text-overflow:ellipsis;flex:70%;min-width:0;overflow:hidden}.nUhMVa_backupCheckList .nUhMVa_spec{text-align:right;white-space:nowrap;text-overflow:ellipsis;flex:0 30%;max-width:30%;overflow:hidden}.nUhMVa_staleAction{word-break:normal;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;display:flex}.nUhMVa_pct{color:var(--dsw-alias-label-secondary,#6b7280);flex-shrink:0;font-size:11px;font-weight:600}.nUhMVa_pager{flex-wrap:nowrap;justify-content:space-between;align-items:center;gap:8px;margin:16px 0 4px;display:flex}.nUhMVa_pagerPages{flex-wrap:nowrap;flex:1;justify-content:center;align-items:center;gap:4px;min-width:0;display:flex}.nUhMVa_pagerMeta{flex-wrap:nowrap;flex-shrink:0;align-items:center;gap:6px;display:flex}.nUhMVa_pagerPages button,.nUhMVa_pagerMeta button{min-width:0;padding:0 8px}.nUhMVa_pageEllipsis{color:var(--dsw-alias-label-secondary,#9ca3af);padding:0 1px;font-size:12px}.nUhMVa_pageInfo{color:var(--dsw-alias-label-secondary,#6b7280);white-space:nowrap;font-size:12px}@container (width<=544px){.nUhMVa_pager{flex-wrap:wrap;justify-content:center;gap:8px}.nUhMVa_pagerPages{flex-basis:100%}}.nUhMVa_depBadge{border:1px solid var(--dsw-alias-state-warn-primary,#b45309);color:var(--dsw-alias-state-warn-primary,#b45309);white-space:nowrap;border-radius:4px;flex-shrink:0;margin-left:6px;padding:1px 6px;font-size:11px;font-weight:600;line-height:16px}.nUhMVa_deprecate{color:var(--dsw-alias-state-warn-primary,#b45309);background:var(--dsw-alias-bg-layer-2,#fdf3e3);border:1px solid var(--dsw-alias-border-l2,#f3e3c3);border-radius:8px;margin:0;padding:8px 10px;font-size:12px;line-height:18px}.nUhMVa_deprecate a{color:var(--dsw-alias-state-warn-primary,#b45309);text-decoration:underline}.nUhMVa_deprecate .nUhMVa_src{margin-left:8px}.nUhMVa_depLine{flex-wrap:wrap;align-items:center;gap:8px;display:flex}.nUhMVa_switch{border:1px solid var(--dsw-alias-border-l2,#d9dde3);background:var(--dsw-alias-bg-layer-2,#e5e7eb);cursor:pointer;border-radius:99px;flex-shrink:0;width:38px;height:22px;padding:0;transition:background .15s,border-color .15s;position:relative}.nUhMVa_switchOn{background:var(--dsw-alias-state-success-primary,#16a34a);border-color:var(--dsw-alias-state-success-primary,#16a34a)}.nUhMVa_switchMixed{background:var(--dsw-alias-state-warn-primary,#b45309);border-color:var(--dsw-alias-state-warn-primary,#b45309)}.nUhMVa_switchKnob{background:#fff;border-radius:99px;width:16px;height:16px;transition:left .15s;position:absolute;top:2px;left:2px;box-shadow:0 1px 2px #00000040}.nUhMVa_switchOn .nUhMVa_switchKnob,.nUhMVa_switchMixed .nUhMVa_switchKnob{left:18px}.nUhMVa_switch:disabled{opacity:.5;cursor:default}.nUhMVa_viewBar{border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:8px;align-items:center;gap:2px;width:fit-content;margin-bottom:12px;padding:2px;display:flex}.nUhMVa_viewBtn{font:inherit;color:var(--dsw-alias-label-secondary,#6b7280);cursor:pointer;white-space:nowrap;background:0 0;border:none;border-radius:6px;padding:4px 10px;font-size:12px;line-height:18px}.nUhMVa_viewBtn:hover{color:var(--dsw-alias-brand-primary,#4f6ef7)}.nUhMVa_viewOn{background:var(--dsw-alias-bg-layer-2,#eef0f4);color:var(--dsw-alias-label-primary,#1f2328);font-weight:600}.nUhMVa_groupRow{background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:12px;margin-bottom:10px;padding:12px 14px}.nUhMVa_groupHead{flex-wrap:wrap;align-items:center;gap:10px;min-width:0;display:flex}.nUhMVa_groupCollapse{width:22px;height:22px;color:var(--dsw-alias-label-secondary,#6b7280);cursor:pointer;background:0 0;border:none;border-radius:6px;flex-shrink:0;justify-content:center;align-items:center;padding:0;display:inline-flex}.nUhMVa_groupCollapse:hover{background:var(--dsw-alias-bg-layer-2,#eef0f4);color:var(--dsw-alias-label-primary,#1f2328)}.nUhMVa_groupTitle{flex-direction:column;flex:auto;gap:1px;min-width:0;display:flex}.nUhMVa_groupTitle .nUhMVa_groupHint{margin-top:0}.nUhMVa_groupName{text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:600;line-height:20px;overflow:hidden}.nUhMVa_groupMeta{color:var(--dsw-alias-label-tertiary,#8b93a1);font-size:11px;line-height:16px}.nUhMVa_groupActions{flex-wrap:wrap;flex-shrink:0;align-items:center;gap:6px;margin-left:auto;display:flex}.nUhMVa_groupMembers{flex-direction:column;gap:6px;margin-top:10px;display:flex}.nUhMVa_groupMember{background:var(--dsw-alias-bg-layer-2,#f7f8fa);border-radius:8px;align-items:center;gap:8px;min-width:0;padding:6px 8px;font-size:12px;line-height:18px;display:flex}.nUhMVa_groupMember .nUhMVa_nm{flex:1;min-width:0;font-size:12px}.nUhMVa_memberName{flex:auto;align-items:center;gap:6px;min-width:0;display:flex}.nUhMVa_memberName .nUhMVa_nm{flex:0 auto;min-width:0}.nUhMVa_memberKind{color:var(--dsw-alias-label-tertiary,#8b93a1);white-space:nowrap;flex:none;font-size:11px;line-height:16px}.nUhMVa_themeSlot{box-shadow:inset 0 -1px 0 var(--dsw-alias-border-l2,#e5e7eb);border-radius:8px 8px 0 0;margin-bottom:4px}.nUhMVa_groupMember>.nUhMVa_switch,.nUhMVa_groupMember>button{flex-shrink:0}.nUhMVa_groupMemberAction{flex:none;margin-left:auto}.nUhMVa_groupMemberAction button{white-space:nowrap}.nUhMVa_groupAddPanel{border-top:1px dashed var(--dsw-alias-border-l2,#e5e7eb);flex-direction:column;gap:6px;margin-top:10px;padding-top:10px;display:flex}.nUhMVa_groupAddModalBody{flex-direction:column;gap:10px;min-width:0;display:flex}.nUhMVa_groupAddFilters{flex-wrap:wrap;gap:6px;display:flex}.nUhMVa_groupAddModalList{flex-direction:column;gap:6px;max-height:min(50vh,360px);padding-right:2px;display:flex;overflow-y:auto}.nUhMVa_groupAddModalHint{color:var(--dsw-alias-label-secondary,#6b7280);margin:0;font-size:12px;line-height:18px}.nUhMVa_groupAddPick{background:var(--dsw-alias-bg-layer-2,#f7f8fa);cursor:pointer;border-radius:8px;align-items:center;gap:8px;min-width:0;padding:8px 10px;display:flex}.nUhMVa_groupAddPick:hover{background:var(--dsw-alias-bg-layer-2,#eef0f4)}.nUhMVa_groupAddPick input{flex-shrink:0;margin:0}.nUhMVa_groupAddPick .nUhMVa_nm{text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;font-size:12px;overflow:hidden}.nUhMVa_groupAddFooterMeta{color:var(--dsw-alias-label-secondary,#6b7280);align-self:center;margin-right:auto;font-size:12px;line-height:18px}.nUhMVa_groupOrgHint{color:var(--dsw-alias-label-tertiary,#8b93a1);margin:4px 0 0;font-size:11px;line-height:16px}.nUhMVa_groupRenameField{flex-direction:column;gap:6px;min-width:min(100%,320px);display:flex}.nUhMVa_groupRenameField label{color:var(--dsw-alias-label-secondary,#6b7280);font-size:12px;line-height:18px}.nUhMVa_groupRenameField .nUhMVa_inlineInput{width:100%}.nUhMVa_groupCreate{align-items:center;gap:8px;margin-bottom:10px;display:flex}.nUhMVa_groupCreateInline{flex-shrink:0;align-items:center;gap:8px;display:flex}.nUhMVa_groupCreateInline .nUhMVa_inlineInput{flex:none;width:160px}.nUhMVa_inlineInput{flex:1;min-width:120px}.nUhMVa_ungroupedRow{flex-wrap:nowrap}.nUhMVa_ungroupedRow>.nUhMVa_nm{flex:0 auto;max-width:42%;font-size:12px;line-height:18px}.nUhMVa_ungroupedState{flex:0 auto;align-items:center;min-width:0;max-width:46%;margin:0;display:inline-flex}.nUhMVa_ungroupedState>span{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.nUhMVa_ungroupedDesc{text-overflow:ellipsis;white-space:nowrap;min-width:0;color:var(--dsw-alias-label-tertiary,#8b93a1);flex:1 1 0;font-size:12px;line-height:18px;overflow:hidden}.nUhMVa_ungroupedDesc.nUhMVa_noteMine{color:var(--dsw-alias-label-primary,#1f2328)}.nUhMVa_groupHint{color:var(--dsw-alias-label-tertiary,#8b93a1);font-size:11px}.nUhMVa_sect{color:var(--dsw-alias-label-secondary,#6b7280);margin:14px 2px 8px;font-size:12px;font-weight:600}.nUhMVa_sectAction{color:var(--dsw-alias-label-secondary,#6b7280);align-items:center;gap:8px;margin:14px 2px 8px;font-size:12px;font-weight:600;display:flex}.nUhMVa_backupGrid{grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;display:grid}.nUhMVa_backupCard{background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:12px;flex-direction:column;gap:10px;padding:16px;display:flex}.nUhMVa_backupCard h3{margin:0;font-size:14px}.nUhMVa_backupCard p{color:var(--dsw-alias-label-secondary,#6b7280);margin:0;font-size:12px;line-height:18px}.nUhMVa_backupActions{flex-wrap:wrap;gap:8px;display:flex;position:relative}.nUhMVa_hiddenFile{opacity:0;pointer-events:none;width:1px;height:1px;position:absolute}.nUhMVa_backupInput{box-sizing:border-box;width:100%}.nUhMVa_backupCheck{cursor:pointer;align-items:center;gap:6px;font-size:12px;display:flex}.nUhMVa_backupWarn{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-state-warn-primary,#b45309)!important}.nUhMVa_backupMessage{color:var(--dsw-alias-label-secondary,#6b7280);grid-column:1/-1;font-size:12px}.nUhMVa_backupCheckList{flex-direction:column;gap:6px;max-height:260px;margin:10px 0 4px;padding-right:4px;display:flex;overflow-y:auto}.nUhMVa_backupCheckList .nUhMVa_backupCheck{justify-content:space-between;gap:8px}.nUhMVa_diagPage{flex-direction:column;gap:12px;height:100%;min-height:0;display:flex;overflow-y:auto}.nUhMVa_diagSummary{background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:12px;flex-wrap:wrap;align-items:center;gap:12px;padding:10px 14px;font-size:12px;display:flex}.nUhMVa_diagSummaryItem{color:var(--dsw-alias-label-secondary,#6b7280);white-space:nowrap;align-items:center;gap:6px;display:inline-flex}.nUhMVa_diagSummaryMeta{color:var(--dsw-alias-label-tertiary,#9ca3af);text-overflow:ellipsis;white-space:nowrap;max-width:320px;font-family:ui-monospace,Menlo,monospace;font-size:11px;overflow:hidden}.nUhMVa_diagSection{background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:12px;flex-direction:column;gap:8px;padding:12px 14px;display:flex}.nUhMVa_diagSection h3{color:var(--dsw-alias-label-primary,#1f2328);margin:0;font-size:13px;font-weight:600}.nUhMVa_diagCount{color:var(--dsw-alias-label-tertiary,#9ca3af);font-size:11px;font-weight:400}.nUhMVa_diagEmpty{color:var(--dsw-alias-label-secondary,#9ca3af);padding:8px 0;font-size:12px}.nUhMVa_diagBundle{border-top:1px solid var(--dsw-alias-border-l2,#f0f1f3);flex-direction:column;gap:6px;padding-top:8px;display:flex}.nUhMVa_diagBundle:first-of-type{border-top:none;padding-top:0}.nUhMVa_diagRow{flex-wrap:wrap;align-items:center;gap:8px;min-width:0;font-size:12px;line-height:18px;display:flex}.nUhMVa_diagMeta{align-items:baseline;gap:8px;min-width:0;font-size:12px;display:flex}.nUhMVa_diagKey{color:var(--dsw-alias-label-tertiary,#9ca3af);flex-shrink:0;min-width:64px;font-size:11px}.nUhMVa_diagVal{color:var(--dsw-alias-label-primary,#1f2328);overflow-wrap:anywhere;min-width:0;font-family:ui-monospace,Menlo,monospace;font-size:12px;font-weight:500}.nUhMVa_diagIndex{background:var(--dsw-alias-bg-layer-2,#f3f4f6);min-width:18px;height:18px;color:var(--dsw-alias-label-secondary,#6b7280);border-radius:9px;flex-shrink:0;justify-content:center;align-items:center;font-size:11px;font-weight:600;display:inline-flex}.nUhMVa_diagArrow{color:var(--dsw-alias-label-tertiary,#9ca3af);flex-shrink:0;font-size:12px}.nUhMVa_diagBadgeOfficial{background:var(--dsw-alias-button-primary-fill,var(--dsw-alias-brand-primary,#4f6ef7));height:18px;color:var(--dsw-alias-label-primary-foreground,#fff);border-radius:9px;flex-shrink:0;align-items:center;padding:0 8px;font-size:11px;font-weight:600;display:inline-flex}.nUhMVa_diagBadgeCommunity{background:var(--dsw-alias-bg-layer-2,#f3f4f6);height:18px;color:var(--dsw-alias-label-secondary,#6b7280);border-radius:9px;flex-shrink:0;align-items:center;padding:0 8px;font-size:11px;display:inline-flex}.nUhMVa_diagBadgeShadow{background:var(--dsw-alias-state-error-primary,#dc2626);height:18px;color:var(--dsw-alias-label-primary-foreground,#fff);border-radius:9px;flex-shrink:0;align-items:center;padding:0 8px;font-size:11px;font-weight:600;display:inline-flex}.nUhMVa_diagBadgeWarn{background:var(--dsw-alias-state-warn-primary,#b45309);height:18px;color:var(--dsw-alias-label-primary-foreground,#fff);white-space:nowrap;border-radius:9px;flex-shrink:0;align-items:center;padding:0 8px;font-size:11px;font-weight:600;display:inline-flex}.nUhMVa_diagBadgeInfo{background:var(--dsw-alias-bg-layer-2,#f3f4f6);height:18px;color:var(--dsw-alias-label-secondary,#6b7280);white-space:nowrap;border-radius:9px;flex-shrink:0;align-items:center;padding:0 8px;font-size:11px;display:inline-flex}.nUhMVa_diagList{flex-direction:column;gap:6px;display:flex}.nUhMVa_sectionOverview{color:var(--dsw-alias-label-tertiary,#8b93a1);text-overflow:ellipsis;white-space:nowrap;max-width:100%;padding:2px 0 6px;font-size:12px;line-height:18px;overflow:hidden}.nUhMVa_diagAlert{color:var(--dsw-alias-state-warn-primary,#b45309)}.nUhMVa_ovRow{background:var(--dsw-alias-bg-layer-2,#f7f8fa);border-radius:8px;flex-wrap:wrap;align-items:center;gap:8px;min-width:0;padding:6px 10px;font-size:12px;line-height:18px;display:flex}.nUhMVa_ovArrow{color:var(--dsw-alias-label-tertiary,#9ca3af);flex-shrink:0;font-size:12px}.nUhMVa_ovByTag{background:var(--dsw-alias-button-primary-fill,var(--dsw-alias-brand-primary,#4f6ef7));height:18px;color:var(--dsw-alias-label-primary-foreground,#fff);text-overflow:ellipsis;white-space:nowrap;border-radius:9px;flex-shrink:0;align-items:center;max-width:260px;padding:0 8px;font-size:11px;font-weight:600;display:inline-flex;overflow:hidden}.nUhMVa_ovFrom{color:var(--dsw-alias-label-secondary,#6b7280);text-overflow:ellipsis;white-space:nowrap;min-width:0;font-size:12px;overflow:hidden}.nUhMVa_orphRow{background:var(--dsw-alias-bg-layer-2,#f7f8fa);border-radius:8px;flex-wrap:wrap;align-items:center;gap:8px;min-width:0;padding:6px 10px;font-size:12px;line-height:18px;display:flex}.nUhMVa_orphBadge{background:var(--dsw-alias-state-warn-primary,#b45309);height:18px;color:var(--dsw-alias-label-primary-foreground,#fff);white-space:nowrap;border-radius:9px;flex-shrink:0;align-items:center;padding:0 8px;font-size:11px;font-weight:600;display:inline-flex}.nUhMVa_dragHandle{width:20px;height:20px;color:var(--dsw-alias-label-tertiary,#9ca3af);cursor:grab;-webkit-user-select:none;user-select:none;flex-shrink:0;justify-content:center;align-items:center;font-size:12px;line-height:20px;display:inline-flex}.nUhMVa_dragOver{outline:2px dashed var(--dsw-alias-brand-primary,#4f6ef7);outline-offset:2px;background:var(--dsw-alias-bg-layer-2,#f0f2f8);border-radius:8px}.nUhMVa_dragging{opacity:.45;background:var(--dsw-alias-bg-layer-2,#f3f4f6)}.nUhMVa_collapseHead{font:inherit;color:var(--dsw-alias-label-primary,#1f2328);cursor:pointer;text-align:left;background:0 0;border:none;align-items:center;gap:8px;width:100%;padding:0;font-size:13px;font-weight:600;display:flex}.nUhMVa_collapseIcon{color:var(--dsw-alias-label-secondary,#6b7280);flex-shrink:0;display:inline-flex}.nUhMVa_collapseTitle{flex:1;min-width:0}.nUhMVa_collapseBody{border-top:1px solid var(--dsw-alias-border-l2,#f0f1f3);overflow-wrap:anywhere;flex-direction:column;gap:10px;min-width:0;margin-top:8px;padding-top:10px;display:flex}.nUhMVa_orderPanel{flex-direction:column;gap:10px;min-width:0;display:flex}.nUhMVa_panelNote{color:var(--dsw-alias-label-secondary,#6b7280);margin:0;font-size:12px;line-height:18px}.nUhMVa_panelActions{flex-wrap:wrap;align-items:center;gap:8px;display:flex}.nUhMVa_presetList{flex-direction:column;gap:6px;min-width:0;display:flex}.nUhMVa_presetRow{background:var(--dsw-alias-bg-layer-2,#f7f8fa);border-radius:8px;flex-direction:column;align-items:stretch;gap:6px;min-width:0;max-width:100%;padding:8px 10px;font-size:12px;line-height:18px;display:flex}.nUhMVa_presetName{text-overflow:ellipsis;white-space:nowrap;min-width:0;font-size:13px;font-weight:600;overflow:hidden}.nUhMVa_snapList{flex-direction:column;gap:6px;min-width:0;display:flex}.nUhMVa_snapRow{background:var(--dsw-alias-bg-layer-2,#f7f8fa);border-radius:8px;flex-direction:column;align-items:stretch;gap:8px;padding:10px 12px;font-size:12px;line-height:18px;display:flex}.nUhMVa_snapMeta{flex-wrap:wrap;align-items:center;gap:8px;min-width:0;display:flex}.nUhMVa_snapConfirmText{color:var(--dsw-alias-state-warn-primary,#b45309);margin:0;font-size:12px;line-height:18px}.nUhMVa_confirmRow{flex-wrap:wrap;align-items:center;gap:6px;display:inline-flex}.nUhMVa_fixFallback{flex-direction:column;gap:6px;margin:8px 0;display:flex}.nUhMVa_fixFallbackText,.nUhMVa_envEditor{box-sizing:border-box;width:100%;color:var(--dsw-alias-label-primary,#1f2328);background:var(--dsw-alias-bg-layer-2,#f3f4f6);border:1px solid var(--dsw-alias-border-l2,#e5e7eb);resize:vertical;white-space:pre-wrap;word-break:break-all;border-radius:6px;padding:8px 10px;font-family:ui-monospace,Menlo,monospace;font-size:11px;line-height:16px}.nUhMVa_setCard{border:1px solid var(--dsw-alias-border-l2,#e5e7eb);background:var(--dsw-alias-bg-layer-3,#fff);border-radius:12px;list-style:none;transition:border-color .16s,background .16s}.nUhMVa_setCard:hover{border-color:var(--dsw-alias-label-dimmed,#c8ccd4)}.nUhMVa_setCardOpen{background:var(--dsw-alias-bg-layer-2,#f7f8fa);border-color:var(--dsw-alias-label-dimmed,#c8ccd4)}.nUhMVa_setHeader{-webkit-appearance:none;appearance:none;width:100%;font:inherit;color:inherit;text-align:left;cursor:pointer;background:0 0;border:0;border-radius:12px;align-items:center;gap:12px;padding:14px 16px;display:flex}.nUhMVa_setHeader:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#4f6ef7);outline-offset:-2px}.nUhMVa_setHeadText{flex-direction:column;flex:1;gap:4px;min-width:0;display:flex}.nUhMVa_setName{color:var(--dsw-alias-label-primary,#1f2328);font-size:15px;font-weight:600;line-height:1.4}.nUhMVa_setDesc{color:var(--dsw-alias-label-tertiary,#8b93a1);font-size:13px;line-height:1.5}.nUhMVa_setChevron{color:var(--dsw-alias-label-tertiary,#8b93a1);flex:none;transition:transform .16s;display:inline-flex}.nUhMVa_setChevronOpen{transform:rotate(180deg)}.nUhMVa_setBody{border-top:1px solid var(--dsw-alias-border-l2,#e5e7eb);margin:0 16px;padding-bottom:8px}.nUhMVa_setRow{align-items:center;gap:12px;padding:12px 0;display:flex}.nUhMVa_setRow+.nUhMVa_setRow{border-top:1px solid var(--dsw-alias-border-l2,#e5e7eb)}.nUhMVa_setLabelBox{flex-direction:column;flex:1;gap:3px;min-width:0;display:flex}.nUhMVa_setLabel{font-size:13px;line-height:20px}.nUhMVa_setHint{color:var(--dsw-alias-label-tertiary,#8b93a1);font-size:12px;line-height:18px}.nUhMVa_setConfirm{border-top:1px solid var(--dsw-alias-border-l2,#e5e7eb);flex-direction:column;gap:8px;padding:12px 0 4px;display:flex}.nUhMVa_setCheck{cursor:pointer;align-items:center;gap:8px;font-size:12px;line-height:18px;display:flex}.nUhMVa_setActions{border-top:1px solid var(--dsw-alias-border-l2,#e5e7eb);justify-content:flex-end;align-items:center;gap:8px;padding:12px 0 4px;display:flex}.nUhMVa_setInlineActions{flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:6px;display:flex}.nUhMVa_setProxyEditor{border-top:1px solid var(--dsw-alias-border-l2,#e5e7eb);flex-wrap:wrap;align-items:flex-end;gap:10px;padding:12px 0;display:flex}.nUhMVa_setProxyLabel{min-width:180px;color:var(--dsw-alias-label-secondary,#6b7280);flex-direction:column;flex:1;gap:5px;font-size:12px;line-height:18px;display:flex}.nUhMVa_setProxyInput{box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2,#d1d5db);background:var(--dsw-alias-bg-layer-3,#fff);width:100%;min-width:0;color:var(--dsw-alias-label-primary,#1f2328);font:inherit;border-radius:7px;padding:6px 8px;font-size:12px;line-height:18px}.nUhMVa_setProxyInput:focus{border-color:var(--dsw-alias-brand-primary,#4f6ef7);outline:2px solid color-mix(in srgb,var(--dsw-alias-brand-primary,#4f6ef7) 18%,transparent)}.nUhMVa_setDanger{color:var(--dsw-alias-state-error-primary,#dc2626)}.nUhMVa_setSeg{border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:8px;flex-shrink:0;gap:2px;padding:2px;display:inline-flex}.nUhMVa_setSegBtn{font:inherit;color:var(--dsw-alias-label-secondary,#6b7280);cursor:pointer;background:0 0;border:none;border-radius:6px;padding:3px 10px;font-size:12px;line-height:18px}.nUhMVa_setSegBtn:disabled{cursor:default;opacity:.5}.nUhMVa_setSegOn{background:var(--dsw-alias-bg-layer-2,#eef0f4);color:var(--dsw-alias-label-primary,#1f2328);font-weight:600}.nUhMVa_setBetaTag{background:var(--dsw-alias-bg-module-platform,#eef0f4);color:var(--dsw-alias-label-secondary,#6b7280);border-radius:9px;margin-left:6px;padding:0 6px;font-size:11px;font-weight:600;line-height:17px}.nUhMVa_commentsLink{cursor:pointer;white-space:nowrap;color:var(--dsw-alias-label-secondary,#9ca3af);background:0 0;border:0;padding:0;font-size:11px;line-height:16px}.nUhMVa_commentsLink:hover{color:var(--dsw-alias-brand-primary,#4f6ef7)}.nUhMVa_footActions{flex-shrink:0;align-items:center;gap:8px;display:inline-flex}.nUhMVa_favoriteBtn{cursor:pointer;color:var(--dsw-alias-label-secondary,#9ca3af);background:0 0;border:0;align-items:center;padding:0;display:inline-flex}.nUhMVa_favoriteBtn:hover,.nUhMVa_favoriteOn{color:var(--dsw-alias-brand-primary,#4f6ef7)}.nUhMVa_commentsNote{color:var(--dsw-alias-label-secondary,#9ca3af);margin:0 0 8px;font-size:11px;line-height:16px}.nUhMVa_commentsGithubPrompt{border:1px solid color-mix(in srgb,var(--dsw-alias-brand-primary,#4f6ef7) 24%,transparent);background:color-mix(in srgb,var(--dsw-alias-brand-primary,#4f6ef7) 6%,transparent);border-radius:8px;margin:0 0 10px;padding:10px}.nUhMVa_commentsGithubHint{color:var(--dsw-alias-label-primary,#1f2328);margin:0 0 8px;font-size:12px;line-height:17px}.nUhMVa_commentsGithubAction{box-sizing:border-box;border:1px solid var(--dsw-alias-brand-primary,#4f6ef7);min-height:28px;color:var(--dsw-alias-brand-primary,#4f6ef7);border-radius:6px;justify-content:center;align-items:center;padding:5px 10px;font-size:12px;font-weight:600;line-height:16px;text-decoration:none;display:inline-flex}.nUhMVa_commentsGithubAction:hover{background:color-mix(in srgb,var(--dsw-alias-brand-primary,#4f6ef7) 9%,transparent)}.nUhMVa_commentsStatus{color:var(--dsw-alias-label-secondary,#9ca3af);margin:0;font-size:12px}.nUhMVa_commentsStatus:empty{display:none}.nUhMVa_commentsError{color:var(--dsw-alias-label-primary,#1f2328);margin:0 0 8px;font-size:12px}.nUhMVa_commentsFail{flex-direction:column;align-items:flex-start;gap:8px;padding:12px 0;display:flex}.nUhMVa_commentsMount{width:100%;min-height:240px;max-height:56vh;overflow:auto}.nUhMVa_commentsMount iframe{width:100%}.nUhMVa_notesLink{font:inherit;color:var(--dsw-alias-label-secondary,#6b7280);cursor:pointer;text-align:left;background:0 0;border:none;margin:2px 0 0;padding:0;font-size:12px;line-height:18px;display:block}.nUhMVa_notesLink:hover{color:var(--dsw-alias-label-primary,#1f2328)}.nUhMVa_notesModalWide{width:min(640px,92vw);max-width:min(640px,92vw)}.nUhMVa_notesBody{overscroll-behavior:contain;flex-direction:column;flex:0 auto;gap:10px;min-width:0;max-height:min(60vh,520px);padding:0 2px 8px 0;display:flex;overflow-y:auto}.nUhMVa_notesRange{align-items:center;gap:8px;margin-bottom:4px;font-size:12px;line-height:18px;display:flex}.nUhMVa_notesArrow{color:var(--dsw-alias-label-tertiary,#8b93a1)}.nUhMVa_notesMeta{letter-spacing:.02em;text-transform:uppercase;color:var(--dsw-alias-label-secondary,#6b7280);flex-wrap:wrap;align-items:baseline;gap:6px;margin-top:4px;font-size:12px;line-height:18px;display:flex}.nUhMVa_notesBody>.nUhMVa_notesMeta:first-child{margin-top:0}.nUhMVa_notesPre{white-space:pre-wrap;word-break:break-word;background:var(--dsw-alias-bg-layer-2,#eef0f4);border-radius:8px;max-height:40vh;margin:0;padding:10px 12px;font-size:13px;line-height:20px;overflow:auto}.nUhMVa_notesRendered{flex-direction:column;gap:8px;min-width:0;display:flex}.nUhMVa_notesImg{border-radius:6px;max-width:100%;height:auto;margin:4px 0;display:block}.nUhMVa_notesH{margin-top:4px;font-size:13px;font-weight:650;line-height:20px}.nUhMVa_notesP{font-size:13px;line-height:20px}.nUhMVa_notesQuote{border-left:3px solid var(--dsw-alias-border-l3,#d9dde3);background:var(--dsw-alias-bg-layer-2,#f7f8fa);color:var(--dsw-alias-label-primary,#1f2328);border-radius:0 6px 6px 0;margin:0;padding:8px 10px;font-size:13px;line-height:20px}.nUhMVa_notesFence{background:var(--dsw-alias-bg-layer-2,#eef0f4);font-family:var(--dsw-alias-font-mono,ui-monospace,Menlo,monospace);white-space:pre;border-radius:8px;margin:0;padding:10px 12px;font-size:12px;line-height:18px;overflow-x:auto}.nUhMVa_notesFence code{font:inherit;background:0 0;padding:0}.nUhMVa_notesBullets{flex-direction:column;gap:4px;margin:0;padding-left:18px;font-size:13px;line-height:20px;display:flex}.nUhMVa_notesA{color:var(--dsw-alias-brand-primary,#4f6ef7);text-decoration:none}.nUhMVa_notesA:hover{text-decoration:underline}.nUhMVa_notesCode{font-family:var(--dsw-alias-font-mono,ui-monospace,monospace);background:var(--dsw-alias-bg-layer-2,#eef0f4);border-radius:5px;padding:1px 5px;font-size:12px}.nUhMVa_notesList{flex-direction:column;margin:0;padding:0;list-style:none;display:flex}.nUhMVa_notesRow{border-bottom:1px solid var(--dsw-alias-border-l2,#e5e7eb);align-items:baseline;gap:12px;padding:6px 0;display:flex}.nUhMVa_notesRow:last-child{border-bottom:none}.nUhMVa_notesDate{color:var(--dsw-alias-label-tertiary,#8b93a1);font-variant-numeric:tabular-nums;flex-shrink:0;font-size:12px}.nUhMVa_notesMsg{word-break:break-word;word-break:break-word;-webkit-line-clamp:3;-webkit-box-orient:vertical;min-width:0;font-size:13px;line-height:20px;display:-webkit-box;overflow:hidden}.nUhMVa_notesSha{color:var(--dsw-alias-label-secondary,#6b7280);font-variant-numeric:tabular-nums;flex-shrink:0;margin-left:auto;font-size:12px;text-decoration:none}.nUhMVa_recoverySummary{color:var(--dsw-alias-state-error-primary,#dc2626);word-break:break-word;align-items:flex-start;gap:8px;margin-bottom:8px;font-size:12px;display:flex}.nUhMVa_recoveryHint{color:var(--dsw-alias-label-secondary,#6b7280);margin:8px 0;font-size:12px}.nUhMVa_recoveryList{border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:8px;flex-direction:column;max-height:320px;display:flex;overflow-x:hidden;overflow-y:auto}.nUhMVa_recoveryRow{border-top:1px solid var(--dsw-alias-border-l2,#eef0f4);align-items:flex-start;gap:8px;padding:6px 10px;font-size:12px;display:flex}.nUhMVa_recoveryRow:first-child{border-top:none}.nUhMVa_recoveryBlamed{box-shadow:inset 3px 0 0 var(--dsw-alias-state-error-primary,#dc2626);background:#dc262612}.nUhMVa_recoveryMuted{opacity:.6}.nUhMVa_recoveryName{word-break:break-word;flex-direction:column;gap:2px;min-width:0;display:flex}.nUhMVa_recoveryReason{color:var(--dsw-alias-state-error-primary,#dc2626);word-break:break-word;font-size:11px}.nUhMVa_recoveryNote{color:var(--dsw-alias-label-tertiary,#8b93a1);word-break:break-word;margin-top:8px;font-size:11px}.nUhMVa_recoveryBadge{background:var(--dsw-alias-bg-layer-2,#eef0f4);color:var(--dsw-alias-label-secondary,#6b7280);border-radius:5px;margin-left:6px;padding:0 5px;font-size:10px}.nUhMVa_recoveryLog{color:var(--dsw-alias-label-secondary,#6b7280);margin:4px 0 8px;font-size:11px}.nUhMVa_recoveryLog pre{white-space:pre-wrap;word-break:break-word;max-height:180px;margin:6px 0 0;overflow:auto}.nUhMVa_notesSha:hover{color:var(--dsw-alias-label-primary,#1f2328);text-decoration:underline}.nUhMVa_notesVer{color:inherit;font-weight:600;text-decoration:none}.nUhMVa_notesVer:hover{text-decoration:underline}.nUhMVa_migrationSources{flex-direction:column;gap:8px;margin-top:4px;display:flex}.nUhMVa_migrationSource{border:1px solid var(--dsw-alias-border-default,#e5e7eb);border-radius:8px;flex-direction:column;gap:4px;padding:10px 12px;display:flex}.nUhMVa_migrationSource code{overflow-wrap:anywhere;font-family:ui-monospace,Menlo,monospace;font-size:12px}.nUhMVa_migrationLabel{color:var(--dsw-alias-label-secondary,#9ca3af);font-size:11px}.nUhMVa_migrationArrow{text-align:center;color:var(--dsw-alias-label-secondary,#9ca3af)}.nUhMVa_migrationWarning{color:var(--dsw-alias-state-warn-primary,#b45309);align-items:flex-start;gap:6px;margin:12px 0 0;font-size:12px;line-height:18px;display:flex}";
 		const tagId = "dshmarket/Market.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId) + "]") === null) {
 			const tag = document.createElement("style");
@@ -2646,392 +2767,399 @@ window.__ModuleLoader__.load({
 			document.head.appendChild(tag);
 		}
 		var Market_module_css_default = {
-			"foot": "nUhMVa_foot",
-			"diagCount": "nUhMVa_diagCount",
-			"notesMeta": "nUhMVa_notesMeta",
-			"src": "nUhMVa_src",
-			"pagerMeta": "nUhMVa_pagerMeta",
-			"recoveryLog": "nUhMVa_recoveryLog",
-			"shot": "nUhMVa_shot",
-			"bannerIcon": "nUhMVa_bannerIcon",
-			"noteRow": "nUhMVa_noteRow",
-			"searchField": "nUhMVa_searchField",
-			"stateTag": "nUhMVa_stateTag",
-			"deprecate": "nUhMVa_deprecate",
-			"groupAddFilters": "nUhMVa_groupAddFilters",
-			"logoPlug": "nUhMVa_logoPlug",
-			"cardShot": "nUhMVa_cardShot",
-			"opEntryQuiet": "nUhMVa_opEntryQuiet",
-			"setRow": "nUhMVa_setRow",
-			"irowDevTag": "nUhMVa_irowDevTag",
-			"logoMark": "nUhMVa_logoMark",
-			"opRowAlert": "nUhMVa_opRowAlert",
-			"recoveryRow": "nUhMVa_recoveryRow",
-			"notesDate": "nUhMVa_notesDate",
-			"recoveryReason": "nUhMVa_recoveryReason",
-			"dot": "nUhMVa_dot",
-			"notesVer": "nUhMVa_notesVer",
-			"lightboxNext": "nUhMVa_lightboxNext",
-			"meta": "nUhMVa_meta",
-			"themeCard": "nUhMVa_themeCard",
-			"bannerHint": "nUhMVa_bannerHint",
-			"diagBundle": "nUhMVa_diagBundle",
-			"themeDescription": "nUhMVa_themeDescription",
-			"ungroupedRow": "nUhMVa_ungroupedRow",
-			"act": "nUhMVa_act",
-			"setCard": "nUhMVa_setCard",
-			"tab": "nUhMVa_tab",
-			"groupMember": "nUhMVa_groupMember",
-			"diagBadgeWarn": "nUhMVa_diagBadgeWarn",
-			"setName": "nUhMVa_setName",
-			"groupRenameField": "nUhMVa_groupRenameField",
-			"conflictTitle": "nUhMVa_conflictTitle",
-			"retryBtn": "nUhMVa_retryBtn",
-			"groupAddFooterMeta": "nUhMVa_groupAddFooterMeta",
-			"favoritesSectionHead": "nUhMVa_favoritesSectionHead",
-			"tag": "nUhMVa_tag",
-			"conflictIcon": "nUhMVa_conflictIcon",
-			"cardBlocked": "nUhMVa_cardBlocked",
-			"barWave": "nUhMVa_barWave",
-			"dangerArmed": "nUhMVa_dangerArmed",
-			"grid": "nUhMVa_grid",
-			"noteToggle": "nUhMVa_noteToggle",
-			"spec": "nUhMVa_spec",
-			"pageEllipsis": "nUhMVa_pageEllipsis",
-			"collapseTitle": "nUhMVa_collapseTitle",
-			"fixFallback": "nUhMVa_fixFallback",
-			"notesRendered": "nUhMVa_notesRendered",
-			"hostFilterNote": "nUhMVa_hostFilterNote",
-			"diagIndex": "nUhMVa_diagIndex",
-			"rosterTag": "nUhMVa_rosterTag",
-			"ovArrow": "nUhMVa_ovArrow",
-			"commentsGithubAction": "nUhMVa_commentsGithubAction",
-			"favoritesStaleOnly": "nUhMVa_favoritesStaleOnly",
-			"migrationSource": "nUhMVa_migrationSource",
-			"lightboxDots": "nUhMVa_lightboxDots",
-			"opEmpty": "nUhMVa_opEmpty",
-			"setBody": "nUhMVa_setBody",
-			"err": "nUhMVa_err",
-			"presetRow": "nUhMVa_presetRow",
-			"searchInput": "nUhMVa_searchInput",
-			"themeCardFooter": "nUhMVa_themeCardFooter",
-			"groupMembers": "nUhMVa_groupMembers",
-			"ovByTag": "nUhMVa_ovByTag",
-			"themeCover": "nUhMVa_themeCover",
-			"commentsGithubHint": "nUhMVa_commentsGithubHint",
-			"searchClear": "nUhMVa_searchClear",
-			"rosterSplit": "nUhMVa_rosterSplit",
-			"migrationWarning": "nUhMVa_migrationWarning",
-			"choiceMain": "nUhMVa_choiceMain",
-			"irowName": "nUhMVa_irowName",
-			"opHead": "nUhMVa_opHead",
-			"memberKind": "nUhMVa_memberKind",
-			"depBadge": "nUhMVa_depBadge",
-			"root": "nUhMVa_root",
-			"metaTag": "nUhMVa_metaTag",
-			"commentsGithubPrompt": "nUhMVa_commentsGithubPrompt",
-			"sect": "nUhMVa_sect",
-			"recoveryBlamed": "nUhMVa_recoveryBlamed",
-			"conflictWhyText": "nUhMVa_conflictWhyText",
-			"switch": "nUhMVa_switch",
-			"memberName": "nUhMVa_memberName",
-			"orderPanel": "nUhMVa_orderPanel",
-			"commentsNote": "nUhMVa_commentsNote",
-			"setSegBtn": "nUhMVa_setSegBtn",
-			"irowTrailing": "nUhMVa_irowTrailing",
-			"rosterMain": "nUhMVa_rosterMain",
-			"migrationLabel": "nUhMVa_migrationLabel",
-			"setSegOn": "nUhMVa_setSegOn",
-			"tabs": "nUhMVa_tabs",
-			"modalNote": "nUhMVa_modalNote",
-			"recoveryNote": "nUhMVa_recoveryNote",
-			"cardAction": "nUhMVa_cardAction",
-			"brokenPluginText": "nUhMVa_brokenPluginText",
-			"conflictBody": "nUhMVa_conflictBody",
-			"depLine": "nUhMVa_depLine",
-			"viewBar": "nUhMVa_viewBar",
-			"diagRow": "nUhMVa_diagRow",
-			"themeStatusMuted": "nUhMVa_themeStatusMuted",
-			"backupCheck": "nUhMVa_backupCheck",
-			"diagArrow": "nUhMVa_diagArrow",
-			"actBroken": "nUhMVa_actBroken",
-			"themePreviewAction": "nUhMVa_themePreviewAction",
-			"themeLifecycle": "nUhMVa_themeLifecycle",
-			"irow": "nUhMVa_irow",
-			"opCloseBtn": "nUhMVa_opCloseBtn",
-			"groupHead": "nUhMVa_groupHead",
-			"ungroupedState": "nUhMVa_ungroupedState",
-			"dshmPlug": "nUhMVa_dshmPlug",
-			"opIcon": "nUhMVa_opIcon",
-			"backupActions": "nUhMVa_backupActions",
-			"diagAlert": "nUhMVa_diagAlert",
-			"favoriteBtn": "nUhMVa_favoriteBtn",
-			"commentsMount": "nUhMVa_commentsMount",
-			"lightboxDotOn": "nUhMVa_lightboxDotOn",
-			"backupInput": "nUhMVa_backupInput",
-			"notesArrow": "nUhMVa_notesArrow",
-			"rosterName": "nUhMVa_rosterName",
-			"nmLink": "nUhMVa_nmLink",
-			"groupAddPanel": "nUhMVa_groupAddPanel",
-			"groupAddModalHint": "nUhMVa_groupAddModalHint",
-			"setLabelBox": "nUhMVa_setLabelBox",
-			"setHeadText": "nUhMVa_setHeadText",
-			"okState": "nUhMVa_okState",
-			"themeGallery": "nUhMVa_themeGallery",
-			"themesGrid": "nUhMVa_themesGrid",
-			"actWhy": "nUhMVa_actWhy",
-			"roster": "nUhMVa_roster",
-			"opStatus": "nUhMVa_opStatus",
-			"irowHead": "nUhMVa_irowHead",
-			"irowActions": "nUhMVa_irowActions",
-			"title": "nUhMVa_title",
-			"reassureOk": "nUhMVa_reassureOk",
-			"groupMemberAction": "nUhMVa_groupMemberAction",
-			"panelNote": "nUhMVa_panelNote",
-			"setHint": "nUhMVa_setHint",
-			"cardBlockedMark": "nUhMVa_cardBlockedMark",
-			"owner": "nUhMVa_owner",
-			"catsRow": "nUhMVa_catsRow",
-			"diagMeta": "nUhMVa_diagMeta",
-			"rosterTagDrop": "nUhMVa_rosterTagDrop",
-			"opDot": "nUhMVa_opDot",
-			"setDanger": "nUhMVa_setDanger",
-			"footActions": "nUhMVa_footActions",
-			"favoriteOn": "nUhMVa_favoriteOn",
-			"commentsError": "nUhMVa_commentsError",
-			"body": "nUhMVa_body",
-			"card": "nUhMVa_card",
-			"choiceTitle": "nUhMVa_choiceTitle",
-			"metaTagOk": "nUhMVa_metaTagOk",
-			"collapseHead": "nUhMVa_collapseHead",
-			"on": "nUhMVa_on",
-			"rosterRowOut": "nUhMVa_rosterRowOut",
-			"dshmSlide": "nUhMVa_dshmSlide",
-			"lightboxNav": "nUhMVa_lightboxNav",
-			"commentsStatus": "nUhMVa_commentsStatus",
-			"backupCard": "nUhMVa_backupCard",
-			"pageInfo": "nUhMVa_pageInfo",
-			"choice": "nUhMVa_choice",
-			"diagSection": "nUhMVa_diagSection",
-			"notesPre": "nUhMVa_notesPre",
-			"exportLogBtn": "nUhMVa_exportLogBtn",
-			"installBtn": "nUhMVa_installBtn",
-			"recoveryBadge": "nUhMVa_recoveryBadge",
-			"opEmptyHint": "nUhMVa_opEmptyHint",
-			"rosterRow": "nUhMVa_rosterRow",
-			"nm": "nUhMVa_nm",
-			"titleRow": "nUhMVa_titleRow",
-			"dangerBtn": "nUhMVa_dangerBtn",
-			"snapMeta": "nUhMVa_snapMeta",
-			"choiceNote": "nUhMVa_choiceNote",
-			"viewOn": "nUhMVa_viewOn",
-			"favoritesStaleBar": "nUhMVa_favoritesStaleBar",
-			"themeCardBody": "nUhMVa_themeCardBody",
-			"groupCollapse": "nUhMVa_groupCollapse",
-			"notesList": "nUhMVa_notesList",
-			"catsCollapsed": "nUhMVa_catsCollapsed",
-			"themeResultBar": "nUhMVa_themeResultBar",
-			"tabSearchRow": "nUhMVa_tabSearchRow",
-			"masonry": "nUhMVa_masonry",
-			"empty": "nUhMVa_empty",
-			"notesImg": "nUhMVa_notesImg",
-			"catsWrap": "nUhMVa_catsWrap",
-			"diagSummaryMeta": "nUhMVa_diagSummaryMeta",
-			"opName": "nUhMVa_opName",
-			"specTagGit": "nUhMVa_specTagGit",
-			"recoverySummary": "nUhMVa_recoverySummary",
-			"rosterAuthor": "nUhMVa_rosterAuthor",
-			"grow": "nUhMVa_grow",
-			"lightboxImg": "nUhMVa_lightboxImg",
-			"themeCardHead": "nUhMVa_themeCardHead",
-			"choiceRadio": "nUhMVa_choiceRadio",
-			"themeIdentity": "nUhMVa_themeIdentity",
-			"ovFrom": "nUhMVa_ovFrom",
-			"repoLink": "nUhMVa_repoLink",
-			"groupHint": "nUhMVa_groupHint",
-			"groupAddModalBody": "nUhMVa_groupAddModalBody",
-			"presetList": "nUhMVa_presetList",
 			"notesBody": "nUhMVa_notesBody",
-			"stickyHead": "nUhMVa_stickyHead",
-			"star": "nUhMVa_star",
-			"noteMine": "nUhMVa_noteMine",
-			"themeCoverEmpty": "nUhMVa_themeCoverEmpty",
-			"barFill": "nUhMVa_barFill",
-			"opAggregateTop": "nUhMVa_opAggregateTop",
-			"snapConfirmText": "nUhMVa_snapConfirmText",
-			"switchOn": "nUhMVa_switchOn",
-			"opPanelTitle": "nUhMVa_opPanelTitle",
-			"irowMissing": "nUhMVa_irowMissing",
-			"choiceOn": "nUhMVa_choiceOn",
-			"subTabs": "nUhMVa_subTabs",
-			"sectAction": "nUhMVa_sectAction",
-			"conflictHead": "nUhMVa_conflictHead",
-			"diagSummary": "nUhMVa_diagSummary",
-			"nameLink": "nUhMVa_nameLink",
-			"diagBadgeOfficial": "nUhMVa_diagBadgeOfficial",
-			"diagBadgeCommunity": "nUhMVa_diagBadgeCommunity",
-			"desc": "nUhMVa_desc",
-			"setHeader": "nUhMVa_setHeader",
-			"hostRequirement": "nUhMVa_hostRequirement",
-			"reassure": "nUhMVa_reassure",
-			"viewBtn": "nUhMVa_viewBtn",
-			"topBtn": "nUhMVa_topBtn",
-			"diagPage": "nUhMVa_diagPage",
-			"inlineInput": "nUhMVa_inlineInput",
-			"cats": "nUhMVa_cats",
-			"setDesc": "nUhMVa_setDesc",
-			"diagSummaryItem": "nUhMVa_diagSummaryItem",
-			"notesRange": "nUhMVa_notesRange",
-			"swatches": "nUhMVa_swatches",
-			"setProxyEditor": "nUhMVa_setProxyEditor",
-			"setLabel": "nUhMVa_setLabel",
-			"notesFence": "nUhMVa_notesFence",
-			"notesRow": "nUhMVa_notesRow",
-			"notesQuote": "nUhMVa_notesQuote",
-			"masonryCol": "nUhMVa_masonryCol",
-			"setBetaTag": "nUhMVa_setBetaTag",
-			"actLive": "nUhMVa_actLive",
-			"backupCheckList": "nUhMVa_backupCheckList",
-			"version": "nUhMVa_version",
-			"recoveryList": "nUhMVa_recoveryList",
-			"groupName": "nUhMVa_groupName",
-			"recoveryName": "nUhMVa_recoveryName",
-			"collapseBody": "nUhMVa_collapseBody",
-			"descTight": "nUhMVa_descTight",
-			"loading": "nUhMVa_loading",
-			"dragOver": "nUhMVa_dragOver",
-			"cmd": "nUhMVa_cmd",
-			"opPanel": "nUhMVa_opPanel",
-			"switchKnob": "nUhMVa_switchKnob",
-			"brokenPluginItem": "nUhMVa_brokenPluginItem",
-			"stateDot": "nUhMVa_stateDot",
-			"conflictDetailsToggle": "nUhMVa_conflictDetailsToggle",
-			"opRow": "nUhMVa_opRow",
-			"cardShots": "nUhMVa_cardShots",
-			"notesModalWide": "nUhMVa_notesModalWide",
-			"notesA": "nUhMVa_notesA",
-			"byline": "nUhMVa_byline",
-			"groupAddPick": "nUhMVa_groupAddPick",
-			"setInlineActions": "nUhMVa_setInlineActions",
-			"lightboxClose": "nUhMVa_lightboxClose",
-			"dshmPlugFade": "nUhMVa_dshmPlugFade",
-			"warnLine": "nUhMVa_warnLine",
-			"metaTagAction": "nUhMVa_metaTagAction",
-			"opWrap": "nUhMVa_opWrap",
-			"specTagFile": "nUhMVa_specTagFile",
 			"groupAddModalList": "nUhMVa_groupAddModalList",
-			"submitLink": "nUhMVa_submitLink",
-			"backupMessage": "nUhMVa_backupMessage",
-			"sectionOverview": "nUhMVa_sectionOverview",
-			"groupMeta": "nUhMVa_groupMeta",
-			"fixFallbackText": "nUhMVa_fixFallbackText",
-			"orphRow": "nUhMVa_orphRow",
-			"commentsFail": "nUhMVa_commentsFail",
-			"notesH": "nUhMVa_notesH",
-			"notesSha": "nUhMVa_notesSha",
-			"descToggle": "nUhMVa_descToggle",
-			"recoveryMuted": "nUhMVa_recoveryMuted",
-			"irowNameText": "nUhMVa_irowNameText",
-			"panelActions": "nUhMVa_panelActions",
-			"opAggregateHint": "nUhMVa_opAggregateHint",
-			"hostRequirementBad": "nUhMVa_hostRequirementBad",
-			"noteAction": "nUhMVa_noteAction",
-			"pagerPages": "nUhMVa_pagerPages",
-			"themePreviewCount": "nUhMVa_themePreviewCount",
-			"actWarn": "nUhMVa_actWarn",
-			"bar": "nUhMVa_bar",
-			"row1": "nUhMVa_row1",
-			"setCardOpen": "nUhMVa_setCardOpen",
-			"tabSearch": "nUhMVa_tabSearch",
-			"opMain": "nUhMVa_opMain",
-			"pager": "nUhMVa_pager",
-			"orphBadge": "nUhMVa_orphBadge",
-			"diagBadgeShadow": "nUhMVa_diagBadgeShadow",
+			"subTabs": "nUhMVa_subTabs",
+			"cardShots": "nUhMVa_cardShots",
+			"notesRendered": "nUhMVa_notesRendered",
 			"hiddenFile": "nUhMVa_hiddenFile",
-			"choiceSafe": "nUhMVa_choiceSafe",
-			"backupGrid": "nUhMVa_backupGrid",
-			"catsToggle": "nUhMVa_catsToggle",
-			"lightboxDot": "nUhMVa_lightboxDot",
-			"descClamp": "nUhMVa_descClamp",
-			"ungroupedDesc": "nUhMVa_ungroupedDesc",
-			"setCheck": "nUhMVa_setCheck",
-			"commentsLink": "nUhMVa_commentsLink",
-			"backupWarn": "nUhMVa_backupWarn",
-			"notesLink": "nUhMVa_notesLink",
-			"migrationSources": "nUhMVa_migrationSources",
-			"switchMixed": "nUhMVa_switchMixed",
-			"groupActions": "nUhMVa_groupActions",
-			"notesBullets": "nUhMVa_notesBullets",
+			"rosterRowOut": "nUhMVa_rosterRowOut",
+			"catsCollapsed": "nUhMVa_catsCollapsed",
+			"noteEdit": "nUhMVa_noteEdit",
+			"av": "nUhMVa_av",
+			"rosterTagDrop": "nUhMVa_rosterTagDrop",
+			"choiceOn": "nUhMVa_choiceOn",
+			"nameLink": "nUhMVa_nameLink",
+			"opRowAlert": "nUhMVa_opRowAlert",
+			"recoveryNote": "nUhMVa_recoveryNote",
+			"recoveryReason": "nUhMVa_recoveryReason",
+			"bannerIcon": "nUhMVa_bannerIcon",
 			"shots": "nUhMVa_shots",
-			"lightboxPrev": "nUhMVa_lightboxPrev",
-			"conflictWhy": "nUhMVa_conflictWhy",
-			"opDecisionFoot": "nUhMVa_opDecisionFoot",
-			"sub": "nUhMVa_sub",
-			"setProxyLabel": "nUhMVa_setProxyLabel",
+			"viewOn": "nUhMVa_viewOn",
+			"conflictIcon": "nUhMVa_conflictIcon",
+			"tabSearch": "nUhMVa_tabSearch",
+			"panelActions": "nUhMVa_panelActions",
+			"actLive": "nUhMVa_actLive",
 			"groupOrgHint": "nUhMVa_groupOrgHint",
+			"fixFallbackText": "nUhMVa_fixFallbackText",
+			"setRow": "nUhMVa_setRow",
+			"setInlineActions": "nUhMVa_setInlineActions",
+			"themeToolbar": "nUhMVa_themeToolbar",
+			"setChevronOpen": "nUhMVa_setChevronOpen",
+			"recoveryList": "nUhMVa_recoveryList",
+			"opEmptyHint": "nUhMVa_opEmptyHint",
+			"dshmPlug": "nUhMVa_dshmPlug",
+			"pct": "nUhMVa_pct",
+			"commentsMount": "nUhMVa_commentsMount",
+			"metaTag": "nUhMVa_metaTag",
+			"favoriteBtn": "nUhMVa_favoriteBtn",
+			"notesLink": "nUhMVa_notesLink",
+			"head": "nUhMVa_head",
+			"notesRange": "nUhMVa_notesRange",
+			"recoveryMuted": "nUhMVa_recoveryMuted",
 			"setChevron": "nUhMVa_setChevron",
-			"choices": "nUhMVa_choices",
-			"snapRow": "nUhMVa_snapRow",
+			"footTags": "nUhMVa_footTags",
+			"opEntry": "nUhMVa_opEntry",
+			"logoMark": "nUhMVa_logoMark",
+			"commentsGithubPrompt": "nUhMVa_commentsGithubPrompt",
+			"inlineInput": "nUhMVa_inlineInput",
+			"diagBadgeCommunity": "nUhMVa_diagBadgeCommunity",
+			"notesCode": "nUhMVa_notesCode",
+			"presetRow": "nUhMVa_presetRow",
+			"diagKey": "nUhMVa_diagKey",
+			"conflictDetailsToggle": "nUhMVa_conflictDetailsToggle",
+			"diagAlert": "nUhMVa_diagAlert",
+			"presetList": "nUhMVa_presetList",
+			"confirmRow": "nUhMVa_confirmRow",
+			"fixFallback": "nUhMVa_fixFallback",
+			"tag": "nUhMVa_tag",
+			"themeLifecycle": "nUhMVa_themeLifecycle",
+			"metaInline": "nUhMVa_metaInline",
+			"panelNote": "nUhMVa_panelNote",
+			"sect": "nUhMVa_sect",
+			"metaTagOk": "nUhMVa_metaTagOk",
+			"searchClear": "nUhMVa_searchClear",
 			"groupCreate": "nUhMVa_groupCreate",
 			"banner": "nUhMVa_banner",
-			"opQueuedIcon": "nUhMVa_opQueuedIcon",
-			"dragging": "nUhMVa_dragging",
-			"opDecision": "nUhMVa_opDecision",
-			"diagList": "nUhMVa_diagList",
-			"diagBadgeInfo": "nUhMVa_diagBadgeInfo",
-			"presetName": "nUhMVa_presetName",
-			"opTop": "nUhMVa_opTop",
-			"ovRow": "nUhMVa_ovRow",
-			"diagKey": "nUhMVa_diagKey",
-			"themeStatus": "nUhMVa_themeStatus",
-			"noteInput": "nUhMVa_noteInput",
-			"sp": "nUhMVa_sp",
-			"opEntryAlert": "nUhMVa_opEntryAlert",
-			"themeSearch": "nUhMVa_themeSearch",
-			"opVerb": "nUhMVa_opVerb",
-			"setChevronOpen": "nUhMVa_setChevronOpen",
-			"setConfirm": "nUhMVa_setConfirm",
-			"migrationArrow": "nUhMVa_migrationArrow",
-			"footTags": "nUhMVa_footTags",
-			"setProxyInput": "nUhMVa_setProxyInput",
-			"groupTitle": "nUhMVa_groupTitle",
-			"themeToolbar": "nUhMVa_themeToolbar",
-			"brokenPluginNotice": "nUhMVa_brokenPluginNotice",
-			"specTag": "nUhMVa_specTag",
-			"setSeg": "nUhMVa_setSeg",
-			"repoMark": "nUhMVa_repoMark",
-			"metaInline": "nUhMVa_metaInline",
-			"collapseIcon": "nUhMVa_collapseIcon",
-			"notesCode": "nUhMVa_notesCode",
-			"recoveryHint": "nUhMVa_recoveryHint",
-			"lightbox": "nUhMVa_lightbox",
-			"staleAction": "nUhMVa_staleAction",
-			"diagEmpty": "nUhMVa_diagEmpty",
-			"groupRow": "nUhMVa_groupRow",
-			"opAggregate": "nUhMVa_opAggregate",
-			"noteEdit": "nUhMVa_noteEdit",
-			"head": "nUhMVa_head",
-			"opEntry": "nUhMVa_opEntry",
-			"notesP": "nUhMVa_notesP",
-			"themeActions": "nUhMVa_themeActions",
-			"setActions": "nUhMVa_setActions",
-			"confirmRow": "nUhMVa_confirmRow",
-			"themeToolbarActions": "nUhMVa_themeToolbarActions",
-			"top": "nUhMVa_top",
-			"diagVal": "nUhMVa_diagVal",
-			"dragHandle": "nUhMVa_dragHandle",
-			"themeSlot": "nUhMVa_themeSlot",
-			"notesMsg": "nUhMVa_notesMsg",
-			"groupCreateInline": "nUhMVa_groupCreateInline",
-			"rosterTagKeep": "nUhMVa_rosterTagKeep",
-			"pct": "nUhMVa_pct",
-			"snapList": "nUhMVa_snapList",
-			"themeFullscreenBtn": "nUhMVa_themeFullscreenBtn",
-			"opActions": "nUhMVa_opActions",
-			"av": "nUhMVa_av",
-			"opStatusBad": "nUhMVa_opStatusBad",
+			"ungroupedRow": "nUhMVa_ungroupedRow",
+			"topBtn": "nUhMVa_topBtn",
+			"owner": "nUhMVa_owner",
+			"nmLink": "nUhMVa_nmLink",
 			"spin": "nUhMVa_spin",
-			"progress": "nUhMVa_progress"
+			"themeSlot": "nUhMVa_themeSlot",
+			"ovByTag": "nUhMVa_ovByTag",
+			"setSegBtn": "nUhMVa_setSegBtn",
+			"notesImg": "nUhMVa_notesImg",
+			"themeResultBar": "nUhMVa_themeResultBar",
+			"orphRow": "nUhMVa_orphRow",
+			"opEntryQuiet": "nUhMVa_opEntryQuiet",
+			"viewBtn": "nUhMVa_viewBtn",
+			"irowDevTag": "nUhMVa_irowDevTag",
+			"tabSearchRow": "nUhMVa_tabSearchRow",
+			"groupActions": "nUhMVa_groupActions",
+			"themeActions": "nUhMVa_themeActions",
+			"choiceTitle": "nUhMVa_choiceTitle",
+			"opCloseBtn": "nUhMVa_opCloseBtn",
+			"dshmSlide": "nUhMVa_dshmSlide",
+			"opQueuedIcon": "nUhMVa_opQueuedIcon",
+			"opEmpty": "nUhMVa_opEmpty",
+			"catsWrap": "nUhMVa_catsWrap",
+			"irowMissing": "nUhMVa_irowMissing",
+			"themeCardFooter": "nUhMVa_themeCardFooter",
+			"opDot": "nUhMVa_opDot",
+			"opAggregateHint": "nUhMVa_opAggregateHint",
+			"pageEllipsis": "nUhMVa_pageEllipsis",
+			"favoriteOn": "nUhMVa_favoriteOn",
+			"groupCollapse": "nUhMVa_groupCollapse",
+			"lightboxNext": "nUhMVa_lightboxNext",
+			"src": "nUhMVa_src",
+			"diagSummary": "nUhMVa_diagSummary",
+			"commentsGithubAction": "nUhMVa_commentsGithubAction",
+			"opPanelTitle": "nUhMVa_opPanelTitle",
+			"capMuted": "nUhMVa_capMuted",
+			"favoritesSectionHead": "nUhMVa_favoritesSectionHead",
+			"notesRow": "nUhMVa_notesRow",
+			"root": "nUhMVa_root",
+			"stickyHead": "nUhMVa_stickyHead",
+			"cardBlockedMark": "nUhMVa_cardBlockedMark",
+			"groupHead": "nUhMVa_groupHead",
+			"diagEmpty": "nUhMVa_diagEmpty",
+			"diagRow": "nUhMVa_diagRow",
+			"backupCard": "nUhMVa_backupCard",
+			"masonryCol": "nUhMVa_masonryCol",
+			"caps": "nUhMVa_caps",
+			"commentsGithubHint": "nUhMVa_commentsGithubHint",
+			"lightboxImg": "nUhMVa_lightboxImg",
+			"desc": "nUhMVa_desc",
+			"groupAddModalBody": "nUhMVa_groupAddModalBody",
+			"noteRow": "nUhMVa_noteRow",
+			"choices": "nUhMVa_choices",
+			"repoMark": "nUhMVa_repoMark",
+			"version": "nUhMVa_version",
+			"conflictWhyText": "nUhMVa_conflictWhyText",
+			"themeStatus": "nUhMVa_themeStatus",
+			"opStatusBad": "nUhMVa_opStatusBad",
+			"spec": "nUhMVa_spec",
+			"reassureOk": "nUhMVa_reassureOk",
+			"actBroken": "nUhMVa_actBroken",
+			"specTag": "nUhMVa_specTag",
+			"switch": "nUhMVa_switch",
+			"diagSection": "nUhMVa_diagSection",
+			"themeCoverEmpty": "nUhMVa_themeCoverEmpty",
+			"themeStatusMuted": "nUhMVa_themeStatusMuted",
+			"retryBtn": "nUhMVa_retryBtn",
+			"presetName": "nUhMVa_presetName",
+			"envEditor": "nUhMVa_envEditor",
+			"card": "nUhMVa_card",
+			"setLabel": "nUhMVa_setLabel",
+			"hostRequirement": "nUhMVa_hostRequirement",
+			"commentsLink": "nUhMVa_commentsLink",
+			"progress": "nUhMVa_progress",
+			"footActions": "nUhMVa_footActions",
+			"conflictHead": "nUhMVa_conflictHead",
+			"commentsNote": "nUhMVa_commentsNote",
+			"notesMeta": "nUhMVa_notesMeta",
+			"recoveryHint": "nUhMVa_recoveryHint",
+			"recoveryName": "nUhMVa_recoveryName",
+			"rosterTag": "nUhMVa_rosterTag",
+			"exportLogBtn": "nUhMVa_exportLogBtn",
+			"bannerHint": "nUhMVa_bannerHint",
+			"body": "nUhMVa_body",
+			"setBetaTag": "nUhMVa_setBetaTag",
+			"notesH": "nUhMVa_notesH",
+			"opEntryAlert": "nUhMVa_opEntryAlert",
+			"diagList": "nUhMVa_diagList",
+			"barWave": "nUhMVa_barWave",
+			"choiceRadio": "nUhMVa_choiceRadio",
+			"lightboxClose": "nUhMVa_lightboxClose",
+			"groupMeta": "nUhMVa_groupMeta",
+			"diagBadgeOfficial": "nUhMVa_diagBadgeOfficial",
+			"setBody": "nUhMVa_setBody",
+			"lightboxNav": "nUhMVa_lightboxNav",
+			"actWhy": "nUhMVa_actWhy",
+			"title": "nUhMVa_title",
+			"setDanger": "nUhMVa_setDanger",
+			"dot": "nUhMVa_dot",
+			"recoveryRow": "nUhMVa_recoveryRow",
+			"choice": "nUhMVa_choice",
+			"warnLine": "nUhMVa_warnLine",
+			"actWarn": "nUhMVa_actWarn",
+			"capCaveat": "nUhMVa_capCaveat",
+			"notesPre": "nUhMVa_notesPre",
+			"groupCreateInline": "nUhMVa_groupCreateInline",
+			"repoLink": "nUhMVa_repoLink",
+			"diagMeta": "nUhMVa_diagMeta",
+			"diagArrow": "nUhMVa_diagArrow",
+			"backupMessage": "nUhMVa_backupMessage",
+			"modalNote": "nUhMVa_modalNote",
+			"irowTrailing": "nUhMVa_irowTrailing",
+			"lightbox": "nUhMVa_lightbox",
+			"top": "nUhMVa_top",
+			"tabs": "nUhMVa_tabs",
+			"themeDescription": "nUhMVa_themeDescription",
+			"themeSearch": "nUhMVa_themeSearch",
+			"backupInput": "nUhMVa_backupInput",
+			"snapConfirmText": "nUhMVa_snapConfirmText",
+			"titleRow": "nUhMVa_titleRow",
+			"irow": "nUhMVa_irow",
+			"setLabelBox": "nUhMVa_setLabelBox",
+			"setProxyLabel": "nUhMVa_setProxyLabel",
+			"deprecate": "nUhMVa_deprecate",
+			"setProxyInput": "nUhMVa_setProxyInput",
+			"commentsStatus": "nUhMVa_commentsStatus",
+			"notesArrow": "nUhMVa_notesArrow",
+			"irowActions": "nUhMVa_irowActions",
+			"depLine": "nUhMVa_depLine",
+			"choiceMain": "nUhMVa_choiceMain",
+			"lightboxDot": "nUhMVa_lightboxDot",
+			"opIcon": "nUhMVa_opIcon",
+			"migrationSources": "nUhMVa_migrationSources",
+			"noteMine": "nUhMVa_noteMine",
+			"choiceNote": "nUhMVa_choiceNote",
+			"staleAction": "nUhMVa_staleAction",
+			"groupName": "nUhMVa_groupName",
+			"backupGrid": "nUhMVa_backupGrid",
+			"snapList": "nUhMVa_snapList",
+			"rosterSplit": "nUhMVa_rosterSplit",
+			"snapMeta": "nUhMVa_snapMeta",
+			"notesModalWide": "nUhMVa_notesModalWide",
+			"setCardOpen": "nUhMVa_setCardOpen",
+			"notesMsg": "nUhMVa_notesMsg",
+			"collapseHead": "nUhMVa_collapseHead",
+			"hostFilterNote": "nUhMVa_hostFilterNote",
+			"dragHandle": "nUhMVa_dragHandle",
+			"notesA": "nUhMVa_notesA",
+			"notesDate": "nUhMVa_notesDate",
+			"opMain": "nUhMVa_opMain",
+			"sp": "nUhMVa_sp",
+			"opVerb": "nUhMVa_opVerb",
+			"setHeader": "nUhMVa_setHeader",
+			"opHead": "nUhMVa_opHead",
+			"capChip": "nUhMVa_capChip",
+			"pageInfo": "nUhMVa_pageInfo",
+			"notesQuote": "nUhMVa_notesQuote",
+			"diagSummaryMeta": "nUhMVa_diagSummaryMeta",
+			"themeToolbarActions": "nUhMVa_themeToolbarActions",
+			"irowNameText": "nUhMVa_irowNameText",
+			"opAggregateTop": "nUhMVa_opAggregateTop",
+			"grid": "nUhMVa_grid",
+			"noteAction": "nUhMVa_noteAction",
+			"act": "nUhMVa_act",
+			"setHeadText": "nUhMVa_setHeadText",
+			"lightboxDotOn": "nUhMVa_lightboxDotOn",
+			"swatches": "nUhMVa_swatches",
+			"themeGallery": "nUhMVa_themeGallery",
+			"brokenPluginItem": "nUhMVa_brokenPluginItem",
+			"byline": "nUhMVa_byline",
+			"groupAddPick": "nUhMVa_groupAddPick",
+			"dragging": "nUhMVa_dragging",
+			"bar": "nUhMVa_bar",
+			"brokenPluginText": "nUhMVa_brokenPluginText",
+			"meta": "nUhMVa_meta",
+			"on": "nUhMVa_on",
+			"rosterRow": "nUhMVa_rosterRow",
+			"diagPage": "nUhMVa_diagPage",
+			"ovFrom": "nUhMVa_ovFrom",
+			"opPanel": "nUhMVa_opPanel",
+			"collapseIcon": "nUhMVa_collapseIcon",
+			"notesVer": "nUhMVa_notesVer",
+			"rosterName": "nUhMVa_rosterName",
+			"switchOn": "nUhMVa_switchOn",
+			"irowHead": "nUhMVa_irowHead",
+			"setActions": "nUhMVa_setActions",
+			"migrationWarning": "nUhMVa_migrationWarning",
+			"capsTitle": "nUhMVa_capsTitle",
+			"metaTagAction": "nUhMVa_metaTagAction",
+			"diagBadgeInfo": "nUhMVa_diagBadgeInfo",
+			"stateDot": "nUhMVa_stateDot",
+			"opName": "nUhMVa_opName",
+			"backupCheck": "nUhMVa_backupCheck",
+			"opAggregate": "nUhMVa_opAggregate",
+			"specTagGit": "nUhMVa_specTagGit",
+			"recoveryBadge": "nUhMVa_recoveryBadge",
+			"themePreviewAction": "nUhMVa_themePreviewAction",
+			"sub": "nUhMVa_sub",
+			"barFill": "nUhMVa_barFill",
+			"cardBlocked": "nUhMVa_cardBlocked",
+			"recoveryLog": "nUhMVa_recoveryLog",
+			"backupWarn": "nUhMVa_backupWarn",
+			"conflictTitle": "nUhMVa_conflictTitle",
+			"themePreviewCount": "nUhMVa_themePreviewCount",
+			"masonry": "nUhMVa_masonry",
+			"pagerMeta": "nUhMVa_pagerMeta",
+			"roster": "nUhMVa_roster",
+			"themeCover": "nUhMVa_themeCover",
+			"rosterMain": "nUhMVa_rosterMain",
+			"opActions": "nUhMVa_opActions",
+			"groupTitle": "nUhMVa_groupTitle",
+			"groupMember": "nUhMVa_groupMember",
+			"depBadge": "nUhMVa_depBadge",
+			"groupMemberAction": "nUhMVa_groupMemberAction",
+			"groupHint": "nUhMVa_groupHint",
+			"favoritesStaleBar": "nUhMVa_favoritesStaleBar",
+			"groupAddPanel": "nUhMVa_groupAddPanel",
+			"diagCount": "nUhMVa_diagCount",
+			"diagBundle": "nUhMVa_diagBundle",
+			"empty": "nUhMVa_empty",
+			"pagerPages": "nUhMVa_pagerPages",
+			"groupAddFooterMeta": "nUhMVa_groupAddFooterMeta",
+			"collapseTitle": "nUhMVa_collapseTitle",
+			"searchField": "nUhMVa_searchField",
+			"collapseBody": "nUhMVa_collapseBody",
+			"cmd": "nUhMVa_cmd",
+			"themeCard": "nUhMVa_themeCard",
+			"row1": "nUhMVa_row1",
+			"themeCardHead": "nUhMVa_themeCardHead",
+			"brokenPluginNotice": "nUhMVa_brokenPluginNotice",
+			"dangerBtn": "nUhMVa_dangerBtn",
+			"pager": "nUhMVa_pager",
+			"groupMembers": "nUhMVa_groupMembers",
+			"reassure": "nUhMVa_reassure",
+			"catsToggle": "nUhMVa_catsToggle",
+			"sectAction": "nUhMVa_sectAction",
+			"diagBadgeShadow": "nUhMVa_diagBadgeShadow",
+			"orderPanel": "nUhMVa_orderPanel",
+			"setCheck": "nUhMVa_setCheck",
+			"descClamp": "nUhMVa_descClamp",
+			"opStatus": "nUhMVa_opStatus",
+			"searchInput": "nUhMVa_searchInput",
+			"groupRow": "nUhMVa_groupRow",
+			"memberName": "nUhMVa_memberName",
+			"diagVal": "nUhMVa_diagVal",
+			"sectionOverview": "nUhMVa_sectionOverview",
+			"setProxyEditor": "nUhMVa_setProxyEditor",
+			"themeFullscreenBtn": "nUhMVa_themeFullscreenBtn",
+			"ovArrow": "nUhMVa_ovArrow",
+			"ungroupedState": "nUhMVa_ungroupedState",
+			"recoveryBlamed": "nUhMVa_recoveryBlamed",
+			"lightboxDots": "nUhMVa_lightboxDots",
+			"choiceSafe": "nUhMVa_choiceSafe",
+			"recoverySummary": "nUhMVa_recoverySummary",
+			"grow": "nUhMVa_grow",
+			"conflictWhy": "nUhMVa_conflictWhy",
+			"hostRequirementBad": "nUhMVa_hostRequirementBad",
+			"lightboxPrev": "nUhMVa_lightboxPrev",
+			"rosterTagKeep": "nUhMVa_rosterTagKeep",
+			"dshmPlugFade": "nUhMVa_dshmPlugFade",
+			"switchKnob": "nUhMVa_switchKnob",
+			"favoritesStaleOnly": "nUhMVa_favoritesStaleOnly",
+			"commentsFail": "nUhMVa_commentsFail",
+			"notesFence": "nUhMVa_notesFence",
+			"opDecision": "nUhMVa_opDecision",
+			"submitLink": "nUhMVa_submitLink",
+			"themeCardBody": "nUhMVa_themeCardBody",
+			"setSegOn": "nUhMVa_setSegOn",
+			"ungroupedDesc": "nUhMVa_ungroupedDesc",
+			"shot": "nUhMVa_shot",
+			"setCard": "nUhMVa_setCard",
+			"cardShot": "nUhMVa_cardShot",
+			"setDesc": "nUhMVa_setDesc",
+			"viewBar": "nUhMVa_viewBar",
+			"okState": "nUhMVa_okState",
+			"setSeg": "nUhMVa_setSeg",
+			"migrationLabel": "nUhMVa_migrationLabel",
+			"themeIdentity": "nUhMVa_themeIdentity",
+			"commentsError": "nUhMVa_commentsError",
+			"notesSha": "nUhMVa_notesSha",
+			"rosterAuthor": "nUhMVa_rosterAuthor",
+			"switchMixed": "nUhMVa_switchMixed",
+			"snapRow": "nUhMVa_snapRow",
+			"installBtn": "nUhMVa_installBtn",
+			"stateTag": "nUhMVa_stateTag",
+			"noteToggle": "nUhMVa_noteToggle",
+			"opRow": "nUhMVa_opRow",
+			"cardAction": "nUhMVa_cardAction",
+			"backupCheckList": "nUhMVa_backupCheckList",
+			"logoPlug": "nUhMVa_logoPlug",
+			"groupRenameField": "nUhMVa_groupRenameField",
+			"memberKind": "nUhMVa_memberKind",
+			"notesBullets": "nUhMVa_notesBullets",
+			"diagIndex": "nUhMVa_diagIndex",
+			"notesList": "nUhMVa_notesList",
+			"diagSummaryItem": "nUhMVa_diagSummaryItem",
+			"noteInput": "nUhMVa_noteInput",
+			"opDecisionFoot": "nUhMVa_opDecisionFoot",
+			"dangerArmed": "nUhMVa_dangerArmed",
+			"descTight": "nUhMVa_descTight",
+			"dragOver": "nUhMVa_dragOver",
+			"opWrap": "nUhMVa_opWrap",
+			"groupAddModalHint": "nUhMVa_groupAddModalHint",
+			"star": "nUhMVa_star",
+			"themesGrid": "nUhMVa_themesGrid",
+			"setName": "nUhMVa_setName",
+			"specTagFile": "nUhMVa_specTagFile",
+			"migrationArrow": "nUhMVa_migrationArrow",
+			"cats": "nUhMVa_cats",
+			"groupAddFilters": "nUhMVa_groupAddFilters",
+			"opTop": "nUhMVa_opTop",
+			"diagBadgeWarn": "nUhMVa_diagBadgeWarn",
+			"loading": "nUhMVa_loading",
+			"irowName": "nUhMVa_irowName",
+			"nm": "nUhMVa_nm",
+			"descToggle": "nUhMVa_descToggle",
+			"setConfirm": "nUhMVa_setConfirm",
+			"notesP": "nUhMVa_notesP",
+			"migrationSource": "nUhMVa_migrationSource",
+			"tab": "nUhMVa_tab",
+			"capFact": "nUhMVa_capFact",
+			"backupActions": "nUhMVa_backupActions",
+			"err": "nUhMVa_err",
+			"ovRow": "nUhMVa_ovRow",
+			"foot": "nUhMVa_foot",
+			"orphBadge": "nUhMVa_orphBadge",
+			"setHint": "nUhMVa_setHint",
+			"catsRow": "nUhMVa_catsRow",
+			"conflictBody": "nUhMVa_conflictBody"
 		};
 		//#endregion
 		//#region src/client/market-mark.ts
@@ -3376,6 +3504,31 @@ window.__ModuleLoader__.load({
 					})
 				})]
 			});
+		}
+		//#endregion
+		//#region src/client/download-stats.ts
+		/** Date-only values stay date-only; never derive a window from today's date. */
+		function dateOnly(value) {
+			if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+			const parsed = new Date(value);
+			return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+		}
+		function checkedAt(value) {
+			if (dateOnly(value)) return true;
+			if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(value)) return false;
+			return dateOnly(value.slice(0, 10)) && Number.isFinite(Date.parse(value));
+		}
+		/** All text comes from this entry's source metadata, not registry.updated. */
+		function downloadStatsText(plugin, t) {
+			const count = plugin.downloads;
+			if (typeof count !== "number" || !Number.isSafeInteger(count) || count < 0) return null;
+			const window = dateOnly(plugin.downloadsStart) && dateOnly(plugin.downloadsEnd) && plugin.downloadsStart <= plugin.downloadsEnd ? t("downloadsWindow").replace("{0}", plugin.downloadsStart).replace("{1}", plugin.downloadsEnd) : t("downloadsWindowUnknown");
+			const checked = checkedAt(plugin.downloadsCheckedAt) ? t("downloadsChecked").replace("{0}", plugin.downloadsCheckedAt) : t("downloadsCheckedUnknown");
+			return [
+				t("downloadsMeaning").replace("{0}", String(count)),
+				window,
+				checked
+			].join(" ");
 		}
 		//#endregion
 		//#region src/client/operations.ts
@@ -3815,12 +3968,17 @@ window.__ModuleLoader__.load({
 												onClick: () => props.onCancel(record),
 												children: t("cancelOp")
 											}),
-											record.state === "queued" && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+											record.state === "queued" && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [props.onRunNow !== void 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+												variant: "primary",
+												size: "sm",
+												onClick: () => props.onRunNow?.(record),
+												children: t("opRunNow")
+											}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
 												variant: "ghost",
 												size: "sm",
 												onClick: () => props.onDismiss(record),
 												children: t("opDequeue")
-											}),
+											})] }),
 											record.state === "done" && record.needsRefresh === true && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
 												variant: "primary",
 												size: "sm",
@@ -6941,10 +7099,22 @@ window.__ModuleLoader__.load({
 				})
 			});
 		}
-		/**
-		* Catalog npm latest in the card byline (#348). Same quiet style as ↓ / ★;
-		* omitted when absent so github-only and not-yet-backfilled rows stay clean.
-		*/
+		/** A compact rolling-period label, with source metadata on hover or focus. */
+		function DownloadCount({ plugin, t }) {
+			const tip = downloadStatsText(plugin, t);
+			if (tip === null) return null;
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
+				label: tip,
+				side: "top",
+				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					className: Market_module_css_default.star,
+					tabIndex: 0,
+					"aria-label": tip,
+					children: "· ↓ " + formatCount(plugin.downloads) + " / " + t("downloadsPeriod")
+				})
+			});
+		}
+		/** Catalog npm latest, omitted for github-only and not-yet-backfilled rows. */
 		function CatalogVersionMark({ version, tip }) {
 			if (typeof version !== "string" || version.length === 0) return null;
 			const label = /^v/i.test(version) ? version : `v${version}`;
@@ -7031,6 +7201,33 @@ window.__ModuleLoader__.load({
 		function sameInstalledMap(left, right) {
 			const names = Object.keys(left);
 			return names.length === Object.keys(right).length && names.every((name) => left[name] === right[name]);
+		}
+		/**
+		* Whether one installed plugin has a pending update (either an ordinary
+		* upgrade via npm/git/restore, or a host-managed generation release), and has
+		* not already been updated in the current session.
+		*
+		* THE answer to that question. It used to have three copies that disagreed —
+		* the reminder count, the card's pill, and the installed list's ordering —
+		* which is the shape this repository already paid for once
+		* (`src/entry-identity.ts`: one assumption, several copies, each fixed at a
+		* different time). Callers now pass the two things that are genuinely their
+		* own policy:
+		*
+		* - `ignored`: a session-level "ignore this update" (#657). The NOTICE
+		*   surfaces pass it — the badge and the ordering, because a row the user
+		*   dismissed should not keep jumping to the top or counting toward
+		*   attention. The row's own pill does NOT, because the pill answers "is
+		*   there an update" (which dismissing does not change) and the row shows the
+		*   dismissal right beside it.
+		* - whether a disabled plugin counts, which the reminder count says no to and
+		*   the list says yes to: a disabled row is still a row someone may want to
+		*   update from the list, but it is not asking for attention.
+		*/
+		function isPluginUpdatable(name, spec, status, updatedNames, ignored = /* @__PURE__ */ new Set()) {
+			if (updatedNames.includes(name) || ignored.has(name) || status === void 0) return false;
+			if (status.updateAvailable === true) return true;
+			return (status.kind === "generation" || isGenerationSpec(spec)) && status.latest != null;
 		}
 		/** Sort field choices in the filter panel. */
 		const SORT_FIELD_OPTIONS = [
@@ -7145,6 +7342,122 @@ window.__ModuleLoader__.load({
 			const recoveredInstall = (0, react.useRef)(null);
 			/** The synthetic task rebuilt from dshm-updating after this section remounts. */
 			const recoveredUpdateRecordId = (0, react.useRef)(null);
+			/**
+			* The install queue: agents-busy 409s become `queued` records instead of
+			* failures, and drain automatically when agents go idle (see drainQueue).
+			* Persisted in localStorage so a refresh keeps the queue; only `queued`
+			* records persist — `running` recovery stays on the dshm-pending paths.
+			*/
+			const queueRestoredRef = (0, react.useRef)(false);
+			(0, react.useEffect)(() => {
+				if (queueRestoredRef.current) return;
+				let saved = null;
+				try {
+					saved = JSON.parse(localStorage.getItem("dshm-queue-v1") ?? "null");
+				} catch {
+					saved = null;
+				}
+				if (!Array.isArray(saved) || saved.length === 0) {
+					queueRestoredRef.current = true;
+					return;
+				}
+				if (data === null) return;
+				queueRestoredRef.current = true;
+				try {
+					localStorage.removeItem("dshm-queue-v1");
+				} catch {}
+				/**
+				* A queued row may only run while the world it was queued in still holds.
+				*
+				* It drains with no confirmation — that is what queueing is — so a row
+				* that has gone stale is a destructive operation launched from an old
+				* decision: queue an uninstall at 10:00, uninstall it by hand (or change
+				* your mind), open the market at 15:00 and it runs. Each kind therefore
+				* has to be true RIGHT NOW, and a row that no longer is gets REPORTED
+				* rather than executed or silently dropped — the user queued it, so the
+				* user is told what became of it.
+				*/
+				const judged = saved.flatMap((entry) => {
+					if (entry === null || typeof entry !== "object") return [];
+					const row = entry;
+					const kindRaw = row.kind;
+					if (kindRaw !== "install" && kindRaw !== "update" && kindRaw !== "uninstall") return [];
+					if (typeof row.name !== "string" || row.name === "") return [];
+					if (row.url !== void 0 && typeof row.url !== "string") return [];
+					const kind = kindRaw;
+					const name = row.name;
+					const url = typeof row.url === "string" ? row.url : void 0;
+					const stale = (reason) => [{
+						ok: false,
+						kind,
+						name,
+						url,
+						reason
+					}];
+					const verdict = queuedRowApplies({
+						kind,
+						name,
+						...url === void 0 ? {} : { url }
+					}, {
+						installed,
+						updates,
+						plugins: data.plugins
+					});
+					if (verdict !== null) return stale(verdict === "gone" ? t("agentQueueStaleGone") : t("agentQueueStaleNoUpdate"));
+					if (kind === "install" && url === void 0) return [];
+					return [{
+						ok: true,
+						row: {
+							kind,
+							name,
+							...url === void 0 ? {} : { url }
+						}
+					}];
+				});
+				const valid = judged.flatMap((verdict) => verdict.ok ? [verdict.row] : []);
+				const stale = judged.flatMap((verdict) => verdict.ok ? [] : [verdict]);
+				if (valid.length === 0 && stale.length === 0) return;
+				setRecords((prev) => {
+					const kept = [...prev];
+					for (const entry of valid) {
+						if (kept.some((record) => record.state === "queued" && record.kind === entry.kind && record.name === entry.name && (entry.kind !== "install" || record.url === entry.url))) continue;
+						recordSeq.current += 1;
+						kept.push({
+							id: `op-${String(recordSeq.current)}`,
+							kind: entry.kind,
+							name: entry.name,
+							...entry.url === void 0 ? {} : { url: entry.url },
+							state: "queued",
+							reason: t("agentBusyQueued")
+						});
+					}
+					for (const row of stale) {
+						recordSeq.current += 1;
+						kept.push({
+							id: `op-${String(recordSeq.current)}`,
+							kind: row.kind,
+							name: row.name,
+							...row.url === void 0 ? {} : { url: row.url },
+							state: "failed",
+							reason: row.reason
+						});
+					}
+					return kept;
+				});
+				setOperationsOpen(true);
+			}, [data, t]);
+			(0, react.useEffect)(() => {
+				if (!queueRestoredRef.current) return;
+				try {
+					const queued = records.filter((record) => record.state === "queued").map((record) => ({
+						kind: record.kind,
+						name: record.name,
+						...record.url === void 0 ? {} : { url: record.url }
+					}));
+					if (queued.length === 0) localStorage.removeItem("dshm-queue-v1");
+					else localStorage.setItem("dshm-queue-v1", JSON.stringify(queued));
+				} catch {}
+			}, [records]);
 			/** Raised by the card marker, so "查看详情" lands on the record itself. */
 			const [operationsOpen, setOperationsOpen] = (0, react.useState)(false);
 			const openOperations = (0, react.useCallback)(() => setOperationsOpen(true), []);
@@ -7462,6 +7775,7 @@ window.__ModuleLoader__.load({
 			const [presetOpen, setPresetOpen] = (0, react.useState)(false);
 			/** Install-command disclosure inside the confirm dialog. */
 			const [cmdOpen, setCmdOpen] = (0, react.useState)(false);
+			const [capsOpen, setCapsOpen] = (0, react.useState)(false);
 			/** Per-row "why is it not live" disclosure (installed tab). */
 			const [whyOpen, setWhyOpen] = (0, react.useState)(null);
 			/** Restore-confirm dialog (replaces window.confirm). */
@@ -7484,6 +7798,17 @@ window.__ModuleLoader__.load({
 			* `catsOpen` in sync so unstuck restores the user's choice. */
 			const [stuckExpanded, setStuckExpanded] = (0, react.useState)(false);
 			const [catsSentinel, setCatsSentinel] = (0, react.useState)(null);
+			/**
+			* Latest /status sample for the queue drain: `busy` gates pnpm execution,
+			* `runningAgents` gates the agent-file guard. A ref (not state) because the
+			* drain interval is mount-once and must never read a stale closure.
+			*/
+			const statusRef = (0, react.useRef)({
+				busy: false,
+				runningAgents: []
+			});
+			/** True while the drain is executing one queued request (no parallel starts). */
+			const drainingRef = (0, react.useRef)(false);
 			const refreshInstalled = (0, react.useCallback)((force) => {
 				fetch(api("/dsh-market/installed"), { cache: "no-store" }).then((res) => res.json()).then((body) => {
 					setInstalled(body.installed || {});
@@ -7614,6 +7939,10 @@ window.__ModuleLoader__.load({
 			(0, react.useEffect)(() => {
 				loadCatalog();
 				fetch(api("/dsh-market/status"), { cache: "no-store" }).then((res) => res.json()).then((status) => {
+					statusRef.current = {
+						busy: status.busy === true,
+						runningAgents: Array.isArray(status.runningAgents) ? status.runningAgents.map(String) : []
+					};
 					setEnvReady(status.pnpm !== false);
 					applyGithubRouting(status);
 					if (typeof status.boot === "string") {
@@ -7731,6 +8060,10 @@ window.__ModuleLoader__.load({
 				}
 				const timer = setInterval(() => {
 					fetch(api("/dsh-market/status"), { cache: "no-store" }).then((res) => res.json()).then((status) => {
+						statusRef.current = {
+							busy: status.busy === true,
+							runningAgents: Array.isArray(status.runningAgents) ? status.runningAgents.map(String) : []
+						};
 						setHostBusy(status.busy === true);
 						setDebuggerLatch(typeof status.debugger === "string" ? status.debugger : null);
 						if (status.active) {
@@ -8075,10 +8408,17 @@ window.__ModuleLoader__.load({
 						refreshInstalled();
 					} else {
 						if (status === 409) {
-							const busyReason = body.agentsBusy === true ? t("agentBusyInstall") + (Array.isArray(body.runningAgents) && body.runningAgents.length > 0 ? ` (${body.runningAgents.join(", ")})` : "") : t("busyWait");
+							if (body.agentsBusy === true) {
+								setRecords((list) => patch(list, recordId, {
+									state: "queued",
+									reason: t("agentBusyQueued")
+								}));
+								setOperationsOpen(true);
+								return;
+							}
 							setRecords((list) => patch(list, recordId, {
 								state: "failed",
-								reason: busyReason
+								reason: t("busyWait")
 							}));
 							setOperationsOpen(true);
 							return;
@@ -8414,12 +8754,11 @@ window.__ModuleLoader__.load({
 					} else {
 						if (status === 409) {
 							if (body.agentsBusy === true) {
-								const running = Array.isArray(body.runningAgents) && body.runningAgents.length > 0 ? ` (${body.runningAgents.join(", ")})` : "";
 								setRecords((list) => patch(list, updateRecordId, {
-									state: "failed",
-									reason: t("agentBusyUpdate") + running
+									state: "queued",
+									reason: t("agentBusyUpdateQueued")
 								}));
-								setInstallError(t("agentBusyUpdate") + running);
+								setOperationsOpen(true);
 								return;
 							}
 							setRecords((list) => patch(list, updateRecordId, {
@@ -8744,6 +9083,13 @@ window.__ModuleLoader__.load({
 				setInstallError(null);
 				setActivationWarnings([]);
 				setRemovingName(name);
+				const uninstallRecordId = nextRecordId();
+				setRecords((list) => enqueue(list, {
+					id: uninstallRecordId,
+					kind: "uninstall",
+					name,
+					state: "running"
+				}));
 				return fetch(api("/dsh-market/uninstall"), {
 					method: "POST",
 					headers: { "content-type": "application/json" },
@@ -8752,6 +9098,15 @@ window.__ModuleLoader__.load({
 					status: res.status,
 					body
 				}))).then(({ status, body }) => {
+					if (status === 409 && body.agentsBusy === true) {
+						setRecords((list) => patch(list, uninstallRecordId, {
+							state: "queued",
+							reason: t("agentBusyUninstallQueued")
+						}));
+						setOperationsOpen(true);
+						return;
+					}
+					setRecords((list) => drop(list, uninstallRecordId));
 					if (status === 200 && body.ok) {
 						if (!body.hot) setRemovedCount((n) => n + 1);
 						const neverLoadedHere = hotNames.includes(name) || refreshNames.includes(name);
@@ -8778,7 +9133,97 @@ window.__ModuleLoader__.load({
 			}, [
 				refreshInstalled,
 				hotNames,
-				refreshNames
+				refreshNames,
+				nextRecordId,
+				t
+			]);
+			const busyUrlRef = (0, react.useRef)(null);
+			busyUrlRef.current = busyUrl;
+			const updatingNameRef = (0, react.useRef)(null);
+			updatingNameRef.current = updatingName;
+			const removingNameRef = (0, react.useRef)(null);
+			removingNameRef.current = removingName;
+			const dataRef = (0, react.useRef)(null);
+			dataRef.current = data;
+			const doInstallRef = (0, react.useRef)(null);
+			doInstallRef.current = doInstall;
+			const doUpdateRef = (0, react.useRef)(null);
+			doUpdateRef.current = doUpdate;
+			const doUninstallRef = (0, react.useRef)(null);
+			doUninstallRef.current = doUninstall;
+			/**
+			* The install queue drain: agents-busy 409s no longer ask the user to come
+			* back later — the queued record runs itself once agents go idle and the
+			* operation lock is free. Self-sufficient by design: when every operation
+			* is queued, nothing else polls /status, so this loop fetches it itself
+			* (only while a queued record exists, so an idle page makes no requests).
+			* One mutation at a time — the host still serializes via its lock, and a
+			* re-refused drain simply re-queues instead of failing.
+			*/
+			(0, react.useEffect)(() => {
+				let disposed = false;
+				const timer = setInterval(() => {
+					if (drainingRef.current) return;
+					if (busyUrlRef.current !== null || updatingNameRef.current !== null || removingNameRef.current !== null) return;
+					fetch(api("/dsh-market/status"), { cache: "no-store" }).then((res) => res.json()).then((status) => {
+						if (disposed) return;
+						const runningAgents = Array.isArray(status.runningAgents) ? status.runningAgents.map(String) : [];
+						const busy = status.busy === true;
+						statusRef.current = {
+							busy,
+							runningAgents
+						};
+						if (busy || runningAgents.length > 0) return;
+						if (busyUrlRef.current !== null || updatingNameRef.current !== null || removingNameRef.current !== null) return;
+						let next = null;
+						let hasRunning = false;
+						setRecords((prev) => {
+							hasRunning = prev.some((record) => record.state === "running");
+							const found = prev.find((record) => record.state === "queued");
+							next = found ?? null;
+							return found === void 0 ? prev : prev.filter((record) => record.id !== found.id);
+						});
+						if (next === null || hasRunning) return;
+						const task = next;
+						drainingRef.current = true;
+						try {
+							if (task.kind === "install") {
+								const plugin = dataRef.current?.plugins.find((candidate) => candidate.url === task.url);
+								if (plugin !== void 0) doInstallRef.current?.(plugin);
+							} else if (task.kind === "update") doUpdateRef.current?.(task.name);
+							else doUninstallRef.current?.(task.name);
+						} finally {
+							drainingRef.current = false;
+						}
+					}).catch(() => {});
+				}, 2e3);
+				return () => {
+					disposed = true;
+					clearInterval(timer);
+				};
+			}, []);
+			/** A queued record's "run now": retry immediately instead of waiting for idle. */
+			const runQueuedNow = (0, react.useCallback)((record) => {
+				if (record.kind === "install") {
+					const plugin = data?.plugins.find((candidate) => candidate.url === record.url);
+					if (plugin === void 0) {
+						setRecords((prev) => drop(prev, record.id));
+						return;
+					}
+					setRecords((prev) => drop(prev, record.id));
+					doInstall(plugin);
+				} else if (record.kind === "update") {
+					setRecords((prev) => drop(prev, record.id));
+					doUpdate(record.name);
+				} else {
+					setRecords((prev) => drop(prev, record.id));
+					doUninstall(record.name);
+				}
+			}, [
+				data,
+				doInstall,
+				doUpdate,
+				doUninstall
 			]);
 			/** Live enable/disable of one installed plugin (#60). `reload` opts the
 			* card-level theme flow into a page refresh so the visual result lands
@@ -8983,7 +9428,7 @@ window.__ModuleLoader__.load({
 				});
 			}, []);
 			const selfName = installed["dshmarket"] !== void 0 ? "dshmarket" : "dsh-market";
-			const updatableNames = Object.keys(installed).filter((name) => name !== selfName && !updatedNames.includes(name) && !effectiveDisabledSet.has(name) && updates[name] && updates[name].updateAvailable);
+			const updatableNames = Object.keys(installed).filter((name) => name !== selfName && !effectiveDisabledSet.has(name) && isPluginUpdatable(name, String(installed[name]), updates[name], updatedNames));
 			const batchUpdatableNames = updatableNames.filter((name) => updates[name]?.restoreRequired !== true);
 			const ignoredUpdateSet = (0, react.useMemo)(() => new Set(ignoredUpdateNames), [ignoredUpdateNames]);
 			const reminderUpdatableNames = updatableNames.filter((name) => !ignoredUpdateSet.has(name));
@@ -9249,6 +9694,17 @@ window.__ModuleLoader__.load({
 				...pendingDependencies,
 				...installed
 			};
+			const orderedInstalledEntries = (0, react.useMemo)(() => {
+				return Object.entries(displayedInstalled).filter(([name]) => name !== selfName).sort(([nameA, specA], [nameB, specB]) => {
+					const aUp = isPluginUpdatable(nameA, String(specA), updates[nameA], updatedNames, ignoredUpdateSet) ? 1 : 0;
+					return (isPluginUpdatable(nameB, String(specB), updates[nameB], updatedNames, ignoredUpdateSet) ? 1 : 0) - aUp;
+				});
+			}, [
+				tab === "installed" && installedView === "list",
+				displayedInstalled,
+				selfName,
+				Object.keys(updates).length > 0
+			]);
 			const missingRestoreCount = Object.keys(pendingDependencies).filter((name) => !installedFiles.includes(name)).length;
 			const hasUpdates = reminderUpdatableNames.length > 0;
 			/** Live status line: structured phase, or the human-line fallback. */
@@ -9276,6 +9732,162 @@ window.__ModuleLoader__.load({
 					})
 				});
 			};
+			/**
+			* Chip label for one capability name, or the scanner's own name.
+			*
+			* `network` has a label; a name this build has never seen (`dynamic-code`
+			* arrived after the first integration) shows as itself rather than
+			* disappearing — an unlabelled fact is still a fact, and a missing chip
+			* would read as "does not do that".
+			*/
+			const capabilityLabel = (name) => {
+				const key = "cap" + name.split("-").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join("");
+				const label = t(key);
+				return label === key ? name : label;
+			};
+			/**
+			* The scanner's red-line sentences, in the reader's language.
+			*
+			* The scanner emits a fixed set of shapes — one per rule family — and every
+			* one of them is translated here. A sentence from a family this build does
+			* not know stays in the scanner's own words on purpose: a mistranslation of
+			* a security fact is worse than a foreign word, and this is the one line on
+			* the card a reader must not misread. The shapes are matched by their stable
+			* prefix rather than in full, so the parenthesised detail the scanner
+			* attaches can change without falling back to English.
+			*/
+			const redLineLabel = (line) => {
+				if (line === "reads credentials/secrets AND has network access") return t("capRedCredentialsNetwork");
+				const plaintext = /^uses plaintext http:\/\/ to (.+)$/.exec(line);
+				if (plaintext !== null) return t("capRedPlaintextHttp").replace("{0}", plaintext[1]);
+				const literalIp = /^uses literal IP (.+) for network access$/.exec(line);
+				if (literalIp !== null) return t("capRedLiteralIp").replace("{0}", literalIp[1]);
+				const installScript = /^runs code at install time(?: \((.+)\))?$/.exec(line);
+				if (installScript !== null) return installScript[1] === void 0 ? t("capRedInstallScript") : t("capRedInstallScriptScripts").replace("{0}", installScript[1]);
+				const coreVerb = /^tampers with a core bundle \((overrides|disables) bundle (.+)\)$/.exec(line);
+				if (coreVerb !== null) return t(coreVerb[1] === "overrides" ? "capRedCoreOverride" : "capRedCoreDisable").replace("{0}", coreVerb[2]);
+				const coreTamper = /^tampers with a core bundle(?: \((.+)\))?$/.exec(line);
+				if (coreTamper !== null) return coreTamper[1] === void 0 ? t("capRedCoreTamper") : t("capRedCoreTamperDetail").replace("{0}", coreTamper[1]);
+				return line;
+			};
+			/**
+			* Whether a red line is one a reader has to weigh BEFORE installing, rather
+			* than a fact about what the plugin does once it runs.
+			*
+			* Two families qualify, for one reason: they happen at install time. There is
+			* no "afterwards" to inspect, so this is the last moment the decision can be
+			* made. The other families — credentials+network above all, 73% of every red
+			* line the catalog holds — describe what plugins normally do, and calling
+			* that urgent is how a warning gets trained away.
+			*/
+			const redLineIsUrgent = (line) => line.startsWith("runs code at install time") || line.startsWith("tampers with a core bundle");
+			/**
+			* What the static scan found (#401), in the detail dialog and nowhere else.
+			*
+			* It used to sit on both cards. It does not any more, for three reasons that
+			* all pointed the same way: a capability list does not help anyone choose a
+			* plugin, most of it cannot be acted on, and — the one that decided it — a
+			* line every card carries is a line nobody reads, including the install-time
+			* script that IS worth stopping for. So the card says nothing about this, the
+			* dialog leads with the one thing that needs a decision before you press
+			* install, and the rest of the facts are one click away.
+			*
+			* Which lines count as that one thing is `redLineIsUrgent`, not a guess made
+			* here: a rare rule that fires at install time, never a description of what
+			* plugins normally do.
+			*/
+			const capabilityDetail = (p) => {
+				const redLines = p.capabilityRedLines ?? [];
+				return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [redLines.filter(redLineIsUrgent).map((line) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("p", {
+					className: Market_module_css_default.warnLine,
+					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(IconWarningOutline16, {
+						size: 14,
+						className: Market_module_css_default.bannerIcon
+					}), " " + redLineLabel(line)]
+				}, line)), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(_deepseek_ai_dsh_client_ui_primitives.DisclosureRow, {
+					icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(IconQuestionOutline14, { size: 16 }),
+					title: t("capabilityTitle"),
+					open: capsOpen,
+					expandable: true,
+					expandOnRowClick: true,
+					onToggle: () => setCapsOpen((o) => !o),
+					children: [
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+							className: Market_module_css_default.caps,
+							children: [p.capabilities === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: Market_module_css_default.capMuted,
+								"data-state": "unchecked",
+								children: t("capabilityUnchecked")
+							}) : p.capabilities.length === 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: Market_module_css_default.capMuted,
+								"data-state": "none",
+								children: t("capabilityNone")
+							}) : p.capabilities.map((name) => HostTag !== null ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(HostTag, {
+								tone: "outline",
+								className: Market_module_css_default.capChip,
+								children: capabilityLabel(name)
+							}, name) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: Market_module_css_default.capChip,
+								children: capabilityLabel(name)
+							}, name)), redLines.filter((line) => !redLineIsUrgent(line)).map((line) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: Market_module_css_default.capFact,
+								children: redLineLabel(line)
+							}, line))]
+						}),
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+							className: Market_module_css_default.capCaveat,
+							children: t("capabilityNote")
+						}),
+						typeof p.capabilityCheckedAt === "string" && p.capabilityCheckedAt.length > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+							className: Market_module_css_default.capCaveat,
+							children: t("capabilityScannedAt").replace("{0}", p.capabilityCheckedAt.slice(0, 10))
+						})
+					]
+				})] });
+			};
+			/**
+			* The enable/disable control, wherever it appears — the installed row, a
+			* group member row, the plugin detail view. One helper because they were
+			* three copies of the same markup, and because the host has this component:
+			* its own plugin list uses `Switch`, so the market's rows should look like
+			* the list they sit in. Before 0.1.7-rc.2 the market's own switch renders,
+			* with the same `role="switch"` contract either way.
+			*/
+			const onOffSwitch = (opts) => HostSwitch !== null ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(HostSwitch, {
+				checked: opts.on,
+				onChange: () => opts.toggle(),
+				label: opts.label,
+				disabled: opts.disabled
+			}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+				type: "button",
+				role: "switch",
+				"aria-checked": opts.on,
+				"aria-label": opts.label,
+				className: opts.on ? `${Market_module_css_default.switch} ${Market_module_css_default.switchOn}` : Market_module_css_default.switch,
+				disabled: opts.disabled,
+				onClick: opts.toggle,
+				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { className: Market_module_css_default.switchKnob })
+			});
+			/**
+			* A labelled checkbox: the host's when it has one, the market's label+input
+			* otherwise. Only the simple ones go through here — see `HostCheckbox` for
+			* why the export rows and the recovery panel keep their own markup.
+			*/
+			const labelledCheckbox = (opts) => HostCheckbox !== null ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(HostCheckbox, {
+				checked: opts.checked,
+				onChange: opts.onChange,
+				label: opts.label,
+				disabled: opts.disabled,
+				className: opts.className
+			}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
+				className: opts.className,
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+					type: "checkbox",
+					checked: opts.checked,
+					disabled: opts.disabled,
+					onChange: (event) => opts.onChange(event.target.checked)
+				}), opts.label]
+			});
 			const pluginCard = (p) => {
 				const desc = p.description && (p.description[lang] || p.description.en) || "";
 				const done = doneUrls.includes(p.url) || hotUrls.includes(p.url);
@@ -9284,6 +9896,7 @@ window.__ModuleLoader__.load({
 				const replacement = replacementOf(p);
 				const record = recordForUrl(records, p.url);
 				const blocked = record !== null && (record.state === "input" || record.state === "failed");
+				const queued = record !== null && record.state === "queued";
 				const compatibility = typeof p.npm === "string" ? hostCompatibility[p.npm] : void 0;
 				const hostRequirementLabel = compatibility?.requirement !== null && compatibility?.requirement !== void 0 ? t("hostRequirement").replace("{0}", compatibility.requirement) : typeof p.npm !== "string" ? t("hostRequirementUnavailable") : compatibility === void 0 ? t("hostRequirementLoading") : compatibility.basis === "undeclared" ? t("hostRequirementUndeclared") : t("hostRequirementUnavailable");
 				const hostRequirementTitle = compatibility?.declarations.map((declaration) => declaration.kind === "engine" ? `engines.dsh: ${declaration.range}` : `${declaration.package ?? "peer"}: ${declaration.range}`).join("\n") || hostRequirementLabel;
@@ -9326,13 +9939,9 @@ window.__ModuleLoader__.load({
 												version: p.version,
 												tip: catalogVersionTip
 											}),
-											typeof p.downloads === "number" && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
-												label: String(p.downloads),
-												side: "top",
-												children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: Market_module_css_default.star,
-													children: "· ↓ " + formatCount(p.downloads)
-												})
+											/* @__PURE__ */ (0, react_jsx_runtime.jsx)(DownloadCount, {
+												plugin: p,
+												t
 											}),
 											typeof p.stars === "number" && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
 												label: String(p.stars),
@@ -9360,6 +9969,11 @@ window.__ModuleLoader__.load({
 										className: Market_module_css_default.installBtn,
 										disabled: true,
 										children: t("installing")
+									}) : queued ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+										type: "button",
+										className: Market_module_css_default.cardBlockedMark,
+										onClick: openOperations,
+										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(IconWarningOutline16, { size: 13 }), t("queuedBadge")]
 									}) : blocked ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 										type: "button",
 										className: Market_module_css_default.cardBlockedMark,
@@ -9464,6 +10078,7 @@ window.__ModuleLoader__.load({
 				const busy = busyUrl === p.url;
 				const record = recordForUrl(records, p.url);
 				const blocked = record !== null && (record.state === "input" || record.state === "failed");
+				const themeQueued = record !== null && record.state === "queued";
 				const mounted = instName !== null && (skins.includes(instName) || bootEntries.some((e) => e.id === instName)) && !effectiveDisabledSet.has(instName);
 				return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("article", {
 					className: blocked ? `${Market_module_css_default.themeCard} ${Market_module_css_default.cardBlocked}` : Market_module_css_default.themeCard,
@@ -9503,13 +10118,9 @@ window.__ModuleLoader__.load({
 													version: p.version,
 													tip: catalogVersionTip
 												}),
-												typeof p.downloads === "number" && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
-													label: String(p.downloads),
-													side: "top",
-													children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-														className: Market_module_css_default.star,
-														children: "· ↓ " + formatCount(p.downloads)
-													})
+												/* @__PURE__ */ (0, react_jsx_runtime.jsx)(DownloadCount, {
+													plugin: p,
+													t
 												}),
 												typeof p.stars === "number" && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
 													label: String(p.stars),
@@ -9576,6 +10187,11 @@ window.__ModuleLoader__.load({
 											className: Market_module_css_default.installBtn,
 											disabled: true,
 											children: t("installing")
+										}) : themeQueued ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+											type: "button",
+											className: Market_module_css_default.cardBlockedMark,
+											onClick: openOperations,
+											children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(IconWarningOutline16, { size: 13 }), t("queuedBadge")]
 										}) : blocked ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 											type: "button",
 											className: Market_module_css_default.cardBlockedMark,
@@ -9963,6 +10579,7 @@ window.__ModuleLoader__.load({
 											setRecords((list) => drop(list, record.id));
 											doInstall(plugin, true);
 										},
+										onRunNow: runQueuedNow,
 										onApproveBuilds: (record) => {
 											const names = record.blockedBuilds ?? [];
 											if (names.length === 0) return;
@@ -10402,13 +11019,11 @@ window.__ModuleLoader__.load({
 												children: t("webdavRestore")
 											})]
 										}),
-										/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
+										labelledCheckbox({
+											label: t("autoBackup"),
+											checked: autoBackup,
 											className: Market_module_css_default.backupCheck,
-											children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
-												type: "checkbox",
-												checked: autoBackup,
-												onChange: (e) => setAutoBackup(e.target.checked)
-											}), t("autoBackup")]
+											onChange: setAutoBackup
 										}),
 										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: t("webdavNote") }),
 										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
@@ -10988,15 +11603,11 @@ window.__ModuleLoader__.load({
 														className: Market_module_css_default.spec,
 														children: t("disabledState")
 													}),
-													/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-														type: "button",
-														role: "switch",
-														"aria-checked": !effectiveDisabledSet.has(member),
-														"aria-label": (effectiveDisabledSet.has(member) ? t("enable") : t("disable")) + " " + member,
-														className: effectiveDisabledSet.has(member) ? Market_module_css_default.switch : `${Market_module_css_default.switch} ${Market_module_css_default.switchOn}`,
+													onOffSwitch({
+														label: (effectiveDisabledSet.has(member) ? t("enable") : t("disable")) + " " + member,
+														on: !effectiveDisabledSet.has(member),
 														disabled: togglingName !== null,
-														onClick: () => doToggle(member, effectiveDisabledSet.has(member)),
-														children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { className: Market_module_css_default.switchKnob })
+														toggle: () => doToggle(member, effectiveDisabledSet.has(member))
 													}),
 													/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
 														variant: "ghost",
@@ -11117,12 +11728,11 @@ window.__ModuleLoader__.load({
 									className: Market_module_css_default.groupOrgHint,
 									children: t("groupOrgHint")
 								})
-							] }) : Object.keys(displayedInstalled).filter((name) => name !== selfName).length === 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							] }) : orderedInstalledEntries.length === 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 								className: Market_module_css_default.empty,
 								children: t("installedEmpty")
 							}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Masonry, {
-								items: Object.entries(displayedInstalled).filter(([name, spec]) => {
-									if (name === selfName) return false;
+								items: orderedInstalledEntries.filter(([name, spec]) => {
 									const needle = qInstalled.trim().toLowerCase();
 									if (needle === "") return true;
 									if (name.toLowerCase().includes(needle)) return true;
@@ -11260,7 +11870,7 @@ window.__ModuleLoader__.load({
 														]
 													});
 												})(),
-												status !== void 0 && (status.updateAvailable || generation && status.latest != null) && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+												isPluginUpdatable(name, String(spec), status, []) && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 													className: Market_module_css_default.noteRow,
 													children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 														type: "button",
@@ -11354,15 +11964,11 @@ window.__ModuleLoader__.load({
 														"data-on": off ? "false" : "true"
 													}), off ? t("disabledState") : t("switchOnLabel")]
 												}),
-												toggleable && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-													type: "button",
-													role: "switch",
-													"aria-checked": !off,
-													"aria-label": (off ? t("enable") : t("disable")) + " " + name,
-													className: off ? Market_module_css_default.switch : `${Market_module_css_default.switch} ${Market_module_css_default.switchOn}`,
+												toggleable && onOffSwitch({
+													label: (off ? t("enable") : t("disable")) + " " + name,
+													on: !off,
 													disabled: togglingName !== null || busyUrl !== null || updatingName !== null || removingName !== null,
-													onClick: () => doToggle(name, off),
-													children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { className: Market_module_css_default.switchKnob })
+													toggle: () => doToggle(name, off)
 												}),
 												/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { className: Market_module_css_default.grow }),
 												entry !== void 0 && entry.deprecated === true && entry.replacement !== void 0 && (() => {
@@ -11682,13 +12288,9 @@ window.__ModuleLoader__.load({
 										version: confirming.version,
 										tip: catalogVersionTip
 									}),
-									typeof confirming.downloads === "number" && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
-										label: String(confirming.downloads),
-										side: "top",
-										children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-											className: Market_module_css_default.star,
-											children: "· ↓ " + formatCount(confirming.downloads)
-										})
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)(DownloadCount, {
+										plugin: confirming,
+										t
 									}),
 									typeof confirming.stars === "number" && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
 										label: String(confirming.stars),
@@ -11709,6 +12311,10 @@ window.__ModuleLoader__.load({
 								className: Market_module_css_default.metaInline,
 								children: t("published") + " " + confirming.added
 							}),
+							downloadStatsText(confirming, t) !== null && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+								className: Market_module_css_default.metaInline,
+								children: downloadStatsText(confirming, t)
+							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(CardDesc, {
 								text: confirming.description && (confirming.description[lang] || confirming.description.en) || "",
 								t
@@ -11717,6 +12323,7 @@ window.__ModuleLoader__.load({
 								plugin: confirming,
 								onOpen: openLightbox
 							}),
+							capabilityDetail(confirming),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.DisclosureRow, {
 								icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(IconCodeOutline16, { size: 16 }),
 								title: t("cmdDetails"),
@@ -12130,13 +12737,11 @@ window.__ModuleLoader__.load({
 									]
 								}, name))
 							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
+							labelledCheckbox({
+								label: t("gistIncludeConfig"),
+								checked: exportIncludeConfig,
 								className: Market_module_css_default.backupCheck,
-								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
-									type: "checkbox",
-									checked: exportIncludeConfig,
-									onChange: (e) => setExportIncludeConfig(e.target.checked)
-								}), t("gistIncludeConfig")]
+								onChange: setExportIncludeConfig
 							}),
 							exportIncludeConfig && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 								className: Market_module_css_default.backupWarn,
@@ -12335,8 +12940,28 @@ window.__ModuleLoader__.load({
 				regionAuto: body.regionAuto === true,
 				githubProxyCustom: typeof body.githubProxyCustom === "string" ? body.githubProxyCustom : null,
 				githubProxyManaged: body.githubProxyManaged === true,
-				selfManaged: body.selfManaged !== false
+				selfManaged: body.selfManaged !== false,
+				buildEnv: body.buildEnv ?? {}
 			};
+		}
+		/** Render the effective build environment as one `KEY=value` line each. */
+		function buildEnvToText(env) {
+			return Object.entries(env).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([key, value]) => `${key}=${value}`).join("\n");
+		}
+		/** Parse a `KEY=value` block back into a map; blank lines are dropped. */
+		function buildEnvFromText(text) {
+			const out = {};
+			for (const line of text.split("\n")) {
+				const entry = line.trim();
+				if (entry === "") continue;
+				const at = entry.indexOf("=");
+				if (at <= 0) continue;
+				const key = entry.slice(0, at).trim();
+				const value = entry.slice(at + 1).trim();
+				if (key === "") continue;
+				out[key] = value;
+			}
+			return out;
 		}
 		function readUpdate(own) {
 			return {
@@ -12372,6 +12997,9 @@ window.__ModuleLoader__.load({
 			const [proxyEditing, setProxyEditing] = (0, react.useState)(false);
 			const [proxyDraft, setProxyDraft] = (0, react.useState)("");
 			const [proxySaving, setProxySaving] = (0, react.useState)(false);
+			/** Draft of the build-environment editor (#336), seeded once from status. */
+			const [envText, setEnvText] = (0, react.useState)("");
+			const envSeeded = (0, react.useRef)(false);
 			/**
 			* The last self-update was refused by pnpm's fresh-release safety wait
 			* (#39). Only the market's own card can update the market, so without a
@@ -12400,7 +13028,8 @@ window.__ModuleLoader__.load({
 							regionAuto: false,
 							githubProxyCustom: null,
 							githubProxyManaged: false,
-							selfManaged: true
+							selfManaged: true,
+							buildEnv: {}
 						});
 					}
 					try {
@@ -12568,6 +13197,34 @@ window.__ModuleLoader__.load({
 					}
 				})();
 			}, [post, t]);
+			/**
+			* Seed the build-environment editor from the server's effective value —
+			* ONCE. The draft is the user's to edit from then on; the status refetch
+			* after a save updates it explicitly instead.
+			*/
+			(0, react.useEffect)(() => {
+				if (status === null || envSeeded.current) return;
+				envSeeded.current = true;
+				setEnvText(buildEnvToText(status.buildEnv));
+			}, [status]);
+			/** Save the draft build environment; an empty list clears it (#336). */
+			const onSaveEnv = (0, react.useCallback)(async () => {
+				setError(null);
+				try {
+					const body = await post(api("/dsh-market/build-env"), { buildEnv: buildEnvFromText(envText) });
+					if (body.ok !== true) {
+						setError(body.error ?? t("setSelfFailed"));
+						return;
+					}
+					setEnvText(buildEnvToText(body.buildEnv ?? {}));
+				} catch (cause) {
+					setError(cause instanceof Error ? cause.message : String(cause));
+				}
+			}, [
+				envText,
+				post,
+				t
+			]);
 			/** One label + hint block with an optional action, the host's row shape. */
 			const row = (label, hint, action) => (0, react.createElement)("div", { className: Market_module_css_default.setRow }, (0, react.createElement)("div", { className: Market_module_css_default.setLabelBox }, (0, react.createElement)("div", { className: Market_module_css_default.setLabel }, label), (0, react.createElement)("div", { className: Market_module_css_default.setHint }, hint)), action);
 			const body = phase === "removed" ? row(t("setSelfRemoved"), t("setSelfRemovedHint"), null) : (0, react.createElement)(react.Fragment, null, status?.selfManaged === true ? row((update?.updateAvailable === true || update?.hostManaged === true) && update.latest !== null ? `${t("setSelfUpdateReady")} ${update.latest}` : update?.channelSwitch != null ? `${t("setChannelSwitch")} ${update.channelSwitch}` : t("setSelfUpToDate"), phase === "updated" ? t("setSelfUpdatedHint") : update?.channelSwitch != null ? t("setChannelSwitchHint") : update?.updateAvailable === true ? t("setSelfUpdateHint") : update?.hostManaged === true && update.latest !== null ? t("setSelfHostManagedHint") : t("setSelfUpToDateHint"), phase === "updated" ? null : update?.updateAvailable === true ? (0, react.createElement)(_deepseek_ai_dsh_client_ui_primitives.Button, {
@@ -12657,7 +13314,25 @@ window.__ModuleLoader__.load({
 				onClick: () => {
 					onGithubProxy(proxyDraft);
 				}
-			}, t("setGithubProxySave")))) : null, status?.selfManaged === true ? row(t("setSelfRemove"), t("setSelfRemoveHint"), phase === "confirming" || busy ? null : (0, react.createElement)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+			}, t("setGithubProxySave")))) : null, (0, react.createElement)("div", { className: Market_module_css_default.setConfirm }, (0, react.createElement)("div", { className: Market_module_css_default.setLabel }, t("setBuildEnv")), (0, react.createElement)("div", { className: Market_module_css_default.setHint }, t("setBuildEnvHint")), (0, react.createElement)("textarea", {
+				className: Market_module_css_default.envEditor,
+				rows: 3,
+				spellCheck: false,
+				"aria-label": t("setBuildEnv"),
+				value: envText,
+				disabled: busy || status === null,
+				placeholder: "CC=/usr/bin/gcc-11\nCXX=/usr/bin/g++-11",
+				onChange: (event) => {
+					setEnvText(event.target.value);
+				}
+			}), (0, react.createElement)("div", { className: Market_module_css_default.setActions }, (0, react.createElement)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+				variant: "primary",
+				size: "sm",
+				disabled: busy || status === null,
+				onClick: () => {
+					onSaveEnv();
+				}
+			}, t("setBuildEnvSave")))), status?.selfManaged === true ? row(t("setSelfRemove"), t("setSelfRemoveHint"), phase === "confirming" || busy ? null : (0, react.createElement)(_deepseek_ai_dsh_client_ui_primitives.Button, {
 				variant: "outline",
 				size: "sm",
 				className: Market_module_css_default.setDanger,
@@ -12948,20 +13623,6 @@ window.__ModuleLoader__.load({
 				render: (props = {}) => buildMarketElement(props)
 			};
 			if (typeof ctx.provide === "function") ctx.provide("market", marketControl);
-			ctx.inject(["configForms"], (scoped) => {
-				scoped.slots.inject("settings.plugins.tab", () => scoped.slots.register({
-					name: "settings.plugins.tab",
-					id: NS,
-					label: () => t("title"),
-					locale: NS,
-					inject: () => ({ t })
-				}, () => (0, react.createElement)(SettingsCard, {
-					t,
-					onRemoved: () => {
-						sectionGate.retire();
-					}
-				})));
-			});
 			const bundleConfigCtx = ctx;
 			bundleConfigCtx.slots.inject("plugins.bundle.config", () => bundleConfigCtx.slots.register({
 				name: "plugins.bundle.config",
@@ -12969,6 +13630,20 @@ window.__ModuleLoader__.load({
 				locale: NS,
 				inject: () => ({ t })
 			}, (ownerProps = {}) => ownerProps.view === "summary" ? null : (0, react.createElement)(SettingsCard, {
+				t,
+				onRemoved: () => {
+					sectionGate.retire();
+				}
+			})));
+			const pluginsTabCtx = ctx;
+			pluginsTabCtx.slots.inject("settings.plugins.tab", () => pluginsTabCtx.slots.register({
+				name: "settings.plugins.tab",
+				id: NS,
+				order: 60,
+				label: () => t("nav"),
+				locale: NS,
+				inject: () => ({ t })
+			}, () => (0, react.createElement)(SettingsCard, {
 				t,
 				onRemoved: () => {
 					sectionGate.retire();

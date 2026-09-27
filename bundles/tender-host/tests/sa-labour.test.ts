@@ -23,9 +23,11 @@ function project(partial: Partial<BusinessProjectRecord> = {}): BusinessProjectR
   }
 }
 
-test('ZAR or SANRAL names trigger the South Africa wage path', () => {
+test('actual project jurisdiction governs wages; currency and example bindings do not', () => {
   assert.equal(looksLikeSouthAfricaPricing(project(), []), false)
-  assert.equal(looksLikeSouthAfricaPricing(project(), [], { currency: 'ZAR' }), true)
+  assert.equal(looksLikeSouthAfricaPricing(project(), [], { currency: 'ZAR' }), false)
+  assert.equal(looksLikeSouthAfricaPricing(project({ name: 'SANRAL example' }), [], { currency: 'ZAR', jurisdiction: 'Namibia' }), false)
+  assert.equal(looksLikeSouthAfricaPricing(project(), [], { jurisdiction: 'China' }), false)
   assert.equal(looksLikeSouthAfricaPricing(project({ name: 'N3 SANRAL KZN' })), true)
   assert.equal(looksLikeSouthAfricaPricing(project(), [], { jurisdiction: 'South Africa' }), true)
   assert.equal(
@@ -37,7 +39,7 @@ test('ZAR or SANRAL names trigger the South Africa wage path', () => {
       path: 'knowledge/tender-sa-sanral/C5.1_路床_单价推导.md',
       exists: true,
     }]),
-    true,
+    false,
   )
 })
 

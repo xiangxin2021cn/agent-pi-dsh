@@ -1,0 +1,4 @@
+- insert:
+    - id: agent-pi-task-guide
+      name: dsh-agent-pi-task-guide
+      inject: [tools, systemPrompt]

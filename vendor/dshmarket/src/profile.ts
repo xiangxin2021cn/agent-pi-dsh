@@ -1238,3 +1238,141 @@ export function dropUnparseableBuildKeys(profile: string, explicitDir?: string):
   writeAllowBuildsMap(file, yaml, map, blockRe, blockMatch)
   return removed
 }
+
+/** One `minimumReleaseAgeExclude` entry, split into its name and its versions. */
+interface ReleaseAgeExcludeRule {
+  name: string
+  /** The version union exactly as written, or null when the entry names no version. */
+  selector: string | null
+}
+
+/**
+ * Split `name@1.2.3 || 1.4.0` into its package name and selector.
+ *
+ * A scoped name begins with `@`, so the separator is the first `@` AFTER
+ * position 0; an entry with no `@` at all excludes every version of that
+ * name. Anything this cannot read exactly returns null, and the caller then
+ * leaves the file alone rather than rewriting a line it misread.
+ */
+function splitReleaseAgeExclude(entry: string): ReleaseAgeExcludeRule | null {
+  let text = entry.trim()
+  if (text.length >= 2
+    && (text[0] === "'" && text[text.length - 1] === "'" || text[0] === '"' && text[text.length - 1] === '"')) {
+    text = text.slice(1, -1)
+  }
+  const at = text.indexOf('@', text.startsWith('@') ? 1 : 0)
+  if (at === -1) return text === '' ? null : { name: text, selector: null }
+  const name = text.slice(0, at)
+  const selector = text.slice(at + 1).trim()
+  if (name === '' || selector === '') return null
+  return { name, selector }
+}
+
+/**
+ * Make a profile's `minimumReleaseAgeExclude` readable again (#732, #733).
+ *
+ * pnpm WRITES this key in forms it then mishandles, and two separate defects
+ * come out of that:
+ *
+ * - pnpm 11.7.0 appends a second rule for a package that already has one,
+ *   while its `evaluateVersionPolicy` honours only the FIRST rule per name.
+ *   Its own new entry is therefore dead, and every later command in that
+ *   profile fails lockfile verification with
+ *   ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION — including commands that have
+ *   nothing to do with that package (#732).
+ * - pnpm 12.4.1 folds the versions it approves into a `name@v1 || v2 || …`
+ *   union, a form its OWN validator rejects ("Invalid versions union … Use
+ *   exact versions only"), and evaluating one aborts the process on a single
+ *   80 GiB allocation that takes the machine down for minutes (#733). The
+ *   entries are evaluated lazily, so this fires on any later install that
+ *   age-checks that package, with no pnpm error output to explain it.
+ *
+ * Both are avoided by writing each such package as ONE BARE NAME. A bare name
+ * cannot be shadowed (the first rule for it is already all of it), it stops
+ * pnpm's auto-collect for that package outright, and it carries no union for
+ * the parser to evaluate. It is also a wider statement than a version list —
+ * the package stops being age-gated at all — so it is spent only on entries
+ * pnpm has already written in one of those two broken forms, never on a
+ * package the file lists as a single exact version. A pure duplicate of one
+ * exact version collapses to that one line, which changes no policy at all.
+ *
+ * A file holding nothing but bare names and single exact versions is left
+ * untouched, as is one whose block this cannot read exactly (a flow list, an
+ * inline comment, a line it would have to guess at).
+ *
+ * @returns the package names whose entry was rewritten; empty when the file
+ *   needed no repair or could not be repaired, in which case it is left
+ *   byte-for-byte as it was.
+ */
+export function normalizeReleaseAgeExcludes(profile: string, explicitDir?: string): string[] {
+  const file = join(profileDir(profile, explicitDir), 'pnpm-workspace.yaml')
+  let yaml: string
+  try { yaml = readFileSync(file, 'utf8') } catch { return [] }
+  // Block form only: `minimumReleaseAgeExclude:` then `- <entry>` lines.
+  const blockRe = /^minimumReleaseAgeExclude:[ \t]*\r?\n((?:[ \t]+-[^\r\n]*\r?\n?)*)/m
+  const block = blockRe.exec(yaml)
+  if (block === null) return []
+  const eol = /\r\n/.test(yaml) ? '\r\n' : '\n'
+  const indentMatch = /^([ \t]+)-/.exec(block[1])
+  const indent = indentMatch === null ? '  ' : indentMatch[1]
+  const entries: { rule: ReleaseAgeExcludeRule; quoted: boolean; line: string }[] = []
+  for (const line of block[1].split(/\r?\n/)) {
+    if (line.trim() === '') continue
+    const m = /^[ \t]+-[ \t]*(.*?)[ \t]*$/.exec(line)
+    // A `#` on the line is a comment this cannot re-emit without losing it.
+    if (m === null || m[1].includes('#')) return []
+    const rule = splitReleaseAgeExclude(m[1])
+    if (rule === null) return []
+    entries.push({ rule, quoted: /^['"]/.test(m[1]), line })
+  }
+  const byName = new Map<string, {
+    selectors: Set<string>
+    originals: string[]
+    lines: string[]
+    allVersions: boolean
+    quoted: boolean
+    count: number
+  }>()
+  const order: string[] = []
+  for (const { rule, quoted, line } of entries) {
+    let group = byName.get(rule.name)
+    if (group === undefined) {
+      group = { selectors: new Set(), originals: [], lines: [], allVersions: false, quoted: false, count: 0 }
+      byName.set(rule.name, group)
+      order.push(rule.name)
+    }
+    group.count += 1
+    group.quoted = group.quoted || quoted
+    group.originals.push(rule.selector ?? '')
+    group.lines.push(line)
+    if (rule.selector === null) group.allVersions = true
+    else group.selectors.add(rule.selector)
+  }
+  /** The one line this package's entry is written as. */
+  const produced = (name: string): string => {
+    const group = byName.get(name)
+    if (group === undefined) return ''
+    // A bare name already covers every version, so it stays bare; a union or
+    // several rules for one name cannot both be read, so they become one.
+    const bare = group.allVersions
+      || group.originals.some(selector => selector.includes('||'))
+      || group.selectors.size > 1
+    const text = bare ? name : `${name}@${[...group.selectors][0]}`
+    // `@` cannot start a plain scalar in YAML, so a scoped name is written
+    // quoted — the way pnpm itself writes one.
+    const quoted = group.quoted || text.startsWith('@')
+    return `${indent}- ${quoted ? `'${text.replaceAll("'", "''")}'` : text}`
+  }
+  const rewritten = order.filter(name => {
+    const group = byName.get(name)
+    if (group === undefined) return false
+    return group.count > 1 || group.lines[0] !== produced(name)
+  })
+  if (rewritten.length === 0) return []
+  const lines = order.map(produced)
+  const blockText = `minimumReleaseAgeExclude:${eol}${lines.join(eol)}${eol}`
+  // A function replacement: `$&` and friends in a string replacement would
+  // be read as capture references.
+  writeFileSync(file, yaml.replace(blockRe, () => blockText))
+  return rewritten
+}

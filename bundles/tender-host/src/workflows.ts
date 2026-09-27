@@ -41,7 +41,7 @@ export const WORKFLOWS: Record<string, WorkflowDefinition> = {
         label: 'Bid decision and critical risks',
         labelZh: '投标决策与重大风险',
         hintZh: '先形成投标/不投标建议、重大风险、澄清清单和决策条件，再由用户明确确认是否继续。',
-        prompt: '只做投标决策，不展开全文长报告或详细组价。基于已登记资料编制《投标决策与重大风险评估.md》：项目边界、采购制度与适用法域、投标主体/JV/分包结构、CIDB/资格与评分门槛、关键日期、保函/保险、合同与现金流重大风险、税务/外汇/用工/本地化义务、资料缺口、需要澄清的问题、央企内部法务/商务/财税/资金/履约审批责任人、建议投标/不投标及成立条件。法规、工资、税费只认现行官方来源，招标特定规则以招标文件为准；缺资料保持为缺口。完成后停止，等待用户在工作台明确选择「确认投标，继续」或「不投标，暂停」，不得由模型代替用户决策。',
+        prompt: '只做投标决策，不展开全文长报告或详细组价。基于已登记资料编制《投标决策与重大风险评估.md》：项目边界、采购制度与适用法域、投标主体/JV/分包结构、本国适用的资格与评分门槛（CIDB 仅在适用时）、关键日期、保函/保险、合同与现金流重大风险、税务/外汇/用工/本地化义务、资料缺口、需要澄清的问题、客户适用的内部法务/商务/财税/资金/履约审批责任人、建议投标/不投标及成立条件。法规、工资、税费只认现行官方来源，招标特定规则以招标文件为准；缺资料保持为缺口。完成后停止，等待用户在工作台明确选择「确认投标，继续」或「不投标，暂停」，不得由模型代替用户决策。',
         skillSlugs: ['tender-intelligence-core', 'tender-evaluation-strategy', 'tender-project-boundary', 'tender-overseas-professional-control'],
         consumes: [{ kind: 'handoff', stageId: 'project-setup' }],
         reviewSkillSlugs: ['deliverable-reviewer'],
@@ -123,7 +123,7 @@ export const WORKFLOWS: Record<string, WorkflowDefinition> = {
         label: 'BOQ five-step pricing',
         labelZh: 'BOQ 逐页组价与资源汇总',
         hintZh: '以项目特征为依据逐章组价；缺口不得臆造。',
-        prompt: '以已获用户确认的《组价基准冻结单.md》、《投标分析底稿.md》和完整 boq_reconciliation 为唯一组价基线，结合 orchestration/reports/ 下的 BOQ sidecar JSON，按稳定 BOQ item id / 分册 / 章节范围逐项组价；禁止重新逐份扫描原始标书。全部客户可读成果写入 boq-pricing/。章节 Markdown 与《BOQ 组价总报告.md》写完后，调用 tender_pricing_workbook generate 产出带公式的《BOQ 组价测算.xlsx》。不得悄悄改变已冻结币种、工资、材料、机械、工效、风险费或缺口处理；发现新证据与冻结基准冲突时停止并请求用户重新确认。当地工效和单价必须跟本标地址走：先 anysearch_capabilities，再 anysearch_batch_search（zone=intl）并用 web_search / web_fetch 复核；南非人工核 BCCEI。正式回价、网络询价和推导结果分列，写《当地供应商尽调.md》《当地工效尽调.md》和中英询价单；回价不足时 tender_evidence waive_pricing 并写《组价依据说明.md》。项目特征缺口不得臆造。先 tender_capability action=schema；燃油/工资/机械/水泥/骨料/沥青/分包写入 costComponents[].rateBasis.webEvidence。若需按册并行，使用 dsh 原生 subagent / workflow。',
+        prompt: '以已获用户确认的《组价基准冻结单.md》、《投标分析底稿.md》和完整 boq_reconciliation 为唯一组价基线，结合 orchestration/reports/ 下的 BOQ sidecar JSON，按稳定 BOQ item id / 分册 / 章节范围逐项组价；禁止重新逐份扫描原始标书。全部客户可读成果写入 boq-pricing/。章节 Markdown 与《BOQ 组价总报告.md》写完后，调用 tender_pricing_workbook generate 产出带公式的《BOQ 组价测算.xlsx》。不得悄悄改变已冻结币种、工资、材料、机械、工效、风险费或缺口处理；发现新证据与冻结基准冲突时停止并请求用户重新确认。当地工效和单价必须跟本标地址走：先检查实际搜索工具（AnySearch 已加载时调用 anysearch_capabilities），按国别/语言选择 anysearch_batch_search（如已加载；中国项目选择适用的国内检索，南非/纳米比亚等选 zone=intl）或原生 web_search，再 web_fetch 复核；南非人工核 BCCEI。正式回价、网络询价和推导结果分列，写《当地供应商尽调.md》《当地工效尽调.md》和中英询价单；回价不足时 tender_evidence waive_pricing 并写《组价依据说明.md》。项目特征缺口不得臆造。先 tender_capability action=schema；燃油/工资/机械/水泥/骨料/沥青/分包写入 costComponents[].rateBasis.webEvidence。若需按册并行，使用 dsh 原生 subagent / workflow。',
         skillSlugs: ['tender-boq-five-step-pricing', 'tender-evaluation-strategy', 'tender-bidder-commitments', 'tender-formal-writing', 'tender-overseas-professional-control'],
         consumes: [
           { kind: 'handoff', stageId: 'tender-document-analysis' },
@@ -185,7 +185,7 @@ export const WORKFLOWS: Record<string, WorkflowDefinition> = {
         label: 'Submission compliance and final freeze',
         labelZh: '合规检查与最终提交冻结',
         hintZh: '核对资格、表单、签字盖章、价格、技术方案和提交介质；用户确认后才标记为冻结版本。',
-        prompt: '读取《投标分析底稿.md》、《组价基准冻结单.md》、《BOQ 组价总报告.md》、《施工与技术方案总控.md》和全部正式成果，执行最终 submission audit。编制《投标提交合规与冻结记录.md》：逐项列资格/CIDB/JV/税务与必交表单、评分与本地化证据、签字/见证/授权/盖章、保函保险、算术复核和跨文件价格一致性、技术与商务偏差、文件名/格式/份数/介质/截止时间/提交渠道、阻断项/警告/责任人/截止日和 maker-checker 记录。必须区分“文件存在”“内容完整”“已复核”“已授权”；不得把“文件已生成”写成“可提交”。能力包 not_ready、error、重大未核证价格、法定用工/税务缺口、未签必交表或声明文件实际不存在必须保持未冻结；warning / needs_review 必须完整列入冻结记录，由用户在最终人工门裁决，不得触发整阶段重做。完成后停止，等待用户在工作台最终确认冻结。',
+        prompt: '读取《投标分析底稿.md》、《组价基准冻结单.md》、《BOQ 组价总报告.md》、《施工与技术方案总控.md》和全部正式成果，执行最终 submission audit。编制《投标提交合规与冻结记录.md》：逐项列适用的资格/JV/税务与必交表单（CIDB 仅在适用时）、评分与本地化证据、签字/见证/授权/盖章、保函保险、算术复核和跨文件价格一致性、技术与商务偏差、文件名/格式/份数/介质/截止时间/提交渠道、阻断项/警告/责任人/截止日和 maker-checker 记录。必须区分“文件存在”“内容完整”“已复核”“已授权”；不得把“文件已生成”写成“可提交”。能力包 not_ready、error、重大未核证价格、法定用工/税务缺口、未签必交表或声明文件实际不存在必须保持未冻结；warning / needs_review 必须完整列入冻结记录，由用户在最终人工门裁决，不得触发整阶段重做。完成后停止，等待用户在工作台最终确认冻结。',
         skillSlugs: [
           'tender-submission-documents',
           'tender-submission-audit',

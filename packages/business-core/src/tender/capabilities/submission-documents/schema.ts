@@ -18,6 +18,7 @@ const TenderSubmissionDocumentItemSchema = z.object({
 }).strict();
 
 export const TenderSubmissionDocumentsDataSchema = z.object({
+  requiredDeliverableIds: z.array(EntityIdSchema).min(1, 'Actual tender returnables cannot be bypassed with an empty list.').optional(),
   items: z.array(TenderSubmissionDocumentItemSchema).superRefine((items, context) => {
     const seen = new Set<string>();
     items.forEach((item, index) => {

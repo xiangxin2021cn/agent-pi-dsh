@@ -17,7 +17,7 @@ import { load as loadYaml } from 'js-yaml'
 import { forgetCatalog, loadRegistry, pluginCategories } from './registry.ts'
 import { settingsNamespaceState } from './settings.ts'
 import {
-  cleanHotDir, hotMount, hotUnmount, listHotMounts, MAX_FAVORITES, MAX_NOTE,
+  buildEnvFromUnknown, cleanHotDir, hotMount, hotUnmount, listHotMounts, MAX_FAVORITES, MAX_NOTE,
   mountClientOnlyDeps, purgeMarketState, readMarketState, writeMarketState,
 } from './hot.ts'
 import { createGroup, deleteGroup, removeFromGroups, renameGroup, setGroupMembers } from './groups.ts'
@@ -27,7 +27,7 @@ import { configurePersistentLog, exportLogs, logEvent, readPersistentLog } from 
 import { marketFetch } from './net.ts'
 import { diagnosePackageManifests } from './diagnostics.ts'
 import {
-  BOOT_ID, cancelActive, probePnpm, progress, provisionPnpm, runDshPlugin, TARGET_RE,
+  BOOT_ID, cancelActive, probePnpm, progress, provisionPnpm, runDshPlugin, setBuildEnvSource, TARGET_RE,
   type PluginCommandRuntime,
 } from './dsh-cli.ts'
 import { packageOfEntryName } from './entry-identity.ts'
@@ -153,6 +153,14 @@ export interface MarketConfig {
   region?: Region
   /** Snapshots retained per profile (issue #98); defaults to DEFAULT_MAX_SNAPSHOTS. */
   maxSnapshots?: number
+  /**
+   * Environment variables pinned for plugin build/install commands (issue
+   * #336): the compiler (CC/CXX) or anything else a native build reads, for
+   * hosts whose dsh process cannot inherit a shell environment. These may
+   * override values the parent process inherited, but never the PATH or CI
+   * the market computes for its children.
+   */
+  buildEnv?: Record<string, string>
 }
 
 /**
@@ -350,8 +358,26 @@ export function mountMarketRoutes(
   // re-applies the same choice on every boot (ported from dsh-plugin-hub).
   const userPatchPath = findUserPatchPath(host, activeProfileDir)
   const commands: PluginCommandRuntime = commandRuntime ?? { runPlugin: runDshPlugin, probePnpm, provisionPnpm, cancelActive }
+  /**
+   * Whether this host runs pnpm itself and so takes the market's own options
+   * (`--config.*`, `--force`, `--no-frozen-lockfile`).
+   *
+   * The official Desktop bridge does not (#732): its in-process manager
+   * accepts exactly `add <target>` or `remove <target>` and answers anything
+   * else with exit 127. The market's recovery steps decorate commands with
+   * those options, so on such a host they have to be left out or rewritten as
+   * a bare exact target, instead of being sent and refused — which reported a
+   * supported operation as unsupported and sent the reporter looking for a
+   * broken profile.
+   */
+  const marketFlags = commands.acceptsMarketPnpmFlags !== false
   const supportsExactRollbackTarget = (target: string): boolean =>
     commands.supportsExactRollbackTarget?.(target) ?? TARGET_RE.test(target)
+  // Point every plugin build/install spawn at the configured build
+  // environment (#336). Read LIVE from `config.buildEnv` because the settings
+  // wiring mutates that object when the operator edits the section at runtime;
+  // the reset below restores the empty default when the routes unmount.
+  const previousBuildEnvSource = setBuildEnvSource(() => config.buildEnv ?? {})
   // Snapshot retention cap (issue #98 supplement): a finite positive number
   // from the market config wins; anything else falls back to the default.
   const maxSnapshots = typeof config.maxSnapshots === 'number' && Number.isFinite(config.maxSnapshots) && config.maxSnapshots >= 1
@@ -388,6 +414,12 @@ export function mountMarketRoutes(
   // composed, which is only ever a default.
   if (marketState.channel !== undefined) config.channel = marketState.channel
   const activeChannel = (): Channel => resolveChannel(config.channel, marketVersion())
+  // The card-saved build environment (issue #336) outranks the composition,
+  // the same way a hand-picked channel does. `composedBuildEnv` is kept so
+  // clearing the card can inherit the composition again without a restart;
+  // spawnEnv re-reads `config.buildEnv` live on every spawn.
+  const composedBuildEnv = config.buildEnv
+  if (marketState.buildEnv !== undefined) config.buildEnv = marketState.buildEnv
 
   // The download region: which mirrors every outbound request uses.
   //
@@ -467,6 +499,10 @@ export function mountMarketRoutes(
     // survive another writer's read-back, which is the whole point of this
     // list (#435).
     marketState.brokenPlugins = fresh.brokenPlugins
+    // Same list, same reason: the build-env route writes this field, and a
+    // writer whose field is not refreshed here reads back the boot-time value
+    // on its next save (#435).
+    marketState.buildEnv = fresh.buildEnv
     setCustomGithubProxy(fresh.githubProxy ?? null)
   }
 
@@ -753,13 +789,38 @@ export function mountMarketRoutes(
 
   /** Every plugin command goes through the pnpm-drift recovery wrapper (#20). */
   const runPlugin = async (profile: string, args: string[]) => {
-    const result = await withHoistRecovery(commands.runPlugin, profile, args, activeProfileDir)
+    const result = await withHoistRecovery(commands.runPlugin, profile, args, activeProfileDir, { marketFlags })
     for (const name of Object.keys(readInstalled(profile, activeProfileDir))) reconcileKnownPluginCompatibility(activeProfileDir, name)
     return result
   }
   /** The same, minus the release-age bypass: for a fresh install pinned to a young release (#594). */
   const runPluginKeepingReleaseAge = (profile: string, args: string[]) =>
-    withHoistRecovery(commands.runPlugin, profile, args, activeProfileDir, { releaseAgeBypass: false })
+    withHoistRecovery(commands.runPlugin, profile, args, activeProfileDir, { releaseAgeBypass: false, marketFlags })
+
+  /**
+   * The argv that rematerializes a restored manifest's build on this host.
+   *
+   * On a host that takes the market's options, one `pnpm install` does it. A
+   * host that runs pnpm itself — the official Desktop bridge (#732) — accepts
+   * only `add <target>` and refuses `install` outright, so there it is an
+   * `add` of the exact version the restored manifest pins, which is what that
+   * host's own manager pipeline materializes. A range is deliberately not
+   * usable: it would re-resolve to whatever is newest and call that the
+   * previous build.
+   *
+   * @returns null when nothing expressible is left, in which case the caller
+   *   reports that rather than sending a command the host will refuse.
+   */
+  function rematerializeArgs(name: string, pinned: string | undefined): string[] | null {
+    if (marketFlags) return ['--no-frozen-lockfile', RELEASE_AGE_OVERRIDE, 'install']
+    if (pinned !== undefined && /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(pinned)) return ['add', `${name}@${pinned}`]
+    return null
+  }
+
+  /** Why a rematerialization could not even be attempted here (see above). */
+  function cannotRematerializeDetail(name: string, pinned: string | undefined): string {
+    return `这台宿主只接受按精确版本重新安装，「${name}」改动前在 profile 里写作 ${pinned ?? '（不在 profile 里）'}，市场无法在它上面重建上一版 / this host can only reinstall an exact version, and "${name}" was declared as ${pinned ?? '(not in the profile)'}, so the previous build cannot be rematerialized there`
+  }
 
   /**
    * Undo a clean-exit update whose new build cannot boot. Restoring only the
@@ -783,7 +844,14 @@ export function mountMarketRoutes(
     // Flags come BEFORE the command: preparePluginArgs treats the last arg as
     // the package target and rejects a trailing flag, while pnpm accepts the
     // same flags in front of `install`.
-    const reinstall = await runPlugin(config.profile, ['--no-frozen-lockfile', RELEASE_AGE_OVERRIDE, 'install'])
+    //
+    // On a host that runs pnpm itself neither flag exists and `install` is not
+    // accepted at all (#732), so there the build is rematerialized through the
+    // exact target — see `rematerializeArgs`.
+    const pinned = manifestBefore.dependencies[name]
+    const args = rematerializeArgs(name, pinned)
+    if (args === null) return { ok: false, detail: cannotRematerializeDetail(name, pinned) }
+    const reinstall = await runPlugin(config.profile, args)
     const ok = reinstall.exitCode === 0 && !reinstall.timedOut && !reinstall.cancelled
     if (ok) logEvent('info', 'update', `${name}: previous build rematerialized (${rolledBack.join(', ')})`)
     return { ok, detail: ok ? null : failureDetail(reinstall) }
@@ -945,7 +1013,16 @@ export function mountMarketRoutes(
     // were replaced before the rejected update failed. A normal exact add is
     // then an "already up to date" no-op; --force is what rematerializes the
     // captured version/commit/archive instead of blessing corrupted bytes.
-    const add = await runPlugin(config.profile, ['add', '--force', RELEASE_AGE_OVERRIDE, target])
+    //
+    // `--force` and the age override are market options, and the official
+    // Desktop bridge refuses them outright (#732). There the rollback is the
+    // bare exact target: the host's own manager pipeline is what installs it,
+    // and sending the options anyway failed the rollback with 127 — which
+    // read as "the previous build could not be verified" while node_modules
+    // still held the bad build.
+    const add = await runPlugin(config.profile, marketFlags
+      ? ['add', '--force', RELEASE_AGE_OVERRIDE, target]
+      : ['add', target])
     // Exact recovery targets deliberately pin versions/commits. Keep the
     // user's durable range, tag, floating github shortcut, or release URL.
     restoreProfileManifest(config.profile, manifestBefore, activeProfileDir)
@@ -2978,6 +3055,11 @@ export function mountMarketRoutes(
           // still holds the operation lock for a moment — the exact window
           // where clicking the restart banner used to bounce off a 409 (#91).
           busy: installing,
+          // Queue drain signal for the client's install queue: the agent-file
+          // guard values are already computed for every status poll, so the
+          // client can decide when a queued operation may run without an
+          // extra round trip. Absent ([]) means agents are idle.
+          runningAgents: runningAgentsForGuard(),
           pnpm: await commands.probePnpm(),
           boot: BOOT_ID,
           agentGuardAvailable: agentsGuardAvailable(),
@@ -2987,6 +3069,11 @@ export function mountMarketRoutes(
           channels: CHANNELS,
           region,
           regions: REGIONS,
+          // The padded/PATH- and CI-safe build environment currently pinned
+          // (issue #336): composition plus any card-saved override. The card
+          // edits exactly what this reports, so the form never shows a stale
+          // idea of what the next install will build under.
+          buildEnv: config.buildEnv ?? {},
           // The prefix the BROWSER should put in front of github.com URLs
           // (avatars, README images). Sent resolved rather than derived from
           // `region` on the client, so the routing table has one home and a
@@ -3233,7 +3320,11 @@ sendJson(response, 200, { updates })
               restoreProfileManifest(config.profile, manifestBefore, activeProfileDir)
               const prepared = restoreProfileLockfile(lockfileBefore)
               if (!prepared.ok) return prepared
-              const reinstall = await runPlugin(config.profile, ['--no-frozen-lockfile', RELEASE_AGE_OVERRIDE, 'install'])
+              const reinstallArgs = rematerializeArgs(name, manifestBefore.dependencies[name])
+              if (reinstallArgs === null) {
+                return { ok: false, detail: cannotRematerializeDetail(name, manifestBefore.dependencies[name]) }
+              }
+              const reinstall = await runPlugin(config.profile, reinstallArgs)
               restoreProfileManifest(config.profile, manifestBefore, activeProfileDir)
               const finalLock = restoreProfileLockfile(lockfileBefore)
               if (!finalLock.ok) return finalLock
@@ -3705,9 +3796,16 @@ sendJson(response, 200, { updates })
             const reresolveInPlace = isGit && !restore && target === spec
             // force: the user chose to install a fresh release without the
             // default one-day safety wait; scoped to this single command.
+            //
+            // The override is a market option, so a host that runs pnpm itself
+            // does not take it (#732); there the plain form goes out and the
+            // host's own manager pipeline applies its release policy. That is
+            // the same trade the held-back fresh install already makes: the
+            // version the host admits now, with the newer one still offered by
+            // the update check.
             const addArgs = reresolveInPlace
-              ? (force ? ['update', RELEASE_AGE_OVERRIDE, name] : ['update', name])
-              : (force ? ['add', RELEASE_AGE_OVERRIDE, target] : ['add', target])
+              ? (force && marketFlags ? ['update', RELEASE_AGE_OVERRIDE, name] : ['update', name])
+              : (force && marketFlags ? ['add', RELEASE_AGE_OVERRIDE, target] : ['add', target])
             // Exact manifest snapshot for failure rollback (#65, #339) — the
             // host can write dependencies AND dsh.profile.bundles before a
             // hard-failed add, leaving residue that breaks the next boot.
@@ -3778,7 +3876,15 @@ sendJson(response, 200, { updates })
                           && capturedNpmVersion(lockfileCapture.snapshot, name) !== beforeVersion
                           ? {
                               available: false,
-                              detail: `更新前安装的是 v${beforeVersion}，但 pnpm-lock.yaml 中的版本与它不一致，因此无法证明精确来源，自动回滚不可用。需要时请手工重新安装 ${name}@${beforeVersion}。 / The installed version before the update was v${beforeVersion}, but pnpm-lock.yaml does not match it, so the exact source cannot be proven and automatic rollback is unavailable. Reinstall ${name}@${beforeVersion} manually if needed.`,
+                              // Name all three: the version on disk, the version
+                              // the lockfile records, and the one a rollback
+                              // would install (#732). The old wording named the
+                              // first two only by implication, and a user who
+                              // reads "the exact source cannot be proven" has
+                              // nothing to act on — the reproducer's way out was
+                              // to align package.json with the installed build,
+                              // which is what this now says.
+                              detail: `更新前 node_modules 里装的是 v${beforeVersion}，但 pnpm-lock.yaml 里 ${name} 记的是 ${capturedNpmVersion(lockfileCapture.snapshot, name) ?? '（没有记录）'}，两者不一致，无法证明精确来源，因此自动回滚不可用（要回滚的是 ${name}@${beforeVersion}）。需要时请手工重新安装 ${name}@${beforeVersion}，或先把 package.json 与 pnpm-lock.yaml 对齐到 v${beforeVersion}。 / The build on disk before the update was v${beforeVersion}, but pnpm-lock.yaml records ${capturedNpmVersion(lockfileCapture.snapshot, name) ?? 'nothing'} for ${name}: they disagree, so the exact source cannot be proven and automatic rollback is unavailable. Reinstall ${name}@${beforeVersion} manually if needed, or align package.json and pnpm-lock.yaml with v${beforeVersion} first.`,
                               lockfileBefore: lockfileCapture.snapshot,
                             }
                           : !supportsExactRollbackTarget(`${name}@${beforeVersion}`)
@@ -4404,6 +4510,54 @@ sendJson(response, 200, { updates })
             ? 'custom GitHub route cleared; automatic routing restored'
             : 'custom GitHub route updated')
           sendJson(response, 200, { ok: true, githubProxyCustom: wanted })
+        } catch (error) {
+          sendJson(response, 500, { error: error instanceof Error ? error.message : String(error) })
+        }
+      },
+    }),
+
+    host.webServer.register({
+      kind: 'exact',
+      path: '/dsh-market/build-env',
+      handler: async (request, response) => {
+        if (request.method !== 'POST') {
+          response.writeHead(405, { allow: 'POST' })
+          response.end()
+          return
+        }
+        if (!sameOrigin(request)) {
+          sendJson(response, 403, { error: 'untrusted origin' })
+          return
+        }
+        try {
+          // The card always sends the FULL map it wants (an empty object
+          // means "clear → inherit the composition"). Keys are validated
+          // POSIX-style; PATH and CI are rejected because the market computes
+          // both for its children and a saved value for them would silently
+          // do nothing (issue #336; see src/dsh-cli.ts spawnEnv).
+          // The body limit is this route's own. The default (4 KiB) is the
+          // size of ONE allowed value (MAX_ENV_VALUE), so a map holding a
+          // single maximum-length value plus its JSON wrapper could never be
+          // sent — the sanitizer's cap and the transport's cap have to be
+          // different sizes for either to mean anything (#527 review).
+          const body = (await readJsonBody(request, 256 * 1024)) as { buildEnv?: unknown }
+          if (body.buildEnv === null || typeof body.buildEnv !== 'object' || Array.isArray(body.buildEnv)) {
+            sendJson(response, 400, {
+              error: 'buildEnv must be a KEY/value 对象（空对象表示清除）/ buildEnv must be a KEY/value object (an empty object clears it)',
+            })
+            return
+          }
+          const next = buildEnvFromUnknown(body.buildEnv)
+          // Saving applies immediately to the LIVE config, so the next
+          // install builds under it without a restart; an empty or cleared
+          // map inherits the composition instead of freezing an old save.
+          marketState.buildEnv = next
+          config.buildEnv = next ?? composedBuildEnv
+          writeMarketState(activeProfileDir, marketState)
+          logEvent('info', 'build-env', next === undefined
+            ? 'build environment cleared (composition inherits)'
+            : `build environment saved: ${Object.keys(next).join(', ')}`)
+          sendJson(response, 200, { ok: true, buildEnv: config.buildEnv ?? {} })
         } catch (error) {
           sendJson(response, 500, { error: error instanceof Error ? error.message : String(error) })
         }
@@ -5239,7 +5393,11 @@ sendJson(response, 200, { updates })
                 // the intent the fresh path otherwise refuses to assume it has
                 // (#594): the bypass is safe to use HERE because it is no
                 // longer the market's idea — it is what was clicked (#635).
-                const bypass = heldBack && force
+                // The bypass is an option this host may not accept (#732). Where
+                // it is not expressible the request falls to the same place as
+                // a refused bypass below: the bare name, with `heldByAge` set
+                // so the row says the profile's own age policy is why.
+                const bypass = heldBack && force && marketFlags
                 logEvent('warn', 'install', bypass
                   ? `${entry.name}: ${String(registryLatest)} is younger than this profile's minimumReleaseAge — installing it anyway, as asked, with ${RELEASE_AGE_OVERRIDE}`
                   : heldBack
@@ -5497,6 +5655,7 @@ sendJson(response, 200, { updates })
 
   return () => {
     disposed = true
+    setBuildEnvSource(previousBuildEnvSource)
     configurePersistentLog(null)
     for (const dispose of disposers) dispose()
   }

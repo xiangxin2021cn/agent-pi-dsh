@@ -1,4 +1,6 @@
-# Local supplier diligence and bilingual RFQs
+# Local supplier diligence and RFQs
+
+Use the current project country, procurement language, required specification, currency and tax basis. The South African examples below are conditional. Respect task webDiligence; use native web_search/web_fetch if AnySearch is unavailable. Preparing an RFQ does not authorize sending it.
 
 The BOQ pricing stage must leave the estimator a **usable inquiry pack**, not only web-verified unit rates. After the item workpapers, write two Official Outputs in `Agent Pi Outputs/<projectId>/boq-pricing/`:
 
@@ -41,12 +43,12 @@ Do not invent a phone number or email. Do not paste a Chinese trader as a KZN su
 
 `询价单总表.md` is the estimator’s cover sheet: resource, specification, quantity, unit, preferred suppliers, RFQ file name, status (`草稿` / `待发出` / `已回`).
 
-Each file `询价单/RFQ-<nn>-<stem>.md` is **Chinese then English**, same facts, so the South African supplier can answer without a translator. Required blocks in both languages:
+Each file `询价单/RFQ-<nn>-<stem>.md` uses the supplier and customer languages with identical facts; Chinese then English is the retained workbench default and can be adapted to the current task. Required blocks in both languages:
 
 - Project name, employer, site / delivery point, requested reply date
-- Item specification (COTO / material class / plant model or equivalent)
+- Item specification (applicable project standard and version / material class / plant model or equivalent)
 - Quantity, unit, delivery window, Incoterms or “delivered to site”
-- What the quote must show (ZAR exclusive of VAT, hourly/daily/ex-works, wet vs dry, operator included or not)
+- What the quote must show (project currency and tax basis, hourly/daily/ex-works, wet vs dry, operator included or not)
 - Bidder contact for questions
 
 One RFQ per inquired resource (diesel, padfoot, G5, lime, …). Do not put twenty plant types on one sheet.
@@ -58,4 +60,4 @@ One RFQ per inquired resource (diesel, padfoot, G5, lime, …). Do not put twent
 3. `anysearch_search` with the catalogue `tag` plus `includeContent: true` on the shortlisted company page.
 4. `web_fetch` the official contact page. Phone and email enter the diligence table only after this step.
 
-If the web has no contact, the RFQ still goes out as a template addressed to “To the quotations desk” with the source URL in a note. Status stays `待发出`.
+If the web has no contact, the RFQ still goes out as a template addressed to “To the quotations desk” with the source URL in a note. Status stays `待发出`. Never send or contact a supplier without user authorization.

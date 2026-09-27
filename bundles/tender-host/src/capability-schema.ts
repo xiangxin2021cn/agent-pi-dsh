@@ -33,7 +33,7 @@ export const PRICING_WEB_RATE_CHECK = {
   writePath: 'itemBuildUps[].costComponents[].rateBasis.webEvidence',
   fields: ['url', 'accessedAt'] as const,
   keyRates: ['fuel', 'wages', 'plant hire', 'cement', 'aggregates', 'asphalt', 'subcontract'],
-  note: 'Market-rate web_search/web_fetch is always required for key unit rates and is independent of webDiligenceAuthorized. That flag only gates project-characteristic facts (contract form, spec clauses, geology, calendar, subcontract limits, sequence). South African labour wages additionally use anysearch_batch_search with zone=intl and language=en (see saLabourWageCheck).',
+  note: 'Verify key rates from applicable current sources. The current professional task webDiligence policy governs market-rate research too; when restricted, retain gaps and provisional estimates instead of browsing. Select region and language from the actual project. AnySearch is optional; use available native web_search/web_fetch. South African wage checks apply only to supported South African jurisdiction.',
 }
 
 export { SA_LABOUR_WAGE_CHECK, PRICING_LOCAL_INTEL_CHECK }
@@ -68,7 +68,7 @@ export function capabilitySchemaHint(capability: string) {
         required: [...BOQ_FIVE_STEP_PRICING_TOP_LEVEL_REQUIRED],
         optional: [...BOQ_FIVE_STEP_PRICING_TOP_LEVEL_OPTIONAL],
         reviewedMustDeclare: {
-          pricingStandard: 'c51_pure_direct_cost_v1',
+          pricingStandard: 'Project-applicable declared basis; generic_direct_cost_v1 unless C5.1 scope is confirmed',
           vatTreatment: 'exclusive',
           indirectCostPolicy: 'excluded_from_item_direct_cost',
         },
