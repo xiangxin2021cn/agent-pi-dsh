@@ -2133,18 +2133,933 @@ window.__ModuleLoader__.load({
 			return url.pathname + url.search + url.hash;
 		}
 		//#endregion
+		//#region src/client/project-plan-model.js
+		const DAY = 864e5;
+		function planTime(value) {
+			const parts = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2}))?)?/.exec(value || "");
+			return parts ? Date.UTC(+parts[1], +parts[2] - 1, +parts[3], +(parts[4] || 0), +(parts[5] || 0), +(parts[6] || 0)) : NaN;
+		}
+		function taskRows(tasks, edits = {}) {
+			const stack = [];
+			return tasks.map((task, index) => {
+				const level = Math.max(0, Number(task.level) || 0);
+				while (stack.length && stack.at(-1).level >= level) stack.pop();
+				const row = {
+					...task,
+					...edits[task.uid],
+					key: task.uid == null ? `row:${index}` : `uid:${task.uid}`,
+					sourceIndex: index,
+					level,
+					parents: stack.map((parent) => parent.key),
+					hasChildren: index + 1 < tasks.length && (Number(tasks[index + 1].level) || 0) > level
+				};
+				stack.push(row);
+				return row;
+			});
+		}
+		function visibleTaskRows(rows, { collapsed = /* @__PURE__ */ new Set(), query = "", filter = "all" } = {}) {
+			const text = query.trim().toLocaleLowerCase();
+			if (!text && filter === "all") return rows.filter((row) => !row.parents.some((key) => collapsed.has(key)));
+			const keep = /* @__PURE__ */ new Set();
+			for (const row of rows) if ((!text || [
+				row.name,
+				row.wbs,
+				row.activityId,
+				row.id
+			].join(" ").toLocaleLowerCase().includes(text)) && (filter === "all" || filter === "critical" && row.critical || filter === "milestone" && row.milestone || filter === "incomplete" && !row.summary && Number(row.percent || 0) < 100)) {
+				keep.add(row.key);
+				row.parents.forEach((key) => keep.add(key));
+			}
+			return rows.filter((row) => keep.has(row.key));
+		}
+		function timelineRange(rows, scale, viewport = 700) {
+			let start = Infinity, finish = -Infinity;
+			for (const row of rows) {
+				const a = planTime(row.start), b = planTime(row.finish);
+				if (Number.isFinite(a)) {
+					start = Math.min(start, a);
+					finish = Math.max(finish, a);
+				}
+				if (Number.isFinite(b)) {
+					start = Math.min(start, b);
+					finish = Math.max(finish, b);
+				}
+			}
+			if (!Number.isFinite(start)) return null;
+			start = Math.floor(start / DAY) * DAY - 2 * DAY;
+			finish = Math.ceil(finish / DAY) * DAY + 3 * DAY;
+			const span = Math.max(7 * DAY, finish - start);
+			const pixelsPerDay = scale === "day" ? 36 : scale === "month" ? 4 : scale === "fit" ? Math.max(.02, (viewport - 24) / (span / DAY)) : 12;
+			return {
+				start,
+				finish: start + span,
+				pixelsPerDay,
+				width: Math.max(viewport, Math.ceil(span / DAY * pixelsPerDay)),
+				x: (time) => (time - start) / DAY * pixelsPerDay
+			};
+		}
+		function timelineTicks(range, scale) {
+			if (!range) return {
+				months: [],
+				units: []
+			};
+			const months = [], units = [];
+			const date = new Date(range.start);
+			let month = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1);
+			while (month < range.finish) {
+				const d = new Date(month), next = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1);
+				months.push({
+					start: Math.max(range.start, month),
+					end: Math.min(range.finish, next),
+					date: month
+				});
+				month = next;
+			}
+			const step = scale === "day" ? 1 : Math.max(7, Math.ceil(50 / (range.pixelsPerDay * 7)) * 7);
+			let unit = range.start;
+			if (step % 7 === 0) unit -= (new Date(unit).getUTCDay() + 6) % 7 * DAY;
+			while (unit < range.finish && units.length < 2e3) {
+				units.push({
+					start: Math.max(range.start, unit),
+					end: Math.min(range.finish, unit + step * DAY),
+					date: unit
+				});
+				unit += step * DAY;
+			}
+			return {
+				months,
+				units
+			};
+		}
+		function taskGeometry(row, range) {
+			if (!range) return null;
+			const start = planTime(row.start), finish = planTime(row.finish);
+			if (!Number.isFinite(start) || !Number.isFinite(finish) || finish < start) return null;
+			const left = range.x(start), right = range.x(finish);
+			return {
+				left,
+				right,
+				width: Math.max(row.milestone ? 0 : 3, right - left)
+			};
+		}
+		function relationCode(type) {
+			const normalized = String(type || "").toUpperCase().replaceAll("_", " ");
+			return {
+				"FINISH-START": "FS",
+				"FINISH-FINISH": "FF",
+				"START-START": "SS",
+				"START-FINISH": "SF",
+				"FINISH TO START": "FS",
+				"FINISH TO FINISH": "FF",
+				"START TO START": "SS",
+				"START TO FINISH": "SF"
+			}[normalized] || ([
+				"FS",
+				"FF",
+				"SS",
+				"SF"
+			].includes(normalized) ? normalized : null);
+		}
+		function dependencyPaths(rows, range, from, to) {
+			const byUid = new Map(rows.map((row, index) => [String(row.uid), {
+				row,
+				index
+			}]).filter(([, value]) => value.row.uid != null));
+			const links = [];
+			rows.forEach((row, index) => {
+				const target = taskGeometry(row, range);
+				if (!target) return;
+				for (const link of row.predecessors || []) {
+					const source = byUid.get(String(link.uid)), type = relationCode(link.type);
+					if (!source || !type || index < from && source.index < from || index >= to && source.index >= to) continue;
+					const origin = taskGeometry(source.row, range);
+					if (!origin) continue;
+					const x1 = type[0] === "F" ? origin.right : origin.left, x2 = type[1] === "F" ? target.right : target.left;
+					const y1 = source.index * 28 + 28 / 2, y2 = index * 28 + 28 / 2;
+					const out = x1 + (type[0] === "F" ? 8 : -8), into = x2 + (type[1] === "F" ? 8 : -8);
+					const middle = y2 + (y1 > y2 ? 28 / 2 - 3 : -11);
+					links.push({
+						key: `${row.key}:${source.row.key}:${links.length}`,
+						targetKey: row.key,
+						sourceKey: source.row.key,
+						type,
+						path: `M${x1},${y1} H${out} V${middle} H${into} V${y2} H${x2}`
+					});
+				}
+			});
+			return links;
+		}
+		function virtualWindow(count, scrollTop, height) {
+			const from = Math.max(0, Math.floor(scrollTop / 28) - 8);
+			return {
+				from,
+				to: Math.min(count, from + Math.ceil(height / 28) + 16)
+			};
+		}
+		//#endregion
+		//#region src/client/project-plan-styles.js
+		const projectPlanCss = `
+.ap-doc-scroll.plan{padding:0;overflow:hidden;background:#fff;display:flex;flex-direction:column}
+.ap-plan{--plan-bg:#fff;--plan-text:#202a34;--plan-muted:#697685;--plan-border:#d9dee4;--plan-header:#59636c;--plan-selected:#e2f0fc;--plan-accent:#167647;display:flex;flex-direction:column;flex:1;min-height:0;height:100%;color:var(--plan-text);background:var(--plan-bg);font:13px/1.4 'Segoe UI','Microsoft YaHei',sans-serif}
+.ap-plan *{box-sizing:border-box}
+.ap-plan button,.ap-plan input,.ap-plan select,.ap-plan textarea{font:12px/1.4 'Segoe UI','Microsoft YaHei',sans-serif;color:var(--plan-text)}
+.ap-plan button{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:30px;border:1px solid transparent;border-radius:3px;background:transparent;padding:4px 8px;cursor:pointer;white-space:nowrap}
+.ap-plan button:hover:not(:disabled){background:var(--plan-selected);border-color:var(--plan-border)}
+.ap-plan button:disabled{opacity:.4;cursor:default}
+.ap-plan button:focus-visible,.ap-plan input:focus,.ap-plan select:focus,.ap-plan textarea:focus{outline:2px solid #3991d4;outline-offset:-1px}
+.ap-plan input,.ap-plan select,.ap-plan textarea{border:1px solid var(--plan-border);border-radius:3px;background:var(--plan-bg);min-height:30px;padding:4px 7px;min-width:0}
+.ap-plan button.primary{background:var(--plan-accent);color:white;border-color:var(--plan-accent)}
+.ap-plan-toolbar{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--plan-border);flex-wrap:wrap}
+.ap-plan-toolbar strong{font-size:18px;font-weight:600;color:var(--plan-accent);margin-inline-end:6px;white-space:nowrap}
+.ap-plan-project{max-width:320px;width:230px}
+.ap-plan-search{width:180px}
+.ap-plan-mobile-view{display:none}
+.ap-plan-tools{display:flex;align-items:center;gap:3px;flex-wrap:wrap}
+.ap-plan-tools label{display:flex;align-items:center;gap:5px;font-size:12px;white-space:nowrap}
+.ap-plan-tools input[type=checkbox]{min-height:0;width:13px;height:13px;accent-color:var(--plan-accent)}
+.ap-plan-tools select{max-width:112px}
+.ap-plan-export{display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--plan-border);background:#f4f7f8;flex-wrap:wrap}
+.ap-plan-export label{display:flex;gap:6px;align-items:center}
+.ap-plan-export input{width:270px;max-width:100%}
+.ap-plan-split{display:grid;grid-template-columns:minmax(0,var(--ap-plan-table,52%)) 7px minmax(0,1fr);flex:1;min-height:160px;direction:ltr;overflow:hidden}
+.ap-plan-pane{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
+.ap-plan-divider{background:#edf0f3;border-inline:1px solid var(--plan-border);cursor:col-resize;touch-action:none}
+.ap-plan-divider:hover,.ap-plan-divider:focus-visible{background:#91b9cc}
+.ap-plan-header{height:52px;flex:0 0 52px;overflow:hidden;background:var(--plan-header);color:#fff;border-bottom:1px solid var(--plan-border)}
+.ap-plan-grid-head,.ap-plan-task-row{display:grid;grid-template-columns:44px 95px 320px 86px 112px 112px 70px 160px}
+.ap-plan-grid-head{height:52px;width:1099px;align-items:end;will-change:transform}
+.ap-plan-grid-head>div{padding:8px;border-inline-end:1px solid #74808b;height:32px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ap-plan-scroll{flex:1;min-height:0;overflow:scroll;scrollbar-width:thin;overscroll-behavior:contain}
+.ap-plan-grid-content{position:relative;width:1099px;min-height:100%}
+.ap-plan-task-row{position:absolute;left:0;width:1099px;height:28px;align-items:center;border-bottom:1px solid var(--plan-border);background:var(--plan-bg);cursor:default;outline:none}
+.ap-plan-task-row:nth-child(even){background:color-mix(in srgb,var(--plan-bg) 97%,#637b90)}
+.ap-plan-task-row.selected{background:var(--plan-selected)}
+.ap-plan-task-row:focus-visible{box-shadow:inset 0 0 0 2px #3991d4}
+.ap-plan-task-row.summary{font-weight:650}
+.ap-plan-cell{height:28px;display:flex;align-items:center;gap:4px;border-inline-end:1px solid var(--plan-border);padding:0 8px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.ap-plan-cell.row-number{color:var(--plan-muted);justify-content:center;padding:0 3px;background:color-mix(in srgb,var(--plan-bg) 93%,#637b90);font-size:11px}
+.ap-plan-cell.task-name{padding-inline-start:6px}
+.ap-plan-cell.task-name span{overflow:hidden;text-overflow:ellipsis}
+.ap-plan-cell.task-name button{min-height:20px;min-width:20px;width:20px;padding:1px;border:0;flex:none}
+.ap-plan-cell.task-name input{width:100%;height:24px;min-height:24px;padding:2px 4px;font-weight:400}
+.ap-plan-caret-space{width:20px;flex:none}
+.ap-plan-modified{color:#bd7218;flex:none;font-size:15px}
+.ap-plan-ruler{position:relative;height:52px;will-change:transform}
+.ap-plan-ruler-cell{position:absolute;padding:3px 6px;white-space:nowrap;overflow:hidden;border-inline-end:1px solid #74808b;height:26px;font-size:11px}
+.ap-plan-ruler-cell.unit{top:26px;border-top:1px solid #74808b}
+.ap-plan-chart-content{position:relative;min-height:100%;background:var(--plan-bg);isolation:isolate}
+.ap-plan-chart-row{position:absolute;left:0;right:0;height:28px;border-bottom:1px solid var(--plan-border);z-index:0;cursor:pointer}
+.ap-plan-chart-row.selected{background:var(--plan-selected)}
+.ap-plan-chart-grid{position:absolute;inset:0;pointer-events:none;z-index:1}
+.ap-plan-tick{position:absolute;top:0;bottom:0;border-inline-start:1px solid #e2e7ec}
+.ap-plan-bar{position:absolute;height:12px;top:8px;background:#87bceb;border:1px solid #368cd3;border-radius:1px;z-index:3;min-height:0!important;padding:0!important;overflow:visible}
+.ap-plan-bar:hover:not(:disabled){background:#70aedd!important;border-color:#368cd3!important}
+.ap-plan-bar.critical{background:#f9aaaa;border-color:#d45e5e}
+.ap-plan-bar.critical:hover:not(:disabled){background:#f19a9a!important;border-color:#d45e5e!important}
+.ap-plan-progress{height:100%;background:#2a7fc6;display:block}
+.ap-plan-bar.critical .ap-plan-progress{background:#c94343}
+.ap-plan-bar.summary{height:6px;top:9px;background:#39444f;border:0;border-radius:0;overflow:visible}
+.ap-plan-bar.summary:before,.ap-plan-bar.summary:after{content:'';position:absolute;top:0;border-top:11px solid #39444f;border-right:6px solid transparent}
+.ap-plan-bar.summary:before{left:0}.ap-plan-bar.summary:after{right:0;transform:scaleX(-1)}
+.ap-plan-bar.milestone{width:10px!important;height:10px;top:9px;transform:translateX(-5px) rotate(45deg);background:#287fbd;border-color:#287fbd;border-radius:0}
+.ap-plan-bar.milestone.critical{background:#cf5555;border-color:#cf5555}
+.ap-plan-bar.selected{box-shadow:0 0 0 2px var(--plan-bg),0 0 0 3px #1573ad}
+.ap-plan-links{position:absolute;left:0;top:0;pointer-events:none;z-index:2;overflow:hidden}
+.ap-plan-today{position:absolute;top:0;bottom:0;border-left:1px dashed #328653;z-index:4;pointer-events:none}
+.ap-plan-today span{position:sticky;top:0;display:inline-block;background:#328653;color:white;padding:1px 4px;white-space:nowrap;font-size:10px}
+.ap-plan-inspector{display:grid;grid-template-columns:minmax(0,2fr) minmax(150px,1fr) minmax(160px,1fr);gap:12px;padding:10px 14px;border-top:1px solid var(--plan-border);max-height:220px;overflow:auto;flex-shrink:0}
+.ap-plan-detail-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.ap-plan-detail-fields .name{grid-column:1/-1}
+.ap-plan-inspector label{display:flex;flex-direction:column;gap:4px;min-width:0;font-size:11px;color:var(--plan-muted)}
+.ap-plan-inspector input,.ap-plan-inspector textarea{width:100%;font-size:12px;color:var(--plan-text)}
+.ap-plan-inspector textarea{height:90px;resize:vertical}
+.ap-plan-detail-read{display:flex;flex-direction:column;gap:8px;border-inline-start:1px solid var(--plan-border);padding-inline-start:12px;font-size:11px}
+.ap-plan-detail-read div{overflow-wrap:anywhere}
+.ap-plan-detail-read span{display:block;color:var(--plan-muted);margin-bottom:3px}
+.ap-plan-detail-read button{font-size:11px;color:#247eaf;min-height:22px;padding:0 4px}
+.ap-plan-footer{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:6px 14px;border-top:1px solid var(--plan-border);color:var(--plan-muted);font-size:11px;flex-shrink:0}
+.ap-plan-legend{display:flex;align-items:center;gap:10px;margin-inline-start:auto}
+.ap-plan-legend i{display:inline-block;width:10px;height:7px;background:#87bceb;margin-inline-end:4px;border:1px solid #368cd3}
+.ap-plan-legend i.critical{background:#f9aaaa;border-color:#d45e5e}
+.ap-plan-legend i.milestone{height:7px;width:7px;transform:rotate(45deg);background:#287fbd}
+.ap-plan-message{padding:8px 14px;border-bottom:1px solid var(--plan-border);font-size:12px;flex-shrink:0;overflow-wrap:anywhere;max-height:80px;overflow:auto}
+.ap-plan-message.error{color:#b92e2e;background:#fff4f4}
+.ap-plan-message.success{color:#247348;background:#f0faf4}
+.ap-plan-empty{padding:30px;color:var(--plan-muted);text-align:center}
+.ap-plan-help{padding:6px 14px;border-top:1px solid var(--plan-border);font-size:11px;color:var(--plan-muted)}
+.ap-plan-help summary{cursor:pointer}
+body[data-ds-dark-theme] .ap-plan{--plan-bg:#1e252c;--plan-text:#e1e8ee;--plan-muted:#a4b2be;--plan-border:#394550;--plan-header:#35424f;--plan-selected:#243e54;--plan-accent:#4db27b}
+body[data-ds-dark-theme] .ap-plan-export{background:#232e37}
+body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
+@media(max-width:850px){.ap-plan-toolbar{gap:6px;padding:8px}.ap-plan-toolbar strong{font-size:16px}.ap-plan-project{width:210px}.ap-plan-search{width:160px}.ap-plan-inspector{grid-template-columns:1fr 1fr;max-height:210px}.ap-plan-detail-read{display:none}.ap-plan-footer{gap:6px}.ap-plan-tools button{padding:4px 6px}}
+@media(max-width:550px){.ap-plan-toolbar{gap:4px}.ap-plan-project{width:calc(100% - 110px);max-width:none}.ap-plan-search{width:calc(100% - 140px)}.ap-plan-mobile-view{display:block}.ap-plan-inspector{grid-template-columns:1fr;max-height:220px}.ap-plan-detail-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.ap-plan-inspector>label{display:none}.ap-plan-split{grid-template-columns:minmax(0,1fr)}.ap-plan-divider{display:none}.ap-plan-split.table-view>.ap-plan-pane:last-child,.ap-plan-split.chart-view>.ap-plan-pane:first-child{display:none}.ap-plan-legend{display:none}.ap-plan-export label{max-width:100%;flex-wrap:wrap}.ap-plan-export input{width:210px}.ap-plan-help{display:none}}
+`;
+		//#endregion
+		//#region src/client/project-plan-locales.js
+		const keys = [
+			"title",
+			"search",
+			"all",
+			"critical",
+			"milestone",
+			"incomplete",
+			"expand",
+			"collapse",
+			"scale",
+			"day",
+			"week",
+			"month",
+			"fit",
+			"locate",
+			"today",
+			"links",
+			"details",
+			"save",
+			"undo",
+			"redo",
+			"reset",
+			"name",
+			"duration",
+			"start",
+			"finish",
+			"percent",
+			"predecessors",
+			"resources",
+			"notes",
+			"readonly",
+			"tasks",
+			"visible",
+			"calendars",
+			"changed",
+			"original",
+			"manual",
+			"loading",
+			"empty",
+			"noDates",
+			"select",
+			"format",
+			"filename",
+			"export",
+			"cancel",
+			"saving",
+			"saved",
+			"switch",
+			"help"
+		];
+		const projectPlanLocales = Object.fromEntries(Object.entries({
+			zh: [
+				"项目计划",
+				"搜索任务 / WBS",
+				"全部任务",
+				"关键任务",
+				"里程碑",
+				"未完成任务",
+				"展开全部",
+				"折叠全部",
+				"时间刻度",
+				"日",
+				"周",
+				"月",
+				"适合窗口",
+				"定位任务",
+				"今天",
+				"依赖连线",
+				"任务详情",
+				"另存并校验",
+				"撤销",
+				"重做",
+				"恢复原计划",
+				"任务名称",
+				"源文件工期",
+				"计划开始",
+				"计划完成",
+				"工期完成 %",
+				"前置任务",
+				"资源",
+				"备注",
+				"只读",
+				"任务",
+				"显示",
+				"日历",
+				"已编辑",
+				"未编辑",
+				"手动编辑 · 未自动排程",
+				"正在本机读取项目计划…",
+				"没有匹配的任务",
+				"没有可显示的计划日期",
+				"选择任务查看详情，双击任务名称编辑。",
+				"导出格式",
+				"新文件名",
+				"导出并校验",
+				"取消",
+				"正在导出并校验…",
+				"已保存",
+				"切换项目将丢弃尚未导出的编辑，是否继续？",
+				"可编辑名称、计划起止时间、工期完成率及备注。不会自动重排依赖或更改实际日期；工期显示源文件值。MPP 另存为 Project XML，P6 可导出 XER/XML。导出后请在 Project/P6 中复核。"
+			],
+			en: [
+				"Project schedule",
+				"Search tasks / WBS",
+				"All tasks",
+				"Critical tasks",
+				"Milestones",
+				"Incomplete tasks",
+				"Expand all",
+				"Collapse all",
+				"Timescale",
+				"Day",
+				"Week",
+				"Month",
+				"Fit to window",
+				"Locate task",
+				"Today",
+				"Dependency links",
+				"Task details",
+				"Save as and verify",
+				"Undo",
+				"Redo",
+				"Restore original",
+				"Task name",
+				"Source duration",
+				"Planned start",
+				"Planned finish",
+				"Duration complete %",
+				"Predecessors",
+				"Resources",
+				"Notes",
+				"Read only",
+				"Tasks",
+				"Visible",
+				"Calendars",
+				"Edited",
+				"Unedited",
+				"Manual editing · No automatic scheduling",
+				"Reading schedule locally…",
+				"No matching tasks",
+				"No scheduled dates to display",
+				"Select a task for details. Double-click its name to edit.",
+				"Export format",
+				"New filename",
+				"Export and verify",
+				"Cancel",
+				"Exporting and verifying…",
+				"Saved",
+				"Switching projects discards edits not yet exported. Continue?",
+				"Edit names, planned dates, duration completion and notes. Dependencies and actual dates are not rescheduled; duration shows the source value. Save MPP as Project XML, or P6 as XER/XML. Review the export in Project/P6."
+			],
+			es: [
+				"Programa del proyecto",
+				"Buscar tareas / EDT",
+				"Todas las tareas",
+				"Tareas críticas",
+				"Hitos",
+				"Tareas pendientes",
+				"Expandir todo",
+				"Contraer todo",
+				"Escala temporal",
+				"Día",
+				"Semana",
+				"Mes",
+				"Ajustar a ventana",
+				"Localizar tarea",
+				"Hoy",
+				"Vínculos de dependencia",
+				"Detalles de tarea",
+				"Guardar como y verificar",
+				"Deshacer",
+				"Rehacer",
+				"Restaurar original",
+				"Nombre de tarea",
+				"Duración original",
+				"Inicio previsto",
+				"Fin previsto",
+				"Duración completada %",
+				"Predecesoras",
+				"Recursos",
+				"Notas",
+				"Solo lectura",
+				"Tareas",
+				"Visibles",
+				"Calendarios",
+				"Modificado",
+				"Sin modificar",
+				"Edición manual · Sin programación automática",
+				"Leyendo el programa localmente…",
+				"No hay tareas coincidentes",
+				"No hay fechas programadas",
+				"Seleccione una tarea. Doble clic en el nombre para editar.",
+				"Formato de exportación",
+				"Nuevo nombre de archivo",
+				"Exportar y verificar",
+				"Cancelar",
+				"Exportando y verificando…",
+				"Guardado",
+				"Cambiar de proyecto descarta las modificaciones sin exportar. ¿Continuar?",
+				"Edite nombres, fechas previstas, avance por duración y notas. No se reprograman dependencias ni fechas reales; se muestra la duración original. MPP se guarda como Project XML; P6 como XER/XML. Revise el archivo en Project/P6."
+			],
+			fr: [
+				"Planning du projet",
+				"Rechercher tâches / WBS",
+				"Toutes les tâches",
+				"Tâches critiques",
+				"Jalons",
+				"Tâches inachevées",
+				"Tout développer",
+				"Tout réduire",
+				"Échelle de temps",
+				"Jour",
+				"Semaine",
+				"Mois",
+				"Ajuster à la fenêtre",
+				"Localiser la tâche",
+				"Aujourd’hui",
+				"Liens de dépendance",
+				"Détails de la tâche",
+				"Enregistrer sous et vérifier",
+				"Annuler",
+				"Rétablir",
+				"Restaurer l’original",
+				"Nom de tâche",
+				"Durée d’origine",
+				"Début prévu",
+				"Fin prévue",
+				"Durée achevée %",
+				"Prédécesseurs",
+				"Ressources",
+				"Notes",
+				"Lecture seule",
+				"Tâches",
+				"Visibles",
+				"Calendriers",
+				"Modifié",
+				"Non modifié",
+				"Édition manuelle · Sans planification automatique",
+				"Lecture locale du planning…",
+				"Aucune tâche correspondante",
+				"Aucune date planifiée",
+				"Sélectionnez une tâche. Double-cliquez sur son nom pour modifier.",
+				"Format d’export",
+				"Nouveau nom de fichier",
+				"Exporter et vérifier",
+				"Annuler",
+				"Export et vérification…",
+				"Enregistré",
+				"Changer de projet abandonne les modifications non exportées. Continuer ?",
+				"Modifiez les noms, dates prévues, avancement en durée et notes. Les dépendances et dates réelles ne sont pas recalculées ; la durée reste celle du fichier source. MPP est exporté en Project XML, P6 en XER/XML. Vérifiez dans Project/P6."
+			],
+			de: [
+				"Projektterminplan",
+				"Aufgaben / PSP suchen",
+				"Alle Vorgänge",
+				"Kritische Vorgänge",
+				"Meilensteine",
+				"Unvollständige Vorgänge",
+				"Alles erweitern",
+				"Alles reduzieren",
+				"Zeitskala",
+				"Tag",
+				"Woche",
+				"Monat",
+				"An Fenster anpassen",
+				"Vorgang anzeigen",
+				"Heute",
+				"Abhängigkeiten",
+				"Vorgangsdetails",
+				"Speichern unter und prüfen",
+				"Rückgängig",
+				"Wiederholen",
+				"Original wiederherstellen",
+				"Vorgangsname",
+				"Ursprüngliche Dauer",
+				"Geplanter Anfang",
+				"Geplantes Ende",
+				"Dauer abgeschlossen %",
+				"Vorgänger",
+				"Ressourcen",
+				"Notizen",
+				"Schreibgeschützt",
+				"Vorgänge",
+				"Sichtbar",
+				"Kalender",
+				"Bearbeitet",
+				"Unverändert",
+				"Manuelle Bearbeitung · Keine automatische Planung",
+				"Terminplan wird lokal gelesen…",
+				"Keine passenden Vorgänge",
+				"Keine geplanten Termine",
+				"Vorgang auswählen. Zum Bearbeiten auf den Namen doppelklicken.",
+				"Exportformat",
+				"Neuer Dateiname",
+				"Exportieren und prüfen",
+				"Abbrechen",
+				"Exportieren und prüfen…",
+				"Gespeichert",
+				"Projektwechsel verwirft noch nicht exportierte Änderungen. Fortfahren?",
+				"Namen, geplante Termine, Dauerfortschritt und Notizen sind bearbeitbar. Abhängigkeiten und Ist-Termine werden nicht neu berechnet; die Dauer bleibt der Quellwert. MPP wird als Project XML, P6 als XER/XML gespeichert. In Project/P6 prüfen."
+			],
+			ja: [
+				"プロジェクト工程表",
+				"タスク / WBS を検索",
+				"すべてのタスク",
+				"クリティカルタスク",
+				"マイルストーン",
+				"未完了タスク",
+				"すべて展開",
+				"すべて折りたたむ",
+				"時間軸",
+				"日",
+				"週",
+				"月",
+				"ウィンドウに合わせる",
+				"タスクへ移動",
+				"今日",
+				"依存関係",
+				"タスク詳細",
+				"名前を付けて保存・検証",
+				"元に戻す",
+				"やり直す",
+				"元の計画に戻す",
+				"タスク名",
+				"元ファイルの期間",
+				"予定開始",
+				"予定終了",
+				"期間完了率 %",
+				"先行タスク",
+				"リソース",
+				"メモ",
+				"読み取り専用",
+				"タスク",
+				"表示",
+				"カレンダー",
+				"編集済み",
+				"未編集",
+				"手動編集 · 自動スケジュールなし",
+				"工程表をローカルで読み込み中…",
+				"一致するタスクはありません",
+				"表示できる予定日がありません",
+				"タスクを選択して詳細を表示。名前をダブルクリックして編集。",
+				"出力形式",
+				"新しいファイル名",
+				"出力・検証",
+				"キャンセル",
+				"出力・検証中…",
+				"保存済み",
+				"プロジェクトを切り替えると未出力の編集内容が失われます。続行しますか？",
+				"名前、予定日、期間完了率、メモを編集できます。依存関係や実績日は再計算しません。期間は元ファイルの値です。MPP は Project XML、P6 は XER/XML として出力します。Project/P6 で確認してください。"
+			],
+			ko: [
+				"프로젝트 일정",
+				"작업 / WBS 검색",
+				"모든 작업",
+				"주요 경로 작업",
+				"마일스톤",
+				"미완료 작업",
+				"모두 펼치기",
+				"모두 접기",
+				"시간 눈금",
+				"일",
+				"주",
+				"월",
+				"창에 맞추기",
+				"작업으로 이동",
+				"오늘",
+				"선후행 연결",
+				"작업 상세",
+				"다른 이름으로 저장 및 검증",
+				"실행 취소",
+				"다시 실행",
+				"원본 복원",
+				"작업 이름",
+				"원본 기간",
+				"계획 시작",
+				"계획 완료",
+				"기간 완료율 %",
+				"선행 작업",
+				"자원",
+				"메모",
+				"읽기 전용",
+				"작업",
+				"표시",
+				"달력",
+				"수정됨",
+				"수정 없음",
+				"수동 편집 · 자동 일정 계산 없음",
+				"일정을 로컬에서 읽는 중…",
+				"일치하는 작업 없음",
+				"표시할 계획 날짜 없음",
+				"작업을 선택하세요. 이름을 두 번 클릭하여 편집합니다.",
+				"내보내기 형식",
+				"새 파일 이름",
+				"내보내기 및 검증",
+				"취소",
+				"내보내기 및 검증 중…",
+				"저장됨",
+				"프로젝트를 변경하면 내보내지 않은 수정 사항이 사라집니다. 계속할까요?",
+				"이름, 계획 날짜, 기간 완료율, 메모를 편집할 수 있습니다. 선후행 관계와 실제 날짜는 재계산하지 않으며 기간은 원본 값입니다. MPP는 Project XML, P6는 XER/XML로 저장합니다. Project/P6에서 확인하세요."
+			],
+			pt: [
+				"Cronograma do projeto",
+				"Pesquisar tarefas / EAP",
+				"Todas as tarefas",
+				"Tarefas críticas",
+				"Marcos",
+				"Tarefas incompletas",
+				"Expandir tudo",
+				"Recolher tudo",
+				"Escala temporal",
+				"Dia",
+				"Semana",
+				"Mês",
+				"Ajustar à janela",
+				"Localizar tarefa",
+				"Hoje",
+				"Ligações de dependência",
+				"Detalhes da tarefa",
+				"Salvar como e verificar",
+				"Desfazer",
+				"Refazer",
+				"Restaurar original",
+				"Nome da tarefa",
+				"Duração original",
+				"Início planejado",
+				"Término planejado",
+				"Duração concluída %",
+				"Predecessoras",
+				"Recursos",
+				"Notas",
+				"Somente leitura",
+				"Tarefas",
+				"Visíveis",
+				"Calendários",
+				"Editado",
+				"Sem alterações",
+				"Edição manual · Sem agendamento automático",
+				"Lendo cronograma localmente…",
+				"Nenhuma tarefa correspondente",
+				"Nenhuma data planejada",
+				"Selecione uma tarefa. Clique duas vezes no nome para editar.",
+				"Formato de exportação",
+				"Novo nome do arquivo",
+				"Exportar e verificar",
+				"Cancelar",
+				"Exportando e verificando…",
+				"Salvo",
+				"Mudar de projeto descarta alterações ainda não exportadas. Continuar?",
+				"Edite nomes, datas planejadas, avanço por duração e notas. Dependências e datas reais não são recalculadas; a duração é a do arquivo original. MPP é salvo como Project XML; P6 como XER/XML. Revise no Project/P6."
+			],
+			ru: [
+				"Календарный план проекта",
+				"Поиск задач / СДР",
+				"Все задачи",
+				"Критические задачи",
+				"Вехи",
+				"Незавершённые задачи",
+				"Развернуть всё",
+				"Свернуть всё",
+				"Шкала времени",
+				"День",
+				"Неделя",
+				"Месяц",
+				"По ширине окна",
+				"Перейти к задаче",
+				"Сегодня",
+				"Связи задач",
+				"Сведения о задаче",
+				"Сохранить как и проверить",
+				"Отменить",
+				"Повторить",
+				"Восстановить исходный",
+				"Название задачи",
+				"Исходная длительность",
+				"Плановое начало",
+				"Плановое окончание",
+				"Завершение по длительности %",
+				"Предшественники",
+				"Ресурсы",
+				"Примечания",
+				"Только чтение",
+				"Задачи",
+				"Показано",
+				"Календари",
+				"Изменено",
+				"Без изменений",
+				"Ручное редактирование · Без автоматического планирования",
+				"Локальное чтение плана…",
+				"Подходящих задач нет",
+				"Нет плановых дат",
+				"Выберите задачу. Дважды щёлкните название для изменения.",
+				"Формат экспорта",
+				"Новое имя файла",
+				"Экспортировать и проверить",
+				"Отмена",
+				"Экспорт и проверка…",
+				"Сохранено",
+				"При смене проекта неэкспортированные изменения будут потеряны. Продолжить?",
+				"Можно менять названия, плановые даты, завершение по длительности и примечания. Связи и фактические даты не пересчитываются; длительность исходная. MPP сохраняется как Project XML, P6 как XER/XML. Проверьте в Project/P6."
+			],
+			ar: [
+				"الجدول الزمني للمشروع",
+				"بحث المهام / WBS",
+				"جميع المهام",
+				"المهام الحرجة",
+				"المعالم",
+				"المهام غير المكتملة",
+				"توسيع الكل",
+				"طي الكل",
+				"مقياس الزمن",
+				"يوم",
+				"أسبوع",
+				"شهر",
+				"ملاءمة النافذة",
+				"تحديد موقع المهمة",
+				"اليوم",
+				"روابط الاعتماد",
+				"تفاصيل المهمة",
+				"حفظ باسم والتحقق",
+				"تراجع",
+				"إعادة",
+				"استعادة الأصل",
+				"اسم المهمة",
+				"المدة الأصلية",
+				"البداية المخططة",
+				"النهاية المخططة",
+				"اكتمال المدة %",
+				"المهام السابقة",
+				"الموارد",
+				"ملاحظات",
+				"للقراءة فقط",
+				"المهام",
+				"المعروضة",
+				"التقويمات",
+				"تم التعديل",
+				"دون تعديل",
+				"تحرير يدوي · دون جدولة تلقائية",
+				"قراءة الجدول محليًا…",
+				"لا توجد مهام مطابقة",
+				"لا توجد تواريخ مخططة",
+				"اختر مهمة لعرض التفاصيل. انقر مرتين على الاسم لتحريره.",
+				"صيغة التصدير",
+				"اسم الملف الجديد",
+				"تصدير والتحقق",
+				"إلغاء",
+				"جارٍ التصدير والتحقق…",
+				"تم الحفظ",
+				"تغيير المشروع يلغي التعديلات التي لم تُصدّر. هل تريد المتابعة؟",
+				"يمكن تحرير الأسماء والتواريخ المخططة ونسبة اكتمال المدة والملاحظات. لا تُعاد جدولة العلاقات أو التواريخ الفعلية؛ المدة من الملف الأصلي. يُحفظ MPP بصيغة Project XML، وP6 بصيغة XER/XML. راجع النتيجة في Project/P6."
+			]
+		}).map(([lang, strings]) => [lang, Object.fromEntries(keys.map((key, i) => [key, strings[i]]))]));
+		for (const [lang, [view, gantt, exportWarning]] of Object.entries({
+			zh: [
+				"视图",
+				"甘特图",
+				"已另存并重新读取验证。格式转换可能丢失原软件特有字段；请在 Project/P6 中复核日历、依赖、资源及基线。"
+			],
+			en: [
+				"View",
+				"Gantt chart",
+				"Saved and verified by reopening. Conversion may lose source-specific fields; review calendars, dependencies, resources and baselines in Project/P6."
+			],
+			es: [
+				"Vista",
+				"Diagrama de Gantt",
+				"Guardado y verificado al volver a abrir. La conversión puede perder campos específicos; revise calendarios, dependencias, recursos y líneas base en Project/P6."
+			],
+			fr: [
+				"Vue",
+				"Diagramme de Gantt",
+				"Enregistré et vérifié par relecture. La conversion peut perdre des champs spécifiques ; vérifiez calendriers, dépendances, ressources et références dans Project/P6."
+			],
+			de: [
+				"Ansicht",
+				"Gantt-Diagramm",
+				"Gespeichert und durch erneutes Lesen geprüft. Formatspezifische Felder können verloren gehen; Kalender, Abhängigkeiten, Ressourcen und Basispläne in Project/P6 prüfen."
+			],
+			ja: [
+				"表示",
+				"ガントチャート",
+				"保存後に再読み込みして検証済みです。変換で固有の項目が失われる場合があります。Project/P6 でカレンダー、依存関係、リソース、基準計画を確認してください。"
+			],
+			ko: [
+				"보기",
+				"간트 차트",
+				"저장 후 다시 읽어 검증했습니다. 변환 시 고유 필드가 손실될 수 있으므로 Project/P6에서 달력, 선후행 관계, 자원, 기준선을 확인하세요."
+			],
+			pt: [
+				"Visualização",
+				"Gráfico de Gantt",
+				"Salvo e verificado por releitura. A conversão pode perder campos específicos; revise calendários, dependências, recursos e linhas de base no Project/P6."
+			],
+			ru: [
+				"Вид",
+				"Диаграмма Ганта",
+				"Файл сохранён и проверен повторным чтением. При преобразовании могут потеряться специфические поля; проверьте календари, связи, ресурсы и базовые планы в Project/P6."
+			],
+			ar: [
+				"العرض",
+				"مخطط جانت",
+				"تم الحفظ والتحقق بإعادة القراءة. قد تفقد عملية التحويل حقولًا خاصة؛ راجع التقويمات والعلاقات والموارد والخطط الأساسية في Project/P6."
+			]
+		})) Object.assign(projectPlanLocales[lang], {
+			view,
+			gantt,
+			exportWarning
+		});
+		function planTranslator(lang) {
+			return (key) => projectPlanLocales[lang]?.[key] || projectPlanLocales.en[key] || key;
+		}
+		//#endregion
 		//#region src/client/project-plan-preview.js
-		function createProjectPlanPreview({ React, api }) {
+		const EMPTY_TASKS = [];
+		function createProjectPlanPreview({ React, api, Icon, useApLang }) {
 			const h = React.createElement;
+			const icon = (name, size = 14) => {
+				if (name === "chevronRight" || name === "chevronDown" || name === "undo" || name === "redo") return h("svg", {
+					width: size,
+					height: size,
+					viewBox: "0 0 24 24",
+					fill: "none",
+					stroke: "currentColor",
+					strokeWidth: 1.6,
+					"aria-hidden": true,
+					style: name === "redo" ? { transform: "scaleX(-1)" } : void 0
+				}, h("path", {
+					d: name === "chevronRight" ? "m9 6 6 6-6 6" : name === "chevronDown" ? "m6 9 6 6 6-6" : "M3 10h10a6 6 0 0 1 0 12M3 10l5-5M3 10l5 5",
+					strokeLinecap: "round",
+					strokeLinejoin: "round"
+				}));
+				return Icon ? Icon(name, size) : null;
+			};
 			return function ProjectPlanPreview({ cwd, path, onEditState }) {
+				const lang = useApLang ? useApLang() : "zh", t = planTranslator(lang);
 				const [plan, setPlan] = React.useState(null);
-				const [error, setError] = React.useState("");
-				const [status, setStatus] = React.useState("");
-				const [busy, setBusy] = React.useState(false);
-				const [projectIndex, setProjectIndex] = React.useState(0);
-				const [edits, setEdits] = React.useState({});
-				const [savedEdits, setSavedEdits] = React.useState("{}");
-				const dirty = JSON.stringify(edits) !== savedEdits;
+				const [error, setError] = React.useState(""), [status, setStatus] = React.useState("");
+				const [busy, setBusy] = React.useState(false), [projectIndex, setProjectIndex] = React.useState(0);
+				const [history, setHistory] = React.useState({
+					past: [],
+					present: {},
+					future: []
+				});
+				const edits = history.present;
+				const [savedEdits, setSavedEdits] = React.useState("{}"), dirty = JSON.stringify(edits) !== savedEdits;
+				const [selectedKey, setSelectedKey] = React.useState(null), [collapsed, setCollapsed] = React.useState(/* @__PURE__ */ new Set());
+				const [query, setQuery] = React.useState(""), [filter, setFilter] = React.useState("all"), [scale, setScale] = React.useState("week");
+				const [showLinks, setShowLinks] = React.useState(true), [showDetails, setShowDetails] = React.useState(true);
+				const [exportOpen, setExportOpen] = React.useState(false), [inlineKey, setInlineKey] = React.useState(null);
+				const [inlineName, setInlineName] = React.useState("");
+				const [format, setFormat] = React.useState(/\.xer$/i.test(path) ? "xer" : /\.pmxml$/i.test(path) ? "pmxml" : "mspdi");
+				const [filename, setFilename] = React.useState(path.replaceAll("\\", "/").split("/").at(-1).replace(/\.[^.]+$/, "") + "-revision");
+				const [viewport, setViewport] = React.useState({
+					height: 500,
+					width: 700
+				});
+				const [scroll, setScroll] = React.useState({
+					top: 0,
+					tableLeft: 0,
+					chartLeft: 0
+				}), [split, setSplit] = React.useState(52);
+				const [mobilePane, setMobilePane] = React.useState("table");
+				const tableRef = React.useRef(null), chartRef = React.useRef(null), splitRef = React.useRef(null), dragRef = React.useRef(null);
+				const markerId = "plan-arrow-" + React.useId().replace(/[^a-z0-9]/gi, "");
 				React.useEffect(() => {
 					onEditState?.({
 						dirty,
@@ -2161,9 +3076,6 @@ window.__ModuleLoader__.load({
 					busy,
 					onEditState
 				]);
-				const [page, setPage] = React.useState(0);
-				const [format, setFormat] = React.useState(/\.xer$/i.test(path) ? "xer" : /\.pmxml$/i.test(path) ? "pmxml" : "mspdi");
-				const [filename, setFilename] = React.useState(path.replaceAll("\\", "/").split("/").at(-1).replace(/\.[^.]+$/, "") + "-修订");
 				React.useEffect(() => {
 					const abort = new AbortController();
 					api("/api/agent-pi/files/plan?path=" + encodeURIComponent(path), cwd, { signal: abort.signal }).then((value) => {
@@ -2173,29 +3085,159 @@ window.__ModuleLoader__.load({
 					});
 					return () => abort.abort();
 				}, [cwd, path]);
-				const project = plan?.projects[projectIndex];
-				const tasks = project?.tasks || [];
-				const range = React.useMemo(() => {
-					const currentTasks = tasks.map((task) => ({
-						...task,
-						...edits[task.uid]
+				React.useEffect(() => {
+					const node = chartRef.current;
+					if (!node) return;
+					const update = () => setViewport({
+						height: Math.max(node.clientHeight, tableRef.current?.clientHeight || 0),
+						width: node.clientWidth || splitRef.current?.clientWidth || 700
+					});
+					const observer = new ResizeObserver(update);
+					observer.observe(node);
+					if (tableRef.current) observer.observe(tableRef.current);
+					update();
+					for (const pane of [tableRef.current, chartRef.current]) if (pane?.clientHeight) pane.scrollTop = scroll.top;
+					return () => observer.disconnect();
+				}, [
+					plan,
+					showDetails,
+					exportOpen,
+					mobilePane
+				]);
+				const tasks = plan?.projects[projectIndex]?.tasks || EMPTY_TASKS;
+				const rows = React.useMemo(() => taskRows(tasks, edits), [tasks, edits]);
+				const rowByKey = React.useMemo(() => new Map(rows.map((row) => [row.key, row])), [rows]);
+				const rowByUid = React.useMemo(() => new Map(rows.filter((row) => row.uid != null).map((row) => [String(row.uid), row])), [rows]);
+				const visible = React.useMemo(() => visibleTaskRows(rows, {
+					collapsed,
+					query,
+					filter
+				}), [
+					rows,
+					collapsed,
+					query,
+					filter
+				]);
+				const visibleIndex = React.useMemo(() => new Map(visible.map((row, index) => [row.key, index])), [visible]);
+				const selected = rowByKey.get(selectedKey) || null;
+				const range = React.useMemo(() => timelineRange(rows, scale, viewport.width), [
+					rows,
+					scale,
+					viewport.width
+				]);
+				const ticks = React.useMemo(() => timelineTicks(range, scale), [range, scale]);
+				const windowRows = virtualWindow(visible.length, scroll.top, viewport.height);
+				const links = React.useMemo(() => showLinks ? dependencyPaths(visible, range, windowRows.from, windowRows.to) : [], [
+					visible,
+					range,
+					windowRows.from,
+					windowRows.to,
+					showLinks
+				]);
+				const dateText = (value) => value ? String(value).slice(0, 10).replaceAll("-", "/") : "—";
+				const tickText = (value, month = false) => new Intl.DateTimeFormat(lang, {
+					timeZone: "UTC",
+					...month ? {
+						year: "numeric",
+						month: "short"
+					} : {
+						month: "numeric",
+						day: "numeric"
+					}
+				}).format(new Date(value));
+				const dependencyText = (row) => (row.predecessors || []).map((link) => {
+					return `${rowByUid.get(String(link.uid))?.id ?? link.uid}${relationCode(link.type) || link.type || ""}${link.lag && !/^0(?:\.0+)?\D/.test(link.lag) ? " " + link.lag : ""}`;
+				}).join(", ");
+				const synchronize = (side, node) => {
+					const other = side === "table" ? chartRef.current : tableRef.current;
+					if (other && Math.abs(other.scrollTop - node.scrollTop) > 1) other.scrollTop = node.scrollTop;
+					setScroll((previous) => ({
+						...previous,
+						top: node.scrollTop,
+						[side === "table" ? "tableLeft" : "chartLeft"]: node.scrollLeft
 					}));
-					const starts = currentTasks.map((task) => Date.parse(task.start)).filter(Number.isFinite);
-					const finishes = currentTasks.map((task) => Date.parse(task.finish)).filter(Number.isFinite);
-					const start = starts.reduce((a, b) => Math.min(a, b), Infinity);
-					const finish = finishes.reduce((a, b) => Math.max(a, b), -Infinity);
-					return {
-						start,
-						finish,
-						span: Math.max(864e5, finish - start)
-					};
-				}, [tasks, edits]);
+				};
+				React.useEffect(() => {
+					for (const node of [tableRef.current, chartRef.current]) if (node) node.scrollTop = 0;
+					setScroll((previous) => ({
+						...previous,
+						top: 0
+					}));
+				}, [
+					query,
+					filter,
+					collapsed,
+					projectIndex
+				]);
+				const selectTask = (row, locate = false) => {
+					if (!row) return;
+					setSelectedKey(row.key);
+					if (!locate) return;
+					setQuery("");
+					setFilter("all");
+					const expanded = new Set(collapsed);
+					row.parents.forEach((key) => expanded.delete(key));
+					setCollapsed(expanded);
+					requestAnimationFrame(() => requestAnimationFrame(() => {
+						const index = visibleTaskRows(rows, { collapsed: expanded }).findIndex((item) => item.key === row.key);
+						const top = Math.max(0, index * 28 - viewport.height / 3);
+						for (const node of [tableRef.current, chartRef.current]) if (node) node.scrollTop = top;
+						const shape = taskGeometry(row, range);
+						if (shape && chartRef.current) chartRef.current.scrollLeft = Math.max(0, shape.left - viewport.width / 3);
+					}));
+				};
+				const toggle = (row) => setCollapsed((previous) => {
+					const next = new Set(previous);
+					if (next.has(row.key)) next.delete(row.key);
+					else next.add(row.key);
+					return next;
+				});
+				const change = (row, key, value) => {
+					if (busy || row.uid == null) return;
+					setStatus("");
+					setHistory((previous) => {
+						if ((previous.present[row.uid]?.[key] ?? row[key] ?? "") === (value ?? "")) return previous;
+						const next = {
+							...previous.present,
+							[row.uid]: {
+								...previous.present[row.uid],
+								uid: row.uid,
+								[key]: value
+							}
+						};
+						if ((tasks[row.sourceIndex]?.[key] ?? "") === (value ?? "")) {
+							delete next[row.uid][key];
+							if (Object.keys(next[row.uid]).length === 1) delete next[row.uid];
+						}
+						return {
+							past: [...previous.past.slice(-79), previous.present],
+							present: next,
+							future: []
+						};
+					});
+				};
+				const undo = () => {
+					setStatus("");
+					setHistory((previous) => previous.past.length ? {
+						past: previous.past.slice(0, -1),
+						present: previous.past.at(-1),
+						future: [previous.present, ...previous.future]
+					} : previous);
+				};
+				const redo = () => {
+					setStatus("");
+					setHistory((previous) => previous.future.length ? {
+						past: [...previous.past, previous.present],
+						present: previous.future[0],
+						future: previous.future.slice(1)
+					} : previous);
+				};
 				const exportPlan = async () => {
 					setBusy(true);
 					setError("");
 					setStatus("");
 					try {
-						const result = await api("/api/agent-pi/files/plan/export", cwd, {
+						setStatus({ filename: (await api("/api/agent-pi/files/plan/export", cwd, {
 							method: "POST",
 							body: JSON.stringify({
 								path,
@@ -2205,9 +3247,9 @@ window.__ModuleLoader__.load({
 								format,
 								filename
 							})
-						});
-						setStatus(`已保存：${result.filename}。${result.warning}`);
+						})).filename });
 						setSavedEdits(JSON.stringify(edits));
+						setExportOpen(false);
 						window.dispatchEvent(new Event("agent-pi-files-changed"));
 					} catch (error) {
 						setError(error.message);
@@ -2215,140 +3257,385 @@ window.__ModuleLoader__.load({
 						setBusy(false);
 					}
 				};
-				const field = (task, key, type = "text") => h("input", {
-					type,
-					"aria-label": `${task.name || task.uid} ${key}`,
-					disabled: busy || task.uid == null,
-					value: Object.hasOwn(edits[task.uid] || {}, key) ? edits[task.uid][key] ?? "" : task[key] ?? "",
+				const control = (label, handler, disabled = false, symbol, extra = {}) => h("button", {
+					type: "button",
+					title: label,
+					onClick: handler,
+					disabled,
+					...extra
+				}, symbol ? icon(symbol) : null, label);
+				const field = (row, key, label, type = "text") => h("label", { className: key === "name" ? "name" : void 0 }, t(label), h(key === "notes" ? "textarea" : "input", {
+					type: key === "notes" ? void 0 : type,
+					"aria-label": t(label),
+					disabled: busy || row.uid == null,
+					value: row[key] ?? "",
 					...type === "number" ? {
 						min: 0,
 						max: 100,
 						step: 1
 					} : {},
 					...type === "datetime-local" ? { step: 1 } : {},
-					onChange: (event) => {
-						const value = type === "number" ? Number(event.target.value) : type === "datetime-local" ? event.target.value || null : event.target.value;
-						setStatus("");
-						setEdits((previous) => ({
-							...previous,
-							[task.uid]: {
-								...previous[task.uid],
-								uid: task.uid,
-								[key]: value
-							}
-						}));
-					},
-					style: {
-						width: key === "name" ? 240 : type === "number" ? 65 : 175,
-						padding: 5
+					onChange: (event) => change(row, key, type === "number" ? Number(event.target.value) : event.target.value || (type === "datetime-local" ? null : ""))
+				}));
+				const moveSelection = (event, row) => {
+					if (event.target.tagName === "INPUT") return;
+					const index = visibleIndex.get(row.key);
+					if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+						event.preventDefault();
+						const next = visible[Math.max(0, Math.min(visible.length - 1, index + (event.key === "ArrowDown" ? 1 : -1)))];
+						selectTask(next);
+						const node = tableRef.current, targetIndex = visibleIndex.get(next.key);
+						if (node && (targetIndex * 28 < node.scrollTop || (targetIndex + 1) * 28 > node.scrollTop + node.clientHeight)) node.scrollTop = Math.max(0, targetIndex * 28 - node.clientHeight / 2);
+						requestAnimationFrame(() => tableRef.current?.querySelector(`[data-index="${targetIndex}"]`)?.focus({ preventScroll: true }));
+					} else if (event.key === "ArrowLeft" && row.hasChildren && !collapsed.has(row.key) || event.key === "ArrowRight" && row.hasChildren && collapsed.has(row.key)) {
+						event.preventDefault();
+						toggle(row);
+					} else if (event.key === "Enter") {
+						event.preventDefault();
+						setShowDetails(true);
+						selectTask(row);
 					}
-				});
-				if (!plan) return h("p", { role: error ? "alert" : "status" }, error || "正在本机读取项目计划…");
+				};
+				const rowContent = (row, index) => h("div", {
+					key: row.key,
+					role: "row",
+					"aria-rowindex": index + 2,
+					"aria-selected": selectedKey === row.key,
+					"aria-expanded": row.hasChildren ? !collapsed.has(row.key) : void 0,
+					"data-index": index,
+					className: "ap-plan-task-row" + (selectedKey === row.key ? " selected" : "") + (row.summary ? " summary" : ""),
+					style: { top: index * 28 },
+					tabIndex: selectedKey === row.key || !selectedKey && index === 0 ? 0 : -1,
+					onClick: () => selectTask(row),
+					onKeyDown: (event) => moveSelection(event, row)
+				}, h("div", {
+					role: "gridcell",
+					className: "ap-plan-cell row-number"
+				}, row.id ?? row.sourceIndex + 1), h("div", {
+					role: "gridcell",
+					className: "ap-plan-cell",
+					title: row.wbs || row.activityId || ""
+				}, row.wbs || row.activityId || "—"), h("div", {
+					role: "gridcell",
+					className: "ap-plan-cell task-name",
+					style: { paddingLeft: 6 + Math.min(12, row.parents.length) * 14 },
+					title: row.name || "",
+					onDoubleClick: () => {
+						if (!busy && row.uid != null) {
+							setInlineKey(row.key);
+							setInlineName(row.name || "");
+						}
+					}
+				}, row.hasChildren ? h("button", {
+					type: "button",
+					"aria-label": (collapsed.has(row.key) ? t("expand") : t("collapse")) + ": " + row.name,
+					onClick: (event) => {
+						event.stopPropagation();
+						toggle(row);
+					}
+				}, icon(collapsed.has(row.key) ? "chevronRight" : "chevronDown", 12)) : h("i", { className: "ap-plan-caret-space" }), inlineKey === row.key ? h("input", {
+					autoFocus: true,
+					value: inlineName,
+					"aria-label": t("name"),
+					onChange: (event) => setInlineName(event.target.value),
+					onClick: (event) => event.stopPropagation(),
+					onBlur: () => {
+						change(row, "name", inlineName);
+						setInlineKey(null);
+					},
+					onKeyDown: (event) => {
+						if (event.key === "Enter") event.target.blur();
+						if (event.key === "Escape") setInlineKey(null);
+					}
+				}) : h("span", null, row.name || "—"), edits[row.uid] ? h("i", {
+					className: "ap-plan-modified",
+					title: t("changed")
+				}, "•") : null), ...[
+					row.duration || "—",
+					dateText(row.start),
+					dateText(row.finish),
+					`${Number(row.percent || 0).toFixed(0)}%`,
+					dependencyText(row) || "—"
+				].map((value, i) => h("div", {
+					key: i,
+					role: "gridcell",
+					className: "ap-plan-cell",
+					title: String(value)
+				}, value)));
+				if (!plan) return h("div", { className: "ap-plan" }, h("style", null, projectPlanCss), h("div", {
+					className: "ap-plan-empty",
+					role: error ? "alert" : "status"
+				}, error || t("loading")));
+				const project = plan.projects[projectIndex], today = /* @__PURE__ */ new Date();
+				const todayX = range?.x(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
 				return h("section", {
-					className: "ap-project-plan",
-					style: { padding: 16 }
-				}, h("p", null, "任务表与甘特图 · MPXJ 16.7.0"), h("p", null, "可修改名称、计划起止时间、工期完成率和备注，另存为新文件。工期完成率会更新剩余工期；不改实际日期，不自动重排计划。MPP 导出为 Project XML。"), h("label", null, "项目 ", h("select", {
+					className: "ap-plan",
+					"aria-label": t("title"),
+					dir: lang === "ar" ? "rtl" : "ltr",
+					onKeyDown: (event) => {
+						if (!busy && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z" && ![
+							"INPUT",
+							"TEXTAREA",
+							"SELECT"
+						].includes(event.target.tagName)) {
+							event.preventDefault();
+							if (event.shiftKey) redo();
+							else undo();
+						}
+					}
+				}, h("style", null, projectPlanCss), h("div", { className: "ap-plan-toolbar" }, h("strong", null, t("title")), h("select", {
+					className: "ap-plan-project",
+					"aria-label": t("title"),
 					value: projectIndex,
 					disabled: busy,
 					onChange: (event) => {
-						if (dirty && !window.confirm("切换项目将丢弃尚未导出的编辑，是否继续？")) return;
+						if (dirty && !window.confirm(t("switch"))) return;
 						setProjectIndex(Number(event.target.value));
-						setEdits({});
+						setHistory({
+							past: [],
+							present: {},
+							future: []
+						});
 						setSavedEdits("{}");
-						setPage(0);
+						setCollapsed(/* @__PURE__ */ new Set());
+						setSelectedKey(null);
+						setInlineKey(null);
 						setStatus("");
+						setError("");
+						setQuery("");
+						setFilter("all");
 					}
-				}, plan.projects.map((project, index) => h("option", {
+				}, plan.projects.map((item, index) => h("option", {
 					key: index,
 					value: index
-				}, project.name || `项目 ${index + 1}`)))), h("p", null, `${tasks.length} 项任务 · ${project?.calendarCount || 0} 个日历 · ${project?.resourceCount || 0} 项资源`), Number.isFinite(range.start) && Number.isFinite(range.finish) ? h("p", null, `甘特时间范围：${new Date(range.start).toLocaleDateString()} — ${new Date(range.finish).toLocaleDateString()}`) : null, h("div", { style: {
-					overflow: "auto",
-					maxHeight: "56vh"
-				} }, h("table", { style: {
-					borderCollapse: "collapse",
-					fontSize: 13,
-					width: "100%"
-				} }, h("thead", null, h("tr", null, [
-					"WBS / ID",
-					"任务名称",
-					"计划开始",
-					"计划完成",
-					"工期完成 %",
-					"前置任务",
-					"甘特图",
-					"备注"
-				].map((name) => h("th", {
-					key: name,
-					style: {
-						textAlign: "left",
-						padding: 8,
-						whiteSpace: "nowrap"
+				}, item.name || `${t("title")} ${index + 1}`))), h("input", {
+					className: "ap-plan-search",
+					type: "search",
+					placeholder: t("search"),
+					"aria-label": t("search"),
+					value: query,
+					onChange: (event) => setQuery(event.target.value)
+				}), h("select", {
+					"aria-label": t("tasks"),
+					value: filter,
+					onChange: (event) => setFilter(event.target.value)
+				}, [
+					"all",
+					"critical",
+					"milestone",
+					"incomplete"
+				].map((value) => h("option", {
+					key: value,
+					value
+				}, t(value)))), h("select", {
+					className: "ap-plan-mobile-view",
+					"aria-label": t("view"),
+					value: mobilePane,
+					onChange: (event) => setMobilePane(event.target.value)
+				}, h("option", { value: "table" }, t("tasks")), h("option", { value: "chart" }, t("gantt"))), h("div", { className: "ap-plan-tools" }, control(t("expand"), () => setCollapsed(/* @__PURE__ */ new Set()), false, "chevronDown"), control(t("collapse"), () => setCollapsed(new Set(rows.filter((row) => row.hasChildren).map((row) => row.key))), false, "chevronRight"), h("select", {
+					"aria-label": t("scale"),
+					value: scale,
+					onChange: (event) => {
+						setScale(event.target.value);
+						if (chartRef.current) chartRef.current.scrollLeft = 0;
 					}
-				}, name)))), h("tbody", null, tasks.slice(page * 100, (page + 1) * 100).map((task, index) => {
-					const current = {
-						...task,
-						...edits[task.uid]
-					};
-					const start = Date.parse(current.start), finish = Date.parse(current.finish);
-					const left = Math.max(0, Math.min(99, 100 * (start - range.start) / range.span));
-					const width = Math.max(1, Math.min(100 - left, 100 * (finish - start) / range.span));
-					return h("tr", {
-						key: task.uid ?? `row-${page}-${index}`,
-						style: { borderTop: "1px solid #ddd" }
-					}, h("td", null, task.wbs || task.activityId || task.id), h("td", { style: { paddingLeft: Math.min(5, task.level || 0) * 8 } }, field(task, "name")), h("td", null, field(task, "start", "datetime-local")), h("td", null, field(task, "finish", "datetime-local")), h("td", null, field(task, "percent", "number")), h("td", null, task.predecessors.map((link) => `${link.uid} ${link.type} ${link.lag || ""}`).join(", ")), h("td", {
-						style: { minWidth: 220 },
-						title: `${current.start || ""} → ${current.finish || ""}`
-					}, Number.isFinite(start) && Number.isFinite(finish) && Number.isFinite(range.start) ? h("div", { style: {
-						position: "relative",
-						width: 220,
-						height: 18,
-						background: "#edf2f6"
-					} }, h("div", { style: {
-						position: "absolute",
-						left: left + "%",
-						width: width + "%",
-						height: 14,
-						top: 2,
-						borderRadius: 3,
-						background: task.critical ? "#d97848" : "#1397a8"
-					} })) : "无日期"), h("td", null, field(task, "notes")));
-				})))), h("div", { style: {
-					display: "flex",
-					gap: 12,
-					padding: "12px 0",
-					alignItems: "center",
-					flexWrap: "wrap"
-				} }, h("button", {
-					type: "button",
-					disabled: page === 0,
-					onClick: () => setPage((value) => value - 1)
-				}, "上一页"), h("span", null, `${page + 1} / ${Math.max(1, Math.ceil(tasks.length / 100))}`), h("button", {
-					type: "button",
-					disabled: (page + 1) * 100 >= tasks.length,
-					onClick: () => setPage((value) => value + 1)
-				}, "下一页"), h("label", null, "导出格式 ", h("select", {
+				}, [
+					"day",
+					"week",
+					"month",
+					"fit"
+				].map((value) => h("option", {
+					key: value,
+					value
+				}, t(value)))), control(t("locate"), () => selectTask(selected, true), !selected || !taskGeometry(selected, range), "search"), control(t("today"), () => {
+					if (chartRef.current) chartRef.current.scrollLeft = Math.max(0, todayX - viewport.width / 2);
+				}, !range || todayX < 0 || todayX > range.width), h("label", null, h("input", {
+					type: "checkbox",
+					checked: showLinks,
+					onChange: (event) => setShowLinks(event.target.checked)
+				}), t("links")), control(t("details"), () => setShowDetails((value) => !value), false, void 0, { "aria-pressed": showDetails }), control(t("undo"), undo, busy || !history.past.length, "undo"), control(t("redo"), redo, busy || !history.future.length, "redo"), control(t("save"), () => setExportOpen((value) => !value), busy, "save", {
+					className: "primary",
+					"aria-expanded": exportOpen
+				}))), exportOpen ? h("div", { className: "ap-plan-export" }, h("label", null, t("format"), h("select", {
 					value: format,
 					disabled: busy,
 					onChange: (event) => setFormat(event.target.value)
-				}, h("option", { value: "mspdi" }, "Project XML（当前项目）"), h("option", { value: "pmxml" }, "P6 XML（全部项目）"), h("option", { value: "xer" }, "P6 XER（全部项目，UTF-8）"))), h("label", null, "新文件名 ", h("input", {
+				}, h("option", { value: "mspdi" }, "Project XML"), h("option", { value: "pmxml" }, "P6 XML"), h("option", { value: "xer" }, "P6 XER · UTF-8"))), h("label", null, t("filename"), h("input", {
 					value: filename,
 					disabled: busy,
 					onChange: (event) => setFilename(event.target.value)
-				})), h("button", {
-					type: "button",
-					disabled: busy,
-					onClick: exportPlan
-				}, busy ? "正在导出并校验…" : "另存并校验"), h("button", {
-					type: "button",
-					disabled: busy,
-					onClick: () => {
-						setEdits({});
-						setStatus("");
+				})), control(busy ? t("saving") : t("export"), exportPlan, busy || !filename.trim(), "save", { className: "primary" }), control(t("cancel"), () => setExportOpen(false), busy)) : null, error ? h("div", {
+					className: "ap-plan-message error",
+					role: "alert"
+				}, error) : null, status ? h("div", {
+					className: "ap-plan-message success",
+					role: "status"
+				}, `${t("saved")}: ${status.filename}. ${t("exportWarning")}`) : null, h("div", {
+					className: `ap-plan-split ${mobilePane}-view`,
+					ref: splitRef,
+					style: { "--ap-plan-table": `${split}%` }
+				}, h("div", { className: "ap-plan-pane" }, h("div", { className: "ap-plan-header" }, h("div", {
+					className: "ap-plan-grid-head",
+					role: "row",
+					style: { transform: `translateX(${-scroll.tableLeft}px)` }
+				}, [
+					"ID",
+					"WBS",
+					t("name"),
+					t("duration"),
+					t("start"),
+					t("finish"),
+					t("percent"),
+					t("predecessors")
+				].map((label) => h("div", {
+					key: label,
+					role: "columnheader",
+					title: label
+				}, label)))), h("div", {
+					className: "ap-plan-scroll",
+					ref: tableRef,
+					onScroll: (event) => synchronize("table", event.currentTarget)
+				}, h("div", {
+					className: "ap-plan-grid-content",
+					role: "grid",
+					"aria-label": t("tasks"),
+					"aria-rowcount": visible.length + 1,
+					style: { height: visible.length * 28 }
+				}, visible.slice(windowRows.from, windowRows.to).map((row, offset) => rowContent(row, windowRows.from + offset)), !visible.length ? h("div", { className: "ap-plan-empty" }, t("empty")) : null))), h("div", {
+					className: "ap-plan-divider",
+					role: "separator",
+					tabIndex: 0,
+					"aria-label": t("title"),
+					"aria-orientation": "vertical",
+					"aria-valuenow": split,
+					"aria-valuemin": 25,
+					"aria-valuemax": 75,
+					onPointerDown: (event) => {
+						dragRef.current = event.pointerId;
+						event.currentTarget.setPointerCapture(event.pointerId);
+					},
+					onPointerMove: (event) => {
+						if (dragRef.current !== event.pointerId) return;
+						const rect = splitRef.current.getBoundingClientRect();
+						setSplit(Math.max(25, Math.min(75, (event.clientX - rect.left) / rect.width * 100)));
+					},
+					onPointerUp: () => {
+						dragRef.current = null;
+					},
+					onPointerCancel: () => {
+						dragRef.current = null;
+					},
+					onKeyDown: (event) => {
+						if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+							event.preventDefault();
+							setSplit((value) => Math.max(25, Math.min(75, value + (event.key === "ArrowLeft" ? -2 : 2))));
+						}
 					}
-				}, "撤销编辑")), error ? h("p", {
-					role: "alert",
-					style: { color: "#c33636" }
-				}, error) : null, status ? h("p", { role: "status" }, status) : null);
+				}), h("div", { className: "ap-plan-pane" }, h("div", { className: "ap-plan-header" }, h("div", {
+					className: "ap-plan-ruler",
+					style: {
+						width: range?.width || "100%",
+						transform: `translateX(${-scroll.chartLeft}px)`
+					}
+				}, ...ticks.months.map((tick) => h("div", {
+					key: `m:${tick.date}`,
+					className: "ap-plan-ruler-cell",
+					style: {
+						left: range.x(tick.start),
+						width: range.x(tick.end) - range.x(tick.start)
+					}
+				}, tickText(tick.date, true))), ...ticks.units.map((tick) => h("div", {
+					key: `u:${tick.date}`,
+					className: "ap-plan-ruler-cell unit",
+					style: {
+						left: range.x(tick.start),
+						width: range.x(tick.end) - range.x(tick.start)
+					}
+				}, tickText(tick.date))))), h("div", {
+					className: "ap-plan-scroll",
+					ref: chartRef,
+					onScroll: (event) => synchronize("chart", event.currentTarget)
+				}, h("div", {
+					className: "ap-plan-chart-content",
+					style: {
+						width: range?.width || "100%",
+						height: visible.length * 28
+					}
+				}, h("div", { className: "ap-plan-chart-grid" }, ticks.units.map((tick) => h("i", {
+					key: tick.date,
+					className: "ap-plan-tick",
+					style: { left: range.x(tick.start) }
+				}))), visible.slice(windowRows.from, windowRows.to).map((row, offset) => {
+					const index = windowRows.from + offset, shape = taskGeometry(row, range);
+					return h("div", {
+						key: row.key,
+						className: "ap-plan-chart-row" + (selectedKey === row.key ? " selected" : ""),
+						style: { top: index * 28 },
+						onClick: () => selectTask(row)
+					}, shape ? h("button", {
+						type: "button",
+						className: "ap-plan-bar" + (row.summary ? " summary" : row.milestone ? " milestone" : "") + (row.critical ? " critical" : "") + (selectedKey === row.key ? " selected" : ""),
+						style: {
+							left: shape.left,
+							width: shape.width
+						},
+						"aria-label": row.name || String(row.uid),
+						title: `${row.name}\n${dateText(row.start)} → ${dateText(row.finish)} · ${Number(row.percent || 0)}%`,
+						onClick: (event) => {
+							event.stopPropagation();
+							selectTask(row);
+						}
+					}, !row.summary && !row.milestone ? h("span", {
+						className: "ap-plan-progress",
+						style: { width: `${Math.max(0, Math.min(100, Number(row.percent || 0)))}%` }
+					}) : null) : null);
+				}), range && showLinks ? h("svg", {
+					className: "ap-plan-links",
+					width: range.width,
+					height: visible.length * 28,
+					"aria-hidden": true
+				}, h("defs", null, h("marker", {
+					id: markerId,
+					viewBox: "0 0 6 6",
+					refX: 5,
+					refY: 3,
+					markerWidth: 5,
+					markerHeight: 5,
+					orient: "auto-start-reverse"
+				}, h("path", {
+					d: "M0,0 L6,3 L0,6 Z",
+					fill: "#6592b8"
+				}))), links.map((link) => h("path", {
+					key: link.key,
+					d: link.path,
+					fill: "none",
+					stroke: selectedKey === link.targetKey || selectedKey === link.sourceKey ? "#217ac0" : "#94b9d8",
+					strokeWidth: selectedKey === link.targetKey || selectedKey === link.sourceKey ? 1.5 : 1,
+					markerEnd: `url(#${markerId})`
+				}))) : null, range && todayX >= 0 && todayX <= range.width ? h("div", {
+					className: "ap-plan-today",
+					style: { left: todayX }
+				}, h("span", null, t("today"))) : null, !range ? h("div", { className: "ap-plan-empty" }, t("noDates")) : null)))), showDetails ? selected ? h("div", { className: "ap-plan-inspector" }, h("div", { className: "ap-plan-detail-fields" }, field(selected, "name", "name"), field(selected, "start", "start", "datetime-local"), field(selected, "finish", "finish", "datetime-local"), field(selected, "percent", "percent", "number")), h("div", { className: "ap-plan-detail-read" }, h("div", null, h("span", null, `${t("resources")} · ${t("readonly")}`), selected.resources || "—"), h("div", null, h("span", null, `${t("predecessors")} · ${t("readonly")}`), (selected.predecessors || []).length ? selected.predecessors.map((link, index) => {
+					const row = rowByUid.get(String(link.uid));
+					return h("button", {
+						key: index,
+						type: "button",
+						disabled: !row,
+						title: row?.name || "",
+						onClick: () => selectTask(row, true)
+					}, `${row?.id ?? link.uid}${relationCode(link.type) || link.type || ""} ${link.lag || ""}`);
+				}) : "—"), h("div", null, h("span", null, t("duration")), selected.duration || "—")), field(selected, "notes", "notes")) : h("div", { className: "ap-plan-help" }, t("select")) : null, h("div", { className: "ap-plan-footer" }, `${t("tasks")}: ${tasks.length}`, `${t("visible")}: ${visible.length}`, `${t("calendars")}: ${project.calendarCount || 0}`, Object.keys(edits).length ? `${t("changed")}: ${Object.keys(edits).length}${dirty ? " *" : ""}` : t("original"), control(t("reset"), () => {
+					setHistory({
+						past: [...history.past, edits],
+						present: {},
+						future: []
+					});
+					setStatus("");
+				}, busy || !Object.keys(edits).length), t("manual"), h("span", { className: "ap-plan-legend" }, ...[
+					"all",
+					"critical",
+					"milestone"
+				].map((key) => h("span", { key }, h("i", { className: key }), t(key))))), h("details", { className: "ap-plan-help" }, h("summary", null, plan.engine || "MPXJ"), t("help")));
 			};
 		}
 		//#endregion
@@ -2357,7 +3644,9 @@ window.__ModuleLoader__.load({
 			const { DocBtn, FileContextMenu, Icon, PREVIEW_HEAD_CHARS, PREVIEW_TABLE_ROW_CAP, React, ReactDOM, api, apiBlob, attachFolderPath, attachItemsOf, attachSessionId, buildPreviewSelectionFollowup, captureComposerFace, chooseAndUpload, chooseFolderForChat, codexTurnArmed, codexTurnListeners, currentDraft, dispatchToConversation, displayFileName, downloadBlob, escapeHtml, fileIconClass, fileIconName, fillComposer, fillMdTables, flattenFiles, foldAndSubmit, h, htmlToMarkdown, importWorkspaceFileToKb, looksLikeKbPackName, mdToHtml, mentionInChat, openInExplorer, previewIsHeavy, rawFileUrl, readDraft, readReasoningEffort, readWorkspaceCwd, replaceChildren, runtime, setCodexTurnArmed, showToast, slicePreviewMarkdown, snapshotComposer, snapshotFileList, sourceLabel, stitchMarkdown, stripComposerMentions, tAp, uploadFileList, useApLang, useAttachItems, wrapComposerSubmit } = dependencies;
 			const ProjectPlanPreview = createProjectPlanPreview({
 				React,
-				api
+				api,
+				Icon,
+				useApLang
 			});
 			const PREVIEW_CACHE_MAX = 8;
 			const previewCache = /* @__PURE__ */ new Map();
@@ -3297,7 +4586,7 @@ window.__ModuleLoader__.load({
 					}).catch((err) => setError(String(err && err.message || err)));
 				}, [Icon("folder", 14), "系统打开"], loading || !!busy) : null, kbSlug ? null : canExport ? h("div", { className: "ap-doc-exports" }, DocBtn("导出 Markdown", () => exportFile("md"), [Icon("download", 14), " MD"], !!busy), DocBtn("导出 PDF", () => exportFile("pdf"), [Icon("download", 14), " PDF"], !!busy), DocBtn("导出 Word", () => exportFile("docx"), [Icon("download", 14), " DOCX"], !!busy)) : null, kind === "binary" || kind === "pdf" || kind === "image" || isOffice || kind === "html" || isCad || kind === "project-plan" ? DocBtn("下载原件", () => {
 					apiBlob("/api/agent-pi/files/raw?path=" + encodeURIComponent(file.path), cwd, { method: "GET" }).then((result) => downloadBlob(result.blob, result.filename || file.name)).catch((e) => setError(String(e.message || e)));
-				}, [Icon("download", 14)], !!busy) : null, DocBtn("关闭", closePreview, [Icon("x", 14)]))), h("div", { className: "ap-doc-scroll" + (isUniver ? " univer" : isCad ? " cad" : "") }, isUniver || isCad ? h(React.Fragment, null, error ? h("div", {
+				}, [Icon("download", 14)], !!busy) : null, DocBtn("关闭", closePreview, [Icon("x", 14)]))), h("div", { className: "ap-doc-scroll" + (isUniver ? " univer" : isCad ? " cad" : kind === "project-plan" ? " plan" : "") }, isUniver || isCad || kind === "project-plan" ? h(React.Fragment, null, error ? h("div", {
 					className: "ap-err",
 					style: {
 						padding: "8px 12px",

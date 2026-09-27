@@ -60,7 +60,7 @@ export function createFilePreviewOverlay(dependencies) {
     useAttachItems,
     wrapComposerSubmit,
   } = dependencies
-  const ProjectPlanPreview = createProjectPlanPreview({ React, api })
+  const ProjectPlanPreview = createProjectPlanPreview({ React, api, Icon, useApLang })
 
   const PREVIEW_CACHE_MAX = 8
   const previewCache = new Map()
@@ -1014,8 +1014,8 @@ export function createFilePreviewOverlay(dependencies) {
             DocBtn('关闭', closePreview, [Icon('x', 14)]),
           ),
         ),
-        h('div', { className: 'ap-doc-scroll' + (isUniver ? ' univer' : (isCad ? ' cad' : '')) },
-          isUniver || isCad
+        h('div', { className: 'ap-doc-scroll' + (isUniver ? ' univer' : (isCad ? ' cad' : (kind === 'project-plan' ? ' plan' : ''))) },
+          isUniver || isCad || kind === 'project-plan'
             ? h(React.Fragment, null,
               error ? h('div', { className: 'ap-err', style: { padding: '8px 12px', position: 'relative', zIndex: 2 } }, error) : null,
               ((!isOfficeUniver && !isCad) || (isCad && error)) && status ? h('div', { className: 'ap-doc-status', style: { padding: '8px 12px', position: 'relative', zIndex: 2 } }, status) : null,
