@@ -1,6 +1,6 @@
 # Vendored DSH plugins
 
-Agent Pi DSH 3.7.5 uses the official `dsh-v0.1.7-rc.2` core pinned by `DSH_PIN`. Official core plugins, including Agent Teams, ship from that same unmodified source revision. No whole-system-prompt replacement is applied.
+Agent Pi DSH 3.7.6 uses the official DSH `main` commit pinned by `DSH_PIN`, after the `dsh-v0.1.7-rc.2` release. Official core plugins, including Agent Teams, ship from that same unmodified source revision. No whole-system-prompt replacement is applied.
 
 | Directory | Bundled version | Product role |
 |---|---|---|

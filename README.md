@@ -8,7 +8,9 @@
 
 <h1 align="center">Agent Pi DSH</h1>
 
-3.7.5 开发及本地交付新增专业任务引导、项目国别与依据评估、BOQ 成本/资源推导和实际递交清单检查，沿用原生 DSH 执行机制。见[使用说明](docs/professional-task-guide.md)、[实施计划](docs/implementation-plan-3.7.5.md)和[验证记录](docs/verification-3.7.5.md)。下方公开下载继续指向已发布版本。
+3.7.6 融合官方 DSH 主干提交并修正英文界面中的工作台、任务引导和专业深度文案；该内核提交晚于最新官方 Release，详见 [3.7.6 说明](release/github-notes-3.7.6.md)。下方公开下载继续指向已发布版本。
+
+3.7.5 新增专业任务引导、项目国别与依据评估、BOQ 成本/资源推导和实际递交清单检查，沿用原生 DSH 执行机制。见[使用说明](docs/professional-task-guide.md)、[实施计划](docs/implementation-plan-3.7.5.md)和[验证记录](docs/verification-3.7.5.md)。
 
 <p align="center">由 Always π AI studio 独立开发和维护<br>Independently developed and maintained by Always π AI studio.</p>
 

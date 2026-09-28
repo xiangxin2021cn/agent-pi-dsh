@@ -52,6 +52,7 @@ const screenshots = {
   blank: join(artifactDir, '01-blank-main-project-entry.png'),
   files: join(artifactDir, '02-project-file-selected.png'),
   workbench: join(artifactDir, '03-created-workbench.png'),
+  english: join(artifactDir, '03a-workbench-english.png'),
   handoff: join(artifactDir, '04-main-chat-received-stage-prompt.png'),
   requirement: join(artifactDir, '05-user-requirement-in-workbench.png'),
   delta: join(artifactDir, '06-main-chat-received-delta-prompt.png'),
@@ -84,6 +85,7 @@ const profileInit = spawnSync(process.execPath, [join(root, 'scripts', 'init-ten
 assert.equal(profileInit.status, 0, profileInit.stderr || profileInit.stdout || 'profile init failed')
 const profilePatchPath = join(dshHome, 'profiles', 'tender', 'cordis.patch.yml')
 const profilePatch = readFileSync(profilePatchPath, 'utf8')
+  .replace(/^\[\]\s*$/m, '')
   .replace('# agent-pi:managed-defaults', '# agent-pi:e2e-browse-picker')
 writeFileSync(profilePatchPath, profilePatch + [
   '',
@@ -161,10 +163,14 @@ try {
   await clickOptional(/稍后配置|Configure later/i, 5_000)
 
   const workspaceChooser = page.getByRole('textbox', { name: /选择工作区|Choose workspace/i }).first()
-  await workspaceChooser.waitFor({ state: 'visible', timeout: remaining() })
-  await workspaceChooser.click()
+  if (await workspaceChooser.waitFor({ state: 'visible', timeout: Math.min(4_000, remaining()) }).then(() => true).catch(() => false)) {
+    await workspaceChooser.click()
+  } else {
+    await page.locator('[data-composer-seat]').getByRole('button', { name: /选择工作区|Choose workspace/i }).click()
+    await page.getByRole('menuitem', { name: '添加工作区…' }).click()
+  }
   const picker = page.getByRole('dialog', { name: /选择工作区目录|Select Workspace Directory/i })
-  await picker.waitFor({ state: 'visible', timeout: remaining() })
+  await picker.waitFor({ state: 'visible', timeout: Math.min(8_000, remaining()) })
   await picker.getByRole('button', { name: /编辑路径|Edit path/i }).click()
   const pathInput = picker.getByRole('textbox', { name: /编辑路径|Edit path/i })
   await pathInput.fill(workspace)
@@ -196,9 +202,14 @@ try {
     process.exit(0)
   }
   const starter = page.locator('[aria-label="新建专业工作台项目"]')
-  await starter.waitFor({ state: 'visible', timeout: remaining() })
-  await screenshot('blank')
-  await starter.getByRole('button', { name: '投标项目', exact: true }).click()
+  if (await starter.waitFor({ state: 'visible', timeout: Math.min(4_000, remaining()) }).then(() => true).catch(() => false)) {
+    await screenshot('blank')
+    await starter.getByRole('button', { name: '投标项目', exact: true }).click()
+  } else {
+    await page.locator('[data-slot="sidebar"]').getByText('专业化工作台', { exact: true }).click()
+    await screenshot('blank')
+    await page.locator('.ap-wb').getByRole('button', { name: '新建项目', exact: true }).first().click()
+  }
 
   const createDialog = page.locator('.ap-modal.wide').filter({ hasText: /新建.*投标.*项目/ })
   await createDialog.waitFor({ state: 'visible', timeout: remaining() })
@@ -230,6 +241,13 @@ try {
     timeout: remaining(),
   })
   await screenshot('workbench')
+  await page.locator('select.ap-lang').selectOption('en')
+  await workbench.getByRole('button', { name: 'Add source files', exact: true }).waitFor({ timeout: remaining() })
+  await workbench.getByText('Workflow monitor', { exact: true }).waitFor({ timeout: remaining() })
+  await workbench.getByText('Project setup', { exact: true }).first().waitFor({ timeout: remaining() })
+  assert.equal(await workbench.getByText('项目资料登记', { exact: true }).count(), 0)
+  await screenshot('english')
+  await page.locator('select.ap-lang').selectOption('zh')
 
   const registryPath = join(workspace, 'business-projects.json')
   assert.ok(existsSync(registryPath), 'project registry was not written')
@@ -337,7 +355,8 @@ try {
   await automaticMonitorCheck
 
   await workbench.getByRole('button', { name: '模块管理', exact: true }).click()
-  await workbench.getByText('模块创造模式', { exact: true }).waitFor({ state: 'visible', timeout: remaining() })
+  await workbench.getByText('对话辅助设计（可选）', { exact: true }).click()
+  await workbench.getByRole('button', { name: /做过一单，照这个来/ }).waitFor({ state: 'visible', timeout: remaining() })
   await workbench.getByRole('button', { name: /做过一单，照这个来/ }).click()
   await workbench.waitFor({ state: 'detached', timeout: remaining() })
   await page.getByText(/创造模式|Creator mode/, { exact: true }).first()

@@ -47,6 +47,8 @@ test('ordinary conversations have no prompt, state inheritance or enable permiss
 test('only direct explicit user commands change mode; mentions, negation and untrusted content do not', () => {
   assert.equal(depthCommand(user('请启用专业深度。制定进度计划')), true)
   assert.equal(depthCommand(user('关闭专业深度，继续普通聊天')), false)
+  assert.equal(depthCommand(user('Enable professional depth. Prepare a schedule')), true)
+  assert.equal(depthCommand(user('Turn off professional depth, continue normally')), false)
   for (const text of ['不要启用专业深度', '解释“启用专业深度”是什么意思', '文档说：启用专业深度', '> 启用专业深度', '专业深度的按钮在哪里']) assert.equal(depthCommand(user(text)), undefined)
   assert.equal(depthCommand({ ...user('启用专业深度'), source: { kind: 'plugin' } }), undefined)
   const s = session()

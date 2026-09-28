@@ -1,6 +1,8 @@
 import { createProductCapabilities } from './product-capabilities.js'
 import { patchWorkflowStage, moveWorkflowStage, removeWorkflowStage, workflowDependencyError, stageDependents, nextStageId } from './workflow-editor.js'
 import { AP_I18N, AP_LANGUAGE_DEFINITIONS } from './locales/catalog.js'
+import { localizeWorkbenchCopy } from './locales/workbench-chrome.js'
+import { stageGate, stageHint as localizedStageHint, stageLabel } from './locales/workbench-stages.js'
 import * as React from 'react'
 import { installAttachmentMessageView } from './attachment-message-view.js'
 import { installArchiveSessionView } from './archive-session-view.js'
@@ -269,7 +271,6 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
       }, nodes.map((node, i) => h(node[0], Object.assign({ key: i }, node[1]))))
     }
 
-    const WORKBENCH_LABEL = '专业化工作台'
     function localeIdOf(value) {
       const id = String(value || '').toLowerCase()
       const primary = id.split('-')[0]
@@ -308,6 +309,9 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
         })
       }
       return text
+    }
+    function workbenchText(value) {
+      return localizeWorkbenchCopy(value, langState.lang)
     }
     const productCapabilities = createProductCapabilities(React)
     function useApLang() {
@@ -443,7 +447,7 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
     function setCodexTurnArmed(props, armed) {
       const key = codexTurnKey(props)
       if (armed && attachmentTurnControllers.has(key)) {
-        showToast('当前会话已有附件发送事务，请等待完成后再切换 Codex 执行')
+        showToast(workbenchText('当前会话已有附件发送事务，请等待完成后再切换 Codex 执行'))
         return
       }
       const controller = codexTurnController(props, armed)
@@ -1678,7 +1682,7 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
     }
 
     function taskStatusLabel(status) {
-      return ({ queued: '待处理', running: '进行中', done: '已完成', error: '失败' })[status] || status
+      return ({ queued: workbenchText('待处理'), running: workbenchText('进行中'), done: workbenchText('已完成'), error: workbenchText('失败') })[status] || status
     }
 
     function readWorkbenchOpen() {
@@ -3520,7 +3524,7 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
       actions.submit = () => {
         const live = actions.__apLatestProps || props
         const before = currentDraft(live)
-        const depthDraft = prepareDepthSubmission(live, before, nativeCodexAttachmentIds(live.input).length > 0 || codexAttachItems(attachmentTurnKey(live)).length > 0)
+        const depthDraft = prepareDepthSubmission(live, before, nativeCodexAttachmentIds(live.input).length > 0 || codexAttachItems(attachmentTurnKey(live)).length > 0, langState.lang)
         if (depthDraft !== before) {
           fillComposer(live, depthDraft)
           requestAnimationFrame(() => actions.submit())
@@ -3975,9 +3979,9 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
     }
 
     function statusChip(status) {
-      if (status === 'blocked') return h('span', { className: 'ap-chip warn' }, '门禁未过')
-      if (status === 'done') return h('span', { className: 'ap-chip ok' }, '已完成')
-      if (status === 'running') return h('span', { className: 'ap-chip live' }, '进行中')
+      if (status === 'blocked') return h('span', { className: 'ap-chip warn' }, workbenchText('门禁未过'))
+      if (status === 'done') return h('span', { className: 'ap-chip ok' }, workbenchText('已完成'))
+      if (status === 'running') return h('span', { className: 'ap-chip live' }, workbenchText('进行中'))
       return null
     }
 
@@ -4712,6 +4716,7 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
       h,
       Icon,
       tAp,
+      workbenchText,
       moduleIconNode,
       moduleLabel,
       FilePickPanel,
@@ -5102,7 +5107,7 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
       const restoreSources = (project, extra) => {
         setBusy('restore')
         setError('')
-        setNotice(extra && extra.preferMineru ? '正在用 MinerU 对齐原稿…' : '正在按知识库逻辑对齐原稿…')
+        setNotice(extra && extra.preferMineru ? workbenchText('正在用 MinerU 对齐原稿…') : workbenchText('正在按知识库逻辑对齐原稿…'))
         return api('/api/agent-pi/projects/restore', cwd, {
           method: 'POST',
           body: JSON.stringify({
@@ -5115,8 +5120,8 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
           const ok = (batch.restored || []).length
           const skipped = (batch.skipped || []).filter((item) => item.reason !== 'unsupported')
           setNotice(ok
-            ? ('已对齐 ' + ok + ' 份原稿' + (skipped.length ? '；' + skipped.length + ' 份未对齐' : '') + '。点文件名可预览改稿，保存会同步 JSON。')
-            : (skipped.length ? ('原稿对齐未完成：' + skipped.map((item) => item.reason).join('；')) : '没有需要对齐的原稿。'))
+            ? (workbenchText('已对齐 ') + ok + workbenchText(' 份原稿') + (skipped.length ? workbenchText('；') + skipped.length + workbenchText(' 份未对齐') : '') + workbenchText('。点文件名可预览改稿，保存会同步 JSON。'))
+            : (skipped.length ? (workbenchText('原稿对齐未完成：') + skipped.map((item) => item.reason).join(workbenchText('；'))) : workbenchText('没有需要对齐的原稿。')))
           return refresh()
         })
       }
@@ -5136,7 +5141,7 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
 
       const removeProject = () => {
         if (!row) return
-        if (!window.confirm('从工作台移除项目「' + row.project.name + '」？磁盘上的项目文件会保留。')) return
+        if (!window.confirm(workbenchText('从工作台移除项目「') + row.project.name + workbenchText('」？磁盘上的项目文件会保留。'))) return
         setBusy('remove')
         api('/api/agent-pi/projects', cwd, {
           method: 'DELETE',
@@ -5171,11 +5176,11 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
           : null
         const currentSlice = item.currentStageId ? stageSlice(item, item.currentStageId) : null
         const executionStatusLabel = execution
-          ? ({ planning: '规划中', working: '执行中', waiting: '等待回推', blocked: '已阻塞', completed: '已完成', failed: '失败' }[execution.status] || execution.status)
-          : '未回写'
+          ? ({ planning: workbenchText('规划中'), working: workbenchText('执行中'), waiting: workbenchText('等待回推'), blocked: workbenchText('已阻塞'), completed: workbenchText('已完成'), failed: workbenchText('失败') }[execution.status] || execution.status)
+          : workbenchText('未回写')
         const alignmentLabel = activeControl
-          ? ({ aligned: '已对齐', missing: '缺执行账本', drifted: '存在差异', stale: '心跳过期', 'waiting-human': '等待人工' }[activeControl.alignment] || activeControl.alignment)
-          : '待核验'
+          ? ({ aligned: workbenchText('已对齐'), missing: workbenchText('缺执行账本'), drifted: workbenchText('存在差异'), stale: workbenchText('心跳过期'), 'waiting-human': workbenchText('等待人工') }[activeControl.alignment] || activeControl.alignment)
+          : workbenchText('待核验')
         const forceTarget = stages.find((stage) => {
           if (setupId && stage.id === setupId) return false
           const slice = stageSlice(item, stage.id)
@@ -5189,18 +5194,18 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
               h('div', { className: 'ap-path' }, Icon('folder', 14), h('span', { title: project.rootPath }, project.rootPath || cwd)),
             ),
             h('div', { className: 'ap-actions' },
-              h('button', { type: 'button', className: 'ap-btn', onClick: addFiles }, Icon('filePlus', 14), '添加资料'),
+              h('button', { type: 'button', className: 'ap-btn', onClick: addFiles }, Icon('filePlus', 14), workbenchText('添加资料')),
               h('button', {
                 type: 'button',
                 className: 'ap-btn primary',
-                title: '同一条推进口：未齐套先确认资料，否则恢复未完阶段。已写入的阶段稿不会再灌一遍。',
+                title: workbenchText('同一条推进口：未齐套先确认资料，否则恢复未完阶段。已写入的阶段稿不会再灌一遍。'),
                 onClick: () => {
                   const next = stages.find((stage) => {
                     const slice = stageSlice(item, stage.id)
                     return !slice || slice.status !== 'done'
                   })
                   if (!next) {
-                    setNotice('所有阶段均已完成；如需重跑，请对相应阶段「重置编排」。')
+                    setNotice(workbenchText('所有阶段均已完成；如需重跑，请对相应阶段「重置编排」。'))
                     return
                   }
                   if (setupId && next.id === setupId) {
@@ -5209,23 +5214,23 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
                   }
                   runStage(project, '', 'resume', true)
                 },
-              }, Icon('play', 14), '继续推进'),
-              h('button', { type: 'button', className: 'ap-btn ghost', onClick: removeProject }, Icon('trash', 14), '移除项目'),
+              }, Icon('play', 14), workbenchText('继续推进')),
+              h('button', { type: 'button', className: 'ap-btn ghost', onClick: removeProject }, Icon('trash', 14), workbenchText('移除项目')),
             ),
           ),
           requirements.length
-            ? h('section', { className: 'ap-sec ap-user-reqs', 'aria-label': '用户要求（最高优先级）' },
+            ? h('section', { className: 'ap-sec ap-user-reqs', 'aria-label': workbenchText('用户要求（最高优先级）') },
               h('div', { className: 'ap-user-req-head' },
                 h('div', null,
-                  h('h2', null, '用户要求（最高优先级）'),
-                  h('p', { className: 'ap-sub' }, '主会话的新要求与工作台共用这份账本；只改受影响成果，不再让旧软门禁触发整阶段返工。'),
+                  h('h2', null, workbenchText('用户要求（最高优先级）')),
+                  h('p', { className: 'ap-sub' }, workbenchText('主会话的新要求与工作台共用这份账本；只改受影响成果，不再让旧软门禁触发整阶段返工。')),
                 ),
-                h('span', { className: 'ap-chip' }, requirements.filter((requirement) => requirement.status === 'active').length + ' 条待落实'),
+                h('span', { className: 'ap-chip' }, requirements.filter((requirement) => requirement.status === 'active').length + workbenchText(' 条待落实')),
               ),
               requirements.slice(0, 6).map((requirement) => {
-                const statusLabel = requirement.status === 'active' ? '待落实'
-                  : requirement.status === 'implemented' ? '已落实'
-                    : '已采用为验收口径'
+                const statusLabel = requirement.status === 'active' ? workbenchText('待落实')
+                  : requirement.status === 'implemented' ? workbenchText('已落实')
+                    : workbenchText('已采用为验收口径')
                 const statusClass = requirement.status === 'active' ? ' warn' : ' ok'
                 return h('article', { className: 'ap-user-req', key: requirement.id },
                   h('div', { className: 'ap-user-req-main' },
@@ -5234,9 +5239,9 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
                       h('span', { className: 'ap-sub' }, requirement.stageId),
                     ),
                     h('p', null, requirement.text),
-                    requirement.note ? h('p', { className: 'ap-sub' }, '落实说明：' + requirement.note) : null,
+                    requirement.note ? h('p', { className: 'ap-sub' }, workbenchText('落实说明：') + requirement.note) : null,
                     requirement.evidencePaths && requirement.evidencePaths.length
-                      ? h('p', { className: 'ap-sub' }, '影响成果：' + requirement.evidencePaths.join('、'))
+                      ? h('p', { className: 'ap-sub' }, workbenchText('影响成果：') + requirement.evidencePaths.join('、'))
                       : null,
                   ),
                   h('div', { className: 'ap-user-req-actions' },
@@ -5246,7 +5251,7 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
                         className: 'ap-btn',
                         disabled: !!busy,
                         onClick: () => updateRequirement(project, requirement, 'satisfy_requirement'),
-                      }, '标记已落实')
+                      }, workbenchText('标记已落实'))
                       : requirement.status === 'implemented'
                         ? h(React.Fragment, null,
                           h('button', {
@@ -5254,13 +5259,13 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
                             className: 'ap-btn primary',
                             disabled: !!busy,
                             onClick: () => updateRequirement(project, requirement, 'accept_requirement'),
-                          }, '采用为验收口径'),
+                          }, workbenchText('采用为验收口径')),
                           h('button', {
                             type: 'button',
                             className: 'ap-btn',
                             disabled: !!busy,
                             onClick: () => updateRequirement(project, requirement, 'reopen_requirement'),
-                          }, '继续修改'),
+                          }, workbenchText('继续修改')),
                         )
                         : null,
                     requirement.status !== 'accepted'
@@ -5269,7 +5274,7 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
                         className: 'ap-btn ghost',
                         disabled: !!busy,
                         onClick: () => updateRequirement(project, requirement, 'dismiss_requirement'),
-                      }, '不属于本项目')
+                      }, workbenchText('不属于本项目'))
                       : null,
                   ),
                 )
@@ -5279,42 +5284,42 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
           h('section', { className: 'ap-sec' },
             h('div', { className: 'ap-mon-hd' },
               h('div', { style: { minWidth: 0 } },
-                h('h2', null, '流程监控'),
-                h('p', { className: 'ap-sub' }, '只有点「继续推进」才启动当前主会话事务；已启动事务会在应用重启后恢复，遇到人工决策门、阻塞或异常会停止。分析阶段只维护一套可追溯底稿。'),
+                h('h2', null, workbenchText('流程监控')),
+                h('p', { className: 'ap-sub' }, workbenchText('只有点「继续推进」才启动当前主会话事务；已启动事务会在应用重启后恢复，遇到人工决策门、阻塞或异常会停止。分析阶段只维护一套可追溯底稿。')),
               ),
               h('div', { className: 'ap-mon-tools' },
                 h('span', { className: 'ap-row' },
                   h('i', { className: 'ap-dot' + ((monitoringHere && !monitorState.paused) || liveActivityText ? ' on' : '') }),
                   !monitoringHere
-                    ? (liveActivityText || (monitorState.monitoring ? '另一项目事务正在运行' : '点继续推进后启动当前会话事务'))
-                    : (monitorState.paused ? '当前会话事务已暂停' : '当前会话事务空闲') + (liveActivityText ? ' · ' + liveActivityText : ''),
+                    ? (liveActivityText || (monitorState.monitoring ? workbenchText('另一项目事务正在运行') : workbenchText('点继续推进后启动当前会话事务')))
+                    : (monitorState.paused ? workbenchText('当前会话事务已暂停') : workbenchText('当前会话事务空闲')) + (liveActivityText ? ' · ' + liveActivityText : ''),
                 ),
-                h('span', null, '检查于 ' + (monitorState.lastCheck ? formatClock(new Date(monitorState.lastCheck).toISOString()) : (lastCheck ? formatClock(new Date(lastCheck).toISOString()) : '—'))),
+                h('span', null, workbenchText('检查于 ') + (monitorState.lastCheck ? formatClock(new Date(monitorState.lastCheck).toISOString()) : (lastCheck ? formatClock(new Date(lastCheck).toISOString()) : '—'))),
                 h('button', {
                   type: 'button',
                   className: 'ap-btn',
                   disabled: busy === 'check:',
-                  title: '对每个阶段做盘面对账：任务与产物、阶段总控、投标分析底稿、实际工程量清单、测算表、引用孤儿和人工门禁',
+                  title: workbenchText('对每个阶段做盘面对账：任务与产物、阶段总控、投标分析底稿、实际工程量清单、测算表、引用孤儿和人工门禁'),
                   onClick: () => runCheck(project),
-                }, Icon('search', 14), busy === 'check:' ? '体检中…' : '检查'),
+                }, Icon('search', 14), busy === 'check:' ? workbenchText('体检中…') : workbenchText('检查')),
                 h('button', {
                   type: 'button',
                   className: 'ap-btn',
                   disabled: !forceTarget && !(evidence && evidence.blocking),
-                  title: forceTarget || (evidence && evidence.blocking) ? '解除缺件门槛：缺口保持为缺口，不授权联网尽调。' : '当前没有缺件门槛可放行',
+                  title: forceTarget || (evidence && evidence.blocking) ? workbenchText('解除缺件门槛：缺口保持为缺口，不授权联网尽调。') : workbenchText('当前没有缺件门槛可放行'),
                   onClick: () => {
-                    if (!window.confirm('解除缺件门槛：缺口保持为缺口、继续使用已有资料，不授权联网尽调（联网需在对话中授权）。不会删除已完成批次。')) return
+                    if (!window.confirm(workbenchText('解除缺件门槛：缺口保持为缺口、继续使用已有资料，不授权联网尽调（联网需在对话中授权）。不会删除已完成批次。'))) return
                     runStage(project, (forceTarget && forceTarget.id) || item.currentStageId || (stages[0] && stages[0].id) || '', 'force_pass', false)
                   },
-                }, Icon('unlock', 14), '强制放行'),
+                }, Icon('unlock', 14), workbenchText('强制放行')),
                 monitoringHere && !monitorState.paused
-                  ? h('button', { type: 'button', className: 'ap-btn ghost', title: '暂停当前会话事务，不中断当前对话', onClick: () => monitorEngine.pause() }, Icon('square', 14), '暂停事务')
+                  ? h('button', { type: 'button', className: 'ap-btn ghost', title: workbenchText('暂停当前会话事务，不中断当前对话'), onClick: () => monitorEngine.pause() }, Icon('square', 14), workbenchText('暂停事务'))
                   : monitoringHere && monitorState.paused
                     ? h('button', {
                       type: 'button',
                       className: 'ap-btn ghost',
                       onClick: () => { monitorEngine.unpause(); refresh(true) },
-                }, Icon('play', 14), '恢复事务')
+                }, Icon('play', 14), workbenchText('恢复事务'))
                     : null,
               ),
             ),
@@ -5322,99 +5327,99 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
               h('article', { className: 'ap-state-card' },
                 h('div', { className: 'ap-state-card-hd' },
                   h('div', null,
-                    h('strong', null, '执行态（主智能体回写）'),
-                    h('span', { className: 'ap-sub' }, '主对话负责理解、计划、派活与阻塞说明'),
+                    h('strong', null, workbenchText('执行态（主智能体回写）')),
+                    h('span', { className: 'ap-sub' }, workbenchText('主对话负责理解、计划、派活与阻塞说明')),
                   ),
                   h('span', { className: 'ap-chip' + (execution && execution.status === 'blocked' ? ' warn' : execution ? ' ok' : '') }, executionStatusLabel),
                 ),
                 execution
                   ? h('div', { className: 'ap-state-body' },
-                    h('p', null, h('b', null, '目标：'), execution.objective || '未登记'),
-                    h('p', null, h('b', null, '当前批次：'), execution.currentBatch || '未登记'),
-                    h('p', null, h('b', null, '下一动作：'), execution.nextAction || '未登记'),
+                    h('p', null, h('b', null, workbenchText('目标：')), execution.objective || workbenchText('未登记')),
+                    h('p', null, h('b', null, workbenchText('当前批次：')), execution.currentBatch || workbenchText('未登记')),
+                    h('p', null, h('b', null, workbenchText('下一动作：')), execution.nextAction || workbenchText('未登记')),
                     execution.plan && execution.plan.length
                       ? h('div', { className: 'ap-mini-list' }, execution.plan.slice(0, 5).map((plan) => h('div', { key: plan.id },
                         h('i', { className: 'ap-mini-status ' + plan.status }),
                         h('span', null, plan.title),
                       )))
-                      : h('p', { className: 'ap-sub' }, '尚未登记结构化计划。'),
+                      : h('p', { className: 'ap-sub' }, workbenchText('尚未登记结构化计划。')),
                     execution.assignments && execution.assignments.length
-                      ? h('p', { className: 'ap-sub' }, '子任务：' + execution.assignments.map((assignment) => assignment.title + ' [' + assignment.status + ']').join(' · '))
+                      ? h('p', { className: 'ap-sub' }, workbenchText('子任务：') + execution.assignments.map((assignment) => assignment.title + ' [' + assignment.status + ']').join(' · '))
                       : null,
                     execution.blocker && execution.blocker.type !== 'none'
-                      ? h('p', { className: 'ap-state-alert' }, '阻塞：' + (execution.blocker.reason || execution.blocker.needed || execution.blocker.type))
+                      ? h('p', { className: 'ap-state-alert' }, workbenchText('阻塞：') + (execution.blocker.reason || execution.blocker.needed || execution.blocker.type))
                       : null,
-                    h('p', { className: 'ap-sub' }, 'revision ' + execution.revision + ' · 心跳 ' + formatClock(execution.heartbeatAt)),
+                    h('p', { className: 'ap-sub' }, 'revision ' + execution.revision + workbenchText(' · 心跳 ') + formatClock(execution.heartbeatAt)),
                   )
-                  : h('div', { className: 'ap-state-empty' }, '主智能体尚未回写执行计划。点「继续推进」后，主对话应先读取 status，再登记目标、批次、计划和下一动作。'),
+                  : h('div', { className: 'ap-state-empty' }, workbenchText('主智能体尚未回写执行计划。点「继续推进」后，主对话应先读取 status，再登记目标、批次、计划和下一动作。')),
               ),
               h('article', { className: 'ap-state-card' },
                 h('div', { className: 'ap-state-card-hd' },
                   h('div', null,
-                    h('strong', null, '事实态（系统核验）'),
-                    h('span', { className: 'ap-sub' }, '只核验磁盘成果、BOQ、证据、引用与人工门禁'),
+                    h('strong', null, workbenchText('事实态（系统核验）')),
+                    h('span', { className: 'ap-sub' }, workbenchText('只核验磁盘成果、BOQ、证据、引用与人工门禁')),
                   ),
                   h('span', { className: 'ap-chip' + (activeControl && activeControl.alignment !== 'aligned' ? ' warn' : currentReality ? ' ok' : '') }, alignmentLabel),
                 ),
                 h('div', { className: 'ap-state-body' },
-                  h('p', null, h('b', null, '当前阶段：'), currentReality ? currentReality.stageLabel : (item.currentStageId || '未开始')),
+                  h('p', null, h('b', null, workbenchText('当前阶段：')), currentReality ? stageLabel(stages.find((stage) => stage.id === currentReality.stageId), langState.lang) || currentReality.stageLabel : (item.currentStageId || workbenchText('未开始'))),
                   currentReality
                     ? h('p', null,
-                      '任务 ' + currentReality.tasks.done + '/' + currentReality.tasks.total,
-                      currentReality.summary ? (currentReality.summary.exists ? ' · 总报告已就位' : ' · 缺《' + currentReality.summary.fileName + '》') : '',
-                      currentReality.boqInventory ? (currentReality.boqInventory.ok ? ' · BOQ 已核验' : ' · BOQ 有缺口') : '',
-                      currentReality.citations && currentReality.citations.total ? ' · 孤儿引用 ' + currentReality.citations.orphans : '',
+                      workbenchText('任务 ') + currentReality.tasks.done + '/' + currentReality.tasks.total,
+                      currentReality.summary ? (currentReality.summary.exists ? workbenchText(' · 总报告已就位') : workbenchText(' · 缺《') + currentReality.summary.fileName + (langState.lang === 'zh' ? '》' : '”')) : '',
+                      currentReality.boqInventory ? (currentReality.boqInventory.ok ? workbenchText(' · BOQ 已核验') : workbenchText(' · BOQ 有缺口')) : '',
+                      currentReality.citations && currentReality.citations.total ? workbenchText(' · 孤儿引用 ') + currentReality.citations.orphans : '',
                     )
-                    : h('p', { className: 'ap-sub' }, '尚未执行本轮事实核验；阶段状态为 ' + ((currentSlice && currentSlice.status) || 'idle') + '。'),
+                    : h('p', { className: 'ap-sub' }, workbenchText('尚未执行本轮事实核验；阶段状态为 ') + ((currentSlice && currentSlice.status) || 'idle') + '。'),
                   activeControl && activeControl.realityDigest
-                    ? h('p', { className: 'ap-sub' }, '事实版本 ' + activeControl.realityDigest)
+                    ? h('p', { className: 'ap-sub' }, workbenchText('事实版本 ') + activeControl.realityDigest)
                     : null,
                 ),
               ),
             ),
             activeControl && activeControl.differences && activeControl.differences.length
               ? h('div', { className: 'ap-alignment-alert' },
-                h('strong', null, '认知差异'),
+                h('strong', null, workbenchText('认知差异')),
                 h('ul', null, activeControl.differences.map((difference, index) => h('li', { key: index }, difference))),
               )
               : null,
             reality && reality.stages ? h('div', { className: 'ap-check' },
               h('div', { className: 'ap-check-hd' },
-                '系统事实明细',
+                workbenchText('系统事实明细'),
                 h('span', { className: 'ap-sub' },
                   formatClock(reality.generatedAt)
-                  + (reality.stages[0] && reality.stages[0].quietMinutes != null ? ' · 最近产出 ' + reality.stages[0].quietMinutes + ' 分钟前' : '')),
-                h('button', { type: 'button', className: 'ap-btn ghost', onClick: () => setReality(null) }, '收起'),
+                  + (reality.stages[0] && reality.stages[0].quietMinutes != null ? workbenchText(' · 最近产出 ') + reality.stages[0].quietMinutes + workbenchText(' 分钟前') : '')),
+                h('button', { type: 'button', className: 'ap-btn ghost', onClick: () => setReality(null) }, workbenchText('收起')),
               ),
               reality.stages.map((st, index) => {
                 const parts = []
                 if (st.userRequirements && st.userRequirements.active > 0) {
-                  parts.push('用户要求待落实 ' + st.userRequirements.active + ' 条')
+                  parts.push(workbenchText('用户要求待落实 ') + st.userRequirements.active + workbenchText(' 条'))
                 } else if (st.userRequirementOverride) {
-                  parts.push('用户验收口径已生效')
+                  parts.push(workbenchText('用户验收口径已生效'))
                 }
                 if (st.tasks && st.tasks.total > 0) {
-                  parts.push('任务 ' + st.tasks.done + '/' + st.tasks.total + (st.tasks.error ? '（' + st.tasks.error + ' 个 error）' : ''))
+                  parts.push(workbenchText('任务 ') + st.tasks.done + '/' + st.tasks.total + (st.tasks.error ? (langState.lang === 'zh' ? '（' : ' (') + st.tasks.error + workbenchText(' 个 error）') : ''))
                 }
                 const missing = (st.artifacts ? st.artifacts.missingMarkdown.length + st.artifacts.missingReport.length : 0)
-                if (missing > 0) parts.push('缺产物 ' + missing + ' 份')
-                if (st.summary) parts.push(st.summary.exists ? '总报告已就位' : '缺《' + st.summary.fileName + '》')
+                if (missing > 0) parts.push(workbenchText('缺产物 ') + missing + workbenchText(' 份'))
+                if (st.summary) parts.push(st.summary.exists ? workbenchText('总报告已就位') : workbenchText('缺《') + st.summary.fileName + (langState.lang === 'zh' ? '》' : '”'))
                 if (st.suite) {
-                  if (st.suite.ok) parts.push('投标分析底稿已齐')
+                  if (st.suite.ok) parts.push(workbenchText('投标分析底稿已齐'))
                   else if (st.suite.shortGaps) parts.push(st.suite.shortGaps)
-                  else parts.push('投标分析底稿未齐')
+                  else parts.push(workbenchText('投标分析底稿未齐'))
                 }
                 if (st.boqInventory) {
-                  if (st.boqInventory.ok) parts.push('工程量清单已抽出 ' + (st.boqInventory.touchedCount || st.boqInventory.itemCount || 0) + ' 行')
+                  if (st.boqInventory.ok) parts.push(workbenchText('工程量清单已抽出 ') + (st.boqInventory.touchedCount || st.boqInventory.itemCount || 0) + workbenchText(' 行'))
                   else if (st.boqInventory.shortGaps) parts.push(st.boqInventory.shortGaps)
-                  else parts.push('未摸到工程量清单')
+                  else parts.push(workbenchText('未摸到工程量清单'))
                 }
-                if (st.workbook) parts.push(st.workbook.exists ? '测算表已就位' : '缺《' + st.workbook.fileName + '》')
+                if (st.workbook) parts.push(st.workbook.exists ? workbenchText('测算表已就位') : workbenchText('缺《') + st.workbook.fileName + (langState.lang === 'zh' ? '》' : '”'))
                 if (st.stageId === item.currentStageId && st.citations && st.citations.total > 0) {
-                  parts.push('引用 ' + st.citations.total + ' 令牌 / ' + st.citations.orphans + ' 孤儿')
+                  parts.push(workbenchText('引用 ') + st.citations.total + workbenchText(' 令牌 / ') + st.citations.orphans + workbenchText(' 孤儿'))
                 }
-                if (st.evidence && st.evidence.blocking) parts.push('门禁阻塞（' + st.evidence.gapCount + ' 缺口）')
-                else if (st.evidence && st.evidence.waived) parts.push('门禁已放行')
+                if (st.evidence && st.evidence.blocking) parts.push(workbenchText('门禁阻塞（') + st.evidence.gapCount + workbenchText(' 缺口）'))
+                else if (st.evidence && st.evidence.waived) parts.push(workbenchText('门禁已放行'))
                 const unfinishedTasks = st.tasks ? st.tasks.total - st.tasks.done : 0
                 const bad = typeof st.needsQc === 'boolean'
                   ? st.needsQc
@@ -5426,11 +5431,11 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
                     || (st.evidence && st.evidence.blocking)
                     || (st.stageId === item.currentStageId && st.citations && st.citations.orphans > 0)
                     || (st.stageStatus === 'done' && unfinishedTasks > 0))
-                const idleText = st.stageStatus === 'idle' ? '未开始'
-                  : (st.stageStatus === 'done' && !bad ? '阶段已收口（商务待办不挡完成）' : '无异常')
+                const idleText = st.stageStatus === 'idle' ? workbenchText('未开始')
+                  : (st.stageStatus === 'done' && !bad ? workbenchText('阶段已收口（商务待办不挡完成）') : workbenchText('无异常'))
                 return h('div', { className: 'ap-check-row' + (bad ? ' bad' : ''), key: st.stageId },
                   h('span', { className: 'ap-check-num' }, index + 1),
-                  h('strong', null, st.stageLabel),
+                  h('strong', null, stageLabel(stages.find((stage) => stage.id === st.stageId), langState.lang) || st.stageLabel),
                   statusChip(st.stageStatus),
                   h('span', { className: 'ap-sub' }, parts.length ? parts.join(' · ') : idleText),
                 )
@@ -5448,50 +5453,50 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
               const closedClean = setupDone && stageMemory && stageMemory.status === 'current' && !stageRowDirty(slice, tasks, checkRow)
               const outFolder = (checkRow && checkRow.outputFolder) || officialFolder(stage.id)
               const stageHint = closedClean
-                ? ('阶段已收口。成果在 Agent Pi Outputs/' + project.projectId + '/' + outFolder + '/。询价、开工确认、submission_audit 未通过是投标可提交门禁，不表示本阶段没做完。')
-                : (stage.hintZh || stage.prompt)
+                ? (workbenchText('阶段已收口。成果在 Agent Pi Outputs/') + project.projectId + '/' + outFolder + workbenchText('/。询价、开工确认、submission_audit 未通过是投标可提交门禁，不表示本阶段没做完。'))
+                : localizedStageHint(stage, langState.lang)
               return h('div', { className: 'ap-stage-row', key: stage.id },
                 h('span', { className: 'ap-stage-num' }, index + 1),
                 h('div', { className: 'ap-stage-body' },
                   h('div', { className: 'ap-row' },
-                    h('strong', null, stage.labelZh),
+                    h('strong', null, stageLabel(stage, langState.lang)),
                     statusChip(slice && slice.status),
                     stageMemory && stageMemory.status === 'current'
-                      ? h('span', { className: 'ap-chip ok', title: stageMemory.path }, '基线 v' + stageMemory.revision)
+                      ? h('span', { className: 'ap-chip ok', title: stageMemory.path }, workbenchText('基线 v') + stageMemory.revision)
                       : stageMemory && stageMemory.status === 'stale'
-                        ? h('span', { className: 'ap-chip warn', title: stageMemory.staleReason || '' }, '记忆已失效')
+                        ? h('span', { className: 'ap-chip warn', title: stageMemory.staleReason || '' }, workbenchText('记忆已失效'))
                         : slice && slice.status === 'done'
-                          ? h('span', { className: 'ap-chip warn' }, '待生成记忆')
+                          ? h('span', { className: 'ap-chip warn' }, workbenchText('待生成记忆'))
                           : null,
-                    slice && slice.forcePassedAt ? h('span', { className: 'ap-chip' }, '已强制放行') : null,
+                    slice && slice.forcePassedAt ? h('span', { className: 'ap-chip' }, workbenchText('已强制放行')) : null,
                     slice && slice.approval && slice.approval.decision === 'approved'
-                      ? h('span', { className: 'ap-chip ok' }, '用户已确认')
+                      ? h('span', { className: 'ap-chip ok' }, workbenchText('用户已确认'))
                       : slice && slice.approval && slice.approval.decision === 'rejected'
-                        ? h('span', { className: 'ap-chip warn' }, '用户已暂停')
+                        ? h('span', { className: 'ap-chip warn' }, workbenchText('用户已暂停'))
                         : stage.approvalGate && slice
-                          ? h('span', { className: 'ap-chip warn' }, '待用户决策')
+                          ? h('span', { className: 'ap-chip warn' }, workbenchText('待用户决策'))
                           : null,
                   ),
                   h('p', { className: 'ap-stage-hint' }, stageHint),
                   stageMemory && stageMemory.inputs && stageMemory.inputs.length
-                    ? h('p', { className: 'ap-sub' }, '前序基线：' + stageMemory.inputs.map((input) => {
+                    ? h('p', { className: 'ap-sub' }, workbenchText('前序基线：') + stageMemory.inputs.map((input) => {
                       const upstream = stages.find((item) => item.id === input.ref)
-                      const label = input.kind === 'handoff' ? ((upstream && upstream.labelZh) || input.ref) : ('能力包 ' + input.ref)
-                      return label + (input.revision ? ' v' + input.revision : '') + (input.status === 'current' ? '' : '（' + input.status + '）')
+                      const label = input.kind === 'handoff' ? (stageLabel(upstream, langState.lang) || input.ref) : (workbenchText('能力包 ') + input.ref)
+                      return label + (input.revision ? ' v' + input.revision : '') + (input.status === 'current' ? '' : (langState.lang === 'zh' ? '（' : ' (') + input.status + (langState.lang === 'zh' ? '）' : ')'))
                     }).join(' · '))
                     : null,
                   slice && slice.blockedReason ? h('div', { className: 'ap-err' }, slice.blockedReason) : null,
                   evidence && stage.id !== setupId && evidence.gaps && evidence.gaps.length
                     && (stage.id === item.currentStageId || (slice && slice.status === 'blocked') || stage.id === 'tender-document-analysis')
                     ? evidence.gaps.slice(0, 4).map((gap) => h('div', { className: 'ap-gap', key: stage.id + gap.chapterId },
-                      h('span', { className: 'ap-chip warn' }, '缺口'),
+                      h('span', { className: 'ap-chip warn' }, workbenchText('缺口')),
                       gap.title + ' — ' + gap.suggestedUpload,
                     ))
                     : null,
                   tasks.length
                     ? h('div', { style: { marginTop: 8 } },
                       h('div', { className: 'ap-bar' + (failed ? ' fail' : '') }, h('i', { style: { width: percent + '%' } })),
-                      h('div', { className: 'ap-sub' }, '清单 ' + done + '/' + tasks.length + (failed ? ' · 失败 ' + failed : '')),
+                      h('div', { className: 'ap-sub' }, workbenchText('清单 ') + done + '/' + tasks.length + (failed ? workbenchText(' · 失败 ') + failed : '')),
                       tasks.slice(0, 8).map((task) => {
                         const restore = findSetupRestore(item.restores, task.sourcePath || task.markdownPath)
                         const setupFile = !!(setupId && stage.id === setupId && (task.sourcePath || task.markdownPath))
@@ -5506,9 +5511,9 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
                             })),
                           }, task.title),
                           setupFile && restore
-                            ? h('span', { className: 'ap-chip ok', title: restore.manuscriptPath }, '已对齐')
+                            ? h('span', { className: 'ap-chip ok', title: restore.manuscriptPath }, workbenchText('已对齐'))
                             : alignable
-                              ? h('span', { className: 'ap-chip' }, '待对齐')
+                              ? h('span', { className: 'ap-chip' }, workbenchText('待对齐'))
                               : h('span', { className: 'ap-chip' + (task.status === 'done' ? ' ok' : task.status === 'error' ? ' warn' : '') }, taskStatusLabel(task.status)),
                         )
                       }),
@@ -5522,16 +5527,16 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
                         type: 'button',
                         className: 'ap-btn primary',
                         disabled: !!busy,
-                        title: stage.approvalGate.promptZh,
+                        title: stageGate(stage, 'promptZh', langState.lang),
                         onClick: () => decideStage(project, stage, 'approved'),
-                      }, busy === 'approve_gate:' + stage.id ? '记录中…' : stage.approvalGate.approveLabelZh),
+                      }, busy === 'approve_gate:' + stage.id ? workbenchText('记录中…') : stageGate(stage, 'approveLabelZh', langState.lang)),
                       stage.approvalGate.rejectLabelZh
                         ? h('button', {
                           type: 'button',
                           className: 'ap-btn ghost',
                           disabled: !!busy,
                           onClick: () => decideStage(project, stage, 'rejected'),
-                        }, stage.approvalGate.rejectLabelZh)
+                        }, stageGate(stage, 'rejectLabelZh', langState.lang))
                         : null,
                     )
                     : null,
@@ -5541,11 +5546,11 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
                         type: 'button',
                         className: 'ap-btn primary',
                         disabled: !!busy || !(project.inputPaths && project.inputPaths.length),
-                        title: '按知识库同一套逻辑把已登记 PDF / Word / Excel 对齐成 setup/ 解析稿',
+                        title: workbenchText('按知识库同一套逻辑把已登记 PDF / Word / Excel 对齐成 setup/ 解析稿'),
                         onClick: () => restoreSources(project, { force: true }).catch((e) => setError(String(e.message || e))).finally(() => setBusy('')),
-                      }, busy === 'restore' ? '对齐中…' : '对齐原稿'),
+                      }, busy === 'restore' ? workbenchText('对齐中…') : workbenchText('对齐原稿')),
                       setupDone
-                      ? h('button', { type: 'button', className: 'ap-btn', onClick: () => setWorkbenchOpen(false) }, '资料已齐套')
+                      ? h('button', { type: 'button', className: 'ap-btn', onClick: () => setWorkbenchOpen(false) }, workbenchText('资料已齐套'))
                       : h('button', {
                         type: 'button',
                         className: 'ap-btn',
@@ -5553,55 +5558,55 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
                         onClick: () => {
                           restoreSources(project).then(() => runStage(project, setupId, 'complete', true)).catch((e) => setError(String(e.message || e)))
                         },
-                      }, busy === 'complete:' + setupId || busy === 'restore' ? '对齐并确认中…' : '资料齐套，进入下一阶段'),
+                      }, busy === 'complete:' + setupId || busy === 'restore' ? workbenchText('对齐并确认中…') : workbenchText('资料齐套，进入下一阶段')),
                     )
                     : h(React.Fragment, null,
                       closedClean
                         ? h('button', {
                           type: 'button',
                           className: 'ap-btn primary',
-                          title: '打开本阶段正式成果目录',
+                          title: workbenchText('打开本阶段正式成果目录'),
                           onClick: () => {
                             openInExplorer(cwd, officialStagePath(cwd, project.projectId, stage.id), {
                               file: { type: 'directory', path: officialStagePath(cwd, project.projectId, stage.id) },
                               reveal: false,
                             }).catch((e) => setError(String(e.message || e)))
                           },
-                        }, '打开成果')
+                        }, workbenchText('打开成果'))
                         : h('button', {
                           type: 'button',
                           className: 'ap-btn',
                           disabled: !!busy,
-                          title: '同步成果到正式输出，并核验全部引用令牌（孤儿引用逐条列出）',
+                          title: workbenchText('同步成果到正式输出，并核验全部引用令牌（孤儿引用逐条列出）'),
                           onClick: () => runStage(project, stage.id, 'organize', false),
-                        }, '成果质检并整理'),
+                        }, workbenchText('成果质检并整理')),
                       closedClean
                         ? h('button', {
                           type: 'button',
                           className: 'ap-btn link',
                           disabled: !!busy,
-                          title: '再核一次盘面。已收口且无差异时不会要求再 complete_stage，也不会把商务待办写成阶段未完成。',
+                          title: workbenchText('再核一次盘面。已收口且无差异时不会要求再 complete_stage，也不会把商务待办写成阶段未完成。'),
                           onClick: () => runStage(project, stage.id, 'organize', false),
-                        }, busy === 'organize:' + stage.id ? '核对中…' : '再次核对盘面')
+                        }, busy === 'organize:' + stage.id ? workbenchText('核对中…') : workbenchText('再次核对盘面'))
                         : h('button', {
                           type: 'button',
                           className: 'ap-btn link',
                           disabled: !!busy,
-                          title: '跳到这一阶段。若它已是当前未完阶段，走恢复稿而不是再灌全文。',
+                          title: workbenchText('跳到这一阶段。若它已是当前未完阶段，走恢复稿而不是再灌全文。'),
                           onClick: () => {
                             const currentUnfinished = item.currentStageId === stage.id && slice && slice.status !== 'done' && tasks.length > 0
                             runStage(project, currentUnfinished ? '' : stage.id, currentUnfinished ? 'resume' : 'prepare', true)
                           },
-                        }, '进入此阶段'),
+                        }, workbenchText('进入此阶段')),
                       h('button', {
                         type: 'button',
                         className: 'ap-btn link',
                         disabled: !!busy,
                         onClick: () => {
-                          if (!window.confirm('重置「' + stage.labelZh + '」编排？任务清单会清空，磁盘成果保留。')) return
+                          if (!window.confirm(workbenchText('重置「') + stageLabel(stage, langState.lang) + workbenchText('」编排？任务清单会清空，磁盘成果保留。'))) return
                           runStage(project, stage.id, 'reset', false)
                         },
-                      }, '重置编排'),
+                      }, workbenchText('重置编排')),
                     ),
                 ),
               )
@@ -5609,21 +5614,21 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
           ),
           h('section', { className: 'ap-sec' },
             h('div', { className: 'ap-row', style: { justifyContent: 'space-between' } },
-              h('h2', null, '项目资料'),
+              h('h2', null, workbenchText('项目资料')),
               h('div', { className: 'ap-row' },
-                h('span', { className: 'ap-sub' }, '对齐原稿后点名称预览改稿；保存同步 JSON'),
+                h('span', { className: 'ap-sub' }, workbenchText('对齐原稿后点名称预览改稿；保存同步 JSON')),
                 h('button', {
                   type: 'button',
                   className: 'ap-btn',
                   disabled: !!busy || !(project.inputPaths && project.inputPaths.length),
-                  title: '按知识库同一套逻辑把已登记 PDF / Word / Excel 对齐成 setup/ 解析稿',
+                  title: workbenchText('按知识库同一套逻辑把已登记 PDF / Word / Excel 对齐成 setup/ 解析稿'),
                   onClick: () => restoreSources(project, { force: true }).catch((e) => setError(String(e.message || e))).finally(() => setBusy('')),
-                }, busy === 'restore' ? '对齐中…' : '对齐原稿'),
+                }, busy === 'restore' ? workbenchText('对齐中…') : workbenchText('对齐原稿')),
               ),
             ),
             h('div', { className: 'ap-files-list' },
               !(project.inputPaths && project.inputPaths.length)
-                ? h('p', { className: 'ap-sub', style: { padding: '18px 0' } }, '尚未登记资料。')
+                ? h('p', { className: 'ap-sub', style: { padding: '18px 0' } }, workbenchText('尚未登记资料。'))
                 : project.inputPaths.map((path) => {
                   const restore = findSetupRestore(item.restores, path)
                   return h('div', { className: 'ap-file-row', key: path },
@@ -5636,51 +5641,51 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
                       })),
                     }, fileName(path)),
                     restore
-                      ? h('span', { className: 'ap-chip ok', title: restore.manuscriptPath }, '已对齐')
-                      : (/\.(pdf|doc|docx|ppt|pptx|xls|xlsx|png|jpe?g|jp2|webp|gif|bmp)$/i.test(path) ? h('span', { className: 'ap-chip' }, '待对齐') : null),
+                      ? h('span', { className: 'ap-chip ok', title: restore.manuscriptPath }, workbenchText('已对齐'))
+                      : (/\.(pdf|doc|docx|ppt|pptx|xls|xlsx|png|jpe?g|jp2|webp|gif|bmp)$/i.test(path) ? h('span', { className: 'ap-chip' }, workbenchText('待对齐')) : null),
                   )
                 }),
             ),
           ),
           row.workSurface ? h('section', { className: 'ap-sec' },
             h('div', { className: 'ap-row', style: { justifyContent: 'space-between' } },
-              h('h2', null, '知识面导航与证据'),
-              h('span', { className: 'ap-sub' }, 'PageIndex 影子树只负责长文档导航；BOQ 仍以表格单元格为准'),
+              h('h2', null, workbenchText('知识面导航与证据')),
+              h('span', { className: 'ap-sub' }, workbenchText('PageIndex 影子树只负责长文档导航；BOQ 仍以表格单元格为准')),
             ),
             h('div', { className: 'ap-audit' + (row.workSurface.pageIndex.fallback ? ' bad' : '') },
               h('div', { className: 'ap-row', style: { justifyContent: 'space-between' } },
                 h('span', null,
-                  '影子树 ' + row.workSurface.pageIndex.ready + ' 份'
-                  + (row.workSurface.pageIndex.notEligible ? ' / ' + row.workSurface.pageIndex.notEligible + ' 份保持原检索' : '')
-                  + (row.workSurface.pageIndex.fallback ? ' / ' + row.workSurface.pageIndex.fallback + ' 份已回退' : '')),
-                h('span', { className: 'ap-chip' }, row.workSurface.defaultNavigator ? '默认导航' : '影子评测'),
+                  workbenchText('影子树 ') + row.workSurface.pageIndex.ready + workbenchText(' 份')
+                  + (row.workSurface.pageIndex.notEligible ? ' / ' + row.workSurface.pageIndex.notEligible + workbenchText(' 份保持原检索') : '')
+                  + (row.workSurface.pageIndex.fallback ? ' / ' + row.workSurface.pageIndex.fallback + workbenchText(' 份已回退') : '')),
+                h('span', { className: 'ap-chip' }, row.workSurface.defaultNavigator ? workbenchText('默认导航') : workbenchText('影子评测')),
               ),
               h('div', { className: 'ap-row', style: { marginTop: 8, flexWrap: 'wrap' } },
                 h('span', { className: 'ap-sub' },
                   row.workSurface.coverage.initialized
-                    ? (row.workSurface.coverage.ready ? '五域覆盖：已完成' : '五域覆盖：有未读节点/证据/结论缺口')
-                    : '五域覆盖：等待首份长叙事资料对齐'),
-                h('span', { className: 'ap-sub' }, '结构化证据 ' + row.workSurface.evidence.claimCount + ' 条'),
-                h('span', { className: 'ap-sub' }, '遥测 ' + row.workSurface.telemetry.eventCount + ' 次'),
+                    ? (row.workSurface.coverage.ready ? workbenchText('五域覆盖：已完成') : workbenchText('五域覆盖：有未读节点/证据/结论缺口'))
+                    : workbenchText('五域覆盖：等待首份长叙事资料对齐')),
+                h('span', { className: 'ap-sub' }, workbenchText('结构化证据 ') + row.workSurface.evidence.claimCount + workbenchText(' 条')),
+                h('span', { className: 'ap-sub' }, workbenchText('遥测 ') + row.workSurface.telemetry.eventCount + workbenchText(' 次')),
               ),
               !row.workSurface.defaultNavigator
-                ? h('p', { className: 'ap-sub', style: { margin: '8px 0 0' } }, '默认切换仍受真实项目 80–120 项评测、Route F1、定位有效率、BOQ 基线和回退测试门禁控制。')
+                ? h('p', { className: 'ap-sub', style: { margin: '8px 0 0' } }, workbenchText('默认切换仍受真实项目 80–120 项评测、Route F1、定位有效率、BOQ 基线和回退测试门禁控制。'))
                 : null,
             ),
           ) : null,
           row.citationAudit ? h('section', { className: 'ap-sec' },
             h('div', { className: 'ap-row', style: { justifyContent: 'space-between' } },
-              h('h2', null, '引用核验'),
-              h('span', { className: 'ap-sub' }, '成果中的 [kb:…]/[src:…]/[ev:…] 令牌逐一对回知识库、项目文件与冻结证据包'),
+              h('h2', null, workbenchText('引用核验')),
+              h('span', { className: 'ap-sub' }, workbenchText('成果中的 [kb:…]/[src:…]/[ev:…] 令牌逐一对回知识库、项目文件与冻结证据包')),
             ),
             h('div', { className: 'ap-audit' + (row.citationAudit.orphans.length ? ' bad' : '') },
               h('div', { className: 'ap-row', style: { justifyContent: 'space-between' } },
                 h('span', null,
                   row.citationAudit.orphans.length
-                    ? '未通过：' + row.citationAudit.orphans.length + ' 个孤儿引用 / 共 ' + row.citationAudit.totalCitations + ' 个令牌'
+                    ? workbenchText('未通过：') + row.citationAudit.orphans.length + workbenchText(' 个孤儿引用 / 共 ') + row.citationAudit.totalCitations + workbenchText(' 个令牌')
                     : (row.citationAudit.totalCitations
-                      ? '通过：' + row.citationAudit.totalCitations + ' 个令牌全部可解析（kb ' + row.citationAudit.kbCitations + ' / src ' + row.citationAudit.srcCitations + ' / ev ' + (row.citationAudit.evidenceCitations || 0) + '）'
-                      : '尚无引用令牌（' + row.citationAudit.checkedFiles + ' 个成果文件）')),
+                      ? workbenchText('通过：') + row.citationAudit.totalCitations + workbenchText(' 个令牌全部可解析（kb ') + row.citationAudit.kbCitations + ' / src ' + row.citationAudit.srcCitations + ' / ev ' + (row.citationAudit.evidenceCitations || 0) + '）'
+                      : workbenchText('尚无引用令牌（') + row.citationAudit.checkedFiles + workbenchText(' 个成果文件）'))),
                 h('span', { className: 'ap-sub' }, String(row.citationAudit.generatedAt || '').slice(0, 16).replace('T', ' ')),
               ),
               row.citationAudit.orphans.length
@@ -5688,14 +5693,14 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
                   orphan.file + ':' + orphan.line + ' ' + orphan.token + ' — ' + orphan.reason)))
                 : null,
               row.citationAudit.orphans.length > 8
-                ? h('p', { className: 'ap-sub', style: { margin: '6px 0 0' } }, '…其余 ' + (row.citationAudit.orphans.length - 8) + ' 条见 orchestration/citation-audit.json')
+                ? h('p', { className: 'ap-sub', style: { margin: '6px 0 0' } }, workbenchText('…其余 ') + (row.citationAudit.orphans.length - 8) + workbenchText(' 条见 orchestration/citation-audit.json'))
                 : null,
             ),
           ) : null,
           notice ? h('div', { className: 'ap-sub', style: { padding: '10px 0 0' } }, notice) : null,
-          monitorState.note && monitoringHere ? h('div', { className: 'ap-sub', style: { padding: '4px 0 0' } }, '监控：' + monitorState.note) : null,
+          monitorState.note && monitoringHere ? h('div', { className: 'ap-sub', style: { padding: '4px 0 0' } }, workbenchText('监控：') + monitorState.note) : null,
           draft ? h('section', { className: 'ap-sec' },
-            h('div', { className: 'ap-sub' }, '阶段稿（最近一次准备的内容；提交后由 dsh 原生 subagent / workflow 执行）'),
+            h('div', { className: 'ap-sub' }, workbenchText('阶段稿（最近一次准备的内容；提交后由 dsh 原生 subagent / workflow 执行）')),
             h('div', { className: 'ap-draft' }, draft),
           ) : null,
         )
@@ -5942,8 +5947,8 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
       }
       const stageLabels = {}
       stageLabels[module] = workflow
-        ? workflow.stages.map((stage) => stage.labelZh)
-        : (FALLBACK_STAGE_LABELS[module] || [])
+        ? workflow.stages.map((stage) => stageLabel(stage, langState.lang))
+        : (FALLBACK_STAGE_LABELS[module] || []).map((label) => workbenchText(label))
       const showName = adopt ? step === 1 : step === 0
       const showFolder = !adopt && step === 1
       const showFiles = step === 2
@@ -6161,6 +6166,7 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
 
     const ProfessionalDepth = createProfessionalDepth({
       React, api,
+      useLanguage: useApLang,
       fillDraft: fillComposer,
       run: (composer, instruction) => {
         const draft = currentDraft(composer).trim()
@@ -6184,6 +6190,7 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
     }
 
     function ComposerTools(props) {
+      useApLang()
       captureComposerFace(props)
       const live = snapshotComposer()
       const cwd = live.cwd
@@ -6274,9 +6281,9 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
           }),
         }).then((result) => {
           if (result.optimizedPrompt) fillComposer(live, result.optimizedPrompt)
-          showToast(result.fallback ? '已用本地模板润色（当前模型未响应）' : '已用当前模型润色')
+          showToast(result.fallback ? workbenchText('已用本地模板润色（当前模型未响应）') : workbenchText('已用当前模型润色'))
         }).catch((err) => {
-          showToast('润色失败：' + String(err && err.message || err))
+          showToast(workbenchText('润色失败：') + String(err && err.message || err))
         }).finally(() => setBusy(false))
       }
       return h('div', { className: 'ap-composer-tools' },
@@ -6284,7 +6291,7 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
           h('button', {
             type: 'button',
             className: 'ap-toolbtn' + (busy ? ' on' : ''),
-            title: busy ? '正在用当前模型润色…' : '用当前模型润色提示词',
+            title: busy ? workbenchText('正在用当前模型润色…') : workbenchText('用当前模型润色提示词'),
             disabled: busy || !draft.trim(),
             onMouseDown: (e) => e.preventDefault(),
             onClick: polish,
@@ -6294,11 +6301,11 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
             className: 'ap-codex-turn' + (armed ? ' on' : ''),
             'aria-pressed': armed ? 'true' : 'false',
             title: armed
-              ? '下一条消息将由 Codex 子智能体执行'
-              : '仅将下一条消息交给 Codex 子智能体',
+              ? workbenchText('下一条消息将由 Codex 子智能体执行')
+              : workbenchText('仅将下一条消息交给 Codex 子智能体'),
             onMouseDown: (event) => event.preventDefault(),
             onClick: () => setCodexTurnArmed(propsRef.current, !armed),
-          }, Icon('sparkles', 14), 'Codex 执行'),
+          }, Icon('sparkles', 14), workbenchText('Codex 执行')),
             armed && h(ComposerCodexModelSelector, { composer: live }),
             h(ProfessionalDepth, { key: live.sessionId || 'draft', composer: live }),
           h('button', {
@@ -6309,7 +6316,7 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
             onClick: (e) => {
               e.preventDefault()
               e.stopPropagation()
-              chooseFolderForChat(cwd, snapshotComposer()).catch((err) => showToast('加入文件夹失败：' + String(err && err.message || err)))
+              chooseFolderForChat(cwd, snapshotComposer()).catch((err) => showToast(workbenchText('加入文件夹失败：') + String(err && err.message || err)))
             },
           }, Icon('folder', 15)),
         ),
@@ -6317,7 +6324,7 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
     }
 
     function renderAttachRail(items, onRemove) {
-      return h('div', { className: 'ap-attach-host', 'aria-label': '已加入对话的文件' },
+      return h('div', { className: 'ap-attach-host', 'aria-label': workbenchText('已加入对话的文件') },
         h('div', { className: 'ap-attach-rail' },
           items.map((item) => h('div', {
             key: item.id || item.relativePath,
@@ -6327,7 +6334,7 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
             h('button', {
               type: 'button',
               className: 'ap-attach-x',
-              title: '移除',
+              title: workbenchText('移除'),
               onClick: () => onRemove(item),
             }, Icon('x', 10)),
             h('div', { className: 'ap-attach-thumb' },
@@ -8012,7 +8019,7 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
           || runtime.uiConversation
       })
       ctx.slots.inject('conversation.view', () => ctx.slots.register(
-        { name: 'conversation.view', id: 'workbench', order: 50, label: WORKBENCH_LABEL },
+        { name: 'conversation.view', id: 'workbench', order: 50, label: () => tAp('workbench.title') },
         Workbench,
       ))
       ctx.slots.inject('settings.section', () => ctx.slots.register(
@@ -8025,15 +8032,15 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
         CodexSettingsSection,
       ))
       ctx.slots.inject('shell.overlay', () => ctx.slots.register(
-        { name: 'shell.overlay', id: 'tender-workbench', order: 5, label: WORKBENCH_LABEL },
+        { name: 'shell.overlay', id: 'tender-workbench', order: 5, label: () => tAp('workbench.title') },
         WorkbenchOverlay,
       ))
       ctx.slots.inject('shell.overlay', () => ctx.slots.register(
-        { name: 'shell.overlay', id: 'tender-create', order: 20, label: '新建项目' },
+        { name: 'shell.overlay', id: 'tender-create', order: 20, label: () => tAp('wb.create') },
         CreateOverlay,
       ))
       ctx.slots.inject('shell.overlay', () => ctx.slots.register(
-        { name: 'shell.overlay', id: 'tender-files', order: 10, label: '资源文件' },
+        { name: 'shell.overlay', id: 'tender-files', order: 10, label: () => tAp('files.title') },
         FilesRail,
       ))
       ctx.slots.inject('shell.overlay', () => ctx.slots.register(
@@ -8168,7 +8175,7 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
         placedSidebar(LanguageToggle, 'ap-mount-lang'),
       ))
       ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register(
-        { name: 'sidebar.footer.action', id: 'tender-workbench-nav', order: 2, label: WORKBENCH_LABEL },
+        { name: 'sidebar.footer.action', id: 'tender-workbench-nav', order: 2, label: () => tAp('workbench.title') },
         placedSidebar(WorkbenchNav, 'ap-mount-wb'),
       ))
       ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register(

@@ -112,5 +112,11 @@
     "dshVersion": "dsh-v0.1.7-rc.2",
     "dshPin": "477b4f420553e8a52c2fbccc464d7561b239c443",
     "releaseTag": "v3.7.5"
+  },
+  {
+    "version": "3.7.6",
+    "dshVersion": "0.1.7-rc.2+upstream-main.21638c5",
+    "dshPin": "21638c56315ae6a2b552d6091945d3144c9af32e",
+    "releaseTag": "v3.7.6"
   }
 ]

@@ -2,6 +2,7 @@ export function createWorkbenchView(dependencies) {
   const h = dependencies.h
   const Icon = dependencies.Icon
   const tAp = dependencies.tAp
+  const workbenchText = dependencies.workbenchText || ((value) => value)
   const moduleIconNode = dependencies.moduleIconNode
   const moduleLabel = dependencies.moduleLabel
   const FilePickPanel = dependencies.FilePickPanel
@@ -108,16 +109,16 @@ export function createWorkbenchView(dependencies) {
       props.picking
         ? h('div', { className: 'ap-overlay', onClick: (event) => { if (event.target === event.currentTarget) props.onClosePicker() } },
           h('div', { className: 'ap-modal wide' },
-            h('h1', null, Icon('filePlus', 18), '添加资料'),
-            h('p', { className: 'hint' }, '仅限用户明确登记的文件。企业工效表可一起登记，有则优先于网络调研。'),
+            h('h1', null, Icon('filePlus', 18), workbenchText('添加资料')),
+            h('p', { className: 'hint' }, workbenchText('仅限用户明确登记的文件。企业工效表可一起登记，有则优先于网络调研。')),
             h(FilePickPanel, {
               cwd: props.cwd,
               selected: props.pickSelected,
               onToggle: props.onTogglePick,
             }),
             h('div', { className: 'ap-foot' },
-              h('button', { type: 'button', className: 'ap-btn', onClick: props.onClosePicker }, '取消'),
-              h('button', { type: 'button', className: 'ap-btn primary', disabled: props.busy === 'files', onClick: props.onSaveFiles }, '保存登记'),
+              h('button', { type: 'button', className: 'ap-btn', onClick: props.onClosePicker }, workbenchText('取消')),
+              h('button', { type: 'button', className: 'ap-btn primary', disabled: props.busy === 'files', onClick: props.onSaveFiles }, workbenchText('保存登记')),
             ),
           ),
         )

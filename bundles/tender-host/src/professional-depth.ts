@@ -102,6 +102,8 @@ export function depthCommand(message: any): boolean | undefined {
   if (/^(?:请)?(?:关闭|退出|停用)专业深度(?:模式)?(?:[\s。！!：:,，]|$)/u.test(text)) return false
   if (/^(?:请)?(?:启用|开启|进入|使用)专业深度(?:模式)?(?:[\s。！!：:,，]|$)/u.test(text)) return true
   if (/^(?:请)?(?:使用|用|按|以)专业深度(?:模式)?(?:来|进行|分析|研判|处理|完成)/u.test(text)) return true
+  if (/^(?:please\s+)?(?:disable|turn off|exit) professional depth(?: mode)?(?:[\s.!:,]|$)/i.test(text)) return false
+  if (/^(?:please\s+)?(?:enable|turn on|use) professional depth(?: mode)?(?:[\s.!:,]|$)/i.test(text)) return true
   return undefined
 }
 

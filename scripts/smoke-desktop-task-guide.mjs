@@ -28,7 +28,7 @@ const userDataDir = join(scratch, 'electron-user-data')
 const dshHome = join(scratch, 'dsh-home')
 const workspace = join(scratch, 'workspace')
 const sourceFile = join(workspace, '招标说明.md')
-const artifactDir = resolve(process.env.AGENT_PI_QA_ARTIFACT_DIR || join(root, '.codex-temp', 'task-guide-ui-3.7.5'))
+const artifactDir = resolve(process.env.AGENT_PI_QA_ARTIFACT_DIR || join(root, '.codex-temp', 'task-guide-ui-3.7.6'))
 mkdirSync(workspace, { recursive: true })
 mkdirSync(artifactDir, { recursive: true })
 writeFileSync(sourceFile, [
@@ -123,8 +123,12 @@ try {
   await clickOptional(/稍后配置|Configure later/i, 5_000)
 
   const workspaceChooser = page.getByRole('textbox', { name: /选择工作区|Choose workspace/i }).first()
-  await workspaceChooser.waitFor({ state: 'visible', timeout: remaining() })
-  await workspaceChooser.click()
+  if (await workspaceChooser.waitFor({ state: 'visible', timeout: Math.min(4_000, remaining()) }).then(() => true).catch(() => false)) {
+    await workspaceChooser.click()
+  } else {
+    await page.locator('[data-composer-seat]').getByRole('button', { name: /选择工作区|Choose workspace/i }).click()
+    await page.getByRole('menuitem', { name: '添加工作区…' }).click()
+  }
   const picker = page.getByRole('dialog', { name: /选择工作区目录|Select Workspace Directory/i })
   await picker.waitFor({ state: 'visible', timeout: remaining() })
   await picker.getByRole('button', { name: /编辑路径|Edit path/i }).click()
@@ -182,6 +186,10 @@ try {
   const englishDialog = page.getByRole('region',{name:'Current task',exact:true})
   await englishDialog.getByRole('tab',{name:'Goal & brief',exact:true}).click()
   await englishDialog.getByLabel('What should this task accomplish?').waitFor()
+  await englishDialog.getByRole('tab',{name:'Capabilities',exact:true}).click()
+  await englishDialog.getByText('Full tender document analysis',{exact:true}).waitFor()
+  assert.equal(await englishDialog.getByText('招标全文解析与要求覆盖',{exact:true}).count(),0)
+  await page.getByRole('button',{name:'Professional depth',exact:true}).waitFor()
   await page.screenshot({path:join(artifactDir,'04-brief-english.png'),fullPage:true})
   await englishDialog.getByRole('button',{name:'Close',exact:true}).click()
   await page.locator('select.ap-lang').selectOption('zh')

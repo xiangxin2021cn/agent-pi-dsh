@@ -1843,6 +1843,260 @@ window.__ModuleLoader__.load({
 			"module.delivery": "ضبط المشروع"
 		});
 		//#endregion
+		//#region src/client/locales/workbench-chrome.js
+		const en$1 = {
+			"规划中": "Planning",
+			"执行中": "In progress",
+			"等待回推": "Waiting for agent update",
+			"已阻塞": "Blocked",
+			"已完成": "Completed",
+			"失败": "Failed",
+			"待处理": "Pending",
+			"进行中": "In progress",
+			"门禁未过": "Gate blocked",
+			"Codex 执行": "Run with Codex",
+			"当前会话已有附件发送事务，请等待完成后再切换 Codex 执行": "An attachment is still being sent in this conversation. Wait for it to finish before switching to Codex.",
+			"正在用当前模型润色…": "Polishing with the current model…",
+			"用当前模型润色提示词": "Polish prompt with the current model",
+			"已用本地模板润色（当前模型未响应）": "Polished with a local template (model did not respond)",
+			"已用当前模型润色": "Polished with the current model",
+			"润色失败：": "Polishing failed: ",
+			"下一条消息将由 Codex 子智能体执行": "Codex will handle the next message",
+			"仅将下一条消息交给 Codex 子智能体": "Send only the next message to Codex",
+			"加入文件夹失败：": "Could not add folder: ",
+			"已加入对话的文件": "Files added to conversation",
+			"移除": "Remove",
+			"未回写": "No agent update",
+			"已对齐": "Aligned",
+			"缺执行账本": "Execution record missing",
+			"存在差异": "Differences found",
+			"心跳过期": "Agent update overdue",
+			"等待人工": "Waiting for a person",
+			"待核验": "Awaiting verification",
+			"添加资料": "Add source files",
+			"仅限用户明确登记的文件。企业工效表可一起登记，有则优先于网络调研。": "Only add files the customer has explicitly registered. Include company productivity data when available; use it before web research.",
+			"取消": "Cancel",
+			"保存登记": "Save registration",
+			"从工作台移除项目「": "Remove project “",
+			"」？磁盘上的项目文件会保留。": "” from the workbench? Project files on disk will remain.",
+			"同一条推进口：未齐套先确认资料，否则恢复未完阶段。已写入的阶段稿不会再灌一遍。": "Continue the current workflow: confirm missing source files first, then resume the unfinished stage. Completed drafts will not be submitted twice.",
+			"所有阶段均已完成；如需重跑，请对相应阶段「重置编排」。": "All stages are complete. To run one again, reset that stage’s plan.",
+			"继续推进": "Continue",
+			"移除项目": "Remove project",
+			"用户要求（最高优先级）": "Customer requirements (highest priority)",
+			"主会话的新要求与工作台共用这份账本；只改受影响成果，不再让旧软门禁触发整阶段返工。": "New requirements from the main conversation share this record. Revise only affected deliverables; older soft checks will not restart a whole stage.",
+			" 条待落实": " requirements to address",
+			"待落实": "To address",
+			"已落实": "Addressed",
+			"已采用为验收口径": "Accepted as review criteria",
+			"落实说明：": "Implementation note: ",
+			"影响成果：": "Affected deliverables: ",
+			"标记已落实": "Mark addressed",
+			"采用为验收口径": "Use as review criteria",
+			"继续修改": "Continue editing",
+			"不属于本项目": "Not applicable to this project",
+			"流程监控": "Workflow monitor",
+			"只有点「继续推进」才启动当前主会话事务；已启动事务会在应用重启后恢复，遇到人工决策门、阻塞或异常会停止。分析阶段只维护一套可追溯底稿。": "The current conversation workflow starts only when you select Continue. It resumes after an app restart and pauses for human decisions, blockers or errors. Analysis keeps one traceable working record.",
+			"另一项目事务正在运行": "Another project workflow is running",
+			"点继续推进后启动当前会话事务": "Select Continue to start this conversation workflow",
+			"当前会话事务已暂停": "This conversation workflow is paused",
+			"当前会话事务空闲": "This conversation workflow is idle",
+			"检查于 ": "Checked at ",
+			"对每个阶段做盘面对账：任务与产物、阶段总控、投标分析底稿、实际工程量清单、测算表、引用孤儿和人工门禁": "Compare each stage with its tasks, deliverables, summary, tender analysis, actual BOQ, calculation workbook, unresolved citations and human approval gates.",
+			"体检中…": "Checking…",
+			"检查": "Check",
+			"解除缺件门槛：缺口保持为缺口，不授权联网尽调。": "Release the missing-source gate. Gaps remain recorded; this does not authorize web research.",
+			"当前没有缺件门槛可放行": "There is no missing-source gate to release",
+			"解除缺件门槛：缺口保持为缺口、继续使用已有资料，不授权联网尽调（联网需在对话中授权）。不会删除已完成批次。": "Release the missing-source gate and continue with available files? Gaps remain recorded. This does not authorize web research or remove completed batches.",
+			"强制放行": "Release gate",
+			"暂停当前会话事务，不中断当前对话": "Pause this workflow without interrupting the conversation",
+			"暂停事务": "Pause workflow",
+			"恢复事务": "Resume workflow",
+			"执行态（主智能体回写）": "Execution state (agent update)",
+			"主对话负责理解、计划、派活与阻塞说明": "The main conversation owns task understanding, planning, delegation and blocker explanations",
+			"目标：": "Goal: ",
+			"未登记": "Not recorded",
+			"当前批次：": "Current batch: ",
+			"下一动作：": "Next action: ",
+			"尚未登记结构化计划。": "No structured plan has been recorded.",
+			"子任务：": "Subtasks: ",
+			"阻塞：": "Blocker: ",
+			" · 心跳 ": " · Last agent update ",
+			"主智能体尚未回写执行计划。点「继续推进」后，主对话应先读取 status，再登记目标、批次、计划和下一动作。": "The agent has not recorded an execution plan. After you select Continue, it should read the current status, then record the goal, batch, plan and next action.",
+			"事实态（系统核验）": "Verified state (system checks)",
+			"只核验磁盘成果、BOQ、证据、引用与人工门禁": "Checks actual files, BOQ, evidence, citations and human approval gates",
+			"当前阶段：": "Current stage: ",
+			"未开始": "Not started",
+			"任务 ": "Tasks ",
+			" · 总报告已就位": " · Summary report present",
+			" · 缺《": " · Missing “",
+			" · BOQ 已核验": " · BOQ verified",
+			" · BOQ 有缺口": " · BOQ has gaps",
+			" · 孤儿引用 ": " · Unresolved citations ",
+			"尚未执行本轮事实核验；阶段状态为 ": "Current-state checks have not run yet; stage status: ",
+			"事实版本 ": "Verified-state version ",
+			"认知差异": "Differences between plan and results",
+			"系统事实明细": "System check details",
+			" · 最近产出 ": " · Last output ",
+			" 分钟前": " minutes ago",
+			"收起": "Collapse",
+			"用户要求待落实 ": "Customer requirements to address: ",
+			" 条": "",
+			"用户验收口径已生效": "Customer review criteria applied",
+			" 个 error）": " errors)",
+			"缺产物 ": "Missing deliverables: ",
+			" 份": "",
+			"总报告已就位": "Summary report present",
+			"缺《": "Missing “",
+			"投标分析底稿已齐": "Tender analysis workpaper complete",
+			"投标分析底稿未齐": "Tender analysis workpaper incomplete",
+			"工程量清单已抽出 ": "BOQ rows extracted: ",
+			" 行": "",
+			"未摸到工程量清单": "BOQ not found",
+			"测算表已就位": "Calculation workbook present",
+			"引用 ": "Citations: ",
+			" 令牌 / ": " tokens / ",
+			" 孤儿": " unresolved",
+			"门禁阻塞（": "Approval gate blocked (",
+			" 缺口）": " gaps)",
+			"门禁已放行": "Gate released",
+			"阶段已收口（商务待办不挡完成）": "Stage closed (commercial follow-ups remain)",
+			"无异常": "No issues",
+			"阶段已收口。成果在 Agent Pi Outputs/": "Stage closed. Outputs: Agent Pi Outputs/",
+			"/。询价、开工确认、submission_audit 未通过是投标可提交门禁，不表示本阶段没做完。": "/. Pending quotations, start confirmation or submission audit affect bid readiness, not stage completion.",
+			"基线 v": "Baseline v",
+			"记忆已失效": "Baseline out of date",
+			"待生成记忆": "Baseline pending",
+			"已强制放行": "Gate released",
+			"用户已确认": "Customer confirmed",
+			"用户已暂停": "Customer paused",
+			"待用户决策": "Customer decision required",
+			"前序基线：": "Upstream baseline: ",
+			"能力包 ": "Capability package ",
+			"缺口": "Gap",
+			"清单 ": "Checklist ",
+			" · 失败 ": " · Failed ",
+			"待对齐": "Not aligned",
+			"记录中…": "Recording…",
+			"按知识库同一套逻辑把已登记 PDF / Word / Excel 对齐成 setup/ 解析稿": "Align registered PDF, Word and Excel files into setup/ manuscripts using the knowledge-base parser.",
+			"对齐中…": "Aligning…",
+			"对齐原稿": "Align source files",
+			"资料已齐套": "Source files complete",
+			"对齐并确认中…": "Aligning and confirming…",
+			"资料齐套，进入下一阶段": "Sources complete; continue",
+			"打开本阶段正式成果目录": "Open this stage’s official output folder",
+			"打开成果": "Open outputs",
+			"同步成果到正式输出，并核验全部引用令牌（孤儿引用逐条列出）": "Copy deliverables to official outputs and check every citation token; list unresolved citations individually.",
+			"成果质检并整理": "Review and organize outputs",
+			"再核一次盘面。已收口且无差异时不会要求再 complete_stage，也不会把商务待办写成阶段未完成。": "Check project state again. A closed, unchanged stage will not rerun complete_stage or treat commercial follow-ups as unfinished work.",
+			"核对中…": "Checking…",
+			"再次核对盘面": "Recheck project state",
+			"跳到这一阶段。若它已是当前未完阶段，走恢复稿而不是再灌全文。": "Open this stage. If it is the current unfinished stage, resume its draft instead of loading the full source again.",
+			"进入此阶段": "Open this stage",
+			"重置「": "Reset “",
+			"」编排？任务清单会清空，磁盘成果保留。": "” plan? The task list will be cleared; files on disk will remain.",
+			"重置编排": "Reset plan",
+			"项目资料": "Project source files",
+			"对齐原稿后点名称预览改稿；保存同步 JSON": "Align source files, then select a name to review the manuscript; saving also updates JSON.",
+			"尚未登记资料。": "No source files registered.",
+			"知识面导航与证据": "Knowledge navigation and evidence",
+			"PageIndex 影子树只负责长文档导航；BOQ 仍以表格单元格为准": "The PageIndex shadow tree navigates long documents. BOQ facts still come from spreadsheet cells.",
+			"影子树 ": "Shadow trees: ",
+			" 份保持原检索": " remain on original search",
+			" 份已回退": " reverted",
+			"默认导航": "Default navigation",
+			"影子评测": "Shadow evaluation",
+			"五域覆盖：已完成": "Five-area coverage: complete",
+			"五域覆盖：有未读节点/证据/结论缺口": "Five-area coverage: unread nodes or evidence/conclusion gaps",
+			"五域覆盖：等待首份长叙事资料对齐": "Five-area coverage: awaiting the first aligned long-form source",
+			"结构化证据 ": "Structured evidence: ",
+			"遥测 ": "Telemetry events: ",
+			" 次": "",
+			"默认切换仍受真实项目 80–120 项评测、Route F1、定位有效率、BOQ 基线和回退测试门禁控制。": "Default navigation remains gated by 80–120 real-project evaluations, Route F1, valid-locator rate, BOQ baseline and fallback tests.",
+			"引用核验": "Citation checks",
+			"成果中的 [kb:…]/[src:…]/[ev:…] 令牌逐一对回知识库、项目文件与冻结证据包": "Match every [kb:…]/[src:…]/[ev:…] token in outputs to a knowledge source, project file or frozen evidence pack.",
+			"未通过：": "Failed: ",
+			" 个孤儿引用 / 共 ": " unresolved citations / ",
+			" 个令牌": " tokens",
+			"通过：": "Passed: ",
+			" 个令牌全部可解析（kb ": " tokens resolved (kb ",
+			"尚无引用令牌（": "No citation tokens (",
+			" 个成果文件）": " output files)",
+			"…其余 ": "…remaining ",
+			" 条见 orchestration/citation-audit.json": " listed in orchestration/citation-audit.json",
+			"监控：": "Monitor: ",
+			"阶段稿（最近一次准备的内容；提交后由 dsh 原生 subagent / workflow 执行）": "Stage draft (most recently prepared; native DSH subagents or workflows execute it after submission)",
+			"正在用 MinerU 对齐原稿…": "Aligning source files with MinerU…",
+			"正在按知识库逻辑对齐原稿…": "Aligning source files with the knowledge-base parser…",
+			"已对齐 ": "Aligned ",
+			" 份原稿": " source files",
+			"；": "; ",
+			" 份未对齐": " not aligned",
+			"。点文件名可预览改稿，保存会同步 JSON。": ". Select a file to review its manuscript; saving also updates JSON.",
+			"原稿对齐未完成：": "Source alignment incomplete: ",
+			"没有需要对齐的原稿。": "No source files need alignment.",
+			"项目资料登记": "Project setup",
+			"招标文件解析": "Document analysis",
+			"BOQ 逐页组价与资源汇总": "BOQ pricing and resource summary",
+			"施工策划、进度、成本与出稿": "Construction planning, schedule, cost and deliverables",
+			"实施工作区建立": "Delivery setup",
+			"合同范围 / 进度 / 成本 / 风险": "Contract scope / schedule / cost / risk",
+			"授权与工作区": "Mandate and workspace",
+			"尽调与决策包": "Diligence and decision pack"
+		};
+		function localizeWorkbenchCopy(value, locale) {
+			if (String(locale || "").toLowerCase().startsWith("zh")) return value;
+			return en$1[value] ?? value;
+		}
+		//#endregion
+		//#region src/client/locales/workbench-stages.js
+		const stages = {
+			"project-setup": ["项目资料登记", "Upload and register tender files. Align PDF, Word and Excel with the knowledge-base parser into reviewable manuscripts; saving also updates the sidecar JSON. Continue once the sources are complete."],
+			"bid-risk-decision": ["投标决策与重大风险", "Prepare a bid/no-bid recommendation, critical risks, clarifications and decision conditions. The customer decides whether to continue."],
+			"tender-document-analysis": ["招标文件解析", "Analyze every file into one traceable tender analysis workpaper and extract the actual BOQ in full. Create specialist views from the workpaper only when needed."],
+			"pricing-basis-freeze": ["组价基准冻结", "Record currency, taxes, wages, materials, equipment, productivity, risk allowances and gaps as a traceable pricing basis. The customer confirms it before detailed pricing."],
+			"boq-five-step-pricing": ["BOQ 逐页组价与资源汇总", "Price each BOQ section against this project’s conditions. Record gaps instead of inventing figures."],
+			"planning-and-submission": ["施工与技术方案", "Use the confirmed basis and detailed pricing to prepare construction methods, schedule, resources, cash flow and technical response. This stage does not establish submission readiness."],
+			"submission-compliance-freeze": ["合规检查与最终提交冻结", "Check eligibility, forms, signatures and seals, prices, technical proposal and submission media. Freeze the version only after customer approval."],
+			"delivery-setup": ["实施工作区建立", "Confirm delivery inputs, data date, contract scope, control baselines and deliverables."],
+			"delivery-controls": ["合同范围 / 进度 / 成本 / 风险", "Update contract scope, schedule, procurement, cost, cash flow, risks, changes and period-end reporting with the delivery skills."],
+			"investment-setup": ["授权与工作区", "Confirm investment stage, mandate, valuation date, source files and decision thresholds."],
+			"investment-diligence": ["尽调与决策包", "Prepare technical, market, legal and ESG diligence, valuation and the investment decision pack."]
+		};
+		const gateCopy = {
+			"bid-risk-decision": {
+				promptZh: ["请确认是否接受本轮投标建议并进入招标分析。", "Confirm whether to accept the bid recommendation and proceed to tender analysis."],
+				approveLabelZh: ["确认投标，继续", "Confirm bid and continue"],
+				rejectLabelZh: ["不投标，暂停", "Do not bid; pause"]
+			},
+			"pricing-basis-freeze": {
+				promptZh: ["请确认组价基准和暂定假设，再进入详细 BOQ 组价。", "Confirm the pricing basis and provisional assumptions before detailed BOQ pricing."],
+				approveLabelZh: ["确认基准，开始组价", "Confirm basis and price BOQ"]
+			},
+			"submission-compliance-freeze": {
+				promptZh: ["请核对合规记录并确认是否冻结为最终提交版本。", "Review the compliance record and confirm the final submission version."],
+				approveLabelZh: ["确认合规，冻结提交", "Confirm compliance and freeze"]
+			}
+		};
+		function stageLabel(stage, locale) {
+			if (!stage) return "";
+			if (String(locale || "").startsWith("zh")) return stage.labelZh || stage.label || stage.id;
+			const builtIn = stages[stage.id];
+			return builtIn && stage.labelZh === builtIn[0] ? stage.label || stage.labelZh : stage.labelZh || stage.label || stage.id;
+		}
+		function stageHint(stage, locale) {
+			if (!stage) return "";
+			if (String(locale || "").startsWith("zh")) return stage.hintZh || stage.prompt || "";
+			const builtIn = stages[stage.id];
+			return builtIn && stage.labelZh === builtIn[0] ? builtIn[1] : stage.hintZh || stage.prompt || "";
+		}
+		function stageGate(stage, field, locale) {
+			const value = stage?.approvalGate?.[field] || "";
+			if (String(locale || "").startsWith("zh")) return value;
+			const pair = gateCopy[stage?.id]?.[field];
+			return pair && value === pair[0] && stage.labelZh === stages[stage.id]?.[0] ? pair[1] : value;
+		}
+		//#endregion
 		//#region src/client/attachment-message-view.js
 		const slot = "conversation.chat.node";
 		/** Strip only product transport markers from a presentation copy, never the log. */
@@ -6629,6 +6883,7 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 			const h = dependencies.h;
 			const Icon = dependencies.Icon;
 			const tAp = dependencies.tAp;
+			const workbenchText = dependencies.workbenchText || ((value) => value);
 			const moduleIconNode = dependencies.moduleIconNode;
 			const moduleLabel = dependencies.moduleLabel;
 			const FilePickPanel = dependencies.FilePickPanel;
@@ -6707,7 +6962,7 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 					onClick: (event) => {
 						if (event.target === event.currentTarget) props.onClosePicker();
 					}
-				}, h("div", { className: "ap-modal wide" }, h("h1", null, Icon("filePlus", 18), "添加资料"), h("p", { className: "hint" }, "仅限用户明确登记的文件。企业工效表可一起登记，有则优先于网络调研。"), h(FilePickPanel, {
+				}, h("div", { className: "ap-modal wide" }, h("h1", null, Icon("filePlus", 18), workbenchText("添加资料")), h("p", { className: "hint" }, workbenchText("仅限用户明确登记的文件。企业工效表可一起登记，有则优先于网络调研。")), h(FilePickPanel, {
 					cwd: props.cwd,
 					selected: props.pickSelected,
 					onToggle: props.onTogglePick
@@ -6715,12 +6970,12 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 					type: "button",
 					className: "ap-btn",
 					onClick: props.onClosePicker
-				}, "取消"), h("button", {
+				}, workbenchText("取消")), h("button", {
 					type: "button",
 					className: "ap-btn primary",
 					disabled: props.busy === "files",
 					onClick: props.onSaveFiles
-				}, "保存登记")))) : null);
+				}, workbenchText("保存登记"))))) : null);
 			};
 		}
 		//#endregion
@@ -7280,6 +7535,78 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 [data-cordis-plugin-id]{color:#111827!important}
 `;
 		//#endregion
+		//#region src/client/locales/professional-depth.js
+		const en = {
+			"实际用途与受众": "Purpose and audience",
+			"成果用于什么工作、给谁使用或支持什么决策": "What work, audience or decision will this deliverable support?",
+			"专业深度": "Professional depth",
+			"需要说明、分析、计算，还是可执行的交付成果": "Is an explanation, analysis, calculation or ready-to-use deliverable needed?",
+			"事实依据与缺口": "Evidence and gaps",
+			"已知事实、所选资料、需要补充的关键条件": "Known facts, selected sources and critical missing conditions",
+			"成果格式": "Deliverable format",
+			"文件类型、模板、结构、图表与版式要求": "File type, template, structure, charts and layout",
+			"验收口径": "Acceptance criteria",
+			"怎样判断任务已满足实际使用需求": "How will this task be judged fit for its intended use?",
+			"专业审阅": "Professional review",
+			"文件与格式": "File and format",
+			"包含指定内容": "Contains required content",
+			"有效 JSON": "Valid JSON",
+			"已启用": "Enabled",
+			" · 已启用": " · Enabled",
+			"查看任务说明和交付检查": "View task brief and delivery checks",
+			"按实际用途研判任务、格式和验收要求": "Define task purpose, format and acceptance criteria",
+			"专业深度任务说明": "Professional-depth task brief",
+			"关闭专业深度面板": "Close professional-depth panel",
+			"围绕实际用途、专业依据和交付要求，继续在当前 DSH 对话中完成任务。只使用你在本对话选定的知识库资料。": "Continue this task in the current DSH conversation using its purpose, professional basis and delivery requirements. Use only the knowledge-base sources selected for this conversation.",
+			"已启用 · 等待你的任务输入": "Enabled · Awaiting your task",
+			"任务说明 · 第 ": "Task brief · Revision ",
+			" 版": "",
+			"默认关闭": "Off by default",
+			"关闭专业深度": "Turn off professional depth",
+			"启用专业深度": "Turn on professional depth",
+			"编辑任务说明": "Edit task brief",
+			"开启只保存选择，不发送消息。输入并发送实际任务后，明确需求直接执行，关键目标不清楚时再集中询问；新对话默认关闭。": "Turning this on saves your choice without sending a message. After you submit the task, clear requirements can be acted on; only material uncertainty prompts a focused question. New conversations start with this off.",
+			"可复用模板": "Reusable templates",
+			"由你主动保存、选用。不会自动保存经验、扫描项目或向新对话加载模板。保存前请去掉本次项目事实。": "Save and select templates yourself. The app does not automatically collect experience, scan projects or load templates into new conversations. Remove project-specific facts before saving.",
+			"选用专业深度模板": "Select a professional-depth template",
+			"不使用模板": "No template",
+			"整理并保存为模板": "Save as template",
+			"查看已选模板": "View selected template",
+			"模板名称": "Template name",
+			"例如：施工方案审阅": "For example: Construction method review",
+			"模板内容": "Template content",
+			"保存模板": "Save template",
+			"取消": "Cancel",
+			"已保存 Markdown 模板：": "Markdown template saved: ",
+			"。本次未自动选用。": ". It was not selected automatically.",
+			"载入最新版本": "Load latest version",
+			"发送任务后，由当前智能体结合实际需求整理。": "The agent will prepare this after you submit the task.",
+			"验收项与交付检查": "Acceptance items and delivery checks",
+			"文件检查仅证明所列条件。专业准确性、计算和视觉版式需结合实际证据审阅；检查结果记录当时的文件内容。": "File checks verify only the listed conditions. Review professional accuracy, calculations and layout against actual evidence. Check results reflect the file contents at the time.",
+			"验收项 ": "Acceptance item ",
+			"具体的验收条件": "Specific acceptance condition",
+			"检查方式 ": "Check method ",
+			"文件路径 ": "File path ",
+			"相对于当前工作区的文件路径": "Path relative to the current workspace",
+			"预期内容 ": "Expected content ",
+			"必须包含的实际文本": "Required text",
+			"移除": "Remove",
+			"机器检查通过": "Automated check passed",
+			"检查未通过": "Check failed",
+			"需专业审阅": "Professional review required",
+			"待检查": "Pending check",
+			"添加验收项": "Add acceptance item",
+			"尚未形成验收项。": "No acceptance items yet.",
+			"专业审阅记录": "Professional review notes",
+			"保存并继续任务": "Save and continue task",
+			"仅保存要求": "Save requirements only",
+			"取消修改": "Discard edits"
+		};
+		function localizeDepthCopy(value, locale) {
+			if (String(locale || "").startsWith("zh")) return value;
+			return en[value] ?? value;
+		}
+		//#endregion
 		//#region src/client/professional-depth.js
 		const fields = [
 			[
@@ -7315,15 +7642,17 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 			["json", "有效 JSON"]
 		];
 		const pendingModes = /* @__PURE__ */ new WeakMap();
-		function prepareDepthSubmission(composer, draft, hasAttachments) {
+		function prepareDepthSubmission(composer, draft, hasAttachments, locale = "zh") {
 			const pending = composer.inputActions && pendingModes.get(composer.inputActions);
 			if (!pending || composer.sessionId || !draft.trim() && !hasAttachments) return draft;
 			pendingModes.delete(composer.inputActions);
-			return `启用专业深度。\n${draft}${pending.template ? `\n\n我主动选用以下模板作为参考，当前需求优先，模板中的旧事实不代表本次事实：\n<reference-template>\n${pending.template.content}\n</reference-template>` : ""}`;
+			return String(locale).startsWith("zh") ? `启用专业深度。\n${draft}${pending.template ? `\n\n我主动选用以下模板作为参考，当前需求优先，模板中的旧事实不代表本次事实：\n<reference-template>\n${pending.template.content}\n</reference-template>` : ""}` : `Enable professional depth.\n${draft}${pending.template ? `\n\nI selected the following template as reference. The current task takes priority; old project facts in the template do not apply here:\n<reference-template>\n${pending.template.content}\n</reference-template>` : ""}`;
 		}
-		function createProfessionalDepth({ React, api, run, subscribe }) {
+		function createProfessionalDepth({ React, api, run, subscribe, useLanguage }) {
 			const h = React.createElement;
 			return function ProfessionalDepth({ composer }) {
+				const locale = useLanguage();
+				const t = (value) => localizeDepthCopy(value, locale);
 				const id = composer.sessionId || "";
 				const [state, setState] = React.useState(null);
 				const [edit, setEdit] = React.useState(null);
@@ -7450,7 +7779,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					setSavedPath("");
 					setTemplateEdit({
 						title: "",
-						content: `## 触发场景\n描述适用的工作类型，去掉本项目名称和具体事实。\n\n## 需求澄清清单\n只列无法从任务推断、且会改变结果的关键问题。\n\n## 标准做法\n${state?.brief?.depth || "填写可复用的工作步骤。"}\n\n## 禁区\n填写应保留的边界，不携带凭据或项目敏感资料。\n\n## 提示词模板\n围绕实际用途完成任务；事实、资料和参数以本次输入为准。\n\n## 验收标准\n${state?.brief?.acceptance || "填写可检查的交付要求。"}`
+						content: locale.startsWith("zh") ? `## 触发场景\n描述适用的工作类型，去掉本项目名称和具体事实。\n\n## 需求澄清清单\n只列无法从任务推断、且会改变结果的关键问题。\n\n## 标准做法\n${state?.brief?.depth || "填写可复用的工作步骤。"}\n\n## 禁区\n填写应保留的边界，不携带凭据或项目敏感资料。\n\n## 提示词模板\n围绕实际用途完成任务；事实、资料和参数以本次输入为准。\n\n## 验收标准\n${state?.brief?.acceptance || "填写可检查的交付要求。"}` : `## When to use\nDescribe the type of work without project names or facts.\n\n## Questions to clarify\nList only unknowns that could change the result.\n\n## Standard approach\n${state?.brief?.depth || "Describe reusable work steps."}\n\n## Boundaries\nState what must be preserved; omit credentials and sensitive project data.\n\n## Prompt template\nComplete the task for its intended use. Use the current inputs for facts, sources and parameters.\n\n## Acceptance criteria\n${state?.brief?.acceptance || "List verifiable delivery requirements."}`
 					});
 				};
 				const saveTemplate = () => perform(async () => {
@@ -7470,10 +7799,10 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					type: "button",
 					className: `ap-codex-turn${enabled ? " on" : ""}`,
 					onClick: show,
-					"aria-label": "专业深度",
+					"aria-label": t("专业深度"),
 					"aria-pressed": !!enabled,
-					title: enabled ? "查看任务说明和交付检查" : "按实际用途研判任务、格式和验收要求"
-				}, "专业深度", enabled ? " · 已启用" : ""), open && h("div", {
+					title: enabled ? t("查看任务说明和交付检查") : t("按实际用途研判任务、格式和验收要求")
+				}, t("专业深度"), enabled ? t(" · 已启用") : ""), open && h("div", {
 					className: "ap-overlay ap-depth-overlay",
 					onClick: (event) => {
 						if (event.target === event.currentTarget && !edit) setOpen(false);
@@ -7482,38 +7811,38 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					className: "ap-modal ap-depth-modal",
 					role: "dialog",
 					"aria-modal": true,
-					"aria-label": "专业深度任务说明"
+					"aria-label": t("专业深度任务说明")
 				}, h("button", {
 					type: "button",
 					className: "ap-close",
-					"aria-label": "关闭专业深度面板",
+					"aria-label": t("关闭专业深度面板"),
 					onClick: () => setOpen(false)
-				}, "×"), h("h2", null, "专业深度"), h("p", { className: "ap-sub" }, "围绕实际用途、专业依据和交付要求，继续在当前 DSH 对话中完成任务。只使用你在本对话选定的知识库资料。"), h("div", { className: "ap-row ap-depth-actions" }, h("span", {
+				}, "×"), h("h2", null, t("专业深度")), h("p", { className: "ap-sub" }, t("围绕实际用途、专业依据和交付要求，继续在当前 DSH 对话中完成任务。只使用你在本对话选定的知识库资料。")), h("div", { className: "ap-row ap-depth-actions" }, h("span", {
 					className: "ap-depth-status",
 					role: "status"
-				}, enabled ? !id || state?.needsAssessment ? "已启用 · 等待你的任务输入" : `任务说明 · 第 ${state.revision} 版` : "默认关闭"), h("button", {
+				}, enabled ? !id || state?.needsAssessment ? t("已启用 · 等待你的任务输入") : t("任务说明 · 第 ") + state.revision + t(" 版") : t("默认关闭")), h("button", {
 					type: "button",
 					disabled: busy || !!edit,
 					onClick: toggle
-				}, enabled ? "关闭专业深度" : "启用专业深度"), state?.enabled && !edit && h("button", {
+				}, enabled ? t("关闭专业深度") : t("启用专业深度")), state?.enabled && !edit && h("button", {
 					type: "button",
 					disabled: busy,
 					onClick: () => setEdit(structuredClone(state))
-				}, "编辑任务说明")), h("p", { className: "ap-sub" }, "开启只保存选择，不发送消息。输入并发送实际任务后，明确需求直接执行，关键目标不清楚时再集中询问；新对话默认关闭。"), h("div", { className: "ap-depth-templates" }, h("h3", null, "可复用模板"), h("p", { className: "ap-sub" }, "由你主动保存、选用。不会自动保存经验、扫描项目或向新对话加载模板。保存前请去掉本次项目事实。"), h("select", {
-					"aria-label": "选用专业深度模板",
+				}, t("编辑任务说明"))), h("p", { className: "ap-sub" }, t("开启只保存选择，不发送消息。输入并发送实际任务后，明确需求直接执行，关键目标不清楚时再集中询问；新对话默认关闭。")), h("div", { className: "ap-depth-templates" }, h("h3", null, t("可复用模板")), h("p", { className: "ap-sub" }, t("由你主动保存、选用。不会自动保存经验、扫描项目或向新对话加载模板。保存前请去掉本次项目事实。")), h("select", {
+					"aria-label": t("选用专业深度模板"),
 					disabled: busy || !enabled,
 					value: (id ? state?.template?.id : template?.id) || "",
 					onChange: (e) => selectTemplate(e.target.value)
-				}, h("option", { value: "" }, "不使用模板"), templates.map((item) => h("option", {
+				}, h("option", { value: "" }, t("不使用模板")), templates.map((item) => h("option", {
 					key: item.id,
 					value: item.id
 				}, item.title))), h("button", {
 					type: "button",
 					disabled: busy,
 					onClick: startTemplate
-				}, "整理并保存为模板"), (id ? state?.template : template) && h("details", null, h("summary", null, "查看已选模板"), h("pre", { className: "ap-depth-notes" }, (id ? state.template : template).content)), templateEdit && h("div", { className: "ap-depth-template-edit" }, h("input", {
-					"aria-label": "模板名称",
-					placeholder: "例如：施工方案审阅",
+				}, t("整理并保存为模板")), (id ? state?.template : template) && h("details", null, h("summary", null, t("查看已选模板")), h("pre", { className: "ap-depth-notes" }, (id ? state.template : template).content)), templateEdit && h("div", { className: "ap-depth-template-edit" }, h("input", {
+					"aria-label": t("模板名称"),
+					placeholder: t("例如：施工方案审阅"),
 					value: templateEdit.title,
 					maxLength: 120,
 					onChange: (e) => setTemplateEdit((value) => ({
@@ -7521,7 +7850,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 						title: e.target.value
 					}))
 				}), h("textarea", {
-					"aria-label": "模板内容",
+					"aria-label": t("模板内容"),
 					rows: 12,
 					maxLength: 24e3,
 					value: templateEdit.content,
@@ -7533,13 +7862,13 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					type: "button",
 					disabled: busy || !templateEdit.title.trim(),
 					onClick: saveTemplate
-				}, "保存模板"), h("button", {
+				}, t("保存模板")), h("button", {
 					type: "button",
 					onClick: () => setTemplateEdit(null)
-				}, "取消")), savedPath && h("p", {
+				}, t("取消"))), savedPath && h("p", {
 					role: "status",
 					className: "ap-depth-notes"
-				}, `已保存 Markdown 模板：${savedPath}。本次未自动选用。`)), error && h("p", {
+				}, t("已保存 Markdown 模板：") + savedPath + t("。本次未自动选用。"))), error && h("p", {
 					role: "alert",
 					className: "ap-depth-error"
 				}, error, " ", h("button", {
@@ -7548,38 +7877,38 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 						setState(await request());
 						setEdit(null);
 					})
-				}, "载入最新版本")), shown && h("div", { className: "ap-depth-fields" }, fields.map(([field, label, placeholder]) => h("label", { key: field }, h("strong", null, label), edit ? h("textarea", {
+				}, t("载入最新版本"))), shown && h("div", { className: "ap-depth-fields" }, fields.map(([field, label, placeholder]) => h("label", { key: field }, h("strong", null, t(label)), edit ? h("textarea", {
 					value: edit.brief[field],
 					maxLength: 6e3,
 					rows: 3,
-					placeholder,
+					placeholder: t(placeholder),
 					onChange: (event) => updateField(field, event.target.value)
-				}) : h("p", null, shown.brief[field] || "发送任务后，由当前智能体结合实际需求整理。")))), shown && h("div", { className: "ap-depth-criteria" }, h("h3", null, "验收项与交付检查"), h("p", { className: "ap-sub" }, "文件检查仅证明所列条件。专业准确性、计算和视觉版式需结合实际证据审阅；检查结果记录当时的文件内容。"), shown.criteria.map((criterion, index) => {
+				}) : h("p", null, shown.brief[field] || t("发送任务后，由当前智能体结合实际需求整理。"))))), shown && h("div", { className: "ap-depth-criteria" }, h("h3", null, t("验收项与交付检查")), h("p", { className: "ap-sub" }, t("文件检查仅证明所列条件。专业准确性、计算和视觉版式需结合实际证据审阅；检查结果记录当时的文件内容。")), shown.criteria.map((criterion, index) => {
 					const result = state.checks.find((item) => item.id === criterion.id);
 					return h("div", {
 						key: criterion.id,
 						className: "ap-depth-criterion"
 					}, edit ? h(React.Fragment, null, h("input", {
-						"aria-label": `验收项 ${index + 1}`,
+						"aria-label": t("验收项 ") + (index + 1),
 						value: criterion.title,
-						placeholder: "具体的验收条件",
+						placeholder: t("具体的验收条件"),
 						onChange: (e) => updateCriterion(index, { title: e.target.value })
 					}), h("select", {
-						"aria-label": `检查方式 ${index + 1}`,
+						"aria-label": t("检查方式 ") + (index + 1),
 						value: criterion.kind,
 						onChange: (e) => updateCriterion(index, { kind: e.target.value })
 					}, kinds.map(([value, label]) => h("option", {
 						key: value,
 						value
-					}, label))), criterion.kind !== "review" && h("input", {
-						"aria-label": `文件路径 ${index + 1}`,
+					}, t(label)))), criterion.kind !== "review" && h("input", {
+						"aria-label": t("文件路径 ") + (index + 1),
 						value: criterion.path || "",
-						placeholder: "相对于当前工作区的文件路径",
+						placeholder: t("相对于当前工作区的文件路径"),
 						onChange: (e) => updateCriterion(index, { path: e.target.value })
 					}), criterion.kind === "contains" && h("input", {
-						"aria-label": `预期内容 ${index + 1}`,
+						"aria-label": t("预期内容 ") + (index + 1),
 						value: criterion.expected || "",
-						placeholder: "必须包含的实际文本",
+						placeholder: t("必须包含的实际文本"),
 						onChange: (e) => updateCriterion(index, { expected: e.target.value })
 					}), h("button", {
 						type: "button",
@@ -7587,11 +7916,11 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 							...current,
 							criteria: current.criteria.filter((_, i) => i !== index)
 						}))
-					}, "移除")) : h(React.Fragment, null, h("strong", null, criterion.title), h("span", { className: `ap-depth-check ${result?.status || "pending"}` }, result ? {
-						passed: "机器检查通过",
-						failed: "检查未通过",
-						review: "需专业审阅"
-					}[result.status] : "待检查"), criterion.path && h("p", { className: "ap-sub" }, criterion.path), result && h("p", { className: "ap-sub" }, result.detail)));
+					}, t("移除"))) : h(React.Fragment, null, h("strong", null, criterion.title), h("span", { className: `ap-depth-check ${result?.status || "pending"}` }, result ? {
+						passed: t("机器检查通过"),
+						failed: t("检查未通过"),
+						review: t("需专业审阅")
+					}[result.status] : t("待检查")), criterion.path && h("p", { className: "ap-sub" }, criterion.path), result && h("p", { className: "ap-sub" }, result.detail)));
 				}), edit && h("button", {
 					type: "button",
 					disabled: edit.criteria.length >= 20,
@@ -7603,19 +7932,19 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 							kind: "review"
 						}]
 					}))
-				}, "添加验收项"), !shown.criteria.length && h("p", { className: "ap-sub" }, "尚未形成验收项。"), !edit && state.reviewNotes && h("div", null, h("h4", null, "专业审阅记录"), h("p", { className: "ap-depth-notes" }, state.reviewNotes))), edit && h("div", { className: "ap-row ap-depth-actions" }, h("button", {
+				}, t("添加验收项")), !shown.criteria.length && h("p", { className: "ap-sub" }, t("尚未形成验收项。")), !edit && state.reviewNotes && h("div", null, h("h4", null, t("专业审阅记录")), h("p", { className: "ap-depth-notes" }, state.reviewNotes))), edit && h("div", { className: "ap-row ap-depth-actions" }, h("button", {
 					type: "button",
 					disabled: busy,
 					onClick: () => save(true)
-				}, "保存并继续任务"), h("button", {
+				}, t("保存并继续任务")), h("button", {
 					type: "button",
 					disabled: busy,
 					onClick: () => save(false)
-				}, "仅保存要求"), h("button", {
+				}, t("仅保存要求")), h("button", {
 					type: "button",
 					disabled: busy,
 					onClick: () => setEdit(null)
-				}, "取消修改")))));
+				}, t("取消修改"))))));
 			};
 		}
 		const professionalDepthCss = `
@@ -7684,6 +8013,27 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					"aria-live": "polite"
 				}, summary.text));
 			};
+		}
+		//#endregion
+		//#region src/client/capability-labels.js
+		const ENGLISH_CAPABILITIES = {
+			"tender:full-analysis": ["Full tender document analysis", "Locate source text and cover all pages, tables, drawings, attachments, addenda, measurement rules, scoring and submission requirements"],
+			"tender:item-derivation": ["BOQ item cost and resource derivation", "Reconcile scope and measurement, methods, productivity, resource consumption and prices item by item"],
+			"tender:execution-plan": ["Tender execution planning", "Develop a detailed plan from actual work packages, resources and project conditions"],
+			"tender:returnables": ["Tender returnables and forms", "Prepare submissions against the actual returnables list, scoring criteria and templates"],
+			"delivery:drawing": ["Construction drawing review", "Identify drawing numbers, revisions, units, elements and construction constraints"],
+			"delivery:quantity": ["Quantity takeoff", "Link drawing locations, elements, calculations, units, deductions and BOQ scope"],
+			"delivery:method": ["Project method statement", "Describe site conditions, work steps, resource assumptions, inspections and exception handling"],
+			"investment:research": ["Professional research and decision report", "Investigate and assess the current question, location, date and audience"]
+		};
+		function localizeCapability(row, locale) {
+			if (String(locale || "").toLowerCase().startsWith("zh")) return row;
+			const copy = ENGLISH_CAPABILITIES[row.id];
+			return copy ? {
+				...row,
+				title: copy[0],
+				description: copy[1]
+			} : row;
 		}
 		//#endregion
 		//#region src/client/task-guide.js
@@ -7816,7 +8166,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				const [result, setResult] = React.useState(null), [draft, setDraft] = React.useState(null);
 				const [dirty, setDirty] = React.useState(false), [busy, setBusy] = React.useState(false), [message, setMessage] = React.useState(""), [error, setError] = React.useState("");
 				const text = labels[language()?.startsWith("zh") ? "zh" : "en"];
-				const displayState = (value) => text === labels.zh ? {
+				const displayState = (value) => (text === labels.zh ? {
 					available: "可用",
 					conditional: "需核实适用条件",
 					unavailable: "当前不可用",
@@ -7840,7 +8190,31 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					passed: "通过",
 					failed: "未通过",
 					review: "需复核"
-				}[value] || value : value.replaceAll("_", " ");
+				} : {
+					available: "Available",
+					conditional: "Check applicability",
+					unavailable: "Unavailable",
+					not_applicable: "Not applicable to this task",
+					pending: "Pending",
+					running: "In progress",
+					done: "Completed",
+					stale: "Changed conditions; review required",
+					verified: "Verified",
+					unverified: "Unverified",
+					conflict: "Conflict",
+					parsed: "Extracted",
+					reviewed: "Reviewed",
+					missing: "Missing",
+					unreadable: "Unreadable",
+					draft: "Draft",
+					ready: "Ready for customer review",
+					accepted: "Accepted",
+					signed: "Signed",
+					not_required: "No signature required",
+					passed: "Passed",
+					failed: "Failed",
+					review: "Review required"
+				})[value] || String(value || "").replaceAll("_", " ");
 				const endpoint = "/api/agent-pi/professional-task?sessionId=" + encodeURIComponent(sessionId || "");
 				React.useEffect(() => {
 					setResult(null);
@@ -7976,8 +8350,8 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 						"funding",
 						"contract",
 						"measurement"
-					].map((key) => field(key, true)), h("h3", null, text.standards), draft.brief.basis.standards.map((row) => article(row.id, row.title, h("p", null, row.version + " · " + row.scope + " · " + row.evidenceId))), h("h3", null, text.evidence), draft.evidence.map((row) => article(row.id, row.title, h(React.Fragment, null, h("p", null, row.value), h("p", { className: "ap-guide-muted" }, row.kind + " · " + row.status + " · " + (row.locator || row.url || row.basis || ""))))));
-					if (tab === "plan") body = h(React.Fragment, null, h("p", null, draft.assessment || text.waiting), draft.plan.map((row) => article(row.id, row.title, h(React.Fragment, null, h("p", null, row.status), h("p", { className: "ap-guide-muted" }, row.dependsOn.join(" → ")), row.gaps.map((gap, index) => h("p", { key: "g" + index }, text.missing + ": " + gap)), row.supplements.map((supplement, index) => h("p", { key: "s" + index }, supplement))))), h("h3", null, text.source), draft.coverage.map((row) => article(row.id, row.title, h("p", null, row.status + " · " + (row.review || "") + " · " + row.locator))));
+					].map((key) => field(key, true)), h("h3", null, text.standards), draft.brief.basis.standards.map((row) => article(row.id, row.title, h("p", null, row.version + " · " + row.scope + " · " + row.evidenceId))), h("h3", null, text.evidence), draft.evidence.map((row) => article(row.id, row.title, h(React.Fragment, null, h("p", null, row.value), h("p", { className: "ap-guide-muted" }, row.kind + " · " + displayState(row.status) + " · " + (row.locator || row.url || row.basis || ""))))));
+					if (tab === "plan") body = h(React.Fragment, null, h("p", null, draft.assessment || text.waiting), draft.plan.map((row) => article(row.id, row.title, h(React.Fragment, null, h("p", null, displayState(row.status)), h("p", { className: "ap-guide-muted" }, row.dependsOn.join(" → ")), row.gaps.map((gap, index) => h("p", { key: "g" + index }, text.missing + ": " + gap)), row.supplements.map((supplement, index) => h("p", { key: "s" + index }, supplement))))), h("h3", null, text.source), draft.coverage.map((row) => article(row.id, row.title, h("p", null, displayState(row.status) + " · " + (row.review || "") + " · " + row.locator))));
 					if (tab === "capabilities") body = result?.capabilities?.toSorted((a, b) => [
 						"available",
 						"conditional",
@@ -7988,15 +8362,18 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 						"conditional",
 						"unavailable",
 						"not_applicable"
-					].indexOf(b.status)).map((row) => article(row.id, row.title, h(React.Fragment, null, h("p", null, displayState(row.status)), h("p", null, row.description), h("p", { className: "ap-guide-muted" }, row.owner + " · " + row.version), [
-						...row.reasons || [],
-						...row.limitations || [],
-						...row.supplements || []
-					].map((value, index) => h("p", { key: index }, value)))));
+					].indexOf(b.status)).map((capability) => {
+						const row = localizeCapability(capability, language());
+						return article(row.id, row.title, h(React.Fragment, null, h("p", null, displayState(row.status)), h("p", null, row.description), h("p", { className: "ap-guide-muted" }, row.owner + " · " + row.version), [
+							...row.reasons || [],
+							...row.limitations || [],
+							...row.supplements || []
+						].map((value, index) => h("p", { key: index }, value))));
+					});
 					if (tab === "delivery") body = h(React.Fragment, null, h("p", null, result?.audit?.customerAccepted ? text.accepted : result?.audit?.readyForCustomerReview ? text.ready : text.review), result?.audit?.issues?.map((row, index) => h("p", {
 						key: index,
 						className: "ap-guide-error"
-					}, row.detail)), draft.deliverables.map((row) => article(row.id, row.title, h(React.Fragment, null, h("p", null, row.path), h("p", null, row.status + " · " + row.signature), row.checks.map((check, index) => h("p", { key: index }, check.kind + " · " + check.status + " — " + check.detail)), row.signature === "pending" ? h("button", {
+					}, row.detail)), draft.deliverables.map((row) => article(row.id, row.title, h(React.Fragment, null, h("p", null, row.path), h("p", null, displayState(row.status) + " · " + displayState(row.signature)), row.checks.map((check, index) => h("p", { key: index }, check.kind + " · " + displayState(check.status) + " — " + check.detail)), row.signature === "pending" ? h("button", {
 						disabled: busy || dirty,
 						onClick: () => save({ deliverables: draft.deliverables.map((item) => item.id === row.id ? {
 							...item,
@@ -8896,7 +9273,6 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				"aria-hidden": "true"
 			}, nodes.map((node, i) => h(node[0], Object.assign({ key: i }, node[1]))));
 		}
-		const WORKBENCH_LABEL = "专业化工作台";
 		function localeIdOf(value) {
 			const primary = String(value || "").toLowerCase().split("-")[0];
 			return AP_LANGUAGE_DEFINITIONS.some((language) => language.id === primary) ? primary : "zh";
@@ -8941,6 +9317,9 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				text = text.split("{" + name + "}").join(String(vars[name]));
 			});
 			return text;
+		}
+		function workbenchText(value) {
+			return localizeWorkbenchCopy(value, langState.lang);
 		}
 		const productCapabilities = createProductCapabilities(react);
 		function useApLang() {
@@ -9077,7 +9456,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		function setCodexTurnArmed(props, armed) {
 			const key = codexTurnKey(props);
 			if (armed && attachmentTurnControllers.has(key)) {
-				showToast("当前会话已有附件发送事务，请等待完成后再切换 Codex 执行");
+				showToast(workbenchText("当前会话已有附件发送事务，请等待完成后再切换 Codex 执行"));
 				return;
 			}
 			const controller = codexTurnController(props, armed);
@@ -10238,10 +10617,10 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		}
 		function taskStatusLabel(status) {
 			return {
-				queued: "待处理",
-				running: "进行中",
-				done: "已完成",
-				error: "失败"
+				queued: workbenchText("待处理"),
+				running: workbenchText("进行中"),
+				done: workbenchText("已完成"),
+				error: workbenchText("失败")
 			}[status] || status;
 		}
 		function readWorkbenchOpen() {
@@ -11930,7 +12309,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			actions.submit = () => {
 				const live = actions.__apLatestProps || props;
 				const before = currentDraft(live);
-				const depthDraft = prepareDepthSubmission(live, before, nativeCodexAttachmentIds(live.input).length > 0 || codexAttachItems(attachmentTurnKey(live)).length > 0);
+				const depthDraft = prepareDepthSubmission(live, before, nativeCodexAttachmentIds(live.input).length > 0 || codexAttachItems(attachmentTurnKey(live)).length > 0, langState.lang);
 				if (depthDraft !== before) {
 					fillComposer(live, depthDraft);
 					requestAnimationFrame(() => actions.submit());
@@ -12355,9 +12734,9 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			return base.replace(/-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, "") || base;
 		}
 		function statusChip(status) {
-			if (status === "blocked") return h("span", { className: "ap-chip warn" }, "门禁未过");
-			if (status === "done") return h("span", { className: "ap-chip ok" }, "已完成");
-			if (status === "running") return h("span", { className: "ap-chip live" }, "进行中");
+			if (status === "blocked") return h("span", { className: "ap-chip warn" }, workbenchText("门禁未过"));
+			if (status === "done") return h("span", { className: "ap-chip ok" }, workbenchText("已完成"));
+			if (status === "running") return h("span", { className: "ap-chip live" }, workbenchText("进行中"));
 			return null;
 		}
 		function FilePickPanel(props) {
@@ -13171,6 +13550,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			h,
 			Icon,
 			tAp,
+			workbenchText,
 			moduleIconNode,
 			moduleLabel,
 			FilePickPanel
@@ -13542,7 +13922,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			const restoreSources = (project, extra) => {
 				setBusy("restore");
 				setError("");
-				setNotice(extra && extra.preferMineru ? "正在用 MinerU 对齐原稿…" : "正在按知识库逻辑对齐原稿…");
+				setNotice(extra && extra.preferMineru ? workbenchText("正在用 MinerU 对齐原稿…") : workbenchText("正在按知识库逻辑对齐原稿…"));
 				return api("/api/agent-pi/projects/restore", cwd, {
 					method: "POST",
 					body: JSON.stringify({
@@ -13554,7 +13934,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				}).then((batch) => {
 					const ok = (batch.restored || []).length;
 					const skipped = (batch.skipped || []).filter((item) => item.reason !== "unsupported");
-					setNotice(ok ? "已对齐 " + ok + " 份原稿" + (skipped.length ? "；" + skipped.length + " 份未对齐" : "") + "。点文件名可预览改稿，保存会同步 JSON。" : skipped.length ? "原稿对齐未完成：" + skipped.map((item) => item.reason).join("；") : "没有需要对齐的原稿。");
+					setNotice(ok ? workbenchText("已对齐 ") + ok + workbenchText(" 份原稿") + (skipped.length ? workbenchText("；") + skipped.length + workbenchText(" 份未对齐") : "") + workbenchText("。点文件名可预览改稿，保存会同步 JSON。") : skipped.length ? workbenchText("原稿对齐未完成：") + skipped.map((item) => item.reason).join(workbenchText("；")) : workbenchText("没有需要对齐的原稿。"));
 					return refresh();
 				});
 			};
@@ -13575,7 +13955,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			};
 			const removeProject = () => {
 				if (!row) return;
-				if (!window.confirm("从工作台移除项目「" + row.project.name + "」？磁盘上的项目文件会保留。")) return;
+				if (!window.confirm(workbenchText("从工作台移除项目「") + row.project.name + workbenchText("」？磁盘上的项目文件会保留。"))) return;
 				setBusy("remove");
 				api("/api/agent-pi/projects", cwd, {
 					method: "DELETE",
@@ -13608,20 +13988,20 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				const currentReality = reality && reality.stages ? reality.stages.find((stage) => stage.stageId === item.currentStageId) || null : null;
 				const currentSlice = item.currentStageId ? stageSlice(item, item.currentStageId) : null;
 				const executionStatusLabel = execution ? {
-					planning: "规划中",
-					working: "执行中",
-					waiting: "等待回推",
-					blocked: "已阻塞",
-					completed: "已完成",
-					failed: "失败"
-				}[execution.status] || execution.status : "未回写";
+					planning: workbenchText("规划中"),
+					working: workbenchText("执行中"),
+					waiting: workbenchText("等待回推"),
+					blocked: workbenchText("已阻塞"),
+					completed: workbenchText("已完成"),
+					failed: workbenchText("失败")
+				}[execution.status] || execution.status : workbenchText("未回写");
 				const alignmentLabel = activeControl ? {
-					aligned: "已对齐",
-					missing: "缺执行账本",
-					drifted: "存在差异",
-					stale: "心跳过期",
-					"waiting-human": "等待人工"
-				}[activeControl.alignment] || activeControl.alignment : "待核验";
+					aligned: workbenchText("已对齐"),
+					missing: workbenchText("缺执行账本"),
+					drifted: workbenchText("存在差异"),
+					stale: workbenchText("心跳过期"),
+					"waiting-human": workbenchText("等待人工")
+				}[activeControl.alignment] || activeControl.alignment : workbenchText("待核验");
 				const forceTarget = stages.find((stage) => {
 					if (setupId && stage.id === setupId) return false;
 					const slice = stageSlice(item, stage.id);
@@ -13632,17 +14012,17 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					type: "button",
 					className: "ap-btn",
 					onClick: addFiles
-				}, Icon("filePlus", 14), "添加资料"), h("button", {
+				}, Icon("filePlus", 14), workbenchText("添加资料")), h("button", {
 					type: "button",
 					className: "ap-btn primary",
-					title: "同一条推进口：未齐套先确认资料，否则恢复未完阶段。已写入的阶段稿不会再灌一遍。",
+					title: workbenchText("同一条推进口：未齐套先确认资料，否则恢复未完阶段。已写入的阶段稿不会再灌一遍。"),
 					onClick: () => {
 						const next = stages.find((stage) => {
 							const slice = stageSlice(item, stage.id);
 							return !slice || slice.status !== "done";
 						});
 						if (!next) {
-							setNotice("所有阶段均已完成；如需重跑，请对相应阶段「重置编排」。");
+							setNotice(workbenchText("所有阶段均已完成；如需重跑，请对相应阶段「重置编排」。"));
 							return;
 						}
 						if (setupId && next.id === setupId) {
@@ -13651,96 +14031,96 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 						}
 						runStage(project, "", "resume", true);
 					}
-				}, Icon("play", 14), "继续推进"), h("button", {
+				}, Icon("play", 14), workbenchText("继续推进")), h("button", {
 					type: "button",
 					className: "ap-btn ghost",
 					onClick: removeProject
-				}, Icon("trash", 14), "移除项目"))), requirements.length ? h("section", {
+				}, Icon("trash", 14), workbenchText("移除项目")))), requirements.length ? h("section", {
 					className: "ap-sec ap-user-reqs",
-					"aria-label": "用户要求（最高优先级）"
-				}, h("div", { className: "ap-user-req-head" }, h("div", null, h("h2", null, "用户要求（最高优先级）"), h("p", { className: "ap-sub" }, "主会话的新要求与工作台共用这份账本；只改受影响成果，不再让旧软门禁触发整阶段返工。")), h("span", { className: "ap-chip" }, requirements.filter((requirement) => requirement.status === "active").length + " 条待落实")), requirements.slice(0, 6).map((requirement) => {
-					const statusLabel = requirement.status === "active" ? "待落实" : requirement.status === "implemented" ? "已落实" : "已采用为验收口径";
+					"aria-label": workbenchText("用户要求（最高优先级）")
+				}, h("div", { className: "ap-user-req-head" }, h("div", null, h("h2", null, workbenchText("用户要求（最高优先级）")), h("p", { className: "ap-sub" }, workbenchText("主会话的新要求与工作台共用这份账本；只改受影响成果，不再让旧软门禁触发整阶段返工。"))), h("span", { className: "ap-chip" }, requirements.filter((requirement) => requirement.status === "active").length + workbenchText(" 条待落实"))), requirements.slice(0, 6).map((requirement) => {
+					const statusLabel = requirement.status === "active" ? workbenchText("待落实") : requirement.status === "implemented" ? workbenchText("已落实") : workbenchText("已采用为验收口径");
 					const statusClass = requirement.status === "active" ? " warn" : " ok";
 					return h("article", {
 						className: "ap-user-req",
 						key: requirement.id
-					}, h("div", { className: "ap-user-req-main" }, h("div", { className: "ap-row" }, h("span", { className: "ap-chip" + statusClass }, statusLabel), h("span", { className: "ap-sub" }, requirement.stageId)), h("p", null, requirement.text), requirement.note ? h("p", { className: "ap-sub" }, "落实说明：" + requirement.note) : null, requirement.evidencePaths && requirement.evidencePaths.length ? h("p", { className: "ap-sub" }, "影响成果：" + requirement.evidencePaths.join("、")) : null), h("div", { className: "ap-user-req-actions" }, requirement.status === "active" ? h("button", {
+					}, h("div", { className: "ap-user-req-main" }, h("div", { className: "ap-row" }, h("span", { className: "ap-chip" + statusClass }, statusLabel), h("span", { className: "ap-sub" }, requirement.stageId)), h("p", null, requirement.text), requirement.note ? h("p", { className: "ap-sub" }, workbenchText("落实说明：") + requirement.note) : null, requirement.evidencePaths && requirement.evidencePaths.length ? h("p", { className: "ap-sub" }, workbenchText("影响成果：") + requirement.evidencePaths.join("、")) : null), h("div", { className: "ap-user-req-actions" }, requirement.status === "active" ? h("button", {
 						type: "button",
 						className: "ap-btn",
 						disabled: !!busy,
 						onClick: () => updateRequirement(project, requirement, "satisfy_requirement")
-					}, "标记已落实") : requirement.status === "implemented" ? h(react.Fragment, null, h("button", {
+					}, workbenchText("标记已落实")) : requirement.status === "implemented" ? h(react.Fragment, null, h("button", {
 						type: "button",
 						className: "ap-btn primary",
 						disabled: !!busy,
 						onClick: () => updateRequirement(project, requirement, "accept_requirement")
-					}, "采用为验收口径"), h("button", {
+					}, workbenchText("采用为验收口径")), h("button", {
 						type: "button",
 						className: "ap-btn",
 						disabled: !!busy,
 						onClick: () => updateRequirement(project, requirement, "reopen_requirement")
-					}, "继续修改")) : null, requirement.status !== "accepted" ? h("button", {
+					}, workbenchText("继续修改"))) : null, requirement.status !== "accepted" ? h("button", {
 						type: "button",
 						className: "ap-btn ghost",
 						disabled: !!busy,
 						onClick: () => updateRequirement(project, requirement, "dismiss_requirement")
-					}, "不属于本项目") : null));
-				})) : null, h("section", { className: "ap-sec" }, h("div", { className: "ap-mon-hd" }, h("div", { style: { minWidth: 0 } }, h("h2", null, "流程监控"), h("p", { className: "ap-sub" }, "只有点「继续推进」才启动当前主会话事务；已启动事务会在应用重启后恢复，遇到人工决策门、阻塞或异常会停止。分析阶段只维护一套可追溯底稿。")), h("div", { className: "ap-mon-tools" }, h("span", { className: "ap-row" }, h("i", { className: "ap-dot" + (monitoringHere && !monitorState.paused || liveActivityText ? " on" : "") }), !monitoringHere ? liveActivityText || (monitorState.monitoring ? "另一项目事务正在运行" : "点继续推进后启动当前会话事务") : (monitorState.paused ? "当前会话事务已暂停" : "当前会话事务空闲") + (liveActivityText ? " · " + liveActivityText : "")), h("span", null, "检查于 " + (monitorState.lastCheck ? formatClock(new Date(monitorState.lastCheck).toISOString()) : lastCheck ? formatClock(new Date(lastCheck).toISOString()) : "—")), h("button", {
+					}, workbenchText("不属于本项目")) : null));
+				})) : null, h("section", { className: "ap-sec" }, h("div", { className: "ap-mon-hd" }, h("div", { style: { minWidth: 0 } }, h("h2", null, workbenchText("流程监控")), h("p", { className: "ap-sub" }, workbenchText("只有点「继续推进」才启动当前主会话事务；已启动事务会在应用重启后恢复，遇到人工决策门、阻塞或异常会停止。分析阶段只维护一套可追溯底稿。"))), h("div", { className: "ap-mon-tools" }, h("span", { className: "ap-row" }, h("i", { className: "ap-dot" + (monitoringHere && !monitorState.paused || liveActivityText ? " on" : "") }), !monitoringHere ? liveActivityText || (monitorState.monitoring ? workbenchText("另一项目事务正在运行") : workbenchText("点继续推进后启动当前会话事务")) : (monitorState.paused ? workbenchText("当前会话事务已暂停") : workbenchText("当前会话事务空闲")) + (liveActivityText ? " · " + liveActivityText : "")), h("span", null, workbenchText("检查于 ") + (monitorState.lastCheck ? formatClock(new Date(monitorState.lastCheck).toISOString()) : lastCheck ? formatClock(new Date(lastCheck).toISOString()) : "—")), h("button", {
 					type: "button",
 					className: "ap-btn",
 					disabled: busy === "check:",
-					title: "对每个阶段做盘面对账：任务与产物、阶段总控、投标分析底稿、实际工程量清单、测算表、引用孤儿和人工门禁",
+					title: workbenchText("对每个阶段做盘面对账：任务与产物、阶段总控、投标分析底稿、实际工程量清单、测算表、引用孤儿和人工门禁"),
 					onClick: () => runCheck(project)
-				}, Icon("search", 14), busy === "check:" ? "体检中…" : "检查"), h("button", {
+				}, Icon("search", 14), busy === "check:" ? workbenchText("体检中…") : workbenchText("检查")), h("button", {
 					type: "button",
 					className: "ap-btn",
 					disabled: !forceTarget && !(evidence && evidence.blocking),
-					title: forceTarget || evidence && evidence.blocking ? "解除缺件门槛：缺口保持为缺口，不授权联网尽调。" : "当前没有缺件门槛可放行",
+					title: forceTarget || evidence && evidence.blocking ? workbenchText("解除缺件门槛：缺口保持为缺口，不授权联网尽调。") : workbenchText("当前没有缺件门槛可放行"),
 					onClick: () => {
-						if (!window.confirm("解除缺件门槛：缺口保持为缺口、继续使用已有资料，不授权联网尽调（联网需在对话中授权）。不会删除已完成批次。")) return;
+						if (!window.confirm(workbenchText("解除缺件门槛：缺口保持为缺口、继续使用已有资料，不授权联网尽调（联网需在对话中授权）。不会删除已完成批次。"))) return;
 						runStage(project, forceTarget && forceTarget.id || item.currentStageId || stages[0] && stages[0].id || "", "force_pass", false);
 					}
-				}, Icon("unlock", 14), "强制放行"), monitoringHere && !monitorState.paused ? h("button", {
+				}, Icon("unlock", 14), workbenchText("强制放行")), monitoringHere && !monitorState.paused ? h("button", {
 					type: "button",
 					className: "ap-btn ghost",
-					title: "暂停当前会话事务，不中断当前对话",
+					title: workbenchText("暂停当前会话事务，不中断当前对话"),
 					onClick: () => monitorEngine.pause()
-				}, Icon("square", 14), "暂停事务") : monitoringHere && monitorState.paused ? h("button", {
+				}, Icon("square", 14), workbenchText("暂停事务")) : monitoringHere && monitorState.paused ? h("button", {
 					type: "button",
 					className: "ap-btn ghost",
 					onClick: () => {
 						monitorEngine.unpause();
 						refresh(true);
 					}
-				}, Icon("play", 14), "恢复事务") : null)), h("div", { className: "ap-dual-state" }, h("article", { className: "ap-state-card" }, h("div", { className: "ap-state-card-hd" }, h("div", null, h("strong", null, "执行态（主智能体回写）"), h("span", { className: "ap-sub" }, "主对话负责理解、计划、派活与阻塞说明")), h("span", { className: "ap-chip" + (execution && execution.status === "blocked" ? " warn" : execution ? " ok" : "") }, executionStatusLabel)), execution ? h("div", { className: "ap-state-body" }, h("p", null, h("b", null, "目标："), execution.objective || "未登记"), h("p", null, h("b", null, "当前批次："), execution.currentBatch || "未登记"), h("p", null, h("b", null, "下一动作："), execution.nextAction || "未登记"), execution.plan && execution.plan.length ? h("div", { className: "ap-mini-list" }, execution.plan.slice(0, 5).map((plan) => h("div", { key: plan.id }, h("i", { className: "ap-mini-status " + plan.status }), h("span", null, plan.title)))) : h("p", { className: "ap-sub" }, "尚未登记结构化计划。"), execution.assignments && execution.assignments.length ? h("p", { className: "ap-sub" }, "子任务：" + execution.assignments.map((assignment) => assignment.title + " [" + assignment.status + "]").join(" · ")) : null, execution.blocker && execution.blocker.type !== "none" ? h("p", { className: "ap-state-alert" }, "阻塞：" + (execution.blocker.reason || execution.blocker.needed || execution.blocker.type)) : null, h("p", { className: "ap-sub" }, "revision " + execution.revision + " · 心跳 " + formatClock(execution.heartbeatAt))) : h("div", { className: "ap-state-empty" }, "主智能体尚未回写执行计划。点「继续推进」后，主对话应先读取 status，再登记目标、批次、计划和下一动作。")), h("article", { className: "ap-state-card" }, h("div", { className: "ap-state-card-hd" }, h("div", null, h("strong", null, "事实态（系统核验）"), h("span", { className: "ap-sub" }, "只核验磁盘成果、BOQ、证据、引用与人工门禁")), h("span", { className: "ap-chip" + (activeControl && activeControl.alignment !== "aligned" ? " warn" : currentReality ? " ok" : "") }, alignmentLabel)), h("div", { className: "ap-state-body" }, h("p", null, h("b", null, "当前阶段："), currentReality ? currentReality.stageLabel : item.currentStageId || "未开始"), currentReality ? h("p", null, "任务 " + currentReality.tasks.done + "/" + currentReality.tasks.total, currentReality.summary ? currentReality.summary.exists ? " · 总报告已就位" : " · 缺《" + currentReality.summary.fileName + "》" : "", currentReality.boqInventory ? currentReality.boqInventory.ok ? " · BOQ 已核验" : " · BOQ 有缺口" : "", currentReality.citations && currentReality.citations.total ? " · 孤儿引用 " + currentReality.citations.orphans : "") : h("p", { className: "ap-sub" }, "尚未执行本轮事实核验；阶段状态为 " + (currentSlice && currentSlice.status || "idle") + "。"), activeControl && activeControl.realityDigest ? h("p", { className: "ap-sub" }, "事实版本 " + activeControl.realityDigest) : null))), activeControl && activeControl.differences && activeControl.differences.length ? h("div", { className: "ap-alignment-alert" }, h("strong", null, "认知差异"), h("ul", null, activeControl.differences.map((difference, index) => h("li", { key: index }, difference)))) : null, reality && reality.stages ? h("div", { className: "ap-check" }, h("div", { className: "ap-check-hd" }, "系统事实明细", h("span", { className: "ap-sub" }, formatClock(reality.generatedAt) + (reality.stages[0] && reality.stages[0].quietMinutes != null ? " · 最近产出 " + reality.stages[0].quietMinutes + " 分钟前" : "")), h("button", {
+				}, Icon("play", 14), workbenchText("恢复事务")) : null)), h("div", { className: "ap-dual-state" }, h("article", { className: "ap-state-card" }, h("div", { className: "ap-state-card-hd" }, h("div", null, h("strong", null, workbenchText("执行态（主智能体回写）")), h("span", { className: "ap-sub" }, workbenchText("主对话负责理解、计划、派活与阻塞说明"))), h("span", { className: "ap-chip" + (execution && execution.status === "blocked" ? " warn" : execution ? " ok" : "") }, executionStatusLabel)), execution ? h("div", { className: "ap-state-body" }, h("p", null, h("b", null, workbenchText("目标：")), execution.objective || workbenchText("未登记")), h("p", null, h("b", null, workbenchText("当前批次：")), execution.currentBatch || workbenchText("未登记")), h("p", null, h("b", null, workbenchText("下一动作：")), execution.nextAction || workbenchText("未登记")), execution.plan && execution.plan.length ? h("div", { className: "ap-mini-list" }, execution.plan.slice(0, 5).map((plan) => h("div", { key: plan.id }, h("i", { className: "ap-mini-status " + plan.status }), h("span", null, plan.title)))) : h("p", { className: "ap-sub" }, workbenchText("尚未登记结构化计划。")), execution.assignments && execution.assignments.length ? h("p", { className: "ap-sub" }, workbenchText("子任务：") + execution.assignments.map((assignment) => assignment.title + " [" + assignment.status + "]").join(" · ")) : null, execution.blocker && execution.blocker.type !== "none" ? h("p", { className: "ap-state-alert" }, workbenchText("阻塞：") + (execution.blocker.reason || execution.blocker.needed || execution.blocker.type)) : null, h("p", { className: "ap-sub" }, "revision " + execution.revision + workbenchText(" · 心跳 ") + formatClock(execution.heartbeatAt))) : h("div", { className: "ap-state-empty" }, workbenchText("主智能体尚未回写执行计划。点「继续推进」后，主对话应先读取 status，再登记目标、批次、计划和下一动作。"))), h("article", { className: "ap-state-card" }, h("div", { className: "ap-state-card-hd" }, h("div", null, h("strong", null, workbenchText("事实态（系统核验）")), h("span", { className: "ap-sub" }, workbenchText("只核验磁盘成果、BOQ、证据、引用与人工门禁"))), h("span", { className: "ap-chip" + (activeControl && activeControl.alignment !== "aligned" ? " warn" : currentReality ? " ok" : "") }, alignmentLabel)), h("div", { className: "ap-state-body" }, h("p", null, h("b", null, workbenchText("当前阶段：")), currentReality ? stageLabel(stages.find((stage) => stage.id === currentReality.stageId), langState.lang) || currentReality.stageLabel : item.currentStageId || workbenchText("未开始")), currentReality ? h("p", null, workbenchText("任务 ") + currentReality.tasks.done + "/" + currentReality.tasks.total, currentReality.summary ? currentReality.summary.exists ? workbenchText(" · 总报告已就位") : workbenchText(" · 缺《") + currentReality.summary.fileName + (langState.lang === "zh" ? "》" : "”") : "", currentReality.boqInventory ? currentReality.boqInventory.ok ? workbenchText(" · BOQ 已核验") : workbenchText(" · BOQ 有缺口") : "", currentReality.citations && currentReality.citations.total ? workbenchText(" · 孤儿引用 ") + currentReality.citations.orphans : "") : h("p", { className: "ap-sub" }, workbenchText("尚未执行本轮事实核验；阶段状态为 ") + (currentSlice && currentSlice.status || "idle") + "。"), activeControl && activeControl.realityDigest ? h("p", { className: "ap-sub" }, workbenchText("事实版本 ") + activeControl.realityDigest) : null))), activeControl && activeControl.differences && activeControl.differences.length ? h("div", { className: "ap-alignment-alert" }, h("strong", null, workbenchText("认知差异")), h("ul", null, activeControl.differences.map((difference, index) => h("li", { key: index }, difference)))) : null, reality && reality.stages ? h("div", { className: "ap-check" }, h("div", { className: "ap-check-hd" }, workbenchText("系统事实明细"), h("span", { className: "ap-sub" }, formatClock(reality.generatedAt) + (reality.stages[0] && reality.stages[0].quietMinutes != null ? workbenchText(" · 最近产出 ") + reality.stages[0].quietMinutes + workbenchText(" 分钟前") : "")), h("button", {
 					type: "button",
 					className: "ap-btn ghost",
 					onClick: () => setReality(null)
-				}, "收起")), reality.stages.map((st, index) => {
+				}, workbenchText("收起"))), reality.stages.map((st, index) => {
 					const parts = [];
-					if (st.userRequirements && st.userRequirements.active > 0) parts.push("用户要求待落实 " + st.userRequirements.active + " 条");
-					else if (st.userRequirementOverride) parts.push("用户验收口径已生效");
-					if (st.tasks && st.tasks.total > 0) parts.push("任务 " + st.tasks.done + "/" + st.tasks.total + (st.tasks.error ? "（" + st.tasks.error + " 个 error）" : ""));
+					if (st.userRequirements && st.userRequirements.active > 0) parts.push(workbenchText("用户要求待落实 ") + st.userRequirements.active + workbenchText(" 条"));
+					else if (st.userRequirementOverride) parts.push(workbenchText("用户验收口径已生效"));
+					if (st.tasks && st.tasks.total > 0) parts.push(workbenchText("任务 ") + st.tasks.done + "/" + st.tasks.total + (st.tasks.error ? (langState.lang === "zh" ? "（" : " (") + st.tasks.error + workbenchText(" 个 error）") : ""));
 					const missing = st.artifacts ? st.artifacts.missingMarkdown.length + st.artifacts.missingReport.length : 0;
-					if (missing > 0) parts.push("缺产物 " + missing + " 份");
-					if (st.summary) parts.push(st.summary.exists ? "总报告已就位" : "缺《" + st.summary.fileName + "》");
-					if (st.suite) if (st.suite.ok) parts.push("投标分析底稿已齐");
+					if (missing > 0) parts.push(workbenchText("缺产物 ") + missing + workbenchText(" 份"));
+					if (st.summary) parts.push(st.summary.exists ? workbenchText("总报告已就位") : workbenchText("缺《") + st.summary.fileName + (langState.lang === "zh" ? "》" : "”"));
+					if (st.suite) if (st.suite.ok) parts.push(workbenchText("投标分析底稿已齐"));
 					else if (st.suite.shortGaps) parts.push(st.suite.shortGaps);
-					else parts.push("投标分析底稿未齐");
-					if (st.boqInventory) if (st.boqInventory.ok) parts.push("工程量清单已抽出 " + (st.boqInventory.touchedCount || st.boqInventory.itemCount || 0) + " 行");
+					else parts.push(workbenchText("投标分析底稿未齐"));
+					if (st.boqInventory) if (st.boqInventory.ok) parts.push(workbenchText("工程量清单已抽出 ") + (st.boqInventory.touchedCount || st.boqInventory.itemCount || 0) + workbenchText(" 行"));
 					else if (st.boqInventory.shortGaps) parts.push(st.boqInventory.shortGaps);
-					else parts.push("未摸到工程量清单");
-					if (st.workbook) parts.push(st.workbook.exists ? "测算表已就位" : "缺《" + st.workbook.fileName + "》");
-					if (st.stageId === item.currentStageId && st.citations && st.citations.total > 0) parts.push("引用 " + st.citations.total + " 令牌 / " + st.citations.orphans + " 孤儿");
-					if (st.evidence && st.evidence.blocking) parts.push("门禁阻塞（" + st.evidence.gapCount + " 缺口）");
-					else if (st.evidence && st.evidence.waived) parts.push("门禁已放行");
+					else parts.push(workbenchText("未摸到工程量清单"));
+					if (st.workbook) parts.push(st.workbook.exists ? workbenchText("测算表已就位") : workbenchText("缺《") + st.workbook.fileName + (langState.lang === "zh" ? "》" : "”"));
+					if (st.stageId === item.currentStageId && st.citations && st.citations.total > 0) parts.push(workbenchText("引用 ") + st.citations.total + workbenchText(" 令牌 / ") + st.citations.orphans + workbenchText(" 孤儿"));
+					if (st.evidence && st.evidence.blocking) parts.push(workbenchText("门禁阻塞（") + st.evidence.gapCount + workbenchText(" 缺口）"));
+					else if (st.evidence && st.evidence.waived) parts.push(workbenchText("门禁已放行"));
 					const unfinishedTasks = st.tasks ? st.tasks.total - st.tasks.done : 0;
 					const bad = typeof st.needsQc === "boolean" ? st.needsQc : missing > 0 || st.summary && !st.summary.exists && st.stageStatus !== "idle" || st.suite && !st.suite.ok && st.stageStatus !== "idle" || st.boqInventory && !st.boqInventory.ok && st.stageStatus !== "idle" || st.workbook && !st.workbook.exists && st.stageStatus !== "idle" || st.evidence && st.evidence.blocking || st.stageId === item.currentStageId && st.citations && st.citations.orphans > 0 || st.stageStatus === "done" && unfinishedTasks > 0;
-					const idleText = st.stageStatus === "idle" ? "未开始" : st.stageStatus === "done" && !bad ? "阶段已收口（商务待办不挡完成）" : "无异常";
+					const idleText = st.stageStatus === "idle" ? workbenchText("未开始") : st.stageStatus === "done" && !bad ? workbenchText("阶段已收口（商务待办不挡完成）") : workbenchText("无异常");
 					return h("div", {
 						className: "ap-check-row" + (bad ? " bad" : ""),
 						key: st.stageId
-					}, h("span", { className: "ap-check-num" }, index + 1), h("strong", null, st.stageLabel), statusChip(st.stageStatus), h("span", { className: "ap-sub" }, parts.length ? parts.join(" · ") : idleText));
+					}, h("span", { className: "ap-check-num" }, index + 1), h("strong", null, stageLabel(stages.find((stage) => stage.id === st.stageId), langState.lang) || st.stageLabel), statusChip(st.stageStatus), h("span", { className: "ap-sub" }, parts.length ? parts.join(" · ") : idleText));
 				})) : null, stages.map((stage, index) => {
 					const slice = stageSlice(item, stage.id);
 					const stageMemory = item.memory && item.memory.stages ? item.memory.stages[stage.id] : null;
@@ -13752,23 +14132,23 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					const checkRow = reality && reality.stages ? reality.stages.find((st) => st.stageId === stage.id) : null;
 					const closedClean = setupDone && stageMemory && stageMemory.status === "current" && !stageRowDirty(slice, tasks, checkRow);
 					const outFolder = checkRow && checkRow.outputFolder || officialFolder(stage.id);
-					const stageHint = closedClean ? "阶段已收口。成果在 Agent Pi Outputs/" + project.projectId + "/" + outFolder + "/。询价、开工确认、submission_audit 未通过是投标可提交门禁，不表示本阶段没做完。" : stage.hintZh || stage.prompt;
+					const stageHint$1 = closedClean ? workbenchText("阶段已收口。成果在 Agent Pi Outputs/") + project.projectId + "/" + outFolder + workbenchText("/。询价、开工确认、submission_audit 未通过是投标可提交门禁，不表示本阶段没做完。") : stageHint(stage, langState.lang);
 					return h("div", {
 						className: "ap-stage-row",
 						key: stage.id
-					}, h("span", { className: "ap-stage-num" }, index + 1), h("div", { className: "ap-stage-body" }, h("div", { className: "ap-row" }, h("strong", null, stage.labelZh), statusChip(slice && slice.status), stageMemory && stageMemory.status === "current" ? h("span", {
+					}, h("span", { className: "ap-stage-num" }, index + 1), h("div", { className: "ap-stage-body" }, h("div", { className: "ap-row" }, h("strong", null, stageLabel(stage, langState.lang)), statusChip(slice && slice.status), stageMemory && stageMemory.status === "current" ? h("span", {
 						className: "ap-chip ok",
 						title: stageMemory.path
-					}, "基线 v" + stageMemory.revision) : stageMemory && stageMemory.status === "stale" ? h("span", {
+					}, workbenchText("基线 v") + stageMemory.revision) : stageMemory && stageMemory.status === "stale" ? h("span", {
 						className: "ap-chip warn",
 						title: stageMemory.staleReason || ""
-					}, "记忆已失效") : slice && slice.status === "done" ? h("span", { className: "ap-chip warn" }, "待生成记忆") : null, slice && slice.forcePassedAt ? h("span", { className: "ap-chip" }, "已强制放行") : null, slice && slice.approval && slice.approval.decision === "approved" ? h("span", { className: "ap-chip ok" }, "用户已确认") : slice && slice.approval && slice.approval.decision === "rejected" ? h("span", { className: "ap-chip warn" }, "用户已暂停") : stage.approvalGate && slice ? h("span", { className: "ap-chip warn" }, "待用户决策") : null), h("p", { className: "ap-stage-hint" }, stageHint), stageMemory && stageMemory.inputs && stageMemory.inputs.length ? h("p", { className: "ap-sub" }, "前序基线：" + stageMemory.inputs.map((input) => {
+					}, workbenchText("记忆已失效")) : slice && slice.status === "done" ? h("span", { className: "ap-chip warn" }, workbenchText("待生成记忆")) : null, slice && slice.forcePassedAt ? h("span", { className: "ap-chip" }, workbenchText("已强制放行")) : null, slice && slice.approval && slice.approval.decision === "approved" ? h("span", { className: "ap-chip ok" }, workbenchText("用户已确认")) : slice && slice.approval && slice.approval.decision === "rejected" ? h("span", { className: "ap-chip warn" }, workbenchText("用户已暂停")) : stage.approvalGate && slice ? h("span", { className: "ap-chip warn" }, workbenchText("待用户决策")) : null), h("p", { className: "ap-stage-hint" }, stageHint$1), stageMemory && stageMemory.inputs && stageMemory.inputs.length ? h("p", { className: "ap-sub" }, workbenchText("前序基线：") + stageMemory.inputs.map((input) => {
 						const upstream = stages.find((item) => item.id === input.ref);
-						return (input.kind === "handoff" ? upstream && upstream.labelZh || input.ref : "能力包 " + input.ref) + (input.revision ? " v" + input.revision : "") + (input.status === "current" ? "" : "（" + input.status + "）");
+						return (input.kind === "handoff" ? stageLabel(upstream, langState.lang) || input.ref : workbenchText("能力包 ") + input.ref) + (input.revision ? " v" + input.revision : "") + (input.status === "current" ? "" : (langState.lang === "zh" ? "（" : " (") + input.status + (langState.lang === "zh" ? "）" : ")"));
 					}).join(" · ")) : null, slice && slice.blockedReason ? h("div", { className: "ap-err" }, slice.blockedReason) : null, evidence && stage.id !== setupId && evidence.gaps && evidence.gaps.length && (stage.id === item.currentStageId || slice && slice.status === "blocked" || stage.id === "tender-document-analysis") ? evidence.gaps.slice(0, 4).map((gap) => h("div", {
 						className: "ap-gap",
 						key: stage.id + gap.chapterId
-					}, h("span", { className: "ap-chip warn" }, "缺口"), gap.title + " — " + gap.suggestedUpload)) : null, tasks.length ? h("div", { style: { marginTop: 8 } }, h("div", { className: "ap-bar" + (failed ? " fail" : "") }, h("i", { style: { width: percent + "%" } })), h("div", { className: "ap-sub" }, "清单 " + done + "/" + tasks.length + (failed ? " · 失败 " + failed : "")), tasks.slice(0, 8).map((task) => {
+					}, h("span", { className: "ap-chip warn" }, workbenchText("缺口")), gap.title + " — " + gap.suggestedUpload)) : null, tasks.length ? h("div", { style: { marginTop: 8 } }, h("div", { className: "ap-bar" + (failed ? " fail" : "") }, h("i", { style: { width: percent + "%" } })), h("div", { className: "ap-sub" }, workbenchText("清单 ") + done + "/" + tasks.length + (failed ? workbenchText(" · 失败 ") + failed : "")), tasks.slice(0, 8).map((task) => {
 						const restore = findSetupRestore(item.restores, task.sourcePath || task.markdownPath);
 						const setupFile = !!(setupId && stage.id === setupId && (task.sourcePath || task.markdownPath));
 						const alignable = setupFile && /\.(pdf|doc|docx|ppt|pptx|xls|xlsx|png|jpe?g|jp2|webp|gif|bmp)$/i.test(task.sourcePath || "");
@@ -13786,39 +14166,39 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 						}, task.title), setupFile && restore ? h("span", {
 							className: "ap-chip ok",
 							title: restore.manuscriptPath
-						}, "已对齐") : alignable ? h("span", { className: "ap-chip" }, "待对齐") : h("span", { className: "ap-chip" + (task.status === "done" ? " ok" : task.status === "error" ? " warn" : "") }, taskStatusLabel(task.status)));
+						}, workbenchText("已对齐")) : alignable ? h("span", { className: "ap-chip" }, workbenchText("待对齐")) : h("span", { className: "ap-chip" + (task.status === "done" ? " ok" : task.status === "error" ? " warn" : "") }, taskStatusLabel(task.status)));
 					})) : null), h("div", { className: "ap-stage-acts" }, stage.approvalGate && slice && slice.status !== "done" ? h(react.Fragment, null, h("button", {
 						type: "button",
 						className: "ap-btn primary",
 						disabled: !!busy,
-						title: stage.approvalGate.promptZh,
+						title: stageGate(stage, "promptZh", langState.lang),
 						onClick: () => decideStage(project, stage, "approved")
-					}, busy === "approve_gate:" + stage.id ? "记录中…" : stage.approvalGate.approveLabelZh), stage.approvalGate.rejectLabelZh ? h("button", {
+					}, busy === "approve_gate:" + stage.id ? workbenchText("记录中…") : stageGate(stage, "approveLabelZh", langState.lang)), stage.approvalGate.rejectLabelZh ? h("button", {
 						type: "button",
 						className: "ap-btn ghost",
 						disabled: !!busy,
 						onClick: () => decideStage(project, stage, "rejected")
-					}, stage.approvalGate.rejectLabelZh) : null) : null, setupId && stage.id === setupId ? h(react.Fragment, null, h("button", {
+					}, stageGate(stage, "rejectLabelZh", langState.lang)) : null) : null, setupId && stage.id === setupId ? h(react.Fragment, null, h("button", {
 						type: "button",
 						className: "ap-btn primary",
 						disabled: !!busy || !(project.inputPaths && project.inputPaths.length),
-						title: "按知识库同一套逻辑把已登记 PDF / Word / Excel 对齐成 setup/ 解析稿",
+						title: workbenchText("按知识库同一套逻辑把已登记 PDF / Word / Excel 对齐成 setup/ 解析稿"),
 						onClick: () => restoreSources(project, { force: true }).catch((e) => setError(String(e.message || e))).finally(() => setBusy(""))
-					}, busy === "restore" ? "对齐中…" : "对齐原稿"), setupDone ? h("button", {
+					}, busy === "restore" ? workbenchText("对齐中…") : workbenchText("对齐原稿")), setupDone ? h("button", {
 						type: "button",
 						className: "ap-btn",
 						onClick: () => setWorkbenchOpen(false)
-					}, "资料已齐套") : h("button", {
+					}, workbenchText("资料已齐套")) : h("button", {
 						type: "button",
 						className: "ap-btn",
 						disabled: !!busy,
 						onClick: () => {
 							restoreSources(project).then(() => runStage(project, setupId, "complete", true)).catch((e) => setError(String(e.message || e)));
 						}
-					}, busy === "complete:" + setupId || busy === "restore" ? "对齐并确认中…" : "资料齐套，进入下一阶段")) : h(react.Fragment, null, closedClean ? h("button", {
+					}, busy === "complete:" + setupId || busy === "restore" ? workbenchText("对齐并确认中…") : workbenchText("资料齐套，进入下一阶段"))) : h(react.Fragment, null, closedClean ? h("button", {
 						type: "button",
 						className: "ap-btn primary",
-						title: "打开本阶段正式成果目录",
+						title: workbenchText("打开本阶段正式成果目录"),
 						onClick: () => {
 							openInExplorer(cwd, officialStagePath(cwd, project.projectId, stage.id), {
 								file: {
@@ -13828,49 +14208,49 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 								reveal: false
 							}).catch((e) => setError(String(e.message || e)));
 						}
-					}, "打开成果") : h("button", {
+					}, workbenchText("打开成果")) : h("button", {
 						type: "button",
 						className: "ap-btn",
 						disabled: !!busy,
-						title: "同步成果到正式输出，并核验全部引用令牌（孤儿引用逐条列出）",
+						title: workbenchText("同步成果到正式输出，并核验全部引用令牌（孤儿引用逐条列出）"),
 						onClick: () => runStage(project, stage.id, "organize", false)
-					}, "成果质检并整理"), closedClean ? h("button", {
+					}, workbenchText("成果质检并整理")), closedClean ? h("button", {
 						type: "button",
 						className: "ap-btn link",
 						disabled: !!busy,
-						title: "再核一次盘面。已收口且无差异时不会要求再 complete_stage，也不会把商务待办写成阶段未完成。",
+						title: workbenchText("再核一次盘面。已收口且无差异时不会要求再 complete_stage，也不会把商务待办写成阶段未完成。"),
 						onClick: () => runStage(project, stage.id, "organize", false)
-					}, busy === "organize:" + stage.id ? "核对中…" : "再次核对盘面") : h("button", {
+					}, busy === "organize:" + stage.id ? workbenchText("核对中…") : workbenchText("再次核对盘面")) : h("button", {
 						type: "button",
 						className: "ap-btn link",
 						disabled: !!busy,
-						title: "跳到这一阶段。若它已是当前未完阶段，走恢复稿而不是再灌全文。",
+						title: workbenchText("跳到这一阶段。若它已是当前未完阶段，走恢复稿而不是再灌全文。"),
 						onClick: () => {
 							const currentUnfinished = item.currentStageId === stage.id && slice && slice.status !== "done" && tasks.length > 0;
 							runStage(project, currentUnfinished ? "" : stage.id, currentUnfinished ? "resume" : "prepare", true);
 						}
-					}, "进入此阶段"), h("button", {
+					}, workbenchText("进入此阶段")), h("button", {
 						type: "button",
 						className: "ap-btn link",
 						disabled: !!busy,
 						onClick: () => {
-							if (!window.confirm("重置「" + stage.labelZh + "」编排？任务清单会清空，磁盘成果保留。")) return;
+							if (!window.confirm(workbenchText("重置「") + stageLabel(stage, langState.lang) + workbenchText("」编排？任务清单会清空，磁盘成果保留。"))) return;
 							runStage(project, stage.id, "reset", false);
 						}
-					}, "重置编排"))));
+					}, workbenchText("重置编排")))));
 				})), h("section", { className: "ap-sec" }, h("div", {
 					className: "ap-row",
 					style: { justifyContent: "space-between" }
-				}, h("h2", null, "项目资料"), h("div", { className: "ap-row" }, h("span", { className: "ap-sub" }, "对齐原稿后点名称预览改稿；保存同步 JSON"), h("button", {
+				}, h("h2", null, workbenchText("项目资料")), h("div", { className: "ap-row" }, h("span", { className: "ap-sub" }, workbenchText("对齐原稿后点名称预览改稿；保存同步 JSON")), h("button", {
 					type: "button",
 					className: "ap-btn",
 					disabled: !!busy || !(project.inputPaths && project.inputPaths.length),
-					title: "按知识库同一套逻辑把已登记 PDF / Word / Excel 对齐成 setup/ 解析稿",
+					title: workbenchText("按知识库同一套逻辑把已登记 PDF / Word / Excel 对齐成 setup/ 解析稿"),
 					onClick: () => restoreSources(project, { force: true }).catch((e) => setError(String(e.message || e))).finally(() => setBusy(""))
-				}, busy === "restore" ? "对齐中…" : "对齐原稿"))), h("div", { className: "ap-files-list" }, !(project.inputPaths && project.inputPaths.length) ? h("p", {
+				}, busy === "restore" ? workbenchText("对齐中…") : workbenchText("对齐原稿")))), h("div", { className: "ap-files-list" }, !(project.inputPaths && project.inputPaths.length) ? h("p", {
 					className: "ap-sub",
 					style: { padding: "18px 0" }
-				}, "尚未登记资料。") : project.inputPaths.map((path) => {
+				}, workbenchText("尚未登记资料。")) : project.inputPaths.map((path) => {
 					const restore = findSetupRestore(item.restores, path);
 					return h("div", {
 						className: "ap-file-row",
@@ -13886,38 +14266,38 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					}, fileName(path)), restore ? h("span", {
 						className: "ap-chip ok",
 						title: restore.manuscriptPath
-					}, "已对齐") : /\.(pdf|doc|docx|ppt|pptx|xls|xlsx|png|jpe?g|jp2|webp|gif|bmp)$/i.test(path) ? h("span", { className: "ap-chip" }, "待对齐") : null);
+					}, workbenchText("已对齐")) : /\.(pdf|doc|docx|ppt|pptx|xls|xlsx|png|jpe?g|jp2|webp|gif|bmp)$/i.test(path) ? h("span", { className: "ap-chip" }, workbenchText("待对齐")) : null);
 				}))), row.workSurface ? h("section", { className: "ap-sec" }, h("div", {
 					className: "ap-row",
 					style: { justifyContent: "space-between" }
-				}, h("h2", null, "知识面导航与证据"), h("span", { className: "ap-sub" }, "PageIndex 影子树只负责长文档导航；BOQ 仍以表格单元格为准")), h("div", { className: "ap-audit" + (row.workSurface.pageIndex.fallback ? " bad" : "") }, h("div", {
+				}, h("h2", null, workbenchText("知识面导航与证据")), h("span", { className: "ap-sub" }, workbenchText("PageIndex 影子树只负责长文档导航；BOQ 仍以表格单元格为准"))), h("div", { className: "ap-audit" + (row.workSurface.pageIndex.fallback ? " bad" : "") }, h("div", {
 					className: "ap-row",
 					style: { justifyContent: "space-between" }
-				}, h("span", null, "影子树 " + row.workSurface.pageIndex.ready + " 份" + (row.workSurface.pageIndex.notEligible ? " / " + row.workSurface.pageIndex.notEligible + " 份保持原检索" : "") + (row.workSurface.pageIndex.fallback ? " / " + row.workSurface.pageIndex.fallback + " 份已回退" : "")), h("span", { className: "ap-chip" }, row.workSurface.defaultNavigator ? "默认导航" : "影子评测")), h("div", {
+				}, h("span", null, workbenchText("影子树 ") + row.workSurface.pageIndex.ready + workbenchText(" 份") + (row.workSurface.pageIndex.notEligible ? " / " + row.workSurface.pageIndex.notEligible + workbenchText(" 份保持原检索") : "") + (row.workSurface.pageIndex.fallback ? " / " + row.workSurface.pageIndex.fallback + workbenchText(" 份已回退") : "")), h("span", { className: "ap-chip" }, row.workSurface.defaultNavigator ? workbenchText("默认导航") : workbenchText("影子评测"))), h("div", {
 					className: "ap-row",
 					style: {
 						marginTop: 8,
 						flexWrap: "wrap"
 					}
-				}, h("span", { className: "ap-sub" }, row.workSurface.coverage.initialized ? row.workSurface.coverage.ready ? "五域覆盖：已完成" : "五域覆盖：有未读节点/证据/结论缺口" : "五域覆盖：等待首份长叙事资料对齐"), h("span", { className: "ap-sub" }, "结构化证据 " + row.workSurface.evidence.claimCount + " 条"), h("span", { className: "ap-sub" }, "遥测 " + row.workSurface.telemetry.eventCount + " 次")), !row.workSurface.defaultNavigator ? h("p", {
+				}, h("span", { className: "ap-sub" }, row.workSurface.coverage.initialized ? row.workSurface.coverage.ready ? workbenchText("五域覆盖：已完成") : workbenchText("五域覆盖：有未读节点/证据/结论缺口") : workbenchText("五域覆盖：等待首份长叙事资料对齐")), h("span", { className: "ap-sub" }, workbenchText("结构化证据 ") + row.workSurface.evidence.claimCount + workbenchText(" 条")), h("span", { className: "ap-sub" }, workbenchText("遥测 ") + row.workSurface.telemetry.eventCount + workbenchText(" 次"))), !row.workSurface.defaultNavigator ? h("p", {
 					className: "ap-sub",
 					style: { margin: "8px 0 0" }
-				}, "默认切换仍受真实项目 80–120 项评测、Route F1、定位有效率、BOQ 基线和回退测试门禁控制。") : null)) : null, row.citationAudit ? h("section", { className: "ap-sec" }, h("div", {
+				}, workbenchText("默认切换仍受真实项目 80–120 项评测、Route F1、定位有效率、BOQ 基线和回退测试门禁控制。")) : null)) : null, row.citationAudit ? h("section", { className: "ap-sec" }, h("div", {
 					className: "ap-row",
 					style: { justifyContent: "space-between" }
-				}, h("h2", null, "引用核验"), h("span", { className: "ap-sub" }, "成果中的 [kb:…]/[src:…]/[ev:…] 令牌逐一对回知识库、项目文件与冻结证据包")), h("div", { className: "ap-audit" + (row.citationAudit.orphans.length ? " bad" : "") }, h("div", {
+				}, h("h2", null, workbenchText("引用核验")), h("span", { className: "ap-sub" }, workbenchText("成果中的 [kb:…]/[src:…]/[ev:…] 令牌逐一对回知识库、项目文件与冻结证据包"))), h("div", { className: "ap-audit" + (row.citationAudit.orphans.length ? " bad" : "") }, h("div", {
 					className: "ap-row",
 					style: { justifyContent: "space-between" }
-				}, h("span", null, row.citationAudit.orphans.length ? "未通过：" + row.citationAudit.orphans.length + " 个孤儿引用 / 共 " + row.citationAudit.totalCitations + " 个令牌" : row.citationAudit.totalCitations ? "通过：" + row.citationAudit.totalCitations + " 个令牌全部可解析（kb " + row.citationAudit.kbCitations + " / src " + row.citationAudit.srcCitations + " / ev " + (row.citationAudit.evidenceCitations || 0) + "）" : "尚无引用令牌（" + row.citationAudit.checkedFiles + " 个成果文件）"), h("span", { className: "ap-sub" }, String(row.citationAudit.generatedAt || "").slice(0, 16).replace("T", " "))), row.citationAudit.orphans.length ? h("ul", null, row.citationAudit.orphans.slice(0, 8).map((orphan, index) => h("li", { key: index }, orphan.file + ":" + orphan.line + " " + orphan.token + " — " + orphan.reason))) : null, row.citationAudit.orphans.length > 8 ? h("p", {
+				}, h("span", null, row.citationAudit.orphans.length ? workbenchText("未通过：") + row.citationAudit.orphans.length + workbenchText(" 个孤儿引用 / 共 ") + row.citationAudit.totalCitations + workbenchText(" 个令牌") : row.citationAudit.totalCitations ? workbenchText("通过：") + row.citationAudit.totalCitations + workbenchText(" 个令牌全部可解析（kb ") + row.citationAudit.kbCitations + " / src " + row.citationAudit.srcCitations + " / ev " + (row.citationAudit.evidenceCitations || 0) + "）" : workbenchText("尚无引用令牌（") + row.citationAudit.checkedFiles + workbenchText(" 个成果文件）")), h("span", { className: "ap-sub" }, String(row.citationAudit.generatedAt || "").slice(0, 16).replace("T", " "))), row.citationAudit.orphans.length ? h("ul", null, row.citationAudit.orphans.slice(0, 8).map((orphan, index) => h("li", { key: index }, orphan.file + ":" + orphan.line + " " + orphan.token + " — " + orphan.reason))) : null, row.citationAudit.orphans.length > 8 ? h("p", {
 					className: "ap-sub",
 					style: { margin: "6px 0 0" }
-				}, "…其余 " + (row.citationAudit.orphans.length - 8) + " 条见 orchestration/citation-audit.json") : null)) : null, notice ? h("div", {
+				}, workbenchText("…其余 ") + (row.citationAudit.orphans.length - 8) + workbenchText(" 条见 orchestration/citation-audit.json")) : null)) : null, notice ? h("div", {
 					className: "ap-sub",
 					style: { padding: "10px 0 0" }
 				}, notice) : null, monitorState.note && monitoringHere ? h("div", {
 					className: "ap-sub",
 					style: { padding: "4px 0 0" }
-				}, "监控：" + monitorState.note) : null, draft ? h("section", { className: "ap-sec" }, h("div", { className: "ap-sub" }, "阶段稿（最近一次准备的内容；提交后由 dsh 原生 subagent / workflow 执行）"), h("div", { className: "ap-draft" }, draft)) : null);
+				}, workbenchText("监控：") + monitorState.note) : null, draft ? h("section", { className: "ap-sec" }, h("div", { className: "ap-sub" }, workbenchText("阶段稿（最近一次准备的内容；提交后由 dsh 原生 subagent / workflow 执行）")), h("div", { className: "ap-draft" }, draft)) : null);
 			};
 			const specialContent = module === "kb" ? h(KnowledgeBasePanel, {
 				cwd,
@@ -14158,7 +14538,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				investment: ["授权与工作区", "尽调与决策包"]
 			};
 			const stageLabels = {};
-			stageLabels[module] = workflow ? workflow.stages.map((stage) => stage.labelZh) : FALLBACK_STAGE_LABELS[module] || [];
+			stageLabels[module] = workflow ? workflow.stages.map((stage) => stageLabel(stage, langState.lang)) : (FALLBACK_STAGE_LABELS[module] || []).map((label) => workbenchText(label));
 			const showName = adopt ? step === 1 : step === 0;
 			const showFolder = !adopt && step === 1;
 			const showFiles = step === 2;
@@ -14366,6 +14746,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		const ProfessionalDepth = createProfessionalDepth({
 			React: react,
 			api,
+			useLanguage: useApLang,
 			fillDraft: fillComposer,
 			run: (composer, instruction) => {
 				const draft = currentDraft(composer).trim();
@@ -14385,6 +14766,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			return props.sessionId === main ? h(AttachmentDock, props) : null;
 		}
 		function ComposerTools(props) {
+			useApLang();
 			captureComposerFace(props);
 			const live = snapshotComposer();
 			const cwd = live.cwd;
@@ -14475,9 +14857,9 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					})
 				}).then((result) => {
 					if (result.optimizedPrompt) fillComposer(live, result.optimizedPrompt);
-					showToast(result.fallback ? "已用本地模板润色（当前模型未响应）" : "已用当前模型润色");
+					showToast(result.fallback ? workbenchText("已用本地模板润色（当前模型未响应）") : workbenchText("已用当前模型润色"));
 				}).catch((err) => {
-					showToast("润色失败：" + String(err && err.message || err));
+					showToast(workbenchText("润色失败：") + String(err && err.message || err));
 				}).finally(() => setBusy(false));
 			};
 			return h("div", { className: "ap-composer-tools" }, h("div", {
@@ -14486,7 +14868,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			}, h("button", {
 				type: "button",
 				className: "ap-toolbtn" + (busy ? " on" : ""),
-				title: busy ? "正在用当前模型润色…" : "用当前模型润色提示词",
+				title: busy ? workbenchText("正在用当前模型润色…") : workbenchText("用当前模型润色提示词"),
 				disabled: busy || !draft.trim(),
 				onMouseDown: (e) => e.preventDefault(),
 				onClick: polish
@@ -14494,10 +14876,10 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				type: "button",
 				className: "ap-codex-turn" + (armed ? " on" : ""),
 				"aria-pressed": armed ? "true" : "false",
-				title: armed ? "下一条消息将由 Codex 子智能体执行" : "仅将下一条消息交给 Codex 子智能体",
+				title: armed ? workbenchText("下一条消息将由 Codex 子智能体执行") : workbenchText("仅将下一条消息交给 Codex 子智能体"),
 				onMouseDown: (event) => event.preventDefault(),
 				onClick: () => setCodexTurnArmed(propsRef.current, !armed)
-			}, Icon("sparkles", 14), "Codex 执行"), armed && h(ComposerCodexModelSelector, { composer: live }), h(ProfessionalDepth, {
+			}, Icon("sparkles", 14), workbenchText("Codex 执行")), armed && h(ComposerCodexModelSelector, { composer: live }), h(ProfessionalDepth, {
 				key: live.sessionId || "draft",
 				composer: live
 			}), h("button", {
@@ -14508,14 +14890,14 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				onClick: (e) => {
 					e.preventDefault();
 					e.stopPropagation();
-					chooseFolderForChat(cwd, snapshotComposer()).catch((err) => showToast("加入文件夹失败：" + String(err && err.message || err)));
+					chooseFolderForChat(cwd, snapshotComposer()).catch((err) => showToast(workbenchText("加入文件夹失败：") + String(err && err.message || err)));
 				}
 			}, Icon("folder", 15))));
 		}
 		function renderAttachRail(items, onRemove) {
 			return h("div", {
 				className: "ap-attach-host",
-				"aria-label": "已加入对话的文件"
+				"aria-label": workbenchText("已加入对话的文件")
 			}, h("div", { className: "ap-attach-rail" }, items.map((item) => h("div", {
 				key: item.id || item.relativePath,
 				className: "ap-attach-bubble" + (item.kind === "image" ? " image" : "") + (item.kind === "folder" ? " folder" : "") + (item.loaded === false ? " loading" : ""),
@@ -14523,7 +14905,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			}, h("button", {
 				type: "button",
 				className: "ap-attach-x",
-				title: "移除",
+				title: workbenchText("移除"),
 				onClick: () => onRemove(item)
 			}, Icon("x", 10)), h("div", { className: "ap-attach-thumb" }, item.loaded === false ? Icon("sparkles", 16, "ap-spin") : item.kind === "image" && item.previewUrl ? h("img", {
 				src: item.previewUrl,
@@ -16152,7 +16534,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				name: "conversation.view",
 				id: "workbench",
 				order: 50,
-				label: WORKBENCH_LABEL
+				label: () => tAp("workbench.title")
 			}, Workbench));
 			ctx.slots.inject("settings.section", () => ctx.slots.register({
 				name: "settings.section",
@@ -16164,19 +16546,19 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				name: "shell.overlay",
 				id: "tender-workbench",
 				order: 5,
-				label: WORKBENCH_LABEL
+				label: () => tAp("workbench.title")
 			}, WorkbenchOverlay));
 			ctx.slots.inject("shell.overlay", () => ctx.slots.register({
 				name: "shell.overlay",
 				id: "tender-create",
 				order: 20,
-				label: "新建项目"
+				label: () => tAp("wb.create")
 			}, CreateOverlay));
 			ctx.slots.inject("shell.overlay", () => ctx.slots.register({
 				name: "shell.overlay",
 				id: "tender-files",
 				order: 10,
-				label: "资源文件"
+				label: () => tAp("files.title")
 			}, FilesRail));
 			ctx.slots.inject("shell.overlay", () => ctx.slots.register({
 				name: "shell.overlay",
@@ -16316,7 +16698,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				name: "sidebar.footer.action",
 				id: "tender-workbench-nav",
 				order: 2,
-				label: WORKBENCH_LABEL
+				label: () => tAp("workbench.title")
 			}, placedSidebar(WorkbenchNav, "ap-mount-wb")));
 			ctx.slots.inject("sidebar.footer.action", () => ctx.slots.register({
 				name: "sidebar.footer.action",

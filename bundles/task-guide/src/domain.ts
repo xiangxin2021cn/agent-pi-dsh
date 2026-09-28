@@ -20,6 +20,6 @@ const capabilities: Record<string, Array<Omit<Capability, 'owner' | 'version'>>>
 /** Optional dependency: existing workbenches remain usable without the guide. */
 export function registerProfessionalDomain(ctx: any, domain: string) {
   ctx.inject?.(['professionalCapabilities'], (scope: any) => {
-    for (const capability of capabilities[domain] || []) scope.effect(() => scope.professionalCapabilities.register({ ...capability, owner: `dsh-agent-pi-workbench-${domain}`, version: '3.7.5' }))
+    for (const capability of capabilities[domain] || []) scope.effect(() => scope.professionalCapabilities.register({ ...capability, owner: `dsh-agent-pi-workbench-${domain}`, version: '3.7.6' }))
   })
 }
