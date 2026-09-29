@@ -148,17 +148,15 @@ function takeHtmlTable(lines: string[], start: number): { html: string, next: nu
   if (!first || (!/^\s*<table\b/i.test(first) && !(/^\s*<html\b/i.test(first) && /<table/i.test(first)))) return null
   const buf = [first]
   let i = start + 1
-  let chars = first.length
   if (!/<\/table>/i.test(first)) {
-    while (i < lines.length && !/<\/table>/i.test(lines[i]) && chars < 400_000) {
+    while (i < lines.length && !/<\/table>/i.test(lines[i])) {
       buf.push(lines[i])
-      chars += lines[i].length + 1
       i += 1
     }
     if (i < lines.length) {
       buf.push(lines[i])
       i += 1
-    }
+    } else return null
   }
   return { html: buf.join('\n'), next: i }
 }

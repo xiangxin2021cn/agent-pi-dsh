@@ -18,7 +18,7 @@ import { expectedDshCommit, expectedDshVersion } from './verify-dsh-runtime.mjs'
 
 export const dshBuildReceiptName = 'DSH-BUILD-RECEIPT.json'
 export const dshBuildReceiptSchema = 1
-export const dshBuildCommands = ['pnpm exec tsx scripts/.agent-pi-clean-rc2.ts', 'pnpm run build']
+export const dshBuildCommands = ['node node_modules/tsx/dist/cli.mjs scripts/.agent-pi-clean-rc2.ts', 'pnpm run build']
 
 export function adaptRc2Cleaner(source) {
   const before = ': typesDirectory === nativeEntryOutput'
@@ -185,7 +185,7 @@ export function buildDshWithReceipt({ dshRoot, productRoot, receiptPath }) {
   if (existsSync(cleanAdapter)) throw new Error(`unexpected cleaner adapter already exists: ${cleanAdapter}`)
   writeFileSync(cleanAdapter, adaptRc2Cleaner(readFileSync(join(identity.dsh, 'scripts', 'clean.ts'), 'utf8')), { flag: 'wx' })
   try {
-    run(pnpm, [...prefix, 'exec', 'tsx', 'scripts/.agent-pi-clean-rc2.ts'], { cwd: identity.dsh, stdio: 'inherit' })
+    run(process.execPath, [join(identity.dsh, 'node_modules', 'tsx', 'dist', 'cli.mjs'), cleanAdapter], { cwd: identity.dsh, stdio: 'inherit' })
   } finally {
     rmSync(cleanAdapter)
   }

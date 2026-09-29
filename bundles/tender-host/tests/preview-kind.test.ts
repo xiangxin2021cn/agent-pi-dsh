@@ -21,6 +21,8 @@ test('preview kinds distinguish office, html, markdown, and pdf', () => {
   assert.equal(previewKind('a.xls'), 'legacy-office')
   assert.equal(previewKind('a.doc'), 'legacy-office')
   assert.equal(previewKind('a.json'), 'text')
+  assert.equal(previewKind('a.py'), 'text')
+  assert.equal(previewKind('a.toml'), 'text')
 })
 
 test('oversized markdown returns a text head instead of binary', () => {
@@ -34,6 +36,16 @@ test('oversized markdown returns a text head instead of binary', () => {
   assert.ok(String(file.text).length <= 200)
 })
 
+test('full-preview read returns the end of a file beyond the old 8 MB limit', () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'ap-md-full-'))
+  const path = join(cwd, 'big.md')
+  writeFileSync(path, '# title\n' + 'x'.repeat(8_000_000) + '\nlast line', 'utf8')
+  const file = readWorkspaceFile(cwd, path, Number.POSITIVE_INFINITY)
+  assert.equal(file.binary, undefined)
+  assert.equal(file.truncated, undefined)
+  assert.match(String(file.text), /last line$/)
+})
+
 test('content route keeps office files off the binary text reader', () => {
   const http = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../src/http.ts'), 'utf8')
   assert.match(http, /officeLike/)
@@ -42,6 +54,7 @@ test('content route keeps office files off the binary text reader', () => {
   assert.match(http, /openUniverOfficePreview/)
   assert.match(http, /univer-office/)
   assert.match(http, /univerOfficePreviewKind/)
+  assert.match(http, /kind === 'markdown' \|\| kind === 'text' \|\| kind === 'html' \? Number\.POSITIVE_INFINITY/)
 })
 
 test('content route returns CAD viewer metadata before reading binary content', () => {

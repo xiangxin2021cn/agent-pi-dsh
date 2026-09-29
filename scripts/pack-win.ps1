@@ -339,6 +339,14 @@ if (-not (Test-Path (Join-Path $Biz "node_modules\zod"))) {
 }
 Write-Host "Installing tender-host locked dependencies, including the product Codex CLI..."
 Invoke-NpmCi $TenderHost "tender-host"
+foreach ($relativePath in @(
+  "@mlightcad\libredwg-web\wasm\libredwg-web.wasm",
+  "@mlightcad\libredwg-converter\dist\libredwg-web.wasm"
+)) {
+  $publishedWasm = Join-Path (Join-Path $TenderHost "node_modules") $relativePath
+  if (-not (Test-Path -LiteralPath $publishedWasm)) { throw "CAD npm WASM missing before clean-runtime staging: $publishedWasm" }
+  Remove-Item -LiteralPath $publishedWasm -Force
+}
 
 Write-Host "Using verified clean MLightCAD viewer from $CadCleanOutput"
 

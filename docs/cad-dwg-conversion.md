@@ -1,0 +1,7 @@
+# DWG to DXF for agent drawing analysis
+
+Agent Pi DSH uses the existing MLightCAD/LibreDWG Web parser and data model for both DWG preview and DXF export. The host runs the same pinned libraries in a separate Node process, reads the verified clean LibreDWG WASM from the bundled CAD viewer, and calls `AcDbDatabase.dxfOut()` after importing the drawing. No `dwgread` executable or additional CAD viewer is required. The [data-model API](https://mlightcad.com/realdwg-web/classes/_mlightcad_data-model.AcDbDatabase.html#dxfOut) returns ASCII DXF from its reconstructed database.
+
+The Windows build removes the two published LibreDWG WASM copies from the host npm dependency tree before staging. The converter explicitly loads the separately verified clean CAD viewer WASM, so the installer carries one approved binary implementation.
+
+Opening a workspace DWG in the right-side preview starts conversion without delaying the viewer. The Cordis `cad_prepare` tool uses the same path when an agent needs to inspect a DWG without opening the preview. The verified ASCII DXF is stored under `<workspace>/.agent-pi/cad-converted/`, keyed by the source file's SHA-256. The original DWG is unchanged. The result is suitable for agent inspection of parsed layers, geometry, text and dimensions, subject to confirmation in the original viewer. Unsupported or proprietary DWG objects, external references and fonts can still be omitted or substituted by the parser; the existence of a DXF does not certify drawing fidelity.

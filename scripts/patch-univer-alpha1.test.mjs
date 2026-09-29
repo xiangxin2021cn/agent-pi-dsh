@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 import { patchUniver020PeerRanges, patchUniverForDshAlpha1, patchUniverViewerProxy, patchUniverTurnTail } from './patch-univer-alpha1.mjs'
 
-test('Office peer adapter accepts only the exact reviewed DSH rc.1 version', () => {
+test('Office peer adapter accepts only the exact reviewed DSH rc.2 version', () => {
   const old = '^0.1.5-rc.3 || ^0.1.7-alpha.2 || ^0.1.7-rc.1'
   const peers = Object.fromEntries([
     'attachment', 'host-webserver', 'llm', 'session', 'settings', 'skill', 'tools',
@@ -14,7 +14,7 @@ test('Office peer adapter accepts only the exact reviewed DSH rc.1 version', () 
   const source = JSON.stringify({ name: 'dsh-univer-office', version: '0.3.5', peerDependencies: peers })
   const patched = patchUniver020PeerRanges(source)
   for (const value of Object.values(JSON.parse(patched).peerDependencies)) {
-    assert.equal(value, old + ' || 0.2.0-rc.1')
+    assert.equal(value, old + ' || 0.2.0-rc.1 || 0.2.0-rc.2')
   }
   assert.equal(patchUniver020PeerRanges(patched), patched)
   assert.throws(() => patchUniver020PeerRanges(source.replace(old, '^0.9.0')), /unexpected Univer DSH peer range/)

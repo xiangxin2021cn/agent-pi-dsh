@@ -25,10 +25,6 @@ export interface OfficePreview {
   slides?: OfficeSlide[]
 }
 
-const MAX_SHEET_ROWS = 400
-const MAX_SHEET_COLS = 80
-const MAX_PARAS = 2000
-
 function xmlEscape(value: string): string {
   return String(value)
     .replace(/&/g, '&amp;')
@@ -106,7 +102,6 @@ function parseSheetRows(xml: string, strings: string[]): string[][] {
     if (!ref) continue
     const col = colIndex(ref[1])
     const row = Number(ref[2])
-    if (row > MAX_SHEET_ROWS || col > MAX_SHEET_COLS) continue
     const type = /\bt="([^"]+)"/.exec(attrs)?.[1] || ''
     let value = ''
     if (type === 'inlineStr') {
@@ -222,7 +217,7 @@ function parseCsv(text: string, sep = ','): string[][] {
     row.push(cell.replace(/\r$/, ''))
     rows.push(row)
   }
-  return rows.slice(0, MAX_SHEET_ROWS).map((line) => line.slice(0, MAX_SHEET_COLS))
+  return rows
 }
 
 function csvEscape(value: string, sep = ','): string {
@@ -261,7 +256,6 @@ function extractParagraphs(xml: string): string[] {
   while ((match = re.exec(xml))) {
     const texts = [...match[1].matchAll(/<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g)].map((item) => decodeXml(item[1]))
     paras.push(texts.join(''))
-    if (paras.length >= MAX_PARAS) break
   }
   return paras
 }

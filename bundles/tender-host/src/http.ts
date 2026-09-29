@@ -50,6 +50,7 @@ import {
   saveWorkspaceText,
 } from './preview-export.ts'
 import { cadViewerUrl, readCadViewerAsset } from './cad-viewer-assets.ts'
+import { convertDwgToDxf } from './cad-convert.ts'
 import { isProjectPlan, readProjectPlan, exportProjectPlan } from './project-plan.mjs'
 import { inspectPricingSave } from './pricing-recalc.ts'
 import { optimizePromptWithLlm, type LlmStreamRuntime } from './prompt-optimize.ts'
@@ -1100,13 +1101,19 @@ export function attachHttp(ctx: {
             })
             return
           }
-          const maxBytes = kind === 'markdown' || kind === 'text' || kind === 'html' ? 8_000_000 : 200_000
+          const maxBytes = kind === 'markdown' || kind === 'text' || kind === 'html' ? Number.POSITIVE_INFINITY : 200_000
           const file = readWorkspaceFile(cwd, path, maxBytes)
           send(res, 200, {
             ...file,
             kind,
             siteUrl: kind === 'html' ? sitePreviewUrl(cwd, path) : undefined,
           })
+          return
+        }
+
+        if (req.method === 'POST' && url.pathname === '/api/agent-pi/cad/convert') {
+          const input = JSON.parse(await readBody(req) || '{}')
+          send(res, 200, await convertDwgToDxf(cwd, String(input.path || '')))
           return
         }
 

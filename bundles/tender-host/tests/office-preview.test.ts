@@ -6,6 +6,35 @@ import { test } from 'node:test'
 import { readOfficePreview, saveOfficePreview } from '../src/office-preview.ts'
 import { unzipStore, zipStore } from '../src/xlsx-zip.ts'
 
+test('fallback CSV preview retains rows and columns beyond its former caps', () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'ap-off-full-csv-'))
+  const path = join(cwd, 'boq.csv')
+  const rows = Array.from({ length: 450 }, (_, row) => Array.from({ length: 90 }, (_, col) => `${row}:${col}`).join(','))
+  writeFileSync(path, rows.join('\n'))
+  const preview = readOfficePreview(cwd, path)
+  assert.equal(preview.sheets?.[0].rows.length, 450)
+  assert.equal(preview.sheets?.[0].rows[449][89], '449:89')
+})
+
+test('fallback DOCX preview retains paragraphs beyond its former cap', () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'ap-off-full-docx-'))
+  const path = join(cwd, 'report.docx')
+  const paragraphs = Array.from({ length: 2100 }, (_, i) => `<w:p><w:r><w:t>p${i}</w:t></w:r></w:p>`).join('')
+  writeFileSync(path, zipStore([{ name: 'word/document.xml', data: `<w:document><w:body>${paragraphs}</w:body></w:document>` }]))
+  const preview = readOfficePreview(cwd, path)
+  assert.equal(preview.paragraphs?.length, 2100)
+  assert.equal(preview.paragraphs?.[2099], 'p2099')
+})
+
+test('fallback XLSX preview retains cells beyond its former row and column caps', () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'ap-off-full-xlsx-'))
+  const path = join(cwd, 'rates.xlsx')
+  const xml = '<worksheet><sheetData><row r="401"><c r="CC401" t="inlineStr"><is><t>final rate</t></is></c></row></sheetData></worksheet>'
+  writeFileSync(path, zipStore([{ name: 'xl/worksheets/sheet1.xml', data: xml }]))
+  const preview = readOfficePreview(cwd, path)
+  assert.equal(preview.sheets?.[0].rows[400][80], 'final rate')
+})
+
 test('xlsx open sheet tags keep every worksheet in the office preview', () => {
   const cwd = mkdtempSync(join(tmpdir(), 'ap-off-ms-'))
   const path = join(cwd, '资源.xlsx')

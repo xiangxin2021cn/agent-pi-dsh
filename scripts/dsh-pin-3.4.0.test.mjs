@@ -5,14 +5,14 @@ import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const expectedCommit = '4878cdabd87d4041bdaff61d04c966883b9fd07a'
+const expectedCommit = '639ed015397290b3745d163aafe02ffee4aa3f84'
 
-test('the product pins the official DSH 0.2.0-rc.1 release commit', () => {
+test('the product pins the official DSH 0.2.0-rc.2 release commit', () => {
   const pin = readFileSync(join(root, 'DSH_PIN'), 'utf8').trim()
   const dshPackage = JSON.parse(
     readFileSync(join(root, 'vendor', 'deepseek-harness', 'package.json'), 'utf8'),
   )
 
   assert.equal(pin, expectedCommit)
-  assert.equal(dshPackage.version, '0.2.0-rc.1')
+  assert.equal(dshPackage.version, '0.2.0-rc.2')
 })

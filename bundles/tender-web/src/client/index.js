@@ -1882,16 +1882,14 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
       const buf = [first]
       let i = start + 1
       if (!/<\/table>/i.test(first)) {
-        let chars = first.length
-        while (i < lines.length && !/<\/table>/i.test(lines[i]) && chars < 400000) {
+        while (i < lines.length && !/<\/table>/i.test(lines[i])) {
           buf.push(lines[i])
-          chars += lines[i].length + 1
           i += 1
         }
         if (i < lines.length) {
           buf.push(lines[i])
           i += 1
-        }
+        } else return null
       }
       return { html: buf.join('\n'), next: i }
     }

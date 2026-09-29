@@ -3917,6 +3917,7 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 				return value;
 			}
 			function previewCacheSet(key, value) {
+				if (typeof value.text === "string" && value.text.length > 8e6) return;
 				if (previewCache.has(key)) previewCache.delete(key);
 				previewCache.set(key, value);
 				while (previewCache.size > PREVIEW_CACHE_MAX) previewCache.delete(previewCache.keys().next().value);
@@ -3942,6 +3943,7 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 				const [officeSaved, setOfficeSaved] = React.useState(null);
 				const [siteUrl, setSiteUrl] = React.useState("");
 				const [cadUrl, setCadUrl] = React.useState("");
+				const [cadConversionStatus, setCadConversionStatus] = React.useState("");
 				const [aiSel, setAiSel] = React.useState(null);
 				const [sheetTab, setSheetTab] = React.useState(0);
 				const [univerDirty, setUniverDirty] = React.useState(false);
@@ -4121,6 +4123,7 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 					setUniverDirty(false);
 					setSiteUrl("");
 					setCadUrl("");
+					setCadConversionStatus("");
 					setAiSel(null);
 					const cacheKey = previewCacheKey(cwd, file.path, kbSlug);
 					const cached = previewCacheGet(cacheKey);
@@ -4229,12 +4232,32 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 					cwd,
 					file.path
 				]);
+				React.useEffect(() => {
+					if (!isCad || !/\.dwg$/i.test(file.path || "")) return void 0;
+					let cancelled = false;
+					api("/api/agent-pi/cad/convert", cwd, {
+						method: "POST",
+						body: JSON.stringify({ path: file.path }),
+						timeoutMs: 2e5
+					}).then((result) => {
+						if (!cancelled) setCadConversionStatus("已生成供智能体读图的 DXF：" + result.relativePath);
+					}).catch((error) => {
+						if (!cancelled) setCadConversionStatus(String(error.message || error));
+					});
+					return () => {
+						cancelled = true;
+					};
+				}, [
+					isCad,
+					cwd,
+					file.path
+				]);
 				const canEdit = kbSlug ? kind === "markdown" || kind === "text" : (kind === "markdown" || kind === "text") && /\.(md|markdown|txt)$/i.test(file.path || file.name || "") || isOffice && office && office.editable;
 				const canExport = kind === "markdown" || kind === "text";
-				const heavy = kind === "markdown" && previewIsHeavy(mode === "edit" ? draft : draft || text);
+				const heavy = kind === "markdown" && mode === "edit" && previewIsHeavy(draft);
 				const isWysiwyg = canEdit && kind === "markdown" && mode === "edit" && !sourceMode;
 				const visible = mode === "edit" ? draft : draft || text;
-				const previewSource = slicePreviewMarkdown(visible).text;
+				const previewSource = mode === "edit" ? slicePreviewMarkdown(visible).text : visible;
 				const officeDirty = !!(isOffice && office && officeSaved && JSON.stringify(office) !== JSON.stringify(officeSaved));
 				const dirty = canEdit && (isUniver ? univerDirty : isOffice ? officeDirty : draft !== text);
 				const previewHtml = React.useMemo(() => {
@@ -4243,13 +4266,14 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 						return mdToHtml(previewSource, {
 							cwd,
 							filePath: file.path,
-							tableRowCap: PREVIEW_TABLE_ROW_CAP
+							tableRowCap: mode === "edit" ? PREVIEW_TABLE_ROW_CAP : Number.POSITIVE_INFINITY
 						});
 					} catch (err) {
 						return "<p class=\"ap-err\">预览生成失败，请用源码查看。</p>";
 					}
 				}, [
 					kind,
+					mode,
 					previewSource,
 					cwd,
 					file.path
@@ -4801,7 +4825,7 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 					},
 					onMouseUp: onPreviewMouseUp
 				}));
-				else if (kind === "markdown") body = h("div", null, heavy ? h("p", { className: "ap-doc-hint" }, "文档较大，先显示前 " + PREVIEW_HEAD_CHARS + " 字。点表格下的「展开」只展开该表，不要一次填完全文。") : null, h("div", {
+				else if (kind === "markdown") body = h("div", null, h("div", {
 					ref: previewBoxRef,
 					onClick: onPreviewClick,
 					onMouseUp: onPreviewMouseUp,
@@ -4849,7 +4873,14 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 						position: "relative",
 						zIndex: 2
 					}
-				}, error) : null, (!isOfficeUniver && !isCad || isCad && error) && status ? h("div", {
+				}, error) : null, isCad && cadConversionStatus ? h("div", {
+					className: "ap-doc-status",
+					style: {
+						padding: "8px 12px",
+						position: "relative",
+						zIndex: 2
+					}
+				}, cadConversionStatus) : null, (!isOfficeUniver && !isCad || isCad && error) && status ? h("div", {
 					className: "ap-doc-status",
 					style: {
 						padding: "8px 12px",
@@ -10821,16 +10852,14 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			const buf = [first];
 			let i = start + 1;
 			if (!/<\/table>/i.test(first)) {
-				let chars = first.length;
-				while (i < lines.length && !/<\/table>/i.test(lines[i]) && chars < 4e5) {
+				while (i < lines.length && !/<\/table>/i.test(lines[i])) {
 					buf.push(lines[i]);
-					chars += lines[i].length + 1;
 					i += 1;
 				}
 				if (i < lines.length) {
 					buf.push(lines[i]);
 					i += 1;
-				}
+				} else return null;
 			}
 			return {
 				html: buf.join("\n"),

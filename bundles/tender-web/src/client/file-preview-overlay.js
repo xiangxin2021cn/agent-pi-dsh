@@ -78,6 +78,7 @@ export function createFilePreviewOverlay(dependencies) {
   }
 
   function previewCacheSet(key, value) {
+    if (typeof value.text === 'string' && value.text.length > 8_000_000) return
     if (previewCache.has(key)) previewCache.delete(key)
     previewCache.set(key, value)
     while (previewCache.size > PREVIEW_CACHE_MAX) {
@@ -106,6 +107,7 @@ export function createFilePreviewOverlay(dependencies) {
       const [officeSaved, setOfficeSaved] = React.useState(null)
       const [siteUrl, setSiteUrl] = React.useState('')
       const [cadUrl, setCadUrl] = React.useState('')
+      const [cadConversionStatus, setCadConversionStatus] = React.useState('')
       const [aiSel, setAiSel] = React.useState(null)
       const [sheetTab, setSheetTab] = React.useState(0)
       const [univerDirty, setUniverDirty] = React.useState(false)
@@ -250,6 +252,7 @@ export function createFilePreviewOverlay(dependencies) {
         setUniverDirty(false)
         setSiteUrl('')
         setCadUrl('')
+        setCadConversionStatus('')
         setAiSel(null)
         const cacheKey = previewCacheKey(cwd, file.path, kbSlug)
         const cached = previewCacheGet(cacheKey)
@@ -345,16 +348,23 @@ export function createFilePreviewOverlay(dependencies) {
         window.addEventListener('message', onMessage)
         return () => window.removeEventListener('message', onMessage)
       }, [isCad, cwd, file.path])
+      React.useEffect(() => {
+        if (!isCad || !/\.dwg$/i.test(file.path || '')) return undefined
+        let cancelled = false
+        api('/api/agent-pi/cad/convert', cwd, { method: 'POST', body: JSON.stringify({ path: file.path }), timeoutMs: 200000 })
+          .then((result) => { if (!cancelled) setCadConversionStatus('已生成供智能体读图的 DXF：' + result.relativePath) })
+          .catch((error) => { if (!cancelled) setCadConversionStatus(String(error.message || error)) })
+        return () => { cancelled = true }
+      }, [isCad, cwd, file.path])
       const canEdit = kbSlug
         ? kind === 'markdown' || kind === 'text'
         : ((kind === 'markdown' || kind === 'text') && /\.(md|markdown|txt)$/i.test(file.path || file.name || ''))
           || (isOffice && office && office.editable)
       const canExport = kind === 'markdown' || kind === 'text'
-      const heavy = kind === 'markdown' && previewIsHeavy(mode === 'edit' ? draft : (draft || text))
+      const heavy = kind === 'markdown' && mode === 'edit' && previewIsHeavy(draft)
       const isWysiwyg = canEdit && kind === 'markdown' && mode === 'edit' && !sourceMode
       const visible = mode === 'edit' ? draft : (draft || text)
-      const paintSlice = slicePreviewMarkdown(visible)
-      const previewSource = paintSlice.text
+      const previewSource = mode === 'edit' ? slicePreviewMarkdown(visible).text : visible
       const officeDirty = !!(isOffice && office && officeSaved && JSON.stringify(office) !== JSON.stringify(officeSaved))
       const dirty = canEdit && (isUniver ? univerDirty : (isOffice ? officeDirty : draft !== text))
       const previewHtml = React.useMemo(() => {
@@ -363,12 +373,12 @@ export function createFilePreviewOverlay(dependencies) {
           return mdToHtml(previewSource, {
             cwd: cwd,
             filePath: file.path,
-            tableRowCap: PREVIEW_TABLE_ROW_CAP,
+            tableRowCap: mode === 'edit' ? PREVIEW_TABLE_ROW_CAP : Number.POSITIVE_INFINITY,
           })
         } catch (err) {
           return '<p class="ap-err">预览生成失败，请用源码查看。</p>'
         }
-      }, [kind, previewSource, cwd, file.path])
+      }, [kind, mode, previewSource, cwd, file.path])
 
       const markdownFromWysiwyg = () => {
         if (!wysiwygRef.current) return fullMdRef.current || draft
@@ -961,7 +971,6 @@ export function createFilePreviewOverlay(dependencies) {
         )
       } else if (kind === 'markdown') {
         body = h('div', null,
-          heavy ? h('p', { className: 'ap-doc-hint' }, '文档较大，先显示前 ' + PREVIEW_HEAD_CHARS + ' 字。点表格下的「展开」只展开该表，不要一次填完全文。') : null,
           h('div', {
             ref: previewBoxRef,
             onClick: onPreviewClick,
@@ -1018,6 +1027,7 @@ export function createFilePreviewOverlay(dependencies) {
           isUniver || isCad || kind === 'project-plan'
             ? h(React.Fragment, null,
               error ? h('div', { className: 'ap-err', style: { padding: '8px 12px', position: 'relative', zIndex: 2 } }, error) : null,
+              isCad && cadConversionStatus ? h('div', { className: 'ap-doc-status', style: { padding: '8px 12px', position: 'relative', zIndex: 2 } }, cadConversionStatus) : null,
               ((!isOfficeUniver && !isCad) || (isCad && error)) && status ? h('div', { className: 'ap-doc-status', style: { padding: '8px 12px', position: 'relative', zIndex: 2 } }, status) : null,
               body,
             )

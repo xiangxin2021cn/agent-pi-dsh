@@ -71,7 +71,7 @@ export function previewKind(path: string): PreviewKind {
   if (ext === '.docx') return 'word'
   if (ext === '.pptx') return 'slides'
   if (ext === '.xls' || ext === '.doc' || ext === '.ppt') return 'legacy-office'
-  if (['.txt', '.json', '.jsonl', '.xml', '.yml', '.yaml', '.log', '.css', '.js', '.ts', '.tsx'].includes(ext)) {
+  if (['.txt', '.json', '.jsonl', '.xml', '.yml', '.yaml', '.log', '.css', '.js', '.ts', '.tsx', '.py', '.go', '.rs', '.java', '.c', '.h', '.cpp', '.ini', '.toml'].includes(ext)) {
     return 'text'
   }
   return 'binary'

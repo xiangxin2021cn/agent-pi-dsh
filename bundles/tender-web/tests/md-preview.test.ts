@@ -53,6 +53,21 @@ test('Infinity tableRowCap expands every row', () => {
   assert.equal(html.includes('data-md-expand'), false)
 })
 
+test('a long HTML table keeps its final rows in the full preview', () => {
+  const rows = ['<table>']
+  for (let i = 0; i < 1200; i++) rows.push('<tr><td>R' + i + '</td><td>' + 'x'.repeat(400) + '</td></tr>')
+  rows.push('</table>')
+  const html = mdToHtml(rows.join('\n'), { tableRowCap: Number.POSITIVE_INFINITY })
+  assert.match(html, /R1199/)
+  assert.equal((html.match(/<tr>/g) || []).length, 1200)
+})
+
+test('an unfinished HTML table does not swallow later document text', () => {
+  const html = mdToHtml('<table>\n<tr><td>broken\n## Later section\nFinal paragraph')
+  assert.match(html, /Later section/)
+  assert.match(html, /Final paragraph/)
+})
+
 test('a pipe row without a separator does not hang the preview', () => {
   const started = Date.now()
   const html = mdToHtml('# Title\n\n| a | b |\n\n| **合计** |  | 53,966,663 |\n\nplain after\n')
@@ -119,13 +134,15 @@ test('slicePreviewMarkdown cuts a huge file on a line boundary', () => {
   assert.equal(slicePreviewMarkdown('# short').truncated, false)
 })
 
-test('client preview copies the heavy-md slice and does not auto-fill tables', () => {
+test('client read-only preview renders the full markdown while editor keeps its slice', () => {
   const page = clientSource
   assert.match(page, /function slicePreviewMarkdown/)
   assert.match(page, /function previewIsHeavy/)
   assert.match(page, /function restoreCappedTables/)
   assert.match(page, /function stitchMarkdown/)
-  assert.match(page, /文档较大，先显示前/)
+  assert.match(page, /mode === 'edit' \? slicePreviewMarkdown\(visible\)\.text : visible/)
+  assert.match(page, /mode === 'edit' \? PREVIEW_TABLE_ROW_CAP : Number\.POSITIVE_INFINITY/)
+  assert.doesNotMatch(page, /文档较大，先显示前/)
   assert.match(page, /所见即所得只渲染前/)
   assert.match(page, /body\.binary && !body\.text/)
   assert.match(page, /DocBtn\(mode === 'edit' \? '预览' : '编辑', toggleMode/)

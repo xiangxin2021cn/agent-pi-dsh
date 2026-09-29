@@ -136,6 +136,8 @@ test('Windows packaging preserves and validates the explicit clean CAD runtime',
   assert.doesNotMatch(packSource, /Invoke-NpmBuild \$CadPoc/)
   assert.match(packSource, /Install-CadCleanRuntime \$runtimeCadViewer/)
   assert.match(packSource, /Install-CadCleanRuntime \$unpackedCadViewer/)
+  assert.match(packSource, /@mlightcad\\libredwg-web\\wasm\\libredwg-web\.wasm/)
+  assert.match(packSource, /@mlightcad\\libredwg-converter\\dist\\libredwg-web\.wasm/)
   assert.match(packSource, /Test-CadViewerAssets/)
   for (const marker of [
     'libredwg-parser-worker.js',
