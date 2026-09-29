@@ -8,7 +8,7 @@ import { closeSync, existsSync, lstatSync, openSync, readlinkSync, readSync, rmS
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { findDshInstallDir } from "./dsh-install.js";
 import { classifyPnpmFailure, HOST_NAMESPACE_RE } from "./pnpm-compat.js";
-import { conflictingEntryIds, dropFromManifest, hasDshManifest, hasLoadableEntry, normalizeReleaseAgeExcludes, pluginSubdirs, profileDir, readInstalled, readManifestDeps, readProfileBundles, dropUnparseableBuildKeys } from "./profile.js";
+import { conflictingEntryIds, dropFromManifest, hasDshManifest, hasLoadableEntry, mergeDuplicateReleaseAgeExcludes, pluginSubdirs, profileDir, readInstalled, readManifestDeps, readProfileBundles, dropUnparseableBuildKeys } from "./profile.js";
 import { logEvent } from "./log.js";
 import { cleanOrphanedStore } from "./store.js";
 /**
@@ -119,18 +119,16 @@ export async function withHoistRecovery(run, profile, pluginArgs, profileDirecto
     const marketFlags = options.marketFlags !== false;
     /** The option a recovery step needed and this host does not accept (#732). */
     let unavailableOption = null;
-    // Before the FIRST run, not after a failure: the two shapes pnpm writes into
-    // `minimumReleaseAgeExclude` (a shadowed duplicate rule, #732; a version
-    // union, #733) hurt pnpm while it RESOLVES the dependency graph, and the
-    // union one aborts the process on an 80 GiB allocation with no error output
-    // at all — nothing to classify, so a repair that waited for a failure would
-    // never fire. Every verb that resolves the graph is covered, not just add and
-    // remove: an `install` or an in-place `update` consults the same key.
+    // Before the FIRST run, not after a failure: the shadowed duplicate rule
+    // (#732) hurts pnpm while it RESOLVES the dependency graph, so merging it
+    // first is what keeps the command from failing at all — and it costs one
+    // small file read. Every verb that resolves the graph is covered, not just
+    // add and remove: an `install` or an in-place `update` reads the same key.
     const verb = pluginArgs.find(argument => !argument.startsWith('-'));
     if (verb === 'add' || verb === 'remove' || verb === 'install' || verb === 'update') {
-        const normalized = normalizeReleaseAgeExcludes(profile, profileDirectory);
-        if (normalized.length > 0) {
-            logEvent('warn', 'install', `minimumReleaseAgeExclude held a form pnpm cannot read back for ${normalized.join(', ')} (a shadowed duplicate rule, #732, or a version union, which pnpm 12.4.1 aborts on — #733) — rewrote each as one bare package name before running`);
+        const merged = mergeDuplicateReleaseAgeExcludes(profile, profileDirectory);
+        if (merged.length > 0) {
+            logEvent('warn', 'install', `minimumReleaseAgeExclude held several rules for ${merged.join(', ')}, and pnpm honours only the FIRST per name (#732) — merged each package's rules into one, before running`);
         }
     }
     let result = await run(profile, pluginArgs);
@@ -169,9 +167,9 @@ export async function withHoistRecovery(run, profile, pluginArgs, profileDirecto
             // (#732) or extending a version union (#733). Either way the same
             // rewrite fixes it, needs no option at all, and so also works on the
             // desktop bridge that refuses options. Retry the SAME argv afterwards.
-            const normalized = normalizeReleaseAgeExcludes(profile, profileDirectory);
-            if (normalized.length > 0) {
-                logEvent('warn', 'install', `pnpm wrote a minimumReleaseAgeExclude entry it cannot read back for ${normalized.join(', ')} (#732/#733) — rewrote each as one bare package name and retrying once`);
+            const mergedNow = mergeDuplicateReleaseAgeExcludes(profile, profileDirectory);
+            if (mergedNow.length > 0) {
+                logEvent('warn', 'install', `pnpm appended a second minimumReleaseAgeExclude rule for ${mergedNow.join(', ')} and honours only the first, shadowing its own entry (#732) — merged them into one and retrying once`);
                 result = await run(profile, pluginArgs);
             }
             else if (options.releaseAgeBypass === false) {

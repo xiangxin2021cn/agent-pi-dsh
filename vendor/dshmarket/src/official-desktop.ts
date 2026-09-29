@@ -37,7 +37,10 @@ function detail(error: unknown): string {
 export function createOfficialDesktopRuntime(
   managerLookup: () => OfficialPluginManagerLike | undefined,
   profileName: string,
-  _profileDirectory: string,
+  // Unused by the manager bridge — it takes the profile by NAME — and optional
+  // because an explicitly configured `profile: desktop` may be the only thing
+  // that names this profile, with no launcher directory to go with it (#744).
+  _profileDirectory?: string,
 ): DesktopPluginRuntime {
   let disposed = false
   let active: { requestId?: string; cancelled: boolean; done: Promise<InstallResult> } | undefined

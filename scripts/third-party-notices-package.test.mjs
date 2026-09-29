@@ -27,8 +27,8 @@ test('repository carries the declared business-core and super-injector licenses'
   assert.match(notices, /`vendor\/dsh-super-injector\/LICENSE`/)
   assert.match(notices, /No upstream `NOTICE` is claimed or\s+synthesized/)
 
-  assert.match(notices, /distributes the complete official `dsh-univer-office` 0\.3\.2/)
-  assert.match(notices, /DSH 0\.1\.6-alpha\.2/)
+  assert.match(notices, /distributes the complete official `dsh-univer-office` 0\.3\.5/)
+  assert.match(notices, /DSH 0\.2\.0-rc\.1/)
   assert.match(notices, /upstream authorization checks and license files are unchanged/)
 })
 

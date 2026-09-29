@@ -1269,42 +1269,45 @@ function splitReleaseAgeExclude(entry: string): ReleaseAgeExcludeRule | null {
 }
 
 /**
- * Make a profile's `minimumReleaseAgeExclude` readable again (#732, #733).
+ * Make a profile's `minimumReleaseAgeExclude` readable again (#732).
  *
- * pnpm WRITES this key in forms it then mishandles, and two separate defects
- * come out of that:
+ * pnpm appends a second rule for a package that already has one, while its
+ * `evaluateVersionPolicy` honours only the FIRST rule per package name — so
+ * its own new entry is dead, the young version stays unexcluded, and every
+ * later command in that profile fails lockfile verification with
+ * ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION, including commands that have nothing
+ * to do with that package.
  *
- * - pnpm 11.7.0 appends a second rule for a package that already has one,
- *   while its `evaluateVersionPolicy` honours only the FIRST rule per name.
- *   Its own new entry is therefore dead, and every later command in that
- *   profile fails lockfile verification with
- *   ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION — including commands that have
- *   nothing to do with that package (#732).
- * - pnpm 12.4.1 folds the versions it approves into a `name@v1 || v2 || …`
- *   union, a form its OWN validator rejects ("Invalid versions union … Use
- *   exact versions only"), and evaluating one aborts the process on a single
- *   80 GiB allocation that takes the machine down for minutes (#733). The
- *   entries are evaluated lazily, so this fires on any later install that
- *   age-checks that package, with no pnpm error output to explain it.
+ * (#733 reported a separate, unexplained 80 GiB allocation abort on pnpm
+ * 12.4.1 that its author first tied to the union spelling. Review on that
+ * issue — and the reporter's own follow-up, which could no longer reproduce it
+ * — settled that `name@a || b` is a documented pnpm form, that the validator's
+ * "Use exact versions only" is about ranges and name patterns, and that the
+ * abort is not this market's to fix. Do not "repair" a union into a bare name
+ * on the strength of it: see below.)
  *
- * Both are avoided by writing each such package as ONE BARE NAME. A bare name
- * cannot be shadowed (the first rule for it is already all of it), it stops
- * pnpm's auto-collect for that package outright, and it carries no union for
- * the parser to evaluate. It is also a wider statement than a version list —
- * the package stops being age-gated at all — so it is spent only on entries
- * pnpm has already written in one of those two broken forms, never on a
- * package the file lists as a single exact version. A pure duplicate of one
- * exact version collapses to that one line, which changes no policy at all.
+ * pnpm WRITES this key itself, and one of the forms it writes is what breaks a
+ * profile (#732): pnpm 11.7.0 APPENDS a second rule for a package that already
+ * has one, while its `evaluateVersionPolicy` honours only the FIRST rule per
+ * package name. Its own new entry is therefore dead, the young version stays
+ * unexcluded, and every later command in that profile fails lockfile
+ * verification with ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION — installs, updates
+ * and uninstalls alike, including ones that have nothing to do with that
+ * package. Merging the same-name rules into one makes the file readable again.
  *
- * A file holding nothing but bare names and single exact versions is left
- * untouched, as is one whose block this cannot read exactly (a flow list, an
- * inline comment, a line it would have to guess at).
+ * The merge keeps the UNION of the versions the file already lists
+ * (`name@1.2.3 || 1.4.0`), which is a documented pnpm spelling. What this
+ * deliberately does NOT do is collapse a version list to a bare package name:
+ * a bare name exempts EVERY version of that package from the cooldown, which
+ * is wider than what the file says, and the market pins exact versions
+ * precisely so a fresh install cannot silently land on an older release
+ * (#594). A form the file cannot be read exactly from is left alone.
  *
- * @returns the package names whose entry was rewritten; empty when the file
+ * @returns the package names whose rules were merged; empty when the file
  *   needed no repair or could not be repaired, in which case it is left
  *   byte-for-byte as it was.
  */
-export function normalizeReleaseAgeExcludes(profile: string, explicitDir?: string): string[] {
+export function mergeDuplicateReleaseAgeExcludes(profile: string, explicitDir?: string): string[] {
   const file = join(profileDir(profile, explicitDir), 'pnpm-workspace.yaml')
   let yaml: string
   try { yaml = readFileSync(file, 'utf8') } catch { return [] }
@@ -1352,12 +1355,16 @@ export function normalizeReleaseAgeExcludes(profile: string, explicitDir?: strin
   const produced = (name: string): string => {
     const group = byName.get(name)
     if (group === undefined) return ''
-    // A bare name already covers every version, so it stays bare; a union or
-    // several rules for one name cannot both be read, so they become one.
-    const bare = group.allVersions
-      || group.originals.some(selector => selector.includes('||'))
-      || group.selectors.size > 1
-    const text = bare ? name : `${name}@${[...group.selectors][0]}`
+    // A bare name already covers every version, so it stays bare and nothing
+    // is widened; one rule stays exactly as it was written, union included.
+    // Several rules for one name are the #732 breakage — only the first is
+    // ever read — so they become one, as the union of the versions the file
+    // already lists.
+    const text = group.allVersions
+      ? name
+      : group.count === 1
+        ? `${name}@${group.originals[0] ?? ''}`
+        : `${name}@${[...group.selectors].join(' || ')}`
     // `@` cannot start a plain scalar in YAML, so a scoped name is written
     // quoted — the way pnpm itself writes one.
     const quoted = group.quoted || text.startsWith('@')

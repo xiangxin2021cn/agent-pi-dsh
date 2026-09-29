@@ -46,8 +46,8 @@ synthesized.
 ## dsh-univer-office integration
 
 Agent Pi DSH distributes the complete official `dsh-univer-office` 0.3.5
-package, pinned by `vendor/dsh-univer-office.pin`, with native support for
-DSH 0.1.7. The upstream package declares Apache-2.0;
+package, pinned by `vendor/dsh-univer-office.pin`. Agent Pi integrates it with
+DSH 0.2.0-rc.1 through the product's compatibility adapter. The upstream package declares Apache-2.0;
 its original LICENSE, bundled Gateway, Viewer, workers, converters and license
 materials are retained in the verified package inventory. Platform runtime
 dependencies are installed from the tracked production lock and retain their

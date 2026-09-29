@@ -47,7 +47,7 @@ export interface PnpmFailure {
   code: 'adding-to-root' | 'not-a-workspace' | 'hoist-pattern-diff' | 'pnpm-missing' | 'release-age-violation'
     | 'ignored-builds' | 'git-prepare-not-allowed' | 'git-prepare-failed' | 'tarball-url-mismatch'
     | 'fetch-404' | 'no-matching-version' | 'transient-network' | 'fetch-timeout'
-    | 'unexpected-store' | 'patch-failed' | 'missing-tarball-integrity' | 'windows-file-locked'
+    | 'unexpected-store' | 'patch-failed' | 'unused-patch' | 'missing-tarball-integrity' | 'windows-file-locked'
     | 'pnpm-unusable' | 'missing-local-dependency' | 'unparseable-build-key' | 'native-oom' | 'ssh-auth-failed'
   /** Bilingual, actionable message shown to the user instead of the raw wall of text. */
   message: string
@@ -305,6 +305,34 @@ export function classifyPnpmFailure(output: string, exitCode?: number | null): P
       code: 'patch-failed',
       recoverable: false,
       message: `profile 里的一个 pnpm 补丁打不上了${which}。pnpm 会继续把这个包装上，但装的是没打补丁的原版——通常下次启动才会以「插件加载失败」暴露出来。多半是包升级后挪动了补丁指向的文件（例如补丁改的是 client/client.js，而新版本发的是 lib/client.js）。请更新或删掉这个补丁文件，以及 profile package.json 里 pnpm.patchedDependencies 中对应的那一条 / a pnpm patch in this profile no longer applies${whichEn}. pnpm still installs the package, but unpatched — which usually surfaces at the next boot as "failed to load plugins" rather than here. The usual cause is the package moving the file the patch targets (for example a patch against client/client.js when the release now ships lib/client.js). Update or remove that patch file and its entry under pnpm.patchedDependencies in the profile's package.json`,
+    }
+  }
+  // #740 by @lws2004: the other half of the story above. `patchedDependencies`
+  // keys on `pkg@exactVersion`, and once the installed version moves past that
+  // key pnpm 12 treats the stale patch as a HARD error: it writes NOTHING at
+  // all. So an update of that plugin is refused in full — the version stays
+  // where it was, the market's own log holds only exit=1, and the user reads
+  // "the update did not apply" for what is really a patch that no longer
+  // matches. Unlike ERR_PNPM_PATCH_FAILED there is no unpatched install to
+  // discover later, which makes this the more confusing of the two. The patch
+  // is the user's, so the market names the entries and says where to fix them
+  // rather than guessing a retarget.
+  if (output.includes('ERR_PNPM_UNUSED_PATCH')) {
+    // `[^\n"]+`: the same sentence also arrives inside the ndjson stream,
+    // where it ends at a quote rather than at the line — matching to the line
+    // end there captured `"}}` as part of the package name.
+    const unused = /The following patches were not used:\s*([^\n"]+)/
+      .exec(withDecodedPnpmDiagnostics(output))?.[1]
+    const named = unused === undefined
+      ? []
+      : unused.split(',').map(entry => entry.trim()).filter(entry => entry !== '')
+    const which = named.length === 0 ? '' : `（${named.join('、')}）`
+    const whichEn = named.length === 0 ? '' : ` (${named.join(', ')})`
+    return {
+      code: 'unused-patch',
+      recoverable: false,
+      pkg: named.length === 1 ? named[0] : undefined,
+      message: `profile 里的 pnpm 补丁有一条已经用不上了${which}：patchedDependencies 是按「包名@精确版本」钉的，而这次要装的版本已经越过它，pnpm 12 因此判定整条命令失败——它什么都没写，所以看起来像「点了更新没反应」。要么把补丁更新到新版本、并把 profile package.json 里 pnpm.patchedDependencies 的键改成「包名@新版本」，要么在新版本已经自带这个修复时直接删掉这一条和对应的补丁文件 / a pnpm patch in this profile is no longer used${whichEn}: patchedDependencies keys on "package@exactVersion", and the version being installed has moved past that key, so pnpm 12 fails the WHOLE command and writes nothing at all — which is why the update looks like it simply did not apply. Either retarget the patch to the new version and change its pnpm.patchedDependencies key in the profile's package.json to "package@newVersion", or — when the new release already carries that fix — drop the entry and its patch file`,
     }
   }
   if (output.includes('ERR_PNPM_ADDING_TO_ROOT')) {

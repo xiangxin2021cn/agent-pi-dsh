@@ -11,6 +11,7 @@ const electronExe = join(desktopDir, 'node_modules', 'electron', 'dist', process
 const pnpmStore = join(root, 'vendor', 'deepseek-harness', 'node_modules', '.pnpm')
 const deadlineMs = Number(process.env.AGENT_PI_COLD_START_MS || 120_000)
 const requireUniver = process.env.AGENT_PI_SMOKE_REQUIRE_UNIVER === '1'
+const requireMarket = process.env.AGENT_PI_SMOKE_REQUIRE_MARKET === '1'
 
 function playwrightEntry() {
   const packageDir = readdirSync(pnpmStore, { withFileTypes: true })
@@ -79,6 +80,9 @@ try {
     timeout: remaining(),
   })
   await page.locator('[data-slot="sidebar"]').waitFor({ state: 'visible', timeout: remaining() })
+  if (requireMarket) {
+    await page.locator('style[data-plugin="dshmarket"]').first().waitFor({ state: 'attached', timeout: remaining() })
+  }
   if (requireUniver) {
     const profile = JSON.parse(readFileSync(join(dshHome, 'profiles', 'tender', 'package.json'), 'utf8'))
     assert.ok(profile.dsh?.profile?.bundles?.includes('dsh-univer-office'), 'Office must be active in the profile')
@@ -120,7 +124,7 @@ try {
     elapsedMs,
     limitMs: deadlineMs,
     url: safeUrl(page.url()),
-    checks: ['authenticated-dsh-url', 'sidebar-visible', ...(requireUniver ? ['office-profile-active', 'office-client-active', 'office-host-status'] : []), ...(seedHome ? ['session-files-rail-visible'] : []), 'workbench-interactive', 'no-legacy-api-key-overlay'],
+    checks: ['authenticated-dsh-url', 'sidebar-visible', ...(requireMarket ? ['market-client-active'] : []), ...(requireUniver ? ['office-profile-active', 'office-client-active', 'office-host-status'] : []), ...(seedHome ? ['session-files-rail-visible'] : []), 'workbench-interactive', 'no-legacy-api-key-overlay'],
   }))
 } catch (error) {
   mkdirSync(artifactDir, { recursive: true })

@@ -20,7 +20,11 @@ function detail(error) {
     return JSON.stringify(error);
 }
 /** Never fall back to `dsh plugin --profile desktop`: that CLI is forbidden. */
-export function createOfficialDesktopRuntime(managerLookup, profileName, _profileDirectory) {
+export function createOfficialDesktopRuntime(managerLookup, profileName,
+// Unused by the manager bridge — it takes the profile by NAME — and optional
+// because an explicitly configured `profile: desktop` may be the only thing
+// that names this profile, with no launcher directory to go with it (#744).
+_profileDirectory) {
     let disposed = false;
     let active;
     const runPlugin = (profile, argv) => {

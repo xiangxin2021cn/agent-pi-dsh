@@ -162,12 +162,18 @@ export function apply(ctx, config) {
             // every install (#702). A third-party shell announces itself through
             // `desktopProfiles`, and this whole block runs only when that service
             // is absent, so this never takes a third-party shell's profile.
+            const configured = config?.profile;
+            const configuredDesktop = configured !== undefined && configured.toLowerCase() === 'desktop';
             const officialElectron = launched !== undefined && launched.name.toLowerCase() === 'desktop';
-            if (officialElectron && config?.profile === undefined) {
-                const runtime = createOfficialDesktopRuntime(() => hostCtx.get('pluginManager'), launched.name, launched.dir);
+            if (configuredDesktop || (configured === undefined && officialElectron)) {
+                const profileName = configured ?? launched.name;
+                const profileDirectory = launched !== undefined && launched.name.toLowerCase() === profileName.toLowerCase()
+                    ? launched.dir
+                    : undefined;
+                const runtime = createOfficialDesktopRuntime(() => hostCtx.get('pluginManager'), profileName, profileDirectory);
                 const resolved = {
-                    profile: launched.name,
-                    profileDirectory: launched.dir,
+                    profile: profileName,
+                    ...(profileDirectory === undefined ? {} : { profileDirectory }),
                     desktopHost: true,
                     allowRestart: false,
                     maxSnapshots: config?.maxSnapshots,

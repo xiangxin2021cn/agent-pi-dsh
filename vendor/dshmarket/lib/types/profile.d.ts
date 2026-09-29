@@ -350,3 +350,43 @@ export declare function setAllowBuilds(profile: string, packages: string[], expl
  *   file is left untouched.
  */
 export declare function dropUnparseableBuildKeys(profile: string, explicitDir?: string): string[];
+/**
+ * Make a profile's `minimumReleaseAgeExclude` readable again (#732).
+ *
+ * pnpm appends a second rule for a package that already has one, while its
+ * `evaluateVersionPolicy` honours only the FIRST rule per package name — so
+ * its own new entry is dead, the young version stays unexcluded, and every
+ * later command in that profile fails lockfile verification with
+ * ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION, including commands that have nothing
+ * to do with that package.
+ *
+ * (#733 reported a separate, unexplained 80 GiB allocation abort on pnpm
+ * 12.4.1 that its author first tied to the union spelling. Review on that
+ * issue — and the reporter's own follow-up, which could no longer reproduce it
+ * — settled that `name@a || b` is a documented pnpm form, that the validator's
+ * "Use exact versions only" is about ranges and name patterns, and that the
+ * abort is not this market's to fix. Do not "repair" a union into a bare name
+ * on the strength of it: see below.)
+ *
+ * pnpm WRITES this key itself, and one of the forms it writes is what breaks a
+ * profile (#732): pnpm 11.7.0 APPENDS a second rule for a package that already
+ * has one, while its `evaluateVersionPolicy` honours only the FIRST rule per
+ * package name. Its own new entry is therefore dead, the young version stays
+ * unexcluded, and every later command in that profile fails lockfile
+ * verification with ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION — installs, updates
+ * and uninstalls alike, including ones that have nothing to do with that
+ * package. Merging the same-name rules into one makes the file readable again.
+ *
+ * The merge keeps the UNION of the versions the file already lists
+ * (`name@1.2.3 || 1.4.0`), which is a documented pnpm spelling. What this
+ * deliberately does NOT do is collapse a version list to a bare package name:
+ * a bare name exempts EVERY version of that package from the cooldown, which
+ * is wider than what the file says, and the market pins exact versions
+ * precisely so a fresh install cannot silently land on an older release
+ * (#594). A form the file cannot be read exactly from is left alone.
+ *
+ * @returns the package names whose rules were merged; empty when the file
+ *   needed no repair or could not be repaired, in which case it is left
+ *   byte-for-byte as it was.
+ */
+export declare function mergeDuplicateReleaseAgeExcludes(profile: string, explicitDir?: string): string[];

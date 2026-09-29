@@ -18,7 +18,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import {
   assertUniverClientCompatibility,
+  assertUniver020PeerRanges,
   patchUniverForDshAlpha1,
+  patchUniver020PeerRanges,
 } from './patch-univer-alpha1.mjs'
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))
@@ -157,13 +159,14 @@ function receiptFileList(pluginRoot) {
   return files.sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0)
 }
 
-function validatePackage(pluginRoot, pin) {
+function validatePackage(pluginRoot, pin, requireRc1Peers = false) {
   const root = resolve(pluginRoot)
   walkTree(root)
   const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
   if (manifest.name !== pin.name || manifest.version !== pin.version || manifest.license !== pin.license) {
     fail('materialized dsh-univer-office package identity does not match its pin')
   }
+  if (requireRc1Peers) assertUniver020PeerRanges(manifest)
   for (const relativePath of ['LICENSE', 'lib/index.js', 'lib/client.js']) {
     if (!existsSync(join(root, relativePath))) fail(`materialized dsh-univer-office is missing ${relativePath}`)
   }
@@ -214,7 +217,7 @@ function writeReceipt(pluginRoot, pin, clientSource) {
 export function verifyMaterializedUniver(pluginRoot, pinPath = defaultPinPath) {
   const pin = loadUniverPin(pinPath)
   const root = resolve(pluginRoot)
-  const manifest = validatePackage(root, pin)
+  const manifest = validatePackage(root, pin, true)
   const client = validateCompatibilityPatch(root, manifest)
   const receipt = JSON.parse(readFileSync(join(root, receiptName), 'utf8'))
   if (receipt.schema !== 'agent-pi-dsh/univer-office-vendor-receipt/v1') fail('invalid dsh-univer-office vendor receipt')
@@ -272,6 +275,8 @@ export async function materializeDshUniverOffice({
     runTar(['-xzf', archive, '-C', unpacked, '--strip-components=1'])
     const manifest = validatePackage(unpacked, pin)
     patchUniverForDshAlpha1({ pluginRoot: unpacked })
+    writeFileSync(join(unpacked, 'package.json'),
+      patchUniver020PeerRanges(readFileSync(join(unpacked, 'package.json'), 'utf8')))
     const client = validateCompatibilityPatch(unpacked, manifest)
     writeReceipt(unpacked, pin, client)
 

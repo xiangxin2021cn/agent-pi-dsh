@@ -1,6 +1,38 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+
+const univerDshPeers = [
+  '@deepseek-ai/dsh-attachment',
+  '@deepseek-ai/dsh-host-webserver',
+  '@deepseek-ai/dsh-llm',
+  '@deepseek-ai/dsh-session',
+  '@deepseek-ai/dsh-settings',
+  '@deepseek-ai/dsh-skill',
+  '@deepseek-ai/dsh-tools',
+]
+const univerPreviousPeerRange = '^0.1.5-rc.3 || ^0.1.7-alpha.2 || ^0.1.7-rc.1'
+const univerRc1PeerRange = univerPreviousPeerRange + ' || 0.2.0-rc.1'
+
+/** The seven Office-facing DSH APIs have no production source changes since our 3.7.6 pin. */
+export function patchUniver020PeerRanges(source) {
+  const manifest = JSON.parse(source)
+  if (manifest.name !== 'dsh-univer-office' || manifest.version !== '0.3.5' || !manifest.peerDependencies) return source
+  for (const name of univerDshPeers) {
+    if (manifest.peerDependencies[name] !== univerPreviousPeerRange && manifest.peerDependencies[name] !== univerRc1PeerRange) {
+      throw new Error('unexpected Univer DSH peer range: ' + name)
+    }
+    manifest.peerDependencies[name] = univerRc1PeerRange
+  }
+  return JSON.stringify(manifest, null, 2) + '\n'
+}
+
+export function assertUniver020PeerRanges(manifest) {
+  if (!manifest.peerDependencies) return
+  for (const name of univerDshPeers) {
+    if (manifest.peerDependencies[name] !== univerRc1PeerRange) throw new Error('Univer DSH 0.2.0-rc.1 peer adaptation missing: ' + name)
+  }
+}
 /** Minimal Office 0.3.2 adaptation to DSH 0.1.7's entry-backed settings. */
 function replaceOnce(source, before, after) {
   if (source.includes(after)) return source
