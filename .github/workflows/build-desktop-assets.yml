@@ -121,6 +121,8 @@ jobs:
         run: |
           (cd payload/product/packages/business-core && npm ci --omit=dev --no-fund --no-audit)
           (cd payload/product/bundles/tender-host && npm ci --omit=dev --no-fund --no-audit)
+          rm payload/product/bundles/tender-host/node_modules/@mlightcad/libredwg-web/wasm/libredwg-web.wasm
+          rm payload/product/bundles/tender-host/node_modules/@mlightcad/libredwg-converter/dist/libredwg-web.wasm
           node payload/product/scripts/install-univer-runtime-deps.mjs payload/product/vendor/dsh-univer-office
           node payload/product/scripts/univer-public-release.mjs assert-tree payload/product
 
