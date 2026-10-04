@@ -87,6 +87,7 @@ export function createFilePreviewOverlay(dependencies) {
   }
 
     function FilePreviewOverlay(props) {
+      useApLang()
       const cwd = props.cwd
       const file = props.file
       const kbSlug = props.kbSlug || (file && file.kbSlug) || ''
@@ -989,12 +990,12 @@ export function createFilePreviewOverlay(dependencies) {
         h('div', { className: 'ap-doc-hd' },
           h('div', { className: 'ap-doc-path', title: kbSlug ? (file.name + ' · 解析稿') : file.path }, kbSlug ? ((file.name || kbSlug) + ' · 解析稿') : file.path),
           h('div', { className: 'ap-doc-actions' },
-            kbSlug ? null : DocBtn('注入对话', () => {
+            kbSlug ? null : DocBtn(tAp('files.attachToChat'), () => {
               if (kind === 'project-plan' && !closePreview()) return
               mentionInChat(props.sessionProps || props, file)
               if (kind !== 'project-plan' && typeof props.onClose === 'function') props.onClose()
-            }, [Icon('paperclip', 14), '注入对话'], loading),
-            isCad || kind === 'project-plan' ? null : DocBtn('AI 改', () => openAiSel(), [Icon('sparkles', 14), 'AI 改'], loading || !!busy),
+            }, [Icon('paperclip', 14), tAp('files.attachToChat')], loading),
+            isCad || kind === 'project-plan' ? null : DocBtn(tAp('preview.aiEdit'), () => openAiSel(), [Icon('sparkles', 14), tAp('preview.aiEdit')], loading || !!busy),
             canEdit && !isUniver ? DocBtn(mode === 'edit' ? '预览' : '编辑', toggleMode, [
               Icon(mode === 'edit' ? 'eye' : 'pencil', 14),
             ], loading) : null,
@@ -1098,10 +1099,10 @@ export function createFilePreviewOverlay(dependencies) {
           ),
         ) : null,
         aiSel ? h('div', { className: 'ap-ai-sel', onMouseDown: (event) => { if (event.target === event.currentTarget) setAiSel(null) } },
-          h('div', { className: 'ap-ai-sel-card', role: 'dialog', 'aria-label': 'AI 改选区' },
+          h('div', { className: 'ap-ai-sel-card', role: 'dialog', 'aria-label': tAp('preview.aiEditSelection') },
             h('div', { className: 'ap-ai-sel-hd' },
               Icon('sparkles', 16),
-              'AI 改选区',
+              tAp('preview.aiEditSelection'),
               h('button', { type: 'button', className: 'ap-doc-btn ap-ai-sel-x', onClick: () => setAiSel(null) }, Icon('x', 14)),
             ),
             h('p', { className: 'ap-sub' }, '指令会发回当前主对话，带上本项目记忆。不要另开窗口改。'),
@@ -1121,6 +1122,7 @@ export function createFilePreviewOverlay(dependencies) {
     }
 
     function FolderPreviewOverlay(props) {
+      useApLang()
       const cwd = props.cwd
       const [current, setCurrent] = React.useState(props.folder)
       const [items, setItems] = React.useState([])
@@ -1191,7 +1193,8 @@ export function createFilePreviewOverlay(dependencies) {
               item.type === 'directory' ? null : h('button', {
                 type: 'button',
                 className: 'ap-tree-inject',
-                title: '注入对话',
+                title: tAp('files.attachToChat'),
+                'aria-label': tAp('files.attachToChat'),
                 onClick: (e) => {
                   e.preventDefault()
                   e.stopPropagation()
@@ -1203,7 +1206,7 @@ export function createFilePreviewOverlay(dependencies) {
         ),
         h(FileContextMenu, { menu: menu, onClose: () => setMenu(null) },
           menu ? [
-            h('button', { key: 'inject', type: 'button', onClick: () => { mentionInChat(props.sessionProps || props, menu.file); setMenu(null) } }, Icon('paperclip', 14), '注入对话'),
+            h('button', { key: 'inject', type: 'button', onClick: () => { mentionInChat(props.sessionProps || props, menu.file); setMenu(null) } }, Icon('paperclip', 14), tAp('files.attachToChat')),
             menu.file.type !== 'directory' || looksLikeKbPackName(menu.file)
               ? h('button', { key: 'kb', type: 'button', onClick: () => {
                 importWorkspaceFileToKb(cwd, menu.file, props.sessionProps || props)
@@ -1330,7 +1333,8 @@ export function createFilePreviewOverlay(dependencies) {
             file.type === 'directory' ? null : h('button', {
               type: 'button',
               className: 'ap-tree-inject',
-              title: '注入对话',
+              title: tAp('files.attachToChat'),
+              'aria-label': tAp('files.attachToChat'),
               onClick: (e) => {
                 e.preventDefault()
                 e.stopPropagation()
@@ -1404,7 +1408,7 @@ export function createFilePreviewOverlay(dependencies) {
         ),
         h(FileContextMenu, { menu: menu, onClose: () => setMenu(null) },
           menu ? [
-            h('button', { key: 'inject', type: 'button', onClick: () => { mentionInChat(props, menu.file); setMenu(null) } }, Icon('paperclip', 14), '注入对话'),
+            h('button', { key: 'inject', type: 'button', onClick: () => { mentionInChat(props, menu.file); setMenu(null) } }, Icon('paperclip', 14), tAp('files.attachToChat')),
             menu.file.type !== 'directory' || looksLikeKbPackName(menu.file)
               ? h('button', { key: 'kb', type: 'button', onClick: () => {
                 importWorkspaceFileToKb(cwd, menu.file, props)

@@ -2673,7 +2673,7 @@ const SearchSettings = createSearchSettings(React)
       } else if (source === 'upload') {
         showToast(added.length === 1 ? '已加入对话：' + added[0].name : '已加入对话 ' + added.length + ' 个文件')
       } else {
-        showToast(added.length === 1 ? '已注入对话：' + added[0].name : '已注入对话 ' + added.length + ' 个文件')
+        showToast(added.length === 1 ? tAp('files.attachedOne', { name: added[0].name }) : tAp('files.attachedMany', { n: added.length }))
       }
       revealComposerAfterAttach()
       } catch (err) {
@@ -3863,7 +3863,7 @@ const SearchSettings = createSearchSettings(React)
       }
       const input = inputs && inputs.fileInput
       if (input && input.current) input.current.click()
-      else showToast('无法打开系统文件选择框，请改用右侧资源文件的「注入对话」')
+      else showToast(tAp('files.pickerUnavailable'))
     }
 
     function attachFolderPath(props, dir) {
@@ -6285,28 +6285,35 @@ const SearchSettings = createSearchSettings(React)
         }
       }, [])
       React.useEffect(() => {
+        let compositionEndedAt = -Infinity
+        const onCompositionEnd = (event) => {
+          const input = event.target?.closest?.('textarea, [data-composer-input]')
+          if (input?.closest('[data-composer-card]')) compositionEndedAt = Date.now()
+        }
         const isSendButton = (btn) => {
           if (!btn || btn.closest('.ap-row') || btn.closest('.ap-attach-host') || btn.closest('.ap-attach-rail')) return false
           if (!btn.closest('[data-composer-card]')) return false
+          if (btn.disabled || btn.querySelector?.('svg rect')) return false
           if (!/primary/i.test(String(btn.className || ''))) return false
           const label = (btn.getAttribute('aria-label') || btn.textContent || '').trim()
           return !/停止|Stop|stop/i.test(label)
         }
         const onClick = (event) => {
-          if (!codexAttachItems(attachmentTurnKey(propsRef.current)).length) return
+          if (!codexTurnArmed(propsRef.current) && !codexAttachItems(attachmentTurnKey(propsRef.current)).length) return
           if (!isSendButton(event.target.closest('button'))) return
           event.preventDefault()
           event.stopPropagation()
           if (codexTurnArmed(propsRef.current)) {
-            const submit = propsRef.current && propsRef.current.inputActions && propsRef.current.inputActions.submit
-            if (typeof submit === 'function') submit()
+            void submitCodexTurn(propsRef.current)
             return
           }
           foldAndSubmit(propsRef.current)
         }
         const onKeyDown = (event) => {
           if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return
-          if (!codexAttachItems(attachmentTurnKey(propsRef.current)).length) return
+          if (Date.now() - compositionEndedAt < 10) return
+          if (event.altKey || event.repeat || event.keyCode === 229 || (event.ctrlKey && event.metaKey) || event.getModifierState?.('AltGraph')) return
+          if (!codexTurnArmed(propsRef.current) && !codexAttachItems(attachmentTurnKey(propsRef.current)).length) return
           const input = event.target && typeof event.target.closest === 'function'
             ? event.target.closest('textarea, [data-composer-input]')
             : null
@@ -6314,17 +6321,18 @@ const SearchSettings = createSearchSettings(React)
           event.preventDefault()
           event.stopPropagation()
           if (codexTurnArmed(propsRef.current)) {
-            const submit = propsRef.current && propsRef.current.inputActions && propsRef.current.inputActions.submit
-            if (typeof submit === 'function') submit()
+            void submitCodexTurn(propsRef.current)
             return
           }
           foldAndSubmit(propsRef.current)
         }
         document.addEventListener('click', onClick, true)
         document.addEventListener('keydown', onKeyDown, true)
+        document.addEventListener('compositionend', onCompositionEnd, true)
         return () => {
           document.removeEventListener('click', onClick, true)
           document.removeEventListener('keydown', onKeyDown, true)
+          document.removeEventListener('compositionend', onCompositionEnd, true)
         }
       }, [])
       const polish = () => {

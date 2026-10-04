@@ -1842,6 +1842,88 @@ window.__ModuleLoader__.load({
 			"files.workspace": "مجلد العمل",
 			"module.delivery": "ضبط المشروع"
 		});
+		for (const [locale, messages] of Object.entries({
+			zh: {
+				"files.attachToChat": "注入对话",
+				"preview.aiEdit": "AI 改",
+				"preview.aiEditSelection": "AI 改选区",
+				"files.attachedOne": "已注入对话：{name}",
+				"files.attachedMany": "已注入对话 {n} 个文件",
+				"files.pickerUnavailable": "无法打开系统文件选择框，请改用右侧资源文件的「注入对话」"
+			},
+			en: {
+				"files.attachToChat": "Attach to chat",
+				"preview.aiEdit": "Edit with AI",
+				"preview.aiEditSelection": "Edit selection with AI",
+				"files.attachedOne": "Attached to chat: {name}",
+				"files.attachedMany": "Attached {n} files to chat",
+				"files.pickerUnavailable": "The system file picker could not open. Use “Attach to chat” in the files panel on the right."
+			},
+			es: {
+				"files.attachToChat": "Adjuntar al chat",
+				"preview.aiEdit": "Editar con IA",
+				"preview.aiEditSelection": "Editar selección con IA",
+				"files.attachedOne": "Adjuntado al chat: {name}",
+				"files.attachedMany": "Se adjuntaron {n} archivos al chat",
+				"files.pickerUnavailable": "No se pudo abrir el selector de archivos del sistema. Usa «Adjuntar al chat» en el panel de archivos de la derecha."
+			},
+			fr: {
+				"files.attachToChat": "Joindre au chat",
+				"preview.aiEdit": "Modifier avec l’IA",
+				"preview.aiEditSelection": "Modifier la sélection avec l’IA",
+				"files.attachedOne": "Joint au chat : {name}",
+				"files.attachedMany": "{n} fichiers joints au chat",
+				"files.pickerUnavailable": "Le sélecteur de fichiers du système n’a pas pu s’ouvrir. Utilisez « Joindre au chat » dans le panneau des fichiers à droite."
+			},
+			de: {
+				"files.attachToChat": "Im Chat anhängen",
+				"preview.aiEdit": "Mit KI bearbeiten",
+				"preview.aiEditSelection": "Auswahl mit KI bearbeiten",
+				"files.attachedOne": "Im Chat angehängt: {name}",
+				"files.attachedMany": "{n} Dateien im Chat angehängt",
+				"files.pickerUnavailable": "Die Dateiauswahl des Systems konnte nicht geöffnet werden. Verwenden Sie „Im Chat anhängen“ in der Dateiansicht rechts."
+			},
+			ja: {
+				"files.attachToChat": "チャットに添付",
+				"preview.aiEdit": "AIで編集",
+				"preview.aiEditSelection": "選択範囲をAIで編集",
+				"files.attachedOne": "チャットに添付しました：{name}",
+				"files.attachedMany": "{n}件のファイルをチャットに添付しました",
+				"files.pickerUnavailable": "システムのファイル選択画面を開けませんでした。右側のファイルパネルの「チャットに添付」を使用してください。"
+			},
+			ko: {
+				"files.attachToChat": "채팅에 첨부",
+				"preview.aiEdit": "AI로 편집",
+				"preview.aiEditSelection": "선택 영역을 AI로 편집",
+				"files.attachedOne": "채팅에 첨부됨: {name}",
+				"files.attachedMany": "파일 {n}개를 채팅에 첨부했습니다",
+				"files.pickerUnavailable": "시스템 파일 선택 창을 열 수 없습니다. 오른쪽 파일 패널의 “채팅에 첨부”를 사용하세요."
+			},
+			pt: {
+				"files.attachToChat": "Anexar ao chat",
+				"preview.aiEdit": "Editar com IA",
+				"preview.aiEditSelection": "Editar seleção com IA",
+				"files.attachedOne": "Anexado ao chat: {name}",
+				"files.attachedMany": "{n} arquivos anexados ao chat",
+				"files.pickerUnavailable": "Não foi possível abrir o seletor de arquivos do sistema. Use “Anexar ao chat” no painel de arquivos à direita."
+			},
+			ru: {
+				"files.attachToChat": "Прикрепить к чату",
+				"preview.aiEdit": "Изменить с ИИ",
+				"preview.aiEditSelection": "Изменить выделение с ИИ",
+				"files.attachedOne": "Прикреплено к чату: {name}",
+				"files.attachedMany": "К чату прикреплено файлов: {n}",
+				"files.pickerUnavailable": "Не удалось открыть системное окно выбора файлов. Используйте «Прикрепить к чату» на панели файлов справа."
+			},
+			ar: {
+				"files.attachToChat": "إرفاق بالمحادثة",
+				"preview.aiEdit": "تحرير بالذكاء الاصطناعي",
+				"preview.aiEditSelection": "تحرير التحديد بالذكاء الاصطناعي",
+				"files.attachedOne": "تم الإرفاق بالمحادثة: {name}",
+				"files.attachedMany": "تم إرفاق {n} ملفات بالمحادثة",
+				"files.pickerUnavailable": "تعذر فتح نافذة اختيار ملفات النظام. استخدم «إرفاق بالمحادثة» في لوحة الملفات على اليمين."
+			}
+		})) Object.assign(AP_I18N[locale], messages);
 		//#endregion
 		//#region src/client/locales/workbench-chrome.js
 		const en$1 = {
@@ -4330,6 +4412,7 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 				while (previewCache.size > PREVIEW_CACHE_MAX) previewCache.delete(previewCache.keys().next().value);
 			}
 			function FilePreviewOverlay(props) {
+				useApLang();
 				const cwd = props.cwd;
 				const file = props.file;
 				const kbSlug = props.kbSlug || file && file.kbSlug || "";
@@ -5254,11 +5337,11 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 				}, h("div", { className: "ap-doc-hd" }, h("div", {
 					className: "ap-doc-path",
 					title: kbSlug ? file.name + " · 解析稿" : file.path
-				}, kbSlug ? (file.name || kbSlug) + " · 解析稿" : file.path), h("div", { className: "ap-doc-actions" }, kbSlug ? null : DocBtn("注入对话", () => {
+				}, kbSlug ? (file.name || kbSlug) + " · 解析稿" : file.path), h("div", { className: "ap-doc-actions" }, kbSlug ? null : DocBtn(tAp("files.attachToChat"), () => {
 					if (kind === "project-plan" && !closePreview()) return;
 					mentionInChat(props.sessionProps || props, file);
 					if (kind !== "project-plan" && typeof props.onClose === "function") props.onClose();
-				}, [Icon("paperclip", 14), "注入对话"], loading), isCad || kind === "project-plan" ? null : DocBtn("AI 改", () => openAiSel(), [Icon("sparkles", 14), "AI 改"], loading || !!busy), canEdit && !isUniver ? DocBtn(mode === "edit" ? "预览" : "编辑", toggleMode, [Icon(mode === "edit" ? "eye" : "pencil", 14)], loading) : null, canEdit && !isOfficeUniver ? DocBtn("保存", save, [Icon("save", 14)], loading || !dirty || !!busy) : null, isOffice && !isOfficeUniver ? DocBtn(isSlimUniver ? "对话完全体" : "用 Univer 打开", openUniver, [Icon("sparkles", 14), isSlimUniver ? "对话完全体" : "Univer"], loading || !!busy) : null, canExport ? DocBtn(copied ? "已复制" : "复制全文", copyAll, [Icon("copy", 14)], loading || !visible) : null, kbSlug && kbHasSource ? DocBtn("打开源文件", () => {
+				}, [Icon("paperclip", 14), tAp("files.attachToChat")], loading), isCad || kind === "project-plan" ? null : DocBtn(tAp("preview.aiEdit"), () => openAiSel(), [Icon("sparkles", 14), tAp("preview.aiEdit")], loading || !!busy), canEdit && !isUniver ? DocBtn(mode === "edit" ? "预览" : "编辑", toggleMode, [Icon(mode === "edit" ? "eye" : "pencil", 14)], loading) : null, canEdit && !isOfficeUniver ? DocBtn("保存", save, [Icon("save", 14)], loading || !dirty || !!busy) : null, isOffice && !isOfficeUniver ? DocBtn(isSlimUniver ? "对话完全体" : "用 Univer 打开", openUniver, [Icon("sparkles", 14), isSlimUniver ? "对话完全体" : "Univer"], loading || !!busy) : null, canExport ? DocBtn(copied ? "已复制" : "复制全文", copyAll, [Icon("copy", 14)], loading || !visible) : null, kbSlug && kbHasSource ? DocBtn("打开源文件", () => {
 					api("/api/agent-pi/kb", cwd, {
 						method: "POST",
 						body: JSON.stringify({
@@ -5331,8 +5414,8 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 				}, h("div", {
 					className: "ap-ai-sel-card",
 					role: "dialog",
-					"aria-label": "AI 改选区"
-				}, h("div", { className: "ap-ai-sel-hd" }, Icon("sparkles", 16), "AI 改选区", h("button", {
+					"aria-label": tAp("preview.aiEditSelection")
+				}, h("div", { className: "ap-ai-sel-hd" }, Icon("sparkles", 16), tAp("preview.aiEditSelection"), h("button", {
 					type: "button",
 					className: "ap-doc-btn ap-ai-sel-x",
 					onClick: () => setAiSel(null)
@@ -5355,6 +5438,7 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 				}, DocBtn("取消", () => setAiSel(null)), DocBtn("发给主对话", sendAiSel, [Icon("sparkles", 14), "发给主对话"], !String(aiSel.instruction || "").trim() || aiSel.sending)))) : null);
 			}
 			function FolderPreviewOverlay(props) {
+				useApLang();
 				const cwd = props.cwd;
 				const [current, setCurrent] = React.useState(props.folder);
 				const [items, setItems] = React.useState([]);
@@ -5424,7 +5508,8 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 				} }, item.name), h("span", { className: "ap-sub" }, item.type === "directory" ? "文件夹" : "")), item.type === "directory" ? null : h("button", {
 					type: "button",
 					className: "ap-tree-inject",
-					title: "注入对话",
+					title: tAp("files.attachToChat"),
+					"aria-label": tAp("files.attachToChat"),
 					onClick: (e) => {
 						e.preventDefault();
 						e.stopPropagation();
@@ -5441,7 +5526,7 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 							mentionInChat(props.sessionProps || props, menu.file);
 							setMenu(null);
 						}
-					}, Icon("paperclip", 14), "注入对话"),
+					}, Icon("paperclip", 14), tAp("files.attachToChat")),
 					menu.file.type !== "directory" || looksLikeKbPackName(menu.file) ? h("button", {
 						key: "kb",
 						type: "button",
@@ -5558,7 +5643,8 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 					}, Icon("chevron", 12)) : h("span", { style: { width: 12 } }), Icon(fileIconName(file), 16, fileIconClass(file)), h("span", { className: "ap-tree-name" }, displayFileName(file)), pill ? h("span", { className: "ap-chip" + (file.source === "official-output" ? " live" : "") }, pill) : null), file.type === "directory" ? null : h("button", {
 						type: "button",
 						className: "ap-tree-inject",
-						title: "注入对话",
+						title: tAp("files.attachToChat"),
+						"aria-label": tAp("files.attachToChat"),
 						onClick: (e) => {
 							e.preventDefault();
 							e.stopPropagation();
@@ -5681,7 +5767,7 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 							mentionInChat(props, menu.file);
 							setMenu(null);
 						}
-					}, Icon("paperclip", 14), "注入对话"),
+					}, Icon("paperclip", 14), tAp("files.attachToChat")),
 					menu.file.type !== "directory" || looksLikeKbPackName(menu.file) ? h("button", {
 						key: "kb",
 						type: "button",
@@ -12494,7 +12580,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				stripComposerMentions(merged);
 				if (source === "folder") showToast(added.length === 1 ? "已加入文件夹：" + added[0].name : "已加入 " + added.length + " 个文件夹");
 				else if (source === "upload") showToast(added.length === 1 ? "已加入对话：" + added[0].name : "已加入对话 " + added.length + " 个文件");
-				else showToast(added.length === 1 ? "已注入对话：" + added[0].name : "已注入对话 " + added.length + " 个文件");
+				else showToast(added.length === 1 ? tAp("files.attachedOne", { name: added[0].name }) : tAp("files.attachedMany", { n: added.length }));
 				revealComposerAfterAttach();
 			} catch (err) {
 				const msg = String(err && err.message || err);
@@ -13406,7 +13492,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			}
 			const input = inputs && inputs.fileInput;
 			if (input && input.current) input.current.click();
-			else showToast("无法打开系统文件选择框，请改用右侧资源文件的「注入对话」");
+			else showToast(tAp("files.pickerUnavailable"));
 		}
 		function attachFolderPath(props, dir) {
 			const path = String(dir || "").trim();
@@ -15650,44 +15736,51 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				};
 			}, []);
 			react.useEffect(() => {
+				let compositionEndedAt = -Infinity;
+				const onCompositionEnd = (event) => {
+					if ((event.target?.closest?.("textarea, [data-composer-input]"))?.closest("[data-composer-card]")) compositionEndedAt = Date.now();
+				};
 				const isSendButton = (btn) => {
 					if (!btn || btn.closest(".ap-row") || btn.closest(".ap-attach-host") || btn.closest(".ap-attach-rail")) return false;
 					if (!btn.closest("[data-composer-card]")) return false;
+					if (btn.disabled || btn.querySelector?.("svg rect")) return false;
 					if (!/primary/i.test(String(btn.className || ""))) return false;
 					const label = (btn.getAttribute("aria-label") || btn.textContent || "").trim();
 					return !/停止|Stop|stop/i.test(label);
 				};
 				const onClick = (event) => {
-					if (!codexAttachItems(attachmentTurnKey(propsRef.current)).length) return;
+					if (!codexTurnArmed(propsRef.current) && !codexAttachItems(attachmentTurnKey(propsRef.current)).length) return;
 					if (!isSendButton(event.target.closest("button"))) return;
 					event.preventDefault();
 					event.stopPropagation();
 					if (codexTurnArmed(propsRef.current)) {
-						const submit = propsRef.current && propsRef.current.inputActions && propsRef.current.inputActions.submit;
-						if (typeof submit === "function") submit();
+						submitCodexTurn(propsRef.current);
 						return;
 					}
 					foldAndSubmit(propsRef.current);
 				};
 				const onKeyDown = (event) => {
 					if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
-					if (!codexAttachItems(attachmentTurnKey(propsRef.current)).length) return;
+					if (Date.now() - compositionEndedAt < 10) return;
+					if (event.altKey || event.repeat || event.keyCode === 229 || event.ctrlKey && event.metaKey || event.getModifierState?.("AltGraph")) return;
+					if (!codexTurnArmed(propsRef.current) && !codexAttachItems(attachmentTurnKey(propsRef.current)).length) return;
 					const input = event.target && typeof event.target.closest === "function" ? event.target.closest("textarea, [data-composer-input]") : null;
 					if (!input || !input.closest("[data-composer-card]")) return;
 					event.preventDefault();
 					event.stopPropagation();
 					if (codexTurnArmed(propsRef.current)) {
-						const submit = propsRef.current && propsRef.current.inputActions && propsRef.current.inputActions.submit;
-						if (typeof submit === "function") submit();
+						submitCodexTurn(propsRef.current);
 						return;
 					}
 					foldAndSubmit(propsRef.current);
 				};
 				document.addEventListener("click", onClick, true);
 				document.addEventListener("keydown", onKeyDown, true);
+				document.addEventListener("compositionend", onCompositionEnd, true);
 				return () => {
 					document.removeEventListener("click", onClick, true);
 					document.removeEventListener("keydown", onKeyDown, true);
+					document.removeEventListener("compositionend", onCompositionEnd, true);
 				};
 			}, []);
 			const polish = () => {

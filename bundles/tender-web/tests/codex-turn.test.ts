@@ -45,9 +45,10 @@ function loadShippedComposer(options = {}) {
     return 1
   }
   let definition
+  const domListeners = new Map()
   const document = {
-    addEventListener() {},
-    removeEventListener() {},
+    addEventListener(type, listener) { const rows = domListeners.get(type) || new Set(); rows.add(listener); domListeners.set(type, rows) },
+    removeEventListener(type, listener) { domListeners.get(type)?.delete(listener) },
     querySelector() { return null },
     querySelectorAll() { return [] },
     createElement() { return { dataset: {}, remove() {} } },
@@ -153,6 +154,7 @@ function loadShippedComposer(options = {}) {
   })
   return {
     api: window.__apCodexTurnTest,
+    dispatchDom(type, event) { for (const listener of domListeners.get(type) || []) listener(event) },
     window,
     runTimers() { timers.splice(0).forEach((timer) => { if (timer.active) timer.fn() }) },
     runFrames() { frames.splice(0).forEach((fn) => fn()) },
@@ -1078,5 +1080,60 @@ test('native submit failure preserves retry state and an accepted turn preserves
   await flush()
   assert.equal(composer.input.getSnapshot().draft, 'Later task')
   assert.equal(api.attachItemsOf(composer.sessionId)[0].id, 'two')
+  assert.equal(composer.sent.length, 0)
+})
+
+test('actual composer Enter and primary button gestures route plain text directly to native Codex', async (t) => {
+  for (const gesture of ['keydown', 'click']) await t.test(gesture, async () => {
+    const composer = publicComposer('native-dom-' + gesture, 'Plain text customer task')
+    const received = []
+    const { api, dispatchDom } = loadShippedComposer({ runtime: publicRuntime(composer), nativeSubmit: async (input) => { received.push(input); return { ...input, phase: 'idle', messages: [], requests: [] } } })
+    api.ComposerTools(composer.props())
+    api.setCodexTurnArmed(composer.props(), true)
+    const card = {}
+    const button = { className: 'InputBar_primary', disabled: false, closest: (selector) => selector === '[data-composer-card]' ? card : null, getAttribute: () => 'Send', querySelector: () => null }
+    const input = { closest: (selector) => selector === '[data-composer-card]' ? card : null }
+    let prevented = 0, stopped = 0
+    const event = { key: 'Enter', shiftKey: false, isComposing: false, target: { closest: (selector) => selector === 'button' ? button : input }, preventDefault() { prevented++ }, stopPropagation() { stopped++ } }
+    dispatchDom(gesture, event)
+    await flush()
+    assert.equal(received.length, 1)
+    assert.equal(received[0].text, 'Plain text customer task')
+    assert.equal(composer.sent.length, 0)
+    assert.equal(prevented, 1)
+    assert.equal(stopped, 1)
+    assert.equal(composer.input.getSnapshot().draft, '')
+  })
+})
+
+test('native Enter capture preserves newline, IME, repeated and alternate shortcut gestures', async () => {
+  const composer = publicComposer('native-dom-editor', 'Preserve editor action')
+  const received = []
+  const { api, dispatchDom } = loadShippedComposer({ runtime: publicRuntime(composer), nativeSubmit: async (input) => { received.push(input); return input } })
+  api.ComposerTools(composer.props())
+  api.setCodexTurnArmed(composer.props(), true)
+  const input = { closest: () => ({}) }
+  for (const extra of [{ shiftKey: true }, { isComposing: true }, { keyCode: 229 }, { repeat: true }, { altKey: true }]) dispatchDom('keydown', { key: 'Enter', ...extra, target: { closest: () => input }, preventDefault() { assert.fail('editor action intercepted') }, stopPropagation() {} })
+  await flush()
+  assert.equal(received.length, 0)
+  assert.equal(composer.input.getSnapshot().draft, 'Preserve editor action')
+})
+
+test('native capture preserves the official short composition-end guard for Chinese candidate confirmation', async () => {
+  const composer = publicComposer('native-dom-composition', '中文任务')
+  const received = []
+  const { api, dispatchDom } = loadShippedComposer({ runtime: publicRuntime(composer), nativeSubmit: async (input) => { received.push(input); return { ...input, phase: 'idle', messages: [], requests: [] } } })
+  api.ComposerTools(composer.props())
+  api.setCodexTurnArmed(composer.props(), true)
+  const input = { closest: () => ({}) }
+  const target = { closest: () => input }
+  dispatchDom('compositionend', { target })
+  dispatchDom('keydown', { key: 'Enter', target, preventDefault() { assert.fail('candidate-confirming Enter submitted') }, stopPropagation() {} })
+  assert.equal(received.length, 0)
+  await new Promise((done) => setTimeout(done, 15))
+  dispatchDom('keydown', { key: 'Enter', target, preventDefault() {}, stopPropagation() {} })
+  await flush()
+  assert.equal(received.length, 1)
+  assert.equal(received[0].text, '中文任务')
   assert.equal(composer.sent.length, 0)
 })

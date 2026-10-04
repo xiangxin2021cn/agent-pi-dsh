@@ -763,4 +763,57 @@ Object.assign(AP_I18N.ko, {"workbench.title":"전문 작업대","files.workspace
 Object.assign(AP_I18N.pt, {"workbench.title":"Bancada profissional","files.workspace":"Pasta de trabalho","module.delivery":"Controle de projetos"})
 Object.assign(AP_I18N.ru, {"workbench.title":"Профессиональная рабочая панель","files.workspace":"Рабочая папка","module.delivery":"Управление проектом"})
 Object.assign(AP_I18N.ar, {"workbench.title":"لوحة العمل المتخصصة","files.workspace":"مجلد العمل","module.delivery":"ضبط المشروع"})
+const FILE_ACTION_I18N = {
+  zh: {
+    'files.attachToChat': '注入对话', 'preview.aiEdit': 'AI 改', 'preview.aiEditSelection': 'AI 改选区',
+    'files.attachedOne': '已注入对话：{name}', 'files.attachedMany': '已注入对话 {n} 个文件',
+    'files.pickerUnavailable': '无法打开系统文件选择框，请改用右侧资源文件的「注入对话」',
+  },
+  en: {
+    'files.attachToChat': 'Attach to chat', 'preview.aiEdit': 'Edit with AI', 'preview.aiEditSelection': 'Edit selection with AI',
+    'files.attachedOne': 'Attached to chat: {name}', 'files.attachedMany': 'Attached {n} files to chat',
+    'files.pickerUnavailable': 'The system file picker could not open. Use “Attach to chat” in the files panel on the right.',
+  },
+  es: {
+    'files.attachToChat': 'Adjuntar al chat', 'preview.aiEdit': 'Editar con IA', 'preview.aiEditSelection': 'Editar selección con IA',
+    'files.attachedOne': 'Adjuntado al chat: {name}', 'files.attachedMany': 'Se adjuntaron {n} archivos al chat',
+    'files.pickerUnavailable': 'No se pudo abrir el selector de archivos del sistema. Usa «Adjuntar al chat» en el panel de archivos de la derecha.',
+  },
+  fr: {
+    'files.attachToChat': 'Joindre au chat', 'preview.aiEdit': 'Modifier avec l’IA', 'preview.aiEditSelection': 'Modifier la sélection avec l’IA',
+    'files.attachedOne': 'Joint au chat : {name}', 'files.attachedMany': '{n} fichiers joints au chat',
+    'files.pickerUnavailable': 'Le sélecteur de fichiers du système n’a pas pu s’ouvrir. Utilisez « Joindre au chat » dans le panneau des fichiers à droite.',
+  },
+  de: {
+    'files.attachToChat': 'Im Chat anhängen', 'preview.aiEdit': 'Mit KI bearbeiten', 'preview.aiEditSelection': 'Auswahl mit KI bearbeiten',
+    'files.attachedOne': 'Im Chat angehängt: {name}', 'files.attachedMany': '{n} Dateien im Chat angehängt',
+    'files.pickerUnavailable': 'Die Dateiauswahl des Systems konnte nicht geöffnet werden. Verwenden Sie „Im Chat anhängen“ in der Dateiansicht rechts.',
+  },
+  ja: {
+    'files.attachToChat': 'チャットに添付', 'preview.aiEdit': 'AIで編集', 'preview.aiEditSelection': '選択範囲をAIで編集',
+    'files.attachedOne': 'チャットに添付しました：{name}', 'files.attachedMany': '{n}件のファイルをチャットに添付しました',
+    'files.pickerUnavailable': 'システムのファイル選択画面を開けませんでした。右側のファイルパネルの「チャットに添付」を使用してください。',
+  },
+  ko: {
+    'files.attachToChat': '채팅에 첨부', 'preview.aiEdit': 'AI로 편집', 'preview.aiEditSelection': '선택 영역을 AI로 편집',
+    'files.attachedOne': '채팅에 첨부됨: {name}', 'files.attachedMany': '파일 {n}개를 채팅에 첨부했습니다',
+    'files.pickerUnavailable': '시스템 파일 선택 창을 열 수 없습니다. 오른쪽 파일 패널의 “채팅에 첨부”를 사용하세요.',
+  },
+  pt: {
+    'files.attachToChat': 'Anexar ao chat', 'preview.aiEdit': 'Editar com IA', 'preview.aiEditSelection': 'Editar seleção com IA',
+    'files.attachedOne': 'Anexado ao chat: {name}', 'files.attachedMany': '{n} arquivos anexados ao chat',
+    'files.pickerUnavailable': 'Não foi possível abrir o seletor de arquivos do sistema. Use “Anexar ao chat” no painel de arquivos à direita.',
+  },
+  ru: {
+    'files.attachToChat': 'Прикрепить к чату', 'preview.aiEdit': 'Изменить с ИИ', 'preview.aiEditSelection': 'Изменить выделение с ИИ',
+    'files.attachedOne': 'Прикреплено к чату: {name}', 'files.attachedMany': 'К чату прикреплено файлов: {n}',
+    'files.pickerUnavailable': 'Не удалось открыть системное окно выбора файлов. Используйте «Прикрепить к чату» на панели файлов справа.',
+  },
+  ar: {
+    'files.attachToChat': 'إرفاق بالمحادثة', 'preview.aiEdit': 'تحرير بالذكاء الاصطناعي', 'preview.aiEditSelection': 'تحرير التحديد بالذكاء الاصطناعي',
+    'files.attachedOne': 'تم الإرفاق بالمحادثة: {name}', 'files.attachedMany': 'تم إرفاق {n} ملفات بالمحادثة',
+    'files.pickerUnavailable': 'تعذر فتح نافذة اختيار ملفات النظام. استخدم «إرفاق بالمحادثة» في لوحة الملفات على اليمين.',
+  },
+}
+for (const [locale, messages] of Object.entries(FILE_ACTION_I18N)) Object.assign(AP_I18N[locale], messages)
 export { AP_I18N, AP_LANGUAGE_DEFINITIONS }
