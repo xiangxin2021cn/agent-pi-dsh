@@ -54,7 +54,14 @@ const h = React.createElement
 const AgentTeamsSettings = createAgentTeamsSettings(React)
 const SearchSettings = createSearchSettings(React)
 
-    const { api, apiBlob, downloadBlob, rawFileUrl } = createAgentPiApiClient()
+    const { api: requestApi, apiBlob, downloadBlob, rawFileUrl } = createAgentPiApiClient()
+    const api = (path, cwd, init) => requestApi(path, cwd, init).then(result => {
+      if (path === '/api/agent-pi/stage' && init?.method === 'POST') {
+        const input = JSON.parse(init.body || '{}')
+        if (input.action !== 'check') window.dispatchEvent(new CustomEvent('agent-pi-project-state-changed', {detail:{...input,cwd}}))
+      }
+      return result
+    })
     const MARKUP_RE = /[`*!\[]/
     const HTML_SPECIAL_RE = /[&<>"]/
 
@@ -4893,6 +4900,18 @@ const SearchSettings = createSearchSettings(React)
         window.addEventListener('agent-pi-user-requirement', onRequirement)
         return () => window.removeEventListener('agent-pi-user-requirement', onRequirement)
       }, [refresh])
+      React.useEffect(() => {
+        const changed = event => {
+          const binding = event.detail?.binding || event.detail
+          if (!binding?.cwd || sameFilePath(binding.cwd, cwd)) void refresh(true)
+        }
+        window.addEventListener('agent-pi-task-snapshot', changed)
+        window.addEventListener('agent-pi-project-state-changed', changed)
+        return () => {
+          window.removeEventListener('agent-pi-task-snapshot', changed)
+          window.removeEventListener('agent-pi-project-state-changed', changed)
+        }
+      }, [refresh,cwd])
 
       const projects = (data && data.projects ? data.projects : []).filter((row) => row.project.module === module)
       React.useEffect(() => {
@@ -5510,6 +5529,7 @@ const SearchSettings = createSearchSettings(React)
             ) : null,
             stages.map((stage, index) => {
               const slice = stageSlice(item, stage.id)
+              const availability = item.stageAvailability?.[stage.id]
               const stageMemory = item.memory && item.memory.stages ? item.memory.stages[stage.id] : null
               const tasks = (slice && slice.tasks) || []
               const done = tasks.filter((task) => task.status === 'done').length
@@ -5541,7 +5561,7 @@ const SearchSettings = createSearchSettings(React)
                       : slice && slice.approval && slice.approval.decision === 'rejected'
                         ? h('span', { className: 'ap-chip warn' }, workbenchText('用户已暂停'))
                         : stage.approvalGate && slice
-                          ? h('span', { className: 'ap-chip warn' }, workbenchText('待用户决策'))
+                          ? h('span', { className: 'ap-chip warn' }, availability?.canApprove === false ? workbenchText('尚未具备审批条件') : workbenchText('待用户决策'))
                           : null,
                   ),
                   h('p', { className: 'ap-stage-hint' }, stageHint),
@@ -5553,6 +5573,7 @@ const SearchSettings = createSearchSettings(React)
                     }).join(' · '))
                     : null,
                   slice && slice.blockedReason ? h('div', { className: 'ap-err' }, slice.blockedReason) : null,
+                  availability?.reason && availability.reason !== slice?.blockedReason && slice?.status !== 'done' ? h('p', { className: 'ap-sub' }, availability.reason) : null,
                   evidence && stage.id !== setupId && evidence.gaps && evidence.gaps.length
                     && (stage.id === item.currentStageId || (slice && slice.status === 'blocked') || stage.id === 'tender-document-analysis')
                     ? evidence.gaps.slice(0, 4).map((gap) => h('div', { className: 'ap-gap', key: stage.id + gap.chapterId },
@@ -5593,8 +5614,8 @@ const SearchSettings = createSearchSettings(React)
                       h('button', {
                         type: 'button',
                         className: 'ap-btn primary',
-                        disabled: !!busy,
-                        title: stageGate(stage, 'promptZh', langState.lang),
+                        disabled: !!busy || availability?.canApprove === false,
+                        title: availability?.canApprove === false ? availability.reason : stageGate(stage, 'promptZh', langState.lang),
                         onClick: () => decideStage(project, stage, 'approved'),
                       }, busy === 'approve_gate:' + stage.id ? workbenchText('记录中…') : stageGate(stage, 'approveLabelZh', langState.lang)),
                       stage.approvalGate.rejectLabelZh
@@ -5658,8 +5679,8 @@ const SearchSettings = createSearchSettings(React)
                         : h('button', {
                           type: 'button',
                           className: 'ap-btn link',
-                          disabled: !!busy,
-                          title: workbenchText('跳到这一阶段。若它已是当前未完阶段，走恢复稿而不是再灌全文。'),
+                          disabled: !!busy || availability?.canPrepare === false,
+                          title: availability?.canPrepare === false ? availability.reason : workbenchText('跳到这一阶段。若它已是当前未完阶段，走恢复稿而不是再灌全文。'),
                           onClick: () => {
                             const currentUnfinished = item.currentStageId === stage.id && slice && slice.status !== 'done' && tasks.length > 0
                             runStage(project, currentUnfinished ? '' : stage.id, currentUnfinished ? 'resume' : 'prepare', true)
@@ -6211,12 +6232,31 @@ const SearchSettings = createSearchSettings(React)
 
     const professionalTasks = new Map()
     const taskViews = new Map()
+    const rememberTaskView = (id, openView) => {
+      const owners = taskViews.get(id) || []
+      owners.push(openView);taskViews.set(id, owners)
+      return () => {const index=owners.indexOf(openView);if(index>=0)owners.splice(index,1);if(!owners.length)taskViews.delete(id)}
+    }
+    const openTaskView = (id, view) => taskViews.get(id)?.at(-1)?.(view, '')
     const taskSubscriptions = (id, listener) => {
       const dsh = subscribeSessionWithChat(id, codexTurnAuthorities(id)?.session, listener)
       const codex = nativeCodex.subscribe(id, listener)
       const changed = event => { if (event.detail?.sessionId === id) listener() }
       window.addEventListener('agent-pi-task-snapshot', changed)
-      return () => { dsh?.(); codex?.(); window.removeEventListener('agent-pi-task-snapshot', changed) }
+      window.addEventListener('agent-pi-project-state-changed', listener)
+      return () => { dsh?.(); codex?.(); window.removeEventListener('agent-pi-task-snapshot', changed);window.removeEventListener('agent-pi-project-state-changed', listener) }
+    }
+    const rememberProfessionalTask = (id, task, binding) => {
+      const old = professionalTasks.get(id)
+      professionalTasks.set(id, {task,binding})
+      if (old?.task.revision !== task.revision || JSON.stringify(old?.binding) !== JSON.stringify(binding)) window.dispatchEvent(new CustomEvent('agent-pi-task-snapshot', {detail:{sessionId:id,binding}}))
+    }
+    const openTaskWorkbench = (binding, id) => {
+      try {
+        if (binding?.moduleId) sessionStorage.setItem('ap-wb-module', binding.moduleId)
+        if (binding?.projectId) sessionStorage.setItem('ap-wb-project', binding.projectId)
+      } catch {}
+      openTaskView(id, 'workbench')
     }
     const openTaskSource = async (evidence, id) => {
       try {
@@ -6228,23 +6268,23 @@ const SearchSettings = createSearchSettings(React)
     const TaskSummary = createProfessionalTaskSummary({ React, api,
       cwd: () => snapshotComposer()?.cwd || '', language: () => document.documentElement.lang || 'zh',
       subscribe: taskSubscriptions, onOpenSource: openTaskSource,
-      onOpenTask: id => taskViews.get(id)?.('agent-pi-task-guide', ''),
-      onOpenWorkbench: binding => taskViews.get(runtime.sessionId)?.('workbench', ''),
-      onTask: (id, task) => { const old = professionalTasks.get(id); professionalTasks.set(id, task); if (old?.revision !== task.revision) window.dispatchEvent(new CustomEvent('agent-pi-task-snapshot', { detail: { sessionId: id } })) },
+      onOpenTask: id => openTaskView(id, 'agent-pi-task-guide'),
+      onOpenWorkbench: openTaskWorkbench,
+      onTask: rememberProfessionalTask,
     })
     function ProfessionalSummary(props) {
       const id = props.sessionId || ''
       const capabilities = productCapabilities.use()
       useApLang()
-      React.useEffect(() => { taskViews.set(id, props.openView); return () => { if (taskViews.get(id) === props.openView) taskViews.delete(id) } }, [id, props.openView])
-      return capabilities.taskGuide ? h(TaskSummary, { sessionId: id, onOpenTask: () => props.openView('agent-pi-task-guide', '') }) : null
+      React.useEffect(() => rememberTaskView(id, props.openView), [id, props.openView])
+      return capabilities.taskGuide ? h(TaskSummary, { sessionId: id, visible: props.visible, onOpenTask: () => props.openView('agent-pi-task-guide', '') }) : null
     }
     const TaskProcess = createTaskProcess({
       React,
       language: () => document.documentElement.lang?.startsWith('en') ? 'en' : 'zh',
       snapshot: (id) => nativeCodex.enabled(id) ? nativeCodex.current(id) : sessionSnapshotWithChat(id, codexTurnAuthorities(id)?.session),
       subscribe: taskSubscriptions,
-      professionalTask: id => professionalTasks.get(id),
+      professionalTask: id => professionalTasks.get(id)?.task,
     })
     function TaskProcessHeader(props) {
       const id = props.sessionId || ''
@@ -6256,19 +6296,20 @@ const SearchSettings = createSearchSettings(React)
       language: () => document.documentElement.lang || 'zh',
       subscribe: taskSubscriptions,
       onOpenSource: openTaskSource,
-      onOpenWorkbench: () => taskViews.get(runtime.sessionId)?.('workbench', ''),
+      onOpenWorkbench: openTaskWorkbench,
+      onTask: rememberProfessionalTask,
     })
     function TaskGuideView(props) {
       useApLang()
       const capabilities = productCapabilities.use()
-      React.useEffect(() => { const id = props.sessionId || ''; taskViews.set(id, props.openView); return () => { if (taskViews.get(id) === props.openView) taskViews.delete(id) } }, [props.sessionId, props.openView])
+      React.useEffect(() => rememberTaskView(props.sessionId || '', props.openView), [props.sessionId, props.openView])
       return capabilities.taskGuide ? h(TaskGuide, { sessionId: props.sessionId || '', onClose: () => props.openView(nativeCodex.enabled(props.sessionId) ? 'agent-pi-codex-main' : 'chat', '') }) : h('p', null, langState.lang === 'zh' ? '任务引导插件未启用。' : 'Task guide plugin is not enabled.')
     }
 
     const ProfessionalDepth = createProfessionalDepth({
       React, api,
       useLanguage: useApLang,
-      onOpenTask: id => taskViews.get(id)?.('agent-pi-task-guide', ''),
+      onOpenTask: id => openTaskView(id, 'agent-pi-task-guide'),
       fillDraft: fillComposer,
       run: (composer, instruction) => {
         const draft = currentDraft(composer).trim()

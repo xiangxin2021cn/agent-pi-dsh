@@ -37,7 +37,7 @@ export function mergeTaskBriefEdits(task, edits, allowConflicts = false) {
   return {brief:conflicts.length && !allowConflicts ? null : brief,conflicts}
 }
 
-export function createTaskGuide({ React, api, cwd, language, subscribe, onOpenSource, onOpenWorkbench }) {
+export function createTaskGuide({ React, api, cwd, language, subscribe, onOpenSource, onOpenWorkbench, onTask }) {
   const h = React.createElement
   const StageControls=createTaskStageControls({React,api,cwd,language,onOpenWorkbench})
   return function TaskGuide({ sessionId, onClose, binding }) {
@@ -58,13 +58,14 @@ export function createTaskGuide({ React, api, cwd, language, subscribe, onOpenSo
     React.useEffect(() => {
       if (!open || !sessionId) return
       const controller = new AbortController()
-      let loading = false
+      let loading = false, pending = false
       const refresh = async () => {
-        if (loading) return
+        if (loading) {pending=true;return}
+        pending=false
         loading = true
-        try { const next = await api(endpoint,cwd(),{signal:controller.signal}); if (!controller.signal.aborted&&next.task.revision>=taskRevision.current) {taskRevision.current=next.task.revision;setResult(next);const task=structuredClone(next.task);task.brief=mergeTaskBriefEdits(task,fieldEdits.current,true).brief;task.questions=task.questions.map(row=>fieldEdits.current['question.'+row.id]&&!row.provider?{...row,answer:fieldEdits.current['question.'+row.id].value}:row);setDraft(task);setError('')} }
+        try { const next = await api(endpoint,cwd(),{signal:controller.signal}); if (!controller.signal.aborted&&next.task.revision>=taskRevision.current) {taskRevision.current=next.task.revision;setResult(next);const task=structuredClone(next.task);task.brief=mergeTaskBriefEdits(task,fieldEdits.current,true).brief;task.questions=(task.questions || []).map(row=>fieldEdits.current['question.'+row.id]&&!row.provider?{...row,answer:fieldEdits.current['question.'+row.id].value}:row);setDraft(task);setError('');onTask?.(sessionId,next.task,next.binding)} }
         catch (e) {if (!controller.signal.aborted) setError(e.message)}
-        finally {loading=false}
+        finally {loading=false;if(pending&&!controller.signal.aborted)void refresh()}
       }
       void refresh()
       const timer = setInterval(refresh,5000), dispose = subscribe?.(sessionId,refresh)
@@ -73,7 +74,7 @@ export function createTaskGuide({ React, api, cwd, language, subscribe, onOpenSo
     async function save(patch, allowConflicts=false) {
       setBusy(true);setError('');setMessage('')
       try {
-        const latest=await api(endpoint,cwd());taskRevision.current=latest.task.revision;setResult(latest)
+        const latest=await api(endpoint,cwd());taskRevision.current=latest.task.revision;setResult(latest);onTask?.(sessionId,latest.task,latest.binding)
         if (patch.brief) {
           const merged=mergeTaskBriefEdits(latest.task,fieldEdits.current,allowConflicts)
           if (!merged.brief) {setConflicts(merged.conflicts);throw new Error(text===labels.zh?'这些字段在编辑期间有新变化，请核对后保留你的修正，或取消草稿采用最新内容。':'These fields changed while you were editing. Review before keeping your corrections or discarding the draft.')}
@@ -85,17 +86,17 @@ export function createTaskGuide({ React, api, cwd, language, subscribe, onOpenSo
           if(accepting&&!latest.audit?.readyForCustomerReview)throw new Error(text===labels.zh?'交付状态已变化，请按最新检查结果复核。':'Delivery state changed. Review the latest checks.')
         }
         const next=await api(endpoint,cwd(),{method:'POST',body:JSON.stringify({revision:latest.task.revision,patch})})
-        taskRevision.current=next.task.revision;fieldEdits.current={};setConflicts([]);setDraft(next.task);setResult(next);setDirty(false);setMessage(text.saved)
+        taskRevision.current=next.task.revision;fieldEdits.current={};setConflicts([]);setDraft(next.task);setResult(next);setDirty(false);setMessage(text.saved);onTask?.(sessionId,next.task,next.binding)
       }
       catch (e) {setError(e.message)} finally {setBusy(false)}
     }
     async function reload() {
       setBusy(true);setError('');setMessage('')
-      try {const next=await api(endpoint,cwd());if(next.task.revision<taskRevision.current)return;taskRevision.current=next.task.revision;setResult(next);const task=structuredClone(next.task);task.brief=mergeTaskBriefEdits(task,fieldEdits.current,true).brief;task.questions=task.questions.map(row=>fieldEdits.current['question.'+row.id]&&!row.provider?{...row,answer:fieldEdits.current['question.'+row.id].value}:row);setDraft(task)}
+      try {const next=await api(endpoint,cwd());if(next.task.revision<taskRevision.current)return;taskRevision.current=next.task.revision;setResult(next);const task=structuredClone(next.task);task.brief=mergeTaskBriefEdits(task,fieldEdits.current,true).brief;task.questions=(task.questions || []).map(row=>fieldEdits.current['question.'+row.id]&&!row.provider?{...row,answer:fieldEdits.current['question.'+row.id].value}:row);setDraft(task);onTask?.(sessionId,next.task,next.binding)}
       catch(e){setError(e.message)} finally{setBusy(false)}
     }
     const edit = (key,value,basis=false) => {const path=basis?'basis.'+key:key;fieldEdits.current[path]={baseValue:fieldEdits.current[path]?.baseValue??briefField(result.task.brief,path),value:key==='formats'?value.split(/[,，]/).map(row=>row.trim()).filter(Boolean):value};setDraft({...draft,brief:mergeTaskBriefEdits(result.task,fieldEdits.current,true).brief});setDirty(true);setMessage('');setConflicts([])}
-    const field = (key,basis=false,multiline=false) => h('label',{key},text[key],h(multiline?'textarea':'input',{value:(basis?draft.brief.basis[key]:key==='formats'?draft.brief.formats.join(', '):draft.brief[key]) || '',onChange:e=>edit(key,e.target.value,basis)}))
+    const field = (key,basis=false,multiline=false) => h('label',{key},text[key],h(multiline?'textarea':'input',{value:(basis?draft.brief.basis?.[key]:key==='formats'?(draft.brief.formats || []).join(', '):draft.brief[key]) || '',onChange:e=>edit(key,e.target.value,basis)}))
     const article = (id,title,body) => h('article',{key:id},h('h3',null,title),body)
     let body = null
     if (draft) {
@@ -135,11 +136,21 @@ export function createTaskGuide({ React, api, cwd, language, subscribe, onOpenSo
       if (tab==='goal') body = h(React.Fragment,null,field('objective',false,true),field('scope',false,true),field('audience'),
         h('label',null,text.profession,h('select',{value:draft.brief.profession,onChange:e=>edit('profession',e.target.value)},professions.map((value,index)=>h('option',{key:value,value},text===labels.zh?professionZh[index]:value)))),
         field('formats'),field('language'),field('deadline'),h('label',null,text.webDiligence,h('select',{value:draft.brief.webDiligence,onChange:e=>edit('webDiligence',e.target.value)},[['allowed',text===labels.zh?'允许任务相关公开尽调':'Allow task-related public diligence'],['ask',text===labels.zh?'需要时询问':'Ask when needed'],['forbidden',text===labels.zh?'仅使用已提供资料':'Use supplied materials only']].map(([value,label])=>h('option',{key:value,value},label)))),
-        h('h3',null,text.unanswered),draft.questions.filter(row=>!row.provider&&row.status!=='cancelled').map(row=>h('label',{key:row.id},row.question,h('textarea',{value:row.answer||'',onChange:e=>{fieldEdits.current['question.'+row.id]={value:e.target.value};setDraft({...draft,questions:draft.questions.map(q=>q.id===row.id?{...q,answer:e.target.value}:q)});setDirty(true)}}))))
-      if (tab==='basis') body = h(React.Fragment,null,['country','location','employer','procurement','funding','contract','measurement'].map(key=>field(key,true)),h('h3',null,text.standards),draft.brief.basis.standards.map(row=>article(row.id,row.title,h('p',null,row.version+' · '+row.scope+' · '+row.evidenceId))),h('h3',null,text.evidence),draft.evidence.map(row=>article(row.id,row.title,h(React.Fragment,null,h('p',null,row.value),h('p',{className:'ap-guide-muted'},row.kind+' · '+displayState(row.status)+' · '+(row.basis||'')),sourceReference(h,row,openSource,language())))))
-      if (tab==='plan') body = h(React.Fragment,null,h('p',null,draft.assessment||text.waiting),draft.plan.map(row=>article(row.id,row.title,h(React.Fragment,null,h('p',null,displayState(row.status)),h('p',{className:'ap-guide-muted'},row.dependsOn.join(' → ')),row.gaps.map((gap,index)=>h('p',{key:'g'+index},text.missing+': '+gap)),row.supplements.map((supplement,index)=>h('p',{key:'s'+index},supplement))))),h('h3',null,text.source),draft.coverage.map(row=>article(row.id,row.title,h('p',null,displayState(row.status)+' · '+(row.review||'')+' · '+row.locator))))
+        h('h3',null,text.unanswered),(draft.questions || []).filter(row=>!row.provider&&row.status!=='cancelled').map(row=>h('label',{key:row.id},row.question,h('textarea',{value:row.answer||'',onChange:e=>{fieldEdits.current['question.'+row.id]={value:e.target.value};setDraft({...draft,questions:draft.questions.map(q=>q.id===row.id?{...q,answer:e.target.value}:q)});setDirty(true)}}))))
+      if (tab==='basis') body = h(React.Fragment,null,['country','location','employer','procurement','funding','contract','measurement'].map(key=>field(key,true)),h('h3',null,text.standards),(draft.brief.basis?.standards || []).map(row=>article(row.id || row.evidenceId+'-'+(row.title || row.name),row.title || row.name,h('p',null,[row.version,row.scope,row.evidenceId].filter(Boolean).join(' · ')))),h('h3',null,text.evidence),(draft.evidence || []).map(row=>article(row.id,row.title,h(React.Fragment,null,h('p',null,row.value),h('p',{className:'ap-guide-muted'},row.kind+' · '+displayState(row.status)+' · '+(row.basis||'')),sourceReference(h,row,openSource,language())))))
+      if (tab==='plan') {
+        const workbenchPlan=(draft.plan || []).filter(row=>row.id?.startsWith('workbench:')&&!row.id.includes(':execution:'))
+        const executionPlan=(draft.plan || []).filter(row=>!row.id?.startsWith('workbench:')||row.id.includes(':execution:'))
+        const planRows=rows=>rows.map(row=>article(row.id,row.title,h(React.Fragment,null,h('p',null,displayState(row.status)),h('p',{className:'ap-guide-muted'},(row.dependsOn || []).join(' → ')),(row.gaps || []).map((gap,index)=>h('p',{key:'g'+index},text.missing+': '+gap)),(row.supplements || []).map((supplement,index)=>h('p',{key:'s'+index},supplement)))))
+        body=h(React.Fragment,null,h('p',null,draft.assessment||text.waiting),
+          workbenchPlan.length>0&&h('section',{'aria-label':zh?'工作台阶段与实际门禁':'Workbench stages and actual gates'},h('h3',null,zh?'工作台阶段与实际门禁':'Workbench stages and actual gates'),...planRows(workbenchPlan)),
+          executionPlan.length>0&&h('section',{'aria-label':workbenchPlan.length?(zh?'执行者登记的工作进度':'Agent-registered work progress'):text.plan},
+            workbenchPlan.length>0&&h('h3',null,zh?'执行者登记的工作进度':'Agent-registered work progress'),
+            workbenchPlan.length>0&&h('p',{className:'ap-guide-muted'},zh?'这些记录反映执行者登记的工作进度；完成不等于阶段审批或成果验收，不合计为项目完成率。':'These records reflect work registered by the agent. Completion does not establish stage approval or deliverable acceptance, and is not added to project completion.'),...planRows(executionPlan)),
+          h('h3',null,text.source),(draft.coverage || []).map(row=>article(row.id,row.title,h('p',null,displayState(row.status)+' · '+(row.review||'')+' · '+row.locator))))
+      }
       if (tab==='capabilities') body = result?.capabilities?.toSorted((a,b)=>['available','conditional','unavailable','not_applicable'].indexOf(a.status)-['available','conditional','unavailable','not_applicable'].indexOf(b.status)).map(capability=>{ const row=localizeCapability(capability,language());return article(row.id,row.title,h(React.Fragment,null,h('p',null,displayState(row.status)),h('p',null,row.description),h('p',{className:'ap-guide-muted'},row.owner+' · '+row.version),[...(row.reasons||[]),...(row.limitations||[]),...(row.supplements||[])].map((value,index)=>h('p',{key:index},value)))) })
-      if (tab==='delivery') body = h(React.Fragment,null,h('p',null,result?.audit?.customerAccepted?text.accepted:result?.audit?.readyForCustomerReview?text.ready:text.review),result?.audit?.issues?.map((row,index)=>h('p',{key:index,className:'ap-guide-error'},row.detail)),draft.deliverables.map(row=>article(row.id,row.title,h(React.Fragment,null,h('p',null,row.path),h('p',null,displayState(row.status)+' · '+displayState(row.signature)),row.checks.map((check,index)=>h('p',{key:index},check.kind+' · '+displayState(check.status)+' — '+check.detail)),row.signature==='pending'?h('button',{disabled:busy||dirty,onClick:()=>save({deliverables:draft.deliverables.map(item=>item.id===row.id?{...item,signature:'signed'}:item)})},text.signature):null))),result?.audit?.readyForCustomerReview?h('button',{disabled:busy||dirty,onClick:()=>save({deliverables:draft.deliverables.map(row=>({...row,status:'accepted'}))})},text.accept):null)
+      if (tab==='delivery') body = h(React.Fragment,null,h('p',null,result?.audit?.customerAccepted?text.accepted:result?.audit?.readyForCustomerReview?text.ready:text.review),result?.audit?.issues?.map((row,index)=>h('p',{key:index,className:'ap-guide-error'},row.detail)),(draft.deliverables || []).map(row=>article(row.id,row.title || row.path?.split(/[\\/]/).pop() || row.id,h(React.Fragment,null,h('p',null,row.path),h('p',null,displayState(row.status)+' · '+displayState(row.signature)),(row.checks || []).map((check,index)=>h('p',{key:index},check.kind+' · '+displayState(check.status)+' — '+check.detail)),!row.checks?.length&&h('p',{className:'ap-guide-muted'},text===labels.zh?'尚未登记交付检查；文件状态不等于通过验收。':'No delivery checks are registered; file status does not establish acceptance.'),row.signature==='pending'?h('button',{disabled:busy||dirty,onClick:()=>save({deliverables:draft.deliverables.map(item=>item.id===row.id?{...item,signature:'signed'}:item)})},text.signature):null))),result?.audit?.readyForCustomerReview?h('button',{disabled:busy||dirty,onClick:()=>save({deliverables:draft.deliverables.map(row=>({...row,status:'accepted'}))})},text.accept):null)
     }
     return h('section',{className:'ap-task-guide','data-conversation-composer-overlay':'',role:'region','aria-label':text.title},h('header',null,h('h2',null,text.title),onClose?h('button',{onClick:onClose},text.close):null),h('nav',{'aria-label':text.title},['overview','goal','basis','plan','capabilities','delivery'].map(key=>h('button',{key,role:'tab','aria-selected':tab===key,onClick:()=>setTab(key)},text[key]))),h('main',null,h('p',{className:'ap-guide-muted'},text.reminder),error?h('p',{role:'alert',className:'ap-guide-error'},error):null,message?h('p',{role:'status'},message):null,conflicts.length>0?h('div',null,h('p',null,conflicts.join('、')),h('button',{disabled:busy,onClick:()=>save({brief:draft.brief,questions:draft.questions},true)},text===labels.zh?'保留我的修正并保存':'Keep my corrections and save')):null,!sessionId?h('p',null,text.noTask):body),h('footer',null,h('button',{disabled:busy,onClick:reload},text.refresh),dirty?h('button',{disabled:busy,onClick:()=>{fieldEdits.current={};setDraft(structuredClone(result.task));setDirty(false);setConflicts([]);setError('')}},text===labels.zh?'取消草稿':'Discard draft'):null,dirty?h('button',{disabled:busy||!draft,onClick:()=>save({brief:draft.brief,questions:draft.questions})},busy?text.saving:text.save):null))
   }

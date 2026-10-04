@@ -98,7 +98,7 @@ test('field drafts survive live findings and save merges only the edited field',
 
 test('stage approval requires a concrete review click and sends the displayed fingerprint',async()=>{
   const f=await domFixture(),posted=[],opened=[],binding={projectId:'project',moduleId:'custom',stageId:'review',stageLabel:'专业复核',projectGoal:'完成工程审查',approvalGate:true,approvalFingerprint:'sha-current'}
-  const Stage=createTaskStageControls({React:f.React,api:async(_url,_cwd,options)=>posted.push(JSON.parse(options.body)),cwd:()=> 'C:/workspace',language:()=> 'zh',onOpenWorkbench:row=>opened.push(row)})
+  const Stage=createTaskStageControls({React:f.React,api:async(_url,_cwd,options)=>posted.push(JSON.parse(options.body)),cwd:()=> 'C:/workspace',language:()=> 'zh',onOpenWorkbench:(row,id)=>opened.push({binding:row,sessionId:id})})
   try {
     await f.act(async()=>f.root.render(f.React.createElement(Stage,{sessionId:'one',task:taskFixture(),binding})))
     assert.equal(posted.length,0)
@@ -113,7 +113,25 @@ test('stage approval requires a concrete review click and sends the displayed fi
     assert.equal(opened.length,0)
     assert.match(f.document.querySelector('[role=status]').textContent,/批准已记录/)
     await click(f,button(f,'前往工作台继续'))
-    assert.equal(opened[0].projectId,'project')
+    assert.equal(opened[0].binding.projectId,'project')
+    assert.equal(opened[0].sessionId,'one','navigation is bound to the reviewed session rather than a global active session')
+  } finally {await f.close()}
+})
+
+test('summary and task-stage approval follow current workbench readiness and expose the blocker',async()=>{
+  const f=await domFixture(),posted=[],task=taskFixture(),binding={projectId:'project',moduleId:'tender',stageId:'decision',approvalGate:true,canApprove:false,waitingHuman:false,approvalReason:'请先完成前序阶段「资料登记」。'}
+  const Stage=createTaskStageControls({React:f.React,api:async(_url,_cwd,options)=>posted.push(JSON.parse(options.body)),cwd:()=> '',language:()=> 'zh'})
+  try {
+    await f.act(async()=>f.root.render(f.React.createElement(Stage,{sessionId:'one',task,binding})))
+    assert.equal(button(f,'查看并批准当前阶段').disabled,true)
+    assert.match(f.document.body.textContent,/请先完成前序阶段/)
+    await f.act(async()=>f.root.render(f.React.createElement(Stage,{sessionId:'one',task,binding:{...binding,canApprove:true,waitingHuman:true,approvalFingerprint:'ready'}})))
+    await click(f,button(f,'查看并批准当前阶段'))
+    await f.act(async()=>f.root.render(f.React.createElement(Stage,{sessionId:'one',task,binding})))
+    assert.equal(button(f,'确认批准此阶段').disabled,true,'an open approval review cannot approve a stage that changed back to blocked')
+    assert.equal(posted.length,0)
+    await f.act(async()=>f.root.render(f.React.createElement(Stage,{sessionId:'one',task,binding:{...binding,canApprove:true,waitingHuman:false,approvalFingerprint:'completed'}})))
+    assert.equal(button(f,'查看并批准当前阶段'),undefined,'a completed stage does not ask for another approval')
   } finally {await f.close()}
 })
 
@@ -186,6 +204,73 @@ test('shared summary uses the same canonical findings for the native executor pr
     assert.equal(f.document.querySelectorAll('[data-finding-id="f1"]').length,1)
     assert.match(f.document.body.textContent,/Impact on this goal/)
     assert.match(f.document.body.textContent,/Professional depth on/)
+  } finally {await f.close()}
+})
+
+test('legacy model-written plans and deliverables stay readable through every task tab',async()=>{
+  const f=await domFixture(),task=taskFixture(),observed=[]
+  // Real upgraded 3.7.9 shape: plans omit gaps/supplements; standards use name;
+  // deliverables have paths and reviewed status but may lack titles/checks.
+  task.plan=[{id:'old-plan',title:'已登记的分析计划',status:'done',dependsOn:[]}]
+  task.brief.basis.standards=[{name:'已登记合同规范',evidenceId:'e1'}]
+  task.deliverables=[{id:'old-report',path:'outputs/实际分析报告.md',status:'reviewed',signature:'not_required'}]
+  const Guide=createTaskGuide({React:f.React,api:async()=>({task:structuredClone(task),capabilities:[],audit:{}}),cwd:()=>'',language:()=> 'zh',subscribe:()=>()=>{},onTask:(id,next)=>observed.push([id,next.revision])})
+  try {
+    await f.act(async()=>f.root.render(f.React.createElement(Guide,{sessionId:'one'})))
+    for(const tab of ['执行计划','项目依据','交付检查','修正目标','可用能力','任务概览']){
+      await click(f,button(f,tab))
+      assert.ok(f.document.querySelector('.ap-task-guide'),tab+' must not retire the native view')
+    }
+    await click(f,button(f,'项目依据'))
+    assert.match(f.document.body.textContent,/已登记合同规范/)
+    await click(f,button(f,'交付检查'))
+    assert.match(f.document.body.textContent,/实际分析报告.md/)
+    assert.match(f.document.body.textContent,/尚未登记交付检查；文件状态不等于通过验收/)
+    assert.doesNotMatch(f.document.body.textContent,/undefined/)
+    assert.deepEqual(observed,[['one',1]])
+    assert.equal(task.plan[0].gaps,undefined,'presentation does not alter the authoritative task')
+  } finally {await f.close()}
+})
+
+test('project source counts and current focus use workbench authority while legacy progress stays separate',async()=>{
+  const f=await domFixture(),task=taskFixture()
+  task.binding={projectId:'p',moduleId:'tender'}
+  task.coverage.push({id:'workbench:p:coverage:one',kind:'file',status:'parsed',review:'pending'},{id:'workbench:p:coverage:two',kind:'file',status:'unreadable'})
+  task.plan=[{id:'old-progress',title:'执行者自报已完成',status:'done'},{id:'old-current',title:'旧登记的工作重点',status:'working'},{id:'workbench:p:stage:decision',title:'实际待确认阶段',status:'needs_review',dependsOn:[],gaps:['尚未由用户批准']}]
+  const model=taskOverviewModel(task)
+  assert.deepEqual(model.coverage,{total:2,parsed:1,reviewed:0,unreadable:1,missing:0})
+  assert.equal(model.currentStep.title,'实际待确认阶段')
+  task.plan.push({id:'workbench:p:stage:analysis',title:'实际分析阶段',status:'working'},{id:'workbench:p:execution:current',title:'正在核对工期与资源',status:'working'},{id:'workbench:p:execution:plan:files',title:'逐文件核对工期条件',status:'working'})
+  assert.equal(taskOverviewModel(task).currentStep.title,'正在核对工期与资源','the actual current batch is more specific than its running stage')
+  const Guide=createTaskGuide({React:f.React,api:async()=>({task:structuredClone(task),capabilities:[],audit:{}}),cwd:()=>'',language:()=> 'zh',subscribe:()=>()=>{}})
+  try {
+    await f.act(async()=>f.root.render(f.React.createElement(Guide,{sessionId:'one'})))
+    await click(f,button(f,'执行计划'))
+    const authority=f.document.querySelector('section[aria-label="工作台阶段与实际门禁"]')
+    const recorded=f.document.querySelector('section[aria-label="执行者登记的工作进度"]')
+    assert.match(authority.textContent,/实际待确认阶段/)
+    assert.doesNotMatch(authority.textContent,/执行者自报已完成/)
+    assert.doesNotMatch(authority.textContent,/正在核对工期与资源|逐文件核对工期条件/)
+    assert.match(recorded.textContent,/执行者自报已完成/)
+    assert.match(recorded.textContent,/正在核对工期与资源/)
+    assert.match(recorded.textContent,/逐文件核对工期条件/)
+    assert.match(recorded.textContent,/完成不等于阶段审批或成果验收/)
+    assert.equal(task.plan[0].status,'done','the original execution record is retained')
+  } finally {await f.close()}
+})
+
+test('a task change arriving during a pending read is loaded without waiting for the polling interval',async()=>{
+  const f=await domFixture(),task=taskFixture()
+  let listener,resolveFirst,reads=0
+  const api=async()=>{reads++;if(reads===1)return new Promise(resolve=>resolveFirst=resolve);return {task:structuredClone(task),capabilities:[],audit:{}}}
+  const Guide=createTaskGuide({React:f.React,api,cwd:()=>'',language:()=> 'zh',subscribe:(_id,refresh)=>{listener=refresh;return()=>{}}})
+  try {
+    await f.act(async()=>f.root.render(f.React.createElement(Guide,{sessionId:'one'})))
+    const first=structuredClone(task)
+    task.revision=2;task.findings.push({...task.findings[0],id:'newer',title:'执行期间的新发现',updatedRevision:2})
+    await f.act(async()=>{await listener();resolveFirst({task:first,capabilities:[],audit:{}})})
+    assert.equal(reads,2)
+    assert.equal(f.document.querySelectorAll('[data-finding-id="newer"]').length,1)
   } finally {await f.close()}
 })
 

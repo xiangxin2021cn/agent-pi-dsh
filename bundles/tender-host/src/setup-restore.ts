@@ -40,6 +40,46 @@ export interface SetupRestoreBatch {
   skipped: SetupRestoreSkip[]
 }
 
+const sourceHashCache = new Map<string, { signature: string; sha256: string; textPresent?: boolean }>()
+
+/** Disk facts for one registered source; extraction is not professional review. */
+export function setupSourceStatus(cwd: string, projectId: string, sourcePath: string, restores?: SetupRestore[], freshHash = false): {
+  sourcePath: string; extracted: boolean; sha256?: string; restore?: SetupRestore; reason?: string
+} {
+  const resolved = resolvedSource(cwd, sourcePath)
+  try {
+    const stat = statSync(resolved)
+    if (!stat.isFile()) throw new Error('来源不是文件')
+    if (!stat.size) throw new Error('来源文件为空')
+    const signature = `${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}`
+    let fingerprint = !freshHash && sourceHashCache.get(resolved)
+    if (!fingerprint || fingerprint.signature !== signature) {
+      const bytes = readFileSync(resolved)
+      fingerprint = { signature, sha256: hashBytes(bytes), .../\.(?:md|txt|csv)$/i.test(resolved) ? { textPresent: Boolean(bytes.toString('utf8').trim()) } : {} }
+      sourceHashCache.set(resolved, fingerprint)
+      if (sourceHashCache.size > 512) sourceHashCache.delete(sourceHashCache.keys().next().value!)
+    }
+    const sha256 = fingerprint.sha256
+    const available = restores || listSetupRestores(cwd, projectId)
+    const restore = available.find(item => samePath(item.sourcePath, resolved))
+      || available.find(item => item.originalName === basename(resolved) && readPack(item.packPath)?.sourceFileHash === sha256)
+    if (!restore) {
+      if (/\.(?:md|txt|csv)$/i.test(resolved)) return { sourcePath: resolved, extracted: Boolean(fingerprint.textPresent), sha256 }
+      return { sourcePath: resolved, extracted: false, sha256, reason: '尚无可核验的对齐解析稿' }
+    }
+    const pack = readPack(restore.packPath)
+    if (pack?.sourceFileHash !== sha256) return { sourcePath: resolved, extracted: false, sha256, restore, reason: '来源已变化或解析稿未记录当前来源指纹' }
+    const manuscript = readFileSync(restore.manuscriptPath, 'utf8')
+    if (!manuscript.trim() || !Array.isArray(pack.units) || !pack.units.length
+      || pack.units.some(unit => !Number.isFinite(unit.startOffset) || !Number.isFinite(unit.endOffset) || unit.startOffset < 0 || unit.endOffset <= unit.startOffset || unit.endOffset > manuscript.length)) {
+      return { sourcePath: resolved, extracted: false, sha256, restore, reason: '解析稿或定位单元不完整' }
+    }
+    return { sourcePath: resolved, extracted: true, sha256, restore }
+  } catch (error) {
+    return { sourcePath: resolved, extracted: false, reason: error instanceof Error ? error.message : String(error) }
+  }
+}
+
 export interface SetupPackManifest extends KbPackManifest {
   originalPath?: string
   sourceFileHash?: string

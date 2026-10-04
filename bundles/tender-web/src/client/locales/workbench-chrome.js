@@ -127,6 +127,7 @@ const en = {
   '用户已确认': 'Customer confirmed',
   '用户已暂停': 'Customer paused',
   '待用户决策': 'Customer decision required',
+  '尚未具备审批条件': 'Approval requirements not met',
   '前序基线：': 'Upstream baseline: ',
   '能力包 ': 'Capability package ',
   '缺口': 'Gap',

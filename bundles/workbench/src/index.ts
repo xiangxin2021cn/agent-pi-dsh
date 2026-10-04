@@ -14,6 +14,9 @@ export function apply(ctx: any): void {
   registerWorkbenchPrompt(ctx, registry)
   registerBusinessActivation(ctx)
   ctx.inject(['webServer'], (inner: any) => {
-    attachHttp({ webServer: inner.webServer, effect: (fn: any) => inner.effect(fn), run: (fn: any) => registry.run(fn) }, 'workbench')
+    attachHttp({ webServer: inner.webServer, effect: (fn: any) => inner.effect(fn), run: (fn: any) => registry.run(fn),
+      syncWorkbenchProject: (cwd, projectId, module) => ctx.get('taskGuide')?.syncWorkbenchProject?.(cwd, projectId, module),
+      registerControlPrompt: (sessionId, text) => ctx.get('taskGuide')?.registerControlPrompt?.(sessionId, text),
+    }, 'workbench')
   })
 }

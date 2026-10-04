@@ -7,24 +7,30 @@ type Agent = {
 }
 
 /** A workspace containing a project does not activate that project in every chat. */
-export function businessProjectForAgent(agent?: Agent) {
+export function businessContextForAgent(agent?: Agent, get?: (name: string) => any) {
   let session = agent?.session
   let sessionId = session?.id || agent?.id
   const seen = new Set<string>()
-  while (session?.header?.cwd && sessionId && !seen.has(sessionId)) {
+  while (session && sessionId && !seen.has(sessionId)) {
     seen.add(sessionId)
-    const cwd = session.header.cwd
-    const project = projectForBoundSession(cwd, sessionId)
-    if (project) return project
-    const parentId = session.header.parentSession
+    const cwd = session.header?.cwd
+    const project = cwd && projectForBoundSession(cwd, sessionId)
+    if (project) return { project, cwd: cwd!, sessionId }
+    const parentId = session.header?.parentSession
     if (!parentId) break
-    const parentProject = projectForBoundSession(cwd, parentId)
-    if (parentProject) return parentProject
+    const parentProject = cwd && projectForBoundSession(cwd, parentId)
+    if (parentProject) return { project: parentProject, cwd: cwd!, sessionId: parentId }
     session = agent?.ctx?.get?.('sessions')?.get?.(parentId)
       ?? agent?.ctx?.get?.('agents')?.get?.(parentId)?.session
+      ?? get?.('sessions')?.get?.(parentId)
+      ?? get?.('agents')?.get?.(parentId)?.session
     sessionId = parentId
   }
   return null
+}
+
+export function businessProjectForAgent(agent?: Agent) {
+  return businessContextForAgent(agent)?.project || null
 }
 
 /** Keep business execution tools out of unbound native Standard/PTC conversations. */

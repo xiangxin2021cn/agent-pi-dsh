@@ -91,6 +91,23 @@ test('unknown, archived, mismatched or pending sessions cannot acquire native to
   await f.bridge.dispose()
 })
 
+test('native requests and steering admit their original human identity to the shared task', async () => {
+  const f = fixture()
+  const admissions: any[] = []
+  f.services.taskGuide.admitHumanMessage = (sessionId: string, text: string, messageId: string) => {
+    admissions.push({ sessionId, text, messageId })
+  }
+  const context = await f.bridge.context({ ...f.identity, text: '确定投标，按计划推进' })
+  await f.bridge.record({ ...context, text: '重点是对 BOQ 按页进行详细推导' })
+  assert.deepEqual(admissions, f.appended.map(({ data }) => ({
+    sessionId: sid, text: data.content[0].text, messageId: data.id,
+  })))
+  assert.equal(admissions[0].text, '确定投标，按计划推进')
+  assert.equal(admissions[1].text, '重点是对 BOQ 按页进行详细推导')
+  await f.bridge.release(context)
+  await f.bridge.dispose()
+})
+
 test('catalogue refreshes the actual business scope after a project is bound; unavailable tools stay restricted', async () => {
   const f = fixture()
   const context = await f.bridge.context(f.identity)

@@ -87,7 +87,8 @@ test('model completion stops at the bid decision until the user approves', () =>
   )
   const waiting = resumeUnfinished(cwd, record)
   assert.equal(waiting.stageId, 'bid-risk-decision')
-  assert.match(waiting.blocked ?? '', /工作台.*确认投标/)
+  assert.match(waiting.blocked ?? '', /主对话.*确认投标/)
+  assert.match(waiting.blocked ?? '', /工作台.*同一决策/)
 
   const decided = decideApprovalStage(cwd, record, 'bid-risk-decision', 'approved')
   assert.equal(decided.state.status, 'done')

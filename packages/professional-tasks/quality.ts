@@ -24,12 +24,12 @@ export function auditTask(task: ProfessionalTask) {
   for (const requirement of task.requirements.filter(row => row.mandatory)) {
     const files = task.deliverables.filter(row => row.requirementIds.includes(requirement.id))
     if (!files.length) { add('requirement_uncovered', requirement.id, requirement.title); continue }
-    if (!files.some(row => row.status !== 'stale' && row.checks.some(check => check.kind === 'coverage' && check.status === 'passed'))) add('requirement_unreviewed', requirement.id, '已生成文件尚未证明覆盖该要求。')
+    if (!files.some(row => row.status !== 'stale' && (row.checks || []).some(check => check.kind === 'coverage' && check.status === 'passed'))) add('requirement_unreviewed', requirement.id, '已生成文件尚未证明覆盖该要求。')
     if (requirement.signatureRequired && !files.some(row => row.signature === 'signed')) add('signature_pending', requirement.id, '必交文件待签署授权。')
   }
   for (const row of task.deliverables) {
     if (row.status === 'stale') add('deliverable_stale', row.id, '输入或要求变化，成果需复核。')
-    for (const kind of ['file', 'professional', 'writing'] as const) if (!row.checks.some(check => check.kind === kind && check.status === 'passed')) add('check_pending', row.id, `${kind}: 尚未检查实际成果。`)
+    for (const kind of ['file', 'professional', 'writing'] as const) if (!(row.checks || []).some(check => check.kind === kind && check.status === 'passed')) add('check_pending', row.id, `${kind}: 尚未检查实际成果。`)
     for (const check of row.checks) if (check.status !== 'passed') add('check_unresolved', row.id, check.detail)
   }
   if (!task.deliverables.length) add('deliverables_missing', 'deliverables', '没有实际交付成果。')

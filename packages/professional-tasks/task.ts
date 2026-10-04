@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import type { ProfessionalTask, TaskBrief, Evidence, TaskQuality, QualityCriterion } from './types.ts'
 
 export type TaskActor = 'user' | 'agent' | 'host'
@@ -37,10 +37,31 @@ export function qualityInputFingerprint(task: ProfessionalTask, criterion: Quali
 export function migrateTask(value: unknown): ProfessionalTask {
   const old = value as ProfessionalTask
   if (!old || ![1, 2].includes(old.schemaVersion)) throw new Error('Unsupported professional task schema')
-  if (old.schemaVersion === 2) return old
-  const task = { ...emptyTask(old.sessionId), ...structuredClone(old), schemaVersion: 2, migration: { schema1: true } } as ProfessionalTask
-  task.briefProvenance = {}
-  for (const [key, field] of Object.entries(task.brief)) if (field && (!Array.isArray(field) || field.length)) task.briefProvenance[key] = { origin: 'legacy', status: 'provisional', updatedRevision: task.revision }
+  const task = { ...emptyTask(old.sessionId), ...structuredClone(old), schemaVersion: 2 } as ProfessionalTask
+  // Historical model-written snapshots omitted presentation/collection defaults.
+  // Only absent fields are supplied; invalid values and approval claims still fail validation.
+  if (Array.isArray(task.plan)) task.plan = task.plan.map(row => {
+    if (row.capabilityIds === undefined) row.capabilityIds = []
+    if (row.dependsOn === undefined) row.dependsOn = []
+    if (row.evidenceIds === undefined) row.evidenceIds = []
+    if (row.requirementIds === undefined) row.requirementIds = []
+    if (row.gaps === undefined) row.gaps = []
+    if (row.supplements === undefined) row.supplements = []
+    return row
+  })
+  if (Array.isArray(task.deliverables)) task.deliverables = task.deliverables.map(row => {
+    if (row.title === undefined) row.title = typeof row.path === 'string' ? basename(row.path) : ''
+    if (row.checks === undefined) row.checks = []
+    if (row.requirementIds === undefined) row.requirementIds = []
+    if (row.evidenceIds === undefined) row.evidenceIds = []
+    if (row.stepIds === undefined) row.stepIds = []
+    return row
+  })
+  if (old.schemaVersion === 1) {
+    task.migration = { ...task.migration, schema1: true }
+    task.briefProvenance = {}
+    for (const [key, field] of Object.entries(task.brief)) if (field && (!Array.isArray(field) || field.length)) task.briefProvenance[key] = { origin: 'legacy', status: 'provisional', updatedRevision: task.revision }
+  }
   return task
 }
 
@@ -84,6 +105,7 @@ export function validateTask(task: ProfessionalTask): void {
   }
   for (const question of task.questions) {
     if (!question.question?.trim() || (question.status && !['pending', 'open', 'continued', 'answered', 'expired', 'cancelled'].includes(question.status))) throw new Error('Invalid task question')
+    if (question.decisionScope && (!question.provider || !question.decisionScope.cwd || !question.decisionScope.projectId || !question.decisionScope.moduleId || !question.decisionScope.stageId || !/^[a-f0-9]{64}$/i.test(question.decisionScope.fingerprint) || !question.decisionScope.approveLabel)) throw new Error('Invalid native stage decision scope')
   }
   for (const evidence of task.evidence) { validateEvidence(evidence); reference(evidence.dependsOn || [], evidenceIds, 'evidence dependencies') }
   const visiting = new Set<string>(), visited = new Set<string>()
@@ -104,6 +126,7 @@ export function validateTask(task: ProfessionalTask): void {
   const steps = new Set<string>()
   for (const step of task.plan) {
     if (!step.id || steps.has(step.id) || !step.title?.trim()) throw new Error('Invalid plan step')
+    for (const rows of [step.capabilityIds, step.gaps, step.supplements]) if (!Array.isArray(rows) || rows.some(value => typeof value !== 'string')) throw new Error('Invalid plan collections')
     reference(step.dependsOn, steps, 'plan dependencies must precede consumer')
     reference(step.evidenceIds, evidenceIds, 'plan evidence'); reference(step.requirementIds, requirements, 'plan requirements')
     if (!['pending', 'working', 'done', 'blocked', 'needs_review'].includes(step.status)) throw new Error('Invalid plan status')
@@ -111,7 +134,7 @@ export function validateTask(task: ProfessionalTask): void {
   }
   for (const row of task.deliverables) {
     reference(row.requirementIds, requirements, 'deliverable requirements'); reference(row.evidenceIds, evidenceIds, 'deliverable evidence'); reference(row.stepIds, steps, 'deliverable steps')
-    if (!row.path || !['draft', 'reviewed', 'accepted', 'stale'].includes(row.status)) throw new Error('Invalid deliverable')
+    if (typeof row.title !== 'string' || !row.title.trim() || !row.path || !['draft', 'reviewed', 'accepted', 'stale'].includes(row.status)) throw new Error('Invalid deliverable')
     if (!['not_required', 'pending', 'signed'].includes(row.signature)) throw new Error('Invalid signature status')
     if (!Array.isArray(row.checks) || row.checks.some(check => !['passed', 'failed', 'review'].includes(check.status) || !check.detail?.trim())) throw new Error('Checks need status and actual evidence')
     if (row.status === 'accepted' && (row.checks.some(check => check.status !== 'passed') || ['file', 'professional', 'writing'].some(kind => !row.checks.some(check => check.kind === kind && check.status === 'passed')))) throw new Error('Unresolved checks cannot be accepted')
@@ -184,7 +207,7 @@ export function reviseTask(current: ProfessionalTask, input: TaskPatch, revision
     const briefAffected = step.briefDependencies ? step.briefDependencies.some(key => changedBrief.includes(key)) : semanticBriefChanged
     if (current.plan.some(old => old.id === step.id) && (briefAffected || step.requirementIds.some(id => changedRequirements.has(id)) || step.evidenceIds.some(id => changedEvidence.has(id)) || step.dependsOn.some(id => changedSteps.has(id)))) {
       changedSteps.add(step.id)
-      if (step.status === 'done' || step.status === 'working') step.status = 'needs_review'
+      if ((step.status === 'done' || step.status === 'working') && !(actor === 'host' && input.plan && step.id.startsWith('workbench:'))) step.status = 'needs_review'
     }
   }
   const affectedRefs = [...changedSteps].map(id => `plan:${id}`)

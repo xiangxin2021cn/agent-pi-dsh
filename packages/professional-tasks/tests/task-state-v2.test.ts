@@ -28,6 +28,47 @@ test('schema 1 migration backs up exact bytes and preserves goal without inventi
   assert.deepEqual(store.read('legacy'), migrated)
 })
 
+test('historical schema 2 omissions get presentation defaults on restart without changing authority or disk bytes', t => {
+  const { home, store, path } = fixture(t), state: any = emptyTask('omitted-fields')
+  state.revision = 30
+  state.brief.objective = '用户的原始目标'
+  state.plan = [{ id: 'old-plan', title: '原计划', status: 'done' }]
+  state.deliverables = [{ id: 'old-report', path: '原报告.md', status: 'reviewed', signature: 'pending' }]
+  const bytes = JSON.stringify(state)
+  mkdirSync(join(home, 'agent-pi', 'professional-tasks'), { recursive: true })
+  writeFileSync(path(state.sessionId), bytes)
+  const loaded = store.read(state.sessionId)
+  assert.equal(loaded.revision, 30)
+  assert.equal(loaded.brief.objective, '用户的原始目标')
+  assert.equal(loaded.plan[0].status, 'done')
+  assert.deepEqual(loaded.plan[0].gaps, [])
+  assert.deepEqual(loaded.plan[0].supplements, [])
+  assert.equal(loaded.deliverables[0].title, '原报告.md')
+  assert.equal(loaded.deliverables[0].status, 'reviewed')
+  assert.equal(loaded.deliverables[0].signature, 'pending')
+  assert.deepEqual(loaded.deliverables[0].checks, [])
+  assert.ok(auditTask(loaded).issues.some(row => row.code === 'check_pending'))
+  assert.deepEqual(createTaskStore(home).read(state.sessionId), loaded)
+  assert.equal(readFileSync(path(state.sessionId), 'utf8'), bytes, 'read-only compatibility does not rewrite a user snapshot')
+})
+
+test('historical defaults never repair invalid values or invent proof for claimed acceptance', t => {
+  const { home, store, path } = fixture(t)
+  mkdirSync(join(home, 'agent-pi', 'professional-tasks'), { recursive: true })
+  const invalid: any = emptyTask('invalid-defaults')
+  invalid.plan = [{ id: 'plan', title: 'Plan', status: 'done', gaps: false }]
+  writeFileSync(path(invalid.sessionId), JSON.stringify(invalid))
+  assert.throws(() => store.read(invalid.sessionId), /Invalid plan collections/)
+  invalid.plan = []
+  invalid.deliverables = [{ id: 'file', path: 'file.md', status: 'reviewed', signature: 'pending', checks: false }]
+  writeFileSync(path(invalid.sessionId), JSON.stringify(invalid))
+  assert.throws(() => store.read(invalid.sessionId), /Checks need/)
+  delete invalid.deliverables[0].checks
+  invalid.deliverables[0].status = 'accepted'
+  writeFileSync(path(invalid.sessionId), JSON.stringify(invalid))
+  assert.throws(() => store.read(invalid.sessionId), /Unresolved checks cannot be accepted/)
+})
+
 test('legacy depth import is idempotent and keeps a competing old goal for review', t => {
   const { store } = fixture(t), initial = store.read('task')
   store.update('task', { brief: { ...initial.brief, objective: 'Current goal' } }, 0, 'user')

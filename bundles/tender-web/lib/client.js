@@ -2054,6 +2054,7 @@ window.__ModuleLoader__.load({
 			"用户已确认": "Customer confirmed",
 			"用户已暂停": "Customer paused",
 			"待用户决策": "Customer decision required",
+			"尚未具备审批条件": "Approval requirements not met",
 			"前序基线：": "Upstream baseline: ",
 			"能力包 ": "Capability package ",
 			"缺口": "Gap",
@@ -8527,13 +8528,21 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 			return [...latest.values()].filter((row) => includeResolved || row.status === "open").sort((a, b) => Number(b.status === "open") - Number(a.status === "open") || Number(b.importance === "critical") - Number(a.importance === "critical") || (b.updatedRevision || 0) - (a.updatedRevision || 0));
 		}
 		function taskOverviewModel(task) {
-			const coverage = (task?.coverage || []).filter((row) => row.status !== "superseded");
+			const allCoverage = (task?.coverage || []).filter((row) => row.status !== "superseded");
+			const registeredSources = allCoverage.filter((row) => row.id?.startsWith("workbench:") && row.kind === "file");
+			const coverage = task?.binding && registeredSources.length ? registeredSources : allCoverage;
 			const questions = (task?.questions || []).filter((row) => !row.answer && ![
 				"answered",
 				"expired",
 				"cancelled"
 			].includes(row.status));
-			const currentStep = (task?.plan || []).find((row) => row.status === "working") || (task?.plan || []).find((row) => row.status === "blocked" || row.status === "needs_review");
+			const workbenchPlan = (task?.plan || []).filter((row) => row.id?.startsWith("workbench:"));
+			const activePlan = task?.binding && workbenchPlan.length ? workbenchPlan : task?.plan || [];
+			const currentStep = activePlan.find((row) => row.id?.endsWith(":execution:current") && [
+				"working",
+				"blocked",
+				"needs_review"
+			].includes(row.status)) || activePlan.find((row) => row.status === "working") || activePlan.find((row) => row.status === "blocked" || row.status === "needs_review");
 			return {
 				objective: task?.brief?.objective || "",
 				questions,
@@ -8602,10 +8611,14 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					setReview(null);
 					setError("");
 					setApproved(false);
-				}, [sessionId]);
+				}, [
+					sessionId,
+					binding?.projectId,
+					binding?.stageId
+				]);
 				if (!binding?.projectId) return null;
 				const approve = async () => {
-					if (!review?.binding?.approvalFingerprint || busy) return;
+					if (!review?.binding?.approvalFingerprint || busy || binding.canApprove === false || task?.pendingProjectSync) return;
 					setBusy(true);
 					setError("");
 					try {
@@ -8631,13 +8644,14 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				};
 				return h("div", { className: "ap-task-stage-controls" }, onOpenWorkbench && h("button", {
 					type: "button",
-					onClick: () => onOpenWorkbench(binding)
+					onClick: () => onOpenWorkbench(binding, sessionId)
 				}, approved ? zh ? "前往工作台继续" : "Continue in the workbench" : zh ? "查看工作台阶段" : "View workbench stage"), approved && h("p", {
 					role: "status",
 					className: "ap-task-summary-muted"
-				}, zh ? "阶段批准已记录，可前往工作台继续当前项目。" : "Stage approval was recorded. Continue this project in the workbench."), error && !review && h("p", { role: "alert" }, error), binding.approvalGate && h("button", {
+				}, zh ? "阶段批准已记录，可前往工作台继续当前项目。" : "Stage approval was recorded. Continue this project in the workbench."), error && !review && h("p", { role: "alert" }, error), binding.approvalGate && (binding.canApprove === false || binding.waitingHuman !== false) && h("button", {
 					type: "button",
-					disabled: busy,
+					disabled: busy || binding.canApprove === false,
+					title: binding.approvalReason,
 					onClick: () => {
 						setReview({
 							binding: structuredClone(binding),
@@ -8645,16 +8659,16 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 						});
 						setError("");
 					}
-				}, zh ? "查看并批准当前阶段" : "Review and approve current stage"), review && h("div", {
+				}, zh ? "查看并批准当前阶段" : "Review and approve current stage"), binding.approvalGate && binding.canApprove === false && binding.approvalReason && h("p", { className: "ap-task-summary-muted" }, binding.approvalReason), review && h("div", {
 					className: "ap-task-stage-review",
 					role: "region",
 					"aria-label": zh ? "阶段审批确认" : "Stage approval confirmation"
-				}, h("h4", null, zh ? "确认本阶段的成果与范围" : "Confirm the results and scope of this stage"), h("p", null, (zh ? "项目总目标：" : "Project goal: ") + (review.binding.projectGoal || "")), h("p", null, (zh ? "当前阶段：" : "Current stage: ") + (review.binding.stageLabel || review.binding.stageId)), h("p", null, (zh ? "本次任务：" : "Current task: ") + (review.task?.brief?.objective || "")), ...(review.binding.approvalDeliverables || review.task?.deliverables || []).map((row) => h("div", { key: row.id || row.path }, h("p", null, row.title + " · " + row.path + (row.status ? " · " + row.status : "")), ...(row.checks || []).map((check, index) => h("p", {
+				}, h("h4", null, zh ? "确认本阶段的成果与范围" : "Confirm the results and scope of this stage"), h("p", null, (zh ? "项目总目标：" : "Project goal: ") + (review.binding.projectGoal || "")), h("p", null, (zh ? "当前阶段：" : "Current stage: ") + (review.binding.stageLabel || review.binding.stageId)), h("p", null, (zh ? "本次任务：" : "Current task: ") + (review.task?.brief?.objective || "")), ...(review.binding.approvalDeliverables || review.task?.deliverables || []).map((row) => h("div", { key: row.id || row.path }, h("p", null, (row.title || row.path?.split(/[\\/]/).pop() || row.id) + " · " + row.path + (row.status ? " · " + row.status : "")), ...(row.checks || []).map((check, index) => h("p", {
 					key: index,
 					className: "ap-task-summary-muted"
 				}, (check.kind || check.title || "") + " · " + check.status + " · " + (check.detail || ""))))), review.task?.pendingProjectSync && h("p", { role: "alert" }, zh ? "用户需求尚未完整同步，暂不能批准。" : "User requirements are not fully synchronized; approval is unavailable."), error && h("p", { role: "alert" }, error), h("button", {
 					type: "button",
-					disabled: busy || !review.binding.approvalFingerprint || !!review.task?.pendingProjectSync,
+					disabled: busy || binding.canApprove === false || !review.binding.approvalFingerprint || !!task?.pendingProjectSync,
 					onClick: approve
 				}, zh ? "确认批准此阶段" : "Confirm approval of this stage"), h("button", {
 					type: "button",
@@ -8672,7 +8686,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				language,
 				onOpenWorkbench
 			});
-			return function ProfessionalTaskSummary({ sessionId, taskResult, binding, onOpenTask: openTask }) {
+			return function ProfessionalTaskSummary({ sessionId, taskResult, binding, onOpenTask: openTask, visible = true }) {
 				const [result, setResult] = React.useState(null);
 				const revision = React.useRef(-1);
 				React.useEffect(() => {
@@ -8684,9 +8698,13 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					}
 					if (!sessionId || taskResult) return;
 					const controller = new AbortController();
-					let loading = false;
+					let loading = false, pending = false;
 					const refresh = async () => {
-						if (loading) return;
+						if (loading) {
+							pending = true;
+							return;
+						}
+						pending = false;
 						loading = true;
 						try {
 							const next = await api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(sessionId)}`, cwd(), { signal: controller.signal });
@@ -8697,6 +8715,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 							}
 						} catch {} finally {
 							loading = false;
+							if (pending && !controller.signal.aborted) refresh();
 						}
 					};
 					refresh();
@@ -8709,7 +8728,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					};
 				}, [sessionId, taskResult]);
 				const task = (taskResult || result)?.task;
-				if (!task) return null;
+				if (!visible || !task) return null;
 				const model = taskOverviewModel(task);
 				if (!model.objective && !model.questions.length && !model.findings.length && !task.latestRequest && !model.depthEnabled) return null;
 				const locale = language?.() || "zh", zh = locale.startsWith("zh");
@@ -8734,7 +8753,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 						setResult(next);
 						onTask?.(sessionId, next.task, next.binding);
 					}
-				}), h("div", { className: "ap-task-summary-facts" }, model.currentStep && h("span", null, `${zh ? "正在解决：" : "Current focus: "}${model.currentStep.title}`), model.questions.length > 0 && h("span", null, `${model.questions.length}${zh ? " 个问题待明确" : " questions to clarify"}`), h("span", { className: "ap-task-summary-muted" }, model.depthEnabled ? zh ? "专业深度已启用" : "Professional depth on" : zh ? "基础专业检查" : "Core professional checks")), ...renderTaskFindings(h, task, locale, openSource, { limit: 3 }), model.findings.length > 3 && h("p", { className: "ap-task-summary-muted" }, `${zh ? "另有 " : "Plus "}${model.findings.length - 3}${zh ? " 项发现，可在本次任务中查看。" : " findings in Current task."}`), model.changes[0]?.summary && h("p", { className: "ap-task-summary-muted" }, `${zh ? "最近调整：" : "Latest adjustment: "}${model.changes[0].summary}`));
+				}), h("div", { className: "ap-task-summary-facts" }, model.currentStep && h("span", null, `${zh ? "正在解决：" : "Current focus: "}${model.currentStep.title}`), model.questions.length > 0 && h("span", null, `${model.questions.length}${zh ? " 个问题待明确" : " questions to clarify"}`), h("span", { className: "ap-task-summary-muted" }, model.depthEnabled ? zh ? "专业深度已启用" : "Professional depth on" : zh ? "基础专业检查" : "Core professional checks")), (model.coverage.total > 0 || model.delivery.total > 0) && h("div", { className: "ap-task-summary-facts" }, model.coverage.total > 0 && h("span", null, `${zh ? "资料抽取：" : "Source extraction: "}${model.coverage.parsed}/${model.coverage.total}`), model.coverage.total > 0 && h("span", null, `${zh ? "专业复核：" : "Professional review: "}${model.coverage.reviewed}/${model.coverage.total}`), model.delivery.total > 0 && h("span", null, `${zh ? "成果登记：" : "Registered deliverables: "}${model.delivery.total}`)), ...renderTaskFindings(h, task, locale, openSource, { limit: 3 }), model.findings.length > 3 && h("p", { className: "ap-task-summary-muted" }, `${zh ? "另有 " : "Plus "}${model.findings.length - 3}${zh ? " 项发现，可在本次任务中查看。" : " findings in Current task."}`), model.changes[0]?.summary && h("p", { className: "ap-task-summary-muted" }, `${zh ? "最近调整：" : "Latest adjustment: "}${model.changes[0].summary}`));
 			};
 		}
 		//#endregion
@@ -8970,7 +8989,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				conflicts
 			};
 		}
-		function createTaskGuide({ React, api, cwd, language, subscribe, onOpenSource, onOpenWorkbench }) {
+		function createTaskGuide({ React, api, cwd, language, subscribe, onOpenSource, onOpenWorkbench, onTask }) {
 			const h = React.createElement;
 			const StageControls = createTaskStageControls({
 				React,
@@ -9058,9 +9077,13 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				React.useEffect(() => {
 					if (!sessionId) return;
 					const controller = new AbortController();
-					let loading = false;
+					let loading = false, pending = false;
 					const refresh = async () => {
-						if (loading) return;
+						if (loading) {
+							pending = true;
+							return;
+						}
+						pending = false;
 						loading = true;
 						try {
 							const next = await api(endpoint, cwd(), { signal: controller.signal });
@@ -9069,17 +9092,19 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 								setResult(next);
 								const task = structuredClone(next.task);
 								task.brief = mergeTaskBriefEdits(task, fieldEdits.current, true).brief;
-								task.questions = task.questions.map((row) => fieldEdits.current["question." + row.id] && !row.provider ? {
+								task.questions = (task.questions || []).map((row) => fieldEdits.current["question." + row.id] && !row.provider ? {
 									...row,
 									answer: fieldEdits.current["question." + row.id].value
 								} : row);
 								setDraft(task);
 								setError("");
+								onTask?.(sessionId, next.task, next.binding);
 							}
 						} catch (e) {
 							if (!controller.signal.aborted) setError(e.message);
 						} finally {
 							loading = false;
+							if (pending && !controller.signal.aborted) refresh();
 						}
 					};
 					refresh();
@@ -9102,6 +9127,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 						const latest = await api(endpoint, cwd());
 						taskRevision.current = latest.task.revision;
 						setResult(latest);
+						onTask?.(sessionId, latest.task, latest.binding);
 						if (patch.brief) {
 							const merged = mergeTaskBriefEdits(latest.task, fieldEdits.current, allowConflicts);
 							if (!merged.brief) {
@@ -9139,6 +9165,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 						setResult(next);
 						setDirty(false);
 						setMessage(text.saved);
+						onTask?.(sessionId, next.task, next.binding);
 					} catch (e) {
 						setError(e.message);
 					} finally {
@@ -9156,11 +9183,12 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 						setResult(next);
 						const task = structuredClone(next.task);
 						task.brief = mergeTaskBriefEdits(task, fieldEdits.current, true).brief;
-						task.questions = task.questions.map((row) => fieldEdits.current["question." + row.id] && !row.provider ? {
+						task.questions = (task.questions || []).map((row) => fieldEdits.current["question." + row.id] && !row.provider ? {
 							...row,
 							answer: fieldEdits.current["question." + row.id].value
 						} : row);
 						setDraft(task);
+						onTask?.(sessionId, next.task, next.binding);
 					} catch (e) {
 						setError(e.message);
 					} finally {
@@ -9182,7 +9210,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					setConflicts([]);
 				};
 				const field = (key, basis = false, multiline = false) => h("label", { key }, text[key], h(multiline ? "textarea" : "input", {
-					value: (basis ? draft.brief.basis[key] : key === "formats" ? draft.brief.formats.join(", ") : draft.brief[key]) || "",
+					value: (basis ? draft.brief.basis?.[key] : key === "formats" ? (draft.brief.formats || []).join(", ") : draft.brief[key]) || "",
 					onChange: (e) => edit(key, e.target.value, basis)
 				}));
 				const article = (id, title, body) => h("article", { key: id }, h("h3", null, title), body);
@@ -9238,7 +9266,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					].map(([value, label]) => h("option", {
 						key: value,
 						value
-					}, label)))), h("h3", null, text.unanswered), draft.questions.filter((row) => !row.provider && row.status !== "cancelled").map((row) => h("label", { key: row.id }, row.question, h("textarea", {
+					}, label)))), h("h3", null, text.unanswered), (draft.questions || []).filter((row) => !row.provider && row.status !== "cancelled").map((row) => h("label", { key: row.id }, row.question, h("textarea", {
 						value: row.answer || "",
 						onChange: (e) => {
 							fieldEdits.current["question." + row.id] = { value: e.target.value };
@@ -9260,8 +9288,17 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 						"funding",
 						"contract",
 						"measurement"
-					].map((key) => field(key, true)), h("h3", null, text.standards), draft.brief.basis.standards.map((row) => article(row.id, row.title, h("p", null, row.version + " · " + row.scope + " · " + row.evidenceId))), h("h3", null, text.evidence), draft.evidence.map((row) => article(row.id, row.title, h(React.Fragment, null, h("p", null, row.value), h("p", { className: "ap-guide-muted" }, row.kind + " · " + displayState(row.status) + " · " + (row.basis || "")), sourceReference(h, row, openSource, language())))));
-					if (tab === "plan") body = h(React.Fragment, null, h("p", null, draft.assessment || text.waiting), draft.plan.map((row) => article(row.id, row.title, h(React.Fragment, null, h("p", null, displayState(row.status)), h("p", { className: "ap-guide-muted" }, row.dependsOn.join(" → ")), row.gaps.map((gap, index) => h("p", { key: "g" + index }, text.missing + ": " + gap)), row.supplements.map((supplement, index) => h("p", { key: "s" + index }, supplement))))), h("h3", null, text.source), draft.coverage.map((row) => article(row.id, row.title, h("p", null, displayState(row.status) + " · " + (row.review || "") + " · " + row.locator))));
+					].map((key) => field(key, true)), h("h3", null, text.standards), (draft.brief.basis?.standards || []).map((row) => article(row.id || row.evidenceId + "-" + (row.title || row.name), row.title || row.name, h("p", null, [
+						row.version,
+						row.scope,
+						row.evidenceId
+					].filter(Boolean).join(" · ")))), h("h3", null, text.evidence), (draft.evidence || []).map((row) => article(row.id, row.title, h(React.Fragment, null, h("p", null, row.value), h("p", { className: "ap-guide-muted" }, row.kind + " · " + displayState(row.status) + " · " + (row.basis || "")), sourceReference(h, row, openSource, language())))));
+					if (tab === "plan") {
+						const workbenchPlan = (draft.plan || []).filter((row) => row.id?.startsWith("workbench:") && !row.id.includes(":execution:"));
+						const executionPlan = (draft.plan || []).filter((row) => !row.id?.startsWith("workbench:") || row.id.includes(":execution:"));
+						const planRows = (rows) => rows.map((row) => article(row.id, row.title, h(React.Fragment, null, h("p", null, displayState(row.status)), h("p", { className: "ap-guide-muted" }, (row.dependsOn || []).join(" → ")), (row.gaps || []).map((gap, index) => h("p", { key: "g" + index }, text.missing + ": " + gap)), (row.supplements || []).map((supplement, index) => h("p", { key: "s" + index }, supplement)))));
+						body = h(React.Fragment, null, h("p", null, draft.assessment || text.waiting), workbenchPlan.length > 0 && h("section", { "aria-label": zh ? "工作台阶段与实际门禁" : "Workbench stages and actual gates" }, h("h3", null, zh ? "工作台阶段与实际门禁" : "Workbench stages and actual gates"), ...planRows(workbenchPlan)), executionPlan.length > 0 && h("section", { "aria-label": workbenchPlan.length ? zh ? "执行者登记的工作进度" : "Agent-registered work progress" : text.plan }, workbenchPlan.length > 0 && h("h3", null, zh ? "执行者登记的工作进度" : "Agent-registered work progress"), workbenchPlan.length > 0 && h("p", { className: "ap-guide-muted" }, zh ? "这些记录反映执行者登记的工作进度；完成不等于阶段审批或成果验收，不合计为项目完成率。" : "These records reflect work registered by the agent. Completion does not establish stage approval or deliverable acceptance, and is not added to project completion."), ...planRows(executionPlan)), h("h3", null, text.source), (draft.coverage || []).map((row) => article(row.id, row.title, h("p", null, displayState(row.status) + " · " + (row.review || "") + " · " + row.locator))));
+					}
 					if (tab === "capabilities") body = result?.capabilities?.toSorted((a, b) => [
 						"available",
 						"conditional",
@@ -9283,7 +9320,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					if (tab === "delivery") body = h(React.Fragment, null, h("p", null, result?.audit?.customerAccepted ? text.accepted : result?.audit?.readyForCustomerReview ? text.ready : text.review), result?.audit?.issues?.map((row, index) => h("p", {
 						key: index,
 						className: "ap-guide-error"
-					}, row.detail)), draft.deliverables.map((row) => article(row.id, row.title, h(React.Fragment, null, h("p", null, row.path), h("p", null, displayState(row.status) + " · " + displayState(row.signature)), row.checks.map((check, index) => h("p", { key: index }, check.kind + " · " + displayState(check.status) + " — " + check.detail)), row.signature === "pending" ? h("button", {
+					}, row.detail)), (draft.deliverables || []).map((row) => article(row.id, row.title || row.path?.split(/[\\/]/).pop() || row.id, h(React.Fragment, null, h("p", null, row.path), h("p", null, displayState(row.status) + " · " + displayState(row.signature)), (row.checks || []).map((check, index) => h("p", { key: index }, check.kind + " · " + displayState(check.status) + " — " + check.detail)), !row.checks?.length && h("p", { className: "ap-guide-muted" }, text === labels.zh ? "尚未登记交付检查；文件状态不等于通过验收。" : "No delivery checks are registered; file status does not establish acceptance."), row.signature === "pending" ? h("button", {
 						disabled: busy || dirty,
 						onClick: () => save({ deliverables: draft.deliverables.map((item) => item.id === row.id ? {
 							...item,
@@ -9362,8 +9399,11 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					if (!native) return;
 					const Dock = (props) => {
 						const view = props.useStore((state) => state.view);
-						if (view !== null && view !== "chat" && view !== "agent-pi-codex-main") return null;
-						return React.createElement(Summary, props);
+						const visible = view === null || view === "chat" || view === "agent-pi-codex-main";
+						return React.createElement(Summary, {
+							...props,
+							visible
+						});
 					};
 					installed = {
 						native,
@@ -10534,7 +10574,17 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		const h = react.createElement;
 		const AgentTeamsSettings = createAgentTeamsSettings(react);
 		const SearchSettings = createSearchSettings(react);
-		const { api, apiBlob, downloadBlob, rawFileUrl } = createAgentPiApiClient();
+		const { api: requestApi, apiBlob, downloadBlob, rawFileUrl } = createAgentPiApiClient();
+		const api = (path, cwd, init) => requestApi(path, cwd, init).then((result) => {
+			if (path === "/api/agent-pi/stage" && init?.method === "POST") {
+				const input = JSON.parse(init.body || "{}");
+				if (input.action !== "check") window.dispatchEvent(new CustomEvent("agent-pi-project-state-changed", { detail: {
+					...input,
+					cwd
+				} }));
+			}
+			return result;
+		});
 		const MARKUP_RE = /[`*!\[]/;
 		const HTML_SPECIAL_RE = /[&<>"]/;
 		const css = clientCss + professionalDepthCss + taskProcessCss + nativeWorkFilePreviewCss + taskGuideCss + professionalTaskSummaryCss;
@@ -15073,6 +15123,18 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				window.addEventListener("agent-pi-user-requirement", onRequirement);
 				return () => window.removeEventListener("agent-pi-user-requirement", onRequirement);
 			}, [refresh]);
+			react.useEffect(() => {
+				const changed = (event) => {
+					const binding = event.detail?.binding || event.detail;
+					if (!binding?.cwd || sameFilePath(binding.cwd, cwd)) refresh(true);
+				};
+				window.addEventListener("agent-pi-task-snapshot", changed);
+				window.addEventListener("agent-pi-project-state-changed", changed);
+				return () => {
+					window.removeEventListener("agent-pi-task-snapshot", changed);
+					window.removeEventListener("agent-pi-project-state-changed", changed);
+				};
+			}, [refresh, cwd]);
 			const projects = (data && data.projects ? data.projects : []).filter((row) => row.project.module === module);
 			react.useEffect(() => {
 				if (!projects.length) return;
@@ -15517,6 +15579,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					}, h("span", { className: "ap-check-num" }, index + 1), h("strong", null, stageLabel(stages.find((stage) => stage.id === st.stageId), langState.lang) || st.stageLabel), statusChip(st.stageStatus), h("span", { className: "ap-sub" }, parts.length ? parts.join(" · ") : idleText));
 				})) : null, stages.map((stage, index) => {
 					const slice = stageSlice(item, stage.id);
+					const availability = item.stageAvailability?.[stage.id];
 					const stageMemory = item.memory && item.memory.stages ? item.memory.stages[stage.id] : null;
 					const tasks = slice && slice.tasks || [];
 					const done = tasks.filter((task) => task.status === "done").length;
@@ -15536,10 +15599,10 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					}, workbenchText("基线 v") + stageMemory.revision) : stageMemory && stageMemory.status === "stale" ? h("span", {
 						className: "ap-chip warn",
 						title: stageMemory.staleReason || ""
-					}, workbenchText("记忆已失效")) : slice && slice.status === "done" ? h("span", { className: "ap-chip warn" }, workbenchText("待生成记忆")) : null, slice && slice.forcePassedAt ? h("span", { className: "ap-chip" }, workbenchText("已强制放行")) : null, slice && slice.approval && slice.approval.decision === "approved" ? h("span", { className: "ap-chip ok" }, workbenchText("用户已确认")) : slice && slice.approval && slice.approval.decision === "rejected" ? h("span", { className: "ap-chip warn" }, workbenchText("用户已暂停")) : stage.approvalGate && slice ? h("span", { className: "ap-chip warn" }, workbenchText("待用户决策")) : null), h("p", { className: "ap-stage-hint" }, stageHint$1), stageMemory && stageMemory.inputs && stageMemory.inputs.length ? h("p", { className: "ap-sub" }, workbenchText("前序基线：") + stageMemory.inputs.map((input) => {
+					}, workbenchText("记忆已失效")) : slice && slice.status === "done" ? h("span", { className: "ap-chip warn" }, workbenchText("待生成记忆")) : null, slice && slice.forcePassedAt ? h("span", { className: "ap-chip" }, workbenchText("已强制放行")) : null, slice && slice.approval && slice.approval.decision === "approved" ? h("span", { className: "ap-chip ok" }, workbenchText("用户已确认")) : slice && slice.approval && slice.approval.decision === "rejected" ? h("span", { className: "ap-chip warn" }, workbenchText("用户已暂停")) : stage.approvalGate && slice ? h("span", { className: "ap-chip warn" }, availability?.canApprove === false ? workbenchText("尚未具备审批条件") : workbenchText("待用户决策")) : null), h("p", { className: "ap-stage-hint" }, stageHint$1), stageMemory && stageMemory.inputs && stageMemory.inputs.length ? h("p", { className: "ap-sub" }, workbenchText("前序基线：") + stageMemory.inputs.map((input) => {
 						const upstream = stages.find((item) => item.id === input.ref);
 						return (input.kind === "handoff" ? stageLabel(upstream, langState.lang) || input.ref : workbenchText("能力包 ") + input.ref) + (input.revision ? " v" + input.revision : "") + (input.status === "current" ? "" : (langState.lang === "zh" ? "（" : " (") + input.status + (langState.lang === "zh" ? "）" : ")"));
-					}).join(" · ")) : null, slice && slice.blockedReason ? h("div", { className: "ap-err" }, slice.blockedReason) : null, evidence && stage.id !== setupId && evidence.gaps && evidence.gaps.length && (stage.id === item.currentStageId || slice && slice.status === "blocked" || stage.id === "tender-document-analysis") ? evidence.gaps.slice(0, 4).map((gap) => h("div", {
+					}).join(" · ")) : null, slice && slice.blockedReason ? h("div", { className: "ap-err" }, slice.blockedReason) : null, availability?.reason && availability.reason !== slice?.blockedReason && slice?.status !== "done" ? h("p", { className: "ap-sub" }, availability.reason) : null, evidence && stage.id !== setupId && evidence.gaps && evidence.gaps.length && (stage.id === item.currentStageId || slice && slice.status === "blocked" || stage.id === "tender-document-analysis") ? evidence.gaps.slice(0, 4).map((gap) => h("div", {
 						className: "ap-gap",
 						key: stage.id + gap.chapterId
 					}, h("span", { className: "ap-chip warn" }, workbenchText("缺口")), gap.title + " — " + gap.suggestedUpload)) : null, tasks.length ? h("div", { style: { marginTop: 8 } }, h("div", { className: "ap-bar" + (failed ? " fail" : "") }, h("i", { style: { width: percent + "%" } })), h("div", { className: "ap-sub" }, workbenchText("清单 ") + done + "/" + tasks.length + (failed ? workbenchText(" · 失败 ") + failed : "")), tasks.slice(0, 8).map((task) => {
@@ -15564,8 +15627,8 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					})) : null), h("div", { className: "ap-stage-acts" }, stage.approvalGate && slice && slice.status !== "done" ? h(react.Fragment, null, h("button", {
 						type: "button",
 						className: "ap-btn primary",
-						disabled: !!busy,
-						title: stageGate(stage, "promptZh", langState.lang),
+						disabled: !!busy || availability?.canApprove === false,
+						title: availability?.canApprove === false ? availability.reason : stageGate(stage, "promptZh", langState.lang),
 						onClick: () => decideStage(project, stage, "approved")
 					}, busy === "approve_gate:" + stage.id ? workbenchText("记录中…") : stageGate(stage, "approveLabelZh", langState.lang)), stage.approvalGate.rejectLabelZh ? h("button", {
 						type: "button",
@@ -15617,8 +15680,8 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					}, busy === "organize:" + stage.id ? workbenchText("核对中…") : workbenchText("再次核对盘面")) : h("button", {
 						type: "button",
 						className: "ap-btn link",
-						disabled: !!busy,
-						title: workbenchText("跳到这一阶段。若它已是当前未完阶段，走恢复稿而不是再灌全文。"),
+						disabled: !!busy || availability?.canPrepare === false,
+						title: availability?.canPrepare === false ? availability.reason : workbenchText("跳到这一阶段。若它已是当前未完阶段，走恢复稿而不是再灌全文。"),
 						onClick: () => {
 							const currentUnfinished = item.currentStageId === stage.id && slice && slice.status !== "done" && tasks.length > 0;
 							runStage(project, currentUnfinished ? "" : stage.id, currentUnfinished ? "resume" : "prepare", true);
@@ -16116,6 +16179,17 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		});
 		const professionalTasks = /* @__PURE__ */ new Map();
 		const taskViews = /* @__PURE__ */ new Map();
+		const rememberTaskView = (id, openView) => {
+			const owners = taskViews.get(id) || [];
+			owners.push(openView);
+			taskViews.set(id, owners);
+			return () => {
+				const index = owners.indexOf(openView);
+				if (index >= 0) owners.splice(index, 1);
+				if (!owners.length) taskViews.delete(id);
+			};
+		};
+		const openTaskView = (id, view) => taskViews.get(id)?.at(-1)?.(view, "");
 		const taskSubscriptions = (id, listener) => {
 			const dsh = subscribeSessionWithChat(id, codexTurnAuthorities(id)?.session, listener);
 			const codex = nativeCodex.subscribe(id, listener);
@@ -16123,11 +16197,31 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				if (event.detail?.sessionId === id) listener();
 			};
 			window.addEventListener("agent-pi-task-snapshot", changed);
+			window.addEventListener("agent-pi-project-state-changed", listener);
 			return () => {
 				dsh?.();
 				codex?.();
 				window.removeEventListener("agent-pi-task-snapshot", changed);
+				window.removeEventListener("agent-pi-project-state-changed", listener);
 			};
+		};
+		const rememberProfessionalTask = (id, task, binding) => {
+			const old = professionalTasks.get(id);
+			professionalTasks.set(id, {
+				task,
+				binding
+			});
+			if (old?.task.revision !== task.revision || JSON.stringify(old?.binding) !== JSON.stringify(binding)) window.dispatchEvent(new CustomEvent("agent-pi-task-snapshot", { detail: {
+				sessionId: id,
+				binding
+			} }));
+		};
+		const openTaskWorkbench = (binding, id) => {
+			try {
+				if (binding?.moduleId) sessionStorage.setItem("ap-wb-module", binding.moduleId);
+				if (binding?.projectId) sessionStorage.setItem("ap-wb-project", binding.projectId);
+			} catch {}
+			openTaskView(id, "workbench");
 		};
 		const openTaskSource = async (evidence, id) => {
 			try {
@@ -16149,26 +16243,18 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			language: () => document.documentElement.lang || "zh",
 			subscribe: taskSubscriptions,
 			onOpenSource: openTaskSource,
-			onOpenTask: (id) => taskViews.get(id)?.("agent-pi-task-guide", ""),
-			onOpenWorkbench: (binding) => taskViews.get(runtime.sessionId)?.("workbench", ""),
-			onTask: (id, task) => {
-				const old = professionalTasks.get(id);
-				professionalTasks.set(id, task);
-				if (old?.revision !== task.revision) window.dispatchEvent(new CustomEvent("agent-pi-task-snapshot", { detail: { sessionId: id } }));
-			}
+			onOpenTask: (id) => openTaskView(id, "agent-pi-task-guide"),
+			onOpenWorkbench: openTaskWorkbench,
+			onTask: rememberProfessionalTask
 		});
 		function ProfessionalSummary(props) {
 			const id = props.sessionId || "";
 			const capabilities = productCapabilities.use();
 			useApLang();
-			react.useEffect(() => {
-				taskViews.set(id, props.openView);
-				return () => {
-					if (taskViews.get(id) === props.openView) taskViews.delete(id);
-				};
-			}, [id, props.openView]);
+			react.useEffect(() => rememberTaskView(id, props.openView), [id, props.openView]);
 			return capabilities.taskGuide ? h(TaskSummary, {
 				sessionId: id,
+				visible: props.visible,
 				onOpenTask: () => props.openView("agent-pi-task-guide", "")
 			}) : null;
 		}
@@ -16177,7 +16263,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			language: () => document.documentElement.lang?.startsWith("en") ? "en" : "zh",
 			snapshot: (id) => nativeCodex.enabled(id) ? nativeCodex.current(id) : sessionSnapshotWithChat(id, codexTurnAuthorities(id)?.session),
 			subscribe: taskSubscriptions,
-			professionalTask: (id) => professionalTasks.get(id)
+			professionalTask: (id) => professionalTasks.get(id)?.task
 		});
 		function TaskProcessHeader(props) {
 			return h(TaskProcess, { sessionId: props.sessionId || "" });
@@ -16189,18 +16275,13 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			language: () => document.documentElement.lang || "zh",
 			subscribe: taskSubscriptions,
 			onOpenSource: openTaskSource,
-			onOpenWorkbench: () => taskViews.get(runtime.sessionId)?.("workbench", "")
+			onOpenWorkbench: openTaskWorkbench,
+			onTask: rememberProfessionalTask
 		});
 		function TaskGuideView(props) {
 			useApLang();
 			const capabilities = productCapabilities.use();
-			react.useEffect(() => {
-				const id = props.sessionId || "";
-				taskViews.set(id, props.openView);
-				return () => {
-					if (taskViews.get(id) === props.openView) taskViews.delete(id);
-				};
-			}, [props.sessionId, props.openView]);
+			react.useEffect(() => rememberTaskView(props.sessionId || "", props.openView), [props.sessionId, props.openView]);
 			return capabilities.taskGuide ? h(TaskGuide, {
 				sessionId: props.sessionId || "",
 				onClose: () => props.openView(nativeCodex.enabled(props.sessionId) ? "agent-pi-codex-main" : "chat", "")
@@ -16210,7 +16291,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			React: react,
 			api,
 			useLanguage: useApLang,
-			onOpenTask: (id) => taskViews.get(id)?.("agent-pi-task-guide", ""),
+			onOpenTask: (id) => openTaskView(id, "agent-pi-task-guide"),
 			fillDraft: fillComposer,
 			run: (composer, instruction) => {
 				const draft = currentDraft(composer).trim();

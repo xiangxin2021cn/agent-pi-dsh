@@ -539,9 +539,17 @@ function invalidateStages(
   return loadStageMemorySnapshot(cwd, project)
 }
 
-export function refreshStageMemorySnapshot(cwd: string, project: BusinessProjectRecord): StageMemorySnapshot {
+export function refreshStageMemorySnapshot(cwd: string, project: BusinessProjectRecord, options: { persist?: boolean } = {}): StageMemorySnapshot {
   let snapshot = loadStageMemorySnapshot(cwd, project)
   const workflow = workflowFor(project)
+  const invalidate = (sourceStageId: string, reason: string) => {
+    if (options.persist !== false) return invalidateStages(cwd, project, sourceStageId, reason)
+    for (const stageId of downstreamStageIds(project, sourceStageId)) {
+      const entry = snapshot.stages[stageId]
+      if (entry?.status === 'current') Object.assign(entry, { status: 'stale', staleReason: reason, sourceStageId })
+    }
+    return snapshot
+  }
   for (const stage of workflow.stages) {
     const entry = snapshot.stages[stage.id]
     if (!entry || entry.status === 'stale') continue
@@ -553,11 +561,11 @@ export function refreshStageMemorySnapshot(cwd: string, project: BusinessProject
       return !upstream || upstream.status !== 'current' || upstream.digest !== input.digest
     })
     if (artifactDrift) {
-      snapshot = invalidateStages(cwd, project, stage.id, `正式成果已变更：${artifactDrift.relativePath}`)
+      snapshot = invalidate(stage.id, `正式成果已变更：${artifactDrift.relativePath}`)
     } else if (capabilityDrift) {
-      snapshot = invalidateStages(cwd, project, stage.id, `能力包基线已变更：${capabilityDrift.capability}`)
+      snapshot = invalidate(stage.id, `能力包基线已变更：${capabilityDrift.capability}`)
     } else if (inputDrift) {
-      snapshot = invalidateStages(cwd, project, stage.id, `前序阶段记忆已变更：${inputDrift.ref}`)
+      snapshot = invalidate(stage.id, `前序阶段记忆已变更：${inputDrift.ref}`)
     }
   }
   return snapshot

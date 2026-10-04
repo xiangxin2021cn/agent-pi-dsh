@@ -12,6 +12,8 @@ import {
   workspacePaths,
 } from '../src/workspace.ts'
 import { registerTools } from '../src/tools.ts'
+import { createBusinessProject } from '../../../packages/business-projects/index.ts'
+import { bindProjectSession } from '../src/orchestration.ts'
 
 test('a core workspace revision makes persisted capability packs stale', () => {
   const cwd = mkdtempSync(join(tmpdir(), 'ap-cap-stale-'))
@@ -62,7 +64,9 @@ test('capability tool returns compact summaries while preserving full pack and a
   )
   const capabilityTool = definitions.find((definition) => definition.name === 'tender_capability')
   assert.ok(capabilityTool?.execute)
-  const exec = { agent: { session: { header: { cwd } } } }
+  const project = createBusinessProject({ workspaceRootPath: cwd, projectId, module: 'tender', name: 'Road bid', rootPath: cwd, workflowId: 'tender-main', createDirectory: false })
+  bindProjectSession(cwd, project, 'capability-test')
+  const exec = { agent: { session: { id: 'capability-test', header: { cwd } } } }
 
   const call = async (args: Record<string, unknown>) => {
     const text = await capabilityTool.execute?.(args, exec)

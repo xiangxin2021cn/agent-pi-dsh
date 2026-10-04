@@ -13,7 +13,7 @@ import { assessEvidence, evidencePolicy, forcePassEvidence, forcePassPricingInte
 import { CAPABILITY_FILE_NAMES, tenderDir, writeJson, readJson, ensureDir } from './fsutil.ts'
 import type { WorkflowStage } from './workflows.ts'
 import { listWorkbenchModules, usesTenderControlProfile, workflowFor } from './modules.ts'
-import { capabilityStatus, loadWorkspace, registerProjectSources } from './workspace.ts'
+import { capabilityStatus, loadWorkspace, registerProjectSources, workspacePaths } from './workspace.ts'
 import { listOfficialOutputs, officialDestForHarvest, officialProjectDir, officialStageDir, officialStageFolder, syncProjectOutputs, syncWorkbenchOutputs } from './outputs.ts'
 import { knowledgeStatus, resolveBindingFiles, type BindingFile } from './knowledge.ts'
 import { kbDisplayName, listKbEntries } from './kb.ts'
@@ -21,7 +21,7 @@ import { auditProjectCitations, loadCitationAudit, type CitationAudit } from './
 import { BOQ_PRICING_WORKBOOK_FILE, pricingWorkbookMissing } from './pricing-workbook.ts'
 import { enterpriseProductivityDraftNote, seedEnterpriseProductivityMemo } from './productivity-source.ts'
 import { KB_PACK_KIND } from './kb-pack.ts'
-import { SETUP_RESTORE_KIND, findSetupRestore, listSetupRestores } from './setup-restore.ts'
+import { SETUP_RESTORE_KIND, isSetupAlignablePath, listSetupRestores, setupSourceStatus } from './setup-restore.ts'
 import { liveWorkerLimitLineZh } from './concurrency.ts'
 import { capabilitySchemaHint, PRICING_LOCAL_INTEL_CHECK, PRICING_WEB_RATE_CHECK, SA_LABOUR_WAGE_CHECK } from './capability-schema.ts'
 import { SA_LABOUR_WAGE_DRAFT_ZH } from './sa-labour.ts'
@@ -112,6 +112,7 @@ export interface StageApproval {
   decision: 'approved' | 'rejected'
   decidedAt: string
   note?: string
+  source?: { sessionId: string; messageId: string; text: string; fingerprint: string }
 }
 
 export interface StageSlice {
@@ -272,12 +273,25 @@ export function approvalStageFingerprint(cwd: string, project: BusinessProjectRe
   const board = loadBoard(cwd, project.projectId, project.module)
   const stage = workflowFor(project).stages.find(row => row.id === stageId)
   if (!stage) throw new Error(`Unknown stage ${stageId}`)
-  const paths = [...project.inputPaths, ...Object.values(board.stages).flatMap(row => row.tasks.flatMap(task => [task.reportPath, task.markdownPath].filter(Boolean) as string[])), ...(stage.summaryDeliverable ? [join(officialStageDir(cwd, project.projectId, stageId), stage.summaryDeliverable.fileName)] : [])]
+  const workflow = workflowFor(project)
+  const relevantStages = workflow.stages.slice(0, workflow.stages.findIndex(row => row.id === stageId) + 1)
+  const paths = [...project.inputPaths, ...relevantStages.flatMap(row => board.stages[row.id]?.tasks.flatMap(task => [task.reportPath, task.markdownPath].filter(Boolean) as string[]) || []), ...relevantStages.flatMap(row => row.summaryDeliverable ? [join(officialStageDir(cwd, project.projectId, row.id), row.summaryDeliverable.fileName)] : [])]
+  if (usesTenderControlProfile(project)) {
+    const workspace = workspacePaths(cwd, project.projectId)
+    const capabilities = new Set([...relevantStages.flatMap(row => TENDER_STAGE_REQUIRED_CAPABILITIES[row.id] || []), ...relevantStages.flatMap(row => row.consumes?.flatMap(input => input.kind === 'capability' ? [input.capability] : []) || [])])
+    paths.push(workspace.model, ...[...capabilities].map(capability => join(workspace.packs, `${CAPABILITY_FILE_NAMES[capability]}.json`)))
+  }
   const files = [...new Set(paths)].map(path => {
     try { return [path, createHash('sha256').update(readFileSync(resolve(cwd, path))).digest('hex')] }
     catch { return [path, null] }
   })
-  return createHash('sha256').update(JSON.stringify({ projectId: project.projectId, workflow: project.workflowSnapshot, stageId, stages: board.stages, files, requirements: listUserRequirements(cwd, project) })).digest('hex')
+  // Polling timestamps and dispatch bookkeeping do not change the user's decision.
+  const stages = Object.fromEntries(relevantStages.flatMap(stage => board.stages[stage.id] ? [[stage.id, board.stages[stage.id]] as const] : []).map(([id, row]) => [id, {
+    status: ['idle', 'running'].includes(row.status) || id === stageId ? 'open' : row.status, approval: id === stageId ? undefined : row.approval, blockedReason: id === stageId ? undefined : row.blockedReason,
+    tasks: row.tasks.map(task => ({ id: task.id, status: task.status, sourcePath: task.sourcePath, reportPath: task.reportPath, markdownPath: task.markdownPath, error: task.error })),
+  }]))
+  const requirements = listUserRequirements(cwd, project).filter(row => relevantStages.some(stage => stage.id === row.stageId)).map(row => ({ id: row.id, stageId: row.stageId, text: row.text, status: row.status, evidencePaths: row.evidencePaths })).sort((a, b) => a.id.localeCompare(b.id))
+  return createHash('sha256').update(JSON.stringify({ projectId: project.projectId, workflow: project.workflowSnapshot, projectGoal: project.projectGoal, terminalDeliverables: project.terminalDeliverables, stageId, stages, files, requirements })).digest('hex')
 }
 
 /** Small disk-backed project baseline injected into every bound parent turn. */
@@ -537,15 +551,15 @@ function planningDeliverableGaps(cwd: string, project: BusinessProjectRecord, st
 }
 
 /**
- * Reconcile one task against disk. Already-done tasks are trusted: do not re-read
- * their JSON ledgers after a parent crash/restart. Unfinished tasks still accept
+ * Reconcile one task against disk. An existing status cannot replace its file.
+ * Unfinished tasks still accept
  * a newly written Official Output or report (normal completion, or a worker that
  * wrote files but never updated the board).
  */
 function inspectTask(task: StageTask): StageTask {
   if (task.status === 'done') {
-    if (task.markdownPath && !existsSync(task.markdownPath)) {
-      return { ...task, status: 'error', error: '客户成果缺失' }
+    if (task.markdownPath && !deliverableReady(task.markdownPath)) {
+      return { ...task, status: 'error', error: '客户成果缺失或内容过短' }
     }
     return task
   }
@@ -562,6 +576,8 @@ function inspectTask(task: StageTask): StageTask {
       if (report.status === 'error' || report.status === 'failed') {
         return { ...task, status: 'error', error: task.error }
       }
+      if (task.markdownPath) return { ...task, status: 'error', error: '报告已登记，但客户成果缺失或内容过短' }
+      if (!['done', 'completed', 'success'].includes(report.status || '') || !deliverableReady(task.reportPath)) return task
       return { ...task, status: 'done', error: undefined }
     } catch {
       return { ...task, status: 'error', error: '报告 JSON 无法解析' }
@@ -583,8 +599,8 @@ function sliceStatusFromTasks(slice: StageSlice, gatesReady = true): StageSlice[
   return slice.status === 'blocked' ? 'blocked' : 'idle'
 }
 
-function inspectSlice(slice: StageSlice, gatesReady = true): StageSlice {
-  const tasks = slice.tasks.map(inspectTask)
+function inspectSlice(slice: StageSlice, gatesReady = true, sourceAlignment = false): StageSlice {
+  const tasks = sourceAlignment ? slice.tasks : slice.tasks.map(inspectTask)
   const next: StageSlice = { ...slice, tasks, updatedAt: new Date().toISOString() }
   const status = sliceStatusFromTasks(next, gatesReady)
   next.status = status
@@ -622,6 +638,13 @@ function pricingHardGatesReady(cwd: string, projectId: string, stageId: string):
 
 function stageHardGatesReady(cwd: string, project: BusinessProjectRecord, stageId: string): boolean {
   const stage = workflowFor(project).stages.find((item) => item.id === stageId)
+  if (stageId === workflowFor(project).setupStageId) {
+    const restores = listSetupRestores(cwd, project.projectId)
+    return project.inputPaths.length > 0 && project.inputPaths.every(path => {
+      const source = setupSourceStatus(cwd, project.projectId, path, restores)
+      return Boolean(source.sha256 && (!isSetupAlignablePath(path) || source.extracted))
+    })
+  }
   const userOverride = acceptedUserRequirementOverride(cwd, project, stageId)
   const summaryReady = userOverride || !stage?.summaryDeliverable
     || deliverableReady(join(officialStageDir(cwd, project.projectId, stageId), stage.summaryDeliverable.fileName))
@@ -681,16 +704,21 @@ function attachSetupRestorePaths(
 ): StageSlice {
   const setupId = workflowFor(project).setupStageId
   if (!setupId || slice.stageId !== setupId) return slice
+  const restores = listSetupRestores(cwd, project.projectId)
   return {
     ...slice,
     tasks: slice.tasks.map((task) => {
       if (!task.sourcePath) return task
-      const restore = findSetupRestore(cwd, project.projectId, task.sourcePath)
-      if (!restore) return task
+      const source = setupSourceStatus(cwd, project.projectId, task.sourcePath, restores)
+      const restore = source.restore
+      if (!source.sha256 || (isSetupAlignablePath(task.sourcePath) && !source.extracted)) return { ...task, status: 'error' as const, error: source.reason || '解析稿未就绪' }
+      if (!restore) return { ...task, status: 'done' as const, error: undefined }
       return {
         ...task,
         markdownPath: restore.manuscriptPath,
         reportPath: restore.packPath,
+        status: 'done' as const,
+        error: undefined,
       }
     }),
   }
@@ -808,8 +836,9 @@ export function inspectBoard(cwd: string, project: BusinessProjectRecord): Orche
     next.stages[id] = attachSetupRestorePaths(
       cwd,
       project,
-      inspectSlice(slice, stageHardGatesReady(cwd, project, id)),
+      slice,
     )
+    next.stages[id] = inspectSlice(next.stages[id], stageHardGatesReady(cwd, project, id), id === workflowFor(project).setupStageId)
   }
   if (usesTenderControlProfile(project)) {
     try { assessEvidence(cwd, project.projectId) } catch { /* ignore */ }
@@ -856,6 +885,45 @@ export function workbenchSnapshot(cwd: string, module?: string) {
     projects: inspected,
     inspectedAt: new Date().toISOString(),
   }
+}
+
+/** The same predecessor and artifact facts constrain every stage entry. */
+export function stageAvailability(cwd: string, project: BusinessProjectRecord, board = loadBoard(cwd, project.projectId, project.module)) {
+  const workflow = workflowFor(project)
+  const memory = refreshStageMemorySnapshot(cwd, project)
+  const completed = new Map(workflow.stages.map(stage => [stage.id, stagePrerequisiteReady(cwd, project, board, stage.id, memory)]))
+  let syncReady = true
+  try { assertTaskSyncComplete(cwd, project) } catch { syncReady = false }
+  return Object.fromEntries(workflow.stages.map((stage, index) => {
+    const prior = workflow.stages.slice(0, index).find(row => !completed.get(row.id))
+    const slice = board.stages[stage.id]
+    const summaryReady = !stage.summaryDeliverable || deliverableReady(join(officialStageDir(cwd, project.projectId, stage.id), stage.summaryDeliverable.fileName))
+    const pending = slice?.tasks.some(row => row.status !== 'done') || false
+    const active = activeUserRequirements(cwd, project, stage.id)
+    const rejected = slice?.approval?.decision === 'rejected'
+    const hardReady = !stage.approvalGate || stageHardGatesReady(cwd, project, stage.id)
+    const approved = slice?.approval?.decision === 'approved' && slice.status === 'done' && memory.stages[stage.id]?.status !== 'stale'
+    const final = usesTenderControlProfile(project) && stage.id === 'submission-compliance-freeze'
+    const fileGaps = final ? submissionFileGaps(cwd, project) : []
+    const orphanCount = final && !prior && summaryReady && hardReady && !fileGaps.length ? auditProjectCitations(cwd, project, { persist: false }).orphans.length : 0
+    const canApprove = Boolean(syncReady && stage.approvalGate && !approved && !prior && !pending && !active.length && summaryReady && hardReady && !fileGaps.length && !orphanCount)
+    const reason = prior ? `请先完成前序阶段「${prior.labelZh}」（${prior.id}）。`
+      : !syncReady ? '最新任务理解尚未同步到项目要求。'
+        : rejected ? (slice?.blockedReason || '用户已暂停该阶段。')
+        : active.length ? `用户最新要求尚未落实：${active[0]!.text}`
+          : pending ? '仍有阶段任务未完成。'
+            : !summaryReady ? `请先完成《${stage.summaryDeliverable!.fileName}》。`
+              : !hardReady ? '阶段实际成果或能力检查尚未通过。'
+                : fileGaps.length ? `最终冻结前文件检查未通过：${fileGaps[0]}`
+                  : orphanCount ? `最终冻结前仍有 ${orphanCount} 个孤儿引用，请先修复。` : undefined
+    return [stage.id, { canPrepare: syncReady && !prior && !rejected, blockedBy: prior?.id, reason, summaryReady, canApprove, waitingHuman: Boolean(stage.approvalGate && canApprove), approved }]
+  }))
+}
+
+function stagePrerequisiteReady(cwd: string, project: BusinessProjectRecord, board: OrchestrationBoard, stageId: string, memory = loadStageMemorySnapshot(cwd, project)): boolean {
+  if (board.stages[stageId]?.status !== 'done') return false
+  if (memory.stages[stageId]?.status === 'stale') return false
+  return stageId !== workflowFor(project).setupStageId || !project.inputPaths.length || stageHardGatesReady(cwd, project, stageId)
 }
 
 export function projectSnapshot(cwd: string, project: BusinessProjectRecord) {
@@ -911,6 +979,7 @@ export function projectSnapshot(cwd: string, project: BusinessProjectRecord) {
       : null,
     stages: board.stages,
     currentStageId: board.currentStageId,
+    stageAvailability: stageAvailability(cwd, project, board),
     evidence,
     citationAudit,
     userRequirements,
@@ -1017,7 +1086,7 @@ export function buildStageDraft(project: BusinessProjectRecord, stage: WorkflowS
     ? `\n- 收阶段硬性交付《${stage.summaryDeliverable.fileName}》（放 ${stageOutDir}）：${stage.summaryDeliverable.outlineZh.join('；')}。该文件缺失时 complete_stage 会被拒绝。`
     : ''
   const approvalRule = stage.approvalGate
-    ? `\n- 人工决策门：完成《${stage.summaryDeliverable?.fileName ?? stage.labelZh}》后停止。不要调用 complete_stage 代替用户决策；等待用户在工作台处理「${stage.approvalGate.approveLabelZh}」${stage.approvalGate.rejectLabelZh ? `或「${stage.approvalGate.rejectLabelZh}」` : ''}。`
+    ? `\n- 人工决策门：完成《${stage.summaryDeliverable?.fileName ?? stage.labelZh}》后停止。不要调用 complete_stage 代替用户决策；展示当前成果，等待用户在主对话明确说出${stage.id === 'bid-risk-decision' ? '「确定投标，按计划推进」或「不投标」' : `「${stage.approvalGate.approveLabelZh}」${stage.approvalGate.rejectLabelZh ? `或「${stage.approvalGate.rejectLabelZh}」` : ''}`}，也可在工作台点击同一决策。可信主对话准入与工作台使用同一实际成果门禁；模型重述授权或把要求标为 implemented 均不能代替用户决策。`
     : ''
   const suiteRule = analysisSuiteApplies(stage.id)
     ? `\n- 唯一分析底稿必须写入 ${stageOutDir}：${ANALYSIS_SUITE.map((item) => `《${item.fileName}》`).join('、')}。覆盖规定章节和来源索引；专题报告只在用户明确需要时从底稿派生，不再作为收阶段数量门。已完成的源文件解析稿不要重做。\n- 必须从每份已登记的实际工程量清单抽出全部可识别清单行，tender_capability replace boq_reconciliation（packs/boq-reconciliation.json）。每行带清单号、单位、数量、sheet+cell；PC Sum / Provisional Sum / percentage 等传递项也要登记。系统会反查 BOQ 解析稿中的显式清单号，局部样本不得过关；没有清单或覆盖不全不得 complete_stage。`
@@ -1132,7 +1201,7 @@ function buildAcceptedRequirementCloseoutDraft(
   rows: UserRequirement[],
 ): string {
   const closeout = stage.approvalGate
-    ? `本阶段另有独立人工决策门。只核对任务、实际 BOQ、能力包、证据和引用等不可豁免门禁；核对完成后停止，等待用户在工作台点击「${stage.approvalGate.approveLabelZh}」${stage.approvalGate.rejectLabelZh ? `或「${stage.approvalGate.rejectLabelZh}」` : ''}，不得代替用户审批。`
+    ? `本阶段另有独立人工决策门。只核对任务、实际 BOQ、能力包、证据和引用等不可豁免门禁；核对完成后停止，等待用户在主对话明确确认「${stage.approvalGate.approveLabelZh}」${stage.approvalGate.rejectLabelZh ? `或「${stage.approvalGate.rejectLabelZh}」` : ''}，也可在工作台点击同一决策，不得代替用户审批。`
     : '调用 tender_stage complete_stage 尝试收口一次；若仍有不可豁免门禁，只报告并定点补齐该硬缺口，不得恢复旧文件名、篇幅、章节、视图或重做整阶段。'
   return `【用户验收口径已确认 — 只做硬门禁收口】
 
@@ -1411,10 +1480,12 @@ function listSourceTasks(
   } catch {
     for (const inputPath of project.inputPaths) take(inputPath)
   }
+  const restores = listSetupRestores(cwd, project.projectId)
   for (const group of groups.values()) {
     const id = packTaskId(group.title, usedIds)
     const sourcePath = group.paths[0]!
-    const restore = findSetupRestore(cwd, project.projectId, sourcePath)
+    const source = setupSourceStatus(cwd, project.projectId, sourcePath, restores)
+    const restore = source.extracted ? source.restore : undefined
     const readPath = restore?.manuscriptPath && existsSync(restore.manuscriptPath)
       ? restore.manuscriptPath
       : sourcePath
@@ -1484,19 +1555,23 @@ export function prepareStage(
   const stageIndex = workflow.stages.findIndex((item) => item.id === stageId)
   const unfinishedPrior = workflow.stages
     .slice(0, Math.max(0, stageIndex))
-    .find((item) => existingBoard.stages[item.id]?.status !== 'done')
+    .find((item) => !stagePrerequisiteReady(cwd, project, existingBoard, item.id))
   if (unfinishedPrior) {
     const blocked = unfinishedPrior.id === workflow.setupStageId
       ? '请先完成「项目资料登记」并确认资料齐套。'
       : `请先完成前序阶段「${unfinishedPrior.labelZh}」（${unfinishedPrior.id}）。`
     const slice: StageSlice = {
+      ...existingBoard.stages[stageId],
       stageId,
       status: 'blocked',
-      tasks: [],
+      tasks: existingBoard.stages[stageId]?.tasks ?? [],
       updatedAt: new Date().toISOString(),
       blockedReason: blocked,
+      completedAt: undefined,
     }
-    const board = putSlice(cwd, project, slice)
+    // An unavailable stage must not replace the actual stage or its deliverables.
+    const board = { ...existingBoard, stages: { ...existingBoard.stages, [stageId]: slice }, currentStageId: existingBoard.currentStageId || unfinishedPrior.id, updatedAt: slice.updatedAt }
+    saveBoard(cwd, board)
     return {
       state: { schemaVersion: 1, projectId: project.projectId, module: project.module, ...slice },
       draft: buildStageDraft(project, stage, blocked),
@@ -1545,6 +1620,7 @@ export function prepareStage(
     forcePassedAt: previousSlice?.forcePassedAt,
     completedAt: previousSlice?.completedAt,
     dispatch: previousSlice?.dispatch,
+    approval: previousSlice?.approval,
   }, stageHardGatesReady(cwd, project, stageId))
   const board = putSlice(cwd, project, slice)
   if (usesTenderControlProfile(project)) assessEvidence(cwd, project.projectId)
@@ -1622,6 +1698,18 @@ export function completeSetup(
       blocked: slice.blockedReason,
     }
   }
+  const restores = listSetupRestores(cwd, project.projectId)
+  const sources = project.inputPaths.map(path => setupSourceStatus(cwd, project.projectId, path, restores, true))
+  const gaps = sources.filter(source => !source.sha256 || (isSetupAlignablePath(source.sourcePath) && !source.extracted))
+  if (gaps.length) {
+    const slice: StageSlice = {
+      stageId: setupStageId, status: 'blocked', updatedAt: new Date().toISOString(),
+      blockedReason: `仍有 ${gaps.length} 份登记资料未完成有效解析：${gaps.slice(0, 3).map(source => `${basename(source.sourcePath)}（${source.reason}）`).join('；')}。请补齐或重新对齐后确认。`,
+      tasks: sources.map((source, index) => ({ id: `file-${index + 1}`, title: basename(source.sourcePath), sourcePath: source.sourcePath, markdownPath: source.restore?.manuscriptPath, reportPath: source.restore?.packPath, status: gaps.includes(source) ? 'error' as const : 'done' as const, error: gaps.includes(source) ? source.reason : undefined })),
+    }
+    const board = putSlice(cwd, project, slice)
+    return { state: { schemaVersion: 1, projectId: project.projectId, module: project.module, ...slice }, board, blocked: slice.blockedReason }
+  }
   if (usesTenderControlProfile(project)) {
     registerProjectSources(cwd, project.projectId, { title: project.name, inputPaths: project.inputPaths })
   }
@@ -1630,7 +1718,7 @@ export function completeSetup(
     stageId: setupStageId,
     status: 'done',
     tasks: project.inputPaths.map((inputPath, index) => {
-      const restore = findSetupRestore(cwd, project.projectId, inputPath)
+      const restore = sources[index]!.restore
       return {
         id: `file-${index + 1}`,
         title: basename(inputPath),
@@ -1683,7 +1771,7 @@ export function completeStage(
   const stageIndex = workflow.stages.findIndex((item) => item.id === stageId)
   const unfinishedPrior = workflow.stages
     .slice(0, Math.max(0, stageIndex))
-    .find((item) => board.stages[item.id]?.status !== 'done')
+    .find((item) => !stagePrerequisiteReady(cwd, project, board, item.id))
   if (unfinishedPrior) {
     throw new Error(`请先完成前序阶段「${unfinishedPrior.labelZh}」（${unfinishedPrior.id}）。`)
   }
@@ -1713,7 +1801,7 @@ export function completeStage(
     }
   }
   if (stage.approvalGate) {
-    throw new Error(`阶段「${stage.labelZh}」等待用户人工决策。请停止自动推进，由用户在工作台点击「${stage.approvalGate.approveLabelZh}」${stage.approvalGate.rejectLabelZh ? `或「${stage.approvalGate.rejectLabelZh}」` : ''}。`)
+    throw new Error(`阶段「${stage.labelZh}」等待用户人工决策。请停止自动推进，由用户在主对话明确确认「${stage.approvalGate.approveLabelZh}」${stage.approvalGate.rejectLabelZh ? `或「${stage.approvalGate.rejectLabelZh}」` : ''}，也可在工作台点击同一决策。`)
   }
   if (usesTenderControlProfile(project)) {
     const capabilityGaps = tenderCapabilityGaps(cwd, project.projectId, stageId)
@@ -1764,7 +1852,7 @@ export function completeStage(
 }
 
 /**
- * Persist a decision made through the workbench UI. Approval stages cannot be
+ * Persist a trusted human decision from the workbench or main conversation. Approval stages cannot be
  * completed by the model through tender_stage complete_stage.
  */
 export function decideApprovalStage(
@@ -1773,6 +1861,7 @@ export function decideApprovalStage(
   stageId: string,
   decision: 'approved' | 'rejected',
   note = '',
+  source?: StageApproval['source'],
 ): { state: StageState; board: OrchestrationBoard } {
   assertTaskSyncComplete(cwd, project)
   const workflow = workflowFor(project)
@@ -1783,7 +1872,7 @@ export function decideApprovalStage(
   const stageIndex = workflow.stages.findIndex((item) => item.id === stageId)
   const unfinishedPrior = workflow.stages
     .slice(0, Math.max(0, stageIndex))
-    .find((item) => board.stages[item.id]?.status !== 'done')
+    .find((item) => !stagePrerequisiteReady(cwd, project, board, item.id))
   if (unfinishedPrior) {
     throw new Error(`请先完成前序阶段「${unfinishedPrior.labelZh}」（${unfinishedPrior.id}）。`)
   }
@@ -1793,9 +1882,9 @@ export function decideApprovalStage(
   }
   const implementedRequirements = listUserRequirements(cwd, project, stageId)
     .filter((item) => item.status === 'implemented')
-  if (implementedRequirements.length > 0) {
-    throw new Error(`用户最新要求已落实但尚待用户验收，不能提交人工决策：${implementedRequirements.slice(0, 3).map((item) => item.text).join('；')}`)
-  }
+  // The explicit stage approval is the user's acceptance of implemented work.
+  // It cannot be replaced by model-reported implementation, and occurs only
+  // after the same real artifact checks below have passed.
   const userOverride = acceptedUserRequirementOverride(cwd, project, stageId)
   const previous = board.stages[stageId] ? inspectSlice(board.stages[stageId]) : undefined
   const pending = (previous?.tasks ?? []).filter((task) => task.status !== 'done')
@@ -1838,9 +1927,11 @@ export function decideApprovalStage(
       decision,
       decidedAt: now,
       note: note || undefined,
+      source,
     },
   }
   if (approved) {
+    for (const requirement of implementedRequirements) writeUserRequirementStatus(cwd, project, requirement.id, 'accepted', { note: note || `用户确认阶段「${stage.labelZh}」`, evidencePaths: requirement.evidencePaths })
     commitStageHandoff(cwd, project, stageId, slice)
     completeStageExecutions(cwd, project, stageId)
   }
@@ -1850,6 +1941,36 @@ export function decideApprovalStage(
   return {
     state: { schemaVersion: 1, projectId: project.projectId, module: project.module, ...slice },
     board: nextBoard,
+  }
+}
+
+/** Called only by the trusted human-message admission path, never by a model tool. */
+export function recordHumanStageDecision(
+  cwd: string,
+  project: BusinessProjectRecord,
+  input: { sessionId: string; messageId: string; text: string },
+) {
+  const bound = projectForBoundSession(cwd, input.sessionId)
+  if (!input.messageId || !bound || bound.projectId !== project.projectId || bound.module !== project.module) return { handled: false as const }
+  const board = loadBoard(cwd, project.projectId, project.module)
+  const previousDecision = Object.values(board.stages).find(row => row.approval?.source?.sessionId === input.sessionId && row.approval.source.messageId === input.messageId)
+  if (previousDecision) return { handled: true as const, stageId: previousDecision.stageId, decision: previousDecision.approval!.decision, status: previousDecision.approval!.decision, messageId: input.messageId, fingerprint: previousDecision.approval!.source!.fingerprint, replay: true }
+  const stage = workflowFor(project).stages.find(row => row.id === board.currentStageId)
+  if (!stage?.approvalGate) return { handled: false as const }
+  const text = input.text.trim().replace(/[。.!！]+$/u, '')
+  let decision: 'approved' | 'rejected' | undefined
+  if (stage.id === 'bid-risk-decision') {
+    if (/^(?:我(?:们)?(?:已)?(?:经)?(?:决定)?\s*)?(?:确定|确认|决定|同意)(?:参与|参加)?投标(?:(?:[，,；;\s]+|并(?:且)?)(?:按计划推进|按计划继续|继续推进|继续|开始招标文件解析))*$/u.test(text)) decision = 'approved'
+    if (/^(?:我(?:们)?(?:决定)?\s*)?(?:不投标|决定不投标|取消投标|暂停投标)(?:[，,；;\s]+(?:暂停|停止|暂停本项目))*$/u.test(text)) decision = 'rejected'
+  } else if (text === stage.approvalGate.approveLabelZh || text === `${stage.labelZh}：${stage.approvalGate.approveLabelZh}`) decision = 'approved'
+  else if (stage.approvalGate.rejectLabelZh && text === stage.approvalGate.rejectLabelZh) decision = 'rejected'
+  if (!decision) return { handled: false as const }
+  const fingerprint = approvalStageFingerprint(cwd, project, stage.id)
+  try {
+    const result = decideApprovalStage(cwd, project, stage.id, decision, input.text, { ...input, fingerprint })
+    return { handled: true as const, stageId: stage.id, decision, status: decision, messageId: input.messageId, fingerprint, ...result }
+  } catch (error) {
+    return { handled: true as const, stageId: stage.id, decision, status: 'blocked' as const, messageId: input.messageId, fingerprint, message: error instanceof Error ? error.message : String(error) }
   }
 }
 
@@ -2367,7 +2488,7 @@ ${summaryOutline}${suiteOutline}${workbookOutline}${intelOutline}${alignBlock}
 1. 差异逐项裁决：上面列出的每一条缺失/未完成/孤儿，判断是补做、返工还是纠正任务状态，并当场执行；补齐或删除错误成果后调用 tender_stage status 重新核对，需清空任务时使用 reset。缺产物的任务不得保持 done。没有列出的差异不要自行发明，不要重新解析已完成的源文件。
 2. ${reality.userRequirementOverride ? '用户已采用新验收口径：不要再补旧文件名、篇幅、章节或视图，只核实用户要求的证据路径和不可豁免真实性门禁。' : '阶段总控与分析底稿：若上面显示缺失/过短/缺章，基于已有解析成果补齐，不要重扫源文件；专题视图不再是数量硬门。BOQ 组价阶段还须 tender_pricing_workbook generate 写出《BOQ 组价测算.xlsx》，并补齐当地供应商尽调与询价单。'}
 3. 评审纪律稽核：只复核高风险、实质变更和抽样成果，最多 1 轮修订；仍有分歧交用户裁决。
-4. 裁决完成后收口：${reality.userRequirementOverride ? '用户要求已成为验收口径，确认清单、能力包、真实 BOQ/来源与引用完整性后' : '清单全部 done、孤儿为 0、阶段总控与分析底稿就位、组价阶段公式测算表及当地尽调就位时'}调用 tender_stage complete_stage（projectId=${project.projectId}, stageId=${stage.id}）；人工决策阶段必须停下等待工作台确认。
+4. 裁决完成后收口：${reality.userRequirementOverride ? '用户要求已成为验收口径，确认清单、能力包、真实 BOQ/来源与引用完整性后' : '清单全部 done、孤儿为 0、阶段总控与分析底稿就位、组价阶段公式测算表及当地尽调就位时'}调用 tender_stage complete_stage（projectId=${project.projectId}, stageId=${stage.id}）；人工决策阶段必须停下等待主对话明确确认或工作台同一决策。
 5. 最后向用户输出「阶段实况简报」两栏（三行以内）：阶段（已完成什么）/ 投标可提交（商务待办，不挡阶段收口）。询价、开工确认、submission_audit not_ready 不得写成「本阶段未完成」。若系统此前处于空闲等待，请明确说出当前在等谁做什么。
 禁止由主会话代写子任务成果；禁止对已通过评审的成果重复评审。`
 }
@@ -2601,7 +2722,9 @@ export function resumeUnfinished(
   if (implementedUserRequirements.length > 0) {
     const latest = implementedUserRequirements[0]!
     const stage = workflow.stages.find((item) => item.id === latest.stageId)
-    const message = `「${stage?.labelZh ?? latest.stageId}」的用户要求已落实，等待用户在工作台选择「采用为验收口径」「继续修改」或「不属于本项目」；不得按旧门禁自动重发整阶段。`
+    const message = stage?.approvalGate
+      ? `「${stage.labelZh}」的用户要求已落实，等待用户在主对话明确确认「${stage.approvalGate.approveLabelZh}」，也可在工作台作出同一决策；实际成果门禁仍需通过，不得由模型代替。`
+      : `「${stage?.labelZh ?? latest.stageId}」的用户要求已落实，等待用户在工作台选择「采用为验收口径」「继续修改」或「不属于本项目」；不得按旧门禁自动重发整阶段。`
     return {
       board,
       stageId: latest.stageId,
@@ -2672,7 +2795,7 @@ export function resumeUnfinished(
     if (current?.approval?.decision === 'rejected' || summaryReady) {
       const message = current?.approval?.decision === 'rejected'
         ? (current.blockedReason || `用户已拒绝「${target.labelZh}」，流程保持暂停。`)
-        : `${target.approvalGate.promptZh} 请在工作台点击「${target.approvalGate.approveLabelZh}」${target.approvalGate.rejectLabelZh ? `或「${target.approvalGate.rejectLabelZh}」` : ''}。`
+        : `${target.approvalGate.promptZh} 请在主对话明确确认「${target.approvalGate.approveLabelZh}」${target.approvalGate.rejectLabelZh ? `或「${target.approvalGate.rejectLabelZh}」` : ''}，也可在工作台点击同一决策。`
       return {
         board,
         stageId: target.id,

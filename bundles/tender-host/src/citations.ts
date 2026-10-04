@@ -185,7 +185,7 @@ export function citationAuditPath(cwd: string, projectId: string, module: string
  * verify each, persist the ledger to orchestration/citation-audit.json.
  * @returns the persisted audit (also the API/tool response payload).
  */
-export function auditProjectCitations(cwd: string, project: BusinessProjectRecord): CitationAudit {
+export function auditProjectCitations(cwd: string, project: BusinessProjectRecord, options: { persist?: boolean } = {}): CitationAudit {
   const files = walkMarkdown(officialProjectDir(cwd, project.projectId))
   const orphans: CitationOrphan[] = []
   let total = 0
@@ -226,7 +226,7 @@ export function auditProjectCitations(cwd: string, project: BusinessProjectRecor
     evidenceCitations: evidenceCount,
     orphans,
   }
-  writeJson(citationAuditPath(cwd, project.projectId, project.module), audit)
+  if (options.persist !== false) writeJson(citationAuditPath(cwd, project.projectId, project.module), audit)
   return audit
 }
 

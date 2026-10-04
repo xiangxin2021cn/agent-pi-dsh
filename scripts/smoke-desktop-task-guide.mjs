@@ -29,6 +29,7 @@ const userDataDir = join(scratch, 'electron-user-data')
 const dshHome = join(scratch, 'dsh-home')
 const workspace = join(scratch, 'workspace')
 const sourceFile = join(workspace, '项目资料.md')
+const linkedSourceFile = join(workspace, 'workbench-source.txt')
 const reportFile = join(workspace, '工期建议.md')
 const objective = '判断当前施工方案的工期是否可实现，形成给领导决策的建议'
 const assistantReply = '我会先核对材料中的工期条件，再整理影响工期判断的约束与待确认事项。'
@@ -45,6 +46,7 @@ writeFileSync(sourceFile, [
   '',
 ].join('\n'), 'utf8')
 writeFileSync(reportFile, '# 工期建议\n\n正文和补遗的工期不同，需确认文件优先顺序与实际资源配置。\n', 'utf8')
+writeFileSync(linkedSourceFile, '真实工作台联动回归资料：施工范围与工期需要对照原稿分析，本地测试不涉及真实投标文件。\n', 'utf8')
 
 const profileInit = spawnSync(process.execPath, [join(root, 'scripts', 'init-tender-profile.mjs')], {
   cwd: root,
@@ -80,6 +82,14 @@ import {createMessage,createUserMessage} from ${JSON.stringify(pathToFileURL(joi
 export const name='qa-session';
 export const inject=['sessions','sessionPersistence','sessionController','webServer','tools','agents','taskGuide'];
 export async function apply(ctx) {
+  let releaseRun;
+  let heldRun;
+  ctx.on('agent/pre-step',async ({agent,messages},next)=>{
+    if(agent?.session.id!=='qa-guided-task')return next();
+    for(const message of messages || [])agent.session.append('user/message',message,{surfaceOp:'append'});
+    if(heldRun)await heldRun;
+    return {kind:'reject'};
+  },{prepend:true});
   await ctx.sessionController.create({sessionId:'qa-guided-task',cwd:process.env.AGENT_PI_QA_WORKSPACE});
   const s=ctx.sessions.get('qa-guided-task');
   s.append('turn/start',{turn:1});
@@ -95,11 +105,23 @@ export async function apply(ctx) {
     try {
       if(req.method==='GET')return send(200,{humanMessages:s.deriveMessages().filter(row=>row.role==='user').length});
       req.setEncoding('utf8');let raw='';for await(const part of req)raw+=part;
-      const input=JSON.parse(raw);if(!['professional_task','professional_depth'].includes(input.tool))throw new Error('Unsupported QA tool');
+      const input=JSON.parse(raw);
       const agent=ctx.agents.get(s.id);if(!agent)throw new Error('QA session agent is not ready');
+      if(input.action==='finish'){
+        releaseRun?.();await agent.whenIdle();heldRun=undefined;releaseRun=undefined;return send(200,{finished:true});
+      }
+      if(input.action==='admit'||input.action==='run'){
+        if(input.control)ctx.taskGuide.registerControlPrompt(s.id,input.text);
+        if(input.action==='run')heldRun=new Promise(resolve=>{releaseRun=resolve});
+        const message=createUserMessage({content:[{type:'text',text:input.text}],source:{kind:'user'}});
+        agent.send(message,'next-turn',true);
+        if(input.action==='admit')await agent.whenIdle();
+        return send(200,{messageId:message.id});
+      }
+      if(!['professional_task','professional_depth','tender_project','tender_stage'].includes(input.tool))throw new Error('Unsupported QA tool');
       const result=await agent.ctx.get('tools').execute({callId:'qa-'+Date.now(),name:input.tool,arguments:input.args,agent,signal:new AbortController().signal});
       if(result.isError)throw new Error(JSON.stringify(result.content));
-      send(200,result.value);
+      send(200,typeof result.value==='string'?JSON.parse(result.value):result.value);
     }catch(error){send(409,{error:String(error.message||error)})}
   }});
 }
@@ -308,6 +330,8 @@ try {
   await page.getByRole('button',{name:'收起资源文件',exact:true}).click()
   await page.setViewportSize({width:390,height:844})
   await dialog.getByRole('tab',{name:'任务概览',exact:true}).click()
+  await dialog.getByText(objective,{exact:true}).waitFor({timeout:remaining()})
+  await dialog.locator('[data-finding-id="period-conflict"]').waitFor({timeout:remaining()})
   await page.screenshot({path:join(artifactDir,'06-task-overview-mobile.png'),fullPage:true})
   assert.ok(await dialog.evaluate(element=>element.scrollWidth<=element.clientWidth),'panel fits narrow viewport')
   await dialog.getByRole('button',{name:'返回对话',exact:true}).click()
@@ -321,9 +345,91 @@ try {
   const persisted=await request(taskUrl)
   assert.equal(persisted.task.quality.enabled,true)
   assert.deepEqual(persisted.task.quality.checks.map(row=>row.id),priorChecks.map(row=>row.id))
+
+  // Exercise the project tool -> host projection -> all three native views.
+  // This uses isolated local files and the real inbox, with the model step rejected above.
+  const projectId='qa-linked-tender'
+  await runTool('tender_project',{action:'create',module:'tender',projectId,name:'真实工作台联动 QA',inputPaths:[linkedSourceFile],projectGoal:objective})
+  await runTool('tender_stage',{action:'complete',module:'tender',projectId})
+  let linked=await request(taskUrl)
+  assert.equal(linked.task.binding.projectId,projectId)
+  assert.equal(linked.task.binding.stageId,'bid-risk-decision')
+  assert.equal(linked.task.coverage.filter(row=>row.id.startsWith('workbench:')&&row.kind==='file').length,1)
+  assert.equal(linked.task.coverage.find(row=>row.id.startsWith('workbench:')).status,'parsed')
+  const bidSummary=join(workspace,'Agent Pi Outputs',projectId,'bid-decision','投标决策与重大风险评估.md')
+  mkdirSync(join(bidSummary,'..'),{recursive:true})
+  writeFileSync(bidSummary,'# 投标决策与重大风险评估\n\n建议参与本地回归项目，理由是当前范围可以进一步分析；实施资源仍待确认。本文仅供确定性界面与阶段门禁回归使用，不能代替实际客户专业决策。\n','utf8')
+  await runTool('tender_stage',{action:'status',module:'tender',projectId})
+  const decision=await request('/api/agent-pi/qa-task-tool',{action:'admit',text:'确定投标，按计划推进'})
+  linked=await request(taskUrl)
+  assert.equal(linked.task.latestMessageId,decision.messageId)
+  assert.equal(linked.task.latestRequest,'确定投标，按计划推进')
+  const boardPath=join(workspace,'.agent-pi','business','tender',projectId,'orchestration','stage-state.json')
+  let board=JSON.parse(readFileSync(boardPath,'utf8'))
+  assert.equal(board.stages['bid-risk-decision'].approval.decision,'approved')
+  assert.equal(board.stages['bid-risk-decision'].approval.source.messageId,decision.messageId)
+  assert.equal((await runTool('tender_stage',{action:'status',module:'tender',projectId})).userRequirements.length,0,'a trusted stage decision must not become another requirement awaiting acceptance')
+  const beforeControl=await request(taskUrl)
+  const controlText='【阶段切换 — 请在本项目主会话继续】\n已注册的 QA 阶段控制消息'
+  await request('/api/agent-pi/qa-task-tool',{action:'admit',control:true,text:controlText})
+  const afterControl=await request(taskUrl)
+  assert.equal(afterControl.task.latestMessageId,beforeControl.task.latestMessageId,'registered stage control keeps actual latest human intent')
+  const prepared=await runTool('tender_stage',{action:'prepare',module:'tender',projectId,stageId:'tender-document-analysis'})
+  assert.equal(prepared.blocked,undefined)
+  assert.equal(prepared.state.status,'idle','a prepared draft has not yet been dispatched')
+  linked=await request(taskUrl)
+  assert.equal(linked.task.binding.stageId,'tender-document-analysis')
+  assert.ok(linked.task.plan.some(row=>row.id.includes(':stage:')&&row.title==='招标文件解析'&&row.status==='pending'),'shared stage state agrees with the actual prepared board')
+  const taskStatePath=join(dshHome,'agent-pi','professional-tasks',createHash('sha256').update('qa-guided-task').digest('hex')+'.json')
+  const oldShape=JSON.parse(readFileSync(taskStatePath,'utf8'))
+  oldShape.plan.push({id:'qa-legacy-plan',title:'旧任务计划记录',status:'pending',dependsOn:[],capabilityIds:[],evidenceIds:[],requirementIds:[]})
+  oldShape.deliverables.push({id:'qa-legacy-report',path:reportFile,status:'draft',signature:'not_required',stepIds:[],requirementIds:[],evidenceIds:[]})
+  oldShape.brief.basis.standards.push({name:'旧规范名称',evidenceId:'source:schedule'})
+  writeFileSync(taskStatePath,JSON.stringify(oldShape,null,2),'utf8')
+  await request(taskUrl)
+  await request('/api/agent-pi/qa-task-tool',{action:'run',text:'查看当前进度'})
+  await page.waitForFunction(()=>!!document.querySelector('[data-composer-seat] button[aria-label*="停止"]'),undefined,{timeout:20_000})
+  await trigger.click()
+  for(const label of ['任务概览','修正目标','项目依据','执行计划','可用能力','交付检查']){
+    await dialog.getByRole('tab',{name:label,exact:true}).click()
+    assert.ok((await dialog.innerText()).trim().length>60,'running task tab stays readable: '+label)
+    assert.equal(await page.locator('[data-slot-error]').count(),0,'no native slot boundary swallowed a legacy rendering exception')
+  }
+  await dialog.getByRole('tab',{name:'执行计划',exact:true}).click()
+  await dialog.getByText('旧任务计划记录',{exact:true}).waitFor()
+  await page.getByRole('tab',{name:'专业化工作台',exact:true}).click()
+  const linkedWorkbench=page.locator('.ap-wb')
+  await linkedWorkbench.getByRole('heading',{name:'真实工作台联动 QA',exact:true}).waitFor({timeout:20_000})
+  await runTool('tender_stage',{action:'execution_update',module:'tender',projectId,stageId:'tender-document-analysis',executionStatus:'working',objective,currentBatch:'正在核对工期与资源',planItems:[{id:'qa-stage-plan',title:'逐文件核对工期条件',status:'in_progress'}],nextAction:'继续核对实际文件'})
+  linked=await request(taskUrl)
+  assert.ok(linked.task.plan.some(row=>row.id.includes(':execution:')&&row.status==='working'),'the actual execution ledger contributes its current work separately from stage gates')
+  assert.equal(JSON.parse(readFileSync(boardPath,'utf8')).stages['tender-document-analysis'].status,'idle','recording execution progress does not dispatch or complete the actual stage')
+  await linkedWorkbench.getByText(/当前批次：正在核对工期与资源/).waitFor({timeout:20_000})
+  await page.locator('.ap-task-process').getByText(/正在解决：正在核对工期与资源/).waitFor({timeout:20_000})
+  await runTool('professional_task',{action:'record_finding',revision:linked.task.revision,input:{id:'hidden-view-live-finding',title:'运行期间发现的资源缺口',summary:'切换工作台期间登记的新发现。',goalImpact:'需要补足班组条件后才能完成工期判断。',evidenceIds:['source:schedule']}})
+  await trigger.click()
+  await dialog.getByRole('tab',{name:'任务概览',exact:true}).click()
+  await dialog.getByText(/当前重点：正在核对工期与资源/).waitFor({timeout:20_000})
+  await dialog.locator('[data-finding-id="hidden-view-live-finding"]').waitFor({timeout:20_000})
+  await dialog.getByRole('tab',{name:'执行计划',exact:true}).click()
+  await dialog.getByRole('region',{name:'执行者登记的工作进度',exact:true}).getByText('正在核对工期与资源',{exact:true}).waitFor({timeout:20_000})
+  assert.doesNotMatch(await dialog.locator('section[aria-label="工作台阶段与实际门禁"]').innerText(),/正在核对工期与资源/)
+  await page.getByRole('tab',{name:'对话',exact:true}).click()
+  await summary.locator('[data-finding-id="hidden-view-live-finding"]').waitFor({timeout:20_000})
+  assert.match(await summary.innerText(),/正在核对工期与资源/)
+  assert.equal(await summary.getByText(objective,{exact:true}).count(),1)
+  await page.screenshot({path:join(artifactDir,'07-live-workbench-task-chat-linkage.png'),fullPage:true})
+  await request('/api/agent-pi/qa-task-tool',{action:'finish'})
+  const approvalFingerprint=board.stages['bid-risk-decision'].approval.source.fingerprint
+  await runTool('tender_stage',{action:'status',module:'tender',projectId})
+  await request(taskUrl)
+  board=JSON.parse(readFileSync(boardPath,'utf8'))
+  assert.equal(board.stages['bid-risk-decision'].approval.source.fingerprint,approvalFingerprint,'read-only polling preserves the byte-based approval receipt')
+  assert.equal(board.stages['bid-risk-decision'].approval.decision,'approved')
+  console.log(JSON.stringify({phase:'actual-workbench-inbox-and-running-tabs',status:'ok',decisionMessageId:decision.messageId,artifactDir}))
   assert.deepEqual(pageErrors,[])
   assert.deepEqual(consoleErrors,[])
-  console.log(JSON.stringify({status:'ok',browser:'Browser plugin not available; existing Playwright Electron workflow',viewports:['desktop','390x844'],checks:['actual-plugin-service','actual-professional-source-and-finding-tools','main-chat-shared-understanding','stable-finding-replay','default-automatic-task-overview','independent-field-draft-with-live-findings','shared-depth-goal-and-byte-checks','toggle-keeps-check-history-without-messages','verified-source-preview','Cordis-domain-capability-catalogue','reload-persistence','narrow-layout','english-ui','no-render-errors'],artifactDir,limitation:'Isolated deterministic fixture; no paid model requests or logged-in autonomous Codex turn.'}))
+  console.log(JSON.stringify({status:'ok',browser:'Browser plugin not available; existing Playwright Electron workflow',viewports:['desktop','390x844'],checks:['actual-plugin-service','actual-professional-source-and-finding-tools','main-chat-shared-understanding','stable-finding-replay','default-automatic-task-overview','independent-field-draft-with-live-findings','shared-depth-goal-and-byte-checks','toggle-keeps-check-history-without-messages','verified-source-preview','Cordis-domain-capability-catalogue','reload-persistence','narrow-layout','english-ui','real-workbench-source-and-decision-artifact','native-inbox-stage-decision','host-registered-control-preserves-user-intent','six-running-task-tabs-with-legacy-records','shared-workbench-header-task-chat-execution-focus','live-finding-during-view-switch','execution-progress-does-not-approve-stage','stable-approval-during-polling','no-render-errors'],artifactDir,limitation:'Isolated deterministic fixture; no paid model requests or logged-in autonomous Codex turn.'}))
 } catch(error){
   if(page)await page.screenshot({path:join(artifactDir,'failure.png'),fullPage:true}).catch(()=>{})
   const diagnostics=page?{url:page.url(),pageErrors,consoleErrors,regions:await page.locator('section[aria-label]').evaluateAll(rows=>rows.map(row=>row.getAttribute('aria-label'))),body:(await page.locator('body').innerText()).slice(-8000)}:{}

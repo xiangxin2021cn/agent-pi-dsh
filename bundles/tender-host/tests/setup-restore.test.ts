@@ -8,6 +8,7 @@ import { completeSetup, prepareStage, refreshSourceBriefsAfterRestore, saveBoard
 import { saveWorkspaceText } from '../src/preview-export.ts'
 import { SETUP_RESTORE_KIND, isSetupAlignablePath, restoreSetupSource, restoreSetupSources } from '../src/setup-restore.ts'
 import type { MineruIngestResult } from '../src/mineru-ingest.ts'
+import { initTenderWorkspace, registerProjectSources } from '../src/workspace.ts'
 
 const SAMPLE_MARKDOWN = [
   '# 1 Materials',
@@ -254,6 +255,9 @@ test('a late restore rewrites already-issued analysis briefs', async () => {
     inputPaths: [pdf],
   })
   const first = completeSetup(cwd, project)
+  assert.match(first.blocked || '', /资料|抽取|解析|恢复/)
+  // A persisted legacy analysis brief can predate the source-alignment gate.
+  first.board.stages['project-setup'] = { stageId: 'project-setup', status: 'done', tasks: [], updatedAt: new Date().toISOString() }
   first.board.stages['bid-risk-decision'] = {
     stageId: 'bid-risk-decision',
     status: 'done',
@@ -262,14 +266,20 @@ test('a late restore rewrites already-issued analysis briefs', async () => {
     completedAt: new Date().toISOString(),
     approval: { decision: 'approved', decidedAt: new Date().toISOString() },
   }
+  const briefPath = join(cwd, '.agent-pi', 'business', 'tender', 'p1', 'orchestration', 'briefs', 'pack-book-3-of-volume-3.json')
+  mkdirSync(join(briefPath, '..'), { recursive: true })
+  writeFileSync(briefPath, JSON.stringify({ sourcePath: pdf }))
+  first.board.stages['tender-document-analysis'] = {
+    stageId: 'tender-document-analysis', status: 'queued', updatedAt: new Date().toISOString(),
+    tasks: [{ id: 'pack-book-3-of-volume-3', sourcePath: pdf, title: 'Book 3 of Volume 3', status: 'queued', briefPath }],
+  }
   saveBoard(cwd, first.board)
-  const analysis = prepareStage(cwd, project, 'tender-document-analysis')
-  const briefPath = analysis.board.stages['tender-document-analysis']?.tasks[0]?.briefPath
-  assert.ok(briefPath)
   const before = JSON.parse(readFileSync(briefPath, 'utf8')) as { sourcePath: string; restoredManuscript?: string }
   assert.equal(before.sourcePath, pdf)
   assert.equal(before.restoredManuscript, undefined)
   const restore = await restoreSetupSource(cwd, 'p1', pdf, { ingest: fakeIngest() })
+  initTenderWorkspace(cwd, 'p1', { id: 'p1', title: 'N3', status: 'active' })
+  registerProjectSources(cwd, 'p1', { title: 'N3', inputPaths: [pdf] })
   refreshSourceBriefsAfterRestore(cwd, project)
   const after = JSON.parse(readFileSync(briefPath, 'utf8')) as {
     sourcePath: string

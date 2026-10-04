@@ -163,7 +163,7 @@ export interface ProfessionalTask {
   latestRequest: string
   latestMessageId?: string
   brief: TaskBrief
-  questions: Array<{ id: string; question: string; answer?: string; provider?: string; requestId?: string; callId?: string; purpose?: string; status?: 'pending' | 'open' | 'continued' | 'answered' | 'expired' | 'cancelled'; askedRevision?: number; answerSource?: 'user' | 'native' }>
+  questions: Array<{ id: string; question: string; answer?: string; provider?: string; requestId?: string; callId?: string; purpose?: string; status?: 'pending' | 'open' | 'continued' | 'answered' | 'expired' | 'cancelled'; askedRevision?: number; answerSource?: 'user' | 'native'; decisionScope?: { cwd: string; projectId: string; moduleId: string; stageId: string; fingerprint: string; approveLabel: string; rejectLabel?: string } }>
   evidence: Evidence[]
   requirements: TaskRequirement[]
   coverage: Coverage[]

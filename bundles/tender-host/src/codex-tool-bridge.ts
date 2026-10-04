@@ -69,6 +69,7 @@ export function createCodexToolBridge(ctx: any, defineTool: (options: any) => un
     agent.send(message, 'next-turn', true)
     await agent.whenIdle()
     if (agent.inbox?.hasPending) throw new Error('当前对话仍有待处理消息，不能开始另一个主执行者。')
+    ctx.get('taskGuide')?.admitHumanMessage?.(agent.session.id, text, message.id)
     lease.admissionId = undefined
   }
   const drain = async (lease: any) => {

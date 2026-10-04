@@ -70,6 +70,7 @@ import { assessAnalysisCoverage, loadAnalysisCoverage, recordAnalysisCoverage, t
 import { recordKnowledgeTelemetry } from './knowledge-telemetry.ts'
 import { loadWorkSurfacePolicy } from './worksurface-policy.ts'
 import { refreshStageMemorySnapshot, slimStageMemorySnapshot } from './stage-memory.ts'
+import { businessContextForAgent } from './business-activation.ts'
 
 type DefineTool = (options: Record<string, unknown>) => unknown
 
@@ -135,7 +136,38 @@ function jsonOut() {
 
 export function registerTools(ctx: {
   tools: { register: (definition: unknown) => unknown }
-}, defineTool: DefineTool, owner?: ProductToolOwner): void {
+  get?: (name: string) => any
+  emit?: (event: string, payload: unknown) => unknown
+}, nativeDefineTool: DefineTool, owner?: ProductToolOwner): void {
+  const defineTool: DefineTool = (options: any) => nativeDefineTool({ ...options, execute(args: any, exec: any = {}) {
+    const originalAgent = exec.agent
+    const businessTool = String(options.name).startsWith('tender_')
+    const context = businessTool ? businessContextForAgent(exec.agent, ctx.get?.bind(ctx)) : null
+    const child = Boolean(exec.agent?.session?.header?.parentSession)
+    if (options.name === 'tender_project' && args.action === 'configure' && (!context || args.projectId !== context.project.projectId || (args.module && args.module !== context.project.module))) throw new Error('项目配置只能修改当前主会话已绑定的业务项目。')
+    if (businessTool && options.name !== 'tender_project') {
+      if (!context) throw new Error('本会话尚未明确绑定业务项目；子任务需要真实主会话绑定。')
+      if ((args.module && args.module !== context.project.module) || (args.projectId && args.projectId !== context.project.projectId)) throw new Error('该工具只允许访问当前主会话已绑定的业务项目。')
+      if (child && options.name === 'tender_stage' && !['status', 'check', 'execution_status', 'execution_update'].includes(args.action)) throw new Error('子任务只贡献成果和证据，阶段推进、用户要求与人工决策由主会话处理。')
+      args = { ...args, module: context.project.module, projectId: context.project.projectId }
+      if (exec.agent.session.header?.cwd !== context.cwd) exec = { ...exec, agent: { ...exec.agent, id: exec.agent.id, ctx: exec.agent.ctx, session: { ...exec.agent.session, id: exec.agent.session.id, header: { ...exec.agent.session.header, cwd: context.cwd } } } }
+    }
+    if (child && options.name === 'tender_project' && !['list', 'get'].includes(args.action)) throw new Error('子任务不能创建、改绑或修改主会话的业务项目。')
+    const result = options.execute(args, exec)
+    const sync = async (value: unknown) => {
+      if (options.name === 'tender_project' && ['create', 'adopt', 'bind'].includes(args.action)) {
+        await ctx.emit?.('agent-pi/business-activation-sync', { agent: originalAgent })
+      }
+      if (businessTool && !['list', 'get', 'status', 'check', 'schema', 'execution_status'].includes(args.action)) {
+        const guide = ctx.get?.('taskGuide')
+        const cwd = context?.cwd || exec.agent?.session?.header?.cwd
+        if (cwd && args.projectId) guide?.syncWorkbenchProject?.(cwd, String(args.projectId), String(args.module || 'tender'))
+        else if (exec.agent?.session?.id) guide?.syncWorkbench?.(exec.agent.session.id)
+      }
+      return value
+    }
+    return result && typeof result.then === 'function' ? result.then(sync) : sync(result)
+  } })
   const tools = { register: (definition: any) => {
     if (!owner || toolOwner(definition.name) === owner) return ctx.tools.register(definition)
   } }
@@ -654,7 +686,7 @@ export function registerTools(ctx: {
 
   tools.register(defineTool({
     name: 'tender_stage',
-    description: 'Prepare or inspect a workbench stage. DSH is the only executor; the workbench provides disk facts, light coverage checks and explicit human stops. User requirements from the bound parent chat outrank default soft gates. execution_update is optional sparse progress telemetry only, never a heartbeat or a second planner. status returns pending work plus execution/fact alignment. Does not spawn subagents.',
+    description: 'Prepare or inspect a workbench stage for the selected main executor (DSH or native Codex). The workbench provides disk facts, coverage checks and explicit human stops. User requirements from the bound parent chat outrank default soft gates. execution_update is optional sparse progress telemetry only, never a heartbeat or a second planner. status returns pending work plus execution/fact alignment. A real human decision in the main chat or workbench uses the same artifact checks; models cannot approve through complete_stage. Does not spawn subagents.',
     parameters: tenderStageParameters,
     output: jsonOut(),
     execute(args: Record<string, unknown>, exec: {
@@ -712,10 +744,15 @@ export function registerTools(ctx: {
         return textResult(markForcePass(cwd, projectId, args.stageId ? String(args.stageId) : undefined))
       }
       if (args.action === 'record_requirement') {
+        const task = ctx.get?.('taskGuide')?.read(sessionId)
+        const text = String(args.requirementText || '')
+        if (task && (!task.latestMessageId || text !== task.latestRequest)) throw new Error('项目用户要求只能引用当前真实用户消息原句；不能由模型重述或补造授权。')
+        if (task && ctx.get?.('taskGuide')?.isControlMessage?.(sessionId, task.latestMessageId)) throw new Error('该消息是已处理的真实阶段决策或系统控制，不会再次登记为待验收要求。')
         return textResult(recordProjectUserRequirement(cwd, project, {
           sessionId: String(exec.agent?.session?.id || ''),
           stageId: args.stageId ? String(args.stageId) : undefined,
-          text: String(args.requirementText || ''),
+          text,
+          messageId: task?.latestMessageId,
         }))
       }
       if (args.action === 'satisfy_requirement') {

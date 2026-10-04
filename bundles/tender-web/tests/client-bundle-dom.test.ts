@@ -33,6 +33,12 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     text: '只修改重大风险结论，不要重做已完成的招标文件解析。', status: 'active',
     createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
   }
+  const professionalTask = {
+    sessionId:'review-session',revision:30,brief:{objective:'按实际资料核验当前阶段',formats:[],basis:{standards:[{name:'已有规范',evidenceId:'e1'}]}},
+    questions:[],plan:[{id:'old-plan',title:'已有计划',status:'done',dependsOn:[]}],coverage:[],evidence:[],findings:[],deliverables:[{id:'old-report',path:'outputs/分析报告.md',status:'reviewed'}],
+  }
+  const taskBinding={cwd:'C:/workspace',projectId:'bound-project',moduleId:'report',stageId:'review',approvalGate:true,canApprove:false,waitingHuman:false,approvalReason:'请先完成阶段资料。'}
+  let taskGuideEnabled=false
   const workbenchSnapshot = {
     cwd: 'C:\\workspace',
     knowledge: {},
@@ -126,7 +132,8 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
         : {}
       fetchCalls.push({ url, action: request.action, text: request.text, transactionId: request.transactionId, files: request.files })
       let body: unknown = { files: [], outputFiles: [] }
-      if (url.includes('/api/agent-pi/capabilities')) body = { workbench: true, knowledge: true }
+      if (url.includes('/api/agent-pi/capabilities')) body = { workbench: true, knowledge: true, taskGuide:taskGuideEnabled }
+      else if (url.includes('/api/agent-pi/professional-task')) body = {task:structuredClone(professionalTask),binding:taskBinding,capabilities:[],audit:{}}
       else if (url.includes('/api/agent-pi/workbench')) body = {
         ...workbenchSnapshot,
         projects: workbenchSnapshot.projects.map((item) => ({
@@ -260,10 +267,11 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
       },
       slots: {
         inject(_name: string, callback: () => void) { callback() },
-        entries() { return [] },
+        entries(name: string) { return name==='conversation.session' ? [{options:{},store:{},inject:()=>({openView(){}})}] : [] },
         subscribe() { return () => {} },
         register(definition: { id?: string; name: string }, component: unknown) {
           registered.set(definition.id || definition.name, ['agent-pi-composer-tools', 'agent-pi-attachments'].includes(definition.id || '') ? (props) => React.createElement(component, { useSessions: select => select({ byId: { [props.sessionId]: { id: props.sessionId, retainedBy: { mainView: 1 }, cwd: 'C:/workspace' } } }), ...props }) : component)
+          return ()=>{}
         },
       },
       remote: {
@@ -625,6 +633,9 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     rootView = createRoot(mount)
     const Workbench = registered.get('workbench')
     assert.equal(typeof Workbench, 'function')
+    workflow.stages.push({id:'bid-decision',labelZh:'投标决策',hintZh:'审查实际成果',prompt:'',skillSlugs:[],approvalGate:{approveLabelZh:'批准本阶段',promptZh:'核对阶段成果'}} as never)
+    Object.assign(workbenchSnapshot.projects[0].stages,{'bid-decision':{id:'bid-decision',status:'idle',tasks:[]}})
+    Object.assign(workbenchSnapshot.projects[0],{stageAvailability:{'bid-decision':{canPrepare:false,canApprove:false,waitingHuman:false,reason:'请先完成前序阶段「项目资料登记」。'}}})
     await act(async () => {
       rootView!.render(React.createElement(Workbench, {
         sessionId: 'session-1',
@@ -646,6 +657,17 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     assert.match(rendered, /资料齐套检查/)
     assert.match(rendered, /用户要求（最高优先级）/)
     assert.match(rendered, /只修改重大风险结论，不要重做已完成的招标文件解析/)
+    const decisionRow=Array.from(mount.querySelectorAll('.ap-stage-row')).find(row=>row.textContent?.includes('投标决策'))!
+    const decisionButtons=Array.from(decisionRow.querySelectorAll('button'))
+    assert.equal(decisionButtons.find(row=>row.textContent==='进入此阶段')?.disabled,true,'later stages cannot prepare while their authoritative predecessor is unfinished')
+    assert.equal(decisionButtons.find(row=>row.textContent==='批准本阶段')?.disabled,true,'approval follows the same authoritative readiness shown in the task summary')
+    assert.match(decisionRow.textContent || '',/请先完成前序阶段/)
+    const readsBefore=fetchCalls.filter(call=>call.url.includes('/api/agent-pi/workbench')).length
+    await act(async()=>{
+      dom.window.dispatchEvent(new dom.window.CustomEvent('agent-pi-task-snapshot',{detail:{sessionId:'session-1',binding:{cwd:'C:/workspace'}}}))
+      await new Promise(resolveTick=>setTimeout(resolveTick,20))
+    })
+    assert.ok(fetchCalls.filter(call=>call.url.includes('/api/agent-pi/workbench')).length>readsBefore,'the mounted workbench immediately rereads a changed shared task')
     const satisfyRequirement = Array.from(mount.querySelectorAll('button')).find((button) => button.textContent === '标记已落实')
     assert.ok(satisfyRequirement)
     await act(async () => {
@@ -670,6 +692,43 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     assert.deepEqual(promptTexts, ['【专业项目启动】请依据已登记资料完成项目对齐并继续当前阶段。'])
     assert.equal(fetchCalls.filter((call) => call.action === 'mark_dispatched').length, 1)
     assert.equal(fetchCalls.filter((call) => call.url.startsWith('open-view:chat:')).length, 1)
+
+    await act(async()=>rootView!.unmount())
+    rootView=createRoot(mount)
+    const TaskGuide=registered.get('agent-pi-task-guide')
+    assert.equal(typeof TaskGuide,'function')
+    const navigation: string[]=[]
+    taskGuideEnabled=true
+    const SummaryDock=registered.get('agent-pi-professional-summary')
+    assert.equal(typeof SummaryDock,'function')
+    const guideOpenView=(view:string)=>navigation.push('guide:'+view)
+    const dockOpenView=(view:string)=>navigation.push('dock:'+view)
+    const dockProps={key:'dock',sessionId:'review-session',openView:dockOpenView,useStore:()=> 'agent-pi-task-guide'}
+    await act(async()=>{
+      dom.window.dispatchEvent(new dom.window.Event('focus'))
+      await new Promise(resolveTick=>setTimeout(resolveTick,20))
+      rootView!.render(React.createElement(React.Fragment,null,React.createElement(SummaryDock,dockProps),React.createElement(TaskGuide,{key:'guide',sessionId:'review-session',openView:guideOpenView})))
+      await new Promise(resolveTick=>setTimeout(resolveTick,30))
+    })
+    assert.match(mount.textContent || '',/按实际资料核验当前阶段/)
+    for(const label of ['执行计划','项目依据','交付检查','任务概览']){
+      const tab=Array.from(mount.querySelectorAll('button')).find(row=>row.textContent===label)!
+      await act(async()=>tab.dispatchEvent(new dom.window.MouseEvent('click',{bubbles:true})))
+      assert.ok(mount.querySelector('.ap-task-guide'),'generated native task view stays mounted for '+label)
+    }
+    const openBoundProject=Array.from(mount.querySelectorAll('button')).find(row=>row.textContent==='查看工作台阶段')!
+    await act(async()=>openBoundProject.dispatchEvent(new dom.window.MouseEvent('click',{bubbles:true})))
+    assert.deepEqual(navigation,['guide:workbench'],'navigation uses the task view owner session, even when the global composer points elsewhere')
+    assert.equal(dom.window.sessionStorage.getItem('ap-wb-module'),'report')
+    assert.equal(dom.window.sessionStorage.getItem('ap-wb-project'),'bound-project')
+    await act(async()=>{
+      rootView!.render(React.createElement(React.Fragment,null,React.createElement(SummaryDock,{...dockProps,useStore:()=> 'chat'})))
+      await new Promise(resolveTick=>setTimeout(resolveTick,20))
+    })
+    const openAfterReturn=Array.from(mount.querySelectorAll('button')).find(row=>row.textContent==='查看工作台阶段')!
+    assert.ok(openAfterReturn,'the shared summary returns with the original dock owner')
+    await act(async()=>openAfterReturn.dispatchEvent(new dom.window.MouseEvent('click',{bubbles:true})))
+    assert.deepEqual(navigation,['guide:workbench','dock:workbench'],'unmounting Current task does not remove the still-mounted dock navigation owner')
 
     await act(async () => rootView!.unmount())
     rootView = createRoot(mount)

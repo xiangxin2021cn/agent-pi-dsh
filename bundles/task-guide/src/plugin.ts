@@ -1,16 +1,19 @@
 import { createHash } from 'node:crypto'
-import { createTaskStore, markChangedDeliverables } from '../../../packages/professional-tasks/task.ts'
+import { isDeepStrictEqual } from 'node:util'
+import { createTaskStore, markChangedDeliverables, taskOperationDigest } from '../../../packages/professional-tasks/task.ts'
 import { CapabilityRegistry, assessCapability, toolCapabilities } from '../../../packages/professional-tasks/capabilities.ts'
 import { calculateBoq, deriveCrewConsumption, resourcePeaks } from '../../../packages/professional-tasks/calculations.ts'
 import { auditTask, inspectWriting, writingPreset } from '../../../packages/professional-tasks/quality.ts'
 import type { Capability, ProfessionalTask } from '../../../packages/professional-tasks/types.ts'
 import { parseTaskSource } from './sources.ts'
 import { professionalTaskContext, isTaskStatusRequest, taskWebDiligenceCommand } from './context.ts'
-import { projectForBoundSession, loadBoard, recordProjectUserRequirement, approvalStageFingerprint } from '../../tender-host/src/orchestration.ts'
+import { projectTaskPatch, isWorkbenchRecord } from './workbench.ts'
+import { projectForBoundSession, loadBoard, recordProjectUserRequirement, recordHumanStageDecision, decideApprovalStage, approvalStageFingerprint, stageAvailability } from '../../tender-host/src/orchestration.ts'
 import { workflowFor } from '../../tender-host/src/modules.ts'
 import { setPendingTaskSync, loadUserRequirementLedger } from '../../tender-host/src/user-requirements.ts'
 import { officialStageDir } from '../../tender-host/src/outputs.ts'
 import { join } from 'node:path'
+import { getBusinessProject } from '../../../packages/business-projects/index.ts'
 
 export const TASK_GUIDANCE = `Agent Pi professional task guidance. The selected main executor owns understanding, clarification, execution, feedback and stopping. Product task state is our shared record, never another agent loop or a prerequisite form.
 Use the main conversation to gradually understand the user's goal. Classify each actual message semantically as a goal, supplemental fact, correction, scope change, progress question or control request. Read supplied material first; proceed with independent useful work and only ask questions that change the execution path or acceptance. A clear request runs directly. Update shared understanding via professional_task apply_understanding with partial brief fields, intent and provenance; identify explicit user text, located source facts and provisional inferences. Do not silently replace the project-wide goal with a current-stage goal. Ordinary status questions do not change requirements or invalidate completed work.
@@ -26,6 +29,27 @@ Automatically apply the current professional writing preset; use the user's temp
 export function registerTaskGuide(ctx: any, defineTool: (options: any) => unknown, home: string) {
   const store = createTaskStore(home)
   const registry = new CapabilityRegistry()
+  const decisionMessages = new Set<string>()
+  const controlPrompts = new Map<string, number>()
+  const controlMessages = new Set<string>()
+  const controlKey = (sessionId: string, text: string) => `${rootSession(sessionId).id}:${createHash('sha256').update(text).digest('hex')}`
+  const consumeControlPrompt = (sessionId: string, text: string, messageId?: string) => {
+    if (messageId && controlMessages.has(messageId)) return true
+    const key = controlKey(sessionId, text)
+    const expires = controlPrompts.get(key)
+    if (!expires) return false
+    controlPrompts.delete(key)
+    if (expires < Date.now()) return false
+    if (messageId) controlMessages.add(messageId)
+    if (controlMessages.size > 256) controlMessages.delete(controlMessages.values().next().value!)
+    return true
+  }
+  const isControlMessage = (sessionId: string, messageId?: string) => {
+    if (!messageId) return false
+    if (controlMessages.has(messageId) || decisionMessages.has(`${rootSession(sessionId).id}:${messageId}`)) return true
+    const state = store.read(rootSession(sessionId).id)
+    return state.latestMessageId === messageId && state.operationReceipts.some(row => row.id === `human-stage-decision:${messageId}` && row.digest === taskOperationDigest({ messageId, text: state.latestRequest }, 'user'))
+  }
   const rootSession = (id: string) => {
     let session = ctx.get('sessions')?.get(id) || ctx.get('agents')?.get(id)?.session
     const seen = new Set<string>()
@@ -75,6 +99,10 @@ export function registerTaskGuide(ctx: any, defineTool: (options: any) => unknow
       const pending = loadUserRequirementLedger(session.header.cwd, project).pendingTaskSync?.[session.id]
       if (pending) state = commit(session.id, { pendingProjectSync: { ...pending, createdAt: new Date().toISOString() } }, state.revision, 'host', { summary: '恢复未完成的项目要求同步记录' })
     }
+    if (project) {
+      const patch = projectTaskPatch(state, session.header.cwd, project)
+      if (Object.keys(patch).length) state = commit(session.id, patch, state.revision, 'host', { summary: '工作台实际资料、阶段、发现及成果已同步到共同任务' })
+    }
     return state
   }
   const readStatus = async (agent: any) => {
@@ -97,7 +125,7 @@ export function registerTaskGuide(ctx: any, defineTool: (options: any) => unknow
     }
     const owner = ctx.get('agents')?.get(session.id)
     const fs = owner?.ctx?.get?.('fs') || (agent.session.id === session.id && agent.ctx !== ctx ? agent.ctx?.get?.('fs') : undefined)
-    const paths = [...new Set([...state.deliverables.filter(row => row.checks.some(check => check.fingerprint)).map(row => row.path), ...state.quality.checks.filter(row => row.sha256 && row.path).map(row => row.path!)])]
+    const paths = [...new Set([...state.deliverables.filter(row => (row.checks || []).some(check => check.fingerprint)).map(row => row.path), ...state.quality.checks.filter(row => row.sha256 && row.path).map(row => row.path!)])]
     const verificationGaps: string[] = []
     if (!fs) verificationGaps.push(...paths)
     if (fs && session.id === agent.session.id) {
@@ -117,36 +145,87 @@ export function registerTaskGuide(ctx: any, defineTool: (options: any) => unknow
     const stage = project && workflowFor(project).stages.find(row => row.id === state.binding!.stageId)
     const board = project && loadBoard(state.binding!.cwd!, project.projectId, project.module)
     const approvalDeliverables = stage ? [...(board!.stages[stage.id]?.tasks || []).map(row => ({ title: row.title, path: row.markdownPath || row.reportPath, status: row.status })).filter(row => row.path), ...(stage.summaryDeliverable ? [{ title: stage.summaryDeliverable.fileName, path: join(officialStageDir(state.binding!.cwd!, project!.projectId, stage.id), stage.summaryDeliverable.fileName) }] : [])] : []
-    return { task: state, binding: state.binding ? { ...state.binding, approvalGate: !!stage?.approvalGate, approvalFingerprint: stage?.approvalGate ? approvalStageFingerprint(state.binding.cwd!, project!, stage.id) : undefined, approvalDeliverables } : null, audit: auditTask(state), verificationGaps }
+    const availability = project && stage && stageAvailability(state.binding!.cwd!, project, board!)[stage.id]
+    return { task: state, binding: state.binding ? { ...state.binding, approvalGate: !!stage?.approvalGate, canApprove: !!availability?.canApprove, waitingHuman: !!availability?.waitingHuman, approvalReason: availability?.reason, approvalFingerprint: availability?.canApprove ? approvalStageFingerprint(state.binding.cwd!, project!, stage.id) : undefined, approvalDeliverables } : null, audit: auditTask(state), verificationGaps }
   }
   const taskContext = (agent: any) => {
-    let session = agent?.session
-    const seen = new Set<string>()
-    while (session && !seen.has(session.id)) {
-      seen.add(session.id)
-      const state = store.read(session.id)
-      if (!session.header.parentSession) return state
-      session = ctx.get('sessions')?.get(session.header.parentSession)
-    }
-    return agent?.session ? store.read(agent.session.id) : undefined
+    return agent?.session ? refreshBinding(rootSession(agent.session.id)) : undefined
   }
   const service = {
     apiVersion: 2, read: (id: string) => store.read(rootSession(id).id),
+    syncWorkbench: (id: string) => refreshBinding(rootSession(id)),
+    syncWorkbenchProject(cwd: string, projectId: string, module = 'tender') {
+      const project = getBusinessProject(cwd, module, projectId)
+      if (!project) return []
+      const ids = new Set(Object.keys(loadUserRequirementLedger(cwd, project).bindings).map(id => rootSession(id).id))
+      return [...ids].flatMap(id => {
+        const session = rootSession(id)
+        const bound = session.header?.cwd && projectForBoundSession(session.header.cwd, id)
+        return bound?.projectId === projectId && bound.module === module ? [refreshBinding(session)] : []
+      })
+    },
+    registerControlPrompt(id: string, text: string) {
+      for (const [key, expires] of controlPrompts) if (expires < Date.now()) controlPrompts.delete(key)
+      if (text) controlPrompts.set(controlKey(id, text), Date.now() + 5 * 60_000)
+    },
+    consumeControlPrompt,
+    isControlMessage,
+    admitHumanMessage(id: string, text: string, messageId?: string) {
+      const session = rootSession(id)
+      if (session.id !== id) return { task: store.read(session.id), ignored: true }
+      let state = refreshBinding(session)
+      if (!text.trim() || (messageId && state.latestMessageId === messageId)) return { task: state, replay: true }
+      if (consumeControlPrompt(session.id, text, messageId)) return { task: state, control: true }
+      const project = state.binding && projectForBoundSession(state.binding.cwd!, session.id)
+      const decision = project && messageId ? recordHumanStageDecision(state.binding!.cwd!, project, { sessionId: session.id, messageId, text }) : { handled: false }
+      if (decision.handled && messageId) decisionMessages.add(`${session.id}:${messageId}`)
+      const brief = structuredClone(state.brief)
+      const diligence = taskWebDiligenceCommand(text)
+      if (diligence) brief.webDiligence = diligence
+      state = commit(session.id, { latestRequest: text, latestMessageId: messageId, needsAssessment: decision.handled || isTaskStatusRequest(text) ? state.needsAssessment : true, brief }, state.revision, 'user', { ...(decision.handled ? { operationId: `human-stage-decision:${messageId}`, operationPayload: { messageId, text } } : {}), summary: decision.handled ? decision.status === 'blocked' ? '用户已表达阶段决策，实际门禁仍有待处理条件' : '用户的明确阶段决策已落实到工作台' : isTaskStatusRequest(text) ? '用户询问进展或调整执行状态' : '收到用户的新表达，主对话将更新任务理解' })
+      return { task: decision.handled ? refreshBinding(session) : state, decision }
+    },
     status: readStatus,
     update: commit,
-    context: (id: string) => professionalTaskContext(store.read(rootSession(id).id)),
+    context: (id: string) => professionalTaskContext(refreshBinding(rootSession(id))),
     linkNativeQuestion(id: string, input: any) {
-      const state = store.read(rootSession(id).id)
+      const session = rootSession(id)
+      let state = store.read(session.id)
+      if ((input.questions || []).some((row: any) => {
+        const old = state.questions.find(value => value.id === `${input.provider}:${input.callId}:${row.id}`)
+        return !old || input.answers?.[row.id] !== undefined && old.answer !== String(input.answers[row.id])
+      })) state = refreshBinding(session)
       const questions = [...state.questions]
+      const decisions: Array<{ key: string; answer: string; scope: NonNullable<ProfessionalTask['questions'][number]['decisionScope']> }> = []
       for (const row of input.questions || []) {
         const key = `${input.provider}:${input.callId}:${row.id}`
         const old = questions.find(value => value.id === key)
         const answer = input.answers?.[row.id]
-        const question = { ...old, id: key, question: row.question, provider: input.provider, callId: String(input.callId), requestId: String(input.requestId || input.callId), askedRevision: old?.askedRevision ?? state.revision, status: answer !== undefined ? 'answered' : input.status || 'open', ...(answer !== undefined ? { answer: String(answer), answerSource: 'native' } : {}) }
+        let decisionScope = old?.provider === input.provider ? old.decisionScope : undefined
+        if (!old && answer === undefined && state.binding?.cwd) {
+          const project = projectForBoundSession(state.binding.cwd, state.sessionId)
+          const stage = project && workflowFor(project).stages.find(value => value.id === state.binding!.stageId)
+          const labels = (row.options || []).map((option: any) => option.label)
+          if (stage?.approvalGate && (labels.includes(stage.approvalGate.approveLabelZh) || labels.includes(stage.approvalGate.rejectLabelZh))) decisionScope = { cwd: state.binding.cwd, projectId: project!.projectId, moduleId: project!.module, stageId: stage.id, fingerprint: approvalStageFingerprint(state.binding.cwd, project!, stage.id), approveLabel: stage.approvalGate.approveLabelZh, rejectLabel: stage.approvalGate.rejectLabelZh }
+        }
+        const question = { ...old, id: key, question: row.question, provider: input.provider, callId: String(input.callId), requestId: String(input.requestId || input.callId), askedRevision: old?.askedRevision ?? state.revision, status: answer !== undefined ? 'answered' : input.status || 'open', decisionScope, ...(answer !== undefined ? { answer: String(answer), answerSource: 'native' } : {}) }
+        if (answer !== undefined && old?.answer === undefined && decisionScope && [decisionScope.approveLabel, decisionScope.rejectLabel].includes(String(answer))) decisions.push({ key, answer: String(answer), scope: decisionScope })
         if (old) questions[questions.indexOf(old)] = question
         else questions.push(question)
       }
-      return JSON.stringify(questions) === JSON.stringify(state.questions) ? state : commit(id, { questions }, state.revision, 'host', { summary: input.answers ? '用户已通过原生问答补充条件' : '原生提问与共同任务关联' })
+      let next = JSON.stringify(questions) === JSON.stringify(state.questions) ? state : commit(id, { questions }, state.revision, 'host', { summary: input.answers ? '用户已通过原生问答补充条件' : '原生提问与共同任务关联' })
+      const choices = new Set(decisions.map(row => `${row.scope.projectId}:${row.scope.stageId}:${row.answer === row.scope.approveLabel ? 'approved' : 'rejected'}`))
+      if (choices.size > 1) return next
+      for (const row of decisions) {
+        const scope = row.scope
+        const project = projectForBoundSession(scope.cwd, state.sessionId)
+        if (!project || project.projectId !== scope.projectId || project.module !== scope.moduleId || loadBoard(scope.cwd, project.projectId, project.module).currentStageId !== scope.stageId || approvalStageFingerprint(scope.cwd, project, scope.stageId) !== scope.fingerprint) continue
+        try {
+          decideApprovalStage(scope.cwd, project, scope.stageId, row.answer === scope.approveLabel ? 'approved' : 'rejected', row.answer, { sessionId: state.sessionId, messageId: `native-question:${row.key}`, text: row.answer, fingerprint: scope.fingerprint })
+          next = refreshBinding(rootSession(id))
+        } catch { /* The real answer remains recorded; unmet workbench gates still require action. */ }
+      }
+      return next
     },
     async catalogue(agent?: any) {
       const tools = agent?.ctx?.get?.('tools') || ctx.tools
@@ -191,7 +270,7 @@ export function registerTaskGuide(ctx: any, defineTool: (options: any) => unknow
     const rows = structuredClone(state.deliverables)
     for (const row of rows) {
       signal?.throwIfAborted()
-      const retained = row.checks.filter(check => !['file', 'writing'].includes(check.kind))
+      const retained = (row.checks || []).filter(check => !['file', 'writing'].includes(check.kind))
       try {
         const target = await fs.resolve(row.path, { cwd: agent.session.header.cwd, signal })
         const stat = await fs.stat(target, signal)
@@ -199,7 +278,7 @@ export function registerTaskGuide(ctx: any, defineTool: (options: any) => unknow
         const bytes = await fs.readBytes(target, signal, 32 * 1024 * 1024)
         if (!bytes.length) throw new Error('成果文件为空。')
         const fingerprint = createHash('sha256').update(bytes).digest('hex')
-        const previous = row.checks.find(check => check.kind === 'file')?.fingerprint
+        const previous = (row.checks || []).find(check => check.kind === 'file')?.fingerprint
         if (previous && previous !== fingerprint) { row.status = 'stale'; retained.length = 0 }
         const { inspectDeliverable } = await import('../../tender-host/src/deliverable-format.ts')
         const content = await inspectDeliverable(bytes, row.path)
@@ -241,7 +320,29 @@ export function registerTaskGuide(ctx: any, defineTool: (options: any) => unknow
       }
       if (args.action === 'update') {
         if (agent.session.id !== state.sessionId && Object.keys(args.patch || {}).some(key => !['evidence', 'coverage', 'findings'].includes(key))) throw new Error('子任务不能修改共同目标、计划或用户决策。')
-        return commit(state.sessionId, args.patch || {}, args.revision, 'agent', operationOptions)
+        const patch = { ...args.patch }
+        for (const field of ['evidence', 'coverage', 'findings', 'requirements', 'plan', 'deliverables'] as const) if (patch[field]) {
+          const protectedRows = state[field].filter((row: any) => isWorkbenchRecord(row.id))
+          const reviewedRows = new Map<string, any>()
+          for (const row of patch[field].filter((row: any) => isWorkbenchRecord(row.id))) {
+            const old = protectedRows.find((value: any) => value.id === row.id)
+            if (field === 'deliverables' && old && agent.session.id === state.sessionId) {
+              const annotations = new Set(['professional', 'coverage', 'calculation', 'format'])
+              const identity = (value: any) => Object.fromEntries(Object.entries(value).filter(([key]) => !['checks', 'requirementIds', 'evidenceIds', 'stepIds', 'status'].includes(key)))
+              if (!isDeepStrictEqual(identity(row), identity(old)) || !Array.isArray(row.checks) || !isDeepStrictEqual(row.checks.filter((check: any) => !annotations.has(check.kind)), old.checks.filter((check: any) => !annotations.has(check.kind)))) throw new Error('工作台成果的文件身份、路径和实际文件检查由宿主维护。')
+              if (row.status !== old.status && row.status !== 'reviewed') throw new Error('专业注释只能登记 reviewed；客户验收由真实用户确认。')
+              const fingerprint = old.checks.find((check: any) => check.kind === 'file' && check.status === 'passed')?.fingerprint
+              if (!fingerprint && row.checks.some((check: any) => annotations.has(check.kind) && check.status === 'passed')) throw new Error('专业检查通过前须核验实际成果版本。')
+              if (row.checks.some((check: any) => annotations.has(check.kind) && check.fingerprint && check.fingerprint !== fingerprint)) throw new Error('专业检查须对应已核验的实际成果版本。')
+              if (row.status === 'reviewed' && ['file', 'professional', 'writing'].some(kind => !row.checks.some((check: any) => check.kind === kind && check.status === 'passed'))) throw new Error('实际文件和专业内容检查尚未完成，不能登记 reviewed。')
+              reviewedRows.set(row.id, { ...row, checks: row.checks.map((check: any) => annotations.has(check.kind) && fingerprint ? { ...check, fingerprint } : check) })
+            } else if (!isDeepStrictEqual(row, old)) throw new Error('工作台投影由实际项目记录维护，请使用对应工作台工具更新。')
+          }
+          patch[field] = patch[field].map((row: any) => reviewedRows.get(row.id) || row)
+          const current = agent.session.id === state.sessionId ? protectedRows : state[field]
+          patch[field] = [...current.filter((row: any) => !patch[field].some((value: any) => value.id === row.id)), ...patch[field]]
+        }
+        return commit(state.sessionId, patch, args.revision, 'agent', operationOptions)
       }
       if (args.action === 'apply_understanding') {
         const input = args.input || {}
@@ -257,7 +358,8 @@ export function registerTaskGuide(ctx: any, defineTool: (options: any) => unknow
         }
         const binding = state.binding
         const briefChanged = JSON.stringify(brief) !== JSON.stringify(state.brief)
-        const pending = (input.projectChange || briefChanged) && binding && state.latestMessageId ? { id: args.operationId || `message:${state.latestMessageId}`, text: state.latestRequest, messageId: state.latestMessageId, stageId: binding.stageId, createdAt: new Date().toISOString() } : undefined
+        const decisionMessage = isControlMessage(state.sessionId, state.latestMessageId) || (binding && Object.values(loadBoard(binding.cwd!, binding.projectId, binding.moduleId).stages).some(row => row.approval?.source?.messageId === state.latestMessageId))
+        const pending = (input.projectChange || briefChanged) && !decisionMessage && binding && state.latestMessageId ? { id: args.operationId || `message:${state.latestMessageId}`, text: state.latestRequest, messageId: state.latestMessageId, stageId: binding.stageId, createdAt: new Date().toISOString() } : undefined
         const project = pending && projectForBoundSession(binding.cwd!, state.sessionId)
         if (project) setPendingTaskSync(binding.cwd!, project, state.sessionId, { ...pending, stageId: pending.stageId || '' })
         let next
@@ -269,11 +371,13 @@ export function registerTaskGuide(ctx: any, defineTool: (options: any) => unknow
       if (args.action === 'sync_project') return syncProject(state)
       if (args.action === 'record_finding') {
         const input = args.input || {}
+        if (isWorkbenchRecord(String(input.id))) throw new Error('工作台发现由实际项目记录维护。')
         const old = state.findings.find(row => row.id === input.id)
         const finding = { ...input, createdRevision: old?.createdRevision ?? state.revision + 1, updatedRevision: state.revision + 1, status: input.status || 'open', source: { engine: String(exec.callId || '').startsWith('codex-') ? 'codex' : 'dsh', toolCallId: exec.callId } }
         return commit(state.sessionId, { findings: [...state.findings.filter(row => row.id !== finding.id), finding] }, args.revision, 'agent', { ...operationOptions, summary: `发现：${finding.title}` })
       }
       if (args.action === 'resolve_finding') {
+        if (isWorkbenchRecord(String(args.input?.id))) throw new Error('请在工作台处理对应发现或模型检查。')
         if (!state.findings.some(row => row.id === args.input?.id)) throw new Error('未找到发现记录。')
         return commit(state.sessionId, { findings: state.findings.map(row => row.id === args.input.id ? { ...row, status: 'resolved', resolution: args.input.resolution, updatedRevision: state.revision + 1 } : row) }, args.revision, 'agent', { ...operationOptions, summary: '已更新发现的处理结果' })
       }
@@ -310,14 +414,8 @@ export function registerTaskGuide(ctx: any, defineTool: (options: any) => unknow
     if (message?.source?.kind !== 'user') return
     const session = rootSession(agent.session.id)
     if (session.id !== agent.session.id) return
-    const state = refreshBinding(session)
     const text = (message.content || []).filter((part: any) => part.type === 'text').map((part: any) => part.text).join('\n')
-    if (!text.trim()) return
-    if (message.id && state.latestMessageId === message.id) return
-    const brief = structuredClone(state.brief)
-    const diligence = taskWebDiligenceCommand(text)
-    if (diligence) brief.webDiligence = diligence
-    commit(session.id, { latestRequest: text, latestMessageId: message.id, needsAssessment: isTaskStatusRequest(text) ? state.needsAssessment : true, brief }, state.revision, 'user', { summary: isTaskStatusRequest(text) ? '用户询问进展或调整执行状态' : '收到用户的新表达，主对话将更新任务理解' })
+    service.admitHumanMessage(session.id, text, message.id)
   })
   ctx.inject(['webServer'], (scope: any) => {
     scope.effect(() => scope.webServer.register({ kind: 'exact', path: '/api/agent-pi/professional-task', async handler(req: any, res: any) {

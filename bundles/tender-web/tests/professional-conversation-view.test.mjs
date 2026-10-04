@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 import { installProfessionalConversationView } from '../src/client/professional-conversation-view.js'
+import { createProfessionalTaskSummary } from '../src/client/professional-task-summary.js'
 
 /** StoredEntry keeps name, store, inject and children out of its options bag. */
 function slotsFixture() {
@@ -56,7 +57,7 @@ test('shared dock uses native store and navigation without replacing chat or red
   s.ctx.slots.register({name:'conversation.view',id:'chat',children:{'conversation.chat.node':{kind:'map',scope:'session'}}},NativeChat)
   s.ctx.slots.register({name:'conversation.session',store,inject,children:{'conversation.view':{kind:'list',scope:'session'}}},NativeSession)
   const originalChat=s.ctx.slots.entries('conversation.view')[0],originalSession=s.ctx.slots.entries('conversation.session')[0]
-  function Summary(props){return f.React.createElement('section',{'data-shared-summary':''},f.React.createElement('button',{onClick:()=>props.openView('agent-pi-task-guide','actual-focus')},'View current task'))}
+  function Summary(props){return props.visible?f.React.createElement('section',{'data-shared-summary':''},f.React.createElement('button',{onClick:()=>props.openView('agent-pi-task-guide','actual-focus')},'View current task')):null}
   const stop=installProfessionalConversationView(s.ctx,f.React,Summary)
   try {
     const dock=s.ctx.slots.entries('conversation.input.dock')[0]
@@ -80,7 +81,7 @@ test('shared dock uses native store and navigation without replacing chat or red
 test('one shared dock appears only in default chat and native Codex conversation views',async()=>{
   const f=await domFixture(),s=slotsFixture(),store=storeFixture()
   s.ctx.slots.register({name:'conversation.session',store,inject:(_id,actions)=>({openView:actions.openView})},()=>null)
-  const stop=installProfessionalConversationView(s.ctx,f.React,()=>f.React.createElement('section',{'data-shared-summary':''},'Shared goal'))
+  const stop=installProfessionalConversationView(s.ctx,f.React,props=>props.visible?f.React.createElement('section',{'data-shared-summary':''},'Shared goal'):null)
   try {
     const dock=s.ctx.slots.entries('conversation.input.dock')[0]
     await f.act(async()=>f.root.render(f.React.createElement(dock.component,renderedProps(f,dock,store))))
@@ -89,6 +90,29 @@ test('one shared dock appears only in default chat and native Codex conversation
       assert.equal(f.document.querySelectorAll('[data-shared-summary]').length,[null,'chat','agent-pi-codex-main'].includes(view)?1:0,String(view))
     }
   } finally {stop();await f.close()}
+})
+
+test('running-session task subscriptions survive switching to workbench and return fresh findings',async()=>{
+  const f=await domFixture(),s=slotsFixture(),store=storeFixture(),updates=[]
+  let listener,subscriptions=0,disposed=0
+  const task={sessionId:'one',revision:30,brief:{objective:'逐页核验已登记资料'},plan:[],coverage:[],questions:[],deliverables:[],findings:[],quality:{enabled:true}}
+  const Summary=createProfessionalTaskSummary({React:f.React,api:async()=>({task:structuredClone(task)}),cwd:()=>'',language:()=> 'zh',onTask:(_id,next)=>updates.push(next.revision),subscribe:(_id,callback)=>{subscriptions++;listener=callback;return()=>disposed++}})
+  s.ctx.slots.register({name:'conversation.session',store,inject:(_id,actions)=>({openView:actions.openView})},()=>null)
+  const stop=installProfessionalConversationView(s.ctx,f.React,Summary)
+  try {
+    const dock=s.ctx.slots.entries('conversation.input.dock')[0]
+    await f.act(async()=>f.root.render(f.React.createElement(dock.component,renderedProps(f,dock,store))))
+    await f.act(async()=>store.actions.openView('workbench',''))
+    assert.equal(f.document.querySelector('.ap-task-summary'),null)
+    assert.equal(disposed,0,'hiding the summary preserves its canonical task reader')
+    task.revision=31;task.findings=[{id:'f-new',title:'实际发现',summary:'材料存在期限差异。',goalImpact:'影响当前方案。',status:'open'}]
+    await f.act(async()=>listener())
+    assert.equal(updates.at(-1),31)
+    await f.act(async()=>store.actions.openView('chat',''))
+    assert.equal(f.document.querySelectorAll('[data-finding-id="f-new"]').length,1)
+    assert.equal(subscriptions,1,'view navigation does not create duplicate task readers')
+  } finally {stop();await f.close()}
+  assert.equal(disposed,1)
 })
 
 test('native seat replacement and hot mounting keep one dock and clean up subscriptions',async()=>{

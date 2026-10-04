@@ -229,6 +229,8 @@ export function attachHttp(ctx: {
   getCapabilities?: () => { workbench: boolean; knowledge: boolean; taskGuide?: boolean }
   getUniver?: () => UniverOfficeService | null | undefined
   getDefaultModel?: () => { provider: string; model: string; reasoningEffort?: string } | undefined
+  syncWorkbenchProject?: (cwd: string, projectId: string, module: string) => unknown
+  registerControlPrompt?: (sessionId: string, text: string) => unknown
 }, owner?: ProductPluginOwner): void {
   const webServer = ctx.webServer
   if (!webServer) return
@@ -243,7 +245,16 @@ export function attachHttp(ctx: {
     .replaceAll('"name": "DSH Local Build"', '"name": "Agent Pi"')
     .replaceAll('"short_name": "DSH"', '"short_name": "Agent Pi"')) ?? (() => {}))
 
+  const sendResponse = send
   const handler = async (req: IncomingMessage, res: ServerResponse) => {
+      let changedProject: { cwd: string; projectId: string; module: string; sessionId?: string } | undefined
+      const send = (res: ServerResponse, status: number, body: any) => {
+        if (status < 300 && changedProject) {
+          ctx.syncWorkbenchProject?.(changedProject.cwd, changedProject.projectId, changedProject.module)
+          if (changedProject.sessionId && typeof body?.draft === 'string' && body.draft && !body.blocked && !body.alreadyDispatched) ctx.registerControlPrompt?.(changedProject.sessionId, body.draft)
+        }
+        sendResponse(res, status, body)
+      }
       try {
         if (req.method === 'OPTIONS') {
           send(res, 204, {})
@@ -786,15 +797,18 @@ export function attachHttp(ctx: {
               send(res, 400, { error: '升级必须指定专业模块' })
               return
             }
-            send(res, 200, adoptWorkspace(cwd, {
+            const adopted = adoptWorkspace(cwd, {
               module: body.module,
               name: body.name,
               projectId: body.projectId,
               inputPaths: body.inputPaths,
-            }))
+            })
+            changedProject = { cwd, projectId: adopted.project.projectId, module: adopted.project.module }
+            send(res, 200, adopted)
             return
           }
           const project = createProject(cwd, body)
+          changedProject = { cwd, projectId: project.projectId, module: project.module }
           send(res, 200, projectSnapshot(cwd, project))
           return
         }
@@ -819,6 +833,7 @@ export function attachHttp(ctx: {
             force: body.force === true,
             preferMineru: body.preferMineru === true,
           })
+          changedProject = { cwd, projectId, module }
           inspectBoard(cwd, project)
           if (batch.restored.length > 0) refreshSourceBriefsAfterRestore(cwd, project)
           send(res, 200, { ...batch, project: projectSnapshot(cwd, project) })
@@ -848,6 +863,7 @@ export function attachHttp(ctx: {
           if (usesTenderControlProfile(module)) {
             registerProjectSources(cwd, projectId, { title: updated.name, inputPaths: updated.inputPaths })
           }
+          changedProject = { cwd, projectId, module }
           inspectBoard(cwd, updated)
           send(res, 200, projectSnapshot(cwd, updated))
           return
@@ -900,6 +916,7 @@ export function attachHttp(ctx: {
           }
           const stageId = body.stageId ?? workflowFor(project).stages[0]?.id ?? 'project-setup'
           const action = body.action || 'prepare'
+          changedProject = { cwd, projectId, module, sessionId: body.sessionId }
           if (!['status', 'check', 'bind_session', 'execution_status'].includes(action)) assertModuleEnabled(module)
           const selectedKnowledgeSlugs = getKbTaskSlugs(body.sessionId)
           if (body.sessionId) bindProjectSession(cwd, project, body.sessionId, body.stageId || '')
