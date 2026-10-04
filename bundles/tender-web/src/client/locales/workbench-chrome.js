@@ -1,6 +1,9 @@
 // These keys are product-authored interface copy, never project or document text.
 // English is the fallback for locales that do not yet have their own wording.
 const en = {
+  '点「继续推进」明确启动当前阶段。宿主持久记录派工和收件；刷新页面读取同一记录，重启后核对实际回执，遇到人工门、预算或无进展时停止。': 'Continue explicitly starts the current stage. The host persists dispatches and receipts; refresh reads the same ledger, restart checks actual receipts, and human gates, budgets or lack of progress stop continuation.',
+  '出处定位：': 'Source location: ',
+  ' 个令牌可解析（kb ': ' resolvable tokens (kb ',
   '规划中': 'Planning',
   '执行中': 'In progress',
   '等待回推': 'Waiting for agent update',

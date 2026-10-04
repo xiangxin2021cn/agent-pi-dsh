@@ -1,5 +1,6 @@
 import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path'
-import { copyFileSync, existsSync, mkdirSync, readdirSync, statSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { listBusinessProjects } from '../../../packages/business-projects/index.ts'
 import { projectDir, ensureDir, writeJson, readJson } from './fsutil.ts'
 import { usesTenderControlProfile } from './modules.ts'
@@ -79,7 +80,8 @@ export function copyFileIfNewer(sourcePath: string, destinationPath: string): bo
     try {
       const sourceStat = statSync(sourcePath)
       const destStat = statSync(destinationPath)
-      if (destStat.mtimeMs >= sourceStat.mtimeMs && destStat.size === sourceStat.size) return false
+      if (destStat.size === sourceStat.size
+        && createHash('sha256').update(readFileSync(sourcePath)).digest('hex') === createHash('sha256').update(readFileSync(destinationPath)).digest('hex')) return false
     } catch {
       // copy
     }
@@ -115,7 +117,7 @@ export function publishOfficialOutput(
   kind: 'json' | 'markdown' | 'other' = 'other',
   folder?: string,
   module = 'tender',
-): { dest: string } {
+): { dest: string; deliveryState: 'draft' } {
   if (!existsSync(sourcePath)) throw new Error(`Source file does not exist: ${sourcePath}`)
   if (extname(sourcePath).toLowerCase() === '.json') {
     throw new Error('JSON ledgers stay in orchestration/reports. Write customer Markdown to Official Outputs.')
@@ -127,7 +129,7 @@ export function publishOfficialOutput(
   const dest = join(destDir, basename(sourcePath))
   copyFileIfNewer(sourcePath, dest)
   appendCatalog(cwd, projectId, dest, kind === 'json' ? 'other' : kind, module)
-  return { dest }
+  return { dest, deliveryState: 'draft' }
 }
 
 function scanCustomerFiles(dirPath: string): string[] {

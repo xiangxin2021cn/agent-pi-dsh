@@ -2,6 +2,11 @@
     - id: tender-host
       name: dsh-tender-host
       inject: [tools, systemPrompt]
+    - id: task-session-history
+      name: '@deepseek-ai/dsh-tool-session-query'
+      config:
+        maxSearchResults: 40
+        searchTimeoutMs: 30000
 
 # Preserve the official preset's goal/plan/todo tools. Only an explicitly bound
 # workbench session suppresses the separate automatic goal continuation driver.

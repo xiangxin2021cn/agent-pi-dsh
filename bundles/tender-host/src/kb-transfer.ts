@@ -5,6 +5,7 @@
  */
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto'
 import { existsSync, readFileSync, statSync } from 'node:fs'
+import type { KnowledgeMetadata } from './knowledge-versions.ts'
 
 export const KB_TRANSFER_EXT = '.apkb'
 export const KB_TRANSFER_KIND = 'agent-pi-kb-transfer'
@@ -37,6 +38,8 @@ export interface KbTransferEntryItem {
   manuscript: string
   contentList?: unknown
   originalBase64?: string
+  /** Optional for schema-1 packs created before source provenance was recorded. */
+  metadata?: KnowledgeMetadata
 }
 
 export interface KbTransferSkillItem {

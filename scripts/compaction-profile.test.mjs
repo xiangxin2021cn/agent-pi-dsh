@@ -108,6 +108,7 @@ function createFixture(t) {
     writePackage(dsh, `packages/experimental/${name}`, `@deepseek-ai/dsh-experimental-${name}`, { lib: true })
   }
   writePackage(dsh, 'packages/subagent/subagent-codex', '@deepseek-ai/dsh-subagent-codex')
+  writePackage(dsh, 'packages/session-query/tool-session-query', '@deepseek-ai/dsh-tool-session-query', { lib: true })
   writePackage(dsh, 'packages/web/web-fetch-http', '@deepseek-ai/dsh-web-fetch-http', { lib: true })
   writePackage(dsh, 'packages/compaction/compaction-basic', '@deepseek-ai/dsh-compaction-basic', { bundle: false, lib: true })
   for (const name of [
@@ -187,6 +188,7 @@ function runInitializer(fixture, fallbackPreference, overrides = {}) {
     encoding: 'utf8',
     env,
     windowsHide: true,
+    timeout: 30_000,
   })
   assert.equal(result.status, 0, `initializer failed\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`)
   return result
@@ -214,8 +216,11 @@ test('incompatible AnySearch retains installation but managed defaults select of
   const profile = join(fixture.home, 'profiles/tender')
   const manifest = JSON.parse(readFileSync(join(profile, 'package.json'), 'utf8'))
   assert.ok(manifest.dependencies['@anysearch/anysearch-dsh'])
+  assert.ok(manifest.dependencies['@deepseek-ai/dsh-tool-session-query'])
   const patch = readFileSync(join(fixture.home, '.agent-pi-presets/product-defaults.patch.yml'), 'utf8')
   assert.match(patch, /searchProvider: deepseek-official/)
+  assert.match(patch, /id: session-query-sqlite[\s\S]*openAt: first-search/)
+  assert.ok(patch.includes(JSON.stringify(join(fixture.home, 'session-query.sqlite'))))
   assert.deepEqual(JSON.parse(readFileSync(path, 'utf8')).peerDependencies, plugin.peerDependencies)
   plugin.peerDependencies = { '@deepseek-ai/dsh-web': '>=0.1.7-rc.1' }
   writeFileSync(path, JSON.stringify(plugin))

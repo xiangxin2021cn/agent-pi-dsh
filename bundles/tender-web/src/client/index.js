@@ -21,6 +21,7 @@ import { clientCss } from './styles.js'
 import { createProfessionalDepth, professionalDepthCss, prepareDepthSubmission } from './professional-depth.js'
 import { createTaskProcess, taskProcessCss } from './task-process.js'
 import { createTaskGuide, taskGuideCss } from './task-guide.js'
+import { createSkillLifecycle, skillLifecycleCss } from './skill-lifecycle.js'
 import { createProfessionalTaskSummary, professionalTaskSummaryCss } from './professional-task-summary.js'
 import { installProfessionalConversationView } from './professional-conversation-view.js'
 import { createNativeCodexExecution } from './codex-execution.js'
@@ -37,7 +38,6 @@ import {
   slicePreviewMarkdown,
 } from '../md-preview.ts'
 import { buildPreviewSelectionFollowup } from '../selection-rewrite.ts'
-import { createSessionTransactionRegistry } from '../session-transaction.ts'
 import {
   isWorkbenchWakeText,
   lastChildReturn,
@@ -58,7 +58,7 @@ const SearchSettings = createSearchSettings(React)
     const api = (path, cwd, init) => requestApi(path, cwd, init).then(result => {
       if (path === '/api/agent-pi/stage' && init?.method === 'POST') {
         const input = JSON.parse(init.body || '{}')
-        if (input.action !== 'check') window.dispatchEvent(new CustomEvent('agent-pi-project-state-changed', {detail:{...input,cwd}}))
+        if (!['check', 'runtime_status'].includes(input.action)) window.dispatchEvent(new CustomEvent('agent-pi-project-state-changed', {detail:{...input,cwd}}))
       }
       return result
     })
@@ -962,8 +962,8 @@ const SearchSettings = createSearchSettings(React)
       return snapshotIsBusy(snapshotOf(resolveSessionId(props)))
     }
 
-    function pinParentSessionId() {
-      const sid = activeSessionId()
+    function pinParentSessionId(props) {
+      const sid = sessionHint(props) || activeSessionId()
       return parentSessionTarget(sid, snapshotOf(sid), readSessionListSnap())
     }
 
@@ -1017,39 +1017,6 @@ const SearchSettings = createSearchSettings(React)
       return Promise.reject(new Error('当前没有可写入的主对话。请先打开或新建一个会话。'))
     }
 
-    const WORKBENCH_TRANSACTION_STATE_KEY = 'ap-wb-session-transactions:v1'
-    function loadWorkbenchTransactionState() {
-      try {
-        const value = JSON.parse(localStorage.getItem(WORKBENCH_TRANSACTION_STATE_KEY) || 'null')
-        return {
-          transactions: Array.isArray(value && value.transactions) ? value.transactions : [],
-          paused: Array.isArray(value && value.paused) ? value.paused : [],
-        }
-      } catch {
-        return { transactions: [], paused: [] }
-      }
-    }
-    const restoredWorkbenchState = loadWorkbenchTransactionState()
-    const workbenchTransactions = window.__apWorkbenchTransactions
-      || (window.__apWorkbenchTransactions = createSessionTransactionRegistry(Date.now, restoredWorkbenchState.transactions))
-    const workbenchPausedSessions = window.__apWorkbenchPausedSessions
-      || (window.__apWorkbenchPausedSessions = new Set(restoredWorkbenchState.paused))
-    function persistWorkbenchTransactionState() {
-      const transactions = workbenchTransactions.committed()
-      const activeIds = new Set(transactions.map((item) => item.sessionId))
-      const paused = [...workbenchPausedSessions].filter((sessionId) => activeIds.has(sessionId))
-      try {
-        if (!transactions.length) localStorage.removeItem(WORKBENCH_TRANSACTION_STATE_KEY)
-        else localStorage.setItem(WORKBENCH_TRANSACTION_STATE_KEY, JSON.stringify({ transactions, paused }))
-      } catch {}
-    }
-    function setWorkbenchTransactionPaused(sessionId, paused) {
-      const id = String(sessionId || '').trim()
-      if (!id) return
-      if (paused) workbenchPausedSessions.add(id)
-      else workbenchPausedSessions.delete(id)
-      persistWorkbenchTransactionState()
-    }
     const workbenchSessionBindings = window.__apWorkbenchSessionBindings
       || (window.__apWorkbenchSessionBindings = new Map())
     const workbenchRequirementRecords = window.__apWorkbenchRequirementRecords
@@ -1213,82 +1180,20 @@ const SearchSettings = createSearchSettings(React)
       workbenchRequirementWatchers.set(id, { session, unsubscribe })
       onSession()
     }
-    function prepareWorkbenchTransaction(sessionId, payload) {
-      const id = String(sessionId || '').trim()
-      if (!id) throw new Error('自动推进需要明确的主会话。')
-      const previous = workbenchTransactions.get(id)
-      if (previous && (previous.phase === 'prepared' || previous.phase === 'committed')) {
-        if (previous.payload.cwd === payload.cwd
-          && previous.payload.module === payload.module
-          && previous.payload.projectId === payload.projectId) {
-          rememberWorkbenchBinding(id, payload)
-          ensureUserRequirementWatcher(id)
-          return previous
-        }
-        throw new Error('当前会话已有另一项自动推进事务，请先暂停或结束。')
-      }
-      const transaction = workbenchTransactions.prepare(id, payload)
-      rememberWorkbenchBinding(id, payload)
-      ensureUserRequirementWatcher(id)
-      return transaction
-    }
-    function commitWorkbenchTransaction(sessionId) {
-      const transaction = workbenchTransactions.commit(sessionId)
-      workbenchPausedSessions.delete(String(sessionId || '').trim())
-      persistWorkbenchTransactionState()
-      return transaction
-    }
-    function workbenchTransactionCanRun(sessionId) {
-      return workbenchTransactions.canRun(sessionId)
-    }
-    function settleWorkbenchTransaction(sessionId, phase, error) {
-      const transaction = workbenchTransactions.get(sessionId)
-      if (!transaction) return
-      if (phase === 'succeeded') workbenchTransactions.succeed(sessionId)
-      else workbenchTransactions.fail(sessionId, error)
-      workbenchPausedSessions.delete(String(sessionId || '').trim())
-      persistWorkbenchTransactionState()
-    }
-    function destroyWorkbenchTransaction(sessionId) {
-      workbenchSessionBindings.delete(String(sessionId || '').trim())
-      try { localStorage.removeItem(workbenchBindingKey(sessionId)) } catch {}
-      workbenchTransactions.destroy(sessionId)
-      workbenchPausedSessions.delete(String(sessionId || '').trim())
-      persistWorkbenchTransactionState()
-    }
 
-    // Auto-advance exists only inside an explicitly committed per-session
-    // transaction. A committed transaction survives renderer/app restarts, but
-    // remains bound to the exact session and project and never wakes unrelated sessions.
+    // The renderer observes host receipts; it does not resume or dispatch work.
     const monitorEngine = createWorkbenchSessionMonitor({
       api,
-      activeSessionId,
-      dispatchToConversation,
-      flushQueuedToParent,
       pinParentSessionId,
-      readSessionListSnap,
-      snapshotOf,
-      prepareTransaction: prepareWorkbenchTransaction,
-      commitTransaction: commitWorkbenchTransaction,
-      transactionCanRun: workbenchTransactionCanRun,
-      settleTransaction: settleWorkbenchTransaction,
-      destroyTransaction: destroyWorkbenchTransaction,
-      setTransactionPaused: setWorkbenchTransactionPaused,
-      requirementsPending: projectRequirementWritePending,
       onChange: () => window.dispatchEvent(new Event('agent-pi-monitor-changed')),
     })
     function restoreActiveWorkbenchMonitor() {
       if (monitorEngine.state.monitoring) return false
       const parentSessionId = pinParentSessionId()
-      const transaction = workbenchTransactions.get(parentSessionId)
-      if (!transaction || transaction.phase !== 'committed') return false
-      rememberWorkbenchBinding(parentSessionId, transaction.payload)
+      const binding = cachedWorkbenchBinding(parentSessionId, runtime.cwd || composerFace.cwd || '')
+      if (!binding) return false
       ensureUserRequirementWatcher(parentSessionId)
-      return monitorEngine.restore(
-        transaction.payload,
-        parentSessionId,
-        workbenchPausedSessions.has(parentSessionId),
-      )
+      return monitorEngine.restore(binding, parentSessionId)
     }
     let transactionRestoreList = null
     function watchWorkbenchTransactionRestore() {
@@ -1773,7 +1678,8 @@ const SearchSettings = createSearchSettings(React)
       if (raw.startsWith('kb:')) {
         const rest = raw.slice(3)
         const sep = rest.lastIndexOf(':')
-        return sep > 0 ? rest.slice(0, sep) : rest
+        const label = sep > 0 ? rest.slice(0, sep) : rest
+        return label.replace(/@([a-f0-9]{64})$/, (_, version) => ' · v' + version.slice(0, 8))
       }
       if (raw.startsWith('src:')) {
         const rest = raw.slice(4)
@@ -1799,7 +1705,7 @@ const SearchSettings = createSearchSettings(React)
       text = text.replace(/`([^`]+)`/g, '<code>$1</code>')
       text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
       text = text.replace(/\*([^*]+)\*/g, '<em>$1</em>')
-      text = text.replace(/\[(kb:[a-z0-9][a-z0-9._-]*:[A-Za-z0-9._-]+)\]/g, (_, token) => citationChip(token))
+      text = text.replace(/\[(kb:[a-z0-9][a-z0-9._-]*(?:@[a-f0-9]{64})?:[A-Za-z0-9._-]+)\]/g, (_, token) => citationChip(token))
       text = text.replace(/\[(src:[^\]\r\n]+?)\]/g, (_, token) => citationChip(token))
       text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, href) => {
         const image = resolvePreviewImage(href, ctx)
@@ -4321,6 +4227,7 @@ const SearchSettings = createSearchSettings(React)
       const [editing, setEditing] = React.useState(null)
       const [kbEntries, setKbEntries] = React.useState([])
       const createCopy = moduleCreateCopy()
+      const SkillLifecyclePanel = React.useMemo(() => createSkillLifecycle({ React, api, language: () => langState.lang }), [])
 
       const load = React.useCallback(() => {
         return api('/api/agent-pi/modules', cwd, { method: 'GET' })
@@ -4499,6 +4406,8 @@ const SearchSettings = createSearchSettings(React)
           ),
           error ? h('div', { className: 'ap-err' }, error) : null,
           notice ? h('div', { className: 'ap-sub', style: { padding: '6px 0' } }, notice) : null,
+          h('style', null, skillLifecycleCss()),
+          h(SkillLifecyclePanel, { cwd, sessionId: props.sessionId || pinParentSessionId(props), onChanged: load }),
           h('details', { className: 'ap-sec' },
             h('summary', { style: { cursor: 'pointer' } }, createCopy.title),
             h('div', { className: 'ap-create-lead' },
@@ -4812,6 +4721,7 @@ const SearchSettings = createSearchSettings(React)
         try { return sessionStorage.getItem('ap-wb-project') || '' } catch { return '' }
       })
       const [monitorState, setMonitorState] = React.useState(() => Object.assign({}, monitorEngine.state))
+      const [runtimeLimits, setRuntimeLimits] = React.useState({ maxRounds: 64, maxTokens: 500000, maxElapsedMs: 7200000, maxNoProgress: 3 })
       const [, setSessionPulse] = React.useState(0)
       const [notice, setNotice] = React.useState('')
       const [lastCheck, setLastCheck] = React.useState(null)
@@ -4930,6 +4840,10 @@ const SearchSettings = createSearchSettings(React)
       }, [data, module, catalog.map((item) => item.id).join(',')])
 
       const row = projects.find((item) => item.project.projectId === selectedId) || null
+      const monitorParent = pinParentSessionId(props)
+      React.useEffect(() => {
+        if (row?.project && monitorParent) monitorEngine.restore({ cwd, module: row.project.module, projectId: row.project.projectId }, monitorParent)
+      }, [cwd, row?.project?.module, row?.project?.projectId, monitorParent])
 
       // Disk-verified project health check shown under the monitor header; filled
       // by the 检查 button or the live monitor, cleared when switching projects.
@@ -4969,7 +4883,7 @@ const SearchSettings = createSearchSettings(React)
             action: 'check',
             module: project.module,
             projectId: project.projectId,
-            sessionId: pinParentSessionId() || resolveSessionId(props) || runtime.sessionId || '',
+            sessionId: pinParentSessionId(props),
           }),
         }).then((result) => {
           setReality(result.reality || null)
@@ -5013,22 +4927,13 @@ const SearchSettings = createSearchSettings(React)
       }
 
       const runStage = (project, stageId, action, submit, closeWorkbench) => {
-        const parentId = pinParentSessionId()
+        const parentId = pinParentSessionId(props)
         setBusy(action + ':' + (stageId || ''))
         setError('')
         setNotice('')
         if (submit && !parentId) {
           setBusy('')
           setError('请先打开或新建一个主会话，再启动专业项目。')
-          return Promise.resolve()
-        }
-        const activeTransaction = submit ? workbenchTransactions.get(parentId) : null
-        if (activeTransaction && (activeTransaction.phase === 'prepared' || activeTransaction.phase === 'committed')
-          && (activeTransaction.payload.cwd !== cwd
-            || activeTransaction.payload.module !== project.module
-            || activeTransaction.payload.projectId !== project.projectId)) {
-          setBusy('')
-          setError('当前主会话已有另一项专业项目事务，请先暂停或结束。')
           return Promise.resolve()
         }
         return api('/api/agent-pi/stage', cwd, {
@@ -5054,7 +4959,7 @@ const SearchSettings = createSearchSettings(React)
           }
           if (result.alreadyDispatched) {
             if (submit) {
-              monitorEngine.start({ cwd, module: project.module, projectId: project.projectId })
+              monitorEngine.restore({ cwd, module: project.module, projectId: project.projectId }, parentId)
               if (closeWorkbench !== false) focusMainConversation(props)
             }
             setNotice(result.message || '阶段稿已写入主对话，等待执行。')
@@ -5077,32 +4982,19 @@ const SearchSettings = createSearchSettings(React)
             if (!result.closed) fillComposer(props, result.draft)
             return refresh()
           }
-          const transaction = prepareWorkbenchTransaction(parentId, {
-            cwd,
-            module: project.module,
-            projectId: project.projectId,
-          })
-          const ownsPreparedTransaction = transaction.phase === 'prepared'
-          return dispatchToConversation(props, result.draft, parentId).then((ok) => {
-            if (ok && result.dispatch) {
-              api('/api/agent-pi/stage', cwd, {
-                method: 'POST',
-                body: JSON.stringify({
-                  action: 'mark_dispatched',
-                  module: project.module,
-                  projectId: project.projectId,
-                  stageId: result.dispatch.stageId,
-                  key: result.dispatch.key,
-                }),
-              }).catch(() => {})
-            }
-            if (ok) {
-              monitorEngine.start({ cwd, module: project.module, projectId: project.projectId })
+          rememberWorkbenchBinding(parentId, { cwd, module: project.module, projectId: project.projectId })
+          ensureUserRequirementWatcher(parentId)
+          return api('/api/agent-pi/stage', cwd, {
+            method: 'POST', body: JSON.stringify({ action: 'runtime_dispatch', module: project.module,
+              projectId: project.projectId, sessionId: parentId,
+              stageId: result.dispatch?.stageId || stageId, key: result.dispatch?.key, limits: runtimeLimits }),
+          }).then((started) => {
+            if (started.runtime) {
+              monitorEngine.restore({ cwd, module: project.module, projectId: project.projectId }, parentId)
               if (closeWorkbench !== false) focusMainConversation(props)
             }
             return refresh()
           }).catch((e) => {
-            if (ownsPreparedTransaction) settleWorkbenchTransaction(parentId, 'failed', e)
             const release = result.dispatch
               ? api('/api/agent-pi/stage', cwd, {
                 method: 'POST',
@@ -5140,6 +5032,7 @@ const SearchSettings = createSearchSettings(React)
             module: project.module,
             projectId: project.projectId,
             stageId: stage.id,
+            sessionId: pinParentSessionId(props),
           }),
         }).then(() => {
           if (decision === 'rejected') {
@@ -5169,7 +5062,7 @@ const SearchSettings = createSearchSettings(React)
       const startLiveMonitor = () => {
         if (!row || !row.project) return
         try {
-          monitorEngine.start({ cwd, module: row.project.module, projectId: row.project.projectId })
+          monitorEngine.restore({ cwd, module: row.project.module, projectId: row.project.projectId }, pinParentSessionId(props))
         } catch (error) {
           setError(String(error && error.message || error))
         }
@@ -5179,6 +5072,7 @@ const SearchSettings = createSearchSettings(React)
         && row && row.project
         && monitorState.projectId === row.project.projectId
         && monitorState.cwd === cwd
+        && monitorState.parentSessionId === monitorParent
       const liveActivity = sessionActivity(readSessionListSnap(), monitorState.parentSessionId)
       const liveActivityText = liveActivity.runningChildCount > 0
         ? (liveActivity.runningChildCount + ' 个子智能体执行中')
@@ -5371,14 +5265,14 @@ const SearchSettings = createSearchSettings(React)
             h('div', { className: 'ap-mon-hd' },
               h('div', { style: { minWidth: 0 } },
                 h('h2', null, workbenchText('流程监控')),
-                h('p', { className: 'ap-sub' }, workbenchText('只有点「继续推进」才启动当前主会话事务；已启动事务会在应用重启后恢复，遇到人工决策门、阻塞或异常会停止。分析阶段只维护一套可追溯底稿。')),
+                h('p', { className: 'ap-sub' }, workbenchText('点「继续推进」明确启动当前阶段。宿主持久记录派工和收件；刷新页面读取同一记录，重启后核对实际回执，遇到人工门、预算或无进展时停止。')),
               ),
               h('div', { className: 'ap-mon-tools' },
                 h('span', { className: 'ap-row' },
                   h('i', { className: 'ap-dot' + ((monitoringHere && !monitorState.paused) || liveActivityText ? ' on' : '') }),
                   !monitoringHere
                     ? (liveActivityText || (monitorState.monitoring ? workbenchText('另一项目事务正在运行') : workbenchText('点继续推进后启动当前会话事务')))
-                    : (monitorState.paused ? workbenchText('当前会话事务已暂停') : workbenchText('当前会话事务空闲')) + (liveActivityText ? ' · ' + liveActivityText : ''),
+                    : (monitorState.runtime?.reason || monitorState.note) + (liveActivityText ? ' · ' + liveActivityText : ''),
                 ),
                 h('span', null, workbenchText('检查于 ') + (monitorState.lastCheck ? formatClock(new Date(monitorState.lastCheck).toISOString()) : (lastCheck ? formatClock(new Date(lastCheck).toISOString()) : '—'))),
                 h('button', {
@@ -5404,10 +5298,31 @@ const SearchSettings = createSearchSettings(React)
                     ? h('button', {
                       type: 'button',
                       className: 'ap-btn ghost',
-                      onClick: () => { monitorEngine.unpause(); refresh(true) },
+                      onClick: () => { void monitorEngine.unpause().then(() => refresh(true)) },
                 }, Icon('play', 14), workbenchText('恢复事务'))
                     : null,
               ),
+            ),
+            monitoringHere && monitorState.runtime?.run
+              ? h('div', { className: 'ap-state-body' },
+                h('p', null, '宿主执行：' + monitorState.runtime.phase + ' · 父子模型轮次 ' + monitorState.runtime.run.usage.rounds + '/' + monitorState.runtime.run.limits.maxRounds
+                  + ' · token ' + (monitorState.runtime.run.usage.unknownTokens ? '待核对（已知 ' + monitorState.runtime.run.usage.tokens + '）' : monitorState.runtime.run.usage.tokens) + '/' + monitorState.runtime.run.limits.maxTokens
+                  + ' · 累计执行 ' + Math.round(monitorState.runtime.run.usage.elapsedMs / 60000) + '/' + Math.round(monitorState.runtime.run.limits.maxElapsedMs / 60000) + ' 分钟'
+                  + ' · 费用 ' + (monitorState.runtime.cost === 'unknown' ? '未知' : '$' + monitorState.runtime.cost.toFixed(4))),
+                h('p', { className: 'ap-sub' }, '连续无实际进展 ' + monitorState.runtime.run.noProgress + '/' + monitorState.runtime.run.limits.maxNoProgress
+                  + ' · 子任务收件 ' + monitorState.runtime.run.submissions.filter(row => row.status === 'received').length
+                  + ' · 失效/拒绝 ' + monitorState.runtime.run.submissions.filter(row => row.status !== 'received').length
+                  + ' · 收到成果仍须独立核验和用户验收。'),
+              ) : null,
+            h('details', { className: 'ap-sec' },
+              h('summary', null, '本次显式启动的执行预算'),
+              h('div', { className: 'ap-row', style: { flexWrap: 'wrap', gap: 12 } },
+                [['maxRounds', '父子模型轮次'], ['maxTokens', '父子 token'], ['maxElapsedMs', '累计执行分钟'], ['maxNoProgress', '连续无进展次数'], ['maxCostUsd', '金额上限 USD（可选）']].map(([key, label]) =>
+                  h('label', { key, className: 'ap-mm-field' }, label, h('input', { type: 'number', min: 1,
+                    value: key === 'maxElapsedMs' ? runtimeLimits[key] / 60000 : runtimeLimits[key] ?? '',
+                    onChange: e => setRuntimeLimits(previous => { const next = { ...previous }; if (e.target.value === '' && key === 'maxCostUsd') delete next[key]; else next[key] = Number(e.target.value) * (key === 'maxElapsedMs' ? 60000 : 1); return next }) }))),
+              ),
+              h('p', { className: 'ap-sub' }, '续派使用已登记预算；调整值在下一次明确启动时提交。金额无法确定时显示未知，设置金额上限后需核对费用才能续派。'),
             ),
             h('div', { className: 'ap-dual-state' },
               h('article', { className: 'ap-state-card' },
@@ -5772,10 +5687,12 @@ const SearchSettings = createSearchSettings(React)
                   row.citationAudit.orphans.length
                     ? workbenchText('未通过：') + row.citationAudit.orphans.length + workbenchText(' 个孤儿引用 / 共 ') + row.citationAudit.totalCitations + workbenchText(' 个令牌')
                     : (row.citationAudit.totalCitations
-                      ? workbenchText('通过：') + row.citationAudit.totalCitations + workbenchText(' 个令牌全部可解析（kb ') + row.citationAudit.kbCitations + ' / src ' + row.citationAudit.srcCitations + ' / ev ' + (row.citationAudit.evidenceCitations || 0) + '）'
+                      ? workbenchText('出处定位：') + row.citationAudit.totalCitations + workbenchText(' 个令牌可解析（kb ') + row.citationAudit.kbCitations + ' / src ' + row.citationAudit.srcCitations + ' / ev ' + (row.citationAudit.evidenceCitations || 0) + '）'
                       : workbenchText('尚无引用令牌（') + row.citationAudit.checkedFiles + workbenchText(' 个成果文件）'))),
                 h('span', { className: 'ap-sub' }, String(row.citationAudit.generatedAt || '').slice(0, 16).replace('T', ' ')),
               ),
+              row.citationAudit.support ? h('p', { className: 'ap-sub' }, '独立支持复核：支持 ' + row.citationAudit.support.supported + ' · 不支持 ' + row.citationAudit.support.unsupported + ' · 未确定 ' + row.citationAudit.support.uncertain + ' · 未固定知识版本 ' + (row.citationAudit.unversionedKbCitations || 0)) : null,
+              row.citationAudit.support?.issues?.length ? h('ul', null, row.citationAudit.support.issues.slice(0, 8).map((issue, index) => h('li', { key: index }, issue.file + ':' + issue.line + ' — ' + issue.reason))) : null,
               row.citationAudit.orphans.length
                 ? h('ul', null, row.citationAudit.orphans.slice(0, 8).map((orphan, index) => h('li', { key: index },
                   orphan.file + ':' + orphan.line + ' ' + orphan.token + ' — ' + orphan.reason)))
@@ -5795,12 +5712,13 @@ const SearchSettings = createSearchSettings(React)
       }
 
       const specialContent = module === 'kb'
-        ? h(KnowledgeBasePanel, { cwd, sessionId: pinParentSessionId() || resolveSessionId(props) || runtime.sessionId || '' })
+        ? h(KnowledgeBasePanel, { cwd, sessionId: monitorParent })
         : module === 'archive'
           ? h(ArchivePanel, { onClose: props.onClose })
           : module === 'modules'
             ? h(ModuleManagerPanel, {
               cwd,
+              sessionId: monitorParent,
               onChanged: () => refresh(true),
               onOpened: (id) => {
                 refresh(true).then(() => selectModule(id))
@@ -5960,7 +5878,7 @@ const SearchSettings = createSearchSettings(React)
       const close = () => { if (!saving) { setOpen(false); reset() } }
 
       const finishCreated = (createdId) => {
-        const parentId = pinParentSessionId()
+        const parentId = pinParentSessionId(props)
         if (parentId) {
           rememberWorkbenchBinding(parentId, { cwd, module, projectId: createdId })
           ensureUserRequirementWatcher(parentId)

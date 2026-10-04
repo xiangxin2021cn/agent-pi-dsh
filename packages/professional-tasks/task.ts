@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import type { ProfessionalTask, TaskBrief, Evidence, TaskQuality, QualityCriterion } from './types.ts'
+import { verificationCurrent } from './verification.ts'
 
 export type TaskActor = 'user' | 'agent' | 'host'
 export type TaskPatch = Partial<Omit<ProfessionalTask, 'sessionId' | 'schemaVersion' | 'revision'>>
@@ -16,7 +17,7 @@ export function emptyTask(sessionId: string): ProfessionalTask {
     brief: { objective: '', scope: '', audience: '', formats: [], language: '', deadline: '', profession: 'general', webDiligence: 'allowed',
       basis: { country: '', location: '', employer: '', procurement: '', funding: '', contract: '', measurement: '', standards: [], precedence: [] } },
     questions: [], evidence: [], requirements: [], coverage: [], plan: [], deliverables: [], assessment: '', updatedAt: '',
-    briefProvenance: {}, findings: [], quality: emptyQuality(), recentChanges: [], operationReceipts: [], acceptedHistory: [] }
+    briefProvenance: {}, findings: [], quality: emptyQuality(), recentChanges: [], operationReceipts: [], acceptedHistory: [], directives: [] }
 }
 
 function equal(left: unknown, right: unknown): boolean { return JSON.stringify(left) === JSON.stringify(right) }
@@ -100,6 +101,8 @@ export function validateTask(task: ProfessionalTask): void {
   const evidenceIds = unique(task.evidence, 'evidence')
   const requirements = unique(task.requirements, 'requirements')
   unique(task.coverage, 'coverage'); unique(task.questions, 'questions'); unique(task.deliverables, 'deliverables'); unique(task.findings, 'findings')
+  unique(task.directives, 'directives')
+  for (const row of task.directives) if (!row.key?.trim() || !row.text?.trim() || !row.messageId?.trim() || !['request', 'constraint', 'correction', 'scope', 'decision', 'revocation'].includes(row.kind) || !['active', 'superseded', 'revoked'].includes(row.status) || !['user', 'native'].includes(row.source) || !Number.isInteger(row.updatedRevision) || row.supersedes?.some(id => !task.directives.some(value => value.id === id))) throw new Error('Invalid durable user directive')
   const reference = (ids: string[], known: Set<string>, field: string) => {
     if (!Array.isArray(ids) || ids.some(id => !known.has(id))) throw new Error(`${field}: unknown reference`)
   }
@@ -137,6 +140,8 @@ export function validateTask(task: ProfessionalTask): void {
     if (typeof row.title !== 'string' || !row.title.trim() || !row.path || !['draft', 'reviewed', 'accepted', 'stale'].includes(row.status)) throw new Error('Invalid deliverable')
     if (!['not_required', 'pending', 'signed'].includes(row.signature)) throw new Error('Invalid signature status')
     if (!Array.isArray(row.checks) || row.checks.some(check => !['passed', 'failed', 'review'].includes(check.status) || !check.detail?.trim())) throw new Error('Checks need status and actual evidence')
+    const verification = row.verification
+    if (verification && (!verification.ruleVersion?.trim() || verification.artifactSha256 !== null && !/^[a-f0-9]{64}$/i.test(verification.artifactSha256) || !/^[a-f0-9]{64}$/i.test(verification.inputFingerprint) || !Number.isInteger(verification.taskRevision) || !verification.checkedAt || !['passed', 'review', 'failed', 'stale'].includes(verification.status) || !Array.isArray(verification.unresolved) || verification.unresolved.some(value => typeof value !== 'string') || !Array.isArray(verification.checks) || !verification.sourceHashes || Object.values(verification.sourceHashes).some(value => value !== null && !/^[a-f0-9]{64}$/i.test(value)))) throw new Error('Invalid artifact verification')
     if (row.status === 'accepted' && (row.checks.some(check => check.status !== 'passed') || ['file', 'professional', 'writing'].some(kind => !row.checks.some(check => check.kind === kind && check.status === 'passed')))) throw new Error('Unresolved checks cannot be accepted')
   }
   for (const row of task.findings) {
@@ -176,6 +181,8 @@ export function reviseTask(current: ProfessionalTask, input: TaskPatch, revision
   const next = structuredClone({ ...current, ...input, sessionId: current.sessionId, schemaVersion: 2, revision: revision + 1, updatedAt: new Date().toISOString() }) as ProfessionalTask
   if (actor === 'agent' && next.brief.webDiligence !== current.brief.webDiligence) throw new Error('网络尽调授权只能由用户修改。')
   if (actor === 'agent' && (next.latestMessageId !== current.latestMessageId || next.latestRequest !== current.latestRequest)) throw new Error('实际用户请求由宿主输入适配器登记。')
+  if (actor === 'agent' && !equal(next.directives, current.directives)) throw new Error('持久约束和撤销只能依据真实用户输入由宿主登记。')
+  if (actor !== 'host' && next.deliverables.some(row => !equal(row.verification, current.deliverables.find(old => old.id === row.id)?.verification))) throw new Error('成果审核凭据由宿主实际文件检查登记。')
   if (actor === 'agent' && (next.quality.enabled !== current.quality.enabled || !equal(next.quality.template, current.quality.template))) throw new Error('专业深度和模板只能由用户修改。')
   if (actor === 'agent' && Object.entries(next.briefProvenance).some(([key, row]) => (row.origin === 'user' || row.status === 'confirmed') && !equal(row, current.briefProvenance[key]))) throw new Error('用户要求与确认来源由宿主登记。')
   if (actor !== 'host' && (next.questions.some(row => row.provider && !equal(row, current.questions.find(old => old.id === row.id))) || current.questions.some(row => row.provider && !equal(row, next.questions.find(value => value.id === row.id))) || (actor === 'agent' && next.questions.some(row => row.answerSource && !equal(row, current.questions.find(old => old.id === row.id)))))) throw new Error('原生问答的回答由用户输入适配器登记。')
@@ -183,6 +190,7 @@ export function reviseTask(current: ProfessionalTask, input: TaskPatch, revision
   if (actor === 'agent' && next.deliverables.some(row => row.signature === 'signed' && current.deliverables.find(old => old.id === row.id)?.signature !== 'signed')) throw new Error('签署授权只能由用户确认。')
   const newAcceptance = next.deliverables.some(row => row.status === 'accepted' && current.deliverables.find(old => old.id === row.id)?.status !== 'accepted')
   if (newAcceptance && (next.pendingProjectSync || (next.quality.enabled && (next.quality.needsAssessment || !next.quality.criteria.length || next.quality.criteria.some(criterion => !next.quality.checks.some(check => check.id === criterion.id && check.status === 'passed' && !check.stale)))))) throw new Error('专业检查或工作台要求同步尚未完成，不能记录验收。')
+  if (next.deliverables.some(row => row.status === 'accepted' && current.deliverables.find(old => old.id === row.id)?.status !== 'accepted' && !verificationCurrent(next, row).ready)) throw new Error('当前成果、输入与规则尚无通过的宿主审核凭据，不能验收。')
   const changedBrief = Object.keys(next.brief).filter(key => !equal(next.brief[key as keyof TaskBrief], current.brief[key as keyof TaskBrief])) as Array<keyof TaskBrief>
   for (const key of changedBrief) {
     if (!input.briefProvenance?.[key] || equal(input.briefProvenance[key], current.briefProvenance[key])) next.briefProvenance[key] = { origin: actor === 'agent' ? 'inference' : 'user', status: actor === 'agent' ? 'provisional' : 'explicit', updatedRevision: next.revision, ...(next.latestMessageId ? { messageId: next.latestMessageId } : {}) }
@@ -213,6 +221,7 @@ export function reviseTask(current: ProfessionalTask, input: TaskPatch, revision
   const affectedRefs = [...changedSteps].map(id => `plan:${id}`)
   for (const row of next.deliverables) {
     const old = current.deliverables.find(value => value.id === row.id)
+    if (row.verification && !verificationCurrent(next, row).current) { row.verification.status = 'stale'; row.status = 'stale'; if (row.signature === 'signed') row.signature = 'pending' }
     const acceptedInputsChanged = old && (old.status === 'accepted' || old.signature === 'signed') && (row.path !== old.path || !equal(row.evidenceIds, old.evidenceIds) || !equal(row.requirementIds, old.requirementIds) || !equal(row.stepIds, old.stepIds) || row.checks.find(check => check.kind === 'file')?.fingerprint !== old.checks.find(check => check.kind === 'file')?.fingerprint)
     const briefAffected = row.briefDependencies ? row.briefDependencies.some(key => changedBrief.includes(key)) : semanticBriefChanged || presentationChanged
     const inputsChanged = row.requirementIds.some(id => changedRequirements.has(id)) || row.evidenceIds.some(id => changedEvidence.has(id)) || row.stepIds.some(id => changedSteps.has(id))
@@ -263,7 +272,10 @@ export function markChangedDeliverables(task: ProfessionalTask, fingerprints: Re
   const lookup = (path: string) => Object.entries(fingerprints).find(([key]) => normalize(key) === normalize(path))
   for (const row of deliverables) {
     const actual = lookup(row.path), recorded = row.checks.find(check => check.kind === 'file')?.fingerprint
-    if (actual && recorded && actual[1] !== recorded) { row.status = 'stale'; row.checks = []; changedPaths.push(row.path) }
+    if (actual && recorded && actual[1] !== recorded) { row.status = 'stale'; row.checks = []; if (row.verification) row.verification.status = 'stale'; changedPaths.push(row.path) }
+    const checkedHashes = { ...fingerprints }
+    if (row.verification) for (const [path, expected] of [[row.path, row.verification.artifactSha256], ...Object.entries(row.verification.sourceHashes)] as Array<[string, string | null]>) if (!lookup(path)) checkedHashes[path] = expected
+    if (row.verification && row.verification.status !== 'stale' && !verificationCurrent(task, row, checkedHashes).current) { row.status = 'stale'; row.verification.status = 'stale'; row.checks = []; if (!changedPaths.includes(row.path)) changedPaths.push(row.path) }
   }
   for (const check of quality.checks) {
     const actual = check.path && lookup(check.path)

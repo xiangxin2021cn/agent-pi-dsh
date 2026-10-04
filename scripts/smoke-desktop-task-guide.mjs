@@ -32,6 +32,7 @@ const sourceFile = join(workspace, '项目资料.md')
 const linkedSourceFile = join(workspace, 'workbench-source.txt')
 const reportFile = join(workspace, '工期建议.md')
 const objective = '判断当前施工方案的工期是否可实现，形成给领导决策的建议'
+const priorHumanText = 'longhorizonproof379：预算上限600元，不要改项目原稿。'
 const assistantReply = '我会先核对材料中的工期条件，再整理影响工期判断的约束与待确认事项。'
 const artifactDir = resolve(process.env.AGENT_PI_QA_ARTIFACT_DIR || join(tmpdir(), 'agent-pi-task-guide-ui-3.7.9'))
 mkdirSync(workspace, { recursive: true })
@@ -53,7 +54,7 @@ const profileInit = spawnSync(process.execPath, [join(root, 'scripts', 'init-ten
   env: {
     ...process.env,
     DSH_CHECKOUT: join(root, 'vendor', 'deepseek-harness'),
-    DSH_HOME: dshHome, AGENT_PI_QA_WORKSPACE: workspace, AGENT_PI_QA_USER_DATA: userDataDir, AGENT_PI_QA_DESKTOP_MAIN: join(desktopDir,'main.mjs'), OPENAI_API_KEY: '', DEEPSEEK_API_KEY: '',
+    DSH_HOME: dshHome, AGENT_PI_KB_ROOT: join(dshHome,'knowledge-base'), AGENT_PI_SKILLS_ROOT: join(dshHome,'skills'), AGENT_PI_MODULES_ROOT: join(dshHome,'workbench','modules'), AGENT_PI_QA_WORKSPACE: workspace, AGENT_PI_QA_USER_DATA: userDataDir, AGENT_PI_QA_DESKTOP_MAIN: join(desktopDir,'main.mjs'), OPENAI_API_KEY: '', DEEPSEEK_API_KEY: '',
   },
   encoding: 'utf8',
   windowsHide: true,
@@ -80,7 +81,7 @@ const qaPlugin=join(scratch,'qa-session.mjs')
 writeFileSync(qaPlugin, `
 import {createMessage,createUserMessage} from ${JSON.stringify(pathToFileURL(join(root,'vendor','deepseek-harness','packages','llm','llm','src','index.ts')).href)};
 export const name='qa-session';
-export const inject=['sessions','sessionPersistence','sessionController','webServer','tools','agents','taskGuide'];
+export const inject=['sessions','sessionPersistence','sessionController','sessionQuery','webServer','tools','agents','taskGuide'];
 export async function apply(ctx) {
   let releaseRun;
   let heldRun;
@@ -100,6 +101,14 @@ export async function apply(ctx) {
   s.append('turn/end',{turn:1,reason:{kind:'completed'}});
   await ctx.sessionController.rename({sessionId:s.id,title:'Professional task guide QA'});
   await ctx.sessions.flush(s);
+  for(const [id,cwd] of [['qa-prior-context',process.env.AGENT_PI_QA_WORKSPACE],['qa-other-workspace',${JSON.stringify(join(scratch,'other-workspace'))}]]){
+    await ctx.sessionController.create({sessionId:id,cwd});
+    const prior=ctx.sessions.get(id);
+    prior.append('turn/start',{turn:1});
+    prior.append('user/message',createUserMessage({content:[{type:'text',text:${JSON.stringify(priorHumanText)}}],source:{kind:'user'}}),{surfaceOp:'append'});
+    prior.append('turn/end',{turn:1,reason:{kind:'completed'}});
+    await ctx.sessions.flush(prior);
+  }
   ctx.webServer.register({kind:'exact',path:'/api/agent-pi/qa-task-tool',async handler(req,res) {
     const send=(code,value)=>{res.writeHead(code,{'Content-Type':'application/json'});res.end(JSON.stringify(value))};
     try {
@@ -107,6 +116,15 @@ export async function apply(ctx) {
       req.setEncoding('utf8');let raw='';for await(const part of req)raw+=part;
       const input=JSON.parse(raw);
       const agent=ctx.agents.get(s.id);if(!agent)throw new Error('QA session agent is not ready');
+      if(input.action==='hold'){
+        if(heldRun)throw new Error('A QA native step is already held');
+        heldRun=new Promise(resolve=>{releaseRun=resolve});return send(200,{held:true});
+      }
+      if(input.action==='native_receipt'){
+        if(await ctx.sessions.flush(s)!==true)throw new Error('Native session flush was not confirmed');
+        const snapshot=await ctx.sessionQuery.readSession(s.id);
+        return send(200,{sessionId:s.id,cwd:snapshot.session.cwd,events:snapshot.events.filter(event=>event.type==='user/message'&&event.data.id===input.messageId||event.type==='agent/inbox/spliced'&&event.data.inserted?.some(message=>message.id===input.messageId))});
+      }
       if(input.action==='finish'){
         releaseRun?.();await agent.whenIdle();heldRun=undefined;releaseRun=undefined;return send(200,{finished:true});
       }
@@ -118,10 +136,12 @@ export async function apply(ctx) {
         if(input.action==='admit')await agent.whenIdle();
         return send(200,{messageId:message.id});
       }
-      if(!['professional_task','professional_depth','tender_project','tender_stage'].includes(input.tool))throw new Error('Unsupported QA tool');
+      if(!['professional_task','professional_depth','tender_project','tender_stage','session_search','session_event_search','session_trace','session_event_trace','session_event_read'].includes(input.tool))throw new Error('Unsupported QA tool');
       const result=await agent.ctx.get('tools').execute({callId:'qa-'+Date.now(),name:input.tool,arguments:input.args,agent,signal:new AbortController().signal});
       if(result.isError)throw new Error(JSON.stringify(result.content));
-      send(200,typeof result.value==='string'?JSON.parse(result.value):result.value);
+      let value=result.value;
+      if(typeof value==='string'){try{value=JSON.parse(value)}catch{value={text:value}}}
+      send(200,value);
     }catch(error){send(409,{error:String(error.message||error)})}
   }});
 }
@@ -156,7 +176,7 @@ try {
       AGENT_PI_DSH_FORCE_COLD_START: '1',
       DSH_CHECKOUT: join(root, 'vendor', 'deepseek-harness'),
       DSH_HOME: dshHome,
-      ELECTRON_DISABLE_SECURITY_WARNINGS: 'true', AGENT_PI_QA_WORKSPACE: workspace, AGENT_PI_QA_USER_DATA: userDataDir, AGENT_PI_QA_DESKTOP_MAIN: join(desktopDir,'main.mjs'), OPENAI_API_KEY: '', DEEPSEEK_API_KEY: '',
+      ELECTRON_DISABLE_SECURITY_WARNINGS: 'true', AGENT_PI_KB_ROOT: join(dshHome,'knowledge-base'), AGENT_PI_SKILLS_ROOT: join(dshHome,'skills'), AGENT_PI_MODULES_ROOT: join(dshHome,'workbench','modules'), AGENT_PI_QA_WORKSPACE: workspace, AGENT_PI_QA_USER_DATA: userDataDir, AGENT_PI_QA_DESKTOP_MAIN: join(desktopDir,'main.mjs'), OPENAI_API_KEY: '', DEEPSEEK_API_KEY: '',
     },
     timeout: deadlineMs,
   })
@@ -214,6 +234,21 @@ try {
   const capabilityFlags=await request('/api/agent-pi/capabilities')
   assert.equal(capabilityFlags.taskGuide,true,'native task plugin must actually be active')
   assert.equal(capabilityFlags.workbench,true,'existing workbench plugin remains active')
+  const history=await runTool('session_search',{query:'longhorizonproof379',session_ids:['qa-prior-context','qa-other-workspace'],event_types:['user/message']})
+  assert.match(history.text,/qa-prior-context/)
+  assert.doesNotMatch(history.text,/qa-other-workspace/,'official history search enforces the actual caller workspace')
+  const historicalEvents=await runTool('session_event_search',{session_id:'qa-prior-context',query:'longhorizonproof379',event_types:['user/message']})
+  const priorSeq=Number(historicalEvents.text.match(/seq (\d+) \| user\/message/)?.[1])
+  assert.ok(Number.isSafeInteger(priorSeq))
+  const priorTrace=await runTool('session_trace',{session_id:'qa-prior-context'})
+  assert.match(priorTrace.text,/qa-prior-context/)
+  const eventTrace=await runTool('session_event_trace',{session_id:'qa-prior-context',seq:priorSeq})
+  assert.match(eventTrace.text,/user\/message/)
+  const historicalRead=await runTool('session_event_read',{session_id:'qa-prior-context',seq:priorSeq,before:1,after:1})
+  assert.ok(historicalRead.text.includes(priorHumanText),'exact earlier human text is read through the official native tool')
+  assert.match(historicalRead.text,/"kind": "user"/)
+  writeFileSync(join(artifactDir,'08-official-session-history.json'),JSON.stringify({history,historicalEvents,priorTrace,eventTrace,historicalRead},null,2),'utf8')
+  console.log(JSON.stringify({phase:'official-session-history-workspace-scope',status:'ok',priorSessionId:'qa-prior-context',priorSeq}))
   const empty=await request(taskUrl)
   await request(taskUrl,{revision:empty.task.revision,patch:{brief:{...empty.task.brief,objective,audience:'领导',scope:'检查材料中的工期条件和实施资源，缺少的条件保留为待确认项',profession:'report',formats:['md'],language:'中文'}}})
   const seeded=await request(taskUrl)
@@ -240,6 +275,14 @@ try {
   await summary.getByText(objective,{exact:true}).waitFor({timeout:Math.min(30_000,remaining())})
   assert.equal(await summary.locator('[data-finding-id="period-conflict"]').count(),1,'Codex view reads the same task findings')
   await page.getByRole('tab',{name:'对话',exact:true}).click()
+
+  await request('/api/agent-pi/qa-task-tool',{action:'admit',text:'不要改项目原稿，预算上限900元，禁止联网。'})
+  const budgetMessage=await request('/api/agent-pi/qa-task-tool',{action:'admit',text:'预算上限改为600元。'})
+  const durable=await request(taskUrl)
+  assert.equal(durable.task.latestMessageId,budgetMessage.messageId)
+  assert.ok(durable.task.directives.some(row=>row.key==='budget'&&row.status==='active'&&row.text==='预算上限改为600元'))
+  assert.ok(durable.task.directives.some(row=>row.key==='budget'&&row.status==='superseded'&&row.text==='预算上限900元'))
+  await runTool('professional_task',{action:'update',revision:durable.task.revision,patch:{deliverables:[{id:'qa-verification-report',title:'QA 实际工期建议',path:reportFile,status:'draft',signature:'not_required',evidenceIds:['source:schedule'],requirementIds:[],stepIds:[],checks:[]}]}})
 
   const humanCount=(await request('/api/agent-pi/qa-task-tool')).humanMessages
   const depthToggle=page.getByRole('button',{name:'专业深度',exact:true})
@@ -345,6 +388,24 @@ try {
   const persisted=await request(taskUrl)
   assert.equal(persisted.task.quality.enabled,true)
   assert.deepEqual(persisted.task.quality.checks.map(row=>row.id),priorChecks.map(row=>row.id))
+  const activeBudget=persisted.task.directives.find(row=>row.key==='budget'&&row.status==='active')
+  assert.equal(activeBudget.text,'预算上限改为600元','latest constraints survive a real renderer reload')
+  await dialog.locator(`[data-directive-id="${activeBudget.id}"]`).getByRole('button',{name:'撤销这项约束',exact:true}).click()
+  await dialog.getByText('已撤销该约束，后续执行与审核将采用最新要求。',{exact:true}).waitFor({timeout:remaining()})
+  const revoked=await request(taskUrl)
+  assert.equal(revoked.task.directives.find(row=>row.id===activeBudget.id).status,'revoked')
+  assert.equal(revoked.task.latestMessageId,persisted.task.latestMessageId,'explicit UI revocation does not fabricate a native human message')
+  await dialog.getByRole('tab',{name:'交付检查',exact:true}).click()
+  await dialog.getByRole('button',{name:'核验实际成果',exact:true}).click()
+  await dialog.getByText('已核验实际成果，请查看审核结果和待解决项。',{exact:true}).waitFor({timeout:remaining()})
+  const verified=await request(taskUrl), checkedReport=verified.task.deliverables.find(row=>row.id==='qa-verification-report')
+  assert.equal(checkedReport.verification.artifactSha256,createHash('sha256').update(readFileSync(reportFile)).digest('hex'))
+  assert.equal(checkedReport.verification.ruleVersion,'professional-delivery/v1')
+  assert.equal(checkedReport.verification.status,'review','remaining source and semantic gaps are retained')
+  assert.notEqual(checkedReport.status,'accepted')
+  assert.equal(await dialog.getByRole('button',{name:'确认验收全部成果',exact:true}).count(),0)
+  await page.screenshot({path:join(artifactDir,'09-durable-constraints-and-actual-verification.png'),fullPage:true})
+  console.log(JSON.stringify({phase:'durable-constraint-revoke-and-actual-verification-ui',status:'ok',reportSha:checkedReport.verification.artifactSha256}))
 
   // Exercise the project tool -> host projection -> all three native views.
   // This uses isolated local files and the real inbox, with the model step rejected above.
@@ -435,9 +496,68 @@ try {
   assert.equal(board.stages['bid-risk-decision'].approval.source.fingerprint,approvalFingerprint,'read-only polling preserves the byte-based approval receipt')
   assert.equal(board.stages['bid-risk-decision'].approval.decision,'approved')
   console.log(JSON.stringify({phase:'actual-workbench-inbox-and-running-tabs',status:'ok',decisionMessageId:decision.messageId,artifactDir}))
+
+  const stageUrl='/api/agent-pi/stage?cwd='+encodeURIComponent(workspace)
+  const stageBody={module:'tender',projectId,stageId:'tender-document-analysis',sessionId:'qa-guided-task'}
+  const intentBeforeRuntime=(await request(taskUrl)).task
+  const offered=await request(stageUrl,{...stageBody,action:'resume'})
+  assert.ok(offered.draft&&offered.dispatch?.key,'actual stage HTTP registers a trusted native dispatch offer')
+  assert.equal(offered.dispatch.stageId,'tender-document-analysis')
+  await request('/api/agent-pi/qa-task-tool',{action:'hold'})
+  const dispatched=await request(stageUrl,{...stageBody,action:'runtime_dispatch',key:offered.dispatch.key})
+  assert.equal(dispatched.runtime.phase,'waiting')
+  const attempt=dispatched.runtime.attempt
+  assert.equal(attempt.status,'dispatched');assert.ok(attempt.messageId)
+  const nativeReceipt=await request('/api/agent-pi/qa-task-tool',{action:'native_receipt',messageId:attempt.messageId})
+  assert.equal(resolve(nativeReceipt.cwd),resolve(workspace))
+  assert.ok(nativeReceipt.events.some(event=>event.type==='agent/inbox/spliced'&&event.data.inserted.some(row=>row.id===attempt.messageId)),'durable dispatch identity exists in the actual native inbox')
+  const nativeMessage=nativeReceipt.events.find(event=>event.type==='user/message'&&event.data.id===attempt.messageId)
+  assert.ok(nativeMessage,'the dispatched attempt is claimed into the actual native conversation')
+  assert.equal(nativeMessage.data.source.kind,'plugin:tender-host')
+  const actualNativeRead=await runTool('session_event_read',{session_id:'qa-guided-task',seq:nativeMessage.seq})
+  assert.ok(actualNativeRead.text.includes(attempt.messageId))
+  assert.match(actualNativeRead.text,/plugin:tender-host/)
+  const during=await request(taskUrl)
+  assert.equal(during.task.latestMessageId,intentBeforeRuntime.latestMessageId,'runtime instruction is not new human intent')
+  assert.equal(during.task.latestRequest,intentBeforeRuntime.latestRequest)
+  assert.notEqual(during.task.latestMessageId,attempt.messageId)
+  await page.evaluate(()=>{for(const store of [localStorage,sessionStorage])for(const key of Object.keys(store))if(/(?:transaction|registry|long-task|session-monitor)/i.test(key))store.removeItem(key)})
+  await page.reload();await clickOptional(/继续|Continue/i);await clickOptional(/稍后配置|Configure later/i)
+  const restored=await request(stageUrl,{...stageBody,action:'runtime_status'})
+  assert.equal(restored.runtime.phase,'waiting')
+  assert.equal(restored.runtime.attempt.id,attempt.id);assert.equal(restored.runtime.attempt.messageId,attempt.messageId)
+  assert.equal(restored.runtime.run.attempts.length,1,'renderer reload never duplicates a host attempt')
+  const paused=await request(stageUrl,{...stageBody,action:'runtime_pause',paused:true})
+  assert.equal(paused.runtime.phase,'paused')
+  await request('/api/agent-pi/qa-task-tool',{action:'finish'})
+  await page.reload();await clickOptional(/继续|Continue/i);await clickOptional(/稍后配置|Configure later/i)
+  const pausedReload=await request(stageUrl,{...stageBody,action:'runtime_status'})
+  assert.equal(pausedReload.runtime.phase,'paused')
+  assert.equal(pausedReload.runtime.run.paused,true)
+  assert.equal(pausedReload.runtime.attempt.id,attempt.id)
+  assert.equal(pausedReload.runtime.attempt.status,'settled','only the native turn-end receipt settles the held attempt')
+  const finalReceipt=await request('/api/agent-pi/qa-task-tool',{action:'native_receipt',messageId:attempt.messageId})
+  assert.equal(finalReceipt.events.filter(event=>event.type==='user/message').length,1,'the exact native message is never sent twice')
+  writeFileSync(join(artifactDir,'10-host-runtime-native-receipt.json'),JSON.stringify({offered,dispatched,nativeReceipt,actualNativeRead,restored,pausedReload,finalReceipt},null,2),'utf8')
+  console.log(JSON.stringify({phase:'durable-host-runtime-native-dispatch-reload-pause',status:'ok',attemptId:attempt.id,messageId:attempt.messageId}))
+  await page.getByRole('tab',{name:'专业化工作台',exact:true}).click()
+  await page.locator('.ap-wb .ap-mods').getByRole('button',{name:'模块管理',exact:true}).click()
+  await page.getByRole('region',{name:'技能版本与独立验证',exact:true}).waitFor({timeout:remaining()})
+  assert.match(await page.getByRole('region',{name:'技能版本与独立验证',exact:true}).innerText(),/来源成果被用户验收、独立案例验证通过并经人工批准/)
+  await page.screenshot({path:join(artifactDir,'11-module-skill-lifecycle-desktop.png'),fullPage:true})
+  const kb=await request('/api/agent-pi/kb?cwd='+encodeURIComponent(workspace),{action:'add',slug:'qa-horizon-source',fileName:'qa-origin.md',name:'QA 版本原始条款',text:'# QA 原始条款\n\n项目工期为120天；这份材料只用于本地版本界面核验。\n'})
+  assert.match(kb.entry.versionId,/^[a-f0-9]{64}$/)
+  await page.locator('.ap-wb .ap-mods').getByRole('button',{name:'知识库',exact:true}).click()
+  await page.getByRole('heading',{name:'本地知识库',exact:true}).waitFor({timeout:remaining()})
+  const knowledgeCard=page.getByRole('button',{name:'qa-origin.md',exact:true}).locator('xpath=ancestor::div[.//details/summary[text()="来源与不可变版本"]][1]')
+  await knowledgeCard.getByText('来源与不可变版本',{exact:true}).click()
+  await knowledgeCard.getByText(new RegExp('v'+kb.entry.versionId)).waitFor({timeout:remaining()})
+  assert.match(await knowledgeCard.innerText(),/旧引用继续定位旧版本/)
+  await page.screenshot({path:join(artifactDir,'12-knowledge-immutable-version-desktop.png'),fullPage:true})
+  console.log(JSON.stringify({phase:'actual-module-skill-and-knowledge-version-panels',status:'ok',knowledgeVersion:kb.entry.versionId}))
   assert.deepEqual(pageErrors,[])
   assert.deepEqual(consoleErrors,[])
-  console.log(JSON.stringify({status:'ok',browser:'Browser plugin not available; existing Playwright Electron workflow',viewports:['desktop','390x844'],checks:['actual-plugin-service','actual-professional-source-and-finding-tools','main-chat-shared-understanding','stable-finding-replay','default-automatic-task-overview','independent-field-draft-with-live-findings','shared-depth-goal-and-byte-checks','toggle-keeps-check-history-without-messages','verified-source-preview','Cordis-domain-capability-catalogue','reload-persistence','narrow-layout','english-ui','real-workbench-source-and-decision-artifact','native-inbox-stage-decision','host-registered-control-preserves-user-intent','six-running-task-tabs-with-legacy-records','shared-workbench-header-task-chat-execution-focus','live-finding-during-view-switch','execution-progress-does-not-approve-stage','stable-approval-during-polling','no-render-errors'],artifactDir,limitation:'Isolated deterministic fixture; no paid model requests or logged-in autonomous Codex turn.'}))
+  console.log(JSON.stringify({status:'ok',browser:'Browser plugin not available; existing Playwright Electron workflow',viewports:['desktop','390x844'],checks:['actual-plugin-service','actual-professional-source-and-finding-tools','main-chat-shared-understanding','stable-finding-replay','default-automatic-task-overview','independent-field-draft-with-live-findings','shared-depth-goal-and-byte-checks','toggle-keeps-check-history-without-messages','verified-source-preview','Cordis-domain-capability-catalogue','reload-persistence','narrow-layout','english-ui','real-workbench-source-and-decision-artifact','native-inbox-stage-decision','host-registered-control-preserves-user-intent','six-running-task-tabs-with-legacy-records','shared-workbench-header-task-chat-execution-focus','live-finding-during-view-switch','explicit-original-file-review-and-live-count','execution-progress-does-not-approve-stage','stable-approval-during-polling','official-five-history-tools-and-workspace-authorization','durable-constraints-through-renderer-reload','human-revocation-keeps-native-request-identity','actual-artifact-verification-receipt-with-unresolved-gaps','trusted-stage-http-offer-to-native-runtime-dispatch','actual-native-inbox-and-message-receipt','runtime-reload-dedup-without-browser-registry','user-pause-survives-native-settlement-and-refresh','module-manager-skill-lifecycle-panel','knowledge-immutable-version-panel','no-render-errors'],artifactDir,limitation:'Isolated deterministic fixture; no paid model requests or logged-in autonomous Codex turn.'}))
 } catch(error){
   if(page)await page.screenshot({path:join(artifactDir,'failure.png'),fullPage:true}).catch(()=>{})
   const diagnostics=page?{url:page.url(),pageErrors,consoleErrors,regions:await page.locator('section[aria-label]').evaluateAll(rows=>rows.map(row=>row.getAttribute('aria-label'))),body:(await page.locator('body').innerText()).slice(-8000)}:{}

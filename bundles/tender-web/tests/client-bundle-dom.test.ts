@@ -20,8 +20,6 @@ function requirePnpmPackage(name: string, entry = '') {
 test('generated client boots, ChatGPT login works, and the session file rail renders in a real React DOM', async () => {
   const { JSDOM } = requirePnpmPackage('jsdom')
   const React = requirePnpmPackage('react')
-  const ReactDOM = requirePnpmPackage('react-dom')
-  const { createRoot } = requirePnpmPackage('react-dom', 'client.js')
   const { act } = React
   const dom = new JSDOM('<!doctype html><html><head></head><body><div id="root"></div></body></html>', {
     url: 'http://127.0.0.1/',
@@ -62,7 +60,7 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
   }
 
   const promptTexts: string[] = []
-  const fetchCalls: Array<{ url: string; action?: string; text?: string; transactionId?: string; files?: unknown[] }> = []
+  const fetchCalls: Array<{ url: string; action?: string; text?: string; transactionId?: string; files?: unknown[]; sessionId?: string; module?: string; projectId?: string; stageId?: string; key?: string }> = []
   const sessionSnapshot = {
     sessionId: 'session-1', blank: true, running: false, queue: [],
     pendingSubmissions: [] as Array<{ requestId: string; time: number; text: string; images: unknown[] }>,
@@ -112,6 +110,7 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
       subscribe: () => () => {},
     },
   }
+  const alternateSessions: Record<string, { id: string; retainedBy: { mainView: number }; cwd: string; blank: boolean }> = {}
 
   const globals = {
     window: dom.window,
@@ -128,9 +127,9 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     fetch: async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input)
       const request = init && typeof init.body === 'string'
-        ? JSON.parse(init.body) as { action?: string; text?: string; sessionId?: string; transactionId?: string; files?: unknown[] }
+        ? JSON.parse(init.body) as { action?: string; text?: string; sessionId?: string; transactionId?: string; files?: unknown[]; module?: string; projectId?: string; stageId?: string; key?: string }
         : {}
-      fetchCalls.push({ url, action: request.action, text: request.text, transactionId: request.transactionId, files: request.files })
+      fetchCalls.push({ url, ...request })
       let body: unknown = { files: [], outputFiles: [] }
       if (url.includes('/api/agent-pi/capabilities')) body = { workbench: true, knowledge: true, taskGuide:taskGuideEnabled }
       else if (url.includes('/api/agent-pi/professional-task')) body = {task:structuredClone(professionalTask),binding:taskBinding,capabilities:[],audit:{}}
@@ -147,12 +146,22 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
           { id: 'delivery', labelZh: '项目实施控制', builtin: true, disabled: false },
           { id: 'investment', labelZh: '资源投资研究', builtin: true, disabled: false },
         ] }
-      } else if (url.includes('/api/agent-pi/projects/restore')) body = { restored: [], skipped: [] }
+      } else if (url.includes('/api/agent-pi/skills')) {
+        const lifecycle = { slug: 'checked-method', versions: [{ versionId: 'a'.repeat(64), status: 'candidate' }], validations: [] }
+        body = request.action === 'read' ? { lifecycle, version: { slug: 'checked-method', versionId: 'a'.repeat(64), markdown: '---\nname: checked-method\n---\nVerify real inputs.', sourceTaskId: 'independent-source-session', sourceArtifact: { path: 'accepted.md' }, applicability: ['Matching fixed cases'], failureModes: ['Different inputs need review'] }, sourceReady: false, sourceReason: '来源尚未验收' }
+          : { skills: [{ slug: 'legacy-method', validationStatus: 'legacy_unvalidated' }], lifecycles: [lifecycle] }
+      }
+      else if (url.includes('/api/agent-pi/kb')) body = request.action === 'versions'
+        ? { versions: [{ versionId: 'b'.repeat(64), createdAt: '2026-02-06T00:00:00.000Z', originalHash: 'c'.repeat(64), manuscriptHash: 'd'.repeat(64) }] }
+        : { root: 'C:/kb', entries: [{ slug: 'time-standard', name: '工期规范', category: 'standards', parseStatus: 'ready', sourceKind: 'original', versionId: 'b'.repeat(64), sizeBytes: 99, regions: ['CN'], validFrom: '2026-02-06' }], folders: [], entryCount: 1, selectedSlugs: [], mineru: { configured: false } }
+      else if (url.includes('/api/agent-pi/projects/restore')) body = { restored: [], skipped: [] }
       else if (url.includes('/api/agent-pi/stage') && request.action === 'complete') {
         body = {
           draft: '【专业项目启动】请依据已登记资料完成项目对齐并继续当前阶段。',
           dispatch: { stageId: 'project-setup', key: 'project-setup|running|||' },
         }
+      } else if (url.includes('/api/agent-pi/stage') && ['runtime_dispatch', 'runtime_status'].includes(request.action || '')) {
+        body = { runtime: { phase: 'waiting', reason: '实际父会话仍在执行，不重复派发。', cost: 'unknown', run: { sessionId: request.sessionId || 'session-1', stageId: 'project-setup', paused: false, limits: { maxRounds: 64, maxTokens: 500000, maxElapsedMs: 7200000, maxNoProgress: 3 }, usage: { rounds: 0, tokens: 0, elapsedMs: 0, knownCostUsd: 0, unknownTokens: false, unknownCost: true }, noProgress: 0, submissions: [], currentAttemptId: 'host-attempt-1' }, attempt: { id: 'host-attempt-1', key: 'project-setup|running|||', stageId: 'project-setup', status: 'dispatched', messageId: 'host-message-1', children: {} } } }
       } else if (url.includes('/api/agent-pi/stage') && request.action === 'record_requirement') {
         body = { requirement }
       } else if (url.includes('/api/agent-pi/stage') && request.action === 'satisfy_requirement') {
@@ -184,6 +193,8 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     previous.set(key, Object.getOwnPropertyDescriptor(globalThis, key))
     Object.defineProperty(globalThis, key, { configurable: true, writable: true, value })
   }
+  const ReactDOM = requirePnpmPackage('react-dom')
+  const { createRoot } = requirePnpmPackage('react-dom', 'client.js')
 
   let rootView: ReturnType<typeof createRoot> | undefined
   const disposers: Array<() => void> = []
@@ -689,8 +700,12 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
       continueProject.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }))
       await new Promise((resolveTick) => setTimeout(resolveTick, 40))
     })
-    assert.deepEqual(promptTexts, ['【专业项目启动】请依据已登记资料完成项目对齐并继续当前阶段。'])
-    assert.equal(fetchCalls.filter((call) => call.action === 'mark_dispatched').length, 1)
+    assert.deepEqual(promptTexts, [], 'the renderer never submits the host-owned task prompt')
+    const hostDispatches = fetchCalls.filter((call) => call.action === 'runtime_dispatch')
+    assert.equal(hostDispatches.length, 1)
+    assert.deepEqual({ sessionId: hostDispatches[0].sessionId, module: hostDispatches[0].module, projectId: hostDispatches[0].projectId, stageId: hostDispatches[0].stageId, key: hostDispatches[0].key }, { sessionId: 'session-1', module: 'tender', projectId: 'p1', stageId: 'project-setup', key: 'project-setup|running|||' })
+    assert.match(hostDispatches[0].url, /\/api\/agent-pi\/stage\?cwd=C%3A%5Cworkspace/)
+    assert.equal(fetchCalls.filter((call) => call.action === 'mark_dispatched').length, 0, 'dispatch receipts are recorded by the host')
     assert.equal(fetchCalls.filter((call) => call.url.startsWith('open-view:chat:')).length, 1)
 
     await act(async()=>rootView!.unmount())
@@ -742,6 +757,10 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
       }))
       await new Promise((resolveTick) => setTimeout(resolveTick, 40))
     })
+    assert.ok(mount.querySelector('.ap-skill-lifecycle'), 'module management includes the skill lifecycle entry')
+    assert.match(mount.textContent || '', /候选，尚未加载/)
+    assert.match(mount.textContent || '', /旧手工版本，未验证/)
+    assert.ok(fetchCalls.some(call => call.url.includes('/api/agent-pi/skills?sessionId=session-1')), 'skill management reads the actual selected parent session')
     const distill = Array.from(mount.querySelectorAll('button')).find((button) => button.textContent?.includes('做过一单'))
     assert.ok(distill, 'native module-create entry did not render')
     await act(async () => {
@@ -775,6 +794,82 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     assert.deepEqual(sessionCreateCalls, [{ cwd: 'C:/workspace', agentPreset: 'cordis' }])
     assert.equal(openedSessionIds.at(-1), 'session-create-mode')
     assert.match(promptTexts.at(-1) || '', /项目根目录：C:[\\/]workspace/)
+
+    await act(async () => rootView!.unmount())
+    rootView = createRoot(mount)
+    dom.window.sessionStorage.setItem('ap-wb-module', 'kb')
+    await act(async () => {
+      rootView!.render(React.createElement(Workbench, { sessionId: 'session-1', useSessions: (selector: (state: typeof nonblankSessions) => unknown) => selector(nonblankSessions) }))
+      await new Promise(resolveTick => setTimeout(resolveTick, 40))
+    })
+    const versionDetails = Array.from(mount.querySelectorAll('details')).find(row => row.querySelector('summary')?.textContent === '来源与不可变版本')
+    assert.ok(versionDetails, 'knowledge management exposes source applicability and immutable versions')
+    await act(async () => { versionDetails.open = true; versionDetails.dispatchEvent(new dom.window.Event('toggle')); await new Promise(resolveTick => setTimeout(resolveTick, 20)) })
+    assert.match(versionDetails.textContent || '', /生成内容不能作为自身的独立依据/)
+    assert.match(versionDetails.textContent || '', new RegExp('v' + 'b'.repeat(64)))
+    assert.equal(versionDetails.querySelector<HTMLInputElement>('input[type=date]')?.value, '2026-02-06')
+
+    // A mounted workbench retains its owner while another native composer updates
+    // the module-level active session between render and a human action.
+    await act(async () => rootView!.unmount())
+    rootView = createRoot(mount)
+    Object.assign(alternateSessions, {
+      'owner-session': { id: 'owner-session', retainedBy: { mainView: 1 }, cwd: 'C:/workspace', blank: false },
+      'elsewhere-session': { id: 'elsewhere-session', retainedBy: { mainView: 1 }, cwd: 'C:/workspace', blank: false },
+    })
+    const ownerCallsStart = fetchCalls.length
+    dom.window.sessionStorage.setItem('ap-wb-module', 'modules')
+    await act(async () => {
+      rootView!.render(React.createElement(Workbench, { sessionId: 'owner-session', useSessions: selector => selector({ byId: alternateSessions }) }))
+      await new Promise(resolveTick => setTimeout(resolveTick, 30))
+    })
+    const elsewhereMount = dom.window.document.createElement('div')
+    dom.window.document.body.appendChild(elsewhereMount)
+    const elsewhereRoot = createRoot(elsewhereMount)
+    let elsewhereRender = 0
+    const activateElsewhere = async () => {
+      await act(async () => elsewhereRoot.render(React.createElement(ComposerTools, {
+        sessionId: 'elsewhere-session', session: { ...blankSession, sessionId: 'elsewhere-session', blank: false },
+        input: { draft: '另一个对话的输入 ' + ++elsewhereRender }, inputActions: { setDraft() {} }, useSessions: selector => selector({ byId: alternateSessions }),
+      })))
+    }
+    try {
+      await activateElsewhere()
+      const refreshModules = Array.from(mount.querySelectorAll('button')).find(row => row.textContent === '刷新')!
+      assert.ok(refreshModules)
+      await act(async () => { refreshModules.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })); await new Promise(resolveTick => setTimeout(resolveTick, 20)) })
+      const skillLists = fetchCalls.slice(ownerCallsStart).filter(row => row.url.includes('/api/agent-pi/skills') && !row.action)
+      assert.ok(skillLists.length)
+      assert.ok(skillLists.every(row => row.url.includes('sessionId=owner-session')), 'module-only rerenders must not adopt the unrelated global composer')
+      const candidate = Array.from(mount.querySelectorAll('button')).find(row => row.textContent?.includes('候选，尚未加载'))!
+      await act(async () => { candidate.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })); await new Promise(resolveTick => setTimeout(resolveTick, 20)) })
+      const inputSetter = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value')!.set!
+      const caseInputs = Array.from(mount.querySelectorAll<HTMLInputElement>('.ap-skill-detail form input:not([type=checkbox])'))
+      for (const [index, value] of ['owner-case', 'input.txt', 'gold.txt', 'actual.txt'].entries()) await act(async () => { inputSetter.call(caseInputs[index], value); caseInputs[index].dispatchEvent(new dom.window.Event('input', { bubbles: true })) })
+      await act(async () => mount.querySelector<HTMLInputElement>('.ap-skill-detail form input[type=checkbox]')!.click())
+      await act(async () => { mount.querySelector('.ap-skill-detail form')!.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true })); await new Promise(resolveTick => setTimeout(resolveTick, 20)) })
+      assert.equal(fetchCalls.slice(ownerCallsStart).find(row => row.action === 'validate')?.sessionId, 'owner-session', 'explicit skill validation belongs to the mounted workbench task')
+      const tenderTab = Array.from(mount.querySelectorAll('button')).find(row => row.classList.contains('ap-mod') && row.textContent?.includes('投标'))!
+      assert.ok(tenderTab)
+      await act(async () => { tenderTab.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })); await new Promise(resolveTick => setTimeout(resolveTick, 30)) })
+      await activateElsewhere()
+      const check = Array.from(mount.querySelectorAll('button')).find(row => row.textContent === '检查')!
+      await act(async () => { check.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })); await new Promise(resolveTick => setTimeout(resolveTick, 20)) })
+      assert.equal(fetchCalls.slice(ownerCallsStart).find(row => row.action === 'check')?.sessionId, 'owner-session', 'stage checks cannot switch to the unrelated composer session')
+      await activateElsewhere()
+      const continueOwner = Array.from(mount.querySelectorAll('button')).find(row => row.textContent?.includes('继续推进'))!
+      await act(async () => { continueOwner.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })); await new Promise(resolveTick => setTimeout(resolveTick, 30)) })
+      const ownerDispatch = fetchCalls.slice(ownerCallsStart).find(row => row.action === 'runtime_dispatch')
+      assert.equal(ownerDispatch?.sessionId, 'owner-session')
+      assert.equal(ownerDispatch?.projectId, 'p1'); assert.equal(ownerDispatch?.module, 'tender')
+      assert.ok(fetchCalls.slice(ownerCallsStart).filter(row => row.action === 'runtime_status').every(row => row.sessionId === 'owner-session'), 'read-only host monitor follows the same workbench owner')
+      const knowledgeTab = Array.from(mount.querySelectorAll('button')).find(row => row.classList.contains('ap-mod') && row.textContent?.includes('知识库'))!
+      await activateElsewhere()
+      await act(async () => { knowledgeTab.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })); await new Promise(resolveTick => setTimeout(resolveTick, 20)) })
+      assert.ok(fetchCalls.slice(ownerCallsStart).filter(row => row.url.includes('/api/agent-pi/kb?sessionId=')).every(row => row.url.includes('sessionId=owner-session')), 'selected knowledge remains scoped to the workbench owner')
+    } finally {
+      await act(async () => elsewhereRoot.unmount()); elsewhereMount.remove()
+    }
   } finally {
     for (const dispose of disposers.reverse()) dispose?.()
     if (rootView) await act(async () => rootView!.unmount())

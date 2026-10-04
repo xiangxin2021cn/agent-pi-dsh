@@ -12,6 +12,10 @@ import {
   sealKbTransfer,
 } from '../src/kb-transfer.ts'
 import { readUserSkill, saveUserSkill } from '../src/modules.ts'
+import { addKbContent, listKbVersions, readKbChunk } from '../src/kb.ts'
+import { recordCitationSupport } from '../src/citations.ts'
+import { createBusinessProject } from '../../../packages/business-projects/index.ts'
+import { officialStageDir } from '../src/outputs.ts'
 
 function isolateRoots(label: string) {
   const root = mkdtempSync(join(tmpdir(), label))
@@ -100,6 +104,28 @@ test('exporting a user skill and importing it into another skills root', () => {
   assert.equal(imported.skills[0]?.created, true)
   const skill = readUserSkill('site-method')
   assert.match(skill.markdown, /先读本机规范再写步骤/)
+})
+
+test('transfer retains provenance and applicability; a generated report cannot return as independent original evidence', () => {
+  isolateRoots('ap-kb-xfer-generated-src-')
+  const metadata = { sourceKind: 'generated' as const, regions: ['CN'], validFrom: '2026-02-06', validUntil: '2027-12-31', supersedes: ['prior-source'], derivedFrom: ['[src:original.md]'] }
+  const added = addKbContent({ fileName: 'generated-report.md', slug: 'generated-report', text: '# Generated report\n\nProject cost is 999.\n', metadata })
+  const exported = exportKbTransfer({ slugs: [added.entry.slug] })
+  const item = openKbTransfer(exported.body).items[0]
+  assert.equal(item?.type, 'entry')
+  if (item?.type === 'entry') assert.deepEqual(item.metadata, metadata)
+  const cwd = isolateRoots('ap-kb-xfer-generated-dst-')
+  importKbTransfer(exported.body)
+  const entry = kbOverview().entries[0]!
+  for (const key of Object.keys(metadata)) assert.deepEqual(entry[key as keyof typeof metadata], metadata[key as keyof typeof metadata])
+  const project = createBusinessProject({ workspaceRootPath: cwd, module: 'tender', projectId: 'xfer-provenance', name: 'Transfer provenance', rootPath: cwd, workflowId: 'tender-main', inputPaths: [] })
+  const version = listKbVersions(entry.slug).at(-1)!
+  const chunk = readKbChunk(entry.slug, version.manifest.chunks[0]!.id, version.versionId)
+  const token = chunk.citation.match(/\[kb:[^\]]+\]/)![0]
+  const output = join(officialStageDir(cwd, project.projectId, 'tender-document-analysis'), 'report.md')
+  mkdirSync(join(output, '..'), { recursive: true })
+  writeFileSync(output, 'Project cost is 999. ' + token + '\n')
+  assert.throws(() => recordCitationSupport(cwd, project, { id: 'roundtrip-self-proof', artifactPath: output, claim: 'Project cost is 999.', citation: token, verdict: 'supported', reason: 'The imported report repeats the claim', reviewer: 'agent', context: { region: 'CN', asOf: '2026-10-04' }, independentEvidence: [{ citation: token, quote: 'Project cost is 999.' }] }), /生成内容不能作为原始独立事实依据/)
 })
 
 test('a staged file cannot be exported', () => {

@@ -1,3 +1,5 @@
+import { createKnowledgeVersionPanel } from './knowledge-version.js'
+
 export function createKnowledgeBasePanel(dependencies) {
   const {
     Icon,
@@ -38,6 +40,7 @@ export function createKnowledgeBasePanel(dependencies) {
     uploadKbBytes,
     useApLang,
   } = dependencies
+  const KnowledgeVersionPanel = createKnowledgeVersionPanel({ React, api })
 
     const newDraftKey = () => 'kb-draft:' + Date.now().toString(36) + ':' + Math.random().toString(36).slice(2)
     let draftKey = newDraftKey()
@@ -949,7 +952,7 @@ export function createKnowledgeBasePanel(dependencies) {
               ? h('p', { className: 'ap-sub', style: { padding: '14px 0' } }, tAp('kb.empty'))
               : sortKbCategories(Object.keys(groups)).map((category) => {
                 const tree = groupKbEntries(groups[category], folders, category)
-                const renderEntry = (entry) => h('div', { key: entry.slug, className: 'ap-task', style: { gap: 10 } },
+                const renderEntry = (entry) => h('div', { key: entry.slug, style: { borderBottom: '1px solid var(--border-color, #e5e7eb)' } }, h('div', { className: 'ap-task', style: { gap: 10 } },
                   h('div', {
                     className: 'ap-row',
                     style: { gap: 8, minWidth: 0, flex: 1, alignItems: 'center' },
@@ -1020,7 +1023,7 @@ export function createKnowledgeBasePanel(dependencies) {
                       : null,
                     h('button', { type: 'button', className: 'ap-btn link', disabled: !!busy || entry.parseStatus === 'parsing', onClick: () => doRemove(entry) }, tAp('kb.delete')),
                   ),
-                )
+                ), entry.parseStatus === 'ready' ? h(KnowledgeVersionPanel, { cwd, entry, onChanged: () => load(selectedRef.current) }) : null)
                 return h('div', { key: category, style: { marginTop: 10 } },
                   h('div', { className: 'ap-row', style: { gap: 8, flexWrap: 'wrap' } },
                     h('strong', null, kbCategoryLabel(category)),

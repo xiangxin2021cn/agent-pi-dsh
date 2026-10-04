@@ -168,6 +168,7 @@ const localPlugins = [
   ...workbenchDefaults.map(([name, dir]) => ({ name, dir: join(root, 'bundles', dir) })),
   ...TEAM_PACKAGES.map(name => ({ name: `@deepseek-ai/dsh-experimental-${name}`, dir: join(dsh, 'packages/experimental', name) })),
   { name: 'dsh-tender-host', dir: join(root, 'bundles/tender-host') },
+  { name: '@deepseek-ai/dsh-tool-session-query', dir: join(dsh, 'packages/session-query/tool-session-query') },
   { name: 'dsh-tender-web', dir: join(root, 'bundles/tender-web') },
   { name: AGENT_PI_COMPACTION, dir: agentPiCompactionDir },
   { name: CODEX_SUBAGENT, dir: join(dsh, 'packages/subagent/subagent-codex') },
@@ -337,6 +338,13 @@ function buildManagedPatch(deps) {
 
 # Model catalog and default selection come directly from the official dsh-base.
 # Do not shadow upstream multimodal capabilities with a product catalog.
+
+# Native history retrieval uses a disposable local index. Exact events remain
+# in the native session store; only authorized same-workspace reads are exposed.
+- id: session-query-sqlite
+  config:
+    path: ${JSON.stringify(join(home, 'session-query.sqlite'))}
+    openAt: first-search
 
 # Extra provider metadata is opt-in for professional workspaces.
 - id: session-log-deepseek

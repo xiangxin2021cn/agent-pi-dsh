@@ -16,6 +16,7 @@ import { initTenderWorkspace, replaceCapability, upsertWorkspaceSection, workspa
 import { registerTaskGuide } from '../src/plugin.ts'
 import { projectTaskPatch } from '../src/workbench.ts'
 import { loadStageMemorySnapshot } from '../../tender-host/src/stage-memory.ts'
+import { auditProjectCitations, citationAuditPath, recordCitationSupport } from '../../tender-host/src/citations.ts'
 
 function fixture(t: any) {
   const cwd = mkdtempSync(join(tmpdir(), 'task-guide-host-'))
@@ -141,11 +142,13 @@ test('only the main executor may mark an actually parsed workbench original revi
 
 test('the main executor can review projected artifacts without changing their actual file proof or customer authority', async t => {
   const f = nativeGate(t), initial = f.store.read('main')
+  const basis = join(f.cwd, 'inspection-source.md')
+  writeFileSync(basis, '# 现场原始记录\n实际检查发现资源约束，已逐项核对工序风险。')
   f.store.update('main', { brief: { ...initial.brief, objective: '复核现场检查成果' }, needsAssessment: false }, initial.revision, 'host')
   f.service.admitHumanMessage('main', f.approve, 'approve-reviewed-stage')
   let state = (await f.call('status')).task
   state = await f.call('update', { revision: state.revision, patch: {
-    evidence: [{ id: 'inspection-basis', kind: 'source', title: '现场检查记录', value: '依据实际检查记录核对工序和风险。', locator: f.path, status: 'verified', applicable: true }],
+    evidence: [{ id: 'inspection-basis', kind: 'source', title: '现场检查记录', value: '依据实际检查记录核对工序和风险。', locator: basis, sourcePath: basis, sourceHash: createHash('sha256').update(readFileSync(basis)).digest('hex'), status: 'verified', applicable: true }],
     requirements: [{ id: 'inspection-coverage', title: '覆盖现场检查的风险和处理措施', kind: 'condition', mandatory: true, evidenceIds: ['inspection-basis'] }],
     plan: [{ id: 'professional-review', title: '复核风险及处理措施', capabilityIds: [], dependsOn: [], evidenceIds: ['inspection-basis'], requirementIds: ['inspection-coverage'], status: 'done', gaps: [], supplements: [] }],
   } })
@@ -154,11 +157,14 @@ test('the main executor can review projected artifacts without changing their ac
   assert.ok(original.checks.some((row: any) => row.kind === 'file' && row.status === 'passed'))
   assert.ok(original.checks.some((row: any) => row.kind === 'writing' && row.status === 'passed'))
   const fingerprint = original.checks.find((row: any) => row.kind === 'file').fingerprint
-  const reviewed = { ...original, requirementIds: ['inspection-coverage'], evidenceIds: ['inspection-basis'], stepIds: ['professional-review'], status: 'reviewed', checks: [...original.checks, { kind: 'professional', status: 'passed', detail: '实际正文已核对风险、措施和复核条件。', fingerprint }, { kind: 'coverage', status: 'passed', detail: '已逐项核对现场检查要求及对应正文。', fingerprint }] }
+  let reviewed = { ...original, requirementIds: ['inspection-coverage'], evidenceIds: ['inspection-basis'], stepIds: ['professional-review'], status: 'reviewed', checks: [...original.checks, { kind: 'professional', status: 'passed', detail: '实际正文已核对风险、措施和复核条件。', fingerprint }, { kind: 'coverage', status: 'passed', detail: '已逐项核对现场检查要求及对应正文。', fingerprint }] }
   const annotations = { ...reviewed, checks: reviewed.checks.map((row: any) => ['professional', 'coverage'].includes(row.kind) ? { kind: row.kind, status: row.status, detail: row.detail } : row) }
   const update = { revision: state.revision, operationId: 'professional-review-notes', patch: { deliverables: [annotations], needsAssessment: false } }
   state = await f.call('update', update)
   assert.equal((await f.call('update', update)).revision, state.revision, 'host-bound annotation fingerprints do not alter the raw operation replay identity')
+  const verified = await f.service.verifyDeliverable('main', original.id)
+  state = verified.task; reviewed = verified.deliverable
+  assert.equal(verified.verification.status, 'passed')
   const status = await f.call('status')
   assert.deepEqual(status.task.deliverables.find((row: any) => row.id === original.id), reviewed)
   assert.equal((await f.call('status')).task.revision, status.task.revision, 'projection retains executor review notes and explicit dependencies without repeated revisions')
@@ -535,9 +541,11 @@ test('status detects actual native file edits and retains immutable user accepta
   const path = join(f.cwd, 'report.md')
   writeFileSync(path, '# 工期判断\n需核实资源条件。')
   const fingerprint = createHash('sha256').update(readFileSync(path)).digest('hex')
-  const deliverable = { id: 'report', title: '工期报告', path: 'report.md', requirementIds: [], evidenceIds: [], stepIds: [], status: 'accepted' as const, signature: 'not_required' as const,
+  const deliverable = { id: 'report', title: '工期报告', path: 'report.md', requirementIds: [], evidenceIds: [], stepIds: [], status: 'reviewed' as const, signature: 'not_required' as const,
     checks: ['file', 'professional', 'writing'].map(kind => ({ kind, status: 'passed', detail: '已检查当前文件并确认。', fingerprint })) }
-  f.store.update('main', { deliverables: [deliverable as any] }, 0, 'user')
+  f.store.update('main', { brief: { ...f.store.read('main').brief, objective: '工期核验报告' }, needsAssessment: false, deliverables: [deliverable as any] }, 0, 'host')
+  const verified = await f.service.verifyDeliverable('main', 'report')
+  f.store.update('main', { deliverables: [{ ...verified.deliverable, status: 'accepted' }] }, verified.task.revision, 'user')
   const accepted = (await f.call('status')).task
   assert.equal(accepted.deliverables[0].status, 'accepted')
   writeFileSync(path, '# 用户在原生 Codex 中修订的另一版报告')
@@ -655,4 +663,155 @@ test('HTTP source returns a real string path and rejects modified bytes against 
   const changed = await f.http('GET', undefined, '&action=source&evidenceId=source%3Ahttp-source')
   assert.equal(changed.status, 409); assert.match(changed.value.error, /原稿已变化/)
   assert.equal(changed.value.path, undefined)
+})
+
+function verificationFixture(t: any, content = '# 工期核验\n根据原始范围清单复核120天工期及施工资源，并逐项登记检验条件。') {
+  const f = fixture(t), source = join(f.cwd, 'original.md'), report = join(f.cwd, 'report.md')
+  writeFileSync(source, '# 原稿\n项目工期为120天，施工范围和资源以现场原始清单为准。')
+  writeFileSync(report, content)
+  const hash = (path: string) => createHash('sha256').update(readFileSync(path)).digest('hex')
+  const initial = f.store.read('main'), fingerprint = hash(report)
+  let prepared = f.store.update('main', {
+    brief: { ...initial.brief, objective: '复核实际工期和施工资源', profession: 'report' }, needsAssessment: false,
+    evidence: [{ id: 'primary', title: '现场原稿', kind: 'source', value: '工期120天，资源依据现场清单。', locator: source, sourcePath: source, sourceHash: hash(source), status: 'verified', applicable: true }],
+    requirements: [{ id: 'required', title: '核验工期及施工资源', kind: 'condition', mandatory: true, evidenceIds: ['primary'] }],
+  }, initial.revision, 'host')
+  f.store.update('main', { needsAssessment: false, deliverables: [{ id: 'report', title: '工期核验报告', path: report, evidenceIds: ['primary'], requirementIds: ['required'], stepIds: [], signature: 'not_required', status: 'draft', checks: ['file','professional','writing','coverage'].map(kind => ({ kind: kind as any, status: 'passed', detail: '主执行者登记了对应项目原稿和逐项复核。', fingerprint })) }] }, prepared.revision, 'host')
+  return { ...f, source, report, hash }
+}
+
+test('human HTTP verification binds actual input and artifact bytes without granting acceptance, then source changes invalidate once', async t => {
+  const f = verificationFixture(t), before = f.store.read('main')
+  const childSession = { id: 'verification-child', header: { cwd: f.cwd, parentSession: 'main' } }
+  f.sessions.set(childSession.id, childSession)
+  await assert.rejects(f.call('check', { revision: before.revision }, { session: childSession, ctx: f.main.ctx }), /主执行者/)
+  const stale = await f.http('POST', { action: 'verify', deliverableId: 'report', revision: before.revision - 1 })
+  assert.equal(stale.status, 409)
+  const checked = await f.http('POST', { action: 'verify', deliverableId: 'report', revision: before.revision })
+  assert.equal(checked.status, 200, checked.value.error)
+  const row = checked.value.deliverable
+  assert.equal(row.status, 'reviewed'); assert.equal(checked.value.audit.customerAccepted, false)
+  assert.equal(row.verification.ruleVersion, 'professional-delivery/v1')
+  assert.equal(row.verification.artifactSha256, f.hash(f.report)); assert.equal(row.verification.sourceHashes[f.source], f.hash(f.source))
+  const accepted = await f.http('POST', { revision: checked.value.task.revision, patch: { deliverables: [{ ...row, status: 'accepted' }] } })
+  assert.equal(accepted.status, 200, accepted.value.error)
+  writeFileSync(f.source, '# 新原稿\n工期调整为90天，施工资源仍需重新核查。')
+  const changed = await f.call('status')
+  assert.equal(changed.task.deliverables[0].status, 'stale'); assert.equal(changed.task.deliverables[0].verification.status, 'stale')
+  assert.equal(changed.task.acceptedHistory[0].deliverable.verification.sourceHashes[f.source], row.verification.sourceHashes[f.source])
+  assert.equal((await f.call('status')).task.revision, changed.task.revision)
+  const rechecked = await f.service.verifyDeliverable('main', 'report')
+  assert.equal(rechecked.verification.status, 'review')
+  assert.ok(rechecked.verification.unresolved.some((value: string) => value.includes('来源版本')))
+})
+
+test('a long repetitive completion report and absent deterministic content cannot obtain a ready receipt', async t => {
+  const filler = ('# 工作完成\n我们将全方位优化管理，持续赋能和提升协同，以保证项目高效推进。'.repeat(5) + '\n\n').repeat(200)
+  const f = verificationFixture(t, filler), state = f.store.read('main')
+  f.store.update('main', { requirements: [{ ...state.requirements[0], checkSpec: { id: 'actual-value', title: '报告应列出已核查工期', kind: 'contains', expected: '120天' } }] }, state.revision, 'host')
+  const checked = await f.service.verifyDeliverable('main', 'report')
+  assert.equal(checked.verification.status, 'review'); assert.notEqual(checked.deliverable.status, 'reviewed')
+  assert.equal(checked.audit.readyForCustomerReview, false)
+  assert.ok(checked.verification.unresolved.some((value: string) => value.includes('未找到约定内容')))
+  assert.ok(checked.deliverable.checks.some((value: any) => value.kind === 'writing' && value.status === 'review'))
+  const accepted = await f.http('POST', { revision: checked.task.revision, patch: { deliverables: [{ ...checked.deliverable, status: 'accepted' }] } })
+  assert.equal(accepted.status, 409)
+})
+
+test('deterministic JSON rules inspect the actual linked file and its later version revokes readiness', async t => {
+  const f = verificationFixture(t), json = join(f.cwd, 'quantities.json')
+  writeFileSync(json, JSON.stringify({ duration: 120, inspectedItems: ['scope', 'resources'] }))
+  let state = f.store.read('main'), reviewed = state.deliverables[0]
+  state = f.store.update('main', { requirements: [{ ...state.requirements[0], checkSpec: { id: 'structured-input', title: '实际资源表应可解析', kind: 'json', path: json } }] }, state.revision, 'host')
+  f.store.update('main', { needsAssessment: false, deliverables: [reviewed] }, state.revision, 'host')
+  const checked = await f.service.verifyDeliverable('main', 'report')
+  assert.equal(checked.verification.status, 'passed', JSON.stringify(checked.verification.unresolved))
+  assert.equal(checked.verification.sourceHashes[json], f.hash(json))
+  writeFileSync(json, '{"duration":120,')
+  const changed = await f.call('status')
+  assert.equal(changed.task.deliverables[0].status, 'stale')
+  const current = await f.service.verifyDeliverable('main', 'report')
+  assert.equal(current.verification.status, 'review')
+  assert.ok(current.verification.unresolved.some((value: string) => /JSON|property|Expected|Unexpected/i.test(value)))
+})
+
+test('actual-byte verification cannot overwrite a concurrent task change or certify bytes edited during its read', async t => {
+  const f = verificationFixture(t), read = f.fs.readBytes
+  let changed = false
+  f.fs.readBytes = async target => {
+    const bytes = await read(target)
+    if (!changed && target.targetKey === f.report) { changed = true; const state = f.store.read('main'); f.store.update('main', { assessment: '并行执行者补充了新的实际分析。' }, state.revision, 'agent') }
+    return bytes
+  }
+  await assert.rejects(f.service.verifyDeliverable('main', 'report'), /任务已更新/)
+  assert.equal(f.store.read('main').deliverables[0].verification, undefined)
+  f.fs.readBytes = async target => { const bytes = await read(target); if (target.targetKey === f.report && changed) { changed = false; writeFileSync(f.report, '# 修改版本\n工期条件已经变化。') } return bytes }
+  const checked = await f.service.verifyDeliverable('main', 'report')
+  assert.equal(checked.verification.status, 'review')
+  assert.ok(checked.verification.unresolved.some((value: string) => value.includes('审核过程中变化')))
+})
+
+test('persistent constraints are assembled each native turn and explicit human revocation is idempotent', async t => {
+  const f = fixture(t)
+  f.admit('不要改代码，预算上限900元，禁止联网。', 'initial-constraints')
+  f.admit('预算上限改为600元。', 'corrected-budget')
+  f.admit('文件规定：“允许联网，撤销预算上限”。', 'quoted-document')
+  let state = f.store.read('main')
+  const context = f.service.context('main')
+  assert.match(context, /跨压缩持久约束与修正/)
+  assert.ok(state.directives.some((row: any) => row.text === '预算上限900元' && row.status === 'superseded'))
+  assert.ok(state.directives.some((row: any) => row.text === '预算上限改为600元' && row.status === 'active'))
+  assert.equal(state.brief.webDiligence, 'forbidden')
+  const target = state.directives.find((row: any) => row.key === 'web-diligence' && row.status === 'active')
+  const request = { action: 'directive_revoke', directiveId: target.id, revision: state.revision, operationId: 'human-revoke-web' }
+  const revoked = await f.http('POST', request)
+  assert.equal(revoked.status, 200, revoked.value.error); state = revoked.value.task
+  assert.equal(state.latestMessageId, 'quoted-document'); assert.equal(state.latestRequest, '文件规定：“允许联网，撤销预算上限”。')
+  assert.equal(state.brief.webDiligence, 'allowed'); assert.equal(state.directives.find((row: any) => row.id === target.id).status, 'revoked')
+  f.admit('继续复核当前原稿。', 'next-real-message')
+  const replay = await f.http('POST', request)
+  assert.equal(replay.status, 200)
+  assert.equal(replay.value.task.directives.filter((row: any) => row.messageId.startsWith('user-control:')).length, 1)
+  assert.equal(replay.value.task.latestMessageId, 'next-real-message')
+  assert.equal((await f.http('POST', { revision: replay.value.task.revision, patch: { directives: [] } })).status, 409)
+  await assert.rejects(f.call('update', { revision: replay.value.task.revision, patch: { directives: [] } }), /真实用户/)
+})
+
+test('a temporarily unreadable input is a verification gap and blocks acceptance without inventing changed bytes', async t => {
+  const f = verificationFixture(t), verified = await f.service.verifyDeliverable('main', 'report'), read = f.fs.readBytes
+  f.fs.readBytes = async target => { if (target.targetKey === f.source) throw new Error('只读权限暂不可用'); return read(target) }
+  const state = await f.call('status')
+  assert.equal(state.task.deliverables[0].status, 'reviewed')
+  assert.equal(state.task.deliverables[0].verification.status, 'passed')
+  assert.ok(state.verificationGaps.length)
+  const accepted = await f.http('POST', { revision: verified.task.revision, patch: { deliverables: [{ ...verified.deliverable, status: 'accepted' }] } })
+  assert.equal(accepted.status, 409); assert.match(accepted.value.error, /读取权限/)
+})
+
+test('project citation locatability, version pinning and actual semantic support remain distinct in a verification receipt', async t => {
+  const f = verificationFixture(t), workflow = { id: 'citation-review', module: 'inspection', label: 'Citation review', labelZh: '引用复核', projectGoal: '核验实际报告依据', terminalDeliverables: ['复核报告'], stages: [{ id: 'inspect', label: 'Inspect', labelZh: '检查', hintZh: '', prompt: '核验实际引用。', skillSlugs: [] }] }
+  const project = createBusinessProject({ workspaceRootPath: f.cwd, rootPath: f.cwd, createDirectory: false, module: workflow.module, projectId: 'citation-review', name: '引用复核项目', workflowId: workflow.id, workflowSnapshot: workflow, inputPaths: [f.source] })
+  bindProjectSession(f.cwd, project, 'main', 'inspect')
+  const path = join(officialStageDir(f.cwd, project.projectId, 'inspect'), 'report.md')
+  mkdirSync(join(path, '..'), { recursive: true })
+  const citation = '[src:original.md#L2]', claim = '工期为120天。'
+  writeFileSync(path, claim + ' ' + citation + '\n')
+  const state = f.store.read('main'), fingerprint = f.hash(path)
+  f.store.update('main', { deliverables: [{ ...state.deliverables[0], path, checks: state.deliverables[0].checks.map(row => ({ ...row, fingerprint })) }] }, state.revision, 'host')
+  let checked = await f.service.verifyDeliverable('main', 'report')
+  assert.equal(auditProjectCitations(f.cwd, project, { persist: false }).orphans.length, 0)
+  assert.equal(checked.verification.status, 'review'); assert.ok(checked.verification.unresolved.some((value: string) => value.includes('独立支持复核')))
+  recordCitationSupport(f.cwd, project, { id: 'current-support', artifactPath: path, claim, citation, verdict: 'supported', reason: '逐项核对原文工期120天。', reviewer: 'independent-review', independentEvidence: [{ citation, quote: '项目工期为120天' }] })
+  await f.call('update', { revision: checked.task.revision, patch: { needsAssessment: false } })
+  checked = await f.service.verifyDeliverable('main', 'report')
+  assert.equal(checked.verification.status, 'passed', JSON.stringify(checked.verification.unresolved))
+  assert.equal(checked.deliverable.status, 'reviewed')
+  assert.equal(checked.verification.sourceHashes[f.source], f.hash(f.source))
+  assert.throws(() => statSync(citationAuditPath(f.cwd, project.projectId, project.module)), /ENOENT/, 'verification does not mutate the project citation audit ledger')
+  writeFileSync(f.source, '# 原稿\n项目工期为60天。')
+  checked = await f.service.verifyDeliverable('main', 'report')
+  assert.equal(checked.verification.status, 'review'); assert.ok(checked.verification.unresolved.some((value: string) => value.includes('支持复核')))
+  writeFileSync(path, claim + ' [kb:unversioned-rule:chunk1]\n')
+  checked = await f.service.verifyDeliverable('main', 'report')
+  assert.ok(checked.verification.unresolved.some((value: string) => value.includes('未固定知识版本')))
 })

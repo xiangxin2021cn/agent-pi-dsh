@@ -3,8 +3,10 @@ import { basename, extname, join } from 'node:path'
 import { getBusinessProject } from '../../../packages/business-projects/index.ts'
 import { readJson, writeJson, tenderDir, ensureDir } from './fsutil.ts'
 import { listKbEntries } from './kb.ts'
-import { officialProjectDir } from './outputs.ts'
 import { loadWorkspace } from './workspace.ts'
+import { listSetupRestores, setupSourceStatus } from './setup-restore.ts'
+import { knowledgeApplicability } from './knowledge-versions.ts'
+import { isGeneratedProjectSource } from './knowledge-provenance.ts'
 
 export const PROJECT_CHARACTERISTICS_EVIDENCE_GATE = 'project-characteristics:evidence-gap'
 
@@ -12,7 +14,7 @@ export const PROJECT_CHARACTERISTICS_EVIDENCE_GATE = 'project-characteristics:ev
  * Bumped when the assessment algorithm changes; evidencePolicy re-assesses ledgers
  * written by an older assessor so fixes take effect without a manual re-assess.
  */
-export const EVIDENCE_ASSESSOR_VERSION = 2
+export const EVIDENCE_ASSESSOR_VERSION = 3
 
 export interface ProjectCharacteristicsEvidenceGap {
   chapterId: string
@@ -72,6 +74,7 @@ const NAMED_STANDARD_PATTERN = /\b(coto|colto|fidic|sabs|bs en|nec[34]|jbcc|gcc\
 export const PROJECT_CHARACTERISTICS_EVIDENCE_POLICY_RULE = [
   'Project-characteristic facts (contract form, spec clauses, geology, climate, calendar, subcontracting, sequence) require a registered source file, knowledge-base entry, or user-authorized web diligence.',
   'Do not fill gaps from model memory.',
+  'Generated reports and stage summaries are not original factual evidence. Parse manuscripts count only when linked to a registered original and its current hash. Citation existence proves location, not semantic support.',
   'Verify key rates (fuel, wages, plant hire, cement, aggregates, asphalt, subcontract) against applicable current sources. The current professional task webDiligence policy governs all web research, including rates: ask requires authorization and forbidden prohibits browsing. Record permitted hits in itemBuildUps[].costComponents[].rateBasis.webEvidence with url + accessedAt; retain unsupported rates as provisional. South African wage rules apply only to supported South African jurisdiction. Use available native web tools when AnySearch is unavailable; choose country and language from project evidence.',
   'If webDiligenceAuthorized is false: do not use the web to invent missing specs, geology, or other characteristic facts; mark them unverified and ask for an upload or force-pass.',
   'If webDiligenceAuthorized is true: diligence only the listed gaps and record url + accessedAt; still never fabricate.',
@@ -111,34 +114,22 @@ function collectContentEvidence(cwd: string, projectId: string): Array<{ name: s
       samples.push({ name: basename(path), text: slice })
     } catch { /* unreadable file: content channel is best-effort */ }
   }
-  const walk = (dir: string, depth: number) => {
-    if (depth > 6 || budget <= 0 || !existsSync(dir)) return
-    let entries: string[]
-    try {
-      entries = readdirSync(dir)
-    } catch { /* unreadable dir: skip subtree */ return }
-    for (const entry of entries) {
-      if (budget <= 0) return
-      const path = join(dir, entry)
-      try {
-        if (statSync(path).isDirectory()) walk(path, depth + 1)
-        else pushFile(path)
-      } catch { /* transient fs race: skip entry */ }
-    }
-  }
-  // Parse deliverables: Official Outputs Markdown + structured stage reports.
-  walk(officialProjectDir(cwd, projectId), 0)
-  walk(join(tenderDir(cwd, projectId), 'orchestration', 'reports'), 0)
   // Registered text sources (workspace documents + project inputPaths).
   try {
     for (const doc of loadWorkspace(cwd, projectId).documents) {
       if (doc.status && doc.status !== 'active') continue
-      if (doc.path) pushFile(doc.path)
+      if (doc.path && !isGeneratedProjectSource(cwd,projectId,doc.path)) pushFile(doc.path)
     }
   } catch { /* workspace not initialized yet */ }
   try {
     const project = getBusinessProject(cwd, 'tender', projectId)
-    for (const inputPath of project?.inputPaths ?? []) pushFile(inputPath)
+    const restores = listSetupRestores(cwd,projectId)
+    for (const inputPath of project?.inputPaths ?? []) {
+      if (isGeneratedProjectSource(cwd,projectId,inputPath)) continue
+      pushFile(inputPath)
+      const status = setupSourceStatus(cwd,projectId,inputPath,restores,true)
+      if (status.extracted && status.restore) pushFile(status.restore.manuscriptPath)
+    }
   } catch { /* registry unreadable */ }
   return samples
 }
@@ -154,18 +145,21 @@ export function assessEvidence(cwd: string, projectId: string, text = ''): Proje
   try {
     for (const doc of loadWorkspace(cwd, projectId).documents) {
       if (doc.status && doc.status !== 'active') continue
-      consider(doc.name)
-      consider(doc.path ? basename(doc.path) : undefined)
+      if (doc.path && existsSync(doc.path) && !isGeneratedProjectSource(cwd,projectId,doc.path)) {
+        consider(doc.name)
+        consider(basename(doc.path))
+      }
     }
   } catch { /* workspace not initialized yet */ }
   try {
     const project = getBusinessProject(cwd, 'tender', projectId)
-    for (const inputPath of project?.inputPaths ?? []) consider(basename(inputPath))
+    for (const inputPath of project?.inputPaths ?? []) if (existsSync(inputPath) && !isGeneratedProjectSource(cwd,projectId,inputPath)) consider(basename(inputPath))
   } catch { /* registry unreadable */ }
   // Knowledge-base entries (specs, contract conditions, standards the user has indexed)
   // count as evidence sources: name and category both participate in matching.
   try {
     for (const entry of listKbEntries()) {
+      if (entry.sourceKind === 'generated' || isGeneratedProjectSource(cwd,projectId,entry.sourcePath) || knowledgeApplicability(entry).status === 'inapplicable') continue
       consider(`${entry.name} ${entry.category}`)
       consider(basename(entry.sourcePath))
     }
@@ -174,7 +168,6 @@ export function assessEvidence(cwd: string, projectId: string, text = ''): Proje
   // workspace top level.
   const scanRoots = [
     join(dir, 'sources'),
-    join(cwd),
   ]
   for (const root of scanRoots) {
     if (!existsSync(root)) continue
@@ -211,7 +204,7 @@ export function assessEvidence(cwd: string, projectId: string, text = ''): Proje
         blocking: true,
         detail: mentioned
           ? `${chapter.title} is discussed in analysis text but no matching source file is registered.`
-          : `${chapter.title} has no registered source file or matching content in registered sources/deliverables.`,
+          : `${chapter.title} has no original source file or traceable parse content; generated deliverables cannot establish source evidence.`,
         suggestedUpload: chapter.suggestedUpload,
       })
     }

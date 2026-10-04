@@ -81,6 +81,29 @@ export interface Deliverable {
   signature: 'not_required' | 'pending' | 'signed'
   checks: Array<{ kind: 'file' | 'format' | 'coverage' | 'calculation' | 'professional' | 'writing' | 'signature'; status: CheckStatus; detail: string; fingerprint?: string }>
   briefDependencies?: Array<keyof TaskBrief>
+  verification?: ArtifactVerification
+}
+export interface ArtifactVerification {
+  ruleVersion: string
+  artifactSha256: string | null
+  taskRevision: number
+  inputFingerprint: string
+  sourceHashes: Record<string, string | null>
+  checks: Deliverable['checks']
+  unresolved: string[]
+  status: 'passed' | 'review' | 'failed' | 'stale'
+  checkedAt: string
+}
+export interface TaskDirective {
+  id: string
+  key: string
+  kind: 'request' | 'constraint' | 'correction' | 'scope' | 'decision' | 'revocation'
+  text: string
+  status: 'active' | 'superseded' | 'revoked'
+  source: 'user' | 'native'
+  messageId: string
+  updatedRevision: number
+  supersedes?: string[]
 }
 export interface BriefProvenance {
   origin: 'user' | 'source' | 'inference' | 'legacy'
@@ -180,6 +203,7 @@ export interface ProfessionalTask {
   operationReceipts: Array<{ id: string; digest: string; revision: number }>
   migration?: { schema1?: boolean; depth?: boolean; depthPurposeConflict?: string }
   acceptedHistory: Array<{ revision: number; at: string; deliverable: Deliverable }>
+  directives: TaskDirective[]
 }
 export interface Capability {
   id: string

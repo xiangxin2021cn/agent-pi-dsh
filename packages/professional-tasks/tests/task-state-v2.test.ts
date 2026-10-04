@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { buildArtifactVerification } from '../verification.ts'
 import { test } from 'node:test'
 import { createHash } from 'node:crypto'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -154,6 +155,8 @@ test('pending project requirement blocks review and acceptance until paired ledg
   assert.ok(auditTask(pending).issues.some(row => row.code === 'project_sync_pending'))
   assert.throws(() => reviseTask(pending, { deliverables: [{ ...pending.deliverables[0], status: 'accepted' }] }, 1, 'user'), /同步/)
   const synchronized = reviseTask(pending, { pendingProjectSync: undefined }, 1, 'host')
+  synchronized.deliverables[0].checks.forEach(check => check.fingerprint = 'a'.repeat(64))
+  synchronized.deliverables[0].verification = buildArtifactVerification(synchronized, synchronized.deliverables[0], { artifactSha256: 'a'.repeat(64), sourceHashes: {}, checks: synchronized.deliverables[0].checks })
   assert.equal(auditTask(synchronized).readyForCustomerReview, true)
 })
 

@@ -14,12 +14,13 @@ import {
   addKbFile,
   findKbClause,
   findKbTable,
-  importKbTransferFromPath,
   getKbTaskSlugs,
   kbOverview,
   kbPageIndexPath,
   listKbEntries,
+  listKbVersions,
   readKbChunk,
+  updateKbMetadata,
   reindexKb,
   removeKbEntry,
   searchKb,
@@ -56,9 +57,10 @@ import {
   validateCapability,
 } from './workspace.ts'
 import { capabilitySchemaHint } from './capability-schema.ts'
-import { copyWorkbenchModule, listWorkbenchModules, removeUserModule, saveUserModule, saveUserSkill, setModuleDisabled, usesTenderControlProfile, workflowFor } from './modules.ts'
+import { copyWorkbenchModule, listWorkbenchModules, removeUserModule, saveUserModule, setModuleDisabled, usesTenderControlProfile, workflowFor } from './modules.ts'
 import { adoptWorkspace } from './adopt.ts'
-import { auditProjectCitations } from './citations.ts'
+import { auditProjectCitations, recordCitationSupport } from './citations.ts'
+import { createSkillCandidate, listSkillLifecycles, readSkillVersion } from './skill-lifecycle.ts'
 import { prepareKbDocument } from './kb-prepare.ts'
 import { generatePricingWorkbook } from './pricing-workbook.ts'
 import { routeKnowledgeSurfaces } from './knowledge-surface-router.ts'
@@ -71,6 +73,9 @@ import { recordKnowledgeTelemetry } from './knowledge-telemetry.ts'
 import { loadWorkSurfacePolicy } from './worksurface-policy.ts'
 import { refreshStageMemorySnapshot, slimStageMemorySnapshot } from './stage-memory.ts'
 import { businessContextForAgent } from './business-activation.ts'
+import { verificationCurrent } from '../../../packages/professional-tasks/verification.ts'
+import { createHash } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 
 type DefineTool = (options: Record<string, unknown>) => unknown
 
@@ -422,18 +427,35 @@ export function registerTools(ctx: {
 
   tools.register(defineTool({
     name: 'tender_outputs',
-    description: 'Optionally copy a customer-facing file into Agent Pi Outputs/<projectId>/. Prefer writing Markdown directly to brief.markdownPath. JSON ledgers stay in orchestration/reports. action=list scans Official Outputs plus the catalog.',
+    description: 'Copy a draft into Agent Pi Outputs, or verify_and_publish an existing shared deliverable using actual artifact/input hashes and the current rules. Copying never establishes customer acceptance. JSON ledgers stay in orchestration/reports.',
     parameters: {
-      action: { type: 'string', required: true, description: 'publish | list' },
+      action: { type: 'string', required: true, description: 'publish | verify_and_publish | list' },
       projectId: { type: 'string', required: true },
       sourcePath: { type: 'string' },
+      deliverableId: { type: 'string', description: 'Existing shared-task deliverable to verify against actual files.' },
       kind: { type: 'string', description: 'json | markdown | other' },
     },
     output: jsonOut(),
-    async execute(args: Record<string, unknown>, exec: { agent?: { session?: { header?: { cwd?: string } } } }) {
+    async execute(args: Record<string, unknown>, exec: any) {
       const cwd = sessionCwd(exec)
       const projectId = String(args.projectId)
       if (args.action === 'list') return textResult(listOfficialOutputs(cwd, projectId))
+      if (args.action === 'verify_and_publish') {
+        if (exec.agent?.session?.header?.parentSession) throw new Error('共同成果的统一审核与发布由主执行者处理。')
+        const checked = await ctx.get?.('taskGuide')?.verifyDeliverable?.(exec.agent.session.id, String(args.deliverableId || ''), { agent: exec.agent })
+        if (!checked) throw new Error('共同任务审核服务尚不可用。')
+        const { task, deliverable } = checked
+        const actual: Record<string, string | null> = {}
+        for (const path of [deliverable.path, ...Object.keys(deliverable.verification?.sourceHashes || {})]) {
+          try { actual[path] = createHash('sha256').update(readFileSync(resolve(cwd, path))).digest('hex') } catch { actual[path] = null }
+        }
+        const readiness = verificationCurrent(task, deliverable, actual)
+        if (!readiness.ready) throw new Error('成果尚未满足当前验收规则：' + [...readiness.reasons, ...(deliverable.verification?.unresolved || [])].join('；'))
+        const published = publishOfficialOutput(cwd, projectId, resolve(cwd, deliverable.path), 'other', undefined, String(args.module || 'tender'))
+        if (createHash('sha256').update(readFileSync(published.dest)).digest('hex') !== deliverable.verification.artifactSha256) throw new Error('发布文件已变化，请重新审核。')
+        return textResult({ ...published, deliveryState: deliverable.status === 'accepted' ? 'accepted' : 'reviewed', verification: deliverable.verification })
+      }
+      if (args.action !== 'publish') throw new Error('未知成果操作。')
       return textResult(publishOfficialOutput(
         cwd,
         projectId,
@@ -469,6 +491,8 @@ export function registerTools(ctx: {
       limit: { type: 'number', description: 'Max hits, default 8, cap 20' },
       slugs: { type: 'array', items: { type: 'string' }, description: 'Specific entries requested by the user. Defaults to entries selected for this conversation; an empty selection searches nothing.' },
       category: { type: 'string', description: 'Restrict to a category substring' },
+      region: { type: 'string', description: 'Known jurisdiction/region; never invent project applicability.' },
+      asOf: { type: 'string', description: 'Project applicability date YYYY-MM-DD.' },
     },
     output: jsonOut(),
     async execute(args: Record<string, unknown>, exec: { agent?: { session?: { id?: string } } } = {}) {
@@ -478,6 +502,8 @@ export function registerTools(ctx: {
         limit: args.limit ? Number(args.limit) : undefined,
         slugs,
         category: args.category ? String(args.category) : undefined,
+        region: args.region ? String(args.region) : undefined,
+        asOf: args.asOf ? String(args.asOf) : undefined,
       })
       return textResult({ query: String(args.query ?? ''), hits, hint: slugs.length === 0 ? '本对话尚未选用知识库。请由用户选择条目，或按用户明确指定的条目传入 slugs。' : hits.length === 0 ? '无命中。可先 kb_list 查看条目，或换关键词/条款号重试。' : '用 kb_read_chunk(slug, chunkId) 读全文并引用 citation。' })
     },
@@ -488,6 +514,8 @@ export function registerTools(ctx: {
     description: 'Locate a clause/section number (e.g. "A1.2.3", "5.2.3") by structured unit id. Exact id first, then child subclauses. Follow with kb_read_chunk for the complete unit text.',
     parameters: {
       value: { type: 'string', required: true, description: 'Clause or section number' },
+      region: { type: 'string' },
+      asOf: { type: 'string' },
       slugs: { type: 'array', items: { type: 'string' }, description: 'User-requested entries; defaults to this conversation selection, never the entire library.' },
       limit: { type: 'number' },
     },
@@ -498,6 +526,8 @@ export function registerTools(ctx: {
       return textResult(findKbClause(String(args.value ?? ''), {
         limit: args.limit ? Number(args.limit) : undefined,
         slugs,
+        region: args.region ? String(args.region) : undefined,
+        asOf: args.asOf ? String(args.asOf) : undefined,
       }))
     },
   }))
@@ -523,14 +553,15 @@ export function registerTools(ctx: {
 
   tools.register(defineTool({
     name: 'kb_read_chunk',
-    description: 'Read one knowledge-base unit by slicing the parse manuscript at the stored span. Use after kb_search / kb_find_clause / kb_find_table. Cite [kb:slug:clauseId].',
+    description: 'Read a knowledge unit at its immutable version. Use the returned versioned citation; an old report can read its exact earlier source. A locator does not establish semantic support.',
     parameters: {
       slug: { type: 'string', required: true },
       chunkId: { type: 'string', required: true },
+      versionId: { type: 'string', description: 'Immutable version from the citation or search result.' },
     },
     output: jsonOut(),
     async execute(args: Record<string, unknown>) {
-      return textResult(readKbChunk(String(args.slug ?? ''), String(args.chunkId ?? '')))
+      return textResult(readKbChunk(String(args.slug ?? ''), String(args.chunkId ?? ''), args.versionId ? String(args.versionId) : undefined))
     },
   }))
 
@@ -560,20 +591,21 @@ export function registerTools(ctx: {
 
   tools.register(defineTool({
     name: 'kb_add',
-    description: 'Register a file or knowledge pack into the local knowledge base. A pack folder (pack.json + manuscript.md) indexes immediately with the pack units. Text (.md/.txt/.json) indexes immediately. To transcribe a PDF in chat, call kb_prepare_document first, then import the pack folder. Raw PDF/Word/Excel/PPT/images can also be parsed on the Knowledge Base page (local text layer or MinerU). Re-adding the same file rebuilds the entry.',
+    description: 'Register model-created content or a knowledge pack into the local knowledge base as generated material. Human original provenance is confirmed on the Knowledge Base page. A pack folder (pack.json + manuscript.md) indexes immediately. To transcribe a PDF in chat, call kb_prepare_document first. Transfer packs containing skills require human import on the Knowledge Base page, never this model tool.',
     parameters: {
       path: { type: 'string', required: true, description: 'File path, a knowledge-pack folder / pack.json / manuscript.md, or an Agent Pi .apkb transfer pack (absolute preferred)' },
       name: { type: 'string', description: 'Display name; defaults to file name' },
       category: { type: 'string', description: 'e.g. 规范/合同/范文/方法标准/用户模板. A user-owned writing template uses 用户模板. Defaults 未分类, or 用户模板 when the file name looks like one.' },
       slug: { type: 'string', description: 'Stable id override' },
       folder: { type: 'string', description: 'Optional collection under the category, e.g. COTO 2020. Inferred from COTO/COLTO/FIDIC chapter file names when omitted.' },
+      metadata: { type: 'json', description: 'Evidence-based provenance: sourceKind original/parsed/generated, regions, validFrom, validUntil, supersedes, derivedFrom. Unknown applicability stays unspecified.' },
     },
     output: jsonOut(),
     async execute(args: Record<string, unknown>, exec: { agent?: { session?: { header?: { cwd?: string } } } }) {
       const cwd = sessionCwd(exec)
       const path = String(args.path ?? '')
       const resolved = path && (isAbsolute(path) ? resolve(path) : resolve(cwd || process.cwd(), path))
-      if (resolved && looksLikeKbTransferPath(resolved)) return textResult(importKbTransferFromPath(resolved))
+      if (resolved && looksLikeKbTransferPath(resolved)) throw new Error('传递包可能包含可加载技能，必须由用户在知识库页面导入；模型只能保存候选方法。')
       return textResult(addKbFile({
         path,
         name: args.name ? String(args.name) : undefined,
@@ -581,7 +613,25 @@ export function registerTools(ctx: {
         slug: args.slug ? String(args.slug) : undefined,
         folderName: args.folder ? String(args.folder) : undefined,
         baseDir: cwd,
+        metadata: { ...(args.metadata as object || {}), sourceKind: 'generated' },
       }))
+    },
+  }))
+
+  tools.register(defineTool({
+    name: 'kb_versions',
+    description: 'List immutable source versions or update supported applicability metadata. Generated reports cannot become their own original evidence.',
+    parameters: { action: { type: 'string', required: true, description: 'list | metadata' }, slug: { type: 'string', required: true }, metadata: { type: 'json' } },
+    output: jsonOut(),
+    execute(args: any) {
+      if (args.action === 'list') return textResult(listKbVersions(String(args.slug)))
+      if (args.action === 'metadata') {
+        const current = listKbEntries().find(row => row.slug === String(args.slug))
+        const metadata = { ...(args.metadata || {}) }
+        if (metadata.sourceKind && metadata.sourceKind !== current?.sourceKind) throw new Error('来源属性只能由用户依据真实原件确认；模型不能将生成内容重标为原件。')
+        return textResult(updateKbMetadata(String(args.slug), metadata))
+      }
+      throw new Error('未知知识版本操作。')
     },
   }))
 
@@ -738,6 +788,7 @@ export function registerTools(ctx: {
           summary: args.summary === undefined ? undefined : String(args.summary),
           observedRealityDigest: args.observedRealityDigest === undefined ? undefined : String(args.observedRealityDigest),
         })
+        if (Array.isArray(args.assignments)) ctx.get?.('longTaskRuntime')?.registerAssignments(cwd, project, sessionId, args.assignments)
         return textResult({ execution, control: executionControlState(cwd, project, sessionId) })
       }
       if (args.action === 'force_pass') {
@@ -791,10 +842,12 @@ export function registerTools(ctx: {
 
   tools.register(defineTool({
     name: 'tender_citations',
-    description: 'Verify every citation token ([kb:slug:chunkId], [src:path#L10-L25]) inside the project\'s Official Outputs Markdown. Returns totals plus orphans (unresolvable tokens) with file, line, and reason. Run before claiming a stage QA-clean; fix orphans, then re-run.',
+    description: 'Audit version-pinned citations, location and independently recorded claim support in Official Outputs. A resolvable token alone does not establish semantic support. Record actual claim reviews with action=support, including independent source quotations; uncertainty remains a gap.',
     parameters: {
       projectId: { type: 'string', required: true },
       module: { type: 'string', description: 'Defaults tender' },
+      action: { type: 'string', description: 'audit (default) | support' },
+      review: { type: 'json', description: 'Support record: id, artifactPath, claim, citation, verdict supported/unsupported/uncertain, reason, context region/asOf, independentEvidence [{citation,quote}]. Reviewer is supplied by the host.' },
     },
     output: jsonOut(),
     async execute(args: Record<string, unknown>, exec: { agent?: { session?: { header?: { cwd?: string } } } }) {
@@ -802,6 +855,7 @@ export function registerTools(ctx: {
       const module = args.module ? String(args.module) : 'tender'
       const project = getBusinessProject(cwd, module, String(args.projectId))
       if (!project) throw new Error(`Unknown project ${module}/${String(args.projectId)}.`)
+      if (args.action === 'support') return textResult(recordCitationSupport(cwd, project, { ...(args.review as any), reviewer: 'agent:' + String((exec.agent as any)?.session?.id || '') }))
       return textResult(auditProjectCitations(cwd, project))
     },
   }))
@@ -872,15 +926,36 @@ export function registerTools(ctx: {
 
   tools.register(defineTool({
     name: 'workbench_skill_save',
-    description: 'Persist a domain method skill to the user skill root ($DSH_HOME/skills/<slug>/SKILL.md). Hot-loads without restart and survives upgrades. Use when distilling a finished piece of work into a reusable workbench module: write the method, structure, and the user\'s hard rules learned during revisions into the skill, then reference the slug from the module stages\' skillSlugs. Frontmatter name must equal the slug and description must say when to use it.',
+    description: 'Create an immutable candidate method skill from a real shared-task deliverable. It stays outside active SKILL.md until independent user-selected cases pass and the user explicitly publishes it in module management. Never treats a single successful task as general validation.',
     parameters: {
       slug: { type: 'string', required: true, description: 'kebab-case slug, e.g. method-statement-za-method' },
       markdown: { type: 'string', required: true, description: 'Full SKILL.md content: --- name/description frontmatter --- then the method body' },
+      deliverableId: { type: 'string', required: true },
+      applicability: { type: 'array', required: true, items: { type: 'string' } },
+      failureModes: { type: 'array', required: true, items: { type: 'string' } },
     },
     output: jsonOut(),
-    async execute(args: Record<string, unknown>) {
-      return textResult(saveUserSkill(args.slug, args.markdown))
+    async execute(args: any, exec: any) {
+      const sessionId = exec.agent?.session?.id
+      const task = ctx.get?.('taskGuide')?.read(sessionId)
+      const row = task?.deliverables?.find((row: any) => row.id === args.deliverableId)
+      if (!row?.path || !row.verification) throw new Error('请先登记并核验实际来源成果，再创建候选技能。')
+      if (task.sessionId !== sessionId) throw new Error('请由来源任务的主对话创建候选技能，以使用实际成果所在工作区。')
+      const artifactSha256 = createHash('sha256').update(readFileSync(resolve(sessionCwd(exec), row.path))).digest('hex')
+      if (artifactSha256 !== row.verification.artifactSha256) throw new Error('来源成果已变化，请重新核验。')
+      return textResult(createSkillCandidate({ slug: args.slug, markdown: args.markdown, sourceTaskId: task.sessionId,
+        sourceArtifact: { path: resolve(sessionCwd(exec), row.path), sha256: artifactSha256 },
+        sourceInputHashes: Object.values(row.verification.sourceHashes).filter((value): value is string => typeof value === 'string'),
+        sourceAcceptance: { taskId: task.sessionId, deliverableId: row.id, artifactSha256, verificationId: createHash('sha256').update(JSON.stringify(row.verification)).digest('hex') },
+        applicability: args.applicability, failureModes: args.failureModes }))
     },
+  }))
+
+  tools.register(defineTool({
+    name: 'workbench_skill_versions',
+    description: 'List candidate/published/retired skill records or read a pinned version. Publication, case authority, rollback and retirement require human controls in module management.',
+    parameters: { slug: { type: 'string' }, versionId: { type: 'string' } }, output: jsonOut(),
+    execute(args: any) { return textResult(args.slug && args.versionId ? readSkillVersion(args.slug, args.versionId) : listSkillLifecycles()) },
   }))
 
 }

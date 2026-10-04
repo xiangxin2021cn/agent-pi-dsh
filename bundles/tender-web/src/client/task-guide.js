@@ -95,6 +95,16 @@ export function createTaskGuide({ React, api, cwd, language, subscribe, onOpenSo
       try {const next=await api(endpoint,cwd());if(next.task.revision<taskRevision.current)return;taskRevision.current=next.task.revision;setResult(next);const task=structuredClone(next.task);task.brief=mergeTaskBriefEdits(task,fieldEdits.current,true).brief;task.questions=(task.questions || []).map(row=>fieldEdits.current['question.'+row.id]&&!row.provider?{...row,answer:fieldEdits.current['question.'+row.id].value}:row);setDraft(task);onTask?.(sessionId,next.task,next.binding)}
       catch(e){setError(e.message)} finally{setBusy(false)}
     }
+    async function taskAction(action, values) {
+      setBusy(true);setError('');setMessage('')
+      try {
+        const latest=await api(endpoint,cwd())
+        const next=await api(endpoint,cwd(),{method:'POST',body:JSON.stringify({action,...values,revision:latest.task.revision,...(action==='directive_revoke'?{operationId:crypto.randomUUID()}: {})})})
+        if(next.task.revision<taskRevision.current)return
+        taskRevision.current=next.task.revision;setResult(next);setDraft(structuredClone(next.task));onTask?.(sessionId,next.task,next.binding)
+        setMessage(action==='verify'?(text===labels.zh?'已核验实际成果，请查看审核结果和待解决项。':'Actual artifact verified. Review the receipt and unresolved items.'):(text===labels.zh?'已撤销该约束，后续执行与审核将采用最新要求。':'Constraint revoked. Execution and review will use the latest requirements.'))
+      } catch(e){setError(e.message)} finally{setBusy(false)}
+    }
     const edit = (key,value,basis=false) => {const path=basis?'basis.'+key:key;fieldEdits.current[path]={baseValue:fieldEdits.current[path]?.baseValue??briefField(result.task.brief,path),value:key==='formats'?value.split(/[,，]/).map(row=>row.trim()).filter(Boolean):value};setDraft({...draft,brief:mergeTaskBriefEdits(result.task,fieldEdits.current,true).brief});setDirty(true);setMessage('');setConflicts([])}
     const field = (key,basis=false,multiline=false) => h('label',{key},text[key],h(multiline?'textarea':'input',{value:(basis?draft.brief.basis?.[key]:key==='formats'?(draft.brief.formats || []).join(', '):draft.brief[key]) || '',onChange:e=>edit(key,e.target.value,basis)}))
     const article = (id,title,body) => h('article',{key:id},h('h3',null,title),body)
@@ -118,6 +128,10 @@ export function createTaskGuide({ React, api, cwd, language, subscribe, onOpenSo
         article('quality',zh?'专业执行口径':'Professional execution policy',h(React.Fragment,null,
           h('p',null,model.depthEnabled?(zh?'专业深度已启用：加强方法、证据与验收项审阅。':'Professional depth is on: enhanced methods, evidence and acceptance review.'):(zh?'基础专业检查持续生效；可在输入区主动开启专业深度。':'Core professional checks apply. Turn on professional depth in the composer for additional review.')),
           h('p',{className:'ap-guide-muted'},zh?'调整开关会保留已有依据、发现和检查记录。':'Changing the switch preserves evidence, findings and check records.'))),
+        (model.constraints.length>0||model.corrections.length>0)&&article('constraints',zh?'持续生效的约束与最新修正':'Persistent constraints and latest corrections',h(React.Fragment,null,
+          h('p',{className:'ap-guide-muted'},zh?'这些要求跨压缩保留；资料引用不构成用户指令，撤销会使相关成果重新待核验。':'These requirements survive compaction. Quoted documents do not establish user authority; revocation requires affected results to be checked again.'),
+          ...model.constraints.map(row=>h('div',{key:row.id,'data-directive-id':row.id},h('p',null,row.text),h('p',{className:'ap-guide-muted'},(zh?'来自用户 · 任务版本 ':'From user · Task revision ')+row.updatedRevision),h('button',{disabled:busy||dirty,onClick:()=>taskAction('directive_revoke',{directiveId:row.id})},zh?'撤销这项约束':'Revoke this constraint'))),
+          ...model.corrections.filter(row=>!model.constraints.some(active=>active.id===row.id)).map(row=>h('p',{key:row.id,className:'ap-guide-muted'},(row.kind==='revocation'?(zh?'已明确撤销：':'Explicitly revoked: '):(zh?'修正记录：':'Correction: '))+row.text)))),
         model.questions.length>0&&article('questions',text.unanswered,h(React.Fragment,null,
           ...model.questions.map(row=>h('div',{key:row.id},h('p',null,row.question),row.purpose&&h('p',{className:'ap-guide-muted'},row.purpose),row.provider&&h('p',{className:'ap-guide-muted'},zh?'请在主对话的原生问答卡中回答。':'Answer in the native question card in the conversation.'))),
           onClose&&h('button',{onClick:onClose},zh?'在主对话中回答':'Answer in the conversation'))),
@@ -150,7 +164,22 @@ export function createTaskGuide({ React, api, cwd, language, subscribe, onOpenSo
           h('h3',null,text.source),(draft.coverage || []).map(row=>article(row.id,row.title,h('p',null,displayState(row.status)+' · '+(row.review||'')+' · '+row.locator))))
       }
       if (tab==='capabilities') body = result?.capabilities?.toSorted((a,b)=>['available','conditional','unavailable','not_applicable'].indexOf(a.status)-['available','conditional','unavailable','not_applicable'].indexOf(b.status)).map(capability=>{ const row=localizeCapability(capability,language());return article(row.id,row.title,h(React.Fragment,null,h('p',null,displayState(row.status)),h('p',null,row.description),h('p',{className:'ap-guide-muted'},row.owner+' · '+row.version),[...(row.reasons||[]),...(row.limitations||[]),...(row.supplements||[])].map((value,index)=>h('p',{key:index},value)))) })
-      if (tab==='delivery') body = h(React.Fragment,null,h('p',null,result?.audit?.customerAccepted?text.accepted:result?.audit?.readyForCustomerReview?text.ready:text.review),result?.audit?.issues?.map((row,index)=>h('p',{key:index,className:'ap-guide-error'},row.detail)),(draft.deliverables || []).map(row=>article(row.id,row.title || row.path?.split(/[\\/]/).pop() || row.id,h(React.Fragment,null,h('p',null,row.path),h('p',null,displayState(row.status)+' · '+displayState(row.signature)),(row.checks || []).map((check,index)=>h('p',{key:index},check.kind+' · '+displayState(check.status)+' — '+check.detail)),!row.checks?.length&&h('p',{className:'ap-guide-muted'},text===labels.zh?'尚未登记交付检查；文件状态不等于通过验收。':'No delivery checks are registered; file status does not establish acceptance.'),row.signature==='pending'?h('button',{disabled:busy||dirty,onClick:()=>save({deliverables:draft.deliverables.map(item=>item.id===row.id?{...item,signature:'signed'}:item)})},text.signature):null))),result?.audit?.readyForCustomerReview?h('button',{disabled:busy||dirty,onClick:()=>save({deliverables:draft.deliverables.map(row=>({...row,status:'accepted'}))})},text.accept):null)
+      if (tab==='delivery') body = h(React.Fragment,null,
+        h('p',null,result?.audit?.customerAccepted?text.accepted:result?.audit?.readyForCustomerReview?text.ready:text.review),
+        result?.audit?.issues?.map((row,index)=>h('p',{key:index,className:'ap-guide-error'},row.detail)),
+        (draft.deliverables || []).map(row=>article(row.id,row.title || row.path?.split(/[\\/]/).pop() || row.id,h(React.Fragment,null,
+          h('p',null,row.path),h('p',null,displayState(row.status)+' · '+displayState(row.signature)),
+          h('button',{disabled:busy||dirty,onClick:()=>taskAction('verify',{deliverableId:row.id})},zh?'核验实际成果':'Verify actual artifact'),
+          row.verification?h('div',{'data-verification-status':row.verification.status},
+            h('p',null,(zh?'审核凭据：':'Verification receipt: ')+displayState(row.verification.status)+' · '+row.verification.ruleVersion),
+            h('p',{className:'ap-guide-muted'},(zh?'成果 SHA：':'Artifact SHA: ')+(row.verification.artifactSha256||'—')),
+            h('p',{className:'ap-guide-muted'},(zh?'输入任务版本：':'Input task revision: ')+row.verification.taskRevision+' · '+(row.verification.inputFingerprint||'').slice(0,16)),
+            ...Object.entries(row.verification.sourceHashes||{}).map(([path,hash])=>h('p',{key:path,className:'ap-guide-muted'},path+' · '+(hash|| (zh?'无法核验':'Unverified')))),
+            ...(row.verification.unresolved||[]).map((value,index)=>h('p',{key:index,className:'ap-guide-error'},value)))
+            :h('p',{className:'ap-guide-muted'},zh?'尚无实际文件审核凭据，不能验收；登记完成不代表已通过。':'No actual-file verification receipt yet. A completion record does not establish acceptance.'),
+          (row.checks || []).map((check,index)=>h('p',{key:index},check.kind+' · '+displayState(check.status)+' — '+check.detail)),
+          row.signature==='pending'?h('button',{disabled:busy||dirty,onClick:()=>save({deliverables:draft.deliverables.map(item=>item.id===row.id?{...item,signature:'signed'}:item)})},text.signature):null))),
+        result?.audit?.readyForCustomerReview&&draft.deliverables?.every(row=>row.verification?.status==='passed'&&!row.verification.unresolved?.length)&&!result?.audit?.customerAccepted?h('button',{disabled:busy||dirty,onClick:()=>save({deliverables:draft.deliverables.map(row=>({...row,status:'accepted'}))})},text.accept):null)
     }
     return h('section',{className:'ap-task-guide','data-conversation-composer-overlay':'',role:'region','aria-label':text.title},h('header',null,h('h2',null,text.title),onClose?h('button',{onClick:onClose},text.close):null),h('nav',{'aria-label':text.title},['overview','goal','basis','plan','capabilities','delivery'].map(key=>h('button',{key,role:'tab','aria-selected':tab===key,onClick:()=>setTab(key)},text[key]))),h('main',null,h('p',{className:'ap-guide-muted'},text.reminder),error?h('p',{role:'alert',className:'ap-guide-error'},error):null,message?h('p',{role:'status'},message):null,conflicts.length>0?h('div',null,h('p',null,conflicts.join('、')),h('button',{disabled:busy,onClick:()=>save({brief:draft.brief,questions:draft.questions},true)},text===labels.zh?'保留我的修正并保存':'Keep my corrections and save')):null,!sessionId?h('p',null,text.noTask):body),h('footer',null,h('button',{disabled:busy,onClick:reload},text.refresh),dirty?h('button',{disabled:busy,onClick:()=>{fieldEdits.current={};setDraft(structuredClone(result.task));setDirty(false);setConflicts([]);setError('')}},text===labels.zh?'取消草稿':'Discard draft'):null,dirty?h('button',{disabled:busy||!draft,onClick:()=>save({brief:draft.brief,questions:draft.questions})},busy?text.saving:text.save):null))
   }

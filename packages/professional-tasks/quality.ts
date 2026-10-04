@@ -1,4 +1,5 @@
 import type { ProfessionalTask, Profession } from './types.ts'
+import { verificationCurrent } from './verification.ts'
 
 export function auditTask(task: ProfessionalTask) {
   const issues: Array<{ code: string; id: string; detail: string }> = []
@@ -28,6 +29,8 @@ export function auditTask(task: ProfessionalTask) {
     if (requirement.signatureRequired && !files.some(row => row.signature === 'signed')) add('signature_pending', requirement.id, '必交文件待签署授权。')
   }
   for (const row of task.deliverables) {
+    const verification = verificationCurrent(task, row)
+    if (!verification.ready) add('verification_pending', row.id, [...verification.reasons, ...(row.verification?.unresolved || [])].join('；') || '当前成果尚未通过统一审核。')
     if (row.status === 'stale') add('deliverable_stale', row.id, '输入或要求变化，成果需复核。')
     for (const kind of ['file', 'professional', 'writing'] as const) if (!(row.checks || []).some(check => check.kind === kind && check.status === 'passed')) add('check_pending', row.id, `${kind}: 尚未检查实际成果。`)
     for (const check of row.checks) if (check.status !== 'passed') add('check_unresolved', row.id, check.detail)

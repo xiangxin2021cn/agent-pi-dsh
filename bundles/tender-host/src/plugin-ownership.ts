@@ -1,6 +1,6 @@
 export type ProductPluginOwner = 'host' | 'workbench' | 'knowledge'
 export type ProductToolOwner = ProductPluginOwner | 'tender'
-export const WORKBENCH_ROUTES = ['modules', 'workbench', 'citations', 'projects', 'session-project', 'stage', 'pricing', 'memory']
+export const WORKBENCH_ROUTES = ['modules', 'skills', 'workbench', 'citations', 'projects', 'session-project', 'stage', 'pricing', 'memory']
 
 export function routeOwner(pathname: string): ProductPluginOwner {
   const segment = pathname.slice('/api/agent-pi/'.length).split('/')[0]

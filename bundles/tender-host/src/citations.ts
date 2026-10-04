@@ -14,9 +14,13 @@
 import { basename, extname, isAbsolute, join, resolve } from 'node:path'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import type { BusinessProjectRecord } from '../../../packages/business-projects/index.ts'
-import { kbChunkStatus, readKbChunk } from './kb.ts'
+import { kbChunkStatus, kbRoot, readKbChunk } from './kb.ts'
+import { createHash } from 'node:crypto'
+import { knowledgeApplicability, readKnowledgeVersion } from './knowledge-versions.ts'
+import { isGeneratedProjectSource } from './knowledge-provenance.ts'
+import { listSetupRestores, setupSourceStatus } from './setup-restore.ts'
 import { officialProjectDir } from './outputs.ts'
-import { projectDir, writeJson, readJson } from './fsutil.ts'
+import { projectDir, writeJson, readJson, writeNewJsonAtomic } from './fsutil.ts'
 import { loadWorkspace } from './workspace.ts'
 import { findStructuredEvidence, verifyStructuredEvidence } from './structured-evidence.ts'
 
@@ -28,6 +32,7 @@ export interface CitationToken {
   line: number
   slug?: string
   chunkId?: string
+  versionId?: string
   path?: string
   lineStart?: number
   lineEnd?: number
@@ -53,13 +58,109 @@ export interface CitationAudit {
   srcCitations: number
   evidenceCitations?: number
   orphans: CitationOrphan[]
+  /** Locatability and explicit support reviews are distinct checks. */
+  support?: { supported: number; unsupported: number; uncertain: number; issues: CitationOrphan[] }
+  unversionedKbCitations?: number
 }
 
-const KB_TOKEN = /\[kb:([a-z0-9][a-z0-9-]*):([A-Za-z0-9][A-Za-z0-9_.()-]*)\]/g
+const KB_TOKEN = /\[kb:([a-z0-9][a-z0-9-]*)(?:@([a-f0-9]{64}))?:([A-Za-z0-9][A-Za-z0-9_.()-]*)\]/g
 const SRC_TOKEN = /\[src:([^\[\]#\n]+?)(?:#L(\d+)(?:-L?(\d+))?)?\]/g
 const EVIDENCE_TOKEN = /\[ev:([A-Za-z0-9][A-Za-z0-9._-]{2,127})\]/g
 const TEXT_EXT = new Set(['.md', '.markdown', '.txt', '.json', '.csv', '.xml', '.yml', '.yaml'])
 const MAX_LINE_CHECK_BYTES = 8_000_000
+const digest = (value: string | Buffer) => createHash('sha256').update(value).digest('hex')
+const pathKey = (path: string) => resolve(path).replace(/\\/g,'/').toLocaleLowerCase()
+
+export interface CitationSupportInput {
+  id: string
+  artifactPath: string
+  claim: string
+  citation: string
+  verdict: 'supported' | 'unsupported' | 'uncertain'
+  reason: string
+  reviewer: string
+  context?: {region?: string; asOf?: string}
+  independentEvidence: Array<{citation: string; quote: string}>
+}
+export interface CitationSupportRecord extends CitationSupportInput {
+  schemaVersion: 1
+  artifactHash: string
+  claimLine: number
+  reviewedAt: string
+  /** These hashes establish evidence identity; they do not decide semantic entailment. */
+  evidenceFingerprints: string[]
+}
+function supportDir(cwd: string, project: BusinessProjectRecord): string { return join(projectDir(cwd,project.module,project.projectId),'orchestration','citation-support') }
+export function listCitationSupport(cwd: string, project: BusinessProjectRecord): CitationSupportRecord[] {
+  const dir = supportDir(cwd,project)
+  return existsSync(dir) ? readdirSync(dir).filter(name=>/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.json$/.test(name)).map(name=>readJson<CitationSupportRecord>(join(dir,name),null!)) : []
+}
+function independentSource(cwd: string, project: BusinessProjectRecord, citation: string, artifactHash: string, context: CitationSupportInput['context'], seen = new Set<string>()): {text: string; fingerprint: string} {
+  const token = extractCitationTokens(citation)[0]
+  if (!token || token.raw !== citation.trim()) throw new Error('独立依据必须是完整引用 token')
+  if (seen.has(token.raw)) throw new Error('生成/解析依据存在循环支持关系')
+  seen.add(token.raw)
+  const reason = verifyCitationToken(cwd,project,token)
+  if (reason) throw new Error(reason)
+  if (token.kind === 'kb') {
+    if (!token.versionId) throw new Error('独立知识依据必须固定不可变版本')
+    const version = readKnowledgeVersion(kbRoot(),token.slug!,token.versionId)
+    if (version.entry.sourceKind === 'generated') throw new Error('生成内容不能作为原始独立事实依据')
+    if (version.entry.sourceKind!=='parsed'&&isGeneratedProjectSource(cwd,project.projectId,version.entry.sourcePath,project.module)) throw new Error('生成成果入库后仍不能充当原始独立依据')
+    if (knowledgeApplicability(version.entry,context).status !== 'applicable') throw new Error('知识依据地区或有效期尚未确认适用')
+    if (version.entry.sourceKind === 'parsed') {
+      if (!version.entry.derivedFrom?.length) throw new Error('解析稿缺少原始版本来源')
+      for (const source of version.entry.derivedFrom) independentSource(cwd,project,source,artifactHash,context,new Set(seen))
+    }
+    if (version.manuscriptHash === artifactHash || version.originalHash === artifactHash) throw new Error('成果不能通过自身内容建立独立支持')
+    return {text:readKbChunk(token.slug!,token.chunkId!,token.versionId).text,fingerprint:token.raw+':'+version.manuscriptHash}
+  }
+  const sourceId = token.kind === 'ev' ? findStructuredEvidence(cwd,project.projectId,token.claimId!,project.module)!.sourceId : token.path!
+  const path = resolveSourceCitation(cwd,project,sourceId)
+  if (!path || isGeneratedProjectSource(cwd,project.projectId,path,project.module)) throw new Error('成果和阶段报告不能反过来作为原始依据')
+  let registered = project.inputPaths.some(row=>pathKey(resolve(cwd,row))===pathKey(path))
+  try { registered ||= loadWorkspace(cwd,project.projectId).documents.some(row=>!!row.path&&pathKey(row.path)===pathKey(path)) } catch {}
+  if (!registered) throw new Error('独立依据不是已登记的原始来源')
+  const bytes = readFileSync(path), sha256 = digest(bytes)
+  if (sha256 === artifactHash) throw new Error('成果不能通过自身内容建立独立支持')
+  const status = setupSourceStatus(cwd,project.projectId,path,listSetupRestores(cwd,project.projectId),true)
+  const text = TEXT_EXT.has(extname(path).toLocaleLowerCase()) ? bytes.toString('utf8') : status.extracted&&status.restore ? readFileSync(status.restore.manuscriptPath,'utf8') : ''
+  return {text,fingerprint:pathKey(path)+':'+sha256+(status.restore ? ':'+digest(readFileSync(status.restore.manuscriptPath)) : '')}
+}
+/** Record an explicit review; no model-independent semantic verdict is inferred here. */
+export function recordCitationSupport(cwd: string, project: BusinessProjectRecord, input: CitationSupportInput): CitationSupportRecord {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(input.id)) throw new Error('支持关系 id 非法')
+  if (!['supported','unsupported','uncertain'].includes(input.verdict) || !input.reason?.trim() || !input.reviewer?.trim() || !input.claim?.trim()) throw new Error('支持关系需要明确判断、理由、复核者和结论')
+  const artifactPath = resolve(cwd,input.artifactPath), bytes = readFileSync(artifactPath), artifactHash = digest(bytes)
+  const claimLine = bytes.toString('utf8').split(/\r?\n/).findIndex(line=>line.includes(input.claim)&&line.includes(input.citation))+1
+  if (!claimLine) throw new Error('结论和引用必须实际位于成果的同一行')
+  if (!extractCitationTokens(input.citation).some(row=>row.raw===input.citation.trim())) throw new Error('结论引用 token 非法')
+  if (input.verdict !== 'uncertain' && !input.independentEvidence?.length) throw new Error('确定支持或不支持需要独立原始依据')
+  const evidenceFingerprints = (input.independentEvidence || []).map(row=>{
+    const source = independentSource(cwd,project,row.citation,artifactHash,input.context)
+    if (!row.quote?.trim() || !source.text.includes(row.quote)) throw new Error('独立依据引用摘录未在实际来源中找到')
+    return source.fingerprint
+  })
+  const path = join(supportDir(cwd,project),input.id+'.json'), existing = readJson<CitationSupportRecord | null>(path,null)
+  if (existing) {
+    if (existing.artifactHash===artifactHash && existing.verdict===input.verdict && existing.claim===input.claim && existing.citation===input.citation && JSON.stringify(existing.evidenceFingerprints)===JSON.stringify(evidenceFingerprints)) return existing
+    throw new Error('支持关系已冻结；新判断需使用新的 id')
+  }
+  const record: CitationSupportRecord = {...input,artifactPath,schemaVersion:1,artifactHash,claimLine,reviewedAt:new Date().toISOString(),evidenceFingerprints}
+  writeNewJsonAtomic(path,record)
+  return record
+}
+function supportVerdict(cwd: string, project: BusinessProjectRecord, file: string, artifactHash: string, token: CitationToken, records: CitationSupportRecord[]): CitationSupportInput['verdict'] {
+  const matching = records.filter(row=>pathKey(row.artifactPath)===pathKey(file)&&row.artifactHash===artifactHash&&row.citation===token.raw&&row.claimLine===token.line)
+  if (!matching.length) return 'uncertain'
+  for (const row of matching) {
+    try {
+      const fingerprints = row.independentEvidence.map(evidence=>independentSource(cwd,project,evidence.citation,artifactHash,row.context).fingerprint)
+      if (JSON.stringify(fingerprints)!==JSON.stringify(row.evidenceFingerprints)) return 'uncertain'
+    } catch { return 'uncertain' }
+  }
+  return matching.some(row=>row.verdict==='unsupported') ? 'unsupported' : matching.some(row=>row.verdict==='uncertain') ? 'uncertain' : 'supported'
+}
 
 /**
  * Extract every citation token from a text.
@@ -71,7 +172,7 @@ export function extractCitationTokens(text: string): CitationToken[] {
   const lines = String(text ?? '').split(/\r?\n/)
   for (const [index, lineText] of lines.entries()) {
     for (const match of lineText.matchAll(KB_TOKEN)) {
-      tokens.push({ kind: 'kb', raw: match[0], line: index + 1, slug: match[1], chunkId: match[2] })
+      tokens.push({ kind: 'kb', raw: match[0], line: index + 1, slug: match[1], chunkId: match[3], ...(match[2] ? {versionId:match[2]} : {}) })
     }
     for (const match of lineText.matchAll(SRC_TOKEN)) {
       tokens.push({
@@ -126,7 +227,7 @@ export function resolveSourceCitation(cwd: string, project: BusinessProjectRecor
 export function verifyCitationToken(cwd: string, project: BusinessProjectRecord, token: CitationToken): string | null {
   if (token.kind === 'kb') {
     try {
-      return kbChunkStatus(String(token.slug), String(token.chunkId))
+      return kbChunkStatus(String(token.slug), String(token.chunkId), token.versionId)
     } catch (error) {
       return `知识库不可读：${error instanceof Error ? error.message : String(error)}`
     }
@@ -188,6 +289,9 @@ export function citationAuditPath(cwd: string, projectId: string, module: string
 export function auditProjectCitations(cwd: string, project: BusinessProjectRecord, options: { persist?: boolean } = {}): CitationAudit {
   const files = walkMarkdown(officialProjectDir(cwd, project.projectId))
   const orphans: CitationOrphan[] = []
+  const records = listCitationSupport(cwd,project)
+  const support = {supported:0,unsupported:0,uncertain:0,issues:[] as CitationOrphan[]}
+  let unversionedKbCitations = 0
   let total = 0
   let kbCount = 0
   let srcCount = 0
@@ -205,6 +309,7 @@ export function auditProjectCitations(cwd: string, project: BusinessProjectRecor
     const display = normalized.toLocaleLowerCase().startsWith(cwdPrefix + '/')
       ? normalized.slice(cwdPrefix.length + 1)
       : normalized
+    const artifactHash = digest(readFileSync(file))
     for (const token of extractCitationTokens(text)) {
       total += 1
       if (token.kind === 'kb') kbCount += 1
@@ -212,6 +317,10 @@ export function auditProjectCitations(cwd: string, project: BusinessProjectRecor
       else srcCount += 1
       const reason = verifyCitationToken(cwd, project, token)
       if (reason) orphans.push({ file: display, token: token.raw, line: token.line, reason })
+      if (token.kind==='kb'&&!token.versionId) unversionedKbCitations++
+      const verdict = supportVerdict(cwd,project,file,artifactHash,token,records)
+      support[verdict]++
+      if (verdict!=='supported') support.issues.push({file:display,token:token.raw,line:token.line,reason:verdict==='unsupported'?'独立复核记录为不支持该结论':'尚无有效独立支持复核；引用存在仅证明可定位'})
     }
   }
   const audit: CitationAudit = {
@@ -225,6 +334,8 @@ export function auditProjectCitations(cwd: string, project: BusinessProjectRecor
     srcCitations: srcCount,
     evidenceCitations: evidenceCount,
     orphans,
+    support,
+    unversionedKbCitations,
   }
   if (options.persist !== false) writeJson(citationAuditPath(cwd, project.projectId, project.module), audit)
   return audit
@@ -256,7 +367,7 @@ export function citationChipLabel(token: string): string {
   if (raw.startsWith('kb:')) {
     const rest = raw.slice(3)
     const sep = rest.lastIndexOf(':')
-    return sep > 0 ? rest.slice(0, sep) : rest
+    return (sep > 0 ? rest.slice(0, sep) : rest).split('@')[0]!
   }
   if (raw.startsWith('ev:')) return `证据 · ${raw.slice(3)}`
   if (raw.startsWith('src:')) {
@@ -306,10 +417,11 @@ export function describeCitation(
   if (token.startsWith('kb:')) {
     const rest = token.slice(3)
     const sep = rest.lastIndexOf(':')
-    const slug = sep > 0 ? rest.slice(0, sep) : rest
+    const reference = sep > 0 ? rest.slice(0, sep) : rest
+    const [slug,versionId] = reference.split('@')
     const chunkId = sep > 0 ? rest.slice(sep + 1) : ''
     try {
-      const chunk = readKbChunk(slug, chunkId)
+      const chunk = readKbChunk(slug, chunkId, versionId)
       const loc = locatorFromText(chunk.text, 80)
       const heading = (chunk.headingPath && chunk.headingPath.length > 0)
         ? chunk.headingPath[chunk.headingPath.length - 1]

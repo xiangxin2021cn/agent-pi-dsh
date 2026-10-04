@@ -393,6 +393,11 @@ const TENDER_STAGE_REQUIRED_CAPABILITIES: Partial<Record<string, TenderCapabilit
   'submission-compliance-freeze': ['submission_documents', 'bidder_commitments', 'submission_audit'],
 }
 
+export function stageCapabilityIds(project: BusinessProjectRecord, stageId: string): TenderCapabilityId[] {
+  const stage = workflowFor(project).stages.find(row => row.id === stageId)
+  return [...new Set([...(usesTenderControlProfile(project) ? TENDER_STAGE_REQUIRED_CAPABILITIES[stageId] || [] : []), ...(stage?.consumes.flatMap(row => row.kind === 'capability' ? [row.capability] : []) || [])])]
+}
+
 const PLANNING_REQUIRED_DELIVERABLES = [
   { fileName: '施工策划报告.md', requestedBy: [/施工策划报告(?:\.md)?/i, /construction planning report(?:\.md)?/i] },
   { fileName: 'tender-programme.msp.xml', requestedBy: [/tender[-_ ]programme\.msp\.xml/i, /\bmicrosoft project\b/i, /\bms project\b/i, /\.msp(?:\.xml)?\b/i] },

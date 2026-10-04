@@ -1928,6 +1928,9 @@ window.__ModuleLoader__.load({
 		//#endregion
 		//#region src/client/locales/workbench-chrome.js
 		const en$1 = {
+			"点「继续推进」明确启动当前阶段。宿主持久记录派工和收件；刷新页面读取同一记录，重启后核对实际回执，遇到人工门、预算或无进展时停止。": "Continue explicitly starts the current stage. The host persists dispatches and receipts; refresh reads the same ledger, restart checks actual receipts, and human gates, budgets or lack of progress stop continuation.",
+			"出处定位：": "Source location: ",
+			" 个令牌可解析（kb ": " resolvable tokens (kb ",
 			"规划中": "Planning",
 			"执行中": "In progress",
 			"等待回推": "Waiting for agent update",
@@ -5823,9 +5826,114 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 			};
 		}
 		//#endregion
+		//#region src/client/knowledge-version.js
+		function createKnowledgeVersionPanel({ React, api }) {
+			const h = React.createElement;
+			return function KnowledgeVersionPanel({ cwd, entry, onChanged }) {
+				const [versions, setVersions] = React.useState([]);
+				const [error, setError] = React.useState("");
+				const [open, setOpen] = React.useState(false);
+				const [draft, setDraft] = React.useState({
+					sourceKind: entry.sourceKind || "original",
+					regions: (entry.regions || []).join(", "),
+					validFrom: entry.validFrom || "",
+					validUntil: entry.validUntil || "",
+					derivedFrom: (entry.derivedFrom || []).join("\n")
+				});
+				const post = (body) => api("/api/agent-pi/kb", cwd, {
+					method: "POST",
+					body: JSON.stringify({
+						slug: entry.slug,
+						...body
+					})
+				});
+				const load = () => post({ action: "versions" }).then((body) => setVersions(body.versions || [])).catch((e) => setError(e.message));
+				React.useEffect(() => {
+					if (open) load();
+				}, [
+					open,
+					cwd,
+					entry.slug,
+					entry.versionId
+				]);
+				const field = (key, label, type = "text") => h("label", {
+					key,
+					className: "ap-mm-field"
+				}, label, h("input", {
+					type,
+					value: draft[key],
+					onChange: (e) => setDraft({
+						...draft,
+						[key]: e.target.value
+					})
+				}));
+				const save = () => {
+					setError("");
+					return post({
+						action: "metadata",
+						metadata: {
+							sourceKind: draft.sourceKind,
+							regions: draft.regions.split(/[,，]/).map((s) => s.trim()).filter(Boolean),
+							validFrom: draft.validFrom,
+							validUntil: draft.validUntil,
+							derivedFrom: draft.derivedFrom.split("\n").map((s) => s.trim()).filter(Boolean)
+						}
+					}).then(() => {
+						onChanged?.();
+						return load();
+					}).catch((e) => setError(e.message));
+				};
+				return h("details", {
+					className: "ap-sec",
+					onToggle: (e) => setOpen(e.currentTarget.open)
+				}, h("summary", null, "来源与不可变版本"), h("p", { className: "ap-sub" }, "已登记的地区和有效期参与适用性检查；缺少项目地区时，不能确认限定地区的来源。生成内容不能作为自身的独立依据。更正元数据会生成新版本，旧引用继续定位旧版本。"), error ? h("p", { className: "ap-err" }, error) : null, h("div", {
+					className: "ap-row",
+					style: { flexWrap: "wrap" }
+				}, h("label", { className: "ap-mm-field" }, "来源属性", h("select", {
+					value: draft.sourceKind,
+					onChange: (e) => setDraft({
+						...draft,
+						sourceKind: e.target.value
+					})
+				}, [
+					"original",
+					"parsed",
+					"generated"
+				].map((value, index) => h("option", {
+					key: value,
+					value
+				}, [
+					"原始材料",
+					"解析稿",
+					"生成内容"
+				][index])))), field("regions", "适用地区（逗号分隔）"), field("validFrom", "生效日期", "date"), field("validUntil", "失效日期", "date")), h("label", { className: "ap-mm-field" }, "解析稿的原始版本引用（每行一个）", h("textarea", {
+					value: draft.derivedFrom,
+					onChange: (e) => setDraft({
+						...draft,
+						derivedFrom: e.target.value
+					})
+				})), h("button", {
+					className: "ap-btn",
+					type: "button",
+					onClick: save
+				}, "按真实材料确认来源及适用条件"), versions.map((version) => h("div", {
+					key: version.versionId,
+					className: "ap-sub",
+					style: {
+						overflowWrap: "anywhere",
+						marginTop: 8
+					}
+				}, "v" + version.versionId + " · " + version.createdAt + " · 原件 " + (version.originalHash || "未单独登记") + " · 正文 " + version.manuscriptHash)));
+			};
+		}
+		//#endregion
 		//#region src/client/knowledge-base-panel.js
 		function createKnowledgeBasePanel(dependencies) {
 			const { Icon, KB_PRESET_CATEGORIES, React, apJoin, api, apiBlob, desktopApi, diskPathOf, downloadBlob, ensureKbFileInput, fileIconClass, fileIconName, fileName, formatKbBytes, groupKbEntries, h, kbCategoryHint, kbCategoryLabel, kbChatImportCopy, kbFidelityLabel, kbIngestKind, kbIngestLabel, kbLandingCardVisible, kbPickPatch, kbPickState, kbPickUpsert, kbProgressText, kbTitle, mergeKbEntries, normalizePickedPaths, parkKbFileInput, resolveSessionId, runtime, sortKbCategories, tAp, uploadKbBytes, useApLang } = dependencies;
+			const KnowledgeVersionPanel = createKnowledgeVersionPanel({
+				React,
+				api
+			});
 			const newDraftKey = () => "kb-draft:" + Date.now().toString(36) + ":" + Math.random().toString(36).slice(2);
 			let draftKey = newDraftKey();
 			const kbDraftKey = () => draftKey;
@@ -6854,6 +6962,8 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 					const tree = groupKbEntries(groups[category], folders, category);
 					const renderEntry = (entry) => h("div", {
 						key: entry.slug,
+						style: { borderBottom: "1px solid var(--border-color, #e5e7eb)" }
+					}, h("div", {
 						className: "ap-task",
 						style: { gap: 10 }
 					}, h("div", {
@@ -6938,7 +7048,11 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 						className: "ap-btn link",
 						disabled: !!busy || entry.parseStatus === "parsing",
 						onClick: () => doRemove(entry)
-					}, tAp("kb.delete"))));
+					}, tAp("kb.delete")))), entry.parseStatus === "ready" ? h(KnowledgeVersionPanel, {
+						cwd,
+						entry,
+						onChanged: () => load(selectedRef.current)
+					}) : null);
 					return h("div", {
 						key: category,
 						style: { marginTop: 10 }
@@ -7153,102 +7267,11 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 			}
 			return { status: "unavailable" };
 		}
-		//#endregion
-		//#region src/session-wake.ts
-		/** Parent is in an open turn. Queue-only is not running. */
-		function snapshotIsRunning(snap) {
-			return !!(snap && snap.running);
-		}
-		/** Still-pending composer/host queue rows. */
-		function queuedMessages(snap) {
-			const queue = snap && Array.isArray(snap.queue) ? snap.queue : [];
-			const out = [];
-			for (const item of queue) {
-				if (!item || !item.id) continue;
-				if (item.placement && item.placement !== "queued") continue;
-				out.push({
-					id: item.id,
-					placement: item.placement || "queued"
-				});
-			}
-			return out;
-		}
-		/** Busy for crash-resume / UI: running or a waiting queue. */
-		function snapshotIsBusy(snap) {
-			return snapshotIsRunning(snap) || queuedMessages(snap).length > 0;
-		}
-		/** Root main-session routing target for a workbench action opened from any descendant. */
-		function parentSessionTarget(activeId, snap, list) {
-			const byId = list?.byId ?? {};
-			let target = snap?.subagent?.address?.parentSessionId || activeId;
-			const seen = /* @__PURE__ */ new Set();
-			while (target && !seen.has(target)) {
-				seen.add(target);
-				const row = byId[target];
-				if (!row || row.origin !== "subagent" || !row.parentId) break;
-				target = row.parentId;
-			}
-			return target;
-		}
-		/** Live parent/descendant activity shown beside the disk-backed stage board. */
-		function sessionActivity(list, parentId) {
-			const byId = list?.byId ?? {};
-			let childCount = 0;
-			let runningChildCount = 0;
-			if (parentId) for (const child of Object.values(byId)) {
-				if (!child || child.origin !== "subagent" || !child.id) continue;
-				const seen = /* @__PURE__ */ new Set();
-				let cursor = child;
-				let belongs = false;
-				while (cursor?.origin === "subagent" && cursor.parentId && !seen.has(cursor.id || "")) {
-					if (cursor.id) seen.add(cursor.id);
-					if (cursor.parentId === parentId) {
-						belongs = true;
-						break;
-					}
-					cursor = byId[cursor.parentId];
-				}
-				if (!belongs) continue;
-				childCount += 1;
-				if (child.running) runningChildCount += 1;
-			}
-			return {
-				parentRunning: Boolean(parentId && byId[parentId]?.running),
-				childCount,
-				runningChildCount
-			};
-		}
-		/** A disk-stage must not auto-resume while its parent or any descendant is executing. */
-		function sessionExecutionActive(parentSnap, list, parentId) {
-			const activity = sessionActivity(list, parentId);
-			return snapshotIsRunning(parentSnap) || activity.parentRunning || activity.runningChildCount > 0;
-		}
-		/** Workbench-injected wake; do not treat it as another unanswered inbound. */
-		function isWorkbenchWakeText(text) {
-			return /^(【子代理回推】|【主对话未接续】|【主对话插话】|【评审回推】|【事务自动接续】)/.test(String(text || "").trim());
-		}
-		/** Official Chat legacy projection first; top-level nodes are an old-client fallback only. */
-		function sessionNodes(snap) {
-			const official = snap?.chat?.legacy?.nodes;
-			if (Array.isArray(official)) return official;
-			return Array.isArray(snap?.nodes) ? snap.nodes : [];
-		}
 		function createWorkbenchSessionMonitor(options) {
 			const api = options.api;
-			const pinParentSessionId = options.pinParentSessionId;
-			const readSessionListSnap = options.readSessionListSnap;
-			const snapshotOf = options.snapshotOf;
-			const prepareTransaction = options.prepareTransaction;
-			const commitTransaction = options.commitTransaction;
-			const transactionCanRun = options.transactionCanRun;
-			const settleTransaction = options.settleTransaction;
-			const destroyTransaction = options.destroyTransaction;
-			const setTransactionPaused = options.setTransactionPaused || (() => {});
-			const requirementsPending = options.requirementsPending || (() => false);
 			const onChange = options.onChange || (() => {});
-			const setIntervalFn = options.setIntervalFn || ((callback, delay) => setInterval(callback, delay));
+			const setIntervalFn = options.setIntervalFn || ((fn, ms) => setInterval(fn, ms));
 			const clearIntervalFn = options.clearIntervalFn || ((timer) => clearInterval(timer));
-			const tickMs = options.tickMs || 15e3;
 			return {
 				state: {
 					cwd: "",
@@ -7259,82 +7282,69 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 					paused: false,
 					lastCheck: 0,
 					note: "",
-					settlementCheckPending: false,
-					observedExecutionActive: false,
 					done: false,
 					lastReality: null,
 					lastControl: null,
-					lastRealityDigest: ""
+					runtime: null
 				},
-				sending: false,
 				timer: null,
+				sending: false,
 				emit() {
 					onChange();
 				},
 				start(target) {
-					const previousTarget = `${this.state.parentSessionId}\n${this.state.cwd}\n${this.state.module}\n${this.state.projectId}`;
-					if (target && target.cwd && target.projectId) {
-						this.state.cwd = target.cwd;
-						this.state.module = target.module || "tender";
-						this.state.projectId = target.projectId;
-					}
-					if (!this.state.cwd || !this.state.projectId) return;
-					const parentSessionId = pinParentSessionId();
-					if (!parentSessionId) throw new Error("请先打开主会话，再启动自动推进。");
-					if (previousTarget !== `${parentSessionId}\n${this.state.cwd}\n${this.state.module}\n${this.state.projectId}`) {
-						this.state.lastRealityDigest = "";
-						this.state.observedExecutionActive = false;
-					}
-					if (prepareTransaction(parentSessionId, {
-						cwd: this.state.cwd,
-						module: this.state.module,
-						projectId: this.state.projectId
-					}).phase === "prepared") commitTransaction(parentSessionId);
-					setTransactionPaused(parentSessionId, false);
-					this.state.monitoring = true;
-					this.state.paused = false;
-					this.state.done = false;
-					this.state.parentSessionId = parentSessionId;
-					this.state.note = "本轮已显式派发；工作台只观察 DSH，空闲后核对一次，不会自动派活。";
-					this.state.settlementCheckPending = true;
-					this.state.observedExecutionActive = false;
-					this.ensureTimer();
-					this.emit();
+					const parent = options.pinParentSessionId();
+					if (!parent) throw new Error("请先打开主会话，再查看执行状态。");
+					return this.restore(target, parent);
 				},
-				restore(target, parentSessionId, paused = false) {
-					if (!target || !target.cwd || !target.projectId || !parentSessionId) return false;
-					if (!transactionCanRun(parentSessionId)) return false;
-					this.state.cwd = target.cwd;
-					this.state.module = target.module || "tender";
-					this.state.projectId = target.projectId;
-					this.state.parentSessionId = parentSessionId;
-					this.state.monitoring = true;
-					this.state.paused = Boolean(paused);
-					this.state.done = false;
-					this.state.note = paused ? "已恢复本会话监控；保持暂停。" : "已恢复本会话监控；不会自动派活。";
-					this.state.settlementCheckPending = false;
-					this.state.observedExecutionActive = false;
-					this.ensureTimer();
+				restore(target, parentSessionId) {
+					if (!target?.cwd || !target?.projectId || !parentSessionId) return false;
+					Object.assign(this.state, {
+						...target,
+						module: target.module || "tender",
+						parentSessionId,
+						monitoring: true
+					});
+					if (!this.timer) this.timer = setIntervalFn(() => {
+						this.tick();
+					}, options.tickMs || 15e3);
+					this.tick();
 					this.emit();
 					return true;
 				},
 				pause() {
-					this.state.paused = true;
-					setTransactionPaused(this.state.parentSessionId, true);
-					this.emit();
+					return this.setPaused(true);
 				},
 				unpause() {
-					if (!this.state.monitoring) return;
-					this.state.paused = false;
-					setTransactionPaused(this.state.parentSessionId, false);
-					if (!this.state.parentSessionId) this.state.parentSessionId = pinParentSessionId();
+					return this.setPaused(false);
+				},
+				setPaused(paused) {
+					return api("/api/agent-pi/stage", this.state.cwd, {
+						method: "POST",
+						body: JSON.stringify({
+							action: "runtime_pause",
+							module: this.state.module,
+							projectId: this.state.projectId,
+							sessionId: this.state.parentSessionId,
+							paused
+						})
+					}).then((result) => {
+						this.apply(result.runtime);
+						return this.tick();
+					}).catch((error) => {
+						this.state.note = String(error.message || error);
+						this.emit();
+					});
+				},
+				apply(runtime) {
+					this.state.runtime = runtime || null;
+					this.state.paused = runtime?.phase === "paused";
+					this.state.done = runtime?.phase === "done";
+					this.state.note = runtime?.reason || "当前没有宿主执行记录。";
+					this.state.lastCheck = Date.now();
 					this.emit();
 				},
-				stop(note, outcome) {
-					const parentId = this.state.parentSessionId;
-					if (parentId && outcome === "succeeded") settleTransaction(parentId, "succeeded");
-					else if (parentId && outcome === "failed") settleTransaction(parentId, "failed", note);
-					setTransactionPaused(parentId, false);
+				stop(note) {
 					this.state.monitoring = false;
 					if (note) this.state.note = note;
 					if (this.timer) {
@@ -7343,71 +7353,24 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 					}
 					this.emit();
 				},
-				ensureTimer() {
-					if (this.timer) return;
-					this.timer = setIntervalFn(() => {
-						this.tick();
-					}, tickMs);
-				},
 				tick() {
-					const state = this.state;
-					if (!state.monitoring || state.paused || !state.cwd || !state.projectId) return void 0;
-					if (!state.parentSessionId) state.parentSessionId = pinParentSessionId();
-					const parentId = state.parentSessionId;
-					if (!transactionCanRun(parentId)) {
-						this.stop("自动推进事务未提交或已结束；请在工作台重新点「继续推进」。");
-						return;
-					}
-					const parentSnap = snapshotOf(parentId);
-					if (parentSnap && parentSnap.removed === true) {
-						destroyTransaction(parentId);
-						this.stop("主会话已销毁，自动推进事务同时结束。");
-						return;
-					}
-					if (requirementsPending(parentId)) {
-						state.lastCheck = Date.now();
-						state.note = "用户最新要求正在写入项目账本，自动推进等待落账。";
-						this.emit();
-						return;
-					}
-					const sessionList = readSessionListSnap();
-					const executionActive = sessionExecutionActive(parentSnap, sessionList, parentId);
-					const runningChildren = sessionActivity(sessionList, parentId).runningChildCount;
-					state.lastCheck = Date.now();
-					if (executionActive) {
-						state.observedExecutionActive = true;
-						state.note = runningChildren > 0 ? `${runningChildren} 个 DSH 子智能体仍在执行；工作台只观察，不插话。` : "DSH 主智能体正在执行；工作台只观察，不插话。";
-						this.emit();
-						return;
-					}
-					if (this.sending) {
-						this.emit();
-						return;
-					}
-					if (!state.settlementCheckPending && !state.observedExecutionActive) return void 0;
-					state.settlementCheckPending = false;
-					state.observedExecutionActive = false;
+					if (!this.state.monitoring || this.sending) return Promise.resolve();
 					this.sending = true;
-					return api("/api/agent-pi/stage", state.cwd, {
+					const target = { ...this.state };
+					return api("/api/agent-pi/stage", target.cwd, {
 						method: "POST",
 						body: JSON.stringify({
-							action: "check",
-							module: state.module,
-							projectId: state.projectId,
-							sessionId: parentId
+							action: "runtime_status",
+							module: target.module,
+							projectId: target.projectId,
+							sessionId: target.parentSessionId
 						})
-					}).then((checked) => {
-						if (checked && checked.reality) {
-							state.lastReality = checked.reality;
-							state.lastControl = checked.control || null;
-							this.emit();
-						}
-						const realityDigest = String(checked && checked.control && checked.control.realityDigest || "");
-						const unchanged = Boolean(realityDigest && realityDigest === state.lastRealityDigest);
-						if (realityDigest) state.lastRealityDigest = realityDigest;
-						this.stop(unchanged ? "本轮 DSH 已空闲，项目事实未变化；继续下一步需再次点击「继续推进」。" : "本轮 DSH 已空闲，工作台已核对一次盘面；继续下一步需再次点击「继续推进」。", "succeeded");
+					}).then((result) => {
+						if (this.state.parentSessionId !== target.parentSessionId || this.state.projectId !== target.projectId) return;
+						this.apply(result.runtime);
 					}).catch((error) => {
-						this.stop(String(error && error.message || error), "failed");
+						this.state.note = String(error.message || error);
+						this.emit();
 					}).finally(() => {
 						this.sending = false;
 					});
@@ -8547,6 +8510,12 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				objective: task?.brief?.objective || "",
 				questions,
 				currentStep,
+				constraints: (task?.directives || []).filter((row) => row.status === "active" && [
+					"constraint",
+					"correction",
+					"scope"
+				].includes(row.kind)),
+				corrections: (task?.directives || []).filter((row) => ["correction", "revocation"].includes(row.kind)).slice(-8).reverse(),
 				coverage: {
 					total: coverage.length,
 					parsed: coverage.filter((row) => row.status === "parsed").length,
@@ -8753,7 +8722,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 						setResult(next);
 						onTask?.(sessionId, next.task, next.binding);
 					}
-				}), h("div", { className: "ap-task-summary-facts" }, model.currentStep && h("span", null, `${zh ? "正在解决：" : "Current focus: "}${model.currentStep.title}`), model.questions.length > 0 && h("span", null, `${model.questions.length}${zh ? " 个问题待明确" : " questions to clarify"}`), h("span", { className: "ap-task-summary-muted" }, model.depthEnabled ? zh ? "专业深度已启用" : "Professional depth on" : zh ? "基础专业检查" : "Core professional checks")), (model.coverage.total > 0 || model.delivery.total > 0) && h("div", { className: "ap-task-summary-facts" }, model.coverage.total > 0 && h("span", null, `${zh ? "资料抽取：" : "Source extraction: "}${model.coverage.parsed}/${model.coverage.total}`), model.coverage.total > 0 && h("span", null, `${zh ? "专业复核：" : "Professional review: "}${model.coverage.reviewed}/${model.coverage.total}`), model.delivery.total > 0 && h("span", null, `${zh ? "成果登记：" : "Registered deliverables: "}${model.delivery.total}`)), ...renderTaskFindings(h, task, locale, openSource, { limit: 3 }), model.findings.length > 3 && h("p", { className: "ap-task-summary-muted" }, `${zh ? "另有 " : "Plus "}${model.findings.length - 3}${zh ? " 项发现，可在本次任务中查看。" : " findings in Current task."}`), model.changes[0]?.summary && h("p", { className: "ap-task-summary-muted" }, `${zh ? "最近调整：" : "Latest adjustment: "}${model.changes[0].summary}`));
+				}), h("div", { className: "ap-task-summary-facts" }, model.currentStep && h("span", null, `${zh ? "正在解决：" : "Current focus: "}${model.currentStep.title}`), model.questions.length > 0 && h("span", null, `${model.questions.length}${zh ? " 个问题待明确" : " questions to clarify"}`), h("span", { className: "ap-task-summary-muted" }, model.depthEnabled ? zh ? "专业深度已启用" : "Professional depth on" : zh ? "基础专业检查" : "Core professional checks")), model.constraints.length > 0 && h("p", { className: "ap-task-summary-muted" }, zh ? "当前约束：" : "Current constraints: ", model.constraints.slice(-3).map((row) => row.text.length > 120 ? row.text.slice(0, 120) + "…" : row.text).join("；"), model.constraints.length > 3 ? zh ? "；更多约束见本次任务。" : "; More in Current task." : ""), model.corrections[0] && h("p", { className: "ap-task-summary-muted" }, zh ? "最近明确修正：" : "Latest explicit correction: ", model.corrections[0].text.length > 160 ? model.corrections[0].text.slice(0, 160) + "…" : model.corrections[0].text), (model.coverage.total > 0 || model.delivery.total > 0) && h("div", { className: "ap-task-summary-facts" }, model.coverage.total > 0 && h("span", null, `${zh ? "资料抽取：" : "Source extraction: "}${model.coverage.parsed}/${model.coverage.total}`), model.coverage.total > 0 && h("span", null, `${zh ? "专业复核：" : "Professional review: "}${model.coverage.reviewed}/${model.coverage.total}`), model.delivery.total > 0 && h("span", null, `${zh ? "成果登记：" : "Registered deliverables: "}${model.delivery.total}`)), ...renderTaskFindings(h, task, locale, openSource, { limit: 3 }), model.findings.length > 3 && h("p", { className: "ap-task-summary-muted" }, `${zh ? "另有 " : "Plus "}${model.findings.length - 3}${zh ? " 项发现，可在本次任务中查看。" : " findings in Current task."}`), model.changes[0]?.summary && h("p", { className: "ap-task-summary-muted" }, `${zh ? "最近调整：" : "Latest adjustment: "}${model.changes[0].summary}`));
 			};
 		}
 		//#endregion
@@ -9195,6 +9164,33 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 						setBusy(false);
 					}
 				}
+				async function taskAction(action, values) {
+					setBusy(true);
+					setError("");
+					setMessage("");
+					try {
+						const latest = await api(endpoint, cwd());
+						const next = await api(endpoint, cwd(), {
+							method: "POST",
+							body: JSON.stringify({
+								action,
+								...values,
+								revision: latest.task.revision,
+								...action === "directive_revoke" ? { operationId: crypto.randomUUID() } : {}
+							})
+						});
+						if (next.task.revision < taskRevision.current) return;
+						taskRevision.current = next.task.revision;
+						setResult(next);
+						setDraft(structuredClone(next.task));
+						onTask?.(sessionId, next.task, next.binding);
+						setMessage(action === "verify" ? text === labels.zh ? "已核验实际成果，请查看审核结果和待解决项。" : "Actual artifact verified. Review the receipt and unresolved items." : text === labels.zh ? "已撤销该约束，后续执行与审核将采用最新要求。" : "Constraint revoked. Execution and review will use the latest requirements.");
+					} catch (e) {
+						setError(e.message);
+					} finally {
+						setBusy(false);
+					}
+				}
 				const edit = (key, value, basis = false) => {
 					const path = basis ? "basis." + key : key;
 					fieldEdits.current[path] = {
@@ -9246,7 +9242,16 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 						task,
 						binding: project,
 						onChanged: reload
-					}))), article("quality", zh ? "专业执行口径" : "Professional execution policy", h(React.Fragment, null, h("p", null, model.depthEnabled ? zh ? "专业深度已启用：加强方法、证据与验收项审阅。" : "Professional depth is on: enhanced methods, evidence and acceptance review." : zh ? "基础专业检查持续生效；可在输入区主动开启专业深度。" : "Core professional checks apply. Turn on professional depth in the composer for additional review."), h("p", { className: "ap-guide-muted" }, zh ? "调整开关会保留已有依据、发现和检查记录。" : "Changing the switch preserves evidence, findings and check records."))), model.questions.length > 0 && article("questions", text.unanswered, h(React.Fragment, null, ...model.questions.map((row) => h("div", { key: row.id }, h("p", null, row.question), row.purpose && h("p", { className: "ap-guide-muted" }, row.purpose), row.provider && h("p", { className: "ap-guide-muted" }, zh ? "请在主对话的原生问答卡中回答。" : "Answer in the native question card in the conversation."))), onClose && h("button", { onClick: onClose }, zh ? "在主对话中回答" : "Answer in the conversation"))), h("h3", null, zh ? "围绕目标的发现" : "Findings related to your goal"), task.findings?.length ? renderTaskFindings(h, task, language(), openSource, {
+					}))), article("quality", zh ? "专业执行口径" : "Professional execution policy", h(React.Fragment, null, h("p", null, model.depthEnabled ? zh ? "专业深度已启用：加强方法、证据与验收项审阅。" : "Professional depth is on: enhanced methods, evidence and acceptance review." : zh ? "基础专业检查持续生效；可在输入区主动开启专业深度。" : "Core professional checks apply. Turn on professional depth in the composer for additional review."), h("p", { className: "ap-guide-muted" }, zh ? "调整开关会保留已有依据、发现和检查记录。" : "Changing the switch preserves evidence, findings and check records."))), (model.constraints.length > 0 || model.corrections.length > 0) && article("constraints", zh ? "持续生效的约束与最新修正" : "Persistent constraints and latest corrections", h(React.Fragment, null, h("p", { className: "ap-guide-muted" }, zh ? "这些要求跨压缩保留；资料引用不构成用户指令，撤销会使相关成果重新待核验。" : "These requirements survive compaction. Quoted documents do not establish user authority; revocation requires affected results to be checked again."), ...model.constraints.map((row) => h("div", {
+						key: row.id,
+						"data-directive-id": row.id
+					}, h("p", null, row.text), h("p", { className: "ap-guide-muted" }, (zh ? "来自用户 · 任务版本 " : "From user · Task revision ") + row.updatedRevision), h("button", {
+						disabled: busy || dirty,
+						onClick: () => taskAction("directive_revoke", { directiveId: row.id })
+					}, zh ? "撤销这项约束" : "Revoke this constraint"))), ...model.corrections.filter((row) => !model.constraints.some((active) => active.id === row.id)).map((row) => h("p", {
+						key: row.id,
+						className: "ap-guide-muted"
+					}, (row.kind === "revocation" ? zh ? "已明确撤销：" : "Explicitly revoked: " : zh ? "修正记录：" : "Correction: ") + row.text)))), model.questions.length > 0 && article("questions", text.unanswered, h(React.Fragment, null, ...model.questions.map((row) => h("div", { key: row.id }, h("p", null, row.question), row.purpose && h("p", { className: "ap-guide-muted" }, row.purpose), row.provider && h("p", { className: "ap-guide-muted" }, zh ? "请在主对话的原生问答卡中回答。" : "Answer in the native question card in the conversation."))), onClose && h("button", { onClick: onClose }, zh ? "在主对话中回答" : "Answer in the conversation"))), h("h3", null, zh ? "围绕目标的发现" : "Findings related to your goal"), task.findings?.length ? renderTaskFindings(h, task, language(), openSource, {
 						includeResolved: true,
 						onOpenChat: onClose
 					}) : h("p", { className: "ap-guide-muted" }, zh ? "实际分析形成的发现会记录在这里，并说明依据、目标影响和下一步。" : "Findings from actual analysis appear here with their sources, impact on the goal and next action."), article("progress", zh ? "实际工作进展" : "Actual work progress", h(React.Fragment, null, model.currentStep && h("p", null, (zh ? "当前重点：" : "Current focus: ") + model.currentStep.title), h("div", { className: "ap-guide-progress" }, h("span", null, (zh ? "资料抽取：" : "Source extraction: ") + model.coverage.parsed + "/" + model.coverage.total), h("span", null, (zh ? "专业复核：" : "Professional review: ") + model.coverage.reviewed + "/" + model.coverage.total), h("span", null, (zh ? "缺失 / 不可读：" : "Missing / unreadable: ") + model.coverage.missing + " / " + model.coverage.unreadable), h("span", null, (zh ? "客户验收：" : "Customer acceptance: ") + model.delivery.accepted + "/" + model.delivery.total)), model.coverage.total === 0 && h("p", { className: "ap-guide-muted" }, zh ? "尚未登记资料检查对象，不推算完成率。" : "No source inspection objects have been registered yet."), h("button", { onClick: () => setTab("plan") }, text.plan), h("button", { onClick: () => setTab("delivery") }, text.delivery))), model.changes.length > 0 && article("changes", zh ? "调整记录" : "Adjustment history", h(React.Fragment, null, ...model.changes.slice(0, 8).map((row) => h("div", { key: row.sequence }, h("p", null, row.summary), row.affectedRefs?.length > 0 && h("p", { className: "ap-guide-muted" }, (zh ? "受影响：" : "Affected: ") + row.affectedRefs.join("、")))))));
@@ -9320,13 +9325,22 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					if (tab === "delivery") body = h(React.Fragment, null, h("p", null, result?.audit?.customerAccepted ? text.accepted : result?.audit?.readyForCustomerReview ? text.ready : text.review), result?.audit?.issues?.map((row, index) => h("p", {
 						key: index,
 						className: "ap-guide-error"
-					}, row.detail)), (draft.deliverables || []).map((row) => article(row.id, row.title || row.path?.split(/[\\/]/).pop() || row.id, h(React.Fragment, null, h("p", null, row.path), h("p", null, displayState(row.status) + " · " + displayState(row.signature)), (row.checks || []).map((check, index) => h("p", { key: index }, check.kind + " · " + displayState(check.status) + " — " + check.detail)), !row.checks?.length && h("p", { className: "ap-guide-muted" }, text === labels.zh ? "尚未登记交付检查；文件状态不等于通过验收。" : "No delivery checks are registered; file status does not establish acceptance."), row.signature === "pending" ? h("button", {
+					}, row.detail)), (draft.deliverables || []).map((row) => article(row.id, row.title || row.path?.split(/[\\/]/).pop() || row.id, h(React.Fragment, null, h("p", null, row.path), h("p", null, displayState(row.status) + " · " + displayState(row.signature)), h("button", {
+						disabled: busy || dirty,
+						onClick: () => taskAction("verify", { deliverableId: row.id })
+					}, zh ? "核验实际成果" : "Verify actual artifact"), row.verification ? h("div", { "data-verification-status": row.verification.status }, h("p", null, (zh ? "审核凭据：" : "Verification receipt: ") + displayState(row.verification.status) + " · " + row.verification.ruleVersion), h("p", { className: "ap-guide-muted" }, (zh ? "成果 SHA：" : "Artifact SHA: ") + (row.verification.artifactSha256 || "—")), h("p", { className: "ap-guide-muted" }, (zh ? "输入任务版本：" : "Input task revision: ") + row.verification.taskRevision + " · " + (row.verification.inputFingerprint || "").slice(0, 16)), ...Object.entries(row.verification.sourceHashes || {}).map(([path, hash]) => h("p", {
+						key: path,
+						className: "ap-guide-muted"
+					}, path + " · " + (hash || (zh ? "无法核验" : "Unverified")))), ...(row.verification.unresolved || []).map((value, index) => h("p", {
+						key: index,
+						className: "ap-guide-error"
+					}, value))) : h("p", { className: "ap-guide-muted" }, zh ? "尚无实际文件审核凭据，不能验收；登记完成不代表已通过。" : "No actual-file verification receipt yet. A completion record does not establish acceptance."), (row.checks || []).map((check, index) => h("p", { key: index }, check.kind + " · " + displayState(check.status) + " — " + check.detail)), row.signature === "pending" ? h("button", {
 						disabled: busy || dirty,
 						onClick: () => save({ deliverables: draft.deliverables.map((item) => item.id === row.id ? {
 							...item,
 							signature: "signed"
 						} : item) })
-					}, text.signature) : null))), result?.audit?.readyForCustomerReview ? h("button", {
+					}, text.signature) : null))), result?.audit?.readyForCustomerReview && draft.deliverables?.every((row) => row.verification?.status === "passed" && !row.verification.unresolved?.length) && !result?.audit?.customerAccepted ? h("button", {
 						disabled: busy || dirty,
 						onClick: () => save({ deliverables: draft.deliverables.map((row) => ({
 							...row,
@@ -9380,6 +9394,194 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					})
 				}, busy ? text.saving : text.save) : null));
 			};
+		}
+		//#endregion
+		//#region src/client/skill-lifecycle.js
+		const statuses = {
+			candidate: ["候选，尚未加载", "Candidate, not loaded"],
+			published: ["已发布", "Published"],
+			retired: ["已退役", "Retired"],
+			legacy_unvalidated: ["旧手工版本，未验证", "Legacy manual version, unvalidated"]
+		};
+		const valueOf = (value) => typeof value === "function" ? value() : value;
+		function createSkillLifecycle({ React, api, cwd, sessionId, language, onChanged }) {
+			const h = React.createElement;
+			return function SkillLifecyclePanel(props = {}) {
+				const currentCwd = props.cwd ?? valueOf(cwd) ?? "", currentSession = props.sessionId ?? valueOf(sessionId) ?? "";
+				const zh = String(valueOf(language) || "zh").startsWith("zh"), t = (cn, en) => zh ? cn : en;
+				const [data, setData] = React.useState(null), [selected, setSelected] = React.useState(null), [detail, setDetail] = React.useState(null);
+				const [error, setError] = React.useState(""), [busy, setBusy] = React.useState(false), [notice, setNotice] = React.useState("");
+				const [caseDraft, setCaseDraft] = React.useState({
+					caseId: "",
+					inputPath: "",
+					expectedOutputPath: "",
+					actualOutputPath: ""
+				});
+				const [humanSelected, setHumanSelected] = React.useState(false), [confirmPublish, setConfirmPublish] = React.useState(false);
+				const [decision, setDecision] = React.useState("");
+				const scope = currentCwd + "\n" + currentSession, scopeRef = React.useRef(scope);
+				scopeRef.current = scope;
+				const request = (body) => api(`/api/agent-pi/skills?sessionId=${encodeURIComponent(currentSession)}`, currentCwd, body ? {
+					method: "POST",
+					body: JSON.stringify({
+						...body,
+						sessionId: currentSession
+					})
+				} : { method: "GET" });
+				React.useEffect(() => {
+					let active = true;
+					setData(null);
+					setSelected(null);
+					setDetail(null);
+					setError("");
+					setNotice("");
+					setDecision("");
+					setConfirmPublish(false);
+					setHumanSelected(false);
+					setBusy(false);
+					setCaseDraft({
+						caseId: "",
+						inputPath: "",
+						expectedOutputPath: "",
+						actualOutputPath: ""
+					});
+					request().then((value) => {
+						if (active) setData(value);
+					}).catch((err) => {
+						if (active) setError(String(err.message || err));
+					});
+					return () => {
+						active = false;
+					};
+				}, [scope]);
+				const perform = async (fn) => {
+					setBusy(true);
+					setError("");
+					setNotice("");
+					try {
+						await fn();
+					} catch (err) {
+						if (scopeRef.current === scope) setError(String(err.message || err));
+					} finally {
+						if (scopeRef.current === scope) setBusy(false);
+					}
+				};
+				const choose = (slug, versionId) => perform(async () => {
+					const value = await request({
+						action: "read",
+						slug,
+						versionId
+					});
+					if (scopeRef.current !== scope) return;
+					setSelected({
+						slug,
+						versionId
+					});
+					setDetail(value);
+					setDecision("");
+					setConfirmPublish(false);
+					setHumanSelected(false);
+				});
+				const mutate = (body) => perform(async () => {
+					await request({
+						...selected,
+						...body
+					});
+					const [list, value] = await Promise.all([request(), request({
+						action: "read",
+						...selected
+					})]);
+					if (scopeRef.current !== scope) return;
+					setData(list);
+					setDetail(value);
+					setHumanSelected(false);
+					setConfirmPublish(false);
+					setDecision("");
+					setNotice(t("操作已保存。", "Saved."));
+					(props.onChanged || onChanged)?.();
+				});
+				const list = data?.lifecycles || [], known = new Set(list.map((row) => row.slug));
+				const version = detail?.version, lifecycle = detail?.lifecycle, status = lifecycle?.versions?.find((row) => row.versionId === selected?.versionId)?.status;
+				const cases = lifecycle?.validations?.filter((row) => row.versionId === selected?.versionId) || [];
+				const canPublish = detail?.sourceReady && cases.length > 0 && cases.every((row) => row.passed) && ["candidate", "published"].includes(status);
+				const independentSession = currentSession && currentSession !== version?.sourceTaskId;
+				const field = (key, cn, en) => h("label", {
+					className: "ap-skill-field",
+					key
+				}, t(cn, en), h("input", {
+					value: caseDraft[key],
+					disabled: busy,
+					onChange: (event) => setCaseDraft((old) => ({
+						...old,
+						[key]: event.target.value
+					}))
+				}));
+				return h("section", {
+					className: "ap-skill-lifecycle",
+					"aria-label": t("技能版本与独立验证", "Skill versions and independent validation")
+				}, h("h3", null, t("技能版本与独立验证", "Skill versions and independent validation")), h("p", null, t("候选技能保留来源、适用前提和失败条件。只有来源成果被用户验收、独立案例验证通过并经人工批准后，才发布为可加载技能。", "Candidates retain their source, applicability and failure conditions. Publication requires an accepted source deliverable, independent validation and human approval.")), error && h("p", { role: "alert" }, error), notice && h("p", { role: "status" }, notice), !data && !error && h("p", null, t("正在读取技能…", "Loading skills…")), data && !list.length && !(data.skills || []).length && h("p", null, t("尚无候选或用户技能。可在主对话中整理方法并保存候选，再到这里验证。", "No candidates or user skills yet. Ask the main conversation to save a method candidate, then validate it here.")), list.map((row) => h("div", {
+					key: row.slug,
+					className: "ap-skill-versions"
+				}, h("strong", null, row.slug), row.versions.map((item) => h("button", {
+					key: item.versionId,
+					type: "button",
+					disabled: busy,
+					"aria-pressed": selected?.slug === row.slug && selected?.versionId === item.versionId,
+					onClick: () => choose(row.slug, item.versionId)
+				}, `${t(...statuses[item.status] || statuses.legacy_unvalidated)} · ${item.versionId.slice(0, 10)}${row.currentVersionId === item.versionId ? t(" · 当前", " · Current") : ""}`)))), (data?.skills || []).filter((row) => !known.has(row.slug)).map((row) => h("p", { key: row.slug }, `${row.slug} · ${t(...statuses.legacy_unvalidated)}`)), version && h("div", { className: "ap-skill-detail" }, h("h4", null, `${version.slug} · ${version.versionId.slice(0, 10)}`), h("p", null, t("来源任务：", "Source task: ") + version.sourceTaskId), h("p", null, t("来源成果：", "Source artifact: ") + version.sourceArtifact.path), h("p", null, t("适用前提：", "Applicability: ") + (version.applicability || []).join("；")), h("p", null, t("失败条件：", "Failure conditions: ") + (version.failureModes || []).join("；")), !detail.sourceReady && status !== "legacy_unvalidated" && h("p", { role: "status" }, t("发布尚未就绪：", "Publication not ready: ") + detail.sourceReason), h("details", null, h("summary", null, t("查看候选正文", "View candidate text")), h("pre", null, version.markdown)), h("p", { className: "ap-skill-limitation" }, t("验证方式：人工选定的独立案例，输入、独立预期和实际输出均保留文件指纹，只核对输出字节是否一致。这只证明登记的固定案例，不证明任意任务的语义质量或技能的自动执行效果。", "Validation uses a human-selected independent case, retaining hashes of its input, reference and actual output. Exact byte equality only proves this fixed case; it does not establish general semantic quality or automatic skill execution.")), cases.map((row) => h("p", { key: row.caseId }, `${row.caseId} · ${row.passed ? t("固定案例通过", "Fixed case passed") : t("输出不一致", "Output differs")} · ${row.verificationMethod}`)), ["candidate", "published"].includes(status) && h("form", { onSubmit: (event) => {
+					event.preventDefault();
+					mutate({
+						action: "validate",
+						...caseDraft,
+						humanSelected
+					});
+				} }, h("h4", null, t("登记独立案例", "Register an independent case")), h("p", null, t("当前验证会话：", "Current validation session: ") + (currentSession || t("请先选择会话", "Select a session first"))), !independentSession && h("p", null, t("请在另一个独立任务会话中验证，不能复用来源任务。", "Validate in another independent task session; the source task cannot serve as its own case.")), field("caseId", "案例编号（保存后冻结）", "Case ID (frozen after saving)"), field("inputPath", "独立输入文件", "Independent input file"), field("expectedOutputPath", "人工选定的独立预期文件", "Human-selected reference file"), field("actualOutputPath", "实际输出文件", "Actual output file"), h("label", { className: "ap-skill-check" }, h("input", {
+					type: "checkbox",
+					checked: humanSelected,
+					disabled: busy,
+					onChange: (event) => setHumanSelected(event.target.checked)
+				}), t("我确认已人工选择这个独立案例和预期文件；预期不是模型为本次结果临时编造的标准。", "I selected this independent case and reference; the reference was not invented by the model to match this result.")), h("button", {
+					type: "submit",
+					disabled: busy || !independentSession || !humanSelected || Object.values(caseDraft).some((value) => !value.trim())
+				}, t("冻结案例并验证", "Freeze case and validate"))), ["candidate", "published"].includes(status) && h("div", null, h("label", { className: "ap-skill-check" }, h("input", {
+					type: "checkbox",
+					checked: confirmPublish,
+					disabled: busy,
+					onChange: (event) => setConfirmPublish(event.target.checked)
+				}), t("我批准发布此版本，并理解固定案例验证的局限和上述适用条件。", "I approve publication and understand the fixed-case limitation and applicability conditions.")), h("button", {
+					type: "button",
+					disabled: busy || !currentSession || !canPublish || !confirmPublish,
+					onClick: () => mutate({
+						action: "publish",
+						confirmPublish
+					})
+				}, t("批准并发布", "Approve and publish"))), ["published", "legacy_unvalidated"].includes(status) && h("button", {
+					type: "button",
+					disabled: busy || !currentSession,
+					onClick: () => setDecision("rollback")
+				}, t("回滚到此版本", "Roll back to this version")), status !== "retired" && h("button", {
+					type: "button",
+					disabled: busy || !currentSession,
+					onClick: () => setDecision("retire")
+				}, t("退役此版本", "Retire this version")), decision && h("div", {
+					role: "group",
+					"aria-label": t("确认版本操作", "Confirm version action")
+				}, h("p", null, decision === "retire" ? t("退役将停止加载此版本，历史记录保留。", "Retirement stops loading this version and retains its history.") : t("回滚将恢复所选正文，旧手工版本仍标记为未验证。", "Rollback restores this text; legacy manual versions remain unvalidated.")), h("button", {
+					type: "button",
+					disabled: busy,
+					onClick: () => mutate({
+						action: decision,
+						confirm: true
+					})
+				}, t("确认操作", "Confirm action")), h("button", {
+					type: "button",
+					disabled: busy,
+					onClick: () => setDecision("")
+				}, t("取消", "Cancel")))));
+			};
+		}
+		function skillLifecycleCss() {
+			return `.ap-skill-lifecycle{margin-top:20px;border-top:1px solid var(--ap-line,#dbe2e8);padding-top:16px}.ap-skill-lifecycle p{overflow-wrap:anywhere}.ap-skill-versions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}.ap-skill-versions button[aria-pressed=true]{outline:2px solid var(--ap-accent,#2a617a)}.ap-skill-detail{border:1px solid var(--ap-line,#dbe2e8);border-radius:8px;padding:16px;margin-top:12px}.ap-skill-detail pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto}.ap-skill-field{display:block;margin:10px 0}.ap-skill-field input{display:block;width:100%;box-sizing:border-box;margin-top:4px}.ap-skill-check{display:flex;gap:8px;align-items:flex-start;margin:12px 0}.ap-skill-check input{flex:none;margin-top:3px}.ap-skill-limitation{padding:10px;background:var(--ap-subtle,#f3f6f8)}.ap-skill-detail button{margin:4px 8px 4px 0}.ap-skill-lifecycle [role=alert]{color:var(--ap-danger,#b42318)}`;
 		}
 		//#endregion
 		//#region src/client/professional-conversation-view.js
@@ -9474,7 +9676,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 			"attachmentTask",
 			"replyFailed"
 		];
-		const copy$1 = {
+		const copy = {
 			zh: [
 				"Codex 主执行",
 				"待命",
@@ -9898,7 +10100,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 			ru: "Не удалось отправить ответ. Повторите попытку или загрузите актуальное состояние задачи.",
 			ar: "تعذر إرسال ردك. حاول مجدداً أو حمّل أحدث حالة للمهمة."
 		};
-		const codexExecutionLocales = Object.fromEntries(Object.entries(copy$1).map(([locale, values]) => [locale, Object.fromEntries(keys.map((key, index) => [key, key === "replyFailed" ? replyFailed[locale] : values[index]]))]));
+		const codexExecutionLocales = Object.fromEntries(Object.entries(copy).map(([locale, values]) => [locale, Object.fromEntries(keys.map((key, index) => [key, key === "replyFailed" ? replyFailed[locale] : values[index]]))]));
 		function tCodexExecution(key, language) {
 			return (codexExecutionLocales[String(language || "").toLowerCase().split("-")[0]] || codexExecutionLocales.en)[key] || codexExecutionLocales.en[key] || key;
 		}
@@ -10482,92 +10684,79 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 请直接改这个文件并保存。不要另开对话，不要只口头改一版。改完用一句话说明改了什么。`;
 		}
 		//#endregion
-		//#region src/session-transaction.ts
-		function requireSessionId(sessionId) {
-			const value = String(sessionId || "").trim();
-			if (!value) throw new Error("session transaction requires a session id");
-			return value;
+		//#region src/session-wake.ts
+		/** Parent is in an open turn. Queue-only is not running. */
+		function snapshotIsRunning(snap) {
+			return !!(snap && snap.running);
 		}
-		function copy(value) {
-			return { ...value };
-		}
-		/**
-		* In-memory, per-session transaction registry for product-layer automation.
-		* Nothing may run after prepare alone: the user action must explicitly commit it.
-		*/
-		function createSessionTransactionRegistry(now = Date.now, restored = []) {
-			const entries = /* @__PURE__ */ new Map();
-			for (const value of restored) {
-				const sessionId = String(value?.sessionId || "").trim();
-				if (!sessionId || value.phase !== "committed" || value.payload == null) continue;
-				entries.set(sessionId, copy({
-					...value,
-					sessionId
-				}));
+		/** Still-pending composer/host queue rows. */
+		function queuedMessages(snap) {
+			const queue = snap && Array.isArray(snap.queue) ? snap.queue : [];
+			const out = [];
+			for (const item of queue) {
+				if (!item || !item.id) continue;
+				if (item.placement && item.placement !== "queued") continue;
+				out.push({
+					id: item.id,
+					placement: item.placement || "queued"
+				});
 			}
-			const current = (sessionId) => {
-				const id = requireSessionId(sessionId);
-				const value = entries.get(id);
-				if (!value) throw new Error(`session transaction not prepared: ${id}`);
-				return value;
-			};
-			return {
-				get(sessionId) {
-					const value = entries.get(String(sessionId || "").trim());
-					return value ? copy(value) : void 0;
-				},
-				prepare(sessionId, payload) {
-					const id = requireSessionId(sessionId);
-					const previous = entries.get(id);
-					if (previous?.phase === "prepared" || previous?.phase === "committed") throw new Error(`session transaction already active: ${id}`);
-					const value = {
-						sessionId: id,
-						phase: "prepared",
-						payload,
-						preparedAt: now()
-					};
-					entries.set(id, value);
-					return copy(value);
-				},
-				commit(sessionId) {
-					const value = current(sessionId);
-					if (value.phase !== "prepared") throw new Error(`session transaction cannot commit from ${value.phase}`);
-					value.phase = "committed";
-					value.committedAt = now();
-					return copy(value);
-				},
-				succeed(sessionId) {
-					const value = current(sessionId);
-					if (value.phase !== "committed") throw new Error(`session transaction cannot succeed from ${value.phase}`);
-					value.phase = "succeeded";
-					value.settledAt = now();
-					delete value.error;
-					return copy(value);
-				},
-				fail(sessionId, error) {
-					const value = current(sessionId);
-					if (value.phase !== "prepared" && value.phase !== "committed") throw new Error(`session transaction cannot fail from ${value.phase}`);
-					value.phase = "failed";
-					value.settledAt = now();
-					value.error = String(error instanceof Error ? error.message : error || "unknown error");
-					return copy(value);
-				},
-				destroy(sessionId) {
-					const id = requireSessionId(sessionId);
-					const value = entries.get(id);
-					if (!value) return void 0;
-					value.phase = "destroyed";
-					value.settledAt = now();
-					entries.delete(id);
-					return copy(value);
-				},
-				canRun(sessionId) {
-					return entries.get(String(sessionId || "").trim())?.phase === "committed";
-				},
-				committed() {
-					return [...entries.values()].filter((value) => value.phase === "committed").map(copy);
+			return out;
+		}
+		/** Busy for crash-resume / UI: running or a waiting queue. */
+		function snapshotIsBusy(snap) {
+			return snapshotIsRunning(snap) || queuedMessages(snap).length > 0;
+		}
+		/** Root main-session routing target for a workbench action opened from any descendant. */
+		function parentSessionTarget(activeId, snap, list) {
+			const byId = list?.byId ?? {};
+			let target = snap?.subagent?.address?.parentSessionId || activeId;
+			const seen = /* @__PURE__ */ new Set();
+			while (target && !seen.has(target)) {
+				seen.add(target);
+				const row = byId[target];
+				if (!row || row.origin !== "subagent" || !row.parentId) break;
+				target = row.parentId;
+			}
+			return target;
+		}
+		/** Live parent/descendant activity shown beside the disk-backed stage board. */
+		function sessionActivity(list, parentId) {
+			const byId = list?.byId ?? {};
+			let childCount = 0;
+			let runningChildCount = 0;
+			if (parentId) for (const child of Object.values(byId)) {
+				if (!child || child.origin !== "subagent" || !child.id) continue;
+				const seen = /* @__PURE__ */ new Set();
+				let cursor = child;
+				let belongs = false;
+				while (cursor?.origin === "subagent" && cursor.parentId && !seen.has(cursor.id || "")) {
+					if (cursor.id) seen.add(cursor.id);
+					if (cursor.parentId === parentId) {
+						belongs = true;
+						break;
+					}
+					cursor = byId[cursor.parentId];
 				}
+				if (!belongs) continue;
+				childCount += 1;
+				if (child.running) runningChildCount += 1;
+			}
+			return {
+				parentRunning: Boolean(parentId && byId[parentId]?.running),
+				childCount,
+				runningChildCount
 			};
+		}
+		/** Workbench-injected wake; do not treat it as another unanswered inbound. */
+		function isWorkbenchWakeText(text) {
+			return /^(【子代理回推】|【主对话未接续】|【主对话插话】|【评审回推】|【事务自动接续】)/.test(String(text || "").trim());
+		}
+		/** Official Chat legacy projection first; top-level nodes are an old-client fallback only. */
+		function sessionNodes(snap) {
+			const official = snap?.chat?.legacy?.nodes;
+			if (Array.isArray(official)) return official;
+			return Array.isArray(snap?.nodes) ? snap.nodes : [];
 		}
 		//#endregion
 		//#region src/client/index.js
@@ -10578,7 +10767,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		const api = (path, cwd, init) => requestApi(path, cwd, init).then((result) => {
 			if (path === "/api/agent-pi/stage" && init?.method === "POST") {
 				const input = JSON.parse(init.body || "{}");
-				if (input.action !== "check") window.dispatchEvent(new CustomEvent("agent-pi-project-state-changed", { detail: {
+				if (!["check", "runtime_status"].includes(input.action)) window.dispatchEvent(new CustomEvent("agent-pi-project-state-changed", { detail: {
 					...input,
 					cwd
 				} }));
@@ -11511,24 +11700,9 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				return null;
 			}
 		}
-		function pinParentSessionId() {
-			const sid = activeSessionId();
+		function pinParentSessionId(props) {
+			const sid = sessionHint(props) || activeSessionId();
 			return parentSessionTarget(sid, snapshotOf(sid), readSessionListSnap());
-		}
-		function flushQueuedToParent(parentId) {
-			const face = sessionFaceById(parentId);
-			const items = queuedMessages(snapshotOf(parentId));
-			if (!face || !items.length) return Promise.resolve(false);
-			if (typeof face.updateQueue === "function") return items.reduce((prev, item) => prev.then(() => {
-				return Promise.resolve(face.updateQueue(item.id, { kind: "steer" })).then((result) => {
-					if (result && result.ok === false) {
-						const code = result.error && result.error.code;
-						if (code === "steer-unavailable" || code === "queue-item-not-found") return;
-						throw new Error(result.error && (result.error.message || result.error.code) || "updateQueue rejected");
-					}
-				});
-			}), Promise.resolve()).then(() => true);
-			return dispatchToConversation({}, "【主对话插话】请立刻处理输入框已提交、但还没进入当前轮的指令，不要空等。", parentId);
 		}
 		function dispatchToConversation(props, text, sessionId) {
 			if (!text) return Promise.resolve(false);
@@ -11549,43 +11723,6 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				return Promise.resolve(true);
 			}
 			return Promise.reject(/* @__PURE__ */ new Error("当前没有可写入的主对话。请先打开或新建一个会话。"));
-		}
-		const WORKBENCH_TRANSACTION_STATE_KEY = "ap-wb-session-transactions:v1";
-		function loadWorkbenchTransactionState() {
-			try {
-				const value = JSON.parse(localStorage.getItem(WORKBENCH_TRANSACTION_STATE_KEY) || "null");
-				return {
-					transactions: Array.isArray(value && value.transactions) ? value.transactions : [],
-					paused: Array.isArray(value && value.paused) ? value.paused : []
-				};
-			} catch {
-				return {
-					transactions: [],
-					paused: []
-				};
-			}
-		}
-		const restoredWorkbenchState = loadWorkbenchTransactionState();
-		const workbenchTransactions = window.__apWorkbenchTransactions || (window.__apWorkbenchTransactions = createSessionTransactionRegistry(Date.now, restoredWorkbenchState.transactions));
-		const workbenchPausedSessions = window.__apWorkbenchPausedSessions || (window.__apWorkbenchPausedSessions = new Set(restoredWorkbenchState.paused));
-		function persistWorkbenchTransactionState() {
-			const transactions = workbenchTransactions.committed();
-			const activeIds = new Set(transactions.map((item) => item.sessionId));
-			const paused = [...workbenchPausedSessions].filter((sessionId) => activeIds.has(sessionId));
-			try {
-				if (!transactions.length) localStorage.removeItem(WORKBENCH_TRANSACTION_STATE_KEY);
-				else localStorage.setItem(WORKBENCH_TRANSACTION_STATE_KEY, JSON.stringify({
-					transactions,
-					paused
-				}));
-			} catch {}
-		}
-		function setWorkbenchTransactionPaused(sessionId, paused) {
-			const id = String(sessionId || "").trim();
-			if (!id) return;
-			if (paused) workbenchPausedSessions.add(id);
-			else workbenchPausedSessions.delete(id);
-			persistWorkbenchTransactionState();
 		}
 		const workbenchSessionBindings = window.__apWorkbenchSessionBindings || (window.__apWorkbenchSessionBindings = /* @__PURE__ */ new Map());
 		const workbenchRequirementRecords = window.__apWorkbenchRequirementRecords || (window.__apWorkbenchRequirementRecords = /* @__PURE__ */ new Map());
@@ -11670,12 +11807,6 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			workbenchRequirementRecords.set(recordKey, tracked);
 			return tracked;
 		}
-		function projectRequirementWritePending(sessionId) {
-			const prefix = String(sessionId || "").trim() + "\n";
-			if (prefix === "\n") return false;
-			for (const key of workbenchRequirementPending) if (key.startsWith(prefix)) return true;
-			return false;
-		}
 		function userRequirementNodeText(node) {
 			return (node && node.content || []).filter((part) => part && part.type === "text").map((part) => part.text || "").join("").trim();
 		}
@@ -11755,73 +11886,18 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			});
 			onSession();
 		}
-		function prepareWorkbenchTransaction(sessionId, payload) {
-			const id = String(sessionId || "").trim();
-			if (!id) throw new Error("自动推进需要明确的主会话。");
-			const previous = workbenchTransactions.get(id);
-			if (previous && (previous.phase === "prepared" || previous.phase === "committed")) {
-				if (previous.payload.cwd === payload.cwd && previous.payload.module === payload.module && previous.payload.projectId === payload.projectId) {
-					rememberWorkbenchBinding(id, payload);
-					ensureUserRequirementWatcher(id);
-					return previous;
-				}
-				throw new Error("当前会话已有另一项自动推进事务，请先暂停或结束。");
-			}
-			const transaction = workbenchTransactions.prepare(id, payload);
-			rememberWorkbenchBinding(id, payload);
-			ensureUserRequirementWatcher(id);
-			return transaction;
-		}
-		function commitWorkbenchTransaction(sessionId) {
-			const transaction = workbenchTransactions.commit(sessionId);
-			workbenchPausedSessions.delete(String(sessionId || "").trim());
-			persistWorkbenchTransactionState();
-			return transaction;
-		}
-		function workbenchTransactionCanRun(sessionId) {
-			return workbenchTransactions.canRun(sessionId);
-		}
-		function settleWorkbenchTransaction(sessionId, phase, error) {
-			if (!workbenchTransactions.get(sessionId)) return;
-			if (phase === "succeeded") workbenchTransactions.succeed(sessionId);
-			else workbenchTransactions.fail(sessionId, error);
-			workbenchPausedSessions.delete(String(sessionId || "").trim());
-			persistWorkbenchTransactionState();
-		}
-		function destroyWorkbenchTransaction(sessionId) {
-			workbenchSessionBindings.delete(String(sessionId || "").trim());
-			try {
-				localStorage.removeItem(workbenchBindingKey(sessionId));
-			} catch {}
-			workbenchTransactions.destroy(sessionId);
-			workbenchPausedSessions.delete(String(sessionId || "").trim());
-			persistWorkbenchTransactionState();
-		}
 		const monitorEngine = createWorkbenchSessionMonitor({
 			api,
-			activeSessionId,
-			dispatchToConversation,
-			flushQueuedToParent,
 			pinParentSessionId,
-			readSessionListSnap,
-			snapshotOf,
-			prepareTransaction: prepareWorkbenchTransaction,
-			commitTransaction: commitWorkbenchTransaction,
-			transactionCanRun: workbenchTransactionCanRun,
-			settleTransaction: settleWorkbenchTransaction,
-			destroyTransaction: destroyWorkbenchTransaction,
-			setTransactionPaused: setWorkbenchTransactionPaused,
-			requirementsPending: projectRequirementWritePending,
 			onChange: () => window.dispatchEvent(new Event("agent-pi-monitor-changed"))
 		});
 		function restoreActiveWorkbenchMonitor() {
 			if (monitorEngine.state.monitoring) return false;
 			const parentSessionId = pinParentSessionId();
-			const transaction = workbenchTransactions.get(parentSessionId);
-			if (!transaction || transaction.phase !== "committed") return false;
-			rememberWorkbenchBinding(parentSessionId, transaction.payload);
+			const binding = cachedWorkbenchBinding(parentSessionId, runtime.cwd || composerFace.cwd || "");
+			if (!binding) return false;
 			ensureUserRequirementWatcher(parentSessionId);
-			return monitorEngine.restore(transaction.payload, parentSessionId, workbenchPausedSessions.has(parentSessionId));
+			return monitorEngine.restore(binding, parentSessionId);
 		}
 		let transactionRestoreList = null;
 		function watchWorkbenchTransactionRestore() {
@@ -12271,7 +12347,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			if (raw.startsWith("kb:")) {
 				const rest = raw.slice(3);
 				const sep = rest.lastIndexOf(":");
-				return sep > 0 ? rest.slice(0, sep) : rest;
+				return (sep > 0 ? rest.slice(0, sep) : rest).replace(/@([a-f0-9]{64})$/, (_, version) => " · v" + version.slice(0, 8));
 			}
 			if (raw.startsWith("src:")) {
 				const rest = raw.slice(4);
@@ -12293,7 +12369,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			text = text.replace(/`([^`]+)`/g, "<code>$1</code>");
 			text = text.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
 			text = text.replace(/\*([^*]+)\*/g, "<em>$1</em>");
-			text = text.replace(/\[(kb:[a-z0-9][a-z0-9._-]*:[A-Za-z0-9._-]+)\]/g, (_, token) => citationChip(token));
+			text = text.replace(/\[(kb:[a-z0-9][a-z0-9._-]*(?:@[a-f0-9]{64})?:[A-Za-z0-9._-]+)\]/g, (_, token) => citationChip(token));
 			text = text.replace(/\[(src:[^\]\r\n]+?)\]/g, (_, token) => citationChip(token));
 			text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, href) => {
 				const image = resolvePreviewImage(href, ctx);
@@ -14414,6 +14490,11 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			const [editing, setEditing] = react.useState(null);
 			const [kbEntries, setKbEntries] = react.useState([]);
 			const createCopy = moduleCreateCopy();
+			const SkillLifecyclePanel = react.useMemo(() => createSkillLifecycle({
+				React: react,
+				api,
+				language: () => langState.lang
+			}), []);
 			const load = react.useCallback(() => {
 				return api("/api/agent-pi/modules", cwd, { method: "GET" }).then((body) => {
 					setRows(body.modules || []);
@@ -14654,7 +14735,11 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			}, Icon("sparkles", 14), tAp("mm.design")))), error ? h("div", { className: "ap-err" }, error) : null, notice ? h("div", {
 				className: "ap-sub",
 				style: { padding: "6px 0" }
-			}, notice) : null, h("details", { className: "ap-sec" }, h("summary", { style: { cursor: "pointer" } }, createCopy.title), h("div", { className: "ap-create-lead" }, h("strong", null, tAp("mm.packNotJson")), h("p", {
+			}, notice) : null, h("style", null, skillLifecycleCss()), h(SkillLifecyclePanel, {
+				cwd,
+				sessionId: props.sessionId || pinParentSessionId(props),
+				onChanged: load
+			}), h("details", { className: "ap-sec" }, h("summary", { style: { cursor: "pointer" } }, createCopy.title), h("div", { className: "ap-create-lead" }, h("strong", null, tAp("mm.packNotJson")), h("p", {
 				className: "ap-sub",
 				style: { margin: 0 }
 			}, createCopy.lead), h("p", {
@@ -15023,6 +15108,12 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				}
 			});
 			const [monitorState, setMonitorState] = react.useState(() => Object.assign({}, monitorEngine.state));
+			const [runtimeLimits, setRuntimeLimits] = react.useState({
+				maxRounds: 64,
+				maxTokens: 5e5,
+				maxElapsedMs: 72e5,
+				maxNoProgress: 3
+			});
 			const [, setSessionPulse] = react.useState(0);
 			const [notice, setNotice] = react.useState("");
 			const [lastCheck, setLastCheck] = react.useState(null);
@@ -15150,6 +15241,19 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				catalog.map((item) => item.id).join(",")
 			]);
 			const row = projects.find((item) => item.project.projectId === selectedId) || null;
+			const monitorParent = pinParentSessionId(props);
+			react.useEffect(() => {
+				if (row?.project && monitorParent) monitorEngine.restore({
+					cwd,
+					module: row.project.module,
+					projectId: row.project.projectId
+				}, monitorParent);
+			}, [
+				cwd,
+				row?.project?.module,
+				row?.project?.projectId,
+				monitorParent
+			]);
 			const [reality, setReality] = react.useState(null);
 			const [control, setControl] = react.useState(null);
 			react.useEffect(() => {
@@ -15187,7 +15291,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 						action: "check",
 						module: project.module,
 						projectId: project.projectId,
-						sessionId: pinParentSessionId() || resolveSessionId(props) || runtime.sessionId || ""
+						sessionId: pinParentSessionId(props)
 					})
 				}).then((result) => {
 					setReality(result.reality || null);
@@ -15219,19 +15323,13 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				}).catch((e) => setError(String(e && e.message || e))).finally(() => setBusy(""));
 			};
 			const runStage = (project, stageId, action, submit, closeWorkbench) => {
-				const parentId = pinParentSessionId();
+				const parentId = pinParentSessionId(props);
 				setBusy(action + ":" + (stageId || ""));
 				setError("");
 				setNotice("");
 				if (submit && !parentId) {
 					setBusy("");
 					setError("请先打开或新建一个主会话，再启动专业项目。");
-					return Promise.resolve();
-				}
-				const activeTransaction = submit ? workbenchTransactions.get(parentId) : null;
-				if (activeTransaction && (activeTransaction.phase === "prepared" || activeTransaction.phase === "committed") && (activeTransaction.payload.cwd !== cwd || activeTransaction.payload.module !== project.module || activeTransaction.payload.projectId !== project.projectId)) {
-					setBusy("");
-					setError("当前主会话已有另一项专业项目事务，请先暂停或结束。");
 					return Promise.resolve();
 				}
 				return api("/api/agent-pi/stage", cwd, {
@@ -15255,11 +15353,11 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					}
 					if (result.alreadyDispatched) {
 						if (submit) {
-							monitorEngine.start({
+							monitorEngine.restore({
 								cwd,
 								module: project.module,
 								projectId: project.projectId
-							});
+							}, parentId);
 							if (closeWorkbench !== false) focusMainConversation(props);
 						}
 						setNotice(result.message || "阶段稿已写入主对话，等待执行。");
@@ -15280,33 +15378,34 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 						if (!result.closed) fillComposer(props, result.draft);
 						return refresh();
 					}
-					const ownsPreparedTransaction = prepareWorkbenchTransaction(parentId, {
+					rememberWorkbenchBinding(parentId, {
 						cwd,
 						module: project.module,
 						projectId: project.projectId
-					}).phase === "prepared";
-					return dispatchToConversation(props, result.draft, parentId).then((ok) => {
-						if (ok && result.dispatch) api("/api/agent-pi/stage", cwd, {
-							method: "POST",
-							body: JSON.stringify({
-								action: "mark_dispatched",
-								module: project.module,
-								projectId: project.projectId,
-								stageId: result.dispatch.stageId,
-								key: result.dispatch.key
-							})
-						}).catch(() => {});
-						if (ok) {
-							monitorEngine.start({
+					});
+					ensureUserRequirementWatcher(parentId);
+					return api("/api/agent-pi/stage", cwd, {
+						method: "POST",
+						body: JSON.stringify({
+							action: "runtime_dispatch",
+							module: project.module,
+							projectId: project.projectId,
+							sessionId: parentId,
+							stageId: result.dispatch?.stageId || stageId,
+							key: result.dispatch?.key,
+							limits: runtimeLimits
+						})
+					}).then((started) => {
+						if (started.runtime) {
+							monitorEngine.restore({
 								cwd,
 								module: project.module,
 								projectId: project.projectId
-							});
+							}, parentId);
 							if (closeWorkbench !== false) focusMainConversation(props);
 						}
 						return refresh();
 					}).catch((e) => {
-						if (ownsPreparedTransaction) settleWorkbenchTransaction(parentId, "failed", e);
 						return (result.dispatch ? api("/api/agent-pi/stage", cwd, {
 							method: "POST",
 							body: JSON.stringify({
@@ -15336,7 +15435,8 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 						action,
 						module: project.module,
 						projectId: project.projectId,
-						stageId: stage.id
+						stageId: stage.id,
+						sessionId: pinParentSessionId(props)
 					})
 				}).then(() => {
 					if (decision === "rejected") {
@@ -15367,7 +15467,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					sessionStorage.setItem("ap-wb-project", id);
 				} catch {}
 			};
-			const monitoringHere = monitorState.monitoring && row && row.project && monitorState.projectId === row.project.projectId && monitorState.cwd === cwd;
+			const monitoringHere = monitorState.monitoring && row && row.project && monitorState.projectId === row.project.projectId && monitorState.cwd === cwd && monitorState.parentSessionId === monitorParent;
 			const liveActivity = sessionActivity(readSessionListSnap(), monitorState.parentSessionId);
 			const liveActivityText = liveActivity.runningChildCount > 0 ? liveActivity.runningChildCount + " 个子智能体执行中" : liveActivity.parentRunning ? "主对话执行中" : "";
 			const addFiles = () => {
@@ -15521,7 +15621,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 						disabled: !!busy,
 						onClick: () => updateRequirement(project, requirement, "dismiss_requirement")
 					}, workbenchText("不属于本项目")) : null));
-				})) : null, h("section", { className: "ap-sec" }, h("div", { className: "ap-mon-hd" }, h("div", { style: { minWidth: 0 } }, h("h2", null, workbenchText("流程监控")), h("p", { className: "ap-sub" }, workbenchText("只有点「继续推进」才启动当前主会话事务；已启动事务会在应用重启后恢复，遇到人工决策门、阻塞或异常会停止。分析阶段只维护一套可追溯底稿。"))), h("div", { className: "ap-mon-tools" }, h("span", { className: "ap-row" }, h("i", { className: "ap-dot" + (monitoringHere && !monitorState.paused || liveActivityText ? " on" : "") }), !monitoringHere ? liveActivityText || (monitorState.monitoring ? workbenchText("另一项目事务正在运行") : workbenchText("点继续推进后启动当前会话事务")) : (monitorState.paused ? workbenchText("当前会话事务已暂停") : workbenchText("当前会话事务空闲")) + (liveActivityText ? " · " + liveActivityText : "")), h("span", null, workbenchText("检查于 ") + (monitorState.lastCheck ? formatClock(new Date(monitorState.lastCheck).toISOString()) : lastCheck ? formatClock(new Date(lastCheck).toISOString()) : "—")), h("button", {
+				})) : null, h("section", { className: "ap-sec" }, h("div", { className: "ap-mon-hd" }, h("div", { style: { minWidth: 0 } }, h("h2", null, workbenchText("流程监控")), h("p", { className: "ap-sub" }, workbenchText("点「继续推进」明确启动当前阶段。宿主持久记录派工和收件；刷新页面读取同一记录，重启后核对实际回执，遇到人工门、预算或无进展时停止。"))), h("div", { className: "ap-mon-tools" }, h("span", { className: "ap-row" }, h("i", { className: "ap-dot" + (monitoringHere && !monitorState.paused || liveActivityText ? " on" : "") }), !monitoringHere ? liveActivityText || (monitorState.monitoring ? workbenchText("另一项目事务正在运行") : workbenchText("点继续推进后启动当前会话事务")) : (monitorState.runtime?.reason || monitorState.note) + (liveActivityText ? " · " + liveActivityText : "")), h("span", null, workbenchText("检查于 ") + (monitorState.lastCheck ? formatClock(new Date(monitorState.lastCheck).toISOString()) : lastCheck ? formatClock(new Date(lastCheck).toISOString()) : "—")), h("button", {
 					type: "button",
 					className: "ap-btn",
 					disabled: busy === "check:",
@@ -15545,10 +15645,34 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					type: "button",
 					className: "ap-btn ghost",
 					onClick: () => {
-						monitorEngine.unpause();
-						refresh(true);
+						monitorEngine.unpause().then(() => refresh(true));
 					}
-				}, Icon("play", 14), workbenchText("恢复事务")) : null)), h("div", { className: "ap-dual-state" }, h("article", { className: "ap-state-card" }, h("div", { className: "ap-state-card-hd" }, h("div", null, h("strong", null, workbenchText("执行态（主智能体回写）")), h("span", { className: "ap-sub" }, workbenchText("主对话负责理解、计划、派活与阻塞说明"))), h("span", { className: "ap-chip" + (execution && execution.status === "blocked" ? " warn" : execution ? " ok" : "") }, executionStatusLabel)), execution ? h("div", { className: "ap-state-body" }, h("p", null, h("b", null, workbenchText("目标：")), execution.objective || workbenchText("未登记")), h("p", null, h("b", null, workbenchText("当前批次：")), execution.currentBatch || workbenchText("未登记")), h("p", null, h("b", null, workbenchText("下一动作：")), execution.nextAction || workbenchText("未登记")), execution.plan && execution.plan.length ? h("div", { className: "ap-mini-list" }, execution.plan.slice(0, 5).map((plan) => h("div", { key: plan.id }, h("i", { className: "ap-mini-status " + plan.status }), h("span", null, plan.title)))) : h("p", { className: "ap-sub" }, workbenchText("尚未登记结构化计划。")), execution.assignments && execution.assignments.length ? h("p", { className: "ap-sub" }, workbenchText("子任务：") + execution.assignments.map((assignment) => assignment.title + " [" + assignment.status + "]").join(" · ")) : null, execution.blocker && execution.blocker.type !== "none" ? h("p", { className: "ap-state-alert" }, workbenchText("阻塞：") + (execution.blocker.reason || execution.blocker.needed || execution.blocker.type)) : null, h("p", { className: "ap-sub" }, "revision " + execution.revision + workbenchText(" · 心跳 ") + formatClock(execution.heartbeatAt))) : h("div", { className: "ap-state-empty" }, workbenchText("主智能体尚未回写执行计划。点「继续推进」后，主对话应先读取 status，再登记目标、批次、计划和下一动作。"))), h("article", { className: "ap-state-card" }, h("div", { className: "ap-state-card-hd" }, h("div", null, h("strong", null, workbenchText("事实态（系统核验）")), h("span", { className: "ap-sub" }, workbenchText("只核验磁盘成果、BOQ、证据、引用与人工门禁"))), h("span", { className: "ap-chip" + (activeControl && activeControl.alignment !== "aligned" ? " warn" : currentReality ? " ok" : "") }, alignmentLabel)), h("div", { className: "ap-state-body" }, h("p", null, h("b", null, workbenchText("当前阶段：")), currentReality ? stageLabel(stages.find((stage) => stage.id === currentReality.stageId), langState.lang) || currentReality.stageLabel : item.currentStageId || workbenchText("未开始")), currentReality ? h("p", null, workbenchText("任务 ") + currentReality.tasks.done + "/" + currentReality.tasks.total, currentReality.summary ? currentReality.summary.exists ? workbenchText(" · 总报告已就位") : workbenchText(" · 缺《") + currentReality.summary.fileName + (langState.lang === "zh" ? "》" : "”") : "", currentReality.boqInventory ? currentReality.boqInventory.ok ? workbenchText(" · BOQ 已核验") : workbenchText(" · BOQ 有缺口") : "", currentReality.citations && currentReality.citations.total ? workbenchText(" · 孤儿引用 ") + currentReality.citations.orphans : "") : h("p", { className: "ap-sub" }, workbenchText("尚未执行本轮事实核验；阶段状态为 ") + (currentSlice && currentSlice.status || "idle") + "。"), activeControl && activeControl.realityDigest ? h("p", { className: "ap-sub" }, workbenchText("事实版本 ") + activeControl.realityDigest) : null))), activeControl && activeControl.differences && activeControl.differences.length ? h("div", { className: "ap-alignment-alert" }, h("strong", null, workbenchText("认知差异")), h("ul", null, activeControl.differences.map((difference, index) => h("li", { key: index }, difference)))) : null, reality && reality.stages ? h("div", { className: "ap-check" }, h("div", { className: "ap-check-hd" }, workbenchText("系统事实明细"), h("span", { className: "ap-sub" }, formatClock(reality.generatedAt) + (reality.stages[0] && reality.stages[0].quietMinutes != null ? workbenchText(" · 最近产出 ") + reality.stages[0].quietMinutes + workbenchText(" 分钟前") : "")), h("button", {
+				}, Icon("play", 14), workbenchText("恢复事务")) : null)), monitoringHere && monitorState.runtime?.run ? h("div", { className: "ap-state-body" }, h("p", null, "宿主执行：" + monitorState.runtime.phase + " · 父子模型轮次 " + monitorState.runtime.run.usage.rounds + "/" + monitorState.runtime.run.limits.maxRounds + " · token " + (monitorState.runtime.run.usage.unknownTokens ? "待核对（已知 " + monitorState.runtime.run.usage.tokens + "）" : monitorState.runtime.run.usage.tokens) + "/" + monitorState.runtime.run.limits.maxTokens + " · 累计执行 " + Math.round(monitorState.runtime.run.usage.elapsedMs / 6e4) + "/" + Math.round(monitorState.runtime.run.limits.maxElapsedMs / 6e4) + " 分钟 · 费用 " + (monitorState.runtime.cost === "unknown" ? "未知" : "$" + monitorState.runtime.cost.toFixed(4))), h("p", { className: "ap-sub" }, "连续无实际进展 " + monitorState.runtime.run.noProgress + "/" + monitorState.runtime.run.limits.maxNoProgress + " · 子任务收件 " + monitorState.runtime.run.submissions.filter((row) => row.status === "received").length + " · 失效/拒绝 " + monitorState.runtime.run.submissions.filter((row) => row.status !== "received").length + " · 收到成果仍须独立核验和用户验收。")) : null, h("details", { className: "ap-sec" }, h("summary", null, "本次显式启动的执行预算"), h("div", {
+					className: "ap-row",
+					style: {
+						flexWrap: "wrap",
+						gap: 12
+					}
+				}, [
+					["maxRounds", "父子模型轮次"],
+					["maxTokens", "父子 token"],
+					["maxElapsedMs", "累计执行分钟"],
+					["maxNoProgress", "连续无进展次数"],
+					["maxCostUsd", "金额上限 USD（可选）"]
+				].map(([key, label]) => h("label", {
+					key,
+					className: "ap-mm-field"
+				}, label, h("input", {
+					type: "number",
+					min: 1,
+					value: key === "maxElapsedMs" ? runtimeLimits[key] / 6e4 : runtimeLimits[key] ?? "",
+					onChange: (e) => setRuntimeLimits((previous) => {
+						const next = { ...previous };
+						if (e.target.value === "" && key === "maxCostUsd") delete next[key];
+						else next[key] = Number(e.target.value) * (key === "maxElapsedMs" ? 6e4 : 1);
+						return next;
+					})
+				})))), h("p", { className: "ap-sub" }, "续派使用已登记预算；调整值在下一次明确启动时提交。金额无法确定时显示未知，设置金额上限后需核对费用才能续派。")), h("div", { className: "ap-dual-state" }, h("article", { className: "ap-state-card" }, h("div", { className: "ap-state-card-hd" }, h("div", null, h("strong", null, workbenchText("执行态（主智能体回写）")), h("span", { className: "ap-sub" }, workbenchText("主对话负责理解、计划、派活与阻塞说明"))), h("span", { className: "ap-chip" + (execution && execution.status === "blocked" ? " warn" : execution ? " ok" : "") }, executionStatusLabel)), execution ? h("div", { className: "ap-state-body" }, h("p", null, h("b", null, workbenchText("目标：")), execution.objective || workbenchText("未登记")), h("p", null, h("b", null, workbenchText("当前批次：")), execution.currentBatch || workbenchText("未登记")), h("p", null, h("b", null, workbenchText("下一动作：")), execution.nextAction || workbenchText("未登记")), execution.plan && execution.plan.length ? h("div", { className: "ap-mini-list" }, execution.plan.slice(0, 5).map((plan) => h("div", { key: plan.id }, h("i", { className: "ap-mini-status " + plan.status }), h("span", null, plan.title)))) : h("p", { className: "ap-sub" }, workbenchText("尚未登记结构化计划。")), execution.assignments && execution.assignments.length ? h("p", { className: "ap-sub" }, workbenchText("子任务：") + execution.assignments.map((assignment) => assignment.title + " [" + assignment.status + "]").join(" · ")) : null, execution.blocker && execution.blocker.type !== "none" ? h("p", { className: "ap-state-alert" }, workbenchText("阻塞：") + (execution.blocker.reason || execution.blocker.needed || execution.blocker.type)) : null, h("p", { className: "ap-sub" }, "revision " + execution.revision + workbenchText(" · 心跳 ") + formatClock(execution.heartbeatAt))) : h("div", { className: "ap-state-empty" }, workbenchText("主智能体尚未回写执行计划。点「继续推进」后，主对话应先读取 status，再登记目标、批次、计划和下一动作。"))), h("article", { className: "ap-state-card" }, h("div", { className: "ap-state-card-hd" }, h("div", null, h("strong", null, workbenchText("事实态（系统核验）")), h("span", { className: "ap-sub" }, workbenchText("只核验磁盘成果、BOQ、证据、引用与人工门禁"))), h("span", { className: "ap-chip" + (activeControl && activeControl.alignment !== "aligned" ? " warn" : currentReality ? " ok" : "") }, alignmentLabel)), h("div", { className: "ap-state-body" }, h("p", null, h("b", null, workbenchText("当前阶段：")), currentReality ? stageLabel(stages.find((stage) => stage.id === currentReality.stageId), langState.lang) || currentReality.stageLabel : item.currentStageId || workbenchText("未开始")), currentReality ? h("p", null, workbenchText("任务 ") + currentReality.tasks.done + "/" + currentReality.tasks.total, currentReality.summary ? currentReality.summary.exists ? workbenchText(" · 总报告已就位") : workbenchText(" · 缺《") + currentReality.summary.fileName + (langState.lang === "zh" ? "》" : "”") : "", currentReality.boqInventory ? currentReality.boqInventory.ok ? workbenchText(" · BOQ 已核验") : workbenchText(" · BOQ 有缺口") : "", currentReality.citations && currentReality.citations.total ? workbenchText(" · 孤儿引用 ") + currentReality.citations.orphans : "") : h("p", { className: "ap-sub" }, workbenchText("尚未执行本轮事实核验；阶段状态为 ") + (currentSlice && currentSlice.status || "idle") + "。"), activeControl && activeControl.realityDigest ? h("p", { className: "ap-sub" }, workbenchText("事实版本 ") + activeControl.realityDigest) : null))), activeControl && activeControl.differences && activeControl.differences.length ? h("div", { className: "ap-alignment-alert" }, h("strong", null, workbenchText("认知差异")), h("ul", null, activeControl.differences.map((difference, index) => h("li", { key: index }, difference)))) : null, reality && reality.stages ? h("div", { className: "ap-check" }, h("div", { className: "ap-check-hd" }, workbenchText("系统事实明细"), h("span", { className: "ap-sub" }, formatClock(reality.generatedAt) + (reality.stages[0] && reality.stages[0].quietMinutes != null ? workbenchText(" · 最近产出 ") + reality.stages[0].quietMinutes + workbenchText(" 分钟前") : "")), h("button", {
 					type: "button",
 					className: "ap-btn ghost",
 					onClick: () => setReality(null)
@@ -15745,7 +15869,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				}, h("h2", null, workbenchText("引用核验")), h("span", { className: "ap-sub" }, workbenchText("成果中的 [kb:…]/[src:…]/[ev:…] 令牌逐一对回知识库、项目文件与冻结证据包"))), h("div", { className: "ap-audit" + (row.citationAudit.orphans.length ? " bad" : "") }, h("div", {
 					className: "ap-row",
 					style: { justifyContent: "space-between" }
-				}, h("span", null, row.citationAudit.orphans.length ? workbenchText("未通过：") + row.citationAudit.orphans.length + workbenchText(" 个孤儿引用 / 共 ") + row.citationAudit.totalCitations + workbenchText(" 个令牌") : row.citationAudit.totalCitations ? workbenchText("通过：") + row.citationAudit.totalCitations + workbenchText(" 个令牌全部可解析（kb ") + row.citationAudit.kbCitations + " / src " + row.citationAudit.srcCitations + " / ev " + (row.citationAudit.evidenceCitations || 0) + "）" : workbenchText("尚无引用令牌（") + row.citationAudit.checkedFiles + workbenchText(" 个成果文件）")), h("span", { className: "ap-sub" }, String(row.citationAudit.generatedAt || "").slice(0, 16).replace("T", " "))), row.citationAudit.orphans.length ? h("ul", null, row.citationAudit.orphans.slice(0, 8).map((orphan, index) => h("li", { key: index }, orphan.file + ":" + orphan.line + " " + orphan.token + " — " + orphan.reason))) : null, row.citationAudit.orphans.length > 8 ? h("p", {
+				}, h("span", null, row.citationAudit.orphans.length ? workbenchText("未通过：") + row.citationAudit.orphans.length + workbenchText(" 个孤儿引用 / 共 ") + row.citationAudit.totalCitations + workbenchText(" 个令牌") : row.citationAudit.totalCitations ? workbenchText("出处定位：") + row.citationAudit.totalCitations + workbenchText(" 个令牌可解析（kb ") + row.citationAudit.kbCitations + " / src " + row.citationAudit.srcCitations + " / ev " + (row.citationAudit.evidenceCitations || 0) + "）" : workbenchText("尚无引用令牌（") + row.citationAudit.checkedFiles + workbenchText(" 个成果文件）")), h("span", { className: "ap-sub" }, String(row.citationAudit.generatedAt || "").slice(0, 16).replace("T", " "))), row.citationAudit.support ? h("p", { className: "ap-sub" }, "独立支持复核：支持 " + row.citationAudit.support.supported + " · 不支持 " + row.citationAudit.support.unsupported + " · 未确定 " + row.citationAudit.support.uncertain + " · 未固定知识版本 " + (row.citationAudit.unversionedKbCitations || 0)) : null, row.citationAudit.support?.issues?.length ? h("ul", null, row.citationAudit.support.issues.slice(0, 8).map((issue, index) => h("li", { key: index }, issue.file + ":" + issue.line + " — " + issue.reason))) : null, row.citationAudit.orphans.length ? h("ul", null, row.citationAudit.orphans.slice(0, 8).map((orphan, index) => h("li", { key: index }, orphan.file + ":" + orphan.line + " " + orphan.token + " — " + orphan.reason))) : null, row.citationAudit.orphans.length > 8 ? h("p", {
 					className: "ap-sub",
 					style: { margin: "6px 0 0" }
 				}, workbenchText("…其余 ") + (row.citationAudit.orphans.length - 8) + workbenchText(" 条见 orchestration/citation-audit.json")) : null)) : null, notice ? h("div", {
@@ -15758,9 +15882,10 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			};
 			const specialContent = module === "kb" ? h(KnowledgeBasePanel, {
 				cwd,
-				sessionId: pinParentSessionId() || resolveSessionId(props) || runtime.sessionId || ""
+				sessionId: monitorParent
 			}) : module === "archive" ? h(ArchivePanel, { onClose: props.onClose }) : module === "modules" ? h(ModuleManagerPanel, {
 				cwd,
+				sessionId: monitorParent,
 				onChanged: () => refresh(true),
 				onOpened: (id) => {
 					refresh(true).then(() => selectModule(id));
@@ -15903,7 +16028,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				}
 			};
 			const finishCreated = (createdId) => {
-				const parentId = pinParentSessionId();
+				const parentId = pinParentSessionId(props);
 				if (parentId) {
 					rememberWorkbenchBinding(parentId, {
 						cwd,

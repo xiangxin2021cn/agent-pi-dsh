@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { buildArtifactVerification } from '../verification.ts'
 import { test } from 'node:test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -112,6 +113,10 @@ test('actual returnable and scoring requirements drive audit, including missing 
   assert.ok(auditTask(state).issues.some(row => row.code === 'signature_pending'))
   assert.ok(auditTask(state).issues.some(row => row.code === 'coverage_gap'))
   state.coverage[0].status = 'parsed'; state.deliverables[0].signature = 'signed'
+  const fingerprint = 'a'.repeat(64)
+  state.evidence[0] = { ...state.evidence[0], sourcePath: 'Tender.pdf', sourceHash: fingerprint }
+  state.deliverables[0].checks.forEach(check => check.fingerprint = fingerprint)
+  state.deliverables[0].verification = buildArtifactVerification(state, state.deliverables[0], { artifactSha256: fingerprint, sourceHashes: { 'Tender.pdf': fingerprint }, checks: state.deliverables[0].checks })
   assert.equal(auditTask(state).readyForCustomerReview, true)
   assert.equal(auditTask(state).customerAccepted, false)
 })

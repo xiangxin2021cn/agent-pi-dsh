@@ -25,6 +25,8 @@ export function taskOverviewModel(task) {
   const currentStep = currentExecution || activePlan.find((row) => row.status === 'working') || activePlan.find((row) => row.status === 'blocked' || row.status === 'needs_review')
   return {
     objective: task?.brief?.objective || '', questions, currentStep,
+    constraints: (task?.directives || []).filter(row=>row.status==='active'&&['constraint','correction','scope'].includes(row.kind)),
+    corrections: (task?.directives || []).filter(row=>['correction','revocation'].includes(row.kind)).slice(-8).reverse(),
     coverage: { total: coverage.length, parsed: coverage.filter((row) => row.status === 'parsed').length, reviewed: coverage.filter((row) => row.review === 'reviewed').length, unreadable: coverage.filter((row) => row.status === 'unreadable').length, missing: coverage.filter((row) => row.status === 'missing').length },
     delivery: { total: task?.deliverables?.length || 0, accepted: (task?.deliverables || []).filter((row) => row.status === 'accepted').length, stale: (task?.deliverables || []).filter((row) => row.status === 'stale').length },
     depthEnabled: !!task?.quality?.enabled,
@@ -136,6 +138,8 @@ export function createProfessionalTaskSummary({ React, api, cwd, language, subsc
       project && h('p', { className:'ap-task-summary-muted' }, project.projectGoal ? `${zh ? '项目总目标：' : 'Project goal: '}${project.projectGoal} · ` : '', project.stageLabel || project.stageId || ''),
       project && h(StageControls,{sessionId,task,binding:project,onChanged:async()=>{const next=await api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(sessionId)}`,cwd());revision.current=next.task.revision;setResult(next);onTask?.(sessionId,next.task,next.binding)}}),
       h('div', { className:'ap-task-summary-facts' }, model.currentStep && h('span', null, `${zh ? '正在解决：' : 'Current focus: '}${model.currentStep.title}`), model.questions.length > 0 && h('span', null, `${model.questions.length}${zh ? ' 个问题待明确' : ' questions to clarify'}`), h('span', { className:'ap-task-summary-muted' }, model.depthEnabled ? (zh ? '专业深度已启用' : 'Professional depth on') : (zh ? '基础专业检查' : 'Core professional checks'))),
+      model.constraints.length>0&&h('p',{className:'ap-task-summary-muted'},zh?'当前约束：':'Current constraints: ',model.constraints.slice(-3).map(row=>row.text.length>120?row.text.slice(0,120)+'…':row.text).join('；'),model.constraints.length>3?(zh?'；更多约束见本次任务。':'; More in Current task.'):''),
+      model.corrections[0]&&h('p',{className:'ap-task-summary-muted'},zh?'最近明确修正：':'Latest explicit correction: ',model.corrections[0].text.length>160?model.corrections[0].text.slice(0,160)+'…':model.corrections[0].text),
       (model.coverage.total>0||model.delivery.total>0)&&h('div',{className:'ap-task-summary-facts'},
         model.coverage.total>0&&h('span',null,`${zh?'资料抽取：':'Source extraction: '}${model.coverage.parsed}/${model.coverage.total}`),
         model.coverage.total>0&&h('span',null,`${zh?'专业复核：':'Professional review: '}${model.coverage.reviewed}/${model.coverage.total}`),

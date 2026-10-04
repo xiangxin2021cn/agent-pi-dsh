@@ -39,6 +39,7 @@ import {
 } from './kb-transfer.ts'
 import { listUserSkills, readUserSkill, saveUserSkill } from './modules.ts'
 import { createPageIndexShadow, type PageIndexShadowStatus } from './pageindex-shadow.ts'
+import { knowledgeApplicability, listKnowledgeVersions, normalizeKnowledgeMetadata, readKnowledgeVersion, retainKnowledgeVersion, type KnowledgeMetadata } from './knowledge-versions.ts'
 
 export type { KbFolder } from './kb-folder.ts'
 
@@ -77,7 +78,8 @@ export interface KbManifest {
   chunks: KbChunk[]
 }
 
-export interface KbEntry {
+export interface KbEntry extends KnowledgeMetadata {
+  versionId?: string
   slug: string
   name: string
   category: string
@@ -127,6 +129,8 @@ export interface KbSearchHit {
   title: string
   score: number
   citation: string
+  versionId?: string
+  applicability?: ReturnType<typeof knowledgeApplicability>
   snippet: string
   headingPath: string[]
   matchedClause?: string
@@ -385,6 +389,7 @@ function makeSnippet(text: string, normalizedQuery: string, tokens: string[]): s
 }
 
 function citationFor(entry: KbEntry, chunk: KbChunk): string {
+  const versionId = entry.versionId || retainKnowledgeVersion(kbRoot(), entry, loadManifest(entry.slug))
   const locator = chunk.metadata.kind === 'prose'
     ? `lines ${chunk.startLine}-${chunk.endLine}`
     : chunk.metadata.kind === 'table'
@@ -393,7 +398,7 @@ function citationFor(entry: KbEntry, chunk: KbChunk): string {
   const page = chunk.metadata.pageStart
     ? `, p.${chunk.metadata.pageStart}${chunk.metadata.pageEnd && chunk.metadata.pageEnd !== chunk.metadata.pageStart ? `-${chunk.metadata.pageEnd}` : ''}`
     : ''
-  return `${entry.name} (${entry.slug}:${chunk.id}), ${locator}${page}, source: ${entry.sourcePath}`
+  return `[kb:${entry.slug}${versionId ? '@'+versionId : ''}:${chunk.id}] ${entry.name} (${entry.slug}:${chunk.id}), ${locator}${page}, source: ${entry.sourcePath}`
 }
 
 function loadContentList(slug: string): unknown {
@@ -527,6 +532,7 @@ function patchEntry(slug: string, patch: Partial<KbEntry>): KbEntry | undefined 
 }
 
 export interface KbAddInput {
+  metadata?: KnowledgeMetadata
   path: string
   name?: string
   category?: string
@@ -538,6 +544,7 @@ export interface KbAddInput {
 }
 
 export interface KbAddContentInput {
+  metadata?: KnowledgeMetadata
   /** Original file name, used for extension and default display name. */
   fileName: string
   text: string
@@ -567,6 +574,7 @@ function assertSupportedExt(ext: string): void {
 }
 
 function commitKbText(input: {
+  metadata?: KnowledgeMetadata
   text: string
   displayName?: string
   category?: string
@@ -600,9 +608,11 @@ function commitKbText(input: {
     (input.slug && entry.slug === input.slug)
     || entry.sourcePath === sourcePath
     || entry.sourceHash === sourceHash)
+  if (existing) retainKnowledgeVersion(kbRoot(), existing, loadManifest(existing.slug))
+  if (existing?.sourceKind==='generated'&&input.metadata?.sourceKind&&input.metadata.sourceKind!=='generated') throw new Error('生成内容不能通过覆盖变成原始依据；需登记独立原件')
   const sameName = !input.displayName?.trim() || input.displayName.trim() === existing?.name
   const sameCategory = !input.category?.trim() || input.category.trim() === existing?.category
-  if (!input.force && existing && existing.parseStatus !== 'failed' && existing.parseStatus !== 'parsing'
+  if (!input.force && !input.metadata && existing && existing.parseStatus !== 'failed' && existing.parseStatus !== 'parsing'
     && existing.parseStatus !== 'staged'
     && existing.sourceHash === sourceHash && sameName && sameCategory) {
     if (assignSuggestedFolder(registry, existing)) saveKbRegistry(registry)
@@ -663,6 +673,7 @@ function commitKbText(input: {
   }
 
   const entry: KbEntry = {
+    ...normalizeKnowledgeMetadata({...existing,...input.metadata}),
     slug,
     name,
     category,
@@ -691,6 +702,7 @@ function commitKbText(input: {
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   }
+  entry.versionId = retainKnowledgeVersion(kbRoot(), entry, manifest)
   registry.entries = [...registry.entries.filter((item) => item.slug !== slug), entry]
     .sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name))
   registry.removedSeeds = registry.removedSeeds.filter((path) => resolve(path) !== sourcePath)
@@ -719,6 +731,7 @@ function addMineruArtifactDir(dir: string, input: KbAddInput): KbAddResult {
   const inferred = inferMineruOriginalName(dir) || safeOriginalName(input.name || `${basename(dir)}.pdf`)
   const sourceFile = findSourceInMineruDir(dir, inferred)
   const result = commitKbText({
+    metadata: input.metadata,
     text: readFileSync(md, 'utf8'),
     displayName: input.name?.trim() || inferred,
     category: input.category,
@@ -748,6 +761,7 @@ export function importKbPack(input: KbAddInput): KbAddResult {
   const name = input.name?.trim() || resolved.pack.name || basename(resolved.dir)
   const units = chunksFromPackUnits(text, resolved.pack, name)
   return commitKbText({
+    metadata: input.metadata,
     text,
     displayName: name,
     category: resolveKbCategory(input.category || resolved.pack.category, name),
@@ -780,6 +794,7 @@ export function addKbFile(input: KbAddInput): KbAddResult {
   assertSupportedExt(ext)
   if (MINERU_EXTENSIONS.has(ext)) {
     return beginMineruIngest({
+      metadata: input.metadata,
       sourcePath,
       fileName: basename(sourcePath),
       displayName: input.name,
@@ -791,6 +806,7 @@ export function addKbFile(input: KbAddInput): KbAddResult {
     })
   }
   return commitKbText({
+    metadata: input.metadata,
     text: readFileSync(sourcePath, 'utf8'),
     displayName: input.name,
     category: input.category,
@@ -807,6 +823,7 @@ export function addKbFile(input: KbAddInput): KbAddResult {
 }
 
 export function addKbBytes(input: {
+  metadata?: KnowledgeMetadata
   fileName: string
   bytes: Buffer
   name?: string
@@ -821,6 +838,7 @@ export function addKbBytes(input: {
   assertSupportedExt(ext)
   if (TEXT_EXTENSIONS.has(ext)) {
     return addKbContent({
+      metadata: input.metadata,
       fileName,
       text: input.bytes.toString('utf8'),
       name: input.name,
@@ -834,6 +852,7 @@ export function addKbBytes(input: {
   const uploadPath = join(kbRoot(), 'uploads', fileName)
   writeFileSync(uploadPath, input.bytes)
   return beginMineruIngest({
+    metadata: input.metadata,
     sourcePath: uploadPath,
     fileName,
     displayName: input.name,
@@ -862,6 +881,7 @@ export function stageKbFile(input: KbAddInput): KbAddResult {
   const ext = extname(sourcePath).toLowerCase()
   assertSupportedExt(ext)
   return beginMineruIngest({
+    metadata: input.metadata,
     sourcePath,
     fileName: basename(sourcePath),
     displayName: input.name,
@@ -875,6 +895,7 @@ export function stageKbFile(input: KbAddInput): KbAddResult {
 }
 
 export function stageKbBytes(input: {
+  metadata?: KnowledgeMetadata
   fileName: string
   bytes: Buffer
   name?: string
@@ -889,6 +910,7 @@ export function stageKbBytes(input: {
   assertSupportedExt(ext)
   if (TEXT_EXTENSIONS.has(ext)) {
     return stageKbContent({
+      metadata: input.metadata,
       fileName,
       text: input.bytes.toString('utf8'),
       name: input.name,
@@ -902,6 +924,7 @@ export function stageKbBytes(input: {
   const uploadPath = join(kbRoot(), 'uploads', fileName)
   writeFileSync(uploadPath, input.bytes)
   return beginMineruIngest({
+    metadata: input.metadata,
     sourcePath: uploadPath,
     fileName,
     displayName: input.name,
@@ -930,6 +953,7 @@ export function stageKbContent(input: KbAddContentInput): KbAddResult {
     writeFileSync(uploadPath, input.text.replace(/^\uFEFF/, ''), 'utf8')
   }
   return beginMineruIngest({
+    metadata: input.metadata,
     sourcePath: uploadPath,
     fileName,
     displayName: input.name?.trim() || fileName,
@@ -943,6 +967,7 @@ export function stageKbContent(input: KbAddContentInput): KbAddResult {
 }
 
 function beginMineruIngest(input: {
+  metadata?: KnowledgeMetadata
   sourcePath: string
   fileName: string
   displayName?: string
@@ -962,7 +987,9 @@ function beginMineruIngest(input: {
     (input.slug && entry.slug === input.slug)
     || entry.sourcePath === sourcePath
     || entry.sourceHash === sourceHash)
-  if (existing && existing.parseStatus === 'ready' && existing.sourceHash === sourceHash) {
+  if (existing) retainKnowledgeVersion(kbRoot(), existing, loadManifest(existing.slug))
+  if (existing?.sourceKind==='generated'&&input.metadata?.sourceKind&&input.metadata.sourceKind!=='generated') throw new Error('生成内容不能通过覆盖变成原始依据；需登记独立原件')
+  if (!input.metadata && existing && existing.parseStatus === 'ready' && existing.sourceHash === sourceHash) {
     const sameName = !input.displayName?.trim() || input.displayName.trim() === existing.name
     const sameCategory = !input.category?.trim() || input.category.trim() === existing.category
     if (sameName && sameCategory) {
@@ -983,6 +1010,7 @@ function beginMineruIngest(input: {
   const ingest = input.ingest || 'mineru'
   const now = new Date().toISOString()
   const entry: KbEntry = {
+    ...normalizeKnowledgeMetadata({...existing,...input.metadata}),
     slug,
     name,
     category,
@@ -1250,6 +1278,7 @@ export function saveKbMarkdown(slug: string, text: string): KbAddResult {
   if (!entry) throw new Error(`未找到条目 ${slug}`)
   const next = String(text || '')
   if (!next.trim()) throw new Error('解析稿不能为空')
+  retainKnowledgeVersion(kbRoot(), entry, loadManifest(slug))
   rmSync(manifestPath(slug), { force: true })
   const result = commitKbText({
     text: next,
@@ -1281,7 +1310,11 @@ export function syncKbFromMarkdownSave(path: string, text: string): KbAddResult 
   return saveKbMarkdown(entry.slug, text)
 }
 
-export function kbSourcePath(slug: string): string {
+export function kbSourcePath(slug: string, versionId?: string): string {
+  if (versionId) {
+    const version = readKnowledgeVersion(kbRoot(),slug,versionId)
+    return version.entry.originalPath || version.entry.managedPath
+  }
   const entry = listKbEntries().find((item) => item.slug === slug)
   if (!entry) throw new Error(`未找到条目 ${slug}`)
   const path = entry.originalPath && existsSync(entry.originalPath)
@@ -1307,6 +1340,7 @@ export function addKbContent(input: KbAddContentInput): KbAddResult {
     : join(kbRoot(), 'uploads', fileName)
   mkdirSync(join(kbRoot(), 'uploads'), { recursive: true })
   return commitKbText({
+    metadata: input.metadata,
     text: input.text,
     displayName: input.name?.trim() || fileName,
     category: input.category,
@@ -1326,6 +1360,7 @@ export function removeKbEntry(slug: string): { removed: boolean; slug: string } 
   const registry = loadKbRegistry()
   const entry = registry.entries.find((item) => item.slug === slug)
   if (!entry) return { removed: false, slug }
+  retainKnowledgeVersion(kbRoot(), entry, loadManifest(slug))
   registry.entries = registry.entries.filter((item) => item.slug !== slug)
   if (entry.seeded && !registry.removedSeeds.includes(entry.sourcePath)) {
     registry.removedSeeds.push(entry.sourcePath)
@@ -1392,6 +1427,8 @@ export function reindexKb(slug?: string): { reindexed: string[]; missing: string
 // ---------------------------------------------------------------------------
 
 export interface KbSearchOptions {
+  region?: string
+  asOf?: string
   limit?: number
   slugs?: string[]
   category?: string
@@ -1399,6 +1436,7 @@ export interface KbSearchOptions {
 
 function candidateEntries(options: KbSearchOptions): KbEntry[] {
   let entries = listKbEntries().filter((entry) => !entry.parseStatus || entry.parseStatus === 'ready')
+  entries = entries.filter(entry=>knowledgeApplicability(entry,options).status !== 'inapplicable')
   if (options.slugs) {
     const wanted = new Set(options.slugs)
     entries = entries.filter((entry) => wanted.has(entry.slug))
@@ -1465,7 +1503,8 @@ function capSearchHits(hits: KbSearchHit[], options: KbSearchOptions, limit: num
     const used = taken.get(hit.slug) ?? 0
     if (used >= perEntryCap) continue
     taken.set(hit.slug, used + 1)
-    result.push(hit)
+    const entry = listKbEntries().find(row=>row.slug===hit.slug)
+    result.push({...hit,versionId:entry?.versionId,applicability:knowledgeApplicability(entry || {},options)})
     if (result.length >= limit) break
   }
   return result
@@ -1567,7 +1606,7 @@ export function findKbClause(value: string, options: KbSearchOptions = {}): KbSe
       })
     }
   }
-  return hits.sort((a, b) => b.score - a.score || a.slug.localeCompare(b.slug) || a.chunkId.localeCompare(b.chunkId)).slice(0, limit)
+  return capSearchHits(hits,options,limit)
 }
 
 /** Locate chunks whose Markdown table headers or BOQ item codes match `value`. */
@@ -1610,16 +1649,19 @@ export function findKbTable(value: string, options: KbSearchOptions = {}): KbSea
  * Cheap existence check for a `[kb:slug:chunkId]` citation without reading chunk text.
  * Returns null when the chunk resolves, otherwise a human-readable reason.
  */
-export function kbChunkStatus(slug: string, chunkId: string): string | null {
-  const entry = listKbEntries().find((item) => item.slug === slug)
+export function kbChunkStatus(slug: string, chunkId: string, versionId?: string): string | null {
+  const version = versionId ? readKnowledgeVersion(kbRoot(),slug,versionId) : undefined
+  const entry = version?.entry || listKbEntries().find((item) => item.slug === slug)
   if (!entry) return `知识库无条目 ${slug}`
-  const manifest = loadManifest(slug)
+  const manifest = version?.manifest || loadManifest(slug)
   if (!manifest) return `条目 ${slug} 索引缺失（需 reindex）`
   if (!manifest.chunks.some((item) => item.id === chunkId)) return `条目 ${slug} 无分块 ${chunkId}`
   return null
 }
 
-export function readKbChunk(slug: string, chunkId: string): {
+export function readKbChunk(slug: string, chunkId: string, versionId?: string): {
+  versionId?: string
+  sourceKind?: KnowledgeMetadata['sourceKind']
   slug: string
   name: string
   chunkId: string
@@ -1631,15 +1673,18 @@ export function readKbChunk(slug: string, chunkId: string): {
   pageStart?: number
   pageEnd?: number
 } {
-  const entry = listKbEntries().find((item) => item.slug === slug)
+  const version = versionId ? readKnowledgeVersion(kbRoot(),slug,versionId) : undefined
+  const entry = version?.entry || listKbEntries().find((item) => item.slug === slug)
   if (!entry) throw new Error(`未找到条目 ${slug}。先用 kb_list 查看可用条目。`)
-  const manifest = loadManifest(slug)
+  const manifest = version?.manifest || loadManifest(slug)
   if (!manifest) throw new Error(`条目 ${slug} 的索引缺失。请执行 kb_add/reindex 重建。`)
   const chunk = manifest.chunks.find((item) => item.id === chunkId)
   if (!chunk) throw new Error(`条目 ${slug} 没有分块 ${chunkId}（共 ${manifest.chunks.length} 块）。`)
   const text = resolveChunkText(manuscriptText(entry), chunk)
   if (!text) throw new Error(`条目 ${slug} 分块 ${chunkId} 无法从解析稿切片。请执行 kb_add/reindex 重建。`)
   return {
+    versionId: entry.versionId,
+    sourceKind: entry.sourceKind || 'original',
     slug,
     name: entry.name,
     chunkId,
@@ -1651,6 +1696,22 @@ export function readKbChunk(slug: string, chunkId: string): {
     pageStart: chunk.metadata.pageStart,
     pageEnd: chunk.metadata.pageEnd,
   }
+}
+
+export function listKbVersions(slug: string) { return listKnowledgeVersions(kbRoot(),slug) }
+export function updateKbMetadata(slug: string, metadata: KnowledgeMetadata): KbEntry {
+  const registry = loadKbRegistry(), entry = registry.entries.find(row=>row.slug===slug)
+  if (!entry) throw new Error(`未找到条目 ${slug}`)
+  if (entry.sourceKind==='generated'&&metadata.sourceKind&&metadata.sourceKind!=='generated') throw new Error('生成内容不能通过重标类型变成原始依据；需登记独立原件')
+  const manifest = loadManifest(slug)
+  retainKnowledgeVersion(kbRoot(),entry,manifest)
+  const normalized = normalizeKnowledgeMetadata({...entry,...metadata})
+  for (const field of ['validFrom','validUntil'] as const) if (metadata[field] === '') delete entry[field]
+  Object.assign(entry,normalized,{updatedAt:new Date().toISOString()})
+  entry.versionId = retainKnowledgeVersion(kbRoot(),entry,manifest)
+  saveKbRegistry(registry)
+  invalidateKbSearchIndex()
+  return entry
 }
 
 interface KbTaskSelection {
@@ -1730,7 +1791,7 @@ export function formatSelectedKbContext(sessionId?: string): string {
   return [
     'User-selected knowledge entries for THIS task only. Do not treat other knowledge-base entries as in-scope unless the user asks.',
     rows.join('\n'),
-    'Retrieve these slugs with kb_search({ slugs }) / kb_find_clause / kb_find_table then kb_read_chunk. Cite [kb:slug:chunkId]. Do not invent spec/contract/method facts from memory.',
+    'Retrieve these slugs with kb_search({ slugs }) / kb_find_clause / kb_find_table then kb_read_chunk. Copy the exact returned citation token, including @version; never invent or remove its version. Do not invent spec/contract/method facts from memory.',
     templateNote,
   ].filter(Boolean).join('\n')
 }
@@ -1811,6 +1872,7 @@ function buildEntryTransferItem(entry: KbEntry, folders: KbFolder[]): KbTransfer
     ingest: entry.ingest,
     manuscript,
     contentList: loadContentList(entry.slug),
+    metadata: normalizeKnowledgeMetadata(entry),
   }
   const original = entry.originalPath && existsSync(entry.originalPath) ? entry.originalPath : ''
   if (original) {
@@ -1879,6 +1941,7 @@ function importTransferEntry(item: KbTransferEntryItem): KbAddResult {
     originalPath,
     contentList: item.contentList,
     folderName: item.folderName,
+    metadata: item.metadata,
     force: true,
   })
   if (originalPath) {

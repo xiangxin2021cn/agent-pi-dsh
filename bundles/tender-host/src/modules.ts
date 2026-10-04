@@ -573,7 +573,7 @@ const SKILL_SLUG_PATTERN = /^[a-z][a-z0-9-]{1,63}$/
  * @param markdownRaw - full SKILL.md content including frontmatter.
  * @returns stored path and whether the file was newly created.
  */
-export function saveUserSkill(slugRaw: unknown, markdownRaw: unknown): { slug: string; path: string; created: boolean } {
+export function validateUserSkill(slugRaw: unknown, markdownRaw: unknown): {slug: string; markdown: string} {
   const slug = String(slugRaw ?? '').trim()
   if (!SKILL_SLUG_PATTERN.test(slug)) fail(`skill slug 非法：${slug || '(空)'}（需小写字母开头的 kebab-case，2-64 字符）`)
   const markdown = String(markdownRaw ?? '').replace(/\r\n/g, '\n')
@@ -587,6 +587,10 @@ export function saveUserSkill(slugRaw: unknown, markdownRaw: unknown): { slug: s
   if (nameMatch[1] !== slug) fail(`frontmatter name (${nameMatch[1]}) 必须与 slug (${slug}) 一致`)
   if (!/^description:\s*\S/m.test(frontmatter)) fail('frontmatter 缺少 description 字段（一句话说明何时使用）')
   if (!trimmed.slice(end + 4).trim()) fail('SKILL.md 正文为空：frontmatter 之后需要方法内容')
+  return {slug,markdown:markdown.endsWith('\n') ? markdown : `${markdown}\n`}
+}
+export function saveUserSkill(slugRaw: unknown, markdownRaw: unknown): { slug: string; path: string; created: boolean } {
+  const {slug,markdown} = validateUserSkill(slugRaw,markdownRaw)
   const dir = join(userSkillsRoot(), slug)
   const path = join(dir, 'SKILL.md')
   const created = !existsSync(path)
@@ -601,6 +605,8 @@ export interface UserSkillListItem {
   description: string
   path: string
   updatedAt: string
+  validationStatus: 'validated' | 'legacy_unvalidated'
+  versionId?: string
 }
 
 function skillFrontmatterField(markdown: string, field: string): string {
@@ -636,7 +642,9 @@ export function listUserSkills(): UserSkillListItem[] {
     } catch {
       updatedAt = ''
     }
-    out.push({ slug, name, description, path, updatedAt })
+    const lifecycle = readJson<{currentVersionId?:string;versions?:Array<{versionId:string;status:string;markdownHash:string}>}>(join(root,'.lifecycle',slug,'ledger.json'),{})
+    const version = lifecycle.versions?.find(row=>row.versionId===lifecycle.currentVersionId&&row.markdownHash===createHash('sha256').update(markdown).digest('hex'))
+    out.push({ slug, name, description, path, updatedAt, validationStatus:version?.status==='published'?'validated':'legacy_unvalidated',versionId:version?.versionId })
   }
   return out.sort((a, b) => a.slug.localeCompare(b.slug))
 }

@@ -61,7 +61,7 @@ import {
   pendingVisionTransactionStatus,
   readVisionImages,
 } from './attachment-context.ts'
-import { addKbBytes, addKbContent, addKbFile, createKbFolder, exportKbTransfer, getKbTaskSlugs, importKbPack, importKbTransfer, importKbTransferFromPath, kbOverview, kbSourcePath, moveKbEntry, parseKbEntries, parseKbEntry, readKbChunk, readKbMarkdown, reindexKb, removeKbEntry, removeKbFolder, saveKbMarkdown, searchKb, seedBundledKnowledge, selectKbSlugForSession, setKbTaskSlugs, stageKbBytes, stageKbContent, stageKbFile } from './kb.ts'
+import { addKbBytes, addKbContent, addKbFile, createKbFolder, exportKbTransfer, getKbTaskSlugs, importKbPack, importKbTransfer, importKbTransferFromPath, kbOverview, kbSourcePath, listKbVersions, updateKbMetadata, moveKbEntry, parseKbEntries, parseKbEntry, readKbChunk, readKbMarkdown, reindexKb, removeKbEntry, removeKbFolder, saveKbMarkdown, searchKb, seedBundledKnowledge, selectKbSlugForSession, setKbTaskSlugs, stageKbBytes, stageKbContent, stageKbFile } from './kb.ts'
 import { looksLikeKbTransfer, looksLikeKbTransferPath } from './kb-transfer.ts'
 import { clearMineruToken, mineruStatus, probeMineruToken, saveMineruToken } from './mineru.ts'
 import { forgetSession, forgetWorkspace, markWorkspaceArchived, readArchiveStore } from './archive-store.ts'
@@ -78,6 +78,8 @@ import {
   type UniverOfficeService,
 } from './univer-office-open.ts'
 import { invalidateWorkspaceStageMemoryForPath, workspaceMemoryImpactForPath } from './stage-memory.ts'
+import { handleSkillRequest } from './skill-http.ts'
+import { assertHumanSkillRequest } from './human-skill-request.ts'
 
 const MAX_KB_UPLOAD_BYTES = 80 * 1024 * 1024
 
@@ -231,6 +233,9 @@ export function attachHttp(ctx: {
   getDefaultModel?: () => { provider: string; model: string; reasoningEffort?: string } | undefined
   syncWorkbenchProject?: (cwd: string, projectId: string, module: string) => unknown
   registerControlPrompt?: (sessionId: string, text: string) => unknown
+  longTasks?: ReturnType<typeof import('./long-task-host.ts').registerLongTaskHost>
+  taskGuide?: any
+  getAgent?: (id: string) => any
 }, owner?: ProductPluginOwner): void {
   const webServer = ctx.webServer
   if (!webServer) return
@@ -252,6 +257,10 @@ export function attachHttp(ctx: {
         if (status < 300 && changedProject) {
           ctx.syncWorkbenchProject?.(changedProject.cwd, changedProject.projectId, changedProject.module)
           if (changedProject.sessionId && typeof body?.draft === 'string' && body.draft && !body.blocked && !body.alreadyDispatched) ctx.registerControlPrompt?.(changedProject.sessionId, body.draft)
+          if (changedProject.sessionId && body?.dispatch && body?.draft && !body.blocked && !body.alreadyDispatched) {
+            const project = getBusinessProject(changedProject.cwd, changedProject.module, changedProject.projectId)
+            if (project) ctx.longTasks?.offer(changedProject.cwd, project, changedProject.sessionId, body)
+          }
         }
         sendResponse(res, status, body)
       }
@@ -422,6 +431,10 @@ export function attachHttp(ctx: {
               slugs?: string[]
               sessionId?: string
               chunkId?: string
+              versionId?: string
+              metadata?: import('./knowledge-versions.ts').KnowledgeMetadata
+              region?: string
+              asOf?: string
               query?: string
               limit?: number
               token?: string
@@ -432,7 +445,11 @@ export function attachHttp(ctx: {
             }
             const action = body.action || 'list'
             if (action === 'read') {
-              send(res, 200, readKbChunk(String(body.slug ?? ''), String(body.chunkId ?? '')))
+              send(res, 200, readKbChunk(String(body.slug ?? ''), String(body.chunkId ?? ''), body.versionId))
+              return
+            }
+            if (action === 'versions' || action === 'metadata') {
+              send(res, 200, action === 'versions' ? { versions: listKbVersions(String(body.slug || '')) } : { entry: updateKbMetadata(String(body.slug || ''), body.metadata || {}) })
               return
             }
             if (action === 'import-pack') {
@@ -532,7 +549,7 @@ export function attachHttp(ctx: {
               return
             }
             if (action === 'open-source') {
-              send(res, 200, await openExistingPath(kbSourcePath(String(body.slug ?? ''))))
+              send(res, 200, await openExistingPath(kbSourcePath(String(body.slug ?? ''), body.versionId)))
               return
             }
             if (action === 'mineru-save') {
@@ -569,7 +586,7 @@ export function attachHttp(ctx: {
             }
             if (action === 'search') {
               seedBundledKnowledge()
-              send(res, 200, { hits: searchKb(String(body.query ?? ''), { limit: body.limit ? Number(body.limit) : undefined }) })
+              send(res, 200, { hits: searchKb(String(body.query ?? ''), { limit: body.limit ? Number(body.limit) : undefined, region: body.region, asOf: body.asOf }) })
               return
             }
             if (action === 'select') {
@@ -714,6 +731,14 @@ export function attachHttp(ctx: {
 
         if (req.method === 'GET' && url.pathname === '/api/agent-pi/workbench') {
           send(res, 200, workbenchSnapshot(cwd, url.searchParams.get('module') ?? undefined))
+          return
+        }
+
+        if (url.pathname === '/api/agent-pi/skills' && ['GET', 'POST'].includes(req.method || '')) {
+          if (req.method === 'POST') assertHumanSkillRequest(req)
+          const body = req.method === 'GET' ? { action: 'list', sessionId: url.searchParams.get('sessionId') } : JSON.parse(await readBody(req) || '{}')
+          const sessionId = String(body.sessionId || url.searchParams.get('sessionId') || '')
+          send(res, 200, await handleSkillRequest(body, { taskGuide: ctx.taskGuide, getAgent: ctx.getAgent }, cwd, sessionId))
           return
         }
 
@@ -906,6 +931,8 @@ export function attachHttp(ctx: {
             requirementId?: string
             evidencePaths?: string[]
             approvalFingerprint?: string
+            limits?: Record<string, number>
+            paused?: boolean
           }
           const module = body.module ?? 'tender'
           const projectId = String(body.projectId ?? '')
@@ -919,7 +946,15 @@ export function attachHttp(ctx: {
           changedProject = { cwd, projectId, module, sessionId: body.sessionId }
           if (!['status', 'check', 'bind_session', 'execution_status'].includes(action)) assertModuleEnabled(module)
           const selectedKnowledgeSlugs = getKbTaskSlugs(body.sessionId)
-          if (body.sessionId) bindProjectSession(cwd, project, body.sessionId, body.stageId || '')
+          if (body.sessionId && !['runtime_status', 'runtime_dispatch', 'runtime_pause'].includes(action)) bindProjectSession(cwd, project, body.sessionId, body.stageId || '')
+          if (['runtime_status', 'runtime_dispatch', 'runtime_pause'].includes(action)) {
+            if (!ctx.longTasks || !body.sessionId) throw new Error('宿主执行服务或主会话尚不可用。')
+            const runtime = action === 'runtime_status' ? await ctx.longTasks.status(cwd, project, body.sessionId)
+              : action === 'runtime_pause' ? ctx.longTasks.pause(cwd, project, body.sessionId, body.paused !== false)
+                : await ctx.longTasks.dispatch(cwd, project, { sessionId: body.sessionId, stageId: body.stageId, key: body.key, limits: body.limits })
+            send(res, 200, { runtime, project: projectSnapshot(cwd, project) })
+            return
+          }
           if (action === 'bind_session') {
             send(res, 200, { binding: { sessionId: body.sessionId, module, projectId, cwd }, project: projectSnapshot(cwd, project) })
             return
