@@ -41,15 +41,18 @@ export function parseAdvancedSearchArgs(args) {
     if (query.length === 0)
         throw new Error('query must be a non-empty string');
     if (args.maxResults !== undefined
-        && (!Number.isInteger(args.maxResults) || args.maxResults < 1 || args.maxResults > 20)) {
-        throw new Error('maxResults must be an integer from 1 to 20');
+        && (!Number.isInteger(args.maxResults) || args.maxResults < 1 || args.maxResults > 10)) {
+        throw new Error('maxResults must be an integer from 1 to 10');
     }
+    if (args.zone !== undefined && !['cn', 'intl'].includes(args.zone)) throw new Error('zone must be cn or intl');
+    if (args.format !== undefined && !['json', 'markdown'].includes(args.format)) throw new Error('format must be json or markdown');
     const tag = optionalNonBlank(args.tag, 'tag');
     const language = optionalNonBlank(args.language, 'language');
     const params = parseParams(args.params);
     return {
         request: {
             query,
+            format: args.format ?? 'markdown',
             ...args.maxResults === undefined ? {} : { maxResults: args.maxResults },
             ...tag === undefined ? {} : { tag },
             ...params === undefined ? {} : { params },
@@ -114,7 +117,7 @@ export function registerAdvancedSearchTool(ctx, client, maxRenderedContentChars)
         description: 'Run an AnySearch vertical or metadata-preserving search. Use web_search for ordinary queries. Call anysearch_capabilities before supplying tag or params.',
         parameters: {
             query: { type: 'string', required: true, description: 'Search query.' },
-            maxResults: { type: 'integer', description: 'Result count from 1 to 20.' },
+            maxResults: { type: 'integer', description: 'Result count from 1 to 10.' },
             tag: { type: 'string', description: 'Exact vertical tag returned by anysearch_capabilities.' },
             params: {
                 type: 'object',
@@ -123,6 +126,7 @@ export function registerAdvancedSearchTool(ctx, client, maxRenderedContentChars)
             },
             zone: { type: 'string', enum: ['cn', 'intl'], description: 'Search region.' },
             language: { type: 'string', description: 'Provider language hint.' },
+            format: { type: 'string', enum: ['json', 'markdown'], description: 'Result content format. Defaults to markdown.' },
             includeContent: {
                 type: 'boolean',
                 description: 'Include cleaned page content for URL-backed results; URL-less structured content is always retained.',

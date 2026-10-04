@@ -8,6 +8,8 @@ import { registerProfessionalDepth } from './professional-depth.ts'
 import { registerReportSkillRouting } from './report-skill.ts'
 import { convertDwgToDxf } from './cad-convert.ts'
 import { sessionCwd, textResult } from './cwd.ts'
+import { registerAnySearchSettings } from './anysearch-settings.ts'
+import { attachCodexToolBridge } from './codex-tool-bridge.ts'
 
 /**
  * Packaged Electron often hands the host a PATH that has System32 but not
@@ -42,7 +44,7 @@ const { createUserMessage } = await importDsh<{
   }) => unknown
 }>('packages/llm/llm/src/message.ts')
 
-export function apply(ctx: {
+export async function apply(ctx: {
   tools: { register: (definition: unknown) => unknown; schemas: () => Array<{ name: string }> }
   on: (event: string, listener: (...args: any[]) => unknown) => unknown
   systemPrompt?: Parameters<typeof registerPrompt>[0]['systemPrompt']
@@ -52,13 +54,15 @@ export function apply(ctx: {
     webServer?: { register: (route: unknown) => unknown }
     llm?: LlmStreamRuntime
   }) => void) => void
-}): void {
+}): Promise<void> {
   ensureWindowsNativeOpenPath()
   repairKimiCodingSettings()
   ctx.on('agent/created', ({ agent }) => migrateRetiredDeepSeekSession(agent.session))
   registerPrompt(ctx, createUserMessage)
   registerProfessionalDepth(ctx, defineTool)
   registerReportSkillRouting(ctx)
+  registerAnySearchSettings(ctx)
+  await attachCodexToolBridge(ctx)
   ctx.tools.register(defineTool({
     name: 'cad_prepare',
     description: 'Convert a workspace DWG to a verified ASCII DXF using the bundled MLightCAD/LibreDWG viewer libraries. Returns the DXF path and source SHA-256; read the DXF for layers, geometry, dimensions, text and blocks, and check the original drawing visually.',

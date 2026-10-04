@@ -12,6 +12,7 @@ Identify profession, output/audience, scope, input versions and project country/
 Tender tasks proceed by dependencies: (1) full document/page/table/drawing/attachment/addendum coverage and source-located requirements; (2) local diligence on actual gaps; (3) every actual BOQ item's scope, measurement, method/productivity, resource consumption, cost and reconciliation; (4) detailed implementation planning from that basis; (5) all actual tender returnables and scoring responses, including forms/declarations/deviations and signature state. Partial assignments execute only the requested scope. Register unreadable or missing source units rather than claim full coverage. Use calculate_boq/derive_crew/resource_peaks to verify numeric results, alongside native calculation tools; distinguish physical resources, commercial transfer items, internal cost and tender quotation. Resource consumption is not peak configuration. Use the actual schedule and payment conditions for cashflow.
 Drawing/quantity/method tasks first establish drawing version, units, professional scope, measurement basis, site conditions and intended use. Keep drawing location/component/dimension/formula/quantity links; separate extracted geometry from visual interpretation. Detect duplicate views, unsupported formats and missing project conditions. Method statements contain this project's steps/resources/parameters/inspection/abnormal-condition handling.
 Separate source facts, verified web evidence, engineering derivations, assumptions and unresolved conflicts. Public read-only diligence on task-relevant gaps is allowed by default, unless the user restricts it. The current task brief's webDiligence is authoritative: allowed permits relevant public research; ask requires user authorization before research; forbidden prohibits it, including market-rate searches. Web investigation uses real pages with URL, access/effective date, locality and applicability. Public data cannot prove private project geology, bidder capacity/experience, confidential conditions or formal supplier replies. Only the user can change a diligence restriction, record customer acceptance and confirm signatures. Investigate task-relevant gaps without repeated permission questions; uploading private data, contacting others, purchasing or installing additions requires actual authorization. Material unsupported assumptions stay provisional, with calculation basis/range/sensitivity. A model cannot turn an assumption into a verified fact. Use native web_search/web_fetch if AnySearch is unavailable.
+Search is discovery, not verification. Prefer official procurement, government, standards bodies and original project or supplier sources; verify the opened page, jurisdiction, effective date, project applicability and source locator before using a result as evidence. Search ranking, snippets, AI summaries and a successful extraction request do not establish reliability or source authenticity. Query the actual country, project and authority explicitly: AnySearch zone cn/intl is a routing setting, not a country or legal-system filter. Call anysearch_capabilities before advanced/batch searches and use only advertised parameters; limit maxResults to 10. Distinguish retrieved text, calculations and provisional inferences; keep conflicting, missing, paywalled or truncated evidence explicit. Retain source URL, accessed date and applicable document/page/section in the workpaper. An invalid Key or quota failure is a service failure, not evidence that no relevant sources exist; report its sanitized status and use available authorized alternatives. Never place API keys or upstream credential-bearing error messages in chat, reports or logs.
 Automatically apply the current professional writing preset; use the user's template/language/terms, precise project reasoning, real calculations and executable steps. Strip filler, repeated prose and internal system tours; never invent specificity. Review actual files for technical meaning, numerical and cross-file consistency, requirement/score/form coverage and format. professional_task check inspects real files; writing checks are advisory and never replace professional review. Update only affected work after new user instructions/evidence, respect revisions, and preserve existing workbench project snapshots. Present actual files through DSH present. Generated files do not establish submission readiness; only customer acceptance and real signature/authority checks complete final returnables.`
 
 export function registerTaskGuide(ctx: any, defineTool: (options: any) => unknown, home: string) {
@@ -113,13 +114,16 @@ export function registerTaskGuide(ctx: any, defineTool: (options: any) => unknow
       const agent = exec.agent
       if (!agent?.session) throw new Error('Task requires a live session')
       const state = store.read(agent.session.id)
-      if (args.action === 'status') return { task: state, parentTask: taskContext(agent)?.sessionId !== state.sessionId ? taskContext(agent) : undefined, capabilities: await service.catalogue(agent), audit: auditTask(state) }
+      if (args.action === 'status') {
+        const parent = taskContext(agent)
+        return { task: state, ...(parent && parent.sessionId !== state.sessionId ? { parentTask: parent } : {}), capabilities: await service.catalogue(agent), audit: auditTask(state) }
+      }
       if (args.action === 'update') return store.update(agent.session.id, args.patch || {}, args.revision, 'agent')
       if (args.action === 'check') return check(agent, state, args, exec.signal)
       if (args.action === 'parse_source') {
-        const result = await parseTaskSource(agent, state, args.input, exec.signal)
-        const task = store.update(agent.session.id, result.patch, args.revision, 'agent')
-        return { ...result, patch: undefined, task, audit: auditTask(task) }
+        const { patch, ...result } = await parseTaskSource(agent, state, args.input, exec.signal)
+        const task = store.update(agent.session.id, patch, args.revision, 'agent')
+        return { ...result, task, audit: auditTask(task) }
       }
       if (args.action === 'assess') {
         const catalogue = await service.catalogue(agent)
@@ -146,7 +150,6 @@ export function registerTaskGuide(ctx: any, defineTool: (options: any) => unknow
     const brief = structuredClone(state.brief)
     if (/不要联网|禁止联网|不得联网|仅(?:使用|用).{0,15}(?:上传|提供|本地)|\b(?:do not|don't|no)\s+(?:browse|search the web|internet)/iu.test(text)) brief.webDiligence = 'forbidden'
     else if (/(?:允许|可以|请|需要|使用|通过|根据).{0,15}(?:联网|网络尽调|网络检索|网上查|网络调查)|\b(?:search|browse|look up)\b.{0,30}\b(?:web|online|internet)\b/iu.test(text)) brief.webDiligence = 'allowed'
-    if (!state.brief.objective && brief.webDiligence === state.brief.webDiligence) return
     store.update(agent.session.id, { latestRequest: text, needsAssessment: true, brief }, state.revision, 'user')
   })
   ctx.inject(['webServer'], (scope: any) => {

@@ -11,7 +11,7 @@ import {
   reconcileKnownPluginCompatibility,
   TEAM_COMPONENTS,
 } from '../vendor/dshmarket/compatibility.js'
-import { verifyActivation } from '../vendor/dshmarket/src/verify.ts'
+import { verifyActivation, hostPeerGate } from '../vendor/dshmarket/src/verify.ts'
 import { hotMount, mountClientOnlyDeps } from '../vendor/dshmarket/src/hot.ts'
 
 test('official Team components report managed/off, configured, live and missing artifacts accurately', async (t) => {
@@ -66,6 +66,30 @@ test('built-in compaction is a preset module, but a missing entry still fails va
   const live = verifyActivation('tender', name, new Set([name]), profile)
   assert.equal(live.state, 'live')
   assert.equal(live.bundle, false)
+})
+
+test('a bundle rejected by the DSH peer gate never promises that restarting will activate it', t => {
+  const { profile } = profileFixture(t, { bundles: ['@anysearch/anysearch-dsh'] })
+  const name = '@anysearch/anysearch-dsh'
+  const plugin = join(profile, 'node_modules', name)
+  const manifest = {
+    name, version: '0.1.6', main: 'lib/index.js',
+    dsh: { bundle: { patch: './cordis.patch.yml' } },
+    peerDependencies: { '@deepseek-ai/dsh-web': '^0.1.6-alpha.2' },
+  }
+  write(join(plugin, 'package.json'), JSON.stringify(manifest))
+  write(join(plugin, 'lib/index.js'), 'export {}')
+  write(join(plugin, 'cordis.patch.yml'), '- insert: []')
+  const facts = { runtimeVersion: '0.2.1-alpha.1', exemptions: {} }
+  assert.equal(verifyActivation('tender', name, new Set(), profile, false, facts).state, 'incompatible')
+  assert.equal(hostPeerGate(profile, name, facts).hostTooOld, false)
+  assert.match(verifyActivation('tender', name, new Set(), profile, false, facts).reasons[0], /a restart will not activate it/)
+  assert.equal(verifyActivation('tender', name, new Set([name]), profile, false, facts).state, 'live')
+  assert.equal(hostPeerGate(profile, name, { ...facts, exemptions: { [`${name}@0.1.6`]: ['0.2.1-alpha.1'] } }), null)
+  assert.notEqual(hostPeerGate(profile, name, { ...facts, exemptions: { [`${name}@0.1.5`]: ['0.2.1-alpha.1'] } }), null)
+  manifest.peerDependencies['@deepseek-ai/dsh-web'] += ' || 0.2.1-alpha.1'
+  write(join(plugin, 'package.json'), JSON.stringify(manifest))
+  assert.equal(verifyActivation('tender', name, new Set(), profile, false, facts).state, 'restart')
 })
 
 function write(path, content) {

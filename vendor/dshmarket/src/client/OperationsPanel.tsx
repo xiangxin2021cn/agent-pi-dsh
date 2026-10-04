@@ -206,8 +206,14 @@ function BucketIcon(props: { record: OperationRecord }) {
 /** The one-line status under a record's name; the bucket carries the rest. */
 function statusLine(t: Translate, lang: 'zh' | 'en', record: OperationRecord, ahead: number | null): string {
   switch (record.state) {
-    case 'queued':
+    case 'queued': {
+      // Why it is not moving outranks where it sits: a row held by the agent
+      // guard will NOT start when the ones ahead of it finish, so a position
+      // would answer a question the user is not asking (#752).
+      const blockers = record.blockedBy?.length ?? 0
+      if (blockers > 0) return `${t('opQueued')} · ${t('opQueuedWaitingAgents').replace('{0}', String(blockers))}`
       return ahead === null || ahead === 0 ? t('opQueued') : `${t('opQueued')} · ${t('opQueuedAhead')} ${String(ahead)}`
+    }
     case 'running':
       return record.detail ?? t('opRunning')
     case 'input':
@@ -249,9 +255,19 @@ export function OperationsPanel(props: OperationsPanelProps) {
   }, [open, setOpen])
 
   // The entry label is the batch, not a verb with no object: a bare "3" says
-  // nothing about what is happening to the profile.
+  // nothing about what is happening to the profile. And when the agent guard
+  // is the only thing in the way, "installing 0/3" is a contradiction the
+  // reader cannot resolve (#752) — nothing is installing, and the number is
+  // not the fact they need; the obstacle is.
+  const waitingOnAgents = summary.running === 0 && summary.blocked > 0
+  const batchLabel = waitingOnAgents
+    // `blocked`, not `queued`: a record that is only waiting its turn is not
+    // waiting on the agents, and saying it is would trade one wrong count for
+    // another (#752).
+    ? t('opWaitingAgents').replace('{0}', String(summary.blocked))
+    : `${t('opInstalling')} ${String(summary.progressed)}/${String(summary.total)}`
   const label = busy
-    ? `${t('opInstalling')} ${String(summary.progressed)}/${String(summary.total)}`
+    ? batchLabel
     : summary.attention > 0
       ? `${String(summary.attention)} ${t('opNeedsYou')}`
       : t('opTitle')
@@ -296,17 +312,26 @@ export function OperationsPanel(props: OperationsPanelProps) {
           {busy && (
             <div className={css.opAggregate}>
               <div className={css.opAggregateTop}>
-                <span>{t('opInstalling')} {summary.progressed}/{summary.total}</span>
+                <span>{batchLabel}</span>
               </div>
-              <div className={css.bar}>
-                <div
-                  className={css.barFill}
-                  style={{ width: `${String(Math.round(summary.progressed / Math.max(1, summary.total) * 100))}%` }}
-                />
-              </div>
+              {/* A bar that cannot move says the wrong thing: with nothing
+                  running there is no progress to show, and an empty bar beside
+                  a count reads as "stuck at zero" (#752). The hint below
+                  carries the state instead. */}
+              {!waitingOnAgents && (
+                <div className={css.bar}>
+                  <div
+                    className={css.barFill}
+                    style={{ width: `${String(Math.round(summary.progressed / Math.max(1, summary.total) * 100))}%` }}
+                  />
+                </div>
+              )}
               {/* Long installs are the norm; saying so is what makes leaving
-                  the page an option rather than a gamble. */}
-              <div className={css.opAggregateHint}>{t('opLeaveHint')}</div>
+                  the page an option rather than a gamble. When the agent guard
+                  is what holds the batch, the same sentence has to name the
+                  obstacle — otherwise "you can leave" is the only promise the
+                  user gets, and it is not true yet (#752). */}
+              <div className={css.opAggregateHint}>{waitingOnAgents ? t('opLeaveHintAgents') : t('opLeaveHint')}</div>
             </div>
           )}
           {records.length === 0 && (

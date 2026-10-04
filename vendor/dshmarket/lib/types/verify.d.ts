@@ -17,13 +17,16 @@
  * State taxonomy (IMPROVEMENT-PLAN P0-2):
  *   live    – running in the current composition (hot mount or loader entry)
  *   restart – installed and will activate on the next boot, but not live now
+ *   incompatible – the host's own boot gate will skip it on EVERY boot: its
+ *             dsh peer range excludes the running runtime (#757). Restarting
+ *             can never activate it — "restart to apply" would be a lie.
  *   inert   – installed but not a profile-layer plugin (plain dependency, or
  *             client-only — the market shim-mounts those at boot)
  *   broken  – would fail to load: listed as a bundle without a dsh surface,
  *             or a declared entry artifact that is missing
  *   missing – not present in node_modules
  */
-export type ActivationState = 'live' | 'restart' | 'inert' | 'broken' | 'missing' | 'disabled';
+export type ActivationState = 'live' | 'preset' | 'restart' | 'incompatible' | 'inert' | 'broken' | 'missing' | 'disabled';
 export interface ActivationResult {
     state: ActivationState;
     /** Bilingual, user-facing explanations (zh / en joined with " / "). */
@@ -39,7 +42,66 @@ export interface ActivationResult {
      */
     dependencyOf?: string;
 }
-export declare function verifyActivation(profile: string, name: string, live?: ReadonlySet<string>, explicitDir?: string, isDisabled?: boolean): ActivationResult;
+/**
+ * What the running host is, for the #757 boot-gate prediction.
+ *
+ * The host loader (evaluatePluginCompatibility in @deepseek-ai/dsh-app-boot)
+ * semver-checks every bundle's `@deepseek-ai/dsh` / `@deepseek-ai/dsh-*`
+ * peerDependencies against the runtime version and silently SKIPS the
+ * bundles that fail — on every boot. From the market's side the bundle
+ * layer still declares the plugin while the loader inventory never shows
+ * it, so it reads exactly like "will activate on restart"… forever. A
+ * profile may carry a compatibility.json whose `pkg@version` keys list
+ * host versions allowed to load anyway (the host's
+ * readProfileVersionExemptions); the market mirrors both halves.
+ */
+export interface HostRuntimeFacts {
+    /** @deepseek-ai/dsh-app-boot version the host runs; null = unknown. */
+    runtimeVersion: string | null;
+    /** `pkg@version` → host versions allowed to load despite the range. */
+    exemptions: Record<string, readonly string[]>;
+}
+/** One dsh peer requirement the running host provably fails. */
+export interface PeerGate {
+    peer: string;
+    range: string;
+    runtimeVersion: string;
+    /** True when the runtime sits BELOW the range's floor — upgrading the host can satisfy it (#758). */
+    hostTooOld: boolean;
+}
+/**
+ * Predict the host's boot gate for one installed package. Returns the first
+ * dsh peer the running runtime fails, or null when the next boot would load
+ * it — or when we cannot tell (unknown runtime, unparseable range), because
+ * uncertainty must keep the old verdict, not invent a harsher one (#757).
+ *
+ * satisfiesRange runs with includePrerelease — the host's own semantics,
+ * since every published host line is itself a prerelease — and an EMPTY
+ * range counts as failing, mirroring the host: absence of a requirement is
+ * not permission.
+ *
+ * Known differences from the host's verdict, kept deliberate (#758): the
+ * runtime version comes from the @deepseek-ai/dsh-app-boot package.json
+ * this tree can locate, not the host's self-reported getDshRuntimeVersion;
+ * when no host is locatable the gate stands aside and the real boot still
+ * applies its own. Exemptions mirror readProfileVersionExemptions from the
+ * profile's compatibility.json. The FIRST failing dsh peer decides, as the
+ * host's skip does — only the reported culprit may differ when several
+ * peers fail at once.
+ */
+export declare function hostPeerGate(activeProfileDir: string, name: string, facts: HostRuntimeFacts): PeerGate | null;
+/** The way out of a peer gate, in the direction the versions allow (#758). */
+export declare function peerGateRemedy(gate: PeerGate): {
+    zh: string;
+    en: string;
+};
+/**
+ * The production HostRuntimeFacts: the discovered runtime version plus the
+ * profile's own exemption list. Re-read per call so an edited
+ * compatibility.json takes effect without a market restart.
+ */
+export declare function defaultHostRuntimeFacts(activeProfileDir: string): HostRuntimeFacts;
+export declare function verifyActivation(profile: string, name: string, live?: ReadonlySet<string>, explicitDir?: string, isDisabled?: boolean, hostFacts?: HostRuntimeFacts): ActivationResult;
 /**
  * Correct a post-UPDATE verdict for a plugin that was already running.
  *

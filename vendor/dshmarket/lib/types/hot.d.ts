@@ -136,6 +136,33 @@ export interface MarketState {
      * pre-install list, unlike groups/notes which target installed packages.
      */
     favorites?: string[];
+    /**
+     * Package names the user hid from Discover and Themes (#657).
+     *
+     * Local, per-profile, reversible. The Hidden tab lists the same names so
+     * the choice can be undone. Independent of `disabled` (the plugin can keep
+     * running) and of the session-only update ignore (that one dies on restart).
+     * A stored name may be the installed package name or the catalog package
+     * name; the client treats both as one plugin when it can match them.
+     *
+     * Optional on the way in, like `notes` / `favorites`: several callers
+     * build a state object from the few fields they own, and requiring this
+     * one would make every such call a silent way to erase the list (#339).
+     */
+    blocked?: string[];
+    /**
+     * Installed package names the user asked not to be reminded about (#728).
+     *
+     * This is not {@link blocked}. Hiding a plugin takes it off Discover.
+     * This list leaves the plugin where it is, and leaves the update itself
+     * on the installed row. It only stops the reminder: the badge, the
+     * "update all" count, the sort-to-top, and the reminder bar. A new
+     * version is still listed, and the row's own Update button still works.
+     *
+     * Optional on the way in, for the same reason as `blocked` (#339).
+     * An empty array is how the last name is removed.
+     */
+    updateExempt?: string[];
     /** User-supplied HTTPS prefix used when the built-in GitHub routes fail. */
     githubProxy?: string;
     /**
@@ -170,6 +197,12 @@ export interface BrokenPlugin {
 }
 /** Upper bound on bookmarked catalog URLs kept in state.json (#414). */
 export declare const MAX_FAVORITES = 500;
+/** Upper bound on blocked package names kept in state.json (#657). */
+export declare const MAX_BLOCKED = 500;
+/** Upper bound on the persistent do-not-remind list (#728). */
+export declare const MAX_UPDATE_EXEMPT = 500;
+/** npm package names are at most 214 characters. Longer values are not names. */
+export declare const MAX_BLOCKED_NAME = 214;
 /**
  * Read the whole market state. Legacy `disabledSkins` (the pre-#60
  * theme-only key) still loads; every new write uses the generic `disabled`

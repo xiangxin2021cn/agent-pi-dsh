@@ -2310,6 +2310,413 @@ window.__ModuleLoader__.load({
 			};
 		}
 		//#endregion
+		//#region src/client/locales/search-settings.js
+		const keys$2 = [
+			"title",
+			"lead",
+			"applyKey",
+			"key",
+			"configured",
+			"anonymous",
+			"inactive",
+			"storage",
+			"save",
+			"remove",
+			"probe",
+			"saved",
+			"removed",
+			"failed",
+			"busy",
+			"connected",
+			"invalid-key",
+			"access-denied",
+			"quota-exhausted",
+			"rate-limited",
+			"unavailable",
+			"plugin-inactive",
+			"readOnly",
+			"requestId"
+		];
+		const searchSettingsLocales = Object.fromEntries(Object.entries({
+			zh: [
+				"网络搜索 · AnySearch",
+				"搜索、网页正文提取和专业领域检索共用 AnySearch。重要结论仍须核验原文、发布机构、属地和日期。",
+				"申请 API Key",
+				"AnySearch API Key",
+				"已配置 API Key",
+				"匿名访问 · 按 IP 限流及计量",
+				"搜索插件尚未激活，请检查插件兼容状态。",
+				"Key 保存到本机现有 DSH 凭据存储，不回显；保存后下一次请求即生效，无需重启。",
+				"保存 Key",
+				"移除已保存的 Key",
+				"验证连接",
+				"已保存，下一次请求生效。",
+				"已移除本机保存的 Key。",
+				"操作失败，请重试。",
+				"正在处理…",
+				"连接成功",
+				"API Key 无效",
+				"无访问权限或 Key 已过期",
+				"额度已耗尽，请在官网管理额度",
+				"请求频率过高，请稍后重试",
+				"服务暂不可用，请检查网络后重试",
+				"插件未激活",
+				"当前凭据来源只读，请在对应环境中管理。",
+				"请求编号"
+			],
+			en: [
+				"Web search · AnySearch",
+				"Search, page extraction and specialist searches share AnySearch. Verify important findings against the original source, publisher, jurisdiction and date.",
+				"Get an API key",
+				"AnySearch API key",
+				"API key configured",
+				"Anonymous access · Per-IP limits and quota",
+				"The search plugin is inactive. Check plugin compatibility.",
+				"Keys use the existing local DSH credential store and are never shown. Saved keys apply to the next request without restarting.",
+				"Save key",
+				"Remove saved key",
+				"Test connection",
+				"Saved. Applies to the next request.",
+				"Locally saved key removed.",
+				"Operation failed. Please retry.",
+				"Working…",
+				"Connected",
+				"Invalid API key",
+				"Access denied or key expired",
+				"Quota exhausted. Manage quota on the official website.",
+				"Rate limit reached. Retry later.",
+				"Service unavailable. Check your connection and retry.",
+				"Plugin inactive",
+				"This credential source is read-only. Manage it in its source environment.",
+				"Request ID"
+			],
+			es: [
+				"Búsqueda web · AnySearch",
+				"Las búsquedas, la extracción de páginas y las consultas especializadas usan AnySearch. Verifica los hallazgos importantes con la fuente original, el emisor, la jurisdicción y la fecha.",
+				"Obtener clave API",
+				"Clave API de AnySearch",
+				"Clave API configurada",
+				"Acceso anónimo · Límites y cuota por IP",
+				"El complemento está inactivo. Revisa su compatibilidad.",
+				"La clave se guarda en el almacén local de credenciales DSH y nunca se muestra. Se aplica en la siguiente solicitud sin reiniciar.",
+				"Guardar clave",
+				"Eliminar clave guardada",
+				"Probar conexión",
+				"Guardado. Se aplica en la siguiente solicitud.",
+				"Clave local eliminada.",
+				"La operación falló. Inténtalo de nuevo.",
+				"Procesando…",
+				"Conectado",
+				"Clave API no válida",
+				"Acceso denegado o clave caducada",
+				"Cuota agotada. Adminístrala en el sitio oficial.",
+				"Demasiadas solicitudes. Inténtalo más tarde.",
+				"Servicio no disponible. Revisa la conexión.",
+				"Complemento inactivo",
+				"La fuente de credenciales es de solo lectura. Adminístrala en el entorno de origen.",
+				"ID de solicitud"
+			],
+			fr: [
+				"Recherche web · AnySearch",
+				"La recherche, l’extraction de pages et les recherches spécialisées utilisent AnySearch. Vérifiez les conclusions importantes dans la source originale, avec l’émetteur, la juridiction et la date.",
+				"Obtenir une clé API",
+				"Clé API AnySearch",
+				"Clé API configurée",
+				"Accès anonyme · Limites et quota par IP",
+				"Le module est inactif. Vérifiez sa compatibilité.",
+				"La clé est conservée dans le stockage local de DSH et n’est jamais affichée. Elle s’applique à la requête suivante sans redémarrage.",
+				"Enregistrer la clé",
+				"Supprimer la clé enregistrée",
+				"Tester la connexion",
+				"Enregistrée. Effective à la requête suivante.",
+				"Clé locale supprimée.",
+				"Échec de l’opération. Réessayez.",
+				"Traitement…",
+				"Connexion réussie",
+				"Clé API incorrecte",
+				"Accès refusé ou clé expirée",
+				"Quota épuisé. Gérez-le sur le site officiel.",
+				"Trop de requêtes. Réessayez plus tard.",
+				"Service indisponible. Vérifiez la connexion.",
+				"Module inactif",
+				"Cette source est en lecture seule. Gérez-la dans son environnement d’origine.",
+				"Identifiant de requête"
+			],
+			de: [
+				"Websuche · AnySearch",
+				"Suche, Seitenextraktion und Fachrecherchen verwenden AnySearch. Prüfen Sie wichtige Ergebnisse anhand der Originalquelle, des Herausgebers, des Rechtsraums und des Datums.",
+				"API-Schlüssel anfordern",
+				"AnySearch API-Schlüssel",
+				"API-Schlüssel eingerichtet",
+				"Anonymer Zugriff · IP-Limits und Kontingent",
+				"Das Suchplugin ist inaktiv. Prüfen Sie die Kompatibilität.",
+				"Der Schlüssel wird im vorhandenen lokalen DSH-Speicher gespeichert und nie angezeigt. Er gilt ab der nächsten Anfrage ohne Neustart.",
+				"Schlüssel speichern",
+				"Gespeicherten Schlüssel entfernen",
+				"Verbindung testen",
+				"Gespeichert. Gilt ab der nächsten Anfrage.",
+				"Lokal gespeicherter Schlüssel entfernt.",
+				"Vorgang fehlgeschlagen. Bitte erneut versuchen.",
+				"Wird verarbeitet…",
+				"Verbunden",
+				"Ungültiger API-Schlüssel",
+				"Zugriff verweigert oder Schlüssel abgelaufen",
+				"Kontingent verbraucht. Auf der offiziellen Website verwalten.",
+				"Anfragelimit erreicht. Später erneut versuchen.",
+				"Dienst nicht verfügbar. Verbindung prüfen.",
+				"Plugin inaktiv",
+				"Diese Quelle ist schreibgeschützt. Im ursprünglichen Umfeld verwalten.",
+				"Anfrage-ID"
+			],
+			ja: [
+				"ウェブ検索 · AnySearch",
+				"検索、ページ本文の抽出、専門分野の検索は AnySearch を共用します。重要な結論は原文、発行者、適用地域、日付を確認してください。",
+				"API キーを取得",
+				"AnySearch API キー",
+				"API キー設定済み",
+				"匿名アクセス · IP ごとの制限と利用枠",
+				"検索プラグインは無効です。互換性を確認してください。",
+				"キーは既存のローカル DSH 資格情報ストアに保存され、再表示されません。次のリクエストから有効になり、再起動は不要です。",
+				"キーを保存",
+				"保存したキーを削除",
+				"接続を確認",
+				"保存しました。次のリクエストから有効です。",
+				"ローカルに保存したキーを削除しました。",
+				"操作に失敗しました。再試行してください。",
+				"処理中…",
+				"接続成功",
+				"API キーが無効です",
+				"アクセス拒否またはキーの期限切れ",
+				"利用枠を使い切りました。公式サイトで管理してください。",
+				"リクエストが多すぎます。後で再試行してください。",
+				"サービスを利用できません。接続を確認してください。",
+				"プラグイン無効",
+				"この資格情報のソースは読み取り専用です。元の環境で管理してください。",
+				"リクエスト ID"
+			],
+			ko: [
+				"웹 검색 · AnySearch",
+				"검색, 페이지 본문 추출 및 전문 검색은 AnySearch를 공유합니다. 중요한 결과는 원문, 발행 기관, 관할 지역과 날짜를 확인하세요.",
+				"API 키 발급",
+				"AnySearch API 키",
+				"API 키 설정됨",
+				"익명 접속 · IP별 제한 및 할당량",
+				"검색 플러그인이 비활성 상태입니다. 호환성을 확인하세요.",
+				"키는 기존 로컬 DSH 자격 증명 저장소에 저장되며 다시 표시되지 않습니다. 재시작 없이 다음 요청부터 적용됩니다.",
+				"키 저장",
+				"저장된 키 삭제",
+				"연결 확인",
+				"저장되었습니다. 다음 요청부터 적용됩니다.",
+				"로컬에 저장된 키를 삭제했습니다.",
+				"작업에 실패했습니다. 다시 시도하세요.",
+				"처리 중…",
+				"연결됨",
+				"유효하지 않은 API 키",
+				"접근 거부 또는 키 만료",
+				"할당량 소진. 공식 사이트에서 관리하세요.",
+				"요청 한도 초과. 나중에 다시 시도하세요.",
+				"서비스를 사용할 수 없습니다. 연결을 확인하세요.",
+				"플러그인 비활성",
+				"이 자격 증명 소스는 읽기 전용입니다. 원본 환경에서 관리하세요.",
+				"요청 ID"
+			],
+			pt: [
+				"Pesquisa web · AnySearch",
+				"Pesquisa, extração de páginas e consultas especializadas usam AnySearch. Verifique conclusões importantes na fonte original, com o emissor, a jurisdição e a data.",
+				"Obter chave API",
+				"Chave API AnySearch",
+				"Chave API configurada",
+				"Acesso anónimo · Limites e quota por IP",
+				"O plugin está inativo. Verifique a compatibilidade.",
+				"A chave usa o armazenamento local de credenciais DSH e nunca é exibida. Aplica-se ao próximo pedido sem reiniciar.",
+				"Guardar chave",
+				"Remover chave guardada",
+				"Testar ligação",
+				"Guardada. Aplica-se ao próximo pedido.",
+				"Chave local removida.",
+				"A operação falhou. Tente novamente.",
+				"A processar…",
+				"Ligação estabelecida",
+				"Chave API inválida",
+				"Acesso negado ou chave expirada",
+				"Quota esgotada. Faça a gestão no site oficial.",
+				"Limite de pedidos atingido. Tente mais tarde.",
+				"Serviço indisponível. Verifique a ligação.",
+				"Plugin inativo",
+				"Esta fonte é só de leitura. Faça a gestão no ambiente de origem.",
+				"ID do pedido"
+			],
+			ru: [
+				"Поиск в интернете · AnySearch",
+				"Поиск, извлечение страниц и специализированные запросы используют AnySearch. Проверяйте важные выводы по первоисточнику, издателю, юрисдикции и дате.",
+				"Получить ключ API",
+				"Ключ API AnySearch",
+				"Ключ API настроен",
+				"Анонимный доступ · Лимиты и квота по IP",
+				"Плагин поиска не активен. Проверьте совместимость.",
+				"Ключ сохраняется в локальном хранилище DSH и не отображается повторно. Он применяется со следующего запроса без перезапуска.",
+				"Сохранить ключ",
+				"Удалить сохранённый ключ",
+				"Проверить соединение",
+				"Сохранено. Применяется со следующего запроса.",
+				"Локально сохранённый ключ удалён.",
+				"Операция не выполнена. Повторите попытку.",
+				"Обработка…",
+				"Соединение установлено",
+				"Неверный ключ API",
+				"Доступ запрещён или срок ключа истёк",
+				"Квота исчерпана. Управляйте ей на официальном сайте.",
+				"Слишком много запросов. Повторите позже.",
+				"Сервис недоступен. Проверьте соединение.",
+				"Плагин не активен",
+				"Источник доступен только для чтения. Управляйте им в исходной среде.",
+				"ID запроса"
+			],
+			ar: [
+				"البحث على الويب · AnySearch",
+				"يستخدم البحث واستخراج محتوى الصفحات والبحث المتخصص خدمة AnySearch. تحقق من النتائج المهمة بالرجوع إلى المصدر الأصلي والجهة الناشرة والاختصاص والتاريخ.",
+				"الحصول على مفتاح API",
+				"مفتاح AnySearch API",
+				"تم إعداد مفتاح API",
+				"وصول مجهول · حدود وحصة لكل عنوان IP",
+				"إضافة البحث غير مفعلة. تحقق من التوافق.",
+				"يُحفظ المفتاح في مخزن بيانات اعتماد DSH المحلي ولا يُعرض مجدداً. يسري من الطلب التالي دون إعادة تشغيل.",
+				"حفظ المفتاح",
+				"إزالة المفتاح المحفوظ",
+				"اختبار الاتصال",
+				"تم الحفظ. يسري من الطلب التالي.",
+				"تمت إزالة المفتاح المحفوظ محلياً.",
+				"فشلت العملية. حاول مجدداً.",
+				"جارٍ المعالجة…",
+				"تم الاتصال",
+				"مفتاح API غير صالح",
+				"رُفض الوصول أو انتهت صلاحية المفتاح",
+				"نفدت الحصة. أدرها على الموقع الرسمي.",
+				"تم تجاوز معدل الطلبات. حاول لاحقاً.",
+				"الخدمة غير متاحة. تحقق من الاتصال.",
+				"الإضافة غير مفعلة",
+				"مصدر بيانات الاعتماد للقراءة فقط. أدره في بيئته الأصلية.",
+				"معرّف الطلب"
+			]
+		}).map(([locale, values]) => [locale, Object.fromEntries(keys$2.map((key, index) => [key, values[index]]))]));
+		function searchSettingsText(locale, key) {
+			return (searchSettingsLocales[String(locale || "").toLowerCase().split("-")[0]] || searchSettingsLocales.en)[key] || searchSettingsLocales.en[key] || key;
+		}
+		//#endregion
+		//#region src/client/search-settings.js
+		const ANYSEARCH_KEY_CONSOLE = "https://anysearch.com/console/api-keys";
+		/** Operations use the native write-only credential Remote; no key read method exists here. */
+		function createSearchSettingsOperations(remote, api) {
+			const unwrap = (result) => {
+				if (!result?.ok) throw new Error("Credential operation failed");
+				return result.value;
+			};
+			return {
+				view: () => api("/api/agent-pi/search-settings"),
+				describe: async (ref) => unwrap(await remote.credentials.describe([ref]))[ref],
+				save: async (ref, key) => {
+					unwrap(await remote.credentials.set(ref, key.trim()));
+				},
+				remove: async (ref) => {
+					unwrap(await remote.credentials.unset(ref));
+				},
+				probe: () => api("/api/agent-pi/search-settings", "", { method: "POST" })
+			};
+		}
+		function createSearchSettings(React) {
+			const h = React.createElement;
+			return function SearchSettings({ operations, locale = "en" }) {
+				const [view, setView] = React.useState(null);
+				const [info, setInfo] = React.useState(null);
+				const [key, setKey] = React.useState("");
+				const [busy, setBusy] = React.useState(true);
+				const [message, setMessage] = React.useState("");
+				const [requestId, setRequestId] = React.useState("");
+				const t = (value) => searchSettingsText(locale, value);
+				React.useEffect(() => {
+					let disposed = false;
+					setBusy(true);
+					setKey("");
+					operations.view().then(async (current) => {
+						const credential = current.active ? await operations.describe(current.apiKeyRef) : null;
+						if (!disposed) {
+							setView(current);
+							setInfo(credential);
+						}
+					}).catch(() => {
+						if (!disposed) setMessage("failed");
+					}).finally(() => {
+						if (!disposed) setBusy(false);
+					});
+					return () => {
+						disposed = true;
+					};
+				}, [operations]);
+				const act = async (kind) => {
+					if (busy) return;
+					setBusy(true);
+					setMessage("");
+					setRequestId("");
+					try {
+						if (kind === "probe") {
+							const result = await operations.probe();
+							setMessage(result.state);
+							if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(result.requestId || "")) setRequestId(result.requestId);
+						} else {
+							if (kind === "save") await operations.save(view.apiKeyRef, key);
+							else await operations.remove(view.apiKeyRef);
+							setKey("");
+							setMessage(kind === "save" ? "saved" : "removed");
+							setInfo(await operations.describe(view.apiKeyRef));
+						}
+					} catch {
+						setMessage("failed");
+					} finally {
+						setBusy(false);
+					}
+				};
+				const writable = view?.active && info?.writable === true;
+				return h("section", {
+					className: "ap-codex-settings",
+					dir: String(locale).startsWith("ar") ? "rtl" : void 0
+				}, h("h2", null, t("title")), h("p", { className: "ap-codex-lead" }, t("lead")), h("div", { className: "ap-codex-card" }, h("p", { role: "status" }, view?.active ? t(info?.configured ? "configured" : "anonymous") : t("inactive")), h("a", {
+					href: ANYSEARCH_KEY_CONSOLE,
+					target: "_blank",
+					rel: "noopener noreferrer"
+				}, t("applyKey")), h("p", { className: "ap-sub" }, t("storage")), h("label", { htmlFor: "ap-anysearch-key" }, t("key")), h("input", {
+					id: "ap-anysearch-key",
+					type: "password",
+					autoComplete: "new-password",
+					value: key,
+					disabled: busy || !writable,
+					onChange: (event) => setKey(event.target.value),
+					style: {
+						display: "block",
+						width: "100%",
+						margin: "8px 0"
+					}
+				}), view?.active && info && !info.writable ? h("p", { className: "ap-sub" }, t("readOnly")) : null, h("button", {
+					type: "button",
+					disabled: busy || !writable || !key.trim(),
+					onClick: () => act("save")
+				}, t("save")), h("button", {
+					type: "button",
+					disabled: busy || !writable || !info?.configured,
+					onClick: () => act("remove"),
+					style: { marginInlineStart: 8 }
+				}, t("remove")), h("button", {
+					type: "button",
+					disabled: busy || !view?.active,
+					onClick: () => act("probe"),
+					style: { marginInlineStart: 8 }
+				}, t("probe")), h("p", {
+					role: "status",
+					"aria-live": "polite",
+					className: "ap-sub"
+				}, busy ? t("busy") : message ? t(message) : ""), requestId ? h("p", { className: "ap-sub" }, t("requestId"), ": ", h("code", null, requestId)) : null));
+			};
+		}
+		//#endregion
 		//#region src/client/api-client.js
 		function appendWorkspaceQuery(path, cwd) {
 			return `${path}${String(path).includes("?") ? "&" : "?"}cwd=${encodeURIComponent(cwd || "")}`;
@@ -2652,7 +3059,7 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 `;
 		//#endregion
 		//#region src/client/project-plan-locales.js
-		const keys = [
+		const keys$1 = [
 			"title",
 			"search",
 			"all",
@@ -3203,7 +3610,7 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 				"تغيير المشروع يلغي التعديلات التي لم تُصدّر. هل تريد المتابعة؟",
 				"يمكن تحرير الأسماء والتواريخ المخططة ونسبة اكتمال المدة والملاحظات. لا تُعاد جدولة العلاقات أو التواريخ الفعلية؛ المدة من الملف الأصلي. يُحفظ MPP بصيغة Project XML، وP6 بصيغة XER/XML. راجع النتيجة في Project/P6."
 			]
-		}).map(([lang, strings]) => [lang, Object.fromEntries(keys.map((key, i) => [key, strings[i]]))]));
+		}).map(([lang, strings]) => [lang, Object.fromEntries(keys$1.map((key, i) => [key, strings[i]]))]));
 		for (const [lang, [view, gantt, exportWarning]] of Object.entries({
 			zh: [
 				"视图",
@@ -6671,6 +7078,10 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 			}
 			return out;
 		}
+		/** Busy for crash-resume / UI: running or a waiting queue. */
+		function snapshotIsBusy(snap) {
+			return snapshotIsRunning(snap) || queuedMessages(snap).length > 0;
+		}
 		/** Root main-session routing target for a workbench action opened from any descendant. */
 		function parentSessionTarget(activeId, snap, list) {
 			const byId = list?.byId ?? {};
@@ -8450,6 +8861,697 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 			};
 		}
 		//#endregion
+		//#region src/client/locales/codex-execution.js
+		const keys = [
+			"main",
+			"ready",
+			"starting",
+			"running",
+			"waiting",
+			"failed",
+			"stop",
+			"intro",
+			"you",
+			"tool",
+			"answerNeeded",
+			"approvalNeeded",
+			"choose",
+			"other",
+			"reply",
+			"approve",
+			"decline",
+			"switchBlocked",
+			"desktopRequired",
+			"loginRequired",
+			"runtimeUnavailable",
+			"modelUnavailable",
+			"accessDenied",
+			"quotaExceeded",
+			"requestFailed",
+			"processDisconnected",
+			"requestTimeout",
+			"openConversation",
+			"engineCodexTitle",
+			"engineDshTitle",
+			"attachmentsNotReady",
+			"attachmentPathUnavailable",
+			"sessionBusy",
+			"invalidTask",
+			"switchWorkspace",
+			"answerAll",
+			"approvalInvalid",
+			"interactionExpired",
+			"attachmentTask"
+		];
+		const codexExecutionLocales = Object.fromEntries(Object.entries({
+			zh: [
+				"Codex 主执行",
+				"待命",
+				"正在启动",
+				"执行中",
+				"等待答复或批准",
+				"执行失败",
+				"停止",
+				"在下方输入任务，Codex 将直接与你交流，并使用同一套专业工具和任务依据。",
+				"你",
+				"工具执行",
+				"需要你的答复",
+				"需要你的批准",
+				"请选择",
+				"其他",
+				"回复并继续",
+				"批准本次操作",
+				"拒绝",
+				"请先停止当前 Codex 任务再切换引擎。",
+				"Codex 主执行需要新版桌面应用。",
+				"请先在 Codex 设置中登录账户。",
+				"Codex 运行环境不可用，请检查桌面应用安装。",
+				"所选 Codex 模型不可用，请选择其他模型。",
+				"当前账户无权使用所选 Codex 模型。",
+				"账户额度已耗尽，请检查额度后重试。",
+				"请求失败，请重试。",
+				"Codex 连接已断开，请重试。",
+				"请求超时，请重试。",
+				"打开对话",
+				"当前由 Codex 主执行，点击切换至 DSH",
+				"选择 Codex 主执行",
+				"附件尚未准备好，请等待上传完成。",
+				"无法获取附件的本机路径，请重新选择文件。",
+				"当前会话正在执行任务，请先停止或等待完成。",
+				"任务内容无效，请输入任务后重试。",
+				"请先切换至此任务的工作目录。",
+				"请回答所有问题后继续。",
+				"批准选项无效，请重新选择。",
+				"此交互请求已失效，请读取最新任务状态。",
+				"请检查所附原稿，明确当前任务需要完成的工作。"
+			],
+			en: [
+				"Codex main execution",
+				"Ready",
+				"Starting",
+				"Running",
+				"Waiting for your response or approval",
+				"Failed",
+				"Stop",
+				"Enter a task below. Codex communicates directly with you and uses the shared professional tools and task basis.",
+				"You",
+				"Tool execution",
+				"Your answer is needed",
+				"Approval needed",
+				"Choose",
+				"Other",
+				"Reply and continue",
+				"Approve this action",
+				"Decline",
+				"Stop the current Codex task before switching engines.",
+				"Codex main execution requires the updated desktop app.",
+				"Sign in to your account in Codex settings first.",
+				"The Codex runtime is unavailable. Check the desktop app installation.",
+				"The selected Codex model is unavailable. Choose another model.",
+				"Your account cannot use the selected Codex model.",
+				"Your account quota is exhausted. Check your quota before retrying.",
+				"Request failed. Please retry.",
+				"Codex disconnected. Please retry.",
+				"Request timed out. Please retry.",
+				"Open conversation",
+				"Codex is the main executor. Click to switch to DSH.",
+				"Use Codex as the main executor",
+				"Attachments are not ready. Wait for the upload to finish.",
+				"The local attachment path is unavailable. Select the file again.",
+				"This session is running a task. Stop it or wait for completion.",
+				"Invalid task. Enter a task and retry.",
+				"Switch to this task’s working directory first.",
+				"Answer all questions to continue.",
+				"Invalid approval choice. Choose again.",
+				"This interaction has expired. Load the latest task state.",
+				"Inspect the attached originals and clarify the work required for this task."
+			],
+			ja: [
+				"Codex による実行",
+				"準備完了",
+				"起動中",
+				"実行中",
+				"回答または承認を待っています",
+				"実行に失敗",
+				"中止する",
+				"下にタスクを入力してください。Codex が直接対話し、共通の専門ツールとタスクの根拠を使って実行します。",
+				"あなた",
+				"ツールの実行",
+				"回答が必要です",
+				"承認が必要です",
+				"選んでください",
+				"その他",
+				"回答して続行",
+				"この操作を承認",
+				"拒否する",
+				"実行エンジンを切り替える前に、現在の Codex タスクを中止してください。",
+				"Codex による実行には最新版のデスクトップアプリが必要です。",
+				"まず Codex 設定でアカウントにログインしてください。",
+				"Codex の実行環境を利用できません。デスクトップアプリのインストールを確認してください。",
+				"選択した Codex モデルは利用できません。別のモデルを選んでください。",
+				"このアカウントでは選択した Codex モデルを利用できません。",
+				"アカウントの利用枠を使い切りました。利用枠を確認して再試行してください。",
+				"リクエストに失敗しました。再試行してください。",
+				"Codex の接続が切れました。再試行してください。",
+				"リクエストがタイムアウトしました。再試行してください。",
+				"会話を開く",
+				"Codex が実行エンジンに選ばれています。クリックすると DSH に切り替わります。",
+				"Codex を実行エンジンに選ぶ",
+				"添付ファイルの準備ができていません。アップロードの完了を待ってください。",
+				"添付ファイルのローカルパスを取得できません。ファイルを選び直してください。",
+				"このセッションではタスクを実行中です。中止するか完了を待ってください。",
+				"タスクが無効です。タスクを入力して再試行してください。",
+				"まず、このタスクの作業ディレクトリに切り替えてください。",
+				"すべての質問に回答して続行してください。",
+				"承認の選択が無効です。選び直してください。",
+				"この操作要求は失効しました。最新のタスク状態を読み込んでください。",
+				"添付された原本を確認し、このタスクで必要な作業を明確にしてください。"
+			],
+			ko: [
+				"Codex 직접 실행",
+				"준비됨",
+				"시작 중",
+				"실행 중",
+				"답변 또는 승인 대기 중",
+				"실행 실패",
+				"중지",
+				"아래에 작업을 입력하세요. Codex가 직접 대화하며 공통 전문 도구와 작업 근거를 사용합니다.",
+				"사용자",
+				"도구 실행",
+				"답변이 필요합니다",
+				"승인이 필요합니다",
+				"선택",
+				"기타",
+				"답변하고 계속",
+				"이 작업 승인",
+				"거부",
+				"실행 엔진을 전환하기 전에 현재 Codex 작업을 중지하세요.",
+				"Codex 직접 실행에는 최신 데스크톱 앱이 필요합니다.",
+				"먼저 Codex 설정에서 계정에 로그인하세요.",
+				"Codex 실행 환경을 사용할 수 없습니다. 데스크톱 앱 설치를 확인하세요.",
+				"선택한 Codex 모델을 사용할 수 없습니다. 다른 모델을 선택하세요.",
+				"이 계정은 선택한 Codex 모델을 사용할 권한이 없습니다.",
+				"계정 할당량을 모두 사용했습니다. 할당량을 확인한 후 다시 시도하세요.",
+				"요청에 실패했습니다. 다시 시도하세요.",
+				"Codex 연결이 끊겼습니다. 다시 시도하세요.",
+				"요청 시간이 초과되었습니다. 다시 시도하세요.",
+				"대화 열기",
+				"Codex가 주 실행 엔진입니다. 클릭하여 DSH로 전환하세요.",
+				"Codex를 주 실행 엔진으로 선택",
+				"첨부 파일이 준비되지 않았습니다. 업로드가 완료될 때까지 기다리세요.",
+				"첨부 파일의 로컬 경로를 사용할 수 없습니다. 파일을 다시 선택하세요.",
+				"이 세션에서 작업을 실행 중입니다. 중지하거나 완료될 때까지 기다리세요.",
+				"유효하지 않은 작업입니다. 작업을 입력하고 다시 시도하세요.",
+				"먼저 이 작업의 작업 디렉터리로 전환하세요.",
+				"계속하려면 모든 질문에 답변하세요.",
+				"유효하지 않은 승인 선택입니다. 다시 선택하세요.",
+				"이 상호작용 요청은 만료되었습니다. 최신 작업 상태를 불러오세요.",
+				"첨부된 원본을 검토하고 이번 작업에서 해야 할 일을 명확히 하세요."
+			],
+			fr: [
+				"Exécution principale par Codex",
+				"Prêt",
+				"Démarrage",
+				"En cours",
+				"En attente de votre réponse ou approbation",
+				"Échec",
+				"Arrêter",
+				"Saisissez une tâche ci-dessous. Codex dialogue directement avec vous et utilise les outils professionnels et les bases de travail partagés.",
+				"Vous",
+				"Exécution d’un outil",
+				"Votre réponse est nécessaire",
+				"Approbation nécessaire",
+				"Choisir",
+				"Autre",
+				"Répondre et continuer",
+				"Approuver cette action",
+				"Refuser",
+				"Arrêtez la tâche Codex en cours avant de changer de moteur.",
+				"L’exécution principale par Codex nécessite la dernière version de l’application de bureau.",
+				"Connectez-vous d’abord à votre compte dans les paramètres Codex.",
+				"L’environnement Codex est indisponible. Vérifiez l’installation de l’application de bureau.",
+				"Le modèle Codex sélectionné est indisponible. Choisissez un autre modèle.",
+				"Votre compte ne peut pas utiliser le modèle Codex sélectionné.",
+				"Le quota de votre compte est épuisé. Vérifiez-le avant de réessayer.",
+				"Échec de la requête. Réessayez.",
+				"Codex est déconnecté. Réessayez.",
+				"La requête a expiré. Réessayez.",
+				"Ouvrir la conversation",
+				"Codex est le moteur principal. Cliquez pour passer à DSH.",
+				"Utiliser Codex comme moteur principal",
+				"Les pièces jointes ne sont pas prêtes. Attendez la fin du téléversement.",
+				"Le chemin local de la pièce jointe est indisponible. Sélectionnez à nouveau le fichier.",
+				"Cette session exécute une tâche. Arrêtez-la ou attendez sa fin.",
+				"Tâche incorrecte. Saisissez une tâche et réessayez.",
+				"Passez d’abord au dossier de travail de cette tâche.",
+				"Répondez à toutes les questions pour continuer.",
+				"Choix d’approbation incorrect. Choisissez à nouveau.",
+				"Cette demande d’interaction a expiré. Chargez le dernier état de la tâche.",
+				"Examinez les originaux joints et précisez le travail à accomplir pour cette tâche."
+			],
+			de: [
+				"Codex als Hauptausführung",
+				"Bereit",
+				"Wird gestartet",
+				"Wird ausgeführt",
+				"Wartet auf Ihre Antwort oder Freigabe",
+				"Fehlgeschlagen",
+				"Stoppen",
+				"Geben Sie unten eine Aufgabe ein. Codex spricht direkt mit Ihnen und verwendet die gemeinsamen Fachwerkzeuge und Aufgabengrundlagen.",
+				"Sie",
+				"Werkzeugausführung",
+				"Ihre Antwort ist erforderlich",
+				"Freigabe erforderlich",
+				"Auswählen",
+				"Andere",
+				"Antworten und fortfahren",
+				"Diese Aktion freigeben",
+				"Ablehnen",
+				"Stoppen Sie die laufende Codex-Aufgabe, bevor Sie die Ausführungsengine wechseln.",
+				"Die Codex-Hauptausführung erfordert die aktuelle Desktop-App.",
+				"Melden Sie sich zuerst in den Codex-Einstellungen bei Ihrem Konto an.",
+				"Die Codex-Laufzeit ist nicht verfügbar. Prüfen Sie die Installation der Desktop-App.",
+				"Das gewählte Codex-Modell ist nicht verfügbar. Wählen Sie ein anderes Modell.",
+				"Ihr Konto darf das gewählte Codex-Modell nicht verwenden.",
+				"Ihr Kontingent ist aufgebraucht. Prüfen Sie es, bevor Sie es erneut versuchen.",
+				"Anfrage fehlgeschlagen. Bitte erneut versuchen.",
+				"Die Codex-Verbindung wurde getrennt. Bitte erneut versuchen.",
+				"Zeitüberschreitung bei der Anfrage. Bitte erneut versuchen.",
+				"Unterhaltung öffnen",
+				"Codex ist die Hauptengine. Zum Wechsel zu DSH klicken.",
+				"Codex als Hauptengine verwenden",
+				"Die Anhänge sind noch nicht bereit. Warten Sie auf das Ende des Uploads.",
+				"Der lokale Anhangspfad ist nicht verfügbar. Wählen Sie die Datei erneut aus.",
+				"In dieser Sitzung läuft eine Aufgabe. Stoppen Sie sie oder warten Sie auf den Abschluss.",
+				"Ungültige Aufgabe. Geben Sie eine Aufgabe ein und versuchen Sie es erneut.",
+				"Wechseln Sie zuerst zum Arbeitsverzeichnis dieser Aufgabe.",
+				"Beantworten Sie alle Fragen, um fortzufahren.",
+				"Ungültige Freigabeauswahl. Wählen Sie erneut.",
+				"Diese Interaktionsanfrage ist abgelaufen. Laden Sie den aktuellen Aufgabenstatus.",
+				"Prüfen Sie die beigefügten Originale und klären Sie die erforderlichen Arbeiten für diese Aufgabe."
+			],
+			es: [
+				"Ejecución principal con Codex",
+				"Listo",
+				"Iniciando",
+				"En ejecución",
+				"Esperando tu respuesta o aprobación",
+				"Error de ejecución",
+				"Detener",
+				"Introduce una tarea abajo. Codex conversa directamente contigo y utiliza las herramientas profesionales y las bases de trabajo compartidas.",
+				"Tú",
+				"Ejecución de herramienta",
+				"Se necesita tu respuesta",
+				"Se necesita aprobación",
+				"Elegir",
+				"Otro",
+				"Responder y continuar",
+				"Aprobar esta acción",
+				"Rechazar",
+				"Detén la tarea Codex actual antes de cambiar de motor.",
+				"La ejecución principal con Codex requiere la aplicación de escritorio actualizada.",
+				"Primero inicia sesión en tu cuenta desde los ajustes de Codex.",
+				"El entorno Codex no está disponible. Comprueba la instalación de la aplicación de escritorio.",
+				"El modelo Codex seleccionado no está disponible. Elige otro modelo.",
+				"Tu cuenta no puede usar el modelo Codex seleccionado.",
+				"La cuota de tu cuenta está agotada. Compruébala antes de volver a intentarlo.",
+				"La solicitud falló. Inténtalo de nuevo.",
+				"Codex se desconectó. Inténtalo de nuevo.",
+				"La solicitud agotó el tiempo de espera. Inténtalo de nuevo.",
+				"Abrir conversación",
+				"Codex es el motor principal. Haz clic para cambiar a DSH.",
+				"Usar Codex como motor principal",
+				"Los archivos adjuntos no están listos. Espera a que termine la carga.",
+				"La ruta local del archivo adjunto no está disponible. Vuelve a seleccionar el archivo.",
+				"Esta sesión está ejecutando una tarea. Deténla o espera a que termine.",
+				"Tarea no válida. Introduce una tarea e inténtalo de nuevo.",
+				"Primero cambia al directorio de trabajo de esta tarea.",
+				"Responde a todas las preguntas para continuar.",
+				"Opción de aprobación no válida. Vuelve a elegir.",
+				"Esta solicitud de interacción ha caducado. Carga el estado más reciente de la tarea.",
+				"Examina los originales adjuntos y aclara el trabajo necesario para esta tarea."
+			],
+			pt: [
+				"Execução principal com Codex",
+				"Pronto",
+				"A iniciar",
+				"Em execução",
+				"A aguardar a sua resposta ou aprovação",
+				"Falha na execução",
+				"Parar",
+				"Introduza uma tarefa abaixo. O Codex comunica diretamente consigo e utiliza as ferramentas profissionais e as bases de trabalho partilhadas.",
+				"Você",
+				"Execução de ferramenta",
+				"A sua resposta é necessária",
+				"É necessária aprovação",
+				"Escolher",
+				"Outro",
+				"Responder e continuar",
+				"Aprovar esta ação",
+				"Recusar",
+				"Pare a tarefa Codex atual antes de mudar de motor.",
+				"A execução principal com Codex requer a aplicação de computador atualizada.",
+				"Primeiro, inicie sessão na sua conta nas definições do Codex.",
+				"O ambiente Codex está indisponível. Verifique a instalação da aplicação de computador.",
+				"O modelo Codex selecionado está indisponível. Escolha outro modelo.",
+				"A sua conta não pode usar o modelo Codex selecionado.",
+				"A quota da sua conta está esgotada. Verifique-a antes de tentar novamente.",
+				"O pedido falhou. Tente novamente.",
+				"O Codex foi desligado. Tente novamente.",
+				"O pedido excedeu o tempo limite. Tente novamente.",
+				"Abrir conversa",
+				"O Codex é o motor principal. Clique para mudar para DSH.",
+				"Usar Codex como motor principal",
+				"Os anexos ainda não estão prontos. Aguarde a conclusão do envio.",
+				"O caminho local do anexo está indisponível. Selecione o ficheiro novamente.",
+				"Esta sessão está a executar uma tarefa. Pare-a ou aguarde a conclusão.",
+				"Tarefa inválida. Introduza uma tarefa e tente novamente.",
+				"Mude primeiro para o diretório de trabalho desta tarefa.",
+				"Responda a todas as perguntas para continuar.",
+				"Opção de aprovação inválida. Escolha novamente.",
+				"Este pedido de interação expirou. Carregue o estado mais recente da tarefa.",
+				"Examine os originais anexados e esclareça o trabalho necessário para esta tarefa."
+			],
+			ru: [
+				"Основное выполнение через Codex",
+				"Готов",
+				"Запуск",
+				"Выполнение",
+				"Ожидание вашего ответа или разрешения",
+				"Ошибка выполнения",
+				"Остановить",
+				"Введите задачу ниже. Codex общается с вами напрямую и использует общие профессиональные инструменты и исходные данные задачи.",
+				"Вы",
+				"Выполнение инструмента",
+				"Нужен ваш ответ",
+				"Требуется разрешение",
+				"Выбрать",
+				"Другое",
+				"Ответить и продолжить",
+				"Разрешить это действие",
+				"Отклонить",
+				"Остановите текущую задачу Codex перед переключением движка.",
+				"Для основного выполнения через Codex нужна обновлённая настольная версия приложения.",
+				"Сначала войдите в свой аккаунт в настройках Codex.",
+				"Среда Codex недоступна. Проверьте установку настольного приложения.",
+				"Выбранная модель Codex недоступна. Выберите другую модель.",
+				"Ваш аккаунт не может использовать выбранную модель Codex.",
+				"Квота аккаунта исчерпана. Проверьте её перед повторной попыткой.",
+				"Ошибка запроса. Повторите попытку.",
+				"Соединение с Codex прервано. Повторите попытку.",
+				"Время ожидания запроса истекло. Повторите попытку.",
+				"Открыть разговор",
+				"Codex — основной движок. Нажмите, чтобы переключиться на DSH.",
+				"Использовать Codex как основной движок",
+				"Вложения ещё не готовы. Дождитесь завершения загрузки.",
+				"Локальный путь вложения недоступен. Выберите файл заново.",
+				"В этой сессии выполняется задача. Остановите её или дождитесь завершения.",
+				"Некорректная задача. Введите задачу и повторите попытку.",
+				"Сначала перейдите в рабочую папку этой задачи.",
+				"Ответьте на все вопросы, чтобы продолжить.",
+				"Некорректный вариант разрешения. Выберите заново.",
+				"Срок этого запроса истёк. Загрузите актуальное состояние задачи.",
+				"Изучите приложенные оригиналы и уточните, какую работу нужно выполнить для этой задачи."
+			],
+			ar: [
+				"التنفيذ الرئيسي عبر Codex",
+				"جاهز",
+				"جارٍ البدء",
+				"جارٍ التنفيذ",
+				"بانتظار ردك أو موافقتك",
+				"فشل التنفيذ",
+				"إيقاف",
+				"أدخل المهمة أدناه. يتواصل Codex معك مباشرة ويستخدم الأدوات المهنية المشتركة ومعطيات المهمة.",
+				"أنت",
+				"تنفيذ أداة",
+				"يلزم ردك",
+				"تلزم الموافقة",
+				"اختر",
+				"غير ذلك",
+				"الرد والمتابعة",
+				"الموافقة على هذا الإجراء",
+				"رفض",
+				"أوقف مهمة Codex الحالية قبل تبديل محرك التنفيذ.",
+				"يتطلب التنفيذ الرئيسي عبر Codex تطبيق سطح المكتب المحدّث.",
+				"سجّل الدخول إلى حسابك أولاً من إعدادات Codex.",
+				"بيئة Codex غير متاحة. تحقق من تثبيت تطبيق سطح المكتب.",
+				"نموذج Codex المحدد غير متاح. اختر نموذجاً آخر.",
+				"لا يحق لحسابك استخدام نموذج Codex المحدد.",
+				"نفدت حصة حسابك. تحقق منها قبل إعادة المحاولة.",
+				"فشل الطلب. حاول مجدداً.",
+				"انقطع اتصال Codex. حاول مجدداً.",
+				"انتهت مهلة الطلب. حاول مجدداً.",
+				"فتح المحادثة",
+				"Codex هو محرك التنفيذ الرئيسي. انقر للتبديل إلى DSH.",
+				"استخدام Codex كمحرك التنفيذ الرئيسي",
+				"المرفقات غير جاهزة. انتظر اكتمال الرفع.",
+				"المسار المحلي للمرفق غير متاح. اختر الملف مجدداً.",
+				"هذه الجلسة تنفذ مهمة. أوقفها أو انتظر اكتمالها.",
+				"المهمة غير صالحة. أدخل مهمة وحاول مجدداً.",
+				"انتقل أولاً إلى مجلد العمل الخاص بهذه المهمة.",
+				"أجب عن جميع الأسئلة للمتابعة.",
+				"خيار الموافقة غير صالح. اختر مجدداً.",
+				"انتهت صلاحية طلب التفاعل. حمّل أحدث حالة للمهمة.",
+				"افحص الأصول المرفقة ووضّح العمل المطلوب لهذه المهمة."
+			]
+		}).map(([locale, values]) => [locale, Object.fromEntries(keys.map((key, index) => [key, values[index]]))]));
+		function tCodexExecution(key, language) {
+			return (codexExecutionLocales[String(language || "").toLowerCase().split("-")[0]] || codexExecutionLocales.en)[key] || codexExecutionLocales.en[key] || key;
+		}
+		//#endregion
+		//#region src/client/codex-execution.js
+		function createNativeCodexExecution({ React, desktop, language, useLanguage = language, notify = () => {}, renderMessage = (text) => text, openFile }) {
+			const h = React.createElement;
+			const states = /* @__PURE__ */ new Map();
+			const listeners = /* @__PURE__ */ new Map();
+			const engines = /* @__PURE__ */ new Map();
+			let unsubscribe = null;
+			const current = (id) => states.get(id) || {
+				sessionId: id,
+				phase: "idle",
+				messages: [],
+				requests: []
+			};
+			const update = (state) => {
+				if (!state?.sessionId) return;
+				states.set(state.sessionId, state);
+				for (const listener of listeners.get(state.sessionId) || []) listener();
+				notify();
+			};
+			const connect = () => {
+				unsubscribe ??= desktop?.onCodexExecution?.(update) || null;
+			};
+			const load = async (id) => {
+				if (!id || !desktop?.codexExecutionStatus) return;
+				connect();
+				update({
+					...await desktop.codexExecutionStatus(id),
+					sessionId: id
+				});
+			};
+			const subscribe = (id, listener) => {
+				connect();
+				const set = listeners.get(id) || /* @__PURE__ */ new Set();
+				listeners.set(id, set);
+				set.add(listener);
+				return () => {
+					set.delete(listener);
+					if (!set.size) listeners.delete(id);
+				};
+			};
+			const busy = (id) => [
+				"starting",
+				"running",
+				"waiting"
+			].includes(current(id).phase);
+			const enabled = (id) => {
+				if (!engines.has(id)) {
+					let value = false;
+					try {
+						value = localStorage.getItem(`agent-pi:main-engine:${id}`) === "codex";
+					} catch {}
+					engines.set(id, value);
+				}
+				return engines.get(id) === true;
+			};
+			const setEnabled = (id, value) => {
+				if (busy(id)) throw new Error(tCodexExecution("switchBlocked", language()));
+				engines.set(id, value === true);
+				try {
+					localStorage.setItem(`agent-pi:main-engine:${id}`, value ? "codex" : "dsh");
+				} catch {}
+				notify();
+			};
+			async function submit(input) {
+				if (!desktop?.codexExecutionSubmit) throw new Error(tCodexExecution("desktopRequired", language()));
+				connect();
+				return update(await desktop.codexExecutionSubmit(input));
+			}
+			function Question({ request, identity }) {
+				const lang = useLanguage();
+				const [answers, setAnswers] = React.useState({});
+				const [error, setError] = React.useState("");
+				const t = (key) => tCodexExecution(key, lang);
+				const send = async (answer) => {
+					try {
+						update(await desktop.codexExecutionReply(identity, request.id, answer));
+					} catch {
+						setError(t("interactionExpired"));
+					}
+				};
+				const questions = request.params.questions || [];
+				return h("section", { style: {
+					border: "1px solid #ccd4df",
+					borderRadius: 10,
+					padding: 16,
+					margin: "12px 0"
+				} }, h("strong", null, t(questions.length ? "answerNeeded" : "approvalNeeded")), questions.length ? questions.map((question) => h("label", {
+					key: question.id,
+					style: {
+						display: "block",
+						marginTop: 10
+					}
+				}, h("div", null, question.question), question.options?.length ? h("select", {
+					value: answers[question.id] || "",
+					onChange: (event) => setAnswers({
+						...answers,
+						[question.id]: event.target.value
+					})
+				}, h("option", { value: "" }, t("choose")), ...question.options.map((option) => h("option", {
+					key: option.label,
+					value: option.label
+				}, option.label + (option.description ? " — " + option.description : ""))), question.isOther && h("option", { value: "__other__" }, t("other"))) : null, (!question.options?.length || answers[question.id] === "__other__") && h("input", {
+					type: question.isSecret ? "password" : "text",
+					value: answers[question.id + ":other"] || "",
+					onChange: (event) => setAnswers({
+						...answers,
+						[question.id + ":other"]: event.target.value
+					}),
+					style: {
+						width: "100%",
+						marginTop: 6
+					}
+				}))) : h("pre", { style: {
+					whiteSpace: "pre-wrap",
+					wordBreak: "break-word"
+				} }, JSON.stringify({
+					reason: request.params.reason,
+					command: request.params.command,
+					changes: request.params.changes,
+					permissions: request.params.permissions,
+					additionalPermissions: request.params.additionalPermissions,
+					networkApprovalContext: request.params.networkApprovalContext,
+					grantRoot: request.params.grantRoot,
+					cwd: request.params.cwd
+				}, null, 2)), error && h("p", { role: "alert" }, error), questions.length ? h("button", {
+					type: "button",
+					onClick: () => send(Object.fromEntries(questions.map((question) => [question.id, !question.options?.length || answers[question.id] === "__other__" ? answers[question.id + ":other"] : answers[question.id]])))
+				}, t("reply")) : h("div", null, h("button", {
+					type: "button",
+					onClick: () => send("accept")
+				}, t("approve")), " ", h("button", {
+					type: "button",
+					onClick: () => send("decline")
+				}, t("decline"))));
+			}
+			function View(props) {
+				const lang = useLanguage();
+				const id = props.sessionId || "";
+				const [, tick] = React.useState(0);
+				React.useEffect(() => {
+					const off = subscribe(id, () => tick((value) => value + 1));
+					load(id).catch((error) => update({
+						...current(id),
+						sessionId: id,
+						error: error.message
+					}));
+					return off;
+				}, [id]);
+				const state = current(id);
+				const t = (key) => tCodexExecution(key, lang);
+				const identity = {
+					sessionId: id,
+					cwd: state.cwd
+				};
+				const message = (row) => {
+					if (row.role === "tool") return h("details", null, h("summary", null, row.text.split("\n")[0]), h("pre", { style: { whiteSpace: "pre-wrap" } }, row.text));
+					const links = /\[([^\]]+)\]\((<?(?:[A-Za-z]:[\\/]|\/)[^)\n]+)\)/g;
+					const parts = [];
+					let last = 0;
+					for (const match of row.text.matchAll(links)) {
+						parts.push(renderMessage(row.text.slice(last, match.index), state.cwd));
+						const path = match[2].replace(/^</, "").replace(/>$/, "");
+						parts.push(h("button", {
+							type: "button",
+							key: match.index,
+							onClick: () => openFile ? openFile(state.cwd, path) : desktop.openPath(path)
+						}, match[1]));
+						last = match.index + match[0].length;
+					}
+					parts.push(renderMessage(row.text.slice(last), state.cwd));
+					return parts;
+				};
+				return h("div", {
+					"data-agent-pi-codex-main": id,
+					style: {
+						height: "100%",
+						overflow: "auto",
+						minWidth: 0
+					}
+				}, h("div", { style: {
+					maxWidth: 900,
+					margin: "0 auto",
+					padding: 24
+				} }, h("strong", null, t("main")), h("span", { style: {
+					marginLeft: 12,
+					color: "#697586"
+				} }, t(state.phase === "idle" ? "ready" : state.phase)), busy(id) && h("button", {
+					type: "button",
+					style: { marginLeft: 12 },
+					onClick: () => desktop.codexExecutionInterrupt(identity).then(update).catch((error) => update({
+						...state,
+						error: error.message
+					}))
+				}, t("stop")), !state.messages.length && h("p", null, t("intro")), ...state.messages.map((row) => h("article", {
+					key: row.id,
+					style: {
+						marginTop: 20,
+						padding: 14,
+						borderRadius: 10,
+						background: row.role === "user" ? "#eef3fa" : "transparent",
+						whiteSpace: "pre-wrap",
+						overflowWrap: "anywhere",
+						fontSize: row.role === "tool" ? 13 : 15
+					}
+				}, h("div", { style: {
+					fontWeight: 600,
+					marginBottom: 8
+				} }, row.role === "user" ? t("you") : row.role === "assistant" ? "Codex" : t("tool")), message(row))), state.error && h("p", {
+					role: "alert",
+					style: { color: "#b42318" }
+				}, t(state.errorCode || "requestFailed")), ...state.requests.map((request) => h(Question, {
+					key: request.id,
+					request,
+					identity
+				}))));
+			}
+			return {
+				View,
+				current,
+				subscribe,
+				load,
+				enabled,
+				setEnabled,
+				busy,
+				submit,
+				dispose() {
+					unsubscribe?.();
+					unsubscribe = null;
+					listeners.clear();
+				}
+			};
+		}
+		//#endregion
 		//#region ../../vendor/deepseek-harness/packages/util/workspace-path/src/file-address.ts
 		/** The scheme and type every file address opens with. */
 		const FILE_ADDRESS_PREFIX = "dsh-resource://file/";
@@ -8616,15 +9718,6 @@ html.ap-files-rail:has([data-sidebar-right-open]) .ap-wb-page{right:0}
 				model: selectedModel || status.defaultModel || null,
 				reasoningEffort: selectedEffort || inherited || null
 			};
-		}
-		function buildCodexTurnDelegation(task, model, reasoningEffort) {
-			const original = String(task || "").trim();
-			if (!original) throw new Error("Codex delegation requires a non-empty task");
-			return `【Codex 执行模式】
-你是 DSH 主智能体。必须立即调用 subagent_codex，将 run_in_background=false；不要先自行完成任务。请把下方用户任务、明确文件路径、必要上下文和验收目标整理成独立委派，等待 Codex 完成，核验实际结果后再向用户汇报。${model ? `\n本次 Codex 模型由用户指定：调用 subagent_codex 时必须设置 model=${JSON.stringify(model)}，不要替换为其他模型。` : ""}${reasoningEffort ? `\n本次 Codex 思考等级：调用 subagent_codex 时必须设置 reasoningEffort=${JSON.stringify(reasoningEffort)}。` : ""}
-
-【用户原始任务】
-${original}`;
 		}
 		//#endregion
 		//#region src/file-icons.ts
@@ -8896,6 +9989,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		//#region src/client/index.js
 		const h = react.createElement;
 		const AgentTeamsSettings = createAgentTeamsSettings(react);
+		const SearchSettings = createSearchSettings(react);
 		const { api, apiBlob, downloadBlob, rawFileUrl } = createAgentPiApiClient();
 		const MARKUP_RE = /[`*!\[]/;
 		const HTML_SPECIAL_RE = /[&<>"]/;
@@ -9410,6 +10504,18 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		}
 		const codexTurnControllers = window.__apCodexTurnControllers || (window.__apCodexTurnControllers = /* @__PURE__ */ new Map());
 		const codexTurnListeners = window.__apCodexTurnListeners || (window.__apCodexTurnListeners = /* @__PURE__ */ new Set());
+		const nativeCodex = createNativeCodexExecution({
+			React: react,
+			desktop: window.agentPiDesktop,
+			language: () => langState.lang,
+			useLanguage: useApLang,
+			notify: notifyCodexTurn,
+			renderMessage: (text, cwd) => h("div", { dangerouslySetInnerHTML: { __html: mdToHtml(text, { cwd }) } }),
+			openFile: (cwd, path) => window.dispatchEvent(new CustomEvent("agent-pi-open-file", { detail: {
+				cwd,
+				path
+			} }))
+		});
 		const attachmentTurnControllers = window.__apAttachmentTurnControllers || (window.__apAttachmentTurnControllers = /* @__PURE__ */ new Map());
 		function codexTurnKey(props) {
 			return sessionHint(props) || runtime.sessionId || "active";
@@ -9464,12 +10570,12 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			if (controller && controller.phase !== "disposed") controller.latestProps = props;
 		}
 		function codexTurnPhase(props) {
+			if (nativeCodex.enabled(codexTurnKey(props))) return "armed";
 			const controller = codexTurnController(props, false);
 			return controller ? controller.phase : "idle";
 		}
 		function codexTurnArmed(props) {
-			const phase = codexTurnPhase(props);
-			return phase === "armed" || phase === "preparing" || phase === "submitting";
+			return nativeCodex.enabled(codexTurnKey(props));
 		}
 		function setCodexTurnModel(props, model, status) {
 			const controller = codexTurnController(props, true);
@@ -9486,6 +10592,10 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		}
 		function setCodexTurnArmed(props, armed) {
 			const key = codexTurnKey(props);
+			if (!isLiveSessionId(key)) {
+				showToast(tCodexExecution("openConversation", langState.lang));
+				return;
+			}
 			if (armed && attachmentTurnControllers.has(key)) {
 				showToast(workbenchText("当前会话已有附件发送事务，请等待完成后再切换 Codex 执行"));
 				return;
@@ -9493,15 +10603,20 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			const controller = codexTurnController(props, armed);
 			if (!controller) return;
 			controller.latestProps = props;
-			if (armed && controller.phase === "idle") {
-				controller.phase = "armed";
-				watchCodexTurnSession(key, controller);
-			} else if (!armed && controller.phase === "armed") {
-				resetCodexTurnAttempt(key, controller);
-				disposeCodexTurnSessionSubscription(controller);
-				controller.phase = "idle";
-			} else return;
+			try {
+				nativeCodex.setEnabled(key, armed);
+			} catch (error) {
+				showToast(error.message);
+				return;
+			}
+			controller.phase = armed ? "armed" : "idle";
+			if (armed) openNativeCodexView();
 			notifyCodexTurn();
+		}
+		function openNativeCodexView() {
+			requestAnimationFrame(() => {
+				[...document.querySelectorAll("[data-conversation-tabs] [role=\"tab\"]")].find((item) => item.textContent.trim() === "Codex")?.click();
+			});
 		}
 		function disposeCodexTurnInputSubscription(controller) {
 			const unsubscribeInput = controller.unsubscribeInput;
@@ -9545,20 +10660,6 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			if (codexTurnControllers.get(key) !== controller || controller.phase === "disposed") return;
 			resetCodexTurnAttempt(key, controller);
 			controller.phase = "armed";
-			notifyCodexTurn();
-		}
-		function disposeCodexTurn(key, controller) {
-			if (codexTurnControllers.get(key) !== controller) return;
-			resetCodexTurnAttempt(key, controller);
-			disposeCodexTurnSessionSubscription(controller);
-			controller.phase = "disposed";
-			codexTurnControllers.delete(key);
-			attachState.bySession.delete(key);
-			if (activeSessionId() === key) {
-				attachState.items = [];
-				attachState.last = [];
-				notifyAttach();
-			}
 			notifyCodexTurn();
 		}
 		function codexTurnAuthorities(sessionId) {
@@ -9619,49 +10720,6 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				} catch {}
 			});
 		}
-		function watchCodexTurnSession(key, controller) {
-			if (typeof controller.unsubscribeSession === "function") return true;
-			let authorities;
-			try {
-				authorities = codexTurnAuthorities(key);
-			} catch {
-				return false;
-			}
-			const session = authorities && authorities.session;
-			if (!session || typeof session.getSnapshot !== "function" || typeof session.subscribe !== "function") return false;
-			const onSession = () => {
-				if (codexTurnControllers.get(key) !== controller || controller.phase === "disposed") return;
-				let snapshot;
-				try {
-					snapshot = sessionSnapshotWithChat(key, session);
-				} catch {
-					return;
-				}
-				if (snapshot && snapshot.removed === true) {
-					disposeCodexTurn(key, controller);
-					return;
-				}
-				const token = controller.attemptToken;
-				if (controller.phase !== "submitting" || !token) return;
-				if (!token.settlementReady) token.settlementQueued = true;
-				else settleCodexTurn(key, token);
-			};
-			let unsubscribe;
-			try {
-				unsubscribe = subscribeSessionWithChat(key, session, onSession);
-			} catch {
-				return false;
-			}
-			if (typeof unsubscribe !== "function") return false;
-			if (codexTurnControllers.get(key) !== controller || controller.phase === "disposed") {
-				try {
-					unsubscribe();
-				} catch {}
-				return false;
-			}
-			controller.unsubscribeSession = unsubscribe;
-			return true;
-		}
 		function codexUserNode(snapshot, controller) {
 			const nodes = sessionNodes(snapshot);
 			for (const node of nodes) {
@@ -9686,54 +10744,6 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		function nativeCodexAttachmentIds(input) {
 			if (Array.isArray(input && input.attachmentIds)) return input.attachmentIds.slice();
 			return Array.isArray(input && input.imageIds) ? input.imageIds.slice() : [];
-		}
-		function preparingCodexTurn(key, token) {
-			const controller = codexTurnControllers.get(key);
-			if (!controller || controller.phase !== "preparing" || controller.attemptToken !== token) return null;
-			let authorities;
-			try {
-				authorities = codexTurnAuthorities(key);
-			} catch {
-				rearmCodexTurn(key, controller);
-				return null;
-			}
-			if (!authorities) {
-				rearmCodexTurn(key, controller);
-				return null;
-			}
-			const session = authorities.session;
-			const inputStore = authorities.inputStore;
-			if (!session || typeof session.getSnapshot !== "function" || !inputStore || typeof inputStore.getSnapshot !== "function") {
-				rearmCodexTurn(key, controller);
-				return null;
-			}
-			let sessionSnapshot;
-			let inputSnapshot;
-			try {
-				sessionSnapshot = sessionSnapshotWithChat(key, session);
-				inputSnapshot = inputStore.getSnapshot();
-			} catch {
-				rearmCodexTurn(key, controller);
-				return null;
-			}
-			if (sessionSnapshot && sessionSnapshot.removed === true) {
-				disposeCodexTurn(key, controller);
-				return null;
-			}
-			const live = controller.latestProps;
-			const attachmentIds = codexAttachmentIds(codexAttachItems(key));
-			if (!sessionSnapshot || !inputSnapshot || inputSnapshot.phase !== "plain" || typeof inputSnapshot.draft !== "string" || inputSnapshot.draft !== controller.originalDraft || !live || codexTurnKey(live) !== key || !sameCodexAttachmentIds(attachmentIds, controller.capturedAttachmentIds) || !sameCodexAttachmentIds(nativeCodexAttachmentIds(inputSnapshot), controller.capturedNativeAttachmentIds) || !sameCodexAttachmentIds(kbTaskOf(key).slugs, controller.capturedKbSlugs)) {
-				rearmCodexTurn(key, controller);
-				return null;
-			}
-			return {
-				controller,
-				live,
-				session,
-				sessionSnapshot,
-				inputStore,
-				inputSnapshot
-			};
 		}
 		function failCodexTurn(key, controller, inputStore) {
 			if (codexTurnControllers.get(key) !== controller || controller.phase === "disposed") return;
@@ -9766,60 +10776,6 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			controller.selectedReasoningEffort = "";
 			if (capturedIds.length) setCodexAttachItems(key, remaining);
 			notifyCodexTurn();
-		}
-		function settleCodexTurn(key, token) {
-			const controller = codexTurnControllers.get(key);
-			if (!controller || controller.phase !== "submitting" || controller.attemptToken !== token) return;
-			let authorities;
-			try {
-				authorities = codexTurnAuthorities(key);
-			} catch {
-				failCodexTurn(key, controller, null);
-				return;
-			}
-			if (!authorities) {
-				failCodexTurn(key, controller, null);
-				return;
-			}
-			const session = authorities.session;
-			const inputStore = authorities.inputStore;
-			let snapshot;
-			let inputSnapshot;
-			try {
-				snapshot = sessionSnapshotWithChat(key, session);
-				inputSnapshot = inputStore && typeof inputStore.getSnapshot === "function" ? inputStore.getSnapshot() : null;
-			} catch {
-				failCodexTurn(key, controller, inputStore);
-				return;
-			}
-			if (!snapshot || !inputSnapshot) {
-				failCodexTurn(key, controller, inputStore);
-				return;
-			}
-			if (snapshot.removed === true) {
-				disposeCodexTurn(key, controller);
-				return;
-			}
-			if (codexUserNode(snapshot, controller)) {
-				if (!token.hostRequested) clearCodexTurnAfterSubmit(key, controller);
-				return;
-			}
-			const previousInputPhase = controller.lastInputPhase;
-			const previousInputDraftRev = controller.lastInputDraftRev;
-			const inputPhase = inputSnapshot.phase;
-			const inputDraftRev = typeof inputSnapshot.draftRev === "number" ? inputSnapshot.draftRev : null;
-			if (inputPhase === "submitting") controller.sawSubmitting = true;
-			controller.lastInputPhase = inputPhase;
-			controller.lastInputDraftRev = inputDraftRev;
-			if (inputPhase === "submitting") return;
-			if (submissionHasNewPromptError(snapshot, controller)) {
-				failCodexTurn(key, controller, inputStore);
-				return;
-			}
-			if (controller.sawSubmitting && previousInputPhase === "submitting" && inputPhase === "plain" && inputDraftRev !== null && previousInputDraftRev !== null) {
-				if (inputDraftRev === previousInputDraftRev) failCodexTurn(key, controller, inputStore);
-				return;
-			}
 		}
 		const composerPropsRef = { current: null };
 		const composerFace = {
@@ -12104,226 +13060,90 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		function foldAndSubmit(props) {
 			submitAttachmentTurn(props);
 		}
-		function failCodexPreparation(key, token, message) {
-			const controller = codexTurnControllers.get(key);
-			if (!controller || controller.phase !== "preparing" || controller.attemptToken !== token) return;
-			rearmCodexTurn(key, controller);
-			if (message) showToast(message);
-		}
-		function codexPreparedDraft(key, controller, token) {
-			const clean = stripMentionArtifacts(controller.originalDraft);
-			const items = controller.capturedAttachments;
-			const attachLine = formatAttachVisible(items);
-			const block = formatKbTaskBlock(key);
-			const fallback = items.length || controller.capturedNativeAttachmentIds.length ? "请结合附件作答。" : "";
-			const body = [clean, attachLine].filter(Boolean).join("\n\n");
-			const delegation = buildCodexTurnDelegation(block ? body ? block + "\n\n" + body : block + (fallback ? "\n\n" + fallback : "") : body || fallback, controller.capturedModel, controller.capturedReasoningEffort);
-			const marker = attachmentTransactionMarker(token);
-			return marker ? delegation + "\n\n" + marker : delegation;
-		}
-		async function prepareCodexTurn(key, token) {
-			const desktop = window.agentPiDesktop;
-			let status;
+		async function submitCodexTurn(props) {
+			const key = codexTurnKey(props);
+			const controller = codexTurnController(props, true);
+			if (controller.nativePreparing || attachmentTurnControllers.has(key)) return;
+			let authority;
+			try {
+				authority = codexTurnAuthorities(key);
+			} catch {
+				showToast(tCodexExecution("sessionBusy", langState.lang));
+				return;
+			}
+			const snapshot = authority && sessionSnapshotWithChat(key, authority.session);
+			if (!snapshot || snapshot.removed || snapshotIsBusy(snapshot)) {
+				showToast(tCodexExecution("sessionBusy", langState.lang));
+				return;
+			}
+			const original = authority.inputStore.getSnapshot().draft || "";
+			const attachments = codexAttachItems(key).slice();
+			const ids = nativeCodexAttachmentIds(authority.inputStore.getSnapshot());
+			const kbSlugs = kbTaskOf(key).slugs.slice();
+			const selectedModel = controller.selectedModel;
+			const selectedReasoningEffort = controller.selectedReasoningEffort;
+			const unchanged = () => {
+				const live = codexTurnAuthorities(key);
+				const state = live && sessionSnapshotWithChat(key, live.session);
+				if (!state || state.removed || snapshotIsBusy(state) || live.session !== authority.session || live.inputStore.getSnapshot().draft !== original || !sameCodexAttachmentIds(codexAttachmentIds(codexAttachItems(key)), codexAttachmentIds(attachments)) || !sameCodexAttachmentIds(nativeCodexAttachmentIds(live.inputStore.getSnapshot()), ids) || !sameCodexAttachmentIds(kbTaskOf(key).slugs, kbSlugs)) throw new Error(tCodexExecution("sessionBusy", langState.lang));
+			};
+			controller.nativePreparing = true;
 			try {
 				await flushKbTaskSelection(key);
-			} catch {
-				failCodexPreparation(key, token, "知识库选项尚未保存，请重试选择后再发送。");
-				return;
-			}
-			try {
-				status = !desktop || typeof desktop.codexAuthStatus !== "function" ? null : await desktop.codexAuthStatus();
-				if (!status || status.available !== true || status.state !== "logged-in") throw new Error("Codex unavailable");
-			} catch {
-				failCodexPreparation(key, token, "Codex 尚未登录或运行时不可用，请到设置 → Codex 智能体完成登录。");
-				return;
-			}
-			let prepared = preparingCodexTurn(key, token);
-			if (!prepared) return;
-			try {
-				const selected = resolveCodexTurnSelection(status, prepared.controller.selectedModel, prepared.controller.selectedReasoningEffort);
-				prepared.controller.capturedModel = selected.model;
-				prepared.controller.capturedReasoningEffort = selected.reasoningEffort;
-			} catch (error) {
-				failCodexPreparation(key, token, error.message);
-				return;
-			}
-			const items = prepared.controller.capturedAttachments;
-			const cwd = prepared.live && prepared.live.cwd || workspaceCwd(prepared.live);
-			if (items.some((item) => item.cwd && cwd && normPath(item.cwd) !== normPath(cwd))) {
-				failCodexPreparation(key, token, "附件来自另一个工作区，请重新添加后再发送");
-				return;
-			}
-			const files = items.filter((item) => item.kind !== "image" && item.kind !== "folder" && (item.path || item.relativePath || item.name));
-			const folders = items.filter((item) => item.kind === "folder" && (item.path || item.relativePath));
-			prepared.controller.cwd = cwd || "";
-			if (files.length || folders.length) {
-				if (!isLiveSessionId(key) || !cwd) {
-					failCodexPreparation(key, token, "当前会话没有工作区，无法把附件交给模型");
-					return;
-				}
-				token.hostRequested = true;
-				try {
-					const result = await api("/api/agent-pi/llm/vision/read?sessionId=" + encodeURIComponent(key), cwd, {
-						method: "POST",
-						timeoutMs: 3e4,
-						body: JSON.stringify({
-							sessionId: key,
-							transactionId: token.hostTransactionId,
-							cwd,
-							files: files.map((item) => ({
-								name: item.name,
-								path: item.path || item.relativePath,
-								relativePath: item.relativePath || item.path,
-								kind: "file"
-							})),
-							folders: folders.map((item) => ({
-								name: item.name,
-								path: item.path || item.relativePath
-							})),
-							images: []
-						})
+				const auth = await window.agentPiDesktop?.codexAuthStatus?.();
+				if (auth?.state !== "logged-in") throw new Error(tCodexExecution("loginRequired", langState.lang));
+				unchanged();
+				const selection = resolveCodexTurnSelection(auth, selectedModel, selectedReasoningEffort);
+				const cwd = workspaceCwd(props);
+				const native = runtime.conversation?.resolveDraftAttachments?.(ids) || [];
+				if (native.length !== ids.length) throw new Error(tCodexExecution("attachmentsNotReady", langState.lang));
+				const rows = attachments.map((item) => ({
+					...item,
+					path: item.path || joinPath(cwd, item.relativePath || item.name)
+				}));
+				for (const item of native) {
+					const path = window.agentPiDesktop.pathForFile(item.file);
+					if (path) rows.push({
+						path,
+						name: item.file.name,
+						kind: item.kind
 					});
-					if (!result || result.stored !== true || result.sessionId !== key || result.transactionId !== token.hostTransactionId) throw new Error("附件上下文准备失败，请重试");
-					token.prepareSettled = true;
-					token.hostPrepared = true;
-					if (token.cancelWhenPrepared || codexTurnControllers.get(key) !== prepared.controller) {
-						cancelAttachmentTurnHost(key, prepared.controller, token);
-						return;
-					}
-				} catch (err) {
-					token.prepareSettled = true;
-					cancelAttachmentTurnHost(key, prepared.controller, token);
-					failCodexPreparation(key, token, String(err && err.message || err));
-					return;
+					else if (item.kind === "image") {
+						const dataUrl = await new Promise((resolve, reject) => {
+							const reader = new FileReader();
+							reader.onload = () => resolve(reader.result);
+							reader.onerror = reject;
+							reader.readAsDataURL(item.file);
+						});
+						rows.push({
+							name: item.file.name,
+							kind: "image",
+							dataUrl
+						});
+					} else throw new Error(tCodexExecution("attachmentPathUnavailable", langState.lang));
 				}
-				prepared = preparingCodexTurn(key, token);
-				if (!prepared) return;
-			} else token.prepareSettled = true;
-			try {
-				prepared.controller.framedDraft = codexPreparedDraft(key, prepared.controller, token);
-				requestAnimationFrame(() => {
-					commitCodexTurn(key, token);
+				unchanged();
+				const text = stripMentionArtifacts(original) || (rows.length ? tCodexExecution("attachmentTask", langState.lang) : "");
+				await nativeCodex.submit({
+					sessionId: key,
+					cwd,
+					text,
+					attachments: rows,
+					model: selection.model,
+					reasoningEffort: selection.reasoningEffort
 				});
-			} catch {
-				failCodexPreparation(key, token);
-			}
-		}
-		async function commitCodexTurn(key, token) {
-			let prepared = preparingCodexTurn(key, token);
-			if (!prepared) return;
-			const controller = prepared.controller;
-			if (token.hostRequested) try {
-				await commitAttachmentTurnHost(key, controller, token);
+				if (authority.inputStore.getSnapshot().draft === original) setComposerDraft(props, "");
+				const consumed = new Set(attachments.map(codexAttachmentToken));
+				setAttachItemsFor(key, codexAttachItems(key).filter((item) => !consumed.has(codexAttachmentToken(item))));
+				for (const id of ids) props.inputActions?.removeAttachment?.(id);
+				runtime.conversation?.releaseDraftAttachments?.(native);
+				openNativeCodexView();
 			} catch (error) {
-				cancelAttachmentTurnHost(key, controller, token);
-				failCodexTurn(key, controller, prepared.inputStore);
-				showToast(String(error && error.message || error));
-				return;
-			}
-			try {
-				if (hasKbTaskSelectionSave(key)) await flushKbTaskSelection(key);
-			} catch {
-				failCodexPreparation(key, token, "知识库选项尚未保存，请重试选择后再发送。");
-				return;
-			}
-			prepared = preparingCodexTurn(key, token);
-			if (!prepared) return;
-			const inputStore = prepared.inputStore;
-			try {
-				if (typeof inputStore.subscribe !== "function" || !watchCodexTurnSession(key, controller)) throw new Error("Codex settlement subscriptions unavailable");
-				const actions = prepared.live && prepared.live.inputActions;
-				const submit = actions && actions.__apOrigSubmit;
-				if (typeof submit !== "function") throw new Error("Codex original submit unavailable");
-				controller.preSubmitUserNodeWatermark = codexUserNodeWatermark(prepared.sessionSnapshot);
-				controller.preSubmitPromptErrorRef = prepared.sessionSnapshot.promptError || null;
-				controller.preSubmitPromptErrorToken = JSON.stringify(prepared.sessionSnapshot.promptError || null);
-				controller.promptErrorBaselineCleared = false;
-				controller.phase = "submitting";
-				setComposerDraft(prepared.live, controller.framedDraft);
-				const inputSnapshot = inputStore.getSnapshot();
-				controller.lastInputPhase = inputSnapshot && inputSnapshot.phase;
-				controller.lastInputDraftRev = inputSnapshot && typeof inputSnapshot.draftRev === "number" ? inputSnapshot.draftRev : null;
-				controller.sawSubmitting = controller.lastInputPhase === "submitting";
+				showToast(tCodexExecution("requestFailed", langState.lang));
+			} finally {
+				controller.nativePreparing = false;
 				notifyCodexTurn();
-				token.settlementReady = false;
-				token.settlementQueued = false;
-				const onSettlement = () => {
-					if (!token.settlementReady) {
-						token.settlementQueued = true;
-						return;
-					}
-					settleCodexTurn(key, token);
-				};
-				const unsubscribeInput = inputStore.subscribe(onSettlement);
-				if (typeof unsubscribeInput !== "function") throw new Error("Codex input settlement subscription unavailable");
-				controller.unsubscribeInput = unsubscribeInput;
-				token.settlementReady = true;
-				submit();
-				const acceptedInput = inputStore.getSnapshot();
-				controller.acceptedDraft = acceptedInput && typeof acceptedInput.draft === "string" ? acceptedInput.draft : null;
-				controller.acceptedDraftRev = acceptedInput && typeof acceptedInput.draftRev === "number" ? acceptedInput.draftRev : null;
-				scheduleAttachmentTurnStatus(key, controller, token, "codex", 250);
-				if (token.settlementQueued) settleCodexTurn(key, token);
-			} catch {
-				failCodexTurn(key, controller, inputStore);
 			}
-		}
-		function submitCodexTurn(props) {
-			const key = codexTurnKey(props);
-			const controller = codexTurnControllers.get(key);
-			if (!controller || controller.phase !== "armed") return;
-			if (attachmentTurnControllers.has(key)) {
-				showToast("当前会话已有附件发送事务，请等待完成后重试");
-				return;
-			}
-			controller.latestProps = props;
-			let authorities;
-			let sessionSnapshot;
-			let inputSnapshot;
-			try {
-				authorities = codexTurnAuthorities(key);
-				if (!authorities) {
-					showToast("当前会话正在切换，请稍后重试");
-					return;
-				}
-				if (!authorities.session || typeof authorities.session.getSnapshot !== "function" || !authorities.inputStore || typeof authorities.inputStore.getSnapshot !== "function") return;
-				sessionSnapshot = sessionSnapshotWithChat(key, authorities.session);
-				inputSnapshot = authorities.inputStore.getSnapshot();
-			} catch {
-				return;
-			}
-			if (sessionSnapshot && sessionSnapshot.removed === true) {
-				disposeCodexTurn(key, controller);
-				return;
-			}
-			if (!sessionSnapshot || !inputSnapshot || inputSnapshot.phase !== "plain" || typeof inputSnapshot.draft !== "string") return;
-			const attachments = codexAttachItems(key).slice();
-			const token = {
-				prepareSettled: false,
-				cancelWhenPrepared: false,
-				cancelRequested: false,
-				hostRequested: false,
-				hostPrepared: false,
-				hostCommitted: false,
-				hostTransactionId: attachmentTransactionId(key)
-			};
-			controller.phase = "preparing";
-			controller.attemptToken = token;
-			controller.capturedNativeAttachmentIds = nativeCodexAttachmentIds(inputSnapshot);
-			controller.capturedKbSlugs = kbTaskOf(key).slugs.slice();
-			controller.originalDraft = inputSnapshot.draft;
-			controller.framedDraft = "";
-			controller.capturedAttachments = attachments;
-			controller.capturedAttachmentIds = codexAttachmentIds(attachments);
-			controller.inputStore = authorities.inputStore;
-			controller.preSubmitUserNodeWatermark = -1;
-			controller.preSubmitPromptErrorRef = sessionSnapshot.promptError || null;
-			controller.preSubmitPromptErrorToken = JSON.stringify(sessionSnapshot.promptError || null);
-			controller.promptErrorBaselineCleared = false;
-			controller.acceptedDraft = null;
-			controller.acceptedDraftRev = null;
-			notifyCodexTurn();
-			prepareCodexTurn(key, token);
 		}
 		function wrapComposerSubmit(props) {
 			const actions = props && props.inputActions;
@@ -14905,10 +15725,10 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				type: "button",
 				className: "ap-codex-turn" + (armed ? " on" : ""),
 				"aria-pressed": armed ? "true" : "false",
-				title: armed ? workbenchText("下一条消息将由 Codex 子智能体执行") : workbenchText("仅将下一条消息交给 Codex 子智能体"),
+				title: armed ? tCodexExecution("engineCodexTitle", langState.lang) : tCodexExecution("engineDshTitle", langState.lang),
 				onMouseDown: (event) => event.preventDefault(),
 				onClick: () => setCodexTurnArmed(propsRef.current, !armed)
-			}, Icon("sparkles", 14), workbenchText("Codex 执行")), armed && h(ComposerCodexModelSelector, { composer: live }), h(ProfessionalDepth, {
+			}, Icon("sparkles", 14), armed ? "Codex" : "DSH / Codex"), armed && h(ComposerCodexModelSelector, { composer: live }), h(ProfessionalDepth, {
 				key: live.sessionId || "draft",
 				composer: live
 			}), h("button", {
@@ -16210,6 +17030,13 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				}
 			}, zh ? "刷新模型" : "Refresh models"));
 		}
+		function SearchSettingsSection() {
+			const locale = useApLang();
+			return h(SearchSettings, {
+				operations: react.useMemo(() => createSearchSettingsOperations(runtime.remote, api), [runtime.remote]),
+				locale
+			});
+		}
 		function CodexSettingsSection() {
 			const desktop = window.agentPiDesktop;
 			const zh = useApLang() === "zh";
@@ -16349,7 +17176,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				official: "Verified catalog",
 				estimated: "Conservative estimate"
 			};
-			return h("section", { className: "ap-codex-settings" }, h("h1", null, zh ? "Codex 智能体" : "Codex Agent"), h("p", { className: "ap-codex-lead" }, zh ? "DeepSeek DSH 保持主智能体和投标流程控制权，Codex 作为独立子智能体处理明确委派的代码、审查与修复任务。" : "DeepSeek DSH remains the primary agent and tender orchestrator. Codex handles self-contained coding, review, and repair delegations."), h("div", { className: "ap-codex-card" }, h("div", { className: "ap-codex-status" }, h("strong", null, "ChatGPT / Codex"), h("span", { className: statusClass }, labels[auth.state] || auth.state)), h("p", { className: "ap-sub" }, zh ? "使用 ChatGPT 账号在系统浏览器中授权，无需 API Key。凭据仅保存在本机 Agent Pi 专属 Codex 目录。" : "Authorize with your ChatGPT account in the system browser. No API key is required; credentials stay in Agent Pi’s private local Codex directory."), loggedIn && h("div", { className: "ap-codex-model-setting" }, h("label", { htmlFor: "ap-codex-default-model" }, zh ? "默认 Codex 模型" : "Default Codex model"), h("select", {
+			return h("section", { className: "ap-codex-settings" }, h("h1", null, zh ? "Codex 智能体" : "Codex Agent"), h("p", { className: "ap-codex-lead" }, zh ? "在主对话选择 DSH 或 Codex 执行当前任务。Codex 直接与你交流，并复用同一套专业模块、任务依据和成果。" : "Choose DSH or Codex as the task executor in the main conversation. Codex communicates directly with you and shares the professional modules, task basis, and deliverables."), h("div", { className: "ap-codex-card" }, h("div", { className: "ap-codex-status" }, h("strong", null, "ChatGPT / Codex"), h("span", { className: statusClass }, labels[auth.state] || auth.state)), h("p", { className: "ap-sub" }, zh ? "使用 ChatGPT 账号在系统浏览器中授权，无需 API Key。凭据仅保存在本机 Agent Pi 专属 Codex 目录。" : "Authorize with your ChatGPT account in the system browser. No API key is required; credentials stay in Agent Pi’s private local Codex directory."), loggedIn && h("div", { className: "ap-codex-model-setting" }, h("label", { htmlFor: "ap-codex-default-model" }, zh ? "默认 Codex 模型" : "Default Codex model"), h("select", {
 				id: "ap-codex-default-model",
 				className: "ap-codex-model-select",
 				value: auth.selectedModel || "",
@@ -16378,7 +17205,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				key: entry.reasoningEffort,
 				value: entry.reasoningEffort,
 				title: entry.description
-			}, entry.reasoningEffort))), h("p", { className: "ap-sub" }, zh ? "用于 Codex 子智能体调用；主对话开启“Codex 执行”后可单独选择本次模型和思考等级。切换默认模型会清除不兼容的已保存等级。" : "Used for Codex subagent calls. Enable Codex execution to choose a model and effort for one message. Changing the default model clears an incompatible saved effort."), (auth.modelError || auth.reasoningEffortError || modelMessage) && h("p", {
+			}, entry.reasoningEffort))), h("p", { className: "ap-sub" }, zh ? "用于 Codex 主执行和辅助子智能体；主对话选择 Codex 后可指定模型和思考等级，并连续多轮执行。切换默认模型会清除不兼容的已保存等级。" : "Used by Codex main execution and auxiliary subagents. Select Codex in the main conversation to choose a model and reasoning effort for continued tasks. Changing the default model clears an incompatible saved effort."), (auth.modelError || auth.reasoningEffortError || modelMessage) && h("p", {
 				className: "ap-sub",
 				role: "status"
 			}, auth.modelError || auth.reasoningEffortError || modelMessage)), loggedIn && h("p", { className: "ap-sub" }, model ? [
@@ -16503,6 +17330,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		}
 		function apply(ctx) {
 			ctx.effect(() => productCapabilities.install());
+			ctx.effect(() => () => nativeCodex.dispose());
 			installAttachmentMessageView(ctx, react);
 			installArchiveSessionView(ctx, {
 				React: react,
@@ -16521,6 +17349,12 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			});
 			runtime.workspaces = ctx.workspaces || runtime.workspaces;
 			runtime.remote = ctx.remote || runtime.remote;
+			ctx.slots.inject("settings.section", () => ctx.slots.register({
+				name: "settings.section",
+				id: "agent-pi-anysearch",
+				order: 16,
+				label: () => searchSettingsText(langState.lang, "title")
+			}, SearchSettingsSection));
 			watchArchivedWorkspaces();
 			ctx.inject(["sessions"], (scope) => {
 				runtime.sessions = scope.sessions || ctx.sessions || (typeof scope.get === "function" ? scope.get("sessions") : null) || runtime.sessions;
@@ -16559,6 +17393,12 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			ctx.inject(["uiConversation"], (scope) => {
 				runtime.uiConversation = scope.uiConversation || ctx.uiConversation || (typeof scope.get === "function" ? scope.get("uiConversation") : null) || runtime.uiConversation;
 			});
+			ctx.slots.inject("conversation.view", () => ctx.slots.register({
+				name: "conversation.view",
+				id: "agent-pi-codex-main",
+				order: 30,
+				label: "Codex"
+			}, nativeCodex.View));
 			ctx.slots.inject("conversation.view", () => ctx.slots.register({
 				name: "conversation.view",
 				id: "workbench",

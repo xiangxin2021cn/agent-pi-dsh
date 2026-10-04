@@ -12,11 +12,12 @@ const inputItemSchema = {
     additionalProperties: false,
     properties: {
         query: { type: 'string', required: true, description: 'Search query.' },
-        maxResults: { type: 'integer', description: 'Result count from 1 to 20.' },
+        maxResults: { type: 'integer', description: 'Result count from 1 to 10.' },
         tag: { type: 'string', description: 'Exact vertical tag returned by anysearch_capabilities.' },
         params: { type: 'object', additionalProperties: true, description: 'Scalar parameters declared for the tag.' },
         zone: { type: 'string', enum: ['cn', 'intl'], description: 'Search region.' },
         language: { type: 'string', description: 'Provider language hint.' },
+        format: { type: 'string', enum: ['json', 'markdown'], description: 'Result content format. Defaults to markdown.' },
         includeContent: {
             type: 'boolean',
             description: 'Include page content for URL-backed results; URL-less structured content is always retained.',

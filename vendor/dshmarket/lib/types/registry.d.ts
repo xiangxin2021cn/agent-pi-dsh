@@ -89,4 +89,7 @@ export declare function loadRegistry(region?: Region): Promise<Registry>;
  * entirely (measured on Node 25), so a machine whose only route out is a
  * proxy fails here every time while every other tool on it works.
  */
-export declare function describeFetchFailure(error: unknown, elapsedMs: number, attempts?: number): string;
+export declare function describeFetchFailure(error: unknown, elapsedMs: number, attempts?: number, failures?: readonly {
+    source: string;
+    reason: string;
+}[]): string;

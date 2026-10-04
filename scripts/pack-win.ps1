@@ -237,6 +237,8 @@ function Test-UnpackedApp([string]$dir) {
     return $false
   }
   $product = Join-Path $dir "resources\runtime\product"
+  & node (Join-Path $product "scripts\patch-anysearch-alpha1.mjs") --verify (Join-Path $product "vendor\anysearch-dsh") *> $null
+  if ($LASTEXITCODE -ne 0) { return $false }
   if ($IncludeLicensedUniver) {
     & node (Join-Path $Root "scripts\installer-univer-lifecycle.mjs") verify-product $product --required *> $null
     return $LASTEXITCODE -eq 0
@@ -251,6 +253,9 @@ if ($ToolchainOnly) {
   if ($toolchainBuilderExit -ne 0) { throw "local electron-builder.cmd failed: $toolchainBuilderExit" }
   return
 }
+
+& node (Join-Path $Root "scripts\patch-anysearch-alpha1.mjs") --verify (Join-Path $Root "vendor\anysearch-dsh")
+if ($LASTEXITCODE -ne 0) { throw "reviewed AnySearch source verification failed" }
 
 if ($IncludeLicensedUniver) {
   # Ship the complete pinned upstream plugin, including its original licenses.

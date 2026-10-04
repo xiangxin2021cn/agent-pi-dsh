@@ -211,7 +211,12 @@ function presetMismatch(profileDir: string, bundleOrder: string[]): PresetMismat
  * reports the mismatch alongside the still-computable changes (relative
  * order + enabled/disabled diffs over the intersection).
  */
-export function previewPreset(profileDir: string, name: unknown): PresetResult & { changes?: PresetChange; mismatch?: PresetMismatch } {
+export function previewPreset(
+  profileDir: string,
+  name: unknown,
+  /** The host's own installation anchor, when it gave one (#781 review). */
+  dshInstallDir?: string | null,
+): PresetResult & { changes?: PresetChange; mismatch?: PresetMismatch } {
   if (typeof name !== 'string') return { ok: false, error: 'invalid preset name / 组合名称无效' }
   const preset = readPresets(profileDir).find(item => item.name === name)
   if (preset === undefined) return { ok: false, error: 'preset not found / 组合不存在' }
@@ -228,7 +233,7 @@ export function previewPreset(profileDir: string, name: unknown): PresetResult &
     }
   }
 
-  const trial = trialValidate(profileDir, preset.bundleOrder)
+  const trial = trialValidate(profileDir, preset.bundleOrder, dshInstallDir === undefined ? {} : { dshInstallDir })
   if (!trial.ok) {
     const first = trial.errors[0]
     return {
@@ -262,7 +267,13 @@ export function previewPreset(profileDir: string, name: unknown): PresetResult &
  * then write the bundle order and the disable list. The response carries the
  * change preview so the UI can report exactly what moved.
  */
-export function applyPreset(profileDir: string, name: unknown, maxSnapshots: number = DEFAULT_MAX_SNAPSHOTS): PresetApplyResult {
+export function applyPreset(
+  profileDir: string,
+  name: unknown,
+  maxSnapshots: number = DEFAULT_MAX_SNAPSHOTS,
+  /** The host's own installation anchor, when it gave one (#781 review). */
+  dshInstallDir?: string | null,
+): PresetApplyResult {
   if (typeof name !== 'string') return { ok: false, error: 'invalid preset name / 组合名称无效' }
   const preset = readPresets(profileDir).find(item => item.name === name)
   if (preset === undefined) return { ok: false, error: 'preset not found / 组合不存在' }
@@ -279,7 +290,7 @@ export function applyPreset(profileDir: string, name: unknown, maxSnapshots: num
     }
   }
 
-  const trial = trialValidate(profileDir, preset.bundleOrder)
+  const trial = trialValidate(profileDir, preset.bundleOrder, dshInstallDir === undefined ? {} : { dshInstallDir })
   if (!trial.ok) {
     const first = trial.errors[0]
     logEvent('warn', 'preset', `apply "${name}" rejected by trial validation: ${first?.message ?? 'unknown'}`)

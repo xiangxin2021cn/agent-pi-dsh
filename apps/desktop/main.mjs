@@ -11,6 +11,7 @@ import { pipeline } from 'node:stream/promises'
 import { delimiter, dirname, isAbsolute, join, normalize, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createCodexAuthController, resolveCodexWrapper } from './codex-auth.mjs'
+import { createCodexExecutionController } from './codex-execution.mjs'
 import {
   applyCompactionFallbackEnv,
   createCompactionFallbackPreferenceUpdate,
@@ -236,6 +237,34 @@ function resolveNode() {
 }
 
 let codexAuthController = null
+let codexExecutionController = null
+
+function trustedExecutionSender(event) {
+  if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== event.sender.mainFrame
+    || new URL(event.senderFrame.url).origin !== new URL(appUrl).origin) throw new Error('Codex 执行请求不属于当前应用对话。')
+}
+
+function getCodexExecutionController() {
+  if (codexExecutionController) return codexExecutionController
+  const wrapperPath = resolveCodexWrapper(productRoot)
+  if (!wrapperPath) throw new Error('Codex 运行时不可用。')
+  codexExecutionController = createCodexExecutionController({
+    nodePath: resolveNode(), wrapperPath, codexHome, baseEnv: runtimeEnv(),
+    stateFile: join(codexHome, 'agent-pi-main-threads.json'),
+    onEvent: (state) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('codex-execution-event', state) },
+    async bridge(action, body) {
+      if (!isAuthenticatedDshWebUrl(appUrl, dshPort)) throw new Error('专业运行时尚未就绪。')
+      const base = new URL(appUrl)
+      const url = new URL(`/api/agent-pi/codex/${action}`, base)
+      url.searchParams.set('token', base.searchParams.get('token'))
+      const response = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || '专业工具请求失败。')
+      return result
+    },
+  })
+  return codexExecutionController
+}
 
 function getCodexAuthController() {
   if (codexAuthController) return codexAuthController
@@ -1013,8 +1042,18 @@ ipcMain.handle('codex-auth-login', () => (
   getCodexAuthController()?.login() ?? { available: false, state: 'unavailable' }
 ))
 ipcMain.handle('codex-auth-logout', () => (
-  getCodexAuthController()?.logout() ?? { available: false, state: 'unavailable' }
+  (codexExecutionController?.dispose(), codexExecutionController = null,
+    getCodexAuthController()?.logout() ?? { available: false, state: 'unavailable' })
 ))
+ipcMain.handle('codex-execution-status', (event, sessionId) => { trustedExecutionSender(event); return getCodexExecutionController().status(sessionId) })
+ipcMain.handle('codex-execution-submit', async (event, input) => {
+  trustedExecutionSender(event)
+  const auth = await getCodexAuthController()?.status()
+  if (auth?.state !== 'logged-in') throw new Error('请先在设置中登录 Codex。')
+  return getCodexExecutionController().submit(input)
+})
+ipcMain.handle('codex-execution-interrupt', (event, identity) => { trustedExecutionSender(event); return getCodexExecutionController().interrupt(identity) })
+ipcMain.handle('codex-execution-reply', (event, identity, id, answer) => { trustedExecutionSender(event); return getCodexExecutionController().reply(identity, id, answer) })
 ipcMain.handle('codex-set-default-model', (_event, model) => {
   const controller = getCodexAuthController()
   if (!controller) throw new Error('Codex 运行时不可用。')
@@ -1372,6 +1411,7 @@ if (!gotLock) {
 app.on('before-quit', () => {
   app.isQuitting = true
   codexAuthController?.dispose()
+  codexExecutionController?.dispose()
   stopDshTree()
   try { tray?.destroy() } catch {
     // tray may already be gone during shutdown

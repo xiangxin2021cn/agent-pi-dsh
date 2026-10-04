@@ -16,6 +16,7 @@ export interface AnySearchResult {
 export interface AnySearchSearchRequest {
     query: string;
     maxResults?: number;
+    format?: 'json' | 'markdown';
     tag?: string;
     params?: Record<string, AnySearchParamValue>;
     zone?: 'cn' | 'intl';

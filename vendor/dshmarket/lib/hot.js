@@ -235,9 +235,30 @@ function uniqueStrings(value) {
 }
 /** Upper bound on bookmarked catalog URLs kept in state.json (#414). */
 export const MAX_FAVORITES = 500;
+/** Upper bound on blocked package names kept in state.json (#657). */
+export const MAX_BLOCKED = 500;
+/** Upper bound on the persistent do-not-remind list (#728). */
+export const MAX_UPDATE_EXEMPT = 500;
+/** npm package names are at most 214 characters. Longer values are not names. */
+export const MAX_BLOCKED_NAME = 214;
 /** Catalog URLs the user may favorite; http(s) only, order preserved. */
 function favoriteUrls(value) {
     return uniqueStrings(value).filter(url => url.startsWith('http://') || url.startsWith('https://'));
+}
+/** Package names, non-empty, order preserved, capped. */
+function cappedPackageNames(value, cap) {
+    const trimmed = Array.isArray(value)
+        ? value.map(item => typeof item === 'string' ? item.slice(0, MAX_BLOCKED_NAME) : item)
+        : value;
+    return uniqueStrings(trimmed).slice(0, cap);
+}
+/** Package names the user may block. */
+function blockedNames(value) {
+    return cappedPackageNames(value, MAX_BLOCKED);
+}
+/** Package names the user may stop being reminded about. */
+function updateExemptNames(value) {
+    return cappedPackageNames(value, MAX_UPDATE_EXEMPT);
 }
 /** A POSIX-looking environment variable name: the name part of `KEY=value`. */
 const ENV_KEY_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -319,13 +340,15 @@ export function readMarketState(profileDir) {
             // with no region would promise a notice about a choice nobody made.
             regionAuto: state.regionAuto === true && asRegion(state.region) !== null ? true : undefined,
             favorites: favoriteUrls(state.favorites),
+            blocked: blockedNames(state.blocked),
+            updateExempt: updateExemptNames(state.updateExempt),
             ...(githubProxy === null ? {} : { githubProxy }),
             ...(brokenPlugins === undefined ? {} : { brokenPlugins }),
             buildEnv: buildEnvFromUnknown(state.buildEnv),
         };
     }
     catch {
-        return { disabled: new Set(), groups: {}, groupOrder: [], notes: {}, favorites: [] };
+        return { disabled: new Set(), groups: {}, groupOrder: [], notes: {}, favorites: [], blocked: [], updateExempt: [] };
     }
 }
 /**
@@ -370,6 +393,8 @@ export function writeMarketState(profileDir, state) {
         ? state.regionAuto
         : onDisk.regionAuto;
     const favorites = state.favorites ?? onDisk.favorites ?? [];
+    const blocked = state.blocked ?? onDisk.blocked ?? [];
+    const updateExempt = state.updateExempt ?? onDisk.updateExempt ?? [];
     // This field does have a clear action ("restore automatic"). As with
     // regionAuto, omission preserves while an explicit undefined removes it.
     const githubProxy = Object.prototype.hasOwnProperty.call(state, 'githubProxy')
@@ -383,6 +408,8 @@ export function writeMarketState(profileDir, state) {
         groups: state.groups,
         groupOrder: state.groupOrder,
         ...(favorites.length > 0 ? { favorites } : {}),
+        ...(blocked.length > 0 ? { blocked } : {}),
+        ...(updateExempt.length > 0 ? { updateExempt } : {}),
         ...(Object.keys(notes).length > 0 ? { notes } : {}),
         // Omitted while unchosen, so "never picked" survives a round trip and
         // keeps deriving from the running build — but only when disk has not

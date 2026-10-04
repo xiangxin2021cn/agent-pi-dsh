@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { apply } from '../vendor/anysearch-dsh/lib/index.js'
 
-test('AnySearch 0.1.4 registers against the actual bundled native web-fetch API', () => {
+test('AnySearch 0.1.6 registers against the actual bundled native web-fetch API', () => {
   const tools = new Map(), search = [], fetch = [], sections = []
   const ctx = {
     credentials: { resolve: async () => undefined },

@@ -11,7 +11,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { compareSemver, isSemver, satisfiesRange } from "./check.js";
-import { classifyPeer } from "./compatibility.js";
+import { classifyPeer, crossesImplicitCeiling } from "./compatibility.js";
 import { marketFetch } from "./net.js";
 const CACHE_SCHEMA = 'dsh-market/discovery-compatibility-cache/v1';
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
@@ -79,11 +79,20 @@ function rangeResult(hostVersion, declared) {
  * was never intended as a host ceiling. Reuse install preflight's directional
  * policy: below-min and explicit upper/exact violations are definite; a
  * newer host above an implicit caret/tilde ceiling remains compatible.
+ *
+ * One case is carved out of that leniency: a host that has crossed the
+ * implicit ceiling outright rather than merely straddling the prerelease gate
+ * is a release line the author has left behind, and dsh's own gate refuses the
+ * release for exactly that reason (#756 shape). Reporting it compatible is how
+ * one install produces two contradicting verdicts — the market's, then the
+ * gate's "installation rejected". See {@link crossesImplicitCeiling}.
  */
 function declarationResult(declaration, hostVersion) {
     const satisfied = rangeResult(hostVersion, declaration.range);
     if (declaration.kind === 'engine' || satisfied !== false)
         return satisfied;
+    if (crossesImplicitCeiling(hostVersion, declaration.range))
+        return false;
     const verdict = classifyPeer('discovery', declaration.package ?? '@deepseek-ai/dsh', declaration.range, hostVersion, false);
     if (verdict.kind === 'risk')
         return false;

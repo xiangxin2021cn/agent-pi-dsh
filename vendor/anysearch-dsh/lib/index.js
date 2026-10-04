@@ -59,6 +59,7 @@ export function apply(ctx, config) {
         apiKeyReference: resolved.apiKeyEnv,
         baseURL: resolved.baseURL,
     });
+    ctx.provide?.('agentPiAnySearch', { client, apiKeyRef: resolved.apiKeyEnv });
     ctx.web.registerSearchProvider(new AnySearchProvider(client));
     ctx.web.registerFetchProvider(new AnySearchFetchProvider(client));
     if (ctx.tools.get('web_fetch') === undefined) {

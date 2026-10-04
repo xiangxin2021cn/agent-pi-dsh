@@ -50,6 +50,7 @@ export function registerBusinessActivation(ctx: {
     }
   }
   ctx.on('agent/created', ({ agent }) => sync(agent))
+  ctx.on('agent-pi/business-activation-sync', ({ agent }) => sync(agent))
   ctx.on('agent/pre-step', (payload, next) => {
     sync(payload.agent)
     return typeof next === 'function' ? next() : { kind: 'enter', messages: payload.messages || [] }

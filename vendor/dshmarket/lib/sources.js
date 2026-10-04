@@ -211,6 +211,20 @@ export function lookupRepoFromUrl(url) {
     return null;
 }
 /**
+ * Repo identity (`owner/repo`, lowercased) of any GitHub URL, ignoring the
+ * path after the repo — the plain repo page, monorepo subpaths, and the
+ * Release asset URLs `lookupRepoFromUrl` returns all fold to one key.
+ * Non-GitHub URLs return null.
+ *
+ * Update authorization for archive-URL installs (#768): the catalog entry
+ * has to own both the repo the archive came from and the registry name the
+ * update would use, and this is the repo side of that comparison.
+ */
+export function catalogRepoKey(url) {
+    const repo = /^https?:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)/i.exec(url);
+    return repo === null ? null : `${repo[1]}/${repo[2]}`.toLowerCase();
+}
+/**
  * Normalized identity of an install target, for comparing two targets that
  * may be spelled differently — lowercased, matching `githubRepoIdentity`.
  *

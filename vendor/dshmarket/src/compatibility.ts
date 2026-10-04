@@ -138,6 +138,49 @@ function hasExplicitUpperOrExact(bounds: AlternativeBounds[]): boolean {
   return bounds.every(alternative => alternative.exact !== null || alternative.explicitUpper)
 }
 
+/** Major.minor lines a `^` / `~` comparator declared, as `major.minor`. */
+function declaredLines(range: string): string[] | null {
+  const lines: string[] = []
+  for (const rawAlternative of range.split('||')) {
+    for (const raw of rawAlternative.trim().split(/\s+/).filter(Boolean)) {
+      const parsed = parseComparator(raw)
+      if (parsed === null) return null
+      if (parsed.op !== '^' && parsed.op !== '~') continue
+      const m = /^(\d+)\.(\d+)\./.exec(parsed.target)
+      if (m !== null) lines.push(`${m[1]}.${m[2]}`)
+    }
+  }
+  return lines
+}
+
+/**
+ * Whether a resolved version has crossed a `^` / `~` ceiling the author never
+ * wrote — the release-line break (`^0.1.x` judged by a 0.2 host).
+ *
+ * `hasExplicitUpperOrExact` says an implicit caret/tilde ceiling is too sloppy
+ * to call a risk, because authors write `^0.0.1` without meaning `<0.0.2-0`.
+ * That leniency earns its keep only while the host is still on a line the
+ * range named: the leftover failure is then the prerelease gate, which says
+ * nothing about the host's ability to load the plugin. `^0.1.x` under a 0.2
+ * host is a different claim — the declared line is behind us, and dsh's own
+ * gate (node-semver, the same bounds) refuses that release for exactly this
+ * reason. Both are `aboveMax` warnings to {@link classifyPeer}; the difference
+ * is whether a declared line is still shared.
+ *
+ * A `^0.0.x` range is excluded by design: it names no minor line to fall
+ * behind, and its ceiling has always been treated as noise rather than a
+ * declaration (see the sloppy-ceiling case in discovery-compatibility).
+ */
+export function crossesImplicitCeiling(resolved: string, range: string): boolean {
+  const lines = declaredLines(range)
+  if (lines === null || lines.includes(resolved.split('.').slice(0, 2).join('.'))) return false
+  // Only a range that named a real minor line can be left behind.
+  const minorLines = lines.filter(line => !line.endsWith('.0'))
+  if (minorLines.length === 0) return false
+  return boundsFor(range)?.some(alternative =>
+    alternative.exact === null && alternative.upper !== null && aboveAllMaxes(resolved, [alternative])) === true
+}
+
 /** Translate one confirmed peer mismatch into a directional verdict. */
 export function classifyPeer(
   plugin: string,

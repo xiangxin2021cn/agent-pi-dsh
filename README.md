@@ -8,7 +8,7 @@
 
 <h1 align="center">Agent Pi DSH</h1>
 
-开发版本 3.7.9 升级到官方 DSH 0.2.1-alpha.1、pi-ai 0.87.1 与 Cordis 4.0.5-alpha.1，并加入专业证据判断及主动纠错规则。详见[3.7.9 说明](release/github-notes-3.7.9.md)。当前公开安装包为 3.7.8，保留 CAD 的 DWG→DXF 导出与完整文件预览。OfficeCLI 与 Univer Office 载体的评估见[专项评估](docs/office-carrier-evaluation-3.7.7.md)。
+开发版本 3.7.9 升级到官方 DSH 0.2.1-alpha.1、pi-ai 0.87.1 与 Cordis 4.0.5-alpha.1，并加入专业证据判断及主动纠错规则。本次同版本重建增加 Codex 0.160.0 主执行、恢复 AnySearch 与 API Key 设置入口，升级 dshmarket 1.66.8 和完整 Univer Office 0.3.6。详见[3.7.9 说明](release/github-notes-3.7.9.md)。当前公开安装包为 3.7.8，保留 CAD 的 DWG→DXF 导出与完整文件预览。OfficeCLI 与 Univer Office 载体的评估见[专项评估](docs/office-carrier-evaluation-3.7.7.md)。
 
 3.7.5 新增专业任务引导、项目国别与依据评估、BOQ 成本/资源推导和实际递交清单检查，沿用原生 DSH 执行机制。见[使用说明](docs/professional-task-guide.md)、[实施计划](docs/implementation-plan-3.7.5.md)和[验证记录](docs/verification-3.7.5.md)。
 
@@ -99,7 +99,7 @@
 | **出处芯片** | 只显示源文件、页或行、题目；证据正文不贴进正式稿 |
 | **本地知识库** | 两条入库路、按文档章节切条款、MinerU 转可读表、用户模板、`.apkb` 传递包 |
 | **崩溃只救没递交的工人** | 已完工任务不重读、不重派；只找回还没递交成果的工人 |
-| **企业级插件** | 技能、工具、工作台页、验收门禁都可以加；官方 Univer Office 0.3.5 随安装包提供，支持软件内 Office 编辑与预览 |
+| **企业级插件** | 技能、工具、工作台页、验收门禁都可以加；官方 Univer Office 0.3.6 随安装包提供，支持软件内 Office 编辑与预览 |
 
 ---
 

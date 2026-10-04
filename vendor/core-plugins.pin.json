@@ -1,19 +1,20 @@
 {
-  "checkedAt": "2026-09-29",
+  "checkedAt": "2026-10-04",
   "packages": [
     {
       "name": "dshmarket",
-      "version": "1.66.4",
-      "integrity": "sha512-aQU5++DN1mLEORIXBEQ2yDgQE8MPxgVHD44qgAgnsEwC45hDWTwxuJCueN08Qsohpa/lzmFhkyblc+9y3sCTQA==",
-      "shasum": "5c14426e07c4e85e287ebf4e41f91455e11841ba",
-      "archiveBytes": 1096933
+      "version": "1.66.8",
+      "integrity": "sha512-zOYCijI/du6qlcmUbx47aaUv6OM7Z/akIQ8n3f9Q2ihtV3U3sbRI5nG0guS+8npsb/vhA2turyEf9Yblg6LweQ==",
+      "shasum": "e8664121d70e258cfe11469ca70b9c6f85357978",
+      "archiveBytes": 1151091
     },
     {
       "name": "@anysearch/anysearch-dsh",
       "version": "0.1.6",
       "integrity": "sha512-ZJMehdf0KUjfb7HKgq6YUD2+/4iMszddbRwXZbyo5GV/6l8XfJNAGA7CFtQVssa9HUgmy6yI2OPo4lKVtMhLfA==",
       "shasum": "353ff21352c91ed90688b8001dc3976e682f8f54",
-      "archiveBytes": 172126
+      "archiveBytes": 172126,
+      "adaptation": "vendor/anysearch-dsh/AGENT-PI-ADAPTATION.json"
     }
   ],
   "injector": {

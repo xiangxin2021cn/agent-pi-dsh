@@ -1,0 +1,51 @@
+{
+  "upstream": "https://github.com/anysearch-team/anysearch-dsh",
+  "version": "0.1.6",
+  "license": "MIT",
+  "dsh": "0.2.1-alpha.1",
+  "cordis": "4.0.5-alpha.1",
+  "schemastery": "3.18.5-alpha.1",
+  "sourceManifestSha256": "9724bc309f31497c89742fb1194fdae9e0751d646469e53245832f696bb89364",
+  "adaptedManifestSha256": "5a9376ae5ade5d430fc169e0620b90cf8620fec098ff90faf94717eb7059c0c2",
+  "changes": [
+    "exact reviewed alpha peer additions",
+    "search count 1..10 and content format",
+    "safe upstream diagnostics without credential-bearing messages",
+    "per-request credential resolution retained",
+    "product probe reuses the registered client and credential reference"
+  ],
+  "files": {
+    "lib/index.js": {
+      "originalSha256": "57290abf4bd78cf25a24715f5f86aed0f921df2622a7f2599e12023f5f8368c8",
+      "adaptedSha256": "fa10c9a638a679f026f0cce91b4f3462a6882877ccf4326aa9cd43b35d4ec9cf"
+    },
+    "lib/provider.js": {
+      "originalSha256": "2c0bf8b79abbc7589abc19634e424c73ae1a407de09b6dda42c159a5d5d0c24d",
+      "adaptedSha256": "d208b5864e403695bab918b65a7fc163a247f795317dfbf596fed15ea26688f8"
+    },
+    "lib/client.js": {
+      "originalSha256": "d8e38aa310395a8a2f539e162cb05c4d26e0e67c83a525e74dc94582e8d770e9",
+      "adaptedSha256": "ff7e9149995a77f5ccd44d00ba2ecdbe9df9ee3e40c7e288212027e778e2b510"
+    },
+    "lib/tools/search.js": {
+      "originalSha256": "49a2a42efa3a36a442fa963d22e7f7b78a39ccc08602731a4cb0bf36bedcc4a8",
+      "adaptedSha256": "d504298e1d5ec1c0ec03e2ad3dd51e29b806b70507ed4858a1d4eceb9b4557c3"
+    },
+    "lib/tools/batch.js": {
+      "originalSha256": "60b6b669e75fae2a4f6225102304ac70e908030cbcc03aaba04b24211adf191c",
+      "adaptedSha256": "04a8a28c2b7813866be0ee86b3dc2d9910c1b694c7a6e7a1629770f5a59c9d5f"
+    },
+    "lib/types.d.ts": {
+      "originalSha256": "6d01fb2ec9452bf23db4531a0bffc27b5f4782176e025ad07dc28e3df20fad70",
+      "adaptedSha256": "5273c5ffa0e4bfe8fff1065db756a3e7d2b109a31f55e2b792a73b3b64b57da9"
+    },
+    "lib/tools/search.d.ts": {
+      "originalSha256": "df892ab12fc792db604ee92218a9a912de5f8dc884ae318025d44e0507ede513",
+      "adaptedSha256": "984428429a37daa557ebd4ff494cd3cbc6728c4705f418924b979302c0a62db9"
+    },
+    "lib/tools/batch.d.ts": {
+      "originalSha256": "6ca06842bef295146970ff9e97fce412f5ff62fdb1b30997a1c9d252f131e998",
+      "adaptedSha256": "64f3171e2a311c00dbe0a6c34f314f55823d81a4a287920b113923683a538139"
+    }
+  }
+}

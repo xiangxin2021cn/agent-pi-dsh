@@ -35,6 +35,7 @@
       "dsh-web-url.mjs",
       "codex-auth.mjs",
       "codex-models.mjs",
+      "codex-execution.mjs",
       "compaction-preferences.mjs",
       "agent-team-preferences.mjs",
       "startup-diagnostics.mjs",

@@ -254,6 +254,11 @@ export declare function compareSemver(a: string, b: string): number;
  * Discovery can opt into npm's `includePrerelease` behaviour because every
  * published DSH host line is itself prerelease; diagnostics retain the npm
  * default unless a caller explicitly asks for that wider admission.
+ *
+ * `includePrerelease` widens ADMISSION only — which prereleases may be
+ * considered at all. It does not move a `^` / `~` ceiling, so a cross-minor
+ * host line stays outside a range that declared the previous minor, exactly
+ * as node-semver decides it (see {@link exclusiveUpperBound}).
  */
 export declare function satisfiesRange(version: string, range: string, options?: {
     includePrerelease?: boolean;

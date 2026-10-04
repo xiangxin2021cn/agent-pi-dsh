@@ -120,18 +120,25 @@ export declare function latestPublishedRecently(name: string, windowMs?: number)
 export declare function versionOnChannel(name: string, channel: Channel, stable: string | null): Promise<string | null>;
 export declare function fetchNpmLatest(name: string): Promise<string | null>;
 /** Per-plugin update checks; a failed check reports no update rather than failing the listing. */
-export declare function checkUpdates(profile: string, force?: boolean, explicitDir?: string, 
+export declare function checkUpdates(profile: string, force?: boolean, explicitDir?: string,
 /**
  * Packages that follow a release channel instead of plain `latest`. Only
  * ever the market itself: opting into early builds is volunteering to try
  * THIS plugin early, not a licence to pull every other author's
  * unreleased work.
  */
-channelFor?: ReadonlyMap<string, Channel>, 
+channelFor?: ReadonlyMap<string, Channel>,
 /**
  * Curated npm sources for the installs that carry no registry spec of
  * their own: `file:` packages matched to the market catalog (#429) and
  * the generations the desktop host links in (#497). Any other `link:` is
  * a development workspace and is never opted into online updates.
  */
-onlineSourceFor?: ReadonlyMap<string, string>): Promise<Record<string, UpdateStatus>>;
+onlineSourceFor?: ReadonlyMap<string, string>,
+/**
+ * Registry names an archive-URL install may be checked against, keyed by
+ * the GitHub repo (`owner/repo`) the archive came from (#768). Without an
+ * entry that owns both the repo and the name, the npm fallback would
+ * compare the install with whatever package merely shares its name.
+ */
+catalogNpmByRepo?: ReadonlyMap<string, string>): Promise<Record<string, UpdateStatus>>;

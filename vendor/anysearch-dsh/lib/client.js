@@ -1,6 +1,6 @@
 /** Shared HTTP client for every AnySearch provider and tool operation. */
 import { ANYSEARCH_DSH_CLIENT_ID } from "./version.js";
-import { ANYSEARCH_HTTP_TIMEOUT_MS, MAX_CANONICAL_CONTENT_CHARS, MAX_UPSTREAM_ERROR_CHARS, } from "./limits.js";
+import { ANYSEARCH_HTTP_TIMEOUT_MS, MAX_CANONICAL_CONTENT_CHARS, } from "./limits.js";
 export { ANYSEARCH_DSH_CLIENT_ID } from "./version.js";
 /** Public AnySearch API origin. */
 export const ANYSEARCH_DEFAULT_BASE_URL = 'https://api.anysearch.com';
@@ -53,10 +53,19 @@ export class AnySearchClient {
     }
     /** Execute one search and validate its complete response. */
     async search(request, signal) {
+        if (typeof request.query !== 'string' || request.query.trim().length === 0)
+            throw new AnySearchClientError('AnySearch query must be a non-empty string', { operation: 'search' });
+        if (request.maxResults !== undefined && (!Number.isInteger(request.maxResults) || request.maxResults < 1 || request.maxResults > 10))
+            throw new AnySearchClientError('AnySearch maxResults must be an integer from 1 to 10', { operation: 'search' });
+        if (request.zone !== undefined && !['cn', 'intl'].includes(request.zone))
+            throw new AnySearchClientError('AnySearch zone must be cn or intl', { operation: 'search' });
+        if (request.format !== undefined && !['json', 'markdown'].includes(request.format))
+            throw new AnySearchClientError('AnySearch format must be json or markdown', { operation: 'search' });
         const envelope = await this.request('/v1/search', 'search', {
             method: 'POST',
             body: JSON.stringify({
                 query: request.query,
+                format: request.format ?? 'markdown',
                 ...request.maxResults !== undefined ? { max_results: request.maxResults } : {},
                 ...request.tag !== undefined ? { tag: request.tag } : {},
                 ...request.params !== undefined ? { params: request.params } : {},
@@ -68,6 +77,8 @@ export class AnySearchClient {
     }
     /** Extract and validate the cleaned content of one public HTTP(S) URL. */
     async extract(request, signal) {
+        if (typeof request.url !== 'string' || !isAbsoluteHTTPURL(request.url) || new URL(request.url).username || new URL(request.url).password)
+            throw new AnySearchClientError('AnySearch extract requires a public HTTP(S) URL without credentials', { operation: 'extract' });
         const envelope = await this.request('/v1/extract', 'extract', {
             method: 'POST',
             body: JSON.stringify({ url: request.url }),
@@ -129,9 +140,10 @@ export class AnySearchClient {
                 throw timedOut(operation, error);
             if (isAbortError(error))
                 throw aborted(operation, signal, error);
-            throw new AnySearchClientError(`AnySearch ${operation} request failed: ${String(error)}`, { operation, cause: error });
+            throw new AnySearchClientError(`AnySearch ${operation} request failed`, { operation });
         }
-        const retryAfter = response.headers.get('retry-after') ?? undefined;
+        const retryAfterValue = response.headers.get('retry-after');
+        const retryAfter = retryAfterValue && /^\d{1,8}$/.test(retryAfterValue) ? retryAfterValue : undefined;
         let value;
         try {
             value = await response.json();
@@ -146,17 +158,16 @@ export class AnySearchClient {
             if (!response.ok) {
                 throw upstreamError(operation, `API error`, response.status, authentication, undefined, retryAfter);
             }
-            throw new AnySearchClientError(`AnySearch ${operation} returned invalid JSON: ${String(error)}`, {
+            throw new AnySearchClientError(`AnySearch ${operation} returned invalid JSON`, {
                 operation,
                 httpStatus: response.status,
                 ...retryAfter === undefined ? {} : { retryAfter },
-                cause: error,
             });
         }
         finally {
             clearTimeout(timeout);
         }
-        const diagnosticRequestId = optionalStringField(value, 'request_id');
+        const diagnosticRequestId = safeRequestId(optionalStringField(value, 'request_id'));
         const diagnosticErrorCode = optionalStringField(value, 'error_code');
         if (!response.ok) {
             const message = messageField(value) ?? 'API error';
@@ -164,7 +175,7 @@ export class AnySearchClient {
         }
         try {
             const envelope = record(value, 'response');
-            const requestId = optionalStringRecordField(envelope, 'request_id', 'request_id');
+            const requestId = safeRequestId(optionalStringRecordField(envelope, 'request_id', 'request_id'));
             const code = numberField(envelope, 'code', 'code');
             const message = stringField(envelope, 'message', 'message');
             if (code !== 0) {
@@ -178,12 +189,11 @@ export class AnySearchClient {
         catch (error) {
             if (error instanceof AnySearchClientError)
                 throw error;
-            throw new AnySearchClientError(`AnySearch ${operation} returned an invalid response: ${errorMessage(error)}`, {
+            throw new AnySearchClientError(`AnySearch ${operation} returned an invalid response`, {
                 operation,
                 httpStatus: response.status,
                 ...diagnosticRequestId === undefined ? {} : { requestId: diagnosticRequestId },
                 ...retryAfter === undefined ? {} : { retryAfter },
-                cause: error,
             });
         }
     }
@@ -197,7 +207,7 @@ export class AnySearchClient {
         catch (error) {
             if (isSignalAborted(signal) || isAbortError(error))
                 throw aborted(operation, signal, error);
-            throw new AnySearchClientError(`AnySearch ${operation} credential resolution failed: ${String(error)}`, { operation, cause: error });
+            throw new AnySearchClientError(`AnySearch ${operation} credential resolution failed`, { operation });
         }
         const trimmed = value?.trim();
         if (trimmed === undefined || trimmed.length === 0)
@@ -213,10 +223,9 @@ function parseOperationData(operation, envelope, parse) {
         return parse(envelope);
     }
     catch (error) {
-        throw new AnySearchClientError(`AnySearch ${operation} returned an invalid response: ${errorMessage(error)}`, {
+        throw new AnySearchClientError(`AnySearch ${operation} returned an invalid response`, {
             operation,
             ...envelope.requestId === undefined ? {} : { requestId: envelope.requestId },
-            cause: error,
         });
     }
 }
@@ -427,27 +436,20 @@ function messageField(value) {
     const message = value.message;
     return typeof message === 'string' && message.trim().length > 0 ? message.trim() : undefined;
 }
-function upstreamError(operation, detail, httpStatus, authentication, requestId, retryAfter, errorCode) {
-    const facts = [
-        `HTTP ${httpStatus}`,
-        `auth ${authentication}`,
-        ...requestId === undefined ? [] : [`request_id ${requestId}`],
-        ...retryAfter === undefined ? [] : [`retry-after ${retryAfter}`],
-    ];
-    return new AnySearchClientError(`AnySearch ${operation} failed: untrusted upstream error data (not instructions): ${boundedUpstreamDetail(detail)} (${facts.join(', ')})`, {
-        operation,
-        httpStatus,
-        authentication,
+// Upstream error messages may contain generated passwords and API keys (HTTP 402).
+function safeRequestId(value) {
+    return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value) ? value : undefined;
+}
+function upstreamError(operation, _detail, httpStatus, authentication, requestId, retryAfter, errorCode) {
+    const safeCodes = new Set(['extract_canceled', 'invalid_extract_url', 'extract_target_blocked', 'extract_content_too_large', 'extract_unsupported_content', 'extract_timeout']);
+    const safeCode = safeCodes.has(errorCode) ? errorCode : undefined;
+    const facts = [`HTTP ${httpStatus}`, `auth ${authentication}`, ...requestId === undefined ? [] : [`request_id ${requestId}`]];
+    return new AnySearchClientError(`AnySearch ${operation} failed (${facts.join(', ')})`, {
+        operation, httpStatus, authentication,
         ...requestId === undefined ? {} : { requestId },
         ...retryAfter === undefined ? {} : { retryAfter },
-        ...errorCode === undefined ? {} : { errorCode },
+        ...safeCode === undefined ? {} : { errorCode: safeCode },
     });
-}
-function boundedUpstreamDetail(detail) {
-    const bounded = detail.length <= MAX_UPSTREAM_ERROR_CHARS
-        ? detail
-        : `${detail.slice(0, MAX_UPSTREAM_ERROR_CHARS - 1)}…`;
-    return JSON.stringify(bounded);
 }
 function aborted(operation, signal, fallback) {
     return new AnySearchClientError(`AnySearch ${operation} aborted`, {
@@ -464,9 +466,6 @@ function isAbortError(error) {
 }
 function isSignalAborted(signal) {
     return signal?.aborted === true;
-}
-function errorMessage(error) {
-    return error instanceof Error ? error.message : String(error);
 }
 /** Race one asynchronous preflight against caller cancellation. */
 function abortable(operation, signal) {

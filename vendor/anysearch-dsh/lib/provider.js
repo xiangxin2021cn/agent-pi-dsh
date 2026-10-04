@@ -39,7 +39,7 @@ export class AnySearchProvider {
         try {
             return mapAnySearchResponse(await this.client.search({
                 query: request.query,
-                ...request.maxResults === undefined ? {} : { maxResults: request.maxResults },
+                ...request.maxResults === undefined ? {} : { maxResults: Math.min(10, request.maxResults) },
             }, signal));
         }
         catch (error) {

@@ -30,5 +30,5 @@ export async function parseTaskSource(agent: any, state: ProfessionalTask, input
   }
   const evidence = { id: `source:${input.id}`, title: input.path, value: `Selected source SHA256 ${version}`, kind: 'source' as const, status: 'verified' as const, applicable: true, locator: input.path }
   return { patch: { evidence: [...state.evidence.filter(row => row.id !== evidence.id), evidence], coverage: [...state.coverage.filter(row => !row.id.startsWith(prefix)), ...coverage] },
-    path, version, pageCount, content, note: 'Only extraction is recorded. Review every page, table, drawing, attachment and addendum with native vision/CAD/Office tools as needed; register referenced missing attachments. No cloud upload was performed.' }
+    path, version, ...(pageCount === undefined ? {} : { pageCount }), content, note: 'Only extraction is recorded. Review every page, table, drawing, attachment and addendum with native vision/CAD/Office tools as needed; register referenced missing attachments. No cloud upload was performed.' }
 }

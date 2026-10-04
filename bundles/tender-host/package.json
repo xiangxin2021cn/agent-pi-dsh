@@ -20,7 +20,7 @@
     "@mlightcad/libredwg-converter": "3.14.3",
     "@mlightcad/libredwg-web": "0.7.10",
     "@napi-rs/canvas": "1.0.9",
-    "@openai/codex": "0.157.1",
+    "@openai/codex": "0.160.0",
     "beautiful-mermaid": "^1.1.3",
     "js-yaml": "4.1.1",
     "marked": "18.0.14",

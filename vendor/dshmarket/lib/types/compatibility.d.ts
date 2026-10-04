@@ -36,6 +36,25 @@ export interface CompatibilityAssessment {
      */
     duplicateNames: DuplicateName[];
 }
+/**
+ * Whether a resolved version has crossed a `^` / `~` ceiling the author never
+ * wrote — the release-line break (`^0.1.x` judged by a 0.2 host).
+ *
+ * `hasExplicitUpperOrExact` says an implicit caret/tilde ceiling is too sloppy
+ * to call a risk, because authors write `^0.0.1` without meaning `<0.0.2-0`.
+ * That leniency earns its keep only while the host is still on a line the
+ * range named: the leftover failure is then the prerelease gate, which says
+ * nothing about the host's ability to load the plugin. `^0.1.x` under a 0.2
+ * host is a different claim — the declared line is behind us, and dsh's own
+ * gate (node-semver, the same bounds) refuses that release for exactly this
+ * reason. Both are `aboveMax` warnings to {@link classifyPeer}; the difference
+ * is whether a declared line is still shared.
+ *
+ * A `^0.0.x` range is excluded by design: it names no minor line to fall
+ * behind, and its ceiling has always been treated as noise rather than a
+ * declaration (see the sloppy-ceiling case in discovery-compatibility).
+ */
+export declare function crossesImplicitCeiling(resolved: string, range: string): boolean;
 /** Translate one confirmed peer mismatch into a directional verdict. */
 export declare function classifyPeer(plugin: string, peer: string, range: string, resolved: string | null, optional: boolean): PeerVerdict;
 /** Whether a peer is declared optional in the installed plugin manifest. */

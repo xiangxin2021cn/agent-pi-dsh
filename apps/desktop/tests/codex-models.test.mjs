@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
 import { PassThrough } from 'node:stream'
 import { test } from 'node:test'
+import { readFileSync } from 'node:fs'
 import { codexModelSelection, probeCodexModels, setCodexDefaultModel, setCodexDefaultReasoningEffort } from '../codex-models.mjs'
 
 function server(handler) {
@@ -79,7 +80,7 @@ test('discovers all model pages after the initialized handshake and selects the 
   const result = await probeCodexModels(fixture.options)
   assert.deepEqual(fixture.calls.map(({ method }) => method),
     ['initialize', 'initialized', 'model/list', 'model/list', 'config/read'])
-  assert.equal(fixture.calls[0].params.clientInfo.version, '3.6.6')
+  assert.equal(fixture.calls[0].params.clientInfo.version, JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version)
   assert.equal(result.models.length, 2)
   assert.equal(result.defaultModel, 'model-b')
   assert.equal(result.selectedModel, 'model-b')

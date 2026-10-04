@@ -14,6 +14,7 @@ interface ParsedSearchArgs {
 export declare function parseAdvancedSearchArgs(args: {
     query: string;
     maxResults?: number;
+    format?: 'json' | 'markdown';
     tag?: string;
     params?: Record<string, JsonValue>;
     zone?: 'cn' | 'intl';

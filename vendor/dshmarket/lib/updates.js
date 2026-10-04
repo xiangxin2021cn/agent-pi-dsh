@@ -8,7 +8,7 @@ import { resolveHeadCommit } from "./accelerate.js";
 import { marketFetch } from "./net.js";
 import { activeRegion } from "./regions.js";
 import { profileDir, readGitResolutionCommit, readInstalled, readInstalledVersion, readLockCommits } from "./profile.js";
-import { gitCommitOfTarget, gitRefOfTarget, gitUploadPackUrl, hostedRepoKey, githubCommitOfTarget, githubRefOfTarget, isGenerationLink, isGitHostedSpec, repoOfTarget } from "./sources.js";
+import { catalogRepoKey, gitCommitOfTarget, gitRefOfTarget, gitUploadPackUrl, hostedRepoKey, githubCommitOfTarget, githubRefOfTarget, isGenerationLink, isGitHostedSpec, lookupRepoFromUrl, repoOfTarget } from "./sources.js";
 const UPDATES_TTL_MS = 30 * 60 * 1000;
 const GIT_REMOTE_HEAD_TIMEOUT_MS = 6000;
 let updatesCache = null;
@@ -257,27 +257,34 @@ export async function fetchNpmLatest(name) {
     }
 }
 /** Per-plugin update checks; a failed check reports no update rather than failing the listing. */
-export async function checkUpdates(profile, force = false, explicitDir, 
+export async function checkUpdates(profile, force = false, explicitDir,
 /**
  * Packages that follow a release channel instead of plain `latest`. Only
  * ever the market itself: opting into early builds is volunteering to try
  * THIS plugin early, not a licence to pull every other author's
  * unreleased work.
  */
-channelFor = new Map(), 
+channelFor = new Map(),
 /**
  * Curated npm sources for the installs that carry no registry spec of
  * their own: `file:` packages matched to the market catalog (#429) and
  * the generations the desktop host links in (#497). Any other `link:` is
  * a development workspace and is never opted into online updates.
  */
-onlineSourceFor = new Map()) {
+onlineSourceFor = new Map(),
+/**
+ * Registry names an archive-URL install may be checked against, keyed by
+ * the GitHub repo (`owner/repo`) the archive came from (#768). Without an
+ * entry that owns both the repo and the name, the npm fallback would
+ * compare the install with whatever package merely shares its name.
+ */
+catalogNpmByRepo = new Map()) {
     const activeProfileDir = profileDir(profile, explicitDir);
     // The channel is part of the key: switching to betas has to change the
     // answer immediately, and a cache keyed on the profile alone would serve
     // the stable verdict for the rest of the TTL — reading as "the setting did
     // nothing".
-    const cacheKey = `${activeProfileDir}\u0000${[...channelFor].map(([n, c]) => `${n}:${c}`).sort().join(',')}\u0000${[...onlineSourceFor].map(([n, s]) => `${n}:${s}`).sort().join(',')}`;
+    const cacheKey = `${activeProfileDir}\u0000${[...channelFor].map(([n, c]) => `${n}:${c}`).sort().join(',')}\u0000${[...onlineSourceFor].map(([n, s]) => `${n}:${s}`).sort().join(',')}\u0000${[...catalogNpmByRepo].map(([n, s]) => `${n}:${s}`).sort().join(',')}`;
     if (!force && updatesCache?.key === cacheKey && Date.now() - updatesCache.at < UPDATES_TTL_MS) {
         return updatesCache.data;
     }
@@ -379,6 +386,19 @@ onlineSourceFor = new Map()) {
                 };
             }
             else {
+                // A URL install (release archive, self-hosted tarball) has no
+                // registry identity of its own. Checking npm by name alone pairs it
+                // with whatever package shares that name (#768), so only proceed
+                // when a catalog entry owns both the repo the archive came from and
+                // this name; otherwise report no update rather than a false one.
+                if (/^https?:/i.test(spec)) {
+                    const repo = lookupRepoFromUrl(spec);
+                    const repoKey = repo === null ? null : catalogRepoKey(repo);
+                    if (repoKey === null || catalogNpmByRepo.get(repoKey) !== name) {
+                        result[name] = { kind: 'npm', version, current: version, latest: null, updateAvailable: false };
+                        return;
+                    }
+                }
                 const meta = (await fetchJson(npmUrl(`${encodeURIComponent(name)}/latest`)));
                 const stable = typeof meta.version === 'string' ? meta.version : null;
                 const channel = channelFor.get(name);

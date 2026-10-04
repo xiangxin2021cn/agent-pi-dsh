@@ -7,6 +7,8 @@ import * as React from 'react'
 import { installAttachmentMessageView } from './attachment-message-view.js'
 import { installArchiveSessionView } from './archive-session-view.js'
 import { createAgentTeamsSettings } from './agent-teams-settings.js'
+import { createSearchSettings, createSearchSettingsOperations } from './search-settings.js'
+import { searchSettingsText } from './locales/search-settings.js'
 import * as ReactDOM from 'react-dom'
 import { createAgentPiApiClient } from './api-client.js'
 import { createFilePreviewOverlay } from './file-preview-overlay.js'
@@ -19,6 +21,8 @@ import { clientCss } from './styles.js'
 import { createProfessionalDepth, professionalDepthCss, prepareDepthSubmission } from './professional-depth.js'
 import { createTaskProcess, taskProcessCss } from './task-process.js'
 import { createTaskGuide, taskGuideCss } from './task-guide.js'
+import { createNativeCodexExecution } from './codex-execution.js'
+import { tCodexExecution } from './locales/codex-execution.js'
 import { installNativeWorkFilePreviews, nativeWorkFilePreviewCss } from './native-work-file-preview.js'
 import { buildCodexTurnDelegation, codexTurnModel, codexSupportsEffort, resolveCodexTurnSelection } from '../codex-turn.ts'
 import { fileIconClass, fileIconMeta, fileIconName } from '../file-icons.ts'
@@ -46,6 +50,7 @@ import {
 
 const h = React.createElement
 const AgentTeamsSettings = createAgentTeamsSettings(React)
+const SearchSettings = createSearchSettings(React)
 
     const { api, apiBlob, downloadBlob, rawFileUrl } = createAgentPiApiClient()
     const MARKUP_RE = /[`*!\[]/
@@ -370,6 +375,10 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
 
     const codexTurnControllers = window.__apCodexTurnControllers || (window.__apCodexTurnControllers = new Map())
     const codexTurnListeners = window.__apCodexTurnListeners || (window.__apCodexTurnListeners = new Set())
+    const nativeCodex = createNativeCodexExecution({ React, desktop: window.agentPiDesktop, language: () => langState.lang, useLanguage: useApLang, notify: notifyCodexTurn,
+      renderMessage: (text, cwd) => h('div', { dangerouslySetInnerHTML: { __html: mdToHtml(text, { cwd }) } }),
+      openFile: (cwd, path) => window.dispatchEvent(new CustomEvent('agent-pi-open-file', { detail: { cwd, path } })),
+    })
     const attachmentTurnControllers = window.__apAttachmentTurnControllers || (window.__apAttachmentTurnControllers = new Map())
     function codexTurnKey(props) {
       return sessionHint(props) || runtime.sessionId || 'active'
@@ -422,12 +431,12 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
       if (controller && controller.phase !== 'disposed') controller.latestProps = props
     }
     function codexTurnPhase(props) {
+      if (nativeCodex.enabled(codexTurnKey(props))) return 'armed'
       const controller = codexTurnController(props, false)
       return controller ? controller.phase : 'idle'
     }
     function codexTurnArmed(props) {
-      const phase = codexTurnPhase(props)
-      return phase === 'armed' || phase === 'preparing' || phase === 'submitting'
+      return nativeCodex.enabled(codexTurnKey(props))
     }
     function setCodexTurnModel(props, model, status) {
       const controller = codexTurnController(props, true)
@@ -446,6 +455,7 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
     }
     function setCodexTurnArmed(props, armed) {
       const key = codexTurnKey(props)
+      if (!isLiveSessionId(key)) { showToast(tCodexExecution('openConversation', langState.lang)); return }
       if (armed && attachmentTurnControllers.has(key)) {
         showToast(workbenchText('当前会话已有附件发送事务，请等待完成后再切换 Codex 执行'))
         return
@@ -453,16 +463,17 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
       const controller = codexTurnController(props, armed)
       if (!controller) return
       controller.latestProps = props
-      if (armed && controller.phase === 'idle') {
-        controller.phase = 'armed'
-        watchCodexTurnSession(key, controller)
-      }
-      else if (!armed && controller.phase === 'armed') {
-        resetCodexTurnAttempt(key, controller)
-        disposeCodexTurnSessionSubscription(controller)
-        controller.phase = 'idle'
-      } else return
+      try { nativeCodex.setEnabled(key, armed) } catch (error) { showToast(error.message); return }
+      controller.phase = armed ? 'armed' : 'idle'
+      if (armed) openNativeCodexView()
       notifyCodexTurn()
+    }
+
+    function openNativeCodexView() {
+      requestAnimationFrame(() => {
+        const tab = [...document.querySelectorAll('[data-conversation-tabs] [role="tab"]')].find((item) => item.textContent.trim() === 'Codex')
+        tab?.click()
+      })
     }
     function disposeCodexTurnInputSubscription(controller) {
       const unsubscribeInput = controller.unsubscribeInput
@@ -3450,7 +3461,7 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
       }
     }
 
-    function submitCodexTurn(props) {
+    function submitCodexDelegationTurn(props) {
       const key = codexTurnKey(props)
       const controller = codexTurnControllers.get(key)
       if (!controller || controller.phase !== 'armed') return
@@ -3507,6 +3518,61 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
       controller.acceptedDraftRev = null
       notifyCodexTurn()
       void prepareCodexTurn(key, token)
+    }
+
+    async function submitCodexTurn(props) {
+      const key = codexTurnKey(props)
+      const controller = codexTurnController(props, true)
+      if (controller.nativePreparing || attachmentTurnControllers.has(key)) return
+      let authority
+      try { authority = codexTurnAuthorities(key) } catch { showToast(tCodexExecution('sessionBusy', langState.lang)); return }
+      const snapshot = authority && sessionSnapshotWithChat(key, authority.session)
+      if (!snapshot || snapshot.removed || snapshotIsBusy(snapshot)) { showToast(tCodexExecution('sessionBusy', langState.lang)); return }
+      const original = authority.inputStore.getSnapshot().draft || ''
+      const attachments = codexAttachItems(key).slice()
+      const ids = nativeCodexAttachmentIds(authority.inputStore.getSnapshot())
+      const kbSlugs = kbTaskOf(key).slugs.slice()
+      const selectedModel = controller.selectedModel
+      const selectedReasoningEffort = controller.selectedReasoningEffort
+      const unchanged = () => {
+        const live = codexTurnAuthorities(key)
+        const state = live && sessionSnapshotWithChat(key, live.session)
+        if (!state || state.removed || snapshotIsBusy(state) || live.session !== authority.session
+          || live.inputStore.getSnapshot().draft !== original
+          || !sameCodexAttachmentIds(codexAttachmentIds(codexAttachItems(key)), codexAttachmentIds(attachments))
+          || !sameCodexAttachmentIds(nativeCodexAttachmentIds(live.inputStore.getSnapshot()), ids)
+          || !sameCodexAttachmentIds(kbTaskOf(key).slugs, kbSlugs)) throw new Error(tCodexExecution('sessionBusy', langState.lang))
+      }
+      controller.nativePreparing = true
+      try {
+        await flushKbTaskSelection(key)
+        const auth = await window.agentPiDesktop?.codexAuthStatus?.()
+        if (auth?.state !== 'logged-in') throw new Error(tCodexExecution('loginRequired', langState.lang))
+        unchanged()
+        const selection = resolveCodexTurnSelection(auth, selectedModel, selectedReasoningEffort)
+        const cwd = workspaceCwd(props)
+        const native = runtime.conversation?.resolveDraftAttachments?.(ids) || []
+        if (native.length !== ids.length) throw new Error(tCodexExecution('attachmentsNotReady', langState.lang))
+        const rows = attachments.map((item) => ({ ...item, path: item.path || joinPath(cwd, item.relativePath || item.name) }))
+        for (const item of native) {
+          const path = window.agentPiDesktop.pathForFile(item.file)
+          if (path) rows.push({ path, name: item.file.name, kind: item.kind })
+          else if (item.kind === 'image') {
+            const dataUrl = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(item.file) })
+            rows.push({ name: item.file.name, kind: 'image', dataUrl })
+          } else throw new Error(tCodexExecution('attachmentPathUnavailable', langState.lang))
+        }
+        unchanged()
+        const text = stripMentionArtifacts(original) || (rows.length ? tCodexExecution('attachmentTask', langState.lang) : '')
+        await nativeCodex.submit({ sessionId: key, cwd, text, attachments: rows, model: selection.model, reasoningEffort: selection.reasoningEffort })
+        if (authority.inputStore.getSnapshot().draft === original) setComposerDraft(props, '')
+        const consumed = new Set(attachments.map(codexAttachmentToken))
+        setAttachItemsFor(key, codexAttachItems(key).filter((item) => !consumed.has(codexAttachmentToken(item))))
+        for (const id of ids) props.inputActions?.removeAttachment?.(id)
+        runtime.conversation?.releaseDraftAttachments?.(native)
+        openNativeCodexView()
+      } catch (error) { showToast(tCodexExecution('requestFailed', langState.lang)) }
+      finally { controller.nativePreparing = false; notifyCodexTurn() }
     }
 
     function wrapComposerSubmit(props) {
@@ -6299,11 +6365,11 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
             className: 'ap-codex-turn' + (armed ? ' on' : ''),
             'aria-pressed': armed ? 'true' : 'false',
             title: armed
-              ? workbenchText('下一条消息将由 Codex 子智能体执行')
-              : workbenchText('仅将下一条消息交给 Codex 子智能体'),
+              ? tCodexExecution('engineCodexTitle', langState.lang)
+              : tCodexExecution('engineDshTitle', langState.lang),
             onMouseDown: (event) => event.preventDefault(),
             onClick: () => setCodexTurnArmed(propsRef.current, !armed),
-          }, Icon('sparkles', 14), workbenchText('Codex 执行')),
+          }, Icon('sparkles', 14), armed ? 'Codex' : 'DSH / Codex'),
             armed && h(ComposerCodexModelSelector, { composer: live }),
             h(ProfessionalDepth, { key: live.sessionId || 'draft', composer: live }),
           h('button', {
@@ -7645,6 +7711,12 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
       )
     }
 
+    function SearchSettingsSection() {
+      const locale = useApLang()
+      const operations = React.useMemo(() => createSearchSettingsOperations(runtime.remote, api), [runtime.remote])
+      return h(SearchSettings, { operations, locale })
+    }
+
     function CodexSettingsSection() {
       const desktop = window.agentPiDesktop
       const lang = useApLang()
@@ -7794,8 +7866,8 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
       return h('section', { className: 'ap-codex-settings' },
         h('h1', null, zh ? 'Codex 智能体' : 'Codex Agent'),
         h('p', { className: 'ap-codex-lead' }, zh
-          ? 'DeepSeek DSH 保持主智能体和投标流程控制权，Codex 作为独立子智能体处理明确委派的代码、审查与修复任务。'
-          : 'DeepSeek DSH remains the primary agent and tender orchestrator. Codex handles self-contained coding, review, and repair delegations.'),
+          ? '在主对话选择 DSH 或 Codex 执行当前任务。Codex 直接与你交流，并复用同一套专业模块、任务依据和成果。'
+          : 'Choose DSH or Codex as the task executor in the main conversation. Codex communicates directly with you and shares the professional modules, task basis, and deliverables.'),
         h('div', { className: 'ap-codex-card' },
           h('div', { className: 'ap-codex-status' },
             h('strong', null, 'ChatGPT / Codex'),
@@ -7832,8 +7904,8 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
               key: entry.reasoningEffort, value: entry.reasoningEffort, title: entry.description,
             }, entry.reasoningEffort))),
             h('p', { className: 'ap-sub' }, zh
-              ? '用于 Codex 子智能体调用；主对话开启“Codex 执行”后可单独选择本次模型和思考等级。切换默认模型会清除不兼容的已保存等级。'
-              : 'Used for Codex subagent calls. Enable Codex execution to choose a model and effort for one message. Changing the default model clears an incompatible saved effort.'),
+              ? '用于 Codex 主执行和辅助子智能体；主对话选择 Codex 后可指定模型和思考等级，并连续多轮执行。切换默认模型会清除不兼容的已保存等级。'
+              : 'Used by Codex main execution and auxiliary subagents. Select Codex in the main conversation to choose a model and reasoning effort for continued tasks. Changing the default model clears an incompatible saved effort.'),
             (auth.modelError || auth.reasoningEffortError || modelMessage) && h('p', { className: 'ap-sub', role: 'status' }, auth.modelError || auth.reasoningEffortError || modelMessage),
           ),
           loggedIn && h('p', { className: 'ap-sub' }, model
@@ -7967,6 +8039,7 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
 
     export function apply(ctx) {
       ctx.effect(() => productCapabilities.install())
+      ctx.effect(() => () => nativeCodex.dispose())
       installAttachmentMessageView(ctx, React)
       installArchiveSessionView(ctx, { React, useLanguage: useApLang })
       installNativeWorkFilePreviews(ctx, { React, ReactDOM, FilePreviewOverlay })
@@ -7976,6 +8049,10 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
       })
       runtime.workspaces = ctx.workspaces || runtime.workspaces
       runtime.remote = ctx.remote || runtime.remote
+      ctx.slots.inject('settings.section', () => ctx.slots.register(
+        { name: 'settings.section', id: 'agent-pi-anysearch', order: 16, label: () => searchSettingsText(langState.lang, 'title') },
+        SearchSettingsSection,
+      ))
       watchArchivedWorkspaces()
       ctx.inject(['sessions'], (scope) => {
         runtime.sessions = scope.sessions
@@ -8016,6 +8093,10 @@ const AgentTeamsSettings = createAgentTeamsSettings(React)
           || (typeof scope.get === 'function' ? scope.get('uiConversation') : null)
           || runtime.uiConversation
       })
+      ctx.slots.inject('conversation.view', () => ctx.slots.register(
+        { name: 'conversation.view', id: 'agent-pi-codex-main', order: 30, label: 'Codex' },
+        nativeCodex.View,
+      ))
       ctx.slots.inject('conversation.view', () => ctx.slots.register(
         { name: 'conversation.view', id: 'workbench', order: 50, label: () => tAp('workbench.title') },
         Workbench,

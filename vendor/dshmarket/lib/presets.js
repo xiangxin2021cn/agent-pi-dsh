@@ -149,7 +149,9 @@ function presetMismatch(profileDir, bundleOrder) {
  * reports the mismatch alongside the still-computable changes (relative
  * order + enabled/disabled diffs over the intersection).
  */
-export function previewPreset(profileDir, name) {
+export function previewPreset(profileDir, name,
+/** The host's own installation anchor, when it gave one (#781 review). */
+dshInstallDir) {
     if (typeof name !== 'string')
         return { ok: false, error: 'invalid preset name / 组合名称无效' };
     const preset = readPresets(profileDir).find(item => item.name === name);
@@ -166,7 +168,7 @@ export function previewPreset(profileDir, name) {
             error: `preset is out of date — current profile differs: ${detail} / 组合已过期——当前 profile 的插件列表已变化：${detail}`,
         };
     }
-    const trial = trialValidate(profileDir, preset.bundleOrder);
+    const trial = trialValidate(profileDir, preset.bundleOrder, dshInstallDir === undefined ? {} : { dshInstallDir });
     if (!trial.ok) {
         const first = trial.errors[0];
         return {
@@ -198,7 +200,9 @@ export function previewPreset(profileDir, name) {
  * then write the bundle order and the disable list. The response carries the
  * change preview so the UI can report exactly what moved.
  */
-export function applyPreset(profileDir, name, maxSnapshots = DEFAULT_MAX_SNAPSHOTS) {
+export function applyPreset(profileDir, name, maxSnapshots = DEFAULT_MAX_SNAPSHOTS,
+/** The host's own installation anchor, when it gave one (#781 review). */
+dshInstallDir) {
     if (typeof name !== 'string')
         return { ok: false, error: 'invalid preset name / 组合名称无效' };
     const preset = readPresets(profileDir).find(item => item.name === name);
@@ -215,7 +219,7 @@ export function applyPreset(profileDir, name, maxSnapshots = DEFAULT_MAX_SNAPSHO
             error: `preset is out of date — current profile differs: ${detail} / 组合已过期——当前 profile 的插件列表已变化：${detail}`,
         };
     }
-    const trial = trialValidate(profileDir, preset.bundleOrder);
+    const trial = trialValidate(profileDir, preset.bundleOrder, dshInstallDir === undefined ? {} : { dshInstallDir });
     if (!trial.ok) {
         const first = trial.errors[0];
         logEvent('warn', 'preset', `apply "${name}" rejected by trial validation: ${first?.message ?? 'unknown'}`);

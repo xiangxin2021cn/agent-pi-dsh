@@ -29,7 +29,7 @@ import { existsSync, lstatSync, readdirSync, readFileSync, statSync } from 'node
 import { createRequire, isBuiltin } from 'node:module';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { JSON_SCHEMA, Type, load } from 'js-yaml';
-import { findDshInstallDir } from "./dsh-install.js";
+import { desktopApplicationRoots, findDshInstallDir } from "./dsh-install.js";
 import { resolveDshHome } from "./home-paths.js";
 import { INBOX_BUNDLES, readBundleRules, suggestOrder, validateOrder } from "./order.js";
 // Electron's app.asar packages can be loadable by the host while invisible to
@@ -355,6 +355,26 @@ function semverStr(v) {
     return `${v.major}.${v.minor}.${v.patch}${v.pre.length > 0 ? `-${v.pre.join('.')}` : ''}`;
 }
 /**
+ * The exclusive ceiling `^` / `~` compares against, in node-semver's own
+ * notation: `0.2.0` becomes `0.2.0-0`, never the bare release.
+ *
+ * `^0.1.1-rc.2` and `~0.1.7` both expand to a ceiling of `0.2.0`, and npm's
+ * ceiling is exclusive. Comparing against the bare release made the test
+ * `0.2.0 > 0.2.0-rc.2` true — the ceiling outranks the prerelease of its own
+ * base version — so `0.2.0-rc.2` slipped under every `^0.1.x` range. That is
+ * the host line every plugin on the 0.1 release train declares, judged by the
+ * 0.2 host it is being installed onto: the market answered "compatible" for
+ * releases the dsh gate (node-semver, `evaluatePluginCompatibility`) refuses.
+ *
+ * node-semver writes the ceiling as `<0.2.0-0`, which sorts below every
+ * prerelease of `0.2.0` and still excludes the release itself. `compatibility.
+ * ts` has always built its bounds this way (`nextBound`); this is the
+ * comparator catching up with it.
+ */
+function exclusiveUpperBound(release) {
+    return `${release}-0`;
+}
+/**
  * Minimal range matcher for the peer-range check: `*`, exact, ^, ~, >=, >,
  * <=, <, whitespace-separated pairs, and `||` alternatives. Anything else
  * returns null (unknown — reported, not asserted).
@@ -369,6 +389,11 @@ function semverStr(v) {
  * Discovery can opt into npm's `includePrerelease` behaviour because every
  * published DSH host line is itself prerelease; diagnostics retain the npm
  * default unless a caller explicitly asks for that wider admission.
+ *
+ * `includePrerelease` widens ADMISSION only — which prereleases may be
+ * considered at all. It does not move a `^` / `~` ceiling, so a cross-minor
+ * host line stays outside a range that declared the previous minor, exactly
+ * as node-semver decides it (see {@link exclusiveUpperBound}).
  */
 export function satisfiesRange(version, range, options = {}) {
     const v = parseSemver(version);
@@ -421,17 +446,16 @@ export function satisfiesRange(version, range, options = {}) {
                 return compareSemver(version, target) < 0;
             case '^': {
                 // npm caret semantics: >= given, strictly < the next breaking bump.
-                const upper = major > 0
-                    ? { major: major + 1, minor: 0, patch: 0, pre: [] }
+                const bound = major > 0
+                    ? `${major + 1}.0.0`
                     : minor > 0
-                        ? { major: 0, minor: minor + 1, patch: 0, pre: [] }
-                        : { major: 0, minor: 0, patch: patch + 1, pre: [] };
-                return gte(v, tv) && compareSemver(semverStr(upper), version) > 0;
+                        ? `0.${minor + 1}.0`
+                        : `0.0.${patch + 1}`;
+                return gte(v, tv) && compareSemver(exclusiveUpperBound(bound), version) > 0;
             }
             case '~': {
                 // npm tilde semantics: >= given, strictly < the next minor.
-                const upper = { major, minor: minor + 1, patch: 0, pre: [] };
-                return gte(v, tv) && compareSemver(semverStr(upper), version) > 0;
+                return gte(v, tv) && compareSemver(exclusiveUpperBound(`${major}.${minor + 1}.0`), version) > 0;
             }
             default:
                 return null;
@@ -859,6 +883,75 @@ export function buildBundleLayers(profileDirectory, bundleNames, specs, dshInsta
     return { bundles, layers };
 }
 /**
+ * The installation's own bundle layer, when the installation package declares
+ * one — the Desktop shell's `cordis.patch.yml`.
+ *
+ * The Desktop launcher applies that file by hand rather than through the
+ * profile's `dsh.profile.bundles`, and splices it in directly behind the
+ * `@deepseek-ai/dsh-web-app` layer. Composing without it made every user-patch
+ * or home-patch row aimed at a row the shell inserts — `desktop-shell`,
+ * `desktop-notifications`, `desktop-terminal`, `desktop-pnpm`, … — read as an
+ * orphan ("patch target not found") although the running host resolves it. It
+ * is not noise: those rows are the shell's own settings persistence, so a user
+ * who believes the warning and deletes them loses the window mode and every
+ * notification preference.
+ *
+ * WHERE that package root is is not where `dshInstallDir` points; see
+ * {@link desktopApplicationRoots} for the candidates and why. A plain CLI
+ * install is unaffected: `@deepseek-ai/dsh` declares no bundle patch, and
+ * neither does any ancestor of a global install, so this returns null and the
+ * composer sees exactly the layers it saw before.
+ *
+ * A candidate is accepted only when it is actually an installation — it must
+ * ship the in-box `@deepseek-ai/dsh-web-app` bundle this overlay is spliced
+ * behind (see the check below). A declared patch alone is not evidence: any
+ * project may declare one.
+ *
+ * @param dshInstall - install directory the analysis located, or null.
+ * @returns the overlay layer, or null when this installation declares none.
+ */
+function installOverlayLayer(dshInstall) {
+    for (const directory of desktopApplicationRoots(dshInstall)) {
+        let manifest;
+        try {
+            manifest = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8'));
+        }
+        catch {
+            continue;
+        }
+        const declared = manifest.dsh?.bundle?.patch;
+        const declaredList = typeof declared === 'string'
+            ? [declared]
+            : Array.isArray(declared)
+                ? declared.filter((relative) => typeof relative === 'string')
+                : [];
+        if (declaredList.length === 0)
+            continue;
+        // A bundle patch alone does not make a directory an installation: ANY
+        // package can declare one — this repository does, and so does every plugin
+        // repo. Without this bound the ancestor walk accepted the nearest such
+        // project above the install directory and composed its rows as if they
+        // were the installation's own, which invents rows and can mask a real
+        // orphan warning (#749 review). A DSH installation ships the in-box web
+        // bundle, and the launcher splices this very overlay directly behind that
+        // bundle's layer — where it is absent, the launcher applies no overlay
+        // either, so composing one here would describe a composition nobody runs.
+        if (readNodeModulesVersion(directory, '@deepseek-ai/dsh-web-app') === null)
+            continue;
+        const label = typeof manifest.name === 'string' && manifest.name !== '' ? manifest.name : 'install-overlay';
+        const paths = declaredList.map(relative => join(directory, relative));
+        if (paths.some(path => !existsSync(path))) {
+            return { label, kind: 'bundle', patches: [], parseError: 'declared patch is missing' };
+        }
+        const parsed = paths.map(path => parsePatchFile(path));
+        if (parsed.some(patches => patches === null)) {
+            return { label, kind: 'bundle', patches: [], parseError: 'patch file is not a valid entry list' };
+        }
+        return { label, kind: 'bundle', patches: parsed.flatMap(patches => patches), parseError: null };
+    }
+    return null;
+}
+/**
  * Which directories in `node_modules` are leftovers (#663).
  *
  * Two shapes, and both need to be VISIBLE rather than cleaned: a directory
@@ -970,6 +1063,17 @@ export function analyzeProfile(profileDirectory, options = {}) {
     const built = buildBundleLayers(profileDirectory, bundleNames, specs, dshInstall);
     const bundles = built.bundles;
     const bundleLayers = built.layers;
+    // The installation's own overlay rides directly behind the bundle the
+    // Desktop launcher keys off, exactly where the launcher splices it — see
+    // installOverlayLayer.
+    const installOverlay = installOverlayLayer(dshInstall);
+    if (installOverlay !== null) {
+        const overlayAfter = bundleLayers.findIndex(layer => layer.label === '@deepseek-ai/dsh-web-app');
+        if (overlayAfter < 0)
+            bundleLayers.push(installOverlay);
+        else
+            bundleLayers.splice(overlayAfter + 1, 0, installOverlay);
+    }
     // --- 2. composed loader rows / duplicates / overrides / orphans ---
     const layers = [...bundleLayers];
     const userPatchPath = join(profileDirectory, 'cordis.patch.yml');

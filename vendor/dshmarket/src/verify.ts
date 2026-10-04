@@ -18,6 +18,9 @@ import { inspectKnownPluginCompatibility, isTeamComponent, TEAM_MANAGED_REASON }
  * State taxonomy (IMPROVEMENT-PLAN P0-2):
  *   live    – running in the current composition (hot mount or loader entry)
  *   restart – installed and will activate on the next boot, but not live now
+ *   incompatible – the host's own boot gate will skip it on EVERY boot: its
+ *             dsh peer range excludes the running runtime (#757). Restarting
+ *             can never activate it — "restart to apply" would be a lie.
  *   inert   – installed but not a profile-layer plugin (plain dependency, or
  *             client-only — the market shim-mounts those at boot)
  *   broken  – would fail to load: listed as a bundle without a dsh surface,
@@ -32,8 +35,10 @@ import { listHotMounts, parseSimplePatch } from './hot.ts'
 import { userPatchPackageReferences } from './patch.ts'
 import { nameMatchesPackage } from './entry-identity.ts'
 import { bundlePatchInsertedIds, hasDshManifest, hasLoadableEntry, profileDir, readInstalled } from './profile.ts'
+import { compareSemver, satisfiesRange } from './check.ts'
+import { dshHostInfo } from './dsh-install.ts'
 
-export type ActivationState = 'live' | 'preset' | 'restart' | 'inert' | 'broken' | 'missing' | 'disabled'
+export type ActivationState = 'live' | 'preset' | 'restart' | 'incompatible' | 'inert' | 'broken' | 'missing' | 'disabled'
 
 export interface ActivationResult {
   state: ActivationState
@@ -151,12 +156,159 @@ function patchLoads(activeProfileDir: string, name: string): boolean {
   return references !== null && references.length > 0
 }
 
+/**
+ * What the running host is, for the #757 boot-gate prediction.
+ *
+ * The host loader (evaluatePluginCompatibility in @deepseek-ai/dsh-app-boot)
+ * semver-checks every bundle's `@deepseek-ai/dsh` / `@deepseek-ai/dsh-*`
+ * peerDependencies against the runtime version and silently SKIPS the
+ * bundles that fail — on every boot. From the market's side the bundle
+ * layer still declares the plugin while the loader inventory never shows
+ * it, so it reads exactly like "will activate on restart"… forever. A
+ * profile may carry a compatibility.json whose `pkg@version` keys list
+ * host versions allowed to load anyway (the host's
+ * readProfileVersionExemptions); the market mirrors both halves.
+ */
+export interface HostRuntimeFacts {
+  /** @deepseek-ai/dsh-app-boot version the host runs; null = unknown. */
+  runtimeVersion: string | null
+  /** `pkg@version` → host versions allowed to load despite the range. */
+  exemptions: Record<string, readonly string[]>
+}
+
+/** One dsh peer requirement the running host provably fails. */
+export interface PeerGate {
+  peer: string
+  range: string
+  runtimeVersion: string
+  /** True when the runtime sits BELOW the range's floor — upgrading the host can satisfy it (#758). */
+  hostTooOld: boolean
+}
+
+const isDshPeer = (peer: string): boolean => peer === '@deepseek-ai/dsh' || peer.startsWith('@deepseek-ai/dsh-')
+
+/**
+ * Predict the host's boot gate for one installed package. Returns the first
+ * dsh peer the running runtime fails, or null when the next boot would load
+ * it — or when we cannot tell (unknown runtime, unparseable range), because
+ * uncertainty must keep the old verdict, not invent a harsher one (#757).
+ *
+ * satisfiesRange runs with includePrerelease — the host's own semantics,
+ * since every published host line is itself a prerelease — and an EMPTY
+ * range counts as failing, mirroring the host: absence of a requirement is
+ * not permission.
+ *
+ * Known differences from the host's verdict, kept deliberate (#758): the
+ * runtime version comes from the @deepseek-ai/dsh-app-boot package.json
+ * this tree can locate, not the host's self-reported getDshRuntimeVersion;
+ * when no host is locatable the gate stands aside and the real boot still
+ * applies its own. Exemptions mirror readProfileVersionExemptions from the
+ * profile's compatibility.json. The FIRST failing dsh peer decides, as the
+ * host's skip does — only the reported culprit may differ when several
+ * peers fail at once.
+ */
+export function hostPeerGate(activeProfileDir: string, name: string, facts: HostRuntimeFacts): PeerGate | null {
+  if (facts.runtimeVersion === null) return null
+  let manifest: { version?: unknown; peerDependencies?: Record<string, unknown> }
+  try {
+    manifest = JSON.parse(
+      readFileSync(join(activeProfileDir, 'node_modules', name, 'package.json'), 'utf8'),
+    )
+  } catch {
+    return null
+  }
+  const version = typeof manifest.version === 'string' ? manifest.version : ''
+  if (version !== '' && (facts.exemptions[`${name}@${version}`] ?? []).includes(facts.runtimeVersion)) {
+    return null
+  }
+  for (const [peer, requirement] of Object.entries(manifest.peerDependencies ?? {})) {
+    if (!isDshPeer(peer) || typeof requirement !== 'string') continue
+    const range = requirement.trim()
+    const satisfied = range === '' ? false : satisfiesRange(facts.runtimeVersion, range, { includePrerelease: true })
+    if (satisfied === false) {
+      // Which side of the range the runtime sits on decides the remedy:
+      // below the floor, upgrading the host genuinely helps; above the cap
+      // (#757's own shape) no upgrade can satisfy it, and suggesting one
+      // points the wrong way (#758).
+      const floor = /[0-9]+\.[0-9]+\.[0-9]+[-+0-9A-Za-z.]*/.exec(range)
+      let hostTooOld = false
+      if (floor !== null) hostTooOld = compareSemver(facts.runtimeVersion, floor[0]) < 0
+      return { peer, range, runtimeVersion: facts.runtimeVersion, hostTooOld }
+    }
+  }
+  return null
+}
+
+/** The way out of a peer gate, in the direction the versions allow (#758). */
+export function peerGateRemedy(gate: PeerGate): { zh: string; en: string } {
+  if (gate.hostTooOld) {
+    return {
+      zh: '升级 dsh、等插件更新适配或装回旧版本',
+      en: 'upgrade dsh, wait for an updated release, or go back to the previous version',
+    }
+  }
+  return {
+    zh: '等插件更新适配或装回旧版本;升级 dsh 解决不了',
+    en: 'wait for an updated release or go back to the previous version — upgrading dsh will not help',
+  }
+}
+
+let cachedRuntimeVersion: string | null | undefined
+
+/**
+ * Discover the host runtime version once per process. Prefers the package
+ * the host itself versions its runtime by (@deepseek-ai/dsh-app-boot, the
+ * getDshRuntimeVersion source); falls back to the CLI package version,
+ * which ships on the same line. null when no host is locatable at all
+ * (tests, plain node) — which disables the gate.
+ */
+function discoverRuntimeVersion(): string | null {
+  if (cachedRuntimeVersion !== undefined) return cachedRuntimeVersion
+  const host = dshHostInfo()
+  let version: string | null = null
+  if (host !== null) {
+    // The dsh package directory itself (a normal install) has the runtime
+    // as a sibling; a Desktop shell root keeps it under node_modules.
+    const candidates = [
+      join(host.directory, 'node_modules', '@deepseek-ai', 'dsh-app-boot'),
+      join(host.directory, '..', 'dsh-app-boot'),
+    ]
+    for (const dir of candidates) {
+      try {
+        const v = (JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as { version?: unknown }).version
+        if (typeof v === 'string' && v !== '') { version = v; break }
+      } catch { /* try the next layout */ }
+    }
+    if (version === null) version = host.version
+  }
+  cachedRuntimeVersion = version
+  return version
+}
+
+/**
+ * The production HostRuntimeFacts: the discovered runtime version plus the
+ * profile's own exemption list. Re-read per call so an edited
+ * compatibility.json takes effect without a market restart.
+ */
+export function defaultHostRuntimeFacts(activeProfileDir: string): HostRuntimeFacts {
+  let exemptions: Record<string, readonly string[]> = {}
+  try {
+    const raw = JSON.parse(readFileSync(join(activeProfileDir, 'compatibility.json'), 'utf8')) as Record<string, unknown>
+    exemptions = Object.fromEntries(
+      Object.entries(raw).filter((entry): entry is [string, readonly string[]] =>
+        Array.isArray(entry[1]) && entry[1].every(x => typeof x === 'string')),
+    )
+  } catch { /* no exemption file — nothing may bypass the gate */ }
+  return { runtimeVersion: discoverRuntimeVersion(), exemptions }
+}
+
 export function verifyActivation(
   profile: string,
   name: string,
   live: ReadonlySet<string> = new Set(listHotMounts()),
   explicitDir?: string,
   isDisabled = false,
+  hostFacts?: HostRuntimeFacts,
 ): ActivationResult {
   const activeProfileDir = profileDir(profile, explicitDir)
   const bundles = readBundles(profile, activeProfileDir)
@@ -299,6 +451,23 @@ export function verifyActivation(
   }
 
   if (inBundles) {
+    // #757: "restart to apply" is only honest when the next boot would
+    // actually load the bundle. The host skips bundles whose dsh peer
+    // range excludes the running runtime — predict that verdict here so
+    // the plugin reads as incompatible instead of promising a restart
+    // that cannot fix it.
+    const gate = hostPeerGate(activeProfileDir, name, hostFacts ?? defaultHostRuntimeFacts(activeProfileDir))
+    if (gate !== null) {
+      const remedy = peerGateRemedy(gate)
+      return {
+        state: 'incompatible',
+        reasons: [
+          `新版本要求宿主 ${gate.range},当前运行 ${gate.runtimeVersion},重启也不会生效;${remedy.zh} / the new version needs host ${gate.range}, but this host runs ${gate.runtimeVersion} — a restart will not activate it; ${remedy.en}`,
+        ],
+        bundle: true,
+        hot: false,
+      }
+    }
     const patch = patchTextOf(profile, name, activeProfileDir)
     const complex = patch !== null && parseSimplePatch(patch) === null
     return {

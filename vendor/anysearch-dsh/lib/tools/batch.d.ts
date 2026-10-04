@@ -48,6 +48,7 @@ export interface AnySearchBatchOutput {
 interface BatchToolItemArgs {
     query: string;
     maxResults?: number;
+    format?: 'json' | 'markdown';
     tag?: string;
     params?: Record<string, JsonValue>;
     zone?: 'cn' | 'intl';
