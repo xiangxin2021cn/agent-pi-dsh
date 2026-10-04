@@ -8,7 +8,7 @@
 
 <h1 align="center">Agent Pi DSH</h1>
 
-3.7.8 升级到官方 DSH 0.2.0-rc.2，接通现有 CAD 插件的 DWG→DXF 导出，并修复大文件预览。详见[3.7.8 说明](release/github-notes-3.7.8.md)。OfficeCLI 与当前 Univer Office 载体的评估见[专项评估](docs/office-carrier-evaluation-3.7.7.md)。
+开发版本 3.7.9 升级到官方 DSH 0.2.1-alpha.1、pi-ai 0.87.1 与 Cordis 4.0.5-alpha.1，并加入专业证据判断及主动纠错规则。详见[3.7.9 说明](release/github-notes-3.7.9.md)。当前公开安装包为 3.7.8，保留 CAD 的 DWG→DXF 导出与完整文件预览。OfficeCLI 与 Univer Office 载体的评估见[专项评估](docs/office-carrier-evaluation-3.7.7.md)。
 
 3.7.5 新增专业任务引导、项目国别与依据评估、BOQ 成本/资源推导和实际递交清单检查，沿用原生 DSH 执行机制。见[使用说明](docs/professional-task-guide.md)、[实施计划](docs/implementation-plan-3.7.5.md)和[验证记录](docs/verification-3.7.5.md)。
 
@@ -26,7 +26,7 @@
 
 <p align="center">
   <a href="https://www.agent-pi.app"><img src="https://img.shields.io/badge/官网-agent--pi.app-2f6df0?style=flat-square" alt="Website"></a>
-  <a href="https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.0-rc.2"><img src="https://img.shields.io/badge/source-DSH%20dsh--v0.2.0--rc.2-2f6df0?style=flat-square" alt="DSH dsh-v0.2.0-rc.2"></a>
+  <a href="https://github.com/deepseek-ai/deepseek-harness/commit/ec48669f48ac81bac353fc646e7cf9c57241242f"><img src="https://img.shields.io/badge/source-DSH%200.2.1--alpha.1-2f6df0?style=flat-square" alt="DSH 0.2.1-alpha.1"></a>
   <a href="https://www.agent-pi.app/docs.html"><img src="https://img.shields.io/badge/文档-Docs-0fb5c9?style=flat-square" alt="Docs"></a>
 </p>
 
@@ -168,6 +168,7 @@ Windows 安装包的正式 SHA256 以同一 Release 中的 `.sha256` 资产为�
 
 | 版本 | 一句话 |
 | --- | --- |
+| [3.7.9](./release/github-notes-3.7.9.md)（开发版本） | DSH 0.2.1-alpha.1；pi-ai/Cordis 升级；专业证据判断与主动纠错 |
 | [3.7.8](./release/github-notes-3.7.8.md) | DSH 0.2.0-rc.2；CAD 自动导出 DXF；完整文件预览 |
 | [3.7.7](./release/github-notes-3.7.7.md) | DSH 0.2.0-rc.1；保留 Univer Office 并评估 OfficeCLI |
 | [3.7.6](./release/github-notes-3.7.6.md) | 官方 DSH 主干升级；英文界面修正 |
@@ -217,7 +218,7 @@ Agent Pi DSH 自 3.6.0 起的项目代码和发行物按 [GNU GPL v3](./LICENSE)
 
 ## 开发 / Develop
 
-当前开发分支钉住 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 `dsh-v0.2.0-rc.2`（`639ed01539`），具体提交见 [DSH_PIN](./DSH_PIN)。所有兼容能力均通过 Agent Pi 产品层启动迁移、preset overlay 和 bundle 适配实现；发布门禁要求官方 DSH 子模块保持字节干净。最初迁移记录见 [3.4.0 内核迁移计划](./docs/superpowers/plans/2026-08-29-dsh-0.1.2-alpha.1-migration.md)，后续能力记录见 [3.4.2 WorkSurface 实施记录](./docs/superpowers/specs/2026-08-30-pageindex-worksurface-3.4.2-implementation.md) 和 [3.5.0 阶段记忆实施规格](./docs/superpowers/specs/2026-08-30-stage-memory-3.5.0-implementation.md)。
+当前开发分支钉住 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 `dsh-v0.2.1-alpha.1`（`ec48669f48`），具体提交见 [DSH_PIN](./DSH_PIN)。所有兼容能力均通过 Agent Pi 产品层启动迁移、preset overlay 和 bundle 适配实现；发布门禁要求官方 DSH 子模块保持字节干净。最初迁移记录见 [3.4.0 内核迁移计划](./docs/superpowers/plans/2026-08-29-dsh-0.1.2-alpha.1-migration.md)，后续能力记录见 [3.4.2 WorkSurface 实施记录](./docs/superpowers/specs/2026-08-30-pageindex-worksurface-3.4.2-implementation.md) 和 [3.5.0 阶段记忆实施规格](./docs/superpowers/specs/2026-08-30-stage-memory-3.5.0-implementation.md)。
 
 ---
 
@@ -228,5 +229,5 @@ Agent Pi DSH 自 3.6.0 起的项目代码和发行物按 [GNU GPL v3](./LICENSE)
 <p align="center">
   <a href="https://www.agent-pi.app"><b>www.agent-pi.app</b></a>
   · Always π AI studio
-  · development kernel: dsh-v0.2.0-rc.2
+  · development kernel: dsh-v0.2.1-alpha.1
 </p>

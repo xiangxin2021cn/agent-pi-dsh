@@ -54,6 +54,10 @@ Do not use chatbot scaffolding, marketing diction, or method-theatre from unrela
 
 ## Self-check
 
+- Check material conclusions against contrary evidence, governing country/version and tender amendments. Model memory, common practice and past-project examples cannot establish this tender's requirements. Resolve source conflicts explicitly.
+- In workpapers, distinguish source fact and verification state, calculation, inference, common practice, framework assumption and gap. Calculations retain inputs, units and method; a valid formula does not verify its inputs. Framework conclusions stay conditional, and post-hoc explanations do not establish predictive ability. Describe uncertainty by missing evidence and item sensitivities rather than invented probability percentages.
+- If the main judgment cannot be supported, state that at the start; identify local gaps where they affect scope, price, programme or compliance. Never invent citations. Correct errors openly and review affected downstream work.
+- Formal returnables keep the employer's format and language. Do not add sentence-by-sentence claim labels, internal review tables or a rules self-check unless requested. Perform this review internally and disclose material unresolved conditions in the appropriate tender section.
 - Zero filler hits; at least one judgment verb (因此 / 应 / 不得 / 须 / 缺口 / must / shall not / gap)
 - Employer term preserved — do not paraphrase COTO/COLTO/FIDIC names
 - No `documentId` / Working Folder / pack-path tour in the reader-facing body

@@ -65,6 +65,10 @@ For a file deliverable, also read `file-delivery`. Material claims distinguish s
 
 Before handing off:
 
+- Review material counterevidence and alternatives; revise the judgment when evidence warrants it. Agreement or praise is not a professional finding.
+- Distinguish source facts and verification state, calculations, inferences, common practice, framework assumptions and gaps in the working evidence table. Model memory is not verified evidence; law, standard and rate applicability needs jurisdiction, version, effective date and scope. Never invent references or source details.
+- Keep calculations traceable to inputs, units and method. A checked formula does not verify its inputs; framework conclusions remain conditional and post-hoc explanations are not validated predictions. Describe uncertainty using limitations and sensitivity rather than invented confidence percentages.
+- State an unsupported central answer at the start and local gaps at the affected finding. Correct discovered errors openly and review dependent results. Perform this self-check internally; the customer report retains its requested genre and language, with no mandatory per-sentence labels or appended rules checklist unless requested. Disclose material unresolved issues.
 - Zero filler hits from the forbidden list
 - At least one judgment verb (因此 / 所以 / 应 / 不得 / 须 / 缺口 / 风险是 / implies / must / shall not / gap)
 - No `documentId`, Working Folder, or pack-path tour in the reader-facing body

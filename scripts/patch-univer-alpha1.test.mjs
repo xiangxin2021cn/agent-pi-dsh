@@ -6,18 +6,23 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 import { patchUniver020PeerRanges, patchUniverForDshAlpha1, patchUniverViewerProxy, patchUniverTurnTail } from './patch-univer-alpha1.mjs'
 
-test('Office peer adapter accepts only the exact reviewed DSH rc.2 version', () => {
+test('Office peer adapter accepts only the reviewed DSH and vendor alpha versions', () => {
   const old = '^0.1.5-rc.3 || ^0.1.7-alpha.2 || ^0.1.7-rc.1'
   const peers = Object.fromEntries([
     'attachment', 'host-webserver', 'llm', 'session', 'settings', 'skill', 'tools',
   ].map(name => [`@deepseek-ai/dsh-${name}`, old]))
+  peers['@deepseek-ai/cordis'] = '^4.0.2'
+  peers['@deepseek-ai/schemastery'] = '^3.18.1'
   const source = JSON.stringify({ name: 'dsh-univer-office', version: '0.3.5', peerDependencies: peers })
   const patched = patchUniver020PeerRanges(source)
-  for (const value of Object.values(JSON.parse(patched).peerDependencies)) {
-    assert.equal(value, old + ' || 0.2.0-rc.1 || 0.2.0-rc.2')
+  for (const [name, value] of Object.entries(JSON.parse(patched).peerDependencies)) {
+    if (name === '@deepseek-ai/cordis') assert.equal(value, '^4.0.2 || 4.0.5-alpha.1')
+    else if (name === '@deepseek-ai/schemastery') assert.equal(value, '^3.18.1 || 3.18.5-alpha.1')
+    else assert.equal(value, old + ' || 0.2.0-rc.1 || 0.2.0-rc.2 || 0.2.1-alpha.1')
   }
   assert.equal(patchUniver020PeerRanges(patched), patched)
   assert.throws(() => patchUniver020PeerRanges(source.replace(old, '^0.9.0')), /unexpected Univer DSH peer range/)
+  assert.throws(() => patchUniver020PeerRanges(source.replace('^4.0.2', '^5.0.0')), /unexpected Univer vendor peer range/)
 })
 
 test('alpha.2 list adapter preserves selected Office card data and skips unrelated turns', () => {
