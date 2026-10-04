@@ -57,6 +57,7 @@ import { loadWorkSurfacePolicy } from './worksurface-policy.ts'
 import {
   acceptedUserRequirementOverride,
   activeUserRequirements,
+  assertTaskSyncComplete,
   bindUserRequirementSession,
   listUserRequirements,
   projectBoundToSession,
@@ -266,6 +267,19 @@ export function projectForBoundSession(cwd: string, sessionId: string): Business
   return projectBoundToSession(cwd, sessionId)
 }
 
+/** Bind a chat decision to the stage and exact artifacts shown to its user. */
+export function approvalStageFingerprint(cwd: string, project: BusinessProjectRecord, stageId: string): string {
+  const board = loadBoard(cwd, project.projectId, project.module)
+  const stage = workflowFor(project).stages.find(row => row.id === stageId)
+  if (!stage) throw new Error(`Unknown stage ${stageId}`)
+  const paths = [...project.inputPaths, ...Object.values(board.stages).flatMap(row => row.tasks.flatMap(task => [task.reportPath, task.markdownPath].filter(Boolean) as string[])), ...(stage.summaryDeliverable ? [join(officialStageDir(cwd, project.projectId, stageId), stage.summaryDeliverable.fileName)] : [])]
+  const files = [...new Set(paths)].map(path => {
+    try { return [path, createHash('sha256').update(readFileSync(resolve(cwd, path))).digest('hex')] }
+    catch { return [path, null] }
+  })
+  return createHash('sha256').update(JSON.stringify({ projectId: project.projectId, workflow: project.workflowSnapshot, stageId, stages: board.stages, files, requirements: listUserRequirements(cwd, project) })).digest('hex')
+}
+
 /** Small disk-backed project baseline injected into every bound parent turn. */
 export function projectMemoryContextForSession(cwd: string, sessionId: string): string {
   const project = projectForBoundSession(cwd, sessionId)
@@ -305,7 +319,7 @@ function requirementStageId(
 export function recordProjectUserRequirement(
   cwd: string,
   project: BusinessProjectRecord,
-  input: { sessionId: string; stageId?: string; text: string },
+  input: { sessionId: string; stageId?: string; text: string; messageId?: string },
 ): { requirement: UserRequirement; board: OrchestrationBoard } {
   const stageId = requirementStageId(cwd, project, input.stageId)
   const recorded = writeUserRequirement(cwd, project, { ...input, stageId })
@@ -1661,6 +1675,7 @@ export function completeStage(
   project: BusinessProjectRecord,
   stageId: string,
 ): { state: StageState; board: OrchestrationBoard } {
+  assertTaskSyncComplete(cwd, project)
   const workflow = workflowFor(project)
   const stage = workflow.stages.find((item) => item.id === stageId)
   if (!stage) throw new Error(`Unknown stage ${stageId}`)
@@ -1759,6 +1774,7 @@ export function decideApprovalStage(
   decision: 'approved' | 'rejected',
   note = '',
 ): { state: StageState; board: OrchestrationBoard } {
+  assertTaskSyncComplete(cwd, project)
   const workflow = workflowFor(project)
   const stage = workflow.stages.find((item) => item.id === stageId)
   if (!stage) throw new Error(`Unknown stage ${stageId}`)

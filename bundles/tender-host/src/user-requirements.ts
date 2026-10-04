@@ -23,6 +23,7 @@ export interface UserRequirement {
   dismissedAt?: string
   note?: string
   evidencePaths?: string[]
+  messageId?: string
 }
 
 export interface UserRequirementBinding {
@@ -39,6 +40,7 @@ export interface UserRequirementLedger {
   bindings: Record<string, UserRequirementBinding>
   requirements: UserRequirement[]
   updatedAt: string
+  pendingTaskSync?: Record<string, { id: string; stageId: string; text: string; messageId?: string }>
 }
 
 function ledgerPath(cwd: string, project: Pick<BusinessProjectRecord, 'module' | 'projectId'>): string {
@@ -77,6 +79,7 @@ export function loadUserRequirementLedger(
     bindings: raw.bindings && typeof raw.bindings === 'object' ? raw.bindings : {},
     requirements: Array.isArray(raw.requirements) ? raw.requirements : [],
     updatedAt: textOf(raw.updatedAt) || fallback.updatedAt,
+    pendingTaskSync: raw.pendingTaskSync || {},
   }
 }
 
@@ -147,7 +150,7 @@ export function acceptedUserRequirementOverride(
 export function recordUserRequirement(
   cwd: string,
   project: BusinessProjectRecord,
-  input: { sessionId: string; stageId: string; text: string },
+  input: { sessionId: string; stageId: string; text: string; messageId?: string },
 ): { requirement: UserRequirement; created: boolean } {
   const sessionId = textOf(input.sessionId)
   const stageId = textOf(input.stageId)
@@ -156,10 +159,11 @@ export function recordUserRequirement(
   if (!stageId) throw new Error('记录用户要求需要明确的项目阶段。')
   if (!text) throw new Error('用户要求不能为空。')
   const ledger = loadUserRequirementLedger(cwd, project)
-  const id = requirementId(sessionId, stageId, text)
+  const id = requirementId(sessionId, stageId, input.messageId ? `${input.messageId}\n${text}` : text)
   const existing = ledger.requirements.find((row) => row.id === id)
   const now = new Date().toISOString()
   if (existing) {
+    if (input.messageId) return { requirement: existing, created: false }
     if (existing.status === 'active') return { requirement: existing, created: false }
     existing.status = 'active'
     existing.updatedAt = now
@@ -184,6 +188,7 @@ export function recordUserRequirement(
     stageId,
     sessionId,
     text,
+    messageId: input.messageId,
     status: 'active',
     createdAt: now,
     updatedAt: now,
@@ -197,6 +202,19 @@ export function recordUserRequirement(
   }
   saveUserRequirementLedger(cwd, project, ledger)
   return { requirement: row, created: true }
+}
+
+/** A failed cross-store write must block every entry to the existing human gate. */
+export function setPendingTaskSync(cwd: string, project: BusinessProjectRecord, sessionId: string, receipt?: { id: string; stageId: string; text: string; messageId?: string }) {
+  const ledger = loadUserRequirementLedger(cwd, project)
+  ledger.pendingTaskSync ||= {}
+  if (receipt) ledger.pendingTaskSync[sessionId] = receipt
+  else delete ledger.pendingTaskSync[sessionId]
+  saveUserRequirementLedger(cwd, project, ledger)
+}
+
+export function assertTaskSyncComplete(cwd: string, project: BusinessProjectRecord): void {
+  if (Object.keys(loadUserRequirementLedger(cwd, project).pendingTaskSync || {}).length) throw new Error('最新任务理解尚未同步到项目要求，请先在本次任务中重试同步后再进行人工决策。')
 }
 
 export function updateUserRequirement(

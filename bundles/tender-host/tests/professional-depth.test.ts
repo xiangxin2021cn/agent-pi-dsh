@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
-import { admitDepthMessages, bindDepthStore, checkDepth, depthCommand, depthContext, depthState, registerProfessionalDepth, updateDepth } from '../src/professional-depth.ts'
+import { admitDepthMessages, bindDepthStore, checkDepth, depthCommand, depthContext, depthState, refreshDepthChecks, registerProfessionalDepth, updateDepth } from '../src/professional-depth.ts'
 import { createDepthStore } from '../src/professional-depth-store.mjs'
+import { createTaskStore } from '../../../packages/professional-tasks/task.ts'
 import { zipStore } from '../src/xlsx-zip.ts'
 
 function session(id = 'one', inherited: any[] = []) {
@@ -58,12 +60,12 @@ test('only direct explicit user commands change mode; mentions, negation and unt
   assert.equal(depthContext(s), '')
 })
 
-test('mid-task edits invalidate checks and stale agent proposals cannot overwrite them', async () => {
+test('mid-task edits preserve independent file checks and stale agent proposals cannot overwrite them', async () => {
   const s = enabled()
   const assessment = assess(s, [{ id: 'content', title: '责任人', kind: 'contains', path: 'plan.md', expected: '责任人' }])
-  await checkDepth(s, files({ 'plan.md': '责任人：待确认' }), { revision: assessment.revision })
-  const edited = updateDepth(s, { action: 'brief', revision: assessment.revision, brief: { ...brief, purpose: '领导决策汇报' }, criteria: assessment.criteria }, 'user')
-  assert.deepEqual(edited.checks, [])
+  const checked = await checkDepth(s, files({ 'plan.md': '责任人：待确认' }), { revision: assessment.revision })
+  const edited = updateDepth(s, { action: 'brief', revision: checked.revision, brief: { ...brief, purpose: '领导决策汇报' }, criteria: assessment.criteria }, 'user')
+  assert.equal(edited.checks[0].status, 'passed', 'an unchanged text condition remains byte verified')
   assert.equal(edited.needsAssessment, true)
   assert.throws(() => updateDepth(s, { action: 'brief', revision: assessment.revision, brief, criteria: [] }, 'agent'), /已更新/)
   assert.equal(depthState(s).brief.purpose, '领导决策汇报')
@@ -125,8 +127,84 @@ test('outer PTC completion rechecks bytes and clears stale review notes after a 
   listeners.get('tools/result')(exec, {})
   assert.equal(continued, true)
   assert.notEqual(depthState(s).checks[0].sha256, before)
-  assert.equal(depthState(s).checkedRevision, assessment.revision)
+  assert.equal(depthState(s).checkedRevision, depthState(s).revision)
   assert.equal(depthState(s).reviewNotes, '')
+})
+
+test('ordinary feedback and switching quality mode preserve checks until relevant inputs change', async () => {
+  const s = enabled()
+  const assessment = assess(s, [
+    { id: 'a', title: '输出 A', kind: 'contains', path: 'a.md', expected: 'A' },
+    { id: 'b', title: '输出 B', kind: 'contains', path: 'b.md', expected: 'B' },
+  ])
+  const checked = await checkDepth(s, files({ 'a.md': 'A', 'b.md': 'B' }), { revision: assessment.revision, reviewNotes: '仅检查两项约定文本。' })
+  admitDepthMessages(s, [user('现在进度如何？')])
+  assert.deepEqual(depthState(s), checked)
+  const off = updateDepth(s, { action: 'toggle', enabled: false, revision: checked.revision }, 'user')
+  assert.deepEqual(off.checks, checked.checks)
+  const on = updateDepth(s, { action: 'toggle', enabled: true, revision: off.revision }, 'user')
+  assert.deepEqual(on.checks, checked.checks)
+  const revised = updateDepth(s, { action: 'brief', revision: on.revision, brief, criteria: [
+    { ...assessment.criteria[0], expected: 'new A' }, assessment.criteria[1],
+  ] }, 'agent')
+  assert.equal(revised.checks[0].stale, true)
+  assert.equal(revised.checks[0].status, 'review')
+  assert.deepEqual(revised.checks[1], checked.checks[1])
+})
+
+test('native filesystem edits are detected while unrelated writes preserve actual byte evidence', async () => {
+  const s = enabled()
+  const assessment = assess(s, [{ id: 'file', title: '输出', kind: 'file', path: 'output.md' }])
+  const checked = await checkDepth(s, files({ 'output.md': 'first' }), { revision: assessment.revision, reviewNotes: '已检查 first 版本。' })
+  assert.deepEqual(await refreshDepthChecks(s, files({ 'output.md': 'first', 'other.md': 'unrelated' })), checked)
+  const stale = await refreshDepthChecks(s, files({ 'output.md': 'native Codex edited' }))
+  assert.equal(stale.checks[0].sha256, checked.checks[0].sha256, 'retain the version actually inspected')
+  assert.equal(stale.checks[0].status, 'review')
+  assert.equal(stale.checks[0].stale, true)
+  assert.equal(stale.checkedRevision, null)
+  assert.equal(stale.reviewNotes, '')
+  assert.deepEqual(await refreshDepthChecks(s, files({ 'output.md': 'native Codex edited' })), stale, 'repeated status does not create duplicate commits')
+})
+
+test('depth and task share objective, revision and a single durable quality writer', async (t) => {
+  const home = mkdtempSync(join(tmpdir(), 'depth-shared-'))
+  t.after(() => rmSync(home, { recursive: true, force: true }))
+  const tasks = createTaskStore(home)
+  const initial = tasks.read('one')
+  const understood = tasks.update('one', { brief: { ...initial.brief, objective: '判断方案是否可执行' } }, initial.revision, 'user')
+  const s = session()
+  bindDepthStore(s, createDepthStore(home))
+  assert.equal(depthState(s).brief.purpose, understood.brief.objective)
+  updateDepth(s, { action: 'toggle', enabled: true, revision: understood.revision }, 'user')
+  const assessment = assess(s, [{ id: 'file', title: '输出', kind: 'file', path: 'output.md' }])
+  assert.equal(assessment.brief.purpose, understood.brief.objective, 'an agent cannot create another depth goal')
+  const checked = await checkDepth(s, files({ 'output.md': 'actual report' }), { revision: assessment.revision })
+  assert.deepEqual(tasks.read('one').quality.checks, checked.checks)
+  const latest = tasks.read('one')
+  tasks.update('one', { brief: { ...latest.brief, audience: '项目经理' } }, latest.revision, 'user')
+  assert.equal(depthState(s).revision, latest.revision + 1)
+  assert.throws(() => updateDepth(s, { action: 'toggle', enabled: false, revision: checked.revision }, 'user'), /已更新/)
+  assert.equal(existsSync(join(home, 'agent-pi', 'professional-depth')), false, 'no second quality JSON is written')
+})
+
+test('legacy depth imports once with a backup and retains an established task goal on conflict', (t) => {
+  const home = mkdtempSync(join(tmpdir(), 'depth-import-'))
+  t.after(() => rmSync(home, { recursive: true, force: true }))
+  const tasks = createTaskStore(home)
+  const task = tasks.read('one')
+  tasks.update('one', { brief: { ...task.brief, objective: '当前共同目标' } }, 0, 'user')
+  const root = join(home, 'agent-pi', 'professional-depth')
+  mkdirSync(root, { recursive: true })
+  const path = join(root, `${createHash('sha256').update('one').digest('hex')}.json`)
+  const old = JSON.stringify({ sessionId: 'one', revision: 5, enabled: true, brief: { ...brief, purpose: '旧深度目标' }, criteria: [], checks: [], needsAssessment: true, checkedRevision: null, reviewNotes: '' })
+  writeFileSync(path, old)
+  const store = createDepthStore(home)
+  const imported = store.read('one')!
+  assert.equal(imported.enabled, true)
+  assert.equal(imported.brief.purpose, '当前共同目标')
+  assert.equal(tasks.read('one').migration?.depthPurposeConflict, '旧深度目标')
+  assert.equal(readFileSync(`${path}.before-task-integration`, 'utf8'), old)
+  assert.deepEqual(store.read('one'), imported, 'migration is idempotent across reads')
 })
 
 test('native inbox activation exposes tools before prompt assembly', async (t) => {
@@ -146,6 +224,31 @@ test('native inbox activation exposes tools before prompt assembly', async (t) =
   assert.equal(denied, false)
   assert.equal((await definition.execute({ action: 'status' }, { agent })).enabled, true)
   assert.match(depthContext(s), /真实需求/)
+})
+
+test('delegated agents read shared quality but cannot revise its goal or check through another cwd', async (t) => {
+  const home = mkdtempSync(join(tmpdir(), 'depth-parent-'))
+  const previous = process.env.DSH_HOME
+  process.env.DSH_HOME = home
+  t.after(() => { if (previous === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previous; rmSync(home, { recursive: true, force: true }) })
+  const listeners = new Map<string, any>()
+  const tasks = createTaskStore(home)
+  let definition: any
+  const parent = session()
+  const child = { ...session('child'), header: { cwd: '/other-workspace', parentSession: parent.id } }
+  const makeAgent = (s: any) => ({ session: s, ctx: { tools: { restrict: () => () => {} }, get: () => { throw new Error('child fs must not be used') } } })
+  registerProfessionalDepth({
+    tools: { register: (value: any) => { definition = value } }, on: (event: string, fn: any) => listeners.set(event, fn),
+    get: (name: string) => name === 'taskGuide' ? { read: () => tasks.read(parent.id) } : undefined,
+  }, (value) => value)
+  listeners.get('agent/created')({ agent: makeAgent(parent) })
+  listeners.get('agent/inbox/claimed')({ agent: makeAgent(parent), message: user('启用专业深度。') })
+  listeners.get('agent/created')({ agent: makeAgent(child) })
+  const inherited = await definition.execute({ action: 'status' }, { agent: makeAgent(child) })
+  assert.equal(inherited.sessionId, parent.id)
+  assert.equal(inherited.enabled, true)
+  await assert.rejects(definition.execute({ action: 'brief', revision: inherited.revision, brief, criteria: [{ id: 'review', title: '适用性', kind: 'review' }] }, { agent: makeAgent(child) }), /由主执行器/)
+  assert.equal(tasks.read('child').revision, 0)
 })
 
 test('preferences restore only the same session; templates require manual selection', (t) => {

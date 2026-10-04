@@ -85,6 +85,8 @@ function createFixture(t) {
 
   writePackage(root, 'bundles/tender-host', 'dsh-tender-host')
   writeFixtureFile(join(root, 'bundles/tender-host/src/professional-depth-store.mjs'), readFileSync(join(sourceRoot, 'bundles/tender-host/src/professional-depth-store.mjs')))
+  cpSync(join(sourceRoot, 'packages/professional-tasks'), join(root, 'packages/professional-tasks'), { recursive: true,
+    filter: (source) => !source.split(/[\\/]/).includes('node_modules') })
   writePackage(root, 'bundles/tender-web', 'dsh-tender-web')
   for (const [name, folder] of [
     ['dsh-agent-pi-task-guide', 'task-guide'], ['dsh-agent-pi-workbench', 'workbench'], ['dsh-agent-pi-knowledge', 'knowledge'],

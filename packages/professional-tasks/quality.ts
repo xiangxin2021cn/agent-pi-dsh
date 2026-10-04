@@ -5,6 +5,15 @@ export function auditTask(task: ProfessionalTask) {
   const add = (code: string, id: string, detail: string) => issues.push({ code, id, detail })
   if (!task.brief.objective.trim()) add('goal_missing', 'brief', '明确当次任务目标。')
   if (task.needsAssessment) add('assessment_stale', 'brief', '最新用户要求尚未评估。')
+  if (task.pendingProjectSync) add('project_sync_pending', task.pendingProjectSync.id, '本次任务的要求尚未同步到工作台，暂不能审批或验收。')
+  if (task.quality?.enabled) {
+    if (task.quality.needsAssessment) add('quality_assessment_stale', 'quality', '专业深度要求尚未按当前目标评估。')
+    if (!task.quality.criteria.length) add('quality_criteria_missing', 'quality', '专业深度尚未形成可检查的验收项。')
+    for (const criterion of task.quality.criteria) {
+      const check = task.quality.checks.find(row => row.id === criterion.id)
+      if (!check || check.status !== 'passed' || check.stale) add('quality_check_pending', criterion.id, check?.detail || '尚未检查此验收项。')
+    }
+  }
   if (task.brief.profession === 'tender') {
     for (const key of ['country', 'location', 'contract', 'measurement'] as const) if (!task.brief.basis[key]) add('basis_gap', key, `项目适用依据待确认：${key}`)
     if (!task.coverage.length) add('coverage_missing', 'coverage', '尚未登记全文解析覆盖。')

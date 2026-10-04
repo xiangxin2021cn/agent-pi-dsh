@@ -23,6 +23,7 @@ import {
   completeSetup,
   completeStage,
   decideApprovalStage,
+  approvalStageFingerprint,
   markDispatched,
   releaseDispatchOffer,
   resetOrchestration,
@@ -888,6 +889,7 @@ export function attachHttp(ctx: {
             text?: string
             requirementId?: string
             evidencePaths?: string[]
+            approvalFingerprint?: string
           }
           const module = body.module ?? 'tender'
           const projectId = String(body.projectId ?? '')
@@ -963,6 +965,7 @@ export function attachHttp(ctx: {
             return
           }
           if (action === 'approve_gate' || action === 'reject_gate') {
+            if (body.approvalFingerprint && body.approvalFingerprint !== approvalStageFingerprint(cwd, project, stageId)) throw new Error('阶段或文件已变化，请读取最新任务后重新确认。')
             const decision = action === 'approve_gate' ? 'approved' : 'rejected'
             const decided = decideApprovalStage(cwd, project, stageId, decision, String(body.note ?? ''))
             send(res, 200, { ...decided, project: projectSnapshot(cwd, project) })

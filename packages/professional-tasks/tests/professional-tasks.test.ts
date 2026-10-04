@@ -126,7 +126,7 @@ test('professional writing detects vague filler and internal output without bann
 test('native plugin registers the real task tool and disposable route, and checks actual file bytes', async t => {
   const home = directory(t), tools: any[] = [], effects: Array<() => void> = [], routes: any[] = [], listeners = new Map<string, any>()
   const session = { id: 'live', header: { cwd: home } }
-  const fs = { resolve: async (path: string) => path, stat: async () => ({ type: 'file' }), readBytes: async () => Buffer.from('本项目按图号 S-02 进行尺寸核对。') }
+  const fs = { resolve: async (path: string) => ({ path }), processPath: (target: any) => target.path, stat: async () => ({ type: 'file' }), readBytes: async () => Buffer.from('本项目按图号 S-02 进行尺寸核对。') }
   const services: Record<string, any> = { sessions: { get: () => session }, skills: { list: async () => [] }, fs }
   const ctx: any = { tools: { register: (tool: any) => tools.push(tool), schemas: () => [{ name: 'read' }, { name: 'web_fetch' }] },
     provide: (key: string, value: any) => { services[key] = value }, get: (key: string) => services[key],

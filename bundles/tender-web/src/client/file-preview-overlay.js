@@ -989,6 +989,7 @@ export function createFilePreviewOverlay(dependencies) {
       return h('div', { className: 'ap-doc', role: 'dialog', 'aria-modal': 'true', 'aria-label': file.name },
         h('div', { className: 'ap-doc-hd' },
           h('div', { className: 'ap-doc-path', title: kbSlug ? (file.name + ' · 解析稿') : file.path }, kbSlug ? ((file.name || kbSlug) + ' · 解析稿') : file.path),
+          file.locator ? h('span', { className: 'ap-doc-source-position', title: file.locator, style: { fontSize: 12, overflowWrap: 'anywhere' } }, file.locator) : null,
           h('div', { className: 'ap-doc-actions' },
             kbSlug ? null : DocBtn(tAp('files.attachToChat'), () => {
               if (kind === 'project-plan' && !closePreview()) return

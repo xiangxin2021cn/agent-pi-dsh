@@ -7,6 +7,8 @@ export interface Evidence {
   kind: 'source' | 'web' | 'derived' | 'assumption'
   status: 'verified' | 'unverified' | 'conflict'
   locator?: string
+  sourcePath?: string
+  sourceHash?: string
   url?: string
   accessedAt?: string
   effectiveDate?: string
@@ -45,6 +47,7 @@ export interface TaskRequirement {
   mandatory: boolean
   template?: string
   signatureRequired?: boolean
+  checkSpec?: QualityCriterion
 }
 export interface Coverage {
   id: string
@@ -65,6 +68,7 @@ export interface PlanStep {
   status: 'pending' | 'working' | 'done' | 'blocked' | 'needs_review'
   gaps: string[]
   supplements: string[]
+  briefDependencies?: Array<keyof TaskBrief>
 }
 export interface Deliverable {
   id: string
@@ -76,15 +80,90 @@ export interface Deliverable {
   status: 'draft' | 'reviewed' | 'accepted' | 'stale'
   signature: 'not_required' | 'pending' | 'signed'
   checks: Array<{ kind: 'file' | 'format' | 'coverage' | 'calculation' | 'professional' | 'writing' | 'signature'; status: CheckStatus; detail: string; fingerprint?: string }>
+  briefDependencies?: Array<keyof TaskBrief>
+}
+export interface BriefProvenance {
+  origin: 'user' | 'source' | 'inference' | 'legacy'
+  status: 'explicit' | 'provisional' | 'confirmed' | 'conflict'
+  messageId?: string
+  evidenceIds?: string[]
+  updatedRevision: number
+}
+export interface TaskFinding {
+  id: string
+  title: string
+  summary: string
+  goalImpact: string
+  evidenceIds: string[]
+  requirementIds?: string[]
+  stepIds?: string[]
+  actions?: Array<{ id?: string; label: string; kind?: 'source' | 'question' | 'action'; target?: string }>
+  status: 'open' | 'resolved' | 'superseded'
+  importance?: 'critical' | 'normal'
+  resolution?: string
+  createdRevision: number
+  updatedRevision: number
+  source?: { engine?: string; runId?: string; turnId?: string; toolCallId?: string }
+}
+export interface QualityCriterion {
+  id: string
+  title: string
+  kind: 'file' | 'contains' | 'json' | 'review'
+  path?: string
+  expected?: string
+  evidenceIds?: string[]
+  requirementIds?: string[]
+  briefDependencies?: Array<keyof TaskBrief>
+}
+export interface QualityCheck {
+  id: string
+  status: CheckStatus
+  detail: string
+  path?: string
+  sha256?: string
+  inputFingerprint?: string
+  checkedAt?: string
+  stale?: boolean
+}
+export interface TaskQuality {
+  enabled: boolean
+  brief: Record<'purpose' | 'depth' | 'evidence' | 'format' | 'acceptance', string>
+  criteria: QualityCriterion[]
+  checks: QualityCheck[]
+  checkedRevision: number | null
+  reviewNotes: string
+  needsAssessment: boolean
+  template?: { id: string; title: string; content: string }
+}
+export interface TaskBinding {
+  projectId: string
+  moduleId: string
+  cwd?: string
+  stageId?: string
+  workflowRevision?: string | number
+  projectGoal?: string
+  stageLabel?: string
+  terminalDeliverables?: string[]
+}
+export interface TaskChange {
+  sequence: number
+  revision: number
+  at: string
+  source: 'user' | 'agent' | 'host' | 'migration'
+  summary: string
+  changedRefs: string[]
+  affectedRefs: string[]
+  operationId?: string
 }
 export interface ProfessionalTask {
-  schemaVersion: 1
+  schemaVersion: 2
   sessionId: string
   revision: number
   needsAssessment: boolean
   latestRequest: string
+  latestMessageId?: string
   brief: TaskBrief
-  questions: Array<{ id: string; question: string; answer?: string }>
+  questions: Array<{ id: string; question: string; answer?: string; provider?: string; requestId?: string; callId?: string; purpose?: string; status?: 'pending' | 'open' | 'continued' | 'answered' | 'expired' | 'cancelled'; askedRevision?: number; answerSource?: 'user' | 'native' }>
   evidence: Evidence[]
   requirements: TaskRequirement[]
   coverage: Coverage[]
@@ -92,6 +171,15 @@ export interface ProfessionalTask {
   deliverables: Deliverable[]
   assessment: string
   updatedAt: string
+  briefProvenance: Record<string, BriefProvenance>
+  findings: TaskFinding[]
+  quality: TaskQuality
+  binding?: TaskBinding
+  pendingProjectSync?: { id: string; text: string; stageId?: string; messageId?: string; createdAt: string }
+  recentChanges: TaskChange[]
+  operationReceipts: Array<{ id: string; digest: string; revision: number }>
+  migration?: { schema1?: boolean; depth?: boolean; depthPurposeConflict?: string }
+  acceptedHistory: Array<{ revision: number; at: string; deliverable: Deliverable }>
 }
 export interface Capability {
   id: string

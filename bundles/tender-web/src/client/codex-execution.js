@@ -52,7 +52,7 @@ export function createNativeCodexExecution({ React, desktop, language, useLangua
     const [error, setError] = React.useState('')
     const t = (key) => tCodexExecution(key, lang)
     const send = async (answer) => {
-      try { update(await desktop.codexExecutionReply(identity, request.id, answer)) } catch { setError(t('interactionExpired')) }
+      try { update(await desktop.codexExecutionReply(identity, request.id, answer)) } catch { setError(t('replyFailed')) }
     }
     const questions = request.params.questions || []
     return h('section', { style: { border: '1px solid #ccd4df', borderRadius: 10, padding: 16, margin: '12px 0' } },

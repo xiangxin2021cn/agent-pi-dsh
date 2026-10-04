@@ -39,6 +39,7 @@ window.__ModuleLoader__.load({
 			};
 			const listeners = /* @__PURE__ */ new Set();
 			return {
+				current: () => value,
 				install() {
 					let disposed = false;
 					let pending = false;
@@ -5337,7 +5338,14 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 				}, h("div", { className: "ap-doc-hd" }, h("div", {
 					className: "ap-doc-path",
 					title: kbSlug ? file.name + " · 解析稿" : file.path
-				}, kbSlug ? (file.name || kbSlug) + " · 解析稿" : file.path), h("div", { className: "ap-doc-actions" }, kbSlug ? null : DocBtn(tAp("files.attachToChat"), () => {
+				}, kbSlug ? (file.name || kbSlug) + " · 解析稿" : file.path), file.locator ? h("span", {
+					className: "ap-doc-source-position",
+					title: file.locator,
+					style: {
+						fontSize: 12,
+						overflowWrap: "anywhere"
+					}
+				}, file.locator) : null, h("div", { className: "ap-doc-actions" }, kbSlug ? null : DocBtn(tAp("files.attachToChat"), () => {
 					if (kind === "project-plan" && !closePreview()) return;
 					mentionInChat(props.sessionProps || props, file);
 					if (kind !== "project-plan" && typeof props.onClose === "function") props.onClose();
@@ -8068,6 +8076,10 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 			"实际用途与受众": "Purpose and audience",
 			"成果用于什么工作、给谁使用或支持什么决策": "What work, audience or decision will this deliverable support?",
 			"专业深度": "Professional depth",
+			"专业深度设置": "Professional depth settings",
+			"查看本次任务": "View current task",
+			"保存并返回对话": "Save and return to conversation",
+			"专业深度围绕本次任务加强分析方法、证据和交付检查。目标在主对话中逐步明确，只使用你为本对话选定的知识库资料。": "Professional depth strengthens analysis methods, evidence and delivery checks for the current task. Clarify the goal in the main conversation and use only the knowledge-base sources selected for this conversation.",
 			"需要说明、分析、计算，还是可执行的交付成果": "Is an explanation, analysis, calculation or ready-to-use deliverable needed?",
 			"事实依据与缺口": "Evidence and gaps",
 			"已知事实、所选资料、需要补充的关键条件": "Known facts, selected sources and critical missing conditions",
@@ -8176,7 +8188,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 			pendingModes.delete(composer.inputActions);
 			return String(locale).startsWith("zh") ? `启用专业深度。\n${draft}${pending.template ? `\n\n我主动选用以下模板作为参考，当前需求优先，模板中的旧事实不代表本次事实：\n<reference-template>\n${pending.template.content}\n</reference-template>` : ""}` : `Enable professional depth.\n${draft}${pending.template ? `\n\nI selected the following template as reference. The current task takes priority; old project facts in the template do not apply here:\n<reference-template>\n${pending.template.content}\n</reference-template>` : ""}`;
 		}
-		function createProfessionalDepth({ React, api, run, subscribe, useLanguage }) {
+		function createProfessionalDepth({ React, api, subscribe, useLanguage, onOpenTask }) {
 			const h = React.createElement;
 			return function ProfessionalDepth({ composer }) {
 				const locale = useLanguage();
@@ -8205,6 +8217,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					body: JSON.stringify(body)
 				} : void 0);
 				React.useEffect(() => {
+					setState(null);
 					if (!id) return;
 					let disposed = false;
 					let timer;
@@ -8281,10 +8294,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 						criteria: edit.criteria
 					}));
 					setEdit(null);
-					if (continueTask) {
-						setOpen(false);
-						run(composer, "我已修改专业深度任务说明，请按最新版本定向调整受影响的成果，并重新检查相关验收项。");
-					}
+					if (continueTask) setOpen(false);
 				});
 				const updateField = (field, value) => setEdit((current) => ({
 					...current,
@@ -8300,7 +8310,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 						revision: (await request()).revision,
 						template: selected
 					}));
-					else if (composer.inputActions) pendingModes.set(composer.inputActions, { template: selected });
+					else if (composer.inputActions && draftEnabled) pendingModes.set(composer.inputActions, { template: selected });
 					setTemplate(selected);
 				});
 				const startTemplate = () => {
@@ -8326,11 +8336,21 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				return h(React.Fragment, null, h("button", {
 					type: "button",
 					className: `ap-codex-turn${enabled ? " on" : ""}`,
-					onClick: show,
+					onClick: toggle,
+					disabled: busy || !!id && !state,
 					"aria-label": t("专业深度"),
 					"aria-pressed": !!enabled,
-					title: enabled ? t("查看任务说明和交付检查") : t("按实际用途研判任务、格式和验收要求")
-				}, t("专业深度"), enabled ? t(" · 已启用") : ""), open && h("div", {
+					title: enabled ? t("关闭专业深度") : t("启用专业深度")
+				}, t("专业深度"), enabled ? t(" · 已启用") : ""), h("button", {
+					type: "button",
+					className: "ap-depth-settings",
+					onClick: show,
+					"aria-label": t("专业深度设置"),
+					title: t("查看任务说明和交付检查")
+				}, "⚙"), error && !open && h("span", {
+					role: "alert",
+					className: "ap-depth-error"
+				}, error), open && h("div", {
 					className: "ap-overlay ap-depth-overlay",
 					onClick: (event) => {
 						if (event.target === event.currentTarget && !edit) setOpen(false);
@@ -8345,14 +8365,20 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					className: "ap-close",
 					"aria-label": t("关闭专业深度面板"),
 					onClick: () => setOpen(false)
-				}, "×"), h("h2", null, t("专业深度")), h("p", { className: "ap-sub" }, t("围绕实际用途、专业依据和交付要求，继续在当前 DSH 对话中完成任务。只使用你在本对话选定的知识库资料。")), h("div", { className: "ap-row ap-depth-actions" }, h("span", {
+				}, "×"), h("h2", null, t("专业深度")), h("p", { className: "ap-sub" }, t("专业深度围绕本次任务加强分析方法、证据和交付检查。目标在主对话中逐步明确，只使用你为本对话选定的知识库资料。")), h("div", { className: "ap-row ap-depth-actions" }, h("span", {
 					className: "ap-depth-status",
 					role: "status"
 				}, enabled ? !id || state?.needsAssessment ? t("已启用 · 等待你的任务输入") : t("任务说明 · 第 ") + state.revision + t(" 版") : t("默认关闭")), h("button", {
 					type: "button",
 					disabled: busy || !!edit,
 					onClick: toggle
-				}, enabled ? t("关闭专业深度") : t("启用专业深度")), state?.enabled && !edit && h("button", {
+				}, enabled ? t("关闭专业深度") : t("启用专业深度")), onOpenTask && id && h("button", {
+					type: "button",
+					onClick: () => {
+						setOpen(false);
+						onOpenTask(id);
+					}
+				}, t("查看本次任务")), state?.enabled && !edit && h("button", {
 					type: "button",
 					disabled: busy,
 					onClick: () => setEdit(structuredClone(state))
@@ -8464,7 +8490,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					type: "button",
 					disabled: busy,
 					onClick: () => save(true)
-				}, t("保存并继续任务")), h("button", {
+				}, t("保存并返回对话")), h("button", {
 					type: "button",
 					disabled: busy,
 					onClick: () => save(false)
@@ -8476,7 +8502,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 			};
 		}
 		const professionalDepthCss = `
-.ap-depth-overlay{z-index:10080}.ap-depth-modal{max-width:780px;width:calc(100vw - 36px);max-height:85vh;overflow:auto;padding:28px}
+.ap-depth-settings{border:0;background:transparent;color:var(--text-secondary,#687280);padding:4px 7px;cursor:pointer;font-size:15px}.ap-depth-overlay{z-index:10080}.ap-depth-modal{max-width:780px;width:calc(100vw - 36px);max-height:85vh;overflow:auto;padding:28px}
 .ap-depth-fields{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:20px 0}.ap-depth-fields label:last-child{grid-column:1/-1}
 .ap-depth-fields strong{display:block;margin-bottom:6px}.ap-depth-fields p,.ap-depth-notes{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6}
 .ap-depth-modal button:not(.ap-close){border:1px solid var(--border,#d7dce2);border-radius:8px;padding:7px 12px;background:var(--background,#fff);color:inherit;font:inherit;cursor:pointer}.ap-depth-modal button:disabled{opacity:.5;cursor:default}
@@ -8486,17 +8512,258 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 @media(max-width:600px){.ap-depth-fields{grid-template-columns:1fr}.ap-depth-modal{padding:20px}}
 `;
 		//#endregion
+		//#region src/client/professional-task-summary.js
+		const professionalTaskSummaryCss = `
+.ap-task-summary{border:1px solid var(--border,#d5dae1);border-radius:10px;margin:12px 16px;padding:12px 14px;background:var(--bg-primary,#fff);font-size:13px;color:var(--text-primary,#273240);min-width:0;max-height:min(36vh,320px);overflow:auto;flex-shrink:0}.ap-task-summary-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.ap-task-summary h3{font-size:14px;margin:0 0 6px}.ap-task-summary p{margin:5px 0;line-height:1.55;overflow-wrap:anywhere}.ap-task-summary button,.ap-task-finding button{font:inherit;padding:5px 9px;border:1px solid var(--border,#d5dae1);border-radius:6px;background:var(--bg-secondary,#f4f6f8);color:inherit;cursor:pointer}.ap-task-summary-muted{color:var(--text-secondary,#687280);font-size:12px}.ap-task-summary-facts{display:flex;gap:8px 14px;flex-wrap:wrap}.ap-task-finding{border:1px solid var(--border,#d5dae1);border-radius:8px;margin:10px 0;padding:12px}.ap-task-finding[data-importance=critical]{border-left:3px solid var(--accent,#285c7b)}.ap-task-finding h4{font-size:14px;margin:0 0 7px}.ap-task-finding p{margin:5px 0;line-height:1.55;overflow-wrap:anywhere}.ap-task-finding-sources,.ap-task-finding-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.ap-task-finding a{color:var(--accent,#285c7b)}.ap-task-finding-resolved{opacity:.8}.ap-task-summary pre{white-space:pre-wrap;overflow-wrap:anywhere}.ap-task-summary .ap-task-finding{margin-bottom:0}.ap-task-summary-empty{margin:0;color:var(--text-secondary,#687280)}.ap-task-stage-controls{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.ap-task-stage-review{width:100%;padding:10px;border:1px solid var(--border,#d5dae1);border-radius:8px}.ap-task-stage-review button{margin-right:8px}.ap-task-stage-controls button:disabled{opacity:.5;cursor:default}
+@media(max-width:600px){.ap-task-summary{margin:8px;padding:10px}.ap-task-summary-head{flex-wrap:wrap}}
+`;
+		function visibleTaskFindings(task, includeResolved = false) {
+			const latest = /* @__PURE__ */ new Map();
+			for (const row of task?.findings || []) {
+				if (!row?.id) continue;
+				const previous = latest.get(row.id);
+				if (!previous || (row.updatedRevision || 0) >= (previous.updatedRevision || 0)) latest.set(row.id, row);
+			}
+			return [...latest.values()].filter((row) => includeResolved || row.status === "open").sort((a, b) => Number(b.status === "open") - Number(a.status === "open") || Number(b.importance === "critical") - Number(a.importance === "critical") || (b.updatedRevision || 0) - (a.updatedRevision || 0));
+		}
+		function taskOverviewModel(task) {
+			const coverage = (task?.coverage || []).filter((row) => row.status !== "superseded");
+			const questions = (task?.questions || []).filter((row) => !row.answer && ![
+				"answered",
+				"expired",
+				"cancelled"
+			].includes(row.status));
+			const currentStep = (task?.plan || []).find((row) => row.status === "working") || (task?.plan || []).find((row) => row.status === "blocked" || row.status === "needs_review");
+			return {
+				objective: task?.brief?.objective || "",
+				questions,
+				currentStep,
+				coverage: {
+					total: coverage.length,
+					parsed: coverage.filter((row) => row.status === "parsed").length,
+					reviewed: coverage.filter((row) => row.review === "reviewed").length,
+					unreadable: coverage.filter((row) => row.status === "unreadable").length,
+					missing: coverage.filter((row) => row.status === "missing").length
+				},
+				delivery: {
+					total: task?.deliverables?.length || 0,
+					accepted: (task?.deliverables || []).filter((row) => row.status === "accepted").length,
+					stale: (task?.deliverables || []).filter((row) => row.status === "stale").length
+				},
+				depthEnabled: !!task?.quality?.enabled,
+				findings: visibleTaskFindings(task),
+				changes: [...task?.recentChanges || []].sort((a, b) => (b.sequence || 0) - (a.sequence || 0))
+			};
+		}
+		function sourceReference(h, evidence, onOpenSource, locale = "zh") {
+			const title = evidence?.title || evidence?.id || (String(locale).startsWith("zh") ? "查看依据" : "View source");
+			if (onOpenSource && (evidence?.locator || evidence?.url)) return h("button", {
+				key: evidence.id,
+				type: "button",
+				onClick: () => onOpenSource(evidence),
+				title: evidence.locator || evidence.url
+			}, title);
+			if (/^https?:\/\//i.test(evidence?.url || "")) return h("a", {
+				key: evidence.id,
+				href: evidence.url,
+				target: "_blank",
+				rel: "noopener noreferrer"
+			}, title);
+			return h("span", {
+				key: evidence?.id,
+				className: "ap-task-summary-muted"
+			}, title, evidence?.locator ? ` · ${evidence.locator}` : "");
+		}
+		function renderTaskFindings(h, task, locale, onOpenSource, { includeResolved = false, limit, onOpenChat } = {}) {
+			const zh = String(locale || "").startsWith("zh");
+			const evidence = new Map((task?.evidence || []).map((row) => [row.id, row]));
+			const rows = visibleTaskFindings(task, includeResolved);
+			return (limit ? rows.slice(0, limit) : rows).map((row) => h("article", {
+				key: row.id,
+				className: `ap-task-finding${row.status !== "open" ? " ap-task-finding-resolved" : ""}`,
+				"data-finding-id": row.id,
+				"data-importance": row.importance || "normal"
+			}, h("h4", null, row.title), h("p", null, row.summary), h("p", null, h("strong", null, zh ? "对当前目标的影响：" : "Impact on this goal: "), row.goalImpact), h("div", { className: "ap-task-finding-sources" }, h("span", { className: "ap-task-summary-muted" }, zh ? "依据：" : "Sources: "), ...(row.evidenceIds || []).map((id) => sourceReference(h, evidence.get(id) || { id }, onOpenSource, locale))), (row.actions || []).length > 0 && h("div", { className: "ap-task-finding-actions" }, h("span", { className: "ap-task-summary-muted" }, zh ? "下一步：" : "Next: "), ...row.actions.map((action, index) => {
+				if (action.kind === "source" && evidence.has(action.target)) return sourceReference(h, evidence.get(action.target), onOpenSource, locale);
+				if (action.kind === "question" && onOpenChat) return h("button", {
+					key: action.id || index,
+					type: "button",
+					onClick: onOpenChat
+				}, action.label);
+				return h("span", { key: action.id || index }, action.label);
+			})), row.resolution && h("p", null, zh ? "处理结果：" : "Resolution: ", row.resolution), row.status !== "open" && h("p", { className: "ap-task-summary-muted" }, row.status === "resolved" ? zh ? "已处理" : "Resolved" : zh ? "已被后续发现替代" : "Superseded")));
+		}
+		function createTaskStageControls({ React, api, cwd, language, onOpenWorkbench }) {
+			const h = React.createElement;
+			return function TaskStageControls({ sessionId, task, binding, onChanged }) {
+				const [review, setReview] = React.useState(null), [busy, setBusy] = React.useState(false), [error, setError] = React.useState(""), [approved, setApproved] = React.useState(false);
+				const zh = String(language?.() || "zh").startsWith("zh");
+				React.useEffect(() => {
+					setReview(null);
+					setError("");
+					setApproved(false);
+				}, [sessionId]);
+				if (!binding?.projectId) return null;
+				const approve = async () => {
+					if (!review?.binding?.approvalFingerprint || busy) return;
+					setBusy(true);
+					setError("");
+					try {
+						await api("/api/agent-pi/stage", review.binding.cwd || cwd(), {
+							method: "POST",
+							body: JSON.stringify({
+								action: "approve_gate",
+								module: review.binding.moduleId,
+								projectId: review.binding.projectId,
+								stageId: review.binding.stageId,
+								sessionId,
+								approvalFingerprint: review.binding.approvalFingerprint
+							})
+						});
+						setApproved(true);
+						setReview(null);
+						await onChanged?.();
+					} catch (e) {
+						setError(e.message);
+					} finally {
+						setBusy(false);
+					}
+				};
+				return h("div", { className: "ap-task-stage-controls" }, onOpenWorkbench && h("button", {
+					type: "button",
+					onClick: () => onOpenWorkbench(binding)
+				}, approved ? zh ? "前往工作台继续" : "Continue in the workbench" : zh ? "查看工作台阶段" : "View workbench stage"), approved && h("p", {
+					role: "status",
+					className: "ap-task-summary-muted"
+				}, zh ? "阶段批准已记录，可前往工作台继续当前项目。" : "Stage approval was recorded. Continue this project in the workbench."), error && !review && h("p", { role: "alert" }, error), binding.approvalGate && h("button", {
+					type: "button",
+					disabled: busy,
+					onClick: () => {
+						setReview({
+							binding: structuredClone(binding),
+							task: structuredClone(task)
+						});
+						setError("");
+					}
+				}, zh ? "查看并批准当前阶段" : "Review and approve current stage"), review && h("div", {
+					className: "ap-task-stage-review",
+					role: "region",
+					"aria-label": zh ? "阶段审批确认" : "Stage approval confirmation"
+				}, h("h4", null, zh ? "确认本阶段的成果与范围" : "Confirm the results and scope of this stage"), h("p", null, (zh ? "项目总目标：" : "Project goal: ") + (review.binding.projectGoal || "")), h("p", null, (zh ? "当前阶段：" : "Current stage: ") + (review.binding.stageLabel || review.binding.stageId)), h("p", null, (zh ? "本次任务：" : "Current task: ") + (review.task?.brief?.objective || "")), ...(review.binding.approvalDeliverables || review.task?.deliverables || []).map((row) => h("div", { key: row.id || row.path }, h("p", null, row.title + " · " + row.path + (row.status ? " · " + row.status : "")), ...(row.checks || []).map((check, index) => h("p", {
+					key: index,
+					className: "ap-task-summary-muted"
+				}, (check.kind || check.title || "") + " · " + check.status + " · " + (check.detail || ""))))), review.task?.pendingProjectSync && h("p", { role: "alert" }, zh ? "用户需求尚未完整同步，暂不能批准。" : "User requirements are not fully synchronized; approval is unavailable."), error && h("p", { role: "alert" }, error), h("button", {
+					type: "button",
+					disabled: busy || !review.binding.approvalFingerprint || !!review.task?.pendingProjectSync,
+					onClick: approve
+				}, zh ? "确认批准此阶段" : "Confirm approval of this stage"), h("button", {
+					type: "button",
+					disabled: busy,
+					onClick: () => setReview(null)
+				}, zh ? "返回核对" : "Return to review")));
+			};
+		}
+		function createProfessionalTaskSummary({ React, api, cwd, language, subscribe, onOpenTask, onOpenSource, onOpenWorkbench, onTask }) {
+			const h = React.createElement;
+			const StageControls = createTaskStageControls({
+				React,
+				api,
+				cwd,
+				language,
+				onOpenWorkbench
+			});
+			return function ProfessionalTaskSummary({ sessionId, taskResult, binding, onOpenTask: openTask }) {
+				const [result, setResult] = React.useState(null);
+				const revision = React.useRef(-1);
+				React.useEffect(() => {
+					setResult(null);
+					revision.current = -1;
+					if (taskResult) {
+						revision.current = taskResult.task.revision;
+						onTask?.(sessionId, taskResult.task, taskResult.binding);
+					}
+					if (!sessionId || taskResult) return;
+					const controller = new AbortController();
+					let loading = false;
+					const refresh = async () => {
+						if (loading) return;
+						loading = true;
+						try {
+							const next = await api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(sessionId)}`, cwd(), { signal: controller.signal });
+							if (!controller.signal.aborted && next.task.revision >= revision.current) {
+								revision.current = next.task.revision;
+								setResult(next);
+								onTask?.(sessionId, next.task, next.binding);
+							}
+						} catch {} finally {
+							loading = false;
+						}
+					};
+					refresh();
+					const timer = setInterval(refresh, 5e3);
+					const dispose = subscribe?.(sessionId, refresh);
+					return () => {
+						controller.abort();
+						clearInterval(timer);
+						dispose?.();
+					};
+				}, [sessionId, taskResult]);
+				const task = (taskResult || result)?.task;
+				if (!task) return null;
+				const model = taskOverviewModel(task);
+				if (!model.objective && !model.questions.length && !model.findings.length && !task.latestRequest && !model.depthEnabled) return null;
+				const locale = language?.() || "zh", zh = locale.startsWith("zh");
+				const project = binding || (taskResult || result)?.binding || task.binding;
+				const openSource = onOpenSource ? (evidence) => onOpenSource(evidence, sessionId) : void 0;
+				const goalStatus = task.briefProvenance?.objective?.status;
+				const open = openTask || onOpenTask;
+				return h("section", {
+					className: "ap-task-summary",
+					"aria-label": zh ? "共同任务理解" : "Shared task understanding",
+					"data-task-revision": task.revision
+				}, h("div", { className: "ap-task-summary-head" }, h("div", null, h("h3", null, zh ? "本次目标" : "Current goal"), h("p", null, model.objective || (zh ? "正在结合你的表达和资料整理目标。" : "Understanding your goal from the conversation and materials.")), goalStatus && h("span", { className: "ap-task-summary-muted" }, goalStatus === "provisional" || goalStatus === "conflict" ? zh ? "暂定理解，可在对话中纠正" : "Provisional; correct this in the conversation" : zh ? "来自当前任务要求" : "From the current task requirements")), open && h("button", {
+					type: "button",
+					onClick: () => open(sessionId)
+				}, zh ? "查看本次任务" : "View current task")), project && h("p", { className: "ap-task-summary-muted" }, project.projectGoal ? `${zh ? "项目总目标：" : "Project goal: "}${project.projectGoal} · ` : "", project.stageLabel || project.stageId || ""), project && h(StageControls, {
+					sessionId,
+					task,
+					binding: project,
+					onChanged: async () => {
+						const next = await api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(sessionId)}`, cwd());
+						revision.current = next.task.revision;
+						setResult(next);
+						onTask?.(sessionId, next.task, next.binding);
+					}
+				}), h("div", { className: "ap-task-summary-facts" }, model.currentStep && h("span", null, `${zh ? "正在解决：" : "Current focus: "}${model.currentStep.title}`), model.questions.length > 0 && h("span", null, `${model.questions.length}${zh ? " 个问题待明确" : " questions to clarify"}`), h("span", { className: "ap-task-summary-muted" }, model.depthEnabled ? zh ? "专业深度已启用" : "Professional depth on" : zh ? "基础专业检查" : "Core professional checks")), ...renderTaskFindings(h, task, locale, openSource, { limit: 3 }), model.findings.length > 3 && h("p", { className: "ap-task-summary-muted" }, `${zh ? "另有 " : "Plus "}${model.findings.length - 3}${zh ? " 项发现，可在本次任务中查看。" : " findings in Current task."}`), model.changes[0]?.summary && h("p", { className: "ap-task-summary-muted" }, `${zh ? "最近调整：" : "Latest adjustment: "}${model.changes[0].summary}`));
+			};
+		}
+		//#endregion
 		//#region src/client/task-process.js
 		/** Task status only; native Chat settings own work-details presentation. */
 		const taskProcessCss = `
 .ap-task-process{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text-secondary,#687280);max-width:520px}.ap-task-process span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 `;
-		function taskProcessSummary(snapshot, fallbackLanguage = "zh") {
+		function taskProcessSummary(snapshot, fallbackLanguage = "zh", professionalTask = snapshot?.professionalTask) {
 			const text = ([...snapshot?.chat?.legacy?.nodes || []].reverse().find((node) => (node.kind === "user" || node.kind === "steering") && node.source?.kind === "user")?.content || []).filter((part) => part.type === "text").map((part) => part.text).join(" ");
 			const language = /[\u3400-\u9fff]/u.test(text) ? "zh" : /[a-zA-Z]/.test(text) ? "en" : fallbackLanguage;
-			if (!snapshot?.running) return {
+			if (!snapshot?.running && !["running", "waiting"].includes(snapshot?.phase)) return {
 				language,
 				text: ""
+			};
+			if (professionalTask) {
+				const model = taskOverviewModel(professionalTask);
+				const rows = [];
+				if (model.currentStep) rows.push((language === "zh" ? "正在解决：" : "Current focus: ") + model.currentStep.title);
+				if (model.coverage.total) rows.push((language === "zh" ? "已抽取 " : "Extracted ") + model.coverage.parsed + "/" + model.coverage.total + (language === "zh" ? "，专业复核 " : "; professional review ") + model.coverage.reviewed + "/" + model.coverage.total);
+				if (model.questions.length) rows.push(model.questions.length + (language === "zh" ? " 个问题待明确" : " questions to clarify"));
+				if (rows.length) return {
+					language,
+					text: rows.join(" · ")
+				};
+			}
+			if (snapshot?.phase === "waiting") return {
+				language,
+				text: language === "zh" ? "等待确认或补充信息" : "Waiting for confirmation or information"
 			};
 			const name = snapshot?.chat?.legacy?.runningCalls?.at(-1)?.name || "";
 			return {
@@ -8516,7 +8783,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				})[/^(read|read_image|web_fetch)$/.test(name) ? "read" : /^(web_search|grep|glob|kb_search)$/.test(name) ? "search" : /^(write|edit|univer_)/.test(name) ? "write" : /^(professional_depth|present)$/.test(name) ? "review" : "work"]
 			};
 		}
-		function createTaskProcess({ React, snapshot, subscribe, language }) {
+		function createTaskProcess({ React, snapshot, subscribe, language, professionalTask }) {
 			const h = React.createElement;
 			return function TaskProcess({ sessionId }) {
 				const [, refresh] = React.useState(0);
@@ -8534,7 +8801,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 						stop?.();
 					};
 				}, [sessionId]);
-				const summary = taskProcessSummary(snapshot(sessionId), language());
+				const summary = taskProcessSummary(snapshot(sessionId), language(), professionalTask?.(sessionId));
 				if (!summary.text) return null;
 				return h("div", { className: "ap-task-process" }, h("span", {
 					role: "status",
@@ -8569,14 +8836,15 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 .ap-task-guide{position:relative;width:100%;height:100%;min-height:0;min-width:0;box-sizing:border-box;padding-bottom:var(--dsh-composer-height,180px);background:var(--bg-primary,#fff);color:var(--text-primary,#273240);display:flex;flex-direction:column;font-size:14px}
 .ap-task-guide header,.ap-task-guide footer{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--border,#d5dae1)}
 .ap-task-guide header h2{margin:0;font-size:18px}.ap-task-guide nav{display:flex;gap:6px;padding:12px 24px;flex-wrap:wrap}.ap-task-guide button{font:inherit;border:1px solid var(--border,#d5dae1);border-radius:6px;background:var(--bg-secondary,#f4f6f8);color:inherit;padding:7px 12px;cursor:pointer}.ap-task-guide button[aria-selected=true]{background:var(--accent,#285c7b);color:#fff}.ap-task-guide button:disabled{opacity:.5;cursor:default}
-.ap-task-guide main{padding:8px 24px 24px;overflow:auto;flex:1}.ap-task-guide label{display:flex;flex-direction:column;gap:6px;margin:12px 0}.ap-task-guide input,.ap-task-guide textarea,.ap-task-guide select{font:inherit;border:1px solid var(--border,#d5dae1);border-radius:6px;padding:9px;background:var(--bg-secondary,#fafbfc);color:inherit;width:100%;box-sizing:border-box}.ap-task-guide textarea{min-height:75px;resize:vertical}.ap-task-guide p{line-height:1.6}.ap-task-guide article{border:1px solid var(--border,#d5dae1);border-radius:8px;padding:12px 16px;margin:12px 0}.ap-task-guide article h3{font-size:15px;margin:0 0 8px}.ap-task-guide article p{margin:6px 0;overflow-wrap:anywhere}.ap-task-guide .ap-guide-muted{color:var(--text-secondary,#687280);font-size:12px}.ap-task-guide .ap-guide-error{color:#b74434}.ap-task-guide footer{border-top:1px solid var(--border,#d5dae1);border-bottom:0}.ap-task-guide pre{white-space:pre-wrap;overflow-wrap:anywhere}
+.ap-task-guide main{padding:8px 24px 24px;overflow:auto;flex:1}.ap-task-guide label{display:flex;flex-direction:column;gap:6px;margin:12px 0}.ap-task-guide input,.ap-task-guide textarea,.ap-task-guide select{font:inherit;border:1px solid var(--border,#d5dae1);border-radius:6px;padding:9px;background:var(--bg-secondary,#fafbfc);color:inherit;width:100%;box-sizing:border-box}.ap-task-guide textarea{min-height:75px;resize:vertical}.ap-task-guide p{line-height:1.6}.ap-task-guide article{border:1px solid var(--border,#d5dae1);border-radius:8px;padding:12px 16px;margin:12px 0}.ap-task-guide article h3{font-size:15px;margin:0 0 8px}.ap-task-guide article p{margin:6px 0;overflow-wrap:anywhere}.ap-task-guide .ap-guide-muted{color:var(--text-secondary,#687280);font-size:12px}.ap-task-guide .ap-guide-error{color:#b74434}.ap-task-guide footer{border-top:1px solid var(--border,#d5dae1);border-bottom:0}.ap-task-guide pre{white-space:pre-wrap;overflow-wrap:anywhere}.ap-guide-progress{display:flex;gap:8px 20px;flex-wrap:wrap}.ap-guide-objective{font-size:18px;line-height:1.6}
 @media(max-width:600px){.ap-task-guide header,.ap-task-guide footer{padding:12px 16px}.ap-task-guide main{padding:4px 16px 20px}.ap-task-guide nav{padding:10px 16px}.ap-task-guide footer{flex-wrap:wrap}}
 `;
 		const labels = {
 			zh: {
 				title: "本次任务",
-				close: "关闭",
-				goal: "目标与需求",
+				close: "返回对话",
+				overview: "任务概览",
+				goal: "修正目标",
 				basis: "项目依据",
 				plan: "执行计划",
 				capabilities: "可用能力",
@@ -8597,7 +8865,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				measurement: "计量计价依据",
 				standards: "已登记规范",
 				webDiligence: "公共网络尽调",
-				save: "保存需求",
+				save: "保存修正",
 				saving: "正在保存…",
 				refresh: "读取最新状态",
 				saved: "已保存，后续执行将采用本次需求。",
@@ -8614,12 +8882,13 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				evidence: "证据状态",
 				unanswered: "待明确的问题",
 				empty: "尚未登记",
-				reminder: "来源抽取、专业复核和客户验收分别记录。修改条件后，受影响的计算与文件会待复核。"
+				reminder: "通过主对话理解目标、补充资料和调整方向；这里持续记录共同理解、执行发现与交付检查。"
 			},
 			en: {
 				title: "Current task",
-				close: "Close",
-				goal: "Goal & brief",
+				close: "Return to conversation",
+				overview: "Task overview",
+				goal: "Correct goal",
 				basis: "Project basis",
 				plan: "Execution plan",
 				capabilities: "Capabilities",
@@ -8640,7 +8909,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				measurement: "Measurement and pricing basis",
 				standards: "Registered standards",
 				webDiligence: "Public web diligence",
-				save: "Save brief",
+				save: "Save corrections",
 				saving: "Saving…",
 				refresh: "Read latest state",
 				saved: "Saved. Subsequent execution will use this brief.",
@@ -8657,7 +8926,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				evidence: "Evidence status",
 				unanswered: "Open questions",
 				empty: "Not registered",
-				reminder: "Extraction, professional review and customer acceptance are recorded separately. Changed conditions require affected calculations and files to be reviewed."
+				reminder: "Use the main conversation to explain your goal, provide materials and adjust direction. This view records shared understanding, findings and delivery checks."
 			}
 		};
 		const professions = [
@@ -8680,26 +8949,55 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 			"汇报",
 			"表格"
 		];
-		function briefFromForm(brief, key, value) {
+		function briefField(brief, key) {
+			return key.startsWith("basis.") ? brief.basis?.[key.slice(6)] : brief[key];
+		}
+		/** Merge field drafts with the latest task without overwriting unrelated updates. */
+		function mergeTaskBriefEdits(task, edits, allowConflicts = false) {
+			const brief = {
+				...task.brief,
+				basis: { ...task.brief.basis }
+			};
+			const conflicts = [];
+			for (const [key, edit] of Object.entries(edits)) {
+				if (key.startsWith("question.")) continue;
+				if (JSON.stringify(briefField(task.brief, key)) !== JSON.stringify(edit.baseValue)) conflicts.push(key);
+				if (key.startsWith("basis.")) brief.basis[key.slice(6)] = edit.value;
+				else brief[key] = edit.value;
+			}
 			return {
-				...brief,
-				[key]: key === "formats" ? value.split(/[,，]/).map((row) => row.trim()).filter(Boolean) : value
+				brief: conflicts.length && !allowConflicts ? null : brief,
+				conflicts
 			};
 		}
-		function createTaskGuide({ React, api, cwd, language, subscribe }) {
+		function createTaskGuide({ React, api, cwd, language, subscribe, onOpenSource, onOpenWorkbench }) {
 			const h = React.createElement;
-			return function TaskGuide({ sessionId, onClose }) {
+			const StageControls = createTaskStageControls({
+				React,
+				api,
+				cwd,
+				language,
+				onOpenWorkbench
+			});
+			return function TaskGuide({ sessionId, onClose, binding }) {
 				const open = true;
-				const [tab, setTab] = React.useState("goal");
+				const [tab, setTab] = React.useState("overview");
 				const [result, setResult] = React.useState(null), [draft, setDraft] = React.useState(null);
+				const fieldEdits = React.useRef({});
+				const taskRevision = React.useRef(-1);
+				const [conflicts, setConflicts] = React.useState([]);
 				const [dirty, setDirty] = React.useState(false), [busy, setBusy] = React.useState(false), [message, setMessage] = React.useState(""), [error, setError] = React.useState("");
 				const text = labels[language()?.startsWith("zh") ? "zh" : "en"];
+				const openSource = onOpenSource ? (evidence) => onOpenSource(evidence, sessionId) : void 0;
 				const displayState = (value) => (text === labels.zh ? {
 					available: "可用",
 					conditional: "需核实适用条件",
 					unavailable: "当前不可用",
 					not_applicable: "不适用于本次任务",
 					pending: "待处理",
+					working: "进行中",
+					blocked: "需补足条件",
+					needs_review: "待复核",
 					running: "进行中",
 					done: "已完成",
 					stale: "条件已变更，待复核",
@@ -8724,6 +9022,9 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					unavailable: "Unavailable",
 					not_applicable: "Not applicable to this task",
 					pending: "Pending",
+					working: "In progress",
+					blocked: "Missing conditions",
+					needs_review: "Review required",
 					running: "In progress",
 					done: "Completed",
 					stale: "Changed conditions; review required",
@@ -8749,9 +9050,13 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					setDraft(null);
 					setDirty(false);
 					setError("");
+					setTab("overview");
+					fieldEdits.current = {};
+					taskRevision.current = -1;
+					setConflicts([]);
 				}, [sessionId]);
 				React.useEffect(() => {
-					if (!sessionId || dirty) return;
+					if (!sessionId) return;
 					const controller = new AbortController();
 					let loading = false;
 					const refresh = async () => {
@@ -8759,9 +9064,16 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 						loading = true;
 						try {
 							const next = await api(endpoint, cwd(), { signal: controller.signal });
-							if (!controller.signal.aborted) {
+							if (!controller.signal.aborted && next.task.revision >= taskRevision.current) {
+								taskRevision.current = next.task.revision;
 								setResult(next);
-								setDraft(structuredClone(next.task));
+								const task = structuredClone(next.task);
+								task.brief = mergeTaskBriefEdits(task, fieldEdits.current, true).brief;
+								task.questions = task.questions.map((row) => fieldEdits.current["question." + row.id] && !row.provider ? {
+									...row,
+									answer: fieldEdits.current["question." + row.id].value
+								} : row);
+								setDraft(task);
 								setError("");
 							}
 						} catch (e) {
@@ -8780,21 +9092,49 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				}, [
 					open,
 					sessionId,
-					dirty,
 					endpoint
 				]);
-				async function save(patch) {
+				async function save(patch, allowConflicts = false) {
 					setBusy(true);
 					setError("");
 					setMessage("");
 					try {
+						const latest = await api(endpoint, cwd());
+						taskRevision.current = latest.task.revision;
+						setResult(latest);
+						if (patch.brief) {
+							const merged = mergeTaskBriefEdits(latest.task, fieldEdits.current, allowConflicts);
+							if (!merged.brief) {
+								setConflicts(merged.conflicts);
+								throw new Error(text === labels.zh ? "这些字段在编辑期间有新变化，请核对后保留你的修正，或取消草稿采用最新内容。" : "These fields changed while you were editing. Review before keeping your corrections or discarding the draft.");
+							}
+							patch = {
+								brief: merged.brief,
+								questions: latest.task.questions.map((row) => fieldEdits.current["question." + row.id] && !row.provider ? {
+									...row,
+									answer: fieldEdits.current["question." + row.id].value
+								} : row)
+							};
+						} else if (patch.deliverables) {
+							const updates = new Map(patch.deliverables.map((row) => [row.id, row]));
+							const accepting = latest.task.deliverables.some((row) => updates.get(row.id)?.status === "accepted" && row.status !== "accepted");
+							patch = { deliverables: latest.task.deliverables.map((row) => ({
+								...row,
+								...updates.get(row.id)?.signature === "signed" ? { signature: "signed" } : {},
+								...updates.get(row.id)?.status === "accepted" ? { status: "accepted" } : {}
+							})) };
+							if (accepting && !latest.audit?.readyForCustomerReview) throw new Error(text === labels.zh ? "交付状态已变化，请按最新检查结果复核。" : "Delivery state changed. Review the latest checks.");
+						}
 						const next = await api(endpoint, cwd(), {
 							method: "POST",
 							body: JSON.stringify({
-								revision: draft.revision,
+								revision: latest.task.revision,
 								patch
 							})
 						});
+						taskRevision.current = next.task.revision;
+						fieldEdits.current = {};
+						setConflicts([]);
 						setDraft(next.task);
 						setResult(next);
 						setDirty(false);
@@ -8811,9 +9151,16 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					setMessage("");
 					try {
 						const next = await api(endpoint, cwd());
+						if (next.task.revision < taskRevision.current) return;
+						taskRevision.current = next.task.revision;
 						setResult(next);
-						setDraft(structuredClone(next.task));
-						setDirty(false);
+						const task = structuredClone(next.task);
+						task.brief = mergeTaskBriefEdits(task, fieldEdits.current, true).brief;
+						task.questions = task.questions.map((row) => fieldEdits.current["question." + row.id] && !row.provider ? {
+							...row,
+							answer: fieldEdits.current["question." + row.id].value
+						} : row);
+						setDraft(task);
 					} catch (e) {
 						setError(e.message);
 					} finally {
@@ -8821,18 +9168,18 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					}
 				}
 				const edit = (key, value, basis = false) => {
+					const path = basis ? "basis." + key : key;
+					fieldEdits.current[path] = {
+						baseValue: fieldEdits.current[path]?.baseValue ?? briefField(result.task.brief, path),
+						value: key === "formats" ? value.split(/[,，]/).map((row) => row.trim()).filter(Boolean) : value
+					};
 					setDraft({
 						...draft,
-						brief: basis ? {
-							...draft.brief,
-							basis: {
-								...draft.brief.basis,
-								[key]: value
-							}
-						} : briefFromForm(draft.brief, key, value)
+						brief: mergeTaskBriefEdits(result.task, fieldEdits.current, true).brief
 					});
 					setDirty(true);
 					setMessage("");
+					setConflicts([]);
 				};
 				const field = (key, basis = false, multiline = false) => h("label", { key }, text[key], h(multiline ? "textarea" : "input", {
 					value: (basis ? draft.brief.basis[key] : key === "formats" ? draft.brief.formats.join(", ") : draft.brief[key]) || "",
@@ -8841,6 +9188,40 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				const article = (id, title, body) => h("article", { key: id }, h("h3", null, title), body);
 				let body = null;
 				if (draft) {
+					const task = result?.task || draft, model = taskOverviewModel(task), zh = text === labels.zh;
+					const project = binding || result?.binding || task.binding;
+					const provenance = task.briefProvenance?.objective;
+					const origin = zh ? {
+						user: "用户表达",
+						source: "资料提取",
+						inference: "系统推测",
+						legacy: "已有记录"
+					} : {
+						user: "User request",
+						source: "Source material",
+						inference: "Inferred",
+						legacy: "Previous record"
+					};
+					const status = zh ? {
+						explicit: "明确要求",
+						confirmed: "已确认",
+						provisional: "暂定理解",
+						conflict: "存在冲突"
+					} : {
+						explicit: "Explicit",
+						confirmed: "Confirmed",
+						provisional: "Provisional",
+						conflict: "Conflict"
+					};
+					if (tab === "overview") body = h(React.Fragment, null, article("understanding", zh ? "共同理解的目标" : "Shared understanding of the goal", h(React.Fragment, null, h("p", { className: "ap-guide-objective" }, task.brief.objective || (zh ? "把目的告诉主对话，系统会结合资料逐步明确。" : "Describe your purpose in the conversation. The system will clarify it from the materials.")), provenance && h("p", { className: "ap-guide-muted" }, origin[provenance.origin] + " · " + status[provenance.status]), task.brief.scope && h("p", null, text.scope + "：" + task.brief.scope), task.brief.audience && h("p", null, text.audience + "：" + task.brief.audience), h("button", { onClick: () => setTab("goal") }, zh ? "修正某项理解" : "Correct an item"), onClose && h("button", { onClick: onClose }, zh ? "继续在对话中说明" : "Continue in the conversation"))), project && article("binding", zh ? "与专业化工作台的关联" : "Professional workbench connection", h(React.Fragment, null, project.projectGoal && h("p", null, (zh ? "项目总目标：" : "Project goal: ") + project.projectGoal), h("p", null, (zh ? "当前阶段：" : "Current stage: ") + (project.stageLabel || project.stageId || text.empty)), h("p", { className: "ap-guide-muted" }, zh ? "本次任务为当前阶段贡献成果，项目总目标与阶段审批由工作台保留。" : "This task contributes to the current stage. The workbench retains the project goal and stage approvals."), h(StageControls, {
+						sessionId,
+						task,
+						binding: project,
+						onChanged: reload
+					}))), article("quality", zh ? "专业执行口径" : "Professional execution policy", h(React.Fragment, null, h("p", null, model.depthEnabled ? zh ? "专业深度已启用：加强方法、证据与验收项审阅。" : "Professional depth is on: enhanced methods, evidence and acceptance review." : zh ? "基础专业检查持续生效；可在输入区主动开启专业深度。" : "Core professional checks apply. Turn on professional depth in the composer for additional review."), h("p", { className: "ap-guide-muted" }, zh ? "调整开关会保留已有依据、发现和检查记录。" : "Changing the switch preserves evidence, findings and check records."))), model.questions.length > 0 && article("questions", text.unanswered, h(React.Fragment, null, ...model.questions.map((row) => h("div", { key: row.id }, h("p", null, row.question), row.purpose && h("p", { className: "ap-guide-muted" }, row.purpose), row.provider && h("p", { className: "ap-guide-muted" }, zh ? "请在主对话的原生问答卡中回答。" : "Answer in the native question card in the conversation."))), onClose && h("button", { onClick: onClose }, zh ? "在主对话中回答" : "Answer in the conversation"))), h("h3", null, zh ? "围绕目标的发现" : "Findings related to your goal"), task.findings?.length ? renderTaskFindings(h, task, language(), openSource, {
+						includeResolved: true,
+						onOpenChat: onClose
+					}) : h("p", { className: "ap-guide-muted" }, zh ? "实际分析形成的发现会记录在这里，并说明依据、目标影响和下一步。" : "Findings from actual analysis appear here with their sources, impact on the goal and next action."), article("progress", zh ? "实际工作进展" : "Actual work progress", h(React.Fragment, null, model.currentStep && h("p", null, (zh ? "当前重点：" : "Current focus: ") + model.currentStep.title), h("div", { className: "ap-guide-progress" }, h("span", null, (zh ? "资料抽取：" : "Source extraction: ") + model.coverage.parsed + "/" + model.coverage.total), h("span", null, (zh ? "专业复核：" : "Professional review: ") + model.coverage.reviewed + "/" + model.coverage.total), h("span", null, (zh ? "缺失 / 不可读：" : "Missing / unreadable: ") + model.coverage.missing + " / " + model.coverage.unreadable), h("span", null, (zh ? "客户验收：" : "Customer acceptance: ") + model.delivery.accepted + "/" + model.delivery.total)), model.coverage.total === 0 && h("p", { className: "ap-guide-muted" }, zh ? "尚未登记资料检查对象，不推算完成率。" : "No source inspection objects have been registered yet."), h("button", { onClick: () => setTab("plan") }, text.plan), h("button", { onClick: () => setTab("delivery") }, text.delivery))), model.changes.length > 0 && article("changes", zh ? "调整记录" : "Adjustment history", h(React.Fragment, null, ...model.changes.slice(0, 8).map((row) => h("div", { key: row.sequence }, h("p", null, row.summary), row.affectedRefs?.length > 0 && h("p", { className: "ap-guide-muted" }, (zh ? "受影响：" : "Affected: ") + row.affectedRefs.join("、")))))));
 					if (tab === "goal") body = h(React.Fragment, null, field("objective", false, true), field("scope", false, true), field("audience"), h("label", null, text.profession, h("select", {
 						value: draft.brief.profession,
 						onChange: (e) => edit("profession", e.target.value)
@@ -8857,9 +9238,10 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					].map(([value, label]) => h("option", {
 						key: value,
 						value
-					}, label)))), h("h3", null, text.unanswered), draft.questions.map((row) => h("label", { key: row.id }, row.question, h("textarea", {
+					}, label)))), h("h3", null, text.unanswered), draft.questions.filter((row) => !row.provider && row.status !== "cancelled").map((row) => h("label", { key: row.id }, row.question, h("textarea", {
 						value: row.answer || "",
 						onChange: (e) => {
+							fieldEdits.current["question." + row.id] = { value: e.target.value };
 							setDraft({
 								...draft,
 								questions: draft.questions.map((q) => q.id === row.id ? {
@@ -8878,7 +9260,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 						"funding",
 						"contract",
 						"measurement"
-					].map((key) => field(key, true)), h("h3", null, text.standards), draft.brief.basis.standards.map((row) => article(row.id, row.title, h("p", null, row.version + " · " + row.scope + " · " + row.evidenceId))), h("h3", null, text.evidence), draft.evidence.map((row) => article(row.id, row.title, h(React.Fragment, null, h("p", null, row.value), h("p", { className: "ap-guide-muted" }, row.kind + " · " + displayState(row.status) + " · " + (row.locator || row.url || row.basis || ""))))));
+					].map((key) => field(key, true)), h("h3", null, text.standards), draft.brief.basis.standards.map((row) => article(row.id, row.title, h("p", null, row.version + " · " + row.scope + " · " + row.evidenceId))), h("h3", null, text.evidence), draft.evidence.map((row) => article(row.id, row.title, h(React.Fragment, null, h("p", null, row.value), h("p", { className: "ap-guide-muted" }, row.kind + " · " + displayState(row.status) + " · " + (row.basis || "")), sourceReference(h, row, openSource, language())))));
 					if (tab === "plan") body = h(React.Fragment, null, h("p", null, draft.assessment || text.waiting), draft.plan.map((row) => article(row.id, row.title, h(React.Fragment, null, h("p", null, displayState(row.status)), h("p", { className: "ap-guide-muted" }, row.dependsOn.join(" → ")), row.gaps.map((gap, index) => h("p", { key: "g" + index }, text.missing + ": " + gap)), row.supplements.map((supplement, index) => h("p", { key: "s" + index }, supplement))))), h("h3", null, text.source), draft.coverage.map((row) => article(row.id, row.title, h("p", null, displayState(row.status) + " · " + (row.review || "") + " · " + row.locator))));
 					if (tab === "capabilities") body = result?.capabilities?.toSorted((a, b) => [
 						"available",
@@ -8921,6 +9303,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					role: "region",
 					"aria-label": text.title
 				}, h("header", null, h("h2", null, text.title), onClose ? h("button", { onClick: onClose }, text.close) : null), h("nav", { "aria-label": text.title }, [
+					"overview",
 					"goal",
 					"basis",
 					"plan",
@@ -8934,17 +9317,78 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				}, text[key]))), h("main", null, h("p", { className: "ap-guide-muted" }, text.reminder), error ? h("p", {
 					role: "alert",
 					className: "ap-guide-error"
-				}, error) : null, message ? h("p", { role: "status" }, message) : null, !sessionId ? h("p", null, text.noTask) : body), h("footer", null, h("button", {
+				}, error) : null, message ? h("p", { role: "status" }, message) : null, conflicts.length > 0 ? h("div", null, h("p", null, conflicts.join("、")), h("button", {
+					disabled: busy,
+					onClick: () => save({
+						brief: draft.brief,
+						questions: draft.questions
+					}, true)
+				}, text === labels.zh ? "保留我的修正并保存" : "Keep my corrections and save")) : null, !sessionId ? h("p", null, text.noTask) : body), h("footer", null, h("button", {
 					disabled: busy,
 					onClick: reload
-				}, text.refresh), h("button", {
-					disabled: busy || !dirty || !draft,
+				}, text.refresh), dirty ? h("button", {
+					disabled: busy,
+					onClick: () => {
+						fieldEdits.current = {};
+						setDraft(structuredClone(result.task));
+						setDirty(false);
+						setConflicts([]);
+						setError("");
+					}
+				}, text === labels.zh ? "取消草稿" : "Discard draft") : null, dirty ? h("button", {
+					disabled: busy || !draft,
 					onClick: () => save({
 						brief: draft.brief,
 						questions: draft.questions
 					})
-				}, busy ? text.saving : text.save)));
+				}, busy ? text.saving : text.save) : null));
 			};
+		}
+		//#endregion
+		//#region src/client/professional-conversation-view.js
+		/** Mount the shared task summary in the native composer dock without replacing chat. */
+		function installProfessionalConversationView(ctx, React, Summary) {
+			const sessionSlot = "conversation.session";
+			const dockSlot = "conversation.input.dock";
+			return ctx.slots.inject(sessionSlot, () => ctx.slots.inject(dockSlot, () => {
+				let installed, stopped = false, queued = false;
+				const refresh = () => {
+					queued = false;
+					if (stopped) return;
+					const native = ctx.slots.entries(sessionSlot).find((row) => row.store && row.inject);
+					if (installed?.native === native) return;
+					installed?.dispose();
+					installed = void 0;
+					if (!native) return;
+					const Dock = (props) => {
+						const view = props.useStore((state) => state.view);
+						if (view !== null && view !== "chat" && view !== "agent-pi-codex-main") return null;
+						return React.createElement(Summary, props);
+					};
+					installed = {
+						native,
+						dispose: ctx.slots.register({
+							name: dockSlot,
+							id: "agent-pi-professional-summary",
+							order: 10,
+							store: native.store,
+							inject: native.inject
+						}, Dock)
+					};
+				};
+				const off = ctx.slots.subscribe(sessionSlot, () => {
+					if (!stopped && !queued) {
+						queued = true;
+						queueMicrotask(refresh);
+					}
+				});
+				refresh();
+				return () => {
+					stopped = true;
+					off();
+					installed?.dispose();
+				};
+			}));
 		}
 		//#endregion
 		//#region src/client/locales/codex-execution.js
@@ -8987,9 +9431,10 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 			"answerAll",
 			"approvalInvalid",
 			"interactionExpired",
-			"attachmentTask"
+			"attachmentTask",
+			"replyFailed"
 		];
-		const codexExecutionLocales = Object.fromEntries(Object.entries({
+		const copy$1 = {
 			zh: [
 				"Codex 主执行",
 				"待命",
@@ -9400,7 +9845,20 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				"انتهت صلاحية طلب التفاعل. حمّل أحدث حالة للمهمة.",
 				"افحص الأصول المرفقة ووضّح العمل المطلوب لهذه المهمة."
 			]
-		}).map(([locale, values]) => [locale, Object.fromEntries(keys.map((key, index) => [key, values[index]]))]));
+		};
+		const replyFailed = {
+			zh: "答复未能提交，请重试或读取最新任务状态。",
+			en: "Your response could not be submitted. Retry or load the latest task state.",
+			ja: "回答を送信できませんでした。再試行するか、最新のタスク状態を読み込んでください。",
+			ko: "답변을 제출하지 못했습니다. 다시 시도하거나 최신 작업 상태를 불러오세요.",
+			fr: "Votre réponse n’a pas pu être envoyée. Réessayez ou chargez le dernier état de la tâche.",
+			de: "Ihre Antwort konnte nicht gesendet werden. Versuchen Sie es erneut oder laden Sie den aktuellen Aufgabenstatus.",
+			es: "No se pudo enviar su respuesta. Reintente o cargue el estado actual de la tarea.",
+			pt: "Não foi possível enviar sua resposta. Tente novamente ou carregue o estado atual da tarefa.",
+			ru: "Не удалось отправить ответ. Повторите попытку или загрузите актуальное состояние задачи.",
+			ar: "تعذر إرسال ردك. حاول مجدداً أو حمّل أحدث حالة للمهمة."
+		};
+		const codexExecutionLocales = Object.fromEntries(Object.entries(copy$1).map(([locale, values]) => [locale, Object.fromEntries(keys.map((key, index) => [key, key === "replyFailed" ? replyFailed[locale] : values[index]]))]));
 		function tCodexExecution(key, language) {
 			return (codexExecutionLocales[String(language || "").toLowerCase().split("-")[0]] || codexExecutionLocales.en)[key] || codexExecutionLocales.en[key] || key;
 		}
@@ -9482,7 +9940,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					try {
 						update(await desktop.codexExecutionReply(identity, request.id, answer));
 					} catch {
-						setError(t("interactionExpired"));
+						setError(t("replyFailed"));
 					}
 				};
 				const questions = request.params.questions || [];
@@ -10079,7 +10537,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		const { api, apiBlob, downloadBlob, rawFileUrl } = createAgentPiApiClient();
 		const MARKUP_RE = /[`*!\[]/;
 		const HTML_SPECIAL_RE = /[&<>"]/;
-		const css = clientCss + professionalDepthCss + taskProcessCss + nativeWorkFilePreviewCss + taskGuideCss;
+		const css = clientCss + professionalDepthCss + taskProcessCss + nativeWorkFilePreviewCss + taskGuideCss + professionalTaskSummaryCss;
 		if (typeof document !== "undefined") {
 			const existing = document.querySelector("style[data-plugin-css=\"dsh-tender-web\"]");
 			if (existing) existing.remove();
@@ -11128,6 +11586,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			return /(?:请|需要|要求|必须|应当|应该|务必|优先|只要|只需|只修改|不要|不得|禁止|改成|改为|修改|调整|修正|纠正|替换|换成|补充|补齐|增加|新增|删除|移除|保留|采用|沿用|使用|重新|重做|改写|重写|更新|完善|优化|排序|合并|拆分|输出|生成|制作|编制|翻译|标注|核对|检查|审查|不对|有误|不符合|不满意|遗漏|缺少|please|must|should|need(?:\s+to)?|require|only|do\s+not|don't|revise|change|update|fix|correct|replace|add|remove|delete|keep|adopt|use\s+.+instead)/i.test(clean) ? clean : "";
 		}
 		function recordWorkbenchUserRequirement(props, text, retainDedupe) {
+			if (productCapabilities.current().taskGuide) return Promise.resolve(null);
 			const clean = projectRequirementText(text);
 			const sessionId = sessionHint(props) || runtime.sessionId || "";
 			const cwd = workspaceCwd(props);
@@ -11136,7 +11595,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			const existing = workbenchRequirementRecords.get(recordKey);
 			if (existing) return existing;
 			workbenchRequirementPending.add(recordKey);
-			const tracked = resolveWorkbenchBinding(sessionId, cwd).then((binding) => {
+			const tracked = api("/api/agent-pi/capabilities", cwd).then((result) => result.taskGuide ? null : resolveWorkbenchBinding(sessionId, cwd)).then((binding) => {
 				if (!binding) return null;
 				return api("/api/agent-pi/stage", cwd, {
 					method: "POST",
@@ -15655,11 +16114,70 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			useAttachItems,
 			wrapComposerSubmit
 		});
+		const professionalTasks = /* @__PURE__ */ new Map();
+		const taskViews = /* @__PURE__ */ new Map();
+		const taskSubscriptions = (id, listener) => {
+			const dsh = subscribeSessionWithChat(id, codexTurnAuthorities(id)?.session, listener);
+			const codex = nativeCodex.subscribe(id, listener);
+			const changed = (event) => {
+				if (event.detail?.sessionId === id) listener();
+			};
+			window.addEventListener("agent-pi-task-snapshot", changed);
+			return () => {
+				dsh?.();
+				codex?.();
+				window.removeEventListener("agent-pi-task-snapshot", changed);
+			};
+		};
+		const openTaskSource = async (evidence, id) => {
+			try {
+				const result = await api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(id)}&action=source&evidenceId=${encodeURIComponent(evidence.id)}`, snapshotComposer()?.cwd || "");
+				if (result.url) window.open(result.url, "_blank", "noopener,noreferrer");
+				else window.dispatchEvent(new CustomEvent("agent-pi-open-file", { detail: {
+					cwd: result.cwd,
+					path: result.path,
+					locator: result.locator
+				} }));
+			} catch (error) {
+				showToast(error.message);
+			}
+		};
+		const TaskSummary = createProfessionalTaskSummary({
+			React: react,
+			api,
+			cwd: () => snapshotComposer()?.cwd || "",
+			language: () => document.documentElement.lang || "zh",
+			subscribe: taskSubscriptions,
+			onOpenSource: openTaskSource,
+			onOpenTask: (id) => taskViews.get(id)?.("agent-pi-task-guide", ""),
+			onOpenWorkbench: (binding) => taskViews.get(runtime.sessionId)?.("workbench", ""),
+			onTask: (id, task) => {
+				const old = professionalTasks.get(id);
+				professionalTasks.set(id, task);
+				if (old?.revision !== task.revision) window.dispatchEvent(new CustomEvent("agent-pi-task-snapshot", { detail: { sessionId: id } }));
+			}
+		});
+		function ProfessionalSummary(props) {
+			const id = props.sessionId || "";
+			const capabilities = productCapabilities.use();
+			useApLang();
+			react.useEffect(() => {
+				taskViews.set(id, props.openView);
+				return () => {
+					if (taskViews.get(id) === props.openView) taskViews.delete(id);
+				};
+			}, [id, props.openView]);
+			return capabilities.taskGuide ? h(TaskSummary, {
+				sessionId: id,
+				onOpenTask: () => props.openView("agent-pi-task-guide", "")
+			}) : null;
+		}
 		const TaskProcess = createTaskProcess({
 			React: react,
 			language: () => document.documentElement.lang?.startsWith("en") ? "en" : "zh",
-			snapshot: (id) => sessionSnapshotWithChat(id, codexTurnAuthorities(id)?.session),
-			subscribe: (id, listener) => subscribeSessionWithChat(id, codexTurnAuthorities(id)?.session, listener)
+			snapshot: (id) => nativeCodex.enabled(id) ? nativeCodex.current(id) : sessionSnapshotWithChat(id, codexTurnAuthorities(id)?.session),
+			subscribe: taskSubscriptions,
+			professionalTask: (id) => professionalTasks.get(id)
 		});
 		function TaskProcessHeader(props) {
 			return h(TaskProcess, { sessionId: props.sessionId || "" });
@@ -15669,19 +16187,30 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			api,
 			cwd: () => snapshotComposer()?.cwd || "",
 			language: () => document.documentElement.lang || "zh",
-			subscribe: (id, listener) => subscribeSessionWithChat(id, codexTurnAuthorities(id)?.session, listener)
+			subscribe: taskSubscriptions,
+			onOpenSource: openTaskSource,
+			onOpenWorkbench: () => taskViews.get(runtime.sessionId)?.("workbench", "")
 		});
 		function TaskGuideView(props) {
 			useApLang();
-			return productCapabilities.use().taskGuide ? h(TaskGuide, {
+			const capabilities = productCapabilities.use();
+			react.useEffect(() => {
+				const id = props.sessionId || "";
+				taskViews.set(id, props.openView);
+				return () => {
+					if (taskViews.get(id) === props.openView) taskViews.delete(id);
+				};
+			}, [props.sessionId, props.openView]);
+			return capabilities.taskGuide ? h(TaskGuide, {
 				sessionId: props.sessionId || "",
-				onClose: () => props.openView("chat", "")
+				onClose: () => props.openView(nativeCodex.enabled(props.sessionId) ? "agent-pi-codex-main" : "chat", "")
 			}) : h("p", null, langState.lang === "zh" ? "任务引导插件未启用。" : "Task guide plugin is not enabled.");
 		}
 		const ProfessionalDepth = createProfessionalDepth({
 			React: react,
 			api,
 			useLanguage: useApLang,
+			onOpenTask: (id) => taskViews.get(id)?.("agent-pi-task-guide", ""),
 			fillDraft: fillComposer,
 			run: (composer, instruction) => {
 				const draft = currentDraft(composer).trim();
@@ -16009,13 +16538,14 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					onOpen();
 					setStack((prev) => {
 						const top = prev.length > 0 ? prev[prev.length - 1] : null;
-						if (top && top.type === "file" && top.file && top.file.path === path && (!detail.kbSlug || top.file.kbSlug === detail.kbSlug)) return prev;
+						if (top && top.type === "file" && top.file && top.file.path === path && (!detail.kbSlug || top.file.kbSlug === detail.kbSlug) && top.file.locator === detail.locator) return prev;
 						return prev.concat([{
 							type: "file",
 							file: {
 								path,
 								name: detail.name || fileName(path),
 								type: "file",
+								locator: detail.locator,
 								kbSlug: detail.kbSlug || "",
 								kbHasSource: !!detail.kbHasSource
 							}
@@ -17425,6 +17955,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			ctx.effect(() => productCapabilities.install());
 			ctx.effect(() => () => nativeCodex.dispose());
 			installAttachmentMessageView(ctx, react);
+			installProfessionalConversationView(ctx, react, ProfessionalSummary);
 			installArchiveSessionView(ctx, {
 				React: react,
 				useLanguage: useApLang

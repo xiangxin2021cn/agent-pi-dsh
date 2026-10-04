@@ -54,7 +54,7 @@ export function repairProfessionalDepthSessions(home) {
         if (!changed) continue
         const backup = `${path}.agent-pi-depth-original`
         if (!existsSync(backup)) copyFileSync(path, backup, fsConstants.COPYFILE_EXCL)
-        if (state && !store.read(sessionId)) store.write(state)
+        if (state && !store.read(sessionId)) store.importLegacy(state)
         // Keep the header in its own Zstd frame, as required by native readers.
         const encode = (line) => zstdCompressSync(`${line}\n`, { params: { [constants.ZSTD_c_checksumFlag]: 1 } })
         const replacement = compressed ? Buffer.concat(lines.map(encode)) : Buffer.from(`${lines.join('\n')}\n`)

@@ -13,7 +13,7 @@ test('selected PDF coverage represents every page, extraction batches and unread
   const pdf=await PDFDocument.create(),font=await pdf.embedFont(StandardFonts.Helvetica)
   pdf.addPage().drawText('Actual tender condition: submit the declaration on page 2.',{x:30,y:700,font,size:12});pdf.addPage()
   const path=join(root,'Tender.pdf');writeFileSync(path,await pdf.save())
-  const agent={session:{header:{cwd:root}},ctx:{get:()=>({resolve:async(value:string)=>value,readBytes:async(value:string)=>readFileSync(value)})}}
+  const agent={session:{header:{cwd:root}},ctx:{get:()=>({resolve:async(path:string)=>({path}),processPath:(target:any)=>target.path,readBytes:async(target:any)=>readFileSync(target.path)})}}
   const state=emptyTask('source-session')
   const first=await parseTaskSource(agent,state,{id:'tender',path,startPage:1,endPage:1})
   assert.equal(first.pageCount,2);assert.deepEqual(first.patch.coverage.map(row=>row.status),['parsed','missing'])

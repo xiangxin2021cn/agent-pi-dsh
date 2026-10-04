@@ -10,7 +10,7 @@ import { createCodexExecutionController, validateExecutionIdentity } from '../co
 const tick = () => new Promise((done) => setImmediate(done))
 const identity = { sessionId: 'session-test', cwd: 'C:\\project' }
 function harness(options = {}) {
-  const calls = [], bridges = [], children = [], events = [], watches = new Map()
+  const calls = [], bridges = [], children = [], events = [], watches = new Map(), questions = []
   let contextGate
   const contextWait = new Promise((done) => { contextGate = done })
   const controller = createCodexExecutionController({
@@ -51,10 +51,15 @@ function harness(options = {}) {
       if (action === 'watch') return new Promise((resolveWatch) => watches.set(input.lease, resolveWatch))
       if (action === 'release' || action === 'cancel') { watches.get(input.lease)?.({ active: false }); return { released: true } }
       if (action === 'tool') return { isError: false, value: { cost: 25 }, content: [{ type: 'text', text: '25' }] }
+      if (action === 'question') {
+        await options.question?.(input)
+        questions.push(structuredClone(input))
+        return { linked: true, revision: questions.length }
+      }
       return { recorded: true }
     },
   })
-  return { controller, calls, bridges, children, events, contextGate }
+  return { controller, calls, bridges, children, events, contextGate, questions }
 }
 
 test('native main execution persists one thread across turns, resumes, and steers without DSH delegation', async () => {
@@ -111,15 +116,131 @@ test('questions and approvals require a reply from the matching task; unsupporte
     h.children[0].reply({ id: 500, method: 'item/tool/requestUserInput', params: { threadId: 'native-thread', questions: [{ id: 'jurisdiction', question: 'Which country?' }] } })
     await tick()
     assert.equal(h.controller.status(identity.sessionId).phase, 'waiting')
-    assert.throws(() => h.controller.reply({ ...identity, cwd: 'C:\\foreign' }, 500, { jurisdiction: 'Namibia' }), /不匹配/)
-    h.controller.reply(identity, 500, { jurisdiction: 'Namibia' })
+    await assert.rejects(h.controller.reply({ ...identity, cwd: 'C:\\foreign' }, 500, { jurisdiction: 'Namibia' }), /不匹配/)
+    await h.controller.reply(identity, 500, { jurisdiction: 'Namibia' })
     assert.deepEqual(h.calls.find((row) => row.id === 500 && row.result).result, { answers: { jurisdiction: { answers: ['Namibia'] } } })
     h.children[0].reply({ id: 501, method: 'item/fileChange/requestApproval', params: { threadId: 'native-thread', reason: 'Write report' } })
-    await tick(); h.controller.reply(identity, 501, 'decline')
+    await tick(); await h.controller.reply(identity, 501, 'decline')
     assert.deepEqual(h.calls.find((row) => row.id === 501 && row.result).result, { decision: 'decline' })
     h.children[0].reply({ id: 502, method: 'unknown/approval', params: { threadId: 'native-thread' } })
     await tick(); assert.equal(h.calls.find((row) => row.id === 502).error.code, -32601)
   } finally { h.controller.dispose() }
+})
+
+test('native questions and answers commit to shared task before presenting or replying', async () => {
+  let releaseQuestion, releaseAnswer
+  const questionGate = new Promise(resolve => { releaseQuestion = resolve })
+  const answerGate = new Promise(resolve => { releaseAnswer = resolve })
+  const h = harness({ question: input => input.answers ? answerGate : questionGate })
+  try {
+    await h.controller.submit({ ...identity, text: 'Check project conditions' })
+    h.children[0].reply({ id: 610, method: 'item/tool/requestUserInput', params: { threadId: 'native-thread', itemId: 'country-call', questions: [{ id: 'country', question: 'Which country?' }] } })
+    await tick()
+    assert.equal(h.controller.status(identity.sessionId).phase, 'running')
+    assert.equal(h.controller.status(identity.sessionId).requests.length, 0)
+    assert.equal(h.questions.length, 0)
+    releaseQuestion(); await tick()
+    assert.equal(h.controller.status(identity.sessionId).phase, 'waiting')
+    assert.equal(h.questions[0].callId, 'country-call'); assert.equal(h.questions[0].requestId, '610')
+    const replying = h.controller.reply(identity, 610, { country: 'Namibia' })
+    await tick()
+    assert.ok(!h.calls.some(row => row.id === 610 && row.result))
+    assert.equal(h.questions.length, 1)
+    releaseAnswer(); await replying
+    assert.equal(h.questions[1].answers.country, 'Namibia')
+    assert.deepEqual(h.calls.find(row => row.id === 610 && row.result).result, { answers: { country: { answers: ['Namibia'] } } })
+    assert.equal(h.controller.status(identity.sessionId).requests.length, 0)
+  } finally { releaseQuestion?.(); releaseAnswer?.(); h.controller.dispose() }
+})
+
+test('native secret answers reach the protocol while shared records and events contain only a redaction', async () => {
+  const h = harness()
+  try {
+    await h.controller.submit({ ...identity, text: 'Read a protected source' })
+    h.children[0].reply({ id: 611, method: 'item/tool/requestUserInput', params: { threadId: 'native-thread', itemId: 'secret-call', questions: [{ id: 'password', question: 'Source password?', isSecret: true }] } })
+    await tick()
+    await h.controller.reply(identity, 611, { password: 'project-password-must-stay-private' })
+    assert.equal(h.calls.find(row => row.id === 611 && row.result).result.answers.password.answers[0], 'project-password-must-stay-private')
+    assert.equal(h.questions[1].answers.password, '已通过原生问答提供敏感信息')
+    for (const value of [h.bridges, h.events, h.controller.status(identity.sessionId)]) assert.ok(!JSON.stringify(value).includes('project-password-must-stay-private'))
+  } finally { h.controller.dispose() }
+})
+
+test('failure to record a native question fails closed without publishing a fabricated question or answer', async () => {
+  const h = harness({ question: () => { throw new Error('upstream credential=never-display') } })
+  try {
+    await h.controller.submit({ ...identity, text: 'Review source' })
+    h.children[0].reply({ id: 612, method: 'item/tool/requestUserInput', params: { threadId: 'native-thread', questions: [{ id: 'source', question: 'Which source?' }] } })
+    await tick()
+    const response = h.calls.find(row => row.id === 612 && row.error)
+    assert.equal(response.error.code, -32603)
+    assert.ok(!JSON.stringify(response).includes('never-display'))
+    assert.equal(h.questions.length, 0); assert.equal(h.controller.status(identity.sessionId).requests.length, 0)
+    await assert.rejects(h.controller.reply(identity, 612, { source: 'New version' }), /失效/)
+    assert.ok(!h.calls.some(row => row.id === 612 && row.result))
+  } finally { h.controller.dispose() }
+})
+
+test('failed shared answer remains retryable and cannot send a fabricated protocol answer', async () => {
+  let failing = true
+  const h = harness({ question: input => { if (input.answers && failing) throw new Error('upstream token=never-display') } })
+  try {
+    await h.controller.submit({ ...identity, text: 'Review source' })
+    h.children[0].reply({ id: 613, method: 'item/tool/requestUserInput', params: { threadId: 'native-thread', questions: [{ id: 'scope', question: 'Which scope?' }] } })
+    await tick()
+    await assert.rejects(h.controller.reply(identity, 613, { scope: 'Current phase' }), error => {
+      assert.ok(!error.message.includes('never-display'), 'upstream credential-bearing errors must be sanitized')
+      return true
+    })
+    assert.equal(h.questions.length, 1)
+    assert.equal(h.controller.status(identity.sessionId).phase, 'waiting')
+    assert.ok(!h.calls.some(row => row.id === 613 && row.result))
+    failing = false
+    await h.controller.reply(identity, 613, { scope: 'Current phase' })
+    assert.equal(h.questions[1].answers.scope, 'Current phase')
+    assert.equal(h.calls.filter(row => row.id === 613 && row.result).length, 1)
+  } finally { h.controller.dispose() }
+})
+
+test('concurrent replies cannot double-record an answer and cancel prevents a delayed protocol reply', async () => {
+  let releaseAnswer
+  const answerGate = new Promise(resolve => { releaseAnswer = resolve })
+  const h = harness({ question: input => input.answers ? answerGate : undefined })
+  try {
+    await h.controller.submit({ ...identity, text: 'Review source' })
+    h.children[0].reply({ id: 614, method: 'item/tool/requestUserInput', params: { threadId: 'native-thread', questions: [{ id: 'scope', question: 'Which scope?' }] } })
+    await tick()
+    const first = h.controller.reply(identity, 614, { scope: 'Current phase' })
+    await assert.rejects(h.controller.reply(identity, 614, { scope: 'All phases' }), /失效/)
+    assert.equal(h.bridges.filter(row => row.action === 'question' && row.input.answers).length, 1)
+    await h.controller.interrupt(identity)
+    releaseAnswer()
+    await assert.rejects(first, /取消|失效/)
+    assert.ok(!h.calls.some(row => row.id === 614 && row.result))
+    await assert.rejects(h.controller.reply(identity, 614, { scope: 'All phases' }), /失效/)
+  } finally { releaseAnswer?.(); h.controller.dispose() }
+})
+
+test('a delayed shared question response cannot resurrect a stopped or completed native turn', async t => {
+  for (const ending of ['interrupt', 'completed']) await t.test(ending, async () => {
+    let releaseQuestion
+    const questionGate = new Promise(resolve => { releaseQuestion = resolve })
+    const h = harness({ question: () => questionGate })
+    try {
+      await h.controller.submit({ ...identity, text: 'Review project' })
+      h.children[0].reply({ id: 615, method: 'item/tool/requestUserInput', params: { threadId: 'native-thread', questions: [{ id: 'scope', question: 'Which scope?' }] } })
+      await tick()
+      if (ending === 'interrupt') await h.controller.interrupt(identity)
+      else {
+        h.children[0].reply({ method: 'turn/completed', params: { threadId: 'native-thread', turn: { status: 'completed' } } })
+        await tick()
+      }
+      releaseQuestion(); await tick()
+      assert.equal(h.controller.status(identity.sessionId).requests.length, 0)
+      assert.notEqual(h.controller.status(identity.sessionId).phase, 'waiting')
+      assert.ok(h.calls.some(row => row.id === 615 && row.error), 'the interrupted native request must fail closed')
+    } finally { releaseQuestion?.(); h.controller.dispose() }
+  })
 })
 
 test('stop during pending context prevents a later native turn from starting', async () => {

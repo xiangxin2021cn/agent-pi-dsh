@@ -6,8 +6,9 @@ import type { ProfessionalTask, Coverage } from '../../../packages/professional-
 export async function parseTaskSource(agent: any, state: ProfessionalTask, input: any, signal?: AbortSignal) {
   if (!input?.id || !input.path) throw new Error('A stable source id and selected path are required')
   const fs = agent.ctx.get('fs')
-  const path = await fs.resolve(input.path, { cwd: agent.session.header.cwd, signal })
-  const bytes = await fs.readBytes(path, signal, 64 * 1024 * 1024)
+  const target = await fs.resolve(input.path, { cwd: agent.session.header.cwd, signal })
+  const bytes = await fs.readBytes(target, signal, 64 * 1024 * 1024)
+  const path = fs.processPath(target)
   const version = createHash('sha256').update(bytes).digest('hex')
   const prefix = `source:${input.id}:`
   let coverage: Coverage[], content: unknown, pageCount: number | undefined
@@ -28,7 +29,7 @@ export async function parseTaskSource(agent: any, state: ProfessionalTask, input
     content = result.text
     coverage = [{ id: `${prefix}file`, title: input.path, version, locator: input.path, kind: 'file', status: result.text?.trim() ? 'parsed' : 'unreadable', review: 'pending' }]
   }
-  const evidence = { id: `source:${input.id}`, title: input.path, value: `Selected source SHA256 ${version}`, kind: 'source' as const, status: 'verified' as const, applicable: true, locator: input.path }
+  const evidence = { id: `source:${input.id}`, title: input.path, value: `Selected source SHA256 ${version}`, kind: 'source' as const, status: 'verified' as const, applicable: true, locator: input.path, sourcePath: path, sourceHash: version }
   return { patch: { evidence: [...state.evidence.filter(row => row.id !== evidence.id), evidence], coverage: [...state.coverage.filter(row => !row.id.startsWith(prefix)), ...coverage] },
     path, version, ...(pageCount === undefined ? {} : { pageCount }), content, note: 'Only extraction is recorded. Review every page, table, drawing, attachment and addendum with native vision/CAD/Office tools as needed; register referenced missing attachments. No cloud upload was performed.' }
 }

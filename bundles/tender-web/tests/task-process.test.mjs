@@ -18,3 +18,11 @@ test('generic activity never fabricates completion or a specific task result', (
   snapshot.running = false
   assert.equal(taskProcessSummary(snapshot).text, '')
 })
+
+test('native executor process uses registered business progress and preserves unreadable gaps', () => {
+  const task={plan:[{title:'核对工期约束',status:'working'}],questions:[{id:'q',question:'补遗版本？',status:'pending'}],coverage:[{status:'parsed',review:'reviewed'},{status:'unreadable'},{status:'superseded',review:'reviewed'}]}
+  const summary=taskProcessSummary({phase:'running'},'zh',task)
+  assert.equal(summary.text,'正在解决：核对工期约束 · 已抽取 1/2，专业复核 1/2 · 1 个问题待明确')
+  assert.doesNotMatch(summary.text,/%|完成率/)
+  assert.equal(taskProcessSummary({phase:'waiting'},'en').text,'Waiting for confirmation or information')
+})

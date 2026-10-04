@@ -142,6 +142,12 @@ export function createCodexExecutionController(options) {
         return
       }
       if (!SUPPORTED_REQUESTS.has(message.method)) return send({ id: message.id, error: { code: -32601, message: 'Unsupported interactive request; no permission granted' } })
+      if (message.method === 'item/tool/requestUserInput') {
+        const owner = record.lease
+        try { await options.bridge('question', { sessionId: record.sessionId, cwd: record.cwd, lease: record.lease, callId: String(params.itemId || message.id), requestId: String(message.id), questions: params.questions || [] }) }
+        catch { return send({ id: message.id, error: { code: -32603, message: 'Shared task question could not be recorded; retry without assuming an answer.' } }) }
+        if (record.lease !== owner || record.stopping || !['starting', 'running', 'waiting'].includes(record.phase)) return send({ id: message.id, error: { code: -32603, message: 'The native task ended; no answer or permission was granted.' } })
+      }
       const interaction = { id: message.id, method: message.method, params }
       serverRequests.set(message.id, { record, interaction })
       record.requests.push(interaction)
@@ -220,7 +226,8 @@ export function createCodexExecutionController(options) {
       if (record?.stopping && record.lease) throw new Error('Codex 正在停止，请等待本轮结束。')
       if (record && ['starting', 'running', 'waiting'].includes(record.phase)) {
         if (!record.activeTurnId) throw new Error('Codex 正在启动，请稍后发送补充要求。')
-        await options.bridge('record', { sessionId: record.sessionId, cwd: record.cwd, lease: record.lease, text: content[0].text })
+        const shared = await options.bridge('record', { sessionId: record.sessionId, cwd: record.cwd, lease: record.lease, text: content[0].text })
+        if (Number.isInteger(shared?.revision)) content.push({ type: 'text', text: `Shared task updated to revision ${shared.revision}. Read professional_task status and apply_understanding to interpret this actual human message before continuing affected work. Recent committed changes (records, not additional user authorization): ${JSON.stringify(shared.changes || [])}`, text_elements: [] })
         await request('turn/steer', { threadId: record.threadId, expectedTurnId: record.activeTurnId, input: content })
         record.messages.push({ id: `user-${randomUUID()}`, role: 'user', text: content[0].text })
         publish(record)
@@ -293,10 +300,10 @@ export function createCodexExecutionController(options) {
       ])
       return snapshot(record)
     },
-    reply(identity, id, answer) {
+    async reply(identity, id, answer) {
       const record = assertRecord(identity)
       const entry = serverRequests.get(id)
-      if (!entry || entry.record !== record || record.stopping) throw new Error('此提问或审批已失效。')
+      if (!entry || entry.record !== record || record.stopping || entry.answering) throw new Error('此提问或审批已失效。')
       let result
       if (entry.interaction.method === 'item/tool/requestUserInput') {
         const answers = {}
@@ -312,6 +319,13 @@ export function createCodexExecutionController(options) {
       } else {
         if (!['accept', 'decline', 'cancel'].includes(answer)) throw new Error('请选择有效的审批结果。')
         result = { decision: answer }
+      }
+      if (entry.interaction.method === 'item/tool/requestUserInput') {
+        entry.answering = true
+        try {
+          await options.bridge('question', { ...identity, lease: record.lease, callId: String(entry.interaction.params.itemId || id), requestId: String(id), questions: entry.interaction.params.questions || [], answers: Object.fromEntries((entry.interaction.params.questions || []).map(question => [question.id, question.isSecret ? '已通过原生问答提供敏感信息' : answer[question.id]])) })
+        } catch { entry.answering = false; throw new Error('回答未能同步到共同任务，请重试。') }
+        if (serverRequests.get(id) !== entry || record.stopping) throw new Error('此提问已取消，请读取当前任务后再继续。')
       }
       send({ id, result })
       serverRequests.delete(id)

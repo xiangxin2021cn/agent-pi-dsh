@@ -76,3 +76,16 @@ test('native approval previews the concrete extra file permissions and network d
   assert.match(preview, /fetch official source/)
   f.api.dispose()
 })
+
+test('a transient native reply failure is reported without claiming the interaction expired', async () => {
+  const errors=[]
+  const React={createElement(type,props,...children){return {type,props,children}},useState(value){return [value,update=>errors.push(update)]},useEffect(){}}
+  const api=createNativeCodexExecution({React,language:()=> 'en',desktop:{onCodexExecution:()=>()=>{},codexExecutionStatus:async()=>({cwd:'C:/project',phase:'waiting',messages:[],requests:[{id:1,params:{questions:[{id:'q',question:'Latest version?'}]}}]}),codexExecutionReply:async()=>{throw new Error('temporary write failure')}}})
+  await api.load('one')
+  const question=nodes(api.View({sessionId:'one'})).find(row=>typeof row.type==='function')
+  const send=nodes(question.type(question.props)).find(row=>row.type==='button')
+  await send.props.onClick()
+  assert.ok(errors.includes('Your response could not be submitted. Retry or load the latest task state.'))
+  assert.ok(!errors.some(row=>typeof row==='string'&&row.includes('expired')))
+  api.dispose()
+})

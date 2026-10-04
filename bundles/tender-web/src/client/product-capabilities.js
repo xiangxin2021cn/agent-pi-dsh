@@ -2,6 +2,7 @@ export function createProductCapabilities(React) {
   let value = { workbench: false, knowledge: false, taskGuide: false }
   const listeners = new Set()
   return {
+    current: () => value,
     install() {
       let disposed = false
       let pending = false

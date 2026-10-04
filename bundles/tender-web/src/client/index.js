@@ -21,6 +21,8 @@ import { clientCss } from './styles.js'
 import { createProfessionalDepth, professionalDepthCss, prepareDepthSubmission } from './professional-depth.js'
 import { createTaskProcess, taskProcessCss } from './task-process.js'
 import { createTaskGuide, taskGuideCss } from './task-guide.js'
+import { createProfessionalTaskSummary, professionalTaskSummaryCss } from './professional-task-summary.js'
+import { installProfessionalConversationView } from './professional-conversation-view.js'
 import { createNativeCodexExecution } from './codex-execution.js'
 import { tCodexExecution } from './locales/codex-execution.js'
 import { installNativeWorkFilePreviews, nativeWorkFilePreviewCss } from './native-work-file-preview.js'
@@ -56,7 +58,7 @@ const SearchSettings = createSearchSettings(React)
     const MARKUP_RE = /[`*!\[]/
     const HTML_SPECIAL_RE = /[&<>"]/
 
-    const css = clientCss + professionalDepthCss + taskProcessCss + nativeWorkFilePreviewCss + taskGuideCss
+    const css = clientCss + professionalDepthCss + taskProcessCss + nativeWorkFilePreviewCss + taskGuideCss + professionalTaskSummaryCss
     if (typeof document !== 'undefined') {
       const existing = document.querySelector('style[data-plugin-css="dsh-tender-web"]')
       if (existing) existing.remove()
@@ -1093,6 +1095,7 @@ const SearchSettings = createSearchSettings(React)
       return directive.test(clean) ? clean : ''
     }
     function recordWorkbenchUserRequirement(props, text, retainDedupe) {
+      if (productCapabilities.current().taskGuide) return Promise.resolve(null)
       const clean = projectRequirementText(text)
       const sessionId = sessionHint(props) || runtime.sessionId || ''
       const cwd = workspaceCwd(props)
@@ -1101,7 +1104,7 @@ const SearchSettings = createSearchSettings(React)
       const existing = workbenchRequirementRecords.get(recordKey)
       if (existing) return existing
       workbenchRequirementPending.add(recordKey)
-      const pending = resolveWorkbenchBinding(sessionId, cwd).then((binding) => {
+      const pending = api('/api/agent-pi/capabilities', cwd).then(result => result.taskGuide ? null : resolveWorkbenchBinding(sessionId, cwd)).then((binding) => {
         if (!binding) return null
         return api('/api/agent-pi/stage', cwd, {
           method: 'POST',
@@ -6206,11 +6209,42 @@ const SearchSettings = createSearchSettings(React)
     })
 
 
+    const professionalTasks = new Map()
+    const taskViews = new Map()
+    const taskSubscriptions = (id, listener) => {
+      const dsh = subscribeSessionWithChat(id, codexTurnAuthorities(id)?.session, listener)
+      const codex = nativeCodex.subscribe(id, listener)
+      const changed = event => { if (event.detail?.sessionId === id) listener() }
+      window.addEventListener('agent-pi-task-snapshot', changed)
+      return () => { dsh?.(); codex?.(); window.removeEventListener('agent-pi-task-snapshot', changed) }
+    }
+    const openTaskSource = async (evidence, id) => {
+      try {
+        const result = await api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(id)}&action=source&evidenceId=${encodeURIComponent(evidence.id)}`, snapshotComposer()?.cwd || '')
+        if (result.url) window.open(result.url, '_blank', 'noopener,noreferrer')
+        else window.dispatchEvent(new CustomEvent('agent-pi-open-file', { detail: { cwd: result.cwd, path: result.path, locator: result.locator } }))
+      } catch (error) { showToast(error.message) }
+    }
+    const TaskSummary = createProfessionalTaskSummary({ React, api,
+      cwd: () => snapshotComposer()?.cwd || '', language: () => document.documentElement.lang || 'zh',
+      subscribe: taskSubscriptions, onOpenSource: openTaskSource,
+      onOpenTask: id => taskViews.get(id)?.('agent-pi-task-guide', ''),
+      onOpenWorkbench: binding => taskViews.get(runtime.sessionId)?.('workbench', ''),
+      onTask: (id, task) => { const old = professionalTasks.get(id); professionalTasks.set(id, task); if (old?.revision !== task.revision) window.dispatchEvent(new CustomEvent('agent-pi-task-snapshot', { detail: { sessionId: id } })) },
+    })
+    function ProfessionalSummary(props) {
+      const id = props.sessionId || ''
+      const capabilities = productCapabilities.use()
+      useApLang()
+      React.useEffect(() => { taskViews.set(id, props.openView); return () => { if (taskViews.get(id) === props.openView) taskViews.delete(id) } }, [id, props.openView])
+      return capabilities.taskGuide ? h(TaskSummary, { sessionId: id, onOpenTask: () => props.openView('agent-pi-task-guide', '') }) : null
+    }
     const TaskProcess = createTaskProcess({
       React,
       language: () => document.documentElement.lang?.startsWith('en') ? 'en' : 'zh',
-      snapshot: (id) => sessionSnapshotWithChat(id, codexTurnAuthorities(id)?.session),
-      subscribe: (id, listener) => subscribeSessionWithChat(id, codexTurnAuthorities(id)?.session, listener),
+      snapshot: (id) => nativeCodex.enabled(id) ? nativeCodex.current(id) : sessionSnapshotWithChat(id, codexTurnAuthorities(id)?.session),
+      subscribe: taskSubscriptions,
+      professionalTask: id => professionalTasks.get(id),
     })
     function TaskProcessHeader(props) {
       const id = props.sessionId || ''
@@ -6220,17 +6254,21 @@ const SearchSettings = createSearchSettings(React)
     const TaskGuide = createTaskGuide({ React, api,
       cwd: () => snapshotComposer()?.cwd || '',
       language: () => document.documentElement.lang || 'zh',
-      subscribe: (id, listener) => subscribeSessionWithChat(id, codexTurnAuthorities(id)?.session, listener),
+      subscribe: taskSubscriptions,
+      onOpenSource: openTaskSource,
+      onOpenWorkbench: () => taskViews.get(runtime.sessionId)?.('workbench', ''),
     })
     function TaskGuideView(props) {
       useApLang()
       const capabilities = productCapabilities.use()
-      return capabilities.taskGuide ? h(TaskGuide, { sessionId: props.sessionId || '', onClose: () => props.openView('chat', '') }) : h('p', null, langState.lang === 'zh' ? '任务引导插件未启用。' : 'Task guide plugin is not enabled.')
+      React.useEffect(() => { const id = props.sessionId || ''; taskViews.set(id, props.openView); return () => { if (taskViews.get(id) === props.openView) taskViews.delete(id) } }, [props.sessionId, props.openView])
+      return capabilities.taskGuide ? h(TaskGuide, { sessionId: props.sessionId || '', onClose: () => props.openView(nativeCodex.enabled(props.sessionId) ? 'agent-pi-codex-main' : 'chat', '') }) : h('p', null, langState.lang === 'zh' ? '任务引导插件未启用。' : 'Task guide plugin is not enabled.')
     }
 
     const ProfessionalDepth = createProfessionalDepth({
       React, api,
       useLanguage: useApLang,
+      onOpenTask: id => taskViews.get(id)?.('agent-pi-task-guide', ''),
       fillDraft: fillComposer,
       run: (composer, instruction) => {
         const draft = currentDraft(composer).trim()
@@ -6574,13 +6612,14 @@ const SearchSettings = createSearchSettings(React)
           onOpen()
           setStack((prev) => {
             const top = prev.length > 0 ? prev[prev.length - 1] : null
-            if (top && top.type === 'file' && top.file && top.file.path === path && (!detail.kbSlug || top.file.kbSlug === detail.kbSlug)) return prev
+            if (top && top.type === 'file' && top.file && top.file.path === path && (!detail.kbSlug || top.file.kbSlug === detail.kbSlug) && top.file.locator === detail.locator) return prev
             return prev.concat([{
               type: 'file',
               file: {
                 path: path,
                 name: detail.name || fileName(path),
                 type: 'file',
+                locator: detail.locator,
                 kbSlug: detail.kbSlug || '',
                 kbHasSource: !!detail.kbHasSource,
               },
@@ -8049,6 +8088,7 @@ const SearchSettings = createSearchSettings(React)
       ctx.effect(() => productCapabilities.install())
       ctx.effect(() => () => nativeCodex.dispose())
       installAttachmentMessageView(ctx, React)
+      installProfessionalConversationView(ctx, React, ProfessionalSummary)
       installArchiveSessionView(ctx, { React, useLanguage: useApLang })
       installNativeWorkFilePreviews(ctx, { React, ReactDOM, FilePreviewOverlay })
       ctx.inject(['sidebarRight'], (scope) => {

@@ -21,7 +21,7 @@ export function prepareDepthSubmission(composer, draft, hasAttachments, locale =
     : `Enable professional depth.\n${draft}${pending.template ? `\n\nI selected the following template as reference. The current task takes priority; old project facts in the template do not apply here:\n<reference-template>\n${pending.template.content}\n</reference-template>` : ''}`
 }
 
-export function createProfessionalDepth({ React, api, run, subscribe, useLanguage }) {
+export function createProfessionalDepth({ React, api, subscribe, useLanguage, onOpenTask }) {
   const h = React.createElement
   return function ProfessionalDepth({ composer }) {
     const locale = useLanguage()
@@ -45,6 +45,7 @@ export function createProfessionalDepth({ React, api, run, subscribe, useLanguag
     const url = `/api/agent-pi/professional-depth?sessionId=${encodeURIComponent(id)}`
     const request = (body) => api(url, composer.cwd, body ? { method: 'POST', body: JSON.stringify(body) } : undefined)
     React.useEffect(() => {
+      setState(null)
       if (!id) return
       let disposed = false
       let timer
@@ -91,7 +92,6 @@ export function createProfessionalDepth({ React, api, run, subscribe, useLanguag
       setState(value); setEdit(null)
       if (continueTask) {
         setOpen(false)
-        run(composer, '我已修改专业深度任务说明，请按最新版本定向调整受影响的成果，并重新检查相关验收项。')
       }
     })
     const updateField = (field, value) => setEdit((current) => ({ ...current, brief: { ...current.brief, [field]: value } }))
@@ -100,7 +100,7 @@ export function createProfessionalDepth({ React, api, run, subscribe, useLanguag
       if (id) {
         const latest = await request()
         setState(await request({ action: 'template', revision: latest.revision, template: selected }))
-      } else if (composer.inputActions) pendingModes.set(composer.inputActions, { template: selected })
+      } else if (composer.inputActions && draftEnabled) pendingModes.set(composer.inputActions, { template: selected })
       setTemplate(selected)
     })
     const startTemplate = () => {
@@ -117,15 +117,18 @@ export function createProfessionalDepth({ React, api, run, subscribe, useLanguag
     const updateCriterion = (index, patch) => setEdit((current) => ({ ...current, criteria: current.criteria.map((row, i) => i === index ? { ...row, ...patch } : row) }))
     const shown = edit || state
     return h(React.Fragment, null,
-      h('button', { type: 'button', className: `ap-codex-turn${enabled ? ' on' : ''}`, onClick: show, 'aria-label': t('专业深度'), 'aria-pressed': !!enabled, title: enabled ? t('查看任务说明和交付检查') : t('按实际用途研判任务、格式和验收要求') }, t('专业深度'), enabled ? t(' · 已启用') : ''),
+      h('button', { type: 'button', className: `ap-codex-turn${enabled ? ' on' : ''}`, onClick: toggle, disabled: busy || (!!id && !state), 'aria-label': t('专业深度'), 'aria-pressed': !!enabled, title: enabled ? t('关闭专业深度') : t('启用专业深度') }, t('专业深度'), enabled ? t(' · 已启用') : ''),
+      h('button', { type:'button', className:'ap-depth-settings', onClick:show, 'aria-label':t('专业深度设置'), title:t('查看任务说明和交付检查') }, '⚙'),
+      error && !open && h('span',{role:'alert',className:'ap-depth-error'},error),
       open && h('div', { className: 'ap-overlay ap-depth-overlay', onClick: (event) => { if (event.target === event.currentTarget && !edit) setOpen(false) } },
         h('section', { className: 'ap-modal ap-depth-modal', role: 'dialog', 'aria-modal': true, 'aria-label': t('专业深度任务说明') },
           h('button', { type: 'button', className: 'ap-close', 'aria-label': t('关闭专业深度面板'), onClick: () => setOpen(false) }, '×'),
           h('h2', null, t('专业深度')),
-          h('p', { className: 'ap-sub' }, t('围绕实际用途、专业依据和交付要求，继续在当前 DSH 对话中完成任务。只使用你在本对话选定的知识库资料。')),
+          h('p', { className: 'ap-sub' }, t('专业深度围绕本次任务加强分析方法、证据和交付检查。目标在主对话中逐步明确，只使用你为本对话选定的知识库资料。')),
           h('div', { className: 'ap-row ap-depth-actions' },
             h('span', { className: 'ap-depth-status', role: 'status' }, enabled ? (!id || state?.needsAssessment ? t('已启用 · 等待你的任务输入') : t('任务说明 · 第 ') + state.revision + t(' 版')) : t('默认关闭')),
             h('button', { type: 'button', disabled: busy || !!edit, onClick: toggle }, enabled ? t('关闭专业深度') : t('启用专业深度')),
+            onOpenTask && id && h('button',{type:'button',onClick:()=>{setOpen(false);onOpenTask(id)}},t('查看本次任务')),
             state?.enabled && !edit && h('button', { type: 'button', disabled: busy, onClick: () => setEdit(structuredClone(state)) }, t('编辑任务说明')),
           ),
           h('p', { className: 'ap-sub' }, t('开启只保存选择，不发送消息。输入并发送实际任务后，明确需求直接执行，关键目标不清楚时再集中询问；新对话默认关闭。')),
@@ -173,7 +176,7 @@ export function createProfessionalDepth({ React, api, run, subscribe, useLanguag
             !edit && state.reviewNotes && h('div', null, h('h4', null, t('专业审阅记录')), h('p', { className: 'ap-depth-notes' }, state.reviewNotes)),
           ),
           edit && h('div', { className: 'ap-row ap-depth-actions' },
-            h('button', { type: 'button', disabled: busy, onClick: () => save(true) }, t('保存并继续任务')),
+            h('button', { type: 'button', disabled: busy, onClick: () => save(true) }, t('保存并返回对话')),
             h('button', { type: 'button', disabled: busy, onClick: () => save(false) }, t('仅保存要求')),
             h('button', { type: 'button', disabled: busy, onClick: () => setEdit(null) }, t('取消修改')),
           ),
@@ -184,7 +187,7 @@ export function createProfessionalDepth({ React, api, run, subscribe, useLanguag
 }
 
 export const professionalDepthCss = `
-.ap-depth-overlay{z-index:10080}.ap-depth-modal{max-width:780px;width:calc(100vw - 36px);max-height:85vh;overflow:auto;padding:28px}
+.ap-depth-settings{border:0;background:transparent;color:var(--text-secondary,#687280);padding:4px 7px;cursor:pointer;font-size:15px}.ap-depth-overlay{z-index:10080}.ap-depth-modal{max-width:780px;width:calc(100vw - 36px);max-height:85vh;overflow:auto;padding:28px}
 .ap-depth-fields{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:20px 0}.ap-depth-fields label:last-child{grid-column:1/-1}
 .ap-depth-fields strong{display:block;margin-bottom:6px}.ap-depth-fields p,.ap-depth-notes{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6}
 .ap-depth-modal button:not(.ap-close){border:1px solid var(--border,#d7dce2);border-radius:8px;padding:7px 12px;background:var(--background,#fff);color:inherit;font:inherit;cursor:pointer}.ap-depth-modal button:disabled{opacity:.5;cursor:default}

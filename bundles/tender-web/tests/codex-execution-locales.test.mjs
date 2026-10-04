@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import { AP_LANGUAGE_DEFINITIONS } from '../src/client/locales/catalog.js'
 import { codexExecutionLocales, tCodexExecution } from '../src/client/locales/codex-execution.js'
 
-const keys = ['main', 'ready', 'starting', 'running', 'waiting', 'failed', 'stop', 'intro', 'you', 'tool', 'answerNeeded', 'approvalNeeded', 'choose', 'other', 'reply', 'approve', 'decline', 'switchBlocked', 'desktopRequired', 'loginRequired', 'runtimeUnavailable', 'modelUnavailable', 'accessDenied', 'quotaExceeded', 'requestFailed', 'processDisconnected', 'requestTimeout', 'openConversation', 'engineCodexTitle', 'engineDshTitle', 'attachmentsNotReady', 'attachmentPathUnavailable', 'sessionBusy', 'invalidTask', 'switchWorkspace', 'answerAll', 'approvalInvalid', 'interactionExpired', 'attachmentTask']
+const keys = ['main', 'ready', 'starting', 'running', 'waiting', 'failed', 'stop', 'intro', 'you', 'tool', 'answerNeeded', 'approvalNeeded', 'choose', 'other', 'reply', 'approve', 'decline', 'switchBlocked', 'desktopRequired', 'loginRequired', 'runtimeUnavailable', 'modelUnavailable', 'accessDenied', 'quotaExceeded', 'requestFailed', 'processDisconnected', 'requestTimeout', 'openConversation', 'engineCodexTitle', 'engineDshTitle', 'attachmentsNotReady', 'attachmentPathUnavailable', 'sessionBusy', 'invalidTask', 'switchWorkspace', 'answerAll', 'approvalInvalid', 'interactionExpired', 'attachmentTask', 'replyFailed']
 
 test('Codex execution has every control and safe error in all ten application languages', () => {
   assert.deepEqual(Object.keys(codexExecutionLocales).sort(), AP_LANGUAGE_DEFINITIONS.map(({ id }) => id).sort())

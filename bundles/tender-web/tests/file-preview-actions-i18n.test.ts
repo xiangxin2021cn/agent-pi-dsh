@@ -62,3 +62,12 @@ test('folder and files context menus, icon labels, selection dialog and toasts u
   assert.match(client, /showToast\(added\.length === 1 \? tAp\('files\.attachedOne', \{ name: added\[0\]\.name \}\) : tAp\('files\.attachedMany', \{ n: added\.length \}\)\)/)
   assert.match(client, /showToast\(tAp\('files\.pickerUnavailable'\)\)/)
 })
+
+test('evidence preview keeps the verified source locator visible in its header', () => {
+  const React={createElement:h,Fragment:'fragment',useState:(initial:any)=>[initial,()=>{}],useRef:(initial:any)=>({current:initial}),useEffect:()=>{},useLayoutEffect:()=>{},useCallback:(callback:any)=>callback,useMemo:(callback:any)=>callback()}
+  const {FilePreviewOverlay}=createFilePreviewOverlay({React,h,Icon:(name:string)=>h('icon',{name}),DocBtn:(title:string,onClick:any,children:any)=>h('button',{title,onClick},children),tAp:(key:string)=>AP_I18N.en[key]||key,useApLang:()=> 'en',slicePreviewMarkdown:(text:string)=>({text})})
+  const tree=FilePreviewOverlay({cwd:'D:/QA',file:{name:'report.md',path:'report.md',locator:'第 3 页 · 工期表'},onClose:()=>{}})
+  const locator=nodesOf(tree).find(row=>row.props.className==='ap-doc-source-position')
+  assert.equal(textOf(locator),'第 3 页 · 工期表')
+  assert.equal(locator?.props.title,'第 3 页 · 工期表')
+})
