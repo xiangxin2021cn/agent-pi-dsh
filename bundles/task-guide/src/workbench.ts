@@ -47,8 +47,7 @@ export function projectTaskPatch(state: ProfessionalTask, cwd: string, project: 
     if (status.sha256) sourceVersions.set(key(path, cwd), status.sha256)
     sourceStatuses.set(key(path, cwd), status)
     evidence.push({ id: sourceId, kind: 'source', title: basename(path), value: status.extracted ? '已登记原文件及与当前版本对应的可读解析资料；专业结论需复核。' : status.reason || '已登记，尚无可用解析资料。', status: 'unverified', locator: status.sourcePath, sourcePath: status.sourcePath, ...(status.sha256 ? { sourceHash: status.sha256 } : {}) })
-    const originalOrManuscript = (row: Coverage) => key(row.locator.split('#')[0], cwd) === key(path, cwd) || !!status.restore && key(row.locator.split('#')[0], cwd) === key(status.restore.manuscriptPath, cwd)
-    const checked = status.extracted && state.coverage.find(row => row.review === 'reviewed' && originalOrManuscript(row) && (row.version === status.sha256 || status.restore && row.version === digest(readFileSync(status.restore.manuscriptPath))))
+    const checked = status.extracted && state.coverage.find(row => row.kind === 'file' && row.status === 'parsed' && row.review === 'reviewed' && key(row.locator, cwd) === key(path, cwd) && row.version === status.sha256)
     coverage.push({ id: id('coverage', digest(key(path, cwd)).slice(0, 16)), title: basename(path), kind: 'file', locator: status.sourcePath, version: status.sha256 || 'unavailable', status: status.extracted ? 'parsed' : existsSync(status.sourcePath) ? 'unreadable' : 'missing', review: checked ? 'reviewed' : 'pending' })
   }
   const locate = (source: any): string[] => {

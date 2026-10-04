@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { test } from 'node:test'
 import { Readable } from 'node:stream'
+import { createRequire } from 'node:module'
 import { createTaskStore } from '../../../packages/professional-tasks/task.ts'
 import { createBusinessProject } from '../../../packages/business-projects/index.ts'
 import { bindProjectSession, loadBoard, saveBoard } from '../../tender-host/src/orchestration.ts'
@@ -67,6 +68,76 @@ function nativeGate(t: any) {
   const question = { id: 'decision', question: workflow.stages[0].approvalGate.promptZh, options: [{ label: workflow.stages[0].approvalGate.approveLabelZh }, { label: workflow.stages[0].approvalGate.rejectLabelZh }] }
   return { ...f, project, path, question, approve: question.options[0].label, reject: question.options[1].label }
 }
+
+test('page, table and manuscript reviews never replace explicit whole-original review', async t => {
+  const f = fixture(t), source = join(f.cwd, 'three-pages.pdf')
+  const { PDFDocument, StandardFonts } = createRequire(new URL('../../tender-host/package.json', import.meta.url))('pdf-lib')
+  const pdf = await PDFDocument.create(), font = await pdf.embedFont(StandardFonts.Helvetica)
+  for (let page = 1; page <= 3; page++) pdf.addPage().drawText(`Actual project clause on page ${page}: check the declared construction scope.`, { x: 30, y: 700, font, size: 12 })
+  writeFileSync(source, await pdf.save())
+  const project = createBusinessProject({ workspaceRootPath: f.cwd, rootPath: f.cwd, createDirectory: false, module: 'tender', projectId: 'pdf-review-scope', name: 'PDF review scope', inputPaths: [source] })
+  bindProjectSession(f.cwd, project, 'main', 'project-setup')
+  const dir = join(officialStageDir(f.cwd, project.projectId, 'project-setup'), 'three-pages-解析稿')
+  mkdirSync(dir, { recursive: true })
+  const manuscript = join(dir, 'manuscript.md'), content = '# 完整解析稿\n已逐页保存三页项目范围、施工条件和复核要求。'
+  writeFileSync(manuscript, content)
+  const hash = createHash('sha256').update(readFileSync(source)).digest('hex')
+  writeFileSync(join(dir, 'pack.json'), JSON.stringify({ originalPath: source, originalName: 'three-pages.pdf', sourceFileHash: hash, manuscript: 'manuscript.md', units: [{ id: 'all-pages', startOffset: 0, endOffset: content.length }] }))
+  let state = f.service.syncWorkbench('main')
+  const parsed = await f.call('parse_source', { revision: state.revision, input: { id: 'pdf-review', path: source, startPage: 1, endPage: 1 } })
+  assert.equal(parsed.pageCount, 3)
+  assert.deepEqual(parsed.task.coverage.filter((row: any) => row.kind === 'page').map((row: any) => row.status), ['parsed', 'missing', 'missing'])
+  state = await f.call('update', { revision: parsed.task.revision, patch: { coverage: parsed.task.coverage.map((row: any) => row.id === 'source:pdf-review:page:1' ? { ...row, review: 'reviewed' } : row) } })
+  state = f.service.syncWorkbench('main')
+  const original = () => state.coverage.find((row: any) => row.id.startsWith('workbench:') && row.locator === source)
+  assert.equal(original().review, 'pending', 'one reviewed PDF page does not prove the whole original was reviewed')
+  const invalidReviews = [
+    { id: 'one-table', kind: 'table', locator: source, version: hash, status: 'parsed' },
+    { id: 'missing-file', kind: 'file', locator: source, version: hash, status: 'missing' },
+    { id: 'partial-file', kind: 'file', locator: `${source}#page=1`, version: hash, status: 'parsed' },
+    { id: 'old-version', kind: 'file', locator: source, version: '0'.repeat(64), status: 'parsed' },
+    { id: 'wrong-file-sha', kind: 'file', locator: source, version: createHash('sha256').update(content).digest('hex'), status: 'parsed' },
+  ].map(row => ({ ...row, title: row.id, review: 'reviewed' }))
+  state = await f.call('update', { revision: state.revision, patch: { coverage: [...state.coverage, ...invalidReviews] } })
+  state = f.service.syncWorkbench('main')
+  assert.equal(original().review, 'pending', 'table, incomplete file, page fragment and old SHA do not migrate a whole-file review')
+  const full = await f.call('parse_source', { revision: state.revision, input: { id: 'complete-manuscript', path: manuscript } })
+  state = await f.call('update', { revision: full.task.revision, patch: { coverage: full.task.coverage.map((row: any) => row.id === 'source:complete-manuscript:file' ? { ...row, review: 'reviewed' } : row) } })
+  state = f.service.syncWorkbench('main')
+  assert.equal(original().review, 'pending', 'reviewing the entire current manuscript does not prove all original PDF pages, tables and drawings were reviewed')
+  assert.equal(state.coverage.find((row: any) => row.id === 'source:complete-manuscript:file').review, 'reviewed', 'the manuscript review remains recorded within its actual scope')
+  state = await f.call('update', { revision: state.revision, patch: { coverage: [...state.coverage, { id: 'explicit-whole-original', title: '整原稿专业复核', kind: 'file', locator: source, version: hash, status: 'parsed', review: 'reviewed' }] } })
+  state = f.service.syncWorkbench('main')
+  assert.equal(original().review, 'reviewed', 'only an explicit complete original file review with the exact original SHA may migrate')
+  assert.equal((await f.call('status')).task.revision, state.revision)
+})
+
+test('only the main executor may mark an actually parsed workbench original reviewed at its current version', async t => {
+  const f = fixture(t), source = join(f.cwd, 'scope.md')
+  writeFileSync(source, '# 项目范围\n核查施工范围、资源约束和实际工期依据。')
+  const project = createBusinessProject({ workspaceRootPath: f.cwd, rootPath: f.cwd, createDirectory: false, module: 'tender', projectId: 'original-review', name: 'Original review', inputPaths: [source] })
+  bindProjectSession(f.cwd, project, 'main', 'project-setup')
+  let state = f.service.syncWorkbench('main'), original = state.coverage.find((row: any) => row.id.startsWith('workbench:') && row.locator === source)
+  assert.equal(original.status, 'parsed')
+  state = await f.call('update', { revision: state.revision, patch: { coverage: [{ ...original, review: 'reviewed' }] } })
+  state = f.service.syncWorkbench('main')
+  original = state.coverage.find((row: any) => row.id === original.id)
+  assert.equal(original.review, 'reviewed')
+  assert.equal((await f.call('status')).task.revision, state.revision)
+  for (const change of [{ locator: join(f.cwd, 'other.md') }, { version: '0'.repeat(64) }, { status: 'missing' }, { title: '替换原稿身份' }]) await assert.rejects(f.call('update', { revision: state.revision, patch: { coverage: [{ ...original, ...change }] } }), /工作台/)
+  const session = { id: 'source-child', header: { cwd: f.cwd, parentSession: 'main' } }
+  f.sessions.set(session.id, session)
+  await assert.rejects(f.call('update', { revision: state.revision, patch: { coverage: [{ ...original, review: 'pending' }] } }, { session, ctx: f.main.ctx }), /工作台/)
+  await assert.rejects(f.call('update', { revision: state.revision, patch: { coverage: [{ ...original, id: 'child-whole-file', review: 'reviewed' }] } }, { session, ctx: f.main.ctx }), /主执行者/, 'a child cannot indirectly promote the original through a non-workbench full-file record')
+  state = await f.call('update', { revision: state.revision, patch: { coverage: [{ ...original, review: 'pending' }] } })
+  original = state.coverage.find((row: any) => row.id === original.id)
+  writeFileSync(source, '# 修改后的原稿\n施工范围和复核依据已经改变。')
+  await assert.rejects(f.call('update', { revision: state.revision, patch: { coverage: [{ ...original, review: 'reviewed' }] } }), /工作台|任务已更新/)
+  state = f.service.syncWorkbench('main')
+  const changed = state.coverage.find((row: any) => row.id === original.id)
+  assert.notEqual(changed.version, original.version)
+  assert.equal(changed.review, 'pending', 'changed original bytes cannot retain the earlier review')
+})
 
 test('the main executor can review projected artifacts without changing their actual file proof or customer authority', async t => {
   const f = nativeGate(t), initial = f.store.read('main')
