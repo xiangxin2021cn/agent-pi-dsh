@@ -10,6 +10,8 @@
 
 3.8.0 新增九个工程插件，覆盖 CAD/PDF 图纸、钢筋与平法、道路市政及土建算量、IFC/BIM、中国招投标与计算书，并联动主对话、本次任务和专业化工作台。Windows x64 内置官方 CPython 3.13.7 与经核验的 conda-forge IfcOpenShell 0.8.5，保留 CGAL/OCCT；macOS、Linux 仍需外接兼容 IFC 引擎。沿用官方 DSH 0.2.1-alpha.1、Codex 0.160.0 主执行、AnySearch 与完整 Univer Office 0.3.6。能力范围、验证和分发材料详见[3.8.0 说明](release/github-notes-3.8.0.md)。OfficeCLI 与 Univer Office 载体的评估见[专项评估](docs/office-carrier-evaluation-3.7.7.md)。
 
+新增功能怎么用：参见 [3.8.0 使用指南](docs/3.8.0-user-guide.md)，包含 BIM 对话示例、九插件入口、专业工作台联动、能力边界和问题排查。
+
 3.7.5 新增专业任务引导、项目国别与依据评估、BOQ 成本/资源推导和实际递交清单检查，沿用原生 DSH 执行机制。见[使用说明](docs/professional-task-guide.md)、[实施计划](docs/implementation-plan-3.7.5.md)和[验证记录](docs/verification-3.7.5.md)。
 
 <p align="center">由 Always π AI studio 独立开发和维护<br>Independently developed and maintained by Always π AI studio.</p>
