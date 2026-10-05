@@ -815,8 +815,11 @@ try {
   const officeDialog = page.getByRole('dialog',{name:/engineering-workbook\.xlsx$/})
   const officeFrame = officeDialog.locator('iframe.ap-univer-frame').contentFrame()
   await officeFrame.locator('#app > *').first().waitFor({state:'attached',timeout:remaining()})
-  await officeFrame.getByText('项目与导出说明',{exact:true}).first().waitFor({timeout:remaining()})
+  // The sheet DOM exists beneath the Office startup skeleton. A real click
+  // waits for its hit target to be exposed, rather than only checking the DOM.
+  await officeFrame.getByText('项目与导出说明',{exact:true}).first().click({timeout:remaining()})
   assert.ok(await officeFrame.locator('canvas').count(),'native Office must render its spreadsheet canvas')
+  await officeFrame.locator('body').evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
   await page.screenshot({path:join(artifactDir,'19-engineering-workbook-native-office.png'),fullPage:true})
   await officeDialog.locator('.ap-doc-actions button[title="关闭"]').click()
   await officeDialog.waitFor({state:'detached',timeout:remaining()})
