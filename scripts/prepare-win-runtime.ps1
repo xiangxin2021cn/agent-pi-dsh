@@ -2,7 +2,9 @@ param(
   [switch]$FullCopy,
   [switch]$Measure,
   [switch]$IncludeLicensedUniver = $true,
-  [string]$DshBuildReceipt
+  [string]$DshBuildReceipt,
+  [string]$BimRuntimeSource = $env:AGENT_PI_BIM_RUNTIME_SOURCE,
+  [switch]$BimLocalValidationOnly = ($env:AGENT_PI_BIM_LOCAL_ONLY -eq "1")
 )
 
 $ErrorActionPreference = "Stop"
@@ -154,6 +156,33 @@ function Stage-ProjectNodeModules([string]$projectRelative, [string]$requiredPac
 # explicitly and verify the first package Node must resolve during cold start.
 Stage-ProjectNodeModules "packages\business-core" "zod"
 Stage-ProjectNodeModules "bundles\tender-host" "pdf-lib"
+
+# The optional engine stays inside its removable bundle. Default preparation
+# never installs Python or reaches into a developer's Python installation.
+if ($BimRuntimeSource) {
+  $bimSource = (Resolve-Path -LiteralPath $BimRuntimeSource).Path
+  $bimVerifyArgs = @($bimSource)
+  if (-not $BimLocalValidationOnly) { $bimVerifyArgs += "--public" }
+  & $node (Join-Path $Root "scripts\verify-bim-runtime.mjs") @bimVerifyArgs
+  if ($LASTEXITCODE -ne 0) { throw "BIM source runtime verification failed" }
+  $bimTarget = [System.IO.Path]::GetFullPath((Join-Path $Product "bundles\engineering-bim\runtime"))
+  $productFull = [System.IO.Path]::GetFullPath($Product).TrimEnd('\') + '\'
+  if (-not $bimTarget.StartsWith($productFull, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "BIM runtime target escaped product staging"
+  }
+  if (Test-Path -LiteralPath $bimTarget) {
+    if ((Get-Item -LiteralPath $bimTarget).LinkType) { throw "Refusing to replace linked BIM runtime target" }
+    Remove-Item -LiteralPath $bimTarget -Recurse -Force
+  }
+  robocopy $bimSource $bimTarget /E /XJ /R:1 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
+  if ($LASTEXITCODE -ge 8) { throw "BIM runtime copy failed: $LASTEXITCODE" }
+  & $nodeDest (Join-Path $Root "scripts\verify-bim-runtime.mjs") --product $Product
+  if ($LASTEXITCODE -ne 0) { throw "Staged BIM runtime cold load failed" }
+  if ($BimLocalValidationOnly) { Write-Warning "BIM engine included for private local validation only; public redistribution has not passed review." }
+}
+
+& $nodeDest (Join-Path $Root "scripts\verify-engineering-runtime.mjs") $Product
+if ($LASTEXITCODE -ne 0) { throw "Staged engineering PDF/CAD native runtime verification failed" }
 
 & $node (Join-Path $Root "scripts\univer-public-release.mjs") assert-tree $Product
 if ($LASTEXITCODE -ne 0) { throw "official Univer runtime verification failed" }

@@ -1,0 +1,4 @@
+- insert:
+    - id: agent-pi-engineering-civil
+      name: dsh-agent-pi-engineering-civil
+      inject: [engineering]

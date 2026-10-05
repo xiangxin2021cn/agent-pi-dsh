@@ -90,6 +90,11 @@ function createFixture(t) {
   writePackage(root, 'bundles/tender-web', 'dsh-tender-web')
   for (const [name, folder] of [
     ['dsh-agent-pi-task-guide', 'task-guide'], ['dsh-agent-pi-workbench', 'workbench'], ['dsh-agent-pi-knowledge', 'knowledge'],
+    ['dsh-agent-pi-engineering', 'engineering'], ['dsh-agent-pi-engineering-rebar', 'engineering-rebar'], ['dsh-agent-pi-china-tender', 'china-tender'],
+    ['dsh-agent-pi-engineering-cad', 'engineering-cad'], ['dsh-agent-pi-engineering-pdf', 'engineering-pdf'], ['dsh-agent-pi-engineering-road', 'engineering-road'],
+    ['dsh-agent-pi-engineering-bim', 'engineering-bim'],
+    ['dsh-agent-pi-engineering-civil', 'engineering-civil'],
+    ['dsh-agent-pi-engineering-delivery', 'engineering-delivery'],
     ...['tender', 'delivery', 'investment'].map(domain => ['dsh-agent-pi-workbench-' + domain, 'workbench-' + domain]),
   ]) writePackage(root, 'bundles/' + folder, name)
   writePackage(root, 'vendor/dsh-super-injector', '@dsh-external/dsh-super-injector', { lib: true })

@@ -1,0 +1,4 @@
+- insert:
+    - id: agent-pi-engineering-cad
+      name: dsh-agent-pi-engineering-cad
+      inject: [tools, systemPrompt]

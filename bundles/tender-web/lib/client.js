@@ -8819,6 +8819,450 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 			} : row;
 		}
 		//#endregion
+		//#region src/client/engineering-bim-view.js
+		/** Use actual returned IFC triangles; this view never derives or changes quantities. */
+		function bimPreviewScene(elements) {
+			const objects = (elements || []).filter((row) => row.mesh?.vertices?.length && row.mesh?.triangles?.length).map((row) => {
+				const points = [];
+				for (let i = 0; i < row.mesh.vertices.length; i += 3) points.push(row.mesh.originMeters.map((origin, axis) => origin + row.mesh.vertices[i + axis]));
+				return {
+					id: row.globalId,
+					name: row.name || row.globalId,
+					points,
+					triangles: row.mesh.triangles
+				};
+			});
+			const min = [
+				Infinity,
+				Infinity,
+				Infinity
+			], max = [
+				-Infinity,
+				-Infinity,
+				-Infinity
+			];
+			for (const object of objects) for (const point of object.points) for (let axis = 0; axis < 3; axis++) {
+				min[axis] = Math.min(min[axis], point[axis]);
+				max[axis] = Math.max(max[axis], point[axis]);
+			}
+			return {
+				objects,
+				center: min.map((value, axis) => (value + max[axis]) / 2),
+				span: Math.max(...min.map((value, axis) => max[axis] - value), .001)
+			};
+		}
+		function createBimPreview({ React }) {
+			const h = React.createElement;
+			return function BimPreview({ elements, zh = true, selectedId = "", onSelect }) {
+				const canvas = React.useRef(null), drag = React.useRef(null);
+				const scene = React.useMemo(() => bimPreviewScene(elements), [elements]);
+				const [view, setView] = React.useState({
+					yaw: -.65,
+					pitch: .65,
+					zoom: 1
+				}), selected = selectedId;
+				const t = (cn, en) => zh ? cn : en;
+				React.useEffect(() => {
+					const node = canvas.current;
+					if (!node || !scene.objects.length) return;
+					const draw = () => {
+						const width = node.clientWidth, height = 320, ratio = Math.min(window.devicePixelRatio || 1, 2);
+						node.width = width * ratio;
+						node.height = height * ratio;
+						const ctx = node.getContext("2d");
+						ctx.scale(ratio, ratio);
+						ctx.fillStyle = "#edf2f5";
+						ctx.fillRect(0, 0, width, height);
+						const scale = Math.min(width, height) * .64 / scene.span * view.zoom;
+						const project = (point) => {
+							const [x, y, z] = point.map((n, axis) => n - scene.center[axis]);
+							const rx = x * Math.cos(view.yaw) - y * Math.sin(view.yaw), ry = x * Math.sin(view.yaw) + y * Math.cos(view.yaw);
+							return [
+								width / 2 + rx * scale,
+								height / 2 + (ry * Math.sin(view.pitch) - z * Math.cos(view.pitch)) * scale,
+								ry * Math.cos(view.pitch) + z * Math.sin(view.pitch)
+							];
+						};
+						const faces = [];
+						for (const object of scene.objects) {
+							const points = object.points.map(project);
+							for (let i = 0; i < object.triangles.length; i += 3) {
+								const face = object.triangles.slice(i, i + 3).map((index) => points[index]);
+								faces.push({
+									id: object.id,
+									points: face,
+									depth: face.reduce((sum, point) => sum + point[2], 0) / 3
+								});
+							}
+						}
+						faces.sort((a, b) => a.depth - b.depth);
+						for (const face of faces) {
+							ctx.beginPath();
+							ctx.moveTo(face.points[0][0], face.points[0][1]);
+							ctx.lineTo(face.points[1][0], face.points[1][1]);
+							ctx.lineTo(face.points[2][0], face.points[2][1]);
+							ctx.closePath();
+							ctx.fillStyle = selected && face.id !== selected ? "#d4dce2" : face.id === selected ? "#35a4bc" : "#6691aa";
+							ctx.fill();
+							ctx.lineWidth = .5;
+							ctx.strokeStyle = "#42677d";
+							ctx.stroke();
+						}
+						ctx.fillStyle = "#394e5c";
+						ctx.font = "12px sans-serif";
+						ctx.fillText(`${scene.objects.length} ${t("个实际构件 · 单位 m · 范围", "IFC elements · m · span")} ${scene.span.toFixed(3)} m`, 12, height - 12);
+					};
+					draw();
+					const observer = new ResizeObserver(draw);
+					observer.observe(node);
+					return () => observer.disconnect();
+				}, [
+					scene,
+					view,
+					selected,
+					zh
+				]);
+				if (!scene.objects.length) return null;
+				return h("section", {
+					"aria-label": t("IFC 几何预览", "IFC geometry preview"),
+					style: { margin: "12px 0" }
+				}, h("p", null, t("拖动旋转；下方可选择构件。仅显示本次返回的真实网格，隐藏或未处理构件仍需检查。", "Drag to rotate and select an element below. Only returned meshes are shown; other elements still need inspection.")), h("canvas", {
+					ref: canvas,
+					style: {
+						width: "100%",
+						height: 320,
+						touchAction: "none",
+						borderRadius: 8
+					},
+					"aria-label": t("可旋转的 IFC 构件预览", "Rotatable IFC element preview"),
+					onPointerDown: (event) => {
+						drag.current = [event.clientX, event.clientY];
+						event.currentTarget.setPointerCapture(event.pointerId);
+					},
+					onPointerMove: (event) => {
+						if (!drag.current) return;
+						const [x, y] = drag.current;
+						drag.current = [event.clientX, event.clientY];
+						setView((old) => ({
+							...old,
+							yaw: old.yaw + (event.clientX - x) / 150,
+							pitch: Math.max(-1.5, Math.min(1.5, old.pitch + (event.clientY - y) / 150))
+						}));
+					},
+					onPointerUp: () => {
+						drag.current = null;
+					},
+					onPointerCancel: () => {
+						drag.current = null;
+					}
+				}), h("div", { className: "ap-engineering-tools" }, h("button", { onClick: () => setView((old) => ({
+					...old,
+					yaw: old.yaw + .3
+				})) }, t("旋转", "Rotate")), h("button", { onClick: () => setView((old) => ({
+					...old,
+					zoom: Math.min(4, old.zoom * 1.25)
+				})) }, t("放大", "Zoom in")), h("button", { onClick: () => setView((old) => ({
+					...old,
+					zoom: Math.max(.2, old.zoom / 1.25)
+				})) }, t("缩小", "Zoom out")), h("button", { onClick: () => {
+					setView({
+						yaw: -.65,
+						pitch: .65,
+						zoom: 1
+					});
+					onSelect?.("");
+				} }, t("复位视图", "Reset view")), h("select", {
+					"aria-label": t("选择 IFC 构件", "Select IFC element"),
+					value: selected,
+					onChange: (event) => onSelect?.(event.target.value),
+					style: { maxWidth: "100%" }
+				}, h("option", { value: "" }, t("全部构件", "All elements")), ...scene.objects.map((row) => h("option", {
+					key: row.id,
+					value: row.id
+				}, row.name)))), selected && h("small", null, "GlobalId: " + selected));
+			};
+		}
+		//#endregion
+		//#region src/client/engineering-panel.js
+		const engineeringPanelCss = `
+.ap-engineering{border:1px solid var(--border,#d5dae1);border-radius:10px;padding:16px;margin:16px 0;min-width:0;color:var(--text-primary,#273240)}
+.ap-engineering h3{margin:0 0 10px}.ap-engineering p{line-height:1.6;overflow-wrap:anywhere}.ap-engineering .ap-engineering-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.ap-engineering button{font:inherit;padding:6px 10px;border:1px solid var(--border,#d5dae1);border-radius:6px;color:inherit;background:var(--bg-secondary,#f4f6f8);cursor:pointer}.ap-engineering button[aria-pressed=true]{background:var(--accent,#285c7b);color:#fff}.ap-engineering small{color:var(--text-secondary,#687280)}.ap-engineering details{margin:12px 0;border-top:1px solid var(--border,#d5dae1);padding-top:10px}.ap-engineering summary{cursor:pointer}.ap-engineering-scroll{overflow:auto;max-width:100%}.ap-engineering table{border-collapse:collapse;width:100%;font-size:13px}.ap-engineering th,.ap-engineering td{text-align:left;padding:8px;border-bottom:1px solid var(--border,#d5dae1);white-space:normal;min-width:70px}.ap-engineering [role=alert]{color:#b74434}
+`;
+		function latestEngineeringRuns(runs) {
+			const scope = (row) => (row.dependencies || []).map((ref) => JSON.stringify([
+				ref.kind,
+				ref.id,
+				ref.parameter || ""
+			])).sort().join("|");
+			return [...new Map((runs || []).map((row) => [row.providerId + ":" + (row.input?.action || "") + ":" + scope(row), row])).values()];
+		}
+		function createEngineeringPanel({ React, api, language, onOpenFile }) {
+			const h = React.createElement;
+			const BimPreview = createBimPreview({ React });
+			return function EngineeringPanel({ sessionId, cwd, expectedProjectKey, hideEmpty = false }) {
+				const [state, setState] = React.useState(null), [error, setError] = React.useState("");
+				const [selected, setSelected] = React.useState(""), [refresh, setRefresh] = React.useState(0);
+				const [selectedBimId, setSelectedBimId] = React.useState("");
+				const zh = !language?.()?.startsWith("en"), t = (cn, en) => zh ? cn : en;
+				React.useEffect(() => {
+					setState(null);
+					setError("");
+					setSelected("");
+					setSelectedBimId("");
+					if (!sessionId) return;
+					const controller = new AbortController();
+					let loading = false;
+					const load = async () => {
+						if (loading || controller.signal.aborted) return;
+						loading = true;
+						try {
+							const next = await api("/api/agent-pi/engineering?sessionId=" + encodeURIComponent(sessionId), cwd, { signal: controller.signal });
+							if (!controller.signal.aborted) {
+								setState(next);
+								setError("");
+							}
+						} catch (e) {
+							if (!controller.signal.aborted) setError(e.message);
+						} finally {
+							loading = false;
+						}
+					};
+					load();
+					const timer = setInterval(load, 5e3);
+					return () => {
+						controller.abort();
+						clearInterval(timer);
+					};
+				}, [
+					sessionId,
+					cwd,
+					refresh
+				]);
+				if (!sessionId || hideEmpty && (!state || !state.runs.length && !state.project.objects.length)) return null;
+				if (expectedProjectKey && state?.project.id !== expectedProjectKey) return null;
+				const table = (headers, rows) => h("div", { className: "ap-engineering-scroll" }, h("table", null, h("thead", null, h("tr", null, headers.map((text, index) => h("th", {
+					key: index,
+					scope: "col"
+				}, text)))), h("tbody", null, rows.map((row, index) => h("tr", {
+					key: index,
+					style: selectedBimId && row.includes(selectedBimId) ? {
+						background: "#d7eef2",
+						color: "#203b44"
+					} : void 0
+				}, row.map((cell, i) => h("td", { key: i }, cell)))))));
+				const value = (number) => number === null || number === void 0 ? t("待核实", "Unknown") : String(number);
+				const project = state?.project, objects = project?.objects || [];
+				const sources = project?.sources || [];
+				const object = objects.find((row) => row.id === selected);
+				const visibleSources = object ? sources.filter((row) => object.sources.some((ref) => ref.sourceId === row.id) || Object.values(object.parameters).some((parameter) => parameter.sources.some((ref) => ref.sourceId === row.id))) : sources;
+				const basisLabel = {
+					geometry: t("几何", "Geometry"),
+					measurement: t("计量", "Measurement"),
+					fabrication: t("加工", "Fabrication")
+				};
+				return h("section", {
+					className: "ap-engineering",
+					"aria-label": t("工程数据与计算", "Engineering data and calculations")
+				}, h("div", { className: "ap-engineering-tools" }, h("h3", null, t("工程数据与计算", "Engineering data and calculations")), h("button", { onClick: () => setRefresh((value) => value + 1) }, t("刷新工程记录", "Refresh engineering records"))), error && h("p", { role: "alert" }, error), !state ? h("p", null, t("正在读取工程记录…", "Reading engineering records…")) : h(React.Fragment, null, h("p", null, t("来源 ", "Sources ") + sources.length + t(" · 构件 ", " · Objects ") + objects.length + t(" · 采用规则 ", " · Adopted rules ") + project.ruleAdoptions.length), h("small", null, t("在主对话中补充或修正条件，这里同步显示依据、数量和缺口。计算结果仍需专业复核与加工批准。", "Clarify conditions in the conversation. Sources, quantities and gaps update here. Calculations still require professional review and fabrication approval.")), objects.length > 0 && h("div", {
+					className: "ap-engineering-tools",
+					style: { marginTop: 12 }
+				}, h("button", {
+					"aria-pressed": !selected,
+					onClick: () => setSelected("")
+				}, t("全部构件", "All objects")), ...objects.map((row) => h("button", {
+					key: row.id,
+					"aria-pressed": selected === row.id,
+					onClick: () => setSelected(row.id)
+				}, row.title))), object && table([
+					t("参数", "Parameter"),
+					t("值", "Value"),
+					t("核实状态", "Review state")
+				], Object.entries(object.parameters).map(([key, row]) => [
+					zh ? {
+						length: "长度",
+						width: "宽度",
+						height: "高度",
+						thickness: "厚度",
+						diameter: "直径",
+						count: "数量"
+					}[key] || key : key,
+					value(row.value) + (row.unit ? " " + row.unit : ""),
+					row.status === "confirmed" ? t("已确认", "Confirmed") : t("待复核", "Review required")
+				])), project.quantities.length > 0 && h("details", null, h("summary", null, t("构件数量与算式", "Object quantities and formulae")), table([
+					t("数量", "Quantity"),
+					t("口径", "Basis"),
+					t("值", "Value"),
+					t("算式", "Formula"),
+					t("状态", "Status")
+				], project.quantities.filter((row) => !selected || row.objectIds.includes(selected)).map((row) => [
+					row.title,
+					{
+						geometric: t("几何", "Geometry"),
+						contract: t("合同计量", "Contract"),
+						fabrication: t("下料", "Fabrication"),
+						procurement: t("采购", "Procurement")
+					}[row.purpose],
+					value(row.value) + " " + row.unit,
+					row.formula,
+					row.status === "reviewed" ? t("已复核", "Reviewed") : row.status === "stale" ? t("待重算", "Recalculate") : t("待核实", "Review required")
+				]))), project.ruleAdoptions.length > 0 && h("details", null, h("summary", null, t("项目锁定的规则版本", "Project-pinned rule versions")), table([
+					t("规则包", "Rule pack"),
+					t("采用版本", "Adopted version"),
+					t("范围", "Scope"),
+					t("内容指纹", "Content fingerprint")
+				], project.ruleAdoptions.map((row) => [
+					row.packId,
+					row.version,
+					[
+						row.scope.country,
+						row.scope.region,
+						row.scope.discipline
+					].filter(Boolean).join(" · "),
+					row.contentHash.slice(0, 16)
+				]))), visibleSources.length > 0 && h("details", null, h("summary", null, t("原图与资料依据", "Drawing and source references")), ...visibleSources.map((row) => h("p", { key: row.id }, row.path && onOpenFile ? h("button", { onClick: () => onOpenFile(row.path, cwd) }, row.title) : row.title, h("small", null, " · " + (row.revision || row.sha256.slice(0, 12)) + " · " + (row.status === "active" ? t("当前版", "Current") : t("需检查版本", "Check version")))))), project.coverage.length > 0 && h("details", null, h("summary", null, t("独立范围检查清单", "Independent scope checklist")), table([
+					t("检查对象", "Scope item"),
+					t("状态", "Status"),
+					t("说明", "Reason")
+				], project.coverage.map((row) => [
+					row.title,
+					{
+						pending: t("待处理", "Pending"),
+						reviewed: t("已复核", "Reviewed"),
+						missing: t("缺失", "Missing"),
+						excluded: t("明确排除", "Excluded"),
+						stale: t("变更待复核", "Changed; review")
+					}[row.status],
+					row.reason || "—"
+				]))), ...latestEngineeringRuns(state.runs).map((run) => {
+					const details = run.output.details, calculation = details?.calculation || details, rows = calculation?.rows || [];
+					return h("details", {
+						key: run.id,
+						open: true,
+						"data-engineering-provider": run.providerId
+					}, h("summary", null, run.title + (run.status === "stale" ? t(" · 依据变化，待重算", " · Inputs changed; recalculate") : "")), h("p", null, run.output.summary), (!run.providerAvailable || run.providerChanged) && h("p", { role: "alert" }, !run.providerAvailable ? t("插件已停用，历史结果保留。", "Plugin unavailable; historical result retained.") : t("插件版本已变化，请复核采用版本。", "Plugin version changed; review adopted version.")), calculation?.totalsByBasis && table([
+						t("数量口径", "Quantity basis"),
+						t("已知长度 / m", "Known length / m"),
+						t("已知质量 / kg", "Known mass / kg"),
+						t("不完整钢筋组", "Incomplete groups")
+					], Object.entries(calculation.totalsByBasis).map(([basis, row]) => [
+						basisLabel[basis] || basis,
+						row.knownLengthM,
+						row.knownMassKg,
+						row.incompleteRows
+					])), calculation?.totalsByBasis && calculation.coverage && h("p", null, calculation.coverage.declared ? t("本次计算范围：", "Calculation scope: ") + calculation.coverage.calculated + " / " + calculation.coverage.expected + t(" 组已计算；仍须专业复核。", " groups calculated; review still required.") : t("尚未建立独立范围清单，不能据此判断全图完整。", "No independent scope inventory; whole-drawing completeness is unknown.")), rows.some((row) => row.quantities) && table([
+						t("钢筋组", "Bar group"),
+						t("根数", "Count"),
+						t("直径 / mm", "Diameter / mm"),
+						t("加工单根长 / m", "Fabrication length / m"),
+						t("问题", "Gaps")
+					], rows.filter((row) => row.quantities).map((row) => [
+						row.mark || row.id,
+						value(row.count),
+						value(row.diameterMm),
+						value(row.quantities.fabrication.singleLengthM),
+						(row.missingInputs || []).join("；") || t("待专业复核", "Review required")
+					])), details?.responseMatrix && table([
+						t("招标要求", "Requirement"),
+						t("响应状态", "Response"),
+						t("依据与缺口", "Evidence and gaps")
+					], details.responseMatrix.map((row) => [
+						row.title,
+						{
+							supported: t("已有支持证据", "Supported"),
+							conflict: t("存在矛盾", "Conflict"),
+							needs_evidence: t("待补证据", "Evidence needed"),
+							needs_review: t("待复核", "Review required")
+						}[row.status],
+						row.reasons.join("；")
+					])), details?.boqComparison && h("p", null, t("与原始清单比较：", "Original BOQ comparison: ") + details.boqComparison.differences.length + t(" 项差异；原始清单保持独立。", " differences; original baseline retained.")), run.providerId === "road" && details?.subtotals && table([
+						t("线路与工作范围", "Alignment and work scope"),
+						t("已知几何体积 / m³", "Known geometry / m³"),
+						t("已计分段", "Included intervals"),
+						t("未解决分段", "Unresolved intervals")
+					], details.subtotals.map((row) => [
+						row.scope,
+						row.knownVolumeM3,
+						row.includedIntervals,
+						row.unresolvedIntervals
+					])), run.providerId === "road" && Array.isArray(details?.coverage) && table([
+						t("范围", "Scope"),
+						t("桩号区间 / m", "Station range / m"),
+						t("未覆盖区间", "Missing ranges")
+					], details.coverage.map((row) => [
+						row.scope,
+						row.startM + " — " + row.endM,
+						row.status === "excluded" ? row.reason : row.gaps.map((gap) => gap.startM + " — " + gap.endM).join("；") || t("所列范围已计算，待复核", "Declared range calculated; review pending")
+					])), run.recordKind === "observation" && details?.inventory && h("p", null, t("已登记图纸目录：", "Drawing inventory: ") + details.inventory.length + t(" 项；本次读取 ", " items; inspected in this operation: ") + details.observedIds.length + t(" 项。读取记录与专业复核分开保存。", " items. Reading and professional review are separate.")), details?.details?.imagePath && onOpenFile && h("button", { onClick: () => onOpenFile(details.details.imagePath, cwd) }, t("查看本次高清图纸区域", "Open inspected drawing region")), run.providerId === "bim-ifc" && details?.source?.path && onOpenFile && h("button", { onClick: () => onOpenFile(details.source.path, cwd) }, t("查看 IFC 文件", "Open IFC file")), run.providerId === "bim-ifc" && details?.elements?.some((row) => row.mesh) && h(BimPreview, {
+						elements: details.elements,
+						zh,
+						selectedId: selectedBimId,
+						onSelect: setSelectedBimId
+					}), run.providerId === "bim-ifc" && details?.elements?.some((row) => "netVolumeM3" in row) && table([
+						t("构件", "Element"),
+						"GlobalId",
+						t("几何净体积 / m³", "Net geometry / m³"),
+						t("几何毛体积 / m³", "Gross geometry / m³"),
+						t("扣除开口 / m³", "Opening subtraction / m³"),
+						t("复核状态", "Review")
+					], details.elements.map((row) => [
+						h("button", { onClick: () => setSelectedBimId(row.globalId) }, row.name || row.type),
+						row.globalId,
+						value(row.netVolumeM3),
+						value(row.grossVolumeM3),
+						value(row.openingVolumeM3),
+						row.status === "failed" ? t("计算失败，保留缺口", "Failed; unresolved") : t("待专业复核", "Review required")
+					])), run.providerId === "bim-ifc" && details?.elements?.some((row) => row.nativeQuantities?.length) && table([
+						t("构件", "Element"),
+						t("原生数量名称", "Authored quantity"),
+						t("原生值", "Authored value"),
+						t("单位依据", "Unit basis")
+					], details.elements.flatMap((row) => (row.nativeQuantities || []).map((quantity) => [
+						row.name || row.globalId,
+						quantity.set + " / " + quantity.name,
+						value(quantity.value),
+						quantity.unit ? JSON.stringify(quantity.unit) : quantity.unitBasis
+					]))), run.providerId === "bim-ifc" && details?.page && h("p", null, t("本次返回构件 ", "Returned elements ") + details.page.returned + " / " + details.page.totalMatched + (details.page.nextOffset !== null ? t("；尚有下一页，不代表全模型覆盖。", "; more pages remain.") : t("；仍需核对模型与图纸完整性。", "; drawing and model completeness still need review."))), run.providerId === "civil-quantities" && details?.rows && table([
+						t("对象", "Object"),
+						t("数量", "Quantity"),
+						t("单位", "Unit"),
+						t("算式与依据", "Formula and basis"),
+						t("缺口", "Gaps")
+					], details.rows.map((row) => [
+						row.title,
+						value(row.quantity),
+						row.unit,
+						row.formula,
+						row.issues.map((issue) => issue.message).join("；") || t("待专业复核", "Review required")
+					])), run.providerId === "civil-quantities" && details?.totals && table([
+						t("对象类型", "Object type"),
+						t("数量口径", "Basis"),
+						t("完整对象小计", "Complete-object subtotal"),
+						t("已知部分小计", "Known partial subtotal"),
+						t("单位", "Unit")
+					], details.totals.map((row) => [
+						{
+							pipe: t("管线", "Pipe"),
+							drain: t("排水沟", "Drain"),
+							road_layer: t("道路结构层", "Road layer"),
+							rectangular: t("矩形构件", "Rectangular solid"),
+							count: t("构筑物计数", "Asset count")
+						}[row.kind],
+						{
+							plan_2d: t("平面投影", "Plan projection"),
+							spatial_3d: t("空间路径", "Spatial path"),
+							plan_area_thickness: t("平面面积×厚度", "Plan area × thickness"),
+							rectangular_solid: t("矩形几何体", "Rectangular solid"),
+							count: t("明确计数", "Explicit count"),
+							unknown: t("待核实", "Unknown")
+						}[row.quantityBasis],
+						value(row.completeSubtotal),
+						value(row.knownPartialSubtotal),
+						row.unit
+					])), run.providerId === "civil-quantities" && details?.action === "calibrate_pdf" && h("p", null, details.status === "calibrated" ? t("当前图纸视口已标定；更换页面、版本或缩放范围后需重新核对。", "Current drawing viewport calibrated; verify again after page, revision or viewport changes.") : t("比例尚未可靠确定，不能据此算量。", "Scale remains unresolved; quantities cannot rely on it.")), run.sourceIssues?.length > 0 && h("p", { role: "alert" }, run.sourceIssues.map((row) => row.message).join("；")), run.output.issues.length > 0 && h("details", null, h("summary", null, t("待核实与检查提示：", "Review items: ") + run.output.issues.length), h("ul", null, ...run.output.issues.map((row, index) => h("li", { key: index }, row.message)))), h("small", null, run.createdAt.replace("T", " ").slice(0, 19) + " · " + run.providerVersion));
+				}), !state.runs.length && h("p", null, t("尚无工程计算。主对话读取实际图纸、料表或招标资料后，会在这里记录计算及缺口。", "No calculations yet. Results appear here after the conversation examines project drawings, schedules or tender documents.")), h("details", null, h("summary", null, t("已启用的专业插件", "Enabled professional plugins")), ...state.providers.map((row) => h("div", { key: row.id }, h("p", null, row.title + " · " + row.version), h("ul", null, ...row.limitations.map((text, index) => h("li", { key: index }, text))))))));
+			};
+		}
+		//#endregion
 		//#region src/client/task-guide.js
 		const taskGuideCss = `
 .ap-task-guide{position:relative;width:100%;height:100%;min-height:0;min-width:0;box-sizing:border-box;padding-bottom:var(--dsh-composer-height,180px);background:var(--bg-primary,#fff);color:var(--text-primary,#273240);display:flex;flex-direction:column;font-size:14px}
@@ -8960,6 +9404,15 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 		}
 		function createTaskGuide({ React, api, cwd, language, subscribe, onOpenSource, onOpenWorkbench, onTask }) {
 			const h = React.createElement;
+			const EngineeringPanel = createEngineeringPanel({
+				React,
+				api,
+				language,
+				onOpenFile: (path, cwd) => window.dispatchEvent(new CustomEvent("agent-pi-open-file", { detail: {
+					cwd,
+					path
+				} }))
+			});
 			const StageControls = createTaskStageControls({
 				React,
 				api,
@@ -9254,7 +9707,11 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					}, (row.kind === "revocation" ? zh ? "已明确撤销：" : "Explicitly revoked: " : zh ? "修正记录：" : "Correction: ") + row.text)))), model.questions.length > 0 && article("questions", text.unanswered, h(React.Fragment, null, ...model.questions.map((row) => h("div", { key: row.id }, h("p", null, row.question), row.purpose && h("p", { className: "ap-guide-muted" }, row.purpose), row.provider && h("p", { className: "ap-guide-muted" }, zh ? "请在主对话的原生问答卡中回答。" : "Answer in the native question card in the conversation."))), onClose && h("button", { onClick: onClose }, zh ? "在主对话中回答" : "Answer in the conversation"))), h("h3", null, zh ? "围绕目标的发现" : "Findings related to your goal"), task.findings?.length ? renderTaskFindings(h, task, language(), openSource, {
 						includeResolved: true,
 						onOpenChat: onClose
-					}) : h("p", { className: "ap-guide-muted" }, zh ? "实际分析形成的发现会记录在这里，并说明依据、目标影响和下一步。" : "Findings from actual analysis appear here with their sources, impact on the goal and next action."), article("progress", zh ? "实际工作进展" : "Actual work progress", h(React.Fragment, null, model.currentStep && h("p", null, (zh ? "当前重点：" : "Current focus: ") + model.currentStep.title), h("div", { className: "ap-guide-progress" }, h("span", null, (zh ? "资料抽取：" : "Source extraction: ") + model.coverage.parsed + "/" + model.coverage.total), h("span", null, (zh ? "专业复核：" : "Professional review: ") + model.coverage.reviewed + "/" + model.coverage.total), h("span", null, (zh ? "缺失 / 不可读：" : "Missing / unreadable: ") + model.coverage.missing + " / " + model.coverage.unreadable), h("span", null, (zh ? "客户验收：" : "Customer acceptance: ") + model.delivery.accepted + "/" + model.delivery.total)), model.coverage.total === 0 && h("p", { className: "ap-guide-muted" }, zh ? "尚未登记资料检查对象，不推算完成率。" : "No source inspection objects have been registered yet."), h("button", { onClick: () => setTab("plan") }, text.plan), h("button", { onClick: () => setTab("delivery") }, text.delivery))), model.changes.length > 0 && article("changes", zh ? "调整记录" : "Adjustment history", h(React.Fragment, null, ...model.changes.slice(0, 8).map((row) => h("div", { key: row.sequence }, h("p", null, row.summary), row.affectedRefs?.length > 0 && h("p", { className: "ap-guide-muted" }, (zh ? "受影响：" : "Affected: ") + row.affectedRefs.join("、")))))));
+					}) : h("p", { className: "ap-guide-muted" }, zh ? "实际分析形成的发现会记录在这里，并说明依据、目标影响和下一步。" : "Findings from actual analysis appear here with their sources, impact on the goal and next action."), h(EngineeringPanel, {
+						sessionId,
+						cwd: cwd(),
+						hideEmpty: true
+					}), article("progress", zh ? "实际工作进展" : "Actual work progress", h(React.Fragment, null, model.currentStep && h("p", null, (zh ? "当前重点：" : "Current focus: ") + model.currentStep.title), h("div", { className: "ap-guide-progress" }, h("span", null, (zh ? "资料抽取：" : "Source extraction: ") + model.coverage.parsed + "/" + model.coverage.total), h("span", null, (zh ? "专业复核：" : "Professional review: ") + model.coverage.reviewed + "/" + model.coverage.total), h("span", null, (zh ? "缺失 / 不可读：" : "Missing / unreadable: ") + model.coverage.missing + " / " + model.coverage.unreadable), h("span", null, (zh ? "客户验收：" : "Customer acceptance: ") + model.delivery.accepted + "/" + model.delivery.total)), model.coverage.total === 0 && h("p", { className: "ap-guide-muted" }, zh ? "尚未登记资料检查对象，不推算完成率。" : "No source inspection objects have been registered yet."), h("button", { onClick: () => setTab("plan") }, text.plan), h("button", { onClick: () => setTab("delivery") }, text.delivery))), model.changes.length > 0 && article("changes", zh ? "调整记录" : "Adjustment history", h(React.Fragment, null, ...model.changes.slice(0, 8).map((row) => h("div", { key: row.sequence }, h("p", null, row.summary), row.affectedRefs?.length > 0 && h("p", { className: "ap-guide-muted" }, (zh ? "受影响：" : "Affected: ") + row.affectedRefs.join("、")))))));
 					if (tab === "goal") body = h(React.Fragment, null, field("objective", false, true), field("scope", false, true), field("audience"), h("label", null, text.profession, h("select", {
 						value: draft.brief.profession,
 						onChange: (e) => edit("profession", e.target.value)
@@ -10776,7 +11233,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		});
 		const MARKUP_RE = /[`*!\[]/;
 		const HTML_SPECIAL_RE = /[&<>"]/;
-		const css = clientCss + professionalDepthCss + taskProcessCss + nativeWorkFilePreviewCss + taskGuideCss + professionalTaskSummaryCss;
+		const css = clientCss + professionalDepthCss + taskProcessCss + nativeWorkFilePreviewCss + taskGuideCss + professionalTaskSummaryCss + engineeringPanelCss;
 		if (typeof document !== "undefined") {
 			const existing = document.querySelector("style[data-plugin-css=\"dsh-tender-web\"]");
 			if (existing) existing.remove();
@@ -15075,6 +15532,15 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				style: { marginTop: 6 }
 			}, item.file + " — " + item.error))) : null));
 		}
+		const EngineeringPanel = createEngineeringPanel({
+			React: react,
+			api,
+			language: () => langState.lang,
+			onOpenFile: (path, cwd) => window.dispatchEvent(new CustomEvent("agent-pi-open-file", { detail: {
+				cwd,
+				path
+			} }))
+		});
 		const WorkbenchView = createWorkbenchView({
 			h,
 			Icon,
@@ -15819,7 +16285,12 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 							runStage(project, stage.id, "reset", false);
 						}
 					}, workbenchText("重置编排")))));
-				})), h("section", { className: "ap-sec" }, h("div", {
+				})), h(EngineeringPanel, {
+					sessionId: monitorParent,
+					cwd,
+					expectedProjectKey: project.module + ":" + project.projectId,
+					hideEmpty: true
+				}), h("section", { className: "ap-sec" }, h("div", {
 					className: "ap-row",
 					style: { justifyContent: "space-between" }
 				}, h("h2", null, workbenchText("项目资料")), h("div", { className: "ap-row" }, h("span", { className: "ap-sub" }, workbenchText("对齐原稿后点名称预览改稿；保存同步 JSON")), h("button", {

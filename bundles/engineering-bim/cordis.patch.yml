@@ -1,0 +1,4 @@
+- insert:
+    - id: agent-pi-engineering-bim
+      name: dsh-agent-pi-engineering-bim
+      inject: [engineering, tools]

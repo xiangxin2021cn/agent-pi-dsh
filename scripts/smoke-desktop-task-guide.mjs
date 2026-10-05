@@ -5,6 +5,8 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { createRequire } from 'node:module'
+import { createServer } from 'node:net'
 
 const root = process.cwd()
 const desktopDir = join(root, 'apps', 'desktop')
@@ -25,6 +27,16 @@ assert.ok(existsSync(join(root, 'vendor', 'deepseek-harness', 'apps', 'web', 'di
 
 const { _electron: electron } = await import(pathToFileURL(playwrightEntry()).href)
 const scratch = mkdtempSync(join(tmpdir(), 'agent-pi-task-guide-'))
+// A separate profile must also use a separate Office gateway: probing its
+// default port could otherwise reach the user's already-running application.
+const officeGatewayPort = await new Promise((resolvePort, reject) => {
+  const server = createServer()
+  server.once('error', reject)
+  server.listen(0, '127.0.0.1', () => {
+    const port = server.address().port
+    server.close(error => error ? reject(error) : resolvePort(port))
+  })
+})
 const userDataDir = join(scratch, 'electron-user-data')
 const dshHome = join(scratch, 'dsh-home')
 const workspace = join(scratch, 'workspace')
@@ -34,7 +46,7 @@ const reportFile = join(workspace, '工期建议.md')
 const objective = '判断当前施工方案的工期是否可实现，形成给领导决策的建议'
 const priorHumanText = 'longhorizonproof379：预算上限600元，不要改项目原稿。'
 const assistantReply = '我会先核对材料中的工期条件，再整理影响工期判断的约束与待确认事项。'
-const artifactDir = resolve(process.env.AGENT_PI_QA_ARTIFACT_DIR || join(tmpdir(), 'agent-pi-task-guide-ui-3.7.9'))
+const artifactDir = resolve(process.env.AGENT_PI_QA_ARTIFACT_DIR || join(tmpdir(), 'agent-pi-task-guide-ui-5.8.0'))
 mkdirSync(workspace, { recursive: true })
 mkdirSync(artifactDir, { recursive: true })
 writeFileSync(sourceFile, [
@@ -48,6 +60,14 @@ writeFileSync(sourceFile, [
 ].join('\n'), 'utf8')
 writeFileSync(reportFile, '# 工期建议\n\n正文和补遗的工期不同，需确认文件优先顺序与实际资源配置。\n', 'utf8')
 writeFileSync(linkedSourceFile, '真实工作台联动回归资料：施工范围与工期需要对照原稿分析，本地测试不涉及真实投标文件。\n', 'utf8')
+const pdfFile = join(workspace, 'qa-drawing.pdf'), cadFile = join(workspace, 'qa-drawing.dxf')
+const hostRequire = createRequire(join(root, 'bundles/tender-host/package.json'))
+const { PDFDocument } = hostRequire('pdf-lib')
+const pdf = await PDFDocument.create()
+const pdfPage = pdf.addPage([720, 480]); pdfPage.drawText('QA reinforcement note: 4 bars, 6000 mm', { x: 60, y: 240, size: 6 })
+pdf.addPage([720, 480])
+writeFileSync(pdfFile, await pdf.save())
+writeFileSync(cadFile, ['0','SECTION','2','HEADER','9','$ACADVER','1','AC1027','9','$INSUNITS','70','4','0','ENDSEC','0','SECTION','2','ENTITIES','0','LINE','5','1A','8','QA-ROAD','10','0','20','0','30','0','11','6000','21','0','31','0','0','TEXT','5','1B','8','QA-NOTE','10','0','20','200','30','0','40','100','1','QA ROAD 6000mm','0','ENDSEC','0','EOF',''].join('\n'))
 
 const profileInit = spawnSync(process.execPath, [join(root, 'scripts', 'init-tender-profile.mjs')], {
   cwd: root,
@@ -73,6 +93,9 @@ writeFileSync(profilePatchPath, profilePatch + [
   "      name: '@deepseek-ai/dsh-host-directory-picker-browse'",
   '    - id: ui-directory-picker-browse',
   "      name: '@deepseek-ai/dsh-client-ui-directory-picker-browse'",
+  '- id: univer',
+  '  config:',
+  '    gatewayPort: ' + officeGatewayPort,
   '',
 ].join('\n'), 'utf8')
 
@@ -115,6 +138,11 @@ export async function apply(ctx) {
       if(req.method==='GET')return send(200,{humanMessages:s.deriveMessages().filter(row=>row.role==='user').length});
       req.setEncoding('utf8');let raw='';for await(const part of req)raw+=part;
       const input=JSON.parse(raw);
+      if(input.action==='dispose_office'){
+        const office=ctx.get('univer');
+        if(typeof office?.dispose!=='function')throw new Error('Native Office disposal is unavailable');
+        await office.dispose();return send(200,{gateway:await office.gatewayStatus()});
+      }
       const agent=ctx.agents.get(s.id);if(!agent)throw new Error('QA session agent is not ready');
       if(input.action==='hold'){
         if(heldRun)throw new Error('A QA native step is already held');
@@ -136,7 +164,7 @@ export async function apply(ctx) {
         if(input.action==='admit')await agent.whenIdle();
         return send(200,{messageId:message.id});
       }
-      if(!['professional_task','professional_depth','tender_project','tender_stage','session_search','session_event_search','session_trace','session_event_trace','session_event_read'].includes(input.tool))throw new Error('Unsupported QA tool');
+       if(!['engineering_project','engineering_pdf','engineering_export','cad_read','bim_engine_health','professional_task','professional_depth','tender_project','tender_stage','session_search','session_event_search','session_trace','session_event_trace','session_event_read'].includes(input.tool))throw new Error('Unsupported QA tool');
       const result=await agent.ctx.get('tools').execute({callId:'qa-'+Date.now(),name:input.tool,arguments:input.args,agent,signal:new AbortController().signal});
       if(result.isError)throw new Error(JSON.stringify(result.content));
       let value=result.value;
@@ -150,13 +178,86 @@ writeFileSync(profilePatchPath,readFileSync(profilePatchPath,'utf8')+'\n- insert
 
 let electronApp
 let page
+let officeStarted = false
 const qaLoader = join(scratch, 'desktop-loader.mjs')
 writeFileSync(qaLoader, "import {app} from 'electron';import {pathToFileURL} from 'node:url';app.setPath('userData',process.env.AGENT_PI_QA_USER_DATA);await import(pathToFileURL(process.env.AGENT_PI_QA_DESKTOP_MAIN).href)")
 let processOutput = ''
 const pageErrors = []
 const consoleErrors = []
+const errorDetails = []
+const requestFailures = []
+const sessionSnapshots = []
+const snapshotWaiters = new Set()
+let phase = 'launch'
 const startedAt = Date.now()
 const remaining = () => Math.max(1, deadlineMs - (Date.now() - startedAt))
+const diagnosticTime = () => ({phase, elapsedMs: Date.now() - startedAt, time: new Date().toISOString()})
+
+function observeSessionSnapshots(socket) {
+  if (new URL(socket.url()).pathname !== '/api/remote.mux') return
+  const streams = new Map()
+  socket.on('framesent', ({payload}) => {
+    const frame = JSON.parse(String(payload))
+    if (frame.type !== 'open' || frame.endpoint !== 'session/follow') return
+    const address = frame.payload?.args?.request?.address
+    if (address?.kind === 'session') streams.set(frame.streamId, address.sessionId)
+  })
+  socket.on('framereceived', ({payload}) => {
+    const frame = JSON.parse(String(payload))
+    const sessionId = streams.get(frame.streamId)
+    if (!sessionId || frame.type !== 'item' || frame.value?.type !== 'snapshot') return
+    sessionSnapshots.push({sessionId, streamId: frame.streamId, ...diagnosticTime()})
+    for (const check of snapshotWaiters) check()
+  })
+}
+
+async function waitForSelectedSession(expectedSessionId, afterSnapshot = 0) {
+  const selected = await page.waitForFunction(expected => {
+    const sessionId = JSON.parse(localStorage.getItem('dsh.sessions.current') || '{}').sessionId
+    return typeof sessionId === 'string' && (!expected || sessionId === expected) ? sessionId : false
+  }, expectedSessionId, {timeout: remaining()})
+  const sessionId = await selected.jsonValue()
+  await selected.dispose()
+  // A blank-session composer is visible before its native history stream opens.
+  // Await the actual opening snapshot before releasing its sidebar reference.
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      snapshotWaiters.delete(check)
+      reject(new Error(`No session/follow opening snapshot for ${sessionId} during ${phase}`))
+    }, Math.min(30_000, remaining()))
+    const check = () => {
+      if (!sessionSnapshots.slice(afterSnapshot).some(row => row.sessionId === sessionId)) return
+      clearTimeout(timer)
+      snapshotWaiters.delete(check)
+      resolve()
+    }
+    snapshotWaiters.add(check)
+    check()
+  })
+  // Let native stream consumption and the subscribed React stores finish rendering.
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+}
+
+async function reloadQaSession(nextPhase) {
+  phase = nextPhase
+  const afterSnapshot = sessionSnapshots.length
+  await page.reload()
+  await clickOptional(/继续|Continue/i)
+  await clickOptional(/稍后配置|Configure later/i)
+  await waitForSelectedSession('qa-guided-task', afterSnapshot)
+}
+
+async function disposeOffice() {
+  const stopped = await page.evaluate(async () => {
+    const response = await fetch('/api/agent-pi/qa-task-tool',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'dispose_office'})})
+    const result = await response.json()
+    if (!response.ok) throw new Error(result.error || 'Office disposal failed')
+    return result
+  })
+  assert.equal(stopped.gateway.phase,'stopped','only this fixture-owned native Office gateway is stopped')
+  officeStarted = false
+  return stopped
+}
 
 async function clickOptional(pattern, timeout = 3_000) {
   const button = page.getByRole('button', { name: pattern }).first()
@@ -189,8 +290,18 @@ try {
 
   assert.equal(await electronApp.evaluate(({app})=>app.getPath('userData')),userDataDir);
   page = await electronApp.firstWindow({ timeout: deadlineMs })
-  page.on('pageerror', (error) => pageErrors.push(String(error && error.stack || error)))
-  page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()) })
+  page.on('websocket', observeSessionSnapshots)
+  page.on('pageerror', error => {
+    const text = String(error && error.stack || error)
+    pageErrors.push(text)
+    errorDetails.push({kind:'pageerror', text, ...diagnosticTime()})
+  })
+  page.on('console', message => {
+    if (message.type() !== 'error') return
+    consoleErrors.push(message.text())
+    errorDetails.push({kind:'console', text:message.text(), location:message.location(), ...diagnosticTime()})
+  })
+  page.on('requestfailed', request => requestFailures.push({url:request.url(), method:request.method(), resourceType:request.resourceType(), error:request.failure()?.errorText, ...diagnosticTime()}))
   page.on('dialog', (dialog) => dialog.accept())
   await page.waitForURL(
     (url) => url.protocol === 'http:' && (url.hostname === '127.0.0.1' || url.hostname === 'localhost'),
@@ -200,6 +311,7 @@ try {
   await clickOptional(/继续|Continue/i)
   await clickOptional(/稍后配置|Configure later/i, 5_000)
 
+  phase = 'select-workspace'
   const workspaceChooser = page.getByRole('textbox', { name: /选择工作区|Choose workspace/i }).first()
   if (await workspaceChooser.waitFor({ state: 'visible', timeout: Math.min(4_000, remaining()) }).then(() => true).catch(() => false)) {
     await workspaceChooser.click()
@@ -219,8 +331,12 @@ try {
     state: 'visible',
     timeout: remaining(),
   })
+  await waitForSelectedSession()
+  phase = 'open-qa-session'
   for (const label of [/^workspace$/, /^未分组$/]) { const row = page.getByRole('treeitem').filter({hasText:label}); if (await row.count() && await row.getAttribute('aria-expanded') === 'false') await row.click(); }
   await page.getByRole('treeitem').filter({hasText:/qa-guided-task|Professional task guide QA/}).last().click({timeout:30000});
+  await waitForSelectedSession('qa-guided-task')
+  phase = 'task-guide-and-history'
   async function request(url, body) {
     return page.evaluate(async ({url,body}) => {
       const response=await fetch(url,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:undefined)
@@ -379,7 +495,7 @@ try {
   assert.ok(await dialog.evaluate(element=>element.scrollWidth<=element.clientWidth),'panel fits narrow viewport')
   await dialog.getByRole('button',{name:'返回对话',exact:true}).click()
   await page.setViewportSize({width:1440,height:980})
-  await page.reload();await clickOptional(/继续|Continue/i);await clickOptional(/稍后配置|Configure later/i)
+  await reloadQaSession('task-guide-reload')
   await trigger.waitFor({timeout:remaining()});await trigger.click()
   await dialog.getByText(objective,{exact:true}).waitFor()
   assert.equal(await dialog.locator('[data-finding-id="period-conflict"]').count(),1)
@@ -497,6 +613,7 @@ try {
   assert.equal(board.stages['bid-risk-decision'].approval.decision,'approved')
   console.log(JSON.stringify({phase:'actual-workbench-inbox-and-running-tabs',status:'ok',decisionMessageId:decision.messageId,artifactDir}))
 
+  phase = 'host-runtime-native-dispatch'
   const stageUrl='/api/agent-pi/stage?cwd='+encodeURIComponent(workspace)
   const stageBody={module:'tender',projectId,stageId:'tender-document-analysis',sessionId:'qa-guided-task'}
   const intentBeforeRuntime=(await request(taskUrl)).task
@@ -522,7 +639,7 @@ try {
   assert.equal(during.task.latestRequest,intentBeforeRuntime.latestRequest)
   assert.notEqual(during.task.latestMessageId,attempt.messageId)
   await page.evaluate(()=>{for(const store of [localStorage,sessionStorage])for(const key of Object.keys(store))if(/(?:transaction|registry|long-task|session-monitor)/i.test(key))store.removeItem(key)})
-  await page.reload();await clickOptional(/继续|Continue/i);await clickOptional(/稍后配置|Configure later/i)
+  await reloadQaSession('runtime-active-reload')
   const restored=await request(stageUrl,{...stageBody,action:'runtime_status'})
   assert.equal(restored.runtime.phase,'waiting')
   assert.equal(restored.runtime.attempt.id,attempt.id);assert.equal(restored.runtime.attempt.messageId,attempt.messageId)
@@ -530,7 +647,7 @@ try {
   const paused=await request(stageUrl,{...stageBody,action:'runtime_pause',paused:true})
   assert.equal(paused.runtime.phase,'paused')
   await request('/api/agent-pi/qa-task-tool',{action:'finish'})
-  await page.reload();await clickOptional(/继续|Continue/i);await clickOptional(/稍后配置|Configure later/i)
+  await reloadQaSession('runtime-paused-reload')
   const pausedReload=await request(stageUrl,{...stageBody,action:'runtime_status'})
   assert.equal(pausedReload.runtime.phase,'paused')
   assert.equal(pausedReload.runtime.run.paused,true)
@@ -540,10 +657,191 @@ try {
   assert.equal(finalReceipt.events.filter(event=>event.type==='user/message').length,1,'the exact native message is never sent twice')
   writeFileSync(join(artifactDir,'10-host-runtime-native-receipt.json'),JSON.stringify({offered,dispatched,nativeReceipt,actualNativeRead,restored,pausedReload,finalReceipt},null,2),'utf8')
   console.log(JSON.stringify({phase:'durable-host-runtime-native-dispatch-reload-pause',status:'ok',attemptId:attempt.id,messageId:attempt.messageId}))
-  await page.getByRole('tab',{name:'专业化工作台',exact:true}).click()
-  await page.locator('.ap-wb .ap-mods').getByRole('button',{name:'模块管理',exact:true}).click()
+   // 5.8: actual independent providers, shared engineering records and the native views.
+   phase = 'engineering-provider-and-three-views'
+   let engineering = await runTool('engineering_project', {action:'status'})
+   assert.ok(engineering.providers.some(row=>row.id==='rebar'))
+   assert.ok(engineering.providers.some(row=>row.id==='china-tender'))
+   const drawingHash=createHash('sha256').update(readFileSync(linkedSourceFile)).digest('hex')
+   const drawingRef={sourceId:'qa-drawing',sourceHash:drawingHash,locator:'L1'}
+   const beam={id:'qa-beam',type:'beam',title:'QA 梁 KL1',sources:[drawingRef],parameters:{length:{value:6000,unit:'mm',status:'confirmed',sources:[drawingRef]}}}
+   engineering=await runTool('engineering_project',{action:'update',revision:engineering.revision,operationId:'qa-engineering-source',patch:{sources:[{id:'qa-drawing',title:'QA 钢筋料表依据',path:linkedSourceFile,sha256:drawingHash,status:'active'}],objects:[beam]}})
+   const rebarInput={action:'calculate',data:{schemaVersion:1,rows:[{id:'qa-bars',hostId:'qa-beam',inputMode:'bbs',mark:'KL1-01',diameterMm:'20',steelGrade:'HRB400',count:4,lengths:{geometry:{value:'6',unit:'m'},fabrication:{value:'6',unit:'m'}},unitMassKgPerM:'2.466',sourceRefs:[{documentId:'qa-drawing',sha256:drawingHash,page:1}]}],coverage:{expectedGroupIds:['qa-bars','qa-unread-bars']}}}
+   const engineeringDependencies=[{kind:'parameter',id:'qa-beam',parameter:'length'}]
+   engineering=await runTool('engineering_project',{action:'run',providerId:'rebar',input:rebarInput,dependencies:engineeringDependencies,revision:engineering.revision,operationId:'qa-rebar-calculate'})
+   assert.equal(engineering.runs.at(-1).output.details.totalsByBasis.fabrication.knownMassKg,'59.184')
+   assert.equal(engineering.runs.at(-1).output.details.coverage.complete,false,'a missing expected bar group remains a coverage gap')
+   assert.equal(engineering.runs.at(-1).output.details.fabricationApproved,false)
+   const engineeringTask=(await request(taskUrl)).task
+   assert.ok(engineeringTask.findings.some(row=>row.source?.engine==='engineering'),'actual run projects into the shared task')
+   await page.getByRole('tab',{name:'本次任务',exact:true}).click()
+   await dialog.getByRole('tab',{name:'任务概览',exact:true}).click()
+   const engineeringPanel=dialog.getByRole('region',{name:'工程数据与计算',exact:true})
+   await engineeringPanel.locator('[data-engineering-provider="rebar"]').waitFor({timeout:20_000})
+   await engineeringPanel.getByRole('button',{name:'QA 梁 KL1',exact:true}).click()
+   assert.match(await engineeringPanel.innerText(),/KL1-01/)
+   assert.match(await engineeringPanel.innerText(),/59.184/)
+   await page.screenshot({path:join(artifactDir,'13-engineering-rebar-task-desktop.png'),fullPage:true})
+   await page.setViewportSize({width:390,height:844})
+   assert.ok(await engineeringPanel.evaluate(element=>element.scrollWidth<=element.clientWidth),'engineering tables scroll within narrow task layout')
+   await page.screenshot({path:join(artifactDir,'14-engineering-rebar-mobile.png'),fullPage:true})
+   await page.setViewportSize({width:1440,height:980})
+   engineering=await runTool('engineering_project',{action:'update',revision:engineering.revision,operationId:'qa-rebar-dimension-change',patch:{objects:[{...beam,parameters:{length:{...beam.parameters.length,value:7000}}}]}})
+   assert.equal(engineering.runs.at(-1).status,'stale')
+   await engineeringPanel.getByRole('button',{name:'刷新工程记录',exact:true}).click()
+   await engineeringPanel.getByText(/依据变化，待重算/).waitFor({timeout:20_000})
+   await page.getByRole('tab',{name:'专业化工作台',exact:true}).click()
+   const workbenchEngineering=page.locator('.ap-wb').getByRole('region',{name:'工程数据与计算',exact:true})
+   await workbenchEngineering.getByText(/依据变化，待重算/).waitFor({timeout:20_000})
+   await reloadQaSession('engineering-stale-reload')
+   assert.equal((await runTool('engineering_project',{action:'status'})).runs.at(-1).status,'stale','engineering stale state survives renderer reload')
+   await page.getByRole('tab',{name:'对话',exact:true}).click()
+   await page.locator('.ap-task-summary').getByText(/依据已变化/).first().waitFor({timeout:20_000})
+   console.log(JSON.stringify({phase:'engineering-provider-task-workbench-chat-and-reload',status:'ok',revision:engineering.revision}))
+    phase = 'pdf-cad-ifc-native-tools-and-preview'
+    const pdfRead=await runTool('engineering_pdf',{action:'render',path:pdfFile,page:1,dpi:288,roi:{x:0.05,y:0.3,width:0.7,height:0.4}})
+    assert.equal(pdfRead.engineeringSync.status,'synced')
+    assert.ok(existsSync(pdfRead.imagePath))
+    const cadRead=await runTool('cad_read',{action:'inventory',path:cadFile})
+    assert.equal(cadRead.synchronization.status,'recorded')
+    assert.ok(cadRead.synchronization.sourceId)
+    engineering=await runTool('engineering_project',{action:'status'})
+    assert.ok(engineering.project.coverage.filter(row=>row.id.includes('drawing:pdf:')).length===2,'PDF inventory covers unread pages too')
+    assert.ok(engineering.project.coverage.every(row=>row.status!=='reviewed'),'reading never approves professional review')
+    assert.equal(engineering.runs.find(row=>row.providerId==='rebar').status,'stale','new unrelated drawing reads do not reset stale calculation')
+    const roadInput={schemaVersion:1,intervals:[{id:'qa-cut',scope:'QA道路挖方',startM:0,endM:20,startAreaM2:10,endAreaM2:14,method:'average_end_area',sources:[{sourceId:cadRead.synchronization.sourceId,sourceHash:cadRead.source.sha256,locator:'QA synthetic section mapping'}]}],expectedRanges:[{id:'qa-road-range',scope:'QA道路挖方',startM:0,endM:20}]}
+    engineering=await runTool('engineering_project',{action:'run',providerId:'road',input:roadInput,dependencies:[{kind:'source',id:cadRead.synchronization.sourceId}],revision:engineering.revision,operationId:'qa-road'})
+    assert.equal(engineering.runs.at(-1).output.details.subtotals[0].knownVolumeM3,240)
+    const health=await runTool('bim_engine_health',{})
+    assert.equal(health.engine.available,true,'full engineering UI smoke requires a configured or bundled IFC engine')
+    engineering=await runTool('engineering_project',{action:'run',providerId:'bim-ifc',input:{action:'generate',outputPath:'qa-model.ifc',projectName:'QA model',components:[{id:'qa-slab',type:'IfcSlab',name:'QA road slab',sizeMeters:[6,3,0.2],positionMeters:[0,0,0]},{id:'qa-beam',type:'IfcBeam',name:'QA beam',sizeMeters:[6,0.3,0.6],positionMeters:[0,0,0.2]}]},dependencies:[],revision:engineering.revision,operationId:'qa-ifc-generate'})
+    const ifcSource=engineering.runs.at(-1).output.details.source
+    engineering=await runTool('engineering_project',{action:'update',patch:{sources:[...engineering.project.sources,{id:'qa-ifc',title:'QA IFC model',path:ifcSource.path,sha256:ifcSource.sha256,status:'active'}]},revision:engineering.revision,operationId:'qa-ifc-source'})
+    engineering=await runTool('engineering_project',{action:'run',providerId:'bim-ifc',input:{action:'preview',sourceId:'qa-ifc'},dependencies:[{kind:'source',id:'qa-ifc'}],revision:engineering.revision,operationId:'qa-ifc-preview'})
+    const meshes=engineering.runs.at(-1).output.details.elements
+    assert.equal(meshes.length,2)
+    assert.ok(meshes.every(row=>row.mesh.vertices.length>0))
+    assert.ok(Math.abs(meshes.find(row=>row.type==='IfcSlab').netVolumeM3-3.6)<1e-8)
+    await page.getByRole('tab',{name:'本次任务',exact:true}).click()
+    await dialog.getByRole('tab',{name:'任务概览',exact:true}).click()
+    await engineeringPanel.getByRole('button',{name:'刷新工程记录',exact:true}).click()
+    const ifcPreview=engineeringPanel.getByRole('region',{name:'IFC 几何预览',exact:true})
+    await ifcPreview.waitFor({timeout:20_000})
+    await ifcPreview.scrollIntoViewIfNeeded()
+    await ifcPreview.getByRole('combobox',{name:'选择 IFC 构件',exact:true}).selectOption({label:'QA beam'})
+    await ifcPreview.getByRole('button',{name:'旋转',exact:true}).click()
+    assert.match(await ifcPreview.innerText(),/GlobalId:/)
+    await page.screenshot({path:join(artifactDir,'15-real-ifc-preview-and-quantities.png'),fullPage:true})
+    writeFileSync(join(artifactDir,'16-drawing-and-bim-runtime.json'),JSON.stringify({pdfRead,cadRead,health,engineering},null,2))
+    console.log(JSON.stringify({phase:'real-pdf-cad-road-ifc-native-tools-and-preview',status:'ok',artifactDir}))
+  phase = 'civil-quantities-and-export'
+  const civilFile = join(workspace, 'qa-civil-measurements.json')
+  const civilDocument = {
+    description:'Synthetic documented geometry and independent expected inventory for local QA only.',
+    catalog:[{physicalId:'qa-civil-whole',kind:'pipe',title:'QA 完整平面管线'},{physicalId:'qa-civil-partial',kind:'pipe',title:'QA 间断管线'},{physicalId:'qa-civil-layer',kind:'road_layer',title:'QA 道路结构层'},{physicalId:'qa-civil-missing',kind:'rectangular',title:'QA 缺失详图构件'}],
+    objects:[
+      {id:'civil-pipe',physicalId:'qa-civil-whole',title:'QA 完整平面管线',kind:'pipe',dimension:'2d',pathKind:'polyline',unit:'m',points:[[0,0],[3,4]]},
+      {id:'civil-partial',physicalId:'qa-civil-partial',title:'QA 间断管线',kind:'pipe',dimension:'2d',pathKind:'polyline',unit:'m',points:[[0,0],[0,4],null,[0,10]]},
+      {id:'civil-layer',physicalId:'qa-civil-layer',title:'QA 道路结构层',kind:'road_layer',unit:'m',outline:[[0,0],[10,0],[10,2],[0,2],[0,0]],holes:'none',surface:'planar',thickness:{value:300,unit:'mm'}},
+    ],
+  }
+  writeFileSync(civilFile, JSON.stringify(civilDocument,null,2))
+  const civilHash = createHash('sha256').update(readFileSync(civilFile)).digest('hex')
+  const civilRef = {sourceId:'qa-civil-source',sourceHash:civilHash,locator:'catalog and objects: documented coordinates, thickness and independent missing detail'}
+  engineering = await runTool('engineering_project',{action:'update',revision:engineering.revision,operationId:'qa-civil-source',patch:{sources:[...engineering.project.sources,{id:civilRef.sourceId,title:'QA 土建市政原始几何及独立目录',path:civilFile,sha256:civilHash,status:'active'}]}})
+  assert.ok(engineering.providers.some(row=>row.id==='civil-quantities'),'civil provider is actually loaded')
+  const civilInput = {action:'calculate',data:{catalog:{id:'qa-civil-catalog',title:'QA 独立预期对象目录',sources:[civilRef],items:civilDocument.catalog.map(row=>({...row,sources:[civilRef],disposition:'include'}))},objects:civilDocument.objects.map(row=>({...row,sources:[civilRef]}))}}
+  engineering = await runTool('engineering_project',{action:'run',providerId:'civil-quantities',input:civilInput,dependencies:[{kind:'source',id:civilRef.sourceId}],revision:engineering.revision,operationId:'qa-civil-calculation'})
+  const civilRun = engineering.runs.at(-1), civil = civilRun.output.details
+  assert.equal(civil.rows.find(row=>row.physicalId==='qa-civil-whole').quantity,5)
+  assert.equal(civil.rows.find(row=>row.physicalId==='qa-civil-layer').quantity,6)
+  assert.equal(civil.rows.find(row=>row.physicalId==='qa-civil-partial').quantity,null)
+  assert.equal(civil.rows.find(row=>row.physicalId==='qa-civil-partial').knownPortion,4)
+  assert.equal(civil.rows.find(row=>row.physicalId==='qa-civil-missing').status,'missing')
+  assert.equal(civil.rows.find(row=>row.physicalId==='qa-civil-missing').quantity,null)
+  assert.equal(civil.totals.find(row=>row.kind==='pipe').completeSubtotal,5)
+  assert.equal(civil.totals.find(row=>row.kind==='pipe').knownPartialSubtotal,4)
+  assert.equal(civil.coverage.completeWithinDeclaredCatalog,false)
+  assert.equal(civil.reviewStatus,'needs_review')
+  await engineeringPanel.getByRole('button',{name:'刷新工程记录',exact:true}).click()
+  await engineeringPanel.locator('[data-engineering-provider="civil-quantities"]').waitFor({timeout:20_000})
+  await page.screenshot({path:join(artifactDir,'17-civil-known-and-missing-quantities.png'),fullPage:true})
+
+  const delivery = await runTool('engineering_export',{outputBasename:'QA工程计算交付'})
+  assert.equal(delivery.synchronization.status,'recorded',delivery.synchronization.message)
+  assert.equal(delivery.snapshotChanged,false)
+  assert.equal(delivery.fabricationApproved,false)
+  assert.equal(delivery.customerAccepted,false)
+  const xlsxFile = delivery.files.find(file=>file.path.endsWith('.xlsx'))
+  const htmlFile = delivery.files.find(file=>file.path.endsWith('.html'))
+  assert.ok(xlsxFile && htmlFile,'actual XLSX and HTML are required, not a CSV fallback')
+  for (const file of delivery.files) assert.equal(createHash('sha256').update(readFileSync(file.path)).digest('hex'),file.sha256)
+  assert.equal(readFileSync(xlsxFile.path).subarray(0,2).toString(),'PK')
+  assert.match(readFileSync(htmlFile.path,'utf8'),/qa-civil-missing/)
+  const exportedTables = JSON.parse(readFileSync(delivery.files.find(file=>file.path.endsWith('tables.json')).path,'utf8'))
+  assert.equal(exportedTables['civil-objects'].find(row=>row.physicalId==='qa-civil-whole').currentQuantity,5)
+  assert.equal(exportedTables['civil-objects'].find(row=>row.physicalId==='qa-civil-missing').currentQuantity,null)
+  const exportedTask = (await request(taskUrl)).task
+  const exportDeliverables = exportedTask.deliverables.filter(row=>row.id.startsWith('engineering-delivery:'+delivery.exportId+':'))
+  assert.equal(exportDeliverables.length,3)
+  assert.ok(exportDeliverables.every(row=>row.status==='draft' && row.checks.some(check=>check.kind==='professional' && check.status==='review')))
+  assert.ok(exportDeliverables.every(row=>row.evidenceIds.every(id=>exportedTask.evidence.find(evidence=>evidence.id===id)?.dependsOn.length>0)))
+  await dialog.getByRole('button',{name:'读取最新状态',exact:true}).click()
+  await dialog.getByRole('tab',{name:'交付检查',exact:true}).click()
+  const xlsxDelivery = dialog.locator('article').filter({hasText:xlsxFile.path})
+  await xlsxDelivery.getByText('草稿 · 无需签署',{exact:true}).waitFor({timeout:20_000})
+  await page.screenshot({path:join(artifactDir,'18-engineering-export-draft-deliverables.png'),fullPage:true})
+
+  phase = 'engineering-xlsx-native-office'
+  await page.locator('style[data-plugin="dsh-univer-office"]').first().waitFor({state:'attached',timeout:remaining()})
+  officeStarted = true
+  const gateway = await request('/univer-api/gateway/start',{})
+  assert.equal(gateway.ok,true,gateway.reason)
+  assert.equal(new URL(gateway.gateway).port,String(officeGatewayPort),'Office uses the isolated test port, never the user application gateway')
+  await dialog.getByRole('tab',{name:'任务概览',exact:true}).click()
+  const [officeResponse] = await Promise.all([
+    page.waitForResponse(response=>{const url=new URL(response.url());return url.pathname==='/api/agent-pi/files/content' && url.searchParams.get('path')===xlsxFile.path},{timeout:remaining()}),
+    dialog.locator(`[data-finding-id="engineering-delivery:${delivery.exportId}"]`).getByRole('button',{name:'工程计算工作簿',exact:true}).first().click(),
+  ])
+  const office = await officeResponse.json()
+  assert.equal(office.engine,'univer-office','exported workbook must use the actual Office import and Viewer')
+  assert.ok(office.viewerUrl && office.univerFile)
+  const gatewayOrigin = new URL(gateway.gateway).origin, fileKey = Buffer.from(office.univerFile,'utf8').toString('base64url')
+  const trees = await (await fetch(`${gatewayOrigin}/uf/${fileKey}/worktrees`)).json()
+  const tree = trees.worktrees.find(row=>row.status==='draft')
+  assert.ok(tree?.worktreeId)
+  const imported = await (await fetch(`${gatewayOrigin}/uf/${fileKey}/worktrees/${encodeURIComponent(tree.worktreeId)}/units`)).json()
+  assert.ok(imported.units.some(row=>row.type===2 && Number(row.headRev)>=1),'Office contains an actual imported spreadsheet revision')
+  const officeDialog = page.getByRole('dialog',{name:/engineering-workbook\.xlsx$/})
+  const officeFrame = officeDialog.locator('iframe.ap-univer-frame').contentFrame()
+  await officeFrame.locator('#app > *').first().waitFor({state:'attached',timeout:remaining()})
+  await officeFrame.getByText('项目与导出说明',{exact:true}).first().waitFor({timeout:remaining()})
+  assert.ok(await officeFrame.locator('canvas').count(),'native Office must render its spreadsheet canvas')
+  await page.screenshot({path:join(artifactDir,'19-engineering-workbook-native-office.png'),fullPage:true})
+  await officeDialog.locator('.ap-doc-actions button[title="关闭"]').click()
+  await officeDialog.waitFor({state:'detached',timeout:remaining()})
+  const officeStopped = await disposeOffice()
+
+  phase = 'engineering-export-source-change'
+  writeFileSync(civilFile,JSON.stringify({...civilDocument,revision:2,change:'Geometry source revised; previous calculations require review.'},null,2))
+  engineering = await runTool('engineering_project',{action:'status'})
+  assert.equal(engineering.sourceChecks.find(row=>row.sourceId===civilRef.sourceId).status,'changed','the actual changed source bytes are detected without a model updating their hash')
+  assert.equal(engineering.runs.find(row=>row.id===civilRun.id).status,'stale')
+  assert.equal(engineering.project.sources.find(row=>row.id===civilRef.sourceId).sha256,civilHash,'source changes cannot silently update the adopted hash')
+  const changedTask = (await request(taskUrl)).task
+  assert.ok(exportDeliverables.every(previous=>changedTask.deliverables.find(row=>row.id===previous.id)?.status==='stale'),'engineering source changes invalidate the registered export through its state-evidence dependency')
+  await dialog.getByRole('button',{name:'读取最新状态',exact:true}).click()
+  await dialog.getByRole('tab',{name:'交付检查',exact:true}).click()
+  await xlsxDelivery.getByText('条件已变更，待复核 · 无需签署',{exact:true}).waitFor({timeout:20_000})
+  assert.equal(createHash('sha256').update(readFileSync(xlsxFile.path)).digest('hex'),xlsxFile.sha256,'marking stale preserves the exported historical workbook')
+  await page.screenshot({path:join(artifactDir,'20-engineering-export-stale-after-source-change.png'),fullPage:true})
+  writeFileSync(join(artifactDir,'21-civil-export-office-and-stale.json'),JSON.stringify({civil,delivery,officeGatewayPort,gateway,officeStopped,importedUnits:imported.units,sourceChecks:engineering.sourceChecks,deliverablesBefore:exportDeliverables,deliverablesAfter:changedTask.deliverables.filter(row=>exportDeliverables.some(previous=>previous.id===row.id))},null,2))
+  console.log(JSON.stringify({phase:'civil-export-native-office-and-stale',status:'ok',exportId:delivery.exportId,artifactDir}))
+   await page.getByRole('tab',{name:'专业化工作台',exact:true}).click()
+   await page.locator('.ap-wb .ap-mods').getByRole('button',{name:'模块管理',exact:true}).click()
   await page.getByRole('region',{name:'技能版本与独立验证',exact:true}).waitFor({timeout:remaining()})
   assert.match(await page.getByRole('region',{name:'技能版本与独立验证',exact:true}).innerText(),/来源成果被用户验收、独立案例验证通过并经人工批准/)
+  phase = 'module-skill-and-knowledge-panels'
   await page.screenshot({path:join(artifactDir,'11-module-skill-lifecycle-desktop.png'),fullPage:true})
   const kb=await request('/api/agent-pi/kb?cwd='+encodeURIComponent(workspace),{action:'add',slug:'qa-horizon-source',fileName:'qa-origin.md',name:'QA 版本原始条款',text:'# QA 原始条款\n\n项目工期为120天；这份材料只用于本地版本界面核验。\n'})
   assert.match(kb.entry.versionId,/^[a-f0-9]{64}$/)
@@ -557,15 +855,24 @@ try {
   console.log(JSON.stringify({phase:'actual-module-skill-and-knowledge-version-panels',status:'ok',knowledgeVersion:kb.entry.versionId}))
   assert.deepEqual(pageErrors,[])
   assert.deepEqual(consoleErrors,[])
+  writeFileSync(join(artifactDir,'session-readiness.json'),JSON.stringify({sessionSnapshots,errorDetails,requestFailures},null,2).replace(/([?&]token=)[^&#\s"'<>]+/giu,'$1REDACTED'))
   console.log(JSON.stringify({status:'ok',browser:'Browser plugin not available; existing Playwright Electron workflow',viewports:['desktop','390x844'],checks:['actual-plugin-service','actual-professional-source-and-finding-tools','main-chat-shared-understanding','stable-finding-replay','default-automatic-task-overview','independent-field-draft-with-live-findings','shared-depth-goal-and-byte-checks','toggle-keeps-check-history-without-messages','verified-source-preview','Cordis-domain-capability-catalogue','reload-persistence','narrow-layout','english-ui','real-workbench-source-and-decision-artifact','native-inbox-stage-decision','host-registered-control-preserves-user-intent','six-running-task-tabs-with-legacy-records','shared-workbench-header-task-chat-execution-focus','live-finding-during-view-switch','explicit-original-file-review-and-live-count','execution-progress-does-not-approve-stage','stable-approval-during-polling','official-five-history-tools-and-workspace-authorization','durable-constraints-through-renderer-reload','human-revocation-keeps-native-request-identity','actual-artifact-verification-receipt-with-unresolved-gaps','trusted-stage-http-offer-to-native-runtime-dispatch','actual-native-inbox-and-message-receipt','runtime-reload-dedup-without-browser-registry','user-pause-survives-native-settlement-and-refresh','module-manager-skill-lifecycle-panel','knowledge-immutable-version-panel','no-render-errors'],artifactDir,limitation:'Isolated deterministic fixture; no paid model requests or logged-in autonomous Codex turn.'}))
 } catch(error){
   if(page)await page.screenshot({path:join(artifactDir,'failure.png'),fullPage:true}).catch(()=>{})
-  const diagnostics=page?{url:page.url(),pageErrors,consoleErrors,regions:await page.locator('section[aria-label]').evaluateAll(rows=>rows.map(row=>row.getAttribute('aria-label'))),body:(await page.locator('body').innerText()).slice(-8000)}:{}
+  const diagnostics=page?{url:page.url(),...diagnosticTime(),pageErrors,consoleErrors,errorDetails,requestFailures,sessionSnapshots,regions:await page.locator('section[aria-label]').evaluateAll(rows=>rows.map(row=>row.getAttribute('aria-label'))),body:(await page.locator('body').innerText()).slice(-8000)}:{}
   writeFileSync(join(artifactDir,'failure.log'),(String(error.stack||error)+'\n'+JSON.stringify(diagnostics,null,2)+'\n'+processOutput).replace(/([?&]token=)[^&#\s"'<>]+/giu,'$1REDACTED'))
   console.log(JSON.stringify({visibleControls:await page.locator('[data-slot=sidebar] button').allTextContents()}));throw error
 } finally{
+  let officeCleanupError
+  if (officeStarted && page) {
+    try { await disposeOffice() } catch (error) {
+      officeCleanupError = error
+      writeFileSync(join(artifactDir,'office-cleanup-failure.log'),String(error.stack || error))
+    }
+  }
   if(electronApp){await electronApp.evaluate(({app})=>{app.isQuitting=true;app.quit()}).catch(()=>{});await electronApp.close().catch(()=>{})}
   assert.ok(resolve(scratch).startsWith(resolve(tmpdir()) + '\\') || resolve(scratch).startsWith(resolve(tmpdir()) + '/'))
-  rmSync(scratch,{recursive:true,force:true})
+  rmSync(scratch,{recursive:true,force:true,maxRetries:15,retryDelay:100})
+  if (officeCleanupError) throw officeCleanupError
 }
 

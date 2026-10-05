@@ -1,6 +1,6 @@
 {
   "name": "dsh-agent-pi-task-guide",
-  "version": "3.7.9",
+  "version": "5.8.0",
   "private": true,
   "type": "module",
   "main": "./src/index.ts",

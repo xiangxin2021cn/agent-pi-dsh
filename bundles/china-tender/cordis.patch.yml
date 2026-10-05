@@ -1,0 +1,4 @@
+- insert:
+    - id: agent-pi-china-tender
+      name: dsh-agent-pi-china-tender
+      inject: [engineering]

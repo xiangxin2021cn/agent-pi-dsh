@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "projectId": "demonstration-only",
+  "rows": [
+    {
+      "id": "demo-beam-1:bar-01",
+      "inputMode": "bbs",
+      "hostId": "demo-beam-1",
+      "mark": "bar-01",
+      "diameterMm": "16",
+      "steelGrade": "DEMO-GRADE",
+      "count": 5,
+      "lengths": {
+        "geometry": { "value": "1200", "unit": "mm" },
+        "measurement": { "value": "1.2", "unit": "m" },
+        "fabrication": { "value": "1250", "unit": "mm" }
+      },
+      "unitMassKgPerM": "1.58",
+      "sourceRefs": [{ "documentId": "demo-bbs", "revision": "DEMO", "sheet": "料表", "cell": "A2:H2", "note": "Arithmetic demonstration; not project or normative data." }]
+    }
+  ],
+  "coverage": { "expectedGroupIds": ["demo-beam-1:bar-01"] }
+}

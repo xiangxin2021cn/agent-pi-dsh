@@ -21,6 +21,7 @@ import { clientCss } from './styles.js'
 import { createProfessionalDepth, professionalDepthCss, prepareDepthSubmission } from './professional-depth.js'
 import { createTaskProcess, taskProcessCss } from './task-process.js'
 import { createTaskGuide, taskGuideCss } from './task-guide.js'
+import { createEngineeringPanel, engineeringPanelCss } from './engineering-panel.js'
 import { createSkillLifecycle, skillLifecycleCss } from './skill-lifecycle.js'
 import { createProfessionalTaskSummary, professionalTaskSummaryCss } from './professional-task-summary.js'
 import { installProfessionalConversationView } from './professional-conversation-view.js'
@@ -65,7 +66,7 @@ const SearchSettings = createSearchSettings(React)
     const MARKUP_RE = /[`*!\[]/
     const HTML_SPECIAL_RE = /[&<>"]/
 
-    const css = clientCss + professionalDepthCss + taskProcessCss + nativeWorkFilePreviewCss + taskGuideCss + professionalTaskSummaryCss
+    const css = clientCss + professionalDepthCss + taskProcessCss + nativeWorkFilePreviewCss + taskGuideCss + professionalTaskSummaryCss + engineeringPanelCss
     if (typeof document !== 'undefined') {
       const existing = document.querySelector('style[data-plugin-css="dsh-tender-web"]')
       if (existing) existing.remove()
@@ -4695,6 +4696,9 @@ const SearchSettings = createSearchSettings(React)
       )
     }
 
+    const EngineeringPanel = createEngineeringPanel({ React, api, language: () => langState.lang,
+      onOpenFile: (path, cwd) => window.dispatchEvent(new CustomEvent('agent-pi-open-file', { detail: { cwd, path } })),
+    })
     const WorkbenchView = createWorkbenchView({
       h,
       Icon,
@@ -5615,6 +5619,7 @@ const SearchSettings = createSearchSettings(React)
               )
             }),
           ),
+          h(EngineeringPanel, { sessionId: monitorParent, cwd, expectedProjectKey: project.module + ':' + project.projectId, hideEmpty: true }),
           h('section', { className: 'ap-sec' },
             h('div', { className: 'ap-row', style: { justifyContent: 'space-between' } },
               h('h2', null, workbenchText('项目资料')),

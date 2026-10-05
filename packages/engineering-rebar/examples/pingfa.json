@@ -1,0 +1,33 @@
+{
+  "hostId": "DEMO-KL1",
+  "hostType": "beam",
+  "scopeId": "span-1",
+  "central": [{ "role": "bottom", "text": "4Φ16", "sourceRefs": [{ "documentId": "demo-drawing", "revision": "DEMO", "page": 1 }] }],
+  "parameters": {
+    "span": { "value": "5000", "unit": "mm", "sourceRefs": [{ "documentId": "demo-drawing", "page": 1 }] },
+    "left": { "value": "300", "unit": "mm", "sourceRefs": [{ "documentId": "demo-detail", "page": 2, "note": "Explicit demo dimension; NOT a default anchorage length." }] },
+    "right": { "value": "300", "unit": "mm", "sourceRefs": [{ "documentId": "demo-detail", "page": 2, "note": "Explicit demo dimension; NOT a default anchorage length." }] },
+    "mass": { "value": "1.58", "unit": "kg/m", "sourceRefs": [{ "documentId": "demo-unit-mass", "page": 1 }] }
+  },
+  "steelGradeBySymbol": { "Φ": { "grade": "DEMO-GRADE", "sourceRefs": [{ "documentId": "demo-legend", "page": 1 }] } },
+  "ruleSet": {
+    "id": "arithmetic-demonstration-only",
+    "version": "1",
+    "standardRefs": ["Demonstration arithmetic fixture; not a G101 construction rule."],
+    "errataFingerprint": "demo-no-normative-content",
+    "reviewStatus": "reviewed",
+    "adopted": true,
+    "sourceRefs": [{ "documentId": "demo-rule-review", "note": "Fixture review state only; never use as a real project adoption." }],
+    "supportedHostTypes": ["beam"],
+    "requiredRoles": ["bottom"],
+    "rules": [
+      {
+        "id": "demo-explicit-length-sum",
+        "role": "bottom",
+        "requiredParameters": ["span", "left", "right"],
+        "lengths": { "geometry": { "terms": [{ "parameter": "span" }, { "parameter": "left" }, { "parameter": "right" }] } },
+        "unitMassParameter": "mass"
+      }
+    ]
+  }
+}

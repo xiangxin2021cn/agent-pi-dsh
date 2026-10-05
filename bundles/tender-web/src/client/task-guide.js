@@ -1,4 +1,5 @@
 import { localizeCapability } from './capability-labels.js'
+import { createEngineeringPanel } from './engineering-panel.js'
 import { createTaskStageControls, renderTaskFindings, sourceReference, taskOverviewModel } from './professional-task-summary.js'
 
 export const taskGuideCss = `
@@ -39,6 +40,9 @@ export function mergeTaskBriefEdits(task, edits, allowConflicts = false) {
 
 export function createTaskGuide({ React, api, cwd, language, subscribe, onOpenSource, onOpenWorkbench, onTask }) {
   const h = React.createElement
+  const EngineeringPanel = createEngineeringPanel({ React, api, language,
+    onOpenFile: (path, cwd) => window.dispatchEvent(new CustomEvent('agent-pi-open-file', { detail: { cwd, path } })),
+  })
   const StageControls=createTaskStageControls({React,api,cwd,language,onOpenWorkbench})
   return function TaskGuide({ sessionId, onClose, binding }) {
     const open = true
@@ -137,6 +141,7 @@ export function createTaskGuide({ React, api, cwd, language, subscribe, onOpenSo
           onClose&&h('button',{onClick:onClose},zh?'在主对话中回答':'Answer in the conversation'))),
         h('h3',null,zh?'围绕目标的发现':'Findings related to your goal'),
         task.findings?.length?renderTaskFindings(h,task,language(),openSource,{includeResolved:true,onOpenChat:onClose}):h('p',{className:'ap-guide-muted'},zh?'实际分析形成的发现会记录在这里，并说明依据、目标影响和下一步。':'Findings from actual analysis appear here with their sources, impact on the goal and next action.'),
+        h(EngineeringPanel,{sessionId,cwd:cwd(),hideEmpty:true}),
         article('progress',zh?'实际工作进展':'Actual work progress',h(React.Fragment,null,
           model.currentStep&&h('p',null,(zh?'当前重点：':'Current focus: ')+model.currentStep.title),
           h('div',{className:'ap-guide-progress'},h('span',null,(zh?'资料抽取：':'Source extraction: ')+model.coverage.parsed+'/'+model.coverage.total),

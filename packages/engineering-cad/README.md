@@ -1,0 +1,15 @@
+# CAD structural reading (5.8.0)
+
+`parseCadDxf(bytes, cadLibrary)` uses the shipping `@mlightcad/data-model` 1.14.3 typed DXF filer (ASCII/binary and its codepage handling), plus the native database decoder. A separate full group-record census preserves entities skipped by that decoder. `queryCad` pages records or placed instances; `queryCadCatalog` pages layers/layouts/blocks. IDs are stable for the same source SHA-256. The plugin supplies the installed runtime; no second parser dependency is downloaded.
+
+- Full record counts include block definitions and VERTEX/SEQEND auxiliary records separately. These are not component counts. Layout counts exclude block definitions; each block has its own entity count.
+- INSERT paths preserve block basepoints, nonuniform/negative scales, rotation, OCS extrusion, and MINSERT cells. Matrices are column-major, points are column vectors, and the unit remains the drawing unit. `geometryTransform` maps known OCS/WCS geometry to its model/paper space; entity-specific coordinates (e.g. dimensions) require their DXF semantics. It does not map paper viewport geometry into model space.
+- Arcs retain radius/angles; lightweight polyline vertices retain bulge, width and elevation. Applying a nonuniform matrix to a circle/arc can produce an ellipse; no straight-line approximation or quantity is silently substituted. Other types preserve ordered typed groups and point data for follow-up inspection.
+- Dimension override text and stored measurement stay separate. DIMLFAC, drafting scale and professional meaning require review. Header `$INSUNITS` is declared, not independently verified.
+- All source records remain queryable. Placed expansion has an explicit 200,000-instance budget and 64-level cycle protection; an incomplete expansion has `expansionComplete: false`. In that case instance query totals describe the expanded subset only; use complete `records`/`blocks` pages to investigate the remaining branches, and verify in the source application. Proxy, OLE/3D content and XREF gaps are surfaced. This is not whole-project semantic recognition or completed takeoff.
+
+The existing model uses a global working database; native decoding is serialized and restores its previous database. Raw source content is data, never agent instructions.
+
+Format references: [Autodesk INSERT](https://help.autodesk.com/cloudhelp/2017/ENU/AutoCAD-DXF/files/GUID-28FA4CFB-9D5E-4880-9F11-36C97578252F.htm), [Autodesk arbitrary-axis algorithm](https://help.autodesk.com/view/OARX/2026/ENU/?guid=GUID-E19E5B42-0CC7-4EBA-B29F-5E1D595149EE), and the installed MLightCAD entity/filer implementation.
+
+Tests: `node --test packages/engineering-cad/tests/cad.test.ts bundles/engineering-cad/tests/reader.test.ts`. They cover nested transforms, arrays/extrusion, curves, dimensions, unknowns, ASCII/binary, paper/model separation, source version paging, cyclic/missing blocks, parallel parser isolation and real tool registration. Windows junction tests require the OS to allow creating temporary junctions.

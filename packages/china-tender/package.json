@@ -1,0 +1,10 @@
+{
+  "name": "@agent-pi/china-tender",
+  "private": true,
+  "type": "module",
+  "license": "GPL-3.0-only",
+  "exports": "./index.ts",
+  "scripts": {
+    "test": "node --test tests/china-tender.test.ts"
+  }
+}

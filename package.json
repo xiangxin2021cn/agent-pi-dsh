@@ -1,6 +1,6 @@
 {
   "name": "agent-pi-dsh",
-  "version": "3.7.9",
+  "version": "5.8.0",
   "private": true,
   "license": "GPL-3.0-only",
   "type": "module",
@@ -9,6 +9,7 @@
     "node": "^22.19.0 || >=24.0.0"
   },
   "scripts": {
+    "test:engineering": "node scripts/test-engineering.mjs",
     "dev": "powershell -File scripts/dev.ps1",
     "init-profile": "powershell -File scripts/init-tender-profile.ps1",
     "dump-config": "powershell -File scripts/dev.ps1 -DumpOnly",

@@ -1,6 +1,6 @@
 {
   "name": "dsh-agent-pi-compaction",
-  "version": "3.7.9",
+  "version": "5.8.0",
   "private": true,
   "type": "module",
   "main": "lib/index.js",

@@ -1,0 +1,20 @@
+const groups = (...values: (string | number)[]) => values.join('\n') + '\n'
+const entity = (type: string, handle: string, ...values: (string | number)[]) => groups(0, type, 5, handle, 8, 'STRUCTURE', ...values)
+const block = (name: string, handle: string, flags: number, x: number, y: number, content: string, xref = '') => groups(0, 'BLOCK', 5, handle, 2, name, 70, flags, 10, x, 20, y, 30, 0, 1, xref) + content + groups(0, 'ENDBLK')
+export function cadFixture() {
+  return Buffer.from(groups(0, 'SECTION', 2, 'HEADER', 9, '$ACADVER', 1, 'AC1027', 9, '$INSUNITS', 70, 4, 0, 'ENDSEC')
+    + groups(0, 'SECTION', 2, 'TABLES', 0, 'TABLE', 2, 'LAYER', 70, 1, 0, 'LAYER', 5, 'A1', 2, 'STRUCTURE', 70, 1, 62, -7, 0, 'ENDTAB', 0, 'TABLE', 2, 'BLOCK_RECORD', 70, 2, 0, 'BLOCK_RECORD', 5, 'B1', 2, '*Model_Space', 0, 'BLOCK_RECORD', 5, 'B2', 2, '*Paper_Space', 0, 'ENDTAB', 0, 'ENDSEC')
+    + groups(0, 'SECTION', 2, 'BLOCKS')
+    + block('Outer', 'C1', 0, 10, 0, entity('INSERT', 'D1', 2, 'Inner', 10, 20, 20, 0, 41, 2, 42, 3, 50, 90))
+    + block('Inner', 'C2', 0, 1, 2, entity('LINE', 'D2', 10, 1, 20, 2, 11, 3, 21, 2) + entity('ARC', 'D3', 10, 1, 20, 2, 40, 5, 50, 0, 51, 90))
+    + block('Survey', 'C3', 4, 0, 0, '', 'missing-survey.dwg')
+    + groups(0, 'ENDSEC', 0, 'SECTION', 2, 'ENTITIES')
+    + entity('INSERT', 'E1', 330, 'B1', 2, 'Outer', 10, 100, 20, 200, 50, 90)
+    + entity('INSERT', 'E2', 330, 'B1', 2, 'Inner', 10, 0, 20, 0, 41, 2, 42, 3, 50, 90, 70, 2, 71, 2, 44, 10, 45, 20)
+    + entity('INSERT', 'E3', 330, 'B1', 2, 'Survey', 10, 0, 20, 0)
+    + entity('DIMENSION', 'E4', 330, 'B1', 100, 'AcDbEntity', 100, 'AcDbDimension', 2, '*D1', 70, 0, 1, '600', 42, 500, 10, 0, 20, 0, 11, 0, 21, 1, 100, 'AcDbAlignedDimension', 13, 0, 23, 0, 14, 500, 24, 0)
+    + entity('UNSUPPORTED_TEST_ENTITY', 'E5', 330, 'B1', 1, 'raw payload preserved', 10, 4, 20, 5)
+    + entity('MTEXT', 'E6', 330, 'B2', 67, 1, 410, 'Sheet 1', 10, 2, 20, 3, 40, 2, 3, '钢筋 ', 1, '表\\P详图')
+    + entity('LWPOLYLINE', 'E7', 330, 'B1', 90, 2, 70, 1, 38, 7, 10, 0, 20, 0, 42, .5, 10, 4, 20, 5)
+    + groups(0, 'ENDSEC', 0, 'SECTION', 2, 'OBJECTS', 0, 'LAYOUT', 5, 'F1', 100, 'AcDbPlotSettings', 1, '', 100, 'AcDbLayout', 1, 'Sheet 1', 330, 'B2', 0, 'ENDSEC', 0, 'EOF'))
+}
