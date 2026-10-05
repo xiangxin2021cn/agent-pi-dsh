@@ -54,7 +54,7 @@ function assertBaselineIdentity(baseline: ChinaBoqBaseline, context: Engineering
 }
 
 export const chinaTenderProvider: EngineeringProvider = {
-  id: 'china-tender', version: '5.8.0', title: '中国招投标要求与清单复核', dependencies: [],
+  id: 'china-tender', version: '3.8.0', title: '中国招投标要求与清单复核', dependencies: [],
   limitations: [
     '制度和规则适用均为辅助建议；内置三个国家或公路来源，未覆盖各地全部规定。',
     '外部查询不到不等于不合格；证据语义、真实性及复核人记录需由实际核验提供。',
@@ -119,7 +119,7 @@ export function apply(ctx: any) {
   })
   ctx.inject?.(['professionalCapabilities'], (scope: any) => {
     scope.effect(() => scope.professionalCapabilities.register({
-      id: 'china-tender:response-review', owner: 'dsh-agent-pi-china-tender', version: '5.8.0',
+      id: 'china-tender:response-review', owner: 'dsh-agent-pi-china-tender', version: '3.8.0',
       title: '中国招投标规则、证据与清单核对',
       description: '按项目制度、地区、专业与时点检查规则适用，定位要求与响应证据，保留招标原始清单。',
       professions: ['tender', 'quantity'], tools: ['engineering_project'], skills: [],

@@ -41,7 +41,7 @@ export function registerEngineeringDelivery(ctx: any, defineTool: (definition: a
   }))
   ctx.systemPrompt.section({ name: 'agent-pi:engineering-delivery', order: 46, text: '用户需要工程计算书或 Office 交付时，先核查 engineering_project 当前来源、对象、规则、口径和缺口，再 engineering_export 从当前账本生成新文件。不要向导出工具传入自行重建的 project JSON。返回 XLSX 是真实工作簿，可用实际可用的 univer_import 打开；HTML 用原生文件预览。导出不自动消除 stale、未知、漏项或专业复核，客户验收和加工批准必须保留独立。' })
   ctx.inject?.(['professionalCapabilities'], (scope: any) => scope.effect(() => scope.professionalCapabilities.register({
-    id: 'engineering-delivery:export', owner: 'dsh-agent-pi-engineering-delivery', version: '5.8.0', title: '工程计算书与 Office 交付', description: '从同一工程账本导出真实工作簿、计算书和原始快照并关联本次任务。',
+    id: 'engineering-delivery:export', owner: 'dsh-agent-pi-engineering-delivery', version: '3.8.0', title: '工程计算书与 Office 交付', description: '从同一工程账本导出真实工作簿、计算书和原始快照并关联本次任务。',
     professions: ['quantity', 'report', 'spreadsheet'], tools: ['engineering_export'], skills: [], inputs: ['当前工程来源、规则、计算记录和覆盖缺口'], outputs: ['XLSX（现有 Office 库可用时）、CSV、HTML 和 JSON'], limitations: ['不自动完成专业复核、客户验收或加工批准', '不跨运行和不同计量口径自动累计', '缺 XLSX 运行库时明确返回 CSV/HTML'], supplements: ['专业复核及当前工程依据'],
   })))
 }

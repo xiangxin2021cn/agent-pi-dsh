@@ -16,7 +16,7 @@ function parse(raw: unknown): BimProviderInput {
 
 export function createBimProvider(options: Omit<BimEngineOptions, 'signal'> = {}): EngineeringProvider {
   return {
-    id: 'bim-ifc', version: '5.8.0', title: 'IFC 模型、几何算量与参数建模', dependencies: [],
+    id: 'bim-ifc', version: '3.8.0', title: 'IFC 模型、几何算量与参数建模', dependencies: [],
     limitations: ['需已配置 Python 与 IfcOpenShell；已验证 0.8.5。', '当前仅处理本会话工作目录内的 IFC STEP；不读取 DWG/PDF，不自动从图纸完整建模。', '几何量、原生 QTO、合同量和下料量分别表达；开口失败、未选构件和缺失对象不按零计。', '参数建模限明确尺寸的矩形梁、板和代理构件；无结构验算、完整道路地形、钢筋节点或自动加工批准。'],
     inputDescription: [
       '{action:"health"} checks the actual configured engine.',

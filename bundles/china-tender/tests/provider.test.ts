@@ -98,7 +98,7 @@ test('baseline identity survives real engineering store persistence and provider
   const output: any = await chinaTenderProvider.execute!(chinaTenderProvider.parse(createInput), before.project, { previousRuns: before.runs })
   const dependencies = [{ kind: 'source' as const, id: source.documentId }]
   store.record({
-    id: 'run-1', title: '中国清单快照', providerId: 'china-tender', providerVersion: '5.8.0',
+    id: 'run-1', title: '中国清单快照', providerId: 'china-tender', providerVersion: '3.8.0',
     createdAt: '2026-10-05T00:00:00.000Z', input: createInput, dependencies,
     dependencyFingerprint: engineeringInputFingerprint(before.project, dependencies), output,
   }, before.revision, 'create-1')

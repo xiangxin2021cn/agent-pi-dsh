@@ -75,7 +75,7 @@ function inputReferences(input: RebarProviderInput): RebarSourceRef[] {
 }
 
 export const rebarProvider: EngineeringProvider = {
-  id: 'rebar', version: '5.8.0', title: '钢筋料表与平法计算', dependencies: [], limitations,
+  id: 'rebar', version: '3.8.0', title: '钢筋料表与平法计算', dependencies: [], limitations,
   inputDescription: 'Input {action:calculate|parse_pingfa|expand_pingfa|inspect_rules,data:{...}}. calculate data={schemaVersion:1,rows:[{id,inputMode:"bbs"|"pingfa",hostId?,mark?,diameterMm?:decimalString,steelGrade?:string,sourceRefs:[{documentId,sha256,revision?,page?}],count?:integer,lengths?:{geometry?:{value:decimalString,unit:"mm"|"m"},measurement?:{value,unit},fabrication?:{value,unit}},unitMassKgPerM?:decimalString}],coverage?:{expectedGroupIds:string[]}}. parse_pingfa data={text:string,sourceRefs?:[]}. inspect_rules data={ruleSet} validates structured rule format and returns ruleFingerprint without adopting or calculating. expand_pingfa requires hostId,hostType,scopeId,central,parameters,ruleSet; see packages/engineering-rebar/types.ts. All calculation sourceRefs must identify registered current project sources with SHA; run dependencies must cover those sources. First inspect_rules, then register an independently reviewed project ruleAdoption with packId=ruleSet.id, version=ruleSet.version, contentHash=ruleFingerprint, scope, adoptedAt and actual review source refs; include its rule dependency in expand runs. The pack has explicit reviewStatus/adopted/standardRefs/version, no built-in G101 coefficients. Unknown quantities remain null; no automatic grade, mass, anchor, count or full-project coverage assumptions.',
   parse: parseInput,
   audit(value, project) {
@@ -101,7 +101,7 @@ export const rebarProvider: EngineeringProvider = {
 }
 
 export const rebarCapability: Capability = {
-  id: 'engineering.rebar', owner: name, version: '5.8.0', title: '钢筋料表与受控平法计算',
+  id: 'engineering.rebar', owner: name, version: '3.8.0', title: '钢筋料表与受控平法计算',
   description: '通过工程共享账本执行料表计算、有限标注解析、经审校规则展开，并把逐项缺口同步到本次任务。',
   professions: ['drawing', 'quantity'], tools: ['engineering_project'], skills: [],
   inputs: ['来源定位和版本', '明确根数或分区端点', '各口径长度或中心线形状', '平法作用域及已采用规则'],

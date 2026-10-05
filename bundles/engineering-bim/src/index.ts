@@ -19,7 +19,7 @@ export function apply(ctx: any, config: { pythonPath?: string; timeoutMs?: numbe
     },
   }))
   ctx.inject?.(['professionalCapabilities'], (scope: any) => scope.effect(() => scope.professionalCapabilities.register({
-    id: 'engineering-bim:ifc', owner: 'dsh-agent-pi-engineering-bim', version: '5.8.0', title: provider.title,
+    id: 'engineering-bim:ifc', owner: 'dsh-agent-pi-engineering-bim', version: '3.8.0', title: provider.title,
     description: 'IFC 元素、空间、属性与原生数量查询，几何量和预览，显式参数生成矩形构件 IFC。',
     professions: ['quantity', 'construction'], tools: ['engineering_project', 'bim_engine_health'], skills: [],
     inputs: ['工作目录内实际 IFC 或明确的构件尺寸与坐标'], outputs: ['可定位构件记录、原生 QTO、几何量、预览网格或新 IFC'],

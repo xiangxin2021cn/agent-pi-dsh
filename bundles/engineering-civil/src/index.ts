@@ -13,7 +13,7 @@ function parse(raw: unknown): CivilProviderInput {
 }
 
 export const civilProvider: EngineeringProvider = {
-  id: 'civil-quantities', version: '5.8.0', title: '道路结构层、市政管沟与土建几何量', dependencies: [],
+  id: 'civil-quantities', version: '3.8.0', title: '道路结构层、市政管沟与土建几何量', dependencies: [],
   limitations: ['仅按已提供真实资料计算，不自动识别全图，不是完整 Civil3D。', '路径限明确 2D/3D 折线；结构层限显式闭合无洞平面；矩形构件须明确无洞。曲线、洞口、复杂曲面及未知条件保留缺口。', '稳定 physicalId 表示同一实体或明确的计数范围，多视图需沿用该标识；本插件不自动识别空间重叠或同物异名。', '几何量与合同计量、开挖工作面、放坡、损耗、采购、造价和加工量分开；大范围结果仍需专业复核。'],
   inputDescription: [
     'Input {action:"calculate"|"calibrate_pdf",data:{...}}. Engineering runs must include explicit source dependencies for every input/catalog/calibration source: [{kind:"source",id:"drawing"}]. Sources must already be active engineering_project sources with real local path and matching SHA. Source reference={sourceId,sourceHash:64hex,locator:"sheet/page/chainage/detail/dimension"}. Missing or stale evidence blocks only affected objects; no guessed values.',
@@ -43,7 +43,7 @@ export const civilProvider: EngineeringProvider = {
 export function apply(ctx: any) {
   ctx.effect(() => ctx.engineering.providers.register(civilProvider))
   ctx.inject?.(['professionalCapabilities'], (scope: any) => scope.effect(() => scope.professionalCapabilities.register({
-    id: 'engineering-civil:quantities', owner: 'dsh-agent-pi-engineering-civil', version: '5.8.0', title: civilProvider.title,
+    id: 'engineering-civil:quantities', owner: 'dsh-agent-pi-engineering-civil', version: '3.8.0', title: civilProvider.title,
     description: '有来源的折线管沟、平面结构层、矩形体积和构筑物数量；同页 PDF 标注比例标定。',
     professions: ['quantity', 'construction'], tools: ['engineering_project'], skills: [],
     inputs: ['真实来源定位与版本、独立预期对象目录、明确几何参数和单位'], outputs: ['逐对象几何量、已知部分小计、覆盖与重复缺口、PDF 比例依据'],

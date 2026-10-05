@@ -8,7 +8,7 @@ export const name = 'agent-pi-engineering-road'
 export const inject = ['engineering']
 const limitations = ['仅按有来源的断面与明确桩号区间积分，不自动从平面图猜测地形或断面。', '挖方、填方、线路与材料分别划分计算范围；交叉和漏段需核对。', '几何数量不等同合同计量、压实或采购数量，结果待专业复核。']
 export const roadProvider: EngineeringProvider = {
-  id: 'road', version: '5.8.0', title: '道路断面与土方算量', dependencies: [], limitations,
+  id: 'road', version: '3.8.0', title: '道路断面与土方算量', dependencies: [], limitations,
   inputDescription: 'Input {schemaVersion:1,intervals:[{id,scope,startM,endM,startAreaM2:number|null,endAreaM2:number|null,method:"average_end_area"|"prismoidal",middleAreaM2?,middleStationM?,sources:[{sourceId,sourceHash,locator}]}],expectedRanges?:[{id,scope,startM,endM,excluded?:boolean,reason?:string}],maxIntervalM?:number}. Units: m, m2; output m3. scope uniquely identifies alignment + cut/fill/layer/work. Independent expected ranges must come from actual project scope; never infer complete scope from recognized intervals. Prismoidal requires a midpoint section. Sources must match registered project sources. No guessed areas or compaction factors.',
   parse(input: unknown) {
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('道路计算需要结构化断面与范围清单。')
@@ -28,7 +28,7 @@ export const roadProvider: EngineeringProvider = {
   },
 }
 export const roadCapability: Capability = {
-  id: 'engineering.road', owner: name, version: '5.8.0', title: '道路断面与土方算量', description: '可追溯断面积分、区间重叠与独立范围漏段检查。', professions: ['drawing', 'quantity'], tools: ['engineering_project'], skills: [], inputs: ['带来源的断面面积与桩号', '独立线路范围', '明确积分方法'], outputs: ['按范围区分的几何土方小计', '逐段算式与缺口'], limitations, supplements: ['原始地形与横断面', '合同计量规则', '专业复核'],
+  id: 'engineering.road', owner: name, version: '3.8.0', title: '道路断面与土方算量', description: '可追溯断面积分、区间重叠与独立范围漏段检查。', professions: ['drawing', 'quantity'], tools: ['engineering_project'], skills: [], inputs: ['带来源的断面面积与桩号', '独立线路范围', '明确积分方法'], outputs: ['按范围区分的几何土方小计', '逐段算式与缺口'], limitations, supplements: ['原始地形与横断面', '合同计量规则', '专业复核'],
 }
 export function apply(ctx: any) {
   ctx.effect(() => ctx.engineering.providers.register(roadProvider))

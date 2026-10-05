@@ -2,7 +2,7 @@ import type { WorkflowDefinition } from '../../../packages/business-projects/wor
 
 /** A standalone Chinese procurement workflow: deliberately no South African tender control profile. */
 export const chinaTenderWorkflow: WorkflowDefinition = {
-  id: 'china-tender-5.8', module: 'china-tender', label: 'China tender and response review', labelZh: '中国招投标与响应复核',
+  id: 'china-tender-3.8', module: 'china-tender', label: 'China tender and response review', labelZh: '中国招投标与响应复核',
   projectGoal: '围绕用户的中国项目参与或投标准备目标，形成可溯源的制度适用建议、要求与响应证据、原始清单及报价复算差异和递交检查；未核实条件明确保留，由法定主体自主判断。',
   terminalDeliverables: ['项目制度与清单来源记录', '招标及补遗版本要求清单', '资格与响应证据矩阵', '原清单与工程复算差异', '递交前人工检查与未决事项'],
   // No factory knowledge packs; users may explicitly bind their authorized local/industry material.

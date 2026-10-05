@@ -1,4 +1,4 @@
-# 工程计算书与 Office 交付插件（5.8.0）
+# 工程计算书与 Office 交付插件（3.8.0）
 
 `engineering_export({outputBasename?})` 仅从实际主对话的 `engineering.status(sessionId)` 取得来源、对象、规则、分口径数量、覆盖和运行记录；不接受调用者提交的项目 JSON 或 cwd。输出写入工作目录中新建的 `Agent Pi Outputs/Engineering Exports/<名称>-r<版本>-<随机标识>/`，不覆盖原文件或已有交付。
 

@@ -1,6 +1,6 @@
 # 中国招投标插件
 
-通过 `engineering` 注册 `china-tender` provider，由现有 `engineering_project` 工具的 `run` 动作执行。可选注入 `professionalCapabilities`，让“本次任务”发现中国招投标资料核对能力。卸载注销能力，不删除工程历史。运行时与工程宿主需支持 5.8.0 的 `EngineeringExecutionContext.previousRuns`。
+通过 `engineering` 注册 `china-tender` provider，由现有 `engineering_project` 工具的 `run` 动作执行。可选注入 `professionalCapabilities`，让“本次任务”发现中国招投标资料核对能力。卸载注销能力，不删除工程历史。运行时与工程宿主需支持 3.8.0 的 `EngineeringExecutionContext.previousRuns`。
 
 同时可选向 `workbench` 注册独立 `china-tender` 模块，五阶段依次为：项目制度与原始清单、招标要求与补遗解析、资格与响应证据、报价与工程复算差异、递交前人工检查。首阶段由主对话分析，不要求先填表。该流程不继承南非 SANRAL 阶段控制或默认知识库；地方/行业规则由用户选择实际有效资料。
 

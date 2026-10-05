@@ -1,7 +1,7 @@
 import type { WorkflowDefinition } from '../../../packages/business-projects/workflow.ts'
 
 export const engineeringWorkflow: WorkflowDefinition = {
-  id: 'engineering-5.8', module: 'engineering', label: 'Engineering drawings and quantities', labelZh: '工程图纸与算量',
+  id: 'engineering-3.8', module: 'engineering', label: 'Engineering drawings and quantities', labelZh: '工程图纸与算量',
   projectGoal: '围绕用户指定工程范围，核查原图、构件、规则和数量，形成可追溯的工程成果；未知条件和未覆盖对象必须保留。',
   terminalDeliverables: ['图纸与构件覆盖清单', '有来源和规则的计算书', '差异与待核实事项', '按需派生的工程成果'],
   setupStageId: 'project-setup',

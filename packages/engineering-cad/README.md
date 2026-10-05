@@ -1,4 +1,4 @@
-# CAD structural reading (5.8.0)
+# CAD structural reading (3.8.0)
 
 `parseCadDxf(bytes, cadLibrary)` uses the shipping `@mlightcad/data-model` 1.14.3 typed DXF filer (ASCII/binary and its codepage handling), plus the native database decoder. A separate full group-record census preserves entities skipped by that decoder. `queryCad` pages records or placed instances; `queryCadCatalog` pages layers/layouts/blocks. IDs are stable for the same source SHA-256. The plugin supplies the installed runtime; no second parser dependency is downloaded.
 

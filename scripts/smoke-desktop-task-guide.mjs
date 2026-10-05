@@ -46,7 +46,7 @@ const reportFile = join(workspace, '工期建议.md')
 const objective = '判断当前施工方案的工期是否可实现，形成给领导决策的建议'
 const priorHumanText = 'longhorizonproof379：预算上限600元，不要改项目原稿。'
 const assistantReply = '我会先核对材料中的工期条件，再整理影响工期判断的约束与待确认事项。'
-const artifactDir = resolve(process.env.AGENT_PI_QA_ARTIFACT_DIR || join(tmpdir(), 'agent-pi-task-guide-ui-5.8.0'))
+const artifactDir = resolve(process.env.AGENT_PI_QA_ARTIFACT_DIR || join(tmpdir(), 'agent-pi-task-guide-ui-3.8.0'))
 mkdirSync(workspace, { recursive: true })
 mkdirSync(artifactDir, { recursive: true })
 writeFileSync(sourceFile, [

@@ -4,7 +4,7 @@ import type { EngineeringPdfInput } from './types.ts'
 import type { Capability } from '../../../packages/professional-tasks/types.ts'
 
 export const pdfCapability: Capability = {
-  id: 'engineering.pdf', owner: 'agent-pi-engineering-pdf', version: '5.8.0', title: 'PDF 图纸局部高清核查',
+  id: 'engineering.pdf', owner: 'agent-pi-engineering-pdf', version: '3.8.0', title: 'PDF 图纸局部高清核查',
   description: '直接从原 PDF 进行页清点、带坐标文字抽取、高清 ROI 渲染和重叠分块；分别记录处理覆盖。',
   professions: ['drawing', 'quantity', 'tender'], tools: ['engineering_pdf'], skills: [],
   inputs: ['会话工作目录内的 PDF', '页码与局部坐标范围'], outputs: ['页尺寸、旋转与 UserUnit', '定位文字', '供 read_image 核查的真实 PNG', '独立处理覆盖记录'],
