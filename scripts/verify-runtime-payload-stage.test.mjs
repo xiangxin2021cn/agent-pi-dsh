@@ -7,6 +7,7 @@ import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 
 const verifier = join(import.meta.dirname, 'verify-runtime-payload-stage.mjs')
+const desktop = join(import.meta.dirname, '../apps/desktop')
 const pin = JSON.parse(readFileSync(new URL('../vendor/dsh-univer-office.pin', import.meta.url), 'utf8'))
 const patch = readFileSync(new URL('./patch-univer-alpha1.mjs', import.meta.url))
 const sha = bytes => createHash('sha256').update(bytes).digest('hex')
@@ -64,6 +65,10 @@ function fixture(t) {
   write(join(product, 'vendor/dsh-univer-office.pin'), JSON.stringify(pin))
   write(join(product, 'scripts/patch-univer-alpha1.mjs'), patch)
   write(join(stage, 'deepseek-harness/package.json'), '{}\n')
+  const desktopFiles = JSON.parse(readFileSync(join(desktop, 'package.json'), 'utf8')).build.files
+  for (const file of desktopFiles.filter(file => file.endsWith('.mjs'))) {
+    write(join(stage, 'desktop', file), readFileSync(join(desktop, file)))
+  }
   return { stage, plugin }
 }
 
@@ -79,6 +84,17 @@ test('portable runtime payload validates its nested official Office source witho
   const result = run(stage)
   assert.equal(result.status, 0, result.stderr || result.stdout)
   assert.match(result.stdout, /runtime payload stage is portable/)
+})
+
+test('portable runtime payload rejects missing desktop entry, Codex execution and transitive imports', async (t) => {
+  for (const file of ['main.mjs', 'codex-execution.mjs', 'codex-models.mjs']) await t.test(file, (t) => {
+    const { stage } = fixture(t)
+    rmSync(join(stage, 'desktop', file))
+    const result = run(stage)
+    assert.notEqual(result.status, 0)
+    assert.match(result.stderr, /runtime payload desktop module missing:/)
+    assert.ok(result.stderr.includes(file))
+  })
 })
 
 test('portable runtime payload stage rejects VCS and dependency trees', async (t) => {

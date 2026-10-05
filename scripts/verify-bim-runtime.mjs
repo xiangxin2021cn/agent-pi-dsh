@@ -5,16 +5,17 @@ import { mkdtempSync, readFileSync, realpathSync, readdirSync, rmSync } from 'no
 import { tmpdir } from 'node:os'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { verifyBimPublicRelease } from './bim-public-release.mjs'
 
 const coldEnvironment = () => ({ SystemRoot: process.env.SystemRoot, WINDIR: process.env.WINDIR, TEMP: process.env.TEMP, TMP: process.env.TMP,
   PATH: join(process.env.SystemRoot || 'C:\\Windows', 'System32'), PYTHONDONTWRITEBYTECODE: '1' })
 
-export function verifyBimRuntime(directory, { publicRelease = false } = {}) {
+export function verifyBimRuntime(directory, { publicRelease = false, sourceArchive } = {}) {
   const root = realpathSync(directory)
   const receipt = JSON.parse(readFileSync(join(root, 'BIM-RUNTIME-RECEIPT.json'), 'utf8'))
   assert.equal(receipt.schemaVersion, 1)
   assert.equal(receipt.platform, 'win32-x64')
-  if (publicRelease) assert.equal(receipt.redistribution, 'public-release-reviewed', 'BIM public redistribution blocked: native dependency licenses and corresponding source need review')
+  if (publicRelease) verifyBimPublicRelease(root, { sourceArchive })
   assert.ok(receipt.files.length > 100)
   const seen = new Set()
   for (const file of receipt.files) {
@@ -41,8 +42,6 @@ modules=[ifcopenshell,numpy,shapely,isodate,dateutil,lark,typing_extensions,six]
 assert all(pathlib.Path(m.__file__).resolve().is_relative_to(root) for m in modules)
 assert pathlib.Path(sys.prefix).resolve()==root
 assert all(pathlib.Path(p).resolve().is_relative_to(root) for p in sys.path)
-assert ifcopenshell.__version__=='0.8.5'
-assert ifcopenshell.version_core=='0.8.5-1c5b825'
 import ifcopenshell.api.project,ifcopenshell.api.root,ifcopenshell.api.unit,ifcopenshell.api.context,ifcopenshell.api.geometry
 f=ifcopenshell.api.project.create_file()
 ifcopenshell.api.root.create_entity(f,ifc_class='IfcProject',name='Runtime test')
@@ -57,7 +56,11 @@ assert len(s.geometry.verts)>0
 print(json.dumps({'python':sys.executable,'version':sys.version.split()[0],'ifcopenshell':ifcopenshell.__version__,'core':ifcopenshell.version_core,'vertices':len(s.geometry.verts)//3}))`
   const result = spawnSync(join(root, 'python/python.exe'), ['-I', '-B', '-c', code], { env: coldEnvironment(), encoding: 'utf8', windowsHide: true, timeout: 60000 })
   assert.equal(result.status, 0, result.error?.message || result.stderr)
-  return { ...JSON.parse(result.stdout), files: receipt.files.length, bytes: receipt.files.reduce((sum, f) => sum + f.bytes, 0), redistribution: receipt.redistribution }
+  const actual = JSON.parse(result.stdout)
+  assert.equal(actual.version, receipt.pythonVersion, 'BIM Python differs from its receipt')
+  assert.equal(actual.ifcopenshell, receipt.ifcopenshellVersion, 'BIM API differs from its receipt')
+  assert.equal(actual.core, receipt.coreVersion, 'BIM native core differs from its receipt')
+  return { ...actual, files: receipt.files.length, bytes: receipt.files.reduce((sum, f) => sum + f.bytes, 0), redistribution: receipt.redistribution }
 }
 
 export function verifyBimProduct(product) {
@@ -86,7 +89,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   try {
     const product = process.argv[2] === '--product' ? resolve(process.argv[3]) : null
     const directory = product ? join(product, 'bundles/engineering-bim/runtime') : process.argv[2]
-    const result = verifyBimRuntime(directory, { publicRelease: process.argv.includes('--public') })
+    const sourceIndex = process.argv.indexOf('--source-archive')
+    if (sourceIndex !== -1) assert.ok(process.argv[sourceIndex + 1], '--source-archive requires a file')
+    const result = verifyBimRuntime(directory, { publicRelease: process.argv.includes('--public'), sourceArchive: sourceIndex === -1 ? undefined : process.argv[sourceIndex + 1] })
     if (product) result.product = verifyBimProduct(product)
     console.log(JSON.stringify(result, null, 2))
   }

@@ -1,0 +1,9 @@
+{
+  "schema": "agent-pi-dsh/bim-public-runtime/v1",
+  "runtimeReceiptSha256": "f6f9c81c4039ae6dd728d66494bf061e934b94d09f2bc27d86d66b36a16a5e46",
+  "sourceArchive": {
+    "name": "Agent-Pi-DSH-3.8.0-BIM-corresponding-source.tar.gz",
+    "bytes": 920568526,
+    "sha256": "b57fbcab1b7d3ab663e7347a6b896b071f1bd8830c890dbf57866a3ada10e9db"
+  }
+}
