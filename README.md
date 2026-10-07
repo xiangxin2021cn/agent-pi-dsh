@@ -8,7 +8,7 @@
 
 <h1 align="center">Agent Pi DSH</h1>
 
-3.8.1 本地升级将投标要求、评分细则、企业材料、工程依据、章节计划和当前成稿接入同一份响应对照，并更新插件市场与产品独立 Codex 执行器。具体改动及用法见 [3.8.1 升级说明](release/github-notes-3.8.1.md)和[使用指南](docs/3.8.1-user-guide.md)。下方公开下载链接仍对应已发布的 3.8.0。
+3.8.1 已发布，将投标要求、评分细则、企业材料、工程依据、章节计划和当前成稿接入同一份响应对照，并更新插件市场与产品独立 Codex 执行器。具体改动及用法见 [3.8.1 升级说明](release/github-notes-3.8.1.md)和[使用指南](docs/3.8.1-user-guide.md)。
 
 保留 3.8.0 的九个工程插件，覆盖 CAD/PDF 图纸、钢筋与平法、道路市政及土建算量、IFC/BIM、中国招投标与计算书。Windows x64 内置官方 CPython 3.13.7 与经核验的 conda-forge IfcOpenShell 0.8.5，保留 CGAL/OCCT；macOS、Linux 仍需外接兼容 IFC 引擎。沿用官方 DSH 0.2.1-alpha.1、AnySearch 与完整 Univer Office 0.3.6。能力范围与分发材料详见[3.8.0 说明](release/github-notes-3.8.0.md)。OfficeCLI 与 Univer Office 载体的评估见[专项评估](docs/office-carrier-evaluation-3.7.7.md)。
 
@@ -35,11 +35,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.0/Agent-Pi-DSH-3.8.0-x64.exe"><b>Windows x64</b></a>
+  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.1/Agent-Pi-DSH-3.8.1-x64.exe"><b>Windows x64</b></a>
   ·
-  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.0/Agent-Pi-DSH-3.8.0-mac-arm64.dmg"><b>macOS arm64</b></a>
+  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.1/Agent-Pi-DSH-3.8.1-mac-arm64.dmg"><b>macOS arm64</b></a>
   ·
-  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.0/Agent-Pi-DSH-3.8.0-linux-x86_64.AppImage"><b>Linux AppImage</b></a>
+  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.1/Agent-Pi-DSH-3.8.1-linux-x86_64.AppImage"><b>Linux AppImage</b></a>
   ·
   <a href="https://www.agent-pi.app">官网</a>
   ·
@@ -148,12 +148,12 @@ flowchart LR
 
 | 平台 | 文件 |
 | --- | --- |
-| Windows x64 | [Agent-Pi-DSH-3.8.0-x64.exe](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.0/Agent-Pi-DSH-3.8.0-x64.exe) |
-| macOS Apple Silicon | [Agent-Pi-DSH-3.8.0-mac-arm64.dmg](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.0/Agent-Pi-DSH-3.8.0-mac-arm64.dmg) · [zip](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.0/Agent-Pi-DSH-3.8.0-mac-arm64.zip) |
-| Linux x64 | [AppImage](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.0/Agent-Pi-DSH-3.8.0-linux-x86_64.AppImage) · [deb](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.0/Agent-Pi-DSH-3.8.0-linux-amd64.deb) |
+| Windows x64 | [Agent-Pi-DSH-3.8.1-x64.exe](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.1/Agent-Pi-DSH-3.8.1-x64.exe) |
+| macOS Apple Silicon | [Agent-Pi-DSH-3.8.1-mac-arm64.dmg](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.1/Agent-Pi-DSH-3.8.1-mac-arm64.dmg) · [zip](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.1/Agent-Pi-DSH-3.8.1-mac-arm64.zip) |
+| Linux x64 | [AppImage](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.1/Agent-Pi-DSH-3.8.1-linux-x86_64.AppImage) · [deb](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.1/Agent-Pi-DSH-3.8.1-linux-amd64.deb) |
 | 2.6.5 经典版 | [可与 3.x 并存](https://github.com/xiangxin2021cn/agent-pi/releases/tag/v2.6.5) |
 
-国内镜像（Windows）：[gh-proxy.com](https://gh-proxy.com/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.0/Agent-Pi-DSH-3.8.0-x64.exe) · [ghfast.top](https://ghfast.top/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.0/Agent-Pi-DSH-3.8.0-x64.exe)
+国内镜像（Windows）：[gh-proxy.com](https://gh-proxy.com/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.1/Agent-Pi-DSH-3.8.1-x64.exe) · [ghfast.top](https://ghfast.top/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.1/Agent-Pi-DSH-3.8.1-x64.exe)
 
 Windows 安装包的正式 SHA256 以同一 Release 中的 `.sha256` 资产为准；发布脚本会在上线前重新计算并核对本地文件与 GitHub 资产。
 
