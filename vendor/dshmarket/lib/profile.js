@@ -133,6 +133,35 @@ export function readProfileManifestSnapshot(profile, explicitDir) {
         return { dependencies: {}, profileBundles: { present: false } };
     }
 }
+/**
+ * Packages a package operation took out of `dsh.profile.bundles` while they are
+ * STILL declared in `dependencies` (#720).
+ *
+ * That combination is the quiet one. A package that is gone from both was
+ * uninstalled; a package in both is composed. A package that is still installed
+ * but no longer in the bundle list stays on disk, stays declared, and simply
+ * stops loading — the only trace is a boot warning about a dangling patch row
+ * (`patch: entry "better-sidebar" not found`), often days later.
+ *
+ * Pure and read-only on purpose. It does not put anything back: the bundle list
+ * is also how the official plugin page switches a package off (#696), so
+ * restoring "what was there before" would undo a deliberate removal. It only
+ * names what changed, so the next occurrence arrives with evidence — which
+ * operation, which package — instead of a user noticing the symptom later.
+ *
+ * Packages the operation itself touched (`except`) are excluded: removing one
+ * from the list is part of what that operation does.
+ */
+export function bundlesDroppedFromProfile(before, profile, explicitDir, except = new Set()) {
+    if (!before.profileBundles.present)
+        return [];
+    const now = readProfileManifestSnapshot(profile, explicitDir);
+    const stillListed = new Set(now.profileBundles.present ? bundleNames(now.profileBundles.value) : []);
+    return bundleNames(before.profileBundles.value).filter(name => !stillListed.has(name)
+        && !except.has(name)
+        && !INBOX_BUNDLES.has(name)
+        && now.dependencies[name] !== undefined);
+}
 /** String package names carried by one valid bundle-list value. */
 function bundleNames(value) {
     return Array.isArray(value) ? value.filter((name) => typeof name === 'string') : [];
@@ -212,6 +241,41 @@ export function restoreProfileManifest(profile, snapshot, explicitDir) {
     }
     writeManifestAtomic(file, manifest);
     return [...touched];
+}
+/**
+ * Declare one dependency at an exact value, leaving every other manifest field
+ * alone.
+ *
+ * Needed for the duration of a package operation that has to be identifiable
+ * afterwards. DSH's desktop plugin manager names the package a run installed by
+ * diffing the manifest before and after pnpm; an operation whose specifier is
+ * byte-identical before and after leaves that diff empty, and its fallback only
+ * recognises a `name@…` spec — so a floating git re-resolve, which is sent as
+ * the bare remote URL, matches neither and fails as `ambiguous-install` after
+ * pnpm has already re-resolved and built the new commit.
+ *
+ * Declaring the package at the commit already on disk gives the diff exactly
+ * one entry, and pnpm writes the floating specifier back as it re-resolves, so
+ * the durable declaration is unchanged.
+ *
+ * The write is atomic, because it runs immediately before a package operation
+ * that may itself fail.
+ * @returns true when the declaration was written.
+ */
+export function declareProfileDependency(profile, name, value, explicitDir) {
+    const file = join(profileDir(profile, explicitDir), 'package.json');
+    let manifest;
+    try {
+        manifest = JSON.parse(readFileSync(file, 'utf8'));
+    }
+    catch {
+        return false;
+    }
+    if (manifest.dependencies?.[name] === value)
+        return false;
+    manifest.dependencies = { ...manifest.dependencies, [name]: value };
+    writeManifestAtomic(file, manifest);
+    return true;
 }
 /**
  * Remove a package from BOTH manifest lists — dependencies and
@@ -812,42 +876,60 @@ export function parsePatchRows(text) {
     }
     return { names, ids, insertedIds };
 }
-/** Rows of the patch a package DECLARES through `dsh.bundle.patch`. */
 /**
- * Where a package's bundle patch lives, according to the package itself.
+ * Where a package's bundle patches live, according to the package itself.
  *
  * `dsh.bundle.patch` is the package's own declaration and the only place the
- * answer is written down: the path may be a subdirectory (`aegis` declares
- * `./extensions/dsh/cordis.patch.yml`), not just the package root. Callers
- * that assumed the root file made a plugin with a declared patch look like
- * one with none (#646) — so the resolution rule lives here, once.
+ * answer is written down. The host accepts a string (one file) or an ordered
+ * array of files — official dsh-web-app ships five — and composes them in
+ * order (`bundlePatchFiles` in dsh-app-boot). The market's read side hands
+ * down no verdict, so an array contributes its string items in order and an
+ * unreadable manifest or a declaration that is neither string nor array
+ * answers none instead of throwing (#792) — the same tolerance check.ts's
+ * `declaredList` applies to the boot check (#676). The path may name a
+ * subdirectory (`aegis` declares `./extensions/dsh/cordis.patch.yml`), not
+ * just the package root — callers that assumed the root file made a plugin
+ * with a declared patch look like one with none (#646) — so the resolution
+ * rule lives here, once.
  *
  * @param dir - the installed package directory.
- * @returns the declared patch file's path, or null when the manifest names
- *   none (or the manifest cannot be read).
+ * @returns the declared patch files' paths in declaration order, empty when
+ *   the manifest names none (or cannot be read).
  */
-export function declaredBundlePatchFile(dir) {
+export function declaredBundlePatchFiles(dir) {
     try {
         const manifest = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
         const declared = manifest.dsh?.bundle?.patch;
-        if (typeof declared !== 'string' || declared === '')
-            return null;
-        return join(dir, declared);
+        let files = [];
+        if (typeof declared === 'string') {
+            files = declared === '' ? [] : [declared];
+        }
+        else if (Array.isArray(declared)) {
+            files = declared.filter((file) => typeof file === 'string');
+        }
+        return files.map(file => join(dir, file));
     }
     catch {
-        return null;
+        return [];
     }
 }
 function readBundlePatchRows(dir) {
-    const empty = { names: [], ids: [], insertedIds: [] };
-    const file = declaredBundlePatchFile(dir);
-    if (file === null)
-        return empty;
     try {
-        return parsePatchRows(readFileSync(file, 'utf8'));
+        const rows = { names: [], ids: [], insertedIds: [] };
+        for (const file of declaredBundlePatchFiles(dir)) {
+            const parsed = parsePatchRows(readFileSync(file, 'utf8'));
+            rows.names.push(...parsed.names);
+            rows.ids.push(...parsed.ids);
+            rows.insertedIds.push(...parsed.insertedIds);
+        }
+        return rows;
     }
     catch {
-        return empty;
+        // All or nothing: one unreadable file voids the whole declaration. The
+        // host's loadOverlayPatches throws on a missing overlay file and
+        // loadProfileDirectory then skips the ENTIRE bundle — a partially
+        // applied list would judge a package the host never loads.
+        return { names: [], ids: [], insertedIds: [] };
     }
 }
 /** The profile manifest's `dsh.profile.bundles` — what the CLI reconciled. */

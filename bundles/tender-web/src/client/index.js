@@ -24,6 +24,7 @@ import { createTaskGuide, taskGuideCss } from './task-guide.js'
 import { createEngineeringPanel, engineeringPanelCss } from './engineering-panel.js'
 import { createSkillLifecycle, skillLifecycleCss } from './skill-lifecycle.js'
 import { createProfessionalTaskSummary, professionalTaskSummaryCss } from './professional-task-summary.js'
+import { renderTenderResponseCoverage, tenderResponseCss } from './tender-response-panel.js'
 import { installProfessionalConversationView } from './professional-conversation-view.js'
 import { createNativeCodexExecution } from './codex-execution.js'
 import { tCodexExecution } from './locales/codex-execution.js'
@@ -66,7 +67,7 @@ const SearchSettings = createSearchSettings(React)
     const MARKUP_RE = /[`*!\[]/
     const HTML_SPECIAL_RE = /[&<>"]/
 
-    const css = clientCss + professionalDepthCss + taskProcessCss + nativeWorkFilePreviewCss + taskGuideCss + professionalTaskSummaryCss + engineeringPanelCss
+    const css = clientCss + professionalDepthCss + taskProcessCss + nativeWorkFilePreviewCss + taskGuideCss + professionalTaskSummaryCss + engineeringPanelCss + tenderResponseCss
     if (typeof document !== 'undefined') {
       const existing = document.querySelector('style[data-plugin-css="dsh-tender-web"]')
       if (existing) existing.remove()
@@ -4846,14 +4847,16 @@ const SearchSettings = createSearchSettings(React)
       const row = projects.find((item) => item.project.projectId === selectedId) || null
       const monitorParent = pinParentSessionId(props)
       React.useEffect(() => {
-        if (row?.project && monitorParent) monitorEngine.restore({ cwd, module: row.project.module, projectId: row.project.projectId }, monitorParent)
+        // restore confirms the authoritative host binding before polling; browsing never rebinds.
+        if (row?.project && monitorParent) void monitorEngine.restore({ cwd, module: row.project.module, projectId: row.project.projectId }, monitorParent)
+        else monitorEngine.stop()
       }, [cwd, row?.project?.module, row?.project?.projectId, monitorParent])
 
       // Disk-verified project health check shown under the monitor header; filled
       // by the 检查 button or the live monitor, cleared when switching projects.
       const [reality, setReality] = React.useState(null)
       const [control, setControl] = React.useState(null)
-      React.useEffect(() => { setReality(null); setControl(null) }, [selectedId])
+      React.useEffect(() => { setReality(null); setControl(null) }, [selectedId, module, cwd, monitorParent])
 
       // Keep the dashboard in sync with the module-level engine and poll the board
       // while the workbench is open. Opening the workbench never dispatches anything.
@@ -5063,10 +5066,11 @@ const SearchSettings = createSearchSettings(React)
         try { sessionStorage.setItem('ap-wb-project', id) } catch {}
       }
 
-      const startLiveMonitor = () => {
+      const startLiveMonitor = async () => {
         if (!row || !row.project) return
         try {
-          monitorEngine.restore({ cwd, module: row.project.module, projectId: row.project.projectId }, pinParentSessionId(props))
+          const started = await monitorEngine.restore({ cwd, module: row.project.module, projectId: row.project.projectId }, pinParentSessionId(props))
+          if (!started) setNotice(monitorEngine.state.note || '当前仅浏览项目资料，未启动执行监控。')
         } catch (error) {
           setError(String(error && error.message || error))
         }
@@ -5075,7 +5079,8 @@ const SearchSettings = createSearchSettings(React)
       const monitoringHere = monitorState.monitoring
         && row && row.project
         && monitorState.projectId === row.project.projectId
-        && monitorState.cwd === cwd
+        && monitorState.module === row.project.module
+        && sameFilePath(monitorState.cwd, cwd)
         && monitorState.parentSessionId === monitorParent
       const liveActivity = sessionActivity(readSessionListSnap(), monitorState.parentSessionId)
       const liveActivityText = liveActivity.runningChildCount > 0
@@ -5265,6 +5270,7 @@ const SearchSettings = createSearchSettings(React)
               }),
             )
             : null,
+          renderTenderResponseCoverage(h,item.responseCoverage,{locale:langState.lang,onOpenFile:(path,locator)=>window.dispatchEvent(new CustomEvent('agent-pi-open-file',{detail:{cwd,path,locator}}))}),
           h('section', { className: 'ap-sec' },
             h('div', { className: 'ap-mon-hd' },
               h('div', { style: { minWidth: 0 } },

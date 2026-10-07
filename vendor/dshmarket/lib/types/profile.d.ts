@@ -61,6 +61,26 @@ export interface ProfileManifestSnapshot {
 /** Read dependencies and the exact `dsh.profile.bundles` field before a package operation. */
 export declare function readProfileManifestSnapshot(profile: string, explicitDir?: string): ProfileManifestSnapshot;
 /**
+ * Packages a package operation took out of `dsh.profile.bundles` while they are
+ * STILL declared in `dependencies` (#720).
+ *
+ * That combination is the quiet one. A package that is gone from both was
+ * uninstalled; a package in both is composed. A package that is still installed
+ * but no longer in the bundle list stays on disk, stays declared, and simply
+ * stops loading — the only trace is a boot warning about a dangling patch row
+ * (`patch: entry "better-sidebar" not found`), often days later.
+ *
+ * Pure and read-only on purpose. It does not put anything back: the bundle list
+ * is also how the official plugin page switches a package off (#696), so
+ * restoring "what was there before" would undo a deliberate removal. It only
+ * names what changed, so the next occurrence arrives with evidence — which
+ * operation, which package — instead of a user noticing the symptom later.
+ *
+ * Packages the operation itself touched (`except`) are excluded: removing one
+ * from the list is part of what that operation does.
+ */
+export declare function bundlesDroppedFromProfile(before: ProfileManifestSnapshot, profile: string, explicitDir: string | undefined, except?: ReadonlySet<string>): string[];
+/**
  * Restore the profile manifest fields a package operation may mutate:
  * `dependencies` and `dsh.profile.bundles`. pnpm and `dsh plugin add` can
  * write both before a later fetch or build-script failure (#65, #69, #339),
@@ -73,6 +93,27 @@ export declare function readProfileManifestSnapshot(profile: string, explicitDir
  * @returns names whose entries were dropped or reverted, empty when nothing changed.
  */
 export declare function restoreProfileManifest(profile: string, snapshot: ProfileManifestSnapshot, explicitDir?: string): string[];
+/**
+ * Declare one dependency at an exact value, leaving every other manifest field
+ * alone.
+ *
+ * Needed for the duration of a package operation that has to be identifiable
+ * afterwards. DSH's desktop plugin manager names the package a run installed by
+ * diffing the manifest before and after pnpm; an operation whose specifier is
+ * byte-identical before and after leaves that diff empty, and its fallback only
+ * recognises a `name@…` spec — so a floating git re-resolve, which is sent as
+ * the bare remote URL, matches neither and fails as `ambiguous-install` after
+ * pnpm has already re-resolved and built the new commit.
+ *
+ * Declaring the package at the commit already on disk gives the diff exactly
+ * one entry, and pnpm writes the floating specifier back as it re-resolves, so
+ * the durable declaration is unchanged.
+ *
+ * The write is atomic, because it runs immediately before a package operation
+ * that may itself fail.
+ * @returns true when the declaration was written.
+ */
+export declare function declareProfileDependency(profile: string, name: string, value: string, explicitDir?: string): boolean;
 /**
  * Remove a package from BOTH manifest lists — dependencies and
  * dsh.profile.bundles. The uninstall counterpart of restoreProfileManifest:
@@ -251,21 +292,27 @@ export declare function parsePatchRows(text: string): {
     ids: string[];
     insertedIds: string[];
 };
-/** Rows of the patch a package DECLARES through `dsh.bundle.patch`. */
 /**
- * Where a package's bundle patch lives, according to the package itself.
+ * Where a package's bundle patches live, according to the package itself.
  *
  * `dsh.bundle.patch` is the package's own declaration and the only place the
- * answer is written down: the path may be a subdirectory (`aegis` declares
- * `./extensions/dsh/cordis.patch.yml`), not just the package root. Callers
- * that assumed the root file made a plugin with a declared patch look like
- * one with none (#646) — so the resolution rule lives here, once.
+ * answer is written down. The host accepts a string (one file) or an ordered
+ * array of files — official dsh-web-app ships five — and composes them in
+ * order (`bundlePatchFiles` in dsh-app-boot). The market's read side hands
+ * down no verdict, so an array contributes its string items in order and an
+ * unreadable manifest or a declaration that is neither string nor array
+ * answers none instead of throwing (#792) — the same tolerance check.ts's
+ * `declaredList` applies to the boot check (#676). The path may name a
+ * subdirectory (`aegis` declares `./extensions/dsh/cordis.patch.yml`), not
+ * just the package root — callers that assumed the root file made a plugin
+ * with a declared patch look like one with none (#646) — so the resolution
+ * rule lives here, once.
  *
  * @param dir - the installed package directory.
- * @returns the declared patch file's path, or null when the manifest names
- *   none (or the manifest cannot be read).
+ * @returns the declared patch files' paths in declaration order, empty when
+ *   the manifest names none (or cannot be read).
  */
-export declare function declaredBundlePatchFile(dir: string): string | null;
+export declare function declaredBundlePatchFiles(dir: string): string[];
 /** The profile manifest's `dsh.profile.bundles` — what the CLI reconciled. */
 export declare function readProfileBundles(profileDirectory: string): string[];
 /**

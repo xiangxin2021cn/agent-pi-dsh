@@ -73,10 +73,14 @@ export function createOfficialDesktopRuntime(
         : `官方桌面客户端自己执行这次安装，不接受市场附加的参数（${options}），这个选项在它这里用不了。可以改用普通 dsh web 安装，或等这个版本过了新版本等待期再试。 / The official desktop app runs this install itself and takes no options from the market (${options}); that option cannot be used here. Install from plain dsh web, or try again once the release is past the fresh-release wait.`, 127))
     }
     const spec = target
-    // Only `add` and `remove` map onto the manager. `update` reached here
-    // only for the #564 in-place re-resolve of a floating git spec; turning
-    // it into `name@latest` (as a first draft did) would cross the installed
-    // range and ignore the release channel, which is a different operation.
+    // Only `add` and `remove` map onto the manager. `update` reached here only
+    // for the #564 in-place re-resolve of a floating git spec, and no route
+    // builds it any more: on a host with this contract the routes express that
+    // re-resolve as `add <spec>` (#786), which pnpm does re-resolve — it is
+    // `install` that skips a resolution. Turning `update` into `name@latest`
+    // (as a first draft did) would cross the installed range and ignore the
+    // release channel, which is a different operation, so the refusal stays
+    // for any caller that asks for something the manager cannot express.
     if (command !== 'add' && command !== 'remove') {
       return Promise.resolve(failure(OFFICIAL_PAGE_HINT, 127))
     }

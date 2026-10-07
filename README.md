@@ -8,7 +8,9 @@
 
 <h1 align="center">Agent Pi DSH</h1>
 
-3.8.0 新增九个工程插件，覆盖 CAD/PDF 图纸、钢筋与平法、道路市政及土建算量、IFC/BIM、中国招投标与计算书，并联动主对话、本次任务和专业化工作台。Windows x64 内置官方 CPython 3.13.7 与经核验的 conda-forge IfcOpenShell 0.8.5，保留 CGAL/OCCT；macOS、Linux 仍需外接兼容 IFC 引擎。沿用官方 DSH 0.2.1-alpha.1、Codex 0.160.0 主执行、AnySearch 与完整 Univer Office 0.3.6。能力范围、验证和分发材料详见[3.8.0 说明](release/github-notes-3.8.0.md)。OfficeCLI 与 Univer Office 载体的评估见[专项评估](docs/office-carrier-evaluation-3.7.7.md)。
+3.8.1 本地升级将投标要求、评分细则、企业材料、工程依据、章节计划和当前成稿接入同一份响应对照，并更新插件市场与产品独立 Codex 执行器。具体改动及用法见 [3.8.1 升级说明](release/github-notes-3.8.1.md)和[使用指南](docs/3.8.1-user-guide.md)。下方公开下载链接仍对应已发布的 3.8.0。
+
+保留 3.8.0 的九个工程插件，覆盖 CAD/PDF 图纸、钢筋与平法、道路市政及土建算量、IFC/BIM、中国招投标与计算书。Windows x64 内置官方 CPython 3.13.7 与经核验的 conda-forge IfcOpenShell 0.8.5，保留 CGAL/OCCT；macOS、Linux 仍需外接兼容 IFC 引擎。沿用官方 DSH 0.2.1-alpha.1、AnySearch 与完整 Univer Office 0.3.6。能力范围与分发材料详见[3.8.0 说明](release/github-notes-3.8.0.md)。OfficeCLI 与 Univer Office 载体的评估见[专项评估](docs/office-carrier-evaluation-3.7.7.md)。
 
 新增功能怎么用：参见 [3.8.0 使用指南](docs/3.8.0-user-guide.md)，包含 BIM 对话示例、九插件入口、专业工作台联动、能力边界和问题排查。
 

@@ -4,9 +4,14 @@ import { readdirSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
-import { createTaskGuide, mergeTaskBriefEdits } from '../src/client/task-guide.js'
+import { createTaskGuide as createTaskGuideView, mergeTaskBriefEdits } from '../src/client/task-guide.js'
 import { createProfessionalTaskSummary, createTaskStageControls, taskOverviewModel, visibleTaskFindings } from '../src/client/professional-task-summary.js'
 import { createProfessionalDepth, prepareDepthSubmission } from '../src/client/professional-depth.js'
+
+// The engineering panel has a separate API contract from these task fixtures.
+function createTaskGuide(options) {
+  return createTaskGuideView({...options,api:(url,...args)=>url.startsWith('/api/agent-pi/engineering?')?Promise.resolve({runs:[],project:{objects:[]}}):options.api(url,...args)})
+}
 
 function taskFixture() {
   return {
@@ -52,6 +57,35 @@ test('business progress excludes superseded materials and finding updates keep o
   assert.equal(edited.brief.audience,'领导')
   assert.equal(edited.brief.objective,'实施建议')
   assert.equal(mergeTaskBriefEdits({...task,brief:{...task.brief,objective:'新目标'}},{objective:{value:'实施建议',baseValue:task.brief.objective}}).brief,null)
+})
+
+test('task and conversation share response coverage and expose the read-only response view',async()=>{
+  const f=await domFixture(),task=taskFixture()
+  let refresh
+  const responseCoverage={projectId:'municipal',revision:2,sourceCoverage:{complete:null,gaps:['最新补遗待核对']},summary:{requirements:1,criteria:1,planned:1,drafted:1,evidenced:0,reviewed:0,stale:1,blocked:0},rows:[{id:'traffic',kind:'criterion',title:'交通导改措施',mandatory:false,status:'stale',gaps:['补遗变更待复核'],source:{title:'评分办法',path:'tender.pdf',locator:'page 8'},responses:[{id:'traffic-plan',title:'交通导改方案',section:'第三章',path:'traffic.docx',status:'stale',evidence:[],checks:[]}]}]}
+  const api=async()=>({task:structuredClone(task),responseCoverage:structuredClone(responseCoverage),capabilities:[],audit:{}})
+  const Guide=createTaskGuide({React:f.React,api,cwd:()=>'',language:()=> 'zh',subscribe:(_id,listener)=>{refresh=listener;return()=>{}}})
+  const Summary=createProfessionalTaskSummary({React:f.React,api,cwd:()=>'',language:()=> 'zh'})
+  try{
+    await f.act(async()=>f.root.render(f.React.createElement(Guide,{sessionId:'one'})))
+    assert.match(f.document.body.textContent,/响应计划 1/)
+    assert.match(f.document.body.textContent,/当前稿已记录复核 0/)
+    await click(f,button(f,'响应对照'))
+    assert.ok(f.document.querySelector('[data-response-row="traffic"]'))
+    assert.match(f.document.body.textContent,/第三章/)
+    assert.match(f.document.body.textContent,/最新补遗待核对/)
+    assert.equal(f.document.querySelector('input,textarea'),null)
+    responseCoverage.summary.stale=0;responseCoverage.summary.reviewed=1
+    responseCoverage.rows[0].status='reviewed';responseCoverage.rows[0].gaps=[];responseCoverage.rows[0].responses[0].status='reviewed'
+    await f.act(async()=>refresh())
+    assert.match(f.document.body.textContent,/当前稿已记录复核 1/)
+    assert.doesNotMatch(f.document.body.textContent,/补遗变更待复核/)
+    await f.act(async()=>f.root.render(f.React.createElement(Summary,{sessionId:'one',taskResult:{task,responseCoverage}})))
+    assert.match(f.document.body.textContent,/响应计划 1/)
+    assert.match(f.document.body.textContent,/当前稿已记录复核 1/)
+    assert.doesNotMatch(f.document.body.textContent,/补遗变更待复核/)
+    assert.equal(f.document.querySelector('table'),null)
+  }finally{await f.close()}
 })
 
 test('persistent constraints and revocations render across task and chat without treating raw document requests as constraints',async()=>{

@@ -1,3 +1,5 @@
+import type { TenderCriterionRubric, TenderChapterPlan, TenderResponseDependencySnapshot, TenderResponseArtifactReview } from './response-plan.ts';
+
 export type TenderProjectStatus = 'active' | 'submitted' | 'awarded' | 'lost' | 'archived';
 
 export type TenderDocumentKind =
@@ -14,7 +16,7 @@ export type TenderDocumentKind =
   | 'supporting_evidence'
   | 'other';
 
-export type TenderDocumentStatus = 'active' | 'superseded' | 'withdrawn';
+export type TenderDocumentStatus = 'active' | 'superseded' | 'withdrawn' | 'unreadable';
 
 export interface TenderSourceLocator {
   documentId: string;
@@ -89,6 +91,7 @@ export interface TenderEvaluationCriterion {
   source: TenderSourceLocator;
   evidenceNeeded: string[];
   status: TenderCriterionStatus;
+  rubric?: TenderCriterionRubric;
 }
 
 export type TenderDeliverableStatus = 'planned' | 'drafting' | 'ready' | 'blocked' | 'submitted';
@@ -118,6 +121,9 @@ export interface TenderResponsePlan {
   evidenceArtifacts?: string[];
   owner?: string;
   status: TenderResponseStatus;
+  chapter?: TenderChapterPlan;
+  dependencySnapshot?: TenderResponseDependencySnapshot;
+  artifactReview?: TenderResponseArtifactReview;
 }
 
 export interface TenderWorkspace {

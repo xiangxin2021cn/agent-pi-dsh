@@ -1,4 +1,5 @@
 import type { TenderSourceLocator, TenderWorkspace } from './types.ts';
+import { auditTenderResponsePlans } from './response-audit.ts';
 
 export type TenderReadiness = 'not_ready' | 'needs_review' | 'ready';
 export type TenderAuditSeverity = 'error' | 'warning';
@@ -37,7 +38,7 @@ export function auditTenderWorkspace(
   workspace: TenderWorkspace,
   generatedAt = new Date().toISOString(),
 ): TenderReadinessAudit {
-  const issues: TenderAuditIssue[] = [];
+  const issues: TenderAuditIssue[] = auditTenderResponsePlans(workspace, generatedAt);
   const documentById = new Map(workspace.documents.map((document) => [document.id, document]));
   const requirementIds = new Set(workspace.requirements.map((requirement) => requirement.id));
   const criterionIds = new Set(workspace.criteria.map((criterion) => criterion.id));
@@ -91,6 +92,8 @@ export function auditTenderWorkspace(
         message: `Source document ${source.documentId} is superseded.`,
       });
     }
+    if (document.status === 'withdrawn') addIssue({ code: 'withdrawn_source_reference', severity: 'error', entityType, entityId, message: `Source document ${source.documentId} is withdrawn.` });
+    if (document.status === 'unreadable') addIssue({ code: 'unreadable_source_reference', severity: 'error', entityType, entityId, message: `Source document ${source.documentId} cannot currently be read.` });
   };
 
   for (const document of workspace.documents) {

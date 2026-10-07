@@ -167,15 +167,18 @@
 /* The hex above is the light-theme design spec; dark takes the host tokens so
    the block does not become a light island on a dark dialog. */
 :global(body[data-ds-dark-theme]) .confirmPanel{--fold-bg:var(--dsw-alias-bg-layer-3,#353638);--fold-border:var(--dsw-alias-border-l2,#ffffff1f);--fold-ink:var(--dsw-alias-label-primary,#f9fafb);--fold-on-ink:var(--dsw-alias-bg-layer-2,#2c2c2e)}
-.confirmPanelRow{display:flex;align-items:center;gap:8px;width:100%;min-height:40px;padding:0 12px;border:0;border-radius:8px;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.confirmPanelRow{box-sizing:border-box;display:flex;align-items:center;gap:8px;width:100%;min-height:40px;padding:0 12px;border:0;border-radius:8px;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
 .confirmPanelRow:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary,#4176e6);outline-offset:-2px}
 .confirmPanelIcon{display:inline-flex;flex:none;color:var(--fold-ink)}
 .confirmTerminalIcon{display:block;flex:none;color:var(--fold-ink)}
 .confirmTerminalPrompt{stroke:var(--fold-on-ink);fill:none}
 .confirmTerminalDot{fill:var(--fold-on-ink)}
-.confirmPanelTitle{flex:1;min-width:0;font-size:13px;line-height:20px;color:var(--fold-ink)}
+.confirmPanelTitle{flex:1 0 auto;min-width:0;font-size:13px;line-height:20px;color:var(--fold-ink)}
+.confirmPanelRowStatic{cursor:default}
+.confirmPanel[data-state="unchecked"]{border-style:dashed;background:color-mix(in srgb, var(--fold-bg) 35%, transparent)}
+.confirmPanelMeta{flex:0 1 auto;min-width:0;font-size:12px;line-height:20px;color:var(--dsw-alias-label-secondary,#6b7280);text-align:right}
 .confirmPanelChevron{flex:none;color:var(--dsw-alias-label-tertiary,#8b93a1)}
-.confirmPanelBody{padding:0 12px 10px 16px}
+.confirmPanelBody{display:flex;flex-direction:column;gap:10px;padding:0 12px 10px 16px}
 .confirmCmd{display:flex;align-items:center;gap:8px}
 .confirmPanel .cmd{flex:1;min-width:0;margin:0;padding:0;background:transparent;border-radius:0;line-height:24px}
 .confirmCopied{flex:none;font-size:12px;line-height:24px;color:var(--dsw-alias-state-success-primary,#22c55e);white-space:nowrap}
@@ -184,9 +187,17 @@
 .confirmCopy:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary,#4176e6);outline-offset:1px}
 .confirmPanel .caps{gap:6px;padding:0}
 .confirmPanel .caps .capChip{background:var(--fold-on-ink,#fff);border:1px solid var(--fold-border,#e7e8ea);border-radius:999px;padding:2px 8px;color:var(--fold-ink,#1c1d1f);font-size:12px;line-height:18px}
+.confirmPanel .caps .capChip.capChipUncommon{background:var(--fold-ink,#1c1d1f);border-color:var(--fold-ink,#1c1d1f);color:var(--fold-on-ink,#fff);font-weight:600}
+.capGroups{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 12px;align-items:baseline}
+.capGroupLabel{font-size:12px;line-height:22px;color:var(--dsw-alias-label-secondary,#6b7280);white-space:nowrap}
 .confirmPanel .caps .capMuted{border-color:var(--fold-border,#e7e8ea);color:var(--dsw-alias-label-secondary,#6b7280);font-size:12px;line-height:18px;padding:2px 8px}
-.confirmPanel .caps .capFact{flex-basis:100%;margin:2px 0 0;font-size:13px;line-height:20px;color:var(--fold-ink,#1c1d1f)}
-.confirmPanel .capCaveat{color:var(--dsw-alias-label-secondary,#6b7280);font-size:12px;line-height:18px}
+.capAhead{display:flex;flex-direction:column;gap:6px}
+.capAheadLabel{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#6b7280)}
+.capAheadRow{display:flex;align-items:flex-start;gap:8px;margin:0;font-size:13px;line-height:20px;color:var(--dsw-alias-label-primary,#1f2328)}
+.capAheadIcon{flex:none;margin-top:2px;color:var(--dsw-alias-label-primary,#1f2328)}
+.confirmPanel .caps .capAddress{flex-basis:100%;margin:0 0 2px;font-size:13px;line-height:20px;color:var(--fold-ink,#1c1d1f)}
+.capNote{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#6b7280)}
+.confirmPanel .capCaveat{margin:0;color:var(--dsw-alias-label-secondary,#6b7280);font-size:12px;line-height:18px}
 .installCaution{background:color-mix(in srgb, var(--dsw-alias-state-warn-primary, #b45309) 12%, transparent);border-radius:8px;padding:12px 13px}
 .installCautionLabel{margin:0 0 8px;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#6b7280)}
 .installCautionHead{display:flex;align-items:center;gap:6px;margin:0;font-size:13px;line-height:20px;font-weight:600;color:var(--dsw-alias-label-primary,#1f2328)}
@@ -685,10 +696,6 @@
 .capsTitle{color:var(--dsw-alias-label-secondary,#8b949e);cursor:help}
 .capChip{border:1px solid var(--dsw-alias-border-l2,#30363d);border-radius:999px;padding:0 6px;color:var(--dsw-alias-label-primary,#c9d1d9);white-space:nowrap}
 .capMuted{border:1px dashed var(--dsw-alias-border-l2,#30363d);border-radius:999px;padding:0 6px;color:var(--dsw-alias-label-secondary,#8b949e);white-space:nowrap}
-/* The scanned facts that are not warnings: same quiet tone as the chips they
-   sit beside, because they are the same kind of thing — a statement about the
-   plugin, not a judgement about it. */
-.capFact{color:var(--dsw-alias-label-secondary,#8b949e)}
 /* The honesty clause under the facts. It was a hover tooltip while this row sat
    on a card; it is body copy now, because the reader who opened this is the
    reader who needs it. */

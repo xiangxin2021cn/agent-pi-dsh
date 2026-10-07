@@ -122,7 +122,7 @@ export function auditTenderEvaluationStrategy(
       } else if (document.status !== 'active') {
         issues.push({
           code: 'inactive_evidence_reference',
-          severity: document.status === 'withdrawn' ? 'error' : 'warning',
+          severity: document.status === 'withdrawn' || document.status === 'unreadable' ? 'error' : 'warning',
           entityType: 'strategy',
           entityId: strategy.criterionId,
           message: `Evidence document ${source.documentId} is ${document.status}.`,

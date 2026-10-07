@@ -67,7 +67,7 @@ export const WORKFLOWS: Record<string, WorkflowDefinition> = {
         labelZh: '招标文件解析',
         hintZh: '逐文件解析后汇总成一套可追溯的《投标分析底稿》，并完整抽取实际 BOQ；专题视图只在用户需要时从底稿派生。',
         prompt: '对每个已登记文件产出可读 Markdown 解析稿并保留原始术语、页码/行号和交叉引用；完成后合成 document_analysis 与 boq_reconciliation，并编制唯一权威底稿《投标分析底稿.md》。底稿统一承载来源索引、项目边界、资格与评分、关键日期、合同/保险/保函、技术规范、BOQ 覆盖、提交清单、风险与缺口；不得为凑数量重复写五份长报告。招标总结、合同条款、技术要求、BOQ 分析等专题稿改为用户明确需要时从底稿派生的视图，不作为收阶段硬门。必须从每份已登记的实际工程量清单（BOQ / Bill of Quantities / Pricing Schedule / 工程量）抽出全部可识别真实行，tender_capability replace boq_reconciliation；每行保留清单号、描述、单位、雇主给出的数量（若有）及 sheet+cell，PC Sum / Provisional Sum / percentage / rate-only 等传递项照实登记，严禁为过门禁虚构数量。全部客户可读成果写入 document-analysis/。缺规范、合同、地质原文必须标为缺口，禁止用模型记忆填空。已完成的源文件解析稿不要重扫。PageIndex 只作导航：每个节点读取或分类一次，再映射到相关分析域；不相关域允许 N/A，不得为五个域重复遍历全文。数量/单位/公式继续以 BOQ 表格和 sheet+cell 为准。能力包 warning 必须披露，但不应触发无差别重做；error、缺源和未覆盖文件才阻断收阶段。若需并行，使用 dsh 原生 subagent / workflow；子任务交付 JSON+MD。',
-        skillSlugs: ['tender-document-parsing', 'tender-boq-reconciliation', 'tender-formal-writing', 'tender-overseas-professional-control'],
+        skillSlugs: ['tender-document-parsing', 'tender-response-writing', 'tender-boq-reconciliation', 'tender-formal-writing', 'tender-overseas-professional-control'],
         consumes: [
           { kind: 'handoff', stageId: 'project-setup' },
           { kind: 'handoff', stageId: 'bid-risk-decision' },
@@ -158,6 +158,7 @@ export const WORKFLOWS: Record<string, WorkflowDefinition> = {
           'tender-schedule-resource-planning',
           'construction-schedule-planner',
           'tender-cost-cashflow-planning',
+          'tender-response-writing',
           'professional-report',
           'tender-formal-writing',
           'tender-overseas-professional-control',
@@ -188,6 +189,7 @@ export const WORKFLOWS: Record<string, WorkflowDefinition> = {
         prompt: '读取《投标分析底稿.md》、《组价基准冻结单.md》、《BOQ 组价总报告.md》、《施工与技术方案总控.md》和全部正式成果，执行最终 submission audit。编制《投标提交合规与冻结记录.md》：逐项列适用的资格/JV/税务与必交表单（CIDB 仅在适用时）、评分与本地化证据、签字/见证/授权/盖章、保函保险、算术复核和跨文件价格一致性、技术与商务偏差、文件名/格式/份数/介质/截止时间/提交渠道、阻断项/警告/责任人/截止日和 maker-checker 记录。必须区分“文件存在”“内容完整”“已复核”“已授权”；不得把“文件已生成”写成“可提交”。能力包 not_ready、error、重大未核证价格、法定用工/税务缺口、未签必交表或声明文件实际不存在必须保持未冻结；warning / needs_review 必须完整列入冻结记录，由用户在最终人工门裁决，不得触发整阶段重做。完成后停止，等待用户在工作台最终确认冻结。',
         skillSlugs: [
           'tender-submission-documents',
+          'tender-response-writing',
           'tender-submission-audit',
           'tender-bidder-commitments',
           'professional-report',

@@ -29,7 +29,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { logEvent } from "./log.js";
 import { parsePatchFile, parsePatchText } from "./check.js";
-import { bundlePatchInsertedIds, parsePatchRows } from "./profile.js";
+import { bundlePatchInsertedIds, declaredBundlePatchFiles, parsePatchRows } from "./profile.js";
 /**
  * Host infrastructure rows: disabling any of these breaks the very chain
  * the patch layer runs on (e.g. timer → HMR, webserver → the page itself),
@@ -322,8 +322,11 @@ function foreignDisableIds(rows) {
  * the bundle still neutralizes any config side effects it carries, since its
  * whole patch stops applying.
  *
- * Reads both patch sources like rowIdsForPackage — the declared dsh.bundle.patch
- * and the conventional root cordis.patch.yml — so either form is detected.
+ * Reads both patch sources like rowIdsForPackage — the declared
+ * dsh.bundle.patch (one file or a LIST of them, #792) and the conventional
+ * root cordis.patch.yml — so either form is detected, and every declared file
+ * is attributed (a foreign disable declared in the second file is still what
+ * bricks the boot, #224).
  */
 export function carrierDisableIds(profileDirectory, packageName) {
     const packageDir = join(profileDirectory, 'node_modules', packageName);
@@ -335,13 +338,8 @@ export function carrierDisableIds(profileDirectory, packageName) {
         for (const id of foreignDisableIds(rows))
             disabled.add(id);
     };
-    try {
-        const manifest = JSON.parse(readFileSync(join(packageDir, 'package.json'), 'utf8'));
-        const declared = manifest.dsh?.bundle?.patch;
-        if (typeof declared === 'string' && declared !== '')
-            collectFromFile(join(packageDir, declared));
-    }
-    catch { /* package not installed — nothing to attribute */ }
+    for (const file of declaredBundlePatchFiles(packageDir))
+        collectFromFile(file);
     collectFromFile(join(packageDir, 'cordis.patch.yml'));
     return [...disabled];
 }
@@ -361,9 +359,9 @@ export function carrierDisableIds(profileDirectory, packageName) {
  * and the bundle must keep re-enabling.
  *
  * Reads both patch sources like carrierDisableIds: the declared
- * `dsh.bundle.patch` and the conventional root cordis.patch.yml. Ownership is
- * judged per file, because a package may ship both and only the file's own
- * `insert:` block says which ids it brings in.
+ * `dsh.bundle.patch` (one file or a LIST, #792) and the conventional root
+ * cordis.patch.yml. Ownership is judged per file, because a package may ship
+ * both and only the file's own `insert:` block says which ids it brings in.
  */
 export function foreignRowIds(profileDirectory, packageName) {
     const packageDir = join(profileDirectory, 'node_modules', packageName);
@@ -387,13 +385,8 @@ export function foreignRowIds(profileDirectory, packageName) {
         }
         catch { /* no such patch — nothing attributed to it */ }
     };
-    try {
-        const manifest = JSON.parse(readFileSync(join(packageDir, 'package.json'), 'utf8'));
-        const declared = manifest.dsh?.bundle?.patch;
-        if (typeof declared === 'string' && declared !== '')
-            readPatch(join(packageDir, declared));
-    }
-    catch { /* package not installed — nothing to attribute */ }
+    for (const file of declaredBundlePatchFiles(packageDir))
+        readPatch(file);
     readPatch(join(packageDir, 'cordis.patch.yml'));
     return [...foreign];
 }

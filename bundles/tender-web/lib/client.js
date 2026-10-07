@@ -7267,6 +7267,8 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 			}
 			return { status: "unavailable" };
 		}
+		const normalizedCwd = (value) => String(value || "").replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+		const sameTarget = (left, right) => !!left && !!right && normalizedCwd(left.cwd) === normalizedCwd(right.cwd) && (left.module || "tender") === (right.module || "tender") && left.projectId === right.projectId && left.parentSessionId === right.parentSessionId;
 		function createWorkbenchSessionMonitor(options) {
 			const api = options.api;
 			const onChange = options.onChange || (() => {});
@@ -7289,6 +7291,7 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 				},
 				timer: null,
 				sending: false,
+				generation: 0,
 				emit() {
 					onChange();
 				},
@@ -7297,20 +7300,53 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 					if (!parent) throw new Error("请先打开主会话，再查看执行状态。");
 					return this.restore(target, parent);
 				},
-				restore(target, parentSessionId) {
+				async restore(target, parentSessionId) {
+					this.stop();
 					if (!target?.cwd || !target?.projectId || !parentSessionId) return false;
-					Object.assign(this.state, {
+					const generation = this.generation;
+					const selected = {
 						...target,
 						module: target.module || "tender",
-						parentSessionId,
-						monitoring: true
+						parentSessionId
+					};
+					Object.assign(this.state, selected, {
+						paused: false,
+						done: false,
+						lastCheck: 0,
+						note: "",
+						lastReality: null,
+						lastControl: null,
+						runtime: null
 					});
-					if (!this.timer) this.timer = setIntervalFn(() => {
+					try {
+						const bound = await this.isBound(selected);
+						if (generation !== this.generation || !sameTarget(this.state, selected)) return false;
+						if (!bound) {
+							this.state.note = "当前会话未绑定此项目，仅显示项目资料。";
+							this.emit();
+							return false;
+						}
+						this.state.monitoring = true;
+						this.timer = setIntervalFn(() => {
+							this.tick();
+						}, options.tickMs || 15e3);
 						this.tick();
-					}, options.tickMs || 15e3);
-					this.tick();
-					this.emit();
-					return true;
+						this.emit();
+						return true;
+					} catch (error) {
+						if (generation === this.generation && sameTarget(this.state, selected)) {
+							this.state.note = String(error.message || error);
+							this.emit();
+						}
+						return false;
+					}
+				},
+				async isBound(target) {
+					const binding = (await api("/api/agent-pi/session-project?sessionId=" + encodeURIComponent(target.parentSessionId), target.cwd, { method: "GET" }))?.binding;
+					return sameTarget(target, binding && {
+						...binding,
+						parentSessionId: binding.sessionId
+					});
 				},
 				pause() {
 					return this.setPaused(true);
@@ -7318,23 +7354,35 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 				unpause() {
 					return this.setPaused(false);
 				},
-				setPaused(paused) {
-					return api("/api/agent-pi/stage", this.state.cwd, {
-						method: "POST",
-						body: JSON.stringify({
-							action: "runtime_pause",
-							module: this.state.module,
-							projectId: this.state.projectId,
-							sessionId: this.state.parentSessionId,
-							paused
-						})
-					}).then((result) => {
+				async setPaused(paused) {
+					if (!this.state.monitoring) return;
+					const target = { ...this.state }, generation = this.generation;
+					try {
+						const bound = await this.isBound(target);
+						if (generation !== this.generation || !sameTarget(this.state, target)) return;
+						if (!bound) {
+							this.stop("当前会话已切换绑定，停止本项目监控。");
+							return;
+						}
+						const result = await api("/api/agent-pi/stage", target.cwd, {
+							method: "POST",
+							body: JSON.stringify({
+								action: "runtime_pause",
+								module: target.module,
+								projectId: target.projectId,
+								sessionId: target.parentSessionId,
+								paused
+							})
+						});
+						if (generation !== this.generation || !sameTarget(this.state, target)) return;
 						this.apply(result.runtime);
 						return this.tick();
-					}).catch((error) => {
-						this.state.note = String(error.message || error);
-						this.emit();
-					});
+					} catch (error) {
+						if (generation === this.generation && sameTarget(this.state, target)) {
+							this.state.note = String(error.message || error);
+							this.emit();
+						}
+					}
 				},
 				apply(runtime) {
 					this.state.runtime = runtime || null;
@@ -7345,7 +7393,10 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 					this.emit();
 				},
 				stop(note) {
+					this.generation++;
+					this.sending = false;
 					this.state.monitoring = false;
+					this.state.runtime = null;
 					if (note) this.state.note = note;
 					if (this.timer) {
 						clearIntervalFn(this.timer);
@@ -7353,27 +7404,36 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 					}
 					this.emit();
 				},
-				tick() {
-					if (!this.state.monitoring || this.sending) return Promise.resolve();
+				async tick() {
+					if (!this.state.monitoring || this.sending) return;
 					this.sending = true;
-					const target = { ...this.state };
-					return api("/api/agent-pi/stage", target.cwd, {
-						method: "POST",
-						body: JSON.stringify({
-							action: "runtime_status",
-							module: target.module,
-							projectId: target.projectId,
-							sessionId: target.parentSessionId
-						})
-					}).then((result) => {
-						if (this.state.parentSessionId !== target.parentSessionId || this.state.projectId !== target.projectId) return;
+					const target = { ...this.state }, generation = this.generation;
+					try {
+						const bound = await this.isBound(target);
+						if (generation !== this.generation || !sameTarget(this.state, target)) return;
+						if (!bound) {
+							this.stop("当前会话已切换绑定，停止本项目监控。");
+							return;
+						}
+						const result = await api("/api/agent-pi/stage", target.cwd, {
+							method: "POST",
+							body: JSON.stringify({
+								action: "runtime_status",
+								module: target.module,
+								projectId: target.projectId,
+								sessionId: target.parentSessionId
+							})
+						});
+						if (generation !== this.generation || !sameTarget(this.state, target)) return;
 						this.apply(result.runtime);
-					}).catch((error) => {
-						this.state.note = String(error.message || error);
-						this.emit();
-					}).finally(() => {
-						this.sending = false;
-					});
+					} catch (error) {
+						if (generation === this.generation && sameTarget(this.state, target)) {
+							this.state.note = String(error.message || error);
+							this.emit();
+						}
+					} finally {
+						if (generation === this.generation) this.sending = false;
+					}
 				}
 			};
 		}
@@ -8476,6 +8536,97 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 @media(max-width:600px){.ap-depth-fields{grid-template-columns:1fr}.ap-depth-modal{padding:20px}}
 `;
 		//#endregion
+		//#region src/client/tender-response-panel.js
+		const tenderResponseCss = `
+.ap-tender-response{border:1px solid var(--border,#d5dae1);border-radius:10px;margin:16px 0;padding:16px;min-width:0;color:var(--text-primary,#273240);font-size:13px}.ap-tender-response h3{font-size:15px;margin:0 0 10px}.ap-tender-response p{margin:6px 0;line-height:1.6;overflow-wrap:anywhere}.ap-tender-response-counts{display:flex;flex-wrap:wrap;gap:6px 16px}.ap-tender-response-muted{color:var(--text-secondary,#687280)}.ap-tender-response-scroll{max-width:100%;overflow:auto;margin-top:12px}.ap-tender-response table{border-collapse:collapse;width:100%;min-width:680px;table-layout:fixed}.ap-tender-response th,.ap-tender-response td{text-align:left;vertical-align:top;padding:10px;border-bottom:1px solid var(--border,#d5dae1);overflow-wrap:anywhere}.ap-tender-response th{background:var(--bg-secondary,#f4f6f8)}.ap-tender-response button{font:inherit;text-align:left;padding:5px 8px;border:1px solid var(--border,#d5dae1);border-radius:6px;background:var(--bg-secondary,#f4f6f8);color:inherit;cursor:pointer;max-width:100%;overflow-wrap:anywhere}.ap-tender-response-state{display:inline-block;border-radius:4px;padding:2px 6px;background:var(--bg-secondary,#f4f6f8)}.ap-tender-response-state[data-state=stale],.ap-tender-response-state[data-state=blocked],.ap-tender-response-state[data-state=failed]{color:#a23a2e}.ap-tender-response details{margin-top:8px}.ap-tender-response summary{cursor:pointer}.ap-tender-response-compact{border:0;border-top:1px solid var(--border,#d5dae1);border-radius:0;padding:9px 0 0;margin:10px 0 0}.ap-tender-response-compact h3{font-size:13px;margin-bottom:6px}
+@media(max-width:600px){.ap-tender-response{padding:10px}.ap-tender-response-compact{padding:9px 0 0}}
+`;
+		/** Render the server projection without inferring approval or keeping another task ledger. */
+		function renderTenderResponseCoverage(h, coverage, { locale = "zh", compact = false, onOpenFile, onOpenTask } = {}) {
+			if (!coverage) return null;
+			const zh = !locale.startsWith("en"), t = (cn, en) => zh ? cn : en;
+			const title = t("投标响应对照", "Tender response coverage");
+			if (coverage.error) return h("section", {
+				className: "ap-tender-response",
+				"aria-label": title
+			}, h("h3", null, title), h("p", { role: "alert" }, t("响应记录暂时无法读取：", "Response records could not be read: ") + coverage.error));
+			const states = {
+				unplanned: t("尚无响应计划", "No response plan"),
+				planned: t("已规划", "Planned"),
+				drafted: t("已有成稿", "Draft available"),
+				reviewed: t("当前稿已记录复核", "Current draft review recorded"),
+				needs_review: t("待复核", "Review needed"),
+				stale: t("变更待复核", "Changed; review needed"),
+				blocked: t("存在缺口", "Gaps remain"),
+				ready: t("登记检查已通过", "Registration checks passed"),
+				passed: t("已通过", "Passed"),
+				review: t("待复核", "Review needed"),
+				failed: t("未通过", "Failed")
+			};
+			const state = (value) => h("span", {
+				className: "ap-tender-response-state",
+				"data-state": value
+			}, states[value] || t("待核实", "Unverified"));
+			const link = (item, label) => item?.path && onOpenFile ? h("button", {
+				type: "button",
+				title: [item.path, item.locator].filter(Boolean).join(" · "),
+				onClick: () => onOpenFile(item.path, item.locator)
+			}, label || item.title || item.path) : h("span", { className: "ap-tender-response-muted" }, label || item?.title || t("尚无定位", "No location registered"));
+			const rows = coverage.rows || [], counts = coverage.summary || {};
+			const sourceGaps = coverage.sourceCoverage?.gaps || [];
+			const pending = rows.filter((row) => [
+				"unplanned",
+				"needs_review",
+				"stale",
+				"blocked"
+			].includes(row.status));
+			return h("section", {
+				className: "ap-tender-response" + (compact ? " ap-tender-response-compact" : ""),
+				"aria-label": title,
+				"data-response-revision": coverage.revision,
+				"data-response-project": coverage.projectId
+			}, h("h3", null, title), h("div", { className: "ap-tender-response-counts" }, [
+				[t("要求", "Requirements"), counts.requirements],
+				[t("评分项", "Criteria"), counts.criteria],
+				[t("响应计划", "Response plans"), counts.planned],
+				[t("已有成稿", "Drafts"), counts.drafted],
+				[t("依据登记就绪", "Evidence registered"), counts.evidenced],
+				[t("当前稿已记录复核", "Draft reviews recorded"), counts.reviewed],
+				[t("变更待复核", "Stale responses"), counts.stale],
+				[t("存在缺口", "Blocked responses"), counts.blocked]
+			].map(([label, value]) => h("span", { key: label }, label + " " + (value ?? 0)))), !rows.length && h("p", null, t("尚未登记项目要求。请在主对话中读取招标文件及补遗，形成响应计划。", "No project requirements are registered. Read the tender documents and addenda in the conversation to establish a response plan.")), coverage.sourceCoverage?.complete !== true && h("p", { className: "ap-tender-response-muted" }, t("资料完整性尚未确认；登记项的进展不代表整份标书已覆盖。", "Source completeness is unconfirmed. Progress on registered items does not establish full tender coverage.")), !compact && sourceGaps.map((gap, index) => h("p", {
+				key: "source-" + index,
+				className: "ap-tender-response-muted"
+			}, gap)), compact && pending.slice(0, 2).map((row) => h("p", { key: row.kind + ":" + row.id }, state(row.status), " ", row.title, row.gaps?.[0] ? "：" + row.gaps[0] : "")), compact && pending.length > 2 && h("p", { className: "ap-tender-response-muted" }, t("另有 " + (pending.length - 2) + " 项待处理，详见响应对照。", pending.length - 2 + " more items need attention; see response coverage.")), compact && onOpenTask && h("button", {
+				type: "button",
+				onClick: onOpenTask
+			}, t("查看响应对照", "View response coverage")), !compact && rows.length > 0 && h("div", {
+				className: "ap-tender-response-scroll",
+				tabIndex: 0,
+				role: "region",
+				"aria-label": t("要求、章节、证据和成稿检查", "Requirements, chapters, evidence and draft checks")
+			}, h("table", null, h("thead", null, h("tr", null, ...[
+				t("要求与评分依据", "Requirement and criterion"),
+				t("响应章节与成果", "Response and artifact"),
+				t("材料与工程依据", "Materials and engineering evidence"),
+				t("当前成稿检查", "Current draft checks")
+			].map((label) => h("th", {
+				key: label,
+				scope: "col"
+			}, label)))), h("tbody", null, ...rows.map((row) => h("tr", {
+				key: row.kind + ":" + row.id,
+				"data-response-row": row.id
+			}, h("td", null, h("strong", null, row.title), h("p", null, row.kind === "criterion" ? t("评分项", "Criterion") : t("项目要求", "Requirement"), row.mandatory ? t(" · 必须响应", " · Mandatory response") : "", row.method ? " · " + {
+				pass_fail: t("通过 / 不通过", "Pass / fail"),
+				threshold: t("门槛评分", "Threshold"),
+				weighted: t("加权评分", "Weighted")
+			}[row.method] : "", row.weight !== void 0 ? " · " + row.weight : ""), row.source && h("p", null, link(row.source), row.source.locator && h("span", { className: "ap-tender-response-muted" }, " · " + row.source.locator)), (row.text || row.rubric) && h("details", null, h("summary", null, t("原文与评分细则", "Source text and scoring rules")), row.text && h("p", null, row.text), row.rubric?.text && row.rubric.text !== row.text && h("p", null, row.rubric.text), ...(row.rubric?.points || []).map((point) => h("p", { key: point.id }, point.text, point.evidenceNeeded?.length ? t("；需提供：", "; Evidence needed: ") + point.evidenceNeeded.join("；") : "")), ...(row.rubric?.bands || []).map((band) => h("p", { key: band.id }, band.label, band.score !== void 0 ? t("（规则分档 " + band.score + "）", " (Scoring band " + band.score + ")") : "", "：" + band.text)))), h("td", null, !(row.responses || []).length && state("unplanned"), ...(row.responses || []).map((response) => h("div", { key: response.id }, h("p", null, h("strong", null, response.title)), response.section && h("p", null, response.section), response.generationMode && h("p", { className: "ap-tender-response-muted" }, {
+				reuse: t("原件或既有内容复用", "Reused material"),
+				adapt: t("条件化复用", "Adapted material"),
+				generate: t("项目生成", "Project-specific writing")
+			}[response.generationMode] || response.generationMode), h("p", null, link(response, response.path ? t("查看当前成果", "Open current artifact") : t("尚未关联实际文件", "No actual file linked"))), h("p", null, state(response.status))))), h("td", null, ...(row.responses || []).map((response) => h("div", { key: response.id }, (row.responses || []).length > 1 && h("p", null, response.title), !(response.evidence || []).length && h("p", { className: "ap-tender-response-muted" }, t("尚未登记支持材料", "No supporting material registered")), ...(response.evidence || []).map((item, index) => h("div", { key: index }, h("p", null, link(item), item.locator ? " · " + item.locator : ""), h("p", null, state(item.status)), item.reason && h("p", { className: "ap-tender-response-muted" }, item.reason)))))), h("td", null, state(row.status), ...(row.gaps || []).map((gap, index) => h("p", { key: "gap-" + index }, gap)), ...(row.responses || []).map((response) => response.checks?.length > 0 && h("details", { key: response.id }, h("summary", null, response.title + t(" · 检查依据", " · Check details")), ...response.checks.map((check, index) => h("p", { key: index }, state(check.status), " ", check.message)))))))))), !compact && h("p", { className: "ap-tender-response-muted" }, t("响应计划、成稿、证据和复核分别统计；检查结果不预测得分，也不代替评审或最终提交确认。", "Plans, drafts, evidence and review are counted separately. Checks do not predict scores or replace evaluation and final submission approval.")));
+		}
+		//#endregion
 		//#region src/client/professional-task-summary.js
 		const professionalTaskSummaryCss = `
 .ap-task-summary{border:1px solid var(--border,#d5dae1);border-radius:10px;margin:12px 16px;padding:12px 14px;background:var(--bg-primary,#fff);font-size:13px;color:var(--text-primary,#273240);min-width:0;max-height:min(36vh,320px);overflow:auto;flex-shrink:0}.ap-task-summary-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.ap-task-summary h3{font-size:14px;margin:0 0 6px}.ap-task-summary p{margin:5px 0;line-height:1.55;overflow-wrap:anywhere}.ap-task-summary button,.ap-task-finding button{font:inherit;padding:5px 9px;border:1px solid var(--border,#d5dae1);border-radius:6px;background:var(--bg-secondary,#f4f6f8);color:inherit;cursor:pointer}.ap-task-summary-muted{color:var(--text-secondary,#687280);font-size:12px}.ap-task-summary-facts{display:flex;gap:8px 14px;flex-wrap:wrap}.ap-task-finding{border:1px solid var(--border,#d5dae1);border-radius:8px;margin:10px 0;padding:12px}.ap-task-finding[data-importance=critical]{border-left:3px solid var(--accent,#285c7b)}.ap-task-finding h4{font-size:14px;margin:0 0 7px}.ap-task-finding p{margin:5px 0;line-height:1.55;overflow-wrap:anywhere}.ap-task-finding-sources,.ap-task-finding-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.ap-task-finding a{color:var(--accent,#285c7b)}.ap-task-finding-resolved{opacity:.8}.ap-task-summary pre{white-space:pre-wrap;overflow-wrap:anywhere}.ap-task-summary .ap-task-finding{margin-bottom:0}.ap-task-summary-empty{margin:0;color:var(--text-secondary,#687280)}.ap-task-stage-controls{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.ap-task-stage-review{width:100%;padding:10px;border:1px solid var(--border,#d5dae1);border-radius:8px}.ap-task-stage-review button{margin-right:8px}.ap-task-stage-controls button:disabled{opacity:.5;cursor:default}
@@ -8699,7 +8850,8 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				const task = (taskResult || result)?.task;
 				if (!visible || !task) return null;
 				const model = taskOverviewModel(task);
-				if (!model.objective && !model.questions.length && !model.findings.length && !task.latestRequest && !model.depthEnabled) return null;
+				const responseCoverage = (taskResult || result)?.responseCoverage;
+				if (!model.objective && !model.questions.length && !model.findings.length && !task.latestRequest && !model.depthEnabled && !responseCoverage) return null;
 				const locale = language?.() || "zh", zh = locale.startsWith("zh");
 				const project = binding || (taskResult || result)?.binding || task.binding;
 				const openSource = onOpenSource ? (evidence) => onOpenSource(evidence, sessionId) : void 0;
@@ -8722,7 +8874,11 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 						setResult(next);
 						onTask?.(sessionId, next.task, next.binding);
 					}
-				}), h("div", { className: "ap-task-summary-facts" }, model.currentStep && h("span", null, `${zh ? "正在解决：" : "Current focus: "}${model.currentStep.title}`), model.questions.length > 0 && h("span", null, `${model.questions.length}${zh ? " 个问题待明确" : " questions to clarify"}`), h("span", { className: "ap-task-summary-muted" }, model.depthEnabled ? zh ? "专业深度已启用" : "Professional depth on" : zh ? "基础专业检查" : "Core professional checks")), model.constraints.length > 0 && h("p", { className: "ap-task-summary-muted" }, zh ? "当前约束：" : "Current constraints: ", model.constraints.slice(-3).map((row) => row.text.length > 120 ? row.text.slice(0, 120) + "…" : row.text).join("；"), model.constraints.length > 3 ? zh ? "；更多约束见本次任务。" : "; More in Current task." : ""), model.corrections[0] && h("p", { className: "ap-task-summary-muted" }, zh ? "最近明确修正：" : "Latest explicit correction: ", model.corrections[0].text.length > 160 ? model.corrections[0].text.slice(0, 160) + "…" : model.corrections[0].text), (model.coverage.total > 0 || model.delivery.total > 0) && h("div", { className: "ap-task-summary-facts" }, model.coverage.total > 0 && h("span", null, `${zh ? "资料抽取：" : "Source extraction: "}${model.coverage.parsed}/${model.coverage.total}`), model.coverage.total > 0 && h("span", null, `${zh ? "专业复核：" : "Professional review: "}${model.coverage.reviewed}/${model.coverage.total}`), model.delivery.total > 0 && h("span", null, `${zh ? "成果登记：" : "Registered deliverables: "}${model.delivery.total}`)), ...renderTaskFindings(h, task, locale, openSource, { limit: 3 }), model.findings.length > 3 && h("p", { className: "ap-task-summary-muted" }, `${zh ? "另有 " : "Plus "}${model.findings.length - 3}${zh ? " 项发现，可在本次任务中查看。" : " findings in Current task."}`), model.changes[0]?.summary && h("p", { className: "ap-task-summary-muted" }, `${zh ? "最近调整：" : "Latest adjustment: "}${model.changes[0].summary}`));
+				}), h("div", { className: "ap-task-summary-facts" }, model.currentStep && h("span", null, `${zh ? "正在解决：" : "Current focus: "}${model.currentStep.title}`), model.questions.length > 0 && h("span", null, `${model.questions.length}${zh ? " 个问题待明确" : " questions to clarify"}`), h("span", { className: "ap-task-summary-muted" }, model.depthEnabled ? zh ? "专业深度已启用" : "Professional depth on" : zh ? "基础专业检查" : "Core professional checks")), model.constraints.length > 0 && h("p", { className: "ap-task-summary-muted" }, zh ? "当前约束：" : "Current constraints: ", model.constraints.slice(-3).map((row) => row.text.length > 120 ? row.text.slice(0, 120) + "…" : row.text).join("；"), model.constraints.length > 3 ? zh ? "；更多约束见本次任务。" : "; More in Current task." : ""), model.corrections[0] && h("p", { className: "ap-task-summary-muted" }, zh ? "最近明确修正：" : "Latest explicit correction: ", model.corrections[0].text.length > 160 ? model.corrections[0].text.slice(0, 160) + "…" : model.corrections[0].text), (model.coverage.total > 0 || model.delivery.total > 0) && h("div", { className: "ap-task-summary-facts" }, model.coverage.total > 0 && h("span", null, `${zh ? "资料抽取：" : "Source extraction: "}${model.coverage.parsed}/${model.coverage.total}`), model.coverage.total > 0 && h("span", null, `${zh ? "专业复核：" : "Professional review: "}${model.coverage.reviewed}/${model.coverage.total}`), model.delivery.total > 0 && h("span", null, `${zh ? "成果登记：" : "Registered deliverables: "}${model.delivery.total}`)), renderTenderResponseCoverage(h, responseCoverage, {
+					locale,
+					compact: true,
+					onOpenTask: open ? () => open(sessionId) : void 0
+				}), ...renderTaskFindings(h, task, locale, openSource, { limit: 3 }), model.findings.length > 3 && h("p", { className: "ap-task-summary-muted" }, `${zh ? "另有 " : "Plus "}${model.findings.length - 3}${zh ? " 项发现，可在本次任务中查看。" : " findings in Current task."}`), model.changes[0]?.summary && h("p", { className: "ap-task-summary-muted" }, `${zh ? "最近调整：" : "Latest adjustment: "}${model.changes[0].summary}`));
 			};
 		}
 		//#endregion
@@ -9707,11 +9863,23 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					}, (row.kind === "revocation" ? zh ? "已明确撤销：" : "Explicitly revoked: " : zh ? "修正记录：" : "Correction: ") + row.text)))), model.questions.length > 0 && article("questions", text.unanswered, h(React.Fragment, null, ...model.questions.map((row) => h("div", { key: row.id }, h("p", null, row.question), row.purpose && h("p", { className: "ap-guide-muted" }, row.purpose), row.provider && h("p", { className: "ap-guide-muted" }, zh ? "请在主对话的原生问答卡中回答。" : "Answer in the native question card in the conversation."))), onClose && h("button", { onClick: onClose }, zh ? "在主对话中回答" : "Answer in the conversation"))), h("h3", null, zh ? "围绕目标的发现" : "Findings related to your goal"), task.findings?.length ? renderTaskFindings(h, task, language(), openSource, {
 						includeResolved: true,
 						onOpenChat: onClose
-					}) : h("p", { className: "ap-guide-muted" }, zh ? "实际分析形成的发现会记录在这里，并说明依据、目标影响和下一步。" : "Findings from actual analysis appear here with their sources, impact on the goal and next action."), h(EngineeringPanel, {
+					}) : h("p", { className: "ap-guide-muted" }, zh ? "实际分析形成的发现会记录在这里，并说明依据、目标影响和下一步。" : "Findings from actual analysis appear here with their sources, impact on the goal and next action."), renderTenderResponseCoverage(h, result?.responseCoverage, {
+						locale: language(),
+						compact: true,
+						onOpenTask: () => setTab("responses")
+					}), h(EngineeringPanel, {
 						sessionId,
 						cwd: cwd(),
 						hideEmpty: true
 					}), article("progress", zh ? "实际工作进展" : "Actual work progress", h(React.Fragment, null, model.currentStep && h("p", null, (zh ? "当前重点：" : "Current focus: ") + model.currentStep.title), h("div", { className: "ap-guide-progress" }, h("span", null, (zh ? "资料抽取：" : "Source extraction: ") + model.coverage.parsed + "/" + model.coverage.total), h("span", null, (zh ? "专业复核：" : "Professional review: ") + model.coverage.reviewed + "/" + model.coverage.total), h("span", null, (zh ? "缺失 / 不可读：" : "Missing / unreadable: ") + model.coverage.missing + " / " + model.coverage.unreadable), h("span", null, (zh ? "客户验收：" : "Customer acceptance: ") + model.delivery.accepted + "/" + model.delivery.total)), model.coverage.total === 0 && h("p", { className: "ap-guide-muted" }, zh ? "尚未登记资料检查对象，不推算完成率。" : "No source inspection objects have been registered yet."), h("button", { onClick: () => setTab("plan") }, text.plan), h("button", { onClick: () => setTab("delivery") }, text.delivery))), model.changes.length > 0 && article("changes", zh ? "调整记录" : "Adjustment history", h(React.Fragment, null, ...model.changes.slice(0, 8).map((row) => h("div", { key: row.sequence }, h("p", null, row.summary), row.affectedRefs?.length > 0 && h("p", { className: "ap-guide-muted" }, (zh ? "受影响：" : "Affected: ") + row.affectedRefs.join("、")))))));
+					if (tab === "responses") body = renderTenderResponseCoverage(h, result?.responseCoverage, {
+						locale: language(),
+						onOpenFile: (path, locator) => window.dispatchEvent(new CustomEvent("agent-pi-open-file", { detail: {
+							cwd: cwd(),
+							path,
+							locator
+						} }))
+					}) || h("p", { className: "ap-guide-muted" }, zh ? "当前项目尚未建立投标响应记录，可在主对话中继续。" : "This project has no tender response record yet. Continue in the conversation.");
 					if (tab === "goal") body = h(React.Fragment, null, field("objective", false, true), field("scope", false, true), field("audience"), h("label", null, text.profession, h("select", {
 						value: draft.brief.profession,
 						onChange: (e) => edit("profession", e.target.value)
@@ -9812,6 +9980,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					"aria-label": text.title
 				}, h("header", null, h("h2", null, text.title), onClose ? h("button", { onClick: onClose }, text.close) : null), h("nav", { "aria-label": text.title }, [
 					"overview",
+					...result?.responseCoverage ? ["responses"] : [],
 					"goal",
 					"basis",
 					"plan",
@@ -9822,7 +9991,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					role: "tab",
 					"aria-selected": tab === key,
 					onClick: () => setTab(key)
-				}, text[key]))), h("main", null, h("p", { className: "ap-guide-muted" }, text.reminder), error ? h("p", {
+				}, key === "responses" ? text === labels.zh ? "响应对照" : "Response coverage" : text[key]))), h("main", null, h("p", { className: "ap-guide-muted" }, text.reminder), error ? h("p", {
 					role: "alert",
 					className: "ap-guide-error"
 				}, error) : null, message ? h("p", { role: "status" }, message) : null, conflicts.length > 0 ? h("div", null, h("p", null, conflicts.join("、")), h("button", {
@@ -11233,7 +11402,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		});
 		const MARKUP_RE = /[`*!\[]/;
 		const HTML_SPECIAL_RE = /[&<>"]/;
-		const css = clientCss + professionalDepthCss + taskProcessCss + nativeWorkFilePreviewCss + taskGuideCss + professionalTaskSummaryCss + engineeringPanelCss;
+		const css = clientCss + professionalDepthCss + taskProcessCss + nativeWorkFilePreviewCss + taskGuideCss + professionalTaskSummaryCss + engineeringPanelCss + tenderResponseCss;
 		if (typeof document !== "undefined") {
 			const existing = document.querySelector("style[data-plugin-css=\"dsh-tender-web\"]");
 			if (existing) existing.remove();
@@ -15714,6 +15883,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					module: row.project.module,
 					projectId: row.project.projectId
 				}, monitorParent);
+				else monitorEngine.stop();
 			}, [
 				cwd,
 				row?.project?.module,
@@ -15725,7 +15895,12 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			react.useEffect(() => {
 				setReality(null);
 				setControl(null);
-			}, [selectedId]);
+			}, [
+				selectedId,
+				module,
+				cwd,
+				monitorParent
+			]);
 			react.useEffect(() => {
 				const onMonitor = () => {
 					setMonitorState(Object.assign({}, monitorEngine.state));
@@ -15933,7 +16108,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					sessionStorage.setItem("ap-wb-project", id);
 				} catch {}
 			};
-			const monitoringHere = monitorState.monitoring && row && row.project && monitorState.projectId === row.project.projectId && monitorState.cwd === cwd && monitorState.parentSessionId === monitorParent;
+			const monitoringHere = monitorState.monitoring && row && row.project && monitorState.projectId === row.project.projectId && monitorState.module === row.project.module && sameFilePath(monitorState.cwd, cwd) && monitorState.parentSessionId === monitorParent;
 			const liveActivity = sessionActivity(readSessionListSnap(), monitorState.parentSessionId);
 			const liveActivityText = liveActivity.runningChildCount > 0 ? liveActivity.runningChildCount + " 个子智能体执行中" : liveActivity.parentRunning ? "主对话执行中" : "";
 			const addFiles = () => {
@@ -16087,7 +16262,14 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 						disabled: !!busy,
 						onClick: () => updateRequirement(project, requirement, "dismiss_requirement")
 					}, workbenchText("不属于本项目")) : null));
-				})) : null, h("section", { className: "ap-sec" }, h("div", { className: "ap-mon-hd" }, h("div", { style: { minWidth: 0 } }, h("h2", null, workbenchText("流程监控")), h("p", { className: "ap-sub" }, workbenchText("点「继续推进」明确启动当前阶段。宿主持久记录派工和收件；刷新页面读取同一记录，重启后核对实际回执，遇到人工门、预算或无进展时停止。"))), h("div", { className: "ap-mon-tools" }, h("span", { className: "ap-row" }, h("i", { className: "ap-dot" + (monitoringHere && !monitorState.paused || liveActivityText ? " on" : "") }), !monitoringHere ? liveActivityText || (monitorState.monitoring ? workbenchText("另一项目事务正在运行") : workbenchText("点继续推进后启动当前会话事务")) : (monitorState.runtime?.reason || monitorState.note) + (liveActivityText ? " · " + liveActivityText : "")), h("span", null, workbenchText("检查于 ") + (monitorState.lastCheck ? formatClock(new Date(monitorState.lastCheck).toISOString()) : lastCheck ? formatClock(new Date(lastCheck).toISOString()) : "—")), h("button", {
+				})) : null, renderTenderResponseCoverage(h, item.responseCoverage, {
+					locale: langState.lang,
+					onOpenFile: (path, locator) => window.dispatchEvent(new CustomEvent("agent-pi-open-file", { detail: {
+						cwd,
+						path,
+						locator
+					} }))
+				}), h("section", { className: "ap-sec" }, h("div", { className: "ap-mon-hd" }, h("div", { style: { minWidth: 0 } }, h("h2", null, workbenchText("流程监控")), h("p", { className: "ap-sub" }, workbenchText("点「继续推进」明确启动当前阶段。宿主持久记录派工和收件；刷新页面读取同一记录，重启后核对实际回执，遇到人工门、预算或无进展时停止。"))), h("div", { className: "ap-mon-tools" }, h("span", { className: "ap-row" }, h("i", { className: "ap-dot" + (monitoringHere && !monitorState.paused || liveActivityText ? " on" : "") }), !monitoringHere ? liveActivityText || (monitorState.monitoring ? workbenchText("另一项目事务正在运行") : workbenchText("点继续推进后启动当前会话事务")) : (monitorState.runtime?.reason || monitorState.note) + (liveActivityText ? " · " + liveActivityText : "")), h("span", null, workbenchText("检查于 ") + (monitorState.lastCheck ? formatClock(new Date(monitorState.lastCheck).toISOString()) : lastCheck ? formatClock(new Date(lastCheck).toISOString()) : "—")), h("button", {
 					type: "button",
 					className: "ap-btn",
 					disabled: busy === "check:",

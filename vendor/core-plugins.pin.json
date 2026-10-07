@@ -1,12 +1,15 @@
 {
-  "checkedAt": "2026-10-04",
+  "checkedAt": "2026-10-07",
   "packages": [
     {
       "name": "dshmarket",
-      "version": "1.66.8",
-      "integrity": "sha512-zOYCijI/du6qlcmUbx47aaUv6OM7Z/akIQ8n3f9Q2ihtV3U3sbRI5nG0guS+8npsb/vhA2turyEf9Yblg6LweQ==",
-      "shasum": "e8664121d70e258cfe11469ca70b9c6f85357978",
-      "archiveBytes": 1151091
+      "version": "1.66.9",
+      "integrity": "sha512-av9EZ4+xd1yUpStItqNCM2PpeqrxFNbh+iD2ki+5TrdZbI3HyO2ARel8hK1rdwLHJArMzFVekl+GqM7SSb27iw==",
+      "shasum": "ad3eafd579805bac8e598fbed66c95eaac3f6c02",
+      "archiveBytes": 1179290,
+      "sourceCommit": "e03c7a035596c96b51b47ad2e44209bc6029334d",
+      "publishedAt": "2026-10-05T17:04:08.058Z",
+      "adaptation": "vendor/dshmarket/AGENT-PI-ADAPTATION.json"
     },
     {
       "name": "@anysearch/anysearch-dsh",

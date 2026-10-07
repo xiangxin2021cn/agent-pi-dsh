@@ -59,6 +59,64 @@ function reviewedNonCadPair(path, before, after) {
     [before, after].every((text, index) => createHash('sha256').update(text).digest('hex') === pair[index]))
 }
 
+// The 3.8.0 host added DWG-to-DXF conversion using the existing clean-built
+// LibreDWG worker. This is a reviewed CAD host extension, not a non-CAD change.
+// Native viewer inputs remain unchanged. Pin the entire reviewed integration
+// and dependency closure; any later edit requires another explicit review.
+const reviewed381HostExtension = {
+  shared: {
+    'package.json': [
+      'c81d6358654bd40d0f348c08f4f75d3489e7d59dbe70ddd2bbdc7212bbf8f850',
+      '30d41c1b665ea0edf5a4352644efa39c7a3aad442c035af73bbfbbc656d2ca51',
+    ],
+    'bundles/tender-host/src/http.ts': [
+      'e93ed84a6d37dacd33f965828c59d466d80590f0e307a36783ff367b2ba77c80',
+      '0c34811f56fd41a25f70b33f0ad51cfda4abab102e1e12cb0e1e9d7a79e1539b',
+    ],
+    'bundles/tender-web/src/client/file-preview-overlay.js': [
+      '49ed4551ed5c04265b0b316acd565ab42dacc9fd325f2cba5da068c136d7439a',
+      '87e47703a9fdb44d199b6f992bb9a54dde03a0c21c2f7568fa16b9b0617306d6',
+    ],
+  },
+  files: {
+    'bundles/tender-host/src/cad-convert.ts': '3d570a2cc7358bdf0d2ba7ec101ee4f405e034b3f46f7c386fd55dfc386e465b',
+    'bundles/tender-host/src/cad-convert-worker.mjs': '038872675b5a63b27411a217422a5bd0f8ab71eb789b3d9d89b07f65fd10affc',
+    'bundles/tender-host/package.json': '8095218e5fd0666c7b155c514649bed0c17554ac0a9fc338cc7f75792e92ac55',
+    'bundles/tender-host/package-lock.json': '225b171ab05af68c8581180880cc5ed3aee5e21250ab70f9a0cfdee3c7840ead',
+  },
+}
+
+function reviewedHash(path, text) {
+  if (path === 'package.json') text = text.replace(/("version"\s*:\s*")[^"]+"/, '$1<application-version>"')
+  return createHash('sha256').update(text).digest('hex')
+}
+
+function reviewedHostPair(path, before, after) {
+  const pair = reviewed381HostExtension.shared[path]
+  return pair && [before, after].every((text, index) => reviewedHash(path, text) === pair[index])
+}
+
+function verifyReviewedHostExtension(root, sourceCommit, target) {
+  for (const path of Object.keys(reviewed381HostExtension.shared)) {
+    const before = git(root, ['show', `${sourceCommit}:${path}`])
+    const after = git(root, ['show', `${target}:${path}`])
+    if (!reviewedHostPair(path, before, after)) fail(`reviewed CAD host extension differs: ${path}`)
+  }
+  for (const [path, hash] of Object.entries(reviewed381HostExtension.files)) {
+    const entry = git(root, ['ls-tree', target, '--', path]).trim()
+    if (!entry.startsWith('100644 blob ')) fail(`reviewed CAD host extension missing or mode changed: ${path}`)
+    if (reviewedHash(path, git(root, ['show', `${target}:${path}`])) !== hash) {
+      fail(`reviewed CAD host extension differs: ${path}`)
+    }
+  }
+  return {
+    review: '3.8.1-host-dwg-conversion',
+    nativeViewerBuildInputsUnchanged: true,
+    sharedFileHashes: reviewed381HostExtension.shared,
+    additionalFileHashes: reviewed381HostExtension.files,
+  }
+}
+
 function fail(message) {
   throw new Error(`CAD integration compatibility: ${message}`)
 }
@@ -155,9 +213,16 @@ export function assertCadIntegrationUnchanged({ root, manifest, releaseCommit = 
   }
   const original = inputTree(root, source.commit)
   const current = inputTree(root, target)
+  let usesReviewedHostExtension = false
   const changed = [...new Set([...original.keys(), ...current.keys()])]
     .filter((path) => {
       if (original.get(path) === current.get(path)) return false
+      if (reviewed381HostExtension.shared[path]
+          && original.get(path)?.split(' ').slice(0, 2).join(' ') === current.get(path)?.split(' ').slice(0, 2).join(' ')
+          && reviewedHostPair(path, git(root, ['show', `${source.commit}:${path}`]), git(root, ['show', `${target}:${path}`]))) {
+        usesReviewedHostExtension = true
+        return false
+      }
       // Only the application version may differ. Preserve the original CAD
       // release identity and compare every other byte, including dependencies.
       if (path === 'package.json'
@@ -183,10 +248,14 @@ export function assertCadIntegrationUnchanged({ root, manifest, releaseCommit = 
       return true
     })
   if (changed.length > 0) fail(`CAD inputs changed since ${source.commit}: ${changed.join(', ')}`)
-  if (git(root, ['status', '--porcelain=v1', '--untracked-files=all', '--', ...CAD_INPUT_PATHS]).trim()) {
+  const converterPaths = Object.keys(reviewed381HostExtension.files).filter(path => path.startsWith('bundles/tender-host/src/'))
+  const hasHostConverter = git(root, ['ls-tree', target, '--', ...converterPaths]).trim().length > 0
+  const hostExtension = usesReviewedHostExtension || hasHostConverter ? verifyReviewedHostExtension(root, source.commit, target) : undefined
+  const inputPaths = [...CAD_INPUT_PATHS, ...(hostExtension ? Object.keys(reviewed381HostExtension.files) : [])]
+  if (git(root, ['status', '--porcelain=v1', '--untracked-files=all', '--', ...inputPaths, ...converterPaths]).trim()) {
     fail('CAD inputs have uncommitted changes')
   }
-  return { sourceCommit: source.commit, sourceTree, releaseCommit: target, inputPaths: [...CAD_INPUT_PATHS] }
+  return { sourceCommit: source.commit, sourceTree, releaseCommit: target, inputPaths, ...(hostExtension ? { hostExtension } : {}) }
 }
 
 export function main(args = process.argv.slice(2)) {

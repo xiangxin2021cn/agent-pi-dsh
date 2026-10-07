@@ -4,11 +4,14 @@
  * dist-tag for registry installs — with a TTL cache.
  */
 
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import { DIST_TAG, type Channel } from './channels.ts'
 import { resolveHeadCommit } from './accelerate.ts'
 import { marketFetch } from './net.ts'
 import { activeRegion } from './regions.ts'
-import { profileDir, readGitResolutionCommit, readInstalled, readInstalledVersion, readLockCommits } from './profile.ts'
+import { hasDshManifest, profileDir, readGitResolutionCommit, readInstalled, readInstalledVersion, readLockCommits, readProfileBundles } from './profile.ts'
+import { userPatchPackageReferences } from './patch.ts'
 import { catalogRepoKey, gitCommitOfTarget, gitRefOfTarget, gitUploadPackUrl, hostedRepoKey, githubCommitOfTarget, githubRefOfTarget, isGenerationLink, isGitHostedSpec, lookupRepoFromUrl, repoOfTarget } from './sources.ts'
 
 export interface UpdateStatus {
@@ -28,6 +31,16 @@ export interface UpdateStatus {
    * as "there is an upgrade" and labels a button accordingly.
    */
   updateAvailable: boolean
+  /**
+   * This package is a plain dependency, not a plugin: no `dsh` field, not in
+   * `dsh.profile.bundles`, and no row of the user's own patch loads it
+   * (#793). A newer release can exist and is reported as `latest`, but it is
+   * never `updateAvailable` — the update channel installs a BUNDLE, and
+   * handing it a package with no bundle patch is refused by the host as
+   * `not-bundle` after the run, with a rollback message that reads as though
+   * the profile were damaged when nothing was touched.
+   */
+  notAPlugin?: true
   /** Taking this update replaces a local package source with its matched online release. */
   restoreRequired?: boolean
   /** Independent, explicit source switch offered for verified legacy Git installs. */
@@ -50,6 +63,40 @@ export interface UpdateStatus {
    * channel the user had just left.
    */
   channelSwitch?: string
+}
+
+/**
+ * Whether a direct dependency is a plugin the update channel can apply (#793).
+ *
+ * The update path installs a BUNDLE: it re-adds the package and lets the host
+ * compose its patch. A direct dependency that is only a library or a CLI
+ * (`@mnemon-dev/mnemon` — a `bin` and no `dsh` field) is listed because it is
+ * in `package.json`, and nothing before this asked what it was, so a newer
+ * release made it "updatable" and the click ended in the host's `not-bundle`.
+ *
+ * Three independent facts each count as "this is a plugin", and a package
+ * must have none of them to be left out:
+ *
+ *  - its own manifest declares a `dsh` field;
+ *  - the profile lists it in `dsh.profile.bundles`;
+ *  - a row of the user's own `cordis.patch.yml` loads it by name — a package
+ *    can be a real, working plugin while declaring nothing itself (the
+ *    official `@deepseek-ai/dsh-tools` has no `dsh` field and is loaded by the
+ *    base patch), and treating that as a library would silently stop
+ *    offering its updates.
+ *
+ * Every uncertainty resolves toward "is a plugin": an unreadable patch, an
+ * unreadable manifest, a package that is not installed yet. This only ever
+ * REMOVES an offer, so being unsure has to leave the offer standing — the
+ * old behaviour — rather than hide an update the user wanted.
+ */
+export function isUpdatablePlugin(activeProfileDir: string, name: string, bundles: ReadonlySet<string>): boolean {
+  const dir = join(activeProfileDir, 'node_modules', name)
+  if (!existsSync(join(dir, 'package.json'))) return true
+  if (hasDshManifest(dir)) return true
+  if (bundles.has(name)) return true
+  const references = userPatchPackageReferences(join(activeProfileDir, 'cordis.patch.yml'), name)
+  return references === null || references.length > 0
 }
 
 const UPDATES_TTL_MS = 30 * 60 * 1000
@@ -464,6 +511,14 @@ export async function checkUpdates(
       result[name] = { kind: (spec.startsWith('github:') || isGitHostedSpec(spec)) ? 'github' : 'npm', version, current: null, latest: null, updateAvailable: false }
     }
   }))
+  // A plain dependency can have a newer release; it is just not an update the
+  // market can apply (#793). Judged once, after every branch above has said
+  // what it found, so no source kind (npm, github, git host) can slip past.
+  const composed = new Set(readProfileBundles(activeProfileDir))
+  for (const [name, status] of Object.entries(result)) {
+    if (status.updateAvailable !== true || isUpdatablePlugin(activeProfileDir, name, composed)) continue
+    result[name] = { ...status, updateAvailable: false, notAPlugin: true }
+  }
   updatesCache = { key: cacheKey, at: Date.now(), data: result }
   return result
 }

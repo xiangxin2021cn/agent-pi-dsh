@@ -298,6 +298,40 @@ export declare function parsePrepareNotAllowed(stdout: string, stderr: string): 
  */
 export declare function parsePrepareKey(stdout: string, stderr: string): string | null;
 /**
+ * The allowBuilds key pnpm derives for one ignored build — its own
+ * `allowBuildKeyFromIgnoredBuild`, transcribed.
+ *
+ * pnpm keeps the whole dep path when what follows the name's `@` is not a
+ * semver version (a git remote, a codeload archive, a tarball URL — all of them
+ * contain `:`, `/` or `#`), and collapses to the bare name otherwise. It writes
+ * the result into `allowBuilds` and matches an existing entry against it
+ * verbatim, so the market has to agree with it exactly: a bare name authorizes
+ * a registry dependency and nothing else, while a git dependency is authorized
+ * only by its full `name@git+…#<sha>` dep path.
+ */
+export declare function allowBuildKeyFromIgnoredBuild(depPath: string): string;
+/**
+ * The packages pnpm reported as having their build scripts ignored, each with
+ * the allowBuilds key pnpm itself keys that decision by.
+ *
+ * pnpm prints the dependency's full dep path — `name@git+https://…#<sha>` for
+ * a git source, `name@1.2.3` for a registry one — and `parseIgnoredBuilds`
+ * below has always collapsed both to the bare name. That is right for a
+ * registry dependency and drops the only key a git dependency is authorized
+ * by, which is what left approve-and-retry unable to make progress on one.
+ *
+ * `name` is what the approve-builds route matches its request against; `key`
+ * is the entry to write. They are equal for a registry dependency.
+ *
+ * Entries may also arrive inside pnpm's ndjson error line, where the sentence
+ * is followed by `","code":…`; the walk stops at the first character no dep
+ * path can contain, so the surrounding JSON is not swallowed.
+ */
+export declare function parseIgnoredBuildEntries(stdout: string, stderr: string): Array<{
+    name: string;
+    key: string;
+}>;
+/**
  * Package names pnpm reported as having their build scripts ignored
  * ("Ignored build scripts: esbuild, koffi."). Empty when none.
  * (#6 by @qichuang321.)

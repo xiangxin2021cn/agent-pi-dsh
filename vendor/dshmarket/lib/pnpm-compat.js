@@ -456,6 +456,29 @@ export function classifyPnpmFailure(output, exitCode) {
                 : `插件声明的一个依赖版本范围在 registry 上没有可满足的版本${zh}，通常是该版本被弃用或从未发布 / a dependency of this plugin declared a version range with no matching release on the registry${en} — the range resolves to nothing (withdrawn or never published)`,
         };
     }
+    // #786 follow-up: pnpm could not replace one of the PROFILE's own files —
+    // `package.json` or `pnpm-lock.yaml` — not a package directory.
+    //
+    // pnpm writes both through its bundled `write-file-atomic`, which does ONE
+    // rename and no retry (measured on the bundled 11.7.0: the temp name is
+    // `<file>.<hash>`, e.g. `pnpm-lock.yaml.3015012533`). Any momentary holder —
+    // Defender scanning the just-written file, the Windows indexer, an editor —
+    // fails the entire run. Measured on the reporter's own profile: 4 identical
+    // `add` runs, the 4th failed this way and an immediate 5th succeeded.
+    //
+    // This must be answered BEFORE the package-directory branch below, whose
+    // pattern is broad enough to swallow it: that branch blames the running host
+    // for holding the plugin's files open and tells the user to quit DSH, which
+    // is wrong here (nothing about the plugin is locked) and is the most
+    // expensive advice available for a failure that a plain retry clears.
+    // `recoverable: true` is what lets withHoistRecovery retry it automatically.
+    if (/(?:ERR_PNPM_)?EPERM[^\n]*rename[^\n]*[\\/](?:package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml)\.\d+/i.test(withDecodedPnpmDiagnostics(output))) {
+        return {
+            code: 'profile-file-locked',
+            recoverable: true,
+            message: 'pnpm 替换 profile 自己的文件（package.json / pnpm-lock.yaml）时被 Windows 拒绝了一下——通常是杀毒软件或索引服务正好在读这个刚写完的文件。插件本身没有被占用，重试即可；市场会自动重试一次 / Windows briefly refused pnpm\'s replacement of one of the profile\'s own files (package.json / pnpm-lock.yaml) — usually antivirus or the search indexer reading the file pnpm had just written. Nothing about the plugin is locked; a retry clears it, and the market retries once automatically',
+        };
+    }
     // #389 by @qq1054435284: on Windows, pnpm stages the new version in a
     // sibling `<name>_tmp_<pid>_<n>` directory and renames it over the old one.
     // Windows refuses that rename while any file underneath the target is open,
@@ -484,6 +507,15 @@ export function classifyPnpmFailure(output, exitCode) {
     // pnpm 12 (the native CLI) says it differently and carries no ERR_PNPM_
     // code: `failed to remove existing directory "…" prior to swap: …` — same
     // refused swap over the open directory, so the same answer.
+    //
+    // A Windows EPERM on a PROFILE file is NOT this case, and is answered
+    // separately just above. pnpm's own write-file-atomic performs one rename
+    // with no retry (measured on the bundled 11.7.0), so an antivirus scan, a
+    // file indexer, or any process touching pnpm-lock.yaml for an instant fails
+    // the whole run — after pnpm has already built and linked the new commit.
+    // Reporting that as "the running host holds the plugin's files open" gave the
+    // worst available advice (quit DSH), because the interference is momentary
+    // and the next attempt succeeds.
     if (/ERR_PNPM_EPERM|EPERM: operation not permitted, rename|failed to remove existing directory .* prior to swap/i.test(output)) {
         // Read through the NDJSON reporter like the integrity classifier does:
         // in production this arrives JSON-escaped, so every separator is doubled
@@ -497,7 +529,7 @@ export function classifyPnpmFailure(output, exitCode) {
             code: 'windows-file-locked',
             recoverable: false,
             ...(pkg === undefined ? {} : { pkg }),
-            message: `Windows 不允许替换正在被打开的文件。pnpm 要用新目录替换${zh === '' ? '一个已装好的包' : ` ${pkg}`}，而它的文件正被运行中的 DeepSeek Harness 打开着，改名因此失败，这一步没有生效。\n要注意的是：pnpm 在重试改名之前会尽量把目标目录清掉，所以**被占用文件旁边的内容可能已经被删**——不一定只是「没换成」而已。市场遇到这种失败时不再尝试回滚（同一个改名会撞同一批句柄），而是把 package.json 与 pnpm-lock.yaml 恢复成操作前的样子，并检查原构建的入口是否还在——结论以那次检查为准。\n如果这个包带原生模块（.node 文件，例如 node-hid 这类），那么停用插件、甚至卸载插件都不够：原生模块一旦被加载，在进程退出前都不会释放。刚卸载完立刻重装同一个插件在 Windows 上失败，通常就是这个原因。\n可行的做法：完全退出 DeepSeek Harness（不是刷新页面），重新启动后再操作一次；或退出后在命令行执行。杀毒软件或文件索引临时占用目录也会报同样的错，若都不适用可稍后重试。 / Windows will not replace a file that is open. pnpm tried to swap a new directory over${en === '' ? ' an installed package' : en}, whose files the running DeepSeek Harness holds open, so the rename failed and this step did not apply. Note that pnpm clears as much of the target directory as it can before retrying the rename, so content BESIDE the file it could not remove may already be gone — this is not always only "the swap did not happen". On this failure the market no longer attempts a rollback (the same rename would meet the same open handles); it restores package.json and pnpm-lock.yaml to how they were and then checks whether the previous build still has a loadable entry — that check is the answer. If that package ships a native module (a .node file, node-hid and friends), disabling the plugin — even uninstalling it — is not enough: once a native module is loaded it is not released until the process exits, which is the usual reason reinstalling a plugin right after uninstalling it fails on Windows. What works: quit DeepSeek Harness completely (not a page refresh), start it again, and repeat the operation; or run it from the command line with the app closed. Antivirus or a file indexer holding the directory produces the same error, so a later retry is worth trying if neither applies.`,
+            message: `Windows 不允许替换正在被打开的文件。pnpm 要用新目录替换${zh === '' ? '一个已装好的包' : ` ${pkg}`}，而它的文件正被运行中的 DeepSeek Harness 打开着，改名因此失败，这一步没有生效。\n要注意的是：pnpm 在重试改名之前会尽量把目标目录清掉，所以**被占用文件旁边的内容可能已经被删**——不一定只是「没换成」而已。市场遇到这种失败时不再尝试回滚（同一个改名会撞同一批句柄），而是把 package.json 与 pnpm-lock.yaml 恢复成操作前的样子，并检查原构建的入口是否还在——结论以那次检查为准。\n如果这个包带原生模块（.node 文件，例如 node-hid 这类），那么只停用、甚至卸载插件而不退出程序都不够：原生模块一旦被加载，在进程退出前都不会释放。刚卸载完立刻重装同一个插件在 Windows 上失败，通常就是这个原因。\n注意：这个包被锁住的时候，这个配置下**其他**插件的安装也会一起失败，不只是用到它的那一个。\n可行的做法：完全退出 DeepSeek Harness（不是刷新页面），重新启动后再操作一次；或退出后在命令行执行。如果重启后同一个包又被启动时加载、仍然失败，就先停用加载它的插件，再重启，操作完成后再启用它。杀毒软件或文件索引临时占用目录也会报同样的错，若都不适用可稍后重试。 / Windows will not replace a file that is open. pnpm tried to swap a new directory over${en === '' ? ' an installed package' : en}, whose files the running DeepSeek Harness holds open, so the rename failed and this step did not apply. Note that pnpm clears as much of the target directory as it can before retrying the rename, so content BESIDE the file it could not remove may already be gone — this is not always only "the swap did not happen". On this failure the market no longer attempts a rollback (the same rename would meet the same open handles); it restores package.json and pnpm-lock.yaml to how they were and then checks whether the previous build still has a loadable entry — that check is the answer. If that package ships a native module (a .node file, node-hid and friends), disabling the plugin — even uninstalling it — without quitting is not enough: once a native module is loaded it is not released until the process exits, which is the usual reason reinstalling a plugin right after uninstalling it fails on Windows. While that package is locked, every OTHER plugin operation that has to rewrite packages in this profile fails with it, not only the ones that use it. What works: quit DeepSeek Harness completely (not a page refresh), start it again, and repeat the operation; or run it from the command line with the app closed. If the same package is loaded at startup again and the retry still fails, disable the plugin that loads it, restart, update, and enable it again afterwards. Antivirus or a file indexer holding the directory produces the same error, so a later retry is worth trying if neither applies.`,
         };
     }
     // #83: pnpm replays the WHOLE dependency tree on every add/remove, so a

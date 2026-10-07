@@ -1,3 +1,5 @@
+import { renderTenderResponseCoverage } from './tender-response-panel.js'
+
 export const professionalTaskSummaryCss = `
 .ap-task-summary{border:1px solid var(--border,#d5dae1);border-radius:10px;margin:12px 16px;padding:12px 14px;background:var(--bg-primary,#fff);font-size:13px;color:var(--text-primary,#273240);min-width:0;max-height:min(36vh,320px);overflow:auto;flex-shrink:0}.ap-task-summary-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.ap-task-summary h3{font-size:14px;margin:0 0 6px}.ap-task-summary p{margin:5px 0;line-height:1.55;overflow-wrap:anywhere}.ap-task-summary button,.ap-task-finding button{font:inherit;padding:5px 9px;border:1px solid var(--border,#d5dae1);border-radius:6px;background:var(--bg-secondary,#f4f6f8);color:inherit;cursor:pointer}.ap-task-summary-muted{color:var(--text-secondary,#687280);font-size:12px}.ap-task-summary-facts{display:flex;gap:8px 14px;flex-wrap:wrap}.ap-task-finding{border:1px solid var(--border,#d5dae1);border-radius:8px;margin:10px 0;padding:12px}.ap-task-finding[data-importance=critical]{border-left:3px solid var(--accent,#285c7b)}.ap-task-finding h4{font-size:14px;margin:0 0 7px}.ap-task-finding p{margin:5px 0;line-height:1.55;overflow-wrap:anywhere}.ap-task-finding-sources,.ap-task-finding-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.ap-task-finding a{color:var(--accent,#285c7b)}.ap-task-finding-resolved{opacity:.8}.ap-task-summary pre{white-space:pre-wrap;overflow-wrap:anywhere}.ap-task-summary .ap-task-finding{margin-bottom:0}.ap-task-summary-empty{margin:0;color:var(--text-secondary,#687280)}.ap-task-stage-controls{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.ap-task-stage-review{width:100%;padding:10px;border:1px solid var(--border,#d5dae1);border-radius:8px}.ap-task-stage-review button{margin-right:8px}.ap-task-stage-controls button:disabled{opacity:.5;cursor:default}
 @media(max-width:600px){.ap-task-summary{margin:8px;padding:10px}.ap-task-summary-head{flex-wrap:wrap}}
@@ -127,7 +129,8 @@ export function createProfessionalTaskSummary({ React, api, cwd, language, subsc
     const task = (taskResult || result)?.task
     if (!visible || !task) return null
     const model = taskOverviewModel(task)
-    if (!model.objective && !model.questions.length && !model.findings.length && !task.latestRequest && !model.depthEnabled) return null
+    const responseCoverage = (taskResult || result)?.responseCoverage
+    if (!model.objective && !model.questions.length && !model.findings.length && !task.latestRequest && !model.depthEnabled && !responseCoverage) return null
     const locale = language?.() || 'zh', zh = locale.startsWith('zh')
     const project = binding || (taskResult || result)?.binding || task.binding
     const openSource = onOpenSource ? (evidence)=>onOpenSource(evidence,sessionId) : undefined
@@ -144,6 +147,7 @@ export function createProfessionalTaskSummary({ React, api, cwd, language, subsc
         model.coverage.total>0&&h('span',null,`${zh?'资料抽取：':'Source extraction: '}${model.coverage.parsed}/${model.coverage.total}`),
         model.coverage.total>0&&h('span',null,`${zh?'专业复核：':'Professional review: '}${model.coverage.reviewed}/${model.coverage.total}`),
         model.delivery.total>0&&h('span',null,`${zh?'成果登记：':'Registered deliverables: '}${model.delivery.total}`)),
+      renderTenderResponseCoverage(h,responseCoverage,{locale,compact:true,onOpenTask:open?()=>open(sessionId):undefined}),
       ...renderTaskFindings(h,task,locale,openSource,{limit:3}),
       model.findings.length > 3 && h('p', { className:'ap-task-summary-muted' }, `${zh ? '另有 ' : 'Plus '}${model.findings.length - 3}${zh ? ' 项发现，可在本次任务中查看。' : ' findings in Current task.'}`),
       model.changes[0]?.summary && h('p', { className:'ap-task-summary-muted' }, `${zh ? '最近调整：' : 'Latest adjustment: '}${model.changes[0].summary}`),

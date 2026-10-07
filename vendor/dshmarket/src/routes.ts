@@ -31,7 +31,7 @@ import {
   type PluginCommandRuntime,
 } from './dsh-cli.ts'
 import { packageOfEntryName } from './entry-identity.ts'
-import { addProfileBundle, bundlePatchInsertedIds, dropFromManifest, hasLoadableEntry, holdsNativeAddon, INBOX_BUNDLES, isDshProfileName, profileDir, readDependencyOwners, readGitResolutionCommit, readInstalled, readInstalledManifest, readInstalledPackageName, readInstalledRepoEvidence, readInstalledVersion, readLockCommits, readProfileBundles, readProfileManifestSnapshot, removeProfileBundle, restoreProfileManifest, setAllowBuilds, type ProfileManifestSnapshot } from './profile.ts'
+import { addProfileBundle, bundlePatchInsertedIds, bundlesDroppedFromProfile, declareProfileDependency, dropFromManifest, hasLoadableEntry, holdsNativeAddon, INBOX_BUNDLES, isDshProfileName, profileDir, readDependencyOwners, readGitResolutionCommit, readInstalled, readInstalledManifest, readInstalledPackageName, readInstalledRepoEvidence, readInstalledVersion, readLockCommits, readProfileBundles, readProfileManifestSnapshot, removeProfileBundle, restoreProfileManifest, setAllowBuilds, type ProfileManifestSnapshot } from './profile.ts'
 import { assessProfile, classifyPeer, introducedDuplicateNames, introducedRisks, type CompatibilityRisk } from './compatibility.ts'
 import { runningAgentIds, type AgentsLookup } from './agents.ts'
 import { analyzeProfile, corePackageNames, type DuplicateName } from './check.ts'
@@ -39,8 +39,8 @@ import { applyBundleOrder, mergeOrder, readBundleRules, readBundleStack, validat
 import { applyPreset, deletePreset, listPresets, previewPreset, savePreset } from './presets.ts'
 import { createProfileSnapshot, DEFAULT_MAX_SNAPSHOTS, deleteSnapshot, listSnapshots, restoreSnapshot } from './snapshot.ts'
 import { trialValidate } from './trial.ts'
-import { catalogRepoKey, codeloadAllowBuildsKey, findCatalogEntryForLocal, findInstalledAlias, gitCommitOfTarget, githubCommitOfTarget, githubTargetAtCommit, gitAllowBuildsKey, gitRefOfTarget, gitTargetAtCommit, gitUpdateTarget, hostedRepoKey, lookupRepoFromUrl, pinnedGitAllowBuildsKey, installTargetFor, isGenerationLink, isLocalSpec, NPM_NAME_RE, repoOfTarget, restoreBlockedByWorkspace, restoreTargetForLocal, workspaceProtocolDeps } from './sources.ts'
-import { failureDetail, groupConflictsByOwner, isStaleUpdate, parseIgnoredBuilds, parsePrepareKey, parsePrepareNotAllowed, pnpmBlockedByOpenFiles, pnpmNeverStarted, RELEASE_AGE_OVERRIDE, removeDanglingHostBridge, retargetCollections, validateAddedPlugins, withHoistRecovery } from './install.ts'
+import { catalogRepoKey, codeloadAllowBuildsKey, findCatalogEntryForLocal, findInstalledAlias, gitCommitOfTarget, githubCommitOfTarget, githubTargetAtCommit, gitAllowBuildsKey, gitRefOfTarget, gitTargetAtCommit, gitUpdateTarget, hostedRepoKey, lookupRepoFromUrl, pinnedGitAllowBuildsKey, installTargetFor, isGenerationLink, isLocalSpec, NPM_NAME_RE, repoOfTarget, restoreBlockedByWorkspace, restoreTargetForLocal, sourceFallbackFor, workspaceProtocolDeps } from './sources.ts'
+import { failureDetail, groupConflictsByOwner, isStaleUpdate, parseIgnoredBuildEntries, parseIgnoredBuilds, parsePrepareKey, parsePrepareNotAllowed, pnpmBlockedByOpenFiles, pnpmNeverStarted, RELEASE_AGE_OVERRIDE, removeDanglingHostBridge, retargetCollections, validateAddedPlugins, withHoistRecovery } from './install.ts'
 import { classifyPnpmFailure } from './pnpm-compat.ts'
 import { asChannel, CHANNELS, DIST_TAG, resolveChannel, type Channel } from './channels.ts'
 import {
@@ -50,7 +50,7 @@ import {
 import { resolveRegion } from './region-probe.ts'
 import { acceleratedTarget, resolveHeadCommit } from './accelerate.ts'
 import { updateNotesFor } from './changelog.ts'
-import { checkUpdates, compareVersions, fetchNpmLatest, invalidateUpdates, resolveGitRemoteHead, isUpgrade, latestPublishedRecently, setUpdateRegistry, versionOnChannel } from './updates.ts'
+import { checkUpdates, isUpdatablePlugin, compareVersions, fetchNpmLatest, invalidateUpdates, resolveGitRemoteHead, isUpgrade, latestPublishedRecently, setUpdateRegistry, versionOnChannel } from './updates.ts'
 import { createThemeManager, type LoaderEntry } from './themes.ts'
 import { readJsonBody, sameOrigin, sendJson } from './http.ts'
 import { detectedDebugger, detectedSupervisor, restartAllowed, scheduleRestart, servingPort, trustedRestartRequest, trustedDownloadRequest, type RecoveryHandoffConfig } from './restart.ts'
@@ -282,15 +282,37 @@ function declaresBundle(profileDirectory: string, name: string): boolean {
   }
 }
 
-const prepareRefusals = new Map<string, string | null>()
+/**
+ * The allowBuilds key pnpm itself printed when it refused a build, per package
+ * name — from a prepare refusal that named one, or from an ignored-builds line
+ * that named the dep path.
+ *
+ * This is the most authoritative answer to "which key will pnpm read": it
+ * names the commit the PENDING install is actually fetching, which no spec
+ * derived from the profile can answer during an update.
+ */
+const printedBuildKeys = new Map<string, string | null>()
 
 function blockedBuilds(result: { ignoredBuilds?: unknown; stdout: string; stderr: string }): string[] | undefined {
+  // Record pnpm's own dep path for every ignored build BEFORE deciding what to
+  // report. Both returns below hand back BARE names, so a git plugin whose
+  // build pnpm skipped would otherwise leave the approve-and-retry button with
+  // nothing but the INSTALLED spec to derive a key from. During an update that
+  // spec still carries the OLD pin, so the button re-wrote an entry the profile
+  // already held while pnpm went on naming the new commit, and the banner came
+  // back byte-identical.
+  //
+  // Only entries that name a source are worth recording: a registry dep's dep
+  // path IS its bare name, which the bare entry already authorizes.
+  for (const entry of parseIgnoredBuildEntries(result.stdout, result.stderr)) {
+    if (entry.key !== entry.name) printedBuildKeys.set(entry.name, entry.key)
+  }
   if (Array.isArray(result.ignoredBuilds) && result.ignoredBuilds.length > 0) return result.ignoredBuilds as string[]
   const list = parseIgnoredBuilds(result.stdout, result.stderr)
   if (list.length > 0) return list
   const pending = parsePrepareNotAllowed(result.stdout, result.stderr)
   if (pending === null) return undefined
-  prepareRefusals.set(pending, parsePrepareKey(result.stdout, result.stderr))
+  printedBuildKeys.set(pending, parsePrepareKey(result.stdout, result.stderr))
   return [pending]
 }
 
@@ -1112,6 +1134,27 @@ export function mountMarketRoutes(
     return key === null
       ? null
       : readLockCommits(config.profile, activeProfileDir).get(key) ?? null
+  }
+
+  /**
+   * `spec` pinned to `commit`, keeping any selector it already carries.
+   *
+   * Deliberately not `gitTargetAtCommit`: that one produces a target the HOST
+   * has to accept, so it refuses the `&` that carries a `path:` selector beside
+   * a commit (dsh-cli's target grammar). This value never leaves the profile —
+   * the host still receives the bare floating spec — so the selector can be
+   * preserved here. Measured on pnpm 11.7.0 and 12.4.1: `#<sha>&path:/sub`
+   * resolves to exactly that commit and pnpm writes the floating specifier
+   * back.
+   * @returns the pinned spelling, or the spec itself when it already carries
+   *   exactly this commit.
+   */
+  function pinSpecToCommit(spec: string, commit: string): string {
+    const hash = spec.indexOf('#')
+    if (hash === -1) return `${spec}#${commit}`
+    // Drop a previous commit, keep every other fragment (`path:`, `semver:`).
+    const rest = spec.slice(hash + 1).split('&').filter(part => part !== '' && !/^[0-9a-f]{40}$/i.test(part))
+    return `${spec.slice(0, hash)}#${[commit, ...rest].join('&')}`
   }
 
   function exactGitRollbackTarget(target: string, beforeCommit: string): string | null {
@@ -3786,6 +3829,22 @@ sendJson(response, 200, { updates })
               })
               return
             }
+            // A plain dependency is not something this route can update (#793).
+            // The detection layer no longer offers it, but a queued row, an old
+            // page, or a direct call can still arrive here — and the host's
+            // answer to a package with no bundle patch is `not-bundle` AFTER the
+            // run, followed by a rollback message that reads as though the
+            // profile were damaged. Nothing would have been touched. Refuse
+            // before anything is, and say so. Skipped for a `restore`, which
+            // replaces a local checkout with its catalog source on purpose.
+            if (!restore && !isUpdatablePlugin(activeProfileDir, name, new Set(readProfileBundles(activeProfileDir)))) {
+              logEvent('warn', 'update-refused', `${name}: not a plugin (no dsh field, not in dsh.profile.bundles, no patch row loads it) — nothing was changed`)
+              sendJson(response, 400, {
+                notAPlugin: true,
+                error: `${name} 只是 profile 里的一个普通依赖，不是插件，市场没法更新它。什么都没有改动，也不需要回滚。如果要升级它，请在命令行里用 pnpm 升级。 / ${name} is a plain dependency in this profile, not a plugin, so the market cannot update it. Nothing was changed and nothing needs rolling back. To upgrade it, use pnpm from the command line.`,
+              })
+              return
+            }
             const beforeInstalled = readInstalled(config.profile, activeProfileDir)
             // Re-running add re-resolves the source: git HEAD for github specs,
             // dist-tag latest for registry installs.
@@ -4046,16 +4105,25 @@ sendJson(response, 200, { updates })
             const gitRollbackTarget = beforeCommit === null
               ? null
               : exactGitRollbackTarget(spec, beforeCommit)
-            // A floating git spec makes `add` a no-op: the target is
-            // byte-identical to the specifier already in the manifest, so
-            // pnpm answers "Lockfile is up to date, resolution step is
-            // skipped" and the install never moves (#562). `update <name>`
-            // re-resolves inside the same specifier, which is exactly what a
+            // A floating git spec leaves `add` nothing to change: the target is
+            // byte-identical to the specifier already in the manifest. `update
+            // <name>` re-resolves inside that specifier, which is what a
             // mutable `github:owner/repo` (or `#branch` / `#semver:`) wants.
             // Anything whose target differs from the specifier — npm pins,
             // a de-pinned commit, a rebuilt codeload shortcut, a restore —
             // keeps `add`, because there the new target IS the change.
+            //
+            // ⚠️ The no-op is `pnpm install`'s, not `pnpm add`'s (#786).
+            // Measured on pnpm 11.7.0 against a remote whose HEAD was advanced
+            // between two runs: `pnpm install` answered "Already up to date"
+            // and left the lockfile commit alone, while `pnpm add <that same
+            // specifier>` re-resolved it to the new HEAD. So a host that takes
+            // only `add`/`remove` (#732) can still perform this re-resolve —
+            // and has to be asked that way, because it answers `update` with
+            // exit 127, which is what made every floating-git update fail on
+            // the official desktop profile.
             const reresolveInPlace = isGit && !restore && target === spec
+            const inPlaceUpdate = reresolveInPlace && marketFlags
             // force: the user chose to install a fresh release without the
             // default one-day safety wait; scoped to this single command.
             //
@@ -4065,8 +4133,8 @@ sendJson(response, 200, { updates })
             // the same trade the held-back fresh install already makes: the
             // version the host admits now, with the newer one still offered by
             // the update check.
-            const addArgs = reresolveInPlace
-              ? (force && marketFlags ? ['update', RELEASE_AGE_OVERRIDE, name] : ['update', name])
+            const addArgs = inPlaceUpdate
+              ? (force ? ['update', RELEASE_AGE_OVERRIDE, name] : ['update', name])
               : (force && marketFlags ? ['add', RELEASE_AGE_OVERRIDE, target] : ['add', target])
             // Exact manifest snapshot for failure rollback (#65, #339) — the
             // host can write dependencies AND dsh.profile.bundles before a
@@ -4161,8 +4229,50 @@ sendJson(response, 200, { updates })
                           detail: `更新前的来源 ${spec} 不是受支持的精确回滚目标（${previousVersionZh}），因此自动回滚不可用；需要时请从可信来源手工重新安装先前版本。 / The previous source ${spec} is not a supported exact rollback target (${previousVersionEn}), so automatic rollback is unavailable. Reinstall the prior version manually from a trusted source if needed.`,
                           lockfileBefore: lockfileCapture.snapshot,
                         }
+            // The desktop host names the package a run installed by diffing the
+            // profile manifest before and after pnpm. A floating re-resolve is
+            // sent as the bare remote URL, which pnpm writes back byte-for-byte
+            // — so that diff is empty, and the manager's fallback only
+            // recognises a `name@…` spec, which a bare URL is not. Both reads
+            // therefore come back empty and the run fails as
+            // `ambiguous-install` AFTER pnpm has already re-resolved and built
+            // the new commit (#786 follow-up).
+            //
+            // Declaring the package at the commit already on disk for the
+            // duration of the run gives that diff exactly one entry. pnpm
+            // rewrites the floating specifier as it re-resolves, so the durable
+            // declaration is unchanged; a failed run restores the manifest from
+            // the snapshot above.
+            //
+            // A `#path:` spec needs the local pin instead of the host's exact
+            // rollback target: `gitTargetAtCommit` refuses the `&` that carries
+            // a selector beside a commit, because dsh-cli's target grammar has
+            // no room for it — but this value is never sent to the host, which
+            // still receives the bare floating spec. Measured on pnpm 11.7.0 and
+            // 12.4.1, `#<sha>&path:/sub` resolves to exactly that commit.
+            const pinValue = gitRollbackTarget ?? (hasGitSubpath && beforeCommit !== null
+              ? pinSpecToCommit(spec, beforeCommit)
+              : null)
+            const pinnedForIdentification = reresolveInPlace && !inPlaceUpdate
+              && pinValue !== null && pinValue !== spec
+            if (pinnedForIdentification) {
+              declareProfileDependency(config.profile, name, pinValue, activeProfileDir)
+            }
             const result = await runPlugin(config.profile, addArgs)
             const cancelled = result.cancelled
+            // The pin above is the market's own write, so it is undone whenever
+            // pnpm did not replace it. Measured on pnpm 11.7.0 and 12.4.1, a
+            // bare `add` of a floating git URL rewrites the manifest back to
+            // the floating specifier as it re-resolves, which makes this a
+            // no-op on every normal run. It is the safety net for the runs that
+            // do not: a declaration left pinned to the old commit would
+            // silently freeze a plugin the user believes is floating. Only that
+            // one dependency is touched, so a bundle row the run legitimately
+            // added is left alone.
+            if (pinnedForIdentification
+              && readProfileManifestSnapshot(config.profile, activeProfileDir).dependencies[name] === pinValue) {
+              declareProfileDependency(config.profile, name, spec, activeProfileDir)
+            }
             const rollbackAttemptBuild = async (): Promise<{ ok: boolean; detail: string | null }> => {
               if (rollbackPlan.available) {
                 return executeUpdateRollback(name, manifestBefore, rollbackPlan.source)
@@ -4580,6 +4690,21 @@ sendJson(response, 200, { updates })
             // approve-and-retry banner the install flow has had since #6.
             const ignoredBuilds = ok || cancelled ? undefined : blockedBuilds(result)
             if (ok) clearBrokenPlugin(name)
+            // A package still installed but no longer in dsh.profile.bundles
+            // after this run stops loading and says nothing (#720). The market
+            // does not write that list from anything but the current list, so
+            // this is the host's reconcile or something outside — and either way
+            // it has left no trace until now. Name it, once, with the operation
+            // that was running when it happened. Read-only: the list is also how
+            // the official plugin page switches a package off (#696), so putting
+            // rows back would undo a deliberate removal.
+            const droppedBundles = bundlesDroppedFromProfile(
+              manifestBefore, config.profile, activeProfileDir, new Set([name, ...(removedDeclaration === null ? [] : [removedDeclaration.name])]),
+            )
+            if (droppedBundles.length > 0) {
+              logEvent('warn', 'update-bundles-dropped',
+                `${name}: after this update ${droppedBundles.join(', ')} ${droppedBundles.length === 1 ? 'is' : 'are'} still declared in dependencies but no longer in dsh.profile.bundles, so ${droppedBundles.length === 1 ? 'it' : 'they'} will not load — the market did not write that change (#720)`)
+            }
             logEvent(ok || cancelled ? 'info' : 'error', 'update',
               `${name} -> ${target} exit=${String(result.exitCode)}${result.timedOut ? ' TIMEOUT' : ''}${cancelled ? ' CANCELLED' : ''}${stale ? ` STALE(${staleReason ?? 'unknown'})` : ''}${ok || cancelled ? '' : ` err=${failureDetail(result)}`}`)
             // A user-cancelled run is a quiet outcome, not an error.
@@ -4601,6 +4726,7 @@ sendJson(response, 200, { updates })
               failureCode: versionFailureCode ?? undefined,
               renamedTo: renamedTo ?? undefined,
               removedDeclaration: removedDeclaration ?? undefined,
+              ...(droppedBundles.length > 0 ? { droppedBundles } : {}),
               error: versionFailureError ?? renamedError ?? trialError ?? brokenEntryError ?? hardFailureRollbackError ?? staleError ?? undefined,
               exitCode: result.exitCode,
               timedOut: result.timedOut,
@@ -5091,17 +5217,19 @@ sendJson(response, 200, { updates })
             return pinnedKey === null ? [stable] : [stable, pinnedKey]
           }
           /**
-           * The allowBuilds key pnpm itself printed when it refused to prepare
-           * this package, as an array (empty when it printed none).
+           * The allowBuilds key pnpm itself printed when it refused this
+           * package's build, as an array (empty when it printed none).
            *
            * This is the most authoritative answer to "which key will pnpm
            * read": it names the commit the PENDING install actually fetches.
            * The installed spec cannot answer that for an update — it still
            * carries the OLD pin, so `buildKeys` derives a key the profile
-           * already holds, and the retry fails byte-identically.
+           * already holds, and the retry fails byte-identically. Recorded for
+           * an ignored build as well as a prepare refusal: both are pnpm
+           * naming the dep path it wants allowlisted.
            */
           const printedKeysFor = (name: string): string[] => {
-            const printed = prepareRefusals.get(name)
+            const printed = printedBuildKeys.get(name)
             return printed === null || printed === undefined ? [] : [printed]
           }
           for (const name of requested) {
@@ -5143,7 +5271,7 @@ sendJson(response, 200, { updates })
             // must add to them, never replace them. The bare name authorizes
             // it on pnpm 10.26+ and 11.0–11.5; the key pnpm printed, when it
             // printed one, is what the others match.
-            const refused = prepareRefusals.has(name)
+            const refused = printedBuildKeys.has(name)
             const printedKeys = printedKeysFor(name)
             if (keys.length > 0 || refused) {
               packages.push(name, ...keys, ...printedKeys)
@@ -5713,6 +5841,28 @@ sendJson(response, 200, { updates })
                   target = plainTarget
                   result = await runPlugin(config.profile, ['add', target])
                 }
+              }
+            }
+            // A prebuilt release tarball that pnpm cannot verify (#797). pnpm
+            // 11.0-11.8 writes no `integrity` for a bare release-asset URL
+            // under the hoisted linker every DSH profile uses, so the install
+            // fails before anything is linked — for the ~330 catalog entries
+            // that carry a `tarball`. The same entry installs from its own
+            // GitHub source on that pnpm, so go there ONCE, and only for this
+            // exact failure on this exact target: any other failure keeps its
+            // own diagnosis, and a target that was never the entry's verified
+            // tarball (an npm name, or already `github:`) is left alone.
+            if ((result.exitCode !== 0 || result.timedOut) && !result.cancelled) {
+              const sourceTarget = sourceFallbackFor(entry, target)
+              const failure = sourceTarget === null
+                ? null
+                : classifyPnpmFailure(`${result.stderr}\n${result.stdout}`, result.exitCode)
+              if (sourceTarget !== null && failure?.code === 'missing-tarball-integrity') {
+                logEvent('warn', 'install', `${entry.name}: pnpm could not verify the prebuilt release archive (no integrity recorded) — installing from the GitHub source instead (#797)`)
+                restoreProfileManifest(config.profile, manifestBefore, activeProfileDir)
+                if (lockfileBefore.ok) restoreProfileLockfile(lockfileBefore.snapshot)
+                target = await acceleratedTarget(sourceTarget, region)
+                result = await runPlugin(config.profile, ['add', target])
               }
             }
             const cancelled = result.cancelled

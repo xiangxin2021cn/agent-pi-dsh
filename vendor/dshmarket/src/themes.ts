@@ -9,7 +9,7 @@ import { join } from 'node:path'
 import { loadRegistry, pluginCategories } from './registry.ts'
 import { hotMount, hotUnmount, listHotMounts, writeDisabled } from './hot.ts'
 import { logEvent } from './log.ts'
-import { LifecycleWaitError, waitForLifecycle } from './lifecycle.ts'
+import { LifecyclePendingError, LifecycleWaitError, waitForLifecycle } from './lifecycle.ts'
 import { nameMatchesPackage } from './entry-identity.ts'
 import { bundlePatchInsertedIds, profileDir, readInstalled } from './profile.ts'
 import { repoOf } from './sources.ts'
@@ -148,11 +148,24 @@ export function createThemeManager(
     const previous: { entry: LoaderEntry; disabled: boolean | null | undefined; live: boolean }[] = []
     try {
       let found = false
+      // Whether ANY loader entry was selected, as opposed to whether an update
+      // landed. The log conflated the two (#788): `found` only turns true after
+      // a successful update, so an entry that WAS matched but whose update threw
+      // was reported as "no loader entry matched" — which sent the reporter
+      // looking for a naming bug (#619's shape) in a profile where the match
+      // was fine and the runtime was simply still busy.
+      let matched = false
       for (const entry of matchingEntries(name)) {
+        matched = true
         if (!disabledFlag && uncertainEntries.has(entry)) {
           throw new LifecycleWaitError('loader entry: runtime state is uncertain; retry disabling before enabling')
         }
         if (requireLive) previous.push({ entry, disabled: entry.options.disabled, live: entry.fiber !== undefined })
+        // Whether THIS entry's update landed, so the "-> off/on" line below is
+        // only written for a change that happened. It used to be written after
+        // a thrown update too, reading "off: fiber=true" for an entry that was
+        // still running.
+        let landed = false
         // A disable can land while the entry's init is still in flight: the
         // options flip but the finishing init brings the fiber up anyway, and a
         // plain re-update no-ops on the empty diff. Force the update and verify
@@ -161,11 +174,19 @@ export function createThemeManager(
           try {
             await updateEntry(entry, disabledFlag ? true : null)
             found = true
+            landed = true
           } catch (error) {
             // A strict caller cannot accept an update that did not settle; a
             // pending one is also fatal for a caller that asked to be told.
             if (requireLive || (rejectPending && error instanceof LifecycleWaitError)) throw error
-            logEvent('warn', 'toggle', `${name}: entry update failed — ${error instanceof Error ? error.message : String(error)}`)
+            // "Still pending" is the SAME update that already timed out, not a
+            // new failure: the first `did not settle within 10s` stays in the
+            // log, and every retry that merely bumps into it would otherwise
+            // add a line that reads as one more thing going wrong (#788 — 25 of
+            // them across restarts for one stuck entry).
+            if (!(error instanceof LifecyclePendingError)) {
+              logEvent('warn', 'toggle', `${name}: entry update failed — ${error instanceof Error ? error.message : String(error)}`)
+            }
             break
           }
           const live = entry.fiber !== undefined
@@ -175,10 +196,12 @@ export function createThemeManager(
         if (requireLive && (entry.fiber !== undefined) === disabledFlag) {
           throw new Error(`${name}: loader entry ${disabledFlag ? 'did not stop' : 'did not become live'}`)
         }
-        logEvent('info', 'toggle',
-          `${name} -> ${disabledFlag ? 'off' : 'on'}: fiber=${String(entry.fiber !== undefined)}`)
+        if (landed) {
+          logEvent('info', 'toggle',
+            `${name} -> ${disabledFlag ? 'off' : 'on'}: fiber=${String(entry.fiber !== undefined)}`)
+        }
       }
-      if (!found) logEvent('info', 'toggle', `${name}: no loader entry matched`)
+      if (!matched) logEvent('info', 'toggle', `${name}: no loader entry matched`)
       return found
     } catch (error) {
       // Put back what this call changed, in reverse, and say so when that

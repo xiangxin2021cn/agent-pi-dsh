@@ -5,7 +5,7 @@ description: Clone the format, outline, and content depth of a user-owned templa
 
 # User output template (clone form, not facts)
 
-Default-on bundled skill. A **用户模板** is a document the user already wrote well. This turn's deliverable must match its **format, heading tree, and depth** — not its project facts.
+Default-on bundled skill. First distinguish an employer-mandated form, a user explicitly requested format, and an enterprise reference sample. Match the requested form and depth using this project's facts; a historical sample is not a mandatory tender outline.
 
 This is not 规范 (rules), 合同 (conditions), 范文 (style example), or 方法标准 (how to work). Those stay citable facts. A user template is the **form to reproduce**.
 
@@ -29,14 +29,14 @@ Never invent a template. If none is selected and the user did not point at one, 
 
 1. `kb_search({ slugs })` / `kb_read_chunk` the template slugs. Read the heading tree in order.
 2. Write down, for yourself: heading sequence, numbering style, table layout, what each section covers, and how deep a section goes (paragraph count, table vs prose, annexes).
-3. Open the same outline for THIS job. Keep heading wording unless the employer’s returnable uses different titles — then keep the employer titles but keep the template’s depth and order.
+3. For tenders, follow the employer's mandatory headings, order, limits and returnables. Use a historical enterprise sample for depth and style, reorganizing it around actual requirements and scoring points. If a format explicitly requested by the user conflicts with the tender, explain the conflict and resolve the material choice in the main chat before finalizing.
 4. Fill each heading from **this project’s** sources. Cite `[kb:slug:id]` / `[src:…]` for facts. The template slug is for form, not for inventing numbers.
 
 ## Hard rules
 
 - Clone: page structure, TOC, heading levels, list/table habits, register, how far a section goes.
 - Do not copy: project names, quantities, dates, rates, clause answers, site facts, signatures.
-- Do not flatten a template into a short memo. If the template has 12 chapters, this output has 12 chapters.
+- Preserve the required depth; do not replace a formal submission with a short memo. Copy chapter counts only when the governing format requires them. A historical sample's chapter count must not add irrelevant sections or hide new required responses.
 - Do not paste the template body into chat. Write the new file under Official Outputs.
 - Missing project facts stay gaps. Do not fill them from the template or from memory.
 - Factory 范文 / 方法标准 are not user templates unless the user checked them as 用户模板 or said to clone that file.

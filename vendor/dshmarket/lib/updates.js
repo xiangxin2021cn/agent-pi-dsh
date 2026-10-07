@@ -3,12 +3,51 @@
  * the source of truth — git HEAD for github installs, the npm latest
  * dist-tag for registry installs — with a TTL cache.
  */
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { DIST_TAG } from "./channels.js";
 import { resolveHeadCommit } from "./accelerate.js";
 import { marketFetch } from "./net.js";
 import { activeRegion } from "./regions.js";
-import { profileDir, readGitResolutionCommit, readInstalled, readInstalledVersion, readLockCommits } from "./profile.js";
+import { hasDshManifest, profileDir, readGitResolutionCommit, readInstalled, readInstalledVersion, readLockCommits, readProfileBundles } from "./profile.js";
+import { userPatchPackageReferences } from "./patch.js";
 import { catalogRepoKey, gitCommitOfTarget, gitRefOfTarget, gitUploadPackUrl, hostedRepoKey, githubCommitOfTarget, githubRefOfTarget, isGenerationLink, isGitHostedSpec, lookupRepoFromUrl, repoOfTarget } from "./sources.js";
+/**
+ * Whether a direct dependency is a plugin the update channel can apply (#793).
+ *
+ * The update path installs a BUNDLE: it re-adds the package and lets the host
+ * compose its patch. A direct dependency that is only a library or a CLI
+ * (`@mnemon-dev/mnemon` — a `bin` and no `dsh` field) is listed because it is
+ * in `package.json`, and nothing before this asked what it was, so a newer
+ * release made it "updatable" and the click ended in the host's `not-bundle`.
+ *
+ * Three independent facts each count as "this is a plugin", and a package
+ * must have none of them to be left out:
+ *
+ *  - its own manifest declares a `dsh` field;
+ *  - the profile lists it in `dsh.profile.bundles`;
+ *  - a row of the user's own `cordis.patch.yml` loads it by name — a package
+ *    can be a real, working plugin while declaring nothing itself (the
+ *    official `@deepseek-ai/dsh-tools` has no `dsh` field and is loaded by the
+ *    base patch), and treating that as a library would silently stop
+ *    offering its updates.
+ *
+ * Every uncertainty resolves toward "is a plugin": an unreadable patch, an
+ * unreadable manifest, a package that is not installed yet. This only ever
+ * REMOVES an offer, so being unsure has to leave the offer standing — the
+ * old behaviour — rather than hide an update the user wanted.
+ */
+export function isUpdatablePlugin(activeProfileDir, name, bundles) {
+    const dir = join(activeProfileDir, 'node_modules', name);
+    if (!existsSync(join(dir, 'package.json')))
+        return true;
+    if (hasDshManifest(dir))
+        return true;
+    if (bundles.has(name))
+        return true;
+    const references = userPatchPackageReferences(join(activeProfileDir, 'cordis.patch.yml'), name);
+    return references === null || references.length > 0;
+}
 const UPDATES_TTL_MS = 30 * 60 * 1000;
 const GIT_REMOTE_HEAD_TIMEOUT_MS = 6000;
 let updatesCache = null;
@@ -419,6 +458,15 @@ catalogNpmByRepo = new Map()) {
             result[name] = { kind: (spec.startsWith('github:') || isGitHostedSpec(spec)) ? 'github' : 'npm', version, current: null, latest: null, updateAvailable: false };
         }
     }));
+    // A plain dependency can have a newer release; it is just not an update the
+    // market can apply (#793). Judged once, after every branch above has said
+    // what it found, so no source kind (npm, github, git host) can slip past.
+    const composed = new Set(readProfileBundles(activeProfileDir));
+    for (const [name, status] of Object.entries(result)) {
+        if (status.updateAvailable !== true || isUpdatablePlugin(activeProfileDir, name, composed))
+            continue;
+        result[name] = { ...status, updateAvailable: false, notAPlugin: true };
+    }
     updatesCache = { key: cacheKey, at: Date.now(), data: result };
     return result;
 }

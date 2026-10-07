@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { basename, extname, join, resolve } from 'node:path'
+import { isDeepStrictEqual } from 'node:util'
 import {
   auditTenderWorkspace,
   parseTenderWorkspace,
@@ -40,14 +41,18 @@ import {
   type TenderWorkspace,
 } from '../../../packages/business-core/src/tender/index.ts'
 import { wrapCapabilityParseError } from './capability-schema.ts'
-import { CAPABILITY_FILE_NAMES, SAFE_PROJECT_ID, ensureDir, readJson, tenderDir, writeJson } from './fsutil.ts'
+import { CAPABILITY_FILE_NAMES, SAFE_PROJECT_ID, ensureDir, projectDir, readJson, writeJson } from './fsutil.ts'
 import { looksLikeProductivityFile, registerEnterpriseProductivity } from './productivity-source.ts'
 import { applyReviewedOverlay, readReviewedRates } from './pricing-review.ts'
 
 const ALL_CAPABILITIES = Object.keys(CAPABILITY_FILE_NAMES) as TenderCapabilityId[]
 
-export function workspacePaths(cwd: string, projectId: string) {
-  const dir = tenderDir(cwd, projectId)
+export type TenderWorkspaceModule = 'tender' | 'china-tender'
+
+export function workspacePaths(cwd: string, projectId: string, module: TenderWorkspaceModule = 'tender') {
+  if (!SAFE_PROJECT_ID.test(projectId)) throw new Error('Invalid projectId')
+  if (module !== 'tender' && module !== 'china-tender') throw new Error('Invalid tender workspace module')
+  const dir = projectDir(cwd, module, projectId)
   return {
     dir,
     model: join(dir, 'tender-workspace.json'),
@@ -80,6 +85,7 @@ function refreshCapabilityStaleness(
   projectId: string,
   workspace: TenderWorkspace,
   index: TenderCapabilityIndex,
+  module: TenderWorkspaceModule = 'tender',
 ): TenderCapabilityIndex {
   const revisions = Object.fromEntries(index.capabilities.map((entry) => [entry.capability, entry.revision]))
   return {
@@ -87,7 +93,7 @@ function refreshCapabilityStaleness(
     coreRevision: workspace.revision,
     capabilities: index.capabilities.map((entry) => {
       if (entry.revision === 0) return { ...entry, stale: false }
-      const path = join(workspacePaths(cwd, projectId).packs, `${CAPABILITY_FILE_NAMES[entry.capability]}.json`)
+      const path = join(workspacePaths(cwd, projectId, module).packs, `${CAPABILITY_FILE_NAMES[entry.capability]}.json`)
       if (!existsSync(path)) return { ...entry, stale: true }
       try {
         const envelope = parseTenderCapabilityEnvelope(JSON.parse(readFileSync(path, 'utf8')))
@@ -111,10 +117,10 @@ export function initTenderWorkspace(cwd: string, projectId: string, project: {
   currency?: string
   closingAt?: string
   status?: 'active' | 'submitted' | 'awarded' | 'lost' | 'archived'
-}) {
+}, module: TenderWorkspaceModule = 'tender') {
   if (!SAFE_PROJECT_ID.test(projectId)) throw new Error('Invalid projectId')
   if (project.id !== projectId) throw new Error('project.id must match projectId')
-  const paths = workspacePaths(cwd, projectId)
+  const paths = workspacePaths(cwd, projectId, module)
   if (existsSync(paths.model)) throw new Error(`Tender workspace ${projectId} already exists`)
   ensureDir(paths.dir)
   ensureDir(paths.packs)
@@ -135,8 +141,8 @@ export function initTenderWorkspace(cwd: string, projectId: string, project: {
   return { workspace, audit }
 }
 
-export function loadWorkspace(cwd: string, projectId: string): TenderWorkspace {
-  const paths = workspacePaths(cwd, projectId)
+export function loadWorkspace(cwd: string, projectId: string, module: TenderWorkspaceModule = 'tender'): TenderWorkspace {
+  const paths = workspacePaths(cwd, projectId, module)
   if (!existsSync(paths.model)) throw new Error(`Tender workspace ${projectId} does not exist. Call tender_workspace init first.`)
   return parseTenderWorkspace(JSON.parse(readFileSync(paths.model, 'utf8')))
 }
@@ -145,19 +151,37 @@ export function upsertWorkspaceSection(
   cwd: string,
   projectId: string,
   patch: Partial<Pick<TenderWorkspace, 'documents' | 'requirements' | 'criteria' | 'deliverables' | 'responses' | 'project'>>,
+  options: { trustedResponseState?: boolean; module?: TenderWorkspaceModule } = {},
 ) {
-  const paths = workspacePaths(cwd, projectId)
-  const current = loadWorkspace(cwd, projectId)
+  const module = options.module ?? 'tender'
+  const paths = workspacePaths(cwd, projectId, module)
+  const current = loadWorkspace(cwd, projectId, module)
+  // Only the host's byte-level verification entry point may create review receipts.
+  if (patch.responses && !options.trustedResponseState) {
+    patch = { ...patch, responses: patch.responses.map(response => {
+      const existing = current.responses.find(row => row.id === response.id)
+      return { ...response, dependencySnapshot: existing?.dependencySnapshot, artifactReview: existing?.artifactReview }
+    }) }
+  }
   const next = parseTenderWorkspace({
     ...current,
     ...patch,
     revision: current.revision + 1,
   })
+  if (options.trustedResponseState) {
+    const businessResponses = (workspace: TenderWorkspace) => workspace.responses.map(({ artifactReview, dependencySnapshot, ...response }) => response)
+    // Receipts observe an existing plan; recording one must not invalidate BOQ/strategy packs.
+    // Even trusted callers still advance the core revision when any business field changes.
+    if (isDeepStrictEqual(
+      { ...current, responses: businessResponses(current) },
+      { ...next, revision: current.revision, responses: businessResponses(next) },
+    )) next.revision = current.revision
+  }
   writeJson(paths.model, next)
   const audit = auditTenderWorkspace(next)
   writeJson(paths.audit, audit)
   const storedIndex = readJson<TenderCapabilityIndex>(paths.index, emptyIndex(projectId, next.revision))
-  const index = refreshCapabilityStaleness(cwd, projectId, next, storedIndex)
+  const index = refreshCapabilityStaleness(cwd, projectId, next, storedIndex, module)
   writeJson(paths.index, index)
   return { workspace: next, audit }
 }
@@ -205,8 +229,8 @@ function auditCapability(
   }
 }
 
-function loadPack(cwd: string, projectId: string, capability: TenderCapabilityId): unknown | undefined {
-  const path = join(workspacePaths(cwd, projectId).packs, `${CAPABILITY_FILE_NAMES[capability]}.json`)
+function loadPack(cwd: string, projectId: string, capability: TenderCapabilityId, module: TenderWorkspaceModule = 'tender'): unknown | undefined {
+  const path = join(workspacePaths(cwd, projectId, module).packs, `${CAPABILITY_FILE_NAMES[capability]}.json`)
   if (!existsSync(path)) return undefined
   return parseTenderCapabilityEnvelope(JSON.parse(readFileSync(path, 'utf8'))).data
 }
@@ -216,18 +240,19 @@ export function replaceCapability(
   projectId: string,
   capability: TenderCapabilityId,
   data: unknown,
+  module: TenderWorkspaceModule = 'tender',
 ) {
-  const paths = workspacePaths(cwd, projectId)
-  const workspace = loadWorkspace(cwd, projectId)
+  const paths = workspacePaths(cwd, projectId, module)
+  const workspace = loadWorkspace(cwd, projectId, module)
   let index = existsSync(paths.index)
     ? parseTenderCapabilityIndex(JSON.parse(readFileSync(paths.index, 'utf8')))
     : emptyIndex(projectId, workspace.revision)
-  index = refreshCapabilityStaleness(cwd, projectId, workspace, index)
+  index = refreshCapabilityStaleness(cwd, projectId, workspace, index, module)
 
   let parsed
   try {
     parsed = parseCapabilityData(capability, data)
-    if (capability === 'boq_five_step_pricing') {
+    if (capability === 'boq_five_step_pricing' && module === 'tender') {
       const ledger = readReviewedRates(cwd, projectId)
       if (ledger.items.length > 0) {
         parsed = applyReviewedOverlay(parsed as ReturnType<typeof parseTenderBoqFiveStepPricingData>, ledger)
@@ -237,10 +262,10 @@ export function replaceCapability(
     throw wrapCapabilityParseError(capability, error)
   }
   const upstream: Partial<Record<TenderCapabilityId, unknown>> = {
-    boq_reconciliation: loadPack(cwd, projectId, 'boq_reconciliation'),
-    boq_five_step_pricing: loadPack(cwd, projectId, 'boq_five_step_pricing'),
-    execution_plan: loadPack(cwd, projectId, 'execution_plan'),
-    schedule_resources: loadPack(cwd, projectId, 'schedule_resources'),
+    boq_reconciliation: loadPack(cwd, projectId, 'boq_reconciliation', module),
+    boq_five_step_pricing: loadPack(cwd, projectId, 'boq_five_step_pricing', module),
+    execution_plan: loadPack(cwd, projectId, 'execution_plan', module),
+    schedule_resources: loadPack(cwd, projectId, 'schedule_resources', module),
   }
   const audit = auditCapability(capability, workspace, parsed, index, upstream)
   const current = index.capabilities.find((entry) => entry.capability === capability)
@@ -282,7 +307,7 @@ export function replaceCapability(
   }
   writeJson(join(paths.packs, `${CAPABILITY_FILE_NAMES[capability]}.json`), envelope)
   writeJson(join(paths.packs, `${CAPABILITY_FILE_NAMES[capability]}.audit.json`), audit)
-  index = refreshCapabilityStaleness(cwd, projectId, workspace, index)
+  index = refreshCapabilityStaleness(cwd, projectId, workspace, index, module)
   writeJson(paths.index, index)
   return { envelope, audit, index }
 }
@@ -292,13 +317,14 @@ export function validateCapability(
   projectId: string,
   capability: TenderCapabilityId,
   data: unknown,
+  module: TenderWorkspaceModule = 'tender',
 ) {
-  const paths = workspacePaths(cwd, projectId)
-  const workspace = loadWorkspace(cwd, projectId)
+  const paths = workspacePaths(cwd, projectId, module)
+  const workspace = loadWorkspace(cwd, projectId, module)
   const storedIndex = existsSync(paths.index)
     ? parseTenderCapabilityIndex(JSON.parse(readFileSync(paths.index, 'utf8')))
     : emptyIndex(projectId, workspace.revision)
-  const index = refreshCapabilityStaleness(cwd, projectId, workspace, storedIndex)
+  const index = refreshCapabilityStaleness(cwd, projectId, workspace, storedIndex, module)
   let parsed
   try {
     parsed = parseCapabilityData(capability, data)
@@ -306,22 +332,22 @@ export function validateCapability(
     throw wrapCapabilityParseError(capability, error)
   }
   const upstream: Partial<Record<TenderCapabilityId, unknown>> = {
-    boq_reconciliation: loadPack(cwd, projectId, 'boq_reconciliation'),
-    boq_five_step_pricing: loadPack(cwd, projectId, 'boq_five_step_pricing'),
-    execution_plan: loadPack(cwd, projectId, 'execution_plan'),
-    schedule_resources: loadPack(cwd, projectId, 'schedule_resources'),
+    boq_reconciliation: loadPack(cwd, projectId, 'boq_reconciliation', module),
+    boq_five_step_pricing: loadPack(cwd, projectId, 'boq_five_step_pricing', module),
+    execution_plan: loadPack(cwd, projectId, 'execution_plan', module),
+    schedule_resources: loadPack(cwd, projectId, 'schedule_resources', module),
   }
   const audit = auditCapability(capability, workspace, parsed, index, upstream)
   return { ok: true, parsed, audit, written: false }
 }
 
-export function capabilityStatus(cwd: string, projectId: string, capability?: TenderCapabilityId) {
-  const paths = workspacePaths(cwd, projectId)
-  const workspace = loadWorkspace(cwd, projectId)
+export function capabilityStatus(cwd: string, projectId: string, capability?: TenderCapabilityId, module: TenderWorkspaceModule = 'tender') {
+  const paths = workspacePaths(cwd, projectId, module)
+  const workspace = loadWorkspace(cwd, projectId, module)
   const storedIndex = existsSync(paths.index)
     ? parseTenderCapabilityIndex(JSON.parse(readFileSync(paths.index, 'utf8')))
     : emptyIndex(projectId, workspace.revision)
-  const index = refreshCapabilityStaleness(cwd, projectId, workspace, storedIndex)
+  const index = refreshCapabilityStaleness(cwd, projectId, workspace, storedIndex, module)
   writeJson(paths.index, index)
   if (!capability) return { workspaceRevision: workspace.revision, index }
   const packPath = join(paths.packs, `${CAPABILITY_FILE_NAMES[capability]}.json`)
@@ -378,13 +404,14 @@ export function summarizeCapability(
   projectId: string,
   capability: TenderCapabilityId,
   source: CapabilitySummarySource = {},
+  module: TenderWorkspaceModule = 'tender',
 ) {
-  const paths = workspacePaths(cwd, projectId)
-  const workspace = loadWorkspace(cwd, projectId)
+  const paths = workspacePaths(cwd, projectId, module)
+  const workspace = loadWorkspace(cwd, projectId, module)
   const storedIndex = source.index ?? (existsSync(paths.index)
     ? parseTenderCapabilityIndex(JSON.parse(readFileSync(paths.index, 'utf8')))
     : emptyIndex(projectId, workspace.revision))
-  const index = source.index ?? refreshCapabilityStaleness(cwd, projectId, workspace, storedIndex)
+  const index = source.index ?? refreshCapabilityStaleness(cwd, projectId, workspace, storedIndex, module)
   const entry = index.capabilities.find((item) => item.capability === capability)
   const packPath = join(paths.packs, `${CAPABILITY_FILE_NAMES[capability]}.json`)
   const auditPath = join(paths.packs, `${CAPABILITY_FILE_NAMES[capability]}.audit.json`)
@@ -453,17 +480,18 @@ export function registerProjectSources(
   cwd: string,
   projectId: string,
   input: { title: string; inputPaths: string[] },
+  module: TenderWorkspaceModule = 'tender',
 ) {
   try {
-    initTenderWorkspace(cwd, projectId, { id: projectId, title: input.title, status: 'active' })
+    initTenderWorkspace(cwd, projectId, { id: projectId, title: input.title, status: 'active' }, module)
   } catch {
     // already initialized
   }
-  const current = loadWorkspace(cwd, projectId)
+  const current = loadWorkspace(cwd, projectId, module)
   const byPath = new Map(current.documents.map((doc) => [resolve(doc.path).toLowerCase(), doc]))
   for (const doc of documentsFromInputPaths(input.inputPaths)) {
     byPath.set(resolve(doc.path).toLowerCase(), doc)
   }
-  registerEnterpriseProductivity(cwd, projectId, input.inputPaths)
-  return upsertWorkspaceSection(cwd, projectId, { documents: [...byPath.values()] })
+  if (module === 'tender') registerEnterpriseProductivity(cwd, projectId, input.inputPaths)
+  return upsertWorkspaceSection(cwd, projectId, { documents: [...byPath.values()] }, { module })
 }

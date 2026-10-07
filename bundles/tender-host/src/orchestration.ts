@@ -1,4 +1,5 @@
 import { currentWorkbench } from '../../../packages/business-projects/workbench-registry.ts'
+import { responseCoverageForProject } from './response-coverage.ts'
 import { createHash } from 'node:crypto'
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { existsSync, readFileSync, readdirSync, renameSync, statSync } from 'node:fs'
@@ -989,6 +990,7 @@ export function projectSnapshot(cwd: string, project: BusinessProjectRecord) {
     citationAudit,
     userRequirements,
     workSurface,
+    responseCoverage: responseCoverageForProject(cwd, project),
     execution: latestExecutionForProject(cwd, project, board.currentStageId),
     memory,
     outputs,

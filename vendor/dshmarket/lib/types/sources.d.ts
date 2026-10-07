@@ -182,6 +182,25 @@ export declare function installTargetFor(entry: {
     npm?: unknown;
     tarball?: unknown;
 }): string | null;
+/**
+ * The target to retry with when a prebuilt release tarball could not be
+ * installed — the entry's own GitHub source, which is what it would have
+ * installed from had it carried no `tarball` (#797).
+ *
+ * pnpm 11.0 through 11.8 records NO `integrity` for a bare release-asset URL
+ * under `nodeLinker: hoisted` (measured: 11.7.0 and 11.8.0 fail with
+ * ERR_PNPM_MISSING_TARBALL_INTEGRITY; 11.9.0 onward writes it and installs),
+ * and every DSH profile is hoisted. The same entry installs from `github:` on
+ * the same pnpm, so the fast path is kept where it works and this is where it
+ * degrades to.
+ * @returns the `github:` target, or null when the install target is not this
+ *   entry's own verified release tarball (an npm package, or already source).
+ */
+export declare function sourceFallbackFor(entry: {
+    url: string;
+    npm?: unknown;
+    tarball?: unknown;
+}, target: string): string | null;
 /** True for profile specs that are a local checkout or tarball, not a registry pin. */
 export declare function isLocalSpec(spec: string): boolean;
 export interface HostShorthand {

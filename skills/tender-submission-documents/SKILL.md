@@ -5,6 +5,8 @@ description: Compile formal tender submission documents after tender constructio
 
 # Tender Submission Documents
 
+For requirement-to-chapter drafting and final-file coverage, use `tender-response-writing` and the existing `tender_workspace` response records. Check `response_status` before claiming coverage; retained plans or target scores do not prove the current formal files respond to each point.
+
 Use `tender_capability` as the submission-documents system of record. This skill authors the formal bid deliverables after planning packs are ready; it does not invent new scope or silently change commercial assumptions.
 
 ## Guardrails

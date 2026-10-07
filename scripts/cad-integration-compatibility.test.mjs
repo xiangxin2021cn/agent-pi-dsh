@@ -232,6 +232,70 @@ test('permits exact reviewed 3.7.5 shared files while rejecting later CAD edits 
   }
 })
 
+function reviewedHostFixture(t) {
+  const value = fixture(t)
+  const repository = join(dirname(cli), '..')
+  const shared = ['package.json', 'bundles/tender-host/src/http.ts', 'bundles/tender-web/src/client/file-preview-overlay.js']
+  const added = ['bundles/tender-host/src/cad-convert.ts', 'bundles/tender-host/src/cad-convert-worker.mjs', 'bundles/tender-host/package.json', 'bundles/tender-host/package-lock.json']
+  for (const path of shared) {
+    write(join(value.root, path), execFileSync('git', ['show', `1aef6820ebc450125788158a4b2d1706115cdd10:${path}`], {
+      cwd: repository, encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
+    }))
+  }
+  const source = value.manifest.sources.agentPiDshCadIntegration
+  source.commit = commit(value.root)
+  source.tree = git(value.root, 'rev-parse', 'HEAD^{tree}')
+  const reviewed = new Map([...shared, ...added].map(path => [path, readFileSync(join(repository, path), 'utf8').replaceAll('\r\n', '\n')]))
+  for (const [path, contents] of reviewed) write(join(value.root, path), contents)
+  commit(value.root)
+  return { ...value, reviewed }
+}
+
+test('pins the reviewed DWG host extension separately from the unchanged native viewer build', (t) => {
+  const value = reviewedHostFixture(t)
+  const originalManifest = structuredClone(value.manifest)
+  const proof = assertCadIntegrationUnchanged(value)
+  assert.equal(proof.hostExtension.review, '3.8.1-host-dwg-conversion')
+  assert.equal(proof.hostExtension.nativeViewerBuildInputsUnchanged, true)
+  assert.equal(Object.keys(proof.hostExtension.additionalFileHashes).length, 4)
+  assert.deepEqual(value.manifest, originalManifest)
+  for (const [path, contents] of value.reviewed) {
+    write(join(value.root, path), contents + '\n')
+    commit(value.root)
+    assert.throws(() => assertCadIntegrationUnchanged(value), /CAD inputs changed|reviewed CAD host extension differs/)
+    write(join(value.root, path), contents)
+    commit(value.root)
+  }
+  assert.equal(assertCadIntegrationUnchanged(value).sourceCommit, originalManifest.sources.agentPiDshCadIntegration.commit)
+})
+
+test('rejects dirty, removed and executable converter files after the host extension review', (t) => {
+  const value = reviewedHostFixture(t)
+  const path = 'bundles/tender-host/src/cad-convert-worker.mjs'
+  write(join(value.root, path), value.reviewed.get(path) + '\n')
+  assert.throws(() => assertCadIntegrationUnchanged(value), /uncommitted changes/)
+  write(join(value.root, path), value.reviewed.get(path))
+  git(value.root, 'rm', path)
+  git(value.root, 'commit', '-qm', 'missing converter')
+  assert.throws(() => assertCadIntegrationUnchanged(value), /host extension missing or mode changed/)
+  write(join(value.root, path), value.reviewed.get(path))
+  commit(value.root)
+  git(value.root, 'update-index', '--chmod=+x', path)
+  git(value.root, 'commit', '-qm', 'converter executable bit changed')
+  assert.throws(() => assertCadIntegrationUnchanged(value), /host extension missing or mode changed/)
+})
+
+test('rejects a partial host extension even when an individual shared file hash matches', (t) => {
+  const value = reviewedHostFixture(t)
+  const path = 'bundles/tender-host/src/http.ts'
+  const original = execFileSync('git', ['show', `${value.manifest.sources.agentPiDshCadIntegration.commit}:${path}`], {
+    cwd: value.root, encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  write(join(value.root, path), original)
+  commit(value.root)
+  assert.throws(() => assertCadIntegrationUnchanged(value), /reviewed CAD host extension differs/)
+})
+
 for (const input of CAD_INPUT_PATHS) {
   test(`rejects a committed CAD input change: ${input}`, (t) => {
     const value = fixture(t)

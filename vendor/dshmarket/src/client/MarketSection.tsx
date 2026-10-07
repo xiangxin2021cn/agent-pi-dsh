@@ -3,7 +3,7 @@
  * /dsh-market/* host routes, with install/update/uninstall flows and the
  * pending-restart bookkeeping in sessionStorage.
  */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Button,
@@ -23,6 +23,7 @@ import {
   IconChevronRightOutline14,
   IconChevronUpOutline14,
   IconCheckOutline16,
+  IconCodeOutline16,
   IconCopyOutline16,
   IconCordisPluginOutline14,
   IconDownloadOutline16,
@@ -922,6 +923,48 @@ function CardDesc({ text, t, lines = 5, className, textClassName }: {
   )
 }
 
+type WindowControlsOverlayApi = {
+  visible?: boolean
+  getTitlebarAreaRect: () => { height: number }
+  addEventListener?: (type: 'geometrychange', listener: EventListener) => void
+  removeEventListener?: (type: 'geometrychange', listener: EventListener) => void
+}
+
+/**
+ * Native window controls can own the top band even though DOM hit-testing
+ * still reports the page element underneath. The official Windows desktop
+ * shell has been observed with a 42px band while the lightbox close button
+ * starts at 16px (#384), leaving only its bottom edge clickable.
+ *
+ * Read the shell's geometry instead of hard-coding a desktop height: titlebar
+ * overlays differ between shells, and ordinary browsers have no such API.
+ */
+function useWindowTitlebarHeight(): number {
+  const [height, setHeight] = useState(0)
+  useLayoutEffect(() => {
+    if (typeof navigator === 'undefined') return
+    const overlay = (navigator as Navigator & { windowControlsOverlay?: WindowControlsOverlayApi }).windowControlsOverlay
+    if (overlay?.getTitlebarAreaRect === undefined) return
+
+    const sync = () => {
+      try {
+        if (overlay.visible === false) {
+          setHeight(0)
+          return
+        }
+        const next = overlay.getTitlebarAreaRect().height
+        setHeight(Number.isFinite(next) && next > 0 ? next : 0)
+      } catch {
+        setHeight(0)
+      }
+    }
+    sync()
+    overlay.addEventListener?.('geometrychange', sync)
+    return () => overlay.removeEventListener?.('geometrychange', sync)
+  }, [])
+  return height
+}
+
 /**
  * Full-bleed image preview, opened from a card thumbnail or a dialog's
  * screenshot strip. Not the shared Modal primitive: Modal is chrome for a
@@ -935,6 +978,7 @@ function ScreenshotLightbox({ shots, startIndex, onClose, t }: { shots: string[]
   // disabled with intervalMs = 0. Arrows, dots, and the keyboard still
   // navigate manually.
   const [index, setIndex] = useAutoCarousel(shots.length, startIndex, 0)
+  const titlebarHeight = useWindowTitlebarHeight()
   const host = useMarketPortalHost()
   useEffect(() => {
     // Capture phase + stopPropagation: the Settings dialog underneath is a
@@ -980,7 +1024,12 @@ function ScreenshotLightbox({ shots, startIndex, onClose, t }: { shots: string[]
           version's public type surface doesn't resolve it — `tsc` reports
           "no exported member" even though icons/index.d.ts declares it.
           Not worth a type-check suppression for one close glyph. */}
-      <button className={css.lightboxClose} aria-label={t('lightboxClose')} onClick={onClose}>×</button>
+      <button
+        className={css.lightboxClose}
+        style={titlebarHeight > 0 ? { top: titlebarHeight + 16 } : undefined}
+        aria-label={t('lightboxClose')}
+        onClick={onClose}
+      >×</button>
       <img className={css.lightboxImg} src={shots[index]} alt="" onClick={e => e.stopPropagation()} />
       {shots.length > 1 && (
         <>
@@ -1167,6 +1216,24 @@ function DownloadCount({ plugin, t }: { plugin: RegistryPlugin; t: Translate }) 
   )
 }
 
+/** Monochrome mark for one fact in front of the capability fold. Ink, not a warning colour. */
+function AheadMark({ fact }: { fact: string }) {
+  if (fact === 'dynamic-code') return <IconCodeOutline16 size={16} className={css.capAheadIcon} />
+  if (fact.startsWith('reads credentials')) {
+    return (
+      <svg className={css.capAheadIcon} viewBox="0 0 16 16" width={16} height={16} aria-hidden="true" focusable="false">
+        <circle cx="5.5" cy="8" r="2.25" fill="none" stroke="currentColor" strokeWidth="1.25" />
+        <path d="M7.6 8H13M10.6 8v2M12.4 8v1.4" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+      </svg>
+    )
+  }
+  return (
+    <svg className={css.capAheadIcon} viewBox="0 0 16 16" width={16} height={16} aria-hidden="true" focusable="false">
+      <circle cx="8" cy="8" r="2" fill="currentColor" />
+    </svg>
+  )
+}
+
 /** Circle with a question mark, in the same dark badge and light glyph as the
  * terminal mark below it. */
 function ConfirmCapabilityIcon() {
@@ -1321,11 +1388,80 @@ function ConfirmWarnIcon() {
   )
 }
 
+/**
+ * Whether a red line is one a reader has to weigh BEFORE installing, rather
+ * than a fact about what the plugin does once it runs.
+ *
+ * Two families qualify, for one reason: they happen at install time. There is
+ * no "afterwards" to inspect, so this is the last moment the decision can be
+ * made. The other families — credentials+network above all, 73% of every red
+ * line the catalog holds — describe what plugins normally do, and calling
+ * that urgent is how a warning gets trained away.
+ */
+function redLineIsUrgent(line: string): boolean {
+  return line.startsWith('runs code at install time') || line.startsWith('tampers with a core bundle')
+}
+
+/**
+ * Red lines that name one address: a plaintext http:// host or a literal IP.
+ *
+ * The scanner keeps at most one of each, matched from source text, and many
+ * are schema or documentation URLs inside a bundled library. They stay in the
+ * capability list as sentences instead of standing in front of it.
+ */
+function redLineNamesAddress(line: string): boolean {
+  return line.startsWith('uses plaintext http://') || line.startsWith('uses literal IP ')
+}
+
+/**
+ * Facts shown in front of the capability list: the credentials red line,
+ * any red-line family this build does not know, then dynamic code.
+ *
+ * Each is something the static scan can only point at, not inspect: a secret
+ * leaving over the network, or code that exists only once it runs. A
+ * host-runtime dependency is a package.json declaration, not that, and stays
+ * in the list.
+ */
+/**
+ * The fold's groups: what a capability touches, not how bad it is. A name the
+ * build does not know goes under "other" rather than being dropped.
+ */
+const CAPABILITY_GROUPS: ReadonlyArray<readonly [string, readonly string[]]> = [
+  ['capGroupFiles', ['fs-read', 'fs-write', 'env']],
+  ['capGroupNetwork', ['network', 'llm']],
+  ['capGroupRun', ['shell', 'dynamic-code', 'subagent']],
+  ['capGroupKeys', ['credentials']],
+  ['capGroupHost', ['host-runtime']],
+]
+
+/**
+ * Found in under 15% of the 3844 scanned catalog records (2026-09). A
+ * frequency, stated as one; it says nothing about harm.
+ */
+const UNCOMMON_CAPABILITIES = new Set(['credentials', 'llm', 'dynamic-code', 'host-runtime', 'subagent'])
+
+function groupCapabilities(names: readonly string[]): Array<[string, string[]]> {
+  const known = new Set(CAPABILITY_GROUPS.flatMap(([, members]) => members))
+  const groups: Array<[string, string[]]> = CAPABILITY_GROUPS
+    .map(([key, members]): [string, string[]] => [key, members.filter(name => names.includes(name))])
+    .filter(([, members]) => members.length > 0)
+  const other = names.filter(name => !known.has(name))
+  if (other.length > 0) groups.push(['capGroupOther', other])
+  return groups
+}
+
+function aheadFacts(plugin: { capabilityRedLines?: string[]; capabilities?: string[] }): string[] {
+  const quiet = (plugin.capabilityRedLines ?? []).filter(line => !redLineIsUrgent(line) && !redLineNamesAddress(line))
+  const dynamic = (plugin.capabilities ?? []).includes('dynamic-code') ? ['dynamic-code'] : []
+  return [...quiet, ...dynamic]
+}
+
 /** Install-dialog fold (#739). A gray block, not an outlined frame: the icon
  * stays on the left and the chevron stays on the right, open or closed. */
-function ConfirmFold({ icon, title, open, onToggle, children }: {
+function ConfirmFold({ icon, title, meta, open, onToggle, children }: {
   icon: ReactNode
   title: string
+  meta?: string
   open: boolean
   onToggle: () => void
   children: ReactNode
@@ -1335,6 +1471,7 @@ function ConfirmFold({ icon, title, open, onToggle, children }: {
       <button type="button" className={css.confirmPanelRow} aria-expanded={open} onClick={onToggle}>
         <span className={css.confirmPanelIcon}>{icon}</span>
         <span className={css.confirmPanelTitle}>{title}</span>
+        {meta !== undefined && <span className={css.confirmPanelMeta}>{meta}</span>}
         {open
           ? <IconChevronUpOutline14 size={14} className={css.confirmPanelChevron} />
           : <IconChevronRightOutline14 size={14} className={css.confirmPanelChevron} />}
@@ -2161,8 +2298,9 @@ export function MarketSection(props: MarketSectionProps) {
   /** Install-command disclosure inside the confirm dialog. */
   const [cmdOpen, setCmdOpen] = useState(false)
   const [capsOpen, setCapsOpen] = useState(false)
-  // Both folds belong to one dialog opening; the next plugin starts collapsed
-  // no matter which path closed the previous one (cancel, Esc, install).
+  // The capability list and the install command start closed for each plugin.
+  // The lines in front of them are already visible; opening the list is a
+  // separate question.
   useEffect(() => {
     setCapsOpen(false)
     setCmdOpen(false)
@@ -4742,19 +4880,6 @@ export function MarketSection(props: MarketSectionProps) {
   }
 
   /**
-   * Whether a red line is one a reader has to weigh BEFORE installing, rather
-   * than a fact about what the plugin does once it runs.
-   *
-   * Two families qualify, for one reason: they happen at install time. There is
-   * no "afterwards" to inspect, so this is the last moment the decision can be
-   * made. The other families — credentials+network above all, 73% of every red
-   * line the catalog holds — describe what plugins normally do, and calling
-   * that urgent is how a warning gets trained away.
-   */
-  const redLineIsUrgent = (line: string): boolean =>
-    line.startsWith('runs code at install time') || line.startsWith('tampers with a core bundle')
-
-  /**
    * What the static scan found (#401), in the detail dialog and nowhere else.
    *
    * It used to sit on both cards. It does not any more, for three reasons that
@@ -4765,12 +4890,48 @@ export function MarketSection(props: MarketSectionProps) {
    * dialog leads with the one thing that needs a decision before you press
    * install, and the rest of the facts are one click away.
    *
-   * Which lines count as that one thing is `redLineIsUrgent`, not a guess made
-   * here: a rare rule that fires at install time, never a description of what
-   * plugins normally do.
+   * Which lines count as that one thing is `redLineIsUrgent`: a rare rule that
+   * fires at install time, drawn above everything else. `aheadFacts` follow
+   * as plain sentences in body ink. The closed fold holds every capability,
+   * grouped by what it touches, with the uncommon ones filled and counted in
+   * the fold's title as a frequency, plus the address red lines. The
+   * blind-spot sentence sits under the fold whenever a scan ran, so a dialog
+   * with nothing in front is not read as a clean scan. A plugin never scanned
+   * gets the fold's frame with nothing to open and no blind-spot sentence:
+   * the state is seen without a click, and there is no scan to qualify.
+   * Nothing here scores, bands, or colours a plugin safe.
    */
   const capabilityDetail = (p: RegistryPlugin) => {
     const redLines = p.capabilityRedLines ?? []
+    const ahead = aheadFacts(p)
+    const addresses = redLines.filter(redLineNamesAddress)
+    const names = p.capabilities ?? []
+    const uncommon = names.filter(name => UNCOMMON_CAPABILITIES.has(name)).length
+    const meta = names.length === 0
+      ? undefined
+      : uncommon === 0
+        ? t('capabilityCount').replace('{0}', String(names.length))
+        : t('capabilityCountUncommon').replace('{0}', String(names.length)).replace('{1}', String(uncommon))
+    const chip = (name: string) => {
+      const className = UNCOMMON_CAPABILITIES.has(name) ? `${css.capChip} ${css.capChipUncommon}` : css.capChip
+      return HostTag !== null
+        ? <HostTag key={name} tone="outline" className={className}>{capabilityLabel(name)}</HostTag>
+        : <span key={name} className={className}>{capabilityLabel(name)}</span>
+    }
+    const checkedAt = typeof p.capabilityCheckedAt === 'string' && p.capabilityCheckedAt.length > 0
+      ? p.capabilityCheckedAt.slice(0, 10)
+      : null
+    if (p.capabilities === undefined && redLines.length === 0) {
+      return (
+        <div className={css.confirmPanel} data-state="unchecked">
+          <div className={`${css.confirmPanelRow} ${css.confirmPanelRowStatic}`}>
+            <span className={css.confirmPanelIcon}><ConfirmCapabilityIcon /></span>
+            <span className={css.confirmPanelTitle}>{t('capabilityTitle')}</span>
+            <span className={css.confirmPanelMeta}>{t('capabilityUnchecked')}</span>
+          </div>
+        </div>
+      )
+    }
     return (
       <>
         {redLines.filter(redLineIsUrgent).map(line => (
@@ -4779,32 +4940,53 @@ export function MarketSection(props: MarketSectionProps) {
             {' ' + redLineLabel(line)}
           </p>
         ))}
+        {ahead.length > 0 && (
+          <div className={css.capAhead}>
+            <p className={css.capAheadLabel}>{t('capabilityAhead')}</p>
+            {ahead.map(fact => (
+              <p key={fact} className={css.capAheadRow}>
+                <AheadMark fact={fact} />
+                <span>{fact === 'dynamic-code' ? capabilityLabel(fact) : redLineLabel(fact)}</span>
+              </p>
+            ))}
+          </div>
+        )}
         <ConfirmFold
           icon={<ConfirmCapabilityIcon />}
           title={t('capabilityTitle')}
+          meta={meta}
           open={capsOpen}
           onToggle={() => setCapsOpen(o => !o)}
         >
-          <div className={css.caps}>
-            {p.capabilities === undefined
-              ? <span className={css.capMuted} data-state="unchecked">{t('capabilityUnchecked')}</span>
-              : p.capabilities.length === 0
-                ? <span className={css.capMuted} data-state="none">{t('capabilityNone')}</span>
-                : p.capabilities.map(name => (HostTag !== null
-                    ? <HostTag key={name} tone="outline" className={css.capChip}>{capabilityLabel(name)}</HostTag>
-                    : <span key={name} className={css.capChip}>{capabilityLabel(name)}</span>
-                  ))}
-            {redLines.filter(line => !redLineIsUrgent(line)).map(line => (
-              <span key={line} className={css.capFact}>{redLineLabel(line)}</span>
-            ))}
-          </div>
-          <p className={css.capCaveat}>
-            <span className={css.capCaveatNote}>{t('capabilityNote')}</span>
-            {typeof p.capabilityCheckedAt === 'string' && p.capabilityCheckedAt.length > 0 && (
-              <span className={css.capCaveatAt}>{t('capabilityScannedAt').replace('{0}', p.capabilityCheckedAt.slice(0, 10))}</span>
-            )}
-          </p>
+          {addresses.length > 0 && (
+            <div className={css.caps}>
+              {addresses.map(line => (
+                <span key={line} className={css.capAddress}>{redLineLabel(line)}</span>
+              ))}
+            </div>
+          )}
+          {p.capabilities === undefined
+            ? <div className={css.caps}><span className={css.capMuted} data-state="unchecked">{t('capabilityUnchecked')}</span></div>
+            : p.capabilities.length === 0
+              ? <div className={css.caps}><span className={css.capMuted} data-state="none">{t('capabilityNone')}</span></div>
+              : (
+                  <div className={css.capGroups}>
+                    {groupCapabilities(p.capabilities).map(([key, members]) => (
+                      <Fragment key={key}>
+                        <span className={css.capGroupLabel}>{t(key)}</span>
+                        <div className={css.caps}>{members.map(name => chip(name))}</div>
+                      </Fragment>
+                    ))}
+                  </div>
+                )}
+          {(uncommon > 0 || checkedAt !== null) && (
+            <p className={css.capCaveat}>
+              {uncommon > 0 && <span className={css.capCaveatNote}>{t('capabilityUncommonLegend')}</span>}
+              {checkedAt !== null && <span className={css.capCaveatAt}>{t('capabilityScannedAt').replace('{0}', checkedAt)}</span>}
+            </p>
+          )}
         </ConfirmFold>
+        <p className={css.capNote}>{t('capabilityNote')}</p>
       </>
     )
   }

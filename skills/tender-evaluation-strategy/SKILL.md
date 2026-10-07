@@ -25,6 +25,8 @@ Create one controlled strategy record for every registered evaluation criterion.
 
 ## Workflow
 
+For chapter planning and drafting, also read `tender-response-writing`. Register the published rubric and response chapters with `tender_workspace schema` and `upsert_responses`; use `response_status` to distinguish planning coverage from evidence and current-file review. Evaluation strategy remains a capability pack, not a second chapter ledger.
+
 1. Call `tender_workspace` with `status` for the explicit project ID.
 2. Confirm that the selected source boundary, criteria, linked requirements, scoring methods, weights,
    thresholds, and evidence expectations are registered. Pause for user confirmation when criteria,

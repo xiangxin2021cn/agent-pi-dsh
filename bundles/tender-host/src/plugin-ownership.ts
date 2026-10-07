@@ -9,6 +9,6 @@ export function routeOwner(pathname: string): ProductPluginOwner {
 }
 
 export function toolOwner(name: string): ProductToolOwner {
-  if (['tender_knowledge', 'tender_workspace', 'tender_capability', 'tender_pricing_workbook', 'tender_evidence'].includes(name)) return 'tender'
+  if (['tender_knowledge', 'tender_capability', 'tender_pricing_workbook', 'tender_evidence'].includes(name)) return 'tender'
   return name.startsWith('kb_') ? 'knowledge' : 'workbench'
 }

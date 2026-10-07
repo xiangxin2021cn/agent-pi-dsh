@@ -49,10 +49,32 @@ function entryDirectories(entry: string | undefined): string[] {
   return directories
 }
 
+/**
+ * Where an official Desktop build's runtime can live under Electron's
+ * resources directory.
+ *
+ * Each application root is offered twice: itself, and with one more `dsh/`
+ * level. 0.2.0-rc.2 embeds the whole runtime in a `dsh/` subdirectory INSIDE
+ * `app.asar` — `app.asar/dsh/node_modules/@deepseek-ai/dsh` — while the asar's
+ * own `node_modules/@deepseek-ai/` holds only eight shared libraries. Probing
+ * the root alone therefore found neither the host package nor the in-box
+ * bundles, and every consumer read "no host" (#778): the exported log said
+ * `dsh host: not locatable`, `hostVersion` was null, and "update to a
+ * compatible version" could not pick anything.
+ *
+ * The nested candidate follows its root, so every layout that worked before is
+ * still tried first and still wins. A candidate that does not exist costs one
+ * failed manifest read, and the identity checks downstream
+ * (`readDshManifest`, `flatDesktopHost`) are what decide whether a directory is
+ * a host at all — the nested level adds places to look, not things to trust.
+ */
 function desktopDirectories(): string[] {
   const { resourcesPath } = process as NodeJS.Process & { resourcesPath?: unknown }
   if (typeof resourcesPath !== 'string' || resourcesPath.length === 0) return []
-  return APPLICATION_ROOTS.map(root => join(resourcesPath, root))
+  return APPLICATION_ROOTS.flatMap(root => {
+    const base = join(resourcesPath, root)
+    return [base, join(base, 'dsh')]
+  })
 }
 
 /**

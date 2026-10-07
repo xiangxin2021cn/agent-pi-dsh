@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { TenderWorkspace } from './types.ts';
+import { TenderCriterionRubricSchema, TenderChapterPlanSchema, TenderResponseDependencySnapshotSchema, TenderResponseArtifactReviewSchema, TenderResponseReviewInputSchema } from './response-plan.ts';
 
 const EntityIdSchema = z.string().regex(/^[a-z0-9][a-z0-9._-]{0,79}$/i, 'Entity ID must be filesystem-safe.');
 const DateTimeSchema = z.string().refine(value => value.includes('T') && Number.isFinite(Date.parse(value)), 'Expected an ISO date-time.');
@@ -26,7 +27,7 @@ export const TenderDocumentSchema = z.object({
   issuedAt: DateTimeSchema.optional(),
   sha256: z.string().regex(/^[a-f0-9]{64}$/i).optional(),
   supersedesIds: z.array(EntityIdSchema).default([]),
-  status: z.enum(['active', 'superseded', 'withdrawn']),
+  status: z.enum(['active', 'superseded', 'withdrawn', 'unreadable']),
 });
 
 export const TenderRequirementSchema = z.object({
@@ -51,6 +52,7 @@ export const TenderEvaluationCriterionSchema = z.object({
   source: TenderSourceLocatorSchema,
   evidenceNeeded: z.array(z.string().trim().min(1)).default([]),
   status: z.enum(['open', 'planned', 'covered', 'verified', 'blocked']),
+  rubric: TenderCriterionRubricSchema.optional(),
 }).superRefine((criterion, context) => {
   if (criterion.method === 'weighted' && criterion.weight === undefined) {
     context.addIssue({ code: 'custom', path: ['weight'], message: 'Weighted criteria require a weight.' });
@@ -83,6 +85,9 @@ export const TenderResponsePlanSchema = z.object({
   evidenceArtifacts: z.array(z.string().trim().min(1)).default([]),
   owner: OptionalNonEmptyString,
   status: z.enum(['planned', 'drafting', 'verified', 'blocked']),
+  chapter: TenderChapterPlanSchema.optional(),
+  dependencySnapshot: TenderResponseDependencySnapshotSchema.optional(),
+  artifactReview: TenderResponseArtifactReviewSchema.optional(),
 });
 
 export const TenderWorkspaceSchema = z.object({
@@ -107,6 +112,22 @@ export const TenderWorkspaceSchema = z.object({
 
 export function parseTenderWorkspace(value: unknown): TenderWorkspace {
   return TenderWorkspaceSchema.parse(value) as TenderWorkspace;
+}
+
+export function tenderResponseSchemaHint() {
+  return {
+    criteria: z.toJSONSchema(TenderEvaluationCriterionSchema),
+    responses: z.toJSONSchema(TenderResponsePlanSchema),
+    review: z.toJSONSchema(TenderResponseReviewInputSchema),
+    notes: [
+      'rubric records verbatim criteria and shares the criterion source locator. Do not invent scoring bands.',
+      'chapter.generationMode is reuse | adapt | generate. pointResponses link existing criterionId and rubric pointId.',
+      'chapter.materials record applicability reviews, not independently proven authenticity. Historical samples are not current project facts.',
+      'dependencySnapshot and artifactReview are host-managed. Use capture_response_dependencies and verify_response to record actual file versions.',
+      'Each chapter.pointResponses entry needs its own pointReviews location, supported verdict and note in the current artifact. An overall content review does not prove every rubric point.',
+      'Planning coverage and content review do not certify legal compliance, engineering correctness or final submission acceptance.',
+    ],
+  };
 }
 
 function uniqueEntityArray<T extends z.ZodType<{ id: string }>>(schema: T) {

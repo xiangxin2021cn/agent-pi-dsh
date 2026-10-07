@@ -3,14 +3,20 @@ import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
 import { createServer } from 'node:net'
 
 const root = process.cwd()
+const packagedExe = process.env.AGENT_PI_TASK_GUIDE_SMOKE_EXE ? resolve(process.env.AGENT_PI_TASK_GUIDE_SMOKE_EXE) : ''
+const startupOnly = process.env.AGENT_PI_TASK_GUIDE_SMOKE_STARTUP_ONLY === '1'
+const resources = packagedExe ? join(dirname(packagedExe), 'resources') : ''
+const productRoot = packagedExe ? join(resources, 'runtime', 'product') : root
+const dshRoot = packagedExe ? join(resources, 'runtime', 'deepseek-harness') : join(root, 'vendor', 'deepseek-harness')
+const runtimeNode = packagedExe ? join(resources, 'runtime', 'node', 'node.exe') : process.execPath
 const desktopDir = join(root, 'apps', 'desktop')
-const electronExe = join(desktopDir, 'node_modules', 'electron', 'dist', process.platform === 'win32' ? 'electron.exe' : 'electron')
+const electronExe = packagedExe || join(desktopDir, 'node_modules', 'electron', 'dist', process.platform === 'win32' ? 'electron.exe' : 'electron')
 const pnpmStore = join(root, 'vendor', 'deepseek-harness', 'node_modules', '.pnpm')
 const deadlineMs = Number(process.env.AGENT_PI_WORKBENCH_E2E_MS || 120_000)
 function playwrightEntry() {
@@ -23,7 +29,8 @@ function playwrightEntry() {
 }
 
 assert.ok(existsSync(electronExe), 'Electron executable missing: ' + electronExe)
-assert.ok(existsSync(join(root, 'vendor', 'deepseek-harness', 'apps', 'web', 'dist', 'index.html')), 'DSH web dist is not built')
+assert.ok(existsSync(join(dshRoot, 'apps', 'web', 'dist', 'index.html')), 'DSH web dist is not built')
+assert.ok(existsSync(runtimeNode), 'Runtime Node is missing')
 
 const { _electron: electron } = await import(pathToFileURL(playwrightEntry()).href)
 const scratch = mkdtempSync(join(tmpdir(), 'agent-pi-task-guide-'))
@@ -38,7 +45,7 @@ const officeGatewayPort = await new Promise((resolvePort, reject) => {
   })
 })
 const userDataDir = join(scratch, 'electron-user-data')
-const dshHome = join(scratch, 'dsh-home')
+const dshHome = packagedExe ? join(userDataDir, 'dsh-home') : join(scratch, 'dsh-home')
 const workspace = join(scratch, 'workspace')
 const sourceFile = join(workspace, '项目资料.md')
 const linkedSourceFile = join(workspace, 'workbench-source.txt')
@@ -46,7 +53,7 @@ const reportFile = join(workspace, '工期建议.md')
 const objective = '判断当前施工方案的工期是否可实现，形成给领导决策的建议'
 const priorHumanText = 'longhorizonproof379：预算上限600元，不要改项目原稿。'
 const assistantReply = '我会先核对材料中的工期条件，再整理影响工期判断的约束与待确认事项。'
-const artifactDir = resolve(process.env.AGENT_PI_QA_ARTIFACT_DIR || join(tmpdir(), 'agent-pi-task-guide-ui-3.8.0'))
+const artifactDir = resolve(process.env.AGENT_PI_QA_ARTIFACT_DIR || join(tmpdir(), 'agent-pi-task-guide-ui-3.8.1'))
 mkdirSync(workspace, { recursive: true })
 mkdirSync(artifactDir, { recursive: true })
 writeFileSync(sourceFile, [
@@ -61,7 +68,7 @@ writeFileSync(sourceFile, [
 writeFileSync(reportFile, '# 工期建议\n\n正文和补遗的工期不同，需确认文件优先顺序与实际资源配置。\n', 'utf8')
 writeFileSync(linkedSourceFile, '真实工作台联动回归资料：施工范围与工期需要对照原稿分析，本地测试不涉及真实投标文件。\n', 'utf8')
 const pdfFile = join(workspace, 'qa-drawing.pdf'), cadFile = join(workspace, 'qa-drawing.dxf')
-const hostRequire = createRequire(join(root, 'bundles/tender-host/package.json'))
+const hostRequire = createRequire(join(productRoot, 'bundles/tender-host/package.json'))
 const { PDFDocument } = hostRequire('pdf-lib')
 const pdf = await PDFDocument.create()
 const pdfPage = pdf.addPage([720, 480]); pdfPage.drawText('QA reinforcement note: 4 bars, 6000 mm', { x: 60, y: 240, size: 6 })
@@ -69,11 +76,12 @@ pdf.addPage([720, 480])
 writeFileSync(pdfFile, await pdf.save())
 writeFileSync(cadFile, ['0','SECTION','2','HEADER','9','$ACADVER','1','AC1027','9','$INSUNITS','70','4','0','ENDSEC','0','SECTION','2','ENTITIES','0','LINE','5','1A','8','QA-ROAD','10','0','20','0','30','0','11','6000','21','0','31','0','0','TEXT','5','1B','8','QA-NOTE','10','0','20','200','30','0','40','100','1','QA ROAD 6000mm','0','ENDSEC','0','EOF',''].join('\n'))
 
-const profileInit = spawnSync(process.execPath, [join(root, 'scripts', 'init-tender-profile.mjs')], {
-  cwd: root,
+const profileInit = spawnSync(runtimeNode, [join(productRoot, 'scripts', 'init-tender-profile.mjs')], {
+  cwd: productRoot,
   env: {
     ...process.env,
-    DSH_CHECKOUT: join(root, 'vendor', 'deepseek-harness'),
+    DSH_CHECKOUT: dshRoot,
+    ...(packagedExe ? { AGENT_PI_SKIP_UNIVER_INSTALL: '1' } : {}),
     DSH_HOME: dshHome, AGENT_PI_KB_ROOT: join(dshHome,'knowledge-base'), AGENT_PI_SKILLS_ROOT: join(dshHome,'skills'), AGENT_PI_MODULES_ROOT: join(dshHome,'workbench','modules'), AGENT_PI_QA_WORKSPACE: workspace, AGENT_PI_QA_USER_DATA: userDataDir, AGENT_PI_QA_DESKTOP_MAIN: join(desktopDir,'main.mjs'), OPENAI_API_KEY: '', DEEPSEEK_API_KEY: '',
   },
   encoding: 'utf8',
@@ -102,7 +110,7 @@ writeFileSync(profilePatchPath, profilePatch + [
 
 const qaPlugin=join(scratch,'qa-session.mjs')
 writeFileSync(qaPlugin, `
-import {createMessage,createUserMessage} from ${JSON.stringify(pathToFileURL(join(root,'vendor','deepseek-harness','packages','llm','llm','src','index.ts')).href)};
+import {createMessage,createUserMessage} from ${JSON.stringify(pathToFileURL(join(dshRoot,'packages','llm','llm',packagedExe?'lib':'src',packagedExe?'index.js':'index.ts')).href)};
 export const name='qa-session';
 export const inject=['sessions','sessionPersistence','sessionController','sessionQuery','webServer','tools','agents','taskGuide'];
 export async function apply(ctx) {
@@ -130,6 +138,7 @@ export async function apply(ctx) {
     prior.append('turn/start',{turn:1});
     prior.append('user/message',createUserMessage({content:[{type:'text',text:${JSON.stringify(priorHumanText)}}],source:{kind:'user'}}),{surfaceOp:'append'});
     prior.append('turn/end',{turn:1,reason:{kind:'completed'}});
+    if(id==='qa-prior-context')await ctx.sessionController.rename({sessionId:id,title:'Unbound response QA'});
     await ctx.sessions.flush(prior);
   }
   ctx.webServer.register({kind:'exact',path:'/api/agent-pi/qa-task-tool',async handler(req,res) {
@@ -164,7 +173,7 @@ export async function apply(ctx) {
         if(input.action==='admit')await agent.whenIdle();
         return send(200,{messageId:message.id});
       }
-       if(!['engineering_project','engineering_pdf','engineering_export','cad_read','bim_engine_health','professional_task','professional_depth','tender_project','tender_stage','session_search','session_event_search','session_trace','session_event_trace','session_event_read'].includes(input.tool))throw new Error('Unsupported QA tool');
+       if(!['engineering_project','engineering_pdf','engineering_export','cad_read','bim_engine_health','professional_task','professional_depth','tender_project','tender_stage','tender_workspace','session_search','session_event_search','session_trace','session_event_trace','session_event_read'].includes(input.tool))throw new Error('Unsupported QA tool');
       const result=await agent.ctx.get('tools').execute({callId:'qa-'+Date.now(),name:input.tool,arguments:input.args,agent,signal:new AbortController().signal});
       if(result.isError)throw new Error(JSON.stringify(result.content));
       let value=result.value;
@@ -180,7 +189,7 @@ let electronApp
 let page
 let officeStarted = false
 const qaLoader = join(scratch, 'desktop-loader.mjs')
-writeFileSync(qaLoader, "import {app} from 'electron';import {pathToFileURL} from 'node:url';app.setPath('userData',process.env.AGENT_PI_QA_USER_DATA);await import(pathToFileURL(process.env.AGENT_PI_QA_DESKTOP_MAIN).href)")
+if (!packagedExe) writeFileSync(qaLoader, "import {app} from 'electron';import {pathToFileURL} from 'node:url';app.setPath('userData',process.env.AGENT_PI_QA_USER_DATA);await import(pathToFileURL(process.env.AGENT_PI_QA_DESKTOP_MAIN).href)")
 let processOutput = ''
 const pageErrors = []
 const consoleErrors = []
@@ -267,15 +276,16 @@ async function clickOptional(pattern, timeout = 3_000) {
   if (visible) await button.click()
 }
 
+async function runSmoke() {
 try {
   electronApp = await electron.launch({
     executablePath: electronExe,
-    args: ['--user-data-dir=' + userDataDir, qaLoader],
-    cwd: root,
+    args: ['--user-data-dir=' + userDataDir, ...packagedExe ? [] : [qaLoader]],
+    cwd: packagedExe ? dirname(packagedExe) : root,
     env: {
       ...process.env,
       AGENT_PI_DSH_FORCE_COLD_START: '1',
-      DSH_CHECKOUT: join(root, 'vendor', 'deepseek-harness'),
+      DSH_CHECKOUT: dshRoot,
       DSH_HOME: dshHome,
       ELECTRON_DISABLE_SECURITY_WARNINGS: 'true', AGENT_PI_KB_ROOT: join(dshHome,'knowledge-base'), AGENT_PI_SKILLS_ROOT: join(dshHome,'skills'), AGENT_PI_MODULES_ROOT: join(dshHome,'workbench','modules'), AGENT_PI_QA_WORKSPACE: workspace, AGENT_PI_QA_USER_DATA: userDataDir, AGENT_PI_QA_DESKTOP_MAIN: join(desktopDir,'main.mjs'), OPENAI_API_KEY: '', DEEPSEEK_API_KEY: '',
     },
@@ -288,7 +298,11 @@ try {
   electronProcess.stdout?.on('data', rememberOutput)
   electronProcess.stderr?.on('data', rememberOutput)
 
-  assert.equal(await electronApp.evaluate(({app})=>app.getPath('userData')),userDataDir);
+  const identity=await electronApp.evaluate(({app})=>({userData:app.getPath('userData'),isPackaged:app.isPackaged,version:app.getVersion(),resourcesPath:process.resourcesPath,exe:process.execPath,appPath:app.getAppPath()}))
+  assert.equal(resolve(identity.userData),resolve(userDataDir))
+  assert.equal(identity.isPackaged,!!packagedExe)
+  if(packagedExe){assert.equal(resolve(identity.exe).toLowerCase(),packagedExe.toLowerCase());assert.equal(resolve(identity.resourcesPath).toLowerCase(),resources.toLowerCase())}
+  writeFileSync(join(artifactDir,'runtime-identity.json'),JSON.stringify(identity,null,2),'utf8')
   page = await electronApp.firstWindow({ timeout: deadlineMs })
   page.on('websocket', observeSessionSnapshots)
   page.on('pageerror', error => {
@@ -302,6 +316,14 @@ try {
     errorDetails.push({kind:'console', text:message.text(), location:message.location(), ...diagnosticTime()})
   })
   page.on('requestfailed', request => requestFailures.push({url:request.url(), method:request.method(), resourceType:request.resourceType(), error:request.failure()?.errorText, ...diagnosticTime()}))
+  page.on('response', async response => {
+    if (response.status() < 400 || !response.url().includes('/api/agent-pi/')) return
+    const at=diagnosticTime(),request=response.request()
+    try {
+      const body=request.postDataJSON() || {},result=await response.json()
+      errorDetails.push({kind:'http',url:response.url(),status:response.status(),action:body.action,module:body.module,projectId:body.projectId,stageId:body.stageId,sessionId:body.sessionId,error:result.error,...at})
+    } catch (error) { errorDetails.push({kind:'http',url:response.url(),status:response.status(),diagnosticError:String(error.message || error),...at}) }
+  })
   page.on('dialog', (dialog) => dialog.accept())
   await page.waitForURL(
     (url) => url.protocol === 'http:' && (url.hostname === '127.0.0.1' || url.hostname === 'localhost'),
@@ -350,6 +372,15 @@ try {
   const capabilityFlags=await request('/api/agent-pi/capabilities')
   assert.equal(capabilityFlags.taskGuide,true,'native task plugin must actually be active')
   assert.equal(capabilityFlags.workbench,true,'existing workbench plugin remains active')
+  if(startupOnly){
+    const task=await runTool('professional_task',{action:'status'})
+    assert.equal(task.task.sessionId,'qa-guided-task')
+    assert.deepEqual(pageErrors,[]);assert.deepEqual(consoleErrors,[])
+    const startup={status:'ok',scope:'startup-only',identity,productRoot,dshRoot,runtimeNode,title:await page.title(),checks:['isolated-user-data','actual-executable-identity','actual-runtime-profile','real-task-plugin-tool','visible-native-session','no-render-errors']}
+    writeFileSync(join(artifactDir,'packaged-startup.json'),JSON.stringify(startup,null,2),'utf8')
+    await page.screenshot({path:join(artifactDir,'packaged-startup.png'),fullPage:true})
+    console.log(JSON.stringify(startup));return
+  }
   const history=await runTool('session_search',{query:'longhorizonproof379',session_ids:['qa-prior-context','qa-other-workspace'],event_types:['user/message']})
   assert.match(history.text,/qa-prior-context/)
   assert.doesNotMatch(history.text,/qa-other-workspace/,'official history search enforces the actual caller workspace')
@@ -856,6 +887,83 @@ try {
   assert.match(await knowledgeCard.innerText(),/旧引用继续定位旧版本/)
   await page.screenshot({path:join(artifactDir,'12-knowledge-immutable-version-desktop.png'),fullPage:true})
   console.log(JSON.stringify({phase:'actual-module-skill-and-knowledge-version-panels',status:'ok',knowledgeVersion:kb.entry.versionId}))
+
+  // Real response tools and real files feed the same projection in all three views.
+  phase = 'tender-response-381'
+  const responseProjectId='qa-response-381'
+  const responseSource=join(workspace,'交通导改要求.md'), drainageSource=join(workspace,'排水施工要求.md'), technicalBid=join(workspace,'技术标响应QA.md')
+  writeFileSync(responseSource,'# 交通导改要求\n本项目分两个施工区段维持交通，分别设置隔离设施。\n','utf8')
+  writeFileSync(drainageSource,'# 排水施工要求\n先完成排水管线及隐蔽验收，再施工道路面层。\n','utf8')
+  writeFileSync(technicalBid,'# 交通导改方案\n分两个施工区段维持交通，分别设置隔离设施并核查出入口。\n# 排水施工方案\n先完成排水管线及隐蔽验收，再施工道路面层。\n','utf8')
+  await runTool('tender_project',{action:'create',module:'tender',projectId:responseProjectId,name:'响应对照 3.8.1 QA',inputPaths:[responseSource,drainageSource],projectGoal:'逐条回应交通导改和排水施工要求，保留证据与版本变化。'})
+  const responseIds=['traffic','drainage'], responseTitles=['交通导改','排水施工'], responseTexts=['本项目分两个施工区段维持交通，分别设置隔离设施。','先完成排水管线及隐蔽验收，再施工道路面层。']
+  const responseDocuments=responseIds.map((id,index)=>({id,name:responseTitles[index]+'要求.md',path:[responseSource,drainageSource][index],kind:'tender_data',status:'active'}))
+  const responseRequirements=responseIds.map((id,index)=>({id,title:responseTitles[index]+'要求',text:responseTexts[index],type:'mandatory',criticality:'critical',source:{documentId:id,section:responseTitles[index]+'要求'},evidenceNeeded:[],status:'planned'}))
+  await runTool('tender_workspace',{action:'upsert_documents',projectId:responseProjectId,documents:responseDocuments})
+  await runTool('tender_workspace',{action:'upsert_requirements',projectId:responseProjectId,requirements:responseRequirements})
+  await runTool('tender_workspace',{action:'upsert_criteria',projectId:responseProjectId,criteria:responseIds.map((id,index)=>({id,title:responseTitles[index]+'针对性',method:'weighted',weight:50,source:{documentId:id,section:responseTitles[index]+'要求'},requirementIds:[id],evidenceNeeded:[],status:'planned',rubric:{text:'说明'+responseTitles[index]+'顺序及项目约束',points:[{id:'sequence',text:responseTitles[index]+'顺序',evidenceNeeded:[]}],bands:[]}}))})
+  await runTool('tender_workspace',{action:'upsert_deliverables',projectId:responseProjectId,deliverables:[{id:'technical',title:'技术标响应QA',requirementIds:responseIds,status:'drafting'}]})
+  await runTool('tender_workspace',{action:'upsert_responses',projectId:responseProjectId,responses:responseIds.map((id,index)=>({id,title:responseTitles[index]+'方案',requirementIds:[id],criterionIds:[id],deliverableId:'technical',evidenceRefs:[{documentId:id}],status:'planned',chapter:{id,title:responseTitles[index]+'方案',generationMode:'generate',requiredContent:[responseTitles[index]+'顺序'],pointResponses:[{criterionId:id,pointId:'sequence',plannedResponse:'说明'+responseTitles[index]+'顺序及对应措施'}],materials:[],dependencies:[]}}))})
+  for (const [index,id] of responseIds.entries()) {
+    const location={section:responseTitles[index]+'方案',excerpt:index===0?'分两个施工区段维持交通，分别设置隔离设施并核查出入口。':responseTexts[index]}
+    await runTool('tender_workspace',{action:'verify_response',projectId:responseProjectId,responseId:id,review:{artifactPath:technicalBid,location,contentReview:{verdict:'supported',reviewer:'QA deterministic fixture (model-review simulation)',note:'仅验证审阅记录与实际段落定位的联动，不代表真实工程专家审查。'},pointReviews:[{criterionId:id,pointId:'sequence',location,verdict:'supported',note:'该明确段落写出了本测试评分子点要求的施工顺序。'}]}})
+  }
+  let responseStatus=await runTool('tender_workspace',{action:'response_status',projectId:responseProjectId})
+  assert.equal(responseStatus.summary.planned,2);assert.equal(responseStatus.summary.reviewed,2)
+  // An actual addendum changes only the traffic source; drainage keeps its review.
+  writeFileSync(responseSource,'# 交通导改要求\n补遗：分三个施工区段维持交通，分别设置隔离设施。\n','utf8')
+  responseRequirements[0].text='补遗：分三个施工区段维持交通，分别设置隔离设施。'
+  await runTool('tender_workspace',{action:'upsert_requirements',projectId:responseProjectId,requirements:responseRequirements})
+  responseStatus=await runTool('tender_workspace',{action:'response_status',projectId:responseProjectId})
+  assert.equal(responseStatus.summary.reviewed,1);assert.equal(responseStatus.summary.stale,1)
+  const responseTask=await request(taskUrl),responseBoard=await request('/api/agent-pi/workbench?cwd='+encodeURIComponent(workspace))
+  assert.deepEqual(responseTask.responseCoverage,responseStatus)
+  assert.deepEqual(responseBoard.projects.find(row=>row.project.projectId===responseProjectId).responseCoverage,responseStatus)
+  await page.getByRole('tab',{name:'对话',exact:true}).click()
+  await summary.locator('[data-response-project="'+responseProjectId+'"]').getByText('当前稿已记录复核 1',{exact:true}).waitFor({timeout:20_000})
+  assert.match(await summary.innerText(),/变更待复核 1/)
+  await page.screenshot({path:join(artifactDir,'21-tender-response-chat.png'),fullPage:true})
+  await trigger.click()
+  await dialog.getByRole('tab',{name:'响应对照',exact:true}).click()
+  const responsePanel=dialog.getByRole('region',{name:'投标响应对照',exact:true})
+  await responsePanel.getByText('当前稿已记录复核 1',{exact:true}).waitFor({timeout:20_000})
+  assert.equal(await responsePanel.locator('[data-response-row]').count(),4,'requirements and criteria share two unique responses')
+  const trafficRow=responsePanel.locator('[data-response-row="traffic"]').first()
+  await trafficRow.locator('td').first().getByRole('button',{name:'交通导改要求.md',exact:true}).click()
+  const sourcePreview=page.getByRole('dialog',{name:'交通导改要求.md',exact:true})
+  await sourcePreview.getByText(/分三个施工区段/).first().waitFor({timeout:20_000})
+  await sourcePreview.getByRole('button',{name:'关闭',exact:true}).click()
+  await trafficRow.getByRole('button',{name:'查看当前成果',exact:true}).click()
+  const artifactPreview=page.getByRole('dialog',{name:'技术标响应QA.md',exact:true})
+  await artifactPreview.getByText(/先完成排水管线及隐蔽验收/).first().waitFor({timeout:20_000})
+  await artifactPreview.getByRole('button',{name:'关闭',exact:true}).click()
+  await page.screenshot({path:join(artifactDir,'22-tender-response-task.png'),fullPage:true})
+  const collapseResponseFiles=page.getByRole('button',{name:'收起资源文件',exact:true})
+  if(await collapseResponseFiles.isVisible())await collapseResponseFiles.click()
+  await page.setViewportSize({width:390,height:844})
+  assert.ok(await dialog.evaluate(element=>element.scrollWidth<=element.clientWidth),'response panel fits a narrow viewport')
+  assert.ok(await responsePanel.locator('.ap-tender-response-scroll').evaluate(element=>element.scrollWidth>element.clientWidth),'wide response table scrolls within its panel')
+  await responsePanel.locator('thead').scrollIntoViewIfNeeded()
+  await page.screenshot({path:join(artifactDir,'23-tender-response-mobile.png'),fullPage:true})
+  await page.setViewportSize({width:1440,height:980})
+  await dialog.getByRole('tab',{name:'任务概览',exact:true}).click()
+  await dialog.getByRole('button',{name:'查看工作台阶段',exact:true}).click()
+  const responseWorkbench=page.locator('.ap-wb')
+  await responseWorkbench.getByRole('heading',{name:'响应对照 3.8.1 QA',exact:true}).waitFor({timeout:20_000})
+  await responseWorkbench.locator('[data-response-project="'+responseProjectId+'"]').getByText('当前稿已记录复核 1',{exact:true}).waitFor({timeout:20_000})
+  await page.screenshot({path:join(artifactDir,'24-tender-response-workbench.png'),fullPage:true})
+  const otherTask=await request('/api/agent-pi/professional-task?sessionId=qa-prior-context')
+  assert.equal(otherTask.responseCoverage,null,'unbound conversation cannot inherit another conversation response ledger')
+  await page.getByRole('treeitem').filter({hasText:'Unbound response QA'}).last().click()
+  await waitForSelectedSession('qa-prior-context')
+  await page.getByRole('tab',{name:'本次任务',exact:true}).click()
+  assert.equal(await page.getByRole('region',{name:'本次任务',exact:true}).locator('[data-response-project="'+responseProjectId+'"]').count(),0)
+  await page.getByRole('treeitem').filter({hasText:/qa-guided-task|Professional task guide QA/}).last().click()
+  await waitForSelectedSession('qa-guided-task')
+  await trigger.click();await dialog.getByRole('tab',{name:'响应对照',exact:true}).click()
+  await responsePanel.getByText('当前稿已记录复核 1',{exact:true}).waitFor({timeout:20_000})
+  writeFileSync(join(artifactDir,'25-tender-response-projection.json'),JSON.stringify({responseStatus,task:responseTask.responseCoverage,workbench:responseBoard.projects.find(row=>row.project.projectId===responseProjectId).responseCoverage},null,2),'utf8')
+  console.log(JSON.stringify({phase:'tender-response-381-same-ledger-source-artifact-stale-and-session-isolation',status:'ok',projectId:responseProjectId,summary:responseStatus.summary}))
   assert.deepEqual(pageErrors,[])
   assert.deepEqual(consoleErrors,[])
   writeFileSync(join(artifactDir,'session-readiness.json'),JSON.stringify({sessionSnapshots,errorDetails,requestFailures},null,2).replace(/([?&]token=)[^&#\s"'<>]+/giu,'$1REDACTED'))
@@ -878,4 +986,6 @@ try {
   rmSync(scratch,{recursive:true,force:true,maxRetries:15,retryDelay:100})
   if (officeCleanupError) throw officeCleanupError
 }
+}
+await runSmoke()
 

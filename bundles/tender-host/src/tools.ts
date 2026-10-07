@@ -57,6 +57,8 @@ import {
   validateCapability,
 } from './workspace.ts'
 import { capabilitySchemaHint } from './capability-schema.ts'
+import { captureTenderResponseDependencies, getTenderResponseCoverage, verifyTenderResponse } from './tender-responses.ts'
+import { tenderResponseSchemaHint } from '../../../packages/business-core/src/tender/index.ts'
 import { copyWorkbenchModule, listWorkbenchModules, removeUserModule, saveUserModule, setModuleDisabled, usesTenderControlProfile, workflowFor } from './modules.ts'
 import { adoptWorkspace } from './adopt.ts'
 import { auditProjectCitations, recordCitationSupport } from './citations.ts'
@@ -153,6 +155,8 @@ export function registerTools(ctx: {
     if (businessTool && options.name !== 'tender_project') {
       if (!context) throw new Error('本会话尚未明确绑定业务项目；子任务需要真实主会话绑定。')
       if ((args.module && args.module !== context.project.module) || (args.projectId && args.projectId !== context.project.projectId)) throw new Error('该工具只允许访问当前主会话已绑定的业务项目。')
+      if (toolOwner(options.name) === 'tender' && (context.project.module === 'china-tender' || !usesTenderControlProfile(context.project))) throw new Error('该工具属于南非投标工作流；当前项目请使用专业工作台能力及共享 tender_workspace。')
+      if (options.name === 'tender_workspace' && context.project.module !== 'china-tender' && !usesTenderControlProfile(context.project)) throw new Error('响应工作区需要绑定投标工作流项目。')
       if (child && options.name === 'tender_stage' && !['status', 'check', 'execution_status', 'execution_update'].includes(args.action)) throw new Error('子任务只贡献成果和证据，阶段推进、用户要求与人工决策由主会话处理。')
       args = { ...args, module: context.project.module, projectId: context.project.projectId }
       if (exec.agent.session.header?.cwd !== context.cwd) exec = { ...exec, agent: { ...exec.agent, id: exec.agent.id, ctx: exec.agent.ctx, session: { ...exec.agent.session, id: exec.agent.session.id, header: { ...exec.agent.session.header, cwd: context.cwd } } } }
@@ -305,34 +309,45 @@ export function registerTools(ctx: {
 
   tools.register(defineTool({
     name: 'tender_workspace',
-    description: 'Create or update the tender workspace JSON (documents, requirements, criteria, deliverables) and run a deterministic readiness audit. Use init first, then upsert_documents after registering bid files.',
+    description: 'Maintain the shared tender requirements, criteria, response chapters and deliverables for any bound tender workflow, including China. Call schema for exact fields. Collection upserts replace the named collection: preserve existing unrelated records. response_status projects current source, material and artifact checks; verify_response records source-backed content review separately from machine checks, never customer acceptance or an actual evaluation score.',
     parameters: {
-      action: { type: 'string', required: true, description: 'init | upsert_documents | upsert_requirements | upsert_criteria | upsert_deliverables | status' },
+      action: { type: 'string', required: true, description: 'init | schema | upsert_documents | upsert_requirements | upsert_criteria | upsert_deliverables | upsert_responses | capture_response_dependencies | verify_response | response_status | status' },
       projectId: { type: 'string', required: true },
       project: { type: 'json', description: 'Required for init: { id, title, employer?, jurisdiction?, currency?, status? }' },
       documents: { type: 'array' },
       requirements: { type: 'array' },
       criteria: { type: 'array' },
       deliverables: { type: 'array' },
+      responses: { type: 'array', description: 'Full response collection, including optional chapter plans; read schema first.' },
+      responseId: { type: 'string' },
+      review: { type: 'json', description: 'For verify_response: {artifactPath,location:{section?,page?,lineStart?,lineEnd?,excerpt},contentReview:{verdict:"supported"|"needs_revision"|"uncertain",reviewer,note},pointReviews?:[{criterionId,pointId,location,verdict,note}]}. Each declared chapter point needs its own actual current-text location and review. Read schema for exact fields. Identify the real reviewer; do not invent human approval.' },
     },
     output: jsonOut(),
     async execute(args: Record<string, unknown>, exec: { agent?: { session?: { header?: { cwd?: string } } } }) {
       const cwd = sessionCwd(exec)
       const projectId = String(args.projectId)
       const action = String(args.action)
+      if (action === 'schema') return textResult(tenderResponseSchemaHint())
+      const module = args.module === 'china-tender' ? 'china-tender' : 'tender'
       if (action === 'init') {
-        return textResult(initTenderWorkspace(cwd, projectId, args.project as never))
+        return textResult(initTenderWorkspace(cwd, projectId, args.project as never, module))
       }
       if (action === 'status') {
-        const workspace = loadWorkspace(cwd, projectId)
-        return textResult({ workspace, capabilities: capabilityStatus(cwd, projectId) })
+        const workspace = loadWorkspace(cwd, projectId, module)
+        return textResult({ workspace, capabilities: module === 'tender' ? capabilityStatus(cwd, projectId) : null, responseCoverage: getTenderResponseCoverage(cwd, projectId, module) })
       }
+      if (action === 'response_status') return textResult(getTenderResponseCoverage(cwd, projectId, module))
+      if (action === 'capture_response_dependencies') return textResult(captureTenderResponseDependencies(cwd, projectId, String(args.responseId || ''), module))
+      if (action === 'verify_response') return textResult(verifyTenderResponse(cwd, projectId, String(args.responseId || ''), args.review as never, module))
       const patch: Record<string, unknown> = {}
       if (action === 'upsert_documents') patch.documents = args.documents
       if (action === 'upsert_requirements') patch.requirements = args.requirements
       if (action === 'upsert_criteria') patch.criteria = args.criteria
       if (action === 'upsert_deliverables') patch.deliverables = args.deliverables
-      return textResult(upsertWorkspaceSection(cwd, projectId, patch))
+      if (action === 'upsert_responses') patch.responses = args.responses
+      if (!Object.keys(patch).length) throw new Error(`Unknown tender_workspace action ${action}`)
+      if (!Array.isArray(Object.values(patch)[0])) throw new Error(`${action} requires its collection array`)
+      return textResult(upsertWorkspaceSection(cwd, projectId, patch, { module }))
     },
   }))
 

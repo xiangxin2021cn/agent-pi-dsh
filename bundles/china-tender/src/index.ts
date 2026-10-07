@@ -2,12 +2,13 @@ import { analyzeChinaTender, createChinaBoqBaseline, verifyChinaBoqBaseline } fr
 import type { BoqBaselineRow, BoqBaselineSource, ChinaBoqBaseline, ChinaTenderInput } from '../../../packages/china-tender/index.ts'
 import type { EngineeringExecutionContext, EngineeringIssue, EngineeringProvider } from '../../../packages/engineering-core/index.ts'
 import { chinaTenderWorkflow } from './workflow.ts'
+import { syncChinaResponseWorkspace } from './response-workspace.ts'
 
 export const name = 'agent-pi-china-tender'
 export const inject = ['engineering']
 
 export type ChinaTenderProviderInput =
-  | { action: 'analyze'; data: ChinaTenderInput }
+  | { action: 'analyze'; data: ChinaTenderInput; syncWorkspace?: boolean }
   | { action: 'create_baseline'; data: { baselineId: string; source: BoqBaselineSource; rows: BoqBaselineRow[] } }
 
 function parse(input: unknown): ChinaTenderProviderInput {
@@ -18,6 +19,7 @@ function parse(input: unknown): ChinaTenderProviderInput {
     throw new Error('中国招投标输入需要明确 action 和 data。')
   }
   const data = value.data as Record<string, unknown>
+  if (value.syncWorkspace !== undefined && typeof value.syncWorkspace !== 'boolean') throw new Error('syncWorkspace 必须为布尔值。')
   if (value.action === 'analyze') {
     if (!data.profile || typeof data.profile !== 'object' || Array.isArray(data.profile)) throw new Error('analyze 需要项目 profile。')
     for (const key of ['requirements', 'evidence', 'responses', 'rules']) {
@@ -54,14 +56,14 @@ function assertBaselineIdentity(baseline: ChinaBoqBaseline, context: Engineering
 }
 
 export const chinaTenderProvider: EngineeringProvider = {
-  id: 'china-tender', version: '3.8.0', title: '中国招投标要求与清单复核', dependencies: [],
+  id: 'china-tender', version: '3.8.1', title: '中国招投标要求与清单复核', dependencies: [],
   limitations: [
     '制度和规则适用均为辅助建议；内置三个国家或公路来源，未覆盖各地全部规定。',
     '外部查询不到不等于不合格；证据语义、真实性及复核人记录需由实际核验提供。',
     '清单快照登记不构成招标人批准或最终报价；本插件不进行交易提交或签章。',
   ],
   inputDescription: [
-    'Input {action:"analyze"|"create_baseline",data:{...}}.',
+    'Input {action:"analyze"|"create_baseline",data:{...},syncWorkspace?:boolean}. For a bound China workbench, analyze with syncWorkspace=true also registers the same requirement IDs and source versions in the shared tender_workspace; then call tender_workspace schema/upsert_criteria/upsert_responses to plan chapters. This never invents scores or marks responses reviewed.',
     'analyze data={profile:{context:"government_procurement"|"enterprise_procurement"|"unknown",subject:"construction"|"engineering_goods"|"engineering_services"|"goods"|"services"|"unknown",method:"tender"|"non_tender"|"unknown",mandatoryTender?:"yes"|"no"|"unknown",province?,industry?,projectDate?},requirements?,evidence?,responses?,rules?,boq?:{baseline,comparedRows,kind:"recalculation"|"submission"}}.',
     'Dates are YYYY-MM-DD. province uses matching province codes (e.g. CN-44); built-in highway industry is "highway". Context and engineering relation require actual project evidence.',
     'requirement={id,title,category:"qualification"|"mandatory"|"scored"|"technical"|"pricing"|"format"|"other",source,ruleId?,evaluationDate?}; source={documentId,status:"active"|"superseded"|"withdrawn",sha256?,page?,clause?,excerpt?}.',
@@ -81,7 +83,7 @@ export const chinaTenderProvider: EngineeringProvider = {
     }
     return source.status === 'active' ? [] : [{ code: 'baseline-source-status', severity: 'warning', message: '清单快照对应文件当前非有效状态；此登记只保留历史，不代表可用于当前投标。' }]
   },
-  execute(raw, _project, context?: EngineeringExecutionContext) {
+  execute(raw, project, context?: EngineeringExecutionContext) {
     const input = parse(raw)
     if (input.action === 'create_baseline') {
       const { baselineId, source, rows } = input.data
@@ -94,6 +96,10 @@ export const chinaTenderProvider: EngineeringProvider = {
     }
     if (input.data.boq) assertBaselineIdentity(input.data.boq.baseline, context, true)
     const details = analyzeChinaTender(input.data)
+    const responseWorkspace = input.syncWorkspace ? (() => {
+      if (!context?.cwd) throw new Error('响应同步需要宿主提供项目工作目录。')
+      return syncChinaResponseWorkspace(context.cwd, project, input.data.requirements || [])
+    })() : undefined
     const issues: EngineeringIssue[] = [
       ...details.profileAssessment.missing.map(field => ({ code: 'profile-missing', severity: 'warning' as const, message: `项目画像缺少 ${field}。` })),
       ...(details.profileAssessment.procedure === 'undetermined' ? [{ code: 'procedure-review', severity: 'warning' as const, message: details.profileAssessment.reasons.join('；') }] : []),
@@ -107,7 +113,7 @@ export const chinaTenderProvider: EngineeringProvider = {
     ]
     return {
       summary: `已核对 ${details.summary.requirements} 项要求，${details.summary.supported} 项有已复核支持关系、${details.summary.conflicts} 项记录矛盾；${issues.length} 项提示待处理。结果为资料核对与制度建议，不是资格或评标结论。`,
-      issues, details,
+      issues, details: { ...details, ...(responseWorkspace ? { responseWorkspace } : {}) },
     }
   },
 }
@@ -119,7 +125,7 @@ export function apply(ctx: any) {
   })
   ctx.inject?.(['professionalCapabilities'], (scope: any) => {
     scope.effect(() => scope.professionalCapabilities.register({
-      id: 'china-tender:response-review', owner: 'dsh-agent-pi-china-tender', version: '3.8.0',
+      id: 'china-tender:response-review', owner: 'dsh-agent-pi-china-tender', version: '3.8.1',
       title: '中国招投标规则、证据与清单核对',
       description: '按项目制度、地区、专业与时点检查规则适用，定位要求与响应证据，保留招标原始清单。',
       professions: ['tender', 'quantity'], tools: ['engineering_project'], skills: [],

@@ -196,6 +196,8 @@ export interface UpdateStatus {
       the range between them in whichever form reads best. */
   current?: string | null
   latest?: string | null
+  /** A plain dependency, not a plugin (#793): a newer release may exist but is never offered. */
+  notAPlugin?: boolean
   /** Updating this local package switches it to its matched online release. */
   restoreRequired?: boolean
   /** Explicit source migration; never part of update-all. */

@@ -1,10 +1,10 @@
 # Vendored DSH plugins
 
-Agent Pi DSH 3.7.9 uses the official `dsh-v0.2.1-alpha.1` release commit pinned by `DSH_PIN`, including pi-ai 0.87.1 and Cordis 4.0.5-alpha.1. Official core plugins, including Agent Teams, ship from that same unmodified source revision. Professional judgment is an additive product prompt section; no whole-system-prompt replacement is applied.
+Agent Pi DSH 3.8.1 uses the official `dsh-v0.2.1-alpha.1` release commit pinned by `DSH_PIN`, including pi-ai 0.87.1 and Cordis 4.0.5-alpha.1. Official core plugins, including Agent Teams, ship from that same unmodified source revision. Professional judgment is an additive product prompt section; no whole-system-prompt replacement is applied.
 
 | Directory | Bundled version | Product role |
 |---|---|---|
-| dshmarket | 1.66.8 | Settings plugin market, with host peer gates, Electron restart and managed-component protection retained. |
+| dshmarket | 1.66.9 | Settings plugin market, with host peer gates, Electron restart and managed-component protection retained. |
 | anysearch-dsh | 0.1.6 | Native search/fetch provider and tools; already-built official npm artifact. |
 | dsh-super-injector | 0.3.5 | Local plugin injection host; incompatible legacy DOM settings section stays disabled. |
 | dsh-router-standard | b39112dce54b90e67b50b166c2773861d7945d1f | Optional Router Standard preset; existing DSH compatibility overlay retained. |

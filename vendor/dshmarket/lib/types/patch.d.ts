@@ -99,8 +99,11 @@ export declare function rowIdsForPackage(host: PatchHost, profileDirectory: stri
  * the bundle still neutralizes any config side effects it carries, since its
  * whole patch stops applying.
  *
- * Reads both patch sources like rowIdsForPackage — the declared dsh.bundle.patch
- * and the conventional root cordis.patch.yml — so either form is detected.
+ * Reads both patch sources like rowIdsForPackage — the declared
+ * dsh.bundle.patch (one file or a LIST of them, #792) and the conventional
+ * root cordis.patch.yml — so either form is detected, and every declared file
+ * is attributed (a foreign disable declared in the second file is still what
+ * bricks the boot, #224).
  */
 export declare function carrierDisableIds(profileDirectory: string, packageName: string): string[];
 /**
@@ -119,9 +122,9 @@ export declare function carrierDisableIds(profileDirectory: string, packageName:
  * and the bundle must keep re-enabling.
  *
  * Reads both patch sources like carrierDisableIds: the declared
- * `dsh.bundle.patch` and the conventional root cordis.patch.yml. Ownership is
- * judged per file, because a package may ship both and only the file's own
- * `insert:` block says which ids it brings in.
+ * `dsh.bundle.patch` (one file or a LIST, #792) and the conventional root
+ * cordis.patch.yml. Ownership is judged per file, because a package may ship
+ * both and only the file's own `insert:` block says which ids it brings in.
  */
 export declare function foreignRowIds(profileDirectory: string, packageName: string): string[];
 /**
