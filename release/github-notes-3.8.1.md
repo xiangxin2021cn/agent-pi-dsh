@@ -1,5 +1,7 @@
 # Agent Pi DSH 3.8.1
 
+<!-- agent-pi-release-meta: {"schema":1,"appVersion":"3.8.1","kernel":{"releaseTag":"dsh-v0.2.1-alpha.1","commit":"ec48669f48ac81bac353fc646e7cf9c57241242f"}} -->
+
 本版完善要求驱动的投标编写：将评分原文、章节计划、企业材料、工程依据与当前成稿关联起来，在主对话、本次任务和专业化工作台展示同源状态。具体用法见 [3.8.1 使用指南](../docs/3.8.1-user-guide.md)。
 
 ## 具体改动
