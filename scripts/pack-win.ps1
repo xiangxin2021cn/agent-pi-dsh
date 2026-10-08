@@ -491,6 +491,8 @@ if (Test-Path $unpackedProduct) {
 if ($LASTEXITCODE -ne 0) { throw "unpacked official Univer distribution is incomplete" }
 $unpackedCadViewer = Join-Path $unpackedProduct "bundles\tender-web\lib\cad-viewer"
 Install-CadCleanRuntime $unpackedCadViewer "unpacked runtime"
+& node (Join-Path $Root "scripts\cad-host-clean-release.mjs") $unpackedProduct
+if ($LASTEXITCODE -ne 0) { throw "Unpacked CAD host decoder or its corresponding source differs from the reviewed build" }
 # ReuseUnpacked keeps the previous electron-builder asar. The NSIS filename
 # and DisplayVersion come from this tree's package.json; app.getVersion()
 # reads the asar. If those diverge, startup update check prompts for the

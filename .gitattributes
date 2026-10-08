@@ -1,2 +1,5 @@
 patches/*.patch -text whitespace=-blank-at-eol
 scripts/fixtures/*.xer -text whitespace=-blank-at-eol
+scripts/cad-host-bit-position-overflow.patch -text whitespace=-blank-at-eol
+scripts/build-cad-host-clean.sh text eol=lf
+bundles/tender-host/lib/cad-decoder/** -text

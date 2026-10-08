@@ -24,6 +24,7 @@ import { createHash } from 'node:crypto'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { verifyCadCleanRelease } from './cad-clean-release.mjs'
+import { verifyCadHostCleanRelease } from './cad-host-clean-release.mjs'
 import {
   buildDshWithReceipt,
   dshBuildReceiptName,
@@ -129,6 +130,7 @@ verifyCadCleanRelease({
   runtimeDir: cadViewer,
 })
 verifyCadViewerAssets(cadViewer, 'source')
+verifyCadHostCleanRelease(root)
 
 function robocopy(src, dest, extra = []) {
   const result = spawnSync('robocopy', [
@@ -187,6 +189,7 @@ for (const item of productItems) {
   }
 }
 assertUniverPublicReleaseTree(productDest, { runtime: false })
+verifyCadHostCleanRelease(productDest)
 verifyProjectPlanRuntime(productDest, { portable: true })
 const stagedCadViewer = join(productDest, 'bundles', 'tender-web', 'lib', 'cad-viewer')
 rmSync(stagedCadViewer, { recursive: true, force: true })

@@ -165,6 +165,17 @@ as the offline CAD text fallback. Copyright 2014-2025 Adobe, with Reserved Font
 Name `Source`. Its complete SIL Open Font License 1.1 text is included as
 `cad-viewer/licenses/SourceHanSansCN-OFL-1.1.txt` and beside the font payload.
 
+## Patched CAD host decoder
+
+The agent's DWG-to-DXF conversion uses a separately rebuilt LibreDWG Web
+0.7.10 host decoder with a minimal bit-position arithmetic patch. It is
+distributed under GPL-3.0-only, with its license, exact build receipt and
+matching corresponding source under `bundles/tender-host/lib/cad-decoder`.
+The patched host WASM and its Node factory are distinct from the unchanged
+CAD viewer runtime; the original viewer's clean-build receipt does not cover
+this new host binary. See `docs/cad-dwg-conversion.md` and
+`scripts/build-cad-host-clean.sh` for the patch and rebuild instructions.
+
 ## Local project plan engine (MPXJ)
 
 MPP, Project XML and Primavera P6 previews use MPXJ 16.7.0 (LGPL-2.1-or-later)

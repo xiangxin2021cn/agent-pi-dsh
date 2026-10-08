@@ -1,0 +1,44 @@
+diff --git a/src/bits.c b/src/bits.c
+index 30b2e9e4..7cb22884 100644
+--- a/src/bits.c
++++ b/src/bits.c
+@@ -62,16 +62,8 @@ bit_advance_position (Bit_Chain *dat, long advance)
+ {
+   const size_t pos = bit_position (dat);
+   const size_t endpos = dat->size * 8;
+-  long bits = (long)dat->bit + advance;
+ 
+-  if (dat->byte >= MAX_MEM_ALLOC || pos + advance > endpos)
+-    {
+-      loglevel = dat->opts & DWG_OPTS_LOGLEVEL;
+-      LOG_ERROR ("%s buffer overflow at pos %" PRIuSIZE ".%u, size %" PRIuSIZE
+-                 ", advance by %ld",
+-                 __FUNCTION__, dat->byte, dat->bit, dat->size, advance);
+-    }
+-  else if ((long)(pos + advance) < 0)
++  if (advance < 0 && pos < (size_t)(-(advance + 1)) + 1)
+     {
+       loglevel = dat->opts & DWG_OPTS_LOGLEVEL;
+       LOG_ERROR ("buffer underflow at pos %" PRIuSIZE ".%u, size %" PRIuSIZE
+@@ -81,8 +73,19 @@ bit_advance_position (Bit_Chain *dat, long advance)
+       dat->bit = 0;
+       return;
+     }
+-  dat->byte += (bits >> 3);
+-  dat->bit = bits & 7;
++  if (dat->byte >= MAX_MEM_ALLOC
++      || (advance >= 0
++              ? (pos > endpos || (size_t)advance > endpos - pos)
++              : pos + advance > endpos))
++    {
++      loglevel = dat->opts & DWG_OPTS_LOGLEVEL;
++      LOG_ERROR ("%s buffer overflow at pos %" PRIuSIZE ".%u, size %" PRIuSIZE
++                 ", advance by %ld",
++                 __FUNCTION__, dat->byte, dat->bit, dat->size, advance);
++    }
++  const size_t next = pos + advance;
++  dat->byte = next >> 3;
++  dat->bit = next & 7;
+ }
+ 
+ /* Absolute get in bits

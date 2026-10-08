@@ -27,6 +27,8 @@ $NodeDir = Join-Path $Runtime "node"
 $Product = Join-Path $Runtime "product"
 & node (Join-Path $Root "scripts\verify-project-plan-runtime.mjs") $Root
 if ($LASTEXITCODE -ne 0) { throw "Project plan runtime is missing or stale; run scripts/build-project-plan.mjs" }
+& node (Join-Path $Root "scripts\cad-host-clean-release.mjs") $Root
+if ($LASTEXITCODE -ne 0) { throw "CAD host decoder or its corresponding source is missing or stale" }
 $IconSrc = Join-Path $Desktop "brand\app-logo.png"
 if (-not (Test-Path $IconSrc)) { $IconSrc = Join-Path $Root "AgentPI-logo-2.png" }
 $IconDest = Join-Path $Desktop "build\icon.png"
@@ -128,6 +130,8 @@ foreach ($item in $productItems) {
 
 & node (Join-Path $Root "scripts\verify-project-plan-runtime.mjs") $Product
 if ($LASTEXITCODE -ne 0) { throw "Staged project plan runtime verification failed" }
+& node (Join-Path $Root "scripts\cad-host-clean-release.mjs") $Product
+if ($LASTEXITCODE -ne 0) { throw "Staged CAD host decoder verification failed" }
 
 function Stage-ProjectNodeModules([string]$projectRelative, [string]$requiredPackage) {
   $sourceModules = Join-Path $Root "$projectRelative\node_modules"

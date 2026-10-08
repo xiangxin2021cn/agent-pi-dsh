@@ -118,35 +118,84 @@ const reviewed382DiskHostExtension = {
     'packages/engineering-cad/matrix.ts': '9f696d078b97d7dba120042642f28989836c2ccd25de281d830f5cf30b9d6f61',
   },
 }
+// This 3.8.2 host independently rebuilds LibreDWG with the reviewed bit-cursor
+// patch, validates decoded relationships and preserves embedded payloads. Its
+// binary and corresponding source are pinned separately from the unchanged viewer.
+const reviewed382PatchedHostExtension = {
+  review: '3.8.2-host-patched-decoder-embedded',
+  shared: {
+    ...reviewed381HostExtension.shared,
+    'THIRD_PARTY_NOTICES.md': ["13b82540786197ebb805a8b1088c41c856b8e251bfefd2ac1693002fe849f460","d1b7d5d04979cbbe0db1a1f539bdf0c2afbef00a62d146454f4a9cea5db03277"],
+  },
+  files: {
+    'bundles/tender-host/src/cad-convert.ts': '8a5f5eea03da38e27f52e2121747a4c05c9bd7fe2bd8827c9c1b5cb4bcf3e8db',
+    'bundles/tender-host/src/cad-convert-worker.mjs': 'b9e1ce02365aee74d3c08a9734dbce59bcf87660a4aed7d7b36cf09f0ae074f2',
+    'bundles/tender-host/package.json': 'e44eecb413d463d90b9890e11ebaf374b53b20d8528e7b1d4e7cb8415b06fcd3',
+    'bundles/tender-host/package-lock.json': '225b171ab05af68c8581180880cc5ed3aee5e21250ab70f9a0cfdee3c7840ead',
+    'bundles/tender-host/src/cad-dxf-output.mjs': 'e4558b72cfed84012d3faea4250878820ed4a5564ee5f2877e4befbe52e4a2c7',
+    'bundles/engineering-cad/src/reader.ts': '6191ce932884bcf20f72795eef9f02939a66c2840da0de4dc66894452bf0c9b3',
+    'bundles/engineering-cad/src/plugin.ts': 'c632cc2afc1263625d1eec59cc5e6ffc07a89bbd813c3d59f0e807a8683b6a0e',
+    'bundles/engineering-cad/src/dxf-disk-source.ts': 'a87ca0fe1df2bce6856213b8019036f232d27c7b47d0668feb06446187f5db0f',
+    'bundles/engineering-cad/src/cad-disk-index.ts': 'ed592feb913e9b248719666a24a600abbd6a9b228eb251bc843e04a39e0179e7',
+    'packages/engineering-cad/index.ts': '9e8f88b6c5ecd1108e6e684510a7bd780ec35d34e422c3ea82aeb44257a2dff5',
+    'packages/engineering-cad/types.ts': 'd1d8422d2a6596f1575806cd1aac00c9009867b6a24a351014b99e5c0cc9e90a',
+    'packages/engineering-cad/matrix.ts': '9f696d078b97d7dba120042642f28989836c2ccd25de281d830f5cf30b9d6f61',
+    'bundles/tender-host/src/cad-dwg-model-quality.mjs': 'e15612c5d32ac7afa6348e69cf16bad1e783f037041db9f95ad5b4075fbbdb3d',
+    'bundles/engineering-cad/src/cad-embedded.ts': '38bb502d2731ac83e187a47ca2600716d19bf912c969be296be052bb3e250356',
+    'bundles/tender-host/lib/cad-decoder/libredwg-web.mjs': 'e5def89cdec63b8fb5e7c6e944ebdb3b90c273957ed3709866a5e8ba32875834',
+    'bundles/tender-host/lib/cad-decoder/libredwg-wasm-factory.mjs': '28526db8c9a6f936d877fe42a6647e169406631aee519b49650871642a216fcb',
+    'bundles/tender-host/lib/cad-decoder/libredwg-web.wasm': '9f68e44c503730372e04552df703fae9807638448c61dc5b042f5f6f6ae82543',
+    'bundles/tender-host/lib/cad-decoder/GPL-3.0.txt': '8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903',
+    'bundles/tender-host/lib/cad-decoder/CAD-HOST-CLEAN-BUILD.json': '268052363d396c8c2a5a85fd268ef597720a182bdb95b4791fb6ddf1a7026a2b',
+    'bundles/tender-host/lib/cad-decoder/sources/Agent-Pi-DSH-3.8.2-CAD-host-corresponding-source.tar.gz': 'c13fb769abb0a61832c86d620e2a0bb849bc69ef43fd634edd900810abb74806',
+    '.gitattributes': '95a52a6cec4a5338f68fac202b3e7792c328e023006d543ae682031913bc02fd',
+    'scripts/verify-engineering-runtime.mjs': 'ae6f016ce573bdc4a69745c421b1aba858cee16dde59c84ff4a7927b1c605c4a',
+    'scripts/cad-host-clean-release.mjs': '4016afa9a2938bc835bef3c1a79b2d73dc9e8a05aa512b2c1941ca8eef9e16cb',
+    'scripts/build-cad-host-clean.sh': '65fd2ac17f66728d6b0a4ffec93dd8c387afd2236e98601a6a0387b69d3be5f3',
+    'scripts/cad-host-bit-position-overflow.patch': '68b7aab5fd85daabfdcaa9262e90cccb56cd51a45398a30a2e368cdd59f121dc',
+    'scripts/cad-host-bit-position.test.c': 'b8c01dd9cdb93b32be85210cc9c12fd12e102534c94f85233f962a09b6205358',
+    'scripts/cad-host-clean-pins.json': 'c72bc1ac63687ac179496cd4d8c04e045379c01b55a47ec43ce9d2d151086fbd',
+  },
+}
 const diskIndexPaths = ['bundles/engineering-cad/src/dxf-disk-source.ts', 'bundles/engineering-cad/src/cad-disk-index.ts']
+const patchedDecoderPaths = ['bundles/tender-host/src/cad-dwg-model-quality.mjs', 'bundles/engineering-cad/src/cad-embedded.ts', 'bundles/tender-host/lib/cad-decoder', 'scripts/cad-host-clean-release.mjs', 'scripts/build-cad-host-clean.sh', 'scripts/cad-host-bit-position-overflow.patch', 'scripts/cad-host-bit-position.test.c', 'scripts/cad-host-clean-pins.json']
 const hostExtensionPaths = [...new Set([
   ...Object.keys(reviewed381HostExtension.files), ...Object.keys(reviewed382HostExtension.files),
-  ...Object.keys(reviewed382DiskHostExtension.files),
+  ...Object.keys(reviewed382DiskHostExtension.files), ...Object.keys(reviewed382PatchedHostExtension.files),
 ])]
 
 function reviewedHash(path, text) {
-  if (path === 'package.json') text = text.replace(/("version"\s*:\s*")[^"]+"/, '$1<application-version>"')
+  if (path === 'package.json') text = text.toString().replace(/("version"\s*:\s*")[^"]+"/, '$1<application-version>"')
   return createHash('sha256').update(text).digest('hex')
 }
 
-function reviewedHostPair(path, before, after) {
-  const pair = reviewed381HostExtension.shared[path]
+function reviewedHostPair(path, before, after, extension) {
+  const pair = extension.shared[path]
   return pair && [before, after].every((text, index) => reviewedHash(path, text) === pair[index])
 }
 
-function verifyReviewedHostExtension(root, sourceCommit, target) {
+function reviewedHostExtensionForTarget(root, target) {
+  const patched = git(root, ['ls-tree', target, '--', ...patchedDecoderPaths]).trim()
   const indexed = git(root, ['ls-tree', target, '--', ...diskIndexPaths]).trim()
   const streamed = git(root, ['ls-tree', target, '--', 'bundles/tender-host/src/cad-dxf-output.mjs']).trim()
-  const extension = indexed ? reviewed382DiskHostExtension : streamed ? reviewed382HostExtension : reviewed381HostExtension
+  return patched ? reviewed382PatchedHostExtension : indexed ? reviewed382DiskHostExtension : streamed ? reviewed382HostExtension : reviewed381HostExtension
+}
+
+function verifyReviewedHostExtension(root, sourceCommit, target) {
+  const extension = reviewedHostExtensionForTarget(root, target)
+  if (extension === reviewed382PatchedHostExtension) {
+    const runtime = git(root, ['ls-tree', '-r', '--name-only', target, '--', 'bundles/tender-host/lib/cad-decoder']).trim().split('\n')
+    for (const path of runtime) if (!extension.files[path]) fail(`reviewed CAD host extension differs: ${path}`)
+  }
   for (const path of Object.keys(extension.shared)) {
     const before = git(root, ['show', `${sourceCommit}:${path}`])
     const after = git(root, ['show', `${target}:${path}`])
-    if (!reviewedHostPair(path, before, after)) fail(`reviewed CAD host extension differs: ${path}`)
+    if (!reviewedHostPair(path, before, after, extension)) fail(`reviewed CAD host extension differs: ${path}`)
   }
   for (const [path, hash] of Object.entries(extension.files)) {
     const entry = git(root, ['ls-tree', target, '--', path]).trim()
     if (!entry.startsWith('100644 blob ')) fail(`reviewed CAD host extension missing or mode changed: ${path}`)
-    if (reviewedHash(path, git(root, ['show', `${target}:${path}`])) !== hash) {
+    if (reviewedHash(path, git(root, ['show', `${target}:${path}`], null)) !== hash) {
       fail(`reviewed CAD host extension differs: ${path}`)
     }
   }
@@ -162,9 +211,9 @@ function fail(message) {
   throw new Error(`CAD integration compatibility: ${message}`)
 }
 
-function git(root, args) {
+function git(root, args, encoding = 'utf8') {
   try {
-    return execFileSync('git', args, { cwd: root, encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
+    return execFileSync('git', args, { cwd: root, encoding, maxBuffer: 64 * 1024 * 1024, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
   } catch (error) {
     fail(`git ${args[0]} failed: ${String(error.stderr || error.message).trim()}`)
   }
@@ -254,13 +303,14 @@ export function assertCadIntegrationUnchanged({ root, manifest, releaseCommit = 
   }
   const original = inputTree(root, source.commit)
   const current = inputTree(root, target)
+  const extension = reviewedHostExtensionForTarget(root, target)
   let usesReviewedHostExtension = false
   const changed = [...new Set([...original.keys(), ...current.keys()])]
     .filter((path) => {
       if (original.get(path) === current.get(path)) return false
-      if (reviewed381HostExtension.shared[path]
+      if (extension.shared[path]
           && original.get(path)?.split(' ').slice(0, 2).join(' ') === current.get(path)?.split(' ').slice(0, 2).join(' ')
-          && reviewedHostPair(path, git(root, ['show', `${source.commit}:${path}`]), git(root, ['show', `${target}:${path}`]))) {
+          && reviewedHostPair(path, git(root, ['show', `${source.commit}:${path}`]), git(root, ['show', `${target}:${path}`]), extension)) {
         usesReviewedHostExtension = true
         return false
       }
@@ -290,10 +340,10 @@ export function assertCadIntegrationUnchanged({ root, manifest, releaseCommit = 
     })
   if (changed.length > 0) fail(`CAD inputs changed since ${source.commit}: ${changed.join(', ')}`)
   const converterPaths = hostExtensionPaths.filter(path => path.startsWith('bundles/tender-host/src/'))
-  const hasHostConverter = git(root, ['ls-tree', target, '--', ...converterPaths, ...diskIndexPaths]).trim().length > 0
+  const hasHostConverter = git(root, ['ls-tree', target, '--', ...converterPaths, ...diskIndexPaths, ...patchedDecoderPaths]).trim().length > 0
   const hostExtension = usesReviewedHostExtension || hasHostConverter ? verifyReviewedHostExtension(root, source.commit, target) : undefined
   const inputPaths = [...CAD_INPUT_PATHS, ...(hostExtension ? Object.keys(hostExtension.additionalFileHashes) : [])]
-  if (git(root, ['status', '--porcelain=v1', '--untracked-files=all', '--', ...inputPaths, ...hostExtensionPaths]).trim()) {
+  if (git(root, ['status', '--porcelain=v1', '--untracked-files=all', '--', ...inputPaths, ...hostExtensionPaths, ...patchedDecoderPaths]).trim()) {
     fail('CAD inputs have uncommitted changes')
   }
   return { sourceCommit: source.commit, sourceTree, releaseCommit: target, inputPaths, ...(hostExtension ? { hostExtension } : {}) }

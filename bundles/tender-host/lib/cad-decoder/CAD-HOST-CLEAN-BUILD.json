@@ -1,0 +1,126 @@
+{
+  "decoderVersion": "0.7.10+bit-cursor-fix.1",
+  "sourceDateEpoch": 1787279748,
+  "source": {
+    "repository": "https://github.com/mlightcad/libredwg-web.git",
+    "tag": "v0.7.10",
+    "tagObject": "b16efd6b4a42d1d557cf6e2fcef9a1c92d053728",
+    "commit": "5909bd2bb87fa1168838e1295188f3ee603618eb",
+    "tree": "8e6d39794c5e2ff0f55b111476a6d143fca13db0",
+    "submodules": [
+      {
+        "path": "jsmn",
+        "repository": "https://github.com/zserge/jsmn.git",
+        "commit": "85695f3d5903b1cd5b4030efe50db3b4f5f3c928",
+        "tree": "6ebbff934820545dc5f998fb81362154b3026ab9"
+      }
+    ],
+    "patch": {
+      "path": "scripts/cad-host-bit-position-overflow.patch",
+      "sha256": "68b7aab5fd85daabfdcaa9262e90cccb56cd51a45398a30a2e368cdd59f121dc",
+      "originalSourceSha256": "64a6025d323d78f90348ca8ca477a1a77a4d77972df33cb94513993539184bcb",
+      "patchedSourceSha256": "ee4af9f872efeb7debe61597713b0c5453a086d3f70c2a3f0656aea12e7acae7"
+    },
+    "buildScript": {
+      "path": "scripts/build-cad-host-clean.sh",
+      "sha256": "65fd2ac17f66728d6b0a4ffec93dd8c387afd2236e98601a6a0387b69d3be5f3"
+    },
+    "regressionTest": {
+      "path": "scripts/cad-host-bit-position.test.c",
+      "sha256": "b8c01dd9cdb93b32be85210cc9c12fd12e102534c94f85233f962a09b6205358"
+    }
+  },
+  "toolchain": {
+    "baseImage": "emscripten/emsdk:4.0.12-x64@sha256:744fb6a68941970951bacf9d6632041a0398260492232691ef22bbf54b0585c6",
+    "builderImageId": "sha256:b60dc2f0e7fb77eb4ea6eb33bc1fdf3fdf87c51d6fd090d2ce61d9f493c86b69",
+    "dockerfile": {
+      "path": "scripts/cad-clean-builder.Dockerfile",
+      "sha256": "02fdb206f24441b7d8268a00a861b7d50f459f2d54743596dac19fb528899ba5"
+    },
+    "versions": {
+      "emscripten": "4.0.12",
+      "emccBuild": "6f625bd62ee64f4f8cd11476774741b961e4a2d5",
+      "node": "v22.16.0",
+      "pnpm": "10.33.4",
+      "autoconf": "2.71-2",
+      "automake": "1:1.16.5-1.3",
+      "libtool": "2.4.6-15build2",
+      "pkgConfig": "0.29.2-1ubuntu3"
+    },
+    "hostAlias": "wasm32-unknown-emscripten",
+    "configureArgs": [
+      "--enable-release",
+      "--enable-debug",
+      "--disable-docs",
+      "--disable-write",
+      "--disable-python",
+      "--disable-bindings",
+      "--disable-shared",
+      "--disable-json"
+    ],
+    "cflags": "-O2 -sUSE_ZLIB=1 -DNDEBUG",
+    "wasmLinkArgs": [
+      "-O2",
+      "-lembind",
+      "-std=c++17",
+      "-sALLOW_MEMORY_GROWTH=1",
+      "-sINITIAL_MEMORY=1GB",
+      "-sMAXIMUM_MEMORY=4GB",
+      "-sMALLOC=mimalloc",
+      "-sEXPORT_ES6=1",
+      "-sMODULARIZE=1",
+      "-sEXPORT_NAME=createModule",
+      "-sEXPORTED_RUNTIME_METHODS=FS,ENV,ccall,cwrap,UTF8ToString,stringToNewUTF8,setValue",
+      "--emit-tsd",
+      "libredwg-web.d.ts"
+    ],
+    "wrapperRelocation": {
+      "from": "../wasm/libredwg-web.js",
+      "to": "./libredwg-wasm-factory.mjs",
+      "imports": 2
+    }
+  },
+  "schema": "agent-pi-dsh/cad-host-clean-build/v1",
+  "artifacts": [
+    {
+      "path": "libredwg-web.mjs",
+      "bytes": 269621,
+      "sha256": "e5def89cdec63b8fb5e7c6e944ebdb3b90c273957ed3709866a5e8ba32875834"
+    },
+    {
+      "path": "libredwg-wasm-factory.mjs",
+      "bytes": 110397,
+      "sha256": "28526db8c9a6f936d877fe42a6647e169406631aee519b49650871642a216fcb"
+    },
+    {
+      "path": "libredwg-web.wasm",
+      "bytes": 10821107,
+      "sha256": "9f68e44c503730372e04552df703fae9807638448c61dc5b042f5f6f6ae82543"
+    },
+    {
+      "path": "GPL-3.0.txt",
+      "bytes": 35147,
+      "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903"
+    }
+  ],
+  "sourceArchive": {
+    "path": "sources/Agent-Pi-DSH-3.8.2-CAD-host-corresponding-source.tar.gz",
+    "bytes": 25450749,
+    "sha256": "c13fb769abb0a61832c86d620e2a0bb849bc69ef43fd634edd900810abb74806"
+  },
+  "evidence": {
+    "freshCObjects": true,
+    "nodeApiTests": {
+      "total": 2,
+      "passed": 2
+    },
+    "bitPositionTests": {
+      "total": 14,
+      "passed": 14,
+      "linkedActualLibrary": true
+    },
+    "emccVersion": "emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 4.0.12 (6f625bd62ee64f4f8cd11476774741b961e4a2d5)",
+    "nodeVersion": "v22.16.0",
+    "pnpmVersion": "10.33.4"
+  }
+}

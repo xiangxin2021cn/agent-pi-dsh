@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSyn
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
+import { verifyCadHostCleanRelease } from './cad-host-clean-release.mjs'
 
 // Run against the actual staged product, not this script's development imports.
 const product = resolve(process.argv[2] || '.')
@@ -39,14 +40,17 @@ try {
   assert.deepEqual([...context.getImageData(100, 220, 1, 1).data], [255, 0, 0, 255])
   const workers = join(product, 'bundles/tender-web/lib/cad-viewer/workers')
   assert.ok(existsSync(join(workers, 'libredwg-web.wasm')), 'DWG WASM must ship in the clean viewer workers directory')
-  const { LibreDwg } = await import(pathToFileURL(require.resolve('@mlightcad/libredwg-web').replace('libredwg-web.umd.cjs', 'libredwg-web.js')).href)
-  const libredwg = await LibreDwg.create(workers.replaceAll('\\', '/'))
+  const cadHost = verifyCadHostCleanRelease(product)
+  const hostDecoder = join(product, 'bundles/tender-host/lib/cad-decoder')
+  const { LibreDwg } = await import(pathToFileURL(join(hostDecoder, 'libredwg-web.mjs')).href)
+  const { default: factory } = await import(pathToFileURL(join(hostDecoder, 'libredwg-wasm-factory.mjs')).href)
+  const libredwg = LibreDwg.createByWasmInstance(await factory({ wasmBinary: readFileSync(join(hostDecoder, 'libredwg-web.wasm')) }))
   assert.equal(typeof libredwg.dwg_read_data, 'function')
   const { AcDbDatabase } = require('@mlightcad/data-model')
   const { AcDbLibreDwgConverter } = require('@mlightcad/libredwg-converter')
   assert.equal(typeof AcDbLibreDwgConverter, 'function')
   assert.match(new AcDbDatabase().dxfOut(), /SECTION/)
-  console.log(JSON.stringify({ product, pdf: { text: true, roiPixels: [result.width, result.height], nativeCanvas: true, assets: ['cmaps', 'standard_fonts', 'wasm'] }, cad: { wasmInitialized: true, databaseLoaded: true, converterLoaded: true, note: 'DWG conversion accuracy is not asserted by this runtime loading test.' } }, null, 2))
+  console.log(JSON.stringify({ product, pdf: { text: true, roiPixels: [result.width, result.height], nativeCanvas: true, assets: ['cmaps', 'standard_fonts', 'wasm'] }, cad: { wasmInitialized: true, decoderVersion: cadHost.decoderVersion, databaseLoaded: true, converterLoaded: true, note: 'DWG conversion accuracy is not asserted by this runtime loading test.' } }, null, 2))
 } finally {
   await pdfEngine?.dispose()
   rmSync(workspace, { recursive: true, force: true })

@@ -16,7 +16,7 @@ function write(path, contents) {
 }
 
 function git(root, ...args) {
-  return execFileSync('git', args, { cwd: root, encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+  return execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }).trim()
 }
 
 function commit(root) {
@@ -235,15 +235,24 @@ test('permits exact reviewed 3.7.5 shared files while rejecting later CAD edits 
 function reviewedHostFixture(t, review = '3.8.2-disk') {
   const value = fixture(t)
   const repository = join(dirname(cli), '..')
-  const shared = ['package.json', 'bundles/tender-host/src/http.ts', 'bundles/tender-web/src/client/file-preview-overlay.js']
+  const shared = ['package.json', 'bundles/tender-host/src/http.ts', 'bundles/tender-web/src/client/file-preview-overlay.js',
+    ...(review === '3.8.2-patched' ? ['THIRD_PARTY_NOTICES.md'] : [])]
   const added = [
     'bundles/tender-host/src/cad-convert.ts', 'bundles/tender-host/src/cad-convert-worker.mjs',
     'bundles/tender-host/package.json', 'bundles/tender-host/package-lock.json',
     ...(review !== '3.8.1' ? ['bundles/tender-host/src/cad-dxf-output.mjs', 'bundles/engineering-cad/src/reader.ts'] : []),
-    ...(review === '3.8.2-disk' ? [
+    ...(['3.8.2-disk', '3.8.2-patched'].includes(review) ? [
       'bundles/engineering-cad/src/plugin.ts', 'bundles/engineering-cad/src/dxf-disk-source.ts',
       'bundles/engineering-cad/src/cad-disk-index.ts', 'packages/engineering-cad/index.ts',
       'packages/engineering-cad/types.ts', 'packages/engineering-cad/matrix.ts',
+    ] : []),
+    ...(review === '3.8.2-patched' ? [
+      'bundles/tender-host/src/cad-dwg-model-quality.mjs',
+      'bundles/engineering-cad/src/cad-embedded.ts',
+      ...['libredwg-web.mjs', 'libredwg-wasm-factory.mjs', 'libredwg-web.wasm', 'GPL-3.0.txt', 'CAD-HOST-CLEAN-BUILD.json', 'sources/Agent-Pi-DSH-3.8.2-CAD-host-corresponding-source.tar.gz'].map(path => 'bundles/tender-host/lib/cad-decoder/' + path),
+      '.gitattributes', 'scripts/verify-engineering-runtime.mjs', 'scripts/cad-host-clean-release.mjs',
+      'scripts/build-cad-host-clean.sh', 'scripts/cad-host-bit-position-overflow.patch',
+      'scripts/cad-host-bit-position.test.c', 'scripts/cad-host-clean-pins.json',
     ] : []),
   ]
   for (const path of shared) {
@@ -254,9 +263,15 @@ function reviewedHostFixture(t, review = '3.8.2-disk') {
   const source = value.manifest.sources.agentPiDshCadIntegration
   source.commit = commit(value.root)
   source.tree = git(value.root, 'rev-parse', 'HEAD^{tree}')
-  const read = path => ['3.8.1', '3.8.2'].includes(review)
-    ? execFileSync('git', ['show', `${review === '3.8.1' ? 'v3.8.1' : '9fa77a2731bb4dc90cef4254faedfa6b682a18e9'}:${path}`], { cwd: repository, encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
-    : readFileSync(join(repository, path), 'utf8').replaceAll('\r\n', '\n')
+  const historical = {
+    '3.8.1': 'v3.8.1',
+    '3.8.2': '9fa77a2731bb4dc90cef4254faedfa6b682a18e9',
+    '3.8.2-disk': '75142e3ba0f1e6a8598d9c6d52af0457780cfcd5',
+  }[review]
+  const raw = path => path.startsWith('bundles/tender-host/lib/cad-decoder/') || path === 'scripts/cad-host-bit-position-overflow.patch'
+  const read = path => historical
+    ? execFileSync('git', ['show', `${historical}:${path}`], { cwd: repository, encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
+    : raw(path) ? readFileSync(join(repository, path)) : readFileSync(join(repository, path), 'utf8').replaceAll('\r\n', '\n')
   const reviewed = new Map([...shared, ...added].map(path => [path, read(path)]))
   for (const [path, contents] of reviewed) write(join(value.root, path), contents)
   commit(value.root)
@@ -305,6 +320,81 @@ test('pins the disk-index reader and its full dependency closure without changin
   }
   assert.deepEqual(value.manifest, originalManifest)
   assert.equal(assertCadIntegrationUnchanged(value).sourceCommit, originalManifest.sources.agentPiDshCadIntegration.commit)
+})
+
+test('pins the patched host binary, corresponding source and embedded linkage while retaining original CAD provenance', (t) => {
+  const value = reviewedHostFixture(t, '3.8.2-patched')
+  const originalManifest = structuredClone(value.manifest)
+  const proof = assertCadIntegrationUnchanged(value)
+  assert.equal(proof.hostExtension.review, '3.8.2-host-patched-decoder-embedded')
+  assert.equal(proof.hostExtension.nativeViewerBuildInputsUnchanged, true)
+  assert.equal(Object.keys(proof.hostExtension.additionalFileHashes).length, 27)
+  for (const path of [...Object.keys(proof.hostExtension.additionalFileHashes), 'THIRD_PARTY_NOTICES.md']) {
+    assert.ok(proof.inputPaths.includes(path))
+    const contents = value.reviewed.get(path)
+    write(join(value.root, path), Buffer.isBuffer(contents) ? Buffer.concat([contents, Buffer.from('\n')]) : contents + '\n')
+    commit(value.root)
+    assert.throws(() => assertCadIntegrationUnchanged(value), /CAD inputs changed|reviewed CAD host extension differs/)
+    write(join(value.root, path), contents)
+    commit(value.root)
+  }
+  assert.deepEqual(value.manifest, originalManifest)
+  assert.equal(assertCadIntegrationUnchanged(value).sourceCommit, originalManifest.sources.agentPiDshCadIntegration.commit)
+})
+
+test('rejects same-size binary changes to the patched WASM and corresponding source archive', (t) => {
+  const value = reviewedHostFixture(t, '3.8.2-patched')
+  for (const suffix of ['libredwg-web.wasm', 'sources/Agent-Pi-DSH-3.8.2-CAD-host-corresponding-source.tar.gz']) {
+    const path = 'bundles/tender-host/lib/cad-decoder/' + suffix
+    const original = value.reviewed.get(path)
+    assert.ok(Buffer.isBuffer(original))
+    const changed = Buffer.from(original)
+    changed[128] ^= 1
+    write(join(value.root, path), changed)
+    commit(value.root)
+    assert.throws(() => assertCadIntegrationUnchanged(value), /reviewed CAD host extension differs/)
+    write(join(value.root, path), original)
+    commit(value.root)
+  }
+  assert.equal(assertCadIntegrationUnchanged(value).hostExtension.review, '3.8.2-host-patched-decoder-embedded')
+})
+
+test('rejects untracked and committed extra files in the patched decoder distribution', (t) => {
+  const value = reviewedHostFixture(t, '3.8.2-patched')
+  write(join(value.root, 'bundles/tender-host/lib/cad-decoder/unreviewed.mjs'), 'export default true\n')
+  assert.throws(() => assertCadIntegrationUnchanged(value), /uncommitted changes/)
+  commit(value.root)
+  assert.throws(() => assertCadIntegrationUnchanged(value), /reviewed CAD host extension differs/)
+})
+
+test('accepts the finalized patched converter closure and rejects a further converter edit', (t) => {
+  const value = reviewedHostFixture(t, '3.8.2-patched')
+  const proof = assertCadIntegrationUnchanged(value)
+  assert.equal(proof.hostExtension.review, '3.8.2-host-patched-decoder-embedded')
+  assert.equal(Object.keys(proof.hostExtension.additionalFileHashes).length, 27)
+  const path = 'bundles/tender-host/src/cad-convert.ts'
+  write(join(value.root, path), value.reviewed.get(path) + '\n')
+  commit(value.root)
+  assert.throws(() => assertCadIntegrationUnchanged(value), /reviewed CAD host extension differs/)
+})
+
+test('rejects partial, dirty, missing and executable patched decoder helpers on historical and current extensions', (t) => {
+  for (const path of ['bundles/tender-host/src/cad-dwg-model-quality.mjs', 'bundles/engineering-cad/src/cad-embedded.ts', 'scripts/cad-host-clean-pins.json']) {
+    const historical = reviewedHostFixture(t)
+    write(join(historical.root, path), 'unreviewed patched decoder helper\n')
+    assert.throws(() => assertCadIntegrationUnchanged(historical), /uncommitted changes/)
+    commit(historical.root)
+    assert.throws(() => assertCadIntegrationUnchanged(historical), /host extension missing or mode changed|reviewed CAD host extension differs/)
+    const value = reviewedHostFixture(t, '3.8.2-patched')
+    git(value.root, 'rm', path)
+    git(value.root, 'commit', '-qm', 'missing patched decoder helper')
+    assert.throws(() => assertCadIntegrationUnchanged(value), /host extension missing or mode changed/)
+    write(join(value.root, path), value.reviewed.get(path))
+    commit(value.root)
+    git(value.root, 'update-index', '--chmod=+x', path)
+    git(value.root, 'commit', '-qm', 'patched decoder helper executable bit changed')
+    assert.throws(() => assertCadIntegrationUnchanged(value), /host extension missing or mode changed/)
+  }
 })
 
 test('rejects unreviewed disk helpers on the historical streamed extension and missing or executable disk helpers', (t) => {
