@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from 'node:fs'
+import { closeSync, ftruncateSync, mkdtempSync, mkdirSync, openSync, writeFileSync, rmSync, symlinkSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { cadFixture } from '../../../packages/engineering-cad/tests/fixture.ts'
@@ -69,5 +70,31 @@ test('host synchronization failure does not masquerade as successful task regist
     const result = await tools[0].execute({ action: 'inventory', path: 'drawing.dxf' }, { agent: { session: { id: 's', header: { cwd: w.root } } } })
     assert.equal(result.synchronization.status, 'failed'); assert.match(result.synchronization.message, /revision conflict/)
     assert.equal(result.inventory.records, 10)
+  } finally { w.cleanup() }
+})
+
+test('converted DWG parser warnings remain visible in the CAD inventory', async () => {
+  const w = workspace()
+  try {
+    const source = Buffer.from('AC1032 test DWG'), sourceHash = createHash('sha256').update(source).digest('hex')
+    writeFileSync(join(w.root, 'drawing.dwg'), source)
+    const drawing = await readCadDrawing(w.root, 'drawing.dwg', { convert: async () => ({
+      path: join(w.root, 'drawing.dxf'), relativePath: 'drawing.dxf', sourceHash, cached: false, warnings: [87],
+    }) })
+    assert.match(drawing.index.issues.find(issue => issue.code === 'dwg-parser-warning')!.message, /87/)
+    assert.ok(drawing.index.issues.some(issue => issue.code === 'dwg-conversion-review'))
+  } finally { w.cleanup() }
+})
+
+test('oversized converted DXF reports successful output separately from the read limit and warnings', async () => {
+  const w = workspace()
+  try {
+    const source = Buffer.from('AC1032 test DWG'), sourceHash = createHash('sha256').update(source).digest('hex')
+    writeFileSync(join(w.root, 'drawing.dwg'), source)
+    const fd = openSync(join(w.root, 'drawing.dxf'), 'r+')
+    try { ftruncateSync(fd, 128 * 1024 * 1024 + 1) } finally { closeSync(fd) }
+    await assert.rejects(readCadDrawing(w.root, 'drawing.dwg', { convert: async () => ({
+      path: join(w.root, 'drawing.dxf'), relativePath: 'drawing.dxf', sourceHash, cached: false, warnings: [87],
+    }) }), /已完整写出 DXF.*128 MiB.*87/)
   } finally { w.cleanup() }
 })

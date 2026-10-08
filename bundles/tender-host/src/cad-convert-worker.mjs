@@ -1,8 +1,9 @@
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { LibreDwg, Dwg_File_Type } from '@mlightcad/libredwg-web'
+import { writeDatabaseDxf } from './cad-dxf-output.mjs'
 
 const require = createRequire(import.meta.url)
 const { AcDbDatabase, acdbHostApplicationServices } = require('@mlightcad/data-model')
@@ -29,7 +30,7 @@ async function main(source, output) {
   const database = new AcDbDatabase()
   acdbHostApplicationServices().workingDatabase = database
   await converter.read(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), database)
-  writeFileSync(output, database.dxfOut())
+  writeDatabaseDxf(database, output)
 }
 
 main(process.argv[2], process.argv[3]).catch((error) => {

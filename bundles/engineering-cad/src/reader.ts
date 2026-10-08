@@ -37,13 +37,14 @@ export async function readCadDrawing(cwd: string, path: string, options: { sourc
   if (!sourceStat.isFile() || sourceStat.size > 64 * 1024 * 1024) throw new Error('CAD 输入必须为不超过 64 MiB 的完整文件；不会截断文件分析。')
   const bytes = readFileSync(sourcePath), sourceHash = hash(bytes)
   if (options.sourceHash && options.sourceHash !== sourceHash) throw new Error('CAD 文件版本已变化，请重新读取 inventory，再按新哈希分页。')
-  let dxfPath = sourcePath, dxfBytes = bytes
+  let dxfPath = sourcePath, dxfBytes = bytes, conversionWarnings: number[] = []
   if (extension === '.dwg') {
     scopedCadPath(cwd, '.agent-pi/cad-converted', false)
     const result = await (options.convert || convertDwgToDxf)(cwd, sourcePath)
+    conversionWarnings = result.warnings || []
     dxfPath = scopedCadPath(cwd, result.path)
     if (result.sourceHash !== sourceHash || hash(readFileSync(scopedCadPath(cwd, path))) !== sourceHash) throw new Error('转换时 DWG 来源发生变化，结果未用于本次分析。')
-    if (statSync(dxfPath).size > 128 * 1024 * 1024) throw new Error('转换 DXF 超过 128 MiB，需在原软件拆分后读取；不会静默截断。')
+    if (statSync(dxfPath).size > 128 * 1024 * 1024) throw new Error(`DWG 已完整写出 DXF（${(statSync(dxfPath).size / 1024 / 1024).toFixed(1)} MiB）：${dxfPath}；超过 cad_read 的 128 MiB 读取上限，需在原软件拆分后读取；未截断。${conversionWarnings.length ? ` LibreDWG 解析警告：${conversionWarnings.join('、')}，转换成功不代表完整解码。` : ''}`)
     dxfBytes = readFileSync(dxfPath)
   }
   const index = await parseCadDxf(dxfBytes, cadLibrary)
@@ -57,6 +58,7 @@ export async function readCadDrawing(cwd: string, path: string, options: { sourc
     return { block: b.name, path: b.xrefPath, status }
   })
   if (extension === '.dwg') index.issues.unshift({ code: 'dwg-conversion-review', message: '此清点针对 DWG 转换得到的 DXF；转换器可能遗漏代理/专有对象，须对照原 DWG 和图面验证，不代表原 DWG 全部语义已保留。' })
+  if (conversionWarnings.length) index.issues.unshift({ code: 'dwg-parser-warning', message: `LibreDWG 返回解析警告：${conversionWarnings.join('、')}；输出完整 DXF 不代表原 DWG 的对象与语义完整解码，须对照原图复核。` })
   const source = { path: sourcePath, sha256: sourceHash, format: extension.slice(1), derivedPath: dxfPath, derivedSha256: index.sourceHash }
   return { source, index, references }
 }

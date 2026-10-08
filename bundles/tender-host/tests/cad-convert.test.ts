@@ -47,3 +47,26 @@ test('invalid DWG gives an error instead of a false DXF', async () => {
   writeFileSync(source, 'DWG source')
   await assert.rejects(convertDwgToDxf(cwd, source), /MLightCAD DWG 转 DXF 失败/)
 })
+
+test('DWG parser warnings survive a cached conversion and an old receipt is revalidated', async () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'ap-cad-warnings-')), source = join(cwd, 'plan.dwg')
+  writeFileSync(source, 'DWG source')
+  let calls = 0
+  const convert = async (_input: string, output: string) => { calls += 1; writeFileSync(output, dxf); return { warnings: [87] } }
+  const first = await convertDwgToDxf(cwd, source, convert)
+  assert.deepEqual(first.warnings, [87])
+  const second = await convertDwgToDxf(cwd, source, convert)
+  assert.deepEqual(second.warnings, [87])
+  assert.equal(second.cached, true)
+  assert.equal(calls, 1)
+  writeFileSync(first.path + '.conversion.json', JSON.stringify({ schema: 'old-converter', sourceHash: first.sourceHash, warnings: [] }))
+  const third = await convertDwgToDxf(cwd, source, convert)
+  assert.equal(third.cached, false)
+  assert.deepEqual(third.warnings, [87])
+  assert.equal(calls, 2)
+  writeFileSync(third.path, dxf + ' ')
+  const fourth = await convertDwgToDxf(cwd, source, convert)
+  assert.equal(fourth.cached, false)
+  assert.equal(calls, 3)
+  assert.deepEqual(fourth.warnings, [87])
+})

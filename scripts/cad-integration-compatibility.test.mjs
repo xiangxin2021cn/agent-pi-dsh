@@ -232,11 +232,15 @@ test('permits exact reviewed 3.7.5 shared files while rejecting later CAD edits 
   }
 })
 
-function reviewedHostFixture(t) {
+function reviewedHostFixture(t, review = '3.8.2') {
   const value = fixture(t)
   const repository = join(dirname(cli), '..')
   const shared = ['package.json', 'bundles/tender-host/src/http.ts', 'bundles/tender-web/src/client/file-preview-overlay.js']
-  const added = ['bundles/tender-host/src/cad-convert.ts', 'bundles/tender-host/src/cad-convert-worker.mjs', 'bundles/tender-host/package.json', 'bundles/tender-host/package-lock.json']
+  const added = [
+    'bundles/tender-host/src/cad-convert.ts', 'bundles/tender-host/src/cad-convert-worker.mjs',
+    'bundles/tender-host/package.json', 'bundles/tender-host/package-lock.json',
+    ...(review === '3.8.2' ? ['bundles/tender-host/src/cad-dxf-output.mjs', 'bundles/engineering-cad/src/reader.ts'] : []),
+  ]
   for (const path of shared) {
     write(join(value.root, path), execFileSync('git', ['show', `1aef6820ebc450125788158a4b2d1706115cdd10:${path}`], {
       cwd: repository, encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
@@ -245,19 +249,23 @@ function reviewedHostFixture(t) {
   const source = value.manifest.sources.agentPiDshCadIntegration
   source.commit = commit(value.root)
   source.tree = git(value.root, 'rev-parse', 'HEAD^{tree}')
-  const reviewed = new Map([...shared, ...added].map(path => [path, readFileSync(join(repository, path), 'utf8').replaceAll('\r\n', '\n')]))
+  const read = path => review === '3.8.1'
+    ? execFileSync('git', ['show', `v3.8.1:${path}`], { cwd: repository, encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
+    : readFileSync(join(repository, path), 'utf8').replaceAll('\r\n', '\n')
+  const reviewed = new Map([...shared, ...added].map(path => [path, read(path)]))
   for (const [path, contents] of reviewed) write(join(value.root, path), contents)
   commit(value.root)
   return { ...value, reviewed }
 }
 
-test('pins the reviewed DWG host extension separately from the unchanged native viewer build', (t) => {
+test('pins the reviewed streamed DWG host extension separately from the unchanged native viewer build', (t) => {
   const value = reviewedHostFixture(t)
   const originalManifest = structuredClone(value.manifest)
   const proof = assertCadIntegrationUnchanged(value)
-  assert.equal(proof.hostExtension.review, '3.8.1-host-dwg-conversion')
+  assert.equal(proof.hostExtension.review, '3.8.2-host-streamed-dxf')
   assert.equal(proof.hostExtension.nativeViewerBuildInputsUnchanged, true)
-  assert.equal(Object.keys(proof.hostExtension.additionalFileHashes).length, 4)
+  assert.equal(Object.keys(proof.hostExtension.additionalFileHashes).length, 6)
+  for (const path of ['bundles/tender-host/src/cad-dxf-output.mjs', 'bundles/engineering-cad/src/reader.ts']) assert.ok(proof.inputPaths.includes(path))
   assert.deepEqual(value.manifest, originalManifest)
   for (const [path, contents] of value.reviewed) {
     write(join(value.root, path), contents + '\n')
@@ -267,6 +275,38 @@ test('pins the reviewed DWG host extension separately from the unchanged native 
     commit(value.root)
   }
   assert.equal(assertCadIntegrationUnchanged(value).sourceCommit, originalManifest.sources.agentPiDshCadIntegration.commit)
+})
+
+test('retains the exact historical 3.8.1 host extension and original 3.6.2 CAD provenance', (t) => {
+  const value = reviewedHostFixture(t, '3.8.1')
+  const originalManifest = structuredClone(value.manifest)
+  const proof = assertCadIntegrationUnchanged(value)
+  assert.equal(proof.hostExtension.review, '3.8.1-host-dwg-conversion')
+  assert.equal(Object.keys(proof.hostExtension.additionalFileHashes).length, 4)
+  assert.equal(proof.sourceCommit, originalManifest.sources.agentPiDshCadIntegration.commit)
+  assert.deepEqual(value.manifest, originalManifest)
+  const helper = 'bundles/tender-host/src/cad-dxf-output.mjs'
+  write(join(value.root, helper), 'unreviewed stream helper\n')
+  assert.throws(() => assertCadIntegrationUnchanged(value), /uncommitted changes/)
+  commit(value.root)
+  assert.throws(() => assertCadIntegrationUnchanged(value), /reviewed CAD host extension differs/)
+})
+
+test('rejects dirty, removed and executable stream helper or engineering reader files', (t) => {
+  for (const path of ['bundles/tender-host/src/cad-dxf-output.mjs', 'bundles/engineering-cad/src/reader.ts']) {
+    const value = reviewedHostFixture(t)
+    write(join(value.root, path), value.reviewed.get(path) + '\n')
+    assert.throws(() => assertCadIntegrationUnchanged(value), /uncommitted changes/)
+    write(join(value.root, path), value.reviewed.get(path))
+    git(value.root, 'rm', path)
+    git(value.root, 'commit', '-qm', 'missing reviewed stream integration')
+    assert.throws(() => assertCadIntegrationUnchanged(value), /host extension missing or mode changed|reviewed CAD host extension differs/)
+    write(join(value.root, path), value.reviewed.get(path))
+    commit(value.root)
+    git(value.root, 'update-index', '--chmod=+x', path)
+    git(value.root, 'commit', '-qm', 'reviewed stream integration executable bit changed')
+    assert.throws(() => assertCadIntegrationUnchanged(value), /host extension missing or mode changed/)
+  }
 })
 
 test('rejects dirty, removed and executable converter files after the host extension review', (t) => {

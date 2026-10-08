@@ -64,6 +64,7 @@ function reviewedNonCadPair(path, before, after) {
 // Native viewer inputs remain unchanged. Pin the entire reviewed integration
 // and dependency closure; any later edit requires another explicit review.
 const reviewed381HostExtension = {
+  review: '3.8.1-host-dwg-conversion',
   shared: {
     'package.json': [
       'c81d6358654bd40d0f348c08f4f75d3489e7d59dbe70ddd2bbdc7212bbf8f850',
@@ -86,6 +87,24 @@ const reviewed381HostExtension = {
   },
 }
 
+// The 3.8.2 host streams formatted DXF groups in the isolated converter worker,
+// retains parser warnings in its cache receipt, and distinguishes a completed
+// export from the engineering reader's size limit. The clean viewer stays pinned.
+const reviewed382HostExtension = {
+  review: '3.8.2-host-streamed-dxf',
+  shared: reviewed381HostExtension.shared,
+  files: {
+    ...reviewed381HostExtension.files,
+    'bundles/tender-host/src/cad-convert.ts': 'c882a6bbae375fc8d8ffc3c1c06c0b35f4c9501e5a62851aad52e1d5409aa78c',
+    'bundles/tender-host/src/cad-convert-worker.mjs': '177d7637a3ac788a06aeb66f6e7d3d27d37604320614a2df08dcc7fd4702b678',
+    'bundles/tender-host/src/cad-dxf-output.mjs': 'e4558b72cfed84012d3faea4250878820ed4a5564ee5f2877e4befbe52e4a2c7',
+    'bundles/engineering-cad/src/reader.ts': 'a07df8edcc33ad9a06ac31cca20d50e06233830b2adf4ca63bea0313a77886aa',
+  },
+}
+const hostExtensionPaths = [...new Set([
+  ...Object.keys(reviewed381HostExtension.files), ...Object.keys(reviewed382HostExtension.files),
+])]
+
 function reviewedHash(path, text) {
   if (path === 'package.json') text = text.replace(/("version"\s*:\s*")[^"]+"/, '$1<application-version>"')
   return createHash('sha256').update(text).digest('hex')
@@ -97,12 +116,14 @@ function reviewedHostPair(path, before, after) {
 }
 
 function verifyReviewedHostExtension(root, sourceCommit, target) {
-  for (const path of Object.keys(reviewed381HostExtension.shared)) {
+  const streamed = git(root, ['ls-tree', target, '--', 'bundles/tender-host/src/cad-dxf-output.mjs']).trim()
+  const extension = streamed ? reviewed382HostExtension : reviewed381HostExtension
+  for (const path of Object.keys(extension.shared)) {
     const before = git(root, ['show', `${sourceCommit}:${path}`])
     const after = git(root, ['show', `${target}:${path}`])
     if (!reviewedHostPair(path, before, after)) fail(`reviewed CAD host extension differs: ${path}`)
   }
-  for (const [path, hash] of Object.entries(reviewed381HostExtension.files)) {
+  for (const [path, hash] of Object.entries(extension.files)) {
     const entry = git(root, ['ls-tree', target, '--', path]).trim()
     if (!entry.startsWith('100644 blob ')) fail(`reviewed CAD host extension missing or mode changed: ${path}`)
     if (reviewedHash(path, git(root, ['show', `${target}:${path}`])) !== hash) {
@@ -110,10 +131,10 @@ function verifyReviewedHostExtension(root, sourceCommit, target) {
     }
   }
   return {
-    review: '3.8.1-host-dwg-conversion',
+    review: extension.review,
     nativeViewerBuildInputsUnchanged: true,
-    sharedFileHashes: reviewed381HostExtension.shared,
-    additionalFileHashes: reviewed381HostExtension.files,
+    sharedFileHashes: extension.shared,
+    additionalFileHashes: extension.files,
   }
 }
 
@@ -248,11 +269,11 @@ export function assertCadIntegrationUnchanged({ root, manifest, releaseCommit = 
       return true
     })
   if (changed.length > 0) fail(`CAD inputs changed since ${source.commit}: ${changed.join(', ')}`)
-  const converterPaths = Object.keys(reviewed381HostExtension.files).filter(path => path.startsWith('bundles/tender-host/src/'))
+  const converterPaths = hostExtensionPaths.filter(path => path.startsWith('bundles/tender-host/src/'))
   const hasHostConverter = git(root, ['ls-tree', target, '--', ...converterPaths]).trim().length > 0
   const hostExtension = usesReviewedHostExtension || hasHostConverter ? verifyReviewedHostExtension(root, source.commit, target) : undefined
-  const inputPaths = [...CAD_INPUT_PATHS, ...(hostExtension ? Object.keys(reviewed381HostExtension.files) : [])]
-  if (git(root, ['status', '--porcelain=v1', '--untracked-files=all', '--', ...inputPaths, ...converterPaths]).trim()) {
+  const inputPaths = [...CAD_INPUT_PATHS, ...(hostExtension ? Object.keys(hostExtension.additionalFileHashes) : [])]
+  if (git(root, ['status', '--porcelain=v1', '--untracked-files=all', '--', ...inputPaths, ...hostExtensionPaths]).trim()) {
     fail('CAD inputs have uncommitted changes')
   }
   return { sourceCommit: source.commit, sourceTree, releaseCommit: target, inputPaths, ...(hostExtension ? { hostExtension } : {}) }
