@@ -232,14 +232,19 @@ test('permits exact reviewed 3.7.5 shared files while rejecting later CAD edits 
   }
 })
 
-function reviewedHostFixture(t, review = '3.8.2') {
+function reviewedHostFixture(t, review = '3.8.2-disk') {
   const value = fixture(t)
   const repository = join(dirname(cli), '..')
   const shared = ['package.json', 'bundles/tender-host/src/http.ts', 'bundles/tender-web/src/client/file-preview-overlay.js']
   const added = [
     'bundles/tender-host/src/cad-convert.ts', 'bundles/tender-host/src/cad-convert-worker.mjs',
     'bundles/tender-host/package.json', 'bundles/tender-host/package-lock.json',
-    ...(review === '3.8.2' ? ['bundles/tender-host/src/cad-dxf-output.mjs', 'bundles/engineering-cad/src/reader.ts'] : []),
+    ...(review !== '3.8.1' ? ['bundles/tender-host/src/cad-dxf-output.mjs', 'bundles/engineering-cad/src/reader.ts'] : []),
+    ...(review === '3.8.2-disk' ? [
+      'bundles/engineering-cad/src/plugin.ts', 'bundles/engineering-cad/src/dxf-disk-source.ts',
+      'bundles/engineering-cad/src/cad-disk-index.ts', 'packages/engineering-cad/index.ts',
+      'packages/engineering-cad/types.ts', 'packages/engineering-cad/matrix.ts',
+    ] : []),
   ]
   for (const path of shared) {
     write(join(value.root, path), execFileSync('git', ['show', `1aef6820ebc450125788158a4b2d1706115cdd10:${path}`], {
@@ -249,8 +254,8 @@ function reviewedHostFixture(t, review = '3.8.2') {
   const source = value.manifest.sources.agentPiDshCadIntegration
   source.commit = commit(value.root)
   source.tree = git(value.root, 'rev-parse', 'HEAD^{tree}')
-  const read = path => review === '3.8.1'
-    ? execFileSync('git', ['show', `v3.8.1:${path}`], { cwd: repository, encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
+  const read = path => ['3.8.1', '3.8.2'].includes(review)
+    ? execFileSync('git', ['show', `${review === '3.8.1' ? 'v3.8.1' : '9fa77a2731bb4dc90cef4254faedfa6b682a18e9'}:${path}`], { cwd: repository, encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
     : readFileSync(join(repository, path), 'utf8').replaceAll('\r\n', '\n')
   const reviewed = new Map([...shared, ...added].map(path => [path, read(path)]))
   for (const [path, contents] of reviewed) write(join(value.root, path), contents)
@@ -259,7 +264,7 @@ function reviewedHostFixture(t, review = '3.8.2') {
 }
 
 test('pins the reviewed streamed DWG host extension separately from the unchanged native viewer build', (t) => {
-  const value = reviewedHostFixture(t)
+  const value = reviewedHostFixture(t, '3.8.2')
   const originalManifest = structuredClone(value.manifest)
   const proof = assertCadIntegrationUnchanged(value)
   assert.equal(proof.hostExtension.review, '3.8.2-host-streamed-dxf')
@@ -275,6 +280,50 @@ test('pins the reviewed streamed DWG host extension separately from the unchange
     commit(value.root)
   }
   assert.equal(assertCadIntegrationUnchanged(value).sourceCommit, originalManifest.sources.agentPiDshCadIntegration.commit)
+})
+
+test('pins the disk-index reader and its full dependency closure without changing native CAD provenance', (t) => {
+  const value = reviewedHostFixture(t)
+  const originalManifest = structuredClone(value.manifest)
+  const proof = assertCadIntegrationUnchanged(value)
+  assert.equal(proof.hostExtension.review, '3.8.2-host-disk-index')
+  assert.equal(proof.hostExtension.nativeViewerBuildInputsUnchanged, true)
+  assert.equal(Object.keys(proof.hostExtension.additionalFileHashes).length, 12)
+  const additions = [
+    'bundles/engineering-cad/src/reader.ts', 'bundles/engineering-cad/src/plugin.ts',
+    'bundles/engineering-cad/src/dxf-disk-source.ts', 'bundles/engineering-cad/src/cad-disk-index.ts',
+    'packages/engineering-cad/index.ts', 'packages/engineering-cad/types.ts', 'packages/engineering-cad/matrix.ts',
+  ]
+  for (const path of additions) {
+    assert.ok(proof.inputPaths.includes(path))
+    const contents = value.reviewed.get(path)
+    write(join(value.root, path), contents + '\n')
+    commit(value.root)
+    assert.throws(() => assertCadIntegrationUnchanged(value), /reviewed CAD host extension differs/)
+    write(join(value.root, path), contents)
+    commit(value.root)
+  }
+  assert.deepEqual(value.manifest, originalManifest)
+  assert.equal(assertCadIntegrationUnchanged(value).sourceCommit, originalManifest.sources.agentPiDshCadIntegration.commit)
+})
+
+test('rejects unreviewed disk helpers on the historical streamed extension and missing or executable disk helpers', (t) => {
+  for (const path of ['bundles/engineering-cad/src/dxf-disk-source.ts', 'bundles/engineering-cad/src/cad-disk-index.ts']) {
+    const historical = reviewedHostFixture(t, '3.8.2')
+    write(join(historical.root, path), 'unreviewed disk helper\n')
+    assert.throws(() => assertCadIntegrationUnchanged(historical), /uncommitted changes/)
+    commit(historical.root)
+    assert.throws(() => assertCadIntegrationUnchanged(historical), /host extension missing or mode changed|reviewed CAD host extension differs/)
+    const value = reviewedHostFixture(t)
+    git(value.root, 'rm', path)
+    git(value.root, 'commit', '-qm', 'missing disk helper')
+    assert.throws(() => assertCadIntegrationUnchanged(value), /host extension missing or mode changed/)
+    write(join(value.root, path), value.reviewed.get(path))
+    commit(value.root)
+    git(value.root, 'update-index', '--chmod=+x', path)
+    git(value.root, 'commit', '-qm', 'disk helper executable bit changed')
+    assert.throws(() => assertCadIntegrationUnchanged(value), /host extension missing or mode changed/)
+  }
 })
 
 test('retains the exact historical 3.8.1 host extension and original 3.6.2 CAD provenance', (t) => {

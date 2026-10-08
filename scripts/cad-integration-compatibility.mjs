@@ -101,8 +101,27 @@ const reviewed382HostExtension = {
     'bundles/engineering-cad/src/reader.ts': 'a07df8edcc33ad9a06ac31cca20d50e06233830b2adf4ca63bea0313a77886aa',
   },
 }
+// The subsequent 3.8.2 reader adds bounded geometry projection, disk metadata
+// and original-group pagination. Pin the complete reader dependency closure;
+// retain the earlier streamed-export review for its exact historical commit.
+const reviewed382DiskHostExtension = {
+  review: '3.8.2-host-disk-index',
+  shared: reviewed381HostExtension.shared,
+  files: {
+    ...reviewed382HostExtension.files,
+    'bundles/engineering-cad/src/reader.ts': '510b5aebaad500db426fb29f4992c6ff1768e700f7cb8c9a1de91b36efe5c641',
+    'bundles/engineering-cad/src/plugin.ts': 'f30e34218c7223dfe5339ae08d5abc5a71c5fb3cb7e23d5d5093d14dfac7e2aa',
+    'bundles/engineering-cad/src/dxf-disk-source.ts': 'a87ca0fe1df2bce6856213b8019036f232d27c7b47d0668feb06446187f5db0f',
+    'bundles/engineering-cad/src/cad-disk-index.ts': 'ed592feb913e9b248719666a24a600abbd6a9b228eb251bc843e04a39e0179e7',
+    'packages/engineering-cad/index.ts': '9e8f88b6c5ecd1108e6e684510a7bd780ec35d34e422c3ea82aeb44257a2dff5',
+    'packages/engineering-cad/types.ts': 'd1d8422d2a6596f1575806cd1aac00c9009867b6a24a351014b99e5c0cc9e90a',
+    'packages/engineering-cad/matrix.ts': '9f696d078b97d7dba120042642f28989836c2ccd25de281d830f5cf30b9d6f61',
+  },
+}
+const diskIndexPaths = ['bundles/engineering-cad/src/dxf-disk-source.ts', 'bundles/engineering-cad/src/cad-disk-index.ts']
 const hostExtensionPaths = [...new Set([
   ...Object.keys(reviewed381HostExtension.files), ...Object.keys(reviewed382HostExtension.files),
+  ...Object.keys(reviewed382DiskHostExtension.files),
 ])]
 
 function reviewedHash(path, text) {
@@ -116,8 +135,9 @@ function reviewedHostPair(path, before, after) {
 }
 
 function verifyReviewedHostExtension(root, sourceCommit, target) {
+  const indexed = git(root, ['ls-tree', target, '--', ...diskIndexPaths]).trim()
   const streamed = git(root, ['ls-tree', target, '--', 'bundles/tender-host/src/cad-dxf-output.mjs']).trim()
-  const extension = streamed ? reviewed382HostExtension : reviewed381HostExtension
+  const extension = indexed ? reviewed382DiskHostExtension : streamed ? reviewed382HostExtension : reviewed381HostExtension
   for (const path of Object.keys(extension.shared)) {
     const before = git(root, ['show', `${sourceCommit}:${path}`])
     const after = git(root, ['show', `${target}:${path}`])
@@ -270,7 +290,7 @@ export function assertCadIntegrationUnchanged({ root, manifest, releaseCommit = 
     })
   if (changed.length > 0) fail(`CAD inputs changed since ${source.commit}: ${changed.join(', ')}`)
   const converterPaths = hostExtensionPaths.filter(path => path.startsWith('bundles/tender-host/src/'))
-  const hasHostConverter = git(root, ['ls-tree', target, '--', ...converterPaths]).trim().length > 0
+  const hasHostConverter = git(root, ['ls-tree', target, '--', ...converterPaths, ...diskIndexPaths]).trim().length > 0
   const hostExtension = usesReviewedHostExtension || hasHostConverter ? verifyReviewedHostExtension(root, source.commit, target) : undefined
   const inputPaths = [...CAD_INPUT_PATHS, ...(hostExtension ? Object.keys(hostExtension.additionalFileHashes) : [])]
   if (git(root, ['status', '--porcelain=v1', '--untracked-files=all', '--', ...inputPaths, ...hostExtensionPaths]).trim()) {

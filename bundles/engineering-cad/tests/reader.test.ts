@@ -86,7 +86,7 @@ test('converted DWG parser warnings remain visible in the CAD inventory', async 
   } finally { w.cleanup() }
 })
 
-test('oversized converted DXF reports successful output separately from the read limit and warnings', async () => {
+test('oversized incomplete converted DXF is rejected for invalid content rather than a file size ceiling', async () => {
   const w = workspace()
   try {
     const source = Buffer.from('AC1032 test DWG'), sourceHash = createHash('sha256').update(source).digest('hex')
@@ -95,6 +95,6 @@ test('oversized converted DXF reports successful output separately from the read
     try { ftruncateSync(fd, 128 * 1024 * 1024 + 1) } finally { closeSync(fd) }
     await assert.rejects(readCadDrawing(w.root, 'drawing.dwg', { convert: async () => ({
       path: join(w.root, 'drawing.dxf'), relativePath: 'drawing.dxf', sourceHash, cached: false, warnings: [87],
-    }) }), /已完整写出 DXF.*128 MiB.*87/)
+    }) }), /DXF line exceeds/)
   } finally { w.cleanup() }
 })
