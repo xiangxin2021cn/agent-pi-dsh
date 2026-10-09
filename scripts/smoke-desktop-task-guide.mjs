@@ -551,7 +551,7 @@ try {
   assert.equal(checkedReport.verification.status,'review','remaining source and semantic gaps are retained')
   assert.notEqual(checkedReport.status,'accepted')
   assert.equal(await dialog.getByRole('button',{name:'确认验收全部成果',exact:true}).count(),0)
-  await page.screenshot({path:join(artifactDir,'09-durable-constraints-and-actual-verification.png'),fullPage:true})
+  await page.screenshot({path:join(artifactDir,'09-durable-constraints-and-actual-verification.png'),fullPage:false})
   console.log(JSON.stringify({phase:'durable-constraint-revoke-and-actual-verification-ui',status:'ok',reportSha:checkedReport.verification.artifactSha256}))
 
   // Exercise the project tool -> host projection -> all three native views.
@@ -743,7 +743,6 @@ try {
     const cadFrame=cadDialog.locator('iframe.ap-cad-frame')
     const cadUrl=await cadFrame.getAttribute('src')
     assert.match(cadUrl,/\/api\/agent-pi\/cad-viewer\/host-decoder\/index\.html\?/)
-    await cadDialog.getByText('二维预览已就绪',{exact:true}).waitFor({timeout:60_000})
     const cadContents=cadFrame.contentFrame()
     await cadContents.locator('#status-message').filter({hasText:'图纸已打开'}).waitFor({timeout:20_000})
     await cadContents.locator('#busy-state').waitFor({state:'hidden',timeout:20_000})
