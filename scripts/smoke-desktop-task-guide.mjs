@@ -187,6 +187,10 @@ writeFileSync(profilePatchPath,readFileSync(profilePatchPath,'utf8')+'\n- insert
 
 let electronApp
 let page
+async function captureScreenshot(path) {
+  const png=await electronApp.evaluate(async ({BrowserWindow},url)=>(await BrowserWindow.getAllWindows().find(window=>window.webContents.getURL()===url).webContents.capturePage()).toPNG().toString('base64'),page.url())
+  writeFileSync(path,Buffer.from(png,'base64'))
+}
 let officeStarted = false
 const qaLoader = join(scratch, 'desktop-loader.mjs')
 if (!packagedExe) writeFileSync(qaLoader, "import {app} from 'electron';import {pathToFileURL} from 'node:url';app.setPath('userData',process.env.AGENT_PI_QA_USER_DATA);await import(pathToFileURL(process.env.AGENT_PI_QA_DESKTOP_MAIN).href)")
@@ -379,7 +383,7 @@ try {
     assert.deepEqual(pageErrors,[]);assert.deepEqual(consoleErrors,[])
     const startup={status:'ok',scope:'startup-only',identity,productRoot,dshRoot,runtimeNode,title:await page.title(),checks:['isolated-user-data','actual-executable-identity','actual-runtime-profile','real-task-plugin-tool','visible-native-session','no-render-errors']}
     writeFileSync(join(artifactDir,'packaged-startup.json'),JSON.stringify(startup,null,2),'utf8')
-    await page.screenshot({path:join(artifactDir,'packaged-startup.png'),fullPage:true})
+    await captureScreenshot(join(artifactDir,'packaged-startup.png'))
     console.log(JSON.stringify(startup));return
   }
   const history=await runTool('session_search',{query:'longhorizonproof379',session_ids:['qa-prior-context','qa-other-workspace'],event_types:['user/message']})
@@ -417,7 +421,7 @@ try {
   assert.match(await summary.innerText(),/对当前目标的影响/)
   assert.equal(await page.locator('vite-error-overlay,nextjs-portal,#webpack-dev-server-client-overlay').count(),0)
   assert.match(await page.title(),/Agent Pi|DSH|DeepSeek|Professional/i)
-  await page.screenshot({path:join(artifactDir,'01-chat-goal-and-finding-desktop.png'),fullPage:true})
+  await captureScreenshot(join(artifactDir,'01-chat-goal-and-finding-desktop.png'))
   console.log(JSON.stringify({phase:'main-chat-understanding',status:'ok',sourceHash:parsed.version}))
   await page.getByRole('tab',{name:'Codex',exact:true}).click()
   await summary.getByText(objective,{exact:true}).waitFor({timeout:Math.min(30_000,remaining())})
@@ -454,7 +458,7 @@ try {
   await depthPanel.getByText('机器检查通过',{exact:true}).waitFor()
   await depthPanel.getByText('需专业审阅',{exact:true}).waitFor()
   await depthPanel.getByText(objective,{exact:true}).waitFor()
-  await page.screenshot({path:join(artifactDir,'02-depth-shared-goal-and-check-history.png'),fullPage:true})
+  await captureScreenshot(join(artifactDir,'02-depth-shared-goal-and-check-history.png'))
   await depthPanel.getByRole('button',{name:'关闭专业深度面板',exact:true}).click()
   assert.equal((await request('/api/agent-pi/qa-task-tool')).humanMessages,humanCount,'toggle and settings do not inject a synthetic task message')
 
@@ -474,7 +478,7 @@ try {
   assert.notEqual(guideLayout.position,'fixed','task view does not create a fixed side drawer')
   assert.ok(guideLayout.region.x >= guideLayout.tabs.x - 30 && guideLayout.region.right <= guideLayout.tabs.right + 30,'task guide stays inside the main conversation column')
   assert.equal((await page.locator('.ap-files-dock').boundingBox()).width,originalFileRail.width,'task view preserves the existing right file rail width')
-  await page.screenshot({path:join(artifactDir,'03-task-overview-desktop.png'),fullPage:true})
+  await captureScreenshot(join(artifactDir,'03-task-overview-desktop.png'))
   await dialog.getByRole('button',{name:'修正某项理解',exact:true}).click()
   await dialog.getByLabel('成果给谁使用').fill('领导决策会')
   const beforeFinding=await request(taskUrl)
@@ -501,7 +505,7 @@ try {
   await summary.locator('[data-finding-id="period-conflict"]').getByRole('button',{name:'项目资料.md',exact:true}).first().click()
   assert.equal((await (await sourceResponse).json()).versionVerified,true)
   await page.getByText(/正文工期：120 天/).first().waitFor({timeout:remaining()})
-  await page.screenshot({path:join(artifactDir,'04-verified-source-preview.png'),fullPage:true})
+  await captureScreenshot(join(artifactDir,'04-verified-source-preview.png'))
   await page.getByRole('dialog',{name:'项目资料.md',exact:true}).getByRole('button',{name:'关闭',exact:true}).click()
   await page.locator('select.ap-lang').selectOption('en')
   await page.getByRole('tab',{name:'Current task',exact:true}).click()
@@ -514,7 +518,7 @@ try {
   assert.equal(await englishDialog.getByText('招标全文解析与要求覆盖',{exact:true}).count(),0)
   await page.getByRole('button',{name:'Professional depth',exact:true}).waitFor()
   await englishDialog.getByRole('tab',{name:'Task overview',exact:true}).click()
-  await page.screenshot({path:join(artifactDir,'05-task-overview-english.png'),fullPage:true})
+  await captureScreenshot(join(artifactDir,'05-task-overview-english.png'))
   await englishDialog.getByRole('button',{name:'Return to conversation',exact:true}).click()
   await page.locator('select.ap-lang').selectOption('zh')
   await trigger.click()
@@ -523,7 +527,7 @@ try {
   await dialog.getByRole('tab',{name:'任务概览',exact:true}).click()
   await dialog.getByText(objective,{exact:true}).waitFor({timeout:remaining()})
   await dialog.locator('[data-finding-id="period-conflict"]').waitFor({timeout:remaining()})
-  await page.screenshot({path:join(artifactDir,'06-task-overview-mobile.png'),fullPage:true})
+  await captureScreenshot(join(artifactDir,'06-task-overview-mobile.png'))
   assert.ok(await dialog.evaluate(element=>element.scrollWidth<=element.clientWidth),'panel fits narrow viewport')
   await dialog.getByRole('button',{name:'返回对话',exact:true}).click()
   await page.setViewportSize({width:1440,height:980})
@@ -552,8 +556,7 @@ try {
   assert.equal(checkedReport.verification.status,'review','remaining source and semantic gaps are retained')
   assert.notEqual(checkedReport.status,'accepted')
   assert.equal(await dialog.getByRole('button',{name:'确认验收全部成果',exact:true}).count(),0)
-  const verificationScreenshot=await electronApp.evaluate(async ({BrowserWindow},url)=>(await BrowserWindow.getAllWindows().find(window=>window.webContents.getURL()===url).webContents.capturePage()).toPNG().toString('base64'),page.url())
-  writeFileSync(join(artifactDir,'09-durable-constraints-and-actual-verification.png'),Buffer.from(verificationScreenshot,'base64'))
+  await captureScreenshot(join(artifactDir,'09-durable-constraints-and-actual-verification.png'))
   console.log(JSON.stringify({phase:'durable-constraint-revoke-and-actual-verification-ui',status:'ok',reportSha:checkedReport.verification.artifactSha256}))
 
   // Exercise the project tool -> host projection -> all three native views.
@@ -636,7 +639,7 @@ try {
   assert.match(await summary.innerText(),/正在核对工期与资源/)
   assert.match(await summary.innerText(),/专业复核[：:]\s*1\/1/)
   assert.equal(await summary.getByText(objective,{exact:true}).count(),1)
-  await page.screenshot({path:join(artifactDir,'07-live-workbench-task-chat-linkage.png'),fullPage:true})
+  await captureScreenshot(join(artifactDir,'07-live-workbench-task-chat-linkage.png'))
   await request('/api/agent-pi/qa-task-tool',{action:'finish'})
   const approvalFingerprint=board.stages['bid-risk-decision'].approval.source.fingerprint
   await runTool('tender_stage',{action:'status',module:'tender',projectId})
@@ -714,10 +717,10 @@ try {
    await engineeringPanel.getByRole('button',{name:'QA 梁 KL1',exact:true}).click()
    assert.match(await engineeringPanel.innerText(),/KL1-01/)
    assert.match(await engineeringPanel.innerText(),/59.184/)
-   await page.screenshot({path:join(artifactDir,'13-engineering-rebar-task-desktop.png'),fullPage:true})
+   await captureScreenshot(join(artifactDir,'13-engineering-rebar-task-desktop.png'))
    await page.setViewportSize({width:390,height:844})
    assert.ok(await engineeringPanel.evaluate(element=>element.scrollWidth<=element.clientWidth),'engineering tables scroll within narrow task layout')
-   await page.screenshot({path:join(artifactDir,'14-engineering-rebar-mobile.png'),fullPage:true})
+   await captureScreenshot(join(artifactDir,'14-engineering-rebar-mobile.png'))
    await page.setViewportSize({width:1440,height:980})
    engineering=await runTool('engineering_project',{action:'update',revision:engineering.revision,operationId:'qa-rebar-dimension-change',patch:{objects:[{...beam,parameters:{length:{...beam.parameters.length,value:7000}}}]}})
    assert.equal(engineering.runs.at(-1).status,'stale')
@@ -758,7 +761,7 @@ try {
     assert.equal(wasmResponse.headers()['cache-control'],'no-store')
     const wasmHash=createHash('sha256').update(await wasmResponse.body()).digest('hex')
     assert.equal(wasmHash,createHash('sha256').update(readFileSync(join(productRoot,'bundles/tender-host/lib/cad-decoder/libredwg-web.wasm'))).digest('hex'),'actual HTTP route serves the exact verified host decoder')
-    await page.screenshot({path:join(artifactDir,'22-cad-preview-host-decoder.png'),fullPage:false})
+    await captureScreenshot(join(artifactDir,'22-cad-preview-host-decoder.png'))
     writeFileSync(join(artifactDir,'22-cad-preview-host-decoder.json'),JSON.stringify({url:cadUrl,wasmHash,rendering,cacheControl:wasmResponse.headers()['cache-control'],scope:'Synthetic DXF rendered through the real iframe; project DWG parser compatibility separately verified.'},null,2))
     await cadDialog.locator('.ap-doc-actions button[title="关闭"]').click()
     await cadDialog.waitFor({state:'detached',timeout:20_000})
@@ -789,7 +792,7 @@ try {
     await ifcPreview.getByRole('combobox',{name:'选择 IFC 构件',exact:true}).selectOption({label:'QA beam'})
     await ifcPreview.getByRole('button',{name:'旋转',exact:true}).click()
     assert.match(await ifcPreview.innerText(),/GlobalId:/)
-    await page.screenshot({path:join(artifactDir,'15-real-ifc-preview-and-quantities.png'),fullPage:true})
+    await captureScreenshot(join(artifactDir,'15-real-ifc-preview-and-quantities.png'))
     writeFileSync(join(artifactDir,'16-drawing-and-bim-runtime.json'),JSON.stringify({pdfRead,cadRead,health,engineering},null,2))
     console.log(JSON.stringify({phase:'real-pdf-cad-road-ifc-native-tools-and-preview',status:'ok',artifactDir}))
   phase = 'civil-quantities-and-export'
@@ -823,7 +826,7 @@ try {
   assert.equal(civil.reviewStatus,'needs_review')
   await engineeringPanel.getByRole('button',{name:'刷新工程记录',exact:true}).click()
   await engineeringPanel.locator('[data-engineering-provider="civil-quantities"]').waitFor({timeout:20_000})
-  await page.screenshot({path:join(artifactDir,'17-civil-known-and-missing-quantities.png'),fullPage:true})
+  await captureScreenshot(join(artifactDir,'17-civil-known-and-missing-quantities.png'))
 
   const delivery = await runTool('engineering_export',{outputBasename:'QA工程计算交付'})
   assert.equal(delivery.synchronization.status,'recorded',delivery.synchronization.message)
@@ -848,7 +851,7 @@ try {
   await dialog.getByRole('tab',{name:'交付检查',exact:true}).click()
   const xlsxDelivery = dialog.locator('article').filter({hasText:xlsxFile.path})
   await xlsxDelivery.getByText('草稿 · 无需签署',{exact:true}).waitFor({timeout:20_000})
-  await page.screenshot({path:join(artifactDir,'18-engineering-export-draft-deliverables.png'),fullPage:true})
+  await captureScreenshot(join(artifactDir,'18-engineering-export-draft-deliverables.png'))
 
   phase = 'engineering-xlsx-native-office'
   await page.locator('style[data-plugin="dsh-univer-office"]').first().waitFor({state:'attached',timeout:remaining()})
@@ -878,7 +881,7 @@ try {
   await officeFrame.getByText('项目与导出说明',{exact:true}).first().click({timeout:remaining()})
   assert.ok(await officeFrame.locator('canvas').count(),'native Office must render its spreadsheet canvas')
   await officeFrame.locator('body').evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
-  await page.screenshot({path:join(artifactDir,'19-engineering-workbook-native-office.png'),fullPage:true})
+  await captureScreenshot(join(artifactDir,'19-engineering-workbook-native-office.png'))
   await officeDialog.locator('.ap-doc-actions button[title="关闭"]').click()
   await officeDialog.waitFor({state:'detached',timeout:remaining()})
   const officeStopped = await disposeOffice()
@@ -895,7 +898,7 @@ try {
   await dialog.getByRole('tab',{name:'交付检查',exact:true}).click()
   await xlsxDelivery.getByText('条件已变更，待复核 · 无需签署',{exact:true}).waitFor({timeout:20_000})
   assert.equal(createHash('sha256').update(readFileSync(xlsxFile.path)).digest('hex'),xlsxFile.sha256,'marking stale preserves the exported historical workbook')
-  await page.screenshot({path:join(artifactDir,'20-engineering-export-stale-after-source-change.png'),fullPage:true})
+  await captureScreenshot(join(artifactDir,'20-engineering-export-stale-after-source-change.png'))
   writeFileSync(join(artifactDir,'21-civil-export-office-and-stale.json'),JSON.stringify({civil,delivery,officeGatewayPort,gateway,officeStopped,importedUnits:imported.units,sourceChecks:engineering.sourceChecks,deliverablesBefore:exportDeliverables,deliverablesAfter:changedTask.deliverables.filter(row=>exportDeliverables.some(previous=>previous.id===row.id))},null,2))
   console.log(JSON.stringify({phase:'civil-export-native-office-and-stale',status:'ok',exportId:delivery.exportId,artifactDir}))
    await page.getByRole('tab',{name:'专业化工作台',exact:true}).click()
@@ -903,7 +906,7 @@ try {
   await page.getByRole('region',{name:'技能版本与独立验证',exact:true}).waitFor({timeout:remaining()})
   assert.match(await page.getByRole('region',{name:'技能版本与独立验证',exact:true}).innerText(),/来源成果被用户验收、独立案例验证通过并经人工批准/)
   phase = 'module-skill-and-knowledge-panels'
-  await page.screenshot({path:join(artifactDir,'11-module-skill-lifecycle-desktop.png'),fullPage:true})
+  await captureScreenshot(join(artifactDir,'11-module-skill-lifecycle-desktop.png'))
   const kb=await request('/api/agent-pi/kb?cwd='+encodeURIComponent(workspace),{action:'add',slug:'qa-horizon-source',fileName:'qa-origin.md',name:'QA 版本原始条款',text:'# QA 原始条款\n\n项目工期为120天；这份材料只用于本地版本界面核验。\n'})
   assert.match(kb.entry.versionId,/^[a-f0-9]{64}$/)
   await page.locator('.ap-wb .ap-mods').getByRole('button',{name:'知识库',exact:true}).click()
@@ -912,7 +915,7 @@ try {
   await knowledgeCard.getByText('来源与不可变版本',{exact:true}).click()
   await knowledgeCard.getByText(new RegExp('v'+kb.entry.versionId)).waitFor({timeout:remaining()})
   assert.match(await knowledgeCard.innerText(),/旧引用继续定位旧版本/)
-  await page.screenshot({path:join(artifactDir,'12-knowledge-immutable-version-desktop.png'),fullPage:true})
+  await captureScreenshot(join(artifactDir,'12-knowledge-immutable-version-desktop.png'))
   console.log(JSON.stringify({phase:'actual-module-skill-and-knowledge-version-panels',status:'ok',knowledgeVersion:kb.entry.versionId}))
 
   // Real response tools and real files feed the same projection in all three views.
@@ -949,7 +952,7 @@ try {
   await page.getByRole('tab',{name:'对话',exact:true}).click()
   await summary.locator('[data-response-project="'+responseProjectId+'"]').getByText('当前稿已记录复核 1',{exact:true}).waitFor({timeout:20_000})
   assert.match(await summary.innerText(),/变更待复核 1/)
-  await page.screenshot({path:join(artifactDir,'21-tender-response-chat.png'),fullPage:true})
+  await captureScreenshot(join(artifactDir,'21-tender-response-chat.png'))
   await trigger.click()
   await dialog.getByRole('tab',{name:'响应对照',exact:true}).click()
   const responsePanel=dialog.getByRole('region',{name:'投标响应对照',exact:true})
@@ -964,21 +967,21 @@ try {
   const artifactPreview=page.getByRole('dialog',{name:'技术标响应QA.md',exact:true})
   await artifactPreview.getByText(/先完成排水管线及隐蔽验收/).first().waitFor({timeout:20_000})
   await artifactPreview.getByRole('button',{name:'关闭',exact:true}).click()
-  await page.screenshot({path:join(artifactDir,'22-tender-response-task.png'),fullPage:true})
+  await captureScreenshot(join(artifactDir,'22-tender-response-task.png'))
   const collapseResponseFiles=page.getByRole('button',{name:'收起资源文件',exact:true})
   if(await collapseResponseFiles.isVisible())await collapseResponseFiles.click()
   await page.setViewportSize({width:390,height:844})
   assert.ok(await dialog.evaluate(element=>element.scrollWidth<=element.clientWidth),'response panel fits a narrow viewport')
   assert.ok(await responsePanel.locator('.ap-tender-response-scroll').evaluate(element=>element.scrollWidth>element.clientWidth),'wide response table scrolls within its panel')
   await responsePanel.locator('thead').scrollIntoViewIfNeeded()
-  await page.screenshot({path:join(artifactDir,'23-tender-response-mobile.png'),fullPage:true})
+  await captureScreenshot(join(artifactDir,'23-tender-response-mobile.png'))
   await page.setViewportSize({width:1440,height:980})
   await dialog.getByRole('tab',{name:'任务概览',exact:true}).click()
   await dialog.getByRole('button',{name:'查看工作台阶段',exact:true}).click()
   const responseWorkbench=page.locator('.ap-wb')
   await responseWorkbench.getByRole('heading',{name:'响应对照 3.8.1 QA',exact:true}).waitFor({timeout:20_000})
   await responseWorkbench.locator('[data-response-project="'+responseProjectId+'"]').getByText('当前稿已记录复核 1',{exact:true}).waitFor({timeout:20_000})
-  await page.screenshot({path:join(artifactDir,'24-tender-response-workbench.png'),fullPage:true})
+  await captureScreenshot(join(artifactDir,'24-tender-response-workbench.png'))
   const otherTask=await request('/api/agent-pi/professional-task?sessionId=qa-prior-context')
   assert.equal(otherTask.responseCoverage,null,'unbound conversation cannot inherit another conversation response ledger')
   await page.getByRole('treeitem').filter({hasText:'Unbound response QA'}).last().click()
@@ -997,7 +1000,7 @@ try {
   writeFileSync(join(artifactDir,'session-readiness.json'),JSON.stringify({sessionSnapshots,errorDetails,requestFailures},null,2).replace(/([?&]token=)[^&#\s"'<>]+/giu,'$1REDACTED'))
   console.log(JSON.stringify({status:'ok',browser:'Browser plugin not available; existing Playwright Electron workflow',viewports:['desktop','390x844'],checks:['actual-plugin-service','compiled-native-goal-and-codex-plugins','actual-cad-iframe-and-verified-host-decoder-http','actual-professional-source-and-finding-tools','main-chat-shared-understanding','stable-finding-replay','default-automatic-task-overview','independent-field-draft-with-live-findings','shared-depth-goal-and-byte-checks','toggle-keeps-check-history-without-messages','verified-source-preview','Cordis-domain-capability-catalogue','reload-persistence','narrow-layout','english-ui','real-workbench-source-and-decision-artifact','native-inbox-stage-decision','host-registered-control-preserves-user-intent','six-running-task-tabs-with-legacy-records','shared-workbench-header-task-chat-execution-focus','live-finding-during-view-switch','explicit-original-file-review-and-live-count','execution-progress-does-not-approve-stage','stable-approval-during-polling','official-five-history-tools-and-workspace-authorization','durable-constraints-through-renderer-reload','human-revocation-keeps-native-request-identity','actual-artifact-verification-receipt-with-unresolved-gaps','trusted-stage-http-offer-to-native-runtime-dispatch','actual-native-inbox-and-message-receipt','runtime-reload-dedup-without-browser-registry','user-pause-survives-native-settlement-and-refresh','module-manager-skill-lifecycle-panel','knowledge-immutable-version-panel','no-render-errors'],artifactDir,limitation:'Isolated deterministic fixture; no paid model requests or logged-in autonomous Codex turn.'}))
 } catch(error){
-  if(page)await page.screenshot({path:join(artifactDir,'failure.png'),fullPage:true}).catch(()=>{})
+  if(page)await captureScreenshot(join(artifactDir,'failure.png')).catch(()=>{})
   const diagnostics=page?{url:page.url(),...diagnosticTime(),pageErrors,consoleErrors,errorDetails,requestFailures,sessionSnapshots,regions:await page.locator('section[aria-label]').evaluateAll(rows=>rows.map(row=>row.getAttribute('aria-label'))),body:(await page.locator('body').innerText()).slice(-8000)}:{}
   writeFileSync(join(artifactDir,'failure.log'),(String(error.stack||error)+'\n'+JSON.stringify(diagnostics,null,2)+'\n'+processOutput).replace(/([?&]token=)[^&#\s"'<>]+/giu,'$1REDACTED'))
   console.log(JSON.stringify({visibleControls:await page.locator('[data-slot=sidebar] button').allTextContents()}));throw error
