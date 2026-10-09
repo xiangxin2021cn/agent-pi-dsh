@@ -3,7 +3,7 @@ import { importDsh } from './dsh.ts'
 import { applyCodexModelProvider } from './codex-model-bridge.ts'
 
 const wrapperPath = createRequire(import.meta.url).resolve('@openai/codex/bin/codex.js')
-const official = await importDsh<any>('packages/subagent/subagent-codex/src/index.ts')
+const official = await importDsh<any>('packages/subagent/subagent-codex/lib/index.js')
 export const name = 'agent-pi-codex-provider'
 export const inject = official.inject
 export const Config = official.Config
