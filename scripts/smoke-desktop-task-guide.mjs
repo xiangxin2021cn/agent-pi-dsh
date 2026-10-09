@@ -74,7 +74,7 @@ const pdf = await PDFDocument.create()
 const pdfPage = pdf.addPage([720, 480]); pdfPage.drawText('QA reinforcement note: 4 bars, 6000 mm', { x: 60, y: 240, size: 6 })
 pdf.addPage([720, 480])
 writeFileSync(pdfFile, await pdf.save())
-writeFileSync(cadFile, ['0','SECTION','2','HEADER','9','$ACADVER','1','AC1027','9','$INSUNITS','70','4','0','ENDSEC','0','SECTION','2','ENTITIES','0','LINE','5','1A','8','QA-ROAD','10','0','20','0','30','0','11','6000','21','0','31','0','0','TEXT','5','1B','8','QA-NOTE','10','0','20','200','30','0','40','100','1','QA ROAD 6000mm','0','ENDSEC','0','EOF',''].join('\n'))
+writeFileSync(cadFile, readFileSync(join(productRoot, 'scripts', 'fixtures', 'cad-qa.dxf')))
 
 const profileInit = spawnSync(runtimeNode, [join(productRoot, 'scripts', 'init-tender-profile.mjs')], {
   cwd: productRoot,
@@ -756,7 +756,7 @@ try {
     assert.equal(wasmResponse.headers()['cache-control'],'no-store')
     const wasmHash=createHash('sha256').update(await wasmResponse.body()).digest('hex')
     assert.equal(wasmHash,createHash('sha256').update(readFileSync(join(productRoot,'bundles/tender-host/lib/cad-decoder/libredwg-web.wasm'))).digest('hex'),'actual HTTP route serves the exact verified host decoder')
-    await page.screenshot({path:join(artifactDir,'22-cad-preview-host-decoder.png'),fullPage:true})
+    await page.screenshot({path:join(artifactDir,'22-cad-preview-host-decoder.png'),fullPage:false})
     writeFileSync(join(artifactDir,'22-cad-preview-host-decoder.json'),JSON.stringify({url:cadUrl,wasmHash,rendering,cacheControl:wasmResponse.headers()['cache-control'],scope:'Synthetic DXF rendered through the real iframe; project DWG parser compatibility separately verified.'},null,2))
     await cadDialog.locator('.ap-doc-actions button[title="关闭"]').click()
     await cadDialog.waitFor({state:'detached',timeout:20_000})
