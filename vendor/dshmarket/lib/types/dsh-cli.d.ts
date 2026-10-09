@@ -108,6 +108,13 @@ export declare function gitEnvForPnpm(env?: NodeJS.ProcessEnv, coreSshCommand?: 
  */
 export declare function pnpmConfigEnvForArgs(pluginArgs: readonly string[]): NodeJS.ProcessEnv;
 /**
+ * Point every future child spawn at the configured build environment.
+ * @param source - Live source of the config's `buildEnv` object, re-read on
+ * every spawn so a settings change reaches the next child immediately.
+ * @returns the previous source, so a caller can restore it on teardown.
+ */
+export declare function setBuildEnvSource(source: () => Readonly<Record<string, string>>): () => Readonly<Record<string, string>>;
+/**
  * Windows npm/corepack/pnpm are `.cmd` shims. Node's `spawn` without a shell
  * cannot start them (ENOENT / EINVAL). Same pattern as dsh's `plugin` forwarder.
  */
@@ -197,6 +204,19 @@ export interface PluginCommandRuntime {
     cancelActive(): boolean;
     /** Whether this host can execute an immutable rollback add target. */
     supportsExactRollbackTarget?(target: string): boolean;
+    /**
+     * Whether this runtime runs pnpm itself and therefore accepts the market's
+     * own arguments — `--config.*` overrides, `--force`, `--no-frozen-lockfile`.
+     *
+     * The official Electron profile does not (#732): its in-process manager
+     * takes exactly `add <target>` or `remove <target>` and answers any other
+     * argv with exit 127. Every recovery step that decorates a command with an
+     * option is impossible there, and sending it anyway turned a pnpm failure
+     * into "this desktop operation is not supported" — a message about an
+     * operation that is in fact supported, which sent the reporter looking for
+     * a broken profile instead of the option. Absent means "accepts".
+     */
+    acceptsMarketPnpmFlags?: boolean;
 }
 /** One running package operation, however it was started. */
 export interface DesktopPnpmHandleLike {

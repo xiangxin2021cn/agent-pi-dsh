@@ -37,6 +37,57 @@ export function sendJson(response: ServerResponse, status: number, payload: unkn
  */
 let trustedHostsSource: () => readonly string[] = () => []
 
+/**
+ * The host's own request gate, when it publishes one (#603).
+ *
+ * DSH's Host Connection service exposes `requestRejection(request)`: its
+ * Host/Origin fence, then its browser login — 403, 401, or `undefined` for a
+ * request it would admit to its own API. The market's routes never passed
+ * through it: they are exact registrations on the bare webServer (see the
+ * trusted-hosts note below), so with the login on, a client holding no session
+ * could still read the market's state and install or remove plugins — which on
+ * a deployment behind a proxy or a tunnel is code execution on that machine for
+ * anyone who can reach the port. The fix is not a second login: it is asking
+ * the one the host already runs.
+ *
+ * `undefined` source (a host older than this service, 0.1.0-rc.8) leaves every
+ * route exactly as it was.
+ */
+export type HostRequestGate = (request: IncomingMessage) => number | undefined
+let requestGateSource: () => HostRequestGate | undefined = () => undefined
+
+/** Point the market at the host's request gate. Returns the previous source. */
+export function setRequestGateSource(source: () => HostRequestGate | undefined): () => HostRequestGate | undefined {
+  const previous = requestGateSource
+  requestGateSource = source
+  return previous
+}
+
+/**
+ * Answer the request with the host's rejection, if it has one.
+ * @returns true when the request was refused and answered here.
+ */
+export function refuseUnadmitted(request: IncomingMessage, response: ServerResponse): boolean {
+  const gate = requestGateSource()
+  if (gate === undefined) return false
+  let status: number | undefined
+  try {
+    status = gate(request)
+  } catch {
+    // A gate that throws has not admitted anything. Failing open here would
+    // turn a host bug into the exposure this exists to close.
+    status = 403
+  }
+  if (status === undefined) return false
+  sendJson(response, status, {
+    error: status === 401
+      ? '需要先登录 DSH：请重新打开 dsh web 启动时打印的那个网址。 / DSH login required: reopen the URL dsh web printed at startup.'
+      : '这个请求来自不受信任的地址，已拒绝。 / This request came from an untrusted origin and was refused.',
+  })
+  return true
+}
+
+
 /** Point the fence at the host's declared authorities. Returns the previous source. */
 export function setTrustedHostsSource(source: () => readonly string[]): () => readonly string[] {
   const previous = trustedHostsSource

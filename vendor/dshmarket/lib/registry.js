@@ -271,7 +271,7 @@ export function describeFetchFailure(error, elapsedMs, attempts = 2, failures = 
     return parts.join(' · ');
 }
 export function applyAgentPiUniverPolicy(registry) {
-    const bundled = { name: 'dsh-univer-office', owner: 'dream-num', url: 'https://github.com/dream-num/dsh-univer-office', npm: 'dsh-univer-office', category: 'tools', install: 'dsh plugin --profile tender add dsh-univer-office', added: '2026-09-16', description: { zh: '官方 Office 插件 0.3.6 已预装，可创建、编辑和预览文档、表格及演示文稿；完整保留上游组件及许可证。', en: 'Official Office plugin 0.3.6 is preinstalled for creating, editing and previewing docs, sheets and slides; upstream components and licenses are retained.' } };
+    const bundled = { name: 'dsh-univer-office', owner: 'dream-num', url: 'https://github.com/dream-num/dsh-univer-office', npm: 'dsh-univer-office', category: 'tools', install: 'dsh plugin --profile tender add dsh-univer-office', added: '2026-09-16', description: { zh: '官方 Office 插件 0.3.7 已预装，可创建、编辑和预览文档、表格及演示文稿；完整保留上游组件及许可证。', en: 'Official Office plugin 0.3.7 is preinstalled for creating, editing and previewing docs, sheets and slides; upstream components and licenses are retained.' } };
     const plugins = registry.plugins.map(plugin => plugin.name === bundled.name || plugin.npm === bundled.npm ? { ...plugin, description: bundled.description } : plugin);
     if (!plugins.some(plugin => plugin.name === bundled.name || plugin.npm === bundled.npm))
         plugins.push(bundled);

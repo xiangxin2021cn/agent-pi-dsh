@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-const dshRange = '0.0.1-rc.5 || >=0.1.0-rc.2 <=0.1.0-rc.8 || >=0.1.1-rc.1 <=0.1.1-rc.2 || >=0.1.2-alpha.2 <=0.1.2-rc.1 || 0.1.3-alpha.2 || >=0.1.5-alpha.1 <=0.1.5-rc.2 || >=0.1.6-alpha.1 <=0.1.6-alpha.2'
+const dshRange = '0.0.1-rc.5 || >=0.1.0-rc.2 <=0.1.0-rc.8 || >=0.1.1-rc.1 <=0.1.1-rc.2 || >=0.1.2-alpha.2 <=0.1.2-rc.1 || 0.1.3-alpha.2 || >=0.1.5-alpha.1 <=0.1.5-rc.3 || >=0.1.6-alpha.1 <=0.1.6-alpha.2 || >=0.1.7-alpha.1 <=0.1.7-rc.2 || >=0.2.0-rc.1 <=0.2.0-rc.2 || 0.2.1-alpha.1'
 const dshPeers = ['credentials', 'system-prompt', 'tool-web', 'tools', 'web'].map(name => '@deepseek-ai/dsh-' + name)
 // Git may materialize LF sources as CRLF on Windows; hash normalized source text.
 const text = value => value.toString().replaceAll('\r\n', '\n')
@@ -11,11 +11,11 @@ const sha = value => createHash('sha256').update(text(value)).digest('hex')
 
 export function patchAnySearchManifest(source) {
   const manifest = JSON.parse(source)
-  if (manifest.name !== '@anysearch/anysearch-dsh' || manifest.version !== '0.1.6') throw new Error('Unreviewed AnySearch version; refusing compatibility adaptation')
+  if (manifest.name !== '@anysearch/anysearch-dsh' || manifest.version !== '0.1.7') throw new Error('Unreviewed AnySearch version; refusing compatibility adaptation')
   for (const name of dshPeers) {
     const range = manifest.peerDependencies?.[name]
-    if (![dshRange, dshRange + ' || 0.2.1-alpha.1'].includes(range)) throw new Error('Unexpected AnySearch DSH peer: ' + name)
-    manifest.peerDependencies[name] = dshRange + ' || 0.2.1-alpha.1'
+    if (![dshRange, dshRange + ' || 0.2.1-alpha.2'].includes(range)) throw new Error('Unexpected AnySearch DSH peer: ' + name)
+    manifest.peerDependencies[name] = dshRange + ' || 0.2.1-alpha.2'
   }
   const vendor = [
     [manifest.peerDependencies, '@deepseek-ai/cordis', '>=4.0.1-rc.1 <5', '4.0.5-alpha.1'],
@@ -29,7 +29,7 @@ export function patchAnySearchManifest(source) {
 }
 
 function replace(source, before, after) {
-  if (source.split(before).length !== 2) throw new Error('AnySearch 0.1.6 source layout changed; refusing a partial patch')
+  if (source.split(before).length !== 2) throw new Error('AnySearch 0.1.7 source layout changed; refusing a partial patch')
   return source.replace(before, after)
 }
 
@@ -91,7 +91,7 @@ export function patchAnySearchSearch(source) {
 }
 
 const patches = {
-  'lib/index.js': ['57290abf4bd78cf25a24715f5f86aed0f921df2622a7f2599e12023f5f8368c8', source => replace(source, '    ctx.web.registerSearchProvider(new AnySearchProvider(client));', "    ctx.provide?.('agentPiAnySearch', { client, apiKeyRef: resolved.apiKeyEnv });\n    ctx.web.registerSearchProvider(new AnySearchProvider(client));")],
+  'lib/index.js': ['d2b770db9ea86fc7b3a3d337bdceae1f82efbee64a70e91cb97ae026fe496405', source => replace(source, '    ctx.web.registerSearchProvider(new AnySearchProvider(client));', "    ctx.provide?.('agentPiAnySearch', { client, apiKeyRef: resolved.apiKeyEnv });\n    ctx.web.registerSearchProvider(new AnySearchProvider(client));")],
   'lib/provider.js': ['2c0bf8b79abbc7589abc19634e424c73ae1a407de09b6dda42c159a5d5d0c24d', source => replace(source, '{ maxResults: request.maxResults }', '{ maxResults: Math.min(10, request.maxResults) }')],
   'lib/client.js': ['d8e38aa310395a8a2f539e162cb05c4d26e0e67c83a525e74dc94582e8d770e9', patchAnySearchClient],
   'lib/tools/search.js': ['49a2a42efa3a36a442fa963d22e7f7b78a39ccc08602731a4cb0bf36bedcc4a8', patchAnySearchSearch],
@@ -101,7 +101,7 @@ const patches = {
   'lib/tools/batch.d.ts': ['6ca06842bef295146970ff9e97fce412f5ff62fdb1b30997a1c9d252f131e998', source => replace(source, '    maxResults?: number;', "    maxResults?: number;\n    format?: 'json' | 'markdown';")],
 }
 const adaptedHashes = {
-  'lib/index.js': 'fa10c9a638a679f026f0cce91b4f3462a6882877ccf4326aa9cd43b35d4ec9cf',
+  'lib/index.js': '930add4c8f6cb8c426466403ed610b24c54d7df5a12cceb1511ec37278ba4cd5',
   'lib/provider.js': 'd208b5864e403695bab918b65a7fc163a247f795317dfbf596fed15ea26688f8',
   'lib/client.js': 'ff7e9149995a77f5ccd44d00ba2ecdbe9df9ee3e40c7e288212027e778e2b510',
   'lib/tools/search.js': 'd504298e1d5ec1c0ec03e2ad3dd51e29b806b70507ed4858a1d4eceb9b4557c3',
@@ -110,15 +110,15 @@ const adaptedHashes = {
   'lib/tools/search.d.ts': '984428429a37daa557ebd4ff494cd3cbc6728c4705f418924b979302c0a62db9',
   'lib/tools/batch.d.ts': '64f3171e2a311c00dbe0a6c34f314f55823d81a4a287920b113923683a538139',
 }
-const sourceManifestSha256 = '9724bc309f31497c89742fb1194fdae9e0751d646469e53245832f696bb89364'
-const adaptedManifestSha256 = '5a9376ae5ade5d430fc169e0620b90cf8620fec098ff90faf94717eb7059c0c2'
+const sourceManifestSha256 = '4a9d4e90c785347ebab6f63fbf90ef12c81eb9617453aa97f5653c4dbe8b8434'
+const adaptedManifestSha256 = '3d2cc6953223856ebdcb25014f2d8c0c258128416eaf056dc79c0241007ade58'
 
 export function verifyAnySearchDirectory(directory) {
   const source = text(readFileSync(join(directory, 'package.json'), 'utf8'))
   if (patchAnySearchManifest(source) !== source || sha(source) !== adaptedManifestSha256) throw new Error('AnySearch manifest compatibility adaptation missing or changed')
   const receipt = JSON.parse(readFileSync(join(directory, 'AGENT-PI-ADAPTATION.json'), 'utf8'))
   if (receipt.sourceManifestSha256 !== sourceManifestSha256 || receipt.adaptedManifestSha256 !== adaptedManifestSha256
-    || receipt.version !== '0.1.6' || receipt.dsh !== '0.2.1-alpha.1' || receipt.cordis !== '4.0.5-alpha.1' || receipt.schemastery !== '3.18.5-alpha.1'
+    || receipt.version !== '0.1.7' || receipt.dsh !== '0.2.1-alpha.2' || receipt.cordis !== '4.0.5-alpha.1' || receipt.schemastery !== '3.18.5-alpha.1'
     || receipt.license !== 'MIT' || receipt.upstream !== 'https://github.com/anysearch-team/anysearch-dsh'
     || Object.keys(receipt.files || {}).length !== Object.keys(patches).length) throw new Error('AnySearch adaptation receipt invalid')
   for (const [path, [originalSha256]] of Object.entries(patches)) {
@@ -147,7 +147,7 @@ export function patchAnySearchDirectory(directory) {
     files[path] = { originalSha256, adaptedSha256: sha(after) }
   }
   for (const [path, value] of writes) writeFileSync(path, value)
-  writeFileSync(receiptPath, JSON.stringify({ upstream: 'https://github.com/anysearch-team/anysearch-dsh', version: '0.1.6', license: 'MIT', dsh: '0.2.1-alpha.1', cordis: '4.0.5-alpha.1', schemastery: '3.18.5-alpha.1', sourceManifestSha256, adaptedManifestSha256: sha(manifest), changes: ['exact reviewed alpha peer additions', 'search count 1..10 and content format', 'safe upstream diagnostics without credential-bearing messages', 'per-request credential resolution retained', 'product probe reuses the registered client and credential reference'], files }, null, 2) + '\n')
+  writeFileSync(receiptPath, JSON.stringify({ upstream: 'https://github.com/anysearch-team/anysearch-dsh', version: '0.1.7', license: 'MIT', dsh: '0.2.1-alpha.2', cordis: '4.0.5-alpha.1', schemastery: '3.18.5-alpha.1', sourceManifestSha256, adaptedManifestSha256: sha(manifest), changes: ['exact reviewed alpha peer additions', 'search count 1..10 and content format', 'safe upstream diagnostics without credential-bearing messages', 'per-request credential resolution retained', 'product probe reuses the registered client and credential reference'], files }, null, 2) + '\n')
   verifyAnySearchDirectory(directory)
   return files
 }
@@ -157,5 +157,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   const directory = process.argv.slice(2).find(value => value !== '--verify') || join(dirname(fileURLToPath(import.meta.url)), '../vendor/anysearch-dsh')
   if (verify) verifyAnySearchDirectory(directory)
   else patchAnySearchDirectory(directory)
-  console.log('AnySearch 0.1.6 reviewed DSH 0.2.1-alpha.1 adaptation verified')
+  console.log('AnySearch 0.1.7 reviewed DSH 0.2.1-alpha.2 adaptation verified')
 }

@@ -78,6 +78,14 @@ short update-check cache.
 
 Mutation requests require the same-origin protection used by the Market UI.
 
+Every endpoint here — reads included — also sits behind DSH's own browser
+login, on any host that has one (`dsh web` from 0.1.2-alpha.2 on): a request
+without the host's session cookie is answered `401`, and one from an untrusted
+origin `403`, exactly as DSH answers for its own API (#603). A plugin UI running
+in the DSH page sends that cookie with every same-origin `fetch`, so it needs no
+change. A script or tool calling these endpoints from outside the browser is the
+anonymous client this refuses; there is no separate token for it.
+
 ```http
 POST /dsh-market/api/v1/updates
 Content-Type: application/json

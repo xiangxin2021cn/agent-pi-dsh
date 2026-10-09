@@ -26,10 +26,14 @@ const javaVersion = spawnSync(join(javaHome, 'bin', `java${suffix}`), ['-version
 if (!/version "17\./.test(javaVersion.stderr)) throw new Error('Project plan runtime requires Java 17')
 const runtimeOnly = process.argv.includes('--runtime-only')
 if (!runtimeOnly) {
+  for (const name of ['lib', 'sources']) removeBuildPath(join(bundle, 'target', name))
   run(process.platform === 'win32' ? 'mvn.cmd' : 'mvn', ['-B', '-ntp', 'compile', 'dependency:copy-dependencies', '-DoutputDirectory=target/lib'],
     { shell: process.platform === 'win32' })
   run(process.platform === 'win32' ? 'mvn.cmd' : 'mvn', ['-B', '-ntp', 'dependency:copy-dependencies', '-Dclassifier=sources', '-DoutputDirectory=target/sources'],
     { shell: process.platform === 'win32' })
+  for (const name of ['lib/mpxj-16.10.0.jar', 'sources/mpxj-16.10.0-sources.jar', 'classes/ProjectPlan.class']) {
+    if (!existsSync(join(bundle, 'target', name))) throw new Error(`Missing project plan build input: ${name}`)
+  }
   mkdirSync(runtime, { recursive: true })
   for (const name of ['lib', 'classes', 'sources']) {
     const dest = join(runtime, name)
@@ -52,7 +56,7 @@ if (!runtimeOnly) {
     }
   }
 }
-for (const name of ['lib/mpxj-16.7.0.jar', 'classes/ProjectPlan.class']) {
+for (const name of ['lib/mpxj-16.10.0.jar', 'classes/ProjectPlan.class']) {
   if (!existsSync(join(runtime, name))) throw new Error(`Missing project plan build input: ${name}`)
 }
 const stage = mkdtempSync(join(bundle, '.jre-build-'))
@@ -68,7 +72,7 @@ for (const name of readdirSync(join(runtime, 'lib')).filter(name => name.endsWit
   hashes[name] = createHash('sha256').update(readFileSync(join(runtime, 'lib', name))).digest('hex')
 }
 writeFileSync(join(runtime, 'build-receipt.json'), JSON.stringify({
-  mpxj: '16.7.0', platform: process.platform, arch: process.arch,
+  mpxj: '16.10.0', platform: process.platform, arch: process.arch,
   java: javaVersion.stderr.trim(), jars: hashes,
   source: createHash('sha256').update(readFileSync(join(bundle, 'src/ProjectPlan.java'))).digest('hex'),
   bridge: createHash('sha256').update(readFileSync(join(runtime, 'classes/ProjectPlan.class'))).digest('hex'),

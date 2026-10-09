@@ -45,16 +45,16 @@ synthesized.
 
 ## dsh-univer-office integration
 
-Agent Pi DSH distributes the complete official `dsh-univer-office` 0.3.6
+Agent Pi DSH distributes the complete official `dsh-univer-office` 0.3.7
 package, pinned by `vendor/dsh-univer-office.pin`. Agent Pi integrates it with
-DSH 0.2.1-alpha.1 through the product's compatibility adapter. The upstream package declares Apache-2.0;
+DSH 0.2.1-alpha.2 through the product's compatibility adapter. The upstream package declares Apache-2.0;
 its original LICENSE, bundled Gateway, Viewer, workers, converters and license
 materials are retained in the verified package inventory. Platform runtime
 dependencies are installed from the tracked production lock and retain their
 own upstream terms. The package license does not relicense separately licensed
 dependencies; upstream authorization checks and license files are unchanged.
 
-The 0.3.6 official manifest declares both native worker packages:
+The 0.3.7 official manifest declares both native worker packages:
 `@univerjs-pro/exchange-node-binding` 1.0.1 and
 `@univerjs-pro/engine-formula-rust-binding` 1.0.1.
 The production lock includes matching platform binaries and original licenses.
@@ -178,7 +178,7 @@ this new host binary. See `docs/cad-dwg-conversion.md` and
 
 ## Local project plan engine (MPXJ)
 
-MPP, Project XML and Primavera P6 previews use MPXJ 16.7.0 (LGPL-2.1-or-later)
+MPP, Project XML and Primavera P6 previews use MPXJ 16.10.0 (LGPL-2.1-or-later)
 with a local Java 17 runtime. The unmodified MPXJ jar, dependency source archives,
 upstream license files and rebuild instructions are distributed in
 `bundles/project-plan`. See `bundles/project-plan/THIRD_PARTY_NOTICES.md` for

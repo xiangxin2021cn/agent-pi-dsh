@@ -1,12 +1,12 @@
 {
   "upstream": "https://github.com/anysearch-team/anysearch-dsh",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "license": "MIT",
-  "dsh": "0.2.1-alpha.1",
+  "dsh": "0.2.1-alpha.2",
   "cordis": "4.0.5-alpha.1",
   "schemastery": "3.18.5-alpha.1",
-  "sourceManifestSha256": "9724bc309f31497c89742fb1194fdae9e0751d646469e53245832f696bb89364",
-  "adaptedManifestSha256": "5a9376ae5ade5d430fc169e0620b90cf8620fec098ff90faf94717eb7059c0c2",
+  "sourceManifestSha256": "4a9d4e90c785347ebab6f63fbf90ef12c81eb9617453aa97f5653c4dbe8b8434",
+  "adaptedManifestSha256": "3d2cc6953223856ebdcb25014f2d8c0c258128416eaf056dc79c0241007ade58",
   "changes": [
     "exact reviewed alpha peer additions",
     "search count 1..10 and content format",
@@ -16,8 +16,8 @@
   ],
   "files": {
     "lib/index.js": {
-      "originalSha256": "57290abf4bd78cf25a24715f5f86aed0f921df2622a7f2599e12023f5f8368c8",
-      "adaptedSha256": "fa10c9a638a679f026f0cce91b4f3462a6882877ccf4326aa9cd43b35d4ec9cf"
+      "originalSha256": "d2b770db9ea86fc7b3a3d337bdceae1f82efbee64a70e91cb97ae026fe496405",
+      "adaptedSha256": "930add4c8f6cb8c426466403ed610b24c54d7df5a12cceb1511ec37278ba4cd5"
     },
     "lib/provider.js": {
       "originalSha256": "2c0bf8b79abbc7589abc19634e424c73ae1a407de09b6dda42c159a5d5d0c24d",

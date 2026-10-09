@@ -3,6 +3,8 @@ import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
+import { createRequire } from 'node:module'
+import { applyEntryPatches, entryListSchema } from '../../../vendor/deepseek-harness/vendor/include/lib/index.js'
 import { createBusinessProject } from '../../../packages/business-projects/index.ts'
 import { bindProjectSession, projectForBoundSession } from '../src/orchestration.ts'
 import { businessProjectForAgent, registerBusinessActivation, withBusinessGoalBoundary } from '../src/business-activation.ts'
@@ -127,7 +129,20 @@ test('only explicit project create or bind activates the caller; listing and unk
 
 test('product profile preserves native preset tools and routes only the goal driver through the business boundary', () => {
   const patch = readFileSync(new URL('../cordis.patch.yml', import.meta.url), 'utf8')
-  assert.match(patch, /id: goal-round-driver\s+name: dsh-tender-host\/goal-round-driver/)
+  const { load } = createRequire(new URL('../../../vendor/deepseek-harness/vendor/include/package.json', import.meta.url))('js-yaml')
+  const warnings: string[] = []
+  const warn = (message: string) => warnings.push(message)
+  const parse = (text: string) => load(text, { schema: entryListSchema })
+  const base = applyEntryPatches([], parse(readFileSync(new URL('../../../vendor/deepseek-harness/packages/bundle/base/cordis.patch.yml', import.meta.url), 'utf8')), warn)
+  const composed = applyEntryPatches(base, parse(patch), warn)
+  assert.deepEqual(warnings, [])
+  assert.equal(composed.find(row => row.id === 'goal-round-driver')?.disabled, true)
+  assert.deepEqual(composed.filter(row => row.name === 'dsh-tender-host/goal-round-driver'), [
+    { id: 'agent-pi-goal-round-driver', name: 'dsh-tender-host/goal-round-driver' },
+  ])
+  for (const id of ['goal', 'command-goal', 'tool-goal', 'tool-todo']) {
+    assert.deepEqual(composed.find(row => row.id === id), base.find(row => row.id === id))
+  }
   assert.doesNotMatch(patch, /id: (?:goal|tool-goal|command-goal|plan-mode|tool-todo)\s+disabled: true/)
 })
 

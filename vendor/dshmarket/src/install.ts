@@ -149,7 +149,25 @@ export async function withHoistRecovery(
   }
   let result = await run(profile, pluginArgs)
   const ok = (r: InstallResult): boolean => r.exitCode === 0 && !r.timedOut && !r.cancelled
-  if (!ok(result) && !result.cancelled) {
+  // A shadowed rule written DURING the run is its own evidence (#732). The
+  // file was merged just before the run, so a duplicate now means pnpm — or
+  // the host driving it — appended one while this command ran, and every
+  // retry would trip on it. The repair below in the release-age branch only
+  // fired when pnpm's error text reached us; the official desktop host hands
+  // back its own message and `packageResult.output`, which need not carry
+  // `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`, so the line the host had just
+  // appended stayed dead (@Mlte0907, 1.66.7). The merge is a no-op when
+  // nothing is duplicated, so asking it costs one file read.
+  let repairedDuringRun = false
+  if (!ok(result) && !result.cancelled && (pluginArgs[0] === 'add' || pluginArgs[0] === 'remove')) {
+    const mergedNow = mergeDuplicateReleaseAgeExcludes(profile, profileDirectory)
+    if (mergedNow.length > 0) {
+      repairedDuringRun = true
+      logEvent('warn', 'install', `a second minimumReleaseAgeExclude rule for ${mergedNow.join(', ')} was appended during the run, and pnpm honours only the first, shadowing it (#732) — merged them into one and retrying once`)
+      result = await run(profile, pluginArgs)
+    }
+  }
+  if (!ok(result) && !result.cancelled && !repairedDuringRun) {
     const failure = classifyPnpmFailure(`${result.stderr}\n${result.stdout}`, result.exitCode)
     if (failure?.code === 'unparseable-build-key') {
       // The profile's own allowBuilds block is what fails, so no retry of the
@@ -218,6 +236,10 @@ export async function withHoistRecovery(
       // SAME argv succeeds — no option is needed, which also means this works
       // on the desktop bridge that refuses market options (#732).
       //
+      // Covers both lockfiles pnpm writes through the same no-retry atomic
+      // rename: the profile's `pnpm-lock.yaml` and the one inside
+      // `node_modules/.pnpm/lock.yaml`.
+      //
       // Retried here rather than in the route because `pnpmBlockedByOpenFiles`
       // and the route's rollback both read the FINAL result: leaving this
       // unretried made the route treat a transient lock as "the running host
@@ -265,24 +287,33 @@ export async function withHoistRecovery(
         stderr: failure.replaceOutput === true ? failure.message : `${result.stderr}\n\n${failure.message}`,
         ...(failure.replaceOutput === true ? { stdout: '' } : {}),
       }
-    } else if (diagnostics !== null) {
-      // The dsh CLI redirects the whole pnpm run into a file and leaves one
-      // line on stderr: `dsh: pnpm failed; diagnostics: <path>` (its own
-      // literal message). Everything a user or a report needs is in that
-      // file, so show its tail rather than the one line (#672).
-      result = { ...result, stderr: `${result.stderr}\n\n--- dsh diagnostics (${diagnostics.path}) ---\n${diagnostics.text}` }
-    } else if (result.pnpmError !== undefined && result.pnpmError !== '') {
-      // Nothing matched, but pnpm DID say what went wrong — in its ndjson
-      // stream, which never reaches stderr. Without this the user is shown
-      // the tail of dsh's wrapper output ("pnpm failed in profile
-      // directory …"), which is byte-identical for every possible cause and
-      // is why #244, #192 and #138 all read as "the UI shows a stack tail".
+    } else {
+      // Nothing matched. Two things may still say what went wrong, and pnpm's
+      // own words come FIRST (#808).
       //
-      // An unrecognized error is exactly the case where the raw text is
+      // pnpm's structured error arrives in its ndjson stream, which never
+      // reaches stderr. Without it the user sees the tail of dsh's wrapper
+      // output ("pnpm failed in profile directory …"), byte-identical for
+      // every possible cause — why #244, #192 and #138 all read as "the UI
+      // shows a stack tail". An unrecognized error is where the raw text is
       // worth the most: a classified one has a written explanation, this one
-      // has only pnpm's own words, and hiding them leaves nothing at all.
-      const code = result.pnpmErrorCode === undefined ? '' : `${result.pnpmErrorCode}: `
-      result = { ...result, stderr: `${result.stderr}\n\n${code}${result.pnpmError}` }
+      // has only pnpm's own words.
+      //
+      // The CLI's diagnostics file (`dsh: pnpm failed; diagnostics: <path>`,
+      // #672) used to carry the whole pnpm run. It no longer does: dsh now
+      // pipes pnpm's output straight to the market, and the file keeps only
+      // execa's one-line summary ("Command failed with exit code 1: pnpm add
+      // …"). Showing it INSTEAD of pnpm's error — which is what an either/or
+      // here did — put that summary in front of the user and hid the real
+      // cause behind it. Its path is still worth printing for a report, so it
+      // stays, after the error.
+      const blocks: string[] = []
+      if (result.pnpmError !== undefined && result.pnpmError !== '') {
+        const code = result.pnpmErrorCode === undefined ? '' : `${result.pnpmErrorCode}: `
+        blocks.push(`${code}${result.pnpmError}`)
+      }
+      if (diagnostics !== null) blocks.push(`--- dsh diagnostics (${diagnostics.path}) ---\n${diagnostics.text}`)
+      if (blocks.length > 0) result = { ...result, stderr: `${result.stderr}\n\n${blocks.join('\n\n')}` }
     }
   }
   if (!marketFlags && !ok(result) && !result.cancelled

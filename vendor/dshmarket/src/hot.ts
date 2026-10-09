@@ -340,13 +340,20 @@ export interface MarketState {
 export interface BrokenPlugin {
   /** The dependency spec it had before removal — the reinstall target. */
   spec: string
-  /** Machine-readable cause; the UI owns the wording. */
-  reason: 'incomplete-build-locked'
+  /**
+   * Machine-readable cause; the UI owns the wording. `locked`: pnpm reported
+   * the open-file refusal. `cancelled`: the user cancelled while pnpm was
+   * replacing the directory — the result is the same empty shell, but no cause
+   * was observed, so the notice must not name one (#663).
+   */
+  reason: BrokenReason
   /** When the market removed the declaration (ISO 8601). */
   at: string
 }
 
-const BROKEN_REASONS = new Set(['incomplete-build-locked'])
+export type BrokenReason = 'incomplete-build-locked' | 'incomplete-build-cancelled'
+
+const BROKEN_REASONS = new Set<string>(['incomplete-build-locked', 'incomplete-build-cancelled'])
 
 /** The on-disk shape of {@link MarketState.brokenPlugins}, sanitized. */
 function brokenPluginsFromUnknown(value: unknown): Record<string, BrokenPlugin> | undefined {
@@ -358,7 +365,7 @@ function brokenPluginsFromUnknown(value: unknown): Record<string, BrokenPlugin> 
     if (typeof record.reason !== 'string' || !BROKEN_REASONS.has(record.reason)) continue
     out[name] = {
       spec: typeof record.spec === 'string' ? record.spec.slice(0, MAX_NOTE) : '',
-      reason: 'incomplete-build-locked',
+      reason: record.reason as BrokenReason,
       at: typeof record.at === 'string' ? record.at : '',
     }
   }

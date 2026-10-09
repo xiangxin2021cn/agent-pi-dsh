@@ -33,7 +33,16 @@ function detail(error: unknown): string {
   return JSON.stringify(error)
 }
 
-/** Never fall back to `dsh plugin --profile desktop`: that CLI is forbidden. */
+/**
+ * Never fall back to `dsh plugin --profile desktop`.
+ *
+ * Up to dsh 0.2.0-rc.1 the CLI refused that profile outright. From rc.2 it
+ * accepts it only when Desktop's own carrier invokes it, with Desktop fully
+ * quit — it takes a 120 s lock on the profile's package.json and says "fully
+ * quit it before running". The market only ever runs inside a live Desktop, so
+ * for the market the answer is the same on every version: the app's own
+ * plugin manager is the only door.
+ */
 export function createOfficialDesktopRuntime(
   managerLookup: () => OfficialPluginManagerLike | undefined,
   profileName: string,

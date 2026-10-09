@@ -17,6 +17,7 @@ const univerRc2PeerRange = univerRc1PeerRange + ' || 0.2.0-rc.2'
 const univer021PeerRange = univerRc2PeerRange + ' || 0.2.1-alpha.1'
 const univer036PeerRange = '^0.1.5-rc.3 || ^0.1.7-rc.1 || ^0.2.0-rc.1'
 const univer036AdaptedPeerRange = univer036PeerRange + ' || 0.2.1-alpha.1'
+const univer037AdaptedPeerRange = univer036AdaptedPeerRange + ' || 0.2.1-alpha.2'
 const univerVendorPeers = {
   '@deepseek-ai/cordis': ['^4.0.2', '^4.0.2 || 4.0.5-alpha.1'],
   '@deepseek-ai/schemastery': ['^3.18.1', '^3.18.1 || 3.18.5-alpha.1'],
@@ -25,8 +26,10 @@ const univerVendorPeers = {
 /** Extends only the Office-facing APIs and vendor versions reviewed for this pin. */
 export function patchUniver020PeerRanges(source) {
   const manifest = JSON.parse(source)
-  if (manifest.name !== 'dsh-univer-office' || !['0.3.5', '0.3.6'].includes(manifest.version) || !manifest.peerDependencies) return source
-  const ranges = manifest.version === '0.3.6'
+  if (manifest.name !== 'dsh-univer-office' || !['0.3.5', '0.3.6', '0.3.7'].includes(manifest.version) || !manifest.peerDependencies) return source
+  const ranges = manifest.version === '0.3.7'
+    ? [univer036PeerRange, univer036AdaptedPeerRange, univer037AdaptedPeerRange]
+    : manifest.version === '0.3.6'
     ? [univer036PeerRange, univer036AdaptedPeerRange]
     : [univerPreviousPeerRange, univerRc1PeerRange, univerRc2PeerRange, univer021PeerRange]
   const adaptedRange = ranges.at(-1)
@@ -45,9 +48,10 @@ export function patchUniver020PeerRanges(source) {
 
 export function assertUniver020PeerRanges(manifest) {
   if (!manifest.peerDependencies) return
-  const adaptedRange = manifest.version === '0.3.6' ? univer036AdaptedPeerRange : univer021PeerRange
+  const adaptedRange = manifest.version === '0.3.7' ? univer037AdaptedPeerRange
+    : manifest.version === '0.3.6' ? univer036AdaptedPeerRange : univer021PeerRange
   for (const name of univerDshPeers) {
-    if (manifest.peerDependencies[name] !== adaptedRange) throw new Error('Univer DSH 0.2.1-alpha.1 peer adaptation missing: ' + name)
+    if (manifest.peerDependencies[name] !== adaptedRange) throw new Error('Univer DSH peer adaptation missing: ' + name)
   }
   for (const [name, ranges] of Object.entries(univerVendorPeers)) {
     if (manifest.peerDependencies[name] !== ranges[1]) throw new Error('Univer vendor peer adaptation missing: ' + name)
@@ -81,7 +85,7 @@ export function patchUniver017Client(source) {
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const legacyPatchVersions = new Set(['0.2.9', '0.2.10'])
-const nativeCompatibleVersions = new Set(['0.2.13', '0.2.14', '0.3.0', '0.3.2', '0.3.5', '0.3.6'])
+const nativeCompatibleVersions = new Set(['0.2.13', '0.2.14', '0.3.0', '0.3.2', '0.3.5', '0.3.6', '0.3.7'])
 const alpha2TurnTailReplacements = [
   ['name: "conversation.chat.turnTail",\n              priority: -10,', 'name: "conversation.chat.turnTail",\n              id: "univer-turn-preview",\n              order: -10,'],
   ['              select: selectUniverTurn,\n', ''],
@@ -184,7 +188,7 @@ export function assertUniverClientCompatibility({ version, source }) {
     return 'legacy-patched'
   }
   if (nativeCompatibleVersions.has(version)) {
-    if (version === '0.3.5' || version === '0.3.6') {
+    if (version === '0.3.5' || version === '0.3.6' || version === '0.3.7') {
       // Upstream now handles the list slot and entry-backed settings itself.
       // Its guarded legacy fallbacks are retained; do not rewrite the bundle.
       for (const marker of [

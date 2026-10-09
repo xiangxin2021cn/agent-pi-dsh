@@ -194,21 +194,50 @@ export function servingPort(request: Pick<IncomingMessage, 'headers'>): number |
   return Number.isInteger(port) && port > 0 && port < 65536 ? port : null
 }
 
-/** Whether a process-control request came from this Web host on loopback. */
-export function trustedRestartRequest(request: Pick<IncomingMessage, 'headers' | 'socket'>): boolean {
+/**
+ * The part of the restart fence that does not depend on `Origin`: a loopback
+ * peer, no forwarding trace, and a Host that names a loopback authority.
+ *
+ * One function so the route that ENFORCES the fence and the status poll that
+ * PREDICTS it cannot drift apart (#782). It deliberately leaves `Origin` out:
+ * a same-origin GET — which is what the status poll is — carries none, so a
+ * prediction that required it would call every ordinary local request
+ * impossible and take the button away from everyone.
+ */
+function directLoopbackRequest(request: Pick<IncomingMessage, 'headers' | 'socket'>): boolean {
   const address = request.socket.remoteAddress
   if (address !== '127.0.0.1' && address !== '::1' && address !== '::ffff:127.0.0.1') return false
   // Any forwarding trace means the loopback peer is a proxy, not the user.
   if (request.headers.forwarded !== undefined
     || request.headers['x-forwarded-for'] !== undefined
     || request.headers['x-real-ip'] !== undefined) return false
-  const origin = request.headers.origin
-  const host = request.headers.host
   // A loopback PEER is not enough: a DNS-rebinding page reaches 127.0.0.1
   // through a name it controls, so the address proves nothing and Host/Origin
   // both carry the attacker's domain (#678). Host is what the attack cannot
   // forge, so it has to name a loopback authority.
-  if (!loopbackAuthority(host)) return false
+  return loopbackAuthority(request.headers.host)
+}
+
+/**
+ * Whether a restart request made from the same page as THIS request could pass
+ * the fence (#782): the answer the status poll reports so the banner can say
+ * why there is no button, instead of rendering one that always answers 403.
+ *
+ * Read off the request that asked for status, not off configuration. Behind an
+ * Ingress or any reverse proxy the restart POST arrives from the same page over
+ * the same path, so it fails for the same reasons this request shows — a proxy
+ * peer, forwarding headers, a non-loopback Host. It is a prediction, never a
+ * grant: the route still runs the full fence, including `Origin`, on the POST.
+ */
+export function restartReachableFrom(request: Pick<IncomingMessage, 'headers' | 'socket'>): boolean {
+  return directLoopbackRequest(request)
+}
+
+/** Whether a process-control request came from this Web host on loopback. */
+export function trustedRestartRequest(request: Pick<IncomingMessage, 'headers' | 'socket'>): boolean {
+  if (!directLoopbackRequest(request)) return false
+  const origin = request.headers.origin
+  const host = request.headers.host
   if (origin === undefined || host === undefined) return false
   try {
     const parsed = new URL(origin)

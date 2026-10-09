@@ -10,7 +10,7 @@ export function verifyProjectPlanRuntime(productRoot, { portable = false } = {})
   const bundle = join(resolve(productRoot), 'bundles/project-plan')
   const runtime = join(bundle, 'runtime')
   const receipt = JSON.parse(readFileSync(join(runtime, 'build-receipt.json'), 'utf8'))
-  if (receipt.mpxj !== '16.7.0' || receipt.source !== digest(join(bundle, 'src/ProjectPlan.java'))) {
+  if (receipt.mpxj !== '16.10.0' || receipt.source !== digest(join(bundle, 'src/ProjectPlan.java'))) {
     throw new Error('Project plan engine source or version is stale')
   }
   const jars = readdirSync(join(runtime, 'lib')).filter(name => name.endsWith('.jar')).sort()
@@ -19,7 +19,7 @@ export function verifyProjectPlanRuntime(productRoot, { portable = false } = {})
     if (receipt.jars[name] !== digest(join(runtime, 'lib', name))) throw new Error(`Project plan dependency changed: ${name}`)
   }
   if (receipt.bridge !== digest(join(runtime, 'classes/ProjectPlan.class'))) throw new Error('Project plan bridge changed')
-  for (const path of ['THIRD_PARTY_NOTICES.md', 'legal/MPXJ-LICENSE.txt', 'runtime/sources/mpxj-16.7.0-sources.jar']) {
+  for (const path of ['THIRD_PARTY_NOTICES.md', 'legal/MPXJ-LICENSE.txt', 'runtime/sources/mpxj-16.10.0-sources.jar']) {
     if (!existsSync(join(bundle, path))) throw new Error(`Project plan legal input missing: ${path}`)
   }
   if (!portable) {

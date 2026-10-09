@@ -11,6 +11,9 @@ import { registerTaskGuide } from '../../task-guide/src/plugin.ts'
 import { registerEngineering } from '../src/plugin.ts'
 import { createEngineeringStore, hash } from '../src/store.ts'
 import { engineeringWorkflow } from '../src/workflow.ts'
+import { registerCad } from '../../engineering-cad/src/plugin.ts'
+import { convertDwgToDxf } from '../../tender-host/src/cad-convert.ts'
+import { latestEngineeringRuns } from '../../tender-web/src/client/engineering-panel.js'
 import type { EngineeringDependency, EngineeringProvider } from '../../../packages/engineering-core/index.ts'
 import { validateJsonSchemaValue } from '../../../vendor/deepseek-harness/packages/core/tools/src/json-schema.ts'
 
@@ -46,10 +49,72 @@ function fixture(t: any) {
     return call({ action: 'update', revision: 0, operationId: 'setup', patch: { sources, objects: [{ id: 'beam', type: 'beam', title: 'KL1', sources: sourcesRef, parameters: { width: { value: 300, unit: 'mm', status: 'confirmed', sources: sourcesRef }, height: { value: 600, unit: 'mm', status: 'confirmed', sources: sourcesRef } } }] } })
   }
   const run = (dependencies: EngineeringDependency[], operationId: string, input = { value: 10 }) => call({ action: 'run', revision: engineering.status('main').revision, operationId, providerId: provider.id, input, dependencies })
-  return { cwd, sessions, agents, main, engineering, taskGuide, call, run, setup, http, provider, unregister, calls: () => calls, events }
+  return { cwd, sessions, agents, main, engineering, taskGuide, call, run, setup, http, provider, unregister, calls: () => calls, events, ctx, definitions }
 }
 const width: EngineeringDependency[] = [{ kind: 'parameter', id: 'beam', parameter: 'width' }]
 const height: EngineeringDependency[] = [{ kind: 'parameter', id: 'beam', parameter: 'height' }]
+
+test('formal CAD tool preserves conversion gaps and separate embedded reads through the ledger, task and panel projection', async t => {
+  const f = fixture(t), source = join(f.cwd, 'drawing.dwg'), groups = (...values: (string | number)[]) => values.join('\n') + '\n'
+  writeFileSync(source, 'AC1032 integration fixture')
+  const ole = (handle: string) => groups(0, 'OLE2FRAME', 5, handle, 100, 'AcDbEntity', 8, '0', 100, 'AcDbOle2Frame', 70, 2, 10, 0, 20, 0, 11, 1, 21, 1, 71, 2, 72, 0, 90, 0)
+  const dxf = Buffer.from(groups(0, 'SECTION', 2, 'ENTITIES') + ole('F1') + ole('F2') + groups(0, 'LINE', 5, 'F3', 8, '0', 10, 0, 20, 0, 11, 2, 21, 0, 0, 'ENDSEC', 0, 'EOF'))
+  const prepared = await convertDwgToDxf(f.cwd, source, async (_source, output) => {
+    writeFileSync(output, dxf)
+    return { engine: 'mlightcad', warnings: [68], bundledModelQuality: { valid: true, entityTypes: { OLE2FRAME: 2, LINE: 1, '3DSOLID': 57 } } }
+  })
+  registerCad({ ...f.ctx, inject: undefined }, value => value)
+  f.ctx.tools.schemas = () => [...f.definitions.values()]
+  const read = (args: any) => f.definitions.get('cad_read').execute({ path: prepared.relativePath, ...args }, { agent: f.main, signal: new AbortController().signal })
+  const inventory = await read({ action: 'inventory' })
+  assert.equal(inventory.synchronization.status, 'recorded')
+  assert.equal(inventory.source.sha256, hash('AC1032 integration fixture'))
+  const first = await read({ action: 'query', sourceHash: inventory.source.sha256, query: { collection: 'embedded', recordId: 'entity:0' } })
+  const second = await read({ action: 'query', sourceHash: inventory.source.sha256, query: { collection: 'embedded', recordId: 'entity:1' } })
+  assert.equal(first.page.items[0].status, 'raw_only'); assert.equal(second.page.items[0].status, 'raw_only')
+  await read({ action: 'query', query: { collection: 'records', offset: 0, limit: 1 } })
+  await read({ action: 'query', query: { collection: 'records', offset: 1, limit: 1 } })
+  const state = (await f.http()).value, task = f.taskGuide.read('main')
+  assert.equal(state.runs.length, 5)
+  assert.equal(latestEngineeringRuns(state.runs).length, 4, 'pagination replaces its read card without hiding inventory or other embedded objects')
+  assert.equal(task.findings.length, 4)
+  assert.ok(state.runs.every((run: any) => run.output.issues.some((issue: any) => issue.code === 'dwg-export-coverage-gap' && issue.severity === 'error')))
+  assert.ok(task.findings.every((finding: any) => finding.importance === 'critical' && /3DSOLID 57→0/.test(finding.summary) && /68/.test(finding.summary)))
+  assert.equal(state.runs[1].output.details.details.embedded.items[0].sourceHash, hash(dxf.toString()))
+  assert.ok(state.runs[1].output.issues.some((issue: any) => issue.code === 'cad-embedded-visual-gap'))
+  assert.equal(state.project.sources[0].path, source)
+  assert.ok(state.project.coverage.every((row: any) => row.status === 'pending'))
+  const restored = createEngineeringStore(f.cwd, 'session:main', 'Recovered').read()
+  assert.equal(restored.runs.length, 5)
+  assert.deepEqual(validateJsonSchemaValue({}, await f.call({ action: 'status' })), [])
+})
+
+test('invalid reader issues and read scopes are rejected before creating engineering state', t => {
+  const f = fixture(t), path = join(f.cwd, 'drawing.dxf')
+  writeFileSync(path, 'source')
+  const observation = { kind: 'cad' as const, source: { path, sha256: hash('source') }, summary: 'CAD inventory', inventory: [], observedIds: [] }
+  assert.throws(() => f.engineering.recordObservation('main', { ...observation, issues: [{ code: 'gap', severity: 'approved', message: 'wrong severity' }] } as any), /检查结果无效/)
+  assert.throws(() => f.engineering.recordObservation('main', { ...observation, readScope: '' }), /范围标识无效/)
+  assert.equal(f.engineering.status('main').revision, 0)
+})
+
+test('read deduplication includes scope, newly discovered gaps and detail changes without rewriting history', t => {
+  const f = fixture(t), path = join(f.cwd, 'drawing.dxf')
+  writeFileSync(path, 'source')
+  const observation = { kind: 'cad' as const, source: { path, sha256: hash('source') }, summary: 'CAD inventory', inventory: [], observedIds: [], readScope: 'inventory', issues: [], details: { retained: 1 } }
+  f.engineering.recordObservation('main', observation)
+  const gap = { ...observation, issues: [{ code: 'dwg-export-coverage-gap', severity: 'error' as const, message: 'SPLINE 398→376' }] }
+  f.engineering.recordObservation('main', gap)
+  f.engineering.recordObservation('main', { ...gap, readScope: 'embedded:source-record:1' })
+  const changed = { ...gap, readScope: 'embedded:source-record:1', details: { retained: 2 } }
+  const latest = f.engineering.recordObservation('main', changed)
+  assert.equal(latest.revision, 4)
+  assert.equal(f.engineering.recordObservation('main', changed).revision, 4)
+  const state = f.engineering.status('main')
+  assert.ok(state.runs.every((run: any) => run.providerVersion === '3.8.2'))
+  assert.equal(state.runs[0].output.issues.length, 1, 'original pending-only read is immutable')
+  assert.match(f.taskGuide.read('main').findings[0].summary, /SPLINE 398→376/)
+})
 
 test('unbound conversation status and calculation results cross the actual DSH lossless JSON boundary', async t => {
   const f = fixture(t)

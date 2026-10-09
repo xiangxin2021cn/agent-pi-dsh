@@ -149,7 +149,7 @@ function presetMismatch(profileDir, bundleOrder) {
  * reports the mismatch alongside the still-computable changes (relative
  * order + enabled/disabled diffs over the intersection).
  */
-export function previewPreset(profileDir, name,
+export function previewPreset(profileDir, name, 
 /** The host's own installation anchor, when it gave one (#781 review). */
 dshInstallDir) {
     if (typeof name !== 'string')
@@ -200,7 +200,7 @@ dshInstallDir) {
  * then write the bundle order and the disable list. The response carries the
  * change preview so the UI can report exactly what moved.
  */
-export function applyPreset(profileDir, name, maxSnapshots = DEFAULT_MAX_SNAPSHOTS,
+export function applyPreset(profileDir, name, maxSnapshots = DEFAULT_MAX_SNAPSHOTS, 
 /** The host's own installation anchor, when it gave one (#781 review). */
 dshInstallDir) {
     if (typeof name !== 'string')

@@ -494,29 +494,44 @@ export function classifyPnpmFailure(output: string, exitCode?: number | null): P
         : `插件声明的一个依赖版本范围在 registry 上没有可满足的版本${zh}，通常是该版本被弃用或从未发布 / a dependency of this plugin declared a version range with no matching release on the registry${en} — the range resolves to nothing (withdrawn or never published)`,
     }
   }
-  // #786 follow-up: pnpm could not replace one of the PROFILE's own files —
-  // `package.json` or `pnpm-lock.yaml` — not a package directory.
+  // #786 follow-up: pnpm could not replace one of the profile's own files —
+  // `package.json`, `pnpm-lock.yaml` — or the lockfile it keeps INSIDE
+  // `node_modules/.pnpm/lock.yaml`. None of these is a package directory.
   //
-  // pnpm writes both through its bundled `write-file-atomic`, which does ONE
-  // rename and no retry (measured on the bundled 11.7.0: the temp name is
+  // pnpm writes all of them through its bundled `write-file-atomic`, which does
+  // ONE rename and no retry (measured on the bundled 11.7.0: the temp name is
   // `<file>.<hash>`, e.g. `pnpm-lock.yaml.3015012533`). Any momentary holder —
   // Defender scanning the just-written file, the Windows indexer, an editor —
   // fails the entire run. Measured on the reporter's own profile: 4 identical
   // `add` runs, the 4th failed this way and an immediate 5th succeeded.
+  //
+  // The `.pnpm/lock.yaml` shape is the SAME failure, not a lesser one: pnpm's
+  // `writeLockfiles` writes the wanted lockfile and the current one through the
+  // same write-file-atomic inside one `Promise.all` (pnpm 11.7.0, both the
+  // equal-lockfile and the differing one branch). So a lock on the temp name
+  // `…\.pnpm\lock.yaml.<hash>` fails the run exactly like a lock on
+  // `pnpm-lock.yaml` — and answering it as the package-directory case below
+  // would roll the profile's lockfile back over a `node_modules` that already
+  // holds the new build, which is the desync this whole branch exists to stop.
   //
   // This must be answered BEFORE the package-directory branch below, whose
   // pattern is broad enough to swallow it: that branch blames the running host
   // for holding the plugin's files open and tells the user to quit DSH, which
   // is wrong here (nothing about the plugin is locked) and is the most
   // expensive advice available for a failure that a plain retry clears.
-  // `recoverable: true` is what lets withHoistRecovery retry it automatically.
-  if (/(?:ERR_PNPM_)?EPERM[^\n]*rename[^\n]*[\\/](?:package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml)\.\d+/i.test(
+  //
+  // `recoverable: false`, like the other same-argv retries (`transient-network`,
+  // `fetch-timeout`): that flag means "re-running `pnpm install` is the
+  // documented recovery", and no code reads it to decide a retry — the retry is
+  // keyed on this code in `withHoistRecovery`. Marking it true would invite a
+  // future reader to rebuild `node_modules` over a one-file rename.
+  if (/(?:ERR_PNPM_)?EPERM[^\n]*rename[^\n]*(?:[\\/](?:package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml)\.\d+|[\\/]\.pnpm[\\/]lock\.yaml\.\d+)/i.test(
     withDecodedPnpmDiagnostics(output),
   )) {
     return {
       code: 'profile-file-locked',
-      recoverable: true,
-      message: 'pnpm 替换 profile 自己的文件（package.json / pnpm-lock.yaml）时被 Windows 拒绝了一下——通常是杀毒软件或索引服务正好在读这个刚写完的文件。插件本身没有被占用，重试即可；市场会自动重试一次 / Windows briefly refused pnpm\'s replacement of one of the profile\'s own files (package.json / pnpm-lock.yaml) — usually antivirus or the search indexer reading the file pnpm had just written. Nothing about the plugin is locked; a retry clears it, and the market retries once automatically',
+      recoverable: false,
+      message: 'pnpm 写入 package.json 或 pnpm-lock.yaml 时被 Windows 拒绝了一下——通常是杀毒软件或索引服务正好在读这个刚写完的文件。插件本身没有被占用；市场已经自动重试过一次，还是失败，请再试一次 / Windows briefly refused pnpm\'s write of package.json or pnpm-lock.yaml — usually antivirus or the search indexer reading the file pnpm had just written. Nothing about the plugin is locked; the market already retried once and it still failed, so try again',
     }
   }
   // #389 by @qq1054435284: on Windows, pnpm stages the new version in a

@@ -98,9 +98,16 @@ export declare function isUnpublishedHostPeer(pkg: string | undefined, profile: 
  * where it is not — there the bypass would be what installs the young
  * version, over a minimumReleaseAge the profile set on purpose — so the
  * install route declines it and falls back to the bare name instead.
+ *
+ * `marketFlags: false` says the host runs pnpm itself and takes no options
+ * from us (the official Desktop bridge, #732). The four recoveries below
+ * each decorate a command with an option, so on such a host they are skipped
+ * rather than sent and refused — and because their classifier messages say
+ * the market retried, the note appended at the end says it did not.
  */
 export declare function withHoistRecovery(run: PluginRunner, profile: string, pluginArgs: string[], profileDirectory?: string, options?: {
     releaseAgeBypass?: boolean;
+    marketFlags?: boolean;
 }): Promise<InstallResult>;
 /**
  * The tail of the diagnostics file the dsh CLI pointed at, when it pointed at

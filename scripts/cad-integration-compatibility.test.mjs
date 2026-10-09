@@ -236,17 +236,17 @@ function reviewedHostFixture(t, review = '3.8.2-disk') {
   const value = fixture(t)
   const repository = join(dirname(cli), '..')
   const shared = ['package.json', 'bundles/tender-host/src/http.ts', 'bundles/tender-web/src/client/file-preview-overlay.js',
-    ...(review === '3.8.2-patched' ? ['THIRD_PARTY_NOTICES.md'] : [])]
+    ...(['3.8.2-patched', '3.8.2-release'].includes(review) ? ['THIRD_PARTY_NOTICES.md'] : [])]
   const added = [
     'bundles/tender-host/src/cad-convert.ts', 'bundles/tender-host/src/cad-convert-worker.mjs',
     'bundles/tender-host/package.json', 'bundles/tender-host/package-lock.json',
     ...(review !== '3.8.1' ? ['bundles/tender-host/src/cad-dxf-output.mjs', 'bundles/engineering-cad/src/reader.ts'] : []),
-    ...(['3.8.2-disk', '3.8.2-patched'].includes(review) ? [
+    ...(['3.8.2-disk', '3.8.2-patched', '3.8.2-release'].includes(review) ? [
       'bundles/engineering-cad/src/plugin.ts', 'bundles/engineering-cad/src/dxf-disk-source.ts',
       'bundles/engineering-cad/src/cad-disk-index.ts', 'packages/engineering-cad/index.ts',
       'packages/engineering-cad/types.ts', 'packages/engineering-cad/matrix.ts',
     ] : []),
-    ...(review === '3.8.2-patched' ? [
+    ...(['3.8.2-patched', '3.8.2-release'].includes(review) ? [
       'bundles/tender-host/src/cad-dwg-model-quality.mjs',
       'bundles/engineering-cad/src/cad-embedded.ts',
       ...['libredwg-web.mjs', 'libredwg-wasm-factory.mjs', 'libredwg-web.wasm', 'GPL-3.0.txt', 'CAD-HOST-CLEAN-BUILD.json', 'sources/Agent-Pi-DSH-3.8.2-CAD-host-corresponding-source.tar.gz'].map(path => 'bundles/tender-host/lib/cad-decoder/' + path),
@@ -267,10 +267,11 @@ function reviewedHostFixture(t, review = '3.8.2-disk') {
     '3.8.1': 'v3.8.1',
     '3.8.2': '9fa77a2731bb4dc90cef4254faedfa6b682a18e9',
     '3.8.2-disk': '75142e3ba0f1e6a8598d9c6d52af0457780cfcd5',
+    '3.8.2-patched': '4cbcc177b48e455246ed10a75bf391b2ef6e144e',
   }[review]
   const raw = path => path.startsWith('bundles/tender-host/lib/cad-decoder/') || path === 'scripts/cad-host-bit-position-overflow.patch'
   const read = path => historical
-    ? execFileSync('git', ['show', `${historical}:${path}`], { cwd: repository, encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
+    ? execFileSync('git', ['show', `${historical}:${path}`], { cwd: repository, encoding: raw(path) ? null : 'utf8', maxBuffer: 64 * 1024 * 1024, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
     : raw(path) ? readFileSync(join(repository, path)) : readFileSync(join(repository, path), 'utf8').replaceAll('\r\n', '\n')
   const reviewed = new Map([...shared, ...added].map(path => [path, read(path)]))
   for (const [path, contents] of reviewed) write(join(value.root, path), contents)
@@ -374,6 +375,65 @@ test('accepts the finalized patched converter closure and rejects a further conv
   assert.equal(Object.keys(proof.hostExtension.additionalFileHashes).length, 27)
   const path = 'bundles/tender-host/src/cad-convert.ts'
   write(join(value.root, path), value.reviewed.get(path) + '\n')
+  commit(value.root)
+  assert.throws(() => assertCadIntegrationUnchanged(value), /reviewed CAD host extension differs/)
+})
+
+test('accepts the exact 3.8.2 release while retaining the historical patched decoder and source pins', (t) => {
+  const value = reviewedHostFixture(t, '3.8.2-release')
+  const originalManifest = structuredClone(value.manifest)
+  const proof = assertCadIntegrationUnchanged(value)
+  const historical = assertCadIntegrationUnchanged(reviewedHostFixture(t, '3.8.2-patched'))
+  assert.equal(proof.hostExtension.review, '3.8.2-release-cad-observations-dependencies')
+  assert.equal(historical.hostExtension.review, '3.8.2-host-patched-decoder-embedded')
+  assert.equal(proof.hostExtension.nativeViewerBuildInputsUnchanged, true)
+  assert.equal(Object.keys(proof.hostExtension.additionalFileHashes).length, 27)
+  assert.deepEqual(Object.keys(proof.hostExtension.additionalFileHashes).filter(path =>
+    proof.hostExtension.additionalFileHashes[path] !== historical.hostExtension.additionalFileHashes[path]).sort(), [
+    'bundles/engineering-cad/src/plugin.ts', 'bundles/engineering-cad/src/reader.ts',
+    'bundles/tender-host/package-lock.json', 'bundles/tender-host/package.json',
+  ])
+  assert.equal(proof.hostExtension.sharedFileHashes['THIRD_PARTY_NOTICES.md'][0], historical.hostExtension.sharedFileHashes['THIRD_PARTY_NOTICES.md'][0])
+  assert.notEqual(proof.hostExtension.sharedFileHashes['THIRD_PARTY_NOTICES.md'][1], historical.hostExtension.sharedFileHashes['THIRD_PARTY_NOTICES.md'][1])
+  assert.deepEqual(value.manifest, originalManifest)
+})
+
+test('rejects unreviewed CAD observation, dependency and notice changes after the 3.8.2 release review', (t) => {
+  const value = reviewedHostFixture(t, '3.8.2-release')
+  const jsonChange = (text, change) => { const json = JSON.parse(text); change(json); return JSON.stringify(json, null, 2) + '\n' }
+  const changes = [
+    ['bundles/engineering-cad/src/reader.ts', text => text.replace('dwg-export-coverage-gap', 'reviewed-export')],
+    ['bundles/engineering-cad/src/plugin.ts', text => text.replace("version: '3.8.2'", "version: '3.8.3'")],
+    ['bundles/tender-host/package.json', text => jsonChange(text, json => { json.dependencies['@mlightcad/data-model'] = '1.14.4' })],
+    ['bundles/tender-host/package-lock.json', text => jsonChange(text, json => { json.packages['node_modules/@mlightcad/libredwg-web'].integrity += 'unreviewed' })],
+    ['bundles/tender-host/package-lock.json', text => jsonChange(text, json => { json.packages['node_modules/@napi-rs/canvas'].version = '1.0.11' })],
+    ['THIRD_PARTY_NOTICES.md', text => text.replace('distributed under GPL-3.0-only, with its license', 'distributed under MIT, with its license')],
+    ['THIRD_PARTY_NOTICES.md', text => text.replace('official `dsh-univer-office` 0.3.7', 'official `dsh-univer-office` 0.3.8')],
+  ]
+  for (const [path, change] of changes) {
+    const original = value.reviewed.get(path), changed = change(original)
+    assert.notEqual(changed, original, path)
+    write(join(value.root, path), changed)
+    commit(value.root)
+    assert.throws(() => assertCadIntegrationUnchanged(value), /CAD inputs changed|reviewed CAD host extension differs/, path)
+    write(join(value.root, path), original)
+    commit(value.root)
+  }
+  assert.equal(assertCadIntegrationUnchanged(value).hostExtension.review, '3.8.2-release-cad-observations-dependencies')
+})
+
+test('rejects changed decoder bytes and extra distributed files in the 3.8.2 release', (t) => {
+  const value = reviewedHostFixture(t, '3.8.2-release')
+  const path = 'bundles/tender-host/lib/cad-decoder/libredwg-web.wasm'
+  const original = value.reviewed.get(path), changed = Buffer.from(original)
+  changed[128] ^= 1
+  write(join(value.root, path), changed)
+  commit(value.root)
+  assert.throws(() => assertCadIntegrationUnchanged(value), /reviewed CAD host extension differs/)
+  write(join(value.root, path), original)
+  commit(value.root)
+  write(join(value.root, 'bundles/tender-host/lib/cad-decoder/unreviewed.mjs'), 'export default true\n')
+  assert.throws(() => assertCadIntegrationUnchanged(value), /uncommitted changes/)
   commit(value.root)
   assert.throws(() => assertCadIntegrationUnchanged(value), /reviewed CAD host extension differs/)
 })

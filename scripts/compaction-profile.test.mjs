@@ -16,7 +16,9 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 import { createRequire } from 'node:module'
+import { applyEntryPatches, entryListSchema } from '../vendor/deepseek-harness/vendor/include/lib/index.js'
 const yamlRequire = createRequire(new URL('../vendor/deepseek-harness/packages/settings/settings/package.json', import.meta.url))
+const { load: loadYaml } = createRequire(new URL('../vendor/deepseek-harness/vendor/include/package.json', import.meta.url))('js-yaml')
 
 const sourceRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
 const univerPeerNames = [
@@ -113,7 +115,7 @@ function createFixture(t) {
     writePackage(dsh, `packages/experimental/${name}`, `@deepseek-ai/dsh-experimental-${name}`, { lib: true })
   }
   writePackage(dsh, 'packages/subagent/subagent-codex', '@deepseek-ai/dsh-subagent-codex')
-  writePackage(dsh, 'packages/session-query/tool-session-query', '@deepseek-ai/dsh-tool-session-query', { lib: true })
+  writePackage(dsh, 'packages/experimental/tool-session-query', '@deepseek-ai/dsh-tool-session-query', { lib: true })
   writePackage(dsh, 'packages/web/web-fetch-http', '@deepseek-ai/dsh-web-fetch-http', { lib: true })
   writePackage(dsh, 'packages/compaction/compaction-basic', '@deepseek-ai/dsh-compaction-basic', { bundle: false, lib: true })
   for (const name of [
@@ -210,6 +212,27 @@ function presetTexts(fixture) {
     readFileSync(join(fixture.home, '.agent-presets/router-standard/agent.cordis.yml'), 'utf8'),
   ]
 }
+
+function composeWrappers(fixture) {
+  const parse = text => loadYaml(text, { schema: entryListSchema })
+  const warnings = []
+  const warn = message => warnings.push(message)
+  let entries = applyEntryPatches([], parse(readFileSync(join(sourceRoot,
+    'vendor/deepseek-harness/packages/bundle/base/cordis.patch.yml'), 'utf8')), warn)
+  entries = applyEntryPatches(entries, parse(readFileSync(join(sourceRoot,
+    'vendor/deepseek-harness/packages/subagent/subagent-codex/cordis.patch.yml'), 'utf8')), warn)
+  entries = applyEntryPatches(entries, parse(readFileSync(join(sourceRoot, 'bundles/tender-host/cordis.patch.yml'), 'utf8')), warn)
+  const defaults = parse(readFileSync(fixture.patchPath, 'utf8')).filter(patch =>
+    patch.id === 'subagent-codex' || patch.insert?.some(row => row.id === 'agent-pi-subagent-codex'))
+  entries = applyEntryPatches(entries, defaults, warn)
+  entries = applyEntryPatches(entries, parse(readFileSync(fixture.userPatchPath, 'utf8')), warn)
+  return { entries, warnings }
+}
+
+const wrapperIds = [
+  ['goal-round-driver', 'agent-pi-goal-round-driver', '@deepseek-ai/dsh-goal-round-driver', 'dsh-tender-host/goal-round-driver'],
+  ['subagent-codex', 'agent-pi-subagent-codex', '@deepseek-ai/dsh-subagent-codex', 'dsh-tender-host/codex-provider'],
+]
 
 test('incompatible AnySearch retains installation but managed defaults select official search', t => {
   const fixture = createFixture(t)
@@ -478,6 +501,108 @@ test('an unmarked custom overlay is preserved byte-for-byte', (t) => {
   runInitializer(fixture)
 
   assert.equal(readFileSync(fixture.userPatchPath, 'utf8'), customPatch)
+})
+
+test('alpha.2 relocates session history without resetting user plugin enablement', (t) => {
+  const fixture = createFixture(t)
+  const customPatch = `# user-owned enablement
+- id: task-session-history
+  disabled: true
+- id: agent-pi-engineering-cad
+  disabled: true
+- id: agent-pi-engineering-pdf
+  disabled: false
+`
+  writeFixtureFile(fixture.userPatchPath, customPatch)
+
+  runInitializer(fixture)
+  runInitializer(fixture)
+
+  const manifest = JSON.parse(readFileSync(join(fixture.home, 'profiles/tender/package.json'), 'utf8'))
+  assert.equal(manifest.dependencies['@deepseek-ai/dsh-tool-session-query'],
+    `link:${join(fixture.dsh, 'packages/experimental/tool-session-query').replaceAll('\\', '/')}`)
+  assert.equal(existsSync(join(fixture.dsh, 'packages/session-query/tool-session-query')), false)
+  assert.equal(readFileSync(fixture.userPatchPath, 'utf8'), customPatch)
+})
+
+test('alpha.2 wrapper migration preserves old enabled, disabled and implicit states through real composition', async t => {
+  for (const [oldId, newId, previousName, wrapperName] of wrapperIds) {
+    for (const disabled of [true, false, undefined]) await t.test(`${oldId}: ${disabled}`, t => {
+      const fixture = createFixture(t)
+      const name = disabled === false ? previousName : disabled === undefined ? wrapperName : undefined
+      const overlay = `# retained wrapper preference
+- id: ${oldId}
+${name ? `  name: ${JSON.stringify(name)}\n` : ''}${disabled === undefined ? '' : `  disabled: ${disabled}\n`}  config:
+    retained: user-value
+`
+      writeFixtureFile(fixture.userPatchPath, overlay)
+      runInitializer(fixture)
+      const migrated = readFileSync(fixture.userPatchPath, 'utf8')
+      const [row] = loadYaml(migrated)
+      assert.equal(row.id, newId)
+      assert.equal(row.disabled, disabled)
+      assert.deepEqual(row.config, { retained: 'user-value' })
+      assert.equal(row.name, name === undefined ? undefined : wrapperName)
+      assert.match(migrated, /# retained wrapper preference/)
+      const { entries, warnings } = composeWrappers(fixture)
+      assert.deepEqual(warnings, [])
+      assert.equal(entries.find(entry => entry.id === oldId).disabled, true)
+      assert.equal(entries.find(entry => entry.id === newId).disabled, disabled)
+      runInitializer(fixture)
+      assert.equal(readFileSync(fixture.userPatchPath, 'utf8'), migrated)
+    })
+  }
+})
+
+test('existing product wrapper preferences win while the old native instance stays disabled', async t => {
+  for (const [oldId, newId, _previousName, wrapperName] of wrapperIds) {
+    for (const disabled of [true, false]) await t.test(`${newId}: ${disabled}`, t => {
+      const fixture = createFixture(t)
+      const preferred = { id: newId, name: wrapperName, disabled, config: { retained: 'new-value' } }
+      writeFixtureFile(fixture.userPatchPath, `# legacy preference remains recorded
+- id: ${oldId}
+  name: ${wrapperName}
+  disabled: false
+  config:
+    retained: old-value
+# explicit product preference wins
+- id: ${newId}
+  name: ${wrapperName}
+  disabled: ${disabled}
+  config:
+    retained: new-value
+`)
+      runInitializer(fixture)
+      const migrated = readFileSync(fixture.userPatchPath, 'utf8')
+      const [oldRow, newRow] = loadYaml(migrated)
+      assert.equal(oldRow.disabled, true)
+      assert.deepEqual(oldRow.config, { retained: 'old-value' })
+      assert.deepEqual(newRow, preferred)
+      assert.match(migrated, /# legacy preference remains recorded/)
+      assert.match(migrated, /# explicit product preference wins/)
+      const { entries, warnings } = composeWrappers(fixture)
+      assert.deepEqual(warnings, [])
+      assert.equal(entries.find(entry => entry.id === oldId).disabled, true)
+      assert.equal(entries.find(entry => entry.id === newId).disabled, disabled)
+      runInitializer(fixture)
+      assert.equal(readFileSync(fixture.userPatchPath, 'utf8'), migrated)
+    })
+  }
+})
+
+test('unknown wrapper assertion names remain untouched and cannot reactivate native instances', t => {
+  const fixture = createFixture(t)
+  const overlay = wrapperIds.map(([id]) => `- id: ${id}\n  name: unknown/custom-wrapper\n  disabled: false\n`).join('')
+  writeFixtureFile(fixture.userPatchPath, overlay)
+  runInitializer(fixture)
+  assert.equal(readFileSync(fixture.userPatchPath, 'utf8'), overlay)
+  const { entries, warnings } = composeWrappers(fixture)
+  assert.equal(warnings.length, 2)
+  assert.ok(warnings.every(message => message.includes('name mismatch')))
+  for (const [oldId, newId] of wrapperIds) {
+    assert.equal(entries.find(entry => entry.id === oldId).disabled, true)
+    assert.notEqual(entries.find(entry => entry.id === newId).disabled, true)
+  }
 })
 
 test('alpha.1 preserves dsh-im installation but does not activate the incompatible bundle', (t) => {

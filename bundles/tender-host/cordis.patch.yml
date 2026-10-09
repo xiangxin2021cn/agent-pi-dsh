@@ -11,4 +11,8 @@
 # Preserve the official preset's goal/plan/todo tools. Only an explicitly bound
 # workbench session suppresses the separate automatic goal continuation driver.
 - id: goal-round-driver
-  name: dsh-tender-host/goal-round-driver
+  name: '@deepseek-ai/dsh-goal-round-driver'
+  disabled: true
+- insert:
+    - id: agent-pi-goal-round-driver
+      name: dsh-tender-host/goal-round-driver

@@ -26,7 +26,7 @@
  *             or a declared entry artifact that is missing
  *   missing – not present in node_modules
  */
-export type ActivationState = 'live' | 'preset' | 'restart' | 'incompatible' | 'inert' | 'broken' | 'missing' | 'disabled';
+export type ActivationState = 'live' | 'restart' | 'incompatible' | 'inert' | 'broken' | 'missing' | 'disabled';
 export interface ActivationResult {
     state: ActivationState;
     /** Bilingual, user-facing explanations (zh / en joined with " / "). */

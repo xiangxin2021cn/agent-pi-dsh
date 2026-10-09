@@ -51,7 +51,7 @@ import { Diagnostics } from './Diagnostics.tsx'
 import { exportMarketLog } from './self-check.ts'
 import {
   api, applyGithubRouting, avatarColor, catalogEntryForInstalled, entryForDep, githubRouteCandidates, groupSwitchState, humanOutput, installedForCatalog, isGenerationSpec, isInstalled, localizeBilingual, localizeBilingualList, looksTerminal, matchInstalledName, orderedCategories, pluginCategories,
-  formatCount, pageItems, pluginName, blockAliases, pluginScreenshotCandidates, pluginScreenshots, pluginsForFavorites, queuedRowApplies, rankThemeScreenshots, readSession, releaseNotesHttpsImage, rememberGithubRoute, resetScreenshotsCache, resolveCatalogRestore, safeScreenshots, sanitizeReleaseNotesBody, staleFavoriteUrls, themePlugins as themePluginsOf, themeSwatch, TIME_RANGE_DAYS, visiblePlugins,
+  formatCount, pageItems, pluginName, blockAliases, pluginScreenshotCandidates, pluginScreenshots, pluginsForFavorites, queuedRowApplies, rankThemeScreenshots, readSession, releaseNotesHttpsImage, rememberGithubRoute, resetScreenshotsCache, resolveCatalogRestore, safeScreenshots, sanitizeReleaseNotesBody, staleFavoriteUrls, themePlugins as themePluginsOf, themeSwatch, TIME_RANGE_DAYS, visiblePlugins, restartHintKey,
 } from './market-data.ts'
 import type {
 ActivationInfo, ActivationState, GistExportResult, InstalledMap, InstalledRepoHints, InstalledRepoIdentities, MarketStatus, Registry, RegistryPlugin,
@@ -2237,6 +2237,9 @@ export function MarketSection(props: MarketSectionProps) {
   const [supervisor, setSupervisor] = useState<string | null>(null)
   /** Debugger latch when one-click restart must not kill the host (#447). */
   const [debuggerLatch, setDebuggerLatch] = useState<string | null>(null)
+  // False when this page reaches dsh through a proxy: a restart from here is refused
+  // every time, so the banner says so instead of offering a button (#782).
+  const [restartReachable, setRestartReachable] = useState(true)
   const [restarting, setRestarting] = useState(false)
   const [showTop, setShowTop] = useState(false)
   const [backupBusy, setBackupBusy] = useState(false)
@@ -2534,6 +2537,9 @@ export function MarketSection(props: MarketSectionProps) {
         setRestartEnabled(status.restart === true)
         setSupervisor(typeof status.supervisor === 'string' ? status.supervisor : null)
         setDebuggerLatch(typeof status.debugger === 'string' ? status.debugger : null)
+        // Only an explicit false takes the button away. Absent (an older host) or
+        // anything else keeps it: never remove an action on a guess.
+        setRestartReachable(status.restartReachable !== false)
         if (typeof status.version === 'string' && status.version !== '') setVersion(status.version)
       })
       .catch(() => {})
@@ -4774,6 +4780,11 @@ export function MarketSection(props: MarketSectionProps) {
     const entry = data === null ? undefined : catalogEntryForInstalled(data.plugins, name, String(installed[name] ?? ''), repoIdentities[name], repoHints[name])
     const aliases = entry === undefined ? [name] : blockAliases(entry, name)
     const hidden = aliases.some(alias => blockedNameSet.has(alias))
+    // Favourites are keyed by the CATALOG entry's url (#414), so an installed
+    // plugin with no catalog entry has nothing the Favorites tab could list —
+    // the action is offered only where it can be honoured (#785).
+    const favoriteUrl = entry?.url
+    const favorited = favoriteUrl !== undefined && favoriteUrlSet.has(favoriteUrl)
     const removing = removingName === name
     const uninstallBusy = removingName !== null || busyUrl !== null || updatingName !== null
     const spec = String(installed[name] ?? '')
@@ -4797,6 +4808,7 @@ export function MarketSection(props: MarketSectionProps) {
         onSelect={(id) => {
           setInstalledMenuName(null)
           if (id === 'restore-online' && data !== null && !uninstallBusy) askRestore(name)
+          if (id === 'favorite' && favoriteUrl !== undefined) toggleFavorite(favoriteUrl)
           if (id === 'block') toggleBlock(blockToggleName(aliases))
           if (id === 'update-exempt') toggleUpdateExempt(name)
           if (id === 'ignore-boot') ignoreUpdateNotices([name])
@@ -4814,6 +4826,11 @@ export function MarketSection(props: MarketSectionProps) {
         )}
         items={[
           ...(showRestore ? [{ id: 'restore-online', label: t('restoreOnline'), disabled: data === null || uninstallBusy }] : []),
+          // Before block: the same kind of choice about one plugin, and the
+          // harmless one of the two. Having it installed is exactly when a user
+          // knows whether it is worth keeping — the complaint in #785 was
+          // installing one first and then hunting for it again in Discover.
+          ...(favoriteUrl === undefined ? [] : [{ id: 'favorite', label: favorited ? t('favoriteRemove') : t('favoriteAdd') }]),
           { id: 'block', label: hidden ? t('blockRemove') : t('blockAdd') },
           ...(showBootIgnore ? [{ id: 'ignore-boot', label: t('ignoreUpdateNotice') }] : []),
           ...(showExempt ? [{ id: 'update-exempt', label: exempt ? t('updateExemptRemove') : t('updateExemptAdd') }] : []),
@@ -5691,18 +5708,12 @@ export function MarketSection(props: MarketSectionProps) {
             <IconRefreshOutline14 size={14} className={css.bannerIcon} />
             <span className={css.grow}><b>{pendingRestart}</b> {t('restartBanner')}</span>
             <Tooltip
-              label={
-                debuggerLatch !== null
-                  ? t('restartHintDebugged')
-                  : supervisor === null
-                    ? t('restartHint')
-                    : t('restartHintSupervised').replace('{0}', supervisor)
-              }
+              label={t(restartHintKey({ debuggerLatch, restartReachable, supervisor })).replace('{0}', supervisor ?? '')}
               side="bottom"
             >
               <span className={css.bannerHint}><IconQuestionOutline14 size={14} /></span>
             </Tooltip>
-            {restartEnabled && debuggerLatch === null && recovery === null && (
+            {restartEnabled && restartReachable && debuggerLatch === null && recovery === null && (
               <Button
                 variant="primary"
                 size="sm"
@@ -5745,8 +5756,9 @@ export function MarketSection(props: MarketSectionProps) {
             {brokenPluginNames.map(name => (
               <div key={name} className={css.brokenPluginItem}>
                 <div className={css.brokenPluginText}>
-                  <b>{t('brokenPluginTitle').replace('{0}', name)}</b>
-                  <span>{t('brokenPluginBody')}</span>
+                  {/* A cancel saw no cause, so its notice names none (#663). */}
+                  <b>{t(brokenPlugins[name]?.reason === 'incomplete-build-cancelled' ? 'brokenPluginTitleCancelled' : 'brokenPluginTitle').replace('{0}', name)}</b>
+                  <span>{t(brokenPlugins[name]?.reason === 'incomplete-build-cancelled' ? 'brokenPluginBodyCancelled' : 'brokenPluginBody')}</span>
                 </div>
                 {/* Same road the replacement hint takes: search for it and
                     land on the catalog, where Install does the right thing. */}

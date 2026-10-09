@@ -199,7 +199,7 @@ export function cleanHotDir(profileDir) {
 function stateFile(profileDir) {
     return join(profileDir, HOT_DIR, 'state.json');
 }
-const BROKEN_REASONS = new Set(['incomplete-build-locked']);
+const BROKEN_REASONS = new Set(['incomplete-build-locked', 'incomplete-build-cancelled']);
 /** The on-disk shape of {@link MarketState.brokenPlugins}, sanitized. */
 function brokenPluginsFromUnknown(value) {
     if (value === null || typeof value !== 'object' || Array.isArray(value))
@@ -213,7 +213,7 @@ function brokenPluginsFromUnknown(value) {
             continue;
         out[name] = {
             spec: typeof record.spec === 'string' ? record.spec.slice(0, MAX_NOTE) : '',
-            reason: 'incomplete-build-locked',
+            reason: record.reason,
             at: typeof record.at === 'string' ? record.at : '',
         };
     }

@@ -33,7 +33,15 @@ export interface ResolvedConfig {
     /** Aggregate cleaned-content characters rendered by one tool operation. */
     maxRenderedContentChars: number;
 }
-export declare const Config: z<Config>;
+export declare const Config: z<Schemastery.ObjectS<{
+    apiKeyEnv: z<string, string>;
+    baseURL: z<string, string>;
+    maxRenderedContentChars: z<number, number>;
+}>, Schemastery.ObjectT<{
+    apiKeyEnv: z<string, string>;
+    baseURL: z<string, string>;
+    maxRenderedContentChars: z<number, number>;
+}>>;
 /** Resolve defaults and reject self-contained configuration errors before registration. */
 export declare function resolveConfig(config: Config): ResolvedConfig;
 /** Register the AnySearch Provider and advanced tools with their owning services. */

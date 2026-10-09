@@ -90,6 +90,32 @@ export interface MarketConfig {
     region?: Region;
     /** Snapshots retained per profile (issue #98); defaults to DEFAULT_MAX_SNAPSHOTS. */
     maxSnapshots?: number;
+    /**
+     * Environment variables pinned for plugin build/install commands (issue
+     * #336): the compiler (CC/CXX) or anything else a native build reads, for
+     * hosts whose dsh process cannot inherit a shell environment. These may
+     * override values the parent process inherited, but never the PATH or CI
+     * the market computes for its children.
+     */
+    buildEnv?: Record<string, string>;
+    /**
+     * Where `profile` came from, for the exported log (#744). Not used for any
+     * decision: it exists because "why did the market think this was the web
+     * profile" stalled an investigation for want of exactly this line.
+     */
+    origin?: {
+        /** Which source named the profile. */
+        profileSource: string;
+        /** The launcher's `profileContext` as the market saw it at start. */
+        launcherAtStart: string;
+        /**
+         * The same, read again now. Absent at start but present later means the
+         * service arrived after the market mounted (timing); absent both times
+         * means the market cannot see it at all (scope) — the two causes need
+         * different fixes, and only a live read tells them apart.
+         */
+        launcherNow: () => string;
+    };
 }
 export declare function marketVersion(): string;
 /**

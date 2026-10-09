@@ -296,21 +296,21 @@ export async function fetchNpmLatest(name) {
     }
 }
 /** Per-plugin update checks; a failed check reports no update rather than failing the listing. */
-export async function checkUpdates(profile, force = false, explicitDir,
+export async function checkUpdates(profile, force = false, explicitDir, 
 /**
  * Packages that follow a release channel instead of plain `latest`. Only
  * ever the market itself: opting into early builds is volunteering to try
  * THIS plugin early, not a licence to pull every other author's
  * unreleased work.
  */
-channelFor = new Map(),
+channelFor = new Map(), 
 /**
  * Curated npm sources for the installs that carry no registry spec of
  * their own: `file:` packages matched to the market catalog (#429) and
  * the generations the desktop host links in (#497). Any other `link:` is
  * a development workspace and is never opted into online updates.
  */
-onlineSourceFor = new Map(),
+onlineSourceFor = new Map(), 
 /**
  * Registry names an archive-URL install may be checked against, keyed by
  * the GitHub repo (`owner/repo`) the archive came from (#768). Without an

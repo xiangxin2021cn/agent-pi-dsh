@@ -168,7 +168,7 @@ const localPlugins = [
   ...workbenchDefaults.map(([name, dir]) => ({ name, dir: join(root, 'bundles', dir) })),
   ...TEAM_PACKAGES.map(name => ({ name: `@deepseek-ai/dsh-experimental-${name}`, dir: join(dsh, 'packages/experimental', name) })),
   { name: 'dsh-tender-host', dir: join(root, 'bundles/tender-host') },
-  { name: '@deepseek-ai/dsh-tool-session-query', dir: join(dsh, 'packages/session-query/tool-session-query') },
+  { name: '@deepseek-ai/dsh-tool-session-query', dir: join(dsh, 'packages/experimental/tool-session-query') },
   { name: 'dsh-tender-web', dir: join(root, 'bundles/tender-web') },
   { name: AGENT_PI_COMPACTION, dir: agentPiCompactionDir },
   { name: CODEX_SUBAGENT, dir: join(dsh, 'packages/subagent/subagent-codex') },
@@ -364,12 +364,16 @@ function buildManagedPatch(deps) {
   config:
     default: standard
 
-# Preserve the auxiliary Codex subagent. Desktop main execution uses a separate
-# native App Server thread; permissions stay in its workspace-write sandbox.
+# Alpha.2 treats patch names as identity assertions. Disable the native instance
+# before inserting the product provider; its registered provider name stays codex.
 - id: subagent-codex
-  name: dsh-tender-host/codex-provider
-  config:
-    permissionMode: approve-for-me
+  name: '@deepseek-ai/dsh-subagent-codex'
+  disabled: true
+- insert:
+    - id: agent-pi-subagent-codex
+      name: dsh-tender-host/codex-provider
+      config:
+        permissionMode: approve-for-me
 
 # Parallelism stays on the DSH native agent-loop rolling pool (omit
 # maxParallelToolCalls → default 10). Do not stamp a product cap here.
@@ -391,12 +395,49 @@ ${univerConfig}# Desktop workbench: alpha.1 dsh-base already owns web-fetch-http
     searchTimeoutMs: 60000
 `
 }
+function migrateWrapperOverrides(text) {
+  if (!text.includes('goal-round-driver') && !text.includes('subagent-codex')) return text
+  const { parseDocument } = createRequire(join(dsh, 'packages/settings/settings/package.json'))('yaml')
+  const document = parseDocument(text)
+  if (document.errors.length) throw new Error('Cannot migrate invalid profile cordis.patch.yml')
+  const rows = document.contents?.items
+  if (!Array.isArray(rows)) return text
+  const replacements = {
+    'goal-round-driver': { id: 'agent-pi-goal-round-driver', previous: '@deepseek-ai/dsh-goal-round-driver', name: 'dsh-tender-host/goal-round-driver' },
+    'subagent-codex': { id: 'agent-pi-subagent-codex', previous: '@deepseek-ai/dsh-subagent-codex', name: 'dsh-tender-host/codex-provider' },
+  }
+  const existing = new Set(rows.map(row => row?.get?.('id')))
+  let changed = false
+  for (const row of rows) {
+    const id = row?.get?.('id')
+    const replacement = Object.hasOwn(replacements, id) ? replacements[id] : undefined
+    if (!replacement) continue
+    const name = row.get('name')
+    if (name !== undefined && name !== replacement.previous && name !== replacement.name) continue
+    if (existing.has(replacement.id)) {
+      // A saved product row is authoritative. Retain the legacy config, but
+      // never reactivate its native instance alongside the product provider.
+      if (row.get('disabled') !== true) { row.set('disabled', true); changed = true }
+      if (name === replacement.name) { row.set('name', replacement.previous); changed = true }
+    } else {
+      row.set('id', replacement.id)
+      if (name !== undefined) row.set('name', replacement.name)
+      changed = true
+    }
+  }
+  return changed ? document.toString() : text
+}
 function writeManagedPatch(deps) {
   let currentPatch = null
   try {
     currentPatch = readFileSync(patchPath, 'utf8')
   } catch {
     // Missing overlay: treat as managed.
+  }
+  if (currentPatch !== null) {
+    const migrated = migrateWrapperOverrides(currentPatch)
+    if (migrated !== currentPatch) writeFileSync(patchPath, migrated)
+    currentPatch = migrated
   }
   // DSH 0.1.7 saves UI settings in this profile overlay. Never regenerate it.
   // Product defaults now live in a lower-precedence bundle of their own.

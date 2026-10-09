@@ -32,6 +32,39 @@ export function sendJson(response, status, payload) {
  * undeclared name is still refused.
  */
 let trustedHostsSource = () => [];
+let requestGateSource = () => undefined;
+/** Point the market at the host's request gate. Returns the previous source. */
+export function setRequestGateSource(source) {
+    const previous = requestGateSource;
+    requestGateSource = source;
+    return previous;
+}
+/**
+ * Answer the request with the host's rejection, if it has one.
+ * @returns true when the request was refused and answered here.
+ */
+export function refuseUnadmitted(request, response) {
+    const gate = requestGateSource();
+    if (gate === undefined)
+        return false;
+    let status;
+    try {
+        status = gate(request);
+    }
+    catch {
+        // A gate that throws has not admitted anything. Failing open here would
+        // turn a host bug into the exposure this exists to close.
+        status = 403;
+    }
+    if (status === undefined)
+        return false;
+    sendJson(response, status, {
+        error: status === 401
+            ? '需要先登录 DSH：请重新打开 dsh web 启动时打印的那个网址。 / DSH login required: reopen the URL dsh web printed at startup.'
+            : '这个请求来自不受信任的地址，已拒绝。 / This request came from an untrusted origin and was refused.',
+    });
+    return true;
+}
 /** Point the fence at the host's declared authorities. Returns the previous source. */
 export function setTrustedHostsSource(source) {
     const previous = trustedHostsSource;

@@ -56,7 +56,8 @@ export function registerEngineering(ctx: any, defineTool: (definition: any) => a
     const evidence: any[] = [], findings: any[] = []
     for (const [scopeKey, run] of latest) {
       const id = prefix + scopeKey, old = task.findings.find((row: any) => row.id === id)
-      const summary = [run.output.summary, run.status === 'stale' ? '工程依据已变化，此结果待重新计算。' : '', ...run.sourceIssues.map(row => row.message), !run.providerAvailable ? '对应专业插件当前未启用，历史结果已保留。' : run.providerChanged ? '专业插件版本已变化，请按项目采用版本复核。' : ''].filter(Boolean).join(' ')
+      const readIssues = run.recordKind === 'observation' ? run.output.issues.filter(row => row.code !== 'drawing_review_pending').sort((a, b) => Number(b.severity === 'error') - Number(a.severity === 'error')) : []
+      const summary = [run.output.summary, ...readIssues.slice(0, 5).map(row => row.message), readIssues.length > 5 ? `另有 ${readIssues.length - 5} 项读图提示，详见工程记录。` : '', run.status === 'stale' ? '工程依据已变化，此结果待重新计算。' : '', ...run.sourceIssues.map(row => row.message), !run.providerAvailable ? '对应专业插件当前未启用，历史结果已保留。' : run.providerChanged ? '专业插件版本已变化，请按项目采用版本复核。' : ''].filter(Boolean).join(' ')
       const snapshot = store.snapshotPath(run.recordedRevision || state.revision), sourceHash = createHash('sha256').update(readFileSync(snapshot)).digest('hex')
       const item = { id: prefix + `run:${run.id}`, title: run.title, value: summary, kind: 'source', status: 'unverified', sourcePath: snapshot, locator: `${snapshot}#run=${run.id}`, sourceHash }
       evidence.push(item)

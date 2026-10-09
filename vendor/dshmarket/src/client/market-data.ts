@@ -260,6 +260,36 @@ export interface MarketStatus {
    * `restart` so `allowRestart` settings are not conflated with debug state.
    */
   debugger?: string | null
+  /**
+   * Whether a restart asked for from THIS page could pass the host's fence
+   * (#782). False behind a reverse proxy: the restart request is refused there
+   * every time, so the banner explains instead of offering a button that cannot
+   * work. Absent from an older host, which reads as "reachable" — the old
+   * behaviour, never a button taken away on a guess.
+   */
+  restartReachable?: boolean
+}
+
+/**
+ * Which explanation the restart banner carries when it has one (#229, #447,
+ * #782). Order matters and is the point: a debugger is the strongest reason (the
+ * host will not stop at all), then a proxy (the request itself cannot pass),
+ * then a supervisor (restart is someone else's job), else the plain how-to.
+ *
+ * A pure function so the order is pinned by a test and not by the shape of a JSX
+ * ternary — the three earlier states each added a branch to that ternary, and
+ * the position of a new one is exactly what is easy to get wrong.
+ */
+export type RestartHintKey = 'restartHintDebugged' | 'restartHintViaProxy' | 'restartHintSupervised' | 'restartHint'
+export function restartHintKey(state: {
+  debuggerLatch: string | null
+  restartReachable: boolean
+  supervisor: string | null
+}): RestartHintKey {
+  if (state.debuggerLatch !== null) return 'restartHintDebugged'
+  if (!state.restartReachable) return 'restartHintViaProxy'
+  if (state.supervisor !== null) return 'restartHintSupervised'
+  return 'restartHint'
 }
 
 /** Post-install activation state (P0-2), per installed package. */

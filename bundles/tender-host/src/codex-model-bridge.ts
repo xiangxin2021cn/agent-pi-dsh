@@ -57,7 +57,7 @@ export function applyCodexModelProvider(ctx: Context, config: Record<string, any
   })
 }
 
-/** Keep the official tool's foreground/background collection and cancellation. */
+/** Keep the official tool's managed activation, parent delivery and cancellation. */
 export function applyCodexModelTool(ctx: Context, config: Record<string, any>, apply: PluginApply): void {
   const tools = new Proxy(ctx.tools, {
     get(target, key) {

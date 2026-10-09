@@ -20,6 +20,8 @@ export const name = 'web-search-anysearch';
 /** Capability seams required by the Providers and model-facing tools. */
 export const inject = ['web', 'credentials', 'systemPrompt', 'tools'];
 const DEFAULT_API_KEY_ENV = 'ANYSEARCH_API_KEY';
+// Let Schemastery infer its version-specific input/default modes. The runtime
+// receives resolved values described by Config, not schema input expressions.
 export const Config = z.object({
     apiKeyEnv: z.string().role('credential-ref').default(DEFAULT_API_KEY_ENV),
     baseURL: z.string(),

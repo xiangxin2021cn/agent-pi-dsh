@@ -157,11 +157,32 @@ const reviewed382PatchedHostExtension = {
     'scripts/cad-host-clean-pins.json': 'c72bc1ac63687ac179496cd4d8c04e045379c01b55a47ec43ce9d2d151086fbd',
   },
 }
+// The 3.8.2 release forwards CAD gaps to the engineering observation ledger and
+// updates the reviewed host dependencies and unrelated runtime notices. Every
+// decoder binary, corresponding-source and build input retains its existing pin.
+const reviewed382ReleaseHostExtension = {
+  review: '3.8.2-release-cad-observations-dependencies',
+  shared: {
+    ...reviewed382PatchedHostExtension.shared,
+    'THIRD_PARTY_NOTICES.md': [
+      reviewed382PatchedHostExtension.shared['THIRD_PARTY_NOTICES.md'][0],
+      'c5e6c586afdebf7e8bd57a3ef93eb8d4293de8c5c9f93d08885a046551724047',
+    ],
+  },
+  files: {
+    ...reviewed382PatchedHostExtension.files,
+    'bundles/engineering-cad/src/reader.ts': '915066c92ec285b0d6dc20656f2340de995878156aa040dc6019b44ebc771a3c',
+    'bundles/engineering-cad/src/plugin.ts': '119271b23db69404c7e191263c53dd0359eaff2028c39f902ceabf11688fc677',
+    'bundles/tender-host/package.json': '39b946edc4b6839df41dbd8a7bcba53224650bd4cb2afa3613e1471aec2c7e1a',
+    'bundles/tender-host/package-lock.json': '941f5f8676ae3c423535161f930c930d411b3109a29b96107ab08b15bb2eea0e',
+  },
+}
 const diskIndexPaths = ['bundles/engineering-cad/src/dxf-disk-source.ts', 'bundles/engineering-cad/src/cad-disk-index.ts']
 const patchedDecoderPaths = ['bundles/tender-host/src/cad-dwg-model-quality.mjs', 'bundles/engineering-cad/src/cad-embedded.ts', 'bundles/tender-host/lib/cad-decoder', 'scripts/cad-host-clean-release.mjs', 'scripts/build-cad-host-clean.sh', 'scripts/cad-host-bit-position-overflow.patch', 'scripts/cad-host-bit-position.test.c', 'scripts/cad-host-clean-pins.json']
 const hostExtensionPaths = [...new Set([
   ...Object.keys(reviewed381HostExtension.files), ...Object.keys(reviewed382HostExtension.files),
   ...Object.keys(reviewed382DiskHostExtension.files), ...Object.keys(reviewed382PatchedHostExtension.files),
+  ...Object.keys(reviewed382ReleaseHostExtension.files),
 ])]
 
 function reviewedHash(path, text) {
@@ -176,14 +197,20 @@ function reviewedHostPair(path, before, after, extension) {
 
 function reviewedHostExtensionForTarget(root, target) {
   const patched = git(root, ['ls-tree', target, '--', ...patchedDecoderPaths]).trim()
+  if (patched) {
+    const path = 'bundles/tender-host/package.json'
+    const release = git(root, ['ls-tree', target, '--', path]).trim().startsWith('100644 blob ')
+      && reviewedHash(path, git(root, ['show', `${target}:${path}`], null)) === reviewed382ReleaseHostExtension.files[path]
+    return release ? reviewed382ReleaseHostExtension : reviewed382PatchedHostExtension
+  }
   const indexed = git(root, ['ls-tree', target, '--', ...diskIndexPaths]).trim()
   const streamed = git(root, ['ls-tree', target, '--', 'bundles/tender-host/src/cad-dxf-output.mjs']).trim()
-  return patched ? reviewed382PatchedHostExtension : indexed ? reviewed382DiskHostExtension : streamed ? reviewed382HostExtension : reviewed381HostExtension
+  return indexed ? reviewed382DiskHostExtension : streamed ? reviewed382HostExtension : reviewed381HostExtension
 }
 
 function verifyReviewedHostExtension(root, sourceCommit, target) {
   const extension = reviewedHostExtensionForTarget(root, target)
-  if (extension === reviewed382PatchedHostExtension) {
+  if ([reviewed382PatchedHostExtension, reviewed382ReleaseHostExtension].includes(extension)) {
     const runtime = git(root, ['ls-tree', '-r', '--name-only', target, '--', 'bundles/tender-host/lib/cad-decoder']).trim().split('\n')
     for (const path of runtime) if (!extension.files[path]) fail(`reviewed CAD host extension differs: ${path}`)
   }

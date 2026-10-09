@@ -1,6 +1,6 @@
 {
   "name": "agent-pi-dsh-desktop",
-  "version": "3.8.1",
+  "version": "3.8.2",
   "private": true,
   "license": "GPL-3.0-only",
   "author": "Always π AI studio",
@@ -15,8 +15,8 @@
     "pack:win": "powershell -File ../../scripts/pack-win.ps1"
   },
   "devDependencies": {
-    "electron": "44.4.5",
-    "electron-builder": "26.15.3"
+    "electron": "44.7.0",
+    "electron-builder": "26.17.0"
   },
   "build": {
     "appId": "do.agentpi.dsh",

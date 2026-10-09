@@ -77,7 +77,7 @@ export interface PresetMismatch {
  * reports the mismatch alongside the still-computable changes (relative
  * order + enabled/disabled diffs over the intersection).
  */
-export declare function previewPreset(profileDir: string, name: unknown,
+export declare function previewPreset(profileDir: string, name: unknown, 
 /** The host's own installation anchor, when it gave one (#781 review). */
 dshInstallDir?: string | null): PresetResult & {
     changes?: PresetChange;
@@ -89,6 +89,6 @@ dshInstallDir?: string | null): PresetResult & {
  * then write the bundle order and the disable list. The response carries the
  * change preview so the UI can report exactly what moved.
  */
-export declare function applyPreset(profileDir: string, name: unknown, maxSnapshots?: number,
+export declare function applyPreset(profileDir: string, name: unknown, maxSnapshots?: number, 
 /** The host's own installation anchor, when it gave one (#781 review). */
 dshInstallDir?: string | null): PresetApplyResult;

@@ -127,6 +127,7 @@ export async function executeCadRead(args: { action: string; path: string; sourc
       page = queryCadCatalog(index, { ...args.query, collection: args.query.collection as 'blocks' | 'layers' | 'layouts' })
     } else page = drawing.disk ? await queryCadDisk(drawing.disk, cadLibrary, args.query as CadQuery) : queryCad(index, args.query as CadQuery)
   }
+  const embeddedItem = args.action === 'query' && args.query?.collection === 'embedded' ? page!.items[0] : undefined
   const inventory = [
     ...index.layouts.map(row => ({ id: `layout:${encodeURIComponent(row.name)}`, title: `${row.space === 'model' ? '模型空间' : '图纸空间'}：${row.name}`, locator: `layout=${encodeURIComponent(row.name)}`, reason: '仅结构清点；构件关联、图示含义与专业覆盖尚未复核。' })),
     ...index.layers.map(row => ({ id: `layer:${encodeURIComponent(row.name)}`, title: `图层：${row.name}`, locator: `layer=${encodeURIComponent(row.name)}`, reason: '仅结构清点；关闭或冻结图层仍保留，不能视作无工程内容。' })),
@@ -137,7 +138,10 @@ export async function executeCadRead(args: { action: string; path: string; sourc
       page,
     }),
     observation: { kind: 'cad' as const, source: { path: drawing.source.path, sha256: drawing.source.sha256 },
-      summary: `CAD 结构清点：模型空间 ${index.inventory.modelRecords} 条、图纸空间 ${index.inventory.paperRecords} 条、块定义内 ${index.inventory.definitions} 条；${index.inventory.unknownRecords} 条未解码、${index.inventory.unresolvedXrefs} 项未加载外参。专业覆盖尚未验证。`,
+      summary: `CAD 结构清点：模型空间 ${index.inventory.modelRecords} 条、图纸空间 ${index.inventory.paperRecords} 条、块定义内 ${index.inventory.definitions} 条；${index.inventory.unknownRecords} 条未解码、${index.inventory.unresolvedXrefs} 项未加载外参。${embeddedItem ? `本次提取内嵌对象 ${embeddedItem.sourceRecordId}，内容需视觉复核。` : ''}专业覆盖尚未验证。`,
+      readScope: args.action === 'inventory' ? 'inventory' : embeddedItem ? `embedded:${embeddedItem.sourceRecordId}` : 'query',
+      issues: [...index.issues.map(row => ({ code: row.code, severity: ['dwg-export-coverage-gap', 'native-decode-failed', 'incomplete-expansion', 'missing-block', 'block-cycle', 'invalid-array', 'invalid-extrusion'].includes(row.code) ? 'error' as const : 'warning' as const, message: row.message, ...(row.recordId ? { entityId: row.recordId } : {}) })),
+        ...(embeddedItem?.status === 'raw_only' ? [{ code: 'cad-embedded-visual-gap', severity: 'warning' as const, message: `内嵌对象 ${embeddedItem.sourceRecordId} 已保留原始内容，图像尚不可用：${embeddedItem.reason}` }] : [])],
       inventory, observedIds: inventory.map(row => row.id), parameterFingerprint: hash(Buffer.from(JSON.stringify({ action: args.action, query: args.query || {} }))),
       details: { source: drawing.source, conversion: drawing.conversion, storage: drawing.storage, units: index.units, inventory: index.inventory, references: drawing.references, issues: index.issues, ...(args.query?.collection === 'embedded' ? { embedded: page } : {}), parameters: { action: args.action, query: args.query || {} } },
     },

@@ -32,6 +32,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { JSON_SCHEMA, Type, load } from 'js-yaml'
 import { desktopApplicationRoots, findDshInstallDir } from './dsh-install.ts'
 import { resolveDshHome } from './home-paths.ts'
+import { hostNodeModulesRoot } from './install.ts'
 import { INBOX_BUNDLES, readBundleRules, suggestOrder, validateOrder } from './order.ts'
 
 // Electron's app.asar packages can be loadable by the host while invisible to
@@ -381,7 +382,20 @@ export function corePackageNames(dshInstallDir: string | null): Set<string> {
     // The install's own node_modules is the authoritative host-core inventory:
     // everything under @deepseek-ai whose bare name starts with dsh or cordis,
     // plus the app package itself.
-    for (const entry of readdirSync(join(dshInstallDir, 'node_modules', '@deepseek-ai'), { withFileTypes: true })) {
+    //
+    // `dshHostInfo()` answers either a PACKAGE directory (the CLI layout
+    // `<prefix>/node_modules/@deepseek-ai/dsh`, and the #778 nested form
+    // `<resources>/app.asar/dsh/node_modules/@deepseek-ai/dsh`) or a flat
+    // Desktop deployment root — never a constant "installation root".
+    // Splicing `node_modules` onto whichever arrived only happened to work
+    // for the flat shape. For a package directory the splice landed two
+    // levels deep and readdirSync threw, so the curated seed silently stood
+    // in for the real inventory — and when the host package carries its own
+    // nested `@deepseek-ai` scope (pnpm isolated trees), it read that
+    // truncated subset instead (#676: every package the real inventory has
+    // and the answer lacked became a fresh "will fail to boot").
+    // hostNodeModulesRoot() already derives the shared root from both shapes.
+    for (const entry of readdirSync(join(hostNodeModulesRoot(dshInstallDir), '@deepseek-ai'), { withFileTypes: true })) {
       if (!entry.isDirectory() && !entry.isSymbolicLink()) continue
       if (/^(?:dsh|cordis)/.test(entry.name)) names.add(`@deepseek-ai/${entry.name}`)
     }
@@ -1131,43 +1145,86 @@ export function buildBundleLayers(
  * @param dshInstall - install directory the analysis located, or null.
  * @returns the overlay layer, or null when this installation declares none.
  */
-function installOverlayLayer(dshInstall: string | null): LayerInput | null {
+function installOverlayLayer(
+  dshInstall: string | null,
+  profileDirectory: string,
+  declaredBundles: readonly string[],
+): LayerInput | null {
   for (const directory of desktopApplicationRoots(dshInstall)) {
-    let manifest: { name?: unknown; dsh?: { bundle?: { patch?: unknown } } }
-    try {
-      manifest = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8')) as typeof manifest
-    } catch {
-      continue
+    // A DSH installation ships the in-box web bundle, and the launcher splices
+    // this very overlay directly behind that bundle's layer — where it is
+    // absent, the launcher applies no overlay either, so composing one here
+    // would describe a composition nobody runs (#749 review).
+    const layer = overlayFromDirectory(directory, manifest =>
+      readNodeModulesVersion(directory, '@deepseek-ai/dsh-web-app') !== null)
+    if (layer !== null) return layer
+  }
+  // The official Desktop shell plugin's own patch (#807). On a build that packs
+  // the whole runtime into one app.asar, no application-root candidate declares
+  // it: the asar's root is `@deepseek-ai/dsh-desktop` and the nested
+  // `app.asar/dsh` is `@deepseek-ai/dsh-desktop-runtime`, neither with a
+  // `dsh.bundle.patch`, while the file that really supplies the shell's rows
+  // (`desktop-shell`, `desktop-notifications`, …) is this package's own
+  // `cordis.patch.yml`. Without it every user-patch row aimed at a shell row is
+  // reported as an orphan, and a user who believes the warning deletes rows
+  // that carry the window material and the notification preferences.
+  //
+  // Bounded by identity, not by location: the candidate must BE that package,
+  // resolved from the profile's own module search, and must declare a patch.
+  // A profile that lists it in `dsh.profile.bundles` gets it as an ordinary
+  // bundle layer instead — composing both would add every row twice.
+  if (!declaredBundles.includes(DESKTOP_SHELL_PLUGIN)) {
+    const directory = resolvePackageDir(join(profileDirectory, 'package.json'), DESKTOP_SHELL_PLUGIN)
+    if (directory !== null) {
+      return overlayFromDirectory(directory, manifest => manifest.name === DESKTOP_SHELL_PLUGIN)
     }
-    const declared = manifest.dsh?.bundle?.patch
-    const declaredList = typeof declared === 'string'
-      ? [declared]
-      : Array.isArray(declared)
-        ? declared.filter((relative): relative is string => typeof relative === 'string')
-        : []
-    if (declaredList.length === 0) continue
-    // A bundle patch alone does not make a directory an installation: ANY
-    // package can declare one — this repository does, and so does every plugin
-    // repo. Without this bound the ancestor walk accepted the nearest such
-    // project above the install directory and composed its rows as if they
-    // were the installation's own, which invents rows and can mask a real
-    // orphan warning (#749 review). A DSH installation ships the in-box web
-    // bundle, and the launcher splices this very overlay directly behind that
-    // bundle's layer — where it is absent, the launcher applies no overlay
-    // either, so composing one here would describe a composition nobody runs.
-    if (readNodeModulesVersion(directory, '@deepseek-ai/dsh-web-app') === null) continue
-    const label = typeof manifest.name === 'string' && manifest.name !== '' ? manifest.name : 'install-overlay'
-    const paths = declaredList.map(relative => join(directory, relative))
-    if (paths.some(path => !existsSync(path))) {
-      return { label, kind: 'bundle', patches: [], parseError: 'declared patch is missing' }
-    }
-    const parsed = paths.map(path => parsePatchFile(path))
-    if (parsed.some(patches => patches === null)) {
-      return { label, kind: 'bundle', patches: [], parseError: 'patch file is not a valid entry list' }
-    }
-    return { label, kind: 'bundle', patches: parsed.flatMap(patches => patches), parseError: null }
   }
   return null
+}
+
+/** The official Desktop shell plugin, whose patch the launcher applies by hand (#807). */
+const DESKTOP_SHELL_PLUGIN = 'dsh-plugin-desktop'
+
+/**
+ * The overlay one candidate directory declares, or null when it declares none.
+ *
+ * `accept` is the caller's bound on what may stand in for the installation;
+ * resolution and parsing are shared, because a second parsing path would be a
+ * second set of answers about the same file.
+ */
+function overlayFromDirectory(
+  directory: string,
+  accept: (manifest: { name?: unknown }) => boolean,
+): LayerInput | null {
+  let manifest: { name?: unknown; dsh?: { bundle?: { patch?: unknown } } }
+  try {
+    manifest = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8')) as typeof manifest
+  } catch {
+    return null
+  }
+  const declared = manifest.dsh?.bundle?.patch
+  const declaredList = typeof declared === 'string'
+    ? [declared]
+    : Array.isArray(declared)
+      ? declared.filter((relative): relative is string => typeof relative === 'string')
+      : []
+  // A bundle patch alone does not make a directory an installation: ANY package
+  // can declare one — this repository does, and so does every plugin repo.
+  // Without the caller's bound the ancestor walk accepted the nearest such
+  // project above the install directory and composed its rows as if they were
+  // the installation's own, which invents rows and can mask a real orphan
+  // warning (#749 review).
+  if (declaredList.length === 0 || !accept(manifest)) return null
+  const label = typeof manifest.name === 'string' && manifest.name !== '' ? manifest.name : 'install-overlay'
+  const paths = declaredList.map(relative => join(directory, relative))
+  if (paths.some(path => !existsSync(path))) {
+    return { label, kind: 'bundle', patches: [], parseError: 'declared patch is missing' }
+  }
+  const parsed = paths.map(path => parsePatchFile(path))
+  if (parsed.some(patches => patches === null)) {
+    return { label, kind: 'bundle', patches: [], parseError: 'patch file is not a valid entry list' }
+  }
+  return { label, kind: 'bundle', patches: parsed.flatMap(patches => patches), parseError: null }
 }
 
 /**
@@ -1285,7 +1342,7 @@ export function analyzeProfile(profileDirectory: string, options: CheckOptions =
   // The installation's own overlay rides directly behind the bundle the
   // Desktop launcher keys off, exactly where the launcher splices it — see
   // installOverlayLayer.
-  const installOverlay = installOverlayLayer(dshInstall)
+  const installOverlay = installOverlayLayer(dshInstall, profileDirectory, bundleNames)
   if (installOverlay !== null) {
     const overlayAfter = bundleLayers.findIndex(layer => layer.label === '@deepseek-ai/dsh-web-app')
     if (overlayAfter < 0) bundleLayers.push(installOverlay)
@@ -1346,7 +1403,22 @@ export function analyzeProfile(profileDirectory: string, options: CheckOptions =
         ? readNodeModulesVersion(profileDirectory, name)
         : readProfileVisibleVersion(profileDirectory, name)
       const nested = readNodeModulesVersion(pluginDir, name)
-      const host = dshInstall !== null ? readNodeModulesVersion(dshInstall, name) : null
+      // The located installation is asked as `host` here — and `dshInstall` is
+      // the PACKAGE directory `dshHostInfo()` answers (the CLI layout
+      // `<prefix>/node_modules/@deepseek-ai/dsh`, and the #778 nested form
+      // `<resources>/app.asar/dsh/node_modules/@deepseek-ai/dsh`), or a flat
+      // Desktop deployment root. `readNodeModulesVersion` takes a package root
+      // and appends `node_modules` itself, so passing a package directory read
+      // `<package>/node_modules/<name>`: absent in most layouts, which silently
+      // left the located installation unasked while the comment above promises
+      // it is asked; and where the host package carries its own nested
+      // `@deepseek-ai` scope (pnpm isolated trees) it answered from that
+      // truncated subset instead — the opposite of the "unknown rather than
+      // wrong" this rule promises. `hostNodeModulesRoot()` derives the shared
+      // root from both shapes (#804's fix, same arithmetic).
+      const host = dshInstall !== null
+        ? readNodeModulesVersion(dirname(hostNodeModulesRoot(dshInstall)), name)
+        : null
       // Node resolves a plugin's peer from its OWN node_modules first
       // (nested), then the profile tree (hoisted), then the host install.
       const resolved = nested ?? hoisted ?? host

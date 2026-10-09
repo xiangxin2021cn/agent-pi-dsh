@@ -2,7 +2,7 @@ import { realpathSync } from 'node:fs'
 import { basename, resolve } from 'node:path'
 import { createHash } from 'node:crypto'
 import { engineeringInputFingerprint, reviseEngineeringProject } from '../../../packages/engineering-core/index.ts'
-import type { EngineeringCoverage, EngineeringDependency, EngineeringProject } from '../../../packages/engineering-core/index.ts'
+import type { EngineeringCoverage, EngineeringDependency, EngineeringIssue, EngineeringProject } from '../../../packages/engineering-core/index.ts'
 
 export interface EngineeringObservation {
   kind: 'pdf' | 'cad'
@@ -10,6 +10,8 @@ export interface EngineeringObservation {
   summary: string
   inventory: Array<{ id: string; title: string; locator: string; reason?: string }>
   observedIds: string[]
+  readScope?: string
+  issues?: EngineeringIssue[]
   parameterFingerprint?: string
   details?: unknown
 }
@@ -18,6 +20,8 @@ const key = (path: string) => process.platform === 'win32' ? path.toLowerCase() 
 export function normalizeObservation(value: EngineeringObservation): EngineeringObservation {
   if (!value || !['pdf', 'cad'].includes(value.kind) || !value.source?.path || !/^[a-f0-9]{64}$/i.test(value.source.sha256) || !value.summary?.trim()) throw new Error('读图记录需要实际来源、内容哈希及结果摘要。')
   if (!Array.isArray(value.inventory) || value.inventory.length > 20000 || !Array.isArray(value.observedIds)) throw new Error('读图目录超出范围。')
+  if (value.readScope !== undefined && (typeof value.readScope !== 'string' || !value.readScope.trim() || value.readScope.length > 256)) throw new Error('读图范围标识无效。')
+  if (value.issues !== undefined && (!Array.isArray(value.issues) || value.issues.some(row => typeof row?.code !== 'string' || !row.code.trim() || typeof row.message !== 'string' || !row.message.trim() || !['error', 'warning'].includes(row.severity)))) throw new Error('读图检查结果无效。')
   const ids = new Set<string>()
   for (const row of value.inventory) {
     if (!row.id?.trim() || !row.title?.trim() || !row.locator?.trim() || ids.has(row.id)) throw new Error('读图目录需要唯一标识、名称与位置。')

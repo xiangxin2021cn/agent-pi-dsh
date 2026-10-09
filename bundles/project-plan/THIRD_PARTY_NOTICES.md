@@ -1,10 +1,10 @@
 # Local project plan engine
 
-MPXJ 16.7.0 is copyright its respective contributors and licensed under GNU
+MPXJ 16.10.0 is copyright its respective contributors and licensed under GNU
 Lesser General Public License 2.1 or later. See `legal/MPXJ-LICENSE.txt`.
 The library is unmodified. Its corresponding source is included in
-`runtime/sources/mpxj-16.7.0-sources.jar` and is available from
-https://repo.maven.apache.org/maven2/net/sf/mpxj/mpxj/16.7.0/ .
+`runtime/sources/mpxj-16.10.0-sources.jar` and is available from
+https://repo.maven.apache.org/maven2/net/sf/mpxj/mpxj/16.10.0/ .
 
 Runtime dependency source archives are in `runtime/sources`. Upstream license,
 notice and Maven metadata files are extracted without changes into

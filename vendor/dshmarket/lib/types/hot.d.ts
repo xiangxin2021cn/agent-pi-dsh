@@ -185,16 +185,32 @@ export interface MarketState {
      * make every such call a way to erase every entry (#339's shape).
      */
     brokenPlugins?: Record<string, BrokenPlugin>;
+    /**
+     * The operator's pinned build environment (issue #336) as saved from the
+     * market's own settings card. Absent means "the composition says" — the
+     * entry's `config.buildEnv`, or nothing at all. Present (non-empty) means
+     * a saved editor state REPLACES the composition map, so clearing the
+     * field on the card inherits the composition again rather than freezing
+     * an earlier save. Read live into `config.buildEnv` by the routes; see
+     * src/dsh-cli.ts spawnEnv for the precedence once it reaches a child.
+     */
+    buildEnv?: Record<string, string>;
 }
 /** Why a package is no longer declared, and what to put back. */
 export interface BrokenPlugin {
     /** The dependency spec it had before removal — the reinstall target. */
     spec: string;
-    /** Machine-readable cause; the UI owns the wording. */
-    reason: 'incomplete-build-locked';
+    /**
+     * Machine-readable cause; the UI owns the wording. `locked`: pnpm reported
+     * the open-file refusal. `cancelled`: the user cancelled while pnpm was
+     * replacing the directory — the result is the same empty shell, but no cause
+     * was observed, so the notice must not name one (#663).
+     */
+    reason: BrokenReason;
     /** When the market removed the declaration (ISO 8601). */
     at: string;
 }
+export type BrokenReason = 'incomplete-build-locked' | 'incomplete-build-cancelled';
 /** Upper bound on bookmarked catalog URLs kept in state.json (#414). */
 export declare const MAX_FAVORITES = 500;
 /** Upper bound on blocked package names kept in state.json (#657). */
@@ -203,6 +219,25 @@ export declare const MAX_BLOCKED = 500;
 export declare const MAX_UPDATE_EXEMPT = 500;
 /** npm package names are at most 214 characters. Longer values are not names. */
 export declare const MAX_BLOCKED_NAME = 214;
+/**
+ * Sanitize an untrusted build-env map (state.json, or the card route's body)
+ * into the shape spawnEnv can merge.
+ *
+ * An empty map and a non-object both read as undefined: clearing the card
+ * must inherit the composition, and a blank line in state.json must not
+ * disable every pinned variable. Only the merge precedence in
+ * src/dsh-cli.ts spawnEnv — never this — protects PATH and CI, but a value
+ * a user typed for them would silently do nothing there, so it is rejected
+ * here with a reason instead.
+ *
+ * `GIT_ASKPASS` and `SSH_ASKPASS` are deliberately NOT rejected, though they
+ * are the two names that can re-open a credential prompt: pointing them at a
+ * program is the supported non-interactive way to answer one, and #587/#596
+ * close the *terminal* fallback (GIT_TERMINAL_PROMPT, BatchMode) rather than
+ * the program one. A user who pins these has already said where the answer
+ * comes from; a user who does not still gets the closed prompt.
+ */
+export declare function buildEnvFromUnknown(value: unknown): Record<string, string> | undefined;
 /**
  * Read the whole market state. Legacy `disabledSkins` (the pre-#60
  * theme-only key) still loads; every new write uses the generic `disabled`

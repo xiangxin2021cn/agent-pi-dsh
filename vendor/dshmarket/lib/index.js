@@ -7,7 +7,7 @@ import { dirname, isAbsolute } from 'node:path';
 import { createDesktopPluginRuntime, setHostPackageManager } from "./dsh-cli.js";
 import { createOfficialDesktopRuntime } from "./official-desktop.js";
 import { isDshProfileName } from "./profile.js";
-import { setTrustedHostsSource } from "./http.js";
+import { setRequestGateSource, setTrustedHostsSource } from "./http.js";
 import { mountMarketRoutes } from "./routes.js";
 import { installDesktopMarketSettings, installMarketSettings } from "./settings.js";
 export const name = 'dsh-market';
@@ -54,6 +54,22 @@ function launchedProfile(context) {
     if (!isDshProfileName(name) || dir === '')
         return undefined;
     return { name, dir };
+}
+/**
+ * The launcher's `profileContext` in one line, for the exported log (#744).
+ *
+ * Only the facts that decide the branch: whether the service is there, and
+ * whether its shape is one `launchedProfile` accepts. Never the directory
+ * itself — the log already carries the profile path where it is needed.
+ */
+export function describeProfileContext(value) {
+    if (value === undefined || value === null)
+        return 'absent';
+    const launched = launchedProfile(value);
+    if (launched !== undefined)
+        return `present (name ${launched.name})`;
+    const shape = value;
+    return `present but unusable (name: ${typeof shape.name}, dir: ${typeof shape.dir})`;
 }
 /**
  * The package manager the launcher published for this profile, if any.
@@ -133,9 +149,22 @@ export function useTrustedHosts(ctx) {
             ? connection.trustedHosts.filter((entry) => typeof entry === 'string')
             : [];
     });
+    // The same service carries the host's request gate (#603): its fence plus
+    // its browser login, the check its own API runs. Read per request for the
+    // same reason as the authorities above.
+    const previousGate = setRequestGateSource(() => {
+        const connection = ctx.get('connection');
+        const gate = connection?.requestRejection;
+        return typeof gate === 'function'
+            ? (request => gate.call(connection, request))
+            : undefined;
+    });
     // The setter returns the PREVIOUS source, not a restore closure — the same
     // contract as setBuildEnvSource in dsh-cli.ts.
-    return () => { setTrustedHostsSource(previous); };
+    return () => {
+        setTrustedHostsSource(previous);
+        setRequestGateSource(previousGate);
+    };
 }
 export function apply(ctx, config) {
     ctx.inject(['webServer', 'loader'], (hostCtx) => {
@@ -148,14 +177,18 @@ export function apply(ctx, config) {
             // its name, and never with somebody else's.
             const profileContext = ctx.get('profileContext');
             const launched = launchedProfile(profileContext);
-            // The official Electron app owns this profile. Its CLI explicitly
-            // refuses `--profile desktop`; use the app's pluginManager service.
+            // The official Electron app owns this profile. Its CLI refuses
+            // `--profile desktop` (outright up to dsh 0.2.0-rc.1; from rc.2 it
+            // admits only Desktop's own carrier, and only with Desktop fully quit —
+            // never from inside the running app this market lives in), so use the
+            // app's pluginManager service.
             // Looking it up at request time lets the market mount before the
             // service while still failing closed if it never becomes available.
             // The dsh CLI refuses a profile by NAME — `profile.toLowerCase() ===
-            // "desktop"` (@deepseek-ai/dsh 0.1.7-alpha.2) — so a launched profile
-            // with that name can never be changed through `dsh plugin`, whatever
-            // the install layout. Detection follows the same rule rather than the
+            // "desktop"` (@deepseek-ai/dsh 0.1.7-alpha.2; from 0.2.0-rc.2 it lets
+            // only Desktop's own carrier through, with the app quit) — so from
+            // inside a running Desktop a launched profile with that name can never
+            // be changed through `dsh plugin`, whatever the install layout. Detection follows the same rule rather than the
             // app.asar anchor shape an earlier draft keyed on: the official desktop
             // host is not published, its layout could not be checked, and a host
             // that missed the anchor test fell straight back to the CLI and failed
@@ -165,6 +198,13 @@ export function apply(ctx, config) {
             const configured = config?.profile;
             const configuredDesktop = configured !== undefined && configured.toLowerCase() === 'desktop';
             const officialElectron = launched !== undefined && launched.name.toLowerCase() === 'desktop';
+            // An explicitly configured `profile: desktop` takes this branch too. The
+            // CLI refuses that profile by NAME (see above — from inside the running
+            // app on every version), so routing it there — which is what
+            // an operator's own workaround for a host that hides `profileContext`
+            // does (#744) — makes every install fail for certain. The configuration
+            // still wins over the launcher for the name; it just cannot win a branch
+            // that is guaranteed to fail.
             if (configuredDesktop || (configured === undefined && officialElectron)) {
                 const profileName = configured ?? launched.name;
                 const profileDirectory = launched !== undefined && launched.name.toLowerCase() === profileName.toLowerCase()
@@ -174,6 +214,11 @@ export function apply(ctx, config) {
                 const resolved = {
                     profile: profileName,
                     ...(profileDirectory === undefined ? {} : { profileDirectory }),
+                    origin: {
+                        profileSource: configured !== undefined ? 'configured (cordis.yml), official desktop branch' : 'launcher profileContext, official desktop branch',
+                        launcherAtStart: describeProfileContext(profileContext),
+                        launcherNow: () => describeProfileContext(ctx.get('profileContext')),
+                    },
                     desktopHost: true,
                     allowRestart: false,
                     maxSnapshots: config?.maxSnapshots,
@@ -205,6 +250,14 @@ export function apply(ctx, config) {
             const resolved = {
                 profile: config?.profile ?? launched?.name ?? argvProfile() ?? 'web',
                 ...(useLaunchedDir ? { profileDirectory: launched.dir } : {}),
+                origin: {
+                    profileSource: config?.profile !== undefined ? 'configured (cordis.yml)'
+                        : launched !== undefined ? 'launcher profileContext'
+                            : argvProfile() !== undefined ? '--profile flag'
+                                : 'default (no configured profile, no launcher profileContext, no --profile flag)',
+                    launcherAtStart: describeProfileContext(profileContext),
+                    launcherNow: () => describeProfileContext(ctx.get('profileContext')),
+                },
                 // Left UNDEFINED when unconfigured, deliberately: `?? true` here
                 // would turn "the operator said nothing" into "the operator said
                 // yes", and restartAllowed() could no longer tell them apart — which
@@ -240,6 +293,11 @@ export function apply(ctx, config) {
             const resolved = {
                 profile: current.name,
                 profileDirectory: current.dir,
+                origin: {
+                    profileSource: 'desktop shell (desktopProfiles)',
+                    launcherAtStart: describeProfileContext(ctx.get('profileContext')),
+                    launcherNow: () => describeProfileContext(ctx.get('profileContext')),
+                },
                 // The shell owns the window and the process lifecycle here; the
                 // capability bits report that, and an explicit profile directory no
                 // longer implies it (#639).

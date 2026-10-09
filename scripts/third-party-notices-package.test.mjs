@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import test from 'node:test'
+import { expectedDshVersion } from './verify-dsh-runtime.mjs'
 
 const root = join(import.meta.dirname, '..')
 
@@ -11,6 +12,7 @@ test('repository carries the declared business-core and super-injector licenses'
   const businessLicense = readFileSync(join(root, 'packages/business-core/LICENSE'), 'utf8')
   const injectorManifest = JSON.parse(readFileSync(join(root, 'vendor/dsh-super-injector/package.json'), 'utf8'))
   const injectorLicense = readFileSync(join(root, 'vendor/dsh-super-injector/LICENSE'), 'utf8')
+  const univerPin = JSON.parse(readFileSync(join(root, 'vendor/dsh-univer-office.pin'), 'utf8'))
 
   assert.equal(businessManifest.license, 'Apache-2.0')
   assert.match(businessLicense, /Apache License\s+Version 2\.0, January 2004/)
@@ -27,8 +29,9 @@ test('repository carries the declared business-core and super-injector licenses'
   assert.match(notices, /`vendor\/dsh-super-injector\/LICENSE`/)
   assert.match(notices, /No upstream `NOTICE` is claimed or\s+synthesized/)
 
-  assert.match(notices, /distributes the complete official `dsh-univer-office` 0\.3\.5/)
-  assert.match(notices, /DSH 0\.2\.0-rc\.1/)
+  assert.equal(univerPin.license, 'Apache-2.0')
+  assert.ok(notices.includes(`distributes the complete official \`dsh-univer-office\` ${univerPin.version}`))
+  assert.ok(notices.includes(`DSH ${expectedDshVersion} through`))
   assert.match(notices, /upstream authorization checks and license files are unchanged/)
 })
 

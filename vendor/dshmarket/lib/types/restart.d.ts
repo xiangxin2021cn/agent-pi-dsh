@@ -114,6 +114,18 @@ export declare function restartAllowed(config: {
  * @returns the port, or null when the header carries none (a default port).
  */
 export declare function servingPort(request: Pick<IncomingMessage, 'headers'>): number | null;
+/**
+ * Whether a restart request made from the same page as THIS request could pass
+ * the fence (#782): the answer the status poll reports so the banner can say
+ * why there is no button, instead of rendering one that always answers 403.
+ *
+ * Read off the request that asked for status, not off configuration. Behind an
+ * Ingress or any reverse proxy the restart POST arrives from the same page over
+ * the same path, so it fails for the same reasons this request shows — a proxy
+ * peer, forwarding headers, a non-loopback Host. It is a prediction, never a
+ * grant: the route still runs the full fence, including `Origin`, on the POST.
+ */
+export declare function restartReachableFrom(request: Pick<IncomingMessage, 'headers' | 'socket'>): boolean;
 /** Whether a process-control request came from this Web host on loopback. */
 export declare function trustedRestartRequest(request: Pick<IncomingMessage, 'headers' | 'socket'>): boolean;
 /**

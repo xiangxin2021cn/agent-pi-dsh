@@ -9,8 +9,8 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
   <dependencies>
-    <dependency><groupId>net.sf.mpxj</groupId><artifactId>mpxj</artifactId><version>16.7.0</version></dependency>
-    <dependency><groupId>com.fasterxml.jackson.core</groupId><artifactId>jackson-databind</artifactId><version>2.22.1</version></dependency>
+    <dependency><groupId>net.sf.mpxj</groupId><artifactId>mpxj</artifactId><version>16.10.0</version></dependency>
+    <dependency><groupId>com.fasterxml.jackson.core</groupId><artifactId>jackson-databind</artifactId><version>2.22.3</version></dependency>
   </dependencies>
   <build>
     <sourceDirectory>src</sourceDirectory>
