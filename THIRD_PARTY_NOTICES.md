@@ -171,9 +171,12 @@ The agent's DWG-to-DXF conversion uses a separately rebuilt LibreDWG Web
 0.7.10 host decoder with a minimal bit-position arithmetic patch. It is
 distributed under GPL-3.0-only, with its license, exact build receipt and
 matching corresponding source under `bundles/tender-host/lib/cad-decoder`.
-The patched host WASM and its Node factory are distinct from the unchanged
-CAD viewer runtime; the original viewer's clean-build receipt does not cover
-this new host binary. See `docs/cad-dwg-conversion.md` and
+The original clean-built CAD viewer files and their source identity are retained.
+The default `cad-viewer/host-decoder/` HTTP namespace reuses those front-end
+files and serves only its fixed WASM request from this patched host decoder;
+`scripts/cad-browser-decoder-release.json` binds both builds and sources.
+The original viewer receipt does not authorize the patched binary, which retains
+its independent host receipt, GPL license and corresponding source. See `docs/cad-dwg-conversion.md` and
 `scripts/build-cad-host-clean.sh` for the patch and rebuild instructions.
 
 ## Local project plan engine (MPXJ)

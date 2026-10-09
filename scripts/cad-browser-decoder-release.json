@@ -1,0 +1,60 @@
+{
+  "schema": "agent-pi-dsh/cad-browser-decoder-release/v1",
+  "namespace": "/api/agent-pi/cad-viewer/host-decoder/",
+  "replacementAsset": "workers/libredwg-web.wasm",
+  "base": {
+    "manifest": {
+      "path": "bundles/tender-web/lib/cad-viewer/CAD-CLEAN-BUILD.json",
+      "bytes": 13447,
+      "sha256": "d73a1922e3db79075681c22af0ae34bd594ba683f61cd625cd512351dfb4b620"
+    },
+    "worker": {
+      "path": "bundles/tender-web/lib/cad-viewer/workers/libredwg-parser-worker.js",
+      "bytes": 193703,
+      "sha256": "16c4af3d3d8c99689601171f0bef016b65a41511267f4cfe4712322c7c5e663d"
+    },
+    "wasm": {
+      "path": "bundles/tender-web/lib/cad-viewer/workers/libredwg-web.wasm",
+      "bytes": 10822458,
+      "sha256": "69009d4284642579b6493be0836ad77d11e31f88a5bf524d8388845a99a386ca"
+    },
+    "sourceArchive": {
+      "name": "Agent-Pi-DSH-3.6.2-CAD-corresponding-source.tar.gz",
+      "bytes": 39081319,
+      "sha256": "fbc7044499a8e8f87f34cad3a0501b353a9202164fe5dda1990cb43b5d5344af"
+    }
+  },
+  "patched": {
+    "manifest": {
+      "path": "bundles/tender-host/lib/cad-decoder/CAD-HOST-CLEAN-BUILD.json",
+      "bytes": 4211,
+      "sha256": "268052363d396c8c2a5a85fd268ef597720a182bdb95b4791fb6ddf1a7026a2b"
+    },
+    "wasm": {
+      "path": "bundles/tender-host/lib/cad-decoder/libredwg-web.wasm",
+      "bytes": 10821107,
+      "sha256": "9f68e44c503730372e04552df703fae9807638448c61dc5b042f5f6f6ae82543"
+    },
+    "decoderVersion": "0.7.10+bit-cursor-fix.1",
+    "sourceArchive": {
+      "path": "sources/Agent-Pi-DSH-3.8.2-CAD-host-corresponding-source.tar.gz",
+      "bytes": 25450749,
+      "sha256": "c13fb769abb0a61832c86d620e2a0bb849bc69ef43fd634edd900810abb74806"
+    }
+  },
+  "compatibility": {
+    "method": "Actual compiled browser worker in Node VM browser shim; full parsed result crosses real Node Worker structured-clone boundary. WebGL/browser visual rendering is not tested.",
+    "drawingSha256": "30b7062c7cf1c796ff664290f723279e27f132c88c6c414fe10da742284602b3",
+    "workerSha256": "16c4af3d3d8c99689601171f0bef016b65a41511267f4cfe4712322c7c5e663d",
+    "wasmSha256": "9f68e44c503730372e04552df703fae9807638448c61dc5b042f5f6f6ae82543",
+    "result": {
+      "entities": 110908,
+      "inserts": 8414,
+      "unresolvedBlocks": 0,
+      "unresolvedLayers": 0,
+      "solids": 57,
+      "splines": 398,
+      "embeddedObjects": 97
+    }
+  }
+}

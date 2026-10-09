@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { cadViewerAssetPath, cadViewerUrl, readCadViewerAsset } from '../src/cad-viewer-assets.ts'
@@ -12,13 +12,17 @@ test('CAD viewer asset resolver rejects traversal and unknown files', () => {
   assert.equal(cadViewerAssetPath('assets/../../http.ts'), null)
   assert.equal(cadViewerAssetPath('workers\\..\\index.html'), null)
   assert.equal(cadViewerAssetPath('missing.js'), null)
+  assert.equal(cadViewerAssetPath('host-decoder/../workers/libredwg-web.wasm'), null)
+  assert.equal(cadViewerAssetPath('host-decoder/workers/../../index.html'), null)
+  assert.equal(cadViewerAssetPath('host-decoder/workers/missing.wasm'), null)
+  assert.equal(cadViewerAssetPath('host-decoder2/workers/libredwg-web.wasm'), null)
 })
 
 test('CAD viewer URL keeps workspace and drawing paths encoded', () => {
   const cwd = 'C:\\项目 1 & 审核'
   const path = 'C:\\项目 1 & 审核\\图纸\\总图#1?复核.dwg'
   const url = cadViewerUrl(cwd, path)
-  assert.match(url, /^\/api\/agent-pi\/cad-viewer\/index\.html\?/)
+  assert.match(url, /^\/api\/agent-pi\/cad-viewer\/host-decoder\/index\.html\?/)
   const parsed = new URL(url, 'http://127.0.0.1')
   assert.equal(parsed.origin, 'http://127.0.0.1')
   assert.equal(parsed.searchParams.get('cwd'), cwd)
@@ -48,4 +52,20 @@ test('CAD asset HTTP route supports worker HEAD probes without weakening content
   assert.match(http, /\(req\.method === 'GET' \|\| req\.method === 'HEAD'\)[\s\S]*?\/api\/agent-pi\/cad-viewer\//)
   assert.match(http, /'x-content-type-options': 'nosniff'/)
   assert.match(http, /res\.end\(req\.method === 'HEAD' \? undefined : file\.body\)/)
+})
+
+test('new CAD namespace uses the verified host decoder while preserving the original viewer assets', () => {
+  const oldWasm = readCadViewerAsset('workers/libredwg-web.wasm')
+  const newWasm = readCadViewerAsset('host-decoder/workers/libredwg-web.wasm')
+  const expectedPath = resolve(here, '../lib/cad-decoder/libredwg-web.wasm')
+  assert.equal(cadViewerAssetPath('host-decoder/workers/libredwg-web.wasm'), expectedPath)
+  assert.ok(oldWasm && newWasm)
+  assert.equal(newWasm.mime, 'application/wasm')
+  assert.deepEqual(newWasm.body, readFileSync(expectedPath))
+  assert.notDeepEqual(oldWasm.body, newWasm.body)
+  for (const name of ['index.html', 'workers/libredwg-parser-worker.js', 'resources/fonts/fonts.json']) {
+    assert.deepEqual(readCadViewerAsset('host-decoder/' + name)?.body, readCadViewerAsset(name)?.body)
+  }
+  const http = readFileSync(join(here, '../src/http.ts'), 'utf8')
+  assert.match(http, /file\.filename\.startsWith\('host-decoder\/workers\/'\) \? 'no-store'/)
 })

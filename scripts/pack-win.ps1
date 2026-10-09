@@ -374,6 +374,8 @@ if (-not $SkipPrepare) {
 }
 $runtimeCadViewer = Join-Path $Desktop "runtime\product\bundles\tender-web\lib\cad-viewer"
 Install-CadCleanRuntime $runtimeCadViewer "staged Windows runtime"
+& node (Join-Path $Root "scripts\cad-browser-decoder-release.mjs") (Join-Path $Desktop "runtime\product")
+if ($LASTEXITCODE -ne 0) { throw "Staged CAD browser decoder binding verification failed" }
 
 Invoke-DesktopToolchain
 
@@ -493,6 +495,8 @@ $unpackedCadViewer = Join-Path $unpackedProduct "bundles\tender-web\lib\cad-view
 Install-CadCleanRuntime $unpackedCadViewer "unpacked runtime"
 & node (Join-Path $Root "scripts\cad-host-clean-release.mjs") $unpackedProduct
 if ($LASTEXITCODE -ne 0) { throw "Unpacked CAD host decoder or its corresponding source differs from the reviewed build" }
+& node (Join-Path $Root "scripts\cad-browser-decoder-release.mjs") $unpackedProduct
+if ($LASTEXITCODE -ne 0) { throw "Unpacked CAD browser decoder binding verification failed" }
 # ReuseUnpacked keeps the previous electron-builder asar. The NSIS filename
 # and DisplayVersion come from this tree's package.json; app.getVersion()
 # reads the asar. If those diverge, startup update check prompts for the

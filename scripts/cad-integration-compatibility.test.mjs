@@ -236,17 +236,18 @@ function reviewedHostFixture(t, review = '3.8.2-disk') {
   const value = fixture(t)
   const repository = join(dirname(cli), '..')
   const shared = ['package.json', 'bundles/tender-host/src/http.ts', 'bundles/tender-web/src/client/file-preview-overlay.js',
-    ...(['3.8.2-patched', '3.8.2-release'].includes(review) ? ['THIRD_PARTY_NOTICES.md'] : [])]
+    ...(['3.8.2-patched', '3.8.2-release', '3.8.2-browser'].includes(review) ? ['THIRD_PARTY_NOTICES.md'] : []),
+    ...(review === '3.8.2-browser' ? ['bundles/tender-host/src/cad-viewer-assets.ts'] : [])]
   const added = [
     'bundles/tender-host/src/cad-convert.ts', 'bundles/tender-host/src/cad-convert-worker.mjs',
     'bundles/tender-host/package.json', 'bundles/tender-host/package-lock.json',
     ...(review !== '3.8.1' ? ['bundles/tender-host/src/cad-dxf-output.mjs', 'bundles/engineering-cad/src/reader.ts'] : []),
-    ...(['3.8.2-disk', '3.8.2-patched', '3.8.2-release'].includes(review) ? [
+    ...(['3.8.2-disk', '3.8.2-patched', '3.8.2-release', '3.8.2-browser'].includes(review) ? [
       'bundles/engineering-cad/src/plugin.ts', 'bundles/engineering-cad/src/dxf-disk-source.ts',
       'bundles/engineering-cad/src/cad-disk-index.ts', 'packages/engineering-cad/index.ts',
       'packages/engineering-cad/types.ts', 'packages/engineering-cad/matrix.ts',
     ] : []),
-    ...(['3.8.2-patched', '3.8.2-release'].includes(review) ? [
+    ...(['3.8.2-patched', '3.8.2-release', '3.8.2-browser'].includes(review) ? [
       'bundles/tender-host/src/cad-dwg-model-quality.mjs',
       'bundles/engineering-cad/src/cad-embedded.ts',
       ...['libredwg-web.mjs', 'libredwg-wasm-factory.mjs', 'libredwg-web.wasm', 'GPL-3.0.txt', 'CAD-HOST-CLEAN-BUILD.json', 'sources/Agent-Pi-DSH-3.8.2-CAD-host-corresponding-source.tar.gz'].map(path => 'bundles/tender-host/lib/cad-decoder/' + path),
@@ -255,6 +256,7 @@ function reviewedHostFixture(t, review = '3.8.2-disk') {
       'scripts/cad-host-bit-position.test.c', 'scripts/cad-host-clean-pins.json',
     ] : []),
   ]
+  if (review === '3.8.2-browser') added.push('scripts/cad-browser-decoder-release.mjs', 'scripts/cad-browser-decoder-release.json', 'bundles/tender-host/src/prompt.ts')
   for (const path of shared) {
     write(join(value.root, path), execFileSync('git', ['show', `1aef6820ebc450125788158a4b2d1706115cdd10:${path}`], {
       cwd: repository, encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
@@ -268,6 +270,7 @@ function reviewedHostFixture(t, review = '3.8.2-disk') {
     '3.8.2': '9fa77a2731bb4dc90cef4254faedfa6b682a18e9',
     '3.8.2-disk': '75142e3ba0f1e6a8598d9c6d52af0457780cfcd5',
     '3.8.2-patched': '4cbcc177b48e455246ed10a75bf391b2ef6e144e',
+    '3.8.2-release': 'dc99fa96961dfff28fba93551d02b0f78a82cc2c',
   }[review]
   const raw = path => path.startsWith('bundles/tender-host/lib/cad-decoder/') || path === 'scripts/cad-host-bit-position-overflow.patch'
   const read = path => historical
@@ -612,4 +615,26 @@ test('CLI reports the original and release commits and propagates input mismatch
   const failed = run()
   assert.notEqual(failed.status, 0)
   assert.match(failed.stderr, /uncommitted changes/)
+})
+
+test('accepts only the reviewed browser host decoder composition without changing the original viewer identity', (t) => {
+  const value = reviewedHostFixture(t, '3.8.2-browser')
+  const manifest = structuredClone(value.manifest)
+  const proof = assertCadIntegrationUnchanged(value)
+  assert.equal(proof.hostExtension.review, '3.8.2-browser-host-decoder-integration')
+  assert.equal(proof.hostExtension.nativeViewerBuildInputsUnchanged, true)
+  assert.deepEqual(value.manifest, manifest)
+  assert.equal(assertCadIntegrationUnchanged(reviewedHostFixture(t, '3.8.2-release')).hostExtension.review, '3.8.2-release-cad-observations-dependencies')
+  const paths = ['bundles/tender-host/src/cad-viewer-assets.ts', 'bundles/tender-host/src/http.ts', 'scripts/cad-browser-decoder-release.mjs', 'scripts/cad-browser-decoder-release.json', 'scripts/verify-engineering-runtime.mjs', 'bundles/tender-host/src/prompt.ts']
+  for (const path of paths) {
+    const original = value.reviewed.get(path)
+    write(join(value.root, path), original + '\n')
+    commit(value.root)
+    assert.throws(() => assertCadIntegrationUnchanged(value), /CAD inputs changed|reviewed CAD host extension differs/, path)
+    write(join(value.root, path), original)
+    commit(value.root)
+  }
+  git(value.root, 'rm', 'scripts/cad-browser-decoder-release.json')
+  git(value.root, 'commit', '-qm', 'missing browser decoder binding')
+  assert.throws(() => assertCadIntegrationUnchanged(value), /host extension missing or mode changed/)
 })

@@ -1,8 +1,11 @@
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { dirname, extname, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { verifyCadBrowserDecoderRelease } from '../../../scripts/cad-browser-decoder-release.mjs'
 
 const CAD_VIEWER_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../../tender-web/lib/cad-viewer')
+const PRODUCT_DIR = resolve(CAD_VIEWER_DIR, '../../../..')
+const HOST_DECODER_NAMESPACE = 'host-decoder/'
 
 const MIME: Record<string, string> = {
   '.css': 'text/css; charset=utf-8',
@@ -21,8 +24,13 @@ const MIME: Record<string, string> = {
 
 export function cadViewerAssetPath(requestPath: string): string | null {
   const name = String(requestPath || 'index.html').replaceAll('\\', '/') || 'index.html'
-  const segments = name.split('/').filter(Boolean)
+  const hostDecoder = name.startsWith(HOST_DECODER_NAMESPACE)
+  const asset = hostDecoder ? name.slice(HOST_DECODER_NAMESPACE.length) : name
+  const segments = asset.split('/').filter(Boolean)
   if (segments.some((segment) => segment === '.' || segment === '..')) return null
+  if (hostDecoder && segments.join('/') === 'workers/libredwg-web.wasm') {
+    return verifyCadBrowserDecoderRelease(PRODUCT_DIR)
+  }
   const path = resolve(CAD_VIEWER_DIR, ...segments)
   const escaped = relative(CAD_VIEWER_DIR, path)
   if (!escaped || escaped.startsWith('..') || resolve(CAD_VIEWER_DIR, escaped) !== path) return null
@@ -40,10 +48,10 @@ export function readCadViewerAsset(requestPath: string): {
   return {
     body: readFileSync(path),
     mime: MIME[extname(path).toLowerCase()] || 'application/octet-stream',
-    filename: path.slice(CAD_VIEWER_DIR.length + 1).replaceAll('\\', '/'),
+    filename: String(requestPath || 'index.html').replaceAll('\\', '/'),
   }
 }
 
 export function cadViewerUrl(cwd: string, path: string): string {
-  return `/api/agent-pi/cad-viewer/index.html?cwd=${encodeURIComponent(cwd)}&path=${encodeURIComponent(path)}`
+  return `/api/agent-pi/cad-viewer/${HOST_DECODER_NAMESPACE}index.html?cwd=${encodeURIComponent(cwd)}&path=${encodeURIComponent(path)}`
 }

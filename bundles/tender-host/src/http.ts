@@ -161,7 +161,7 @@ function sendCadAsset(req: IncomingMessage, res: ServerResponse, requestPath: st
   res.writeHead(200, {
     'content-type': file.mime,
     'content-length': file.body.length,
-    'cache-control': file.mime.startsWith('text/html') ? 'no-store' : 'public, max-age=86400',
+    'cache-control': file.mime.startsWith('text/html') || file.filename.startsWith('host-decoder/workers/') ? 'no-store' : 'public, max-age=86400',
     'x-content-type-options': 'nosniff',
   })
   res.end(req.method === 'HEAD' ? undefined : file.body)

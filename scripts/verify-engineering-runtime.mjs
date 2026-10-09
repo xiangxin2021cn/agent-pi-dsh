@@ -5,6 +5,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
 import { verifyCadHostCleanRelease } from './cad-host-clean-release.mjs'
+import { verifyCadBrowserDecoderRelease } from './cad-browser-decoder-release.mjs'
 
 // Run against the actual staged product, not this script's development imports.
 const product = resolve(process.argv[2] || '.')
@@ -41,6 +42,7 @@ try {
   const workers = join(product, 'bundles/tender-web/lib/cad-viewer/workers')
   assert.ok(existsSync(join(workers, 'libredwg-web.wasm')), 'DWG WASM must ship in the clean viewer workers directory')
   const cadHost = verifyCadHostCleanRelease(product)
+  const browserDecoder = verifyCadBrowserDecoderRelease(product)
   const hostDecoder = join(product, 'bundles/tender-host/lib/cad-decoder')
   const { LibreDwg } = await import(pathToFileURL(join(hostDecoder, 'libredwg-web.mjs')).href)
   const { default: factory } = await import(pathToFileURL(join(hostDecoder, 'libredwg-wasm-factory.mjs')).href)
@@ -50,7 +52,7 @@ try {
   const { AcDbLibreDwgConverter } = require('@mlightcad/libredwg-converter')
   assert.equal(typeof AcDbLibreDwgConverter, 'function')
   assert.match(new AcDbDatabase().dxfOut(), /SECTION/)
-  console.log(JSON.stringify({ product, pdf: { text: true, roiPixels: [result.width, result.height], nativeCanvas: true, assets: ['cmaps', 'standard_fonts', 'wasm'] }, cad: { wasmInitialized: true, decoderVersion: cadHost.decoderVersion, databaseLoaded: true, converterLoaded: true, note: 'DWG conversion accuracy is not asserted by this runtime loading test.' } }, null, 2))
+  console.log(JSON.stringify({ product, pdf: { text: true, roiPixels: [result.width, result.height], nativeCanvas: true, assets: ['cmaps', 'standard_fonts', 'wasm'] }, cad: { wasmInitialized: true, decoderVersion: cadHost.decoderVersion, browserDecoder, databaseLoaded: true, converterLoaded: true, note: 'DWG conversion accuracy is not asserted by this runtime loading test.' } }, null, 2))
 } finally {
   await pdfEngine?.dispose()
   rmSync(workspace, { recursive: true, force: true })

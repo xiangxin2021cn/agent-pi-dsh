@@ -25,6 +25,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { verifyCadCleanRelease } from './cad-clean-release.mjs'
 import { verifyCadHostCleanRelease } from './cad-host-clean-release.mjs'
+import { verifyCadBrowserDecoderRelease } from './cad-browser-decoder-release.mjs'
 import {
   buildDshWithReceipt,
   dshBuildReceiptName,
@@ -131,6 +132,7 @@ verifyCadCleanRelease({
 })
 verifyCadViewerAssets(cadViewer, 'source')
 verifyCadHostCleanRelease(root)
+verifyCadBrowserDecoderRelease(root)
 
 function robocopy(src, dest, extra = []) {
   const result = spawnSync('robocopy', [
@@ -201,6 +203,7 @@ verifyCadCleanRelease({
   runtimeDir: stagedCadViewer,
 })
 verifyCadViewerAssets(stagedCadViewer, 'staged runtime')
+verifyCadBrowserDecoderRelease(productDest)
 console.log('staged product tree')
 
 // 3. deepseek-harness source + built artifacts (no node_modules)

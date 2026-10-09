@@ -177,12 +177,31 @@ const reviewed382ReleaseHostExtension = {
     'bundles/tender-host/package-lock.json': '941f5f8676ae3c423535161f930c930d411b3109a29b96107ab08b15bb2eea0e',
   },
 }
+// A separate browser namespace composes the unchanged clean viewer with the
+// exact patched host decoder. Pin the asset route, source binding and gate as
+// well as the existing conversion closure; the original viewer stays intact.
+const reviewed382BrowserHostExtension = {
+  review: '3.8.2-browser-host-decoder-integration',
+  shared: {
+    ...reviewed382ReleaseHostExtension.shared,
+    'bundles/tender-host/src/cad-viewer-assets.ts': ['3e1ac47a74c569507fc2910f7272faad8ef72cc1c5d75dea040400227da2c7be', 'c25b9be808479633f23f25399619bc3de7728cd6485a4b8f1885b92c80ceeeb3'],
+    'bundles/tender-host/src/http.ts': ['e93ed84a6d37dacd33f965828c59d466d80590f0e307a36783ff367b2ba77c80', '1b0ad90827db6414cf587403f6c103cbb363d5a248ebaa78e3c2713e0ee6f4da'],
+    'THIRD_PARTY_NOTICES.md': ['13b82540786197ebb805a8b1088c41c856b8e251bfefd2ac1693002fe849f460', '64c50620cd25f1b04a0c4b910e7436d963c2c5efc6a268c7478e83ae529981ed'],
+  },
+  files: {
+    ...reviewed382ReleaseHostExtension.files,
+    'scripts/cad-browser-decoder-release.mjs': '041ddeb2efbf97edbd56395da72f7670068bddc139d2bbf3636eaac6feccec74',
+    'scripts/cad-browser-decoder-release.json': '418bde65d9359aa1be148cebb435e5edeb39a84974635de11d6c6f2940eb80ed',
+    'scripts/verify-engineering-runtime.mjs': '6d4486cc8a7c6555f160a476f75a5f172cf70c6141f3903c77eb86de8064517b',
+    'bundles/tender-host/src/prompt.ts': '9b5b8f63d09e6959f045d0ab80836ef4fac1e9c8798185decb427a8c7e642606',
+  },
+}
 const diskIndexPaths = ['bundles/engineering-cad/src/dxf-disk-source.ts', 'bundles/engineering-cad/src/cad-disk-index.ts']
 const patchedDecoderPaths = ['bundles/tender-host/src/cad-dwg-model-quality.mjs', 'bundles/engineering-cad/src/cad-embedded.ts', 'bundles/tender-host/lib/cad-decoder', 'scripts/cad-host-clean-release.mjs', 'scripts/build-cad-host-clean.sh', 'scripts/cad-host-bit-position-overflow.patch', 'scripts/cad-host-bit-position.test.c', 'scripts/cad-host-clean-pins.json']
 const hostExtensionPaths = [...new Set([
   ...Object.keys(reviewed381HostExtension.files), ...Object.keys(reviewed382HostExtension.files),
   ...Object.keys(reviewed382DiskHostExtension.files), ...Object.keys(reviewed382PatchedHostExtension.files),
-  ...Object.keys(reviewed382ReleaseHostExtension.files),
+  ...Object.keys(reviewed382ReleaseHostExtension.files), ...Object.keys(reviewed382BrowserHostExtension.files),
 ])]
 
 function reviewedHash(path, text) {
@@ -196,6 +215,7 @@ function reviewedHostPair(path, before, after, extension) {
 }
 
 function reviewedHostExtensionForTarget(root, target) {
+  if (git(root, ['ls-tree', target, '--', 'scripts/cad-browser-decoder-release.mjs', 'scripts/cad-browser-decoder-release.json']).trim()) return reviewed382BrowserHostExtension
   const patched = git(root, ['ls-tree', target, '--', ...patchedDecoderPaths]).trim()
   if (patched) {
     const path = 'bundles/tender-host/package.json'
@@ -210,7 +230,7 @@ function reviewedHostExtensionForTarget(root, target) {
 
 function verifyReviewedHostExtension(root, sourceCommit, target) {
   const extension = reviewedHostExtensionForTarget(root, target)
-  if ([reviewed382PatchedHostExtension, reviewed382ReleaseHostExtension].includes(extension)) {
+  if ([reviewed382PatchedHostExtension, reviewed382ReleaseHostExtension, reviewed382BrowserHostExtension].includes(extension)) {
     const runtime = git(root, ['ls-tree', '-r', '--name-only', target, '--', 'bundles/tender-host/lib/cad-decoder']).trim().split('\n')
     for (const path of runtime) if (!extension.files[path]) fail(`reviewed CAD host extension differs: ${path}`)
   }
