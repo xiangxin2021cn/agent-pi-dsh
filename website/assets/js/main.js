@@ -185,7 +185,10 @@
       var asset = assets[key];
       document.querySelectorAll('[data-release-asset="' + key + '"]').forEach(function (link) {
         link.hidden = !asset;
-        if (asset) link.href = asset.browser_download_url;
+        if (asset) {
+          var proxy = link.hasAttribute("data-release-proxy") ? "https://gh-proxy.org/" : "";
+          link.href = proxy + asset.browser_download_url;
+        }
       });
       if (!asset) return;
       document.querySelectorAll('[data-release-name="' + key + '"]').forEach(function (node) {
