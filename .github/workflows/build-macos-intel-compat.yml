@@ -45,6 +45,10 @@ jobs:
         with:
           node-version: ${{ env.NODE_RUNTIME_VERSION }}
 
+      - name: Test compatibility preparation before installing runtime dependencies
+        run: |
+          node --test scripts/rebuild-macos-builtin.test.mjs scripts/build-macos-libsql.test.mjs scripts/macos-claude-isolation.test.mjs scripts/prepare-macos-intel-optionals.test.mjs scripts/macos-codex-provider.test.mjs
+
       - name: Download and verify original release inputs
         shell: bash
         run: |
@@ -108,7 +112,6 @@ jobs:
 
       - name: Rebuild the same-version core loader for Monterey
         run: |
-          node --test scripts/rebuild-macos-builtin.test.mjs
           node scripts/rebuild-macos-builtin.mjs --dsh payload/deepseek-harness --report payload/product/MACOS-BUILTIN-BUILD.json
 
       - name: Install product and Office dependencies
@@ -124,12 +127,10 @@ jobs:
 
       - name: Rebuild the same-version encrypted Office database for Monterey
         run: |
-          node --test scripts/build-macos-libsql.test.mjs
           node scripts/build-macos-libsql.mjs payload/product/vendor/dsh-univer-office "$RUNNER_TEMP/agent-pi-libsql-source"
 
       - name: Isolate unsupported optional engines and install compatibility launchers
         run: |
-          node --test scripts/macos-claude-isolation.test.mjs scripts/prepare-macos-intel-optionals.test.mjs scripts/macos-codex-provider.test.mjs
           AGENT_PI_TEST_DSH_ROOT="$GITHUB_WORKSPACE/payload/deepseek-harness" node --test scripts/macos-intel-capabilities.test.mjs
           node scripts/prepare-macos-intel-optionals.mjs payload/deepseek-harness payload/product
           cp scripts/init-tender-profile.mjs payload/product/scripts/init-tender-profile.mjs

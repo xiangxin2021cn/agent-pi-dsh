@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { linkSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { linkSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import test from 'node:test'
@@ -71,7 +71,7 @@ test('installed entry and native package must retain the locked 0.1.9 identity',
   ] }))
   const binary = join(native, 'prebuilt/darwin-x64-napi-v9.node')
   writeFileSync(binary, 'native fixture')
-  assert.equal(inspectInstalledBuiltin(root).binary, binary)
+  assert.equal(inspectInstalledBuiltin(root).binary, realpathSync(binary))
   writeFileSync(manifest, JSON.stringify({ name: 'node-addon-require-builtin-darwin-x64', version: '0.1.8' }))
   assert.throws(() => inspectInstalledBuiltin(root), /0\.1\.8/)
 })
