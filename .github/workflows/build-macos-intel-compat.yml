@@ -114,6 +114,9 @@ jobs:
         run: |
           node scripts/rebuild-macos-builtin.mjs --dsh payload/deepseek-harness --report payload/product/MACOS-BUILTIN-BUILD.json
 
+      - name: Test actual profile composition with production dependencies
+        run: AGENT_PI_TEST_DSH_ROOT="$GITHUB_WORKSPACE/payload/deepseek-harness" node --test scripts/macos-intel-capabilities.test.mjs
+
       - name: Install product and Office dependencies
         run: |
           (cd payload/product/packages/business-core && npm ci --omit=dev --no-fund --no-audit)
@@ -131,7 +134,6 @@ jobs:
 
       - name: Isolate unsupported optional engines and install compatibility launchers
         run: |
-          AGENT_PI_TEST_DSH_ROOT="$GITHUB_WORKSPACE/payload/deepseek-harness" node --test scripts/macos-intel-capabilities.test.mjs
           node scripts/prepare-macos-intel-optionals.mjs payload/deepseek-harness payload/product
           cp scripts/init-tender-profile.mjs payload/product/scripts/init-tender-profile.mjs
           cp scripts/macos-intel-capabilities.mjs payload/product/scripts/macos-intel-capabilities.mjs

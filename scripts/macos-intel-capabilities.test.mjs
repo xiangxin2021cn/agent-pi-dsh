@@ -129,7 +129,16 @@ test('real official dump preserves profile/home files, !!js and core providers u
   const homePatch = join(options.home, 'cordis.patch.yml')
   writeFileSync(profilePatch, config)
   writeFileSync(homePatch, `- id: ${nativeId}\n  disabled: false\n  config:\n    token: do-not-copy-this\n    expression: !!js globalThis.notExecuted = true\n`)
-  const { patchPath } = await writeMacOSIntelCapabilities(options)
+  let patchPath
+  try {
+    ;({ patchPath } = await writeMacOSIntelCapabilities(options))
+  } catch (error) {
+    // This home contains only the fixed fake profile above, never actual user configuration.
+    const diagnostic = childProcess.spawnSync(process.execPath, [join(dshRoot, 'apps/cli/lib/bin.js'), '--profile', 'tender', '--dump-config'], {
+      cwd: dshRoot, env: { ...process.env, DSH_HOME: options.home }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 60000,
+    })
+    assert.fail(`${error.message}; fake-profile dump exit ${diagnostic.status}: ${diagnostic.stderr || diagnostic.error?.code || 'no diagnostic'}`)
+  }
   const result = childProcess.spawnSync(process.execPath, [join(dshRoot, 'apps/cli/lib/bin.js'), '--profile', 'tender', '--patch', patchPath, '--dump-config'], {
     cwd: dshRoot, env: { ...process.env, DSH_HOME: options.home }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 60000,
   })
