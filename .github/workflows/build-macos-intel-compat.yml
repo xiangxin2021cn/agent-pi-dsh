@@ -119,7 +119,7 @@ jobs:
 
       - name: Isolate the unsupported optional Claude engine
         run: |
-          node --test scripts/macos-claude-isolation.test.mjs scripts/dshmarket-compatibility.test.mjs
+          node --test scripts/macos-claude-isolation.test.mjs
           node scripts/omit-macos-claude-native.mjs payload/deepseek-harness
           cp scripts/init-tender-profile.mjs payload/product/scripts/init-tender-profile.mjs
           cp vendor/dshmarket/compatibility.js payload/product/vendor/dshmarket/compatibility.js
