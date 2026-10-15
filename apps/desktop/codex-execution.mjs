@@ -187,7 +187,9 @@ export function createCodexExecutionController(options) {
     const env = { ...options.baseEnv, CODEX_HOME: options.codexHome }
     for (const key of SECRET_ENV) delete env[key]
     mkdirSync(options.codexHome, { recursive: true })
-    child = spawn(options.nodePath, [options.wrapperPath, 'app-server', '--stdio'], { cwd: options.codexHome, env, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
+    const compatibilityArgs = options.macosIntelCompatibility === true
+      ? ['--config', 'features.shell_zsh_fork=false', '--config', 'features.realtime_conversation=false'] : []
+    child = spawn(options.nodePath, [options.wrapperPath, ...compatibilityArgs, 'app-server', '--stdio'], { cwd: options.codexHome, env, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
     buffer = ''
     const launched = child
     const failLaunched = () => { if (child === launched) failProcess() }

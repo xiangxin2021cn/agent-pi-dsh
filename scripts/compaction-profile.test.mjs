@@ -34,6 +34,7 @@ const univerPeerNames = [
 ]
 const scriptNames = [
   'init-tender-profile.mjs',
+  'macos-intel-capabilities.mjs',
   'workbench-plugin-defaults.mjs',
   'migrate-settings-017.mjs',
   'preset-bundle-017.mjs',

@@ -3,6 +3,7 @@ import json
 from contextlib import nullcontext
 from pathlib import Path
 import plistlib
+from subprocess import CompletedProcess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -67,6 +68,33 @@ class MacOSIntelTests(unittest.TestCase):
         for path in ("Contents/Frameworks/arm64/helper", "node_modules/koffi/build/Release/koffi.node",
                      "node_modules/@koromix/koffi-darwin-x64/koffi.node"):
             self.assertFalse(module.foreign_prebuild(Path(path)), path)
+
+    def test_otool_parenthesized_helper_uses_identical_temporary_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "Agent Pi DSH Helper (GPU)"
+            content = bytes.fromhex("cffaedfe") + b"original helper bytes"
+            source.write_bytes(content)
+            for force_copy in (False, True):
+                with self.subTest(copyFallback=force_copy):
+                    observed = []
+
+                    def run(command, **options):
+                        alias = Path(command[-1])
+                        self.assertNotEqual(alias, source)
+                        self.assertNotIn("(", str(alias))
+                        self.assertNotIn(")", str(alias))
+                        self.assertEqual(alias.read_bytes(), content)
+                        self.assertEqual(command[:-1], ["otool", "-arch", "x86_64", "-l"])
+                        observed.append(alias)
+                        return CompletedProcess(command, 0, modern("13.0"), "")
+
+                    copy_context = patch.object(module.os, "link", side_effect=OSError("cross-device")) if force_copy else nullcontext()
+                    with copy_context, patch.object(module.subprocess, "run", side_effect=run):
+                        output = module.tool("otool", "-arch", "x86_64", "-l", str(source))
+                    self.assertEqual(source.read_bytes(), content)
+                    self.assertFalse(observed[0].exists())
+                    with self.assertRaisesRegex(ValueError, "13.0 exceeds 12.0"):
+                        module.validate_slice("x86_64", output, "12.0")
 
     def test_broken_packaged_link_fails_but_finishes_json_report(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -27,8 +27,9 @@ import {
 } from './univer-profile-migration.mjs'
 import { patchUniverForDshAlpha1 } from './patch-univer-alpha1.mjs'
 import { syncManagedUniverSkills } from './univer-skill-sync.mjs'
-import { prepareKnownPluginCompatibility, inspectKnownPluginCompatibility, intelMontereyMarketPatch, CLAUDE_CODE_PACKAGE, DSH_EMAIL_PACKAGE } from '../vendor/dshmarket/compatibility.js'
+import { prepareKnownPluginCompatibility, inspectKnownPluginCompatibility, CLAUDE_CODE_PACKAGE, DSH_EMAIL_PACKAGE, VOICE_INPUT_PACKAGE, NATIVE_CUA_PACKAGE } from '../vendor/dshmarket/compatibility.js'
 import { PRODUCT_PRESETS, shippedPresetPlugins, writePresetBundle } from './preset-bundle-017.mjs'
+import { writeMacOSIntelCapabilities } from './macos-intel-capabilities.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const dsh = process.env.DSH_CHECKOUT || join(root, 'vendor/deepseek-harness')
@@ -243,7 +244,7 @@ function isRetiredPluginName(name) {
  * strict bundle loader sees it. Unknown majors stay quarantined safely.
  */
 function isRuntimeIncompatibleBundle(name) {
-  if (name === DSH_EMAIL_PACKAGE || name === CLAUDE_CODE_PACKAGE) {
+  if (name === DSH_EMAIL_PACKAGE || name === CLAUDE_CODE_PACKAGE || name === VOICE_INPUT_PACKAGE || name === NATIVE_CUA_PACKAGE) {
     const status = inspectKnownPluginCompatibility(profileDir, name)
     if (status.status === 'incompatible') process.stderr.write(`${status.reason}\n`)
     return status.status === 'incompatible'
@@ -336,7 +337,7 @@ function buildManagedPatch(deps) {
 # Generated product defaults. User changes belong in the higher-precedence
 # profile cordis.patch.yml and are preserved across application starts.
 
-${intelMontereyMarketPatch(root)}# Model catalog and default selection come directly from the official dsh-base.
+# Model catalog and default selection come directly from the official dsh-base.
 # Do not shadow upstream multimodal capabilities with a product catalog.
 
 # Native history retrieval uses a disposable local index. Exact events remain
@@ -853,6 +854,8 @@ repairExistingDeepSeekModelCapacities()
 repairLegacyAgentPresetDefault()
 const legacyPresetMigration = migrateLegacyAgentPresetSessions(home)
 const depthRepair = repairProfessionalDepthSessions(home)
+const macOSIntelCapabilities = await writeMacOSIntelCapabilities({ productRoot: root, dshRoot: dsh, home })
+if (macOSIntelCapabilities) process.stdout.write(`Intel compatibility: voice input disabled; ${macOSIntelCapabilities.nativeEntries} optional native-provider entries isolated\n`)
 if (depthRepair.repaired || depthRepair.errors.length) process.stdout.write(`professional depth session repair: ${JSON.stringify(depthRepair)}\n`)
 if (!legacyPresetMigration.skipped && (legacyPresetMigration.migrated > 0 || legacyPresetMigration.errors > 0)) {
   process.stdout.write(`legacy Agent preset sessions: ${JSON.stringify(legacyPresetMigration)}\n`)

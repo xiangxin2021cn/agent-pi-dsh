@@ -16,9 +16,10 @@ function harness(options = {}) {
   const controller = createCodexExecutionController({
     nodePath: 'node', wrapperPath: 'codex.js', codexHome: tmpdir(), stateFile: options.stateFile,
     baseEnv: { OPENAI_API_KEY: 'secret-inherited', CODEX_ACCESS_TOKEN: 'secret-inherited', PATH: 'safe' },
+    macosIntelCompatibility: options.macosIntelCompatibility,
     onEvent: (event) => events.push(event),
     spawn(_node, args, spawnOptions) {
-      assert.deepEqual(args, ['codex.js', 'app-server', '--stdio'])
+      assert.deepEqual(args, options.expectedArgs || ['codex.js', 'app-server', '--stdio'])
       assert.equal(spawnOptions.windowsHide, true)
       assert.equal(spawnOptions.env.OPENAI_API_KEY, undefined)
       assert.equal(spawnOptions.env.CODEX_ACCESS_TOKEN, undefined)
@@ -61,6 +62,18 @@ function harness(options = {}) {
   })
   return { controller, calls, bridges, children, events, contextGate, questions }
 }
+
+test('Intel compatibility uses normal shell execution and disables unavailable native voice while retaining native task execution', async () => {
+  const h = harness({ macosIntelCompatibility: true, expectedArgs: [
+    'codex.js', '--config', 'features.shell_zsh_fork=false', '--config', 'features.realtime_conversation=false', 'app-server', '--stdio',
+  ] })
+  try {
+    await h.controller.submit({ ...identity, text: 'Review the tender' })
+    assert.equal(h.controller.status(identity.sessionId).phase, 'running')
+    assert.equal(h.calls.find(row => row.method === 'thread/start').params.sandbox, 'read-only')
+    assert.equal(h.calls.find(row => row.method === 'turn/start').params.input[0].text, 'Review the tender')
+  } finally { h.controller.dispose() }
+})
 
 test('native main execution persists one thread across turns, resumes, and steers without DSH delegation', async () => {
   const h = harness()

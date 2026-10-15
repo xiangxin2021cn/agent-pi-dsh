@@ -1,4 +1,8 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
+import { existsSync } from 'node:fs'
+
+const compatibilityArgs = existsSync(new URL('../../../MACOS-INTEL-MONTEREY.json', import.meta.url))
+  ? ['--config', 'features.shell_zsh_fork=false', '--config', 'features.realtime_conversation=false'] : []
 
 // Native Codex models never enter the DSH child-LLM routing parameters.
 const selectedOptions = new AsyncLocalStorage<{ model?: string; reasoningEffort?: string }>()
@@ -28,6 +32,7 @@ export function applyCodexModelProvider(ctx: Context, config: Record<string, any
           ...spec,
           argv: [
             spec.argv[0], wrapperPath,
+            ...compatibilityArgs,
             ...(reasoningEffort === undefined ? [] : ['--config', `model_reasoning_effort=${JSON.stringify(reasoningEffort)}`]),
             ...spec.argv.slice(2),
           ],

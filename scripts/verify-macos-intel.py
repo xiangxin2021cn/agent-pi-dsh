@@ -4,13 +4,16 @@ Run after electron-builder, before publishing. This does not rewrite binaries
 and cannot replace a launch test on a real Monterey installation.
 """
 import argparse
+from contextlib import ExitStack
 import json
 import os
 from pathlib import Path
 import plistlib
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 
 
 MACHO_MAGICS = {bytes.fromhex(value) for value in (
@@ -70,7 +73,21 @@ def foreign_prebuild(path):
 
 
 def tool(*args):
-    result = subprocess.run(args, text=True, capture_output=True, check=False)
+    with ExitStack() as temporary:
+        command = list(args)
+        # otool-classic interprets a trailing parenthesis as archive(member),
+        # even for an existing Helper (GPU) executable. Read identical bytes
+        # under a temporary plain filename, keeping report paths untouched.
+        if command[0] == "otool" and any(char in command[-1] for char in "()"):
+            directory = temporary.enter_context(tempfile.TemporaryDirectory(
+                prefix="agent-pi-macho-", dir="/tmp" if sys.platform == "darwin" else None))
+            alias = Path(directory) / "binary"
+            try:
+                os.link(command[-1], alias)
+            except OSError:
+                shutil.copyfile(command[-1], alias)
+            command[-1] = str(alias)
+        result = subprocess.run(command, text=True, capture_output=True, check=False)
     if result.returncode:
         raise ValueError(f"{' '.join(args)}: {result.stderr.strip() or result.stdout.strip()}")
     return result.stdout

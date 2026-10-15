@@ -106,6 +106,11 @@ jobs:
           node --experimental-strip-types native/system/scripts/build.ts --host-addon-only
           node packages/subprocess/subprocess-local/scripts/ensure-spawn-helper.mjs
 
+      - name: Rebuild the same-version core loader for Monterey
+        run: |
+          node --test scripts/rebuild-macos-builtin.test.mjs
+          node scripts/rebuild-macos-builtin.mjs --dsh payload/deepseek-harness --report payload/product/MACOS-BUILTIN-BUILD.json
+
       - name: Install product and Office dependencies
         run: |
           (cd payload/product/packages/business-core && npm ci --omit=dev --no-fund --no-audit)
@@ -117,12 +122,27 @@ jobs:
           node scripts/install-univer-runtime-deps.mjs payload/product/vendor/dsh-univer-office
           node payload/product/scripts/univer-public-release.mjs assert-tree payload/product
 
-      - name: Isolate the unsupported optional Claude engine
+      - name: Rebuild the same-version encrypted Office database for Monterey
         run: |
-          node --test scripts/macos-claude-isolation.test.mjs
-          node scripts/omit-macos-claude-native.mjs payload/deepseek-harness
+          node --test scripts/build-macos-libsql.test.mjs
+          node scripts/build-macos-libsql.mjs payload/product/vendor/dsh-univer-office "$RUNNER_TEMP/agent-pi-libsql-source"
+
+      - name: Isolate unsupported optional engines and install compatibility launchers
+        run: |
+          node --test scripts/macos-claude-isolation.test.mjs scripts/prepare-macos-intel-optionals.test.mjs scripts/macos-codex-provider.test.mjs
+          AGENT_PI_TEST_DSH_ROOT="$GITHUB_WORKSPACE/payload/deepseek-harness" node --test scripts/macos-intel-capabilities.test.mjs
+          node scripts/prepare-macos-intel-optionals.mjs payload/deepseek-harness payload/product
           cp scripts/init-tender-profile.mjs payload/product/scripts/init-tender-profile.mjs
+          cp scripts/macos-intel-capabilities.mjs payload/product/scripts/macos-intel-capabilities.mjs
           cp vendor/dshmarket/compatibility.js payload/product/vendor/dshmarket/compatibility.js
+          cp apps/desktop/main.mjs payload/desktop/main.mjs
+          cp apps/desktop/codex-execution.mjs payload/desktop/codex-execution.mjs
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs'
+          import { stripTypeScriptTypes } from 'node:module'
+          writeFileSync('payload/product/bundles/tender-host/lib/codex-model-bridge.js',
+            stripTypeScriptTypes(readFileSync('bundles/tender-host/src/codex-model-bridge.ts', 'utf8')))
+          NODE
 
       - name: Download and verify Intel Node runtime
         shell: bash
@@ -226,7 +246,7 @@ jobs:
           hdiutil verify "compat-assets/${prefix}.dmg"
           unzip -tq "compat-assets/${prefix}.zip"
           node --input-type=module <<'NODE'
-          import { writeFileSync } from 'node:fs'
+          import { readFileSync, writeFileSync } from 'node:fs'
           const prefix = `compat-assets/Agent-Pi-DSH-${process.env.RELEASE_VERSION}-mac-x64-monterey`
           writeFileSync(`${prefix}-build.json`, JSON.stringify({
             releaseTag: process.env.RELEASE_TAG, sourceCommit: process.env.GITHUB_SHA,
@@ -234,13 +254,28 @@ jobs:
             payloadSha256: process.env.PAYLOAD_SHA256, electron: process.env.ELECTRON_COMPAT_VERSION,
             node: process.env.NODE_RUNTIME_VERSION, platform: 'darwin', arch: 'x64',
             minimumMacOS: process.env.MACOSX_DEPLOYMENT_TARGET, runner: 'macos-15-intel',
-            excludedOptionalNativePackages: ['@anthropic-ai/claude-agent-sdk-darwin-x64'],
-            compatibilityOverrides: ['scripts/init-tender-profile.mjs', 'vendor/dshmarket/compatibility.js'],
+            excludedOptionalNativePackages: ['@anthropic-ai/claude-agent-sdk-darwin-x64', 'sherpa-onnx-darwin-x64', '@trycua/cua-driver-darwin-x64'],
+            capabilities: JSON.parse(readFileSync('payload/product/MACOS-INTEL-MONTEREY.json', 'utf8')),
+            rebuiltCoreLoader: JSON.parse(readFileSync('payload/product/MACOS-BUILTIN-BUILD.json', 'utf8')),
+            rebuiltOfficeDatabase: JSON.parse(readFileSync('payload/product/vendor/dsh-univer-office/node_modules/@libsql/darwin-x64/LIBSQL-MONTEREY-BUILD.json', 'utf8')),
+            compatibilityOverrides: ['apps/desktop/main.mjs', 'apps/desktop/codex-execution.mjs', 'scripts/init-tender-profile.mjs',
+              'scripts/macos-intel-capabilities.mjs', 'vendor/dshmarket/compatibility.js', 'bundles/tender-host/src/codex-model-bridge.ts'],
             montereyRealHardwareTested: false, appleSigned: false, appleNotarized: false,
             workflowRun: `https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
             builtAt: new Date().toISOString(),
           }, null, 2) + '\n')
-          writeFileSync(`${prefix}-README.md`, `# Agent Pi DSH ${process.env.RELEASE_VERSION} Intel Mac 兼容包\n\n适用于 Intel x64 Mac，最低 macOS 12 Monterey。此兼容包在原发行版产品与 DSH 上构建，将 Electron 外壳固定为 ${process.env.ELECTRON_COMPAT_VERSION}，独立 Node 为 ${process.env.NODE_RUNTIME_VERSION}。\n\n下载 DMG 后将应用拖入 Applications；ZIP 为备用分发方式。请用同名 .sha256 文件校验下载完整性。未提供 Apple 开发者签名或公证，首次打开可能需在系统安全设置中允许打开。\n\n已通过 Intel macOS 15 构建、原生依赖与应用启动检查，并检查所选 Intel Mach-O 二进制的最低系统版本；尚未在 macOS 12 真机测试。请在 Monterey 上验证主对话、Office 文档和 CAD 文件。macOS BIM 功能仍需配置兼容的外部 Python/IfcOpenShell 引擎。本兼容包不含 Claude Code 可选原生引擎；该引擎要求 macOS 13+，在 Monterey 上禁用。Office 分发链接已修复为可迁移的相对链接。8 GB 内存设备处理大型 CAD/BIM 文件时应按区域或文件拆分。Electron 43 的后续安全支持受上游维护期限约束。\n\n原发行包、发行标签及其他平台资源保持不变。构建来源、payload 校验值与检查报告见同前缀的 JSON 文件。\n`)
+          writeFileSync(`${prefix}-README.md`, `# Agent Pi DSH ${process.env.RELEASE_VERSION} Intel Mac 兼容包
+
+          适用于 Intel x64 Mac，最低 macOS 12 Monterey。基于原发行版产品与 DSH，将 Electron 固定为 ${process.env.ELECTRON_COMPAT_VERSION}，独立 Node 为 ${process.env.NODE_RUNTIME_VERSION}。Office 数据库 libsql 0.5.29 与核心加载器 node-addon-require-builtin 0.1.9 按锁定官方源码重建，保留原版本和 Office 加密数据库能力；源码版本、校验值、构建和功能检查记录见 build.json 与包内来源记录。
+
+          下载 DMG 后将应用拖入 Applications；ZIP 为备用方式。请用同名 .sha256 校验下载完整性。未提供 Apple 开发者签名或公证，首次打开可能需在系统偏好设置 → 安全性与隐私 → 通用中允许打开。
+
+          保留 DSH/Codex 普通任务执行、系统 shell、Office 与 CAD。此兼容分发不提供 Claude Code、本地 SenseVoice 语音、原生电脑控制、Codex 实时语音与特制 zsh fork；它们的原生组件要求较新系统。启动时隔离这些能力，保留原有用户配置和模型缓存。macOS BIM 仍需配置兼容的外部 Python/IfcOpenShell 引擎。8 GB 内存设备处理大型 CAD/BIM 文件时应按区域或文件拆分。
+
+          已通过 Intel macOS 15 构建、原生依赖与应用启动检查，并严格检查包内 Intel Mach-O 二进制的最低系统版本；尚未在 macOS 12 真机测试。请在 Monterey 上验证主对话、Office 文档和 CAD 文件。Electron 43 的后续安全支持受上游维护期限约束。
+
+          原发行包、发行标签及其他平台资源保持不变。构建来源、payload 校验值与检查报告见同前缀 JSON 文件。
+          `)
           NODE
 
       - name: Verify unchanged release tag and upload new assets

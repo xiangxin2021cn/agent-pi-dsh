@@ -3,12 +3,10 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, 
 import os from 'node:os'
 import { dirname, join, relative } from 'node:path'
 import test from 'node:test'
-import { pathToFileURL } from 'node:url'
 import { omitMacOSClaudeNative } from './omit-macos-claude-native.mjs'
 import {
   CLAUDE_CODE_PACKAGE,
   inspectKnownPluginCompatibility,
-  intelMontereyMarketPatch,
   prepareKnownPluginCompatibility,
   reconcileKnownPluginCompatibility,
 } from '../vendor/dshmarket/compatibility.js'
@@ -125,26 +123,4 @@ test('Intel macOS 13+ with a real native package and other platforms keep existi
   Object.defineProperty(process, 'platform', { value: 'darwin' })
   Object.defineProperty(process, 'arch', { value: 'arm64' })
   assert.equal(inspectKnownPluginCompatibility(root, CLAUDE_CODE_PACKAGE).status, 'irrelevant')
-})
-
-test('Monterey uses the guarded bundled market while preserving a registry-installed market', t => {
-  const root = profile(t, true)
-  const market = join(root, 'node_modules/dshmarket/lib/index.js')
-  write(market, 'original registry market\n')
-  const product = join(root, 'product')
-  platform(t, 'darwin')
-  const patch = intelMontereyMarketPatch(product)
-  assert.match(patch, /- id: dsh-market/)
-  const entry = JSON.parse(patch.match(/^  name: (.+)$/m)[1])
-  assert.equal(entry, pathToFileURL(join(product, 'vendor/dshmarket/lib/index.js')).href)
-  assert.equal(readFileSync(market, 'utf8'), 'original registry market\n')
-  assert.equal(readFileSync(join(root, 'settings.yaml'), 'utf8'), 'account: preserved\n')
-  const init = readFileSync(new URL('./init-tender-profile.mjs', import.meta.url), 'utf8')
-  assert.match(init, /name === DSH_EMAIL_PACKAGE \|\| name === CLAUDE_CODE_PACKAGE/)
-  assert.match(init, /\$\{intelMontereyMarketPatch\(root\)\}/)
-  Object.defineProperty(process, 'platform', { value: 'win32' })
-  assert.equal(intelMontereyMarketPatch(product), '')
-  Object.defineProperty(process, 'platform', { value: 'darwin' })
-  Object.defineProperty(process, 'arch', { value: 'arm64' })
-  assert.equal(intelMontereyMarketPatch(product), '')
 })

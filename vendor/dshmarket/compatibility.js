@@ -2,16 +2,18 @@ import { chmodSync, existsSync, readFileSync, renameSync, rmSync, statSync, writ
 import { createRequire } from 'node:module'
 import os from 'node:os'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
 
 export const DSH_IM_PACKAGE = '@xmanrui/dsh-im'
 export const DSH_EMAIL_PACKAGE = 'dsh-email'
 export const CLAUDE_CODE_PACKAGE = '@deepseek-ai/dsh-subagent-claude-code'
+export const VOICE_INPUT_PACKAGE = '@deepseek-ai/dsh-experimental-voice-input-bundle'
+export const NATIVE_CUA_PACKAGE = '@deepseek-ai/dsh-experimental-computer-use-cua-driver-native'
 
-export function intelMontereyMarketPatch(productRoot) {
-  if (process.platform !== 'darwin' || process.arch !== 'x64' || Number.parseInt(os.release(), 10) >= 22) return ''
-  const entry = pathToFileURL(join(productRoot, 'vendor/dshmarket/lib/index.js')).href
-  return `# Keep the Intel Monterey native-engine guard active without replacing user-installed market files.\n- id: dsh-market\n  name: ${JSON.stringify(entry)}\n\n`
+function isIntelCompatibilityDistribution() {
+  const productRoot = process.env.DSH_BUNDLED_SKILL_DIR ? dirname(process.env.DSH_BUNDLED_SKILL_DIR)
+    : resolve(dirname(fileURLToPath(import.meta.url)), '../..')
+  return existsSync(join(productRoot, 'MACOS-INTEL-MONTEREY.json'))
 }
 
 export const TEAM_COMPONENTS = ['agent-team', 'tool-agent-team', 'agent-team-profile', 'agent-team-web-profile', 'client-ui-agent-team']
@@ -80,6 +82,9 @@ function replaceFileBreakingHardLinks(path, content) {
  * access; DSH 0.1.2-alpha.1 exposes it reliably through Context#get instead.
  */
 export function inspectKnownPluginCompatibility(profileDirectory, name) {
+  if ((name === VOICE_INPUT_PACKAGE || name === NATIVE_CUA_PACKAGE) && isIntelCompatibilityDistribution()) {
+    return result('incompatible', '此 Intel macOS 兼容分发不提供本地语音和原生桌面操作运行库，该组件不可启用；已安装插件和用户配置保留 / This Intel macOS compatibility distribution omits local speech and native desktop-control runtimes; this component cannot be enabled. Installed plugins and user settings are retained')
+  }
   if (name === CLAUDE_CODE_PACKAGE && process.platform === 'darwin' && process.arch === 'x64') {
     if (Number.parseInt(os.release(), 10) < 22) {
       return result('incompatible', 'Claude Code 原生引擎要求 macOS 13 或更新系统；macOS 12 请使用 DSH/Codex。插件和用户配置保留 / Claude Code requires macOS 13 or later; use DSH/Codex on macOS 12. Plugin and user settings are retained')

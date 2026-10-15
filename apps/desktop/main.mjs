@@ -37,6 +37,7 @@ const productRoot = runtimeRoot && existsSync(join(runtimeRoot, 'product', 'pack
 const dshHome = packaged
   ? join(app.getPath('userData'), 'dsh-home')
   : (process.env.DSH_HOME || join(repoRoot, '.dsh-home'))
+const macosIntelCompatibility = existsSync(join(productRoot, 'MACOS-INTEL-MONTEREY.json'))
 const codexHome = packaged
   ? join(app.getPath('userData'), 'codex-home')
   : join(repoRoot, '.codex-home')
@@ -250,6 +251,7 @@ function getCodexExecutionController() {
   if (!wrapperPath) throw new Error('Codex 运行时不可用。')
   codexExecutionController = createCodexExecutionController({
     nodePath: resolveNode(), wrapperPath, codexHome, baseEnv: runtimeEnv(),
+    macosIntelCompatibility,
     stateFile: join(codexHome, 'agent-pi-main-threads.json'),
     onEvent: (state) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('codex-execution-event', state) },
     async bridge(action, body) {
@@ -279,13 +281,19 @@ function getCodexAuthController() {
   return codexAuthController
 }
 
+function dshProfileArgs(extra = []) {
+  const overlay = macosIntelCompatibility
+    ? ['--patch', join(dshHome, '.agent-pi-presets/macos-intel-compat.patch.yml')] : []
+  return ['--profile', 'tender', ...overlay, '--no-open', ...extra]
+}
+
 function dshArgs(extra = []) {
   const heap = `--max-old-space-size=${DSH_HEAP_MB}`
   const bin = join(dshRoot, 'apps/cli/lib/bin.js')
   const src = join(dshRoot, 'apps/cli/src/bin.ts')
   // rc.8 web-runtime defaults openBrowser: true. The Electron window is the
   // only UI; --no-open keeps the default browser closed.
-  const args = ['--profile', 'tender', '--no-open', ...extra]
+  const args = dshProfileArgs(extra)
   return existsSync(bin)
     ? [heap, bin, ...args]
     : [heap, '--import', 'tsx/esm', src, ...args]
@@ -420,7 +428,7 @@ function startDsh(port) {
     })
   } else {
     const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
-    child = spawn(pnpm, ['dsh', '--profile', 'tender', '--no-open', ...extra], {
+    child = spawn(pnpm, ['dsh', ...dshProfileArgs(extra)], {
       cwd: dshRoot,
       env,
       stdio,
