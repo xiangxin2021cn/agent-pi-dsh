@@ -118,6 +118,9 @@
     "windows-sha": "-x64.exe.sha256",
     "mac-dmg": "-mac-arm64.dmg",
     "mac-zip": "-mac-arm64.zip",
+    "mac-intel-dmg": "-mac-x64-monterey.dmg",
+    "mac-intel-zip": "-mac-x64-monterey.zip",
+    "mac-intel-sha": "-mac-x64-monterey.dmg.sha256",
     "linux-appimage": "-linux-x86_64.AppImage",
     "linux-deb": "-linux-amd64.deb"
   };
@@ -197,6 +200,13 @@
       document.querySelectorAll('[data-release-size="' + key + '"]').forEach(function (node) {
         node.textContent = fmtSize(asset.size);
       });
+    });
+
+    document.querySelectorAll("[data-require-release-asset], [data-missing-release-asset]").forEach(function (node) {
+      var required = node.getAttribute("data-require-release-asset");
+      var keys = required || node.getAttribute("data-missing-release-asset");
+      var available = keys.split(/\s+/).every(function (key) { return !!assets[key]; });
+      node.hidden = required ? !available : available;
     });
 
     if (panel) panel.setAttribute("data-release-state", "synced");

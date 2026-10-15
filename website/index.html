@@ -877,7 +877,7 @@
           </span>
         </div>
         <div class="rl-row" data-release-platform="macos">
-          <span class="rl-kind">macOS arm64</span>
+          <span class="rl-kind">Apple Silicon · macOS 13+</span>
           <span class="rl-name" data-release-name="mac-dmg">Agent-Pi-DSH-3.8.2-mac-arm64.dmg</span>
           <span class="rl-size" data-release-size="mac-dmg">935.6 MB</span>
           <span class="rl-btns">
@@ -886,6 +886,20 @@
             <a data-release-asset="mac-zip" href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.2/Agent-Pi-DSH-3.8.2-mac-arm64.zip" target="_blank" rel="noopener">ZIP</a>
           </span>
         </div>
+        <div data-require-release-asset="mac-intel-dmg mac-intel-zip mac-intel-sha">
+          <div class="rl-row" data-release-platform="macos-intel">
+            <span class="rl-kind">Intel x64 · macOS 12+</span>
+            <span class="rl-name" data-release-name="mac-intel-dmg">Agent-Pi-DSH-3.8.2-mac-x64-monterey.dmg</span>
+            <span class="rl-size" data-release-size="mac-intel-dmg">840.0 MB</span>
+            <span class="rl-btns">
+              <a class="primary" data-release-asset="mac-intel-dmg" href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.2/Agent-Pi-DSH-3.8.2-mac-x64-monterey.dmg" target="_blank" rel="noopener"><span data-lang="zh">下载 DMG</span><span data-lang="en">Download DMG</span></a>
+              <a data-release-asset="mac-intel-dmg" data-release-proxy href="https://gh-proxy.org/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.2/Agent-Pi-DSH-3.8.2-mac-x64-monterey.dmg" target="_blank" rel="noopener noreferrer"><span data-lang="zh">加速下载</span><span data-lang="en">Accelerated download</span></a>
+              <a data-release-asset="mac-intel-zip" href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.2/Agent-Pi-DSH-3.8.2-mac-x64-monterey.zip" target="_blank" rel="noopener">ZIP</a>
+              <a data-release-asset="mac-intel-sha" href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.2/Agent-Pi-DSH-3.8.2-mac-x64-monterey.dmg.sha256" target="_blank" rel="noopener">DMG SHA256</a>
+            </span>
+          </div>
+        </div>
+        <p class="rl-note" data-missing-release-asset="mac-intel-dmg mac-intel-zip mac-intel-sha" hidden><span data-lang="zh">Intel 兼容包须全部发布后才显示；如未显示，请查看发行页：</span><span data-lang="en">Intel compatibility packages appear after all files are published. If absent, check the release page:</span> <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases" target="_blank" rel="noopener">GitHub Releases</a></p>
         <div class="rl-row" data-release-platform="linux">
           <span class="rl-kind">Linux x64</span>
           <span class="rl-name" data-release-name="linux-appimage">Agent-Pi-DSH-3.8.2-linux-x86_64.AppImage</span>
@@ -901,6 +915,7 @@
           <span data-lang="en">The page syncs a complete GitHub Latest Release when opened; if the API is temporarily unavailable, it uses the verified fallback links embedded in the page.</span>
         </p>
         <p class="rl-note"><span data-lang="zh">加速下载由第三方 gh-proxy.org 提供；如不可用，请使用 GitHub 原站。下载后请核对 SHA256。</span><span data-lang="en">Accelerated downloads use the third-party service gh-proxy.org. Use GitHub if unavailable, and verify SHA256 after downloading.</span></p>
+        <p class="rl-note"><span data-lang="zh">Apple Silicon 版使用 Electron 44，最低 macOS 13 Ventura；Intel 兼容版最低 macOS 12 Monterey，适用于 2015 款 Intel MacBook Pro。</span><span data-lang="en">The Apple Silicon build uses Electron 44 and requires macOS 13 Ventura or later. The Intel compatibility build requires macOS 12 Monterey or later and supports the 2015 Intel MacBook Pro.</span></p>
         <p class="hero-meta">
           <span data-lang="zh">Windows SHA256：<code data-release-sha data-release-sha-source="github-release">AA8441A3108F252D4AF63358012FAF0DD8D4BA2E979D6F212D66A1CC1F2B770E</code></span>
           <span data-lang="en">Windows SHA256: <code data-release-sha data-release-sha-source="github-release">AA8441A3108F252D4AF63358012FAF0DD8D4BA2E979D6F212D66A1CC1F2B770E</code></span>
@@ -953,7 +968,7 @@
 
 <script src="assets/js/flow.js?v=24"></script>
 <script src="assets/js/release-metadata.js?v=27"></script>
-<script src="assets/js/i18n.js?v=382-downloads1"></script>
-<script src="assets/js/main.js?v=382-downloads1"></script>
+<script src="assets/js/i18n.js?v=382-intel1"></script>
+<script src="assets/js/main.js?v=382-intel1"></script>
 </body>
 </html>

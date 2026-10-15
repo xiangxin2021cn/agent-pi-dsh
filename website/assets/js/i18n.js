@@ -214,6 +214,24 @@
   add("GitHub latest release", "Última versión en GitHub", "Dernière version GitHub", "Neueste GitHub-Version", "GitHub 最新リリース", "GitHub 최신 릴리스", "Versão mais recente no GitHub", "أحدث إصدار على GitHub", "Последний выпуск GitHub");
   add("Released {{data-release-date}}", "Publicado el <span data-release-date>2026-10-11</span>", "Publié le <span data-release-date>2026-10-11</span>", "Veröffentlicht am <span data-release-date>2026-10-11</span>", "公開日 <span data-release-date>2026-10-11</span>", "출시일 <span data-release-date>2026-10-11</span>", "Publicado em <span data-release-date>2026-10-11</span>", "نُشر في <span data-release-date>2026-10-11</span>", "Опубликовано <span data-release-date>2026-10-11</span>");
   add("Accelerated download", "Descarga acelerada", "Téléchargement accéléré", "Beschleunigter Download", "高速ダウンロード", "가속 다운로드", "Download acelerado", "تنزيل مسرّع", "Ускоренная загрузка");
+  add("Intel compatibility packages appear after all files are published. If absent, check the release page:",
+    "Los paquetes compatibles con Intel aparecen cuando se publican todos los archivos. Si faltan, consulte la página de versiones:",
+    "Les paquets compatibles Intel apparaissent après publication de tous les fichiers. Sinon, consultez la page des versions :",
+    "Intel-Kompatibilitätspakete erscheinen erst nach Veröffentlichung aller Dateien. Andernfalls die Release-Seite prüfen:",
+    "Intel 互換パッケージは全ファイル公開後に表示されます。表示されない場合はリリースページを確認してください：",
+    "Intel 호환 패키지는 모든 파일이 공개된 후 표시됩니다. 없다면 릴리스 페이지를 확인하세요:",
+    "Os pacotes compatíveis com Intel aparecem após a publicação de todos os arquivos. Se ausentes, consulte a página de versões:",
+    "تظهر حزم Intel المتوافقة بعد نشر جميع الملفات. إذا لم تظهر، راجع صفحة الإصدارات:",
+    "Пакеты совместимости Intel появляются после публикации всех файлов. Если их нет, проверьте страницу выпусков:");
+  add("The Apple Silicon build uses Electron 44 and requires macOS 13 Ventura or later. The Intel compatibility build requires macOS 12 Monterey or later and supports the 2015 Intel MacBook Pro.",
+    "La versión Apple Silicon usa Electron 44 y requiere macOS 13 Ventura o posterior. La versión compatible con Intel requiere macOS 12 Monterey o posterior y admite el MacBook Pro Intel de 2015.",
+    "La version Apple Silicon utilise Electron 44 et nécessite macOS 13 Ventura ou ultérieur. La version compatible Intel nécessite macOS 12 Monterey ou ultérieur et prend en charge le MacBook Pro Intel 2015.",
+    "Die Apple-Silicon-Version nutzt Electron 44 und benötigt macOS 13 Ventura oder neuer. Die Intel-Kompatibilitätsversion benötigt macOS 12 Monterey oder neuer und unterstützt das Intel MacBook Pro von 2015.",
+    "Apple Silicon 版は Electron 44 を使用し、macOS 13 Ventura 以降が必要です。Intel 互換版は macOS 12 Monterey 以降に対応し、2015 年の Intel MacBook Pro をサポートします。",
+    "Apple Silicon 버전은 Electron 44를 사용하며 macOS 13 Ventura 이상이 필요합니다. Intel 호환 버전은 macOS 12 Monterey 이상이 필요하며 2015 Intel MacBook Pro를 지원합니다.",
+    "A versão Apple Silicon usa Electron 44 e exige macOS 13 Ventura ou posterior. A versão compatível com Intel exige macOS 12 Monterey ou posterior e suporta o MacBook Pro Intel de 2015.",
+    "يستخدم إصدار Apple Silicon برنامج Electron 44 ويتطلب macOS 13 Ventura أو أحدث. يتطلب إصدار Intel المتوافق macOS 12 Monterey أو أحدث ويدعم MacBook Pro بمعالج Intel لعام 2015.",
+    "Версия Apple Silicon использует Electron 44 и требует macOS 13 Ventura или новее. Совместимая версия Intel требует macOS 12 Monterey или новее и поддерживает Intel MacBook Pro 2015 года.");
   add("Download EXE", "Descargar EXE", "Télécharger EXE", "EXE herunterladen", "EXE をダウンロード", "EXE 다운로드", "Baixar EXE", "تنزيل EXE", "Скачать EXE");
   add("Download DMG", "Descargar DMG", "Télécharger DMG", "DMG herunterladen", "DMG をダウンロード", "DMG 다운로드", "Baixar DMG", "تنزيل DMG", "Скачать DMG");
   add("Download AppImage", "Descargar AppImage", "Télécharger AppImage", "AppImage herunterladen", "AppImage をダウンロード", "AppImage 다운로드", "Baixar AppImage", "تنزيل AppImage", "Скачать AppImage");
