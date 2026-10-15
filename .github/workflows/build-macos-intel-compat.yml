@@ -1,0 +1,221 @@
+name: build-macos-intel-compat
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release containing the verified runtime payload'
+        required: true
+        default: v3.8.2
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  RELEASE_TAG: ${{ inputs.tag }}
+  NODE_RUNTIME_VERSION: '22.20.0'
+  ELECTRON_COMPAT_VERSION: '43.7.11'
+  MACOSX_DEPLOYMENT_TARGET: '12.0'
+
+jobs:
+  build:
+    runs-on: macos-15-intel
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Validate release tag and record source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          test "$GITHUB_REF_TYPE" = branch
+          test "$GITHUB_REF_NAME" = main
+          test "$(uname -m)" = x86_64
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName | grep -Fx "$RELEASE_TAG"
+          git fetch --depth=1 origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          echo "RELEASE_VERSION=${RELEASE_TAG#v}" >> "$GITHUB_ENV"
+          echo "TAG_OBJECT=$(git rev-parse "refs/tags/$RELEASE_TAG")" >> "$GITHUB_ENV"
+          echo "TAG_COMMIT=$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_RUNTIME_VERSION }}
+
+      - name: Download and verify original release inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-inputs payload
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern "runtime-payload-${RELEASE_VERSION}.tar.gz" \
+            --pattern "runtime-payload-${RELEASE_VERSION}.tar.gz.sha256" \
+            --pattern 'Agent-Pi-DSH-*-CAD-corresponding-source.tar.gz' \
+            --pattern 'Agent-Pi-DSH-*-CAD-corresponding-source.tar.gz.sha256' \
+            --dir release-inputs
+          (cd release-inputs && shasum -a 256 -c ./*.sha256)
+          echo "PAYLOAD_SHA256=$(shasum -a 256 "release-inputs/runtime-payload-${RELEASE_VERSION}.tar.gz" | cut -d ' ' -f 1)" >> "$GITHUB_ENV"
+          tar -xzf "release-inputs/runtime-payload-${RELEASE_VERSION}.tar.gz" -C payload
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs'
+          for (const name of ['desktop', 'product']) {
+            const manifest = JSON.parse(readFileSync(`payload/${name}/package.json`, 'utf8'))
+            if (manifest.version !== process.env.RELEASE_VERSION) throw new Error(`${name} version differs from release tag`)
+          }
+          NODE
+          node payload/product/scripts/verify-runtime-payload-stage.mjs payload
+          cad_source=$(node -p "require('./payload/product/scripts/cad-clean-pins.json').sourceArchive")
+          node payload/product/scripts/cad-clean-release.mjs verify \
+            --archive "release-inputs/${cad_source}" \
+            --checksum "release-inputs/${cad_source}.sha256" \
+            --runtime-dir payload/product/bundles/tender-web/lib/cad-viewer
+
+      - name: Enable pnpm and install isolated native build tool
+        shell: bash
+        run: |
+          corepack enable
+          npm install --prefix "$RUNNER_TEMP/agent-pi-native-tools" --no-save --package-lock=false --no-fund --no-audit node-gyp@11.4.2
+          echo "$RUNNER_TEMP/agent-pi-native-tools/node_modules/.bin" >> "$GITHUB_PATH"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          architecture: x64
+
+      - name: Prepare local project plan engine
+        run: |
+          node payload/product/scripts/verify-project-plan-runtime.mjs payload/product --portable
+          node payload/product/scripts/build-project-plan.mjs --runtime-only
+          node payload/product/scripts/verify-project-plan-runtime.mjs payload/product
+          node --test payload/product/scripts/project-plan.test.mjs
+
+      - name: Install DSH production dependencies
+        working-directory: payload/deepseek-harness
+        run: pnpm install --prod --frozen-lockfile --ignore-scripts
+
+      - name: Rebuild native modules for packaged Node on Intel
+        working-directory: payload/deepseek-harness
+        env:
+          npm_config_build_from_source: 'true'
+        run: |
+          pnpm --recursive rebuild node-pty koffi
+          node --experimental-strip-types native/system/scripts/build.ts --host-addon-only
+          node packages/subprocess/subprocess-local/scripts/ensure-spawn-helper.mjs
+
+      - name: Install product and Office dependencies
+        run: |
+          (cd payload/product/packages/business-core && npm ci --omit=dev --no-fund --no-audit)
+          (cd payload/product/bundles/tender-host && npm ci --omit=dev --no-fund --no-audit)
+          rm payload/product/bundles/tender-host/node_modules/@mlightcad/libredwg-web/wasm/libredwg-web.wasm
+          rm payload/product/bundles/tender-host/node_modules/@mlightcad/libredwg-converter/dist/libredwg-web.wasm
+          node payload/product/scripts/install-univer-runtime-deps.mjs payload/product/vendor/dsh-univer-office
+          node payload/product/scripts/univer-public-release.mjs assert-tree payload/product
+
+      - name: Download and verify Intel Node runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="node-v${NODE_RUNTIME_VERSION}-darwin-x64.tar.gz"
+          curl -fsSL "https://nodejs.org/dist/v${NODE_RUNTIME_VERSION}/${archive}" -o "$archive"
+          curl -fsSL "https://nodejs.org/dist/v${NODE_RUNTIME_VERSION}/SHASUMS256.txt" -o node-SHASUMS256.txt
+          grep "  ${archive}$" node-SHASUMS256.txt > node-runtime.sha256
+          shasum -a 256 -c node-runtime.sha256
+          mkdir -p node-runtime
+          tar -xzf "$archive" -C node-runtime --strip-components=1
+          node-runtime/bin/node -e 'if (process.arch !== "x64" || process.version !== "v" + process.env.NODE_RUNTIME_VERSION) throw new Error("incorrect Node runtime")'
+          node-runtime/bin/node payload/product/scripts/install-univer-runtime-deps.mjs payload/product/vendor/dsh-univer-office --verify-only
+          node-runtime/bin/node payload/product/scripts/verify-dsh-runtime.mjs payload/deepseek-harness payload/product --native
+
+      - name: Verify terminal native module with packaged Node
+        run: |
+          node-runtime/bin/node --input-type=module <<'NODE'
+          import { createRequire } from 'node:module'
+          const require = createRequire(`${process.cwd()}/payload/deepseek-harness/packages/subprocess/subprocess-local/package.json`)
+          const terminal = require('node-pty').spawn('/bin/sh', ['-c', 'printf agent-pi-native-ok'])
+          let output = ''
+          terminal.onData((data) => { output += data })
+          const timeout = setTimeout(() => { terminal.kill(); process.exit(1) }, 10000)
+          terminal.onExit(({ exitCode }) => {
+            clearTimeout(timeout)
+            if (exitCode !== 0 || !output.includes('agent-pi-native-ok')) process.exit(1)
+            console.log('Intel terminal native module verified')
+          })
+          NODE
+
+      - name: Stage original product runtime
+        run: |
+          node payload/product/scripts/prepare-runtime.mjs \
+            --dsh payload/deepseek-harness --product payload/product \
+            --node-bin node-runtime/bin/node --out payload/desktop/runtime
+          payload/desktop/runtime/node/node payload/desktop/runtime/product/scripts/verify-dsh-runtime.mjs \
+            payload/desktop/runtime/deepseek-harness payload/desktop/runtime/product --native
+
+      - name: Prepare Monterey shell and install exact dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/prepare-macos-intel.mjs payload/desktop
+          cd payload/desktop
+          npm install --package-lock-only --ignore-scripts --no-fund --no-audit
+          npm ci --no-fund --no-audit
+          node node_modules/electron/install.js
+          test -d node_modules/electron/dist
+          node -e 'if (require("electron/package.json").version !== process.env.ELECTRON_COMPAT_VERSION) throw new Error("incorrect Electron version")'
+
+      - name: Build Intel compatible DMG and ZIP
+        working-directory: payload/desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npx electron-builder --mac dmg zip --x64 --publish never
+
+      - name: Verify packaged binaries and application startup
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          apps=(payload/desktop/dist-unpacked/mac/*.app)
+          test "${#apps[@]}" -eq 1
+          mkdir -p compat-assets
+          python3 scripts/verify-macos-intel.py "${apps[0]}" \
+            --report "compat-assets/Agent-Pi-DSH-${RELEASE_VERSION}-mac-x64-monterey-verification.json"
+          node scripts/smoke-macos-intel.mjs "${apps[0]}"
+
+      - name: Prepare checksums and compatibility notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          prefix="Agent-Pi-DSH-${RELEASE_VERSION}-mac-x64-monterey"
+          for ext in dmg zip; do
+            cp "payload/desktop/dist-unpacked/${prefix}.${ext}" compat-assets/
+            (cd compat-assets && shasum -a 256 "${prefix}.${ext}" > "${prefix}.${ext}.sha256")
+          done
+          hdiutil verify "compat-assets/${prefix}.dmg"
+          unzip -tq "compat-assets/${prefix}.zip"
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from 'node:fs'
+          const prefix = `compat-assets/Agent-Pi-DSH-${process.env.RELEASE_VERSION}-mac-x64-monterey`
+          writeFileSync(`${prefix}-build.json`, JSON.stringify({
+            releaseTag: process.env.RELEASE_TAG, sourceCommit: process.env.GITHUB_SHA,
+            tagCommit: process.env.TAG_COMMIT, tagObject: process.env.TAG_OBJECT,
+            payloadSha256: process.env.PAYLOAD_SHA256, electron: process.env.ELECTRON_COMPAT_VERSION,
+            node: process.env.NODE_RUNTIME_VERSION, platform: 'darwin', arch: 'x64',
+            minimumMacOS: process.env.MACOSX_DEPLOYMENT_TARGET, runner: 'macos-15-intel',
+            montereyRealHardwareTested: false, appleSigned: false, appleNotarized: false,
+            workflowRun: `https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
+            builtAt: new Date().toISOString(),
+          }, null, 2) + '\n')
+          writeFileSync(`${prefix}-README.md`, `# Agent Pi DSH ${process.env.RELEASE_VERSION} Intel Mac 兼容包\n\n适用于 Intel x64 Mac，最低 macOS 12 Monterey。此兼容包复用原发行版产品与 DSH，仅将 Electron 外壳固定为 ${process.env.ELECTRON_COMPAT_VERSION}，独立 Node 为 ${process.env.NODE_RUNTIME_VERSION}。\n\n下载 DMG 后将应用拖入 Applications；ZIP 为备用分发方式。请用同名 .sha256 文件校验下载完整性。未提供 Apple 开发者签名或公证，首次打开可能需在系统安全设置中允许打开。\n\n已通过 Intel macOS 15 构建、原生依赖与应用启动检查，并检查所选 Intel Mach-O 二进制的最低系统版本；尚未在 macOS 12 真机测试。请在 Monterey 上验证主对话、Office 文档和 CAD 文件。macOS BIM 功能仍需配置兼容的外部 Python/IfcOpenShell 引擎。8 GB 内存设备处理大型 CAD/BIM 文件时应按区域或文件拆分。Electron 43 的后续安全支持受上游维护期限约束。\n\n原发行包、发行标签及其他平台资源保持不变。构建来源、payload 校验值与检查报告见同前缀的 JSON 文件。\n`)
+          NODE
+
+      - name: Verify unchanged release tag and upload new assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          remote_tag=$(git ls-remote --exit-code origin "refs/tags/$RELEASE_TAG" | cut -f 1)
+          test "$remote_tag" = "$TAG_OBJECT"
+          test "$(find compat-assets -type f | wc -l | tr -d ' ')" -eq 7
+          gh release upload "$RELEASE_TAG" compat-assets/* --repo "$GITHUB_REPOSITORY"
