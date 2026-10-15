@@ -47,7 +47,7 @@ jobs:
 
       - name: Test compatibility preparation before installing runtime dependencies
         run: |
-          node --test scripts/rebuild-macos-builtin.test.mjs scripts/build-macos-libsql.test.mjs scripts/macos-claude-isolation.test.mjs scripts/prepare-macos-intel-optionals.test.mjs scripts/macos-codex-provider.test.mjs
+          node --test scripts/rebuild-macos-builtin.test.mjs scripts/build-macos-libsql.test.mjs scripts/macos-claude-isolation.test.mjs scripts/prepare-macos-intel-optionals.test.mjs scripts/macos-codex-provider.test.mjs scripts/repair-dsh-runtime-peers.test.mjs
 
       - name: Download and verify original release inputs
         shell: bash
@@ -113,6 +113,9 @@ jobs:
       - name: Rebuild the same-version core loader for Monterey
         run: |
           node scripts/rebuild-macos-builtin.mjs --dsh payload/deepseek-harness --report payload/product/MACOS-BUILTIN-BUILD.json
+
+      - name: Restore locked production workspace peers
+        run: node scripts/repair-dsh-runtime-peers.mjs payload/deepseek-harness --report payload/product/MACOS-PEER-BUILD.json
 
       - name: Test actual profile composition with production dependencies
         run: AGENT_PI_TEST_DSH_ROOT="$GITHUB_WORKSPACE/payload/deepseek-harness" node --test scripts/macos-intel-capabilities.test.mjs
@@ -260,6 +263,7 @@ jobs:
             excludedOptionalNativePackages: ['@anthropic-ai/claude-agent-sdk-darwin-x64', 'sherpa-onnx-darwin-x64', '@trycua/cua-driver-darwin-x64'],
             capabilities: JSON.parse(readFileSync('payload/product/MACOS-INTEL-MONTEREY.json', 'utf8')),
             rebuiltCoreLoader: JSON.parse(readFileSync('payload/product/MACOS-BUILTIN-BUILD.json', 'utf8')),
+            runtimeWorkspacePeers: JSON.parse(readFileSync('payload/product/MACOS-PEER-BUILD.json', 'utf8')),
             rebuiltOfficeDatabase: JSON.parse(readFileSync('payload/product/vendor/dsh-univer-office/node_modules/@libsql/darwin-x64/LIBSQL-MONTEREY-BUILD.json', 'utf8')),
             compatibilityOverrides: ['apps/desktop/main.mjs', 'apps/desktop/codex-execution.mjs', 'scripts/init-tender-profile.mjs',
               'scripts/macos-intel-capabilities.mjs', 'vendor/dshmarket/compatibility.js', 'bundles/tender-host/src/codex-model-bridge.ts'],
@@ -269,7 +273,7 @@ jobs:
           }, null, 2) + '\n')
           writeFileSync(`${prefix}-README.md`, `# Agent Pi DSH ${process.env.RELEASE_VERSION} Intel Mac 兼容包
 
-          适用于 Intel x64 Mac，最低 macOS 12 Monterey。基于原发行版产品与 DSH，将 Electron 固定为 ${process.env.ELECTRON_COMPAT_VERSION}，独立 Node 为 ${process.env.NODE_RUNTIME_VERSION}。Office 数据库 libsql 0.5.29 与核心加载器 node-addon-require-builtin 0.1.9 按锁定官方源码重建，保留原版本和 Office 加密数据库能力；源码版本、校验值、构建和功能检查记录见 build.json 与包内来源记录。
+          适用于 Intel x64 Mac，最低 macOS 12 Monterey。基于原发行版产品与 DSH，将 Electron 固定为 ${process.env.ELECTRON_COMPAT_VERSION}，独立 Node 为 ${process.env.NODE_RUNTIME_VERSION}。Office 数据库 libsql 0.5.29 与核心加载器 node-addon-require-builtin 0.1.9 按锁定官方源码重建，保留原版本和 Office 加密数据库能力，并恢复生产安装遗漏的锁定工作区 peer 依赖链接；源码版本、校验值、构建和功能检查记录见 build.json 与包内来源记录。
 
           下载 DMG 后将应用拖入 Applications；ZIP 为备用方式。请用同名 .sha256 校验下载完整性。未提供 Apple 开发者签名或公证，首次打开可能需在系统偏好设置 → 安全性与隐私 → 通用中允许打开。
 
