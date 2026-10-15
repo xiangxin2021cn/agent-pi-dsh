@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { dirname, isAbsolute, join } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { test } from 'node:test'
 import {
   defaultUniverRuntimeLockPath,
+  installUniverRuntimeDeps,
   loadNativeRuntimePackages,
   productionRuntimeManifest,
   resolveNpmInvocation,
@@ -255,6 +258,54 @@ test('npm ci runs through npm-cli.js adjacent to the current Node executable', (
     () => resolveNpmInvocation(join(root, 'isolated', 'node.exe')),
     /npm-cli\.js is not adjacent/,
   )
+})
+
+test('installed Office CLI remains executable after the temporary npm tree is removed', (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'agent-pi-univer-bin-copy-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const packageRoot = join(root, 'fixture', 'package')
+  const plugin = join(root, 'plugin')
+  const temporary = join(root, 'temporary-install')
+  mkdirSync(packageRoot, { recursive: true })
+  mkdirSync(plugin, { recursive: true })
+  const packageName = 'agent-pi-office-cli-fixture'
+  writeFileSync(join(packageRoot, 'package.json'), JSON.stringify({
+    name: packageName, version: '1.0.0', bin: { 'office-fixture': 'cli.js' },
+  }))
+  writeFileSync(join(packageRoot, 'cli.js'), '#!/usr/bin/env node\nconsole.log("office-cli-ready")\n')
+  const archive = join(root, 'fixture.tgz')
+  const packed = spawnSync('tar', ['-czf', archive, '-C', join(root, 'fixture'), 'package'], { encoding: 'utf8', windowsHide: true })
+  assert.equal(packed.status, 0, packed.error?.message || packed.stderr)
+  const specifier = pathToFileURL(archive).href
+  const dependencies = { [packageName]: specifier }
+  writeFileSync(join(plugin, 'package.json'), JSON.stringify({ name: 'dsh-univer-office', version: '0.3.7', dependencies }))
+  const lockPath = join(root, 'package-lock.json')
+  writeFileSync(lockPath, JSON.stringify({
+    name: 'agent-pi-univer-runtime', lockfileVersion: 3,
+    packages: {
+      '': { name: 'agent-pi-univer-runtime', dependencies },
+      [`node_modules/${packageName}`]: {
+        version: '1.0.0', resolved: specifier,
+        integrity: 'sha512-' + createHash('sha512').update(readFileSync(archive)).digest('base64'),
+        bin: { 'office-fixture': 'cli.js' },
+      },
+    },
+  }))
+  assert.deepEqual(installUniverRuntimeDeps(plugin, temporary, lockPath), { installed: true })
+  assert.equal(existsSync(temporary), false)
+  const bin = join(plugin, 'node_modules', '.bin', 'office-fixture')
+  let executable = join(plugin, 'node_modules', packageName, 'cli.js')
+  if (process.platform === 'win32') {
+    assert.ok(existsSync(`${bin}.cmd`))
+  } else {
+    assert.ok(lstatSync(bin).isSymbolicLink())
+    assert.equal(isAbsolute(readlinkSync(bin)), false)
+    executable = bin
+  }
+  const launched = spawnSync(process.execPath, [executable], { encoding: 'utf8', windowsHide: true })
+  assert.equal(launched.status, 0, launched.error?.message || launched.stderr)
+  assert.equal(launched.stdout.trim(), 'office-cli-ready')
+  assert.deepEqual(installUniverRuntimeDeps(plugin, temporary, lockPath), { installed: false })
 })
 
 test('0.3.0 native worker dependencies are supplied without mutating the official manifest', () => {

@@ -1,6 +1,11 @@
 import importlib.util
+import json
+from contextlib import nullcontext
 from pathlib import Path
+import plistlib
+import tempfile
 import unittest
+from unittest.mock import patch
 
 
 spec = importlib.util.spec_from_file_location("verify_macos_intel", Path(__file__).parents[1] / "verify-macos-intel.py")
@@ -62,6 +67,52 @@ class MacOSIntelTests(unittest.TestCase):
         for path in ("Contents/Frameworks/arm64/helper", "node_modules/koffi/build/Release/koffi.node",
                      "node_modules/@koromix/koffi-darwin-x64/koffi.node"):
             self.assertFalse(module.foreign_prebuild(Path(path)), path)
+
+    def test_broken_packaged_link_fails_but_finishes_json_report(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            app = root / "Example.app"
+            runtimes = ["Contents/MacOS/Example", "Contents/Resources/runtime/node/node",
+                        "Contents/Resources/runtime/product/bundles/project-plan/runtime/jre/bin/java",
+                        "Contents/Resources/runtime/node_modules/koffi/build/Release/koffi.node"]
+            for name in runtimes:
+                path = app / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(bytes.fromhex("cffaedfe") + b"mock Mach-O")
+            (app / "Contents/Info.plist").write_bytes(plistlib.dumps({"CFBundleExecutable": "Example"}))
+            broken = app / "Contents/Resources/runtime/broken-office-link"
+            missing = root / "agent-pi-univer-runtime/node_modules"
+            try:
+                broken.symlink_to(missing, target_is_directory=True)
+                resolve_context = nullcontext()
+            except OSError:
+                # Windows without symlink privileges exercises the same
+                # Path.resolve failure without requiring elevated tests.
+                broken.write_bytes(b"placeholder for unavailable symlink")
+                original_resolve = Path.resolve
+
+                def resolve_path(path, *args, **kwargs):
+                    if path == broken:
+                        raise FileNotFoundError(str(missing))
+                    return original_resolve(path, *args, **kwargs)
+
+                resolve_context = patch.object(Path, "resolve", resolve_path)
+
+            def fake_tool(*args):
+                if args[0] == "lipo":
+                    return "x86_64"
+                return "MH_MAGIC_64 X86_64 EXECUTE" if "-hv" in args else modern("12.0")
+
+            report_path = root / "report.json"
+            with resolve_context, patch.object(module, "tool", side_effect=fake_tool), \
+                    patch.object(module.sys, "platform", "darwin"), \
+                    patch.object(module.sys, "argv", ["verify-macos-intel.py", str(app), "--report", str(report_path)]):
+                self.assertEqual(module.main(), 1)
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+            self.assertFalse(report["passed"])
+            self.assertEqual({row["path"] for row in report["checkedFiles"]}, set(runtimes))
+            self.assertTrue(any(row["path"].endswith("broken-office-link") and
+                                "Cannot resolve packaged path" in row["error"] for row in report["errors"]))
 
 
 if __name__ == "__main__":

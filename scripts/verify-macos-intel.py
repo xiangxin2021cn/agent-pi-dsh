@@ -94,10 +94,21 @@ def inspect_app(app, maximum):
     }
     seen_required = set()
     seen_real = set()
-    for directory, _, names in os.walk(app, followlinks=False):
-        for name in sorted(names):
+    for directory, directories, names in os.walk(app, followlinks=False):
+        links = [name for name in directories if (Path(directory) / name).is_symlink()]
+        for name in sorted(names + links):
             path = Path(directory) / name
             relative = path.relative_to(app).as_posix()
+            try:
+                real = path.resolve(strict=True)
+            except (OSError, RuntimeError) as error:
+                report["errors"].append({"path": relative, "error": f"Cannot resolve packaged path: {error}"})
+                continue
+            if not real.is_relative_to(app):
+                report["errors"].append({"path": relative, "error": "File symlink escapes app"})
+                continue
+            if path.is_dir():
+                continue
             if name == "Info.plist":
                 try:
                     with path.open("rb") as stream:
@@ -112,10 +123,6 @@ def inspect_app(app, maximum):
             if foreign_prebuild(Path(relative)):
                 if path.suffix == ".node" or path.suffix == ".dylib" or os.access(path, os.X_OK):
                     report["ignoredForeignPrebuilds"].append(relative)
-                continue
-            real = path.resolve(strict=True)
-            if not real.is_relative_to(app):
-                report["errors"].append({"path": relative, "error": "File symlink escapes app"})
                 continue
             if real in seen_real:
                 if path in required:

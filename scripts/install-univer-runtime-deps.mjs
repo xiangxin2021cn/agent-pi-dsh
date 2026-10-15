@@ -328,7 +328,7 @@ export function installUniverRuntimeDeps(
       throw new Error(`Univer runtime dependency npm ci failed: ${result.error?.message || result.stderr || result.status}`)
     }
     rmSync(join(pluginDir, 'node_modules'), { recursive: true, force: true })
-    cpSync(join(installDir, 'node_modules'), join(pluginDir, 'node_modules'), { recursive: true, force: true })
+    cpSync(join(installDir, 'node_modules'), join(pluginDir, 'node_modules'), { recursive: true, force: true, verbatimSymlinks: true })
     if (!runtimeDependenciesReady(pluginDir, production.dependencies, lock, target)) {
       throw new Error('dsh-univer-office production dependencies do not match the tracked lock after npm ci')
     }
