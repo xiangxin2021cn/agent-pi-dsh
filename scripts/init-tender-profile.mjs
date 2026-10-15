@@ -27,7 +27,7 @@ import {
 } from './univer-profile-migration.mjs'
 import { patchUniverForDshAlpha1 } from './patch-univer-alpha1.mjs'
 import { syncManagedUniverSkills } from './univer-skill-sync.mjs'
-import { prepareKnownPluginCompatibility, inspectKnownPluginCompatibility, DSH_EMAIL_PACKAGE } from '../vendor/dshmarket/compatibility.js'
+import { prepareKnownPluginCompatibility, inspectKnownPluginCompatibility, intelMontereyMarketPatch, CLAUDE_CODE_PACKAGE, DSH_EMAIL_PACKAGE } from '../vendor/dshmarket/compatibility.js'
 import { PRODUCT_PRESETS, shippedPresetPlugins, writePresetBundle } from './preset-bundle-017.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -243,7 +243,7 @@ function isRetiredPluginName(name) {
  * strict bundle loader sees it. Unknown majors stay quarantined safely.
  */
 function isRuntimeIncompatibleBundle(name) {
-  if (name === DSH_EMAIL_PACKAGE) {
+  if (name === DSH_EMAIL_PACKAGE || name === CLAUDE_CODE_PACKAGE) {
     const status = inspectKnownPluginCompatibility(profileDir, name)
     if (status.status === 'incompatible') process.stderr.write(`${status.reason}\n`)
     return status.status === 'incompatible'
@@ -336,7 +336,7 @@ function buildManagedPatch(deps) {
 # Generated product defaults. User changes belong in the higher-precedence
 # profile cordis.patch.yml and are preserved across application starts.
 
-# Model catalog and default selection come directly from the official dsh-base.
+${intelMontereyMarketPatch(root)}# Model catalog and default selection come directly from the official dsh-base.
 # Do not shadow upstream multimodal capabilities with a product catalog.
 
 # Native history retrieval uses a disposable local index. Exact events remain

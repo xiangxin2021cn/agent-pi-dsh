@@ -1,8 +1,18 @@
 import { chmodSync, existsSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
-import { isAbsolute, join, relative, resolve } from 'node:path'
+import { createRequire } from 'node:module'
+import os from 'node:os'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 export const DSH_IM_PACKAGE = '@xmanrui/dsh-im'
 export const DSH_EMAIL_PACKAGE = 'dsh-email'
+export const CLAUDE_CODE_PACKAGE = '@deepseek-ai/dsh-subagent-claude-code'
+
+export function intelMontereyMarketPatch(productRoot) {
+  if (process.platform !== 'darwin' || process.arch !== 'x64' || Number.parseInt(os.release(), 10) >= 22) return ''
+  const entry = pathToFileURL(join(productRoot, 'vendor/dshmarket/lib/index.js')).href
+  return `# Keep the Intel Monterey native-engine guard active without replacing user-installed market files.\n- id: dsh-market\n  name: ${JSON.stringify(entry)}\n\n`
+}
 
 export const TEAM_COMPONENTS = ['agent-team', 'tool-agent-team', 'agent-team-profile', 'agent-team-web-profile', 'client-ui-agent-team']
   .map(name => `@deepseek-ai/dsh-experimental-${name}`)
@@ -70,6 +80,22 @@ function replaceFileBreakingHardLinks(path, content) {
  * access; DSH 0.1.2-alpha.1 exposes it reliably through Context#get instead.
  */
 export function inspectKnownPluginCompatibility(profileDirectory, name) {
+  if (name === CLAUDE_CODE_PACKAGE && process.platform === 'darwin' && process.arch === 'x64') {
+    if (Number.parseInt(os.release(), 10) < 22) {
+      return result('incompatible', 'Claude Code 原生引擎要求 macOS 13 或更新系统；macOS 12 请使用 DSH/Codex。插件和用户配置保留 / Claude Code requires macOS 13 or later; use DSH/Codex on macOS 12. Plugin and user settings are retained')
+    }
+    const info = packageInfo(profileDirectory, name)
+    try {
+      const provider = createRequire(join(info.packageDirectory, 'package.json'))
+      const sdk = createRequire(provider.resolve('@anthropic-ai/claude-agent-sdk'))
+      const native = sdk.resolve('@anthropic-ai/claude-agent-sdk-darwin-x64/package.json')
+      if (JSON.parse(readFileSync(native, 'utf8')).name === '@anthropic-ai/claude-agent-sdk-darwin-x64'
+        && statSync(join(dirname(native), 'claude')).isFile()) {
+        return result('irrelevant', 'Claude Code native engine is present')
+      }
+    } catch {}
+    return result('incompatible', '当前 Intel macOS 兼容运行时未包含 Claude Code 原生引擎，请使用 DSH/Codex。插件和用户配置保留 / This Intel macOS compatibility runtime does not include the Claude Code native engine; use DSH/Codex. Plugin and user settings are retained')
+  }
   if (name === DSH_EMAIL_PACKAGE) {
     const info = packageInfo(profileDirectory, name)
     if (info === null) return result('incompatible', '邮件插件包不完整 / email plugin package is incomplete')
