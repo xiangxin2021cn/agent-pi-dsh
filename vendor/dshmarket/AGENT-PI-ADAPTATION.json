@@ -8,7 +8,7 @@
     "shasum": "71388088b694b6d30dc0caed67fab4aba1283bd4",
     "archiveBytes": 1293697,
     "sourceCommit": "08b83831fd02e8038e3360575647260279aa5e8f",
-    "publishedAt": "2026-10-08T15:08:02.161Z",
+    "publishedAt": "2026-10-16T06:00:22.169Z",
     "adaptation": "vendor/dshmarket/AGENT-PI-ADAPTATION.json",
     "tarball": "https://registry.npmjs.org/dshmarket/-/dshmarket-1.66.28.tgz"
   },

@@ -8,7 +8,7 @@
       "shasum": "71388088b694b6d30dc0caed67fab4aba1283bd4",
       "archiveBytes": 1293697,
       "sourceCommit": "08b83831fd02e8038e3360575647260279aa5e8f",
-      "publishedAt": "2026-10-08T15:08:02.161Z",
+      "publishedAt": "2026-10-16T06:00:22.169Z",
       "adaptation": "vendor/dshmarket/AGENT-PI-ADAPTATION.json"
     },
     {
@@ -19,7 +19,7 @@
       "archiveBytes": 173153,
       "adaptation": "vendor/anysearch-dsh/AGENT-PI-ADAPTATION.json",
       "sourceCommit": "d20ab97727b36b4341977e53d7c9b7d2e93d3d03",
-      "publishedAt": "2026-10-08T09:03:26.329Z"
+      "publishedAt": "2026-10-10T08:56:08.514Z"
     }
   ],
   "injector": {

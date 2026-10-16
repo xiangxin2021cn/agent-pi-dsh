@@ -8706,7 +8706,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				};
 				const last = receipt || !finding && task?.control?.lastAction;
 				const failed = ["blocked", "requires_executor"].includes(last?.dispatch);
-				const stateLabel = paused ? zh ? "任务已暂停；已有依据和成果保留。" : "Task paused; existing evidence and deliverables are preserved." : state.running ? zh ? "执行中；新的调整会交给当前执行器。" : "Running; adjustments go to the current executor." : state.pending ? zh ? "已有任务操作等待执行。" : "A task action is waiting to run." : "";
+				const stateLabel = paused && state.running ? zh ? "自动接续已暂停，当前执行仍在停止或处理中。" : "Automatic continuation is paused; the current execution is still stopping or processing." : paused && state.pending ? zh ? "自动接续已暂停，仍有执行操作待确认。" : "Automatic continuation is paused; an execution action still needs confirmation." : paused ? zh ? "任务已暂停；已有依据和成果保留。" : "Task paused; existing evidence and deliverables are preserved." : state.running ? zh ? "执行中；新的调整会交给当前执行器。" : "Running; adjustments go to the current executor." : state.pending ? zh ? "已有任务操作等待执行。" : "A task action is waiting to run." : "";
 				return h("section", {
 					className: "ap-task-interaction",
 					"aria-label": finding ? zh ? "处理这项发现" : "Respond to this finding" : zh ? "任务交互" : "Task actions",
@@ -8721,11 +8721,11 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					onClick: () => perform("confirm_understanding")
 				}, zh ? "确认当前理解" : "Confirm this understanding"), h("button", {
 					type: "button",
-					disabled: unavailable || !!state.running && !paused,
+					disabled: unavailable || !!state.running,
 					onClick: () => perform("continue")
 				}, paused ? zh ? "继续任务" : "Resume task" : zh ? "继续当前任务" : "Continue task"), h("button", {
 					type: "button",
-					disabled: unavailable || paused || !state.running && !state.pending,
+					disabled: unavailable || !state.running && !state.pending,
 					onClick: () => perform("pause")
 				}, zh ? "暂停执行" : "Pause execution"), h("button", {
 					type: "button",
@@ -8760,7 +8760,11 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 						setEditor("");
 						setText("");
 					}
-				}, zh ? "取消" : "Cancel"))), last?.reason && h("p", {
+				}, zh ? "取消" : "Cancel"))), task?.latestRequest && last?.messageId === task.latestMessageId && [
+					"adjust_request",
+					"replan",
+					"respond_finding"
+				].includes(last?.kind) && h("p", { className: "ap-task-interaction-state" }, zh ? "最近提交的要求：" : "Latest submitted requirements: ", task.latestRequest.length > 420 ? task.latestRequest.slice(0, 420) + "…" : task.latestRequest), last?.reason && h("p", {
 					role: failed ? "alert" : "status",
 					className: failed ? "ap-task-interaction-error" : "ap-task-interaction-state",
 					"data-task-dispatch": last.dispatch
@@ -8886,6 +8890,19 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					binding?.stageId
 				]);
 				if (!binding?.projectId) return null;
+				const resume = async () => {
+					const latest = await api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(sessionId)}`, cwd());
+					await onChanged?.(latest);
+					const next = await onUserAction({
+						sessionId,
+						revision: latest.task.revision,
+						operationId: crypto.randomUUID(),
+						command: { kind: "continue" }
+					});
+					if (!next?.task || !next.interaction) throw new Error(zh ? "阶段已批准，但尚未收到续跑回执。" : "Stage approved; no continuation receipt was returned.");
+					setContinuation(next.interaction);
+					await onChanged?.(next);
+				};
 				const approve = async () => {
 					if (!review?.binding?.approvalFingerprint || busy || approving.current || binding.canApprove === false || task?.pendingProjectSync) return;
 					approving.current = true;
@@ -8905,18 +8922,8 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 						});
 						setApproved(true);
 						setReview(null);
-						if (onUserAction) {
-							const latest = await api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(sessionId)}`, cwd());
-							await onChanged?.(latest);
-							const next = await onUserAction({
-								sessionId,
-								revision: latest.task.revision,
-								operationId: crypto.randomUUID(),
-								command: { kind: "continue" }
-							});
-							setContinuation(next.interaction);
-							await onChanged?.(next);
-						} else await onChanged?.();
+						if (onUserAction) await resume();
+						else await onChanged?.();
 					} catch (e) {
 						setError(e.message);
 					} finally {
@@ -8927,10 +8934,27 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				return h("div", { className: "ap-task-stage-controls" }, onOpenWorkbench && h("button", {
 					type: "button",
 					onClick: () => onOpenWorkbench(binding, sessionId)
-				}, approved ? zh ? "前往工作台继续" : "Continue in the workbench" : zh ? "查看工作台阶段" : "View workbench stage"), approved && h("p", {
+				}, zh ? "查看工作台阶段" : "View workbench stage"), approved && h("p", {
 					role: "status",
 					className: "ap-task-summary-muted"
-				}, zh ? "阶段批准已记录。" : "Stage approval was recorded."), continuation?.reason && h("p", { role: ["blocked", "requires_executor"].includes(continuation.dispatch) ? "alert" : "status" }, continuation.reason), error && !review && h("p", { role: "alert" }, error), binding.approvalGate && (binding.canApprove === false || binding.waitingHuman !== false) && h("button", {
+				}, zh ? "阶段批准已记录。" : "Stage approval was recorded."), continuation?.reason && h("p", { role: ["blocked", "requires_executor"].includes(continuation.dispatch) ? "alert" : "status" }, continuation.reason), approved && onUserAction && (error || ["blocked", "requires_executor"].includes(continuation?.dispatch)) && h("button", {
+					type: "button",
+					disabled: busy,
+					onClick: async () => {
+						if (approving.current) return;
+						approving.current = true;
+						setBusy(true);
+						setError("");
+						try {
+							await resume();
+						} catch (e) {
+							setError(e.message);
+						} finally {
+							approving.current = false;
+							setBusy(false);
+						}
+					}
+				}, zh ? "重试继续当前任务" : "Retry continuing this task"), error && !review && h("p", { role: "alert" }, error), binding.approvalGate && (binding.canApprove === false || binding.waitingHuman !== false) && h("button", {
 					type: "button",
 					disabled: busy || binding.canApprove === false,
 					title: binding.approvalReason,
@@ -17319,6 +17343,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			const session = sessionSnapshotWithChat(id, codexTurnAuthorities(id)?.session);
 			const cwd = professionalTasks.get(id)?.binding?.cwd || nativeCodex.current(id).cwd || session?.cwd || session?.header?.cwd || workspaceCwd({ sessionId: id });
 			const executor = nativeCodex.busy(id) || nativeCodex.enabled(id) ? "codex" : "dsh";
+			if (executor === "codex" && !window.agentPiDesktop?.codexTaskAction) throw new Error("原生任务操作需要更新后的桌面应用，请在桌面端打开此对话。");
 			let result = await api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(id)}`, cwd, {
 				method: "POST",
 				body: JSON.stringify({
@@ -17331,16 +17356,14 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				})
 			});
 			if (result.interaction?.dispatch === "requires_executor") {
-				const auth = await window.agentPiDesktop?.codexAuthStatus?.();
 				const controller = codexTurnController({ sessionId: id }, false);
-				const selection = resolveCodexTurnSelection(auth || {}, controller?.selectedModel, controller?.selectedReasoningEffort);
 				result = await nativeCodex.taskAction({
 					sessionId: id,
 					cwd,
 					operationId: payload.operationId,
 					kind: payload.command.kind,
-					model: selection.model,
-					reasoningEffort: selection.reasoningEffort
+					model: controller?.selectedModel || void 0,
+					reasoningEffort: controller?.selectedReasoningEffort || void 0
 				});
 			}
 			if (result?.task) rememberProfessionalTask(id, result.task, result.binding);
