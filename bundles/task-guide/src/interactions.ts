@@ -127,7 +127,7 @@ export function createTaskInteractions(ctx: any, hooks: any) {
       const useNative = nativeState?.active || nativeState?.pending || command.executor === 'codex'
       const noGoal = !task.latestRequest.trim() && !task.brief.objective.trim() && !task.binding && !task.control.parked?.some(row => row.message.source.kind === 'user' && row.message.content.some((part: any) => part.type === 'text' && part.text?.trim()))
       const blocked = (kind === 'continue' || kind === 'replan' && !command.text?.trim()) && noGoal ? '请先在主对话说明任务目标，再继续或重新规划。'
-        : !['pause', 'confirm_understanding'].includes(kind) && useNative && !nativeState?.active && (agent.status === 'running' || agent.inbox?.hasPending) ? 'DSH 正在执行或有待处理消息，请先停止或等待，再切换到 Codex。'
+        : !['pause', 'confirm_understanding'].includes(kind) && useNative && !nativeState?.active && (status.interactionState.running || agent.inbox?.hasPending) ? 'DSH 正在执行或有待处理消息，请先停止或等待，再切换到 Codex。'
         : kind === 'continue' && task.pendingProjectSync ? '最新任务要求尚未同步，暂不能继续。'
           : kind === 'continue' && status.binding?.waitingHuman ? '当前阶段正在等待用户明确审批，请先查看并决定当前阶段。'
             : kind === 'continue' && task.questions.some(row => row.provider && !row.answer && ['open', 'pending', 'continued'].includes(row.status || '')) ? '有原生问题仍待回答，请先在主对话问答卡中处理；继续不会替你作答。' : undefined
@@ -166,12 +166,20 @@ export function createTaskInteractions(ctx: any, hooks: any) {
         const runtime = runtimePause(task, false)
         if (useNative) runtimePause(task, true)
         if (runtime && ['blocked', 'needs_review'].includes(runtime.phase)) throw new Error(runtime.reason)
+        const existingGoal = ctx.get('goals')?.get?.(agent)
+        if (existingGoal?.roundsStarted >= existingGoal?.maxGoalRounds) throw new Error('当前目标的执行轮次预算已耗尽，请先调整预算后继续。')
         if (task.binding && !task.control.parked?.length && agent.status !== 'running' && !nativeState?.active && !agent.inbox?.hasPending) {
           const bound = project(task)
           continuation = bound && resumeUnfinished(task.binding.cwd!, bound, getKbTaskSlugs(id), { sessionId: id })
           if (continuation?.blocked) throw new Error(continuation.blocked)
           if (continuation?.done) {
             action = { ...action, dispatch: 'recorded', reason: continuation.message || '工作台所有阶段已完成。' }; finish(id, action, false); return result(id, action)
+          }
+          if (continuation?.alreadyDispatched) {
+            const stageId = continuation.stageId, key = continuation.board?.stages[stageId]?.dispatch?.key
+            const original = key && await ctx.get('longTaskRuntime')?.prepared?.(task.binding.cwd!, bound, id, { stageId, key })
+            if (!original?.draft || !original.dispatch) throw new Error('原阶段稿尚未由宿主确认或已失效，请重新读取工作台核对；未发送泛化继续。')
+            continuation = { ...continuation, ...original }
           }
           if (continuation?.draft && continuation.dispatch && !useNative && ctx.get('longTaskRuntime')) {
             const runtimeService = ctx.get('longTaskRuntime')
@@ -182,7 +190,6 @@ export function createTaskInteractions(ctx: any, hooks: any) {
           }
         }
         const goals = ctx.get('goals'), goal = goals?.get?.(agent)
-        if (useNative && goal?.roundsStarted >= goal?.maxGoalRounds) throw new Error('当前目标的执行轮次预算已耗尽，请先调整预算后继续。')
         if (!useNative && goal && (['paused', 'blocked'].includes(goal.phase) || goal.phase === 'active' && goal.activation === 'disarmed')) goals.resume(agent, { id: goal.id, revision: goal.revision })
         if (!useNative) restoreInputs(task)
       }

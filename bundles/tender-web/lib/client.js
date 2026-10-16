@@ -16274,6 +16274,43 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				setBusy(action + ":" + (stageId || ""));
 				setError("");
 				setNotice("");
+				const continueTask = () => {
+					rememberWorkbenchBinding(parentId, {
+						cwd,
+						module: project.module,
+						projectId: project.projectId
+					});
+					ensureUserRequirementWatcher(parentId);
+					return api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(parentId)}`, cwd).then((latest) => performTaskUserAction({
+						sessionId: parentId,
+						revision: latest.task.revision,
+						operationId: crypto.randomUUID(),
+						command: { kind: "continue" }
+					})).then((started) => {
+						if ([
+							"blocked",
+							"requires_executor",
+							"prepared"
+						].includes(started.interaction?.dispatch)) setError(started.interaction.reason);
+						else {
+							setNotice(started.interaction?.reason || "执行器已接收当前阶段任务。");
+							if (nativeCodex.enabled(parentId)) {
+								if (closeWorkbench !== false) props.openView?.("agent-pi-codex-main", "");
+							} else {
+								monitorEngine.restore({
+									cwd,
+									module: project.module,
+									projectId: project.projectId
+								}, parentId);
+								if (closeWorkbench !== false) focusMainConversation(props);
+							}
+						}
+						return refresh();
+					}).catch((error) => {
+						setError(error.message);
+						return refresh();
+					});
+				};
 				if (submit && !parentId) {
 					setBusy("");
 					setError("请先打开或新建一个主会话，再启动专业项目。");
@@ -16299,6 +16336,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 						return refresh();
 					}
 					if (result.alreadyDispatched) {
+						if (submit && capabilities.taskGuide) return continueTask();
 						if (submit) {
 							monitorEngine.restore({
 								cwd,
@@ -16325,32 +16363,13 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 						if (!result.closed) fillComposer(props, result.draft);
 						return refresh();
 					}
+					if (capabilities.taskGuide) return continueTask();
 					rememberWorkbenchBinding(parentId, {
 						cwd,
 						module: project.module,
 						projectId: project.projectId
 					});
 					ensureUserRequirementWatcher(parentId);
-					if (nativeCodex.enabled(parentId)) return api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(parentId)}`, cwd).then((latest) => performTaskUserAction({
-						sessionId: parentId,
-						revision: latest.task.revision,
-						operationId: crypto.randomUUID(),
-						command: { kind: "continue" }
-					})).then((started) => {
-						if ([
-							"blocked",
-							"requires_executor",
-							"prepared"
-						].includes(started.interaction?.dispatch)) setError(started.interaction.reason);
-						else {
-							setNotice(started.interaction?.reason || "Codex 已接收当前阶段任务。");
-							if (closeWorkbench !== false) props.openView?.("agent-pi-codex-main", "");
-						}
-						return refresh();
-					}).catch((error) => {
-						setError(error.message);
-						return refresh();
-					});
 					return api("/api/agent-pi/stage", cwd, {
 						method: "POST",
 						body: JSON.stringify({
@@ -16618,9 +16637,8 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				}, Icon("square", 14), workbenchText("暂停事务")) : monitoringHere && monitorState.paused ? h("button", {
 					type: "button",
 					className: "ap-btn ghost",
-					onClick: () => {
-						monitorEngine.unpause().then(() => refresh(true));
-					}
+					disabled: !!busy,
+					onClick: () => capabilities.taskGuide ? runStage(project, item.currentStageId, "resume", true, false) : monitorEngine.unpause().then(() => refresh(true))
 				}, Icon("play", 14), workbenchText("恢复事务")) : null)), monitoringHere && monitorState.runtime?.run ? h("div", { className: "ap-state-body" }, h("p", null, "宿主执行：" + monitorState.runtime.phase + " · 父子模型轮次 " + monitorState.runtime.run.usage.rounds + "/" + monitorState.runtime.run.limits.maxRounds + " · token " + (monitorState.runtime.run.usage.unknownTokens ? "待核对（已知 " + monitorState.runtime.run.usage.tokens + "）" : monitorState.runtime.run.usage.tokens) + "/" + monitorState.runtime.run.limits.maxTokens + " · 累计执行 " + Math.round(monitorState.runtime.run.usage.elapsedMs / 6e4) + "/" + Math.round(monitorState.runtime.run.limits.maxElapsedMs / 6e4) + " 分钟 · 费用 " + (monitorState.runtime.cost === "unknown" ? "未知" : "$" + monitorState.runtime.cost.toFixed(4))), h("p", { className: "ap-sub" }, "连续无实际进展 " + monitorState.runtime.run.noProgress + "/" + monitorState.runtime.run.limits.maxNoProgress + " · 子任务收件 " + monitorState.runtime.run.submissions.filter((row) => row.status === "received").length + " · 失效/拒绝 " + monitorState.runtime.run.submissions.filter((row) => row.status !== "received").length + " · 收到成果仍须独立核验和用户验收。")) : null, h("details", { className: "ap-sec" }, h("summary", null, "本次显式启动的执行预算"), h("div", {
 					className: "ap-row",
 					style: {

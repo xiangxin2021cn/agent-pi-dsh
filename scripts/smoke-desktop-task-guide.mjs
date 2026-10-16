@@ -12,6 +12,7 @@ const root = process.cwd()
 const packagedExe = process.env.AGENT_PI_TASK_GUIDE_SMOKE_EXE ? resolve(process.env.AGENT_PI_TASK_GUIDE_SMOKE_EXE) : ''
 const startupOnly = process.env.AGENT_PI_TASK_GUIDE_SMOKE_STARTUP_ONLY === '1'
 const interactionsOnly = process.env.AGENT_PI_TASK_GUIDE_SMOKE_INTERACTIONS_ONLY === '1'
+const workbenchOnly = process.env.AGENT_PI_TASK_GUIDE_SMOKE_WORKBENCH_ONLY === '1'
 const resources = packagedExe ? join(dirname(packagedExe), 'resources') : ''
 const productRoot = packagedExe ? join(resources, 'runtime', 'product') : root
 const dshRoot = packagedExe ? join(resources, 'runtime', 'deepseek-harness') : join(root, 'vendor', 'deepseek-harness')
@@ -257,8 +258,7 @@ async function reloadQaSession(nextPhase) {
   phase = nextPhase
   const afterSnapshot = sessionSnapshots.length
   await page.reload()
-  await clickOptional(/继续|Continue/i)
-  await clickOptional(/稍后配置|Configure later/i)
+  await dismissInitialSetup()
   await waitForSelectedSession('qa-guided-task', afterSnapshot)
 }
 
@@ -280,6 +280,16 @@ async function clickOptional(pattern, timeout = 3_000) {
     .then(() => true)
     .catch(() => false)
   if (visible) await button.click()
+}
+
+async function dismissInitialSetup() {
+  // The preview notice precedes the account dialog in the official ordered flow.
+  await clickOptional(/^(继续|Continue)$/i)
+  await clickOptional(/^(稍后配置|Configure later)$/i)
+  // alpha.4 account onboarding has an explicit close action. Closing it does
+  // not log in or create credentials; the fixture uses local native tools only.
+  const account=page.getByRole('dialog',{name:/^(开始使用|Get started)$/i})
+  if(await account.waitFor({state:'visible',timeout:Math.min(5_000,remaining())}).then(()=>true).catch(()=>false))await account.getByRole('button',{name:/^(关闭|Close)$/i}).click()
 }
 
 async function runSmoke() {
@@ -336,8 +346,7 @@ try {
     { timeout: remaining() },
   )
   await page.locator('[data-slot="sidebar"]').waitFor({ state: 'visible', timeout: remaining() })
-  await clickOptional(/继续|Continue/i)
-  await clickOptional(/稍后配置|Configure later/i, 5_000)
+  await dismissInitialSetup()
 
   phase = 'select-workspace'
   const workspaceChooser = page.getByRole('textbox', { name: /选择工作区|Choose workspace/i }).first()
@@ -480,6 +489,8 @@ try {
   assert.equal(responded.task.findings.find(row=>row.id==='period-conflict').status,'open')
   await page.waitForFunction(async messageId=>{const state=await(await fetch('/api/agent-pi/qa-task-tool')).json();return state.received.some(row=>row.id===messageId)},responded.interaction.messageId,{timeout:Math.min(20_000,remaining())})
   await captureScreenshot(join(artifactDir,'27-task-actions-chat-383.png'))
+  const interactionReceipts={sessionId:'qa-guided-task',adjustment:{interaction:adjusted.interaction,latestRequest:adjusted.task.latestRequest,latestMessageId:adjusted.task.latestMessageId,nativePreStep:actualAdjustment.received.find(row=>row.id===adjusted.interaction.messageId)},pause:{interaction:pausedAction.interaction,control:pausedAction.task.control},continued:{interaction:continued.interaction,control:continued.task.control,latestRequest:continued.task.latestRequest},finding:{interaction:responded.interaction,status:responded.task.findings.find(row=>row.id==='period-conflict').status}}
+  writeFileSync(join(artifactDir,'30-task-interaction-native-receipts.json'),JSON.stringify(interactionReceipts,null,2),'utf8')
   console.log(JSON.stringify({phase:'task-interaction-383',status:'ok',checks:['exact-ui-text-to-native-pre-step','shared-task-directives','cross-view-pause','pause-reload-persistence','continue-retains-goal','finding-response-does-not-resolve'],artifactDir}))
   if(interactionsOnly){assert.deepEqual(pageErrors,[]);assert.deepEqual(consoleErrors,[]);return}
   await page.getByRole('tab',{name:'Codex',exact:true}).click()
@@ -716,17 +727,40 @@ try {
   const offered=await request(stageUrl,{...stageBody,action:'resume'})
   assert.ok(offered.draft&&offered.dispatch?.key,'actual stage HTTP registers a trusted native dispatch offer')
   assert.equal(offered.dispatch.stageId,'tender-document-analysis')
+  // A shared pause must be cleared by the real workbench Continue control,
+  // including the already-offered stage path; no direct dispatch shortcut.
+  await request('/api/agent-pi/qa-task-tool',{action:'run',control:true,text:'QA 已登记阶段的原生等待步骤'})
+  await trigger.click()
+  await dialog.getByRole('tab',{name:'任务概览',exact:true}).click()
+  await page.waitForFunction(()=>{const button=[...document.querySelectorAll('.ap-task-guide button')].find(row=>row.textContent==='暂停执行');return button&&!button.disabled},undefined,{timeout:20_000})
+  const workbenchPauseResponse=actionResponse('pause')
+  await dialog.getByRole('button',{name:'暂停执行',exact:true}).click()
+  const workbenchPause=await(await workbenchPauseResponse).json()
+  assert.equal(workbenchPause.interaction.dispatch,'paused',workbenchPause.interaction.reason)
+  assert.equal(workbenchPause.task.control.paused,true)
+  await request('/api/agent-pi/qa-task-tool',{action:'finish'})
+  await captureScreenshot(join(artifactDir,'28-task-pause-before-workbench-continue.png'))
   await request('/api/agent-pi/qa-task-tool',{action:'hold'})
-  const dispatched=await request(stageUrl,{...stageBody,action:'runtime_dispatch',key:offered.dispatch.key})
+  await page.getByRole('tab',{name:'专业化工作台',exact:true}).click()
+  await linkedWorkbench.getByRole('heading',{name:'真实工作台联动 QA',exact:true}).waitFor({timeout:20_000})
+  const workbenchContinueResponse=actionResponse('continue')
+  await linkedWorkbench.getByRole('button',{name:'继续推进',exact:true}).click()
+  const workbenchContinue=await(await workbenchContinueResponse).json()
+  assert.ok(['queued','steered'].includes(workbenchContinue.interaction.dispatch),workbenchContinue.interaction.reason)
+  assert.equal(workbenchContinue.task.control.paused,false,'workbench resume clears the same task pause flag')
+  const dispatched=await request(stageUrl,{...stageBody,action:'runtime_status'})
   assert.equal(dispatched.runtime.phase,'waiting')
   const attempt=dispatched.runtime.attempt
   assert.equal(attempt.status,'dispatched');assert.ok(attempt.messageId)
+  assert.equal(attempt.key,offered.dispatch.key,'the workbench reuses the existing trusted stage offer')
   const nativeReceipt=await request('/api/agent-pi/qa-task-tool',{action:'native_receipt',messageId:attempt.messageId})
   assert.equal(resolve(nativeReceipt.cwd),resolve(workspace))
   assert.ok(nativeReceipt.events.some(event=>event.type==='agent/inbox/spliced'&&event.data.inserted.some(row=>row.id===attempt.messageId)),'durable dispatch identity exists in the actual native inbox')
   const nativeMessage=nativeReceipt.events.find(event=>event.type==='user/message'&&event.data.id===attempt.messageId)
   assert.ok(nativeMessage,'the dispatched attempt is claimed into the actual native conversation')
   assert.equal(nativeMessage.data.source.kind,'plugin:tender-host')
+  writeFileSync(join(artifactDir,'29-workbench-shared-continue-native-receipt.json'),JSON.stringify({offered,workbenchPause,workbenchContinue,dispatched,nativeReceipt},null,2),'utf8')
+  console.log(JSON.stringify({phase:'task-pause-to-workbench-continue-383',status:'ok',attemptId:attempt.id,messageId:attempt.messageId,checks:['shared-pause-cleared','actual-workbench-button','already-offered-stage-reused','native-stage-message']}))
   const actualNativeRead=await runTool('session_event_read',{session_id:'qa-guided-task',seq:nativeMessage.seq})
   assert.ok(actualNativeRead.text.includes(attempt.messageId))
   assert.match(actualNativeRead.text,/plugin:tender-host/)
@@ -753,6 +787,7 @@ try {
   assert.equal(finalReceipt.events.filter(event=>event.type==='user/message').length,1,'the exact native message is never sent twice')
   writeFileSync(join(artifactDir,'10-host-runtime-native-receipt.json'),JSON.stringify({offered,dispatched,nativeReceipt,actualNativeRead,restored,pausedReload,finalReceipt},null,2),'utf8')
   console.log(JSON.stringify({phase:'durable-host-runtime-native-dispatch-reload-pause',status:'ok',attemptId:attempt.id,messageId:attempt.messageId}))
+  if(workbenchOnly){assert.deepEqual(pageErrors,[]);assert.deepEqual(consoleErrors,[]);return}
    // 5.8: actual independent providers, shared engineering records and the native views.
    phase = 'engineering-provider-and-three-views'
    let engineering = await runTool('engineering_project', {action:'status'})

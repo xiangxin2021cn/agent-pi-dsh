@@ -8,7 +8,7 @@ import { Readable } from 'node:stream'
 import { createRequire } from 'node:module'
 import { createTaskStore } from '../../../packages/professional-tasks/task.ts'
 import { createBusinessProject } from '../../../packages/business-projects/index.ts'
-import { bindProjectSession, loadBoard, saveBoard } from '../../tender-host/src/orchestration.ts'
+import { bindProjectSession, loadBoard, saveBoard, resumeUnfinished } from '../../tender-host/src/orchestration.ts'
 import { listUserRequirements } from '../../tender-host/src/user-requirements.ts'
 import { officialStageDir } from '../../tender-host/src/outputs.ts'
 import { updateSessionExecution } from '../../tender-host/src/execution-ledger.ts'
@@ -55,7 +55,7 @@ function fixture(t: any) {
     await routes.find(route => route.path === '/api/agent-pi/professional-task').handler(request, { writeHead(code: number) { status = code }, end(body: string) { value = JSON.parse(body) } })
     return { status, value }
   }
-  return { cwd, sessions, agents, services, sent, cancellations, listeners, service, call, admit, main, projection, events, sections, fs, http, store: createTaskStore(cwd) }
+  return { cwd, ctx, sessions, agents, services, sent, cancellations, listeners, service, call, admit, main, projection, events, sections, fs, http, store: createTaskStore(cwd) }
 }
 
 function nativeGate(t: any) {
@@ -1106,6 +1106,7 @@ async function useOfficialInbox(f: any, agent = f.main) {
   agent.session.append = (type: string, data: any) => {
     const event = { type, data, seq: sequence++, time: Date.now() }
     state = inboxProjectionDefinition.apply(state, event as any)
+    agent.session.seq = sequence
     f.listeners.get('session/event')?.(agent.session, event)
     return event
   }
@@ -1226,4 +1227,80 @@ test('official enqueue admits human chronology durably and late claim replay can
   f.service.admitHumanMessage('main', b.content[0].text, b.id)
   assert.equal(createTaskStore(f.cwd).read('main').latestMessageId, c.id, 'durable admission survives a late or repeated claim')
   assert.throws(() => f.service.admitHumanMessage('main', 'forged different text', b.id), /同一操作编号|同一用户消息编号/)
+})
+
+
+for (const [executor, exhausted] of [['dsh', false], ['codex', false], ['dsh', true]] as const) test(`workbench preview then shared continue reuses the actual host stage offer for ${executor}${exhausted ? ' with exhausted existing goal' : ''}`, async t => {
+  const { registerLongTaskHost } = await import('../../tender-host/src/long-task-host.ts')
+  const f = fixture(t), inbox = await useOfficialInbox(f)
+  f.admit('按照当前专业阶段核验工程资料', 'stage-goal')
+  const workflow = { id: 'offered-stage', module: 'delivery', label: 'Inspection', labelZh: '检查', stages: [{ id: 'first', label: 'First', labelZh: '当前专业检查', hintZh: '', prompt: 'Inspect only actual current engineering files and preserve findings', skillSlugs: [], consumes: [] }] }
+  const project = createBusinessProject({ workspaceRootPath: f.cwd, rootPath: f.cwd, createDirectory: false, module: workflow.module, projectId: 'offered-stage', name: 'Offered stage', workflowId: workflow.id, workflowSnapshot: workflow })
+  bindProjectSession(f.cwd, project, 'main', 'first')
+  saveBoard(f.cwd, { schemaVersion: 2, projectId: project.projectId, module: project.module, currentStageId: 'first', stages: { first: { stageId: 'first', status: 'running', tasks: [{ id: 'inspect', title: 'Check current engineering files', status: 'queued' }], updatedAt: new Date().toISOString() } }, updatedAt: new Date().toISOString() })
+  f.services.get('sessions').flush = async () => true
+  f.ctx.effect = (install: any) => t.after(install())
+  const host = registerLongTaskHost(f.ctx, input => ({ ...input, role: 'user', id: 'real-stage-native-message' }))
+  const first = resumeUnfinished(f.cwd, project, [], { sessionId: 'main' })
+  assert.ok(first.draft && first.dispatch)
+  host.offer(f.cwd, project, 'main', first as any)
+  const second = resumeUnfinished(f.cwd, project, [], { sessionId: 'main' })
+  assert.equal(second.alreadyDispatched, true)
+  assert.equal(second.draft, undefined, 'the second preview intentionally contains no new draft')
+  let current = (await f.call('status')).task
+  current = f.store.update('main', { control: { ...current.control, paused: true } }, current.revision, 'host')
+  if (exhausted) f.services.set('goals', { get: () => ({ id: 'bound-goal', revision: 4, phase: 'paused', roundsStarted: 4, maxGoalRounds: 4 }), resume: () => assert.fail('exhausted goal cannot be resumed') })
+  const nativeCalls: any[] = []
+  if (executor === 'codex') f.services.set('nativeTaskExecutor', { status: () => ({ active: false }), dispatch: async (input: any) => { nativeCalls.push(input); return { dispatch: 'requires_executor', reason: 'Waiting for Codex stage execution' } } })
+  const actual = await f.http('POST', { action: 'user_action', operationId: 'reuse-stage-offer', revision: current.revision, command: { kind: 'continue', executor } })
+  if (exhausted) {
+    assert.equal(actual.value.interaction.dispatch, 'blocked')
+    assert.match(actual.value.interaction.reason, /预算已耗尽/)
+    assert.equal(inbox.hasPending, false)
+    assert.equal(actual.value.task.control.paused, true)
+    return
+  }
+  if (executor === 'codex') {
+    assert.equal(actual.value.interaction.dispatch, 'requires_executor', actual.value.interaction.reason)
+    assert.equal(nativeCalls[0].message.content[0].text, first.draft)
+    assert.equal(inbox.hasPending, false, 'native continuation never dispatches the DSH stage')
+    assert.equal(actual.value.task.control.paused, true, 'native acknowledgement remains necessary')
+    return
+  }
+  assert.equal(actual.value.interaction.dispatch, 'queued', actual.value.interaction.reason)
+  assert.equal(actual.value.task.control.paused, false)
+  assert.equal(inbox.nextTurn[0].id, 'real-stage-native-message')
+  assert.equal(inbox.nextTurn[0].content[0].text, first.draft)
+  assert.equal(inbox.nextTurn.length, 1, 'shared continue does not add a second generic writer')
+  await assert.rejects(() => host.prepared(f.cwd, project, 'main', first.dispatch!), /等待|尚未|结算/)
+})
+
+test('expired or missing stage offer blocks shared continue instead of inventing a generic stage request', async t => {
+  const f = fixture(t)
+  f.admit('继续核验专业阶段', 'stage-purpose')
+  const workflow = { id: 'missing-offer', module: 'delivery', label: 'Inspection', labelZh: '检查', stages: [{ id: 'first', label: 'First', labelZh: '当前检查', hintZh: '', prompt: 'Inspect actual files', skillSlugs: [], consumes: [] }] }
+  const project = createBusinessProject({ workspaceRootPath: f.cwd, rootPath: f.cwd, createDirectory: false, module: workflow.module, projectId: 'missing-offer', name: 'Missing offer', workflowId: workflow.id, workflowSnapshot: workflow })
+  bindProjectSession(f.cwd, project, 'main', 'first')
+  const preview = resumeUnfinished(f.cwd, project, [], { sessionId: 'main' })
+  assert.ok(preview.dispatch)
+  f.services.set('longTaskRuntime', { pause: () => ({ phase: 'inactive' }), prepared: () => { throw new Error('阶段预览已过期或未由宿主登记') } })
+  const task = (await f.call('status')).task
+  const next = await f.http('POST', { action: 'user_action', operationId: 'missing-original-offer', revision: task.revision, command: { kind: 'continue' } })
+  assert.equal(next.value.interaction.dispatch, 'blocked')
+  assert.match(next.value.interaction.reason, /预览已过期/)
+  assert.equal(f.sent.length, 0)
+})
+
+
+test('switching an idle parent to native execution is blocked while its DSH child still runs', async t => {
+  const f = fixture(t), calls: any[] = []
+  f.admit('核验当前专业项目', 'native-child-boundary')
+  const child = { id: 'active-child', header: { cwd: f.cwd, parentSession: 'main' } }
+  f.sessions.set(child.id, child)
+  f.agents.set(child.id, { session: child, status: 'running' })
+  f.services.set('nativeTaskExecutor', { status: () => ({ active: false }), dispatch: (input: any) => { calls.push(input); return { dispatch: 'requires_executor', reason: 'Waiting for native executor' } } })
+  const next = await f.http('POST', { action: 'user_action', operationId: 'native-with-active-child', revision: f.store.read('main').revision, command: { kind: 'continue', executor: 'codex' } })
+  assert.equal(next.value.interaction.dispatch, 'blocked')
+  assert.equal(calls.length, 0)
+  assert.equal(f.sent.length, 0)
 })

@@ -4938,6 +4938,23 @@ const SearchSettings = createSearchSettings(React)
         setBusy(action + ':' + (stageId || ''))
         setError('')
         setNotice('')
+        const continueTask = () => {
+          rememberWorkbenchBinding(parentId, { cwd, module: project.module, projectId: project.projectId })
+          ensureUserRequirementWatcher(parentId)
+          return api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(parentId)}`, cwd).then(latest => performTaskUserAction({ sessionId: parentId, revision: latest.task.revision, operationId: crypto.randomUUID(), command: { kind: 'continue' } })).then(started => {
+            if (['blocked', 'requires_executor', 'prepared'].includes(started.interaction?.dispatch)) setError(started.interaction.reason)
+            else {
+              setNotice(started.interaction?.reason || '执行器已接收当前阶段任务。')
+              if (nativeCodex.enabled(parentId)) {
+                if (closeWorkbench !== false) props.openView?.('agent-pi-codex-main', '')
+              } else {
+                monitorEngine.restore({ cwd, module: project.module, projectId: project.projectId }, parentId)
+                if (closeWorkbench !== false) focusMainConversation(props)
+              }
+            }
+            return refresh()
+          }).catch(error => { setError(error.message); return refresh() })
+        }
         if (submit && !parentId) {
           setBusy('')
           setError('请先打开或新建一个主会话，再启动专业项目。')
@@ -4965,6 +4982,7 @@ const SearchSettings = createSearchSettings(React)
             return refresh()
           }
           if (result.alreadyDispatched) {
+            if (submit && capabilities.taskGuide) return continueTask()
             if (submit) {
               monitorEngine.restore({ cwd, module: project.module, projectId: project.projectId }, parentId)
               if (closeWorkbench !== false) focusMainConversation(props)
@@ -4989,18 +5007,9 @@ const SearchSettings = createSearchSettings(React)
             if (!result.closed) fillComposer(props, result.draft)
             return refresh()
           }
+          if (capabilities.taskGuide) return continueTask()
           rememberWorkbenchBinding(parentId, { cwd, module: project.module, projectId: project.projectId })
           ensureUserRequirementWatcher(parentId)
-          if (nativeCodex.enabled(parentId)) {
-            return api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(parentId)}`, cwd).then(latest => performTaskUserAction({ sessionId: parentId, revision: latest.task.revision, operationId: crypto.randomUUID(), command: { kind: 'continue' } })).then(started => {
-              if (['blocked', 'requires_executor', 'prepared'].includes(started.interaction?.dispatch)) setError(started.interaction.reason)
-              else {
-                setNotice(started.interaction?.reason || 'Codex 已接收当前阶段任务。')
-                if (closeWorkbench !== false) props.openView?.('agent-pi-codex-main', '')
-              }
-              return refresh()
-            }).catch(error => { setError(error.message); return refresh() })
-          }
           return api('/api/agent-pi/stage', cwd, {
             method: 'POST', body: JSON.stringify({ action: 'runtime_dispatch', module: project.module,
               projectId: project.projectId, sessionId: parentId,
@@ -5318,7 +5327,8 @@ const SearchSettings = createSearchSettings(React)
                     ? h('button', {
                       type: 'button',
                       className: 'ap-btn ghost',
-                      onClick: () => { void monitorEngine.unpause().then(() => refresh(true)) },
+                      disabled: !!busy,
+                      onClick: () => capabilities.taskGuide ? runStage(project, item.currentStageId, 'resume', true, false) : monitorEngine.unpause().then(() => refresh(true)),
                 }, Icon('play', 14), workbenchText('恢复事务'))
                     : null,
               ),

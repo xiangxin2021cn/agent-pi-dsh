@@ -157,6 +157,26 @@ export function registerLongTaskHost(ctx: any, createUserMessage: (input: any) =
       for (const [key, row] of offers) if (row.expires < Date.now()) offers.delete(key)
       offers.set(offerKey(cwd, project, sessionId, input.dispatch.key), { ...input, fingerprint: approvalStageFingerprint(cwd, project, input.dispatch.stageId), expires: Date.now() + 90_000 })
     },
+    async prepared(cwd: string, project: any, sessionId: string, input: { stageId: string; key: string }) {
+      project = freshProject(cwd, project)
+      bound(cwd, project, sessionId); assertModuleEnabled(project.module)
+      if (busy.has(sessionId)) throw new Error('本会话已有宿主派发事务。')
+      const wasPaused = longTaskStatus(cwd, project, sessionId).run?.paused
+      busy.add(sessionId)
+      try {
+        if (wasPaused) pauseLongTask(cwd, project, sessionId, false)
+        const status = await service.status(cwd, project, sessionId)
+        if (status.phase === 'ready' && status.attempt?.status === 'prepared' && status.attempt.stageId === input.stageId) return { draft: status.attempt.draft, dispatch: { stageId: status.attempt.stageId, key: status.attempt.key } }
+        const attempt = status.attempt
+        if (status.run && (attempt?.externalEffectsUnknown || attempt?.pendingToolCalls?.length || Object.values(attempt?.children || {}).some((child: any) => !child.settledAt) || ['dispatching', 'dispatched'].includes(attempt?.status || '') || ['blocked', 'waiting'].includes(status.phase))) throw new Error(status.reason || '上一尝试尚未核对结算，不能重复执行。')
+        const offer = offers.get(offerKey(cwd, project, sessionId, input.key))
+        if (!offer || offer.expires < Date.now() || offer.dispatch.stageId !== input.stageId || offer.fingerprint !== approvalStageFingerprint(cwd, project, input.stageId)) throw new Error(status.phase === 'needs_review' ? status.reason : '阶段预览已过期或未由宿主登记，请读取最新工作台后继续。')
+        if (!status.run && loadBoard(cwd, project.projectId, project.module).stages[input.stageId]?.dispatch?.dispatchedAt) throw new Error('旧派发缺少宿主结算收据，请先核对原执行结果。')
+        return { draft: offer.draft, dispatch: { ...offer.dispatch } }
+      } finally {
+        try { if (wasPaused) pauseLongTask(cwd, project, sessionId, true) } finally { busy.delete(sessionId) }
+      }
+    },
     registerAssignments: assignments,
     async status(cwd: string, project: any, sessionId: string) {
       project = freshProject(cwd, project)
