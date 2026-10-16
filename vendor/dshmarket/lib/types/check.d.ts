@@ -286,6 +286,27 @@ interface Composed {
  */
 export declare function composeLayers(layers: LayerInput[]): Composed;
 /**
+ * Whether two rows sharing one loader id still stop the boot (#853).
+ *
+ * It depends on the loader, and the loader changed: up to
+ * `cordis-plugin-loader@1.0.3` `EntryGroup.update` threw
+ * `duplicate loader entry id` for a config array holding one id twice
+ * (measured against the published packages — 1.0.3 has the throw, 1.0.4 and
+ * 1.0.5 do not). From 1.0.4 the same array is folded into a Map keyed by id,
+ * so the LATER row wins and the earlier one is silently dropped.
+ *
+ * The market's rule was written against the old loader (#122: two bundles on
+ * one id really did refuse to start), and it is right on one. On a new one it
+ * is not a boot failure but a silent override — which is worth SAYING and not
+ * worth refusing every operation over. The reported shape is a package's own
+ * patch row plus a user-patch row on the same id: fatal forever meant every
+ * update of every plugin rolled back.
+ *
+ * Unknown version stays fatal: the conservative direction, and the case where
+ * the evidence to be less strict is missing.
+ */
+export declare function duplicateEntryIdsAreFatal(profileDirectory: string): boolean;
+/**
  * Build the bundle layer stack for a profile under a GIVEN bundle order —
  * the manifest order for analyzeProfile, or a candidate order for trial
  * validation (src/trial.ts). Bundle resolution mirrors the boot exactly:

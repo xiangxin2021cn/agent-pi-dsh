@@ -17,7 +17,7 @@ export function emptyTask(sessionId: string): ProfessionalTask {
     brief: { objective: '', scope: '', audience: '', formats: [], language: '', deadline: '', profession: 'general', webDiligence: 'allowed',
       basis: { country: '', location: '', employer: '', procurement: '', funding: '', contract: '', measurement: '', standards: [], precedence: [] } },
     questions: [], evidence: [], requirements: [], coverage: [], plan: [], deliverables: [], assessment: '', updatedAt: '',
-    briefProvenance: {}, findings: [], quality: emptyQuality(), recentChanges: [], operationReceipts: [], acceptedHistory: [], directives: [] }
+    briefProvenance: {}, findings: [], quality: emptyQuality(), recentChanges: [], operationReceipts: [], acceptedHistory: [], directives: [], control: { paused: false } }
 }
 
 function equal(left: unknown, right: unknown): boolean { return JSON.stringify(left) === JSON.stringify(right) }
@@ -93,6 +93,9 @@ export function validateEvidence(evidence: Evidence): void {
 }
 
 export function validateTask(task: ProfessionalTask): void {
+  if (!task.control || typeof task.control.paused !== 'boolean') throw new Error('Invalid task execution control')
+  const action = task.control.lastAction
+  if (action && (!action.operationId?.trim() || !['confirm_understanding', 'adjust_request', 'replan', 'continue', 'pause', 'respond_finding', 'check_deliverables'].includes(action.kind) || !['prepared', 'queued', 'steered', 'paused', 'recorded', 'blocked', 'requires_executor'].includes(action.dispatch) || !action.reason?.trim() || !action.at || !Number.isFinite(Date.parse(action.at)))) throw new Error('Invalid task interaction receipt')
   if (task.schemaVersion !== 2 || !task.sessionId || !Number.isInteger(task.revision) || task.revision < 0) throw new Error('Invalid task identity')
   if (!['general', 'tender', 'drawing', 'quantity', 'method', 'research', 'report', 'spreadsheet'].includes(task.brief.profession)) throw new Error('Unknown profession')
   if (!['ask', 'allowed', 'forbidden'].includes(task.brief.webDiligence)) throw new Error('Invalid diligence policy')
@@ -177,6 +180,7 @@ export function validateTask(task: ProfessionalTask): void {
 export function reviseTask(current: ProfessionalTask, input: TaskPatch, revision: number, actor: TaskActor, options: TaskUpdateOptions = {}): ProfessionalTask {
   if (current.revision !== revision) throw new Error('任务已更新，请读取最新版本后重试。')
   for (const field of ['recentChanges', 'operationReceipts', 'acceptedHistory', 'migration'] as const) if (field in input) throw new Error('任务历史由宿主维护。')
+  if (actor !== 'host' && input.control !== undefined && !equal(input.control, current.control)) throw new Error('任务执行控制只能由真实用户操作的宿主入口维护。')
   if (actor !== 'host' && ((!equal(input.binding ?? current.binding, current.binding)) || ('pendingProjectSync' in input && !equal(input.pendingProjectSync, current.pendingProjectSync)))) throw new Error('工作台绑定和同步状态由宿主维护。')
   const next = structuredClone({ ...current, ...input, sessionId: current.sessionId, schemaVersion: 2, revision: revision + 1, updatedAt: new Date().toISOString() }) as ProfessionalTask
   if (actor === 'agent' && next.brief.webDiligence !== current.brief.webDiligence) throw new Error('网络尽调授权只能由用户修改。')

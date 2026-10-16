@@ -137,12 +137,20 @@ export declare function packagePatchFlags(host: PatchHost, profileDirectory: str
     disabled: string[];
     forced: string[];
 };
-/** Disable one row: append `- id: X` + `disabled: true` (idempotent). */
+/**
+ * Disable one row: `- id: X` + `disabled: true` (idempotent).
+ *
+ * A force-enable block already there is flipped in place rather than
+ * followed by a second block (#821): the pair cancelled out by order alone,
+ * and an uninstall that cleared one of them left the other behind to switch
+ * a later reinstall off. Duplicates an older version left are folded into
+ * the one block at the same time.
+ */
 export declare function disableRow(patchPath: string, rowId: string): Promise<{
     ok: boolean;
     reason: string | null;
 }>;
-/** Enable one row: remove the `disabled: true` block; force-enable with
+/** Enable one row: remove its `disabled: true` blocks; force-enable with
  * `disabled: false` when a lower layer (bundle/home patch) holds it down. */
 export declare function enableRow(patchPath: string, rowId: string): Promise<{
     ok: boolean;
@@ -150,4 +158,7 @@ export declare function enableRow(patchPath: string, rowId: string): Promise<{
 }>;
 /** Remove every disable/force block the market (or the user) wrote for a
  * row — the uninstall cleanup, so a removed plugin leaves no orphan rows. */
-export declare function removeRowBlocks(patchPath: string, rowIds: readonly string[]): void;
+export declare function removeRowBlocks(patchPath: string, rowIds: readonly string[]): {
+    ok: boolean;
+    reason: string | null;
+};

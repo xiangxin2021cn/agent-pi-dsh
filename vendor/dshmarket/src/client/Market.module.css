@@ -7,11 +7,13 @@
 
 .root{height:100%;display:flex;flex-direction:column;min-width:0;color:var(--dsw-alias-label-primary,#1f2328);position:relative;container-type:inline-size}
 .head{display:flex;flex-direction:column;gap:12px;padding:4px 4px 6px}
-.title{font-size:16px;line-height:24px;font-weight:500;margin:0}
+.title{font-size:16px;line-height:24px;font-weight:500;margin:0;white-space:nowrap}
 .sub{display:flex;align-items:center;gap:8px;font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary,#8b93a1);margin:0}
 .submitLink{font-size:11px;line-height:18px;color:var(--dsw-alias-label-tertiary,#8b93a1);text-decoration:none;white-space:nowrap}
 .submitLink:hover{color:var(--dsw-alias-brand-primary,#4f6ef7);text-decoration:underline}
-.tabs{display:flex;gap:2px;border-bottom:1px solid var(--dsw-alias-border-l2,#e5e7eb);align-items:flex-end}
+/* Wrap instead of clipping controls or the Tasks popover in narrow panels.
+   position:relative is the popover's anchor — see .opPanel (#866). */
+.tabs{position:relative;display:flex;flex-wrap:wrap;gap:2px;border-bottom:1px solid var(--dsw-alias-border-l2,#e5e7eb);align-items:flex-end}
 .tab{border:none;background:none;font:inherit;font-size:13px;color:var(--dsw-alias-label-secondary,#6b7280);padding:7px 12px;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
 .tab.on{color:var(--dsw-alias-brand-primary,#4f6ef7);border-bottom-color:var(--dsw-alias-brand-primary,#4f6ef7);font-weight:600}
 /* Second-level tabs under "Advanced" — same button styling as .tabs so the
@@ -208,6 +210,9 @@
 .installCautionLink:hover{text-decoration:underline}
 .confirmFineprint{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#6b7280)}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;gap:10px}
+/* One row; its observer counts 280px cards plus the 10px gap at the actual panel width. */
+.recentRow{display:grid;align-items:start;gap:10px;margin-bottom:16px}
+.recentRow > *{min-width:0}
 /* Masonry: two independent columns, each packing its own cards tight.
    A CSS grid cannot do this — its rows are as tall as their tallest cell, so
    a card with screenshots left a matching hole beside a card without them,
@@ -405,7 +410,12 @@
    leaves room for .footActions on the right of the same line. */
 .footTags{display:flex;flex-wrap:wrap;gap:8px;flex:1 1 0;min-width:0;align-items:center}
 .grow{flex:1}
-.titleRow{display:flex;align-items:center;gap:10px}
+.titleRow{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px}
+/* The update buttons wrap as one group: in a narrow settings panel they
+   drop below the heading together instead of squeezing it into two lines. */
+.titleActions{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.titleActions:empty{display:none}
+.titleActions>*{white-space:nowrap;flex-shrink:0}
 /* Sits beside the heading so a screenshot of the page carries the
    version — most reports arrive as a photo of the screen. Selectable
    (not user-select:none) so it can also be copied into an issue. */
@@ -610,7 +620,15 @@
 /* Lift the entry off the tab row's bottom rule — a pill button flush on the
    divider reads as clipped, especially when export log sits one row above on
    narrow viewports. */
-.opWrap{position:relative;display:inline-flex;flex-shrink:0;margin-bottom:6px}
+/* NOT the popover's containing block (#866): this entry sits at the right end
+   of the tab row, so when the row wraps it lands at the LEFT edge of the
+   second line — and a panel anchored `right:0` to it would then open to the
+   left, past the settings panel's edge. The host's panel is `overflow:hidden`,
+   and LTR inline-start overflow is unreachable by scrolling, so the panel's
+   title, icons and the first half of every plugin name were simply gone. The
+   row is the anchor instead, so the panel hangs from the container's right
+   edge wherever the entry ends up. */
+.opWrap{display:inline-flex;flex-shrink:0;margin-bottom:6px}
 .opEntry{display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:12px;
          padding:4px 10px;border-radius:7px;cursor:pointer;position:relative;white-space:nowrap;
          color:var(--dsw-alias-label-primary,#1f2328);
@@ -621,7 +639,10 @@
 .opEntryAlert{border-color:var(--dsw-alias-state-error-primary,#dc2626);color:var(--dsw-alias-state-error-primary,#dc2626)}
 .opDot{position:absolute;top:-3px;right:-3px;width:8px;height:8px;border-radius:99px;
        background:var(--dsw-alias-state-error-primary,#dc2626)}
-.opPanel{position:absolute;top:calc(100% + 6px);right:0;z-index:40;width:460px;max-width:86vw;
+/* max-width is a percentage of the row, not of the viewport: the panel must
+   never be wider than the row it hangs from, or the part past the container's
+   left edge is clipped unreachably (#866). */
+.opPanel{position:absolute;top:calc(100% + 6px);right:0;z-index:40;width:460px;max-width:100%;
          max-height:70vh;overflow-y:auto;border-radius:12px;
          background:var(--dsw-alias-bg-layer-1,#fff);
          border:1px solid var(--dsw-alias-border-l3,#d9dde3);
@@ -1034,6 +1055,8 @@
 .notesSha:hover{color:var(--dsw-alias-label-primary,#1f2328);text-decoration:underline}
 .notesVer{color:inherit;text-decoration:none;font-weight:600}
 .notesVer:hover{text-decoration:underline}
+.notesSourceLink{color:var(--dsw-alias-brand-primary,#4f6ef7);text-decoration:none;white-space:nowrap}
+.notesSourceLink:hover{text-decoration:underline}
 
 /* Git -> npm source confirmation: make the from/to change readable without turning it into an error banner. */
 .migrationSources{display:flex;flex-direction:column;gap:8px;margin-top:4px}

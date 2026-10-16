@@ -8,10 +8,10 @@ import { join } from 'node:path';
 import { DIST_TAG } from "./channels.js";
 import { resolveHeadCommit } from "./accelerate.js";
 import { marketFetch } from "./net.js";
-import { activeRegion } from "./regions.js";
+import { activeRegion, githubRoutesFor, rememberGithubRoute, throughProxy } from "./regions.js";
 import { hasDshManifest, profileDir, readGitResolutionCommit, readInstalled, readInstalledVersion, readLockCommits, readProfileBundles } from "./profile.js";
 import { userPatchPackageReferences } from "./patch.js";
-import { catalogRepoKey, gitCommitOfTarget, gitRefOfTarget, gitUploadPackUrl, hostedRepoKey, githubCommitOfTarget, githubRefOfTarget, isGenerationLink, isGitHostedSpec, lookupRepoFromUrl, repoOfTarget } from "./sources.js";
+import { catalogRepoKey, gitCommitOfTarget, gitRefOfTarget, gitUploadPackUrl, hasSemverSelector, hostedRepoKey, githubCommitOfTarget, githubRefOfTarget, isGenerationLink, isGitHostedSpec, lookupRepoFromUrl, parseGitHubRemote, repoOfTarget } from "./sources.js";
 /**
  * Whether a direct dependency is a plugin the update channel can apply (#793).
  *
@@ -295,6 +295,144 @@ export async function fetchNpmLatest(name) {
         return null;
     }
 }
+/**
+ * Tags a package may publish a prerelease line under, in no order — the
+ * versions decide. DSH's own packages use `next` and `alpha`; `beta` and
+ * `canary` are the other two conventions in the wild. Short on purpose:
+ * every tag that does not exist costs one 404.
+ */
+const PRERELEASE_TAGS = ['next', 'alpha', 'beta', 'canary'];
+/**
+ * The newest build above `installed` that some tag other than `latest`
+ * points at, or null (#867).
+ *
+ * A fact about the registry, not a channel decision: this is what makes the
+ * difference visible to someone whose installed pin is ahead of `latest`
+ * without the market volunteering anyone's prerelease as an update.
+ */
+export async function newerPrereleaseFor(name, installed) {
+    if (installed === null)
+        return null;
+    const versions = await Promise.all(PRERELEASE_TAGS.map(async (tag) => {
+        try {
+            const meta = (await fetchJson(npmUrl(`${encodeURIComponent(name)}/${tag}`)));
+            return typeof meta.version === 'string' ? meta.version : null;
+        }
+        catch {
+            return null;
+        }
+    }));
+    let best = null;
+    for (const version of versions) {
+        if (version === null || !isUpgrade(installed, version))
+            continue;
+        if (best === null || isUpgrade(best, version))
+            best = version;
+    }
+    return best;
+}
+/** How long one raw-file route may take before the next candidate is tried. */
+const RAW_VERSION_TIMEOUT_MS = 6_000;
+/**
+ * The GitHub repo a spec installs from, plus the subpath whose `package.json`
+ * describes the installed package (#824), or null when the spec is not a
+ * GitHub one.
+ *
+ * Only GitHub gets its version read over the network: `raw.githubusercontent.com`
+ * is the raw spelling this market already speaks (a plugin page's README, a
+ * restore's manifest) and the only one with a per-region escape route. A
+ * gitlab or gitee install keeps the commit comparison, because inventing
+ * another host's raw URL would buy a failed request instead of a verdict.
+ */
+function githubRawTargetOf(spec) {
+    // `github:owner/repo` and `git+https://github.com/…` — the spelling the
+    // market itself writes for a floating install, which is the #824 case —
+    // both answer here, as does the codeload archive URL older regional
+    // installs carry. GitHub matches owner/repo case-insensitively, so the
+    // normalized casing is safe in a raw URL.
+    const repo = parseGitHubRemote(spec)?.repo.toLowerCase()
+        ?? repoOfTarget(spec)?.split('#')[0]
+        ?? null;
+    if (repo === null)
+        return null;
+    const hash = spec.indexOf('#');
+    const match = hash === -1 ? null : /(?:^|&)path:\/([^&\s]+)/.exec(spec.slice(hash + 1));
+    return { repo, subpath: match === null ? null : match[1] };
+}
+/**
+ * The `version` the repository publishes at the head of its default branch,
+ * or null when it cannot be read (#824).
+ *
+ * Route handling mirrors `resolveHeadCommit`: the region's candidates in
+ * order, the last verified winner first, and that winner remembered for the
+ * next check. Every failure — no candidate answers, a repo with no
+ * `package.json`, a body that is not JSON — is null, so the caller falls back
+ * to comparing commits rather than claiming the install is current.
+ */
+async function remoteGitVersion(spec, region) {
+    const target = githubRawTargetOf(spec);
+    if (target === null)
+        return null;
+    const file = target.subpath === null ? 'package.json' : `${target.subpath}/package.json`;
+    const url = `https://raw.githubusercontent.com/${target.repo}/HEAD/${file}`;
+    for (const route of githubRoutesFor('raw', region)) {
+        try {
+            const res = await marketFetch(throughProxy(route, url), {
+                headers: { accept: 'application/json', 'user-agent': 'dsh-market' },
+                signal: AbortSignal.timeout(RAW_VERSION_TIMEOUT_MS),
+            });
+            if (!res.ok)
+                continue;
+            const doc = await res.json();
+            const version = typeof doc.version === 'string' ? doc.version.trim() : '';
+            if (version === '')
+                continue;
+            rememberGithubRoute('raw', route);
+            return version;
+        }
+        catch {
+            // This route did not answer; the next candidate may.
+        }
+    }
+    return null;
+}
+/**
+ * Whether the repository's own `version` says there is something to install,
+ * for a git install that follows whatever the default branch points at (#824).
+ *
+ * A floating git install has no release boundary: every commit the branch
+ * gains makes the commit comparison unequal, so the row advertised "有新版本"
+ * forever while pnpm would install the same version the plugin's own updater
+ * had already put on disk. That is the mirror image of #446/#597 — those
+ * compared commits against a ref the user never chose; this one degrades the
+ * ref the user did choose, where "the line moved" is not the same question as
+ * "there is something new to install".
+ *
+ * @returns true/false when both versions are readable and comparable, and
+ *   null when the question cannot be answered that way: no installed version,
+ *   a spec that names a branch or tag on purpose (that line IS the user's
+ *   choice), a non-GitHub host, an unreachable raw file, or a version on
+ *   either side that is not semver. On null the caller must compare commits —
+ *   never read null as "current", or a private host would stop reporting
+ *   updates altogether.
+ */
+async function gitVersionUpdate(spec, installedVersion, region) {
+    if (installedVersion === null)
+        return null;
+    // `#branch`, `#tag`, and `#semver:` installs chose a line of their own: a
+    // new commit on it is exactly what those users asked to hear about (#446).
+    // `refOfFragment` skips `semver:` ranges (they compare against the default
+    // branch), so they need their own probe — otherwise a range pinned at ^2
+    // with a 3.0.0 at HEAD would advertise an install the range cannot produce.
+    const explicitRef = spec.startsWith('github:') ? githubRefOfTarget(spec) : gitRefOfTarget(spec);
+    if (explicitRef !== null || hasSemverSelector(spec))
+        return null;
+    const remoteVersion = await remoteGitVersion(spec, region);
+    if (remoteVersion === null)
+        return null;
+    const compared = compareVersions(remoteVersion, installedVersion);
+    return compared === null ? null : compared > 0;
+}
 /** Per-plugin update checks; a failed check reports no update rather than failing the listing. */
 export async function checkUpdates(profile, force = false, explicitDir, 
 /**
@@ -397,9 +535,16 @@ catalogNpmByRepo = new Map()) {
                 // default branch for a `#branch` install compares two lines that
                 // never converge, so the row reported an update forever (#446).
                 const latest = await resolveHeadCommit(repo, activeRegion(), process.env, githubRefOfTarget(spec) ?? undefined);
+                // A floating install has no release boundary: the commit comparison
+                // alone advertised "有新版本" forever on a branch that moved without
+                // publishing (#824). The repository's own version decides when both
+                // sides are readable; commits decide everything else.
+                const byVersion = await gitVersionUpdate(spec, version, activeRegion());
                 result[name] = {
                     kind: 'github', version, current, latest,
-                    updateAvailable: current !== null && latest !== null && current !== latest,
+                    updateAvailable: byVersion ?? (current !== null && latest !== null && current !== latest),
+                    ...(byVersion === false && current !== null && latest !== null && current !== latest
+                        ? { unreleasedCommit: latest } : {}),
                 };
             }
             else if (isGitHostedSpec(spec)) {
@@ -419,9 +564,14 @@ catalogNpmByRepo = new Map()) {
                 // Ask about the ref the install actually names, exactly as the
                 // github branch above does (#446).
                 const latest = await resolveGitRemoteHead(spec, gitRefOfTarget(spec) ?? undefined);
+                // Same rule as the github branch above (#824): the repository's own
+                // version decides when both sides are readable, commits otherwise.
+                const byVersion = await gitVersionUpdate(spec, version, activeRegion());
                 result[name] = {
                     kind: 'github', version, current, latest,
-                    updateAvailable: current !== null && latest !== null && current !== latest,
+                    updateAvailable: byVersion ?? (current !== null && latest !== null && current !== latest),
+                    ...(byVersion === false && current !== null && latest !== null && current !== latest
+                        ? { unreleasedCommit: latest } : {}),
                 };
             }
             else {
@@ -447,9 +597,17 @@ catalogNpmByRepo = new Map()) {
                 const upgrade = isUpgrade(version, latest);
                 const sideways = channel !== undefined && !upgrade
                     && version !== null && latest !== null && version !== latest;
+                // Only asked when the answer could differ from "up to date": a pin
+                // that carries a prerelease tag, or one sitting ABOVE `latest` — the
+                // two shapes that mean the user is on a line `latest` does not name.
+                // Everything else keeps paying nothing for a field it cannot use.
+                const mayFollowATag = !upgrade
+                    && (version?.includes('-') === true || (stable !== null && version !== null && isUpgrade(stable, version) === false && stable !== version));
+                const newerPrerelease = mayFollowATag ? await newerPrereleaseFor(name, version) : null;
                 result[name] = {
                     kind: 'npm', version, current: version, latest,
                     updateAvailable: upgrade,
+                    ...(newerPrerelease === null ? {} : { newerPrerelease }),
                     ...(sideways ? { channelSwitch: latest } : {}),
                 };
             }

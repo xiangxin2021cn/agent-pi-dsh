@@ -7,6 +7,7 @@ import { test } from 'node:test'
 import { createTaskGuide as createTaskGuideView, mergeTaskBriefEdits } from '../src/client/task-guide.js'
 import { createProfessionalTaskSummary, createTaskStageControls, taskOverviewModel, visibleTaskFindings } from '../src/client/professional-task-summary.js'
 import { createProfessionalDepth, prepareDepthSubmission } from '../src/client/professional-depth.js'
+import { createTaskInteraction } from '../src/client/task-interaction.js'
 
 // The engineering panel has a separate API contract from these task fixtures.
 function createTaskGuide(options) {
@@ -45,6 +46,7 @@ async function domFixture() {
 }
 const button=(f,text)=>[...f.document.querySelectorAll('button')].find(row=>row.textContent===text)
 async function click(f,element){assert.ok(element,'expected control');await f.act(async()=>element.dispatchEvent(new f.window.MouseEvent('click',{bubbles:true})))}
+async function enter(f,value){const input=f.document.querySelector('[aria-label="任务调整内容"]');assert.ok(input);await f.act(async()=>{Object.getOwnPropertyDescriptor(f.window.HTMLTextAreaElement.prototype,'value').set.call(input,value);input.dispatchEvent(new f.window.Event('input',{bubbles:true}))})}
 
 test('business progress excludes superseded materials and finding updates keep one stable card',()=>{
   const task=taskFixture()
@@ -211,7 +213,7 @@ test('stage approval requires a concrete review click and sends the displayed fi
     assert.equal(posted[0].sessionId,'one')
     assert.equal(opened.length,0)
     assert.match(f.document.querySelector('[role=status]').textContent,/批准已记录/)
-    await click(f,button(f,'前往工作台继续'))
+    await click(f,button(f,'查看工作台阶段'))
     assert.equal(opened[0].binding.projectId,'project')
     assert.equal(opened[0].sessionId,'one','navigation is bound to the reviewed session rather than a global active session')
   } finally {await f.close()}
@@ -371,5 +373,128 @@ test('a task change arriving during a pending read is loaded without waiting for
     assert.equal(reads,2)
     assert.equal(f.document.querySelectorAll('[data-finding-id="newer"]').length,1)
   } finally {await f.close()}
+})
+
+test('natural-language adjustments use the shared executor command and refresh both task surfaces',async()=>{
+  const f=await domFixture(),task=taskFixture(),commands=[],writes=[]
+  const status=()=>({task:structuredClone(task),audit:{},capabilities:[],interactionState:{paused:false,running:true,executor:'codex',pending:false}})
+  const onUserAction=async payload=>{commands.push(payload);assert.equal(payload.revision,1);task.revision=2;task.brief.audience='项目领导';task.control={paused:false,lastAction:{kind:'adjust_request',dispatch:'steered',reason:'已交给当前 Codex 执行器处理。'}};return {...status(),interaction:task.control.lastAction}}
+  const Guide=createTaskGuide({React:f.React,api:async(_url,_cwd,options)=>{if(options?.method==='POST')writes.push(options);return status()},cwd:()=>'',language:()=> 'zh',onUserAction})
+  try{
+    await f.act(async()=>f.root.render(f.React.createElement(Guide,{sessionId:'one'})))
+    assert.equal(button(f,'确认当前理解'),undefined,'explicit goals run without an extra confirmation')
+    assert.equal(button(f,'继续当前任务').disabled,true)
+    await click(f,button(f,'补充或调整要求'));await enter(f,'报告改给项目领导使用，保留已核实的数据。')
+    await click(f,button(f,'提交给当前任务'))
+    assert.equal(commands.length,1);assert.ok(commands[0].operationId)
+    assert.deepEqual(commands[0].command,{kind:'adjust_request',text:'报告改给项目领导使用，保留已核实的数据。'})
+    assert.deepEqual(writes,[],'the client does not substitute a patch or synthetic conversation message')
+    assert.match(f.document.body.textContent,/成果给谁使用：项目领导|已交给当前 Codex 执行器/)
+    const Summary=createProfessionalTaskSummary({React:f.React,api:async()=>status(),cwd:()=>'',language:()=> 'zh',onUserAction})
+    await f.act(async()=>f.root.render(f.React.createElement(Summary,{sessionId:'one',taskResult:status()})))
+    assert.equal(f.document.querySelector('[data-task-revision]').getAttribute('data-task-revision'),'2')
+    assert.match(f.document.body.textContent,/已交给当前 Codex 执行器/)
+  }finally{await f.close()}
+})
+
+test('responding to a finding submits its stable identity and never resolves it on the client',async()=>{
+  const f=await domFixture(),task=taskFixture(),commands=[]
+  const status=()=>({task:structuredClone(task),capabilities:[],audit:{}})
+  const Guide=createTaskGuide({React:f.React,api:async()=>status(),cwd:()=>'',language:()=> 'zh',onUserAction:async payload=>{commands.push(payload);task.revision++;return {...status(),interaction:{kind:'respond_finding',dispatch:'queued',reason:'处理意见已排入当前任务。'}}}})
+  try{
+    await f.act(async()=>f.root.render(f.React.createElement(Guide,{sessionId:'one'})))
+    await click(f,f.document.querySelector('[data-finding-id=f1] .ap-task-interaction button'))
+    await enter(f,'使用我刚提供的补遗核对，保留期限差异的风险提示。')
+    await click(f,button(f,'提交给当前任务'))
+    assert.equal(commands[0].command.findingId,'f1');assert.equal(commands[0].command.kind,'respond_finding')
+    assert.equal(task.findings[0].status,'open');assert.ok(f.document.querySelector('[data-finding-id=f1] .ap-task-interaction'))
+    assert.match(f.document.body.textContent,/处理意见已排入当前任务/)
+  }finally{await f.close()}
+})
+
+test('pause receipts survive view changes and an old task read cannot regress the new control state',async()=>{
+  const f=await domFixture(),task=taskFixture(),old={task:structuredClone(task),interactionState:{running:true,paused:false}},commands=[]
+  let listener
+  const Summary=createProfessionalTaskSummary({React:f.React,api:async()=>old,cwd:()=>'',language:()=> 'zh',subscribe:(_id,refresh)=>{listener=refresh;return()=>{}},onUserAction:async payload=>{commands.push(payload);task.revision=2;task.control={paused:true,lastAction:{kind:'pause',dispatch:'paused',reason:'当前执行已暂停。'}};return {task:structuredClone(task),interactionState:{running:false,paused:true},interaction:task.control.lastAction}}})
+  try{
+    await f.act(async()=>f.root.render(f.React.createElement(Summary,{sessionId:'one'})))
+    await click(f,button(f,'暂停执行'));assert.equal(commands[0].command.kind,'pause')
+    assert.match(f.document.body.textContent,/任务已暂停/);assert.equal(button(f,'暂停执行').disabled,true)
+    await f.act(async()=>listener())
+    assert.equal(f.document.querySelector('[data-task-revision]').getAttribute('data-task-revision'),'2')
+    assert.ok(button(f,'继续任务'))
+    await f.act(async()=>f.root.render(f.React.createElement(Summary,{sessionId:'one',taskResult:old})))
+    assert.equal(f.document.querySelector('[data-task-revision]').getAttribute('data-task-revision'),'2','an older supplied snapshot cannot replace an action receipt')
+  }finally{await f.close()}
+})
+
+test('pending task actions are single-flight and executor failures retain the human adjustment',async()=>{
+  const f=await domFixture(),task=taskFixture(),sent=[]
+  let rejectAction
+  const Interaction=createTaskInteraction({React:f.React,api:async()=>{throw new Error('must not fall back to DSH')},cwd:()=>'',language:()=> 'zh',onUserAction:payload=>{sent.push(payload);return new Promise((_resolve,reject)=>rejectAction=reject)}})
+  try{
+    await f.act(async()=>f.root.render(f.React.createElement(Interaction,{sessionId:'one',result:{task}})))
+    await click(f,button(f,'补充或调整要求'));await enter(f,'只调整资源安排，不重做已完成资料抽取。')
+    await f.act(async()=>{const control=button(f,'提交给当前任务');control.dispatchEvent(new f.window.MouseEvent('click',{bubbles:true}));control.dispatchEvent(new f.window.MouseEvent('click',{bubbles:true}))})
+    assert.equal(sent.length,1)
+    await f.act(async()=>rejectAction(new Error('当前执行器连接已断开，请重连后核对。')))
+    assert.match(f.document.querySelector('[role=alert]').textContent,/执行器连接已断开/)
+    assert.equal(f.document.querySelector('textarea').value,'只调整资源安排，不重做已完成资料抽取。')
+  }finally{await f.close()}
+})
+
+test('stage approval continues through the shared command with its new revision and exposes actual blockers',async()=>{
+  const f=await domFixture(),task=taskFixture(),posted=[],commands=[],changed=[]
+  const binding={projectId:'project',moduleId:'custom',stageId:'review',approvalGate:true,approvalFingerprint:'displayed-fingerprint'}
+  const Stage=createTaskStageControls({React:f.React,api:async(_url,_cwd,options)=>{if(options){posted.push(JSON.parse(options.body));task.revision=3}return {task:structuredClone(task),binding}},cwd:()=>'',language:()=> 'zh',onUserAction:async payload=>{commands.push(payload);return {task:structuredClone(task),binding,interaction:{dispatch:'blocked',reason:'阶段批准已记录，但最新补遗仍需核对，尚未继续。'}}}})
+  try{
+    await f.act(async()=>f.root.render(f.React.createElement(Stage,{sessionId:'one',task,binding,onChanged:next=>changed.push(next)})))
+    await click(f,button(f,'查看并批准当前阶段'));assert.equal(commands.length,0)
+    await click(f,button(f,'确认批准此阶段'))
+    assert.equal(posted[0].approvalFingerprint,'displayed-fingerprint')
+    assert.equal(commands[0].command.kind,'continue');assert.equal(commands[0].revision,3)
+    assert.equal(changed.length,2);assert.match(f.document.querySelector('[role=alert]').textContent,/尚未继续/)
+    assert.ok(button(f,'重试继续当前任务'))
+  }finally{await f.close()}
+})
+
+test('a task-summary read failure is visible and can be retried',async()=>{
+  const f=await domFixture(),task=taskFixture();let reads=0
+  const Summary=createProfessionalTaskSummary({React:f.React,api:async()=>{if(!reads++)throw new Error('本次任务读取失败');return {task}},cwd:()=>'',language:()=> 'zh'})
+  try{
+    await f.act(async()=>f.root.render(f.React.createElement(Summary,{sessionId:'one'})))
+    assert.match(f.document.querySelector('[role=alert]').textContent,/读取失败/)
+    await click(f,button(f,'重试读取本次任务'))
+    assert.match(f.document.body.textContent,/核验工期是否可执行/);assert.equal(f.document.querySelector('[role=alert]'),null)
+  }finally{await f.close()}
+})
+
+test('advanced field corrections dispatch only the edited human values and distinguish saved from delivered',async()=>{
+  const f=await domFixture(),task=taskFixture(),commands=[]
+  const Guide=createTaskGuide({React:f.React,api:async(_url,_cwd,options)=>{if(options?.method==='POST'){const body=JSON.parse(options.body);Object.assign(task,body.patch);task.revision++}return {task:structuredClone(task),audit:{},capabilities:[]}},cwd:()=>'',language:()=> 'zh',onUserAction:async payload=>{commands.push(payload);throw new Error('Codex 连接已断开。')}})
+  try{
+    await f.act(async()=>f.root.render(f.React.createElement(Guide,{sessionId:'one'})))
+    await click(f,button(f,'修正目标'))
+    const objective=f.document.querySelector('textarea')
+    await f.act(async()=>{Object.getOwnPropertyDescriptor(f.window.HTMLTextAreaElement.prototype,'value').set.call(objective,'仅核验工期和实际班组配置');objective.dispatchEvent(new f.window.Event('input',{bubbles:true}))})
+    await click(f,button(f,'保存并调整执行'))
+    assert.equal(commands.length,1);assert.equal(commands[0].revision,2)
+    assert.deepEqual(commands[0].command,{kind:'adjust_request',text:'本次要完成什么: 仅核验工期和实际班组配置'})
+    assert.equal(task.brief.objective,'仅核验工期和实际班组配置')
+    assert.match(f.document.querySelector('[role=alert]').textContent,/修正已保存，但执行调整尚未确认：Codex 连接已断开/)
+    assert.equal(button(f,'保存并调整执行'),undefined,'a saved correction is not offered as an unsaved draft again')
+  }finally{await f.close()}
+})
+
+test('pausing continuation does not claim a still-running executor stopped or disable a stop retry',async()=>{
+  const f=await domFixture(),task=taskFixture();task.control={paused:true,lastAction:{kind:'pause',dispatch:'blocked',reason:'停止操作尚未确认。'}}
+  const Interaction=createTaskInteraction({React:f.React,api:async()=>{},cwd:()=>'',language:()=> 'zh'})
+  try{
+    await f.act(async()=>f.root.render(f.React.createElement(Interaction,{sessionId:'one',result:{task,interactionState:{paused:true,running:true,pending:true}}})))
+    assert.equal(button(f,'暂停执行').disabled,false)
+    assert.equal(button(f,'继续任务').disabled,true)
+    assert.match(f.document.body.textContent,/当前执行仍在停止或处理中/)
+    assert.doesNotMatch(f.document.body.textContent,/任务已暂停；已有依据/)
+  }finally{await f.close()}
 })
 

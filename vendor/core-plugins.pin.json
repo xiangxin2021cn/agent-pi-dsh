@@ -1,24 +1,24 @@
 {
-  "checkedAt": "2026-10-09",
+  "checkedAt": "2026-10-16",
   "packages": [
     {
       "name": "dshmarket",
-      "version": "1.66.14",
-      "integrity": "sha512-1t1eRxR9qhH9hpq2qFqnwQ7Fgr2uOtJf9IGaG75J0U4RfBGn+/dibJGVm66xiGtdqLAPTPAXVwVoCh1Cq/f8lw==",
-      "shasum": "7a8eb4ed0d75bc75a75c7a8b2c301b8d30342f98",
-      "archiveBytes": 1197504,
-      "sourceCommit": "30f30ed419275b43d776380b32fa3a06e1b39d9b",
+      "version": "1.66.28",
+      "integrity": "sha512-kI6yjb6DiGnJgNf0oj88DTbI21YIuXY/DpHythyFy5lqeSEAoXigEgGeLlSAGWze4dmdf7T2OAndM4XkT2Ls8w==",
+      "shasum": "71388088b694b6d30dc0caed67fab4aba1283bd4",
+      "archiveBytes": 1293697,
+      "sourceCommit": "08b83831fd02e8038e3360575647260279aa5e8f",
       "publishedAt": "2026-10-08T15:08:02.161Z",
       "adaptation": "vendor/dshmarket/AGENT-PI-ADAPTATION.json"
     },
     {
       "name": "@anysearch/anysearch-dsh",
-      "version": "0.1.7",
-      "integrity": "sha512-wGYMWdQoI0bYPCjPpESOUrOjUXij8e/edSNQeh6JjgEQpoYRoXEn8ZfDQnC4O+adqHCWpRfQ7SO8uFYXpb+D6Q==",
-      "shasum": "dfaae53af094ccd94a85efbbbd16e1e17567a5e0",
-      "archiveBytes": 172977,
+      "version": "0.1.8",
+      "integrity": "sha512-N00VwXW5j2+IJKtURJIv5eaLJBqr+b/1oLL+B8pX2CfaHjIGPXop0l5fKXpr/iR9cS8cf9yjFOSeVaUa+rEO9A==",
+      "shasum": "3a49c1d4bde698f004a32b97141e4559a494ceac",
+      "archiveBytes": 173153,
       "adaptation": "vendor/anysearch-dsh/AGENT-PI-ADAPTATION.json",
-      "sourceCommit": "18df2843d47d5f3fd752eb88d35fc42809c3d394",
+      "sourceCommit": "d20ab97727b36b4341977e53d7c9b7d2e93d3d03",
       "publishedAt": "2026-10-08T09:03:26.329Z"
     }
   ],

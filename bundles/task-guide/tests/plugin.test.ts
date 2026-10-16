@@ -41,9 +41,11 @@ function fixture(t: any) {
   services.set('sessions', { get: (id: string) => sessions.get(id) })
   services.set('agents', { get: (id: string) => agents.get(id), list: () => [...agents.values()] })
   services.set('sessionProjections', { stateOf: () => projection })
-  const main = { session: sessions.get('main'), ctx: { get: (name: string) => name === 'fs' ? fs : services.get(name) } }
+  const sent: any[] = [], cancellations: any[] = []
+  const main = { status: 'idle', whenIdle: async () => {}, inbox: { hasPending: false }, followup: (message: any) => sent.push({ mode: 'queued', message }), steer: (message: any) => sent.push({ mode: 'steered', message }), inject: (message: any) => sent.push({ mode: 'context', message }), cancel: (cause: any, options: any) => cancellations.push({ cause, options }), session: sessions.get('main'), ctx: { get: (name: string) => name === 'fs' ? fs : services.get(name) } }
   agents.set('main', main)
-  const service = registerTaskGuide(ctx, (value) => value, cwd)
+  let messageIndex = 0
+  const service = registerTaskGuide(ctx, (value) => value, cwd, input => ({ ...input, role: 'user', id: `task-action-${++messageIndex}` }))
   const call = (action: string, input: any = {}, agent = main, callId = 'dsh-test-call') => definitions.get('professional_task').execute({ action, ...input }, { agent, callId })
   const admit = (text: string, id = 'message-one', source = 'user', agent = main) => listeners.get('agent/inbox/claimed')({ agent, message: { id, source: { kind: source }, content: [{ type: 'text', text }] } })
   const http = async (method: string, input?: any, query = '') => {
@@ -53,7 +55,7 @@ function fixture(t: any) {
     await routes.find(route => route.path === '/api/agent-pi/professional-task').handler(request, { writeHead(code: number) { status = code }, end(body: string) { value = JSON.parse(body) } })
     return { status, value }
   }
-  return { cwd, sessions, agents, service, call, admit, main, projection, events, sections, fs, http, store: createTaskStore(cwd) }
+  return { cwd, sessions, agents, services, sent, cancellations, listeners, service, call, admit, main, projection, events, sections, fs, http, store: createTaskStore(cwd) }
 }
 
 function nativeGate(t: any) {
@@ -814,4 +816,281 @@ test('project citation locatability, version pinning and actual semantic support
   writeFileSync(path, claim + ' [kb:unversioned-rule:chunk1]\n')
   checked = await f.service.verifyDeliverable('main', 'report')
   assert.ok(checked.verification.unresolved.some((value: string) => value.includes('未固定知识版本')))
+})
+
+test('task actions dispatch one real main-session message and reject stale or child controls', async t => {
+  const f = fixture(t)
+  f.admit('整理道路施工方案', 'initial-user')
+  const current = (await f.call('status')).task
+  const input = { action: 'user_action', operationId: 'continue-1', revision: current.revision, command: { kind: 'continue', executor: 'dsh' } }
+  const first = await f.http('POST', input)
+  assert.equal(first.status, 200)
+  assert.equal(first.value.interaction.dispatch, 'queued')
+  assert.equal(f.sent.length, 1)
+  assert.equal(f.sent[0].message.source.kind, 'user')
+  const replay = await f.http('POST', input)
+  assert.equal(replay.value.interaction.messageId, first.value.interaction.messageId)
+  assert.equal(f.sent.length, 1, 'replaying a successful operation never dispatches another turn')
+  f.admit(f.sent[0].message.content[0].text, f.sent[0].message.id)
+  assert.equal(f.store.read('main').latestRequest, '整理道路施工方案', 'control prompts do not replace actual user intent')
+  const stale = await f.http('POST', { ...input, operationId: 'continue-stale' })
+  assert.equal(stale.status, 409)
+  assert.equal(f.sent.length, 1)
+  f.sessions.set('child', { id: 'child', header: { cwd: f.cwd, parentSession: 'main' } })
+  f.agents.set('child', { session: f.sessions.get('child') })
+  await assert.rejects(f.service.userAction('child', { ...input, revision: f.store.read('main').revision, operationId: 'child-control' }), /主对话/)
+})
+
+test('natural-language adjustments steer the running executor and persist exact user authority', async t => {
+  const f = fixture(t)
+  f.main.status = 'running'
+  const text = '改为给项目经理使用；必须保留所有道路工程量明细'
+  const next = await f.http('POST', { action: 'user_action', operationId: 'scope-1', revision: 0, command: { kind: 'adjust_request', text } })
+  assert.equal(next.value.interaction.dispatch, 'steered')
+  assert.equal(next.value.task.latestRequest, text)
+  assert.equal(next.value.task.latestMessageId, f.sent[0].message.id)
+  assert.equal(f.sent[0].mode, 'steered')
+  assert.ok(next.value.task.directives.some((row: any) => row.status === 'active' && row.text === '必须保留所有道路工程量明细'))
+  assert.equal(f.sent[0].message.content[0].text, text)
+})
+
+test('human task adjustments synchronize bound workbench requirements before execution', async t => {
+  const f = nativeGate(t)
+  const current = (await f.call('status')).task
+  const text = '请增加道路排水检查，并保留已经核实的结构计算'
+  const next = await f.http('POST', { action: 'user_action', operationId: 'bound-change', revision: current.revision, command: { kind: 'adjust_request', text } })
+  assert.equal(next.status, 200)
+  assert.equal(next.value.task.pendingProjectSync, undefined)
+  assert.ok(listUserRequirements(f.cwd, f.project).some((row: any) => row.text === text))
+  assert.equal(f.sent.filter(row => row.mode === 'queued').length, 1)
+  assert.notEqual(loadBoard(f.cwd, f.project.projectId, f.project.module).stages.gate?.approval?.decision, 'approved')
+})
+
+test('goal confirmation is explicit understanding and cannot grant stage approval or customer acceptance', async t => {
+  const f = nativeGate(t)
+  let task = (await f.call('status')).task
+  task = f.store.update('main', { brief: { ...task.brief, objective: '检查当前施工报告' } }, task.revision, 'agent')
+  const next = await f.http('POST', { action: 'user_action', operationId: 'confirm-goal', revision: task.revision, command: { kind: 'confirm_understanding' } })
+  assert.equal(next.value.interaction.dispatch, 'recorded')
+  assert.equal(next.value.task.briefProvenance.objective.status, 'confirmed')
+  assert.equal(next.value.task.briefProvenance.objective.origin, 'user')
+  assert.equal(f.sent.length, 0)
+  assert.notEqual(loadBoard(f.cwd, f.project.projectId, f.project.module).stages.gate?.approval?.decision, 'approved')
+  assert.ok(next.value.task.deliverables.every((row: any) => row.status !== 'accepted'))
+  const rejected = await f.http('POST', { action: 'user_action', operationId: 'gate-continue', revision: next.value.task.revision, command: { kind: 'continue' } })
+  assert.equal(rejected.value.interaction.dispatch, 'blocked')
+  assert.match(rejected.value.interaction.reason, /审批|确认/)
+  assert.equal(f.sent.length, 0)
+})
+
+test('pause stops root and child execution, disarms existing goals and survives reading the task again', async t => {
+  const f = fixture(t), pauses: any[] = []
+  f.services.set('goals', { get: () => ({ id: 'existing-goal', revision: 3, phase: 'active' }), pause: (_agent: any, ref: any) => pauses.push(ref) })
+  const childCancels: any[] = []
+  f.sessions.set('child', { id: 'child', header: { cwd: f.cwd, parentSession: 'main' } })
+  f.agents.set('child', { session: f.sessions.get('child'), cancel: (cause: any, options: any) => childCancels.push({ cause, options }) })
+  const next = await f.http('POST', { action: 'user_action', operationId: 'pause-root', revision: 0, command: { kind: 'pause' } })
+  assert.equal(next.value.interaction.dispatch, 'paused')
+  assert.equal(next.value.task.control.paused, true)
+  assert.deepEqual(pauses, [{ id: 'existing-goal', revision: 3 }])
+  assert.equal(f.cancellations.length, 1)
+  assert.equal(childCancels.length, 1)
+  assert.equal(childCancels[0].options.keepInbox, true)
+  assert.equal((await f.http('GET')).value.interactionState.paused, true)
+  const preStep = f.listeners.get('agent/pre-step')
+  assert.deepEqual(await preStep({ agent: f.main, turn: 1, messages: [{ source: { kind: 'goal' } }] }, () => 'ran'), { kind: 'reject' })
+  assert.equal(await preStep({ agent: f.main, turn: 2, messages: [{ id: 'new-human', source: { kind: 'user' } }] }, () => 'ran'), 'ran')
+  assert.equal(await preStep({ agent: f.main, turn: 2, messages: [] }, () => 'ran'), 'ran', 'a real human correction may finish while automatic continuation remains paused')
+  assert.deepEqual(await preStep({ agent: f.main, turn: 3, messages: [] }, () => 'ran'), { kind: 'reject' })
+})
+
+test('continue preserves exhausted goal budgets and failed operation receipts are not silently retried', async t => {
+  const f = fixture(t)
+  f.services.set('goals', { get: () => ({ id: 'limited-goal', revision: 5, phase: 'paused' }), resume: () => { throw new Error('goal exhausted 8 goal rounds') } })
+  f.store.update('main', { control: { paused: true } }, 0, 'host')
+  const input = { action: 'user_action', operationId: 'continue-budget', revision: 1, command: { kind: 'continue' } }
+  const next = await f.http('POST', input)
+  assert.equal(next.value.interaction.dispatch, 'blocked')
+  assert.match(next.value.interaction.reason, /exhausted/)
+  assert.equal(next.value.task.control.paused, true)
+  assert.equal(f.sent.length, 0)
+  const replay = await f.http('POST', input)
+  assert.equal(replay.value.interaction.dispatch, 'blocked')
+  assert.equal(f.sent.length, 0)
+})
+
+test('finding responses are real user input and never fabricate a resolution or native answer', async t => {
+  const f = fixture(t)
+  const found = await f.call('record_finding', { revision: 0, input: { id: 'drainage', title: '排水条件缺失', summary: '图纸没有排水设计条件。', goalImpact: '不能完整计算排水工程量。', evidenceIds: [], actions: [{ label: '忽略缺口', kind: 'action', target: 'run shell unsafe' }] } })
+  const next = await f.http('POST', { action: 'user_action', operationId: 'respond-drainage', revision: found.revision, command: { kind: 'respond_finding', findingId: 'drainage', text: '先把排水缺口列入清单，我稍后补图' } })
+  assert.equal(next.value.interaction.dispatch, 'queued')
+  assert.equal(next.value.task.findings[0].status, 'open')
+  assert.equal(next.value.task.questions.length, 0)
+  assert.equal(next.value.task.latestRequest, '先把排水缺口列入清单，我稍后补图')
+  assert.equal(f.sent.filter(row => row.mode === 'queued').length, 1)
+  assert.ok(!f.sent.some(row => JSON.stringify(row.message).includes('run shell unsafe')))
+})
+
+test('native dispatch waits for trusted acknowledgement and cannot accidentally start DSH', async t => {
+  const f = fixture(t), nativeCalls: any[] = []
+  f.services.set('nativeTaskExecutor', { status: () => ({ active: true }), dispatch: async (input: any) => { nativeCalls.push(input); return { dispatch: 'requires_executor', reason: '等待桌面原生执行确认' } } })
+  const next = await f.http('POST', { action: 'user_action', operationId: 'native-adjust', revision: 0, command: { kind: 'adjust_request', executor: 'dsh', text: '报告增加计算依据' } })
+  assert.equal(next.value.interaction.dispatch, 'requires_executor')
+  assert.equal(f.sent.length, 0)
+  assert.equal(nativeCalls.length, 1)
+  assert.equal(nativeCalls[0].message.id, next.value.task.latestMessageId)
+  assert.equal(next.value.interactionState.executor, 'codex')
+  const pending = await f.http('POST', { action: 'user_action', operationId: 'duplicate-pending', revision: next.value.task.revision, command: { kind: 'replan', executor: 'codex' } })
+  assert.equal(pending.status, 409)
+  const ack = await f.service.ackUserAction('main', 'native-adjust', { dispatch: 'steered', reason: '原生执行已接收', messageId: nativeCalls[0].message.id })
+  assert.equal(ack.task.control.lastAction.dispatch, 'steered')
+  const wrongAck = await f.service.ackUserAction('main', 'old-op', { dispatch: 'paused', reason: '旧回执' })
+  assert.equal(wrongAck.task.control.lastAction.operationId, 'native-adjust')
+  assert.equal(wrongAck.task.control.paused, false)
+})
+
+test('native pause remains pending until actual interruption is confirmed', async t => {
+  const f = fixture(t)
+  f.services.set('nativeTaskExecutor', { status: () => ({ active: true }), pause: async () => ({ dispatch: 'requires_executor', reason: '正在停止 Codex' }) })
+  const next = await f.http('POST', { action: 'user_action', operationId: 'native-pause', revision: 0, command: { kind: 'pause', executor: 'codex' } })
+  assert.equal(next.value.interaction.dispatch, 'requires_executor')
+  assert.equal(next.value.task.control.paused, true)
+  const ack = await f.service.ackUserAction('main', 'native-pause', { dispatch: 'paused', reason: 'Codex 已停止' })
+  assert.equal(ack.interaction.dispatch, 'paused')
+  assert.equal(ack.task.control.paused, true)
+})
+
+test('task control fields cannot be forged by ordinary form edits or model tool updates', async t => {
+  const f = fixture(t)
+  const form = await f.http('POST', { revision: 0, patch: { control: { paused: true } } })
+  assert.equal(form.status, 409)
+  await assert.rejects(f.call('update', { revision: 0, patch: { control: { paused: true } } }), /宿主入口/)
+  assert.equal(f.store.read('main').control.paused, false)
+})
+
+test('bound continue uses the workbench stage draft and host dispatch rather than starting a second writer', async t => {
+  const f = fixture(t), calls: any[] = []
+  const workflow = { id: 'task-runtime', module: 'inspection', label: 'Inspection', labelZh: '检查', stages: [{ id: 'first', label: 'First', labelZh: '当前阶段', hintZh: '', prompt: 'Only inspect current engineering files', skillSlugs: [], consumes: [] }] }
+  const project = createBusinessProject({ workspaceRootPath: f.cwd, rootPath: f.cwd, createDirectory: false, module: workflow.module, projectId: 'task-runtime', name: 'Task runtime', workflowId: workflow.id, workflowSnapshot: workflow })
+  bindProjectSession(f.cwd, project, 'main', 'first')
+  saveBoard(f.cwd, { schemaVersion: 2, projectId: project.projectId, module: project.module, currentStageId: 'first', stages: { first: { stageId: 'first', status: 'running', tasks: [{ id: 'inspect', title: 'Check actual files', status: 'queued' }], updatedAt: new Date().toISOString() } }, updatedAt: new Date().toISOString() })
+  f.services.set('longTaskRuntime', {
+    pause: (_cwd: string, _project: any, _id: string, paused: boolean) => { calls.push({ kind: 'pause', paused }); return { phase: 'inactive' } },
+    offer: (_cwd: string, _project: any, _id: string, offer: any) => calls.push({ kind: 'offer', offer }),
+    dispatch: async (_cwd: string, _project: any, input: any) => { assert.equal(f.store.read('main').control.paused, false); calls.push({ kind: 'dispatch', input }); return { phase: 'waiting', reason: 'Actual stage attempt was dispatched', attempt: { messageId: 'host-stage-message' } } },
+  })
+  let current = (await f.call('status')).task
+  current = f.store.update('main', { control: { paused: true } }, current.revision, 'host')
+  const next = await f.http('POST', { action: 'user_action', operationId: 'hosted-continue', revision: current.revision, command: { kind: 'continue' } })
+  assert.equal(next.value.interaction.dispatch, 'queued')
+  assert.equal(next.value.interaction.messageId, 'host-stage-message')
+  assert.equal(f.sent.length, 0, 'the task guide does not send another message after host dispatch')
+  const offer = calls.find(row => row.kind === 'offer').offer
+  assert.match(offer.draft, /Only inspect current engineering files|当前阶段|Check actual files/)
+  assert.equal(offer.dispatch.stageId, 'first')
+  assert.equal(calls.filter(row => row.kind === 'dispatch').length, 1)
+  assert.equal(next.value.task.control.paused, false)
+})
+
+test('replanning preserves exact human changes while a mechanical replan keeps latest request intact', async t => {
+  const f = fixture(t)
+  f.admit('核对道路工程量', 'original-plan')
+  let task = (await f.call('status')).task
+  const mechanical = await f.http('POST', { action: 'user_action', operationId: 'mechanical-replan', revision: task.revision, command: { kind: 'replan' } })
+  f.admit(f.sent[0].message.content[0].text, f.sent[0].message.id)
+  assert.equal(mechanical.value.task.latestRequest, '核对道路工程量')
+  task = (await f.call('status')).task
+  const revised = await f.http('POST', { action: 'user_action', operationId: 'human-replan', revision: task.revision, command: { kind: 'replan', text: '只算排水部分；不要重做已核实的路基' } })
+  assert.equal(revised.value.task.latestRequest, '只算排水部分；不要重做已核实的路基')
+  const actual = f.sent.filter(row => row.mode === 'queued').at(-1)
+  assert.equal(actual.message.content[0].text, revised.value.task.latestRequest)
+  assert.ok(f.sent.some(row => row.mode === 'context' && row.message.content[0].text.includes('点击重新规划')))
+})
+
+test('continue cannot fabricate a reply to an outstanding native question', async t => {
+  const f = fixture(t)
+  f.service.linkNativeQuestion('main', { provider: 'codex', callId: 'required-condition', questions: [{ id: 'method', question: '采用哪一种施工工法？' }] })
+  const task = (await f.call('status')).task
+  const next = await f.http('POST', { action: 'user_action', operationId: 'continue-with-question', revision: task.revision, command: { kind: 'continue' } })
+  assert.equal(next.value.interaction.dispatch, 'blocked')
+  assert.match(next.value.interaction.reason, /原生问题/)
+  assert.equal(next.value.task.questions[0].answer, undefined)
+  assert.equal(f.sent.length, 0)
+})
+
+test('lost native prepared operations become blocked after restart and require a fresh human action', async t => {
+  const f = fixture(t), operations = new Set<string>()
+  f.services.set('nativeTaskExecutor', { status: () => ({ active: false }), hasOperation: (_id: string, operationId: string) => operations.has(operationId), dispatch: async (input: any) => { operations.add(input.operationId); return { dispatch: 'requires_executor', reason: 'Waiting for native executor' } } })
+  const first = await f.http('POST', { action: 'user_action', operationId: 'before-restart', revision: 0, command: { kind: 'continue', executor: 'codex' } })
+  assert.equal(first.value.interaction.dispatch, 'requires_executor')
+  operations.clear()
+  const restored = await f.http('GET')
+  assert.equal(restored.value.task.control.lastAction.dispatch, 'blocked')
+  assert.match(restored.value.task.control.lastAction.reason, /失效/)
+  assert.equal(restored.value.interactionState.pending, false)
+  assert.equal(f.sent.length, 0)
+  const fresh = await f.http('POST', { action: 'user_action', operationId: 'after-restart', revision: restored.value.task.revision, command: { kind: 'continue', executor: 'codex' } })
+  assert.equal(fresh.value.interaction.dispatch, 'requires_executor')
+  assert.deepEqual([...operations], ['after-restart'], 'only a fresh explicit click prepares a new execution')
+})
+
+test('understanding confirmation does not switch or conflict with a running executor', async t => {
+  const f = fixture(t)
+  let task = f.store.read('main')
+  task = f.store.update('main', { brief: { ...task.brief, objective: '核验道路排水工程量' } }, task.revision, 'agent')
+  f.main.status = 'running'
+  const next = await f.http('POST', { action: 'user_action', operationId: 'confirm-during-run', revision: task.revision, command: { kind: 'confirm_understanding', executor: 'codex' } })
+  assert.equal(next.value.interaction.dispatch, 'recorded')
+  assert.equal(f.sent.length, 0)
+  assert.equal(next.value.task.briefProvenance.objective.status, 'confirmed')
+})
+
+test('native continuation keeps the DSH goal driver disarmed and respects its exhausted round budget', async t => {
+  const f = fixture(t), operations = new Set<string>(), goalCalls: string[] = []
+  let goal = { id: 'existing-goal', revision: 2, phase: 'active', activation: 'armed', roundsStarted: 3, maxGoalRounds: 4 }
+  f.services.set('goals', { get: () => goal, pause: () => { goalCalls.push('pause'); goal = { ...goal, phase: 'paused', activation: 'disarmed' } }, resume: () => goalCalls.push('resume') })
+  f.services.set('nativeTaskExecutor', { status: () => ({ active: false }), hasOperation: (_id: string, id: string) => operations.has(id), dispatch: async (input: any) => { operations.add(input.operationId); return { dispatch: 'requires_executor', reason: 'Waiting for native executor' } } })
+  const next = await f.http('POST', { action: 'user_action', operationId: 'native-goal', revision: 0, command: { kind: 'continue', executor: 'codex' } })
+  assert.equal(next.value.interaction.dispatch, 'requires_executor')
+  assert.deepEqual(goalCalls, ['pause'])
+  assert.equal(f.sent.length, 0)
+  await f.service.ackUserAction('main', 'native-goal', { dispatch: 'queued', reason: 'Codex accepted' })
+  goal.roundsStarted = 4
+  const task = f.store.read('main')
+  const exhausted = await f.http('POST', { action: 'user_action', operationId: 'native-budget', revision: task.revision, command: { kind: 'continue', executor: 'codex' } })
+  assert.equal(exhausted.value.interaction.dispatch, 'blocked')
+  assert.match(exhausted.value.interaction.reason, /预算/)
+  assert.deepEqual([...operations], ['native-goal'])
+  assert.ok(!goalCalls.includes('resume'))
+})
+
+test('DSH pause waits for actual parent and child idle rather than trusting the cancel signal', async t => {
+  const f = fixture(t)
+  f.main.status = 'running'
+  f.main.whenIdle = async () => { await new Promise(resolve => setTimeout(resolve, 5)); f.main.status = 'idle' }
+  const next = await f.http('POST', { action: 'user_action', operationId: 'pause-confirmed', revision: 0, command: { kind: 'pause' } })
+  assert.equal(next.value.interaction.dispatch, 'paused')
+  assert.equal(next.value.interactionState.running, false)
+  f.main.status = 'running'
+  f.main.whenIdle = async () => {}
+  const pending = await f.http('POST', { action: 'user_action', operationId: 'pause-unconfirmed', revision: next.value.task.revision, command: { kind: 'pause' } })
+  assert.equal(pending.value.interaction.dispatch, 'blocked')
+  assert.match(pending.value.interaction.reason, /仍待停止确认/)
+  assert.equal(pending.value.task.control.paused, true)
+  assert.equal(pending.value.interactionState.running, true)
+})
+
+test('native pause reaches Codex even when a child is still stopping and never certifies that child stopped', async t => {
+  const f = fixture(t), pauses: string[] = []
+  f.sessions.set('slow-child', { id: 'slow-child', header: { cwd: f.cwd, parentSession: 'main' } })
+  f.agents.set('slow-child', { session: f.sessions.get('slow-child'), status: 'running', cancel() {}, whenIdle: async () => {} })
+  f.services.set('nativeTaskExecutor', { status: () => ({ active: true }), pause: async (_id: string, operationId: string) => { pauses.push(operationId); return { dispatch: 'requires_executor', reason: 'Waiting for native interrupt' } } })
+  const next = await f.http('POST', { action: 'user_action', operationId: 'pause-slow-child', revision: 0, command: { kind: 'pause' } })
+  assert.equal(next.value.interaction.dispatch, 'requires_executor')
+  assert.deepEqual(pauses, ['pause-slow-child'])
+  const ack = await f.service.ackUserAction('main', 'pause-slow-child', { dispatch: 'paused', reason: 'Codex interrupted' })
+  assert.equal(ack.interaction.dispatch, 'blocked')
+  assert.match(ack.interaction.reason, /子任务/)
+  assert.equal(ack.task.control.paused, true)
+  assert.equal(ack.interactionState.running, true, 'active children remain visible after the native main executor stops')
 })

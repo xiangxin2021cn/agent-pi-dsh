@@ -46,8 +46,11 @@ function profileFiles(root, dir = root) {
             files.push(...profileFiles(root, path));
         else if (entry.isFile())
             files.push(relative(root, path).split(sep).join('/'));
-        if (files.length > MAX_FILES)
-            throw new Error(`profile has more than ${MAX_FILES} configuration files`);
+        // Told in the user's words, with the way out: this is the cap a heavy
+        // profile actually hits, and the per-plugin export is the answer.
+        if (files.length > MAX_FILES) {
+            throw new Error(`这个 profile 的配置文件超过 ${MAX_FILES} 个，整份备份放不下。可以只导出选中的插件。 / this profile has more than ${MAX_FILES} configuration files, which is too many for one whole-profile backup. Export selected plugins instead.`);
+        }
     }
     return files;
 }

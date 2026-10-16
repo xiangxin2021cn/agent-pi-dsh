@@ -4991,6 +4991,16 @@ const SearchSettings = createSearchSettings(React)
           }
           rememberWorkbenchBinding(parentId, { cwd, module: project.module, projectId: project.projectId })
           ensureUserRequirementWatcher(parentId)
+          if (nativeCodex.enabled(parentId)) {
+            return api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(parentId)}`, cwd).then(latest => performTaskUserAction({ sessionId: parentId, revision: latest.task.revision, operationId: crypto.randomUUID(), command: { kind: 'continue' } })).then(started => {
+              if (['blocked', 'requires_executor', 'prepared'].includes(started.interaction?.dispatch)) setError(started.interaction.reason)
+              else {
+                setNotice(started.interaction?.reason || 'Codex 已接收当前阶段任务。')
+                if (closeWorkbench !== false) props.openView?.('agent-pi-codex-main', '')
+              }
+              return refresh()
+            }).catch(error => { setError(error.message); return refresh() })
+          }
           return api('/api/agent-pi/stage', cwd, {
             method: 'POST', body: JSON.stringify({ action: 'runtime_dispatch', module: project.module,
               projectId: project.projectId, sessionId: parentId,
@@ -6177,6 +6187,7 @@ const SearchSettings = createSearchSettings(React)
     }
     const rememberProfessionalTask = (id, task, binding) => {
       const old = professionalTasks.get(id)
+      if (old && old.task.revision > task.revision) return
       professionalTasks.set(id, {task,binding})
       if (old?.task.revision !== task.revision || JSON.stringify(old?.binding) !== JSON.stringify(binding)) window.dispatchEvent(new CustomEvent('agent-pi-task-snapshot', {detail:{sessionId:id,binding}}))
     }
@@ -6194,9 +6205,26 @@ const SearchSettings = createSearchSettings(React)
         else window.dispatchEvent(new CustomEvent('agent-pi-open-file', { detail: { cwd: result.cwd, path: result.path, locator: result.locator } }))
       } catch (error) { showToast(error.message) }
     }
+    const performTaskUserAction = async payload => {
+      const id = payload.sessionId
+      const authority = codexTurnAuthorities(id)
+      const session = sessionSnapshotWithChat(id, authority?.session)
+      const cwd = professionalTasks.get(id)?.binding?.cwd || nativeCodex.current(id).cwd || session?.cwd || session?.header?.cwd || workspaceCwd({ sessionId: id })
+      const executor = nativeCodex.busy(id) || nativeCodex.enabled(id) ? 'codex' : 'dsh'
+      if (executor === 'codex' && !window.agentPiDesktop?.codexTaskAction) throw new Error('原生任务操作需要更新后的桌面应用，请在桌面端打开此对话。')
+      let result = await api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(id)}`, cwd, { method: 'POST', body: JSON.stringify({ ...payload, action: 'user_action', command: { ...payload.command, executor } }) })
+      if (result.interaction?.dispatch === 'requires_executor') {
+        const controller = codexTurnController({ sessionId: id }, false)
+        result = await nativeCodex.taskAction({ sessionId: id, cwd, operationId: payload.operationId, kind: payload.command.kind, model: controller?.selectedModel || undefined, reasoningEffort: controller?.selectedReasoningEffort || undefined })
+      }
+      if (result?.task) rememberProfessionalTask(id, result.task, result.binding)
+      window.dispatchEvent(new CustomEvent('agent-pi-task-snapshot', { detail: { sessionId: id } }))
+      return result
+    }
     const TaskSummary = createProfessionalTaskSummary({ React, api,
       cwd: () => snapshotComposer()?.cwd || '', language: () => document.documentElement.lang || 'zh',
-      subscribe: taskSubscriptions, onOpenSource: openTaskSource,
+      subscribe: taskSubscriptions, onOpenSource: openTaskSource, onUserAction: performTaskUserAction,
+      onOpenChat: id => openTaskView(id, nativeCodex.enabled(id) ? 'agent-pi-codex-main' : 'chat'),
       onOpenTask: id => openTaskView(id, 'agent-pi-task-guide'),
       onOpenWorkbench: openTaskWorkbench,
       onTask: rememberProfessionalTask,
@@ -6220,7 +6248,7 @@ const SearchSettings = createSearchSettings(React)
       return h(TaskProcess, { sessionId: id })
     }
 
-    const TaskGuide = createTaskGuide({ React, api,
+    const TaskGuide = createTaskGuide({ React, api, onUserAction: performTaskUserAction,
       cwd: () => snapshotComposer()?.cwd || '',
       language: () => document.documentElement.lang || 'zh',
       subscribe: taskSubscriptions,
@@ -6245,10 +6273,7 @@ const SearchSettings = createSearchSettings(React)
         fillComposer(composer, draft ? `${draft}\n\n${instruction}` : instruction)
         requestAnimationFrame(() => composer.inputActions?.submit?.())
       },
-      subscribe: (id, listener) => {
-        const authorities = codexTurnAuthorities(id)
-        return subscribeSessionWithChat(id, authorities?.session, listener)
-      },
+      subscribe: taskSubscriptions,
     })
 
     function MainComposerTools(props) {

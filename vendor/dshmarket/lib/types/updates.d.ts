@@ -22,6 +22,18 @@ export interface UpdateStatus {
      */
     updateAvailable: boolean;
     /**
+     * HEAD of the chosen line for a floating git install whose repository has
+     * moved without publishing: newer commits exist (current ≠ latest) but the
+     * version did not advance, so #824's rule answers `updateAvailable: false`
+     * — the update channel installs releases, not arbitrary branch heads.
+     *
+     * This field keeps the fact visible instead of collapsing it into "up to
+     * date": the market shows "有新提交（未发版）<short sha>" so a user who
+     * DOES want the unreleased bits knows a rebuild-installed row is behind,
+     * while everyone else is not nagged by a permanent update button.
+     */
+    unreleasedCommit?: string;
+    /**
      * This package is a plain dependency, not a plugin: no `dsh` field, not in
      * `dsh.profile.bundles`, and no row of the user's own patch loads it
      * (#793). A newer release can exist and is reported as `latest`, but it is
@@ -31,6 +43,18 @@ export interface UpdateStatus {
      * the profile were damaged when nothing was touched.
      */
     notAPlugin?: true;
+    /**
+     * A newer build exists on a tag other than `latest` (#867).
+     *
+     * Some packages leave `latest` pointing at an older line than the one they
+     * actually publish on: `@deepseek-ai/dsh-experimental-agent-team-profile`
+     * answers `latest` with 0.1.5-alpha.2 while `alpha` is 0.2.1-alpha.4, so a
+     * user who installed 0.2.1-alpha.2 reads "up to date" while the line they
+     * are following has moved. Named, and never `updateAvailable`: the market's
+     * channels are the market's own, and this is the fact, not an upgrade the
+     * market decided to offer.
+     */
+    newerPrerelease?: string;
     /** Taking this update replaces a local package source with its matched online release. */
     restoreRequired?: boolean;
     /** Independent, explicit source switch offered for verified legacy Git installs. */
@@ -155,6 +179,15 @@ export declare function latestPublishedRecently(name: string, windowMs?: number)
  */
 export declare function versionOnChannel(name: string, channel: Channel, stable: string | null): Promise<string | null>;
 export declare function fetchNpmLatest(name: string): Promise<string | null>;
+/**
+ * The newest build above `installed` that some tag other than `latest`
+ * points at, or null (#867).
+ *
+ * A fact about the registry, not a channel decision: this is what makes the
+ * difference visible to someone whose installed pin is ahead of `latest`
+ * without the market volunteering anyone's prerelease as an update.
+ */
+export declare function newerPrereleaseFor(name: string, installed: string | null): Promise<string | null>;
 /** Per-plugin update checks; a failed check reports no update rather than failing the listing. */
 export declare function checkUpdates(profile: string, force?: boolean, explicitDir?: string, 
 /**

@@ -1,6 +1,7 @@
 import { renderTenderResponseCoverage } from './tender-response-panel.js'
+import { createTaskInteraction, taskInteractionCss } from './task-interaction.js'
 
-export const professionalTaskSummaryCss = `
+export const professionalTaskSummaryCss = taskInteractionCss + `
 .ap-task-summary{border:1px solid var(--border,#d5dae1);border-radius:10px;margin:12px 16px;padding:12px 14px;background:var(--bg-primary,#fff);font-size:13px;color:var(--text-primary,#273240);min-width:0;max-height:min(36vh,320px);overflow:auto;flex-shrink:0}.ap-task-summary-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.ap-task-summary h3{font-size:14px;margin:0 0 6px}.ap-task-summary p{margin:5px 0;line-height:1.55;overflow-wrap:anywhere}.ap-task-summary button,.ap-task-finding button{font:inherit;padding:5px 9px;border:1px solid var(--border,#d5dae1);border-radius:6px;background:var(--bg-secondary,#f4f6f8);color:inherit;cursor:pointer}.ap-task-summary-muted{color:var(--text-secondary,#687280);font-size:12px}.ap-task-summary-facts{display:flex;gap:8px 14px;flex-wrap:wrap}.ap-task-finding{border:1px solid var(--border,#d5dae1);border-radius:8px;margin:10px 0;padding:12px}.ap-task-finding[data-importance=critical]{border-left:3px solid var(--accent,#285c7b)}.ap-task-finding h4{font-size:14px;margin:0 0 7px}.ap-task-finding p{margin:5px 0;line-height:1.55;overflow-wrap:anywhere}.ap-task-finding-sources,.ap-task-finding-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.ap-task-finding a{color:var(--accent,#285c7b)}.ap-task-finding-resolved{opacity:.8}.ap-task-summary pre{white-space:pre-wrap;overflow-wrap:anywhere}.ap-task-summary .ap-task-finding{margin-bottom:0}.ap-task-summary-empty{margin:0;color:var(--text-secondary,#687280)}.ap-task-stage-controls{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.ap-task-stage-review{width:100%;padding:10px;border:1px solid var(--border,#d5dae1);border-radius:8px}.ap-task-stage-review button{margin-right:8px}.ap-task-stage-controls button:disabled{opacity:.5;cursor:default}
 @media(max-width:600px){.ap-task-summary{margin:8px;padding:10px}.ap-task-summary-head{flex-wrap:wrap}}
 `
@@ -44,7 +45,7 @@ export function sourceReference(h, evidence, onOpenSource, locale = 'zh') {
   return h('span', { key:evidence?.id, className:'ap-task-summary-muted' }, title, evidence?.locator ? ` · ${evidence.locator}` : '')
 }
 
-export function renderTaskFindings(h, task, locale, onOpenSource, { includeResolved = false, limit, onOpenChat } = {}) {
+export function renderTaskFindings(h, task, locale, onOpenSource, { includeResolved = false, limit, onOpenChat, renderActions } = {}) {
   const zh = String(locale || '').startsWith('zh')
   const evidence = new Map((task?.evidence || []).map((row) => [row.id,row]))
   const rows = visibleTaskFindings(task, includeResolved)
@@ -59,28 +60,42 @@ export function renderTaskFindings(h, task, locale, onOpenSource, { includeResol
       return h('span', { key:action.id || index }, action.label)
     })),
     row.resolution && h('p', null, zh ? '处理结果：' : 'Resolution: ', row.resolution),
+    row.status === 'open' && renderActions?.(row),
     row.status !== 'open' && h('p', { className:'ap-task-summary-muted' }, row.status === 'resolved' ? (zh ? '已处理' : 'Resolved') : (zh ? '已被后续发现替代' : 'Superseded')),
   ))
 }
 
-export function createTaskStageControls({ React, api, cwd, language, onOpenWorkbench }) {
+export function createTaskStageControls({ React, api, cwd, language, onOpenWorkbench, onUserAction }) {
   const h = React.createElement
   return function TaskStageControls({ sessionId, task, binding, onChanged }) {
-    const [review,setReview] = React.useState(null), [busy,setBusy] = React.useState(false), [error,setError] = React.useState(''), [approved,setApproved] = React.useState(false)
+    const [review,setReview] = React.useState(null), [busy,setBusy] = React.useState(false), [error,setError] = React.useState(''), [approved,setApproved] = React.useState(false), [continuation,setContinuation] = React.useState(null)
+    const approving = React.useRef(false)
     const zh = String(language?.() || 'zh').startsWith('zh')
-    React.useEffect(() => {setReview(null);setError('');setApproved(false)},[sessionId,binding?.projectId,binding?.stageId])
+    React.useEffect(() => {setReview(null);setError('');setApproved(false);setContinuation(null)},[sessionId,binding?.projectId,binding?.stageId])
     if (!binding?.projectId) return null
+    const resume = async () => {
+      const latest=await api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(sessionId)}`,cwd())
+      await onChanged?.(latest)
+      const next=await onUserAction({sessionId,revision:latest.task.revision,operationId:crypto.randomUUID(),command:{kind:'continue'}})
+      if(!next?.task||!next.interaction)throw new Error(zh?'阶段已批准，但尚未收到续跑回执。':'Stage approved; no continuation receipt was returned.')
+      setContinuation(next.interaction);await onChanged?.(next)
+    }
     const approve = async () => {
-      if (!review?.binding?.approvalFingerprint || busy || binding.canApprove===false || task?.pendingProjectSync) return
+      if (!review?.binding?.approvalFingerprint || busy || approving.current || binding.canApprove===false || task?.pendingProjectSync) return
+      approving.current=true
       setBusy(true);setError('')
       try {
         await api('/api/agent-pi/stage',review.binding.cwd || cwd(),{method:'POST',body:JSON.stringify({action:'approve_gate',module:review.binding.moduleId,projectId:review.binding.projectId,stageId:review.binding.stageId,sessionId,approvalFingerprint:review.binding.approvalFingerprint})})
-        setApproved(true);setReview(null);await onChanged?.()
-      } catch(e) {setError(e.message)} finally {setBusy(false)}
+        setApproved(true);setReview(null)
+        if (onUserAction) await resume()
+        else await onChanged?.()
+      } catch(e) {setError(e.message)} finally {approving.current=false;setBusy(false)}
     }
     return h('div',{className:'ap-task-stage-controls'},
-      onOpenWorkbench&&h('button',{type:'button',onClick:()=>onOpenWorkbench(binding,sessionId)},approved?(zh?'前往工作台继续':'Continue in the workbench'):(zh?'查看工作台阶段':'View workbench stage')),
-      approved&&h('p',{role:'status',className:'ap-task-summary-muted'},zh?'阶段批准已记录，可前往工作台继续当前项目。':'Stage approval was recorded. Continue this project in the workbench.'),
+      onOpenWorkbench&&h('button',{type:'button',onClick:()=>onOpenWorkbench(binding,sessionId)},zh?'查看工作台阶段':'View workbench stage'),
+      approved&&h('p',{role:'status',className:'ap-task-summary-muted'},zh?'阶段批准已记录。':'Stage approval was recorded.'),
+      continuation?.reason&&h('p',{role:['blocked','requires_executor'].includes(continuation.dispatch)?'alert':'status'},continuation.reason),
+      approved&&onUserAction&&(error||['blocked','requires_executor'].includes(continuation?.dispatch))&&h('button',{type:'button',disabled:busy,onClick:async()=>{if(approving.current)return;approving.current=true;setBusy(true);setError('');try{await resume()}catch(e){setError(e.message)}finally{approving.current=false;setBusy(false)}}},zh?'重试继续当前任务':'Retry continuing this task'),
       error&&!review&&h('p',{role:'alert'},error),
       binding.approvalGate&&(binding.canApprove===false||binding.waitingHuman!==false)&&h('button',{type:'button',disabled:busy||binding.canApprove===false,title:binding.approvalReason,onClick:()=>{setReview({binding:structuredClone(binding),task:structuredClone(task)});setError('')}},zh?'查看并批准当前阶段':'Review and approve current stage'),
       binding.approvalGate&&binding.canApprove===false&&binding.approvalReason&&h('p',{className:'ap-task-summary-muted'},binding.approvalReason),
@@ -99,16 +114,17 @@ export function createTaskStageControls({ React, api, cwd, language, onOpenWorkb
   }
 }
 
-export function createProfessionalTaskSummary({ React, api, cwd, language, subscribe, onOpenTask, onOpenSource, onOpenWorkbench, onTask }) {
+export function createProfessionalTaskSummary({ React, api, cwd, language, subscribe, onOpenTask, onOpenSource, onOpenWorkbench, onTask, onUserAction, onOpenChat }) {
   const h = React.createElement
-  const StageControls = createTaskStageControls({React,api,cwd,language,onOpenWorkbench})
+  const StageControls = createTaskStageControls({React,api,cwd,language,onOpenWorkbench,onUserAction})
+  const Interaction = createTaskInteraction({React,api,cwd,language,onUserAction})
   return function ProfessionalTaskSummary({ sessionId, taskResult, binding, onOpenTask: openTask, visible = true }) {
     const [result,setResult] = React.useState(null)
+    const [error,setError] = React.useState(''), [retry,setRetry] = React.useState(0)
     const revision = React.useRef(-1)
+    React.useEffect(() => {setResult(null);setError('');revision.current=-1},[sessionId])
     React.useEffect(() => {
-      setResult(null)
-      revision.current=-1
-      if (taskResult) {revision.current=taskResult.task.revision;onTask?.(sessionId,taskResult.task,taskResult.binding)}
+      if (taskResult&&taskResult.task.revision>=revision.current) {revision.current=taskResult.task.revision;onTask?.(sessionId,taskResult.task,taskResult.binding)}
       if (!sessionId || taskResult) return
       const controller = new AbortController()
       let loading = false, pending = false
@@ -118,28 +134,34 @@ export function createProfessionalTaskSummary({ React, api, cwd, language, subsc
         loading = true
         try {
           const next = await api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(sessionId)}`,cwd(),{signal:controller.signal})
-          if (!controller.signal.aborted && next.task.revision >= revision.current) {revision.current=next.task.revision;setResult(next);onTask?.(sessionId,next.task,next.binding)}
-        } catch {} finally { loading = false;if(pending&&!controller.signal.aborted)void refresh() }
+          if (!controller.signal.aborted && next.task.revision >= revision.current) {revision.current=next.task.revision;setResult(next);setError('');onTask?.(sessionId,next.task,next.binding)}
+        } catch (err) {if(!controller.signal.aborted)setError(String(err.message||err))} finally { loading = false;if(pending&&!controller.signal.aborted)void refresh() }
       }
       void refresh()
       const timer = setInterval(refresh,5000)
       const dispose = subscribe?.(sessionId,refresh)
       return () => { controller.abort();clearInterval(timer);dispose?.() }
-    },[sessionId,taskResult])
-    const task = (taskResult || result)?.task
-    if (!visible || !task) return null
+    },[sessionId,taskResult,retry])
+    const current = result?.task.revision > (taskResult?.task.revision ?? -1) ? result : taskResult || result
+    const task = current?.task
+    if (!visible) return null
+    if (!task) return error?h('section',{className:'ap-task-summary'},h('p',{role:'alert'},error),h('button',{type:'button',onClick:()=>setRetry(value=>value+1)},String(language?.()).startsWith('zh')?'重试读取本次任务':'Retry reading the current task')):null
     const model = taskOverviewModel(task)
-    const responseCoverage = (taskResult || result)?.responseCoverage
+    const responseCoverage = current?.responseCoverage
     if (!model.objective && !model.questions.length && !model.findings.length && !task.latestRequest && !model.depthEnabled && !responseCoverage) return null
     const locale = language?.() || 'zh', zh = locale.startsWith('zh')
-    const project = binding || (taskResult || result)?.binding || task.binding
+    const project = binding || current?.binding || task.binding
     const openSource = onOpenSource ? (evidence)=>onOpenSource(evidence,sessionId) : undefined
     const goalStatus = task.briefProvenance?.objective?.status
     const open = openTask || onOpenTask
+    const changed = next => {if(next?.task&&next.task.revision>=revision.current){revision.current=next.task.revision;setResult(next);setError('');onTask?.(sessionId,next.task,next.binding)}}
+    const openChat = onOpenChat ? ()=>onOpenChat(sessionId) : undefined
     return h('section', { className:'ap-task-summary', 'aria-label':zh ? '共同任务理解' : 'Shared task understanding', 'data-task-revision':task.revision },
       h('div', { className:'ap-task-summary-head' }, h('div', null, h('h3', null, zh ? '本次目标' : 'Current goal'), h('p', null, model.objective || (zh ? '正在结合你的表达和资料整理目标。' : 'Understanding your goal from the conversation and materials.')), goalStatus && h('span', { className:'ap-task-summary-muted' }, goalStatus === 'provisional' || goalStatus === 'conflict' ? (zh ? '暂定理解，可在对话中纠正' : 'Provisional; correct this in the conversation') : (zh ? '来自当前任务要求' : 'From the current task requirements'))), open && h('button', { type:'button', onClick:() => open(sessionId) }, zh ? '查看本次任务' : 'View current task')),
       project && h('p', { className:'ap-task-summary-muted' }, project.projectGoal ? `${zh ? '项目总目标：' : 'Project goal: '}${project.projectGoal} · ` : '', project.stageLabel || project.stageId || ''),
-      project && h(StageControls,{sessionId,task,binding:project,onChanged:async()=>{const next=await api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(sessionId)}`,cwd());revision.current=next.task.revision;setResult(next);onTask?.(sessionId,next.task,next.binding)}}),
+      error&&h('p',{role:'alert'},error),
+      h(Interaction,{sessionId,result:current,onChanged:changed,onOpenChat:openChat}),
+      project && h(StageControls,{sessionId,task,binding:project,onChanged:async(next)=>{changed(next||await api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(sessionId)}`,cwd()))}}),
       h('div', { className:'ap-task-summary-facts' }, model.currentStep && h('span', null, `${zh ? '正在解决：' : 'Current focus: '}${model.currentStep.title}`), model.questions.length > 0 && h('span', null, `${model.questions.length}${zh ? ' 个问题待明确' : ' questions to clarify'}`), h('span', { className:'ap-task-summary-muted' }, model.depthEnabled ? (zh ? '专业深度已启用' : 'Professional depth on') : (zh ? '基础专业检查' : 'Core professional checks'))),
       model.constraints.length>0&&h('p',{className:'ap-task-summary-muted'},zh?'当前约束：':'Current constraints: ',model.constraints.slice(-3).map(row=>row.text.length>120?row.text.slice(0,120)+'…':row.text).join('；'),model.constraints.length>3?(zh?'；更多约束见本次任务。':'; More in Current task.'):''),
       model.corrections[0]&&h('p',{className:'ap-task-summary-muted'},zh?'最近明确修正：':'Latest explicit correction: ',model.corrections[0].text.length>160?model.corrections[0].text.slice(0,160)+'…':model.corrections[0].text),
@@ -148,7 +170,8 @@ export function createProfessionalTaskSummary({ React, api, cwd, language, subsc
         model.coverage.total>0&&h('span',null,`${zh?'专业复核：':'Professional review: '}${model.coverage.reviewed}/${model.coverage.total}`),
         model.delivery.total>0&&h('span',null,`${zh?'成果登记：':'Registered deliverables: '}${model.delivery.total}`)),
       renderTenderResponseCoverage(h,responseCoverage,{locale,compact:true,onOpenTask:open?()=>open(sessionId):undefined}),
-      ...renderTaskFindings(h,task,locale,openSource,{limit:3}),
+      model.questions.length>0&&h('div',null,h('p',null,model.questions[0].question),openChat&&h('button',{type:'button',onClick:openChat},model.questions.some(row=>row.provider)?(zh?'前往原生问答':'Go to the native question card'):(zh?'在主对话中补充':'Add information in the conversation'))),
+      ...renderTaskFindings(h,task,locale,openSource,{limit:3,onOpenChat:openChat,renderActions:finding=>h(Interaction,{sessionId,result:current,finding,onChanged:changed,onOpenChat:openChat})}),
       model.findings.length > 3 && h('p', { className:'ap-task-summary-muted' }, `${zh ? '另有 ' : 'Plus '}${model.findings.length - 3}${zh ? ' 项发现，可在本次任务中查看。' : ' findings in Current task.'}`),
       model.changes[0]?.summary && h('p', { className:'ap-task-summary-muted' }, `${zh ? '最近调整：' : 'Latest adjustment: '}${model.changes[0].summary}`),
     )

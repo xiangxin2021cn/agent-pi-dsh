@@ -99,6 +99,33 @@ export function apply(ctx: MarketClientContext): void {
     console.warn('[dsh-market] host ui-primitives missing icons ' + iconGaps.join(', ') + ' — rendering without them')
   }
 
+  // Everything below hands registrations to the host, and a throw in there is
+  // a throw inside the host's own client-plugin bootstrap: the module loader
+  // runs a plugin's factory on the boot path with nothing between it and the
+  // shell, so ONE plugin failing takes the whole app down — the market
+  // included, on a host where it is only a guest (#869). The market must not
+  // be able to do that. Contain it here: the sections registered before the
+  // throw stay (they are valid, and ctx owns their disposal), the market goes
+  // missing for this session, and the console says what happened and where to
+  // send it. A hook on the host side would be the better place for this —
+  // none exists today.
+  try {
+    mountMarket(ctx)
+  } catch (error) {
+    console.error(
+      '[dsh-market] mounting failed, so the market is missing for this session. '
+      + 'The rest of the app is unaffected. Report at https://github.com/dsh-market/dsh-market/issues '
+      + 'with this line and the stack below:',
+      error,
+    )
+  }
+}
+
+/**
+ * The market's mounts, split out only so apply() can contain a throw from any
+ * of them. Not exported: the split is a guard, not a surface.
+ */
+function mountMarket(ctx: MarketClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-market: dictionaries')
   const t = ctx.locale.bind(NS)
 

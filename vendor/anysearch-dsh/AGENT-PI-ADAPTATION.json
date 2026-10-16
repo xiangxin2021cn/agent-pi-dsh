@@ -1,12 +1,12 @@
 {
   "upstream": "https://github.com/anysearch-team/anysearch-dsh",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "license": "MIT",
-  "dsh": "0.2.1-alpha.2",
+  "dsh": "0.2.1-alpha.4",
   "cordis": "4.0.5-alpha.1",
   "schemastery": "3.18.5-alpha.1",
-  "sourceManifestSha256": "4a9d4e90c785347ebab6f63fbf90ef12c81eb9617453aa97f5653c4dbe8b8434",
-  "adaptedManifestSha256": "3d2cc6953223856ebdcb25014f2d8c0c258128416eaf056dc79c0241007ade58",
+  "sourceManifestSha256": "08f8475f10ce3f854c351793395975ebfe6bea4ed7ab3a3cc64a56c0e8f09d2f",
+  "adaptedManifestSha256": "1b98378a9a476bc99bea4571a0145bfca8d24ac2273b255b71efe29a14fbdc24",
   "changes": [
     "exact reviewed alpha peer additions",
     "search count 1..10 and content format",

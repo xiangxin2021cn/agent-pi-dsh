@@ -8627,8 +8627,155 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 			}[response.generationMode] || response.generationMode), h("p", null, link(response, response.path ? t("查看当前成果", "Open current artifact") : t("尚未关联实际文件", "No actual file linked"))), h("p", null, state(response.status))))), h("td", null, ...(row.responses || []).map((response) => h("div", { key: response.id }, (row.responses || []).length > 1 && h("p", null, response.title), !(response.evidence || []).length && h("p", { className: "ap-tender-response-muted" }, t("尚未登记支持材料", "No supporting material registered")), ...(response.evidence || []).map((item, index) => h("div", { key: index }, h("p", null, link(item), item.locator ? " · " + item.locator : ""), h("p", null, state(item.status)), item.reason && h("p", { className: "ap-tender-response-muted" }, item.reason)))))), h("td", null, state(row.status), ...(row.gaps || []).map((gap, index) => h("p", { key: "gap-" + index }, gap)), ...(row.responses || []).map((response) => response.checks?.length > 0 && h("details", { key: response.id }, h("summary", null, response.title + t(" · 检查依据", " · Check details")), ...response.checks.map((check, index) => h("p", { key: index }, state(check.status), " ", check.message)))))))))), !compact && h("p", { className: "ap-tender-response-muted" }, t("响应计划、成稿、证据和复核分别统计；检查结果不预测得分，也不代替评审或最终提交确认。", "Plans, drafts, evidence and review are counted separately. Checks do not predict scores or replace evaluation and final submission approval.")));
 		}
 		//#endregion
+		//#region src/client/task-interaction.js
+		const taskInteractionCss = `
+.ap-task-interaction{margin:10px 0;min-width:0}.ap-task-interaction-controls{display:flex;gap:8px;flex-wrap:wrap}.ap-task-interaction button{font:inherit;padding:7px 10px;border:1px solid var(--border,#d5dae1);border-radius:6px;background:var(--bg-secondary,#f4f6f8);color:inherit;cursor:pointer}.ap-task-interaction button:disabled{opacity:.5;cursor:default}.ap-task-interaction-editor{margin-top:10px;padding:12px;border:1px solid var(--border,#d5dae1);border-radius:8px}.ap-task-interaction-editor label{display:block;margin-bottom:8px}.ap-task-interaction textarea{display:block;box-sizing:border-box;width:100%;min-height:84px;margin:8px 0;padding:9px;font:inherit;color:inherit;background:var(--bg-primary,#fff);border:1px solid var(--border,#d5dae1);border-radius:6px;resize:vertical}.ap-task-interaction p{line-height:1.55;overflow-wrap:anywhere}.ap-task-interaction-error{color:#b42318}.ap-task-interaction-state{color:var(--text-secondary,#687280);font-size:12px}
+`;
+		/** Explicit human actions use one host command, shared by chat and Current task. */
+		function createTaskInteraction({ React, api, cwd, language, onUserAction }) {
+			const h = React.createElement;
+			return function TaskInteraction({ sessionId, result, finding, disabled = false, onChanged, onOpenChat }) {
+				const [editor, setEditor] = React.useState(""), [text, setText] = React.useState("");
+				const [busy, setBusy] = React.useState(false), [error, setError] = React.useState(""), [receipt, setReceipt] = React.useState(null);
+				const flight = React.useRef(null);
+				const activeSession = React.useRef(sessionId);
+				activeSession.current = sessionId;
+				const zh = String(language?.() || "zh").startsWith("zh");
+				const task = result?.task, state = result?.interactionState || {};
+				const paused = state.paused ?? task?.control?.paused ?? false;
+				const unavailable = disabled || busy || !sessionId || !task;
+				React.useEffect(() => {
+					setEditor("");
+					setText("");
+					setError("");
+					setReceipt(null);
+					setBusy(false);
+					flight.current = null;
+				}, [sessionId, finding?.id]);
+				const perform = async (kind, extra = {}) => {
+					if (unavailable || flight.current) return;
+					const payload = {
+						sessionId,
+						revision: task.revision,
+						operationId: crypto.randomUUID(),
+						command: {
+							kind,
+							...extra
+						}
+					};
+					flight.current = payload;
+					setBusy(true);
+					setError("");
+					setReceipt(null);
+					try {
+						const next = onUserAction ? await onUserAction(payload) : await api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(sessionId)}`, cwd(), {
+							method: "POST",
+							body: JSON.stringify({
+								action: "user_action",
+								command: payload.command,
+								revision: payload.revision,
+								operationId: payload.operationId
+							})
+						});
+						if (activeSession.current !== payload.sessionId) return;
+						if (!next?.task || !next.interaction) throw new Error(zh ? "未收到任务操作结果，请读取最新状态后核对。" : "No task action receipt was returned. Read the latest state to check the result.");
+						setReceipt(next.interaction);
+						await onChanged?.(next);
+						if (![
+							"blocked",
+							"requires_executor",
+							"prepared"
+						].includes(next.interaction.dispatch)) {
+							setEditor("");
+							setText("");
+						}
+					} catch (err) {
+						if (activeSession.current === payload.sessionId) setError(String(err.message || err));
+					} finally {
+						if (flight.current === payload) {
+							flight.current = null;
+							setBusy(false);
+						}
+					}
+				};
+				const edit = (kind) => {
+					setEditor(kind);
+					setText("");
+					setError("");
+					setReceipt(null);
+				};
+				const last = receipt || !finding && task?.control?.lastAction;
+				const failed = ["blocked", "requires_executor"].includes(last?.dispatch);
+				const stateLabel = paused ? zh ? "任务已暂停；已有依据和成果保留。" : "Task paused; existing evidence and deliverables are preserved." : state.running ? zh ? "执行中；新的调整会交给当前执行器。" : "Running; adjustments go to the current executor." : state.pending ? zh ? "已有任务操作等待执行。" : "A task action is waiting to run." : "";
+				return h("section", {
+					className: "ap-task-interaction",
+					"aria-label": finding ? zh ? "处理这项发现" : "Respond to this finding" : zh ? "任务交互" : "Task actions",
+					"data-task-control-paused": String(paused)
+				}, !finding && stateLabel && h("p", { className: "ap-task-interaction-state" }, stateLabel), h("div", { className: "ap-task-interaction-controls" }, finding ? h("button", {
+					type: "button",
+					disabled: unavailable || finding.status !== "open",
+					onClick: () => edit("respond_finding")
+				}, zh ? "补充或调整处理" : "Respond or adjust next steps") : h(React.Fragment, null, ["provisional", "conflict"].includes(task?.briefProvenance?.objective?.status) && h("button", {
+					type: "button",
+					disabled: unavailable,
+					onClick: () => perform("confirm_understanding")
+				}, zh ? "确认当前理解" : "Confirm this understanding"), h("button", {
+					type: "button",
+					disabled: unavailable || !!state.running && !paused,
+					onClick: () => perform("continue")
+				}, paused ? zh ? "继续任务" : "Resume task" : zh ? "继续当前任务" : "Continue task"), h("button", {
+					type: "button",
+					disabled: unavailable || paused || !state.running && !state.pending,
+					onClick: () => perform("pause")
+				}, zh ? "暂停执行" : "Pause execution"), h("button", {
+					type: "button",
+					disabled: unavailable,
+					onClick: () => edit("adjust_request")
+				}, zh ? "补充或调整要求" : "Add or adjust requirements"), h("button", {
+					type: "button",
+					disabled: unavailable,
+					onClick: () => edit("replan")
+				}, zh ? "重新规划" : "Replan"), h("button", {
+					type: "button",
+					disabled: unavailable || !task?.deliverables?.length,
+					onClick: () => perform("check_deliverables")
+				}, zh ? "核验已登记成果" : "Check registered deliverables"))), editor && h("div", { className: "ap-task-interaction-editor" }, h("label", null, editor === "respond_finding" ? zh ? "对这项发现的补充、决定或处理要求" : "Your information, decision or instructions about this finding" : editor === "replan" ? zh ? "重新规划时需要采用哪些调整？" : "What should the revised plan take into account?" : zh ? "直接说明需要补充或改变的内容" : "Describe what to add or change", h("textarea", {
+					"aria-label": zh ? "任务调整内容" : "Task adjustment",
+					autoFocus: true,
+					value: text,
+					maxLength: 12e3,
+					onChange: (e) => setText(e.target.value),
+					placeholder: zh ? "例如：先核对工期与资源，报告改给项目经理使用，保留已核实的数据。" : "For example: check schedule and resources first; keep verified data."
+				})), editor === "respond_finding" && h("p", { className: "ap-task-interaction-state" }, zh ? "你的意见将交给执行器处理；提交不代表问题已解决。" : "Your response goes to the executor. Submitting does not resolve the finding."), h("div", { className: "ap-task-interaction-controls" }, h("button", {
+					type: "button",
+					disabled: unavailable || editor !== "replan" && !text.trim(),
+					onClick: () => perform(editor, {
+						...text.trim() ? { text: text.trim() } : {},
+						...finding ? { findingId: finding.id } : {}
+					})
+				}, busy ? zh ? "提交中…" : "Submitting…" : zh ? "提交给当前任务" : "Apply to current task"), h("button", {
+					type: "button",
+					disabled: busy,
+					onClick: () => {
+						setEditor("");
+						setText("");
+					}
+				}, zh ? "取消" : "Cancel"))), last?.reason && h("p", {
+					role: failed ? "alert" : "status",
+					className: failed ? "ap-task-interaction-error" : "ap-task-interaction-state",
+					"data-task-dispatch": last.dispatch
+				}, last.reason), error && h("p", {
+					role: "alert",
+					className: "ap-task-interaction-error"
+				}, error), (failed || error) && onOpenChat && h("button", {
+					type: "button",
+					onClick: onOpenChat
+				}, zh ? "返回主对话核对" : "Review in the conversation"));
+			};
+		}
+		//#endregion
 		//#region src/client/professional-task-summary.js
-		const professionalTaskSummaryCss = `
+		const professionalTaskSummaryCss = taskInteractionCss + `
 .ap-task-summary{border:1px solid var(--border,#d5dae1);border-radius:10px;margin:12px 16px;padding:12px 14px;background:var(--bg-primary,#fff);font-size:13px;color:var(--text-primary,#273240);min-width:0;max-height:min(36vh,320px);overflow:auto;flex-shrink:0}.ap-task-summary-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.ap-task-summary h3{font-size:14px;margin:0 0 6px}.ap-task-summary p{margin:5px 0;line-height:1.55;overflow-wrap:anywhere}.ap-task-summary button,.ap-task-finding button{font:inherit;padding:5px 9px;border:1px solid var(--border,#d5dae1);border-radius:6px;background:var(--bg-secondary,#f4f6f8);color:inherit;cursor:pointer}.ap-task-summary-muted{color:var(--text-secondary,#687280);font-size:12px}.ap-task-summary-facts{display:flex;gap:8px 14px;flex-wrap:wrap}.ap-task-finding{border:1px solid var(--border,#d5dae1);border-radius:8px;margin:10px 0;padding:12px}.ap-task-finding[data-importance=critical]{border-left:3px solid var(--accent,#285c7b)}.ap-task-finding h4{font-size:14px;margin:0 0 7px}.ap-task-finding p{margin:5px 0;line-height:1.55;overflow-wrap:anywhere}.ap-task-finding-sources,.ap-task-finding-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.ap-task-finding a{color:var(--accent,#285c7b)}.ap-task-finding-resolved{opacity:.8}.ap-task-summary pre{white-space:pre-wrap;overflow-wrap:anywhere}.ap-task-summary .ap-task-finding{margin-bottom:0}.ap-task-summary-empty{margin:0;color:var(--text-secondary,#687280)}.ap-task-stage-controls{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.ap-task-stage-review{width:100%;padding:10px;border:1px solid var(--border,#d5dae1);border-radius:8px}.ap-task-stage-review button{margin-right:8px}.ap-task-stage-controls button:disabled{opacity:.5;cursor:default}
 @media(max-width:600px){.ap-task-summary{margin:8px;padding:10px}.ap-task-summary-head{flex-wrap:wrap}}
 `;
@@ -8703,7 +8850,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				className: "ap-task-summary-muted"
 			}, title, evidence?.locator ? ` · ${evidence.locator}` : "");
 		}
-		function renderTaskFindings(h, task, locale, onOpenSource, { includeResolved = false, limit, onOpenChat } = {}) {
+		function renderTaskFindings(h, task, locale, onOpenSource, { includeResolved = false, limit, onOpenChat, renderActions } = {}) {
 			const zh = String(locale || "").startsWith("zh");
 			const evidence = new Map((task?.evidence || []).map((row) => [row.id, row]));
 			const rows = visibleTaskFindings(task, includeResolved);
@@ -8720,17 +8867,19 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					onClick: onOpenChat
 				}, action.label);
 				return h("span", { key: action.id || index }, action.label);
-			})), row.resolution && h("p", null, zh ? "处理结果：" : "Resolution: ", row.resolution), row.status !== "open" && h("p", { className: "ap-task-summary-muted" }, row.status === "resolved" ? zh ? "已处理" : "Resolved" : zh ? "已被后续发现替代" : "Superseded")));
+			})), row.resolution && h("p", null, zh ? "处理结果：" : "Resolution: ", row.resolution), row.status === "open" && renderActions?.(row), row.status !== "open" && h("p", { className: "ap-task-summary-muted" }, row.status === "resolved" ? zh ? "已处理" : "Resolved" : zh ? "已被后续发现替代" : "Superseded")));
 		}
-		function createTaskStageControls({ React, api, cwd, language, onOpenWorkbench }) {
+		function createTaskStageControls({ React, api, cwd, language, onOpenWorkbench, onUserAction }) {
 			const h = React.createElement;
 			return function TaskStageControls({ sessionId, task, binding, onChanged }) {
-				const [review, setReview] = React.useState(null), [busy, setBusy] = React.useState(false), [error, setError] = React.useState(""), [approved, setApproved] = React.useState(false);
+				const [review, setReview] = React.useState(null), [busy, setBusy] = React.useState(false), [error, setError] = React.useState(""), [approved, setApproved] = React.useState(false), [continuation, setContinuation] = React.useState(null);
+				const approving = React.useRef(false);
 				const zh = String(language?.() || "zh").startsWith("zh");
 				React.useEffect(() => {
 					setReview(null);
 					setError("");
 					setApproved(false);
+					setContinuation(null);
 				}, [
 					sessionId,
 					binding?.projectId,
@@ -8738,7 +8887,8 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				]);
 				if (!binding?.projectId) return null;
 				const approve = async () => {
-					if (!review?.binding?.approvalFingerprint || busy || binding.canApprove === false || task?.pendingProjectSync) return;
+					if (!review?.binding?.approvalFingerprint || busy || approving.current || binding.canApprove === false || task?.pendingProjectSync) return;
+					approving.current = true;
 					setBusy(true);
 					setError("");
 					try {
@@ -8755,10 +8905,22 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 						});
 						setApproved(true);
 						setReview(null);
-						await onChanged?.();
+						if (onUserAction) {
+							const latest = await api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(sessionId)}`, cwd());
+							await onChanged?.(latest);
+							const next = await onUserAction({
+								sessionId,
+								revision: latest.task.revision,
+								operationId: crypto.randomUUID(),
+								command: { kind: "continue" }
+							});
+							setContinuation(next.interaction);
+							await onChanged?.(next);
+						} else await onChanged?.();
 					} catch (e) {
 						setError(e.message);
 					} finally {
+						approving.current = false;
 						setBusy(false);
 					}
 				};
@@ -8768,7 +8930,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				}, approved ? zh ? "前往工作台继续" : "Continue in the workbench" : zh ? "查看工作台阶段" : "View workbench stage"), approved && h("p", {
 					role: "status",
 					className: "ap-task-summary-muted"
-				}, zh ? "阶段批准已记录，可前往工作台继续当前项目。" : "Stage approval was recorded. Continue this project in the workbench."), error && !review && h("p", { role: "alert" }, error), binding.approvalGate && (binding.canApprove === false || binding.waitingHuman !== false) && h("button", {
+				}, zh ? "阶段批准已记录。" : "Stage approval was recorded."), continuation?.reason && h("p", { role: ["blocked", "requires_executor"].includes(continuation.dispatch) ? "alert" : "status" }, continuation.reason), error && !review && h("p", { role: "alert" }, error), binding.approvalGate && (binding.canApprove === false || binding.waitingHuman !== false) && h("button", {
 					type: "button",
 					disabled: busy || binding.canApprove === false,
 					title: binding.approvalReason,
@@ -8797,22 +8959,34 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				}, zh ? "返回核对" : "Return to review")));
 			};
 		}
-		function createProfessionalTaskSummary({ React, api, cwd, language, subscribe, onOpenTask, onOpenSource, onOpenWorkbench, onTask }) {
+		function createProfessionalTaskSummary({ React, api, cwd, language, subscribe, onOpenTask, onOpenSource, onOpenWorkbench, onTask, onUserAction, onOpenChat }) {
 			const h = React.createElement;
 			const StageControls = createTaskStageControls({
 				React,
 				api,
 				cwd,
 				language,
-				onOpenWorkbench
+				onOpenWorkbench,
+				onUserAction
+			});
+			const Interaction = createTaskInteraction({
+				React,
+				api,
+				cwd,
+				language,
+				onUserAction
 			});
 			return function ProfessionalTaskSummary({ sessionId, taskResult, binding, onOpenTask: openTask, visible = true }) {
 				const [result, setResult] = React.useState(null);
+				const [error, setError] = React.useState(""), [retry, setRetry] = React.useState(0);
 				const revision = React.useRef(-1);
 				React.useEffect(() => {
 					setResult(null);
+					setError("");
 					revision.current = -1;
-					if (taskResult) {
+				}, [sessionId]);
+				React.useEffect(() => {
+					if (taskResult && taskResult.task.revision >= revision.current) {
 						revision.current = taskResult.task.revision;
 						onTask?.(sessionId, taskResult.task, taskResult.binding);
 					}
@@ -8831,9 +9005,12 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 							if (!controller.signal.aborted && next.task.revision >= revision.current) {
 								revision.current = next.task.revision;
 								setResult(next);
+								setError("");
 								onTask?.(sessionId, next.task, next.binding);
 							}
-						} catch {} finally {
+						} catch (err) {
+							if (!controller.signal.aborted) setError(String(err.message || err));
+						} finally {
 							loading = false;
 							if (pending && !controller.signal.aborted) refresh();
 						}
@@ -8846,17 +9023,35 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 						clearInterval(timer);
 						dispose?.();
 					};
-				}, [sessionId, taskResult]);
-				const task = (taskResult || result)?.task;
-				if (!visible || !task) return null;
+				}, [
+					sessionId,
+					taskResult,
+					retry
+				]);
+				const current = result?.task.revision > (taskResult?.task.revision ?? -1) ? result : taskResult || result;
+				const task = current?.task;
+				if (!visible) return null;
+				if (!task) return error ? h("section", { className: "ap-task-summary" }, h("p", { role: "alert" }, error), h("button", {
+					type: "button",
+					onClick: () => setRetry((value) => value + 1)
+				}, String(language?.()).startsWith("zh") ? "重试读取本次任务" : "Retry reading the current task")) : null;
 				const model = taskOverviewModel(task);
-				const responseCoverage = (taskResult || result)?.responseCoverage;
+				const responseCoverage = current?.responseCoverage;
 				if (!model.objective && !model.questions.length && !model.findings.length && !task.latestRequest && !model.depthEnabled && !responseCoverage) return null;
 				const locale = language?.() || "zh", zh = locale.startsWith("zh");
-				const project = binding || (taskResult || result)?.binding || task.binding;
+				const project = binding || current?.binding || task.binding;
 				const openSource = onOpenSource ? (evidence) => onOpenSource(evidence, sessionId) : void 0;
 				const goalStatus = task.briefProvenance?.objective?.status;
 				const open = openTask || onOpenTask;
+				const changed = (next) => {
+					if (next?.task && next.task.revision >= revision.current) {
+						revision.current = next.task.revision;
+						setResult(next);
+						setError("");
+						onTask?.(sessionId, next.task, next.binding);
+					}
+				};
+				const openChat = onOpenChat ? () => onOpenChat(sessionId) : void 0;
 				return h("section", {
 					className: "ap-task-summary",
 					"aria-label": zh ? "共同任务理解" : "Shared task understanding",
@@ -8864,21 +9059,36 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				}, h("div", { className: "ap-task-summary-head" }, h("div", null, h("h3", null, zh ? "本次目标" : "Current goal"), h("p", null, model.objective || (zh ? "正在结合你的表达和资料整理目标。" : "Understanding your goal from the conversation and materials.")), goalStatus && h("span", { className: "ap-task-summary-muted" }, goalStatus === "provisional" || goalStatus === "conflict" ? zh ? "暂定理解，可在对话中纠正" : "Provisional; correct this in the conversation" : zh ? "来自当前任务要求" : "From the current task requirements")), open && h("button", {
 					type: "button",
 					onClick: () => open(sessionId)
-				}, zh ? "查看本次任务" : "View current task")), project && h("p", { className: "ap-task-summary-muted" }, project.projectGoal ? `${zh ? "项目总目标：" : "Project goal: "}${project.projectGoal} · ` : "", project.stageLabel || project.stageId || ""), project && h(StageControls, {
+				}, zh ? "查看本次任务" : "View current task")), project && h("p", { className: "ap-task-summary-muted" }, project.projectGoal ? `${zh ? "项目总目标：" : "Project goal: "}${project.projectGoal} · ` : "", project.stageLabel || project.stageId || ""), error && h("p", { role: "alert" }, error), h(Interaction, {
+					sessionId,
+					result: current,
+					onChanged: changed,
+					onOpenChat: openChat
+				}), project && h(StageControls, {
 					sessionId,
 					task,
 					binding: project,
-					onChanged: async () => {
-						const next = await api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(sessionId)}`, cwd());
-						revision.current = next.task.revision;
-						setResult(next);
-						onTask?.(sessionId, next.task, next.binding);
+					onChanged: async (next) => {
+						changed(next || await api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(sessionId)}`, cwd()));
 					}
 				}), h("div", { className: "ap-task-summary-facts" }, model.currentStep && h("span", null, `${zh ? "正在解决：" : "Current focus: "}${model.currentStep.title}`), model.questions.length > 0 && h("span", null, `${model.questions.length}${zh ? " 个问题待明确" : " questions to clarify"}`), h("span", { className: "ap-task-summary-muted" }, model.depthEnabled ? zh ? "专业深度已启用" : "Professional depth on" : zh ? "基础专业检查" : "Core professional checks")), model.constraints.length > 0 && h("p", { className: "ap-task-summary-muted" }, zh ? "当前约束：" : "Current constraints: ", model.constraints.slice(-3).map((row) => row.text.length > 120 ? row.text.slice(0, 120) + "…" : row.text).join("；"), model.constraints.length > 3 ? zh ? "；更多约束见本次任务。" : "; More in Current task." : ""), model.corrections[0] && h("p", { className: "ap-task-summary-muted" }, zh ? "最近明确修正：" : "Latest explicit correction: ", model.corrections[0].text.length > 160 ? model.corrections[0].text.slice(0, 160) + "…" : model.corrections[0].text), (model.coverage.total > 0 || model.delivery.total > 0) && h("div", { className: "ap-task-summary-facts" }, model.coverage.total > 0 && h("span", null, `${zh ? "资料抽取：" : "Source extraction: "}${model.coverage.parsed}/${model.coverage.total}`), model.coverage.total > 0 && h("span", null, `${zh ? "专业复核：" : "Professional review: "}${model.coverage.reviewed}/${model.coverage.total}`), model.delivery.total > 0 && h("span", null, `${zh ? "成果登记：" : "Registered deliverables: "}${model.delivery.total}`)), renderTenderResponseCoverage(h, responseCoverage, {
 					locale,
 					compact: true,
 					onOpenTask: open ? () => open(sessionId) : void 0
-				}), ...renderTaskFindings(h, task, locale, openSource, { limit: 3 }), model.findings.length > 3 && h("p", { className: "ap-task-summary-muted" }, `${zh ? "另有 " : "Plus "}${model.findings.length - 3}${zh ? " 项发现，可在本次任务中查看。" : " findings in Current task."}`), model.changes[0]?.summary && h("p", { className: "ap-task-summary-muted" }, `${zh ? "最近调整：" : "Latest adjustment: "}${model.changes[0].summary}`));
+				}), model.questions.length > 0 && h("div", null, h("p", null, model.questions[0].question), openChat && h("button", {
+					type: "button",
+					onClick: openChat
+				}, model.questions.some((row) => row.provider) ? zh ? "前往原生问答" : "Go to the native question card" : zh ? "在主对话中补充" : "Add information in the conversation")), ...renderTaskFindings(h, task, locale, openSource, {
+					limit: 3,
+					onOpenChat: openChat,
+					renderActions: (finding) => h(Interaction, {
+						sessionId,
+						result: current,
+						finding,
+						onChanged: changed,
+						onOpenChat: openChat
+					})
+				}), model.findings.length > 3 && h("p", { className: "ap-task-summary-muted" }, `${zh ? "另有 " : "Plus "}${model.findings.length - 3}${zh ? " 项发现，可在本次任务中查看。" : " findings in Current task."}`), model.changes[0]?.summary && h("p", { className: "ap-task-summary-muted" }, `${zh ? "最近调整：" : "Latest adjustment: "}${model.changes[0].summary}`));
 			};
 		}
 		//#endregion
@@ -9421,7 +9631,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 		}
 		//#endregion
 		//#region src/client/task-guide.js
-		const taskGuideCss = `
+		const taskGuideCss = taskInteractionCss + `
 .ap-task-guide{position:relative;width:100%;height:100%;min-height:0;min-width:0;box-sizing:border-box;padding-bottom:var(--dsh-composer-height,180px);background:var(--bg-primary,#fff);color:var(--text-primary,#273240);display:flex;flex-direction:column;font-size:14px}
 .ap-task-guide header,.ap-task-guide footer{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--border,#d5dae1)}
 .ap-task-guide header h2{margin:0;font-size:18px}.ap-task-guide nav{display:flex;gap:6px;padding:12px 24px;flex-wrap:wrap}.ap-task-guide button{font:inherit;border:1px solid var(--border,#d5dae1);border-radius:6px;background:var(--bg-secondary,#f4f6f8);color:inherit;padding:7px 12px;cursor:pointer}.ap-task-guide button[aria-selected=true]{background:var(--accent,#285c7b);color:#fff}.ap-task-guide button:disabled{opacity:.5;cursor:default}
@@ -9559,7 +9769,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				conflicts
 			};
 		}
-		function createTaskGuide({ React, api, cwd, language, subscribe, onOpenSource, onOpenWorkbench, onTask }) {
+		function createTaskGuide({ React, api, cwd, language, subscribe, onOpenSource, onOpenWorkbench, onTask, onUserAction }) {
 			const h = React.createElement;
 			const EngineeringPanel = createEngineeringPanel({
 				React,
@@ -9575,7 +9785,15 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				api,
 				cwd,
 				language,
-				onOpenWorkbench
+				onOpenWorkbench,
+				onUserAction
+			});
+			const Interaction = createTaskInteraction({
+				React,
+				api,
+				cwd,
+				language,
+				onUserAction
 			});
 			return function TaskGuide({ sessionId, onClose, binding }) {
 				const open = true;
@@ -9702,6 +9920,8 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					setBusy(true);
 					setError("");
 					setMessage("");
+					const edits = structuredClone(fieldEdits.current);
+					let saved = false;
 					try {
 						const latest = await api(endpoint, cwd());
 						taskRevision.current = latest.task.revision;
@@ -9745,8 +9965,32 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 						setDirty(false);
 						setMessage(text.saved);
 						onTask?.(sessionId, next.task, next.binding);
+						saved = true;
+						if (patch.brief && onUserAction && Object.keys(edits).length) {
+							const adjustment = Object.entries(edits).map(([path, edit]) => {
+								const key = path.replace(/^basis\./, "");
+								return `${path.startsWith("question.") ? latest.task.questions.find((row) => row.id === path.slice(9))?.question : text[key] || key}: ${Array.isArray(edit.value) ? edit.value.join(", ") : String(edit.value)}`;
+							}).join("\n");
+							const executed = await onUserAction({
+								sessionId,
+								revision: next.task.revision,
+								operationId: crypto.randomUUID(),
+								command: {
+									kind: "adjust_request",
+									text: adjustment
+								}
+							});
+							if (!executed?.task || !executed.interaction) throw new Error(text === labels.zh ? "未收到执行器回执。" : "No executor receipt was returned.");
+							receiveAction(executed);
+							if ([
+								"blocked",
+								"requires_executor",
+								"prepared"
+							].includes(executed.interaction.dispatch)) throw new Error(executed.interaction.reason);
+							setMessage((text === labels.zh ? "修正已保存。" : "Corrections saved. ") + executed.interaction.reason);
+						}
 					} catch (e) {
-						setError(e.message);
+						setError((saved ? text === labels.zh ? "修正已保存，但执行调整尚未确认：" : "Corrections were saved, but execution adjustment is unconfirmed: " : "") + e.message);
 					} finally {
 						setBusy(false);
 					}
@@ -9801,6 +10045,15 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 						setBusy(false);
 					}
 				}
+				function receiveAction(next) {
+					if (next.task.revision < taskRevision.current) return;
+					taskRevision.current = next.task.revision;
+					setResult(next);
+					const task = structuredClone(next.task);
+					task.brief = mergeTaskBriefEdits(task, fieldEdits.current, true).brief;
+					setDraft(task);
+					onTask?.(sessionId, next.task, next.binding);
+				}
 				const edit = (key, value, basis = false) => {
 					const path = basis ? "basis." + key : key;
 					fieldEdits.current[path] = {
@@ -9847,11 +10100,17 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 						provisional: "Provisional",
 						conflict: "Conflict"
 					};
-					if (tab === "overview") body = h(React.Fragment, null, article("understanding", zh ? "共同理解的目标" : "Shared understanding of the goal", h(React.Fragment, null, h("p", { className: "ap-guide-objective" }, task.brief.objective || (zh ? "把目的告诉主对话，系统会结合资料逐步明确。" : "Describe your purpose in the conversation. The system will clarify it from the materials.")), provenance && h("p", { className: "ap-guide-muted" }, origin[provenance.origin] + " · " + status[provenance.status]), task.brief.scope && h("p", null, text.scope + "：" + task.brief.scope), task.brief.audience && h("p", null, text.audience + "：" + task.brief.audience), h("button", { onClick: () => setTab("goal") }, zh ? "修正某项理解" : "Correct an item"), onClose && h("button", { onClick: onClose }, zh ? "继续在对话中说明" : "Continue in the conversation"))), project && article("binding", zh ? "与专业化工作台的关联" : "Professional workbench connection", h(React.Fragment, null, project.projectGoal && h("p", null, (zh ? "项目总目标：" : "Project goal: ") + project.projectGoal), h("p", null, (zh ? "当前阶段：" : "Current stage: ") + (project.stageLabel || project.stageId || text.empty)), h("p", { className: "ap-guide-muted" }, zh ? "本次任务为当前阶段贡献成果，项目总目标与阶段审批由工作台保留。" : "This task contributes to the current stage. The workbench retains the project goal and stage approvals."), h(StageControls, {
+					if (tab === "overview") body = h(React.Fragment, null, article("understanding", zh ? "共同理解的目标" : "Shared understanding of the goal", h(React.Fragment, null, h("p", { className: "ap-guide-objective" }, task.brief.objective || (zh ? "把目的告诉主对话，系统会结合资料逐步明确。" : "Describe your purpose in the conversation. The system will clarify it from the materials.")), provenance && h("p", { className: "ap-guide-muted" }, origin[provenance.origin] + " · " + status[provenance.status]), task.brief.scope && h("p", null, text.scope + "：" + task.brief.scope), task.brief.audience && h("p", null, text.audience + "：" + task.brief.audience), h(Interaction, {
+						sessionId,
+						result,
+						disabled: busy || dirty,
+						onChanged: receiveAction,
+						onOpenChat: onClose
+					}), h("details", null, h("summary", null, zh ? "查看与修正具体字段" : "Review and correct specific fields"), h("button", { onClick: () => setTab("goal") }, zh ? "修正某项理解" : "Correct an item")), onClose && h("button", { onClick: onClose }, zh ? "继续在对话中说明" : "Continue in the conversation"))), project && article("binding", zh ? "与专业化工作台的关联" : "Professional workbench connection", h(React.Fragment, null, project.projectGoal && h("p", null, (zh ? "项目总目标：" : "Project goal: ") + project.projectGoal), h("p", null, (zh ? "当前阶段：" : "Current stage: ") + (project.stageLabel || project.stageId || text.empty)), h("p", { className: "ap-guide-muted" }, zh ? "本次任务为当前阶段贡献成果，项目总目标与阶段审批由工作台保留。" : "This task contributes to the current stage. The workbench retains the project goal and stage approvals."), h(StageControls, {
 						sessionId,
 						task,
 						binding: project,
-						onChanged: reload
+						onChanged: (next) => next ? receiveAction(next) : reload()
 					}))), article("quality", zh ? "专业执行口径" : "Professional execution policy", h(React.Fragment, null, h("p", null, model.depthEnabled ? zh ? "专业深度已启用：加强方法、证据与验收项审阅。" : "Professional depth is on: enhanced methods, evidence and acceptance review." : zh ? "基础专业检查持续生效；可在输入区主动开启专业深度。" : "Core professional checks apply. Turn on professional depth in the composer for additional review."), h("p", { className: "ap-guide-muted" }, zh ? "调整开关会保留已有依据、发现和检查记录。" : "Changing the switch preserves evidence, findings and check records."))), (model.constraints.length > 0 || model.corrections.length > 0) && article("constraints", zh ? "持续生效的约束与最新修正" : "Persistent constraints and latest corrections", h(React.Fragment, null, h("p", { className: "ap-guide-muted" }, zh ? "这些要求跨压缩保留；资料引用不构成用户指令，撤销会使相关成果重新待核验。" : "These requirements survive compaction. Quoted documents do not establish user authority; revocation requires affected results to be checked again."), ...model.constraints.map((row) => h("div", {
 						key: row.id,
 						"data-directive-id": row.id
@@ -9861,9 +10120,17 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					}, zh ? "撤销这项约束" : "Revoke this constraint"))), ...model.corrections.filter((row) => !model.constraints.some((active) => active.id === row.id)).map((row) => h("p", {
 						key: row.id,
 						className: "ap-guide-muted"
-					}, (row.kind === "revocation" ? zh ? "已明确撤销：" : "Explicitly revoked: " : zh ? "修正记录：" : "Correction: ") + row.text)))), model.questions.length > 0 && article("questions", text.unanswered, h(React.Fragment, null, ...model.questions.map((row) => h("div", { key: row.id }, h("p", null, row.question), row.purpose && h("p", { className: "ap-guide-muted" }, row.purpose), row.provider && h("p", { className: "ap-guide-muted" }, zh ? "请在主对话的原生问答卡中回答。" : "Answer in the native question card in the conversation."))), onClose && h("button", { onClick: onClose }, zh ? "在主对话中回答" : "Answer in the conversation"))), h("h3", null, zh ? "围绕目标的发现" : "Findings related to your goal"), task.findings?.length ? renderTaskFindings(h, task, language(), openSource, {
+					}, (row.kind === "revocation" ? zh ? "已明确撤销：" : "Explicitly revoked: " : zh ? "修正记录：" : "Correction: ") + row.text)))), model.questions.length > 0 && article("questions", text.unanswered, h(React.Fragment, null, ...model.questions.map((row) => h("div", { key: row.id }, h("p", null, row.question), row.purpose && h("p", { className: "ap-guide-muted" }, row.purpose), row.provider && h("p", { className: "ap-guide-muted" }, zh ? "请在主对话的原生问答卡中回答。" : "Answer in the native question card in the conversation."))), onClose && h("button", { onClick: onClose }, model.questions.some((row) => row.provider) ? zh ? "前往原生问答" : "Go to the native question card" : zh ? "在主对话中补充" : "Add information in the conversation"))), h("h3", null, zh ? "围绕目标的发现" : "Findings related to your goal"), task.findings?.length ? renderTaskFindings(h, task, language(), openSource, {
 						includeResolved: true,
-						onOpenChat: onClose
+						onOpenChat: onClose,
+						renderActions: (finding) => h(Interaction, {
+							sessionId,
+							result,
+							finding,
+							disabled: busy || dirty,
+							onChanged: receiveAction,
+							onOpenChat: onClose
+						})
 					}) : h("p", { className: "ap-guide-muted" }, zh ? "实际分析形成的发现会记录在这里，并说明依据、目标影响和下一步。" : "Findings from actual analysis appear here with their sources, impact on the goal and next action."), renderTenderResponseCoverage(h, result?.responseCoverage, {
 						locale: language(),
 						compact: true,
@@ -10001,7 +10268,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 						brief: draft.brief,
 						questions: draft.questions
 					}, true)
-				}, text === labels.zh ? "保留我的修正并保存" : "Keep my corrections and save")) : null, !sessionId ? h("p", null, text.noTask) : body), h("footer", null, h("button", {
+				}, text === labels.zh ? "保留我的修正并保存" : "Keep my corrections and save")) : null, !sessionId ? h("p", null, text.noTask) : draft ? body : !error ? h("p", { role: "status" }, text === labels.zh ? "正在读取本次任务…" : "Loading the current task…") : null), h("footer", null, h("button", {
 					disabled: busy,
 					onClick: reload
 				}, text.refresh), dirty ? h("button", {
@@ -10019,7 +10286,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 						brief: draft.brief,
 						questions: draft.questions
 					})
-				}, busy ? text.saving : text.save) : null));
+				}, busy ? text.saving : onUserAction ? text === labels.zh ? "保存并调整执行" : "Save and adjust execution" : text.save) : null));
 			};
 		}
 		//#endregion
@@ -10800,6 +11067,16 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				connect();
 				return update(await desktop.codexExecutionSubmit(input));
 			}
+			async function taskAction(input) {
+				if (!desktop?.codexTaskAction) throw new Error(tCodexExecution("desktopRequired", language()));
+				connect();
+				const result = await desktop.codexTaskAction(input);
+				if (result.state) update({
+					...result.state,
+					sessionId: input.sessionId
+				});
+				return result.result;
+			}
 			function Question({ request, identity }) {
 				const lang = useLanguage();
 				const [answers, setAnswers] = React.useState({});
@@ -10957,6 +11234,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				setEnabled,
 				busy,
 				submit,
+				taskAction,
 				dispose() {
 					unsubscribe?.();
 					unsubscribe = null;
@@ -16026,6 +16304,26 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 						projectId: project.projectId
 					});
 					ensureUserRequirementWatcher(parentId);
+					if (nativeCodex.enabled(parentId)) return api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(parentId)}`, cwd).then((latest) => performTaskUserAction({
+						sessionId: parentId,
+						revision: latest.task.revision,
+						operationId: crypto.randomUUID(),
+						command: { kind: "continue" }
+					})).then((started) => {
+						if ([
+							"blocked",
+							"requires_executor",
+							"prepared"
+						].includes(started.interaction?.dispatch)) setError(started.interaction.reason);
+						else {
+							setNotice(started.interaction?.reason || "Codex 已接收当前阶段任务。");
+							if (closeWorkbench !== false) props.openView?.("agent-pi-codex-main", "");
+						}
+						return refresh();
+					}).catch((error) => {
+						setError(error.message);
+						return refresh();
+					});
 					return api("/api/agent-pi/stage", cwd, {
 						method: "POST",
 						body: JSON.stringify({
@@ -16986,6 +17284,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		};
 		const rememberProfessionalTask = (id, task, binding) => {
 			const old = professionalTasks.get(id);
+			if (old && old.task.revision > task.revision) return;
 			professionalTasks.set(id, {
 				task,
 				binding
@@ -17015,6 +17314,39 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				showToast(error.message);
 			}
 		};
+		const performTaskUserAction = async (payload) => {
+			const id = payload.sessionId;
+			const session = sessionSnapshotWithChat(id, codexTurnAuthorities(id)?.session);
+			const cwd = professionalTasks.get(id)?.binding?.cwd || nativeCodex.current(id).cwd || session?.cwd || session?.header?.cwd || workspaceCwd({ sessionId: id });
+			const executor = nativeCodex.busy(id) || nativeCodex.enabled(id) ? "codex" : "dsh";
+			let result = await api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(id)}`, cwd, {
+				method: "POST",
+				body: JSON.stringify({
+					...payload,
+					action: "user_action",
+					command: {
+						...payload.command,
+						executor
+					}
+				})
+			});
+			if (result.interaction?.dispatch === "requires_executor") {
+				const auth = await window.agentPiDesktop?.codexAuthStatus?.();
+				const controller = codexTurnController({ sessionId: id }, false);
+				const selection = resolveCodexTurnSelection(auth || {}, controller?.selectedModel, controller?.selectedReasoningEffort);
+				result = await nativeCodex.taskAction({
+					sessionId: id,
+					cwd,
+					operationId: payload.operationId,
+					kind: payload.command.kind,
+					model: selection.model,
+					reasoningEffort: selection.reasoningEffort
+				});
+			}
+			if (result?.task) rememberProfessionalTask(id, result.task, result.binding);
+			window.dispatchEvent(new CustomEvent("agent-pi-task-snapshot", { detail: { sessionId: id } }));
+			return result;
+		};
 		const TaskSummary = createProfessionalTaskSummary({
 			React: react,
 			api,
@@ -17022,6 +17354,8 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			language: () => document.documentElement.lang || "zh",
 			subscribe: taskSubscriptions,
 			onOpenSource: openTaskSource,
+			onUserAction: performTaskUserAction,
+			onOpenChat: (id) => openTaskView(id, nativeCodex.enabled(id) ? "agent-pi-codex-main" : "chat"),
 			onOpenTask: (id) => openTaskView(id, "agent-pi-task-guide"),
 			onOpenWorkbench: openTaskWorkbench,
 			onTask: rememberProfessionalTask
@@ -17050,6 +17384,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		const TaskGuide = createTaskGuide({
 			React: react,
 			api,
+			onUserAction: performTaskUserAction,
 			cwd: () => snapshotComposer()?.cwd || "",
 			language: () => document.documentElement.lang || "zh",
 			subscribe: taskSubscriptions,
@@ -17077,9 +17412,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				fillComposer(composer, draft ? `${draft}\n\n${instruction}` : instruction);
 				requestAnimationFrame(() => composer.inputActions?.submit?.());
 			},
-			subscribe: (id, listener) => {
-				return subscribeSessionWithChat(id, codexTurnAuthorities(id)?.session, listener);
-			}
+			subscribe: taskSubscriptions
 		});
 		function MainComposerTools(props) {
 			const main = props.useSessions(mainSessionId);

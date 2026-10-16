@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('agentPiDesktop', {
   codexSetDefaultReasoningEffort: (effort) => ipcRenderer.invoke('codex-set-default-reasoning-effort', effort),
   codexExecutionStatus: (sessionId) => ipcRenderer.invoke('codex-execution-status', sessionId),
   codexExecutionSubmit: (input) => ipcRenderer.invoke('codex-execution-submit', input),
+  codexTaskAction: (input) => ipcRenderer.invoke('codex-task-action', input),
   codexExecutionInterrupt: (identity) => ipcRenderer.invoke('codex-execution-interrupt', identity),
   codexExecutionReply: (identity, id, answer) => ipcRenderer.invoke('codex-execution-reply', identity, id, answer),
   onCodexExecution: (callback) => {

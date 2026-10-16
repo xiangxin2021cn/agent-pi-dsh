@@ -82,6 +82,15 @@ export interface MarketConfig {
      * no longer tells a desktop shell apart from an ordinary `dsh` run.
      */
     desktopHost?: boolean;
+    /**
+     * How long to wait for the host's own replay of a fresh install before
+     * hot-mounting it (#814). A desktop shell that watches the profile replays
+     * the composition itself, about two seconds after the manifest lands; one
+     * that does not publish `pluginActivation` gives the market no way to ask,
+     * and mounting first made the host's replay fail as a duplicate. Unset,
+     * the wait follows the host's own profile watcher instead (#827).
+     */
+    hostReplayWaitMs?: number;
     /** Detached self-restart is unsafe under systemd/launchd/pm2; operators can disable it (#14). */
     allowRestart?: boolean;
     /** Which release channel the market offers ITSELF from; other plugins never follow it. */

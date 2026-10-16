@@ -1,6 +1,7 @@
 /** The official Electron profile is owned by DSH's in-process plugin manager. */
 import { randomUUID } from 'node:crypto';
 import { progress, TARGET_RE } from "./dsh-cli.js";
+import { activeRegion, DEFAULT_NPM_REGISTRY, routesFor } from "./regions.js";
 /**
  * What a user can actually do when the market cannot perform an operation on
  * the official Desktop profile: the app's own Plugins page runs the same
@@ -86,9 +87,12 @@ _profileDirectory) {
         progress.cancelling = false;
         let operation;
         try {
+            // Read at each operation so region switches apply without a restart.
+            // The default route leaves the host's own npm configuration in charge.
+            const registry = routesFor(activeRegion()).npmRegistry;
             operation = command === 'remove'
                 ? manager.removeBundle(target)
-                : manager.installBundle(spec, { requestId });
+                : manager.installBundle(spec, { requestId, ...(registry === DEFAULT_NPM_REGISTRY ? {} : { registry }) });
         }
         catch (error) {
             progress.active = false;

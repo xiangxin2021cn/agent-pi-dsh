@@ -11,6 +11,7 @@ interface ManagedResult {
 export interface OfficialPluginManagerLike {
     installBundle(spec: string, options?: {
         requestId?: string;
+        registry?: string;
     }): Promise<ManagedResult>;
     removeBundle(name: string): Promise<ManagedResult>;
     cancelInstall(requestId: string): Promise<unknown>;

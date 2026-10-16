@@ -27,7 +27,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
-  buildBundleLayers, composeLayers, findDshInstallDir, parsePatchFile,
+  buildBundleLayers, composeLayers, duplicateEntryIdsAreFatal, findDshInstallDir, parsePatchFile,
   type DuplicateId, type LayerInput, type OrphanRow, type OverrideRow,
 } from './check.ts'
 import { resolveDshHome } from './home-paths.ts'
@@ -126,8 +126,15 @@ export function trialValidate(
     if (bundle.error !== null) errors.push({ layer: bundle.name, message: bundle.error })
     if (bundle.parseError !== null) errors.push({ layer: bundle.name, message: bundle.parseError })
   }
+  // Same version gate as the check report (#853): on a loader that folds one
+  // id into one entry (1.0.4+) this is an override, not a refusal. Making it
+  // fatal here is what rolled back every update for a profile that already
+  // had a package row and a user-patch row on one id.
+  const duplicateFatal = duplicateEntryIdsAreFatal(profileDir)
   for (const dup of composed.duplicates) {
-    errors.push({ layer: dup.layers.join(' / '), message: `duplicate loader entry id ${JSON.stringify(dup.id)} (${dup.count} rows) / 重复的 loader 条目 id ${JSON.stringify(dup.id)}` })
+    const message = `duplicate loader entry id ${JSON.stringify(dup.id)} (${dup.count} rows) / 重复的 loader 条目 id ${JSON.stringify(dup.id)}`
+    if (duplicateFatal) errors.push({ layer: dup.layers.join(' / '), message })
+    else warnings.push({ layer: dup.layers.join(' / '), message: `${message} — 当前宿主会让后一层覆盖前一层，启动不受影响 / this host lets the later layer win, so the boot is unaffected` })
   }
   for (const orphan of composed.orphans) {
     warnings.push({ layer: orphan.layer, message: `${orphan.id}: ${orphan.reason}` })

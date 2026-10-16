@@ -23,11 +23,12 @@ test('the exact reviewed peers retain upstream ranges and reject unknown version
   const result = patchAnySearchManifest(source)
   assert.equal(patchAnySearchManifest(result), result)
   const manifest = JSON.parse(result)
-  assert.match(manifest.peerDependencies['@deepseek-ai/dsh-tools'], /0\.2\.1-alpha\.1 \|\| 0\.2\.1-alpha\.2$/)
+  assert.equal(manifest.peerDependencies['@deepseek-ai/dsh-tools'], '*')
+  assert.equal(manifest.engines.dsh, '0.2.1-alpha.4')
   assert.match(manifest.peerDependencies['@deepseek-ai/cordis'], /4\.0\.5-alpha\.1$/)
   assert.match(manifest.dependencies['@deepseek-ai/schemastery'], /3\.18\.5-alpha\.1$/)
-  assert.throws(() => patchAnySearchManifest(JSON.stringify({ ...manifest, version: '0.1.8' })), /Unreviewed/)
-  manifest.peerDependencies['@deepseek-ai/dsh-tools'] = '*'
+  assert.throws(() => patchAnySearchManifest(JSON.stringify({ ...manifest, version: '0.1.9' })), /Unreviewed/)
+  manifest.peerDependencies['@deepseek-ai/dsh-tools'] = '>=0.1.0'
   assert.throws(() => patchAnySearchManifest(JSON.stringify(manifest)), /Unexpected/)
 })
 
@@ -36,7 +37,7 @@ test('source hashes make adaptation idempotent and reject partial or edited code
   cpSync(vendor, root, { recursive: true, filter: path => !path.includes('node_modules') })
   const first = patchAnySearchDirectory(root)
   assert.deepEqual(patchAnySearchDirectory(root), first)
-  assert.equal(verifyAnySearchDirectory(root).version, '0.1.7')
+  assert.equal(verifyAnySearchDirectory(root).version, '0.1.8')
   writeFileSync(join(root, 'lib/client.js'), readFileSync(join(root, 'lib/client.js'), 'utf8') + '\n// unreviewed change\n')
   assert.throws(() => patchAnySearchDirectory(root), /Unreviewed AnySearch source/)
   assert.throws(() => verifyAnySearchDirectory(root), /hash mismatch/)

@@ -47,7 +47,7 @@ synthesized.
 
 Agent Pi DSH distributes the complete official `dsh-univer-office` 0.3.7
 package, pinned by `vendor/dsh-univer-office.pin`. Agent Pi integrates it with
-DSH 0.2.1-alpha.2 through the product's compatibility adapter. The upstream package declares Apache-2.0;
+DSH 0.2.1-alpha.4 through the product's compatibility adapter. The upstream package declares Apache-2.0;
 its original LICENSE, bundled Gateway, Viewer, workers, converters and license
 materials are retained in the verified package inventory. Platform runtime
 dependencies are installed from the tracked production lock and retain their
@@ -64,6 +64,28 @@ workspace scope checks. Upstream natively supports the current list-slot and
 entry-backed settings contracts; no product host or client patch is applied.
 
 Source: https://github.com/dream-num/dsh-univer-office
+
+## 3.8.3 bundled host dependency pins
+
+The DSH source is pinned by `DSH_PIN` to official commit
+`f2235d6c023a81d86b202db5e472167ad2307ddb` (0.2.1-alpha.4).
+The product host separately pins Codex CLI 0.163.0, Canvas 1.0.11 and undici
+7.30.1 in its production package lock; upstream DSH keeps its own locked
+Codex provider dependency. Electron is pinned to 44.8.0 for the standard
+desktop distribution. The Intel Monterey compatibility build retains its
+separate Electron 43 pin and source-built native dependency checks.
+
+AnySearch 0.1.8 and DSH Market 1.66.28 retain their MIT licenses. Their official
+npm archive integrity, source commits and product adaptations are recorded in
+`vendor/core-plugins.pin.json` and each plugin's `AGENT-PI-ADAPTATION.json`.
+Product compatibility gates do not replace the original licenses.
+
+Sources: https://github.com/openai/codex/tree/rust-v0.163.0,
+https://github.com/Brooooooklyn/canvas/tree/v1.0.11,
+https://github.com/nodejs/undici/tree/v7.30.1,
+https://github.com/electron/electron/tree/v44.8.0,
+https://github.com/anysearch-team/anysearch-dsh/tree/v0.1.8,
+https://github.com/dsh-market/dsh-market/tree/08b83831fd02e8038e3360575647260279aa5e8f.
 
 ## VectifyAI/PageIndex
 

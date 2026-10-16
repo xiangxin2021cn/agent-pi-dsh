@@ -2,8 +2,9 @@ import { localizeCapability } from './capability-labels.js'
 import { createEngineeringPanel } from './engineering-panel.js'
 import { createTaskStageControls, renderTaskFindings, sourceReference, taskOverviewModel } from './professional-task-summary.js'
 import { renderTenderResponseCoverage } from './tender-response-panel.js'
+import { createTaskInteraction, taskInteractionCss } from './task-interaction.js'
 
-export const taskGuideCss = `
+export const taskGuideCss = taskInteractionCss + `
 .ap-task-guide{position:relative;width:100%;height:100%;min-height:0;min-width:0;box-sizing:border-box;padding-bottom:var(--dsh-composer-height,180px);background:var(--bg-primary,#fff);color:var(--text-primary,#273240);display:flex;flex-direction:column;font-size:14px}
 .ap-task-guide header,.ap-task-guide footer{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--border,#d5dae1)}
 .ap-task-guide header h2{margin:0;font-size:18px}.ap-task-guide nav{display:flex;gap:6px;padding:12px 24px;flex-wrap:wrap}.ap-task-guide button{font:inherit;border:1px solid var(--border,#d5dae1);border-radius:6px;background:var(--bg-secondary,#f4f6f8);color:inherit;padding:7px 12px;cursor:pointer}.ap-task-guide button[aria-selected=true]{background:var(--accent,#285c7b);color:#fff}.ap-task-guide button:disabled{opacity:.5;cursor:default}
@@ -39,12 +40,13 @@ export function mergeTaskBriefEdits(task, edits, allowConflicts = false) {
   return {brief:conflicts.length && !allowConflicts ? null : brief,conflicts}
 }
 
-export function createTaskGuide({ React, api, cwd, language, subscribe, onOpenSource, onOpenWorkbench, onTask }) {
+export function createTaskGuide({ React, api, cwd, language, subscribe, onOpenSource, onOpenWorkbench, onTask, onUserAction }) {
   const h = React.createElement
   const EngineeringPanel = createEngineeringPanel({ React, api, language,
     onOpenFile: (path, cwd) => window.dispatchEvent(new CustomEvent('agent-pi-open-file', { detail: { cwd, path } })),
   })
-  const StageControls=createTaskStageControls({React,api,cwd,language,onOpenWorkbench})
+  const StageControls=createTaskStageControls({React,api,cwd,language,onOpenWorkbench,onUserAction})
+  const Interaction=createTaskInteraction({React,api,cwd,language,onUserAction})
   return function TaskGuide({ sessionId, onClose, binding }) {
     const open = true
     const [tab,setTab] = React.useState('overview')
@@ -78,6 +80,8 @@ export function createTaskGuide({ React, api, cwd, language, subscribe, onOpenSo
     },[open,sessionId,endpoint])
     async function save(patch, allowConflicts=false) {
       setBusy(true);setError('');setMessage('')
+      const edits=structuredClone(fieldEdits.current)
+      let saved=false
       try {
         const latest=await api(endpoint,cwd());taskRevision.current=latest.task.revision;setResult(latest);onTask?.(sessionId,latest.task,latest.binding)
         if (patch.brief) {
@@ -91,9 +95,21 @@ export function createTaskGuide({ React, api, cwd, language, subscribe, onOpenSo
           if(accepting&&!latest.audit?.readyForCustomerReview)throw new Error(text===labels.zh?'交付状态已变化，请按最新检查结果复核。':'Delivery state changed. Review the latest checks.')
         }
         const next=await api(endpoint,cwd(),{method:'POST',body:JSON.stringify({revision:latest.task.revision,patch})})
-        taskRevision.current=next.task.revision;fieldEdits.current={};setConflicts([]);setDraft(next.task);setResult(next);setDirty(false);setMessage(text.saved);onTask?.(sessionId,next.task,next.binding)
+        taskRevision.current=next.task.revision;fieldEdits.current={};setConflicts([]);setDraft(next.task);setResult(next);setDirty(false);setMessage(text.saved);onTask?.(sessionId,next.task,next.binding);saved=true
+        if(patch.brief&&onUserAction&&Object.keys(edits).length){
+          const adjustment=Object.entries(edits).map(([path,edit])=>{
+            const key=path.replace(/^basis\./,'')
+            const label=path.startsWith('question.')?latest.task.questions.find(row=>row.id===path.slice(9))?.question:text[key]||key
+            return `${label}: ${Array.isArray(edit.value)?edit.value.join(', '):String(edit.value)}`
+          }).join('\n')
+          const executed=await onUserAction({sessionId,revision:next.task.revision,operationId:crypto.randomUUID(),command:{kind:'adjust_request',text:adjustment}})
+          if(!executed?.task||!executed.interaction)throw new Error(text===labels.zh?'未收到执行器回执。':'No executor receipt was returned.')
+          receiveAction(executed)
+          if(['blocked','requires_executor','prepared'].includes(executed.interaction.dispatch))throw new Error(executed.interaction.reason)
+          setMessage((text===labels.zh?'修正已保存。':'Corrections saved. ')+executed.interaction.reason)
+        }
       }
-      catch (e) {setError(e.message)} finally {setBusy(false)}
+      catch (e) {setError((saved?(text===labels.zh?'修正已保存，但执行调整尚未确认：':'Corrections were saved, but execution adjustment is unconfirmed: '):'')+e.message)} finally {setBusy(false)}
     }
     async function reload() {
       setBusy(true);setError('');setMessage('')
@@ -110,6 +126,13 @@ export function createTaskGuide({ React, api, cwd, language, subscribe, onOpenSo
         setMessage(action==='verify'?(text===labels.zh?'已核验实际成果，请查看审核结果和待解决项。':'Actual artifact verified. Review the receipt and unresolved items.'):(text===labels.zh?'已撤销该约束，后续执行与审核将采用最新要求。':'Constraint revoked. Execution and review will use the latest requirements.'))
       } catch(e){setError(e.message)} finally{setBusy(false)}
     }
+    function receiveAction(next) {
+      if(next.task.revision<taskRevision.current)return
+      taskRevision.current=next.task.revision;setResult(next)
+      const task=structuredClone(next.task)
+      task.brief=mergeTaskBriefEdits(task,fieldEdits.current,true).brief
+      setDraft(task);onTask?.(sessionId,next.task,next.binding)
+    }
     const edit = (key,value,basis=false) => {const path=basis?'basis.'+key:key;fieldEdits.current[path]={baseValue:fieldEdits.current[path]?.baseValue??briefField(result.task.brief,path),value:key==='formats'?value.split(/[,，]/).map(row=>row.trim()).filter(Boolean):value};setDraft({...draft,brief:mergeTaskBriefEdits(result.task,fieldEdits.current,true).brief});setDirty(true);setMessage('');setConflicts([])}
     const field = (key,basis=false,multiline=false) => h('label',{key},text[key],h(multiline?'textarea':'input',{value:(basis?draft.brief.basis?.[key]:key==='formats'?(draft.brief.formats || []).join(', '):draft.brief[key]) || '',onChange:e=>edit(key,e.target.value,basis)}))
     const article = (id,title,body) => h('article',{key:id},h('h3',null,title),body)
@@ -125,11 +148,12 @@ export function createTaskGuide({ React, api, cwd, language, subscribe, onOpenSo
           h('p',{className:'ap-guide-objective'},task.brief.objective||(zh?'把目的告诉主对话，系统会结合资料逐步明确。':'Describe your purpose in the conversation. The system will clarify it from the materials.')),
           provenance&&h('p',{className:'ap-guide-muted'},origin[provenance.origin]+' · '+status[provenance.status]),
           task.brief.scope&&h('p',null,text.scope+'：'+task.brief.scope),task.brief.audience&&h('p',null,text.audience+'：'+task.brief.audience),
-          h('button',{onClick:()=>setTab('goal')},zh?'修正某项理解':'Correct an item'),onClose&&h('button',{onClick:onClose},zh?'继续在对话中说明':'Continue in the conversation'))),
+          h(Interaction,{sessionId,result,disabled:busy||dirty,onChanged:receiveAction,onOpenChat:onClose}),
+          h('details',null,h('summary',null,zh?'查看与修正具体字段':'Review and correct specific fields'),h('button',{onClick:()=>setTab('goal')},zh?'修正某项理解':'Correct an item')),onClose&&h('button',{onClick:onClose},zh?'继续在对话中说明':'Continue in the conversation'))),
         project&&article('binding',zh?'与专业化工作台的关联':'Professional workbench connection',h(React.Fragment,null,
           project.projectGoal&&h('p',null,(zh?'项目总目标：':'Project goal: ')+project.projectGoal),
           h('p',null,(zh?'当前阶段：':'Current stage: ')+(project.stageLabel||project.stageId||text.empty)),
-          h('p',{className:'ap-guide-muted'},zh?'本次任务为当前阶段贡献成果，项目总目标与阶段审批由工作台保留。':'This task contributes to the current stage. The workbench retains the project goal and stage approvals.'),h(StageControls,{sessionId,task,binding:project,onChanged:reload}))),
+          h('p',{className:'ap-guide-muted'},zh?'本次任务为当前阶段贡献成果，项目总目标与阶段审批由工作台保留。':'This task contributes to the current stage. The workbench retains the project goal and stage approvals.'),h(StageControls,{sessionId,task,binding:project,onChanged:next=>next?receiveAction(next):reload()}))),
         article('quality',zh?'专业执行口径':'Professional execution policy',h(React.Fragment,null,
           h('p',null,model.depthEnabled?(zh?'专业深度已启用：加强方法、证据与验收项审阅。':'Professional depth is on: enhanced methods, evidence and acceptance review.'):(zh?'基础专业检查持续生效；可在输入区主动开启专业深度。':'Core professional checks apply. Turn on professional depth in the composer for additional review.')),
           h('p',{className:'ap-guide-muted'},zh?'调整开关会保留已有依据、发现和检查记录。':'Changing the switch preserves evidence, findings and check records.'))),
@@ -139,9 +163,9 @@ export function createTaskGuide({ React, api, cwd, language, subscribe, onOpenSo
           ...model.corrections.filter(row=>!model.constraints.some(active=>active.id===row.id)).map(row=>h('p',{key:row.id,className:'ap-guide-muted'},(row.kind==='revocation'?(zh?'已明确撤销：':'Explicitly revoked: '):(zh?'修正记录：':'Correction: '))+row.text)))),
         model.questions.length>0&&article('questions',text.unanswered,h(React.Fragment,null,
           ...model.questions.map(row=>h('div',{key:row.id},h('p',null,row.question),row.purpose&&h('p',{className:'ap-guide-muted'},row.purpose),row.provider&&h('p',{className:'ap-guide-muted'},zh?'请在主对话的原生问答卡中回答。':'Answer in the native question card in the conversation.'))),
-          onClose&&h('button',{onClick:onClose},zh?'在主对话中回答':'Answer in the conversation'))),
+          onClose&&h('button',{onClick:onClose},model.questions.some(row=>row.provider)?(zh?'前往原生问答':'Go to the native question card'):(zh?'在主对话中补充':'Add information in the conversation')))),
         h('h3',null,zh?'围绕目标的发现':'Findings related to your goal'),
-        task.findings?.length?renderTaskFindings(h,task,language(),openSource,{includeResolved:true,onOpenChat:onClose}):h('p',{className:'ap-guide-muted'},zh?'实际分析形成的发现会记录在这里，并说明依据、目标影响和下一步。':'Findings from actual analysis appear here with their sources, impact on the goal and next action.'),
+        task.findings?.length?renderTaskFindings(h,task,language(),openSource,{includeResolved:true,onOpenChat:onClose,renderActions:finding=>h(Interaction,{sessionId,result,finding,disabled:busy||dirty,onChanged:receiveAction,onOpenChat:onClose})}):h('p',{className:'ap-guide-muted'},zh?'实际分析形成的发现会记录在这里，并说明依据、目标影响和下一步。':'Findings from actual analysis appear here with their sources, impact on the goal and next action.'),
         renderTenderResponseCoverage(h,result?.responseCoverage,{locale:language(),compact:true,onOpenTask:()=>setTab('responses')}),
         h(EngineeringPanel,{sessionId,cwd:cwd(),hideEmpty:true}),
         article('progress',zh?'实际工作进展':'Actual work progress',h(React.Fragment,null,
@@ -189,7 +213,7 @@ export function createTaskGuide({ React, api, cwd, language, subscribe, onOpenSo
           row.signature==='pending'?h('button',{disabled:busy||dirty,onClick:()=>save({deliverables:draft.deliverables.map(item=>item.id===row.id?{...item,signature:'signed'}:item)})},text.signature):null))),
         result?.audit?.readyForCustomerReview&&draft.deliverables?.every(row=>row.verification?.status==='passed'&&!row.verification.unresolved?.length)&&!result?.audit?.customerAccepted?h('button',{disabled:busy||dirty,onClick:()=>save({deliverables:draft.deliverables.map(row=>({...row,status:'accepted'}))})},text.accept):null)
     }
-    return h('section',{className:'ap-task-guide','data-conversation-composer-overlay':'',role:'region','aria-label':text.title},h('header',null,h('h2',null,text.title),onClose?h('button',{onClick:onClose},text.close):null),h('nav',{'aria-label':text.title},['overview',...(result?.responseCoverage?['responses']:[]),'goal','basis','plan','capabilities','delivery'].map(key=>h('button',{key,role:'tab','aria-selected':tab===key,onClick:()=>setTab(key)},key==='responses'?(text===labels.zh?'响应对照':'Response coverage'):text[key]))),h('main',null,h('p',{className:'ap-guide-muted'},text.reminder),error?h('p',{role:'alert',className:'ap-guide-error'},error):null,message?h('p',{role:'status'},message):null,conflicts.length>0?h('div',null,h('p',null,conflicts.join('、')),h('button',{disabled:busy,onClick:()=>save({brief:draft.brief,questions:draft.questions},true)},text===labels.zh?'保留我的修正并保存':'Keep my corrections and save')):null,!sessionId?h('p',null,text.noTask):body),h('footer',null,h('button',{disabled:busy,onClick:reload},text.refresh),dirty?h('button',{disabled:busy,onClick:()=>{fieldEdits.current={};setDraft(structuredClone(result.task));setDirty(false);setConflicts([]);setError('')}},text===labels.zh?'取消草稿':'Discard draft'):null,dirty?h('button',{disabled:busy||!draft,onClick:()=>save({brief:draft.brief,questions:draft.questions})},busy?text.saving:text.save):null))
+    return h('section',{className:'ap-task-guide','data-conversation-composer-overlay':'',role:'region','aria-label':text.title},h('header',null,h('h2',null,text.title),onClose?h('button',{onClick:onClose},text.close):null),h('nav',{'aria-label':text.title},['overview',...(result?.responseCoverage?['responses']:[]),'goal','basis','plan','capabilities','delivery'].map(key=>h('button',{key,role:'tab','aria-selected':tab===key,onClick:()=>setTab(key)},key==='responses'?(text===labels.zh?'响应对照':'Response coverage'):text[key]))),h('main',null,h('p',{className:'ap-guide-muted'},text.reminder),error?h('p',{role:'alert',className:'ap-guide-error'},error):null,message?h('p',{role:'status'},message):null,conflicts.length>0?h('div',null,h('p',null,conflicts.join('、')),h('button',{disabled:busy,onClick:()=>save({brief:draft.brief,questions:draft.questions},true)},text===labels.zh?'保留我的修正并保存':'Keep my corrections and save')):null,!sessionId?h('p',null,text.noTask):draft?body:!error?h('p',{role:'status'},text===labels.zh?'正在读取本次任务…':'Loading the current task…'):null),h('footer',null,h('button',{disabled:busy,onClick:reload},text.refresh),dirty?h('button',{disabled:busy,onClick:()=>{fieldEdits.current={};setDraft(structuredClone(result.task));setDirty(false);setConflicts([]);setError('')}},text===labels.zh?'取消草稿':'Discard draft'):null,dirty?h('button',{disabled:busy||!draft,onClick:()=>save({brief:draft.brief,questions:draft.questions})},busy?text.saving:onUserAction?(text===labels.zh?'保存并调整执行':'Save and adjust execution'):text.save):null))
   }
 }
 

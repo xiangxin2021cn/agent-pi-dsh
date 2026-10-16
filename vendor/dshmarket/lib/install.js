@@ -328,10 +328,16 @@ export async function withHoistRecovery(run, profile, pluginArgs, profileDirecto
         // no options from us — but the classified message above says the market
         // retried. Say that it did not, or the user reads a retry that never
         // happened and looks for the wrong cause.
-        result = {
-            ...result,
-            stderr: `${result.stderr}\n\n这台宿主（官方桌面端）自己执行安装，不接受市场附加的 pnpm 参数（${unavailableOption}），所以这一步没有自动重试。 / This host (the official desktop app) runs the install itself and takes no pnpm options from the market (${unavailableOption}), so that automatic retry could not be attempted.`,
-        };
+        //
+        // The wait on a fresh release is the one of these where "no retry" leaves
+        // the user with nothing to do at all: the plugin IS published, pnpm just
+        // will not take it yet, and the door the market would open on a plain
+        // `dsh web` host is shut here — so say when the same button starts
+        // working, and what to use meanwhile (#852).
+        const note = unavailableOption === RELEASE_AGE_OVERRIDE
+            ? `这个插件的新版本比本 profile 的 minimumReleaseAge（新版本等待期）还新，pnpm 因此拒绝了本次改动（改别的插件也一样）。官方桌面端由应用自己执行安装，不接受市场的临时放行参数（${unavailableOption}），所以这里没有自动重试。**等这个版本过了等待期再更新一次即可**；想现在就更新，可以在普通的 dsh web 里装。 / The plugin's new version is younger than this profile's minimumReleaseAge, so pnpm refused this change (a change to another plugin too). The official desktop app runs the install itself and takes no one-shot bypass from the market (${unavailableOption}), so no automatic retry happens here. **Update again once the version is past the wait**; to update right now, install from plain dsh web.`
+            : `这台宿主（官方桌面端）自己执行安装，不接受市场附加的 pnpm 参数（${unavailableOption}），所以这一步没有自动重试。 / This host (the official desktop app) runs the install itself and takes no pnpm options from the market (${unavailableOption}), so that automatic retry could not be attempted.`;
+        result = { ...result, stderr: `${result.stderr}\n\n${note}` };
     }
     return result;
 }
@@ -426,7 +432,27 @@ export function failureDetail(result, limit = 300) {
         const code = result.pnpmErrorCode === undefined ? '' : `${result.pnpmErrorCode}: `;
         return `${code}${result.pnpmError}`.slice(0, limit);
     }
-    return (result.stderr || result.stdout).slice(-limit);
+    const text = (result.stderr || result.stdout).trim();
+    if (text.length <= limit)
+        return text;
+    const tail = text.slice(-limit);
+    // Cut at a sentence end instead of mid-word, and say that something was
+    // dropped (#852). The market appends its own explanation to pnpm's output,
+    // and this tail is catalogued into user-facing sentences — including inside
+    // a parenthesis. A blunt cut landed inside the previous sentence and welded
+    // the fragment to the next one: the reporter's log read
+    // `（is, export the log and report it这台宿主…`, which is not a sentence in
+    // either language and says nothing about what to do.
+    const sentenceEnd = /[.!?。！？]["')\]）]?[\s\n]+/gu;
+    const match = sentenceEnd.exec(tail);
+    if (match !== null) {
+        const rest = tail.slice(match.index + match[0].length).trim();
+        // A boundary so near the end would leave a word or two; the raw tail is
+        // more use than the stub.
+        if (rest.length >= 40)
+            return `… ${rest}`;
+    }
+    return `…${tail.trim()}`;
 }
 /**
  * Some registry entries point at collection repos whose actual plugin lives

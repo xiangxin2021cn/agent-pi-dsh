@@ -154,5 +154,11 @@
     "dshVersion": "dsh-v0.2.1-alpha.2",
     "dshPin": "d743267388641bc76f17c45ce8b4c231aed1d32c",
     "releaseTag": "v3.8.2"
+  },
+  {
+    "version": "3.8.3",
+    "dshVersion": "dsh-v0.2.1-alpha.4",
+    "dshPin": "f2235d6c023a81d86b202db5e472167ad2307ddb",
+    "releaseTag": "v3.8.3"
   }
 ]

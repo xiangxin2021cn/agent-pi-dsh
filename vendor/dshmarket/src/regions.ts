@@ -212,6 +212,29 @@ export function resetGithubRoutePreferences(): void {
 }
 
 /**
+ * Put a user's own prefix in front, and keep the region's other routes (#850).
+ *
+ * Heading rather than replacing, because a public proxy dying is the whole
+ * reason the setting exists — the reporter's was one of these mirrors, and it
+ * took the rest of the chain with it: `gh-proxy.com` stopped serving on
+ * 2026-10-13, and every GitHub-sourced update then failed on a timeout rather
+ * than trying the next candidate. Replacing the list buys one attempt per
+ * mirror outage; heading it buys one, and then the chain that was already
+ * measured to work.
+ *
+ * The proxy is also dropped from the tail if it is already there, so a user
+ * who accepted the value the settings UI pre-suggests gets exactly the
+ * region's own table back rather than the same prefix twice.
+ *
+ * The direct escape is never dropped: `githubRoutes` promises every list ends
+ * in one, and dropping it would turn a dead mirror into an outage instead of
+ * a slow request.
+ */
+function withCustomProxy(proxy: string, base: GithubRoute[]): GithubRoute[] {
+  return [proxy, ...base.filter(route => route !== proxy)]
+}
+
+/**
  * The routes for a region, with environment overrides applied.
  *
  * Overrides win over the table because they are the user's statement about
@@ -234,7 +257,11 @@ export function routesFor(region: Region, env: NodeJS.ProcessEnv = process.env):
         raw: [...base.githubRoutes.raw],
         avatar: [...base.githubRoutes.avatar],
       }
-    : { git: [githubProxy, null], raw: [githubProxy, null], avatar: [githubProxy, null] }
+    : {
+        git: withCustomProxy(githubProxy, base.githubRoutes.git),
+        raw: withCustomProxy(githubProxy, base.githubRoutes.raw),
+        avatar: withCustomProxy(githubProxy, base.githubRoutes.avatar),
+      }
   return {
     npmRegistry: registry,
     githubProxy: githubProxy ?? base.githubProxy,

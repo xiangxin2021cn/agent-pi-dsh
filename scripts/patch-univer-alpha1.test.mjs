@@ -37,7 +37,7 @@ for (const version of ['0.3.6', '0.3.7']) test(`Office ${version} retains its of
   for (const [name, value] of Object.entries(JSON.parse(patched).peerDependencies)) {
     if (name === '@deepseek-ai/cordis') assert.equal(value, '^4.0.2 || 4.0.5-alpha.1')
     else if (name === '@deepseek-ai/schemastery') assert.equal(value, '^3.18.1 || 3.18.5-alpha.1')
-    else assert.equal(value, original + ' || 0.2.1-alpha.1' + (version === '0.3.7' ? ' || 0.2.1-alpha.2' : ''))
+    else assert.equal(value, original + ' || 0.2.1-alpha.1' + (version === '0.3.7' ? ' || 0.2.1-alpha.2 || 0.2.1-alpha.4' : ''))
   }
   assert.equal(patchUniver020PeerRanges(patched), patched)
   assert.throws(() => patchUniver020PeerRanges(source.replace(original, '^0.3.0')), /unexpected Univer DSH peer range/)

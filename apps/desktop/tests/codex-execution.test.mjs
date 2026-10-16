@@ -17,6 +17,7 @@ function harness(options = {}) {
     nodePath: 'node', wrapperPath: 'codex.js', codexHome: tmpdir(), stateFile: options.stateFile,
     baseEnv: { OPENAI_API_KEY: 'secret-inherited', CODEX_ACCESS_TOKEN: 'secret-inherited', PATH: 'safe' },
     macosIntelCompatibility: options.macosIntelCompatibility,
+    authorizeTask: options.authorizeTask, timeoutMs: options.timeoutMs,
     onEvent: (event) => events.push(event),
     spawn(_node, args, spawnOptions) {
       assert.deepEqual(args, options.expectedArgs || ['codex.js', 'app-server', '--stdio'])
@@ -38,6 +39,7 @@ function harness(options = {}) {
             : message.method === 'turn/start' ? { turn: { id: 'turn-' + calls.length } } : {}
           child.reply({ id: message.id, result })
         }
+        if (options.completeOnInterrupt && message.method === 'turn/interrupt') child.reply({ method: 'turn/completed', params: { threadId: 'native-thread', turn: { status: 'interrupted' } } })
         done()
       } })
       children.push(child)
@@ -45,6 +47,8 @@ function harness(options = {}) {
     },
     async bridge(action, input) {
       bridges.push({ action, input })
+      if (action === 'interaction') return options.interaction
+      if (action === 'interaction-ack') return { task: { revision: 8 }, interaction: { dispatch: input.dispatch, reason: input.reason } }
       if (action === 'context') {
         if (options.holdContext) await contextWait
         return { ...identity, lease: 'lease-' + bridges.length, sandbox: options.sandbox || 'read-only', developerInstructions: 'professional-evidence-policy', dynamicTools: [{ type: 'function', name: 'cordis', inputSchema: { type: 'object' }, description: 'professional tools' }] }
@@ -344,5 +348,59 @@ test('disconnection and invalid identities never silently fall back to DSH', asy
     assert.equal(h.controller.status(identity.sessionId).errorCode, 'processDisconnected')
     assert.ok(h.bridges.some((row) => row.action === 'release'))
     assert.ok(!h.calls.some((row) => row.method === 'dsh/submit'))
+  } finally { h.controller.dispose() }
+})
+
+const preparedTaskAction = (kind = 'continue') => ({ operationId: 'task-command', kind, claim: 'desktop-claim', message: { id: 'shared-human-message', content: [{ type: 'text', text: '仅调整工期分析，保留已完成算量' }], source: { kind: 'user' } } })
+
+test('task buttons deliver the server-prepared message through native start and steer before acknowledging success', async () => {
+  const h = harness({ interaction: preparedTaskAction('adjust_request') })
+  try {
+    const input = { ...identity, operationId: 'task-command', text: 'untrusted replacement must not be used' }
+    const first = await h.controller.taskAction(input)
+    assert.equal(first.result.interaction.dispatch, 'queued')
+    assert.equal(h.calls.find(row => row.method === 'turn/start').params.input[0].text, preparedTaskAction().message.content[0].text)
+    assert.equal(h.bridges.find(row => row.action === 'context').input.taskOperationId, 'task-command')
+    assert.equal(h.bridges.find(row => row.action === 'context').input.taskClaim, 'desktop-claim')
+    await h.controller.taskAction(input)
+    assert.equal(h.calls.filter(row => row.method === 'turn/start').length, 1)
+    assert.equal(h.calls.filter(row => row.method === 'turn/steer').length, 1)
+    assert.equal(h.bridges.filter(row => row.action === 'interaction-ack').at(-1).input.dispatch, 'steered')
+  } finally { h.controller.dispose() }
+})
+
+test('native task pause waits for actual turn completion and does not report a failed interruption as paused', async () => {
+  for (const completeOnInterrupt of [true, false]) {
+    const h = harness({ interaction: preparedTaskAction('pause'), completeOnInterrupt, timeoutMs: 80 })
+    try {
+      await h.controller.submit({ ...identity, text: 'Prepare report' })
+      const action = h.controller.taskAction({ ...identity, operationId: 'task-command' })
+      if (completeOnInterrupt) {
+        const result = await action
+        assert.equal(result.result.interaction.dispatch, 'paused')
+        assert.equal(result.state.phase, 'idle')
+      } else {
+        await assert.rejects(action, /尚未确认停止/)
+        assert.equal(h.bridges.filter(row => row.action === 'interaction-ack').at(-1).input.dispatch, 'blocked')
+      }
+    } finally { h.controller.dispose() }
+  }
+})
+
+test('task controls cannot bypass native login by supplying a false pause kind', async () => {
+  const h = harness({ interaction: preparedTaskAction('continue'), authorizeTask: async () => false })
+  try {
+    await assert.rejects(h.controller.taskAction({ ...identity, operationId: 'task-command', kind: 'pause' }), /登录 Codex/)
+    assert.equal(h.children.length, 0)
+    assert.equal(h.bridges.at(-1).input.dispatch, 'blocked')
+  } finally { h.controller.dispose() }
+})
+
+test('a completed operation receipt is replayed without a second native turn', async () => {
+  const h = harness({ interaction: { completed: true, result: { task: { revision: 9 }, interaction: { dispatch: 'queued' } } } })
+  try {
+    const result = await h.controller.taskAction({ ...identity, operationId: 'task-command' })
+    assert.equal(result.result.task.revision, 9)
+    assert.equal(h.children.length, 0)
   } finally { h.controller.dispose() }
 })

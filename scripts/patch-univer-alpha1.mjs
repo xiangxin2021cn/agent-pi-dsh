@@ -18,6 +18,7 @@ const univer021PeerRange = univerRc2PeerRange + ' || 0.2.1-alpha.1'
 const univer036PeerRange = '^0.1.5-rc.3 || ^0.1.7-rc.1 || ^0.2.0-rc.1'
 const univer036AdaptedPeerRange = univer036PeerRange + ' || 0.2.1-alpha.1'
 const univer037AdaptedPeerRange = univer036AdaptedPeerRange + ' || 0.2.1-alpha.2'
+const univer037Alpha4PeerRange = univer037AdaptedPeerRange + ' || 0.2.1-alpha.4'
 const univerVendorPeers = {
   '@deepseek-ai/cordis': ['^4.0.2', '^4.0.2 || 4.0.5-alpha.1'],
   '@deepseek-ai/schemastery': ['^3.18.1', '^3.18.1 || 3.18.5-alpha.1'],
@@ -28,7 +29,7 @@ export function patchUniver020PeerRanges(source) {
   const manifest = JSON.parse(source)
   if (manifest.name !== 'dsh-univer-office' || !['0.3.5', '0.3.6', '0.3.7'].includes(manifest.version) || !manifest.peerDependencies) return source
   const ranges = manifest.version === '0.3.7'
-    ? [univer036PeerRange, univer036AdaptedPeerRange, univer037AdaptedPeerRange]
+    ? [univer036PeerRange, univer036AdaptedPeerRange, univer037AdaptedPeerRange, univer037Alpha4PeerRange]
     : manifest.version === '0.3.6'
     ? [univer036PeerRange, univer036AdaptedPeerRange]
     : [univerPreviousPeerRange, univerRc1PeerRange, univerRc2PeerRange, univer021PeerRange]
@@ -48,7 +49,7 @@ export function patchUniver020PeerRanges(source) {
 
 export function assertUniver020PeerRanges(manifest) {
   if (!manifest.peerDependencies) return
-  const adaptedRange = manifest.version === '0.3.7' ? univer037AdaptedPeerRange
+  const adaptedRange = manifest.version === '0.3.7' ? univer037Alpha4PeerRange
     : manifest.version === '0.3.6' ? univer036AdaptedPeerRange : univer021PeerRange
   for (const name of univerDshPeers) {
     if (manifest.peerDependencies[name] !== adaptedRange) throw new Error('Univer DSH peer adaptation missing: ' + name)

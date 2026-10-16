@@ -29,7 +29,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { logEvent } from "./log.js";
 import { parsePatchFile, parsePatchText } from "./check.js";
-import { bundlePatchInsertedIds, declaredBundlePatchFiles, parsePatchRows } from "./profile.js";
+import { bundleOptOutRowIds, bundlePatchInsertedIds, declaredBundlePatchFiles, parsePatchRows } from "./profile.js";
 /**
  * Host infrastructure rows: disabling any of these breaks the very chain
  * the patch layer runs on (e.g. timer → HMR, webserver → the page itself),
@@ -401,9 +401,16 @@ export function packagePatchFlags(host, profileDirectory, names, state) {
     const forced = [];
     for (const name of names) {
         const rows = rowIdsForPackage(host, profileDirectory, name);
-        if (rows.some(id => state.disables.includes(id)))
+        // Rows the package's own layer already ships off say nothing about what
+        // the user decided (#876): `dsh-mnemon` ships four strategy rows as
+        // opt-in, its user patch layer repeats one of them, and the package was
+        // reported as 「已停用 / 重启后保持关闭」 while it was running. Only the
+        // user's decisions ABOVE the bundle's own default count.
+        const optOut = new Set(bundleOptOutRowIds(join(profileDirectory, 'node_modules', name)));
+        const decidedByUser = (id) => !optOut.has(id);
+        if (rows.some(id => decidedByUser(id) && state.disables.includes(id)))
             disabled.push(name);
-        if (rows.some(id => state.forced.includes(id)))
+        if (rows.some(id => decidedByUser(id) && state.forced.includes(id)))
             forced.push(name);
     }
     return { disabled, forced };
@@ -422,11 +429,66 @@ function rowBlock(rowId, disabled) {
     return `- id: ${rowId}\n  disabled: ${disabled ? 'true' : 'false'}\n`;
 }
 /**
+ * Every two-line `- id: X` + `disabled: …` block for one row, in file order
+ * (#821). A row that goes on with more keys (`config:` and the like) is not
+ * one of these blocks: cutting its first two lines would leave the rest
+ * hanging off the entry above it. The last block of a file may lack its
+ * newline.
+ */
+function rowBlocksRe(rowId, disabled) {
+    const id = escapeRegExp(rowId);
+    const value = disabled === 'any' ? '(?:true|false)' : disabled;
+    return new RegExp(`^- id: (?:${id}|'${id}'|"${id}")[ \\t]*\\r?\\n  disabled: ${value}[ \\t]*(?:\\r?\\n(?![ \\t])|(?![\\s\\S]))`, 'gmu');
+}
+/**
+ * What the patch file finally says about one row: the flag of its last
+ * `- id: X` entry that carries one, rows with more keys included. Later
+ * entries override earlier ones.
+ */
+function lastRowFlag(text, rowId) {
+    const id = escapeRegExp(rowId);
+    const idLine = new RegExp(`^- id: (?:${id}|'${id}'|"${id}")\\s*$`, 'u');
+    const lines = text.split(/\r?\n/u);
+    let flag = null;
+    for (let index = 0; index < lines.length; index += 1) {
+        if (!idLine.test(lines[index] ?? ''))
+            continue;
+        const value = /^ {2}disabled: (true|false)\s*$/u.exec(lines[index + 1] ?? '');
+        if (value !== null)
+            flag = value[1];
+    }
+    return flag;
+}
+/**
  * Append one top-level patch entry, refusing when the file is not a valid
  * entry list. The refusal is the point: a malformed patch layer (the
  * `[]` + items mistake, or any broken YAML) must never be made worse —
  * the market reports it and keeps its own live/state.json toggle instead.
  */
+/**
+ * Write the patch file, or say in the user's words why it could not be
+ * written (kettly1260's family of reports, and #582's read-only case): a bare
+ * `EACCES: permission denied, open '…'` reaching the UI tells a user nothing
+ * they can act on, while the plugin's actual state has already changed.
+ */
+function writePatchFile(patchPath, contents) {
+    try {
+        writeFileSync(patchPath, contents);
+        return { ok: true, reason: null };
+    }
+    catch (error) {
+        const code = error !== null && typeof error === 'object' && 'code' in error ? String(error.code) : '';
+        const detail = code === 'EACCES' || code === 'EPERM' || code === 'EROFS'
+            ? '文件不可写（只读或被系统保护）'
+            : code === 'ENOSPC'
+                ? '磁盘空间不足'
+                : error instanceof Error ? error.message : String(error);
+        return {
+            ok: false,
+            reason: `补丁层文件写不进去：${detail} / the patch file could not be written: ${code === 'EACCES' || code === 'EPERM' || code === 'EROFS' ? 'it is read-only' : detail}`,
+        };
+    }
+}
 function appendPatchEntry(patchPath, block) {
     let text = '';
     try {
@@ -435,8 +497,7 @@ function appendPatchEntry(patchPath, block) {
     catch { /* created below */ }
     const core = text.trim();
     if (core === '') {
-        writeFileSync(patchPath, block);
-        return { ok: true, reason: null };
+        return writePatchFile(patchPath, block);
     }
     // The dsh profile template ships an empty `[]` placeholder (a valid
     // empty list). Appending after it would create TWO top-level elements in
@@ -446,14 +507,12 @@ function appendPatchEntry(patchPath, block) {
     // Comments only (the user dropped the placeholder): append after them.
     if (withoutComments === '') {
         const next = text.endsWith('\n') ? text : `${text}\n`;
-        writeFileSync(patchPath, `${next}${block}`);
-        return { ok: true, reason: null };
+        return writePatchFile(patchPath, `${next}${block}`);
     }
     if (withoutComments === '[]' || withoutComments === '[ ]') {
         const commented = text.replace(/^[ \t]*\[[ \t]*\][ \t]*(?:#.*)?(?:\r?\n|$)/mu, '# []\n');
         const next = commented.endsWith('\n') ? commented : `${commented}\n`;
-        writeFileSync(patchPath, `${next}${block}`);
-        return { ok: true, reason: null };
+        return writePatchFile(patchPath, `${next}${block}`);
     }
     // A top-level flow LIST (other than the placeholder above) cannot be
     // appended to: `- id: X` after `[1, 2]` would create two top-level
@@ -478,14 +537,51 @@ function appendPatchEntry(patchPath, block) {
         };
     }
     const next = text.endsWith('\n') ? text : `${text}\n`;
-    writeFileSync(patchPath, `${next}${block}`);
-    return { ok: true, reason: null };
+    return writePatchFile(patchPath, `${next}${block}`);
 }
-/** Disable one row: append `- id: X` + `disabled: true` (idempotent). */
+/**
+ * Disable one row: `- id: X` + `disabled: true` (idempotent).
+ *
+ * A force-enable block already there is flipped in place rather than
+ * followed by a second block (#821): the pair cancelled out by order alone,
+ * and an uninstall that cleared one of them left the other behind to switch
+ * a later reinstall off. Duplicates an older version left are folded into
+ * the one block at the same time.
+ */
 export function disableRow(patchPath, rowId) {
     return queuedWrite(async () => {
         if (!ROW_ID_RE.test(rowId)) {
             return { ok: false, reason: `行 id 含特殊字符,不支持写入补丁层 / row id ${rowId} cannot be written to the patch layer` };
+        }
+        const text = (() => {
+            try {
+                return readFileSync(patchPath, 'utf8');
+            }
+            catch {
+                return '';
+            }
+        })();
+        const blocks = text.match(rowBlocksRe(rowId, 'any')) ?? [];
+        if (blocks.length > 1 || blocks.some(block => /disabled: false/u.test(block))) {
+            let kept = false;
+            const next = text.replace(rowBlocksRe(rowId, 'any'), block => {
+                if (kept)
+                    return '';
+                kept = true;
+                const flipped = rowBlock(rowId, true);
+                return block.includes('\r\n') ? flipped.replace(/\n/gu, '\r\n') : flipped;
+            });
+            const flipped = writePatchFile(patchPath, next);
+            if (!flipped.ok)
+                return flipped;
+            // A longer entry for the row further down still has the last word.
+            if (lastRowFlag(next, rowId) !== 'true') {
+                const result = appendPatchEntry(patchPath, rowBlock(rowId, true));
+                if (!result.ok)
+                    return result;
+            }
+            logEvent('info', 'patch', `disabled row ${rowId} in ${patchPath}`);
+            return { ok: true, reason: null };
         }
         const state = readUserPatchState(patchPath);
         if (state.disables.includes(rowId))
@@ -496,7 +592,7 @@ export function disableRow(patchPath, rowId) {
         return result;
     });
 }
-/** Enable one row: remove the `disabled: true` block; force-enable with
+/** Enable one row: remove its `disabled: true` blocks; force-enable with
  * `disabled: false` when a lower layer (bundle/home patch) holds it down. */
 export function enableRow(patchPath, rowId) {
     return queuedWrite(async () => {
@@ -504,7 +600,6 @@ export function enableRow(patchPath, rowId) {
             return { ok: false, reason: `行 id 含特殊字符,不支持写入补丁层 / row id ${rowId} cannot be written to the patch layer` };
         }
         const state = readUserPatchState(patchPath);
-        const blockRe = new RegExp(`^- id: ['\"]?${escapeRegExp(rowId)}['\"]?\\r?\\n  disabled: true\\r?\\n`, 'mu');
         const text = (() => {
             try {
                 return readFileSync(patchPath, 'utf8');
@@ -513,8 +608,11 @@ export function enableRow(patchPath, rowId) {
                 return '';
             }
         })();
-        if (blockRe.test(text)) {
-            writeFileSync(patchPath, withPlaceholderRestored(text.replace(blockRe, '')));
+        const next = text.replace(rowBlocksRe(rowId, 'true'), '');
+        if (next !== text) {
+            const written = writePatchFile(patchPath, withPlaceholderRestored(next));
+            if (!written.ok)
+                return written;
             logEvent('info', 'patch', `enabled row ${rowId} in ${patchPath}`);
             return { ok: true, reason: null };
         }
@@ -552,15 +650,15 @@ export function removeRowBlocks(patchPath, rowIds) {
         text = readFileSync(patchPath, 'utf8');
     }
     catch {
-        return;
-    }
+        return { ok: true, reason: null };
+    } // no file, nothing to remove
     let next = text;
-    for (const rowId of rowIds) {
-        const blockRe = new RegExp(`^- id: ['\"]?${escapeRegExp(rowId)}['\"]?\\r?\\n  disabled: (?:true|false)\\r?\\n`, 'mu');
-        next = next.replace(blockRe, '');
-    }
-    if (next !== text) {
-        writeFileSync(patchPath, withPlaceholderRestored(next));
+    for (const rowId of rowIds)
+        next = next.replace(rowBlocksRe(rowId, 'any'), '');
+    if (next === text)
+        return { ok: true, reason: null };
+    const written = writePatchFile(patchPath, withPlaceholderRestored(next));
+    if (written.ok)
         logEvent('info', 'patch', `removed patch rows for ${rowIds.join(', ')}`);
-    }
+    return written;
 }

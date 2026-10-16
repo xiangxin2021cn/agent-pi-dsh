@@ -251,7 +251,8 @@ function getCodexExecutionController() {
   if (!wrapperPath) throw new Error('Codex 运行时不可用。')
   codexExecutionController = createCodexExecutionController({
     nodePath: resolveNode(), wrapperPath, codexHome, baseEnv: runtimeEnv(),
-    macosIntelCompatibility,
+    macosIntelCompatibility, appVersion: app.getVersion(),
+    authorizeTask: async () => (await getCodexAuthController()?.status())?.state === 'logged-in',
     stateFile: join(codexHome, 'agent-pi-main-threads.json'),
     onEvent: (state) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('codex-execution-event', state) },
     async bridge(action, body) {
@@ -1059,6 +1060,10 @@ ipcMain.handle('codex-execution-submit', async (event, input) => {
   const auth = await getCodexAuthController()?.status()
   if (auth?.state !== 'logged-in') throw new Error('请先在设置中登录 Codex。')
   return getCodexExecutionController().submit(input)
+})
+ipcMain.handle('codex-task-action', async (event, input) => {
+  trustedExecutionSender(event)
+  return getCodexExecutionController().taskAction(input)
 })
 ipcMain.handle('codex-execution-interrupt', (event, identity) => { trustedExecutionSender(event); return getCodexExecutionController().interrupt(identity) })
 ipcMain.handle('codex-execution-reply', (event, identity, id, answer) => { trustedExecutionSender(event); return getCodexExecutionController().reply(identity, id, answer) })

@@ -29,6 +29,25 @@ export declare const INBOX_BUNDLES: Set<string>;
 /** Community dependencies of the profile (in-box bundles filtered out). */
 export declare function readInstalled(profile: string, explicitDir?: string): Record<string, string>;
 /**
+ * Packages this profile's desktop host manages as generations (#874).
+ *
+ * DSH Desktop materialises such a plugin under
+ * `profiles/.generations/live/<name>+<version>+<hash>` and points the profile
+ * at it with a `link:` in `pnpm.overrides`, while `dependencies` keeps the
+ * plain version. Before IT runs pnpm, the host's own installer suspends that
+ * projection — the names leave `dependencies` / `overrides` for the duration
+ * of the run — and the profile's pnpm-lock.yaml therefore NEVER records them.
+ * That is by design, so a lockfile with no entry for the package is not
+ * evidence about its exact source, and reading it as if it were turned a
+ * completed rollback into "automatic rollback is unavailable" with advice the
+ * user cannot carry out (#874).
+ *
+ * Two declarations are accepted because either can stand alone: the
+ * generation link itself (in `dependencies` or in `pnpm.overrides`), and the
+ * host's own projection list (`dsh.desktop.generationProjection.plugins`).
+ */
+export declare function generationManagedNames(profile: string, explicitDir?: string): Set<string>;
+/**
  * RAW dependency map of the profile manifest — including the in-box bundles
  * readInstalled() filters out. This is the rollback snapshot (#65): restoring
  * a filtered view would delete @deepseek-ai/dsh-base and friends.
@@ -232,6 +251,17 @@ export declare function readLockCommits(profile: string, explicitDir?: string): 
  * by pnpm's `path:` selector, so the spec's subpath has to match too — and
  * when the spec names no subpath while several entries of that remote do,
  * there is no answer rather than the first sibling's commit (#632).
+ *
+ * The key on both sides of the comparison is `hostedRepoKey`, the identity
+ * the rest of the market already compares specs by (#851). This function
+ * used to derive its own, and that second spelling lost every install pnpm
+ * writes the shorthand back for: it demanded an `https?://` prefix or a
+ * `.git` suffix, so `github:owner/repo` keyed to nothing at all, and it kept
+ * the `.git` suffix, so the spec side `https://github.com/o/r` could never
+ * equal the lockfile side pnpm writes as `git@github.com:o/r.git`. A floating
+ * shorthand therefore had no commit, and with no commit the update route
+ * refuses to roll back — the market reports "cannot confirm the commit before
+ * the update" for a lockfile that states it plainly.
  */
 export declare function readGitResolutionCommit(profile: string, spec: string, explicitDir?: string): string | null;
 /** True when the installed package's manifest declares a dsh plugin surface. */
@@ -274,11 +304,22 @@ export declare function bundlePatchEntryIds(dir: string): string[];
  */
 export declare function bundlePatchInsertedIds(dir: string): string[];
 /**
- * `name:` and `id:` rows of the package's declared bundle patch. Line-wise
- * on purpose: the strict hot-mount parser rejects config/expression rows,
- * but for "what does this bundle bring in" any row counts. `insertedIds` is
- * the subset nested under an `insert:` key (#147).
+ * Row ids a package's OWN patch layer ships switched OFF — its opt-in rows.
+ *
+ * A bundle may ship rows `disabled: true` on purpose, and say so in a comment
+ * right there: dsh-mnemon's four `mnemon-strategy-*` rows are "opt-in" and
+ * "stay off until selected". A user patch layer repeating that same
+ * `disabled: true` therefore changes nothing about the package — but counting
+ * it as "the user turned this off" put 「已停用 / 重启后保持关闭」 on a card
+ * whose plugin was demonstrably running (#876). Layer order is the whole
+ * reason: the bundle's own default is the floor, and the market has to ask
+ * what the user did ABOVE it.
+ *
+ * Reads both patch sources like the other readers here — the declared
+ * `dsh.bundle.patch` (one file, or an ordered LIST, #792) and the
+ * conventional root cordis.patch.yml a package may ship instead.
  */
+export declare function bundleOptOutRowIds(dir: string): string[];
 /**
  * Rows of one patch file. Exported because a package may ship its patch at
  * the conventional path INSTEAD of declaring `dsh.bundle.patch`, and the
@@ -286,11 +327,18 @@ export declare function bundlePatchInsertedIds(dir: string): string[];
  * scan drifted from this one and re-introduced #147 on that path (it closed
  * the insert block only on `id:` lines, so `- disable:` followed by nested
  * ids claimed the neighbour's rows).
+ *
+ * Line-wise on purpose: the strict hot-mount parser rejects config/expression
+ * rows, but for "what does this bundle bring in" any row counts. `insertedIds`
+ * is the subset under an `insert:` key (#147) — and "under `insert:`" is not
+ * the same as "deeper than it", because a row's `config:` carries its payload
+ * (#841).
  */
 export declare function parsePatchRows(text: string): {
     names: string[];
     ids: string[];
     insertedIds: string[];
+    disabledIds: string[];
 };
 /**
  * Where a package's bundle patches live, according to the package itself.

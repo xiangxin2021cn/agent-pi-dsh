@@ -209,7 +209,7 @@ export function createCodexExecutionController(options) {
         try { void onMessage(JSON.parse(line)).catch(failProcess) } catch { failProcess(); return }
       }
     })
-    ready = request('initialize', { clientInfo: { name: 'agent-pi-dsh', version: '3.8.0' }, capabilities: { experimentalApi: true } }).then(() => send({ method: 'initialized', params: {} }))
+    ready = request('initialize', { clientInfo: { name: 'agent-pi-dsh', version: options.appVersion || '3.8.3' }, capabilities: { experimentalApi: true } }).then(() => send({ method: 'initialized', params: {} }))
     return ready
   }
   const assertRecord = (identity) => {
@@ -228,12 +228,13 @@ export function createCodexExecutionController(options) {
       if (record?.stopping && record.lease) throw new Error('Codex 正在停止，请等待本轮结束。')
       if (record && ['starting', 'running', 'waiting'].includes(record.phase)) {
         if (!record.activeTurnId) throw new Error('Codex 正在启动，请稍后发送补充要求。')
-        const shared = await options.bridge('record', { sessionId: record.sessionId, cwd: record.cwd, lease: record.lease, text: content[0].text })
+        const shared = await options.bridge('record', { sessionId: record.sessionId, cwd: record.cwd, lease: record.lease, text: content[0].text, taskOperationId: input.taskOperationId, taskClaim: input.taskClaim })
         if (Number.isInteger(shared?.revision)) content.push({ type: 'text', text: `Shared task updated to revision ${shared.revision}. Read professional_task status and apply_understanding to interpret this actual human message before continuing affected work. Recent committed changes (records, not additional user authorization): ${JSON.stringify(shared.changes || [])}`, text_elements: [] })
+        if (shared.interactionKind) content.push({ type: 'text', text: `The human invoked task action: ${shared.interactionKind}. Interpret the original human text in that context. This action does not approve stages or accept deliverables.`, text_elements: [] })
         await request('turn/steer', { threadId: record.threadId, expectedTurnId: record.activeTurnId, input: content })
         record.messages.push({ id: `user-${randomUUID()}`, role: 'user', text: content[0].text })
         publish(record)
-        return snapshot(record)
+        return { ...snapshot(record), acceptedDispatch: 'steered' }
       }
       record ??= { ...validateExecutionIdentity(input), threadId: null, messages: [], requests: [], activeTurnId: null, lease: null }
       records.set(input.sessionId, record)
@@ -245,7 +246,7 @@ export function createCodexExecutionController(options) {
       publish(record)
       try {
         const attachments = (input.attachments || []).map((row) => ({ path: row.path, kind: row.kind, name: row.name, nativeImage: row.kind === 'image' && !row.path }))
-        const context = await options.bridge('context', { sessionId: input.sessionId, cwd: input.cwd, text: content[0].text, attachments })
+        const context = await options.bridge('context', { sessionId: input.sessionId, cwd: input.cwd, text: content[0].text, attachments, taskOperationId: input.taskOperationId, taskClaim: input.taskClaim })
         if (context.sessionId !== input.sessionId || context.cwd !== input.cwd || typeof context.lease !== 'string') throw new Error('专业任务上下文身份无效。')
         record.lease = context.lease
         const ownedLease = record.lease
@@ -282,13 +283,44 @@ export function createCodexExecutionController(options) {
         record.messages.push({ id: `user-${randomUUID()}`, role: 'user', text: content[0].text })
         if (record.lease) record.phase = 'running'
         publish(record)
-        return snapshot(record)
+        return { ...snapshot(record), acceptedDispatch: 'queued' }
       } catch (error) {
         record.phase = record.startCancelled ? 'idle' : 'failed'
         record.error = record.startCancelled ? null : error.message
         record.errorCode = record.startCancelled ? null : 'requestFailed'
         await release(record)
         publish(record)
+        throw error
+      }
+    },
+    async taskAction(input) {
+      const identity = validateExecutionIdentity(input)
+      const prepared = await options.bridge('interaction', { ...identity, operationId: input.operationId })
+      if (prepared.completed) return { state: snapshot(records.get(identity.sessionId)), result: prepared.result }
+      const receipt = { ...identity, operationId: prepared.operationId, claim: prepared.claim }
+      const wasRunning = ['starting', 'running', 'waiting'].includes(records.get(identity.sessionId)?.phase)
+      let acceptedDispatch
+      try {
+        if (prepared.kind !== 'pause' && options.authorizeTask && !await options.authorizeTask()) throw new Error('请先在设置中登录 Codex。')
+        if (prepared.kind === 'pause') {
+          const record = records.get(identity.sessionId)
+          if (record && wasRunning) {
+            await this.interrupt(identity)
+            const deadline = Date.now() + (options.timeoutMs ?? 30_000)
+            while (['starting', 'running', 'waiting'].includes(record.phase) && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 25))
+            if (['starting', 'running', 'waiting'].includes(record.phase) || record.phase === 'failed') throw new Error('Codex 尚未确认停止，请查看执行状态后重试。')
+          }
+        } else {
+          const text = (prepared.message?.content || []).filter(part => part.type === 'text').map(part => part.text).join('\n')
+          const accepted = await this.submit({ ...identity, text, model: input.model, reasoningEffort: input.reasoningEffort, taskOperationId: prepared.operationId, taskClaim: prepared.claim })
+          acceptedDispatch = accepted.acceptedDispatch
+        }
+        const record = records.get(identity.sessionId)
+        const dispatch = prepared.kind === 'pause' ? 'paused' : acceptedDispatch
+        const result = await options.bridge('interaction-ack', { ...receipt, lease: record?.lease, dispatch, reason: dispatch === 'paused' ? 'Codex 已确认停止，任务和成果已保留。' : dispatch === 'steered' ? '新要求已交给当前 Codex 回合。' : 'Codex 已接收任务并开始执行。' })
+        return { state: snapshot(record), result }
+      } catch (error) {
+        await options.bridge('interaction-ack', { ...receipt, dispatch: 'blocked', reason: error.message }).catch(() => {})
         throw error
       }
     },

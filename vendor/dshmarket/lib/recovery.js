@@ -938,6 +938,16 @@ export async function runRecovery(config, facts = { exitCode: null, bound: false
     const servePort = options.port ?? config.port;
     /** Write errors from the previous apply; they travel into the next payload. */
     let writeErrors = [];
+    // A port that ANSWERS is proof the host came up, and it needs no pid to say
+    // so (#854). The helper's pid is the process IT spawned, which on Windows is
+    // the `powershell.exe` wrapper rather than the node host that binds — so the
+    // guard below cannot be trusted on its own, and a helper that gave up late
+    // handed this surface a pid that was already gone while the host was still
+    // starting. Asking the socket settles it either way.
+    if (servePort !== null && servePort !== 0 && await portListening(servePort)) {
+        note(config, `port ${String(servePort)} is already answering — the host came up after all; leaving it alone`);
+        return 'booted';
+    }
     // The replacement is not necessarily dead just because it has not bound the
     // port: on a slow host it is still starting. It gets the same grace as a
     // released port before the surface takes the port out from under it (#719).

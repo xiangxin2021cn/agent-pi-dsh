@@ -264,6 +264,21 @@ export function gitRefOfTarget(spec) {
         return null;
     return refOfFragment(spec);
 }
+/**
+ * True when the spec's `#…` fragment carries a `semver:` range selector.
+ *
+ * A semver range is a line the user chose on purpose, like a branch: pnpm
+ * re-resolves inside that range, so a raw HEAD version ABOVE the range is not
+ * installable — asking it would advertise an update forever (#446 shape).
+ * `refOfFragment` deliberately answers null for those, so the update check
+ * needs this separate probe.
+ */
+export function hasSemverSelector(spec) {
+    const fragmentAt = spec.indexOf('#');
+    if (fragmentAt === -1)
+        return false;
+    return spec.slice(fragmentAt + 1).split('&').some(s => s.startsWith('semver:'));
+}
 /** The branch or tag a `#…` fragment selects, or null for the default branch. */
 function refOfFragment(spec) {
     const fragmentAt = spec.indexOf('#');
@@ -411,6 +426,74 @@ export function pinnedGitAllowBuildsKey(name, spec, sha) {
     }
     const remote = gitRemoteSpelling(spec);
     return remote === null ? null : `${name}@${remote}#${sha}`;
+}
+/**
+ * The repo (`owner/repo`, original case) of a GitHub remote spelled as a URL
+ * (`git+https://github.com/owner/repo.git`), or null for anything else.
+ *
+ * pnpm itself writes this spelling into the manifest for a GitHub source —
+ * the market sends `github:owner/repo`, pnpm answers with
+ * `git+https://owner/repo.git` (#803) — so the market must recognize it to
+ * keep deriving the GitHub keys for deps that only ever appear this way.
+ */
+export function githubRepoOfRemote(spec) {
+    const remote = gitRemoteSpelling(spec);
+    if (remote === null)
+        return null;
+    const url = /^git\+https:\/\/github\.com\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+?)(?:\.git)?$/i.exec(remote);
+    if (url === null)
+        return null;
+    return url[1].endsWith('.git') ? url[1].slice(0, -4) : url[1];
+}
+/**
+ * Every commit-pinned allowBuilds key for one git source at one known commit
+ * (#784 by @sanqi-normal follow-up).
+ *
+ * Which pinned key pnpm checks depends on HOW it fetches the dependency,
+ * not on how the spec is spelled (review-measured on 11.7.0, empty store:
+ * a codeload download passes the codeload key and refuses the git+https#sha
+ * one; the git+https#sha refusal seen on dsh-better-sidebar came from a git
+ * clone fetch):
+ * - pnpm 11.21+ matches the stable unpinned clone-URL key (`gitAllowBuildsKey`).
+ * - a codeload download matches the commit-pinned codeload tarball URL.
+ * - a git clone matches the commit-pinned `name@git+https://…#<sha>` form,
+ *   and only when it matches the remote's own spelling (`.git` or not,
+ *   #665/#695 — pnpm matches the key literally).
+ *
+ * Writing ONE pinned form was the structural gap: a GitHub source derived
+ * only its codeload key, so a git-clone fetch ran with no key pnpm would
+ * read and only pnpm's own printed key could save the retry (#784's
+ * evidence). When the commit is known, BOTH pinned forms are written — one
+ * extra line in a YAML file versus the only button that could have
+ * unblocked the user.
+ *
+ * Non-GitHub remotes keep `pinnedGitAllowBuildsKey`'s single form: one key
+ * covers their fetch mode.
+ *
+ * @param sha - the commit the install will actually fetch.
+ * @returns the pinned keys (empty for no known git shape); callers merge the
+ *   stable key from `gitAllowBuildsKey` alongside.
+ */
+export function pinnedAllowBuildsKeys(name, spec, sha) {
+    if (!/^[0-9a-f]{40}$/.test(sha))
+        return [];
+    const githubRepo = repoFromTarget(spec)?.repo ?? githubRepoOfRemote(spec);
+    if (githubRepo !== null) {
+        // The git+https pinned form keeps the remote's own spelling (`.git` or
+        // not), which is what pnpm matches literally (#665/#695): reuse the
+        // stable key when one was derived, and only fall back to the canonical
+        // `.git` spelling when it was not.
+        const stable = gitAllowBuildsKey(name, spec);
+        const gitHttps = stable !== null && stable.startsWith(`${name}@git+https://`)
+            ? `${stable}#${sha}`
+            : `${name}@git+https://github.com/${githubRepo}.git#${sha}`;
+        return [
+            `${name}@https://codeload.github.com/${githubRepo}/tar.gz/${sha}`,
+            gitHttps,
+        ];
+    }
+    const pinned = pinnedGitAllowBuildsKey(name, spec, sha);
+    return pinned === null ? [] : [pinned];
 }
 /**
  * The pnpm install target for a registry entry. Repo-verified npm packages

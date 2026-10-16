@@ -516,19 +516,39 @@ export function restartHelperSource(
     // seen from the other side. A replacement that EXITS still ends this
     // early (the `exited` break below), so a genuinely failed boot is not
     // made slower by the wider backstop.
+    '  const startedAt = Date.now()',
     '  const upBy = Date.now() + 45000 + SETTLE_MS',
+    // #854: the window is a budget for "has it come up", NOT a verdict on
+    // "is it dead". A cold start right after the market rewrote node_modules
+    // can outlast it (measured on Windows: bind at ~63s with a scanner on the
+    // fresh files), and handing the port over while the replacement is still
+    // RUNNING is what turns a slow boot into the deadlock #719 removed: the
+    // surface takes port 3080, the host reaches its own bind and dies on
+    // EADDRINUSE, and nothing can come back. So a replacement that has NOT
+    // exited keeps the port, up to a hard cap; one that has exited still ends
+    // the wait immediately, which is the failed-boot case.
+    '  const hardBy = Date.now() + 240000',
     '  let steadySince = null',
-    '  while (Date.now() < upBy) {',
+    '  let announcedWait = false',
+    '  while (true) {',
     '    if (await listening()) {',
     '      if (steadySince === null) steadySince = Date.now()',
     '      else if (Date.now() - steadySince >= SETTLE_MS) return',
     '    } else {',
     '      steadySince = null',
     '      if (exited !== null) break',
+    '      const now = Date.now()',
+    '      if (now >= hardBy) break',
+    '      if (now >= upBy && !announcedWait) {',
+    '        announcedWait = true',
+    // The numbers are computed, not typed twice: a log line that drifts from
+    // the constants it describes is worse than no line at all.
+    '        note(`the replacement is still starting after ${String(Math.round((upBy - startedAt) / 1000))}s and has not exited — waiting up to ${String(Math.round((hardBy - startedAt) / 1000))}s for it rather than taking its port (it would die on EADDRINUSE)`)',
+    '      }',
     '    }',
     '    await sleep(500)',
     '  }',
-    '  note(`the replacement never came up on port ${port}${exited === null ? "" : ` (it exited with code ${exited})`} — see the output log beside this one`)',
+    '  note(`the replacement never came up on port ${port}${exited === null ? " (it is still running, so the recovery surface waits for it to exit before binding)" : ` (it exited with code ${exited})`} — see the output log beside this one`)',
     // The host is not coming back on its own. Everything the user can still
     // do about it lives in the recovery surface, so start it while the
     // browser tab that asked for the restart is still open.

@@ -4,6 +4,7 @@
  * the loader, and keeping exactly one theme active with the choice
  * persisted across restarts.
  */
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadRegistry, pluginCategories } from "./registry.js";
 import { hotMount, hotUnmount, listHotMounts, writeDisabled } from "./hot.js";
@@ -11,7 +12,28 @@ import { logEvent } from "./log.js";
 import { LifecyclePendingError, LifecycleWaitError, waitForLifecycle } from "./lifecycle.js";
 import { nameMatchesPackage } from "./entry-identity.js";
 import { bundlePatchInsertedIds, profileDir, readInstalled } from "./profile.js";
-import { repoOf } from "./sources.js";
+import { parseSourceUrl, repoOfTarget } from "./sources.js";
+/**
+ * Whether an installed package declares itself a skin.
+ *
+ * The market's own criterion for "this is a theme" is the catalog, and the
+ * catalog does not list every skin a monorepo ships: the reporter's second
+ * skin is absent from it entirely, while the MANAGER that ships with them is
+ * a package from the same repo. Judging by repo alone made the manager a
+ * theme, so activating any other theme switched it off — and with it the
+ * user's own skin-management UI (#519). Both skins ship `skin.json` at their
+ * root (it names the package and its wiring); the manager ships none, which
+ * is the distinction the reporter pointed at.
+ */
+function hasSkinManifest(profileDirectory, name) {
+    try {
+        const manifest = JSON.parse(readFileSync(join(profileDirectory, 'node_modules', name, 'skin.json'), 'utf8'));
+        return typeof manifest.id === 'string' && manifest.id !== '';
+    }
+    catch {
+        return false;
+    }
+}
 /**
  * Whether a loader entry belongs to `packageName`.
  *
@@ -53,15 +75,47 @@ export function createThemeManager(host, profile, disabledThemes, explicitDir) {
             const registry = await loadRegistry();
             const themeEntries = registry.plugins.filter(p => pluginCategories(p).includes('theme'));
             const themeNames = new Set(themeEntries.map(p => p.name));
-            const themeRepos = new Set(themeEntries.map(p => repoOf(p.url)).filter((r) => r !== null).map(r => r.toLowerCase()));
+            // Repo → the subdirectories its catalog entries point at, plus whether
+            // any entry is the repo itself. One repository can ship several PACKAGES
+            // — a skin manager and its skins — and matching by repo alone made every
+            // one of them a theme, so activating another theme switched the manager
+            // off too, taking the user's own management UI with it (#519).
+            const themeRepos = new Map();
+            for (const entry of themeEntries) {
+                const parsed = parseSourceUrl(entry.url);
+                if (parsed === null)
+                    continue;
+                const key = parsed.repo.toLowerCase();
+                const record = themeRepos.get(key) ?? { root: false, subpaths: new Set() };
+                if (parsed.subpath === null)
+                    record.root = true;
+                else
+                    record.subpaths.add(parsed.subpath.toLowerCase());
+                themeRepos.set(key, record);
+            }
             for (const [name, spec] of Object.entries(readInstalled(profile, activeProfileDir))) {
                 if (themeNames.has(name)) {
                     names.add(name);
                     continue;
                 }
-                const match = /github:([^#\s]+)/.exec(String(spec).toLowerCase());
-                if (match !== null && themeRepos.has(match[1]))
-                    names.add(name);
+                const identity = repoOfTarget(String(spec).toLowerCase());
+                if (identity === null)
+                    continue;
+                const at = identity.indexOf('#path:/');
+                const repo = at === -1 ? identity : identity.slice(0, at);
+                const subpath = at === -1 ? null : identity.slice(at + '#path:/'.length);
+                const record = themeRepos.get(repo);
+                if (record === undefined)
+                    continue;
+                // Only a repo whose themes ALL live in subdirectories can be told
+                // apart this way. A catalog entry at the repo root says nothing about
+                // subdirectories, so that shape keeps the permissive match it had —
+                // which is also what keeps a monorepo skin working when the entry
+                // points at the repo.
+                if (subpath !== null && !record.root && record.subpaths.size > 0
+                    && !record.subpaths.has(subpath) && !hasSkinManifest(activeProfileDir, name))
+                    continue;
+                names.add(name);
             }
         }
         catch { /* registry unavailable — nothing classifies as a theme */ }

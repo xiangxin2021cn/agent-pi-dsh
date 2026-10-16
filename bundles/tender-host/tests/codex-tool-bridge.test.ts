@@ -49,7 +49,7 @@ function fixture({ ptc = false, python = false } = {}) {
   }
   const services: any = { agents: { get: (id: string) => id === sid ? agent : null }, workspaceRegistry: { archivedSessionIds: [] }, sandboxPolicy: { resolve: () => ({ mode: 'read-only', workspaceRoot: cwd }) }, ptcRuntime: { language: python ? 'python' : 'typescript' }, taskGuide: { read: () => ({ brief: { objective: 'verified cost' }, requirements: [], plan: [], deliverables: [] }) } }
   const ctx: any = {
-    tools: registry, get: (name: string) => services[name],
+    tools: registry, get: (name: string) => services[name], provide: (name: string, value: any) => { services[name] = value },
     systemPrompt: { assemble: async () => ({ sections: [{ name: 'agent-pi:task', content: 'native professional task' }, { name: 'ptc', content: 'DSH run_code' }], contexts: [] }) },
     on(name: string, listener: any, options: any) { handlers.set(name, listener); if (name === 'agent/pre-step') assert.equal(options.prepend, true); return () => handlers.delete(name) },
     emit(name: string, payload: any) { assert.equal(name, 'agent-pi/business-activation-sync'); assert.equal(payload.agent, agent); activation = boundProject },
@@ -167,5 +167,44 @@ test('other DSH entry points remain durable and session disposal wakes native ca
   f.services.agents.get = () => null
   await f.bridge.release(context)
   assert.deepEqual(f.pending, foreign)
+  await f.bridge.dispose()
+})
+
+
+test('task interaction is claimed once, preserves the admitted human identity and accepts a fast completed native receipt', async () => {
+  const f = fixture(), acknowledgements: any[] = []
+  const task = { control: { lastAction: { operationId: 'operation-1' } } }
+  f.services.taskGuide = { read: () => task, status: async () => ({ task }), ackUserAction: async (...args: any[]) => { acknowledgements.push(args); return { task, interaction: args[2] } }, admitHumanMessage: () => { throw new Error('Human input was already admitted by task interaction') } }
+  const message = { id: 'prepared-human', source: { kind: 'user' }, content: [{ type: 'text', text: 'Only revise the schedule' }] }
+  const dispatch = await f.services.nativeTaskExecutor.dispatch({ sessionId: sid, operationId: 'operation-1', kind: 'adjust_request', message })
+  assert.equal(dispatch.dispatch, 'requires_executor')
+  const command = await f.bridge.interaction({ ...f.identity, operationId: 'operation-1' })
+  await assert.rejects(f.bridge.interaction({ ...f.identity, operationId: 'operation-1' }), /正在/)
+  await assert.rejects(f.bridge.acknowledgeInteraction({ ...f.identity, operationId: 'operation-1', claim: command.claim, dispatch: 'queued' }), /尚未交给/)
+  const context = await f.bridge.context({ ...f.identity, text: message.content[0].text, taskOperationId: 'operation-1', taskClaim: command.claim })
+  assert.equal(f.appended[0].data.id, message.id)
+  assert.equal(f.appended.length, 1)
+  await f.bridge.release(context)
+  const receipt = await f.bridge.acknowledgeInteraction({ ...f.identity, lease: context.lease, operationId: 'operation-1', claim: command.claim, dispatch: 'queued', reason: 'Native accepted the turn' })
+  assert.equal(receipt.interaction.dispatch, 'queued')
+  assert.equal(acknowledgements.length, 1)
+  assert.equal((await f.bridge.interaction({ ...f.identity, operationId: 'operation-1' })).completed, true)
+  await f.bridge.dispose()
+})
+
+test('native pause receipt requires a stopped lease; wrong claims and superseded operations cannot control a task', async () => {
+  const f = fixture(), task = { control: { lastAction: { operationId: 'pause-1' } } }
+  f.services.taskGuide = { read: () => task, status: async () => ({ task }), ackUserAction: async (_sid: string, _op: string, receipt: any) => ({ task, interaction: receipt }) }
+  const context = await f.bridge.context(f.identity)
+  await f.services.nativeTaskExecutor.pause(sid, 'pause-1')
+  const command = await f.bridge.interaction({ ...f.identity, operationId: 'pause-1' })
+  await assert.rejects(f.bridge.acknowledgeInteraction({ ...f.identity, operationId: 'pause-1', claim: 'forged', dispatch: 'paused' }), /不属于/)
+  await assert.rejects(f.bridge.acknowledgeInteraction({ ...f.identity, operationId: 'pause-1', claim: command.claim, dispatch: 'paused' }), /尚未确认停止/)
+  await f.bridge.cancel(context)
+  assert.equal((await f.bridge.acknowledgeInteraction({ ...f.identity, operationId: 'pause-1', claim: command.claim, dispatch: 'paused', reason: 'Stopped' })).interaction.dispatch, 'paused')
+  await f.services.nativeTaskExecutor.dispatch({ sessionId: sid, operationId: 'old-operation', kind: 'continue', message: {} })
+  assert.equal(f.services.nativeTaskExecutor.status(sid).pending, false)
+  await assert.rejects(f.bridge.interaction({ ...f.identity, operationId: 'old-operation' }), /替代/)
+  await f.bridge.release(context)
   await f.bridge.dispose()
 })

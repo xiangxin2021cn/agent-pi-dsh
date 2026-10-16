@@ -178,6 +178,20 @@ export interface TaskChange {
   affectedRefs: string[]
   operationId?: string
 }
+export type TaskInteractionKind = 'confirm_understanding' | 'adjust_request' | 'replan' | 'continue' | 'pause' | 'respond_finding' | 'check_deliverables'
+export interface TaskInteraction {
+  operationId: string
+  kind: TaskInteractionKind
+  dispatch: 'prepared' | 'queued' | 'steered' | 'paused' | 'recorded' | 'blocked' | 'requires_executor'
+  reason: string
+  at: string
+  messageId?: string
+  findingId?: string
+}
+export interface TaskControl {
+  paused: boolean
+  lastAction?: TaskInteraction
+}
 export interface ProfessionalTask {
   schemaVersion: 2
   sessionId: string
@@ -204,6 +218,7 @@ export interface ProfessionalTask {
   migration?: { schema1?: boolean; depth?: boolean; depthPurposeConflict?: string }
   acceptedHistory: Array<{ revision: number; at: string; deliverable: Deliverable }>
   directives: TaskDirective[]
+  control: TaskControl
 }
 export interface Capability {
   id: string

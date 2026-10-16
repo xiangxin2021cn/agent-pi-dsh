@@ -104,6 +104,16 @@ export declare function githubRefOfTarget(spec: string): string | null;
  */
 export declare function gitRefOfTarget(spec: string): string | null;
 /**
+ * True when the spec's `#…` fragment carries a `semver:` range selector.
+ *
+ * A semver range is a line the user chose on purpose, like a branch: pnpm
+ * re-resolves inside that range, so a raw HEAD version ABOVE the range is not
+ * installable — asking it would advertise an update forever (#446 shape).
+ * `refOfFragment` deliberately answers null for those, so the update check
+ * needs this separate probe.
+ */
+export declare function hasSemverSelector(spec: string): boolean;
+/**
  * An immutable GitHub commit already carried by an install target.
  *
  * Build-script approval on pnpm below 11.21 needs the exact commit-pinned
@@ -171,6 +181,46 @@ export declare function codeloadAllowBuildsKey(name: string, spec: string, sha: 
  * stable key and never instead of it.
  */
 export declare function pinnedGitAllowBuildsKey(name: string, spec: string, sha: string): string | null;
+/**
+ * The repo (`owner/repo`, original case) of a GitHub remote spelled as a URL
+ * (`git+https://github.com/owner/repo.git`), or null for anything else.
+ *
+ * pnpm itself writes this spelling into the manifest for a GitHub source —
+ * the market sends `github:owner/repo`, pnpm answers with
+ * `git+https://owner/repo.git` (#803) — so the market must recognize it to
+ * keep deriving the GitHub keys for deps that only ever appear this way.
+ */
+export declare function githubRepoOfRemote(spec: string): string | null;
+/**
+ * Every commit-pinned allowBuilds key for one git source at one known commit
+ * (#784 by @sanqi-normal follow-up).
+ *
+ * Which pinned key pnpm checks depends on HOW it fetches the dependency,
+ * not on how the spec is spelled (review-measured on 11.7.0, empty store:
+ * a codeload download passes the codeload key and refuses the git+https#sha
+ * one; the git+https#sha refusal seen on dsh-better-sidebar came from a git
+ * clone fetch):
+ * - pnpm 11.21+ matches the stable unpinned clone-URL key (`gitAllowBuildsKey`).
+ * - a codeload download matches the commit-pinned codeload tarball URL.
+ * - a git clone matches the commit-pinned `name@git+https://…#<sha>` form,
+ *   and only when it matches the remote's own spelling (`.git` or not,
+ *   #665/#695 — pnpm matches the key literally).
+ *
+ * Writing ONE pinned form was the structural gap: a GitHub source derived
+ * only its codeload key, so a git-clone fetch ran with no key pnpm would
+ * read and only pnpm's own printed key could save the retry (#784's
+ * evidence). When the commit is known, BOTH pinned forms are written — one
+ * extra line in a YAML file versus the only button that could have
+ * unblocked the user.
+ *
+ * Non-GitHub remotes keep `pinnedGitAllowBuildsKey`'s single form: one key
+ * covers their fetch mode.
+ *
+ * @param sha - the commit the install will actually fetch.
+ * @returns the pinned keys (empty for no known git shape); callers merge the
+ *   stable key from `gitAllowBuildsKey` alongside.
+ */
+export declare function pinnedAllowBuildsKeys(name: string, spec: string, sha: string): string[];
 /**
  * The pnpm install target for a registry entry. Repo-verified npm packages
  * win, followed by author-supplied prebuilt GitHub Release tarballs; both avoid

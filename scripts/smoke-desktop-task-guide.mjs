@@ -11,6 +11,7 @@ import { createServer } from 'node:net'
 const root = process.cwd()
 const packagedExe = process.env.AGENT_PI_TASK_GUIDE_SMOKE_EXE ? resolve(process.env.AGENT_PI_TASK_GUIDE_SMOKE_EXE) : ''
 const startupOnly = process.env.AGENT_PI_TASK_GUIDE_SMOKE_STARTUP_ONLY === '1'
+const interactionsOnly = process.env.AGENT_PI_TASK_GUIDE_SMOKE_INTERACTIONS_ONLY === '1'
 const resources = packagedExe ? join(dirname(packagedExe), 'resources') : ''
 const productRoot = packagedExe ? join(resources, 'runtime', 'product') : root
 const dshRoot = packagedExe ? join(resources, 'runtime', 'deepseek-harness') : join(root, 'vendor', 'deepseek-harness')
@@ -116,10 +117,11 @@ export const inject=['sessions','sessionPersistence','sessionController','sessio
 export async function apply(ctx) {
   let releaseRun;
   let heldRun;
-  ctx.on('agent/pre-step',async ({agent,messages},next)=>{
+  const received=[];
+  ctx.on('agent/pre-step',async ({agent,messages,signal},next)=>{
     if(agent?.session.id!=='qa-guided-task')return next();
-    for(const message of messages || [])agent.session.append('user/message',message,{surfaceOp:'append'});
-    if(heldRun)await heldRun;
+    for(const message of messages || []){received.push({id:message.id,text:(message.content||[]).filter(row=>row.type==='text').map(row=>row.text).join(''),source:message.source});agent.session.append('user/message',message,{surfaceOp:'append'});}
+    if(heldRun)await new Promise(resolve=>{const done=()=>{signal.removeEventListener('abort',done);resolve();};signal.addEventListener('abort',done,{once:true});heldRun.then(done);if(signal.aborted)done();});
     return {kind:'reject'};
   },{prepend:true});
   await ctx.sessionController.create({sessionId:'qa-guided-task',cwd:process.env.AGENT_PI_QA_WORKSPACE});
@@ -144,7 +146,7 @@ export async function apply(ctx) {
   ctx.webServer.register({kind:'exact',path:'/api/agent-pi/qa-task-tool',async handler(req,res) {
     const send=(code,value)=>{res.writeHead(code,{'Content-Type':'application/json'});res.end(JSON.stringify(value))};
     try {
-      if(req.method==='GET')return send(200,{humanMessages:s.deriveMessages().filter(row=>row.role==='user').length});
+      if(req.method==='GET')return send(200,{humanMessages:s.deriveMessages().filter(row=>row.role==='user').length,received});
       req.setEncoding('utf8');let raw='';for await(const part of req)raw+=part;
       const input=JSON.parse(raw);
       if(input.action==='dispose_office'){
@@ -423,6 +425,63 @@ try {
   assert.match(await page.title(),/Agent Pi|DSH|DeepSeek|Professional/i)
   await captureScreenshot(join(artifactDir,'01-chat-goal-and-finding-desktop.png'))
   console.log(JSON.stringify({phase:'main-chat-understanding',status:'ok',sourceHash:parsed.version}))
+  phase = 'task-interaction-383'
+  const adjustment='报告改给项目经理使用，只调整工期与资源建议。不要改项目原稿。'
+  const actionResponse = kind => page.waitForResponse(response => {
+    if(!response.url().includes('/api/agent-pi/professional-task')||response.request().method()!=='POST')return false
+    const body=response.request().postDataJSON()
+    return body.action==='user_action'&&body.command?.kind===kind
+  },{timeout:Math.min(30_000,remaining())})
+  await request('/api/agent-pi/qa-task-tool',{action:'hold'})
+  await summary.getByRole('button',{name:'补充或调整要求',exact:true}).click()
+  await summary.getByLabel('任务调整内容',{exact:true}).fill(adjustment)
+  const adjustedResponse=actionResponse('adjust_request')
+  await summary.getByRole('button',{name:'提交给当前任务',exact:true}).click()
+  const adjusted=await (await adjustedResponse).json()
+  assert.equal(adjusted.interaction.dispatch,'queued',adjusted.interaction.reason)
+  assert.equal(adjusted.task.latestRequest,adjustment)
+  assert.equal(adjusted.task.latestMessageId,adjusted.interaction.messageId)
+  assert.ok(adjusted.task.directives.some(row=>row.status==='active'&&row.text==='不要改项目原稿'))
+  await page.waitForFunction(async messageId=>{const state=await(await fetch('/api/agent-pi/qa-task-tool')).json();return state.received.some(row=>row.id===messageId)},adjusted.interaction.messageId,{timeout:Math.min(20_000,remaining())})
+  const actualAdjustment=await request('/api/agent-pi/qa-task-tool')
+  assert.equal(actualAdjustment.received.find(row=>row.id===adjusted.interaction.messageId).text,adjustment,'the actual native pre-step receives the exact UI adjustment')
+  assert.equal(actualAdjustment.received.filter(row=>row.id===adjusted.interaction.messageId).length,1)
+  await page.getByRole('tab',{name:'本次任务',exact:true}).click()
+  const actionGuide=page.getByRole('region',{name:'本次任务',exact:true})
+  await actionGuide.getByRole('button',{name:'暂停执行',exact:true}).waitFor({timeout:remaining()})
+  const pauseResponse=actionResponse('pause')
+  await actionGuide.getByRole('button',{name:'暂停执行',exact:true}).click()
+  const pausedAction=await(await pauseResponse).json()
+  assert.equal(pausedAction.interaction.dispatch,'paused',pausedAction.interaction.reason)
+  assert.equal(pausedAction.task.control.paused,true)
+  assert.equal(pausedAction.task.latestRequest,adjustment,'pause is a control action, not a replacement goal')
+  await request('/api/agent-pi/qa-task-tool',{action:'finish'})
+  await reloadQaSession('task-interaction-paused-reload')
+  await page.getByRole('tab',{name:'本次任务',exact:true}).click()
+  await actionGuide.getByText('任务已暂停；已有依据和成果保留。',{exact:true}).waitFor({timeout:remaining()})
+  await captureScreenshot(join(artifactDir,'26-task-actions-paused-383.png'))
+  await page.getByRole('tab',{name:'对话',exact:true}).click()
+  await summary.getByText('任务已暂停；已有依据和成果保留。',{exact:true}).waitFor({timeout:remaining()})
+  const continuedResponse=actionResponse('continue')
+  await summary.getByRole('button',{name:'继续任务',exact:true}).click()
+  const continued=await(await continuedResponse).json()
+  assert.equal(continued.interaction.dispatch,'queued',continued.interaction.reason)
+  assert.equal(continued.task.control.paused,false)
+  assert.equal(continued.task.latestRequest,adjustment,'continue must preserve the real requirement')
+  const responseToFinding='优先核对最新补遗；文件优先顺序仍保持待核实，不要直接认定问题已解决。'
+  const findingCard=summary.locator('[data-finding-id="period-conflict"]')
+  await findingCard.getByRole('button',{name:'补充或调整处理',exact:true}).click()
+  await findingCard.getByLabel('任务调整内容',{exact:true}).fill(responseToFinding)
+  const findingResponse=actionResponse('respond_finding')
+  await findingCard.getByRole('button',{name:'提交给当前任务',exact:true}).click()
+  const responded=await(await findingResponse).json()
+  assert.ok(['queued','steered'].includes(responded.interaction.dispatch),responded.interaction.reason)
+  assert.equal(responded.task.latestRequest,responseToFinding)
+  assert.equal(responded.task.findings.find(row=>row.id==='period-conflict').status,'open')
+  await page.waitForFunction(async messageId=>{const state=await(await fetch('/api/agent-pi/qa-task-tool')).json();return state.received.some(row=>row.id===messageId)},responded.interaction.messageId,{timeout:Math.min(20_000,remaining())})
+  await captureScreenshot(join(artifactDir,'27-task-actions-chat-383.png'))
+  console.log(JSON.stringify({phase:'task-interaction-383',status:'ok',checks:['exact-ui-text-to-native-pre-step','shared-task-directives','cross-view-pause','pause-reload-persistence','continue-retains-goal','finding-response-does-not-resolve'],artifactDir}))
+  if(interactionsOnly){assert.deepEqual(pageErrors,[]);assert.deepEqual(consoleErrors,[]);return}
   await page.getByRole('tab',{name:'Codex',exact:true}).click()
   await summary.getByText(objective,{exact:true}).waitFor({timeout:Math.min(30_000,remaining())})
   assert.equal(await summary.locator('[data-finding-id="period-conflict"]').count(),1,'Codex view reads the same task findings')
@@ -479,6 +538,7 @@ try {
   assert.ok(guideLayout.region.x >= guideLayout.tabs.x - 30 && guideLayout.region.right <= guideLayout.tabs.right + 30,'task guide stays inside the main conversation column')
   assert.equal((await page.locator('.ap-files-dock').boundingBox()).width,originalFileRail.width,'task view preserves the existing right file rail width')
   await captureScreenshot(join(artifactDir,'03-task-overview-desktop.png'))
+  await dialog.getByText('查看与修正具体字段',{exact:true}).click()
   await dialog.getByRole('button',{name:'修正某项理解',exact:true}).click()
   await dialog.getByLabel('成果给谁使用').fill('领导决策会')
   const beforeFinding=await request(taskUrl)
@@ -487,8 +547,8 @@ try {
   await dialog.locator('[data-finding-id="resource-gap"]').waitFor({timeout:remaining()})
   await dialog.getByRole('tab',{name:'修正目标',exact:true}).click()
   assert.equal(await dialog.getByLabel('成果给谁使用').inputValue(),'领导决策会','live findings do not erase a field correction draft')
-  await dialog.getByRole('button',{name:'保存修正',exact:true}).click()
-  await dialog.getByText('已保存，后续执行将采用本次需求。',{exact:true}).waitFor()
+  await dialog.getByRole('button',{name:'保存并调整执行',exact:true}).click()
+  await dialog.getByText(/^修正已保存。/).waitFor()
   const corrected=await request(taskUrl)
   assert.equal(corrected.task.brief.audience,'领导决策会')
   assert.equal(corrected.task.findings.length,2,'saving one correction preserves later professional findings')

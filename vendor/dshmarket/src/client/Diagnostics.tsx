@@ -135,6 +135,16 @@ interface CheckReport {
    * failure — informational, and the only place that names what is on disk.
    */
   residuals?: ResidualDirectory[]
+  /**
+   * Installed plugins whose client reads its config from a name no loader
+   * entry serves (#810). Attached by the /check route, which is the only
+   * caller that pays for reading one client bundle per installed plugin.
+   */
+  configNamespaces?: Array<{
+    name: string
+    namespaces: string[]
+    ownEntryIds: string[]
+  }>
 }
 
 /**
@@ -835,6 +845,35 @@ export function Diagnostics(props: { t: Translate }) {
                 {t(residual.kind === 'tmp-directory' ? 'checkResidualTmp' : 'checkResidualIncomplete')}
               </span>
               <code className={css.diagVal}>{residual.path}</code>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      {/* A client that reads its config from a name no loader entry serves
+          (#810). This one IS a defect — the plugin's settings are blank or
+          unwritable right now — but it is the plugin's own, not the
+          profile's, so it stays out of the summary warnings: nothing the user
+          can do to this profile fixes it. The section title says whose
+          problem it is and the hint says who has to change it. */}
+      <Section
+        title={t('checkConfigNamespaces')}
+        count={report.configNamespaces?.length ?? 0}
+        empty={t('checkConfigNamespacesEmpty')}
+        overview={report.configNamespaces?.[0]?.name}
+      >
+        <p className={css.panelNote}>{t('checkConfigNamespacesHint')}</p>
+        <div className={css.diagList}>
+          {(report.configNamespaces ?? []).map(finding => (
+            <div key={finding.name} className={css.diagRow}>
+              <span className={css.nm}>{finding.name}</span>
+              <span className={css.spec}>
+                {finding.namespaces.map(namespace => t('checkConfigNamespaceRow').replace('{0}', namespace)).join('；')}
+                {' — '}
+                {finding.ownEntryIds.length > 0
+                  ? `${t('checkConfigNamespaceOwn')}: ${finding.ownEntryIds.join(', ')}`
+                  : t('checkConfigNamespaceNone')}
+              </span>
             </div>
           ))}
         </div>

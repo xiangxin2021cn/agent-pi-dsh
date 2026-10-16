@@ -46,6 +46,13 @@ export function createNativeCodexExecution({ React, desktop, language, useLangua
     connect()
     return update(await desktop.codexExecutionSubmit(input))
   }
+  async function taskAction(input) {
+    if (!desktop?.codexTaskAction) throw new Error(tCodexExecution('desktopRequired', language()))
+    connect()
+    const result = await desktop.codexTaskAction(input)
+    if (result.state) update({ ...result.state, sessionId: input.sessionId })
+    return result.result
+  }
   function Question({ request, identity }) {
     const lang = useLanguage()
     const [answers, setAnswers] = React.useState({})
@@ -111,5 +118,5 @@ export function createNativeCodexExecution({ React, desktop, language, useLangua
       ),
     )
   }
-  return { View, current, subscribe, load, enabled, setEnabled, busy, submit, dispose() { unsubscribe?.(); unsubscribe = null; listeners.clear() } }
+  return { View, current, subscribe, load, enabled, setEnabled, busy, submit, taskAction, dispose() { unsubscribe?.(); unsubscribe = null; listeners.clear() } }
 }

@@ -50,6 +50,7 @@ export interface PnpmFailure {
     | 'unexpected-store' | 'patch-failed' | 'unused-patch' | 'missing-tarball-integrity' | 'windows-file-locked'
     | 'profile-file-locked'
     | 'pnpm-unusable' | 'missing-local-dependency' | 'unparseable-build-key' | 'native-oom' | 'ssh-auth-failed'
+    | 'lockfile-broken' | 'lockfile-outdated' | 'pnpm-stalled'
   /** Bilingual, actionable message shown to the user instead of the raw wall of text. */
   message: string
   /** True when re-running `pnpm install` in the profile is the documented recovery. */
@@ -85,6 +86,28 @@ export interface PnpmFailure {
  */
 export function isTransientPnpmFailure(output: string): boolean {
   return /ERR_PNPM_FETCH_5\d\d|ERR_PNPM_META_FETCH_FAIL|FetchError|ECONNRESET|ETIMEDOUT|EAI_AGAIN|ENETUNREACH|socket hang up|network timeout/i.test(output)
+}
+
+/**
+ * The package a tarball URL belongs to: `…/@types/retry/-/retry-0.12.0.tgz`
+ * → `@types/retry`, `…/lodash/-/lodash-4.17.21.tgz` → `lodash`. Scoped names
+ * arrive percent-encoded often enough to be worth decoding first. `undefined`
+ * when the URL is not a tarball path, so the caller keeps the segment it had.
+ */
+function tarballOwner(output: string): string | undefined {
+  const url = /GET\s+(\S+)/.exec(output)?.[1]
+  if (url === undefined) return undefined
+  const marker = url.replace(/%2[Ff]/g, '/').indexOf('/-/')
+  if (marker === -1) return undefined
+  // The segment before `/-/` is the name; the one before THAT is the scope
+  // only when it starts with `@` — which is what keeps a registry mounted
+  // under a path prefix (`…/api/npm/npm-remote/lodash/-/…`) from being read
+  // as `npm-remote/lodash`.
+  const segments = url.replace(/%2[Ff]/g, '/').slice(0, marker).split('/').filter(Boolean)
+  const name = segments.at(-1)
+  if (name === undefined) return undefined
+  const scope = segments.at(-2)
+  return scope !== undefined && scope.startsWith('@') ? `${scope}/${name}` : name
 }
 
 /**
@@ -185,6 +208,26 @@ function integrityViolators(diagnostic: string): string[] {
  * @returns the classified failure, or null when unrecognized (raw output is then shown as-is).
  */
 export function classifyPnpmFailure(output: string, exitCode?: number | null): PnpmFailure | null {
+  // #817: the host's silence watchdog (@deepseek-ai/dsh-plugin-manager,
+  // `idleTimeoutMs`, 10 minutes by default) killed pnpm. Checked first: it is
+  // the last thing that happened, so whatever pnpm printed before is not the
+  // cause. The usual culprit is a dependency's install script downloading a
+  // binary from a host this network cannot reach — the reporter's cloudflared
+  // postinstall fetching from GitHub Releases — so the last lifecycle line
+  // pnpm printed names the package that went quiet.
+  const stalled = /printed nothing for (\d+)ms and was terminated/.exec(output)
+  if (stalled !== null) {
+    const minutes = Math.max(1, Math.round(Number(stalled[1]) / 60000))
+    const scripts = [...output.matchAll(/node_modules[\\/]((?:@[^\\/\s]+[\\/])?[^\\/\s]+) (?:pre|post)?install[:$]/g)]
+    const culprit = scripts.at(-1)?.[1]?.replace('\\', '/')
+    return {
+      code: 'pnpm-stalled',
+      recoverable: false,
+      message: culprit !== undefined
+        ? `依赖 ${culprit} 的安装脚本 ${minutes} 分钟没有任何输出，被终止了，什么都没装上。这类脚本通常在从网上下载文件，多半是当前网络连不上下载地址；插件本身没有问题。换个网络或开启代理后重试；仍然不行就联系插件作者。 / the install script of the dependency ${culprit} printed nothing for ${minutes} minutes and was stopped, so nothing was installed. Scripts like this usually download a file, and this network most likely cannot reach where it comes from; the plugin itself is not at fault. Try again on another network or through a proxy, and contact the plugin's author if it still fails.`
+        : `pnpm ${minutes} 分钟没有任何输出，被终止了，什么都没装上。通常是网络卡住了。检查网络后重试。 / pnpm printed nothing for ${minutes} minutes and was stopped, so nothing was installed. This usually means the network stalled. Check the connection and try again.`,
+    }
+  }
   if (output.includes('ERR_PNPM_PUBLIC_HOIST_PATTERN_DIFF')
     || output.includes('ERR_PNPM_VIRTUAL_STORE_DIR_MAX_LENGTH_DIFF')) {
     return {
@@ -462,8 +505,15 @@ export function classifyPnpmFailure(output: string, exitCode?: number | null): P
   // blocks all later installs, of anything.
   if (output.includes('ERR_PNPM_FETCH_404')) {
     const pkg = /GET\s+\S*\/([^/\s]+):/.exec(output)?.[1].replace(/%2[Ff]/g, '/')
-    const zh = pkg === undefined ? '' : `（${pkg}）`
-    const en = pkg === undefined ? '' : ` (${pkg})`
+    // The URL is either the package itself (`…/@types/retry`) or its tarball
+    // (`…/@types/retry/-/retry-0.12.0.tgz`). `pkg` stays the last path segment
+    // either way — the install route compares it against the tarball name to
+    // tell "this mirror has not synced that release" from a ghost entry — but
+    // a `.tgz` file name is not something the user can look up in their
+    // package.json, so the sentence names the package in the path above it.
+    const shown = pkg === undefined || !/\.tgz$/u.test(pkg) ? pkg : tarballOwner(output) ?? pkg
+    const zh = shown === undefined ? '' : `（${shown}）`
+    const en = shown === undefined ? '' : ` (${shown})`
     return {
       code: 'fetch-404',
       recoverable: false,
@@ -492,6 +542,59 @@ export function classifyPnpmFailure(output: string, exitCode?: number | null): P
       message: hostPeer
         ? `插件声明依赖的宿主包${zh}在 registry 上没有满足其版本范围的发布版（宿主运行时会自带它，npm 上不会出现这个版本）。市场会自动重试一次，放行这条 peer 依赖 / a plugin's declared host peer${en} has no published version satisfying its range — the runtime provides it, so npm carries no such version. The market retries once with that peer exempted from auto-install`
         : `插件声明的一个依赖版本范围在 registry 上没有可满足的版本${zh}，通常是该版本被弃用或从未发布 / a dependency of this plugin declared a version range with no matching release on the registry${en} — the range resolves to nothing (withdrawn or never published)`,
+    }
+  }
+  // #808 by @Tofu707: the profile's own pnpm-lock.yaml is what is wrong, in
+  // two shapes that pnpm reports with two codes and two different repairs, so
+  // they are classified apart rather than merged into one answer.
+  //
+  // `lockfile-outdated` is tested first, because its anchor is a code and
+  // nothing else. The sentence pnpm prints here also arrives WRAPPED across
+  // lines in the human reporter ("… is not up" / "to date with
+  // package.json."), so keying on that sentence instead of the code would miss
+  // the form users actually see.
+  //
+  // The two failures do not happen in a fixed order, so nothing here — and
+  // nothing in either message — claims which one a user meets first.
+  //
+  // `recoverable: false` on both: repeating the same command cannot help, the
+  // lockfile has to change first.
+  if (output.includes('ERR_PNPM_OUTDATED_LOCKFILE')) {
+    return {
+      code: 'lockfile-outdated',
+      recoverable: false,
+      message: 'profile 的 pnpm-lock.yaml 与 package.json 对不上：锁文件里记的 specifier 和 manifest 里声明的不是同一个，pnpm 因此在 frozen-lockfile 这一步直接拒绝，什么都没装。先备份一份 pnpm-lock.yaml，再在 profile 目录里重新生成锁文件（pnpm 最后一行会给出它自己那一版的命令；pnpm install --lockfile-only 也让锁文件与 package.json 对齐）后重试。这与「锁文件里缺条目」是两个不同的报错、对应两种不同的修法，两条命令不要互相套用（#808） / this profile\'s pnpm-lock.yaml does not match package.json: the specifier recorded in the lockfile is not the one the manifest declares, so pnpm refuses at the frozen-lockfile check and installs nothing. Back up pnpm-lock.yaml first, then regenerate the lockfile in the profile directory (pnpm\'s last line names the command for its own version; pnpm install --lockfile-only also realigns the lockfile with package.json) and retry. This is a different error with a different repair from a lockfile that is missing an entry — do not apply one repair to the other',
+    }
+  }
+  // `lockfile-broken` is the lockfile contradicting ITSELF: an importer names
+  // a dependency that has no entry under `packages:`. pnpm 11 and 12 word it
+  // identically and both carry the code, so the rule keys on the code and on
+  // pnpm's own phrase — and deliberately NOT on pnpm's closing `help:` line,
+  // which drifts: 11.24.0 offers `pnpm install --no-frozen-lockfile` for this
+  // failure while 12.8.1 offers `pnpm install --fix-lockfile` (and for the
+  // outdated failure above it offers a third command again, `--lockfile-only`).
+  // Measured 2026-10-08 against 11.24.0 and 12.8.1.
+  //
+  // Both shapes reach here whichever stream pnpm used. Market commands run with
+  // `--reporter=ndjson`, and in that same measurement 11.24.0 wrote the error
+  // record to stdout as one JSON line while 12.8.1 wrote nothing to stdout at
+  // all (0 bytes) and put the error block on stderr as plain text.
+  // withDecodedPnpmDiagnostics lifts the message out of the first form, and
+  // both forms then carry these two strings verbatim.
+  //
+  // The missing entry is named in the message but deliberately NOT put in
+  // `pkg`: callers read `pkg` as "the package this failure is about" and act on
+  // it (the #289 peer retry, the #65 ghost-entry advice), and neither applies —
+  // the repair is in the lockfile, not in the manifest entry.
+  if (output.includes('ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY') || /Broken lockfile/.test(output)) {
+    const broken = /no entry for '?([^'\s]+@[^'\s]+)'? in pnpm-lock\.yaml/i
+      .exec(withDecodedPnpmDiagnostics(output))?.[1]
+    const zh = broken === undefined ? '' : `（${broken}）`
+    const en = broken === undefined ? '' : ` (${broken})`
+    return {
+      code: 'lockfile-broken',
+      recoverable: false,
+      message: `profile 的 pnpm-lock.yaml 自相矛盾：有个依赖在 importers 里记着，packages 里却没有它的条目${zh}，pnpm 因此在真正写 node_modules 的那一步拒绝整个命令。先备份一份 pnpm-lock.yaml；在 importers 下删掉这个依赖的那条记录（它的名字、specifier、version 三行），再在 profile 目录里执行 pnpm install --no-frozen-lockfile --lockfile-only，然后重试。不要用 pnpm 提示的 --fix-lockfile：在 12.x 上它修不好这种状态（11.x 上能修，所以那条提示只在 12.x 的 help 里出现，照它走会把 12.x 用户送到一条一定失败的命令上）。不要删掉整个 pnpm-lock.yaml，那会把其余插件的版本一起重新解析（#808） / this profile\'s pnpm-lock.yaml contradicts itself: a dependency is recorded in importers but has no entry under packages${en}, so pnpm refuses the whole command at the step that actually writes node_modules. Back up pnpm-lock.yaml first; remove that dependency\'s record from importers (its name, specifier and version lines); then run pnpm install --no-frozen-lockfile --lockfile-only in the profile directory and retry. Do not use the --fix-lockfile that pnpm itself suggests: on 12.x it does not repair this state (it does on 11.x, which is why that suggestion only appears in 12.x\'s help, and following it sends a 12.x user to a command that always fails). Do not delete the whole pnpm-lock.yaml either: that re-resolves every other plugin\'s version too (#808)`,
     }
   }
   // #786 follow-up: pnpm could not replace one of the profile's own files —

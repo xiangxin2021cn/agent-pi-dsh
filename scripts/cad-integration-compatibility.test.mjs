@@ -236,18 +236,18 @@ function reviewedHostFixture(t, review = '3.8.2-disk') {
   const value = fixture(t)
   const repository = join(dirname(cli), '..')
   const shared = ['package.json', 'bundles/tender-host/src/http.ts', 'bundles/tender-web/src/client/file-preview-overlay.js',
-    ...(['3.8.2-patched', '3.8.2-release', '3.8.2-browser'].includes(review) ? ['THIRD_PARTY_NOTICES.md'] : []),
-    ...(review === '3.8.2-browser' ? ['bundles/tender-host/src/cad-viewer-assets.ts'] : [])]
+    ...(['3.8.2-patched', '3.8.2-release', '3.8.2-browser', '3.8.3'].includes(review) ? ['THIRD_PARTY_NOTICES.md'] : []),
+    ...(['3.8.2-browser', '3.8.3'].includes(review) ? ['bundles/tender-host/src/cad-viewer-assets.ts'] : [])]
   const added = [
     'bundles/tender-host/src/cad-convert.ts', 'bundles/tender-host/src/cad-convert-worker.mjs',
     'bundles/tender-host/package.json', 'bundles/tender-host/package-lock.json',
     ...(review !== '3.8.1' ? ['bundles/tender-host/src/cad-dxf-output.mjs', 'bundles/engineering-cad/src/reader.ts'] : []),
-    ...(['3.8.2-disk', '3.8.2-patched', '3.8.2-release', '3.8.2-browser'].includes(review) ? [
+    ...(['3.8.2-disk', '3.8.2-patched', '3.8.2-release', '3.8.2-browser', '3.8.3'].includes(review) ? [
       'bundles/engineering-cad/src/plugin.ts', 'bundles/engineering-cad/src/dxf-disk-source.ts',
       'bundles/engineering-cad/src/cad-disk-index.ts', 'packages/engineering-cad/index.ts',
       'packages/engineering-cad/types.ts', 'packages/engineering-cad/matrix.ts',
     ] : []),
-    ...(['3.8.2-patched', '3.8.2-release', '3.8.2-browser'].includes(review) ? [
+    ...(['3.8.2-patched', '3.8.2-release', '3.8.2-browser', '3.8.3'].includes(review) ? [
       'bundles/tender-host/src/cad-dwg-model-quality.mjs',
       'bundles/engineering-cad/src/cad-embedded.ts',
       ...['libredwg-web.mjs', 'libredwg-wasm-factory.mjs', 'libredwg-web.wasm', 'GPL-3.0.txt', 'CAD-HOST-CLEAN-BUILD.json', 'sources/Agent-Pi-DSH-3.8.2-CAD-host-corresponding-source.tar.gz'].map(path => 'bundles/tender-host/lib/cad-decoder/' + path),
@@ -256,7 +256,7 @@ function reviewedHostFixture(t, review = '3.8.2-disk') {
       'scripts/cad-host-bit-position.test.c', 'scripts/cad-host-clean-pins.json',
     ] : []),
   ]
-  if (review === '3.8.2-browser') added.push('scripts/cad-browser-decoder-release.mjs', 'scripts/cad-browser-decoder-release.json', 'bundles/tender-host/src/prompt.ts')
+  if (['3.8.2-browser', '3.8.3'].includes(review)) added.push('scripts/cad-browser-decoder-release.mjs', 'scripts/cad-browser-decoder-release.json', 'bundles/tender-host/src/prompt.ts')
   for (const path of shared) {
     write(join(value.root, path), execFileSync('git', ['show', `1aef6820ebc450125788158a4b2d1706115cdd10:${path}`], {
       cwd: repository, encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
@@ -271,6 +271,7 @@ function reviewedHostFixture(t, review = '3.8.2-disk') {
     '3.8.2-disk': '75142e3ba0f1e6a8598d9c6d52af0457780cfcd5',
     '3.8.2-patched': '4cbcc177b48e455246ed10a75bf391b2ef6e144e',
     '3.8.2-release': 'dc99fa96961dfff28fba93551d02b0f78a82cc2c',
+    '3.8.2-browser': 'v3.8.2',
   }[review]
   const raw = path => path.startsWith('bundles/tender-host/lib/cad-decoder/') || path === 'scripts/cad-host-bit-position-overflow.patch'
   const read = path => historical
@@ -281,6 +282,27 @@ function reviewedHostFixture(t, review = '3.8.2-disk') {
   commit(value.root)
   return { ...value, reviewed }
 }
+
+test('3.8.3 accepts only the reviewed host dependency patches and retains every CAD binary and source pin', (t) => {
+  const value = reviewedHostFixture(t, '3.8.3')
+  const before = structuredClone(value.manifest)
+  const proof = assertCadIntegrationUnchanged(value)
+  const previous = assertCadIntegrationUnchanged(reviewedHostFixture(t, '3.8.2-browser'))
+  assert.equal(proof.hostExtension.review, '3.8.3-host-dependency-patches')
+  assert.equal(proof.hostExtension.nativeViewerBuildInputsUnchanged, true)
+  assert.deepEqual(Object.keys(proof.hostExtension.additionalFileHashes).filter(path =>
+    proof.hostExtension.additionalFileHashes[path] !== previous.hostExtension.additionalFileHashes[path]).sort(), [
+    'bundles/tender-host/package-lock.json', 'bundles/tender-host/package.json',
+  ])
+  assert.deepEqual(value.manifest, before)
+  const path = 'bundles/tender-host/package-lock.json'
+  const original = value.reviewed.get(path)
+  const changed = JSON.parse(original)
+  changed.packages['node_modules/@mlightcad/libredwg-web'].integrity += 'unreviewed'
+  write(join(value.root, path), JSON.stringify(changed, null, 2) + '\n')
+  commit(value.root)
+  assert.throws(() => assertCadIntegrationUnchanged(value), /reviewed CAD host extension differs/)
+})
 
 test('pins the reviewed streamed DWG host extension separately from the unchanged native viewer build', (t) => {
   const value = reviewedHostFixture(t, '3.8.2')

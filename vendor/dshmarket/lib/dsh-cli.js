@@ -136,12 +136,23 @@ export function proxyEnvForPnpm(env = process.env, region = 'global') {
     // statement about where packages come from, and a region setting must not
     // overrule it. Same rule the proxy translation above follows, for the same
     // reason — this function's job is to fill silence, not to overwrite speech.
+    //
+    // Written in BOTH vocabularies (#865). pnpm reads `pnpm_config_*` /
+    // `PNPM_CONFIG_*` and does not read `npm_config_registry` at all — measured
+    // on 11.7.0, where the npm spelling is ignored and whatever `.npmrc` names
+    // stands. So the region setting used to move the market's own requests
+    // (checks, catalog, changelog) while every install still fetched from the
+    // user's configured registry, which is how a mirror lagging behind the
+    // catalog reads as "this version was never published" (#862). npm's own
+    // spelling stays because other things in the install path read it, and it
+    // is the name the value has always had.
     const mirror = routesFor(region).npmRegistry;
-    if (mirror !== DEFAULT_NPM_REGISTRY && !has('npm_config_registry')) {
+    if (mirror !== DEFAULT_NPM_REGISTRY && !has('npm_config_registry') && !has('PNPM_CONFIG_REGISTRY')) {
         // npm's own config convention terminates the registry with a slash;
         // pnpm accepts either, but writing it the conventional way keeps the
         // value recognizable to anyone reading the spawned process's env.
         out.npm_config_registry = `${mirror}/`;
+        out.PNPM_CONFIG_REGISTRY = `${mirror}/`;
     }
     return out;
 }

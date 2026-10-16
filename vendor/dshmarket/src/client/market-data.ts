@@ -143,7 +143,7 @@ export type QueuedRowStaleReason = 'gone' | 'no-update'
  * have landed already).
  */
 export function queuedRowApplies(
-  row: { kind: 'install' | 'update' | 'uninstall'; name: string; url?: string },
+  row: { kind: 'install' | 'update' | 'uninstall'; name: string; url?: string; restore?: boolean },
   world: { installed: InstalledMap; updates: Record<string, UpdateStatus>; plugins: readonly RegistryPlugin[] },
 ): QueuedRowStaleReason | null {
   if (row.kind === 'install') {
@@ -151,7 +151,12 @@ export function queuedRowApplies(
     return world.plugins.some(plugin => plugin.url === row.url) ? null : 'gone'
   }
   if (world.installed[row.name] === undefined) return 'gone'
-  if (row.kind === 'update' && world.updates[row.name]?.updateAvailable !== true) return 'no-update'
+  if (row.kind === 'update' && world.updates[row.name]?.updateAvailable !== true) {
+    // A local restore replaces a checkout, not a newer release.
+    if (row.restore === true && world.updates[row.name]?.kind === 'linked' &&
+        findCatalogEntryForLocal(world.plugins, row.name) !== null) return null
+    return 'no-update'
+  }
   return null
 }
 
@@ -198,6 +203,13 @@ export interface UpdateStatus {
   latest?: string | null
   /** A plain dependency, not a plugin (#793): a newer release may exist but is never offered. */
   notAPlugin?: boolean
+  /** A newer build on a tag other than `latest` (#867): named so a pin ahead of
+      `latest` does not read as "up to date", never an automatic offer. */
+  newerPrerelease?: string
+  /** Floating git install whose line moved without a release (#824): the
+      unreleased HEAD, shown as a neutral badge — newer commits exist, but the
+      market installs versions, not branch heads. */
+  unreleasedCommit?: string
   /** Updating this local package switches it to its matched online release. */
   restoreRequired?: boolean
   /** Explicit source migration; never part of update-all. */
@@ -302,6 +314,44 @@ export interface ActivationInfo {
   hot: boolean
   /** Set when this package is a library another installed plugin pulled in (#634). */
   dependencyOf?: string
+  /** Loaded by the user's own setup, which the market cannot see (#813). */
+  loadedByProfile?: true
+}
+
+/**
+ * The install command shown on a plugin's card, corrected for THIS profile
+ * (#872).
+ *
+ * awesome-dsh-plugin generates the string once, for the catalog — always
+ * `dsh plugin --profile web add <spec>` — which is right on a `web` profile
+ * and wrong on every other one. On a desktop profile it is more than wrong:
+ * the DSH CLI refuses a profile by that name, so the command as printed
+ * cannot install anything there at all. Two outcomes, and the caller renders
+ * them differently because the user's next step differs:
+ *
+ * - `command`: the text to show and copy, with the profile it names corrected;
+ * - `unusable`: show no command at all (the market's own button is the way),
+ *   because handing over a command that cannot work is worse than handing
+ *   over none.
+ *
+ * A command with no `--profile` token is passed through untouched: it is not
+ * this function's business to add one.
+ */
+export function installCommandFor(
+  command: unknown,
+  profile: string | null | undefined,
+): { command: string | null; unusable: boolean } {
+  if (typeof command !== 'string' || command.trim() === '') return { command: null, unusable: false }
+  const named = /--profile(?:=|\s+)(\S+)/u.exec(command)
+  if (named === null) return { command, unusable: false }
+  const wanted = typeof profile === 'string' ? profile.trim() : ''
+  if (wanted === '') return { command, unusable: false }
+  // The CLI refuses the desktop profile by name — inside the running app it
+  // can never be used, whatever the install layout is (src/index.ts states
+  // the same rule where it chooses the plugin manager).
+  if (wanted.toLowerCase() === 'desktop') return { command: null, unusable: true }
+  if (named[1] === wanted) return { command, unusable: false }
+  return { command: command.replace(named[0], `--profile ${wanted}`), unusable: false }
 }
 
 /** The /dsh-market/installed payload (fields the market UI consumes). */
@@ -489,8 +539,13 @@ function cachedPluginSearchText(plugin: RegistryPlugin, value: string): string {
 }
 
 /**
- * Relevance within one field. Exact and prefix matches beat phrase matches;
- * for a multi-word query every word must occur in the same field.
+ * Relevance within one field. Exact matches beat phrase matches, which beat
+ * words scattered through the field; for a multi-word query every word must
+ * occur in the same field. A prefix match is NOT ranked above a phrase match
+ * anywhere else in the field: most catalog names start with `dsh-`, so that
+ * distinction mostly punished the naming convention and overrode the sort
+ * the user picked (#815: `computer-use-vision` with 355 downloads above
+ * `dsh-computer-use` with 3.6k, under "downloads").
  */
 function fieldRelevance(
   plugin: RegistryPlugin,
@@ -503,7 +558,6 @@ function fieldRelevance(
   const text = cachedPluginSearchText(plugin, value)
   if (text === '' || !tokens.every(token => text.includes(token))) return 0
   if (text === query) return weight + 300
-  if (text.startsWith(query)) return weight + 250
   if (text.includes(query)) return weight + 200
   return weight + 150
 }
@@ -1061,14 +1115,29 @@ export interface ScreenshotMeasurement {
   height: number
 }
 
+/** One refused candidate and the reason the image gate refused it. */
+export interface ScreenshotRejection {
+  value: unknown
+  reason: string
+}
+
+/** The single acceptance rule: the URL to load, or the sentence explaining the refusal. */
+type ScreenshotGate = { ok: true; src: string } | { ok: false; reason: string }
+
+function gateScreenshot(value: unknown): ScreenshotGate {
+  if (typeof value !== 'string') return { ok: false, reason: 'not a string' }
+  let parsed: URL
+  try { parsed = new URL(value) } catch { return { ok: false, reason: 'not a parseable URL' } }
+  if (parsed.protocol !== 'https:') return { ok: false, reason: 'not https' }
+  if (!SCREENSHOT_HOSTS.has(parsed.hostname)) return { ok: false, reason: `host not allowlisted (${parsed.hostname})` }
+  if (/\.svg$/iu.test(parsed.pathname)) return { ok: false, reason: 'svg is not rendered' }
+  return { ok: true, src: value }
+}
+
 /** Return one safe screenshot URL without applying the public list limit. */
 function safeScreenshot(value: unknown): string | null {
-  if (typeof value !== 'string') return null
-  let parsed: URL
-  try { parsed = new URL(value) } catch { return null }
-  if (parsed.protocol !== 'https:' || !SCREENSHOT_HOSTS.has(parsed.hostname)) return null
-  if (/\.svg$/iu.test(parsed.pathname)) return null
-  return value
+  const gate = gateScreenshot(value)
+  return gate.ok ? gate.src : null
 }
 
 /**
@@ -1099,14 +1168,29 @@ export function releaseNotesHttpsImage(line: string): { alt: string; src: string
   return { alt: match[1] ?? '', src }
 }
 
-/** Keep only https URLs on allowlisted image hosts; SVG dropped (logos/badges). */
-export function safeScreenshots(urls: unknown): string[] {
+/**
+ * Keep only https URLs on allowlisted image hosts; SVG dropped (logos/badges).
+ *
+ * `onReject` is opt-in, because whether a refusal deserves a word depends on
+ * where the list came from: a README contributes mostly badges, logos and
+ * third-party hosts, where refusing IS the intended outcome. A curated
+ * catalog list is different — every URL in it is declared intent — so
+ * `pluginScreenshotCandidates` is the caller that reports (see there).
+ */
+export function safeScreenshots(
+  urls: unknown,
+  options: { onReject?: (rejection: ScreenshotRejection) => void } = {},
+): string[] {
   if (!Array.isArray(urls)) return []
+  const { onReject } = options
   const safe: string[] = []
   for (const value of urls) {
-    const src = safeScreenshot(value)
-    if (src === null) continue
-    if (!safe.includes(src)) safe.push(src)
+    const gate = gateScreenshot(value)
+    if (!gate.ok) {
+      onReject?.({ value, reason: gate.reason })
+      continue
+    }
+    if (!safe.includes(gate.src)) safe.push(gate.src)
     if (safe.length >= MAX_SCREENSHOTS) break
   }
   return safe
@@ -1288,9 +1372,35 @@ export function rankThemeScreenshots(
 
 const readmeShotsCache = new Map<string, Promise<ScreenshotCandidate[]>>()
 
-/** Clear README-derived media at the boundary of an accepted catalog generation. */
+/**
+ * Declared screenshots the market refuses, reported once per catalog entry.
+ *
+ * A curated entry is the publisher's declaration, and the registry gate that
+ * accepts it (`scripts/validate-registry.mjs`, E12) allows any https URL on
+ * the four GitHub hosts, while this client additionally refuses `.svg`. An
+ * entry can therefore pass CI with a screenshot the market then drops, and
+ * until this existed nothing said so: the card rendered fewer previews, or —
+ * when every declared shot was refused — the client quietly fell back to
+ * scraping the README. Keyed by entry plus the refused values, so a re-render,
+ * a dialog and a theme card report one line between them, and cleared with the
+ * README cache at each accepted catalog generation.
+ */
+const refusedCuratedScreenshots = new Set<string>()
+
+function warnRefusedCuratedScreenshots(plugin: RegistryPlugin, rejections: ScreenshotRejection[]): void {
+  const details = [...new Set(rejections.map(({ value, reason }) => `${reason}: ${String(value)}`))]
+  const key = `${plugin.url}\n${details.join('\n')}`
+  if (refusedCuratedScreenshots.has(key)) return
+  refusedCuratedScreenshots.add(key)
+  console.warn(
+    `[dsh-market] catalog entry "${plugin.name}" declares ${details.length} screenshot(s) the market will not load — ${details.join('; ')}`,
+  )
+}
+
+/** Clear README-derived media and refusal reporting at the boundary of an accepted catalog generation. */
 export function resetScreenshotsCache(): void {
   readmeShotsCache.clear()
+  refusedCuratedScreenshots.clear()
 }
 
 /**
@@ -1298,7 +1408,9 @@ export function resetScreenshotsCache(): void {
  * present, otherwise lazily extracted and semantically ranked from README.
  */
 export function pluginScreenshotCandidates(plugin: RegistryPlugin): Promise<ScreenshotCandidate[]> {
-  const curated = safeScreenshots(plugin.screenshots)
+  const refused: ScreenshotRejection[] = []
+  const curated = safeScreenshots(plugin.screenshots, { onReject: rejection => { refused.push(rejection) } })
+  if (refused.length > 0) warnRefusedCuratedScreenshots(plugin, refused)
   if (curated.length > 0) {
     return Promise.resolve(curated.map((src, order) => ({ src, order, semanticScore: 1_000 - order, curated: true })))
   }
@@ -1382,6 +1494,35 @@ export function humanOutput(raw: string): string {
     }
   }
   return kept.join('\n').trim()
+}
+
+/**
+ * One failed operation's sentence for the user: the market's own when the
+ * route sent one, otherwise the tail of pnpm's own output.
+ *
+ * The tail is for the stack, not for our sentences (#848). A route's message
+ * is one bilingual sentence — Chinese first, then English — so keeping the
+ * last 600 characters of it kept the English and threw the Chinese away, which
+ * is the half a Chinese reader needs, and it cut the classifier's
+ * `unused-patch` sentence through the middle of its actionable clause. Every
+ * route sentence is bounded by construction; pnpm's output is not.
+ */
+export function failureText(
+  body: { error?: unknown; stderr?: unknown; stdout?: unknown; exitCode?: unknown },
+  options: { tail?: number; fallback?: string } = {},
+): string {
+  const { tail = 600, fallback = '' } = options
+  const field = (value: unknown): string => typeof value === 'string'
+    ? value
+    : value && typeof (value as { text?: unknown }).text === 'string'
+      ? (value as { text: string }).text
+      : value == null ? '' : JSON.stringify(value)
+  const own = field(body.error)
+  if (own !== '') return own
+  const machine = humanOutput([field(body.stderr), field(body.stdout)].filter(Boolean).join('\n'))
+  if (machine !== '') return machine.slice(-tail)
+  const exit = field(body.exitCode)
+  return exit === '' ? fallback : `exit ${exit}`
 }
 
 /** CJK ideographs — enough to tell a Chinese half from a Latin one. */

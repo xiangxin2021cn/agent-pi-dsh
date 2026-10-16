@@ -520,6 +520,31 @@ function parseSemver(value: string): Semver | null {
   }
 }
 
+/**
+ * Parse a comparator's target the way node-semver does: a PARTIAL version in
+ * a range is zero-filled, so `<0.3` is `<0.3.0` and `>=2` is `>=2.0.0`.
+ *
+ * Without this, every prerelease floor written as a partial — the
+ * `@deepseek-ai/dsh-*` peers of a whole family of connector plugins say
+ * `>=0.1.5 <0.3`, `>=0.1.7-rc <2`, `>=0.2.0-rc.0 <0.3` — parsed as unknown,
+ * `satisfiesRange` answered null, and the gate stood aside: measured against
+ * the host's own evaluator over 699 live catalog manifests, those were the
+ * last 7 of 2796 (package, runtime) pairs where the host refuses a plugin
+ * and the market still promised a restart would apply it.
+ *
+ * A BARE partial (`1.2`) is a different thing in semver — an x-range that
+ * means `>=1.2.0 <1.3.0` — so it deliberately stays unknown here rather than
+ * being mistaken for the exact version `1.2.0`.
+ */
+function parseComparatorTarget(target: string, op: string): Semver | null {
+  const direct = parseSemver(target)
+  if (direct !== null) return direct
+  if (op === '') return null
+  const parts = target.trim().split('.')
+  if (parts.length > 3 || parts.some(part => !/^\d+$/u.test(part))) return null
+  return parseSemver([...parts, ...Array<string>(3 - parts.length).fill('0')].join('.'))
+}
+
 function comparePre(a: string[], b: string[]): number {
   const len = Math.max(a.length, b.length)
   for (let i = 0; i < len; i += 1) {
@@ -643,7 +668,7 @@ export function satisfiesRange(
     const m = /^(\^|~|>=|<=|>|<)?(.*)$/.exec(p)
     const op = m?.[1] ?? ''
     const target = (m?.[2] ?? '').trim()
-    const tv = parseSemver(target)
+    const tv = parseComparatorTarget(target, op)
     if (tv === null) return null
     const major = tv.major
     const minor = tv.minor
@@ -688,7 +713,7 @@ export function satisfiesRange(
     // prerelease admission gate. Otherwise an unknown protocol such as
     // `workspace:^` or `catalog:default` is misreported as a definite false
     // whenever the resolved version happens to carry a prerelease tag.
-    if (parseSemver(target) === null) return null
+    if (parseComparatorTarget(target, m[1] ?? '') === null) return null
     return { op: m[1] ?? '', target }
   }
 
@@ -935,6 +960,33 @@ export function composeLayers(layers: LayerInput[]): Composed {
   }
   duplicates.sort((a, b) => a.id.localeCompare(b.id))
   return { rows, resolvableRows, duplicates, overrides, orphans }
+}
+
+/**
+ * Whether two rows sharing one loader id still stop the boot (#853).
+ *
+ * It depends on the loader, and the loader changed: up to
+ * `cordis-plugin-loader@1.0.3` `EntryGroup.update` threw
+ * `duplicate loader entry id` for a config array holding one id twice
+ * (measured against the published packages — 1.0.3 has the throw, 1.0.4 and
+ * 1.0.5 do not). From 1.0.4 the same array is folded into a Map keyed by id,
+ * so the LATER row wins and the earlier one is silently dropped.
+ *
+ * The market's rule was written against the old loader (#122: two bundles on
+ * one id really did refuse to start), and it is right on one. On a new one it
+ * is not a boot failure but a silent override — which is worth SAYING and not
+ * worth refusing every operation over. The reported shape is a package's own
+ * patch row plus a user-patch row on the same id: fatal forever meant every
+ * update of every plugin rolled back.
+ *
+ * Unknown version stays fatal: the conservative direction, and the case where
+ * the evidence to be less strict is missing.
+ */
+export function duplicateEntryIdsAreFatal(profileDirectory: string): boolean {
+  const versions = lockfileCoreVersions(profileDirectory).get('@deepseek-ai/cordis-plugin-loader') ?? []
+  if (versions.length === 0) return true
+  const newest = versions.reduce((a, b) => (compareSemver(a, b) >= 0 ? a : b))
+  return compareSemver(newest, '1.0.4') < 0
 }
 
 /** Distinct versions of `@deepseek-ai/{dsh,cordis}*` packages in the lockfile. */
@@ -1509,8 +1561,16 @@ export function analyzeProfile(profileDirectory: string, options: CheckOptions =
     if (row.activation === 'required') errors.push(`${message} — the profile will fail to boot`)
     else warnings.push(`${message} — boot will fail if its disabled expression enables the entry`)
   }
+  // Rows on one id: a boot failure on an old loader, a silent override on a
+  // new one (see duplicateEntryIdsAreFatal). Refusing an operation over the
+  // second shape rolled back every update for the reporter's profile.
+  const duplicateFatal = duplicateEntryIdsAreFatal(profileDirectory)
   for (const dup of composed.duplicates) {
-    errors.push(`duplicate loader entry id ${JSON.stringify(dup.id)} (${dup.count} rows: ${dup.layers.join(', ')})`)
+    if (duplicateFatal) {
+      errors.push(`duplicate loader entry id ${JSON.stringify(dup.id)} (${dup.count} rows: ${dup.layers.join(', ')})`)
+      continue
+    }
+    warnings.push(`${dup.layers.join(' 与 ')}：同一个条目 id ${JSON.stringify(dup.id)} 各有 ${String(dup.count)} 行，当前宿主会让后一层覆盖前一层，启动不受影响，但前面那行会静默失效——删除其中一行即可消除歧义 / the layers ${dup.layers.join(' and ')} each declare entry id ${JSON.stringify(dup.id)} (${String(dup.count)} rows); this host lets the LATER row win, so the boot is fine but the earlier row is silently dropped — remove one of them to make the intent unambiguous`)
   }
   for (const orphan of composed.orphans) {
     warnings.push(`${orphan.layer}: ${orphan.id} — ${orphan.reason}`)

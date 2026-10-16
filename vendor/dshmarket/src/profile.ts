@@ -7,8 +7,9 @@
 import { existsSync, readdirSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { isDeepStrictEqual } from 'node:util'
+import { JSON_SCHEMA, load } from 'js-yaml'
 import { resolveDshHome } from './home-paths.ts'
-import { githubRemoteIdentities, githubRepoIdentities, isGitHostedSpec, repoOfTarget } from './sources.ts'
+import { githubRemoteIdentities, githubRepoIdentities, hostedRepoKey, isGenerationLink, isGitHostedSpec, repoOfTarget } from './sources.ts'
 
 /**
  * Whether a profile name follows DSH's own directory-name contract.
@@ -66,6 +67,52 @@ export function readInstalled(profile: string, explicitDir?: string): Record<str
   } catch {
     return {}
   }
+}
+
+/**
+ * Packages this profile's desktop host manages as generations (#874).
+ *
+ * DSH Desktop materialises such a plugin under
+ * `profiles/.generations/live/<name>+<version>+<hash>` and points the profile
+ * at it with a `link:` in `pnpm.overrides`, while `dependencies` keeps the
+ * plain version. Before IT runs pnpm, the host's own installer suspends that
+ * projection — the names leave `dependencies` / `overrides` for the duration
+ * of the run — and the profile's pnpm-lock.yaml therefore NEVER records them.
+ * That is by design, so a lockfile with no entry for the package is not
+ * evidence about its exact source, and reading it as if it were turned a
+ * completed rollback into "automatic rollback is unavailable" with advice the
+ * user cannot carry out (#874).
+ *
+ * Two declarations are accepted because either can stand alone: the
+ * generation link itself (in `dependencies` or in `pnpm.overrides`), and the
+ * host's own projection list (`dsh.desktop.generationProjection.plugins`).
+ */
+export function generationManagedNames(profile: string, explicitDir?: string): Set<string> {
+  const names = new Set<string>()
+  const collect = (specs: Record<string, unknown> | undefined): void => {
+    for (const [name, spec] of Object.entries(specs ?? {})) {
+      if (typeof spec === 'string' && isGenerationLink(spec)) names.add(name)
+    }
+  }
+  try {
+    const manifest = JSON.parse(readFileSync(join(profileDir(profile, explicitDir), 'package.json'), 'utf8')) as {
+      dependencies?: Record<string, unknown>
+      peerDependencies?: Record<string, unknown>
+      pnpm?: { overrides?: Record<string, unknown> }
+      dsh?: { desktop?: { generationProjection?: { plugins?: unknown } } }
+    }
+    collect(manifest.dependencies)
+    collect(manifest.peerDependencies)
+    collect(manifest.pnpm?.overrides)
+    const plugins = manifest.dsh?.desktop?.generationProjection?.plugins
+    if (Array.isArray(plugins)) {
+      for (const entry of plugins) if (typeof entry === 'string') names.add(entry)
+    }
+  } catch {
+    // No readable manifest is no generation state: callers use this only to
+    // widen what a lockfile may prove, never to narrow it.
+  }
+  return names
 }
 
 /**
@@ -726,13 +773,24 @@ export function readLockCommits(profile: string, explicitDir?: string): Map<stri
  * by pnpm's `path:` selector, so the spec's subpath has to match too — and
  * when the spec names no subpath while several entries of that remote do,
  * there is no answer rather than the first sibling's commit (#632).
+ *
+ * The key on both sides of the comparison is `hostedRepoKey`, the identity
+ * the rest of the market already compares specs by (#851). This function
+ * used to derive its own, and that second spelling lost every install pnpm
+ * writes the shorthand back for: it demanded an `https?://` prefix or a
+ * `.git` suffix, so `github:owner/repo` keyed to nothing at all, and it kept
+ * the `.git` suffix, so the spec side `https://github.com/o/r` could never
+ * equal the lockfile side pnpm writes as `git@github.com:o/r.git`. A floating
+ * shorthand therefore had no commit, and with no commit the update route
+ * refuses to roll back — the market reports "cannot confirm the commit before
+ * the update" for a lockfile that states it plainly.
  */
 export function readGitResolutionCommit(
   profile: string,
   spec: string,
   explicitDir?: string,
 ): string | null {
-  const want = normalizeGitRepoKey(spec)
+  const want = hostedRepoKey(spec)
   if (want === null) return null
   const wantPath = gitSubpathSelector(spec)
   const matches: string[] = []
@@ -745,7 +803,7 @@ export function readGitResolutionCommit(
       const commit = /\bcommit:\s*([0-9a-f]{40})\b/i.exec(body)
       const repo = /\brepo:\s*([^\s,}]+)/.exec(body)
       if (commit === null || repo === null) continue
-      if (normalizeGitRepoKey(repo[1]!) !== want) continue
+      if (hostedRepoKey(repo[1]!) !== want) continue
       const entryPath = /\bpath:\s*([^\s,}]+)/.exec(body)?.[1]?.replace(/^\/+|\/+$/g, '').toLowerCase() ?? null
       if (wantPath !== null) {
         if (entryPath === wantPath) return commit[1]!.toLowerCase()
@@ -767,20 +825,6 @@ function gitSubpathSelector(spec: string): string | null {
   if (selector === undefined) return null
   const trimmed = selector.replace(/^\/+|\/+$/g, '').toLowerCase()
   return trimmed === '' ? null : trimmed
-}
-
-/** Lowercased transport-agnostic key for comparing two git remote spellings. */
-function normalizeGitRepoKey(spec: string): string | null {
-  let remote = spec.trim().replace(/^git\+/i, '')
-  const scp = /^git@([^:]+):(.+)$/.exec(remote)
-  if (scp !== null) remote = `https://${scp[1]}/${scp[2]!.replace(/^\/*/, '')}`
-  const hash = remote.indexOf('#')
-  if (hash !== -1) remote = remote.slice(0, hash)
-  const query = remote.indexOf('?')
-  if (query !== -1) remote = remote.slice(0, query)
-  remote = remote.replace(/\/+$/, '').toLowerCase()
-  if (!/^https?:\/\//.test(remote) && !remote.includes('.git')) return null
-  return remote
 }
 
 /** True when the installed package's manifest declares a dsh plugin surface. */
@@ -861,11 +905,33 @@ export function bundlePatchInsertedIds(dir: string): string[] {
 }
 
 /**
- * `name:` and `id:` rows of the package's declared bundle patch. Line-wise
- * on purpose: the strict hot-mount parser rejects config/expression rows,
- * but for "what does this bundle bring in" any row counts. `insertedIds` is
- * the subset nested under an `insert:` key (#147).
+ * Row ids a package's OWN patch layer ships switched OFF — its opt-in rows.
+ *
+ * A bundle may ship rows `disabled: true` on purpose, and say so in a comment
+ * right there: dsh-mnemon's four `mnemon-strategy-*` rows are "opt-in" and
+ * "stay off until selected". A user patch layer repeating that same
+ * `disabled: true` therefore changes nothing about the package — but counting
+ * it as "the user turned this off" put 「已停用 / 重启后保持关闭」 on a card
+ * whose plugin was demonstrably running (#876). Layer order is the whole
+ * reason: the bundle's own default is the floor, and the market has to ask
+ * what the user did ABOVE it.
+ *
+ * Reads both patch sources like the other readers here — the declared
+ * `dsh.bundle.patch` (one file, or an ordered LIST, #792) and the
+ * conventional root cordis.patch.yml a package may ship instead.
  */
+export function bundleOptOutRowIds(dir: string): string[] {
+  const ids = new Set<string>()
+  const read = (file: string): void => {
+    try {
+      for (const id of parsePatchRows(readFileSync(file, 'utf8')).disabledIds) ids.add(id)
+    } catch { /* no such patch — nothing shipped off through it */ }
+  }
+  for (const file of declaredBundlePatchFiles(dir)) read(file)
+  read(join(dir, 'cordis.patch.yml'))
+  return [...ids]
+}
+
 /**
  * Rows of one patch file. Exported because a package may ship its patch at
  * the conventional path INSTEAD of declaring `dsh.bundle.patch`, and the
@@ -873,31 +939,152 @@ export function bundlePatchInsertedIds(dir: string): string[] {
  * scan drifted from this one and re-introduced #147 on that path (it closed
  * the insert block only on `id:` lines, so `- disable:` followed by nested
  * ids claimed the neighbour's rows).
+ *
+ * Line-wise on purpose: the strict hot-mount parser rejects config/expression
+ * rows, but for "what does this bundle bring in" any row counts. `insertedIds`
+ * is the subset under an `insert:` key (#147) — and "under `insert:`" is not
+ * the same as "deeper than it", because a row's `config:` carries its payload
+ * (#841).
  */
-export function parsePatchRows(text: string): { names: string[]; ids: string[]; insertedIds: string[] } {
+export function parsePatchRows(text: string): { names: string[]; ids: string[]; insertedIds: string[]; disabledIds: string[] } {
   const names: string[] = []
   const ids: string[] = []
   const insertedIds: string[] = []
+  const disabledIds: string[] = []
   {
-    // `insert:` opens a nested list; every id below it, at deeper
-    // indentation, is a row this package brings in. A row at or above the
-    // `insert:` indentation closes the block — those target OTHER plugins.
-    let insertIndent: number | null = null
     // CRLF too, for consistency with the hot-mount parser, which a
     // Windows-authored patch genuinely broke. Here it changes no outcome
     // today — every row pattern below is `^`-anchored and a comment line
     // always starts with `#`, so an unstripped comment matches nothing —
     // and it is deliberately NOT covered by a spec, because a test that
     // passes with or without the change tests nothing.
+    const rows: { line: string; trimmed: string; indent: number }[] = []
     for (const raw of text.split(/\r?\n/)) {
       const line = raw.replace(/#.*$/, '')
       if (line.trim() === '') continue
-      const indent = line.length - line.trimStart().length
+      rows.push({ line, trimmed: line.trim(), indent: line.length - line.trimStart().length })
+    }
+    // `insert:` opens a nested list; every id below it, at deeper
+    // indentation, is a row this package brings in. A row at or above the
+    // `insert:` indentation closes the block — those target OTHER plugins.
+    let insertIndent: number | null = null
+    // Indent of a `config:` key whose value is payload, not more rows.
+    // Everything deeper than it — and a `- ` at its own column, a sequence
+    // YAML lets sit unindented under its key — is data, and its `id:` keys live in another
+    // namespace (#841): a preset row writes `config.plugins[].id` for the
+    // entries it will instantiate, so two bundles that instantiate the same
+    // official plugins read as two bundles inserting the same entry ids —
+    // and the market uninstalled the newcomer over a clash the host does
+    // not have.
+    let payloadIndent: number | null = null
+    const isDash = (index: number): boolean => /^-(?:\s|$)/u.test(rows[index].trimmed)
+    /**
+     * Column where a line's key text starts: its indent plus any `- ` marker.
+     * A row's keys share this column whether written on the marker line or
+     * below it, however many spaces follow the `-`.
+     */
+    const keyCol = (index: number): number => {
+      // A bare `-` puts the row's keys on the lines below it.
+      if (rows[index].trimmed === '-') {
+        const next = rows[index + 1]
+        return next !== undefined && next.indent > rows[index].indent ? next.indent : rows[index].indent + 2
+      }
+      const dash = /^-\s+/u.exec(rows[index].trimmed)
+      return rows[index].indent + (dash === null ? 0 : dash[0].length)
+    }
+    /** Index of the `- ` line that opens the row holding `from`, or -1. */
+    const rowStart = (from: number): number => {
+      const col = keyCol(from)
+      for (let j = from; j >= 0; j--) {
+        if (isDash(j) && keyCol(j) === col) return j
+        // Shallower than the row's keys: left the row without finding its marker.
+        if (rows[j].indent < col) return -1
+      }
+      return -1
+    }
+    /**
+     * Whether the insert row holding the `config:` at `from` declares
+     * `group: true`. YAML gives a mapping's keys no order, so this reads the
+     * whole row — its own `- ` marker plus the key lines at the row's key
+     * column — rather than only what happened to be written above.
+     */
+    const rowDeclaresGroup = (from: number): boolean => {
+      const start = rowStart(from)
+      if (start === -1) return false
+      const markerIndent = rows[start].indent
+      const col = keyCol(start)
+      for (let j = start; j < rows.length; j++) {
+        const row = rows[j]
+        if (j > start && row.indent <= markerIndent) break
+        // Only the row's own keys: a config body, or a list under another
+        // key, is not at the key column or starts with its own `- `.
+        if (j > start && (row.indent !== col || isDash(j))) continue
+        if (/^\s*-?\s*group:\s*['"]?true['"]?\s*$/u.test(row.line)) return true
+      }
+      return false
+    }
+    /**
+     * Whether the row holding the `id:` at `from` ALSO declares
+     * `disabled: true` — an opt-in row, off unless the user turns it on.
+     *
+     * Same row span as rowDeclaresGroup, and for the same reason: the marker
+     * line and the row's own keys at the key column, never a nested block.
+     * `disabled` may be written before or after `id` (#876's bundle writes
+     * `id`, then `name`, then `disabled`), so this reads the whole row.
+     */
+    const rowDeclaresDisabled = (from: number): boolean => {
+      const start = rowStart(from)
+      if (start === -1) return false
+      const markerIndent = rows[start].indent
+      const col = keyCol(start)
+      for (let j = start; j < rows.length; j++) {
+        const row = rows[j]
+        if (j > start && row.indent <= markerIndent) break
+        if (j > start && (row.indent !== col || isDash(j))) continue
+        if (/^\s*-?\s*disabled:\s*true\s*$/u.test(row.line)) return true
+      }
+      return false
+    }
+
+    /**
+     * Whether the key at `keyIndent` holds a block sequence. YAML lets that
+     * sequence sit at the key's own column (`config:` then `- id:` without
+     * further indent), so a `- ` there is the value, not a sibling.
+     */
+    const valueIsList = (from: number, keyIndent: number): boolean => {
+      const next = from + 1
+      if (next >= rows.length || rows[next].indent < keyIndent) return false
+      return isDash(next)
+    }
+    for (let i = 0; i < rows.length; i++) {
+      const { line, trimmed, indent } = rows[i]
+      // A `- ` at the payload key's own column is still that key's value.
+      if (payloadIndent !== null && indent <= payloadIndent && !(indent === payloadIndent && isDash(i))) {
+        payloadIndent = null
+      }
       if (insertIndent !== null && indent <= insertIndent && !/^\s*-?\s*(id|name|config):/u.test(line)) {
         insertIndent = null
       }
       if (/^\s*-?\s*insert:\s*$/u.test(line)) {
         insertIndent = indent
+        payloadIndent = null
+        continue
+      }
+      // Exactly one block under a row carries loader rows: the `config:` of a
+      // `group: true` row whose config is a LIST, because its children are
+      // entries. That is the rule userPatchPackageReferences has always
+      // applied to this same shape — a plain plugin may use a list of
+      // `{ name: … }` as ordinary options, and those must stay payload. Any
+      // other block-valued key (`config:`, `tags:`, …) holds data too, so the
+      // block is skipped rather than counted.
+      // Inside a payload, a nested key is more payload: it must not move the
+      // payload's edge, or the payload ends early and its ids count.
+      const blockKey = /^\s*-?\s*([A-Za-z_][\w.-]*):\s*$/u.exec(line)
+      if (payloadIndent === null && insertIndent !== null && indent > insertIndent && blockKey !== null) {
+        // The key's own column, not the line's: when the key sits on a `- `
+        // line, the row's later keys share its column and are not payload.
+        const col = keyCol(i)
+        if (!(blockKey[1] === 'config' && rowDeclaresGroup(i) && valueIsList(i, col))) payloadIndent = col
         continue
       }
       const name = /^\s*-?\s*name:\s*['"]?([^'"\s]+)/.exec(line)
@@ -905,17 +1092,21 @@ export function parsePatchRows(text: string): { names: string[]; ids: string[]; 
       const id = /^\s*-?\s*id:\s*['"]?([^'"\s]+)/.exec(line)
       if (id !== null) {
         if (!ids.includes(id[1])) ids.push(id[1])
+        // A row that ships switched off is not evidence of anything the USER
+        // decided (#876) — see bundleOptOutRowIds. Payload ids (#841) are not
+        // rows and never land here.
+        if (payloadIndent === null && rowDeclaresDisabled(i) && !disabledIds.includes(id[1])) disabledIds.push(id[1])
         // A top-level `- id:` row closes any open insert block: it is a
         // sibling of `- insert:`, not a member of it.
         if (insertIndent !== null && indent > insertIndent) {
-          if (!insertedIds.includes(id[1])) insertedIds.push(id[1])
+          if (payloadIndent === null && !insertedIds.includes(id[1])) insertedIds.push(id[1])
         } else if (indent <= (insertIndent ?? -1)) {
           insertIndent = null
         }
       }
     }
   }
-  return { names, ids, insertedIds }
+  return { names, ids, insertedIds, disabledIds }
 }
 
 /**
@@ -1349,17 +1540,33 @@ interface ReleaseAgeExcludeRule {
  * leaves the file alone rather than rewriting a line it misread.
  */
 function splitReleaseAgeExclude(entry: string): ReleaseAgeExcludeRule | null {
-  let text = entry.trim()
-  if (text.length >= 2
-    && (text[0] === "'" && text[text.length - 1] === "'" || text[0] === '"' && text[text.length - 1] === '"')) {
-    text = text.slice(1, -1)
-  }
+  // The caller decodes the complete YAML scalar first. Stripping quotes or
+  // whitespace here would reinterpret malformed input as a different rule.
+  const text = entry
   const at = text.indexOf('@', text.startsWith('@') ? 1 : 0)
-  if (at === -1) return text === '' ? null : { name: text, selector: null }
+  if (at === -1) return isPackageName(text) ? { name: text, selector: null } : null
   const name = text.slice(0, at)
-  const selector = text.slice(at + 1).trim()
-  if (name === '' || selector === '') return null
+  const selector = text.slice(at + 1)
+  // Only exact versions and their unions can be merged without interpreting
+  // ranges, escapes or a line break inside a version as a wider exemption.
+  const number = '(?:0|[1-9][0-9]*)'
+  const prerelease = `(?:${number}|[0-9]*[A-Za-z-][0-9A-Za-z-]*)`
+  const version = `${number}\\.${number}\\.${number}(?:-${prerelease}(?:\\.${prerelease})*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?`
+  if (!isPackageName(name) || !new RegExp(`^${version}(?:[ \\t]*\\|\\|[ \\t]*${version})*$`).test(selector)) return null
   return { name, selector }
+}
+
+/**
+ * Whether a name read out of the file is a package name at all.
+ *
+ * The last line of defence (#820): a misread — a folded entry's unterminated
+ * quote read as a name — used to be re-emitted with the quote doubled, and the
+ * repair then ran once per operation, doubling the file each time until every
+ * pnpm command in the profile failed on it. A name that is not a package name
+ * is unreadable input, and unreadable input leaves the file alone.
+ */
+function isPackageName(name: string): boolean {
+  return /^(?:@[A-Za-z0-9._~-]+\/)?[A-Za-z0-9._~-]+$/.test(name)
 }
 
 /**
@@ -1405,43 +1612,86 @@ export function mergeDuplicateReleaseAgeExcludes(profile: string, explicitDir?: 
   const file = join(profileDir(profile, explicitDir), 'pnpm-workspace.yaml')
   let yaml: string
   try { yaml = readFileSync(file, 'utf8') } catch { return [] }
-  // Block form only: `minimumReleaseAgeExclude:` then `- <entry>` lines.
-  const blockRe = /^minimumReleaseAgeExclude:[ \t]*\r?\n((?:[ \t]+-[^\r\n]*\r?\n?)*)/m
+  // Block form only: `minimumReleaseAgeExclude:` then INDENTED lines — `- <entry>`
+  // entries, comment lines among them, and the continuations of a folded entry.
+  // Two shapes used to end the block early, each truncating the entry cut by it:
+  // a comment line inside the block (#816), and a folded entry — pnpm wrapping a
+  // long `||` union across two lines — whose continuation is indented but does
+  // not start with `-` (#820). The truncated first line is still a legal
+  // single-line match, so nothing downstream noticed: its unterminated quote
+  // read as a package name, and the repair rewrote the line it had misread, once
+  // per run. The boundary now spans every indented line, so those shapes are
+  // seen whole. Blank lines must not truncate a block either: otherwise an
+  // unreadable continuation below one could escape validation before a write.
+  const blockRe = /^minimumReleaseAgeExclude:[ \t]*\r?\n((?:(?:[ \t]+[^\r\n]*|[ \t]*#[^\r\n]*)\r?\n?|\r?\n)*)/m
   const block = blockRe.exec(yaml)
   if (block === null) return []
   const eol = /\r\n/.test(yaml) ? '\r\n' : '\n'
-  const indentMatch = /^([ \t]+)-/.exec(block[1])
+  const indentMatch = /^([ \t]+)-/m.exec(block[1])
   const indent = indentMatch === null ? '  ' : indentMatch[1]
-  const entries: { rule: ReleaseAgeExcludeRule; quoted: boolean; line: string }[] = []
-  for (const line of block[1].split(/\r?\n/)) {
-    if (line.trim() === '') continue
-    const m = /^[ \t]+-[ \t]*(.*?)[ \t]*$/.exec(line)
-    // A `#` on the line is a comment this cannot re-emit without losing it.
-    if (m === null || m[1].includes('#')) return []
-    const rule = splitReleaseAgeExclude(m[1])
+  /**
+   * The block in its original order. Comment lines are kept verbatim; an
+   * entry keeps its trailing ` # …` comment, which YAML only recognises after
+   * whitespace. A `#` anywhere else in an entry is not something this can
+   * read exactly, so the file is left alone.
+   */
+  type Item =
+    | { kind: 'comment'; line: string }
+    | { kind: 'entry'; rule: ReleaseAgeExcludeRule; quoted: boolean; original: string; comment: string | null }
+  const items: Item[] = []
+  const physical = block[1].split(/\r?\n/)
+  if (physical[physical.length - 1] === '') physical.pop()
+  for (let i = 0; i < physical.length; i++) {
+    const line = physical[i]
+    if (line.trim() === '' || /^[ \t]*#/.test(line)) {
+      items.push({ kind: 'comment', line })
+      continue
+    }
+    const m = /^([ ]+)-[ ]+(\S.*)$/.exec(line)
+    if (m === null || m[1] !== indent || !/^[A-Za-z0-9._~@'"-]/.test(m[2])) return []
+    const raw = [line]
+    // Only uninterrupted, more-indented continuation lines are supported.
+    // The YAML parser, rather than a string join, determines folding/escapes.
+    while (i + 1 < physical.length) {
+      const next = physical[i + 1]
+      if (next.trim() === '' || /^[ \t]*#/.test(next)) break
+      const spaces = /^ +/.exec(next)?.[0].length ?? 0
+      if (spaces <= indent.length) break
+      raw.push(next)
+      i++
+    }
+    let value: unknown
+    try {
+      // Keep the pre-existing repair of single-line, unquoted scoped names
+      // (#732). YAML itself forbids a plain scalar starting with `@`.
+      value = m[2].startsWith('@') && raw.length === 1
+        ? m[2].replace(/[ \t]+#.*$/, '').trimEnd()
+        : load(raw.join('\n'), { schema: JSON_SCHEMA })
+      if (Array.isArray(value) && value.length === 1) value = value[0]
+    } catch { return [] }
+    if (typeof value !== 'string') return []
+    const rule = splitReleaseAgeExclude(value)
     if (rule === null) return []
-    entries.push({ rule, quoted: /^['"]/.test(m[1]), line })
+    const comment = /[ \t]+(#[^\r\n]*)$/.exec(raw[raw.length - 1])?.[1] ?? null
+    items.push({ kind: 'entry', rule, quoted: /^['"]/.test(m[2]), original: raw.join(eol), comment })
   }
+  const entries = items.flatMap(item => item.kind === 'entry' ? [item] : [])
   const byName = new Map<string, {
     selectors: Set<string>
-    originals: string[]
-    lines: string[]
     allVersions: boolean
     quoted: boolean
     count: number
   }>()
   const order: string[] = []
-  for (const { rule, quoted, line } of entries) {
+  for (const { rule, quoted } of entries) {
     let group = byName.get(rule.name)
     if (group === undefined) {
-      group = { selectors: new Set(), originals: [], lines: [], allVersions: false, quoted: false, count: 0 }
+      group = { selectors: new Set(), allVersions: false, quoted: false, count: 0 }
       byName.set(rule.name, group)
       order.push(rule.name)
     }
     group.count += 1
     group.quoted = group.quoted || quoted
-    group.originals.push(rule.selector ?? '')
-    group.lines.push(line)
     if (rule.selector === null) group.allVersions = true
     else group.selectors.add(rule.selector)
   }
@@ -1454,11 +1704,7 @@ export function mergeDuplicateReleaseAgeExcludes(profile: string, explicitDir?: 
     // Several rules for one name are the #732 breakage — only the first is
     // ever read — so they become one, as the union of the versions the file
     // already lists.
-    const text = group.allVersions
-      ? name
-      : group.count === 1
-        ? `${name}@${group.originals[0] ?? ''}`
-        : `${name}@${[...group.selectors].join(' || ')}`
+    const text = group.allVersions ? name : `${name}@${[...group.selectors].join(' || ')}`
     // `@` cannot start a plain scalar in YAML, so a scoped name is written
     // quoted — the way pnpm itself writes one.
     const quoted = group.quoted || text.startsWith('@')
@@ -1467,10 +1713,22 @@ export function mergeDuplicateReleaseAgeExcludes(profile: string, explicitDir?: 
   const rewritten = order.filter(name => {
     const group = byName.get(name)
     if (group === undefined) return false
-    return group.count > 1 || group.lines[0] !== produced(name)
+    return group.count > 1 || name.startsWith('@') && !group.quoted
   })
   if (rewritten.length === 0) return []
-  const lines = order.map(produced)
+  // Each package's one line goes where its FIRST rule was. A later duplicate
+  // is dropped, but a comment it carried stays, as a comment line in its place.
+  const written = new Set<string>()
+  const lines = items.flatMap(item => {
+    if (item.kind === 'comment') return [item.line]
+    // A valid single rule needs no repair, even when its scalar was folded or
+    // used double quotes. Keep it verbatim when repairing another package.
+    if (!rewritten.includes(item.rule.name)) return [item.original]
+    const suffix = item.comment === null ? '' : ` ${item.comment}`
+    if (written.has(item.rule.name)) return item.comment === null ? [] : [`${indent}${item.comment}`]
+    written.add(item.rule.name)
+    return [`${produced(item.rule.name)}${suffix}`]
+  })
   const blockText = `minimumReleaseAgeExclude:${eol}${lines.join(eol)}${eol}`
   // A function replacement: `$&` and friends in a string replacement would
   // be read as capture references.

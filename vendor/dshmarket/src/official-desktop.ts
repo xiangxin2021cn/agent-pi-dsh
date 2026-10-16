@@ -2,6 +2,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { progress, TARGET_RE, type DesktopPluginRuntime, type InstallResult } from './dsh-cli.ts'
+import { activeRegion, DEFAULT_NPM_REGISTRY, routesFor } from './regions.ts'
 
 interface ManagedResult {
   application: string
@@ -10,7 +11,7 @@ interface ManagedResult {
 }
 
 export interface OfficialPluginManagerLike {
-  installBundle(spec: string, options?: { requestId?: string }): Promise<ManagedResult>
+  installBundle(spec: string, options?: { requestId?: string; registry?: string }): Promise<ManagedResult>
   removeBundle(name: string): Promise<ManagedResult>
   cancelInstall(requestId: string): Promise<unknown>
 }
@@ -103,9 +104,12 @@ export function createOfficialDesktopRuntime(
     progress.cancelling = false
     let operation: Promise<ManagedResult>
     try {
+      // Read at each operation so region switches apply without a restart.
+      // The default route leaves the host's own npm configuration in charge.
+      const registry = routesFor(activeRegion()).npmRegistry
       operation = command === 'remove'
         ? manager.removeBundle(target)
-        : manager.installBundle(spec, { requestId })
+        : manager.installBundle(spec, { requestId, ...(registry === DEFAULT_NPM_REGISTRY ? {} : { registry }) })
     } catch (error) {
       progress.active = false
       return Promise.resolve(failure(detail(error), 127))
