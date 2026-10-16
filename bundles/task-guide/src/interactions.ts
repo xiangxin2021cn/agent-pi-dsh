@@ -172,7 +172,8 @@ export function createTaskInteractions(ctx: any, hooks: any) {
         if (command.limits !== undefined) {
           const runtimeService = ctx.get('longTaskRuntime'), bound = project(task)
           if (!bound || !runtimeService?.setLimits) throw new Error('本项目的执行预算入口不可用，未派发任务。')
-          runtimeService.setLimits(task.binding!.cwd!, bound, id, command.limits)
+          const budget = runtimeService.setLimits(task.binding!.cwd!, bound, id, command.limits)
+          if (!budget?.run && (agent.status === 'running' || agent.inbox?.hasPending || task.control.parked?.length)) throw new Error('首次执行预算尚未应用：当前执行或待处理输入需先处理，再使用此预算开始工作台阶段。')
         }
         const runtime = runtimePause(task, false)
         if (useNative) runtimePause(task, true)

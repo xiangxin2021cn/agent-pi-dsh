@@ -1406,3 +1406,25 @@ test('shared continuation changes only explicit run ceilings, preserves usage on
   assert.match(denied.value.interaction.reason, /目标.*预算已耗尽/)
   assert.equal(goal.maxGoalRounds, 4); assert.equal(inbox.nextTurn.length, 1)
 })
+
+
+test('an explicit first budget cannot be silently dropped behind an existing native inbox input', async t => {
+  const { registerLongTaskHost } = await import('../../tender-host/src/long-task-host.ts')
+  const f = fixture(t), inbox = await useOfficialInbox(f)
+  f.admit('核验当前专业阶段', 'pending-budget-purpose')
+  const workflow = { id: 'pending-budget', module: 'delivery', label: 'Check', labelZh: '检查', stages: [{ id: 'first', label: 'First', labelZh: '当前检查', prompt: 'Check actual files', skillSlugs: [], consumes: [] }] }
+  const project = createBusinessProject({ workspaceRootPath: f.cwd, rootPath: f.cwd, createDirectory: false, module: workflow.module, projectId: 'pending-budget', name: 'Pending budget', workflowId: workflow.id, workflowSnapshot: workflow })
+  bindProjectSession(f.cwd, project, 'main', 'first')
+  f.services.get('sessions').flush = async () => true
+  f.ctx.effect = (install: any) => t.after(install())
+  const host = registerLongTaskHost(f.ctx, input => ({ ...input, role: 'user', id: 'unexpected-budget-dispatch' }))
+  await f.call('status')
+  const original = { role: 'user', id: 'already-queued-input', source: { kind: 'user' }, content: [{ type: 'text', text: '保留原始待处理输入' }] }
+  inbox.splice('next-turn', 0, 0, [original])
+  const actual = await f.http('POST', { action: 'user_action', operationId: 'budget-with-pending-input', revision: f.store.read('main').revision, command: { kind: 'continue', executor: 'dsh', limits: { maxRounds: 2 } } })
+  assert.equal(actual.value.interaction.dispatch, 'blocked')
+  assert.match(actual.value.interaction.reason, /预算.*待处理|待处理.*预算/)
+  assert.deepEqual(inbox.nextTurn, [original], 'no generic continue or budgetless attempt is queued')
+  assert.equal(f.sent.length, 0)
+  assert.equal((await host.status(f.cwd, project, 'main')).run, undefined)
+})
