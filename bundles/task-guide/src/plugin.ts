@@ -57,6 +57,7 @@ export function registerTaskGuide(ctx: any, defineTool: (options: any) => unknow
     if (!messageId) return false
     if (controlMessages.has(messageId) || decisionMessages.has(`${rootSession(sessionId).id}:${messageId}`)) return true
     const state = store.read(rootSession(sessionId).id)
+    if (state.operationReceipts.some(row => row.id === `human-control:${messageId}` || row.id === `human-restored:${messageId}`)) return true
     if (state.control.restoredMessageIds?.includes(`${sessionId}:${messageId}`) || state.control.paused && state.control.parked?.some(row => row.sessionId === sessionId && row.message.id === messageId)) return true
     return state.latestMessageId === messageId && state.operationReceipts.some(row => row.id === `human-stage-decision:${messageId}` && row.digest === taskOperationDigest({ messageId, text: state.latestRequest }, 'user'))
   }
@@ -76,11 +77,11 @@ export function registerTaskGuide(ctx: any, defineTool: (options: any) => unknow
     ctx.emit?.('agent-pi/professional-task-changed', { sessionId: state.sessionId, revision: state.revision, sequence: state.recentChanges.at(-1)?.sequence })
     return state
   }
-  const consumeRestoredInput = (id: string, messageId?: string) => {
+  const consumeRestoredInput = (id: string, messageId?: string, text = '') => {
     const state = store.read(rootSession(id).id), key = `${id}:${messageId}`
     if (!messageId || !state.control.restoredMessageIds?.includes(key)) return undefined
     controlMessages.add(messageId)
-    return commit(state.sessionId, { control: { ...state.control, restoredMessageIds: state.control.restoredMessageIds.filter(value => value !== key), parked: state.control.parked?.filter(row => `${row.sessionId}:${row.message.id}` !== key) } }, state.revision, 'host', { summary: '已接收明确继续时恢复的原输入；保留后续用户要求的时间顺序。' })
+    return commit(state.sessionId, { control: { ...state.control, restoredMessageIds: state.control.restoredMessageIds.filter(value => value !== key), parked: state.control.parked?.filter(row => `${row.sessionId}:${row.message.id}` !== key) } }, state.revision, 'host', { operationId: `human-restored:${messageId}`, operationPayload: { messageId, text }, summary: '已接收明确继续时恢复的原输入；保留后续用户要求的时间顺序。' })
   }
   const syncProject = (state: ProfessionalTask) => {
     if (!state.pendingProjectSync && state.binding?.cwd) {
@@ -193,11 +194,15 @@ export function registerTaskGuide(ctx: any, defineTool: (options: any) => unknow
       const session = rootSession(id)
       if (session.id !== id) return { task: store.read(session.id), ignored: true }
       let state = refreshBinding(session)
-      const restored = consumeRestoredInput(id, messageId)
+      const payload = { messageId, text }
+      if (messageId && (store.replay(session.id, `human-message:${messageId}`, payload, 'user') || store.replay(session.id, `human-stage-decision:${messageId}`, payload, 'user') || store.replay(session.id, `human-control:${messageId}`, payload, 'host') || store.replay(session.id, `human-restored:${messageId}`, payload, 'host'))) return { task: state, replay: true }
+      const original = messageId && state.directives.find(row => row.messageId === messageId && ['request', 'decision'].includes(row.kind))
+      if (original) { if (original.text !== text) throw new Error('同一用户消息编号不能改写原始内容。'); return { task: state, replay: true } }
+      const restored = consumeRestoredInput(id, messageId, text)
       if (restored) return { task: restored, control: true, restored: true }
       if (messageId && state.control.paused && state.control.parked?.some(row => row.sessionId === id && row.message.id === messageId)) return { task: state, control: true, parked: true }
       if (!text.trim() || (messageId && state.latestMessageId === messageId)) return { task: state, replay: true }
-      if (consumeControlPrompt(session.id, text, messageId)) return { task: state, control: true }
+      if (consumeControlPrompt(session.id, text, messageId)) return { task: messageId ? commit(session.id, {}, state.revision, 'host', { operationId: `human-control:${messageId}`, operationPayload: payload, summary: '已登记用户触发的执行控制消息；不改写原始任务要求。' }) : state, control: true }
       const project = state.binding && projectForBoundSession(state.binding.cwd!, session.id)
       const decision = project && messageId ? recordHumanStageDecision(state.binding!.cwd!, project, { sessionId: session.id, messageId, text }) : { handled: false }
       if (decision.handled && messageId) decisionMessages.add(`${session.id}:${messageId}`)
@@ -206,7 +211,7 @@ export function registerTaskGuide(ctx: any, defineTool: (options: any) => unknow
       if (diligence) brief.webDiligence = diligence
       const directives = messageId && !isTaskStatusRequest(text) ? admitTaskDirectives(state, { messageId, text, decision: decision.handled && decision.status !== 'blocked' }) : state.directives
       if (directives.some(row => row.messageId === messageId && row.key === 'web-diligence' && row.kind === 'revocation')) brief.webDiligence = 'allowed'
-      state = commit(session.id, { latestRequest: text, latestMessageId: messageId, directives, needsAssessment: decision.handled || isTaskStatusRequest(text) ? state.needsAssessment : true, brief }, state.revision, 'user', { ...(decision.handled ? { operationId: `human-stage-decision:${messageId}`, operationPayload: { messageId, text } } : {}), summary: decision.handled ? decision.status === 'blocked' ? '用户已表达阶段决策，实际门禁仍有待处理条件' : '用户的明确阶段决策已落实到工作台' : isTaskStatusRequest(text) ? '用户询问进展或调整执行状态' : '收到用户的新表达，主对话将更新任务理解' })
+      state = commit(session.id, { latestRequest: text, latestMessageId: messageId, directives, needsAssessment: decision.handled || isTaskStatusRequest(text) ? state.needsAssessment : true, brief }, state.revision, 'user', { ...(messageId ? { operationId: `${decision.handled ? 'human-stage-decision' : 'human-message'}:${messageId}`, operationPayload: payload } : {}), summary: decision.handled ? decision.status === 'blocked' ? '用户已表达阶段决策，实际门禁仍有待处理条件' : '用户的明确阶段决策已落实到工作台' : isTaskStatusRequest(text) ? '用户询问进展或调整执行状态' : '收到用户的新表达，主对话将更新任务理解' })
       return { task: decision.handled ? refreshBinding(session) : state, decision }
     },
     status: readStatus,
@@ -453,9 +458,13 @@ export function registerTaskGuide(ctx: any, defineTool: (options: any) => unknow
       throw new Error('Unknown professional task action')
     },
   }))
+  ctx.on('session/event', (session: any, event: any) => {
+    if (event.type !== 'agent/inbox/spliced' || rootSession(session.id).id !== session.id) return
+    for (const message of event.data.inserted || []) if (message.source?.kind === 'user') service.admitHumanMessage(session.id, (message.content || []).filter((part: any) => part.type === 'text').map((part: any) => part.text).join('\n'), message.id)
+  })
   ctx.on('agent/inbox/claimed', ({ agent, message }: any) => {
     if (!agent?.session) return
-    if (consumeRestoredInput(agent.session.id, message?.id)) return
+    if (consumeRestoredInput(agent.session.id, message?.id, (message?.content || []).filter((part: any) => part.type === 'text').map((part: any) => part.text).join('\n'))) return
     if (message?.source?.kind === 'user-question-reply') { void readStatus(agent).catch(() => {}); return }
     if (message?.source?.kind !== 'user') return
     const session = rootSession(agent.session.id)

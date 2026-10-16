@@ -391,7 +391,7 @@ test('only registered exact workbench prompts are control messages, while real u
   assert.equal(f.service.read('main').brief.webDiligence, 'allowed')
   assert.equal(f.service.isControlMessage('main', 'trusted-control'), true)
   f.admit(text, 'trusted-control')
-  assert.equal(f.service.read('main').revision, before.revision)
+  assert.equal(f.service.read('main').revision, before.revision + 1, 'only the first control admission commits a durable replay receipt')
   f.admit(text, 'unregistered-pasted-content')
   assert.equal(f.service.read('main').latestMessageId, 'unregistered-pasted-content', 'matching a prefix or a previously consumed prompt does not suppress a new real message')
 })
@@ -1106,6 +1106,7 @@ async function useOfficialInbox(f: any, agent = f.main) {
   agent.session.append = (type: string, data: any) => {
     const event = { type, data, seq: sequence++, time: Date.now() }
     state = inboxProjectionDefinition.apply(state, event as any)
+    f.listeners.get('session/event')?.(agent.session, event)
     return event
   }
   const inbox = new ReactLoopInbox({ stateOf: () => state } as any, agent.session, { emit: (name: string, value: any) => f.listeners.get(name)?.({ ...value, agent }) } as any)
@@ -1144,7 +1145,8 @@ test('official inbox parking lets new human C run while old B waits, then resume
   assert.ok(restored.some(row => row.id === b.id))
   assert.ok(restored.some(row => row.source.kind === 'plugin:agent-pi-task-guide' && row.content[0].text.includes('最新明确要求与持久约束优先')))
   assert.equal(f.store.read('main').latestRequest, text)
-  assert.ok(!f.store.read('main').directives.some((row: any) => row.text === '必须完整计算所有道路工程量' && row.status === 'active'))
+  assert.ok(f.store.read('main').directives.some((row: any) => row.messageId === b.id && row.kind === 'request'), 'B was admitted at its real enqueue before pause')
+  assert.equal(f.store.read('main').directives.findLast((row: any) => row.kind === 'request' && row.status === 'active').text, text)
   const count = inbox.nextTurn.length
   await f.http('POST', input)
   assert.equal(inbox.nextTurn.length, count, 'replay never queues B again')
@@ -1207,4 +1209,21 @@ test('empty task controls never start purposeless execution and goal confirmatio
   assert.deepEqual(confirmed.value.task.briefProvenance.basis, task.briefProvenance.basis)
   assert.equal(confirmed.value.task.brief.basis.contract, '推测合同')
   assert.equal(f.sent.length, 0)
+})
+
+
+test('official enqueue admits human chronology durably and late claim replay cannot replace a newer correction', async t => {
+  const f = fixture(t), inbox = await useOfficialInbox(f)
+  const b: any = { id: 'chronology-B', role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: '改为先做路基工程量' }] }
+  const c: any = { id: 'chronology-C', role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: '改为只做排水工程量' }] }
+  inbox.splice('next-turn', 0, 0, [b])
+  assert.equal(f.store.read('main').latestMessageId, b.id, 'a genuine composer message is admitted before it is claimed')
+  inbox.splice('next-turn', Infinity, 0, [c])
+  assert.equal(f.store.read('main').latestMessageId, c.id)
+  const first = inbox.claim('next-turn', 1)
+  assert.equal(first[0].id, b.id)
+  assert.equal(f.store.read('main').latestRequest, c.content[0].text)
+  f.service.admitHumanMessage('main', b.content[0].text, b.id)
+  assert.equal(createTaskStore(f.cwd).read('main').latestMessageId, c.id, 'durable admission survives a late or repeated claim')
+  assert.throws(() => f.service.admitHumanMessage('main', 'forged different text', b.id), /同一操作编号|同一用户消息编号/)
 })
