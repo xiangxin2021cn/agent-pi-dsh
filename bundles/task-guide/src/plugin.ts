@@ -313,7 +313,7 @@ export function registerTaskGuide(ctx: any, defineTool: (options: any) => unknow
   const pausedHumanTurns = new Map<string, number>()
   ctx.on('agent/pre-step', ({ agent, messages, turn }: any, next: any) => {
     const task = store.read(rootSession(agent.session.id).id)
-    const human = messages?.some((message: any) => message.source?.kind === 'user' && !isControlMessage(agent.session.id, message.id) || message.source?.kind === 'user-question-reply')
+    const human = messages?.some((message: any) => message.source?.kind === 'user' && !isControlMessage(agent.session.id, message.id) || message.source?.kind === 'user-question-reply' || message.source?.kind === 'plugin:agent-pi-task-guide:user-action')
     if (human) pausedHumanTurns.set(agent.session.id, turn)
     if (task.control.paused && !human && pausedHumanTurns.get(agent.session.id) !== turn) return { kind: 'reject' }
     return next()

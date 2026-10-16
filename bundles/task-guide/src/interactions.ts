@@ -196,7 +196,7 @@ export function createTaskInteractions(ctx: any, hooks: any) {
       const genuine = kind === 'adjust_request' || kind === 'respond_finding' || kind === 'replan' && !!command.text?.trim()
       const finding = kind === 'respond_finding' ? task.findings.find(row => row.id === command.findingId) : undefined
       const text = genuine ? command.text.trim() : continuation?.draft || prompts[kind]!
-      const message = hooks.createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } })
+      const message = hooks.createUserMessage({ content: [{ type: 'text', text }], source: { kind: !genuine && ['replan', 'check_deliverables'].includes(kind) ? 'plugin:agent-pi-task-guide:user-action' : 'user' } })
       action.messageId = message.id
       finish(id, action)
       if (genuine) {

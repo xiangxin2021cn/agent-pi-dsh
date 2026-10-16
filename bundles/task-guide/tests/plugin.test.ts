@@ -1304,3 +1304,30 @@ test('switching an idle parent to native execution is blocked while its DSH chil
   assert.equal(calls.length, 0)
   assert.equal(f.sent.length, 0)
 })
+
+
+test('paused explicit replan and deliverable checks execute one manual turn without resuming automatic work', async t => {
+  for (const kind of ['replan', 'check_deliverables']) {
+    const f = nativeGate(t), inbox = await useOfficialInbox(f)
+    f.admit('核对道路工程量', `manual-original-${kind}`)
+    let runtimePaused = false, goalResumes = 0
+    f.services.set('longTaskRuntime', { pause(_cwd: string, _project: any, _id: string, paused: boolean) { runtimePaused = paused; return { phase: paused ? 'paused' : 'ready' } } })
+    f.services.set('goals', { get: () => ({ id: 'paused-goal', revision: 1, phase: 'paused' }), resume: () => goalResumes++ })
+    const paused = await f.http('POST', { action: 'user_action', operationId: `manual-pause-${kind}`, revision: f.store.read('main').revision, command: { kind: 'pause' } })
+    assert.equal(paused.value.interaction.dispatch, 'paused')
+    const action = await f.http('POST', { action: 'user_action', operationId: `manual-${kind}`, revision: paused.value.task.revision, command: { kind } })
+    assert.equal(action.value.interaction.dispatch, 'queued')
+    const messages = inbox.claim('next-turn', 1)
+    assert.equal(messages.length, 1)
+    const preStep = f.listeners.get('agent/pre-step')
+    assert.equal(preStep({ agent: f.main, messages, turn: 1 }, () => 'manual-executed'), 'manual-executed')
+    assert.equal(messages[0].source.kind, 'plugin:agent-pi-task-guide:user-action')
+    assert.equal(preStep({ agent: f.main, messages: [], turn: 1 }, () => 'manual-followup-step'), 'manual-followup-step')
+    assert.deepEqual(preStep({ agent: f.main, messages: [], turn: 2 }, () => 'automatic'), { kind: 'reject' })
+    assert.equal(f.store.read('main').latestRequest, '核对道路工程量')
+    assert.equal(f.store.read('main').latestMessageId, `manual-original-${kind}`)
+    assert.equal(f.store.read('main').control.paused, true)
+    assert.equal(runtimePaused, true)
+    assert.equal(goalResumes, 0)
+  }
+})
