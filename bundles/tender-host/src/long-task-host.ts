@@ -8,7 +8,7 @@ import { assertModuleEnabled } from './modules.ts'
 import {
   listLongTasks, longTaskStatus, markLongTaskDispatchIntent, markLongTaskDispatched, markLongTaskToolEffect, pauseLongTask,
   reconcileLongTask, recordLongTaskUsage, registerLongTaskChild, settleLongTaskAttempt,
-  settleLongTaskChild, startLongTask, submitLongTaskChild,
+  settleLongTaskChild, startLongTask, submitLongTaskChild, updateLongTaskLimits,
 } from './long-task-runtime.ts'
 
 /** Native events are receipts. The renderer observes this service and cannot invent them. */
@@ -177,6 +177,11 @@ export function registerLongTaskHost(ctx: any, createUserMessage: (input: any) =
         try { if (wasPaused) pauseLongTask(cwd, project, sessionId, true) } finally { busy.delete(sessionId) }
       }
     },
+    setLimits(cwd: string, project: any, sessionId: string, limits: unknown) {
+      project = freshProject(cwd, project)
+      bound(cwd, project, sessionId); assertModuleEnabled(project.module)
+      return updateLongTaskLimits(cwd, project, sessionId, limits)
+    },
     registerAssignments: assignments,
     async status(cwd: string, project: any, sessionId: string) {
       project = freshProject(cwd, project)
@@ -194,6 +199,7 @@ export function registerLongTaskHost(ctx: any, createUserMessage: (input: any) =
       try {
         const agent = getAgent(input.sessionId)
         if (!agent || agent.status !== 'idle' || agent.inbox?.hasPending) throw new Error('请先等待主会话空闲，再继续当前阶段。')
+        if (input.limits !== undefined) updateLongTaskLimits(cwd, project, input.sessionId, input.limits)
         const previous = await service.status(cwd, project, input.sessionId)
         if (previous.run?.paused) throw new Error('暂停状态仍有效，请先恢复本项目。')
         let status = previous

@@ -4726,7 +4726,7 @@ const SearchSettings = createSearchSettings(React)
         try { return sessionStorage.getItem('ap-wb-project') || '' } catch { return '' }
       })
       const [monitorState, setMonitorState] = React.useState(() => Object.assign({}, monitorEngine.state))
-      const [runtimeLimits, setRuntimeLimits] = React.useState({ maxRounds: 64, maxTokens: 500000, maxElapsedMs: 7200000, maxNoProgress: 3 })
+      const [runtimeLimitDraft, setRuntimeLimitDraft] = React.useState({ binding: '', edits: {} })
       const [, setSessionPulse] = React.useState(0)
       const [notice, setNotice] = React.useState('')
       const [lastCheck, setLastCheck] = React.useState(null)
@@ -4846,6 +4846,14 @@ const SearchSettings = createSearchSettings(React)
 
       const row = projects.find((item) => item.project.projectId === selectedId) || null
       const monitorParent = pinParentSessionId(props)
+      const runtimeBudgetBinding = JSON.stringify([cwd, row?.project?.module, row?.project?.projectId, monitorParent])
+      const nativeBudgetExecutor = nativeCodex.busy(monitorParent) || nativeCodex.enabled(monitorParent)
+      const runtimeBudgetRun = row?.project && monitorState.projectId === row.project.projectId
+        && monitorState.module === row.project.module && sameFilePath(monitorState.cwd, cwd)
+        && monitorState.parentSessionId === monitorParent ? monitorState.runtime?.run : null
+      const runtimeLimitEdits = runtimeLimitDraft.binding === runtimeBudgetBinding ? runtimeLimitDraft.edits : {}
+      const runtimeLimits = { maxRounds: 64, maxTokens: 500000, maxElapsedMs: 7200000, maxNoProgress: 3, ...runtimeBudgetRun?.limits, ...runtimeLimitEdits }
+      React.useEffect(() => { setRuntimeLimitDraft({ binding: runtimeBudgetBinding, edits: {} }) }, [runtimeBudgetBinding])
       React.useEffect(() => {
         // restore confirms the authoritative host binding before polling; browsing never rebinds.
         if (row?.project && monitorParent) void monitorEngine.restore({ cwd, module: row.project.module, projectId: row.project.projectId }, monitorParent)
@@ -4935,15 +4943,24 @@ const SearchSettings = createSearchSettings(React)
 
       const runStage = (project, stageId, action, submit, closeWorkbench) => {
         const parentId = pinParentSessionId(props)
+        const editedLimits = submit && !nativeBudgetExecutor && Object.keys(runtimeLimitEdits).length ? { ...runtimeLimitEdits } : undefined
         setBusy(action + ':' + (stageId || ''))
         setError('')
         setNotice('')
+        const clearSubmittedLimits = () => {
+          if (editedLimits) setRuntimeLimitDraft(previous => previous.binding === runtimeBudgetBinding && previous.edits === runtimeLimitEdits
+            ? { binding: runtimeBudgetBinding, edits: {} } : previous)
+        }
         const continueTask = () => {
           rememberWorkbenchBinding(parentId, { cwd, module: project.module, projectId: project.projectId })
           ensureUserRequirementWatcher(parentId)
-          return api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(parentId)}`, cwd).then(latest => performTaskUserAction({ sessionId: parentId, revision: latest.task.revision, operationId: crypto.randomUUID(), command: { kind: 'continue' } })).then(started => {
+          return api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(parentId)}`, cwd).then(latest => {
+            if (editedLimits && (latest.binding?.projectId !== project.projectId || latest.binding?.moduleId !== project.module)) throw new Error('执行预算需要绑定当前项目的 DSH 主会话；本次调整尚未提交。')
+            return performTaskUserAction({ sessionId: parentId, revision: latest.task.revision, operationId: crypto.randomUUID(), command: { kind: 'continue', ...(editedLimits ? { limits: editedLimits } : {}) } })
+          }).then(started => {
             if (['blocked', 'requires_executor', 'prepared'].includes(started.interaction?.dispatch)) setError(started.interaction.reason)
             else {
+              if (['queued', 'steered'].includes(started.interaction?.dispatch)) clearSubmittedLimits()
               setNotice(started.interaction?.reason || '执行器已接收当前阶段任务。')
               if (nativeCodex.enabled(parentId)) {
                 if (closeWorkbench !== false) props.openView?.('agent-pi-codex-main', '')
@@ -5013,9 +5030,10 @@ const SearchSettings = createSearchSettings(React)
           return api('/api/agent-pi/stage', cwd, {
             method: 'POST', body: JSON.stringify({ action: 'runtime_dispatch', module: project.module,
               projectId: project.projectId, sessionId: parentId,
-              stageId: result.dispatch?.stageId || stageId, key: result.dispatch?.key, limits: runtimeLimits }),
+              stageId: result.dispatch?.stageId || stageId, key: result.dispatch?.key, ...(editedLimits ? { limits: editedLimits } : {}) }),
           }).then((started) => {
             if (started.runtime) {
+              if (started.runtime.phase === 'waiting' && started.runtime.attempt?.messageId) clearSubmittedLimits()
               monitorEngine.restore({ cwd, module: project.module, projectId: project.projectId }, parentId)
               if (closeWorkbench !== false) focusMainConversation(props)
             }
@@ -5345,14 +5363,24 @@ const SearchSettings = createSearchSettings(React)
                   + ' · 收到成果仍须独立核验和用户验收。'),
               ) : null,
             h('details', { className: 'ap-sec' },
-              h('summary', null, '本次显式启动的执行预算'),
+              h('summary', null, 'DSH 自动阶段执行预算'),
               h('div', { className: 'ap-row', style: { flexWrap: 'wrap', gap: 12 } },
                 [['maxRounds', '父子模型轮次'], ['maxTokens', '父子 token'], ['maxElapsedMs', '累计执行分钟'], ['maxNoProgress', '连续无进展次数'], ['maxCostUsd', '金额上限 USD（可选）']].map(([key, label]) =>
-                  h('label', { key, className: 'ap-mm-field' }, label, h('input', { type: 'number', min: 1,
+                  h('label', { key, className: 'ap-mm-field' }, label, h('input', { type: 'number', min: key === 'maxCostUsd' ? 0.0001 : 1, step: key === 'maxCostUsd' ? 'any' : 1,
+                    disabled: !!busy || !monitorParent || nativeBudgetExecutor,
                     value: key === 'maxElapsedMs' ? runtimeLimits[key] / 60000 : runtimeLimits[key] ?? '',
-                    onChange: e => setRuntimeLimits(previous => { const next = { ...previous }; if (e.target.value === '' && key === 'maxCostUsd') delete next[key]; else next[key] = Number(e.target.value) * (key === 'maxElapsedMs' ? 60000 : 1); return next }) }))),
+                    onChange: e => {
+                      const value = e.target.value
+                      setRuntimeLimitDraft(previous => {
+                        const edits = { ...(previous.binding === runtimeBudgetBinding ? previous.edits : {}) }
+                        edits[key] = value === '' && key === 'maxCostUsd' ? null : Number(value) * (key === 'maxElapsedMs' ? 60000 : 1)
+                        return { binding: runtimeBudgetBinding, edits }
+                      })
+                    } }))),
               ),
-              h('p', { className: 'ap-sub' }, '续派使用已登记预算；调整值在下一次明确启动时提交。金额无法确定时显示未知，设置金额上限后需核对费用才能续派。'),
+              h('p', { className: 'ap-sub' }, nativeBudgetExecutor
+                ? '当前主执行器为原生 Codex；此处仅设置 DSH 自动阶段预算，控件已禁用。'
+                : '未编辑时保留已登记预算；仅将本次明确修改的值在下一次继续推进时提交。清空金额上限表示明确移除；费用未知时需核对后才能续派。'),
             ),
             h('div', { className: 'ap-dual-state' },
               h('article', { className: 'ap-state-card' },

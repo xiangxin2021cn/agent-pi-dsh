@@ -8,7 +8,7 @@ import { createAssistantMessage, createToolResultMessage, createUserMessage } fr
 import { createBusinessProject, updateBusinessProjectContract } from '../../../packages/business-projects/index.ts'
 import { bindProjectSession, dispatchFingerprint, loadBoard, saveBoard } from '../src/orchestration.ts'
 import { officialStageDir } from '../src/outputs.ts'
-import { longTaskStatus } from '../src/long-task-runtime.ts'
+import { longTaskStatus, recordLongTaskUsage, startLongTask } from '../src/long-task-runtime.ts'
 import { registerLongTaskHost } from '../src/long-task-host.ts'
 
 function fixture(t: any) {
@@ -270,4 +270,51 @@ test('a fresh valid offer cannot bypass an idle child without its settlement rec
   assert.equal(f.followups, 1)
   assert.equal(longTaskStatus(f.cwd, f.project, 'main').run!.attempts.length, 1)
   assert.equal(longTaskStatus(f.cwd, f.project, 'main').run!.paused, true)
+  f.host().pause(f.cwd, f.project, 'main', false)
+  await assert.rejects(() => f.host().dispatch(f.cwd, f.project, { sessionId: 'main', stageId: 'first', key: f.key, limits: { maxRounds: 100 } }), /尚未核对结算/)
+  assert.equal(f.followups, 1, 'the original runtime dispatch entry also respects unsettled child receipts')
+})
+
+
+test('explicit host limits apply to an already ready attempt without resetting its identity or usage', async t => {
+  const f = fixture(t); f.offer()
+  const ready = startLongTask(f.cwd, f.project, { sessionId: 'main', stageId: 'first', key: f.key, draft: 'Only the current stage output' })
+  const limits = { maxRounds: 5, maxTokens: 125, maxElapsedMs: 9000, maxNoProgress: 2, maxCostUsd: 0.75 }
+  const dispatched = await f.host().dispatch(f.cwd, f.project, { sessionId: 'main', stageId: 'first', key: f.key, limits })
+  assert.deepEqual(dispatched.run!.limits, limits)
+  assert.equal(dispatched.attempt!.id, ready.attempt!.id)
+  assert.deepEqual(dispatched.run!.usage, ready.run!.usage)
+  assert.equal(f.followups, 1)
+})
+
+test('explicit limit updates preserve all actual usage and no-progress receipts through exhausted recovery', async t => {
+  const f = fixture(t), limits = { maxRounds: 1, maxTokens: 15, maxElapsedMs: 10, maxNoProgress: 1, maxCostUsd: 0.2 }
+  await f.dispatch(limits); f.consume()
+  recordLongTaskUsage(f.cwd, f.project, { sessionId: 'main', sourceSessionId: 'main', eventId: 'actual-provider-usage', usage: { inputTokens: 10, outputTokens: 5 }, costUsd: 0.2, elapsedMs: 10 })
+  f.finish(); f.host().pause(f.cwd, f.project, 'main', true)
+  const before = longTaskStatus(f.cwd, f.project, 'main').run!
+  await assert.rejects(() => f.host().prepared(f.cwd, f.project, 'main', { stageId: 'first', key: f.key }), /预算/)
+  assert.deepEqual(longTaskStatus(f.cwd, f.project, 'main').run!.limits, limits, 'no explicit input increases a ceiling')
+  const updated = f.host().setLimits(f.cwd, f.project, 'main', { maxRounds: 3, maxTokens: 50, maxElapsedMs: 30, maxNoProgress: 2, maxCostUsd: 0.4 })
+  assert.deepEqual(updated.run!.usage, before.usage)
+  assert.deepEqual(updated.run!.usageReceipts, before.usageReceipts)
+  assert.equal(updated.run!.noProgress, before.noProgress)
+  assert.equal(updated.attempt!.id, before.currentAttemptId)
+  assert.equal(updated.run!.paused, true)
+  const recovered = await f.host().prepared(f.cwd, f.project, 'main', { stageId: 'first', key: f.key })
+  f.host().pause(f.cwd, f.project, 'main', false)
+  const resumed = await f.host().dispatch(f.cwd, f.project, { sessionId: 'main', ...recovered.dispatch })
+  assert.equal(resumed.attempt!.status, 'dispatched')
+  assert.deepEqual(resumed.run!.usage, before.usage)
+  assert.equal(resumed.run!.noProgress, before.noProgress)
+  assert.equal(f.followups, 2)
+})
+
+test('host budget updates reject foreign bindings and every unsupported or invalid budget value', t => {
+  const f = fixture(t)
+  const invalid = [null, [], 1, { unknown: 1 }, { maxRounds: 0 }, { maxRounds: null }, { maxTokens: -1 }, { maxElapsedMs: Infinity }, { maxNoProgress: NaN }, { maxRounds: 1.5 }, { maxTokens: 1.5 }, { maxElapsedMs: 1.5 }, { maxNoProgress: 1.5 }, { maxCostUsd: '1' }]
+  for (const limits of invalid) assert.throws(() => f.host().setLimits(f.cwd, f.project, 'main', limits), /无效执行预算/)
+  assert.throws(() => f.host().setLimits(f.cwd, f.project, 'foreign', { maxRounds: 5 }), /绑定/)
+  assert.equal(longTaskStatus(f.cwd, f.project, 'main').run, undefined)
+  assert.equal(f.followups, 0)
 })

@@ -16049,11 +16049,9 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				}
 			});
 			const [monitorState, setMonitorState] = react.useState(() => Object.assign({}, monitorEngine.state));
-			const [runtimeLimits, setRuntimeLimits] = react.useState({
-				maxRounds: 64,
-				maxTokens: 5e5,
-				maxElapsedMs: 72e5,
-				maxNoProgress: 3
+			const [runtimeLimitDraft, setRuntimeLimitDraft] = react.useState({
+				binding: "",
+				edits: {}
 			});
 			const [, setSessionPulse] = react.useState(0);
 			const [notice, setNotice] = react.useState("");
@@ -16183,6 +16181,29 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			]);
 			const row = projects.find((item) => item.project.projectId === selectedId) || null;
 			const monitorParent = pinParentSessionId(props);
+			const runtimeBudgetBinding = JSON.stringify([
+				cwd,
+				row?.project?.module,
+				row?.project?.projectId,
+				monitorParent
+			]);
+			const nativeBudgetExecutor = nativeCodex.busy(monitorParent) || nativeCodex.enabled(monitorParent);
+			const runtimeBudgetRun = row?.project && monitorState.projectId === row.project.projectId && monitorState.module === row.project.module && sameFilePath(monitorState.cwd, cwd) && monitorState.parentSessionId === monitorParent ? monitorState.runtime?.run : null;
+			const runtimeLimitEdits = runtimeLimitDraft.binding === runtimeBudgetBinding ? runtimeLimitDraft.edits : {};
+			const runtimeLimits = {
+				maxRounds: 64,
+				maxTokens: 5e5,
+				maxElapsedMs: 72e5,
+				maxNoProgress: 3,
+				...runtimeBudgetRun?.limits,
+				...runtimeLimitEdits
+			};
+			react.useEffect(() => {
+				setRuntimeLimitDraft({
+					binding: runtimeBudgetBinding,
+					edits: {}
+				});
+			}, [runtimeBudgetBinding]);
 			react.useEffect(() => {
 				if (row?.project && monitorParent) monitorEngine.restore({
 					cwd,
@@ -16271,9 +16292,16 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			};
 			const runStage = (project, stageId, action, submit, closeWorkbench) => {
 				const parentId = pinParentSessionId(props);
+				const editedLimits = submit && !nativeBudgetExecutor && Object.keys(runtimeLimitEdits).length ? { ...runtimeLimitEdits } : void 0;
 				setBusy(action + ":" + (stageId || ""));
 				setError("");
 				setNotice("");
+				const clearSubmittedLimits = () => {
+					if (editedLimits) setRuntimeLimitDraft((previous) => previous.binding === runtimeBudgetBinding && previous.edits === runtimeLimitEdits ? {
+						binding: runtimeBudgetBinding,
+						edits: {}
+					} : previous);
+				};
 				const continueTask = () => {
 					rememberWorkbenchBinding(parentId, {
 						cwd,
@@ -16281,18 +16309,25 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 						projectId: project.projectId
 					});
 					ensureUserRequirementWatcher(parentId);
-					return api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(parentId)}`, cwd).then((latest) => performTaskUserAction({
-						sessionId: parentId,
-						revision: latest.task.revision,
-						operationId: crypto.randomUUID(),
-						command: { kind: "continue" }
-					})).then((started) => {
+					return api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(parentId)}`, cwd).then((latest) => {
+						if (editedLimits && (latest.binding?.projectId !== project.projectId || latest.binding?.moduleId !== project.module)) throw new Error("执行预算需要绑定当前项目的 DSH 主会话；本次调整尚未提交。");
+						return performTaskUserAction({
+							sessionId: parentId,
+							revision: latest.task.revision,
+							operationId: crypto.randomUUID(),
+							command: {
+								kind: "continue",
+								...editedLimits ? { limits: editedLimits } : {}
+							}
+						});
+					}).then((started) => {
 						if ([
 							"blocked",
 							"requires_executor",
 							"prepared"
 						].includes(started.interaction?.dispatch)) setError(started.interaction.reason);
 						else {
+							if (["queued", "steered"].includes(started.interaction?.dispatch)) clearSubmittedLimits();
 							setNotice(started.interaction?.reason || "执行器已接收当前阶段任务。");
 							if (nativeCodex.enabled(parentId)) {
 								if (closeWorkbench !== false) props.openView?.("agent-pi-codex-main", "");
@@ -16379,10 +16414,11 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 							sessionId: parentId,
 							stageId: result.dispatch?.stageId || stageId,
 							key: result.dispatch?.key,
-							limits: runtimeLimits
+							...editedLimits ? { limits: editedLimits } : {}
 						})
 					}).then((started) => {
 						if (started.runtime) {
+							if (started.runtime.phase === "waiting" && started.runtime.attempt?.messageId) clearSubmittedLimits();
 							monitorEngine.restore({
 								cwd,
 								module: project.module,
@@ -16639,7 +16675,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					className: "ap-btn ghost",
 					disabled: !!busy,
 					onClick: () => capabilities.taskGuide ? runStage(project, item.currentStageId, "resume", true, false) : monitorEngine.unpause().then(() => refresh(true))
-				}, Icon("play", 14), workbenchText("恢复事务")) : null)), monitoringHere && monitorState.runtime?.run ? h("div", { className: "ap-state-body" }, h("p", null, "宿主执行：" + monitorState.runtime.phase + " · 父子模型轮次 " + monitorState.runtime.run.usage.rounds + "/" + monitorState.runtime.run.limits.maxRounds + " · token " + (monitorState.runtime.run.usage.unknownTokens ? "待核对（已知 " + monitorState.runtime.run.usage.tokens + "）" : monitorState.runtime.run.usage.tokens) + "/" + monitorState.runtime.run.limits.maxTokens + " · 累计执行 " + Math.round(monitorState.runtime.run.usage.elapsedMs / 6e4) + "/" + Math.round(monitorState.runtime.run.limits.maxElapsedMs / 6e4) + " 分钟 · 费用 " + (monitorState.runtime.cost === "unknown" ? "未知" : "$" + monitorState.runtime.cost.toFixed(4))), h("p", { className: "ap-sub" }, "连续无实际进展 " + monitorState.runtime.run.noProgress + "/" + monitorState.runtime.run.limits.maxNoProgress + " · 子任务收件 " + monitorState.runtime.run.submissions.filter((row) => row.status === "received").length + " · 失效/拒绝 " + monitorState.runtime.run.submissions.filter((row) => row.status !== "received").length + " · 收到成果仍须独立核验和用户验收。")) : null, h("details", { className: "ap-sec" }, h("summary", null, "本次显式启动的执行预算"), h("div", {
+				}, Icon("play", 14), workbenchText("恢复事务")) : null)), monitoringHere && monitorState.runtime?.run ? h("div", { className: "ap-state-body" }, h("p", null, "宿主执行：" + monitorState.runtime.phase + " · 父子模型轮次 " + monitorState.runtime.run.usage.rounds + "/" + monitorState.runtime.run.limits.maxRounds + " · token " + (monitorState.runtime.run.usage.unknownTokens ? "待核对（已知 " + monitorState.runtime.run.usage.tokens + "）" : monitorState.runtime.run.usage.tokens) + "/" + monitorState.runtime.run.limits.maxTokens + " · 累计执行 " + Math.round(monitorState.runtime.run.usage.elapsedMs / 6e4) + "/" + Math.round(monitorState.runtime.run.limits.maxElapsedMs / 6e4) + " 分钟 · 费用 " + (monitorState.runtime.cost === "unknown" ? "未知" : "$" + monitorState.runtime.cost.toFixed(4))), h("p", { className: "ap-sub" }, "连续无实际进展 " + monitorState.runtime.run.noProgress + "/" + monitorState.runtime.run.limits.maxNoProgress + " · 子任务收件 " + monitorState.runtime.run.submissions.filter((row) => row.status === "received").length + " · 失效/拒绝 " + monitorState.runtime.run.submissions.filter((row) => row.status !== "received").length + " · 收到成果仍须独立核验和用户验收。")) : null, h("details", { className: "ap-sec" }, h("summary", null, "DSH 自动阶段执行预算"), h("div", {
 					className: "ap-row",
 					style: {
 						flexWrap: "wrap",
@@ -16656,15 +16692,22 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					className: "ap-mm-field"
 				}, label, h("input", {
 					type: "number",
-					min: 1,
+					min: key === "maxCostUsd" ? 1e-4 : 1,
+					step: key === "maxCostUsd" ? "any" : 1,
+					disabled: !!busy || !monitorParent || nativeBudgetExecutor,
 					value: key === "maxElapsedMs" ? runtimeLimits[key] / 6e4 : runtimeLimits[key] ?? "",
-					onChange: (e) => setRuntimeLimits((previous) => {
-						const next = { ...previous };
-						if (e.target.value === "" && key === "maxCostUsd") delete next[key];
-						else next[key] = Number(e.target.value) * (key === "maxElapsedMs" ? 6e4 : 1);
-						return next;
-					})
-				})))), h("p", { className: "ap-sub" }, "续派使用已登记预算；调整值在下一次明确启动时提交。金额无法确定时显示未知，设置金额上限后需核对费用才能续派。")), h("div", { className: "ap-dual-state" }, h("article", { className: "ap-state-card" }, h("div", { className: "ap-state-card-hd" }, h("div", null, h("strong", null, workbenchText("执行态（主智能体回写）")), h("span", { className: "ap-sub" }, workbenchText("主对话负责理解、计划、派活与阻塞说明"))), h("span", { className: "ap-chip" + (execution && execution.status === "blocked" ? " warn" : execution ? " ok" : "") }, executionStatusLabel)), execution ? h("div", { className: "ap-state-body" }, h("p", null, h("b", null, workbenchText("目标：")), execution.objective || workbenchText("未登记")), h("p", null, h("b", null, workbenchText("当前批次：")), execution.currentBatch || workbenchText("未登记")), h("p", null, h("b", null, workbenchText("下一动作：")), execution.nextAction || workbenchText("未登记")), execution.plan && execution.plan.length ? h("div", { className: "ap-mini-list" }, execution.plan.slice(0, 5).map((plan) => h("div", { key: plan.id }, h("i", { className: "ap-mini-status " + plan.status }), h("span", null, plan.title)))) : h("p", { className: "ap-sub" }, workbenchText("尚未登记结构化计划。")), execution.assignments && execution.assignments.length ? h("p", { className: "ap-sub" }, workbenchText("子任务：") + execution.assignments.map((assignment) => assignment.title + " [" + assignment.status + "]").join(" · ")) : null, execution.blocker && execution.blocker.type !== "none" ? h("p", { className: "ap-state-alert" }, workbenchText("阻塞：") + (execution.blocker.reason || execution.blocker.needed || execution.blocker.type)) : null, h("p", { className: "ap-sub" }, "revision " + execution.revision + workbenchText(" · 心跳 ") + formatClock(execution.heartbeatAt))) : h("div", { className: "ap-state-empty" }, workbenchText("主智能体尚未回写执行计划。点「继续推进」后，主对话应先读取 status，再登记目标、批次、计划和下一动作。"))), h("article", { className: "ap-state-card" }, h("div", { className: "ap-state-card-hd" }, h("div", null, h("strong", null, workbenchText("事实态（系统核验）")), h("span", { className: "ap-sub" }, workbenchText("只核验磁盘成果、BOQ、证据、引用与人工门禁"))), h("span", { className: "ap-chip" + (activeControl && activeControl.alignment !== "aligned" ? " warn" : currentReality ? " ok" : "") }, alignmentLabel)), h("div", { className: "ap-state-body" }, h("p", null, h("b", null, workbenchText("当前阶段：")), currentReality ? stageLabel(stages.find((stage) => stage.id === currentReality.stageId), langState.lang) || currentReality.stageLabel : item.currentStageId || workbenchText("未开始")), currentReality ? h("p", null, workbenchText("任务 ") + currentReality.tasks.done + "/" + currentReality.tasks.total, currentReality.summary ? currentReality.summary.exists ? workbenchText(" · 总报告已就位") : workbenchText(" · 缺《") + currentReality.summary.fileName + (langState.lang === "zh" ? "》" : "”") : "", currentReality.boqInventory ? currentReality.boqInventory.ok ? workbenchText(" · BOQ 已核验") : workbenchText(" · BOQ 有缺口") : "", currentReality.citations && currentReality.citations.total ? workbenchText(" · 孤儿引用 ") + currentReality.citations.orphans : "") : h("p", { className: "ap-sub" }, workbenchText("尚未执行本轮事实核验；阶段状态为 ") + (currentSlice && currentSlice.status || "idle") + "。"), activeControl && activeControl.realityDigest ? h("p", { className: "ap-sub" }, workbenchText("事实版本 ") + activeControl.realityDigest) : null))), activeControl && activeControl.differences && activeControl.differences.length ? h("div", { className: "ap-alignment-alert" }, h("strong", null, workbenchText("认知差异")), h("ul", null, activeControl.differences.map((difference, index) => h("li", { key: index }, difference)))) : null, reality && reality.stages ? h("div", { className: "ap-check" }, h("div", { className: "ap-check-hd" }, workbenchText("系统事实明细"), h("span", { className: "ap-sub" }, formatClock(reality.generatedAt) + (reality.stages[0] && reality.stages[0].quietMinutes != null ? workbenchText(" · 最近产出 ") + reality.stages[0].quietMinutes + workbenchText(" 分钟前") : "")), h("button", {
+					onChange: (e) => {
+						const value = e.target.value;
+						setRuntimeLimitDraft((previous) => {
+							const edits = { ...previous.binding === runtimeBudgetBinding ? previous.edits : {} };
+							edits[key] = value === "" && key === "maxCostUsd" ? null : Number(value) * (key === "maxElapsedMs" ? 6e4 : 1);
+							return {
+								binding: runtimeBudgetBinding,
+								edits
+							};
+						});
+					}
+				})))), h("p", { className: "ap-sub" }, nativeBudgetExecutor ? "当前主执行器为原生 Codex；此处仅设置 DSH 自动阶段预算，控件已禁用。" : "未编辑时保留已登记预算；仅将本次明确修改的值在下一次继续推进时提交。清空金额上限表示明确移除；费用未知时需核对后才能续派。")), h("div", { className: "ap-dual-state" }, h("article", { className: "ap-state-card" }, h("div", { className: "ap-state-card-hd" }, h("div", null, h("strong", null, workbenchText("执行态（主智能体回写）")), h("span", { className: "ap-sub" }, workbenchText("主对话负责理解、计划、派活与阻塞说明"))), h("span", { className: "ap-chip" + (execution && execution.status === "blocked" ? " warn" : execution ? " ok" : "") }, executionStatusLabel)), execution ? h("div", { className: "ap-state-body" }, h("p", null, h("b", null, workbenchText("目标：")), execution.objective || workbenchText("未登记")), h("p", null, h("b", null, workbenchText("当前批次：")), execution.currentBatch || workbenchText("未登记")), h("p", null, h("b", null, workbenchText("下一动作：")), execution.nextAction || workbenchText("未登记")), execution.plan && execution.plan.length ? h("div", { className: "ap-mini-list" }, execution.plan.slice(0, 5).map((plan) => h("div", { key: plan.id }, h("i", { className: "ap-mini-status " + plan.status }), h("span", null, plan.title)))) : h("p", { className: "ap-sub" }, workbenchText("尚未登记结构化计划。")), execution.assignments && execution.assignments.length ? h("p", { className: "ap-sub" }, workbenchText("子任务：") + execution.assignments.map((assignment) => assignment.title + " [" + assignment.status + "]").join(" · ")) : null, execution.blocker && execution.blocker.type !== "none" ? h("p", { className: "ap-state-alert" }, workbenchText("阻塞：") + (execution.blocker.reason || execution.blocker.needed || execution.blocker.type)) : null, h("p", { className: "ap-sub" }, "revision " + execution.revision + workbenchText(" · 心跳 ") + formatClock(execution.heartbeatAt))) : h("div", { className: "ap-state-empty" }, workbenchText("主智能体尚未回写执行计划。点「继续推进」后，主对话应先读取 status，再登记目标、批次、计划和下一动作。"))), h("article", { className: "ap-state-card" }, h("div", { className: "ap-state-card-hd" }, h("div", null, h("strong", null, workbenchText("事实态（系统核验）")), h("span", { className: "ap-sub" }, workbenchText("只核验磁盘成果、BOQ、证据、引用与人工门禁"))), h("span", { className: "ap-chip" + (activeControl && activeControl.alignment !== "aligned" ? " warn" : currentReality ? " ok" : "") }, alignmentLabel)), h("div", { className: "ap-state-body" }, h("p", null, h("b", null, workbenchText("当前阶段：")), currentReality ? stageLabel(stages.find((stage) => stage.id === currentReality.stageId), langState.lang) || currentReality.stageLabel : item.currentStageId || workbenchText("未开始")), currentReality ? h("p", null, workbenchText("任务 ") + currentReality.tasks.done + "/" + currentReality.tasks.total, currentReality.summary ? currentReality.summary.exists ? workbenchText(" · 总报告已就位") : workbenchText(" · 缺《") + currentReality.summary.fileName + (langState.lang === "zh" ? "》" : "”") : "", currentReality.boqInventory ? currentReality.boqInventory.ok ? workbenchText(" · BOQ 已核验") : workbenchText(" · BOQ 有缺口") : "", currentReality.citations && currentReality.citations.total ? workbenchText(" · 孤儿引用 ") + currentReality.citations.orphans : "") : h("p", { className: "ap-sub" }, workbenchText("尚未执行本轮事实核验；阶段状态为 ") + (currentSlice && currentSlice.status || "idle") + "。"), activeControl && activeControl.realityDigest ? h("p", { className: "ap-sub" }, workbenchText("事实版本 ") + activeControl.realityDigest) : null))), activeControl && activeControl.differences && activeControl.differences.length ? h("div", { className: "ap-alignment-alert" }, h("strong", null, workbenchText("认知差异")), h("ul", null, activeControl.differences.map((difference, index) => h("li", { key: index }, difference)))) : null, reality && reality.stages ? h("div", { className: "ap-check" }, h("div", { className: "ap-check-hd" }, workbenchText("系统事实明细"), h("span", { className: "ap-sub" }, formatClock(reality.generatedAt) + (reality.stages[0] && reality.stages[0].quietMinutes != null ? workbenchText(" · 最近产出 ") + reality.stages[0].quietMinutes + workbenchText(" 分钟前") : "")), h("button", {
 					type: "button",
 					className: "ap-btn ghost",
 					onClick: () => setReality(null)

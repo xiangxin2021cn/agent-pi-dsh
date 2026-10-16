@@ -1252,7 +1252,8 @@ for (const [executor, exhausted] of [['dsh', false], ['codex', false], ['dsh', t
   if (exhausted) f.services.set('goals', { get: () => ({ id: 'bound-goal', revision: 4, phase: 'paused', roundsStarted: 4, maxGoalRounds: 4 }), resume: () => assert.fail('exhausted goal cannot be resumed') })
   const nativeCalls: any[] = []
   if (executor === 'codex') f.services.set('nativeTaskExecutor', { status: () => ({ active: false }), dispatch: async (input: any) => { nativeCalls.push(input); return { dispatch: 'requires_executor', reason: 'Waiting for Codex stage execution' } } })
-  const actual = await f.http('POST', { action: 'user_action', operationId: 'reuse-stage-offer', revision: current.revision, command: { kind: 'continue', executor } })
+  const limits = { maxRounds: 4, maxTokens: 90, maxElapsedMs: 1000, maxNoProgress: 2, maxCostUsd: 0.5 }
+  const actual = await f.http('POST', { action: 'user_action', operationId: 'reuse-stage-offer', revision: current.revision, command: { kind: 'continue', executor, ...(executor === 'dsh' ? { limits } : {}) } })
   if (exhausted) {
     assert.equal(actual.value.interaction.dispatch, 'blocked')
     assert.match(actual.value.interaction.reason, /预算已耗尽/)
@@ -1272,6 +1273,7 @@ for (const [executor, exhausted] of [['dsh', false], ['codex', false], ['dsh', t
   assert.equal(inbox.nextTurn[0].id, 'real-stage-native-message')
   assert.equal(inbox.nextTurn[0].content[0].text, first.draft)
   assert.equal(inbox.nextTurn.length, 1, 'shared continue does not add a second generic writer')
+  assert.deepEqual((await host.status(f.cwd, project, 'main')).run!.limits, limits, 'all five explicit workbench limits reach the actual DSH host')
   await assert.rejects(() => host.prepared(f.cwd, project, 'main', first.dispatch!), /等待|尚未|结算/)
 })
 
@@ -1330,4 +1332,77 @@ test('paused explicit replan and deliverable checks execute one manual turn with
     assert.equal(runtimePaused, true)
     assert.equal(goalResumes, 0)
   }
+})
+
+
+test('shared budget input rejects other actions and blocks native or unbound execution without dispatch', async t => {
+  for (const command of [{ kind: 'continue', executor: 'codex', limits: { maxRounds: 2 } }, { kind: 'continue', executor: 'dsh', limits: { maxRounds: 2 } }]) {
+    const f = command.executor === 'codex' ? nativeGate(t) : fixture(t)
+    f.admit('核验当前成果', `budget-${command.executor}`)
+    const calls: any[] = []
+    f.services.set('nativeTaskExecutor', { status: () => ({ active: false }), dispatch: (input: any) => calls.push(input) })
+    const actual = await f.http('POST', { action: 'user_action', operationId: `unsupported-budget-${command.executor}`, revision: f.store.read('main').revision, command })
+    assert.equal(actual.value.interaction.dispatch, 'blocked')
+    assert.match(actual.value.interaction.reason, /预算仅适用/)
+    assert.equal(f.sent.length, 0); assert.equal(calls.length, 0)
+  }
+  const f = fixture(t)
+  for (const command of [{ kind: 'replan', limits: { maxRounds: 2 } }, { kind: 'check_deliverables', limits: { maxRounds: 2 } }, { kind: 'continue', limits: { maxRounds: 1.5 } }, { kind: 'continue', limits: { maxCostUsd: 0 } }, { kind: 'continue', limits: { maxTokens: '10' } }]) {
+    const invalid = await f.http('POST', { action: 'user_action', operationId: 'invalid-budget', revision: 0, command })
+    assert.equal(invalid.status, 409)
+  }
+  assert.equal(f.sent.length, 0)
+})
+
+
+test('shared continuation changes only explicit run ceilings, preserves usage on replay, and never increases a goal budget', async t => {
+  const { registerLongTaskHost } = await import('../../tender-host/src/long-task-host.ts')
+  const { longTaskStatus, recordLongTaskUsage } = await import('../../tender-host/src/long-task-runtime.ts')
+  const f = fixture(t), inbox = await useOfficialInbox(f)
+  f.admit('按照当前专业阶段核验工程资料', 'budget-stage-purpose')
+  const workflow = { id: 'budget-stage', module: 'delivery', label: 'Inspection', labelZh: '检查', stages: [{ id: 'first', label: 'First', labelZh: '当前专业检查', hintZh: '', prompt: 'Inspect actual current engineering files', skillSlugs: [], consumes: [] }] }
+  const project = createBusinessProject({ workspaceRootPath: f.cwd, rootPath: f.cwd, createDirectory: false, module: workflow.module, projectId: 'budget-stage', name: 'Budget stage', workflowId: workflow.id, workflowSnapshot: workflow })
+  bindProjectSession(f.cwd, project, 'main', 'first')
+  saveBoard(f.cwd, { schemaVersion: 2, projectId: project.projectId, module: project.module, currentStageId: 'first', stages: { first: { stageId: 'first', status: 'running', tasks: [{ id: 'inspect', title: 'Check current files', status: 'queued' }], updatedAt: new Date().toISOString() } }, updatedAt: new Date().toISOString() })
+  f.services.get('sessions').flush = async () => true
+  f.ctx.effect = (install: any) => t.after(install())
+  let messageIndex = 0
+  const host = registerLongTaskHost(f.ctx, input => ({ ...input, role: 'user', id: `budget-native-${++messageIndex}` }))
+  const first = resumeUnfinished(f.cwd, project, [], { sessionId: 'main' })
+  host.offer(f.cwd, project, 'main', first as any)
+  const action = (operationId: string, limits?: any) => ({ action: 'user_action', operationId, revision: f.store.read('main').revision, command: { kind: 'continue', executor: 'dsh', ...(limits === undefined ? {} : { limits }) } })
+  await f.call('status')
+  const initialLimits = { maxRounds: 1, maxTokens: 15, maxElapsedMs: 10, maxNoProgress: 1, maxCostUsd: 0.2 }
+  const started = await f.http('POST', action('budget-first', initialLimits))
+  assert.equal(started.status, 200, JSON.stringify(started.value))
+  assert.equal(started.value.interaction.dispatch, 'queued', started.value.interaction.reason)
+  assert.deepEqual(longTaskStatus(f.cwd, project, 'main').run!.limits, initialLimits)
+  f.main.session.append('turn/start', { turn: 1 }); inbox.claim('next-turn', 1)
+  recordLongTaskUsage(f.cwd, project, { sessionId: 'main', sourceSessionId: 'main', eventId: 'actual-usage', usage: { inputTokens: 10, outputTokens: 5 }, costUsd: 0.2, elapsedMs: 10 })
+  f.main.session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+  const paused = await f.http('POST', { action: 'user_action', operationId: 'budget-pause', revision: f.store.read('main').revision, command: { kind: 'pause' } })
+  assert.equal(paused.value.interaction.dispatch, 'paused')
+  const before = longTaskStatus(f.cwd, project, 'main').run!
+  const noChange = await f.http('POST', action('budget-without-new-ceilings'))
+  assert.equal(noChange.value.interaction.dispatch, 'blocked')
+  assert.deepEqual(longTaskStatus(f.cwd, project, 'main').run!.limits, initialLimits)
+  const input = action('budget-explicit-increase', { maxRounds: 3, maxTokens: 50, maxElapsedMs: 30, maxNoProgress: 2, maxCostUsd: null })
+  const continued = await f.http('POST', input)
+  assert.equal(continued.value.interaction.dispatch, 'queued', continued.value.interaction.reason)
+  let after = longTaskStatus(f.cwd, project, 'main').run!
+  assert.deepEqual(after.usage, before.usage); assert.deepEqual(after.usageReceipts, before.usageReceipts)
+  assert.equal(after.noProgress, before.noProgress)
+  assert.equal(after.limits.maxCostUsd, undefined, 'explicit null removes only the optional money ceiling')
+  assert.equal(after.attempts.length, 2); assert.equal(inbox.nextTurn.length, 1)
+  host.setLimits(f.cwd, project, 'main', { maxTokens: 100 })
+  await f.http('POST', input)
+  after = longTaskStatus(f.cwd, project, 'main').run!
+  assert.equal(after.limits.maxTokens, 100, 'operation replay never reapplies an old budget patch')
+  assert.deepEqual(after.usage, before.usage); assert.equal(after.attempts.length, 2)
+  const goal = { id: 'unchanged-goal', revision: 4, phase: 'paused', roundsStarted: 4, maxGoalRounds: 4 }
+  f.services.set('goals', { get: () => goal, resume: () => assert.fail('explicit run budget cannot grant more goal rounds') })
+  const denied = await f.http('POST', action('budget-cannot-increase-goal', { maxRounds: 100 }))
+  assert.equal(denied.value.interaction.dispatch, 'blocked')
+  assert.match(denied.value.interaction.reason, /目标.*预算已耗尽/)
+  assert.equal(goal.maxGoalRounds, 4); assert.equal(inbox.nextTurn.length, 1)
 })

@@ -10,6 +10,7 @@ import { assertTaskSyncComplete, listUserRequirements } from './user-requirement
 import { workspacePaths } from './workspace.ts'
 
 export interface LongTaskLimits { maxRounds: number; maxTokens: number; maxElapsedMs: number; maxNoProgress: number; maxCostUsd?: number }
+export type LongTaskLimitPatch = Partial<Omit<LongTaskLimits, 'maxCostUsd'>> & { maxCostUsd?: number | null }
 export interface LongTaskUsage { rounds: number; tokens: number; elapsedMs: number; knownCostUsd: number; unknownTokens: boolean; unknownCost: boolean }
 export interface LongTaskAttempt {
   id: string; sessionId: string; stageId: string; key: string; inputFingerprint: string; realityDigest: string; draft: string
@@ -109,8 +110,28 @@ function makeAttempt(cwd: string, project: BusinessProjectRecord, run: LongTaskR
   const inputFingerprint = longTaskInputFingerprint(cwd, project, run.stageId)
   return { id: `attempt-${hash([run.sessionId, run.stageId, inputFingerprint, key, run.attempts.length]).slice(0, 24)}`, sessionId: run.sessionId, stageId: run.stageId, key, inputFingerprint, realityDigest: realityDigest(cwd, project, run.stageId), draft, status: 'prepared', createdAt: new Date().toISOString(), children: {} }
 }
+export function validateLongTaskLimits(limits: unknown): asserts limits is LongTaskLimitPatch {
+  if (!limits || typeof limits !== 'object' || Array.isArray(limits)) throw new Error('无效执行预算。')
+  for (const [key, value] of Object.entries(limits)) {
+    if (key === 'maxCostUsd' && value === null) continue
+    if (!['maxRounds', 'maxTokens', 'maxElapsedMs', 'maxNoProgress', 'maxCostUsd'].includes(key) || typeof value !== 'number' || !Number.isFinite(value) || value <= 0 || key !== 'maxCostUsd' && !Number.isInteger(value)) throw new Error(`无效执行预算：${key}`)
+  }
+}
+function applyLimits(limits: LongTaskLimits, patch: LongTaskLimitPatch): LongTaskLimits {
+  const { maxCostUsd, ...other } = patch, result = { ...limits, ...other }
+  if (maxCostUsd === null) delete result.maxCostUsd
+  else if (maxCostUsd !== undefined) result.maxCostUsd = maxCostUsd
+  return result
+}
+/** Explicit user limits replace ceilings only; actual usage and attempt receipts remain intact. */
+export function updateLongTaskLimits(cwd: string, project: BusinessProjectRecord, sessionId: string, limits: unknown): LongTaskStatus {
+  assertBound(cwd, project, sessionId); validateLongTaskLimits(limits)
+  const ledger = load(cwd, project), run = ledger.runs[sessionId]
+  if (run) { run.limits = applyLimits(run.limits, limits); save(cwd, project, ledger) }
+  return longTaskStatus(cwd, project, sessionId)
+}
 /** Host calls this only for an explicit user stage dispatch. It does not authorize a later stage. */
-export function startLongTask(cwd: string, project: BusinessProjectRecord, input: { sessionId: string; stageId: string; key: string; draft: string; limits?: Partial<LongTaskLimits>; fromSeq?: number }): LongTaskStatus {
+export function startLongTask(cwd: string, project: BusinessProjectRecord, input: { sessionId: string; stageId: string; key: string; draft: string; limits?: LongTaskLimitPatch; fromSeq?: number }): LongTaskStatus {
   assertBound(cwd, project, input.sessionId)
   assertTaskSyncComplete(cwd, project)
   const board = loadBoard(cwd, project.projectId, project.module)
@@ -124,22 +145,22 @@ export function startLongTask(cwd: string, project: BusinessProjectRecord, input
   const availability = stageAvailability(cwd, project, board)[input.stageId]
   if (!availability?.canPrepare || availability.waitingHuman) throw new Error(availability?.reason || '本阶段等待用户决定，不能自动派发。')
   if (input.limits) {
-    for (const [key, value] of Object.entries(input.limits)) if (!Number.isFinite(value) || value! <= 0) throw new Error(`无效执行预算：${key}`)
-    if (run) { run.limits = { ...run.limits, ...input.limits }; save(cwd, project, ledger) }
+    validateLongTaskLimits(input.limits)
+    if (run) { run.limits = applyLimits(run.limits, input.limits); save(cwd, project, ledger) }
   }
   if (run && run.stageId === input.stageId) {
     const previous = current(run)
     if (previous.key === input.key && previous.inputFingerprint === longTaskInputFingerprint(cwd, project, input.stageId) && previous.status !== 'settled' && previous.status !== 'stale') return longTaskStatus(cwd, project, input.sessionId)
-    if (previous.status === 'dispatching' || previous.status === 'dispatched' || previous.externalEffectsUnknown || previous.pendingToolCalls?.length) throw new Error('上一尝试尚未核对结算，不得重复执行可能已有副作用的动作。')
+    if (previous.status === 'dispatching' || previous.status === 'dispatched' || previous.externalEffectsUnknown || previous.pendingToolCalls?.length || Object.values(previous.children).some(child => !child.settledAt)) throw new Error('上一尝试尚未核对结算，不得重复执行可能已有副作用的动作。')
   } else if (run) {
-    if (current(run).status === 'dispatching' || current(run).status === 'dispatched' || current(run).externalEffectsUnknown || current(run).pendingToolCalls?.length) throw new Error('上一阶段执行结果尚未核对，不能开始另一长期尝试。')
+    if (current(run).status === 'dispatching' || current(run).status === 'dispatched' || current(run).externalEffectsUnknown || current(run).pendingToolCalls?.length || Object.values(current(run).children).some(child => !child.settledAt)) throw new Error('上一阶段执行结果尚未核对，不能开始另一长期尝试。')
     run.stageId = input.stageId; run.noProgress = 0
   } else {
     run = { sessionId: input.sessionId, stageId: input.stageId, paused: false, createdAt: new Date().toISOString(), ...(input.fromSeq === undefined ? {} : { fromSeq: input.fromSeq }), limits: { ...DEFAULT_LIMITS }, usage: { rounds: 0, tokens: 0, elapsedMs: 0, knownCostUsd: 0, unknownTokens: false, unknownCost: false }, noProgress: 0, currentAttemptId: '', attempts: [], submissions: [], usageReceipts: [] }
     ledger.runs[input.sessionId] = run
   }
   if (input.limits) {
-    run.limits = { ...run.limits, ...input.limits }
+    run.limits = applyLimits(run.limits, input.limits)
   }
   const reason = budgetReason(run)
   if (reason) return result(run, 'blocked', reason)

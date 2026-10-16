@@ -2,6 +2,7 @@ import { resolve } from 'node:path'
 import type { ParkedTaskInput, ProfessionalTask, TaskInteraction, TaskInteractionKind } from '../../../packages/professional-tasks/types.ts'
 import { projectForBoundSession, resumeUnfinished } from '../../tender-host/src/orchestration.ts'
 import { getKbTaskSlugs } from '../../tender-host/src/kb.ts'
+import { validateLongTaskLimits } from '../../tender-host/src/long-task-runtime.ts'
 
 const kinds = new Set<TaskInteractionKind>(['confirm_understanding', 'adjust_request', 'replan', 'continue', 'pause', 'respond_finding', 'check_deliverables'])
 const prompts: Partial<Record<TaskInteractionKind, string>> = {
@@ -109,6 +110,10 @@ export function createTaskInteractions(ctx: any, hooks: any) {
     const command = input.command || {}, kind = command.kind as TaskInteractionKind
     if (!kinds.has(kind) || (command.executor !== undefined && !['dsh', 'codex'].includes(command.executor))) throw new Error('未知任务交互操作或执行器。')
     if ((['adjust_request', 'respond_finding'].includes(kind) || kind === 'replan' && command.text !== undefined) && (typeof command.text !== 'string' || !command.text.trim() || command.text.length > 100_000)) throw new Error('请填写本次希望调整或补充的内容。')
+    if (command.limits !== undefined) {
+      if (kind !== 'continue') throw new Error('执行预算仅可通过已绑定工作台的 DSH 继续操作调整。')
+      validateLongTaskLimits(command.limits)
+    }
     const payload = { command }, key = `task-user:${input.operationId}`
     const replay = hooks.store.replay(id, key, payload, 'host')
     if (replay) return result(id, replay.control.lastAction?.operationId === input.operationId ? replay.control.lastAction : { operationId: input.operationId, kind, dispatch: 'recorded', reason: '该操作已经登记，不会重复派发。', at: replay.updatedAt })
@@ -127,6 +132,7 @@ export function createTaskInteractions(ctx: any, hooks: any) {
       const useNative = nativeState?.active || nativeState?.pending || command.executor === 'codex'
       const noGoal = !task.latestRequest.trim() && !task.brief.objective.trim() && !task.binding && !task.control.parked?.some(row => row.message.source.kind === 'user' && row.message.content.some((part: any) => part.type === 'text' && part.text?.trim()))
       const blocked = (kind === 'continue' || kind === 'replan' && !command.text?.trim()) && noGoal ? '请先在主对话说明任务目标，再继续或重新规划。'
+        : command.limits !== undefined && (useNative || !task.binding) ? '本预算仅适用于已绑定工作台的 DSH 执行；Codex 不支持此预算，未派发任务。'
         : !['pause', 'confirm_understanding'].includes(kind) && useNative && !nativeState?.active && (status.interactionState.running || agent.inbox?.hasPending) ? 'DSH 正在执行或有待处理消息，请先停止或等待，再切换到 Codex。'
         : kind === 'continue' && task.pendingProjectSync ? '最新任务要求尚未同步，暂不能继续。'
           : kind === 'continue' && status.binding?.waitingHuman ? '当前阶段正在等待用户明确审批，请先查看并决定当前阶段。'
@@ -163,6 +169,11 @@ export function createTaskInteractions(ctx: any, hooks: any) {
         if (goal?.phase === 'active') goals.pause(agent, { id: goal.id, revision: goal.revision })
       }
       if (kind === 'continue') {
+        if (command.limits !== undefined) {
+          const runtimeService = ctx.get('longTaskRuntime'), bound = project(task)
+          if (!bound || !runtimeService?.setLimits) throw new Error('本项目的执行预算入口不可用，未派发任务。')
+          runtimeService.setLimits(task.binding!.cwd!, bound, id, command.limits)
+        }
         const runtime = runtimePause(task, false)
         if (useNative) runtimePause(task, true)
         if (runtime && ['blocked', 'needs_review'].includes(runtime.phase)) throw new Error(runtime.reason)
@@ -185,7 +196,7 @@ export function createTaskInteractions(ctx: any, hooks: any) {
             const runtimeService = ctx.get('longTaskRuntime')
             runtimeService.offer(task.binding.cwd!, bound, id, continuation)
             finish(id, action, false)
-            const resumed = await runtimeService.dispatch(task.binding.cwd!, bound, { sessionId: id, ...continuation.dispatch })
+            const resumed = await runtimeService.dispatch(task.binding.cwd!, bound, { sessionId: id, ...continuation.dispatch, ...(command.limits === undefined ? {} : { limits: command.limits }) })
             action = { ...action, dispatch: resumed.phase === 'waiting' ? 'queued' : resumed.phase === 'ready' ? 'queued' : 'blocked', reason: resumed.reason, messageId: resumed.attempt?.messageId }; finish(id, action, action.dispatch === 'blocked' ? undefined : false); return result(id, action)
           }
         }
