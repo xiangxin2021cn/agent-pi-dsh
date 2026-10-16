@@ -27,7 +27,7 @@ import {
 } from './univer-profile-migration.mjs'
 import { patchUniverForDshAlpha1 } from './patch-univer-alpha1.mjs'
 import { syncManagedUniverSkills } from './univer-skill-sync.mjs'
-import { prepareKnownPluginCompatibility, inspectKnownPluginCompatibility, CLAUDE_CODE_PACKAGE, DSH_EMAIL_PACKAGE, VOICE_INPUT_PACKAGE, NATIVE_CUA_PACKAGE } from '../vendor/dshmarket/compatibility.js'
+import { prepareKnownPluginCompatibility, inspectKnownPluginCompatibility, CLAUDE_CODE_PACKAGE, DSH_EMAIL_PACKAGE, VOICE_INPUT_PACKAGE, NATIVE_CUA_PACKAGE, MACOS_CUA_PACKAGE } from '../vendor/dshmarket/compatibility.js'
 import { PRODUCT_PRESETS, shippedPresetPlugins, writePresetBundle } from './preset-bundle-017.mjs'
 import { writeMacOSIntelCapabilities } from './macos-intel-capabilities.mjs'
 
@@ -244,7 +244,7 @@ function isRetiredPluginName(name) {
  * strict bundle loader sees it. Unknown majors stay quarantined safely.
  */
 function isRuntimeIncompatibleBundle(name) {
-  if (name === DSH_EMAIL_PACKAGE || name === CLAUDE_CODE_PACKAGE || name === VOICE_INPUT_PACKAGE || name === NATIVE_CUA_PACKAGE) {
+  if (name === DSH_EMAIL_PACKAGE || name === CLAUDE_CODE_PACKAGE || name === VOICE_INPUT_PACKAGE || name === NATIVE_CUA_PACKAGE || name === MACOS_CUA_PACKAGE) {
     const status = inspectKnownPluginCompatibility(profileDir, name)
     if (status.status === 'incompatible') process.stderr.write(`${status.reason}\n`)
     return status.status === 'incompatible'

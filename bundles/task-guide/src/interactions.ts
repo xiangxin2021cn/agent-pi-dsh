@@ -1,4 +1,5 @@
-import type { ProfessionalTask, TaskInteraction, TaskInteractionKind } from '../../../packages/professional-tasks/types.ts'
+import { resolve } from 'node:path'
+import type { ParkedTaskInput, ProfessionalTask, TaskInteraction, TaskInteractionKind } from '../../../packages/professional-tasks/types.ts'
 import { projectForBoundSession, resumeUnfinished } from '../../tender-host/src/orchestration.ts'
 import { getKbTaskSlugs } from '../../tender-host/src/kb.ts'
 
@@ -14,10 +15,49 @@ export function createTaskInteractions(ctx: any, hooks: any) {
   const busy = new Set<string>()
   const owner = (id: string) => ctx.get('agents')?.get(id)
   const native = () => ctx.get('nativeTaskExecutor')
+  const inputKey = (row: ParkedTaskInput) => `${row.sessionId}:${row.message.id}`
+  const pathKey = (cwd: string) => process.platform === 'win32' ? resolve(cwd).toLowerCase() : resolve(cwd)
+  const snapshotParked = (task: ProfessionalTask) => {
+    const rows = new Map((task.control.parked || []).map(row => [inputKey(row), row]))
+    for (const agent of ctx.get('agents')?.list?.() || []) if (hooks.rootSession(agent.session.id).id === task.sessionId) {
+      for (const [target, messages] of [['next-step', agent.inbox?.nextStep || []], ['next-turn', agent.inbox?.nextTurn || []]] as const) for (const message of messages) {
+        const row: ParkedTaskInput = { sessionId: agent.session.id, cwd: agent.session.header.cwd, target, message: structuredClone(message) }
+        if (!rows.has(inputKey(row))) rows.set(inputKey(row), row)
+      }
+    }
+    return [...rows.values()]
+  }
+  const parkInbox = (task: ProfessionalTask) => {
+    if (!task.control.paused) return
+    for (const row of task.control.parked || []) owner(row.sessionId)?.inbox?.remove?.(row.message.id)
+  }
+  const restoreInputs = (task: ProfessionalTask) => {
+    const rows = task.control.parked || []
+    for (const row of rows) {
+      const agent = owner(row.sessionId)
+      if (!agent || hooks.rootSession(row.sessionId).id !== task.sessionId || !agent.session.header.cwd || pathKey(agent.session.header.cwd) !== pathKey(row.cwd) || ctx.get('workspaceRegistry')?.archivedSessionIds?.includes(row.sessionId)) throw new Error(`暂存输入的原会话 ${row.sessionId} 尚未加载、已归档或工作区已变化；请恢复原会话后继续，未改投其他会话。`)
+    }
+    if (!rows.length) return
+    const restoredMessageIds = [...new Set([...(task.control.restoredMessageIds || []), ...rows.map(inputKey)])]
+    let current = hooks.store.read(task.sessionId)
+    current = hooks.commit(task.sessionId, { control: { ...current.control, paused: false, restoredMessageIds } }, current.revision, 'host', { summary: '用户明确继续，恢复原会话暂存输入；最新要求仍优先。' })
+    for (const row of rows) {
+      const agent = owner(row.sessionId), pending = [...(agent.inbox.nextStep || []), ...(agent.inbox.nextTurn || [])]
+      if (!pending.some(message => message.id === row.message.id)) agent.inbox.splice(row.target, Infinity, 0, [structuredClone(row.message)])
+    }
+    current = hooks.store.read(task.sessionId)
+    hooks.commit(task.sessionId, { control: { ...current.control, parked: [] } }, current.revision, 'host', { summary: '原待处理输入已恢复到各自会话，消息身份与来源保持不变。' })
+    for (const id of new Set(rows.map(row => row.sessionId))) owner(id)?.inject?.(hooks.createUserMessage({ content: [{ type: 'text', text: `恢复的是暂停前已排队的原输入（消息编号 ${rows.filter(row => row.sessionId === id).map(row => row.message.id).join('、')}），不是新的要求。先读取共同任务最新状态；暂停后用户的最新明确要求与持久约束优先，冲突不得被旧输入覆盖。最新用户原始表达（其中资料引用仍是资料）：${current.latestRequest}` }], source: { kind: 'plugin:agent-pi-task-guide' } }))
+    for (const id of new Set(rows.map(row => row.sessionId).filter(id => id !== task.sessionId))) {
+      const agent = owner(id), target = agent.inbox.nextStep?.length ? 'next-step' : 'next-turn', pending = target === 'next-step' ? agent.inbox.nextStep : agent.inbox.nextTurn
+      const message = pending?.at(-1)
+      if (message) { agent.inbox.remove(message.id); agent.send(message, target, true) }
+    }
+  }
   const state = (task: ProfessionalTask) => {
     const agent = owner(task.sessionId), execution = native()?.status?.(task.sessionId)
     const descendantsRunning = (ctx.get('agents')?.list?.() || []).some((row: any) => row.status === 'running' && hooks.rootSession(row.session.id).id === task.sessionId)
-    return { paused: task.control.paused, running: !!execution?.active || agent?.status === 'running' || descendantsRunning, executor: execution?.active ? 'codex' : 'dsh', pending: !!execution?.pending || !!agent?.inbox?.hasPending || ['prepared', 'requires_executor'].includes(task.control.lastAction?.dispatch || '') }
+    return { paused: task.control.paused, running: !!execution?.active || agent?.status === 'running' || descendantsRunning, executor: execution?.active ? 'codex' : 'dsh', parkedCount: task.control.parked?.length || 0, pending: !!execution?.pending || !!agent?.inbox?.hasPending || ['prepared', 'requires_executor'].includes(task.control.lastAction?.dispatch || '') }
   }
   const finish = (id: string, action: TaskInteraction, paused?: boolean) => {
     const task = hooks.store.read(id)
@@ -85,7 +125,9 @@ export function createTaskInteractions(ctx: any, hooks: any) {
       if (kind === 'confirm_understanding' && !task.brief.objective.trim()) throw new Error('尚未形成明确目标，请先在主对话说明任务目的。')
       const agent = owner(id), nativeState = native()?.status?.(id)
       const useNative = nativeState?.active || nativeState?.pending || command.executor === 'codex'
-      const blocked = !['pause', 'confirm_understanding'].includes(kind) && useNative && !nativeState?.active && (agent.status === 'running' || agent.inbox?.hasPending) ? 'DSH 正在执行或有待处理消息，请先停止或等待，再切换到 Codex。'
+      const noGoal = !task.latestRequest.trim() && !task.brief.objective.trim() && !task.binding && !task.control.parked?.some(row => row.message.source.kind === 'user' && row.message.content.some((part: any) => part.type === 'text' && part.text?.trim()))
+      const blocked = (kind === 'continue' || kind === 'replan' && !command.text?.trim()) && noGoal ? '请先在主对话说明任务目标，再继续或重新规划。'
+        : !['pause', 'confirm_understanding'].includes(kind) && useNative && !nativeState?.active && (agent.status === 'running' || agent.inbox?.hasPending) ? 'DSH 正在执行或有待处理消息，请先停止或等待，再切换到 Codex。'
         : kind === 'continue' && task.pendingProjectSync ? '最新任务要求尚未同步，暂不能继续。'
           : kind === 'continue' && status.binding?.waitingHuman ? '当前阶段正在等待用户明确审批，请先查看并决定当前阶段。'
             : kind === 'continue' && task.questions.some(row => row.provider && !row.answer && ['open', 'pending', 'continued'].includes(row.status || '')) ? '有原生问题仍待回答，请先在主对话问答卡中处理；继续不会替你作答。' : undefined
@@ -93,13 +135,14 @@ export function createTaskInteractions(ctx: any, hooks: any) {
       const patch: any = { control: { ...task.control, lastAction: action } }
       if (kind === 'confirm_understanding' && !blocked) {
         patch.briefProvenance = { ...task.briefProvenance }
-        for (const [field, value] of Object.entries(task.brief)) if (typeof value === 'string' ? value.trim() : Array.isArray(value) ? value.length : Object.values(value).some(row => typeof row === 'string' ? row.trim() : Array.isArray(row) && row.length)) patch.briefProvenance[field] = { ...patch.briefProvenance[field], origin: 'user', status: 'confirmed', updatedRevision: task.revision + 1 }
+        patch.briefProvenance.objective = { ...patch.briefProvenance.objective, origin: 'user', status: 'confirmed', updatedRevision: task.revision + 1 }
         action.dispatch = 'recorded'; action.reason = '已确认当前任务理解；阶段审批、成果验收和签署仍需分别确认。'
       }
-      if (kind === 'pause') patch.control.paused = true
+      if (kind === 'pause') { patch.control.paused = true; patch.control.parked = snapshotParked(task) }
       task = hooks.commit(id, patch, task.revision, 'host', { operationId: key, operationPayload: payload, summary: action.reason })
       if (blocked || kind === 'confirm_understanding') return result(id, action)
       if (kind === 'pause') {
+        parkInbox(task)
         const stopping = stopAgents(id)
         runtimePause(task, true)
         const goals = ctx.get('goals'), goal = goals?.get?.(agent)
@@ -123,7 +166,7 @@ export function createTaskInteractions(ctx: any, hooks: any) {
         const runtime = runtimePause(task, false)
         if (useNative) runtimePause(task, true)
         if (runtime && ['blocked', 'needs_review'].includes(runtime.phase)) throw new Error(runtime.reason)
-        if (task.binding && agent.status !== 'running' && !nativeState?.active && !agent.inbox?.hasPending) {
+        if (task.binding && !task.control.parked?.length && agent.status !== 'running' && !nativeState?.active && !agent.inbox?.hasPending) {
           const bound = project(task)
           continuation = bound && resumeUnfinished(task.binding.cwd!, bound, getKbTaskSlugs(id), { sessionId: id })
           if (continuation?.blocked) throw new Error(continuation.blocked)
@@ -141,6 +184,7 @@ export function createTaskInteractions(ctx: any, hooks: any) {
         const goals = ctx.get('goals'), goal = goals?.get?.(agent)
         if (useNative && goal?.roundsStarted >= goal?.maxGoalRounds) throw new Error('当前目标的执行轮次预算已耗尽，请先调整预算后继续。')
         if (!useNative && goal && (['paused', 'blocked'].includes(goal.phase) || goal.phase === 'active' && goal.activation === 'disarmed')) goals.resume(agent, { id: goal.id, revision: goal.revision })
+        if (!useNative) restoreInputs(task)
       }
       const genuine = kind === 'adjust_request' || kind === 'respond_finding' || kind === 'replan' && !!command.text?.trim()
       const finding = kind === 'respond_finding' ? task.findings.find(row => row.id === command.findingId) : undefined
@@ -176,5 +220,5 @@ export function createTaskInteractions(ctx: any, hooks: any) {
       throw error
     } finally { busy.delete(id) }
   }
-  return { run, state, reconcile, ackUserAction }
+  return { run, state, reconcile, ackUserAction, parkInbox }
 }

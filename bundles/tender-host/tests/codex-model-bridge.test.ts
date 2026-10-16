@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
+import { spawnSync } from 'node:child_process'
 import { PassThrough } from 'node:stream'
 import { test } from 'node:test'
 import { pathToFileURL } from 'node:url'
@@ -33,7 +34,7 @@ async function harness(t: any, { holdTurn = false, holdDirectory = false } = {})
   let tool: any
   ctx.provide('agents', { get: (id: string) => id === parent.id ? parent : undefined, list: () => [parent] })
   ctx.provide('tools', { register(value: unknown) { tool = value; return () => {} } })
-  ctx.provide('systemPrompt', { section() {}, getSectionOrder: () => 0 })
+  ctx.provide('systemPrompt', { section() {}, context() {}, getSectionOrder: () => 0, getContextOrder: () => 0 })
   ctx.provide('sessionProjections', { register() {} })
   ctx.provide('llm', { resolveModelInfo() { throw new Error('Native Codex models must never resolve a DSH LLM route') } })
   ctx.provide('workingDirectory', {
@@ -73,7 +74,7 @@ async function harness(t: any, { holdTurn = false, holdDirectory = false } = {})
           if (!line.trim()) continue
           const frame = JSON.parse(line)
           setImmediate(() => {
-            if (frame.method === 'initialize') send({ id: frame.id, result: { userAgent: 'codex-cli 0.162.0' } })
+            if (frame.method === 'initialize') send({ id: frame.id, result: { userAgent: 'codex-cli 0.163.0' } })
             if (frame.method === 'thread/start') {
               threads.push(frame.params)
               send({ id: frame.id, result: { thread: { id: threadId, ephemeral: true } } })
@@ -105,6 +106,16 @@ async function harness(t: any, { holdTurn = false, holdDirectory = false } = {})
   const interrupt = (id: string) => ctx.subagents.interrupt(id, { kind: 'ancestor', agent: parent })
   return { tool, execute, threads, spawnSpecs, children, config, notices, lifecycle, settle, interrupt, directoryRequests, releaseDirectory: directory.resolve }
 }
+
+test('official adapters import under the packaged default Node mode without a TypeScript transform loader', () => {
+  const entries = ['codex-tool.ts', 'codex-provider.ts', 'goal-round-driver.ts'].map(file => new URL('../src/' + file, import.meta.url).href)
+  const script = `for (const entry of ${JSON.stringify(entries)}) { const plugin = await import(entry); if (typeof plugin.apply !== 'function') throw new Error('Invalid official wrapper'); }`
+  const result = spawnSync(process.execPath, ['--input-type=module', '--eval', script], {
+    encoding: 'utf8', timeout: 15_000, windowsHide: true, env: { ...process.env, NODE_OPTIONS: '' },
+  })
+  assert.equal(result.error, undefined)
+  assert.equal(result.status, 0, result.stderr)
+})
 
 test('official Codex wire receives each concurrent activation model while default remains omitted', { timeout: 5000 }, async (t) => {
   const h = await harness(t)

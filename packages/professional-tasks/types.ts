@@ -188,8 +188,16 @@ export interface TaskInteraction {
   messageId?: string
   findingId?: string
 }
+export interface ParkedTaskInput {
+  sessionId: string
+  cwd: string
+  target: 'next-step' | 'next-turn'
+  message: { id: string; role: 'user'; content: unknown[]; source: { kind: string }; [key: string]: unknown }
+}
 export interface TaskControl {
   paused: boolean
+  parked?: ParkedTaskInput[]
+  restoredMessageIds?: string[]
   lastAction?: TaskInteraction
 }
 export interface ProfessionalTask {

@@ -8,7 +8,7 @@ import test from 'node:test'
 import vm from 'node:vm'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { macOSIntelCapabilitiesPatch, writeMacOSIntelCapabilities } from './macos-intel-capabilities.mjs'
-import { inspectKnownPluginCompatibility, reconcileKnownPluginCompatibility, VOICE_INPUT_PACKAGE, NATIVE_CUA_PACKAGE } from '../vendor/dshmarket/compatibility.js'
+import { inspectKnownPluginCompatibility, reconcileKnownPluginCompatibility, VOICE_INPUT_PACKAGE, NATIVE_CUA_PACKAGE, MACOS_CUA_PACKAGE } from '../vendor/dshmarket/compatibility.js'
 
 const product = fileURLToPath(new URL('..', import.meta.url))
 const dshRoot = process.env.AGENT_PI_TEST_DSH_ROOT || join(product, 'vendor/deepseek-harness')
@@ -47,7 +47,7 @@ test('marker-based market rules disable optional bundle membership while retaini
     dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', VOICE_INPUT_PACKAGE, '@office/fixture'] } } }))
   const saved = '- id: speech-to-text-sensevoice\n  config:\n    dataRoot: /existing-models\n'
   writeFileSync(join(profile, 'cordis.patch.yml'), saved)
-  for (const name of [VOICE_INPUT_PACKAGE, NATIVE_CUA_PACKAGE]) {
+  for (const name of [VOICE_INPUT_PACKAGE, NATIVE_CUA_PACKAGE, MACOS_CUA_PACKAGE]) {
     const status = inspectKnownPluginCompatibility(profile, name)
     assert.equal(status.status, 'incompatible')
     assert.match(status.reason, /兼容分发不提供/)
@@ -58,7 +58,7 @@ test('marker-based market rules disable optional bundle membership while retaini
   assert.equal(manifest.dependencies[VOICE_INPUT_PACKAGE], '0.2.1-alpha.2')
   assert.equal(readFileSync(join(profile, 'cordis.patch.yml'), 'utf8'), saved)
   rmSync(join(options.productRoot, 'MACOS-INTEL-MONTEREY.json'))
-  for (const name of [VOICE_INPUT_PACKAGE, NATIVE_CUA_PACKAGE]) assert.equal(inspectKnownPluginCompatibility(profile, name).status, 'irrelevant')
+  for (const name of [VOICE_INPUT_PACKAGE, NATIVE_CUA_PACKAGE, MACOS_CUA_PACKAGE]) assert.equal(inspectKnownPluginCompatibility(profile, name).status, 'irrelevant')
 })
 
 test('private dump capture isolates arbitrary native IDs, including groups, without copying configuration', async t => {
@@ -71,19 +71,21 @@ test('private dump capture isolates arbitrary native IDs, including groups, with
     return { status: 0, stdout: yaml.dump([
       { id: 'custom-native-id', name: native, config: { key: secret } },
       { id: 'group', group: true, config: [{ id: 'other-native-id', name: native }] },
+      { id: 'user-swift-cua-id', name: MACOS_CUA_PACKAGE, config: { key: secret } },
       { id: 'custom-claude-id', name: claude, config: { key: secret } },
       { id: 'univer', name: '@office/fixture', config: { token: secret } },
     ]), stderr: secret }
   })
   const result = await writeMacOSIntelCapabilities(options)
   assert.equal(spawn.mock.callCount(), 1)
-  assert.equal(result.nativeEntries, 3)
+  assert.equal(result.nativeEntries, 4)
   const text = readFileSync(result.patchPath, 'utf8')
   assert.equal(text.includes(secret), false)
   const rows = yaml.load(text)
   assert.deepEqual(rows.slice(0, 4), voice.map(id => ({ id, disabled: true })))
   assert.deepEqual(rows.slice(4), [
     ...['custom-native-id', 'other-native-id'].map(id => ({ id, name: native, disabled: true })),
+    { id: 'user-swift-cua-id', name: MACOS_CUA_PACKAGE, disabled: true },
     { id: 'custom-claude-id', name: claude, disabled: true },
   ])
 })
@@ -118,10 +120,12 @@ test('real official dump preserves profile/home files, !!js and core providers u
   mkdirSync(profile, { recursive: true })
   writeFileSync(join(profile, 'package.json'), JSON.stringify({ private: true, dependencies: {}, dsh: { profile: { bundles: [] } } }))
   const nativeId = 'user-chosen-native-cua-id'
+  const swiftCuaId = 'user-chosen-swift-cua-id'
   const claudeId = 'user-chosen-claude-id'
   const config = '- insert:\n' + yaml.dump([
     ...voice.map(id => ({ id, name: 'fixture-' + id, disabled: false })),
     { id: nativeId, name: native, config: { secret: 'do-not-copy-this' } },
+    { id: swiftCuaId, name: MACOS_CUA_PACKAGE, config: { secret: 'do-not-copy-this' } },
     { id: claudeId, name: claude, config: { secret: 'do-not-copy-this' } },
     ...['agent-loop', 'agent-pi-subagent-codex', 'univer'].map(id => ({ id, name: 'fixture-' + id, config: { unchanged: true } })),
   ]).split('\n').filter(Boolean).map(line => '  ' + line).join('\n') + '\n'
@@ -144,7 +148,7 @@ test('real official dump preserves profile/home files, !!js and core providers u
   })
   assert.equal(result.status, 0, 'Official composition with compatibility overlay must succeed')
   const rows = yaml.load(result.stdout, { schema: entryListSchema })
-  for (const id of [...voice, nativeId, claudeId]) assert.equal(rows.find(row => row.id === id).disabled, true)
+  for (const id of [...voice, nativeId, swiftCuaId, claudeId]) assert.equal(rows.find(row => row.id === id).disabled, true)
   for (const id of ['agent-loop', 'agent-pi-subagent-codex', 'univer']) {
     const row = rows.find(row => row.id === id)
     assert.equal(row.disabled, undefined)

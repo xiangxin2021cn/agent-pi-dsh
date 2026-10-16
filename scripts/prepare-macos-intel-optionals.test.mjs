@@ -31,9 +31,16 @@ test('compatibility preparation excludes newer-system optionals and retains both
   const upstream = join(dsh, 'node_modules/.pnpm/@openai+codex@0.153.4-darwin-x64/node_modules/@openai/codex')
   const host = join(product, 'bundles/tender-host/node_modules/@openai/codex-darwin-x64')
   codex(upstream, '0.153.4-darwin-x64'); codex(host, '0.162.0-darwin-x64')
+  const cua = join(dsh, 'packages/experimental/cua-macos')
+  write(join(cua, 'package.json'), '{"name":"@deepseek-ai/dsh-experimental-cua-macos"}')
+  write(join(cua, 'native/bin/dsh-cua-native'), 'requires macOS 14')
+  write(join(cua, 'native/Package.swift'), 'platforms: [.macOS(.v14)]')
   const result = prepareMacOSIntelOptionals(dsh, product)
   assert.equal(result.removed, 3)
   assert.equal(result.codexResources.length, 4)
+  assert.deepEqual(result.macOSNativeResources, ['packages/experimental/cua-macos/native/bin'])
+  assert.equal(existsSync(join(cua, 'native/bin')), false)
+  assert.equal(readFileSync(join(cua, 'native/Package.swift'), 'utf8'), 'platforms: [.macOS(.v14)]')
   for (const path of [upstream, host]) {
     assert.equal(readFileSync(join(path, 'vendor/x86_64-apple-darwin/codex/codex'), 'utf8'), 'keep native Codex')
     assert.equal(existsSync(join(path, 'vendor/x86_64-apple-darwin/codex-resources/voice')), false)
@@ -44,6 +51,20 @@ test('compatibility preparation excludes newer-system optionals and retains both
   const marker = JSON.parse(readFileSync(join(product, 'MACOS-INTEL-MONTEREY.json'), 'utf8'))
   assert.deepEqual(marker.disabledCapabilities, ['claude-code', 'local-voice', 'native-cua', 'codex-voice', 'codex-zsh-fork'])
   assert.equal(prepareMacOSIntelOptionals(dsh, product).codexResources.length, 0)
+})
+
+test('macOS 14 CUA binary isolation rejects a linked resource instead of deleting another directory', t => {
+  const { root, dsh, product } = fixture(t)
+  const cua = join(dsh, 'packages/experimental/cua-macos')
+  write(join(cua, 'package.json'), '{"name":"@deepseek-ai/dsh-experimental-cua-macos"}')
+  const outside = join(root, 'external-cua')
+  write(join(outside, 'important'), 'preserved')
+  mkdirSync(join(cua, 'native'), { recursive: true })
+  symlinkSync(process.platform === 'win32' ? outside : relative(join(cua, 'native'), outside), join(cua, 'native/bin'),
+    process.platform === 'win32' ? 'junction' : 'dir')
+  assert.throws(() => prepareMacOSIntelOptionals(dsh, product), /must be a real directory/)
+  assert.equal(readFileSync(join(outside, 'important'), 'utf8'), 'preserved')
+  assert.equal(existsSync(join(product, 'MACOS-INTEL-MONTEREY.json')), false)
 })
 
 test('resource cleanup rejects links outside the actual Codex package without deleting their target', t => {

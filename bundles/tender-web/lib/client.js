@@ -8711,7 +8711,10 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					className: "ap-task-interaction",
 					"aria-label": finding ? zh ? "处理这项发现" : "Respond to this finding" : zh ? "任务交互" : "Task actions",
 					"data-task-control-paused": String(paused)
-				}, !finding && stateLabel && h("p", { className: "ap-task-interaction-state" }, stateLabel), h("div", { className: "ap-task-interaction-controls" }, finding ? h("button", {
+				}, !finding && stateLabel && h("p", { className: "ap-task-interaction-state" }, stateLabel), !finding && task?.control?.parked?.length > 0 && h("details", { "data-task-parked-inputs": "" }, h("summary", null, zh ? `暂停前暂存的输入（${task.control.parked.length}）` : `Inputs held before pausing (${task.control.parked.length})`), h("p", { className: "ap-task-interaction-state" }, zh ? "暂存不代表已执行。继续时保留原有会话与执行器归属。" : "Held inputs have not been executed. Resuming preserves their original conversation and executor."), ...task.control.parked.map((row, index) => h("div", {
+					key: row.message?.id || index,
+					"data-task-parked-input": row.message?.id || index
+				}, h("p", { className: "ap-task-interaction-state" }, (zh ? "来源会话：" : "Conversation: ") + row.sessionId), h("p", { style: { whiteSpace: "pre-wrap" } }, (row.message?.content || []).filter((part) => part.type === "text").map((part) => part.text).join("\n") || (zh ? "此输入包含附件或其他非文本内容。" : "This input contains attachments or other non-text content."))))), h("div", { className: "ap-task-interaction-controls" }, finding ? h("button", {
 					type: "button",
 					disabled: unavailable || finding.status !== "open",
 					onClick: () => edit("respond_finding")

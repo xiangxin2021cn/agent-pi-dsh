@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { omitMacOSOptionalNative } from './omit-macos-claude-native.mjs'
@@ -8,6 +8,20 @@ export function prepareMacOSIntelOptionals(dshDirectory, productDirectory) {
   const product = realpathSync(resolve(productDirectory))
   if (!existsSync(join(product, 'package.json'))) throw new Error('Expected the product runtime directory')
   const omitted = omitMacOSOptionalNative(dsh)
+  // alpha.4's official Swift provider targets macOS 14. Keep its source and
+  // JavaScript metadata, but exclude a prebuilt helper from Monterey payloads.
+  const macOSNativeResources = []
+  const cuaPackage = join(dsh, 'packages/experimental/cua-macos')
+  const cuaBin = join(cuaPackage, 'native/bin')
+  if (existsSync(cuaBin)) {
+    if (JSON.parse(readFileSync(join(cuaPackage, 'package.json'), 'utf8')).name !== '@deepseek-ai/dsh-experimental-cua-macos') throw new Error('Unexpected macOS CUA package identity')
+    if (lstatSync(cuaBin).isSymbolicLink()) throw new Error('macOS CUA native resource must be a real directory')
+    const actual = realpathSync(cuaBin)
+    const child = relative(dsh, actual)
+    if (!child || isAbsolute(child) || child === '..' || child.startsWith('..' + sep)) throw new Error('macOS CUA native resource escapes its runtime')
+    rmSync(actual, { recursive: true, force: true })
+    macOSNativeResources.push(child.split(sep).join('/'))
+  }
   const store = join(dsh, 'node_modules/.pnpm')
   const candidates = existsSync(store) ? readdirSync(store)
     .filter(name => /^@openai\+codex@\d+\.\d+\.\d+-darwin-x64$/.test(name))
@@ -37,7 +51,7 @@ export function prepareMacOSIntelOptionals(dshDirectory, productDirectory) {
     note: 'Use normal system shell execution. Optional newer-system native engines are excluded from this distribution.',
   }
   writeFileSync(join(product, 'MACOS-INTEL-MONTEREY.json'), JSON.stringify(marker, null, 2) + '\n')
-  return { ...omitted, codexResources: resources, capabilities: marker }
+  return { ...omitted, codexResources: resources, macOSNativeResources, capabilities: marker }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

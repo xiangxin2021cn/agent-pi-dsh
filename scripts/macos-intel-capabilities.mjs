@@ -4,7 +4,7 @@ import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-const nativeCua = '@deepseek-ai/dsh-experimental-computer-use-cua-driver-native'
+const nativeCua = ['@deepseek-ai/dsh-experimental-computer-use-cua-driver-native', '@deepseek-ai/dsh-experimental-cua-macos']
 const nativeClaude = '@deepseek-ai/dsh-subagent-claude-code'
 const voiceIds = ['speech-to-text', 'speech-to-text-sensevoice', 'api-speech-to-text', 'ui-voice-input']
 
@@ -41,7 +41,7 @@ export async function writeMacOSIntelCapabilities({ productRoot, dshRoot, home }
   let nativeEntries = 0
   function visit(entries) {
     for (const row of entries) {
-      if (row?.name === nativeCua || row?.name === nativeClaude) {
+      if (nativeCua.includes(row?.name) || row?.name === nativeClaude) {
         if (typeof row.id !== 'string' || !row.id) throw new Error('Intel compatibility cannot isolate an unnamed native-provider entry')
         patches.push({ id: row.id, name: row.name, disabled: true })
         nativeEntries += 1

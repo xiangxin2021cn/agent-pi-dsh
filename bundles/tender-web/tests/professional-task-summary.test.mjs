@@ -498,3 +498,16 @@ test('pausing continuation does not claim a still-running executor stopped or di
   }finally{await f.close()}
 })
 
+test('parked native inputs are readable without execution controls and do not count as running work',async()=>{
+  const f=await domFixture(),task=taskFixture();task.control={paused:true,parked:[{sessionId:'original-session',cwd:'C:/project',target:'next-turn',message:{id:'original-input',role:'user',source:{kind:'user'},content:[{type:'text',text:'保留原始输入\n不要重做已完成的资料抽取。'}]}}]}
+  const Interaction=createTaskInteraction({React:f.React,api:async()=>{},cwd:()=>'',language:()=> 'zh'})
+  try{
+    await f.act(async()=>f.root.render(f.React.createElement(Interaction,{sessionId:'one',result:{task,interactionState:{paused:true,running:false,pending:false}}})))
+    const parked=f.document.querySelector('[data-task-parked-inputs]')
+    assert.match(parked.textContent,/暂停前暂存的输入（1）|original-session|保留原始输入\n不要重做/)
+    assert.equal(parked.querySelector('button,input,textarea'),null,'held input has no deletion, rerouting or execution action')
+    assert.equal(button(f,'暂停执行').disabled,true)
+    assert.equal(button(f,'继续任务').disabled,false)
+  }finally{await f.close()}
+})
+

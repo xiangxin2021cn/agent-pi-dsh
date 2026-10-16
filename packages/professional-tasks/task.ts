@@ -94,6 +94,8 @@ export function validateEvidence(evidence: Evidence): void {
 
 export function validateTask(task: ProfessionalTask): void {
   if (!task.control || typeof task.control.paused !== 'boolean') throw new Error('Invalid task execution control')
+  const parked = task.control.parked || []
+  if (!Array.isArray(parked) || parked.some(row => !row.sessionId?.trim() || !row.cwd?.trim() || !['next-step', 'next-turn'].includes(row.target) || !row.message?.id?.trim() || row.message.role !== 'user' || !Array.isArray(row.message.content) || !row.message.source?.kind) || new Set(parked.map(row => `${row.sessionId}:${row.message.id}`)).size !== parked.length || task.control.restoredMessageIds && (!Array.isArray(task.control.restoredMessageIds) || task.control.restoredMessageIds.some(id => typeof id !== 'string' || !id))) throw new Error('Invalid parked task input')
   const action = task.control.lastAction
   if (action && (!action.operationId?.trim() || !['confirm_understanding', 'adjust_request', 'replan', 'continue', 'pause', 'respond_finding', 'check_deliverables'].includes(action.kind) || !['prepared', 'queued', 'steered', 'paused', 'recorded', 'blocked', 'requires_executor'].includes(action.dispatch) || !action.reason?.trim() || !action.at || !Number.isFinite(Date.parse(action.at)))) throw new Error('Invalid task interaction receipt')
   if (task.schemaVersion !== 2 || !task.sessionId || !Number.isInteger(task.revision) || task.revision < 0) throw new Error('Invalid task identity')

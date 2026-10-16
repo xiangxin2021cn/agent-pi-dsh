@@ -57,6 +57,7 @@ export function registerTaskGuide(ctx: any, defineTool: (options: any) => unknow
     if (!messageId) return false
     if (controlMessages.has(messageId) || decisionMessages.has(`${rootSession(sessionId).id}:${messageId}`)) return true
     const state = store.read(rootSession(sessionId).id)
+    if (state.control.restoredMessageIds?.includes(`${sessionId}:${messageId}`) || state.control.paused && state.control.parked?.some(row => row.sessionId === sessionId && row.message.id === messageId)) return true
     return state.latestMessageId === messageId && state.operationReceipts.some(row => row.id === `human-stage-decision:${messageId}` && row.digest === taskOperationDigest({ messageId, text: state.latestRequest }, 'user'))
   }
   const rootSession = (id: string) => {
@@ -74,6 +75,12 @@ export function registerTaskGuide(ctx: any, defineTool: (options: any) => unknow
     const state = store.update(rootSession(id).id, patch, revision, actor, options)
     ctx.emit?.('agent-pi/professional-task-changed', { sessionId: state.sessionId, revision: state.revision, sequence: state.recentChanges.at(-1)?.sequence })
     return state
+  }
+  const consumeRestoredInput = (id: string, messageId?: string) => {
+    const state = store.read(rootSession(id).id), key = `${id}:${messageId}`
+    if (!messageId || !state.control.restoredMessageIds?.includes(key)) return undefined
+    controlMessages.add(messageId)
+    return commit(state.sessionId, { control: { ...state.control, restoredMessageIds: state.control.restoredMessageIds.filter(value => value !== key), parked: state.control.parked?.filter(row => `${row.sessionId}:${row.message.id}` !== key) } }, state.revision, 'host', { summary: '已接收明确继续时恢复的原输入；保留后续用户要求的时间顺序。' })
   }
   const syncProject = (state: ProfessionalTask) => {
     if (!state.pendingProjectSync && state.binding?.cwd) {
@@ -186,6 +193,9 @@ export function registerTaskGuide(ctx: any, defineTool: (options: any) => unknow
       const session = rootSession(id)
       if (session.id !== id) return { task: store.read(session.id), ignored: true }
       let state = refreshBinding(session)
+      const restored = consumeRestoredInput(id, messageId)
+      if (restored) return { task: restored, control: true, restored: true }
+      if (messageId && state.control.paused && state.control.parked?.some(row => row.sessionId === id && row.message.id === messageId)) return { task: state, control: true, parked: true }
       if (!text.trim() || (messageId && state.latestMessageId === messageId)) return { task: state, replay: true }
       if (consumeControlPrompt(session.id, text, messageId)) return { task: state, control: true }
       const project = state.binding && projectForBoundSession(state.binding.cwd!, session.id)
@@ -293,6 +303,8 @@ export function registerTaskGuide(ctx: any, defineTool: (options: any) => unknow
       return syncProject(commit(task.sessionId, { pendingProjectSync }, task.revision, 'host', { summary: '用户的任务交互待同步到工作台要求' }))
     },
   })
+  ctx.on('agent/created', ({ agent }: any) => interactions.parkInbox(store.read(rootSession(agent.session.id).id)))
+  for (const agent of ctx.get('agents')?.list?.() || []) interactions.parkInbox(store.read(rootSession(agent.session.id).id))
   const pausedHumanTurns = new Map<string, number>()
   ctx.on('agent/pre-step', ({ agent, messages, turn }: any, next: any) => {
     const task = store.read(rootSession(agent.session.id).id)
@@ -443,6 +455,7 @@ export function registerTaskGuide(ctx: any, defineTool: (options: any) => unknow
   }))
   ctx.on('agent/inbox/claimed', ({ agent, message }: any) => {
     if (!agent?.session) return
+    if (consumeRestoredInput(agent.session.id, message?.id)) return
     if (message?.source?.kind === 'user-question-reply') { void readStatus(agent).catch(() => {}); return }
     if (message?.source?.kind !== 'user') return
     const session = rootSession(agent.session.id)

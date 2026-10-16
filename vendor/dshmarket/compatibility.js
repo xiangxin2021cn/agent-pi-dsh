@@ -9,6 +9,7 @@ export const DSH_EMAIL_PACKAGE = 'dsh-email'
 export const CLAUDE_CODE_PACKAGE = '@deepseek-ai/dsh-subagent-claude-code'
 export const VOICE_INPUT_PACKAGE = '@deepseek-ai/dsh-experimental-voice-input-bundle'
 export const NATIVE_CUA_PACKAGE = '@deepseek-ai/dsh-experimental-computer-use-cua-driver-native'
+export const MACOS_CUA_PACKAGE = '@deepseek-ai/dsh-experimental-cua-macos'
 
 function isIntelCompatibilityDistribution() {
   const productRoot = process.env.DSH_BUNDLED_SKILL_DIR ? dirname(process.env.DSH_BUNDLED_SKILL_DIR)
@@ -82,7 +83,7 @@ function replaceFileBreakingHardLinks(path, content) {
  * access; DSH 0.1.2-alpha.1 exposes it reliably through Context#get instead.
  */
 export function inspectKnownPluginCompatibility(profileDirectory, name) {
-  if ((name === VOICE_INPUT_PACKAGE || name === NATIVE_CUA_PACKAGE) && isIntelCompatibilityDistribution()) {
+  if ([VOICE_INPUT_PACKAGE, NATIVE_CUA_PACKAGE, MACOS_CUA_PACKAGE].includes(name) && isIntelCompatibilityDistribution()) {
     return result('incompatible', '此 Intel macOS 兼容分发不提供本地语音和原生桌面操作运行库，该组件不可启用；已安装插件和用户配置保留 / This Intel macOS compatibility distribution omits local speech and native desktop-control runtimes; this component cannot be enabled. Installed plugins and user settings are retained')
   }
   if (name === CLAUDE_CODE_PACKAGE && process.platform === 'darwin' && process.arch === 'x64') {
