@@ -43,8 +43,8 @@ test('marker-based market rules disable optional bundle membership while retaini
   t.after(() => { if (previous === undefined) delete process.env.DSH_BUNDLED_SKILL_DIR; else process.env.DSH_BUNDLED_SKILL_DIR = previous })
   const profile = join(options.home, 'profiles/tender')
   mkdirSync(profile, { recursive: true })
-  writeFileSync(join(profile, 'package.json'), JSON.stringify({ dependencies: { [VOICE_INPUT_PACKAGE]: '0.2.1-alpha.2' },
-    dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', VOICE_INPUT_PACKAGE, '@office/fixture'] } } }))
+  writeFileSync(join(profile, 'package.json'), JSON.stringify({ dependencies: { [VOICE_INPUT_PACKAGE]: '0.2.1-alpha.2', [MACOS_CUA_PACKAGE]: '0.2.1-alpha.4' },
+    dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', VOICE_INPUT_PACKAGE, MACOS_CUA_PACKAGE, '@office/fixture'] } } }))
   const saved = '- id: speech-to-text-sensevoice\n  config:\n    dataRoot: /existing-models\n'
   writeFileSync(join(profile, 'cordis.patch.yml'), saved)
   for (const name of [VOICE_INPUT_PACKAGE, NATIVE_CUA_PACKAGE, MACOS_CUA_PACKAGE]) {
@@ -53,9 +53,11 @@ test('marker-based market rules disable optional bundle membership while retaini
     assert.match(status.reason, /兼容分发不提供/)
   }
   reconcileKnownPluginCompatibility(profile, VOICE_INPUT_PACKAGE)
+  reconcileKnownPluginCompatibility(profile, MACOS_CUA_PACKAGE)
   const manifest = JSON.parse(readFileSync(join(profile, 'package.json'), 'utf8'))
   assert.deepEqual(manifest.dsh.profile.bundles, ['@deepseek-ai/dsh-base', '@office/fixture'])
   assert.equal(manifest.dependencies[VOICE_INPUT_PACKAGE], '0.2.1-alpha.2')
+  assert.equal(manifest.dependencies[MACOS_CUA_PACKAGE], '0.2.1-alpha.4')
   assert.equal(readFileSync(join(profile, 'cordis.patch.yml'), 'utf8'), saved)
   rmSync(join(options.productRoot, 'MACOS-INTEL-MONTEREY.json'))
   for (const name of [VOICE_INPUT_PACKAGE, NATIVE_CUA_PACKAGE, MACOS_CUA_PACKAGE]) assert.equal(inspectKnownPluginCompatibility(profile, name).status, 'irrelevant')
@@ -70,8 +72,7 @@ test('private dump capture isolates arbitrary native IDs, including groups, with
     assert.equal(config.env.DSH_HOME, options.home)
     return { status: 0, stdout: yaml.dump([
       { id: 'custom-native-id', name: native, config: { key: secret } },
-      { id: 'group', group: true, config: [{ id: 'other-native-id', name: native }] },
-      { id: 'user-swift-cua-id', name: MACOS_CUA_PACKAGE, config: { key: secret } },
+      { id: 'group', group: true, config: [{ id: 'other-native-id', name: native }, { id: 'user-swift-cua-id', name: MACOS_CUA_PACKAGE, config: { key: secret } }] },
       { id: 'custom-claude-id', name: claude, config: { key: secret } },
       { id: 'univer', name: '@office/fixture', config: { token: secret } },
     ]), stderr: secret }

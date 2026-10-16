@@ -254,7 +254,7 @@
   "productFiles": [
     {
       "file": "compatibility.js",
-      "sha256": "37836f6b1db54c8159be347ec3f785db14314620cb4890134d2f17cc9577c491"
+      "sha256": "2260ed0f2b051f0a5a18c404dd2d4317109275546112efb5b5dcc60bc85e877c"
     },
     {
       "file": "tsdown.config.ts",
