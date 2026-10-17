@@ -144,19 +144,6 @@ function taskkillTree(pid) {
   })
 }
 
-function pidsListeningOn(port) {
-  const result = spawnSync('netstat', ['-ano'], { encoding: 'utf8', windowsHide: true })
-  const pids = new Set()
-  const needle = `:${port}`
-  for (const line of String(result.stdout || '').split(/\r?\n/)) {
-    if (!/LISTENING/i.test(line) || !line.includes(needle)) continue
-    const parts = line.trim().split(/\s+/)
-    const pid = Number(parts[parts.length - 1])
-    if (Number.isInteger(pid) && pid > 0) pids.add(pid)
-  }
-  return [...pids]
-}
-
 function stopDshTree() {
   if (!childAlive()) return
   const pid = child.pid
@@ -171,15 +158,6 @@ function stopDshTree() {
     setTimeout(() => {
       try { process.kill(-pid, 'SIGKILL') } catch {}
     }, 4000).unref()
-  }
-}
-
-function reapPackagedPort(port) {
-  if (!packaged || process.platform !== 'win32') return
-  for (const pid of pidsListeningOn(port)) {
-    if (pid === process.pid) continue
-    logLine(`[reap] port=${port} pid=${pid}`)
-    taskkillTree(pid)
   }
 }
 
@@ -1399,7 +1377,6 @@ if (!gotLock) {
         if (existing) {
           appUrl = existing
         } else {
-          reapPackagedPort(3080)
           const port = await findFreePort(3080)
           dshPort = port
           appUrl = `http://127.0.0.1:${port}`

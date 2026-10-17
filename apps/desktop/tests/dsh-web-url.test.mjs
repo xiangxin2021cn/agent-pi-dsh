@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { runInNewContext } from 'node:vm'
 
 import { createDshWebUrlTracker, isAuthenticatedDshWebUrl } from '../dsh-web-url.mjs'
 
@@ -50,4 +51,31 @@ test('desktop boot waits without consuming the one-time authenticated URL and pa
   assert.match(payload, /'dsh-web-url\.mjs'/)
   assert.match(stamp, /asar\.extractFile\(archive, 'dsh-web-url\.mjs'\)/)
   assert.match(stamp, /writeFileSync\(join\(dir, 'dsh-web-url\.mjs'\)/)
+})
+
+
+test('desktop startup chooses a free port without killing listeners and shutdown stops only its own child', async () => {
+  const main = readFileSync(join(desktopRoot, 'main.mjs'), 'utf8')
+  const startup = main.match(/else \{\s*(?:reapPackagedPort\(3080\)\s*)?const port = await findFreePort\(3080\)[\s\S]*?launchedDsh = true\r?\n\s*\}/)?.[0]
+  assert.ok(startup, 'startup must use findFreePort(3080) before starting its own DSH child')
+  const commands = [], preferredPorts = [], startedPorts = []
+  const scope = {
+    packaged: true, process: { platform: 'win32', pid: 123 }, child: { pid: 222, exitCode: null },
+    spawnSync(command, args) { commands.push([command, Array.from(args)]); return { status: 0, stdout: 'TCP 127.0.0.1:3080 0.0.0.0:0 LISTENING 45001' } },
+    logLine() {}, async findFreePort(preferred) { preferredPorts.push(preferred); return 4081 },
+    startDsh(port) { startedPorts.push(port) }, dshPort: 3080, appUrl: '', launchedDsh: false,
+  }
+  for (const name of ['childAlive', 'taskkillTree', 'stopDshTree', 'pidsListeningOn', 'reapPackagedPort']) {
+    const declaration = main.match(new RegExp(`function ${name}\\([\\s\\S]*?^}`, 'm'))?.[0]
+    if (declaration) runInNewContext(declaration, scope)
+  }
+  await runInNewContext(`(async () => { if (false) {} ${startup} })()`, scope)
+  assert.deepEqual(preferredPorts, [3080])
+  assert.deepEqual(startedPorts, [4081])
+  assert.equal(scope.dshPort, 4081)
+  assert.equal(scope.appUrl, 'http://127.0.0.1:4081')
+  assert.equal(scope.launchedDsh, true)
+  assert.deepEqual(commands, [], 'startup neither enumerates foreign listeners nor kills their process trees')
+  scope.stopDshTree()
+  assert.deepEqual(commands, [['taskkill', ['/PID', '222', '/T', '/F']]], 'shutdown retains ownership of exactly the launched child')
 })
