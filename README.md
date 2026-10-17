@@ -8,6 +8,8 @@
 
 <h1 align="center">Agent Pi DSH</h1>
 
+3.8.3 本地升级版使用官方 DSH 0.2.1-alpha.5，包含任务交互、Codex 发送与安全端口修复。变更及使用方法见 [3.8.3 升级说明](release/github-notes-3.8.3.md)和[使用指南](docs/3.8.3-user-guide.md)；本地安装产物以同名校验文件和构建回执确认，公开下载仍按已发布 Release 提供。
+
 3.8.2 已发布，整合官方 DSH 0.2.1-alpha.2、大 DWG 磁盘读取、块名修复、内嵌图像及工程缺口与任务联动，并更新核心插件。安装包和分发材料见 [GitHub v3.8.2 Release](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/tag/v3.8.2)，具体改动及用法见 [3.8.2 升级说明](release/github-notes-3.8.2.md)和[使用指南](docs/3.8.2-user-guide.md)。
 
 保留 3.8.0 的九个工程插件，覆盖 CAD/PDF 图纸、钢筋与平法、道路市政及土建算量、IFC/BIM、中国招投标与计算书。Windows x64 内置官方 CPython 3.13.7 与经核验的 conda-forge IfcOpenShell 0.8.5，保留 CGAL/OCCT；macOS、Linux 仍需外接兼容 IFC 引擎。本版使用官方 DSH 0.2.1-alpha.2、AnySearch 0.1.7 与完整 Univer Office 0.3.7。能力范围与分发材料详见[3.8.0 说明](release/github-notes-3.8.0.md)。OfficeCLI 与 Univer Office 载体的评估见[专项评估](docs/office-carrier-evaluation-3.7.7.md)。

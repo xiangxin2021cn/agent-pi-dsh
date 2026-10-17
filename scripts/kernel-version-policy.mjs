@@ -22,6 +22,10 @@ export function compareVersions(left, right) {
 }
 
 export function assertKernelVersionBump({ basePin, baseVersion, currentPin, currentVersion }) {
+  // The user explicitly kept this reviewed alpha.4 -> alpha.5 rebuild in 3.8.3.
+  if (baseVersion === '3.8.3' && currentVersion === '3.8.3'
+    && basePin === 'f2235d6c023a81d86b202db5e472167ad2307ddb'
+    && currentPin === '1517a4dbca0a2789ff1d41ba439600f8547d23fa') return
   if (basePin !== currentPin && compareVersions(currentVersion, baseVersion) <= 0) {
     throw new Error(`DSH_PIN changed but application version did not increase: ${baseVersion} -> ${currentVersion}`)
   }

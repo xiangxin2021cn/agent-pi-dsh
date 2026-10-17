@@ -108,6 +108,27 @@ test('native main execution persists one thread across turns, resumes, and steer
   } finally { h.controller.dispose() }
 })
 
+test('native partial answer item and delta remain visible until the turn completes normally', async () => {
+  const h = harness()
+  try {
+    await h.controller.submit({ ...identity, text: 'Review the tender' })
+    const child = h.children[0]
+    child.reply({ method: 'item/started', params: { threadId: 'native-thread', item: { type: 'agentMessage', id: 'partial', text: '', phase: 'partial_answer' } } })
+    child.reply({ method: 'item/agentMessage/delta', params: { threadId: 'native-thread', itemId: 'partial', delta: 'Verified partial ' } })
+    assert.equal(h.controller.status(identity.sessionId).messages.find(row => row.id === 'partial').text, 'Verified partial ')
+    child.reply({ method: 'item/completed', params: { threadId: 'native-thread', item: { type: 'agentMessage', id: 'partial', text: 'Verified partial result.', phase: 'partial_answer' } } })
+    assert.equal(h.controller.status(identity.sessionId).phase, 'running')
+    assert.equal(h.controller.status(identity.sessionId).messages.find(row => row.id === 'partial').text, 'Verified partial result.')
+    child.reply({ method: 'turn/completed', params: { threadId: 'native-thread', turn: { status: 'completed' } } })
+    await tick()
+    const status = h.controller.status(identity.sessionId)
+    assert.equal(status.phase, 'idle')
+    assert.equal(status.messages.find(row => row.id === 'partial').text, 'Verified partial result.')
+    assert.equal(status.error, null)
+    assert.ok(h.bridges.some(row => row.action === 'release'))
+  } finally { h.controller.dispose() }
+})
+
 test('dynamic tool arguments cannot replace the current session, cwd, lease or call identity', async () => {
   const h = harness()
   try {

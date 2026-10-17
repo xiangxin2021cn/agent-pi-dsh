@@ -205,7 +205,7 @@ const reviewed383HostExtension = {
     ...reviewed382BrowserHostExtension.shared,
     'THIRD_PARTY_NOTICES.md': [
       reviewed382BrowserHostExtension.shared['THIRD_PARTY_NOTICES.md'][0],
-      '282376336e25e2ef1244affb183e80be3b33965b28e6d4320ef98d5037fb48fa',
+      '5c7be6d67d1581333bcff16d23674b9927efd0912bd8113a8007eb3808665d71',
     ],
   },
   files: {

@@ -47,7 +47,7 @@ synthesized.
 
 Agent Pi DSH distributes the complete official `dsh-univer-office` 0.3.7
 package, pinned by `vendor/dsh-univer-office.pin`. Agent Pi integrates it with
-DSH 0.2.1-alpha.4 through the product's compatibility adapter. The upstream package declares Apache-2.0;
+DSH 0.2.1-alpha.5 through the product's compatibility adapter. The upstream package declares Apache-2.0;
 its original LICENSE, bundled Gateway, Viewer, workers, converters and license
 materials are retained in the verified package inventory. Platform runtime
 dependencies are installed from the tracked production lock and retain their
@@ -68,7 +68,7 @@ Source: https://github.com/dream-num/dsh-univer-office
 ## 3.8.3 bundled host dependency pins
 
 The DSH source is pinned by `DSH_PIN` to official commit
-`f2235d6c023a81d86b202db5e472167ad2307ddb` (0.2.1-alpha.4).
+`1517a4dbca0a2789ff1d41ba439600f8547d23fa` (0.2.1-alpha.5).
 The product host separately pins Codex CLI 0.163.0, Canvas 1.0.11 and undici
 7.30.1 in its production package lock; upstream DSH keeps its own locked
 Codex provider dependency. Electron is pinned to 44.8.0 for the standard

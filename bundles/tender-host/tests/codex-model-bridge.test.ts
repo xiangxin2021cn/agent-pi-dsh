@@ -13,7 +13,7 @@ const { Context } = await import(pathToFileURL(officialRequire.resolve('@deepsee
 const { default: SubagentRuntime } = await importDsh<any>('packages/subagent/subagent/lib/index.js')
 const { Session, SessionId } = await importDsh<any>('packages/core/session/lib/index.js')
 
-async function harness(t: any, { holdTurn = false, holdDirectory = false } = {}) {
+async function harness(t: any, { holdTurn = false, holdDirectory = false, answers = [{ text: 'done', phase: 'final_answer' }] } = {}) {
   const threads: any[] = []
   const spawnSpecs: any[] = []
   const children: any[] = []
@@ -83,7 +83,7 @@ async function harness(t: any, { holdTurn = false, holdDirectory = false } = {})
               send({ id: frame.id, result: { turn: { id: turnId } } })
               turnStarted.resolve()
               if (!holdTurn) setImmediate(() => {
-                send({ method: 'item/completed', params: { threadId, turnId, item: { type: 'agentMessage', text: 'done', phase: 'final_answer' } } })
+                for (const answer of answers) send({ method: 'item/completed', params: { threadId, turnId, item: { type: 'agentMessage', ...answer } } })
                 send({ method: 'turn/completed', params: { threadId, turn: { id: turnId, status: 'completed', error: null } } })
               })
             }
@@ -150,6 +150,28 @@ test('official Codex wire receives each concurrent activation model while defaul
   assert.ok(h.children.every((child) => child.terminated === 1))
   assert.ok(h.spawnSpecs.every((spec) => spec.env.CODEX_HOME === 'isolated-codex-home'))
   assert.equal(Object.hasOwn(h.config, 'model'), false)
+})
+
+test('official Codex wire settles a partial answer when no final answer was emitted', { timeout: 5000 }, async (t) => {
+  const h = await harness(t, { answers: [{ text: 'Verified partial result', phase: 'partial_answer' }] })
+  const result = await h.execute({})
+  await h.settle()
+  assert.equal(h.notices.length, 1)
+  assert.equal(h.notices[0].source.senderSessionId, result.subagentId)
+  assert.equal(h.notices[0].content.at(-1).text, 'Verified partial result')
+  assert.equal(h.lifecycle.at(-1).stopReason, 'completed')
+})
+
+test('official Codex wire retains the final answer over a later partial answer', { timeout: 5000 }, async (t) => {
+  const h = await harness(t, { answers: [
+    { text: 'Verified final result', phase: 'final_answer' },
+    { text: 'Later partial result', phase: 'partial_answer' },
+  ] })
+  await h.execute({})
+  await h.settle()
+  assert.equal(h.notices.length, 1)
+  assert.equal(h.notices[0].content.at(-1).text, 'Verified final result')
+  assert.equal(h.lifecycle.at(-1).stopReason, 'completed')
 })
 
 test('alpha.2 activation returns before completion and reports the result to its parent', { timeout: 5000 }, async (t) => {
