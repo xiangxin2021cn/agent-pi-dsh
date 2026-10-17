@@ -11027,6 +11027,12 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 		}
 		//#endregion
 		//#region src/client/codex-execution.js
+		function codexExecutionErrorMessage(error, language) {
+			const fallback = tCodexExecution("requestFailed", language);
+			const message = (typeof error === "string" ? error : typeof error?.message === "string" ? error.message : "").replace(/^Error:\s*/i, "").replace(/^Error invoking remote method ['"][^'"]+['"]:\s*/i, "").replace(/^Error:\s*/i, "").split(/\r?\n/)[0].trim().replace(/(["']?(?:authorization|proxy-authorization)["']?\s*[:=]\s*["']?)(?:(?:Bearer|Basic)\s+)?[^"'\s,;}]+/gi, "$1[REDACTED]").replace(/\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi, "[REDACTED]").replace(/((?:[?&]|\b)(?:[A-Z_]*(?:KEY|TOKEN|SECRET|PASSWORD)|api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|password)\s*["']?\s*[:=]\s*["']?)[^&\s,;"'}<>]+/gi, "$1[REDACTED]").replace(/\bsk-[A-Za-z0-9_-]{6,}/g, "[REDACTED]").replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[REDACTED]");
+			if (!message || /^(?:Error|Unknown(?: error)?|undefined|null|\[object Object\])[.!]?$/i.test(message)) return fallback;
+			return message.length > 500 ? message.slice(0, 500) + "…" : message;
+		}
 		function createNativeCodexExecution({ React, desktop, language, useLanguage = language, notify = () => {}, renderMessage = (text) => text, openFile }) {
 			const h = React.createElement;
 			const states = /* @__PURE__ */ new Map();
@@ -11186,6 +11192,8 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				}, [id]);
 				const state = current(id);
 				const t = (key) => tCodexExecution(key, lang);
+				const errorSummary = t(state.errorCode || "requestFailed");
+				const errorDetail = codexExecutionErrorMessage(state.error, lang);
 				const identity = {
 					sessionId: id,
 					cwd: state.cwd
@@ -11246,7 +11254,11 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				} }, row.role === "user" ? t("you") : row.role === "assistant" ? "Codex" : t("tool")), message(row))), state.error && h("p", {
 					role: "alert",
 					style: { color: "#b42318" }
-				}, t(state.errorCode || "requestFailed")), ...state.requests.map((request) => h(Question, {
+				}, errorSummary, errorDetail !== errorSummary && errorDetail !== t("requestFailed") ? h("span", { style: {
+					display: "block",
+					whiteSpace: "pre-wrap",
+					overflowWrap: "anywhere"
+				} }, errorDetail) : null), ...state.requests.map((request) => h(Question, {
 					key: request.id,
 					request,
 					identity
@@ -14742,7 +14754,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				runtime.conversation?.releaseDraftAttachments?.(native);
 				openNativeCodexView();
 			} catch (error) {
-				showToast(tCodexExecution("requestFailed", langState.lang));
+				showToast(codexExecutionErrorMessage(error, langState.lang));
 			} finally {
 				controller.nativePreparing = false;
 				notifyCodexTurn();

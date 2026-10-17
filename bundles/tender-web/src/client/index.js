@@ -26,7 +26,7 @@ import { createSkillLifecycle, skillLifecycleCss } from './skill-lifecycle.js'
 import { createProfessionalTaskSummary, professionalTaskSummaryCss } from './professional-task-summary.js'
 import { renderTenderResponseCoverage, tenderResponseCss } from './tender-response-panel.js'
 import { installProfessionalConversationView } from './professional-conversation-view.js'
-import { createNativeCodexExecution } from './codex-execution.js'
+import { createNativeCodexExecution, codexExecutionErrorMessage } from './codex-execution.js'
 import { tCodexExecution } from './locales/codex-execution.js'
 import { installNativeWorkFilePreviews, nativeWorkFilePreviewCss } from './native-work-file-preview.js'
 import { buildCodexTurnDelegation, codexTurnModel, codexSupportsEffort, resolveCodexTurnSelection } from '../codex-turn.ts'
@@ -3489,7 +3489,7 @@ const SearchSettings = createSearchSettings(React)
         for (const id of ids) props.inputActions?.removeAttachment?.(id)
         runtime.conversation?.releaseDraftAttachments?.(native)
         openNativeCodexView()
-      } catch (error) { showToast(tCodexExecution('requestFailed', langState.lang)) }
+      } catch (error) { showToast(codexExecutionErrorMessage(error, langState.lang)) }
       finally { controller.nativePreparing = false; notifyCodexTurn() }
     }
 

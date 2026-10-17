@@ -1,5 +1,20 @@
 import { tCodexExecution } from './locales/codex-execution.js'
 
+export function codexExecutionErrorMessage(error, language) {
+  const fallback = tCodexExecution('requestFailed', language)
+  const raw = typeof error === 'string' ? error : typeof error?.message === 'string' ? error.message : ''
+  const message = raw.replace(/^Error:\s*/i, '')
+    .replace(/^Error invoking remote method ['"][^'"]+['"]:\s*/i, '').replace(/^Error:\s*/i, '')
+    .split(/\r?\n/)[0].trim()
+    .replace(/(["']?(?:authorization|proxy-authorization)["']?\s*[:=]\s*["']?)(?:(?:Bearer|Basic)\s+)?[^"'\s,;}]+/gi, '$1[REDACTED]')
+    .replace(/\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi, '[REDACTED]')
+    .replace(/((?:[?&]|\b)(?:[A-Z_]*(?:KEY|TOKEN|SECRET|PASSWORD)|api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|password)\s*["']?\s*[:=]\s*["']?)[^&\s,;"'}<>]+/gi, '$1[REDACTED]')
+    .replace(/\bsk-[A-Za-z0-9_-]{6,}/g, '[REDACTED]')
+    .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, '[REDACTED]')
+  if (!message || /^(?:Error|Unknown(?: error)?|undefined|null|\[object Object\])[.!]?$/i.test(message)) return fallback
+  return message.length > 500 ? message.slice(0, 500) + '…' : message
+}
+
 export function createNativeCodexExecution({ React, desktop, language, useLanguage = language, notify = () => {}, renderMessage = (text) => text, openFile }) {
   const h = React.createElement
   const states = new Map()
@@ -88,6 +103,8 @@ export function createNativeCodexExecution({ React, desktop, language, useLangua
     }, [id])
     const state = current(id)
     const t = (key) => tCodexExecution(key, lang)
+    const errorSummary = t(state.errorCode || 'requestFailed')
+    const errorDetail = codexExecutionErrorMessage(state.error, lang)
     const identity = { sessionId: id, cwd: state.cwd }
     const message = (row) => {
       if (row.role === 'tool') return h('details', null, h('summary', null, row.text.split('\n')[0]), h('pre', { style: { whiteSpace: 'pre-wrap' } }, row.text))
@@ -113,7 +130,8 @@ export function createNativeCodexExecution({ React, desktop, language, useLangua
           h('div', { style: { fontWeight: 600, marginBottom: 8 } }, row.role === 'user' ? t('you') : row.role === 'assistant' ? 'Codex' : t('tool')),
           message(row),
         )),
-        state.error && h('p', { role: 'alert', style: { color: '#b42318' } }, t(state.errorCode || 'requestFailed')),
+        state.error && h('p', { role: 'alert', style: { color: '#b42318' } }, errorSummary,
+          errorDetail !== errorSummary && errorDetail !== t('requestFailed') ? h('span', { style: { display: 'block', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' } }, errorDetail) : null),
         ...state.requests.map((request) => h(Question, { key: request.id, request, identity })),
       ),
     )

@@ -208,3 +208,36 @@ test('native pause receipt requires a stopped lease; wrong claims and superseded
   await f.bridge.release(context)
   await f.bridge.dispose()
 })
+
+
+test('native context awaits the official cold-session activation instead of rejecting the visible session', async () => {
+  const f = fixture(), activation = deferred()
+  let live = false, calls = 0
+  f.services.agents.get = (id: string) => id === sid && live ? f.agent : null
+  f.services.sessionController = { async resolveAgent(id: string) { calls++; assert.equal(id, sid); await activation.promise; live = true; return { agent: f.agent } } }
+  const pending = f.bridge.context(f.identity)
+  await Promise.resolve()
+  assert.equal(calls, 1)
+  assert.equal(f.appended.length, 0, 'no human input or DSH request precedes completed official activation')
+  activation.resolve()
+  const context = await pending
+  assert.equal(context.sessionId, sid)
+  assert.equal(f.appended.length, 1)
+  await f.bridge.release(context); await f.bridge.dispose()
+})
+
+test('cold activation never creates unknown sessions or bypasses archive, cwd, root, or lease checks', async () => {
+  for (const scenario of ['unknown', 'archived', 'cwd', 'child', 'lease']) {
+    const f = fixture()
+    let live = false, calls = 0
+    f.services.agents.get = (id: string) => id === sid && live ? f.agent : null
+    f.services.sessionController = { async resolveAgent() { calls++; if (scenario === 'unknown') return { error: new Error('session not found') }; live = true; return { agent: f.agent } } }
+    if (scenario === 'archived') f.services.workspaceRegistry.archivedSessionIds.push(sid)
+    if (scenario === 'child') f.agent.session.header.parentSession = 'real-parent'
+    if (scenario === 'lease') await assert.rejects(f.bridge.tool({ ...f.identity, lease: 'unknown-owner', action: 'catalogue' }), /加载/)
+    else await assert.rejects(f.bridge.context({ ...f.identity, ...(scenario === 'cwd' ? { cwd: cwd + '/other' } : {}) }), /not found|归档|工作区|主对话/)
+    assert.equal(calls, ['archived', 'lease'].includes(scenario) ? 0 : 1)
+    assert.equal(f.appended.length, 0)
+    await f.bridge.dispose()
+  }
+})

@@ -404,3 +404,29 @@ test('a completed operation receipt is replayed without a second native turn', a
     assert.equal(h.children.length, 0)
   } finally { h.controller.dispose() }
 })
+
+
+test('RPC failures preserve the actionable reason and redact credentials before reaching the renderer', async () => {
+  const h = harness({ rpcError: message => message.method === 'thread/start' ? { code: -32602, message: 'Requested model is unavailable.\nAuthorization: Bearer secret-token\nhttps://example.invalid/?token=secret-query\nsecret sk-examplekey123' } : null })
+  try {
+    await assert.rejects(h.controller.submit({ ...identity, text: 'Review the tender' }), /Requested model is unavailable/)
+    const failure = h.controller.status(identity.sessionId)
+    assert.equal(failure.phase, 'failed')
+    assert.match(failure.error, /Requested model is unavailable/)
+    assert.doesNotMatch(failure.error, /secret-token|secret-query|sk-examplekey123/)
+    assert.equal(h.calls.some(row => row.method === 'turn/start'), false)
+    assert.ok(h.bridges.some(row => row.action === 'release'))
+  } finally { h.controller.dispose() }
+})
+
+test('failed native turns retain the provider reason instead of replacing it with a generic message', async () => {
+  const h = harness()
+  try {
+    await h.controller.submit({ ...identity, text: 'Review the tender' })
+    h.children[0].reply({ method: 'turn/completed', params: { threadId: 'native-thread', turn: { status: 'failed', error: { message: 'The model does not support this reasoning effort.' } } } })
+    await tick()
+    const failure = h.controller.status(identity.sessionId)
+    assert.equal(failure.phase, 'failed')
+    assert.match(failure.error, /does not support this reasoning effort/)
+  } finally { h.controller.dispose() }
+})

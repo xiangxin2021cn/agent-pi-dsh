@@ -105,6 +105,11 @@ export function createCodexToolBridge(ctx: any, defineTool: (options: any) => un
   ]) { const off = install(); if (typeof off === 'function') disposers.push(off) }
   return {
     async context(input: any) {
+      if (/^[\w-]{1,160}$/.test(input?.sessionId || '') && !ctx.get('agents')?.get(input.sessionId)) {
+        if (ctx.get('workspaceRegistry')?.archivedSessionIds?.includes(input.sessionId)) throw new Error('该对话已归档，请恢复后再执行任务。')
+        const resolved = await ctx.get('sessionController')?.resolveAgent?.(input.sessionId)
+        if (resolved?.error) throw resolved.error
+      }
       const { agent, cwd, sessionId } = identity(input)
       if (agent.session.header.parentSession) throw new Error('Codex 主执行只能在主对话中启动，子任务需向主任务汇报。')
       if (agent.status !== 'idle' || agent.inbox?.hasPending || leases.has(sessionId)) throw new Error('当前任务已有执行者或待处理消息，请等待完成或停止后再切换引擎。')

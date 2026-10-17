@@ -2,9 +2,15 @@ import { spawn as nodeSpawn, spawnSync } from 'node:child_process'
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, win32 } from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { sanitizeStartupLog } from './startup-diagnostics.mjs'
 
 const SECRET_ENV = ['OPENAI_API_KEY', 'OPENAI_ACCESS_TOKEN', 'CODEX_API_KEY', 'CODEX_ACCESS_TOKEN']
 const SUPPORTED_REQUESTS = new Set(['item/commandExecution/requestApproval', 'item/fileChange/requestApproval', 'item/tool/requestUserInput', 'item/permissions/requestApproval'])
+
+function executionFailure(detail, fallback) {
+  const text = typeof detail === 'string' ? sanitizeStartupLog(detail).replace(/\bsk-[A-Za-z0-9_-]+/g, '<redacted>').trim().slice(0, 1200) : ''
+  return text ? `${fallback} ${text}` : fallback
+}
 
 export function validateExecutionIdentity(input) {
   if (!input || typeof input.sessionId !== 'string' || !/^[\w-]{1,160}$/.test(input.sessionId)) throw new Error('当前对话尚未就绪。')
@@ -114,7 +120,7 @@ export function createCodexExecutionController(options) {
       pending.delete(message.id)
       clearTimeout(entry.timer)
       if (message.error) {
-        const error = new Error('Codex 拒绝了请求，请检查模型、任务状态或重新登录。')
+        const error = new Error(executionFailure(message.error.message, 'Codex 请求失败。'))
         if (/no rollout found for thread id/.test(String(message.error.message))) error.code = 'no-rollout'
         entry.reject(error)
       }
@@ -172,12 +178,12 @@ export function createCodexExecutionController(options) {
       record.phase = params.turn?.status === 'failed' ? 'failed' : 'idle'
       record.activeTurnId = null
       record.requests = []
-      if (record.phase === 'failed') record.error = 'Codex 本轮执行失败，请检查任务和登录状态后继续。'
+      if (record.phase === 'failed') record.error = executionFailure(params.turn?.error?.message, 'Codex 本轮执行失败。')
       for (const [id, entry] of serverRequests) if (entry.record === record) serverRequests.delete(id)
       await release(record)
       persist()
     } else if (message.method === 'error') {
-      record.error = 'Codex 报告执行错误。'
+      record.error = executionFailure(params.error?.message, 'Codex 报告执行错误。')
     } else return
     publish(record)
   }

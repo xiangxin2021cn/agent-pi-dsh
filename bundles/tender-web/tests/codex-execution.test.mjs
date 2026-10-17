@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
-import { createNativeCodexExecution } from '../src/client/codex-execution.js'
+import { runInNewContext } from 'node:vm'
+import { createNativeCodexExecution, codexExecutionErrorMessage } from '../src/client/codex-execution.js'
+import { tCodexExecution } from '../src/client/locales/codex-execution.js'
 
 function fixture() {
   const callbacks = [], cleanup = [], rendered = [], opened = [], sent = []
@@ -23,6 +26,71 @@ function fixture() {
 }
 const nodes = (tree) => typeof tree !== 'object' || !tree ? [] : [tree, ...(tree.children || []).flat(Infinity).flatMap(nodes)]
 const content = (tree) => typeof tree === 'string' ? tree : (tree?.children || []).flat(Infinity).map(content).join(' ')
+
+test('Codex errors retain the useful IPC cause without exposing credentials or stacks', () => {
+  const error = new Error("Error invoking remote method 'codex-execution-submit': Error: Shared context refused: Authorization: Bearer auth-fixture; OPENAI_API_KEY=key-fixture; url=https://localhost/?token=query-fixture&api_key=api-fixture; sk-fixtureabcdef; eyJfixture.payload.signature\n    at internalSecret (C:/private/stack.js:1)")
+  const visible = codexExecutionErrorMessage(error, 'en')
+  assert.match(visible, /^Shared context refused:/)
+  assert.doesNotMatch(visible, /invoking remote|auth-fixture|key-fixture|query-fixture|api-fixture|sk-fixtureabcdef|eyJfixture|internalSecret|private/)
+  assert.match(visible, /\[REDACTED\]/)
+  const jsonHeader = codexExecutionErrorMessage('{"Authorization": "Basic header-secret", "access_token":"access-secret", "password":"password-secret"}', 'en')
+  assert.doesNotMatch(jsonHeader, /header-secret|access-secret|password-secret/)
+  assert.ok(codexExecutionErrorMessage('x'.repeat(900), 'en').length <= 501)
+  for (const value of [null, undefined, {}, { message: 42 }, '', 'Error', 'Unknown error', new Error('Error invoking remote method "codex-execution-submit": Error:')]) {
+    assert.equal(codexExecutionErrorMessage(value, 'zh'), '请求失败，请重试。')
+  }
+})
+
+test('native Codex failure panel shows the retained sanitized cause beneath its localized summary', async () => {
+  const f = fixture()
+  await f.api.load('one')
+  f.emit({ sessionId: 'one', cwd: 'C:/project', phase: 'failed', errorCode: 'requestFailed',
+    error: "Error invoking remote method 'codex-execution-submit': Error: Shared task context unavailable; token=panel-secret",
+    requests: [], messages: [] })
+  const alert = nodes(f.api.View({ sessionId: 'one' })).find(row => row.props?.role === 'alert')
+  assert.match(content(alert), /Request failed\. Please retry\./)
+  assert.match(content(alert), /Shared task context unavailable/)
+  assert.doesNotMatch(content(alert), /panel-secret|invoking remote/)
+  f.api.dispose()
+})
+
+test('real composer native-submit failures retain the draft and attachments and show the specific cause', async () => {
+  // Run the production composer handler with isolated stores; no model or credentials.
+  const source = readFileSync(new URL('../src/client/index.js', import.meta.url), 'utf8')
+  const start = source.indexOf('async function submitCodexTurn(props) {')
+  const end = source.indexOf('\n    function wrapComposerSubmit(props)', start)
+  assert.ok(start >= 0 && end > start)
+  for (const authState of ['logged-in', 'logged-out']) {
+    let draft = '核查原图并保留我的任务描述'
+    let attachments = [{ id: 'original-drawing', path: 'C:/project/original.dwg' }]
+    const controller = {}, toasts = [], consumed = []
+    let submissions = 0
+    const authority = { session: {}, inputStore: { getSnapshot: () => ({ draft }) } }
+    const handler = runInNewContext('(' + source.slice(start, end) + ')', {
+      codexTurnKey: () => 'one', codexTurnController: () => controller, attachmentTurnControllers: new Map(),
+      codexTurnAuthorities: () => authority, sessionSnapshotWithChat: () => ({}), snapshotIsBusy: () => false,
+      codexAttachItems: () => attachments, nativeCodexAttachmentIds: () => [], kbTaskOf: () => ({ slugs: [] }),
+      codexAttachmentIds: rows => rows.map(row => row.id), sameCodexAttachmentIds: (a, b) => JSON.stringify(a) === JSON.stringify(b),
+      flushKbTaskSelection: async () => {}, window: { agentPiDesktop: { codexAuthStatus: async () => ({ state: authState }) } },
+      resolveCodexTurnSelection: () => ({ model: 'fixture-model', reasoningEffort: 'high' }), workspaceCwd: () => 'C:/project',
+      runtime: { conversation: { resolveDraftAttachments: () => [], releaseDraftAttachments: () => consumed.push('release') } },
+      stripMentionArtifacts: text => text, nativeCodex: { async submit() { submissions++; throw new Error("Error invoking remote method 'codex-execution-submit': Error: Shared context refused; token=submit-secret") } },
+      setComposerDraft: (_props, next) => { draft = next }, setAttachItemsFor: (_id, next) => { attachments = next },
+      codexAttachmentToken: row => row.id, openNativeCodexView: () => consumed.push('open'), showToast: text => toasts.push(text),
+      tCodexExecution, codexExecutionErrorMessage, langState: { lang: 'zh' }, notifyCodexTurn: () => {},
+    })
+    await handler({ inputActions: { removeAttachment: () => consumed.push('remove') } })
+    assert.equal(draft, '核查原图并保留我的任务描述')
+    assert.equal(attachments.length, 1)
+    assert.equal(attachments[0].path, 'C:/project/original.dwg')
+    assert.deepEqual(consumed, [])
+    assert.equal(controller.nativePreparing, false)
+    assert.equal(submissions, authState === 'logged-in' ? 1 : 0)
+    assert.equal(toasts.length, 1)
+    assert.doesNotMatch(toasts[0], /submit-secret|invoking remote/)
+    assert.match(toasts[0], authState === 'logged-in' ? /Shared context refused/ : /请先在 Codex 设置中登录账户/)
+  }
+})
 
 test('main engine choice survives remount, remains separate per task, and cannot switch while running', async () => {
   const f = fixture()
