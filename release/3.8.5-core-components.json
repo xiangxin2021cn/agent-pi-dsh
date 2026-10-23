@@ -1,0 +1,262 @@
+{
+  "schemaVersion": 1,
+  "productVersion": "3.8.5",
+  "checkedAt": "2026-10-23",
+  "scope": "Shared core for independently packaged mainline and tender editions",
+  "kernel": {
+    "name": "deepseek-harness",
+    "packageVersion": "0.2.1-rc.3",
+    "selection": "Official master source snapshot; not the npm latest rc.2 release or the older release tag",
+    "source": "https://github.com/deepseek-ai/deepseek-harness/commit/22ddee3792402c3e70ec5f86a63c3e3e895a2f60",
+    "commit": "22ddee3792402c3e70ec5f86a63c3e3e895a2f60",
+    "officialComposition": {
+      "cordis": "4.0.5",
+      "schemastery": "3.18.5",
+      "piAi": "1.3.0"
+    },
+    "validation": {
+      "officialBuildTasks": 10,
+      "officialBuild": "passed",
+      "nativeBridgePolicyHistoryTests": {
+        "passed": 20,
+        "failed": 0
+      },
+      "recoveredSessionStrictReplay": {
+        "status": "passed",
+        "events": 2563,
+        "officialPersistenceReopen": true
+      }
+    }
+  },
+  "runtime": {
+    "name": "Node.js",
+    "version": "24.22.1",
+    "channel": "LTS Krypton",
+    "target": "win32-x64",
+    "source": "https://nodejs.org/dist/v24.22.1/node-v24.22.1-win-x64.zip",
+    "archiveSha256": "d2046d28c2c3dcd211ac5145c0bf30e2047ef9dfb306693c8c6e2eccd8b95fa5",
+    "executableSha256": "d702daa815eabbff763c7d3808e235cf031cf2ca70211b56847bc72f51e240e5",
+    "officialChecksums": "https://nodejs.org/dist/v24.22.1/SHASUMS256.txt",
+    "nativeOfficeBindings": "passed"
+  },
+  "dependencies": [
+    {
+      "name": "electron",
+      "version": "45.0.0",
+      "source": "https://registry.npmjs.org/electron/-/electron-45.0.0.tgz",
+      "integrity": "sha512-yjz4uhMBcO6L5X7CWgRMobf2EMJPnb9j4zuf+nu/TU/6E4Sqfx7fn/a2eACo4qngjml/0JnsoZhxYroJLxLd2w=="
+    },
+    {
+      "name": "electron-builder",
+      "version": "26.18.0",
+      "source": "https://registry.npmjs.org/electron-builder/-/electron-builder-26.18.0.tgz",
+      "integrity": "sha512-ASgIuQnOq4RuD8jMhS9hI0LS3EMRT1I/M5R6utqifB/BHN80IcCjBdt+DED+NmNPvmBgEtrlExXZitNdA7kXOg=="
+    },
+    {
+      "name": "@openai/codex",
+      "version": "0.164.0",
+      "source": "https://registry.npmjs.org/@openai/codex/-/codex-0.164.0.tgz",
+      "integrity": "sha512-TWj7UGyPRe3Pj/A3ddNAxs1te3a/W/xAd+J0LHrrFTmsSfahGMOLF/vn88D3QCIgAT3B1rm1y/Z3NYE0rx6cZQ=="
+    },
+    {
+      "name": "@openai/codex-win32-x64",
+      "version": "0.164.0-win32-x64",
+      "source": "https://registry.npmjs.org/@openai/codex/-/codex-0.164.0-win32-x64.tgz",
+      "integrity": "sha512-urWPhwh9YavuoAPIkmVYKBTtd5OtGVL4Ki0Fb28dhK/Mz6Pt4LSy+gbRrZFz5+RXrw9ubvXuXDCcd8beYcWhDg=="
+    },
+    {
+      "name": "@napi-rs/canvas",
+      "version": "1.0.13",
+      "source": "https://registry.npmjs.org/@napi-rs/canvas/-/canvas-1.0.13.tgz",
+      "integrity": "sha512-b87ugZpQ5ViwqVBkjervxpwa0GmJPsKHLBNoZN6GpjWeHzTbDUGryriq+2DYW2XbB+xCqSIINQysC0/I87nPbw=="
+    },
+    {
+      "name": "marked",
+      "version": "18.1.1",
+      "source": "https://registry.npmjs.org/marked/-/marked-18.1.1.tgz",
+      "integrity": "sha512-zEGgrtUG8crk+TrMacJSVABU4DYDDkS8uqgU3ohrn/2fW9C2AEfUrO3m6IhpIpQpl7YcVpiXXC9cSMWDANT3dg=="
+    },
+    {
+      "name": "zod",
+      "version": "4.6.7",
+      "source": "https://registry.npmjs.org/zod/-/zod-4.6.7.tgz",
+      "integrity": "sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg=="
+    }
+  ],
+  "electronArchive": {
+    "source": "https://github.com/electron/electron/releases/download/v45.0.0/electron-v45.0.0-win32-x64.zip",
+    "bytes": 158223852,
+    "sha256": "ae53887a23bb640369c93dbd38c408a2af5c0deb86f2fa76c6c244cb444b7f47",
+    "officialChecksumMatch": true
+  },
+  "managedPlugins": [
+    {
+      "name": "dshmarket",
+      "version": "1.70.0",
+      "source": "https://registry.npmjs.org/dshmarket",
+      "commit": "b27986ab35d5834a54e0fe5113adc1e1ff11a95c",
+      "archiveBytes": 1419699,
+      "integrity": "sha512-Nkk5BQHy/jEnsTZhKy/EweSXLTOO8Ob3eRzSk5ITncrays8wF4SekfQ152fAkTYRSx262MW935RrfFov8SIdiQ==",
+      "adaptationReceipt": "vendor/dshmarket/AGENT-PI-ADAPTATION.json"
+    },
+    {
+      "name": "@anysearch/anysearch-dsh",
+      "version": "0.1.8",
+      "source": "https://registry.npmjs.org/@anysearch/anysearch-dsh",
+      "commit": "d20ab97727b36b4341977e53d7c9b7d2e93d3d03",
+      "archiveBytes": 173153,
+      "integrity": "sha512-N00VwXW5j2+IJKtURJIv5eaLJBqr+b/1oLL+B8pX2CfaHjIGPXop0l5fKXpr/iR9cS8cf9yjFOSeVaUa+rEO9A==",
+      "adaptationReceipt": "vendor/anysearch-dsh/AGENT-PI-ADAPTATION.json"
+    },
+    {
+      "name": "dsh-univer-office",
+      "version": "0.3.7",
+      "source": "https://github.com/dream-num/dsh-univer-office",
+      "commit": "8f85ce4074fdbe51416b6c337468bb916a302c2a",
+      "archive": "https://registry.npmjs.org/dsh-univer-office/-/dsh-univer-office-0.3.7.tgz",
+      "archiveSha256": "7c1a321d7467a2b5f0a7d57f926a59888e6723b3466259f65b5ca7dd6d9f76f5",
+      "integrity": "sha512-2eEi35ZzTOZiFQEEuNiF68MKWGKlXhVJiaOwCO5gdgNj0ZA+VesdoRxmT8hhFspbMtPfRp/0CoSo7PwFwBbBWw==",
+      "materialization": {
+        "files": 282,
+        "mainlineFileHashes": "passed",
+        "tenderFileHashes": "passed",
+        "separateEditionRuntimeDependencies": true
+      },
+      "compatibility": {
+        "host": "0.2.1-rc.3",
+        "unknownReleaseCandidates": "rejected"
+      },
+      "validation": {
+        "status": "passed",
+        "isolatedToolRegistrations": 13,
+        "fixtureAttachmentService": false,
+        "actions": [
+          "approval-gate-merge",
+          "approval-gate-discard",
+          "actual-gateway-start",
+          "sheet-edit-and-formula",
+          "docx-import",
+          "docx-export-content-preserved",
+          "actual-native-pdf-export",
+          "persisted-worktree-and-two-units"
+        ],
+        "formula": {
+          "cell": "B3",
+          "formula": "SUM(B2:B2)",
+          "cachedValue": 25
+        },
+        "exportBytes": {
+          "univer": 180224,
+          "xlsx": 6625,
+          "docx": 4857,
+          "pdf": 7406
+        },
+        "pdfPages": 1
+      }
+    },
+    {
+      "name": "dsh-router-standard",
+      "source": "https://github.com/yjh051108/dsh-router-standard",
+      "commit": "b39112dce54b90e67b50b166c2773861d7945d1f",
+      "decision": "Retain current immutable source; no newer official head at audit time"
+    },
+    {
+      "name": "dsh-super-injector",
+      "version": "0.3.5",
+      "source": "https://github.com/yjh051108/dsh-super-injector/releases/tag/v0.3.5",
+      "commit": "735c212b136e3fb3f9769e1f07266cd091570a55",
+      "archiveSha256": "49dc9c868704da0e73658976b37b55050bfefa8c22be5606dc290cdb77906f41",
+      "decision": "Retain current official release and reviewed product adaptations"
+    }
+  ],
+  "cad": {
+    "decision": "Retain reviewed clean-source and decoder combination; a current upstream version alone does not authorize replacing WASM or weakening provenance gates",
+    "versions": {
+      "@mlightcad/data-model": "1.14.3",
+      "@mlightcad/libredwg-converter": "3.14.3",
+      "@mlightcad/libredwg-web": "0.7.10"
+    }
+  },
+  "capabilities": {
+    "skillDirectories": 41,
+    "tenderSkillDirectories": 15,
+    "knowledgeSourceFiles": 18,
+    "completeUniverOffice": true
+  },
+  "validation": {
+    "officeMaterializationTests": {
+      "passed": 27,
+      "failed": 0
+    },
+    "officeRuntimeInstallTests": {
+      "passed": 15,
+      "failed": 0
+    },
+    "marketAnySearchOfficeRegressionTests": {
+      "passed": 49,
+      "failed": 0
+    },
+    "codexNativeBinary": {
+      "status": "passed",
+      "version": "codex-cli 0.164.0",
+      "appServerInitialize": true,
+      "modelCalls": 0
+    },
+    "electron": {
+      "status": "passed",
+      "version": "45.0.0",
+      "sandbox": true,
+      "contextIsolation": true,
+      "rendererNodeGlobals": false,
+      "preloadErrors": 0,
+      "pdfBytes": 23547,
+      "nodeSqlite": {
+        "status": "passed",
+        "version": "3.53.4",
+        "inMemoryOnly": true
+      }
+    },
+    "productSchemaResolution": {
+      "status": "passed",
+      "zod": "4.6.7",
+      "packageRoots": [
+        "bundles/tender-host/node_modules/zod",
+        "packages/business-core/node_modules/zod"
+      ],
+      "globalFallback": false
+    },
+    "mainlineGui": {
+      "status": "passed",
+      "checks": [
+        "mainline-native-default-without-tender-shell",
+        "actual-workspace-source-project-creation",
+        "same-project-native-session-roundtrip",
+        "strict-session-history-replay-after-reload",
+        "complete-univer-spreadsheet-visible-and-interactive",
+        "module-skill-lifecycle-visible",
+        "knowledge-immutable-version-created-and-visible"
+      ],
+      "nativeEvents": 17,
+      "pageErrors": 0,
+      "requestFailures": 0,
+      "consoleErrors": 0,
+      "warnings": [
+        "Electron development CSP warning",
+        "Univer redi custom-parameter warning"
+      ],
+      "scope": "No paid model calls; isolated host reports missing model credential. UI, native dispatch persistence, complete Office and KB are real."
+    },
+    "codexIntegrationRegressionTests": {
+      "passed": 44,
+      "failed": 0
+    },
+    "tenderAuthoringHttpOfficeTests": {
+      "passed": 40,
+      "failed": 0
+    }
+  },
+  "limits": [
+    "No paid model requests or real customer documents were used.",
+    "Build, installer signing and final packaged GUI checks are recorded by the edition packaging receipts."
+  ]
+}
