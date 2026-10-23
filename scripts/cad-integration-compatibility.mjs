@@ -229,6 +229,7 @@ const reviewed385HostExtensions = [
   },
   files: {
     ...reviewed383HostExtension.files,
+    'bundles/engineering-cad/src/index.ts': 'd1cda9fe3687dcaa0fcc1ec856c78e7ef63f463e122b3fdf1feb033bb4f93867',
     'bundles/tender-host/package.json': '0d9c8e05ba01dcc3d6731e644b342af91becbb29cf8814cacdda2f62724facda',
     'bundles/tender-host/package-lock.json': 'c18ec9d21ea3aae69230d5ab536589274d0854e256c4cc1902730486dc11d397',
   },

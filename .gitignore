@@ -26,4 +26,6 @@ release/*.exe
 release/*.tar.gz
 release/*.sha256
 release/*.build.json
+release/*.local-test.json
+release/*安装测试说明.txt
 release/vr-144/
