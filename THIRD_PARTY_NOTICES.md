@@ -65,27 +65,29 @@ entry-backed settings contracts; no product host or client patch is applied.
 
 Source: https://github.com/dream-num/dsh-univer-office
 
-## 3.8.3 bundled host dependency pins
+## 3.8.5 bundled host dependency pins
 
 The DSH source is pinned by `DSH_PIN` to official commit
-`1517a4dbca0a2789ff1d41ba439600f8547d23fa` (0.2.1-alpha.5).
-The product host separately pins Codex CLI 0.163.0, Canvas 1.0.11 and undici
+`22ddee3792402c3e70ec5f86a63c3e3e895a2f60` (0.2.1-rc.3 source snapshot).
+The product host separately pins Codex CLI 0.164.0, Canvas 1.0.13 and undici
 7.30.1 in its production package lock; upstream DSH keeps its own locked
-Codex provider dependency. Electron is pinned to 44.8.0 for the standard
-desktop distribution. The Intel Monterey compatibility build retains its
+Codex provider dependency. Electron is pinned to 45.0.0 for the standard
+desktop distribution. The Windows bundled Node runtime is the official
+24.22.1 LTS x64 distribution (https://nodejs.org/dist/v24.22.1/).
+The Intel Monterey compatibility build retains its
 separate Electron 43 pin and source-built native dependency checks.
 
-AnySearch 0.1.8 and DSH Market 1.66.28 retain their MIT licenses. Their official
+AnySearch 0.1.8 and DSH Market 1.70.0 retain their MIT licenses. Their official
 npm archive integrity, source commits and product adaptations are recorded in
 `vendor/core-plugins.pin.json` and each plugin's `AGENT-PI-ADAPTATION.json`.
 Product compatibility gates do not replace the original licenses.
 
-Sources: https://github.com/openai/codex/tree/rust-v0.163.0,
-https://github.com/Brooooooklyn/canvas/tree/v1.0.11,
+Sources: https://github.com/openai/codex/tree/rust-v0.164.0,
+https://github.com/Brooooooklyn/canvas/tree/v1.0.13,
 https://github.com/nodejs/undici/tree/v7.30.1,
-https://github.com/electron/electron/tree/v44.8.0,
+https://github.com/electron/electron/tree/v45.0.0,
 https://github.com/anysearch-team/anysearch-dsh/tree/v0.1.8,
-https://github.com/dsh-market/dsh-market/tree/08b83831fd02e8038e3360575647260279aa5e8f.
+https://github.com/dsh-market/dsh-market/tree/b27986ab35d5834a54e0fe5113adc1e1ff11a95c.
 
 ## VectifyAI/PageIndex
 

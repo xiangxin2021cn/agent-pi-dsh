@@ -8,14 +8,32 @@
 !ifndef INSTALLER_HEADER
   !define INSTALLER_HEADER "${NSISDIR}\Contrib\Graphics\Header\nsis3-grey.bmp"
 !endif
-!define PRODUCT_NAME "Agent Pi DSH"
-!define PRODUCT_ID "do.agentpi.dsh"
-!define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\AgentPiDSH"
+!ifndef PRODUCT_NAME
+  !define PRODUCT_NAME "Agent Pi DSH"
+!endif
+!ifndef PRODUCT_ID
+  !define PRODUCT_ID "do.agentpi.dsh"
+!endif
+!ifndef PRODUCT_EXE
+  !define PRODUCT_EXE "agent-pi-DSH"
+!endif
+!ifndef PRODUCT_ARTIFACT
+  !define PRODUCT_ARTIFACT "Agent-Pi-DSH"
+!endif
+!ifndef PRODUCT_USER_DATA
+  !define PRODUCT_USER_DATA "agent-pi-dsh-desktop"
+!endif
+!ifndef PRODUCT_EDITION
+  !define PRODUCT_EDITION "mainline"
+!endif
+!ifndef UNINST_KEY
+  !define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\AgentPiDSH"
+!endif
 !define INSTALL_ROOT_RECEIPT ".agent-pi-install-root.ini"
 !define INSTALL_ROOT_RECEIPT_SECTION "AgentPiDSH"
-Name "Agent Pi DSH"
-OutFile "Agent-Pi-DSH-${APP_VERSION}-x64.exe"
-InstallDir "$LOCALAPPDATA\Programs\Agent Pi DSH"
+Name "${PRODUCT_NAME}"
+OutFile "${PRODUCT_ARTIFACT}-${APP_VERSION}-x64.exe"
+InstallDir "$LOCALAPPDATA\Programs\${PRODUCT_NAME}"
 InstallDirRegKey HKCU "${UNINST_KEY}" "InstallLocation"
 RequestExecutionLevel user
 SetCompress off
@@ -32,7 +50,7 @@ UninstallIcon "${APP_ICON}"
 !define MUI_HEADERIMAGE_RIGHT
 !define MUI_HEADERIMAGE_BITMAP "${INSTALLER_HEADER}"
 !define MUI_HEADERIMAGE_UNBITMAP "${INSTALLER_HEADER}"
-!define MUI_FINISHPAGE_RUN "$INSTDIR\agent-pi-DSH.exe"
+!define MUI_FINISHPAGE_RUN "$INSTDIR\${PRODUCT_EXE}.exe"
 
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
@@ -92,8 +110,8 @@ Function ValidateInstallRoot
     StrCmp $0 "$INSTDIR" install_root_ok install_root_invalid
 
   install_root_unowned:
-    StrCpy $0 "$INSTDIR" 13 -13
-    StrCmp $0 "\Agent Pi DSH" 0 install_root_invalid
+    ${GetFileName} "$INSTDIR" $0
+    StrCmp $0 "${PRODUCT_NAME}" 0 install_root_invalid
     IntCmp $4 -1 install_root_ok
     FindFirst $0 $1 "$INSTDIR\*.*"
     IfErrors install_root_ok
@@ -109,7 +127,7 @@ Function ValidateInstallRoot
     FindClose $0
     Goto install_root_ok
   install_root_legacy:
-    IfFileExists "$INSTDIR\agent-pi-DSH.exe" 0 install_root_invalid
+    IfFileExists "$INSTDIR\${PRODUCT_EXE}.exe" 0 install_root_invalid
     IfFileExists "$INSTDIR\resources\app.asar" install_root_ok install_root_invalid
 
   install_root_invalid:
@@ -172,7 +190,7 @@ Function un.ValidateInstallRoot
   StrCmp $0 "$INSTDIR" 0 uninstall_root_invalid
   ReadRegStr $0 HKCU "${UNINST_KEY}" "InstallLocation"
   StrCmp $0 "$INSTDIR" 0 uninstall_root_invalid
-  IfFileExists "$INSTDIR\agent-pi-DSH.exe" uninstall_root_ok uninstall_root_invalid
+  IfFileExists "$INSTDIR\${PRODUCT_EXE}.exe" uninstall_root_ok uninstall_root_invalid
   uninstall_root_invalid:
     SetErrorLevel 5
     MessageBox MB_OK|MB_ICONSTOP "无法确认该目录由 Agent Pi DSH 安装程序独占，卸载已停止且没有删除文件。请在同一目录重新安装后再卸载。$\r$\n$\r$\nThe installer cannot prove ownership of this directory. Uninstall stopped without deleting files. Reinstall to the same directory, then retry."
@@ -184,15 +202,15 @@ FunctionEnd
 ; taskkill editors (Cursor can also lock that file); the asar fallback
 ; below still finishes the payload if only the asar is busy.
 Function CloseRunningApp
-  nsExec::ExecToStack '"$SYSDIR\cmd.exe" /c tasklist /FI "IMAGENAME eq agent-pi-DSH.exe" /NH | find /I "agent-pi-DSH.exe"'
+  nsExec::ExecToStack '"$SYSDIR\cmd.exe" /c tasklist /FI "IMAGENAME eq ${PRODUCT_EXE}.exe" /NH | find /I "${PRODUCT_EXE}.exe"'
   Pop $0
   Pop $1
   ${If} $0 == 0
-    MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "检测到 Agent Pi DSH 仍在运行（含托盘）。点「确定」将退出后继续安装。$\r$\n$\r$\nAgent Pi DSH is still running (including the tray). OK will close it and continue." IDOK do_kill
+    MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "检测到 ${PRODUCT_NAME} 仍在运行（含托盘）。点「确定」将退出后继续安装。$\r$\n$\r$\nAgent Pi DSH is still running (including the tray). OK will close it and continue." IDOK do_kill
     Abort
     do_kill:
-      DetailPrint "Closing Agent Pi DSH..."
-      nsExec::ExecToLog '"$SYSDIR\taskkill.exe" /F /IM agent-pi-DSH.exe /T'
+      DetailPrint "Closing ${PRODUCT_NAME}..."
+      nsExec::ExecToLog '"$SYSDIR\taskkill.exe" /F /IM ${PRODUCT_EXE}.exe /T'
       Pop $0
       Sleep 1500
   ${EndIf}
@@ -306,15 +324,15 @@ Function RollbackAppAsar
 FunctionEnd
 
 Function un.CloseRunningApp
-  nsExec::ExecToStack '"$SYSDIR\cmd.exe" /c tasklist /FI "IMAGENAME eq agent-pi-DSH.exe" /NH | find /I "agent-pi-DSH.exe"'
+  nsExec::ExecToStack '"$SYSDIR\cmd.exe" /c tasklist /FI "IMAGENAME eq ${PRODUCT_EXE}.exe" /NH | find /I "${PRODUCT_EXE}.exe"'
   Pop $0
   Pop $1
   ${If} $0 == 0
-    MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "检测到 Agent Pi DSH 仍在运行（含托盘）。点「确定」将退出后继续卸载。 Agent Pi DSH is still running (including the tray). OK will close it and continue uninstalling." IDOK un_do_kill
+    MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "检测到 ${PRODUCT_NAME} 仍在运行（含托盘）。点「确定」将退出后继续卸载。 Agent Pi DSH is still running (including the tray). OK will close it and continue uninstalling." IDOK un_do_kill
     Abort
     un_do_kill:
-      DetailPrint "Closing Agent Pi DSH..."
-      nsExec::ExecToLog '"$SYSDIR\taskkill.exe" /F /IM agent-pi-DSH.exe /T'
+      DetailPrint "Closing ${PRODUCT_NAME}..."
+      nsExec::ExecToLog '"$SYSDIR\taskkill.exe" /F /IM ${PRODUCT_EXE}.exe /T'
       Pop $0
       Sleep 1500
   ${EndIf}
@@ -365,7 +383,7 @@ Section "Install"
     Abort
 
   asar_ok:
-  IfFileExists "$INSTDIR\agent-pi-DSH.exe" 0 extract_fail
+  IfFileExists "$INSTDIR\${PRODUCT_EXE}.exe" 0 extract_fail
   IfFileExists "$INSTDIR\resources\runtime\node\node.exe" 0 extract_fail
   IfFileExists "$INSTDIR\resources\runtime\deepseek-harness\apps\cli\lib\bin.js" 0 extract_fail
   IfFileExists "$INSTDIR\resources\runtime\product\scripts\repair-dsh-links.mjs" 0 extract_fail
@@ -421,14 +439,14 @@ Section "Install"
   installed_runtime_verified:
   SetOutPath "$INSTDIR"
   Delete "$INSTDIR\resources\app.asar.old"
-  CreateShortCut "$DESKTOP\Agent Pi DSH.lnk" "$INSTDIR\agent-pi-DSH.exe"
-  CreateDirectory "$SMPROGRAMS\Agent Pi DSH"
-  CreateShortCut "$SMPROGRAMS\Agent Pi DSH\Agent Pi DSH.lnk" "$INSTDIR\agent-pi-DSH.exe"
-  CreateShortCut "$SMPROGRAMS\Agent Pi DSH\Uninstall.lnk" "$INSTDIR\Uninstall.exe"
+  CreateShortCut "$DESKTOP\${PRODUCT_NAME}.lnk" "$INSTDIR\${PRODUCT_EXE}.exe"
+  CreateDirectory "$SMPROGRAMS\${PRODUCT_NAME}"
+  CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME}.lnk" "$INSTDIR\${PRODUCT_EXE}.exe"
+  CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Uninstall.lnk" "$INSTDIR\Uninstall.exe"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
   WriteRegStr HKCU "${UNINST_KEY}" "DisplayName" "${PRODUCT_NAME}"
   WriteRegStr HKCU "${UNINST_KEY}" "UninstallString" "$INSTDIR\Uninstall.exe"
-  WriteRegStr HKCU "${UNINST_KEY}" "DisplayIcon" "$INSTDIR\agent-pi-DSH.exe"
+  WriteRegStr HKCU "${UNINST_KEY}" "DisplayIcon" "$INSTDIR\${PRODUCT_EXE}.exe"
   WriteRegStr HKCU "${UNINST_KEY}" "Publisher" "Agent Pi DSH"
   WriteRegStr HKCU "${UNINST_KEY}" "DisplayVersion" "${APP_VERSION}"
   WriteRegStr HKCU "${UNINST_KEY}" "InstallLocation" "$INSTDIR"
@@ -441,7 +459,7 @@ Section "Uninstall"
   DetailPrint "Detaching installer-owned dsh-univer-office profile link..."
   IfFileExists "$INSTDIR\resources\runtime\node\node.exe" 0 uninstall_helper_missing
   IfFileExists "$INSTDIR\resources\runtime\product\scripts\installer-univer-lifecycle.mjs" 0 uninstall_helper_missing
-  nsExec::ExecToLog '"$INSTDIR\resources\runtime\node\node.exe" "$INSTDIR\resources\runtime\product\scripts\installer-univer-lifecycle.mjs" detach-profile "$APPDATA\agent-pi-dsh-desktop\dsh-home\profiles\tender" "$INSTDIR\resources\runtime\product"'
+  nsExec::ExecToLog '"$INSTDIR\resources\runtime\node\node.exe" "$INSTDIR\resources\runtime\product\scripts\installer-univer-lifecycle.mjs" detach-profile "$APPDATA\${PRODUCT_USER_DATA}\dsh-home\profiles\tender" "$INSTDIR\resources\runtime\product"'
   Pop $0
   IntCmp $0 0 uninstall_detach_ok
   Goto uninstall_detach_failed
@@ -478,9 +496,13 @@ Section "Uninstall"
     MessageBox MB_OK|MB_ICONSTOP "未能完全删除 Agent Pi DSH 安装目录。卸载记录已保留；部分安装收据或程序文件可能已经删除，请先在原目录重新安装，再重试卸载。 The install directory could not be removed completely. The uninstall entry was kept, but receipt or program files may already be gone; reinstall to the same directory before retrying uninstall."
     Abort
   uninstall_delete_ok:
-  Delete "$DESKTOP\Agent Pi DSH.lnk"
-  Delete "$DESKTOP\Agent Pi 3.0.lnk"
-  RMDir /r "$SMPROGRAMS\Agent Pi DSH"
+  Delete "$DESKTOP\${PRODUCT_NAME}.lnk"
+  !if "${PRODUCT_EDITION}" == "mainline"
+    Delete "$DESKTOP\Agent Pi 3.0.lnk"
+  !endif
+  RMDir /r "$SMPROGRAMS\${PRODUCT_NAME}"
   DeleteRegKey HKCU "${UNINST_KEY}"
-  DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\AgentPi30"
+  !if "${PRODUCT_EDITION}" == "mainline"
+    DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\AgentPi30"
+  !endif
 SectionEnd

@@ -5,9 +5,11 @@
  */
 
 import { existsSync, readdirSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { isDeepStrictEqual } from 'node:util'
 import { JSON_SCHEMA, load } from 'js-yaml'
+import { findDshInstallDir } from './dsh-install.ts'
 import { resolveDshHome } from './home-paths.ts'
 import { githubRemoteIdentities, githubRepoIdentities, hostedRepoKey, isGenerationLink, isGitHostedSpec, repoOfTarget } from './sources.ts'
 
@@ -133,12 +135,16 @@ export function readManifestDeps(profile: string, explicitDir?: string): Record<
 
 /**
  * For each installed package, the OTHER installed package that declares it —
- * as a dependency or a peer dependency — in its own manifest.
+ * as a dependency, an optional dependency, or a peer dependency — in its own
+ * manifest.
  *
  * pnpm's auto-install-peers writes a plugin's peers into the profile manifest
  * as direct dependencies, so a native binding a plugin needs shows up in the
  * installed list looking exactly like a plugin the user chose (#634). What
- * separates them is that somebody else asked for it.
+ * separates them is that somebody else asked for it. Optional dependencies
+ * count for the same reason (#941): a platform-specific binary a plugin lists
+ * under `optionalDependencies` is payload, not a plugin the user chose, even
+ * when pnpm installed that package and the card rendered.
  *
  * Ownership is decided by the first owner in sorted order, so the answer does
  * not depend on the manifest's key order. A package that declares itself is
@@ -151,11 +157,21 @@ export function readDependencyOwners(
 ): Record<string, string> {
   const installed = new Set(names)
   const owners: Record<string, string> = {}
-  for (const owner of [...names].sort()) {
+  // Who may be an OWNER is not the same question as who gets a card (#892).
+  // pnpm hoists a transitive dependency's directory to `node_modules/<name>`
+  // as well, so `ws` — a dependency of a plugin, never a profile dependency —
+  // is where `bufferutil` and `utf-8-validate` are declared. Scanning only the
+  // profile's own entries could therefore never answer "who asked for these",
+  // and the two native peers stayed on the list as plugins nobody chose.
+  for (const owner of topLevelPackageNames(profile, names, explicitDir)) {
     const manifest = readInstalledManifest(profile, owner, explicitDir)
     if (typeof manifest !== 'object' || manifest === null) continue
-    const declared = manifest as { dependencies?: unknown; peerDependencies?: unknown }
-    for (const field of [declared.dependencies, declared.peerDependencies]) {
+    const declared = manifest as {
+      dependencies?: unknown
+      optionalDependencies?: unknown
+      peerDependencies?: unknown
+    }
+    for (const field of [declared.dependencies, declared.optionalDependencies, declared.peerDependencies]) {
       if (typeof field !== 'object' || field === null) continue
       for (const dependency of Object.keys(field as Record<string, unknown>)) {
         if (dependency === owner || !installed.has(dependency)) continue
@@ -164,6 +180,50 @@ export function readDependencyOwners(
     }
   }
   return owners
+}
+
+/**
+ * Every package that could be an owner, sorted: the profile's own entries
+ * plus every package sitting at the profile's top level.
+ *
+ * The manifest's keys are the floor, not the ceiling — a missing or
+ * unreadable `node_modules` leaves the answer exactly as it was before the
+ * top level was scanned, so this can only ever find MORE owners.
+ *
+ * One manifest read per top-level package, measured at ~30 ms for 300
+ * packages on a warm cache, once per `/installed` request — which already
+ * reads a manifest, a patch file and an entry artifact for every card.
+ */
+function topLevelPackageNames(
+  profile: string,
+  names: readonly string[],
+  explicitDir?: string,
+): string[] {
+  const found = new Set(names)
+  const root = join(profileDir(profile, explicitDir), 'node_modules')
+  let entries: string[] = []
+  try {
+    entries = readdirSync(root, { withFileTypes: true })
+      // A scope directory is named `@scope`, so the leading `@` belongs here;
+      // the package's own namespace is added below.
+      .filter(dirent => dirent.isDirectory() && /^@?[A-Za-z0-9._~-]+$/.test(dirent.name))
+      .map(dirent => dirent.name)
+  } catch {
+    return [...found].sort()
+  }
+  for (const entry of entries) {
+    if (!entry.startsWith('@')) {
+      found.add(entry)
+      continue
+    }
+    // A scope directory holds the packages themselves.
+    try {
+      for (const inner of readdirSync(join(root, entry), { withFileTypes: true })) {
+        if (inner.isDirectory() && /^[A-Za-z0-9._~-]+$/.test(inner.name)) found.add(`${entry}/${inner.name}`)
+      }
+    } catch { /* unreadable scope — its packages simply cannot own anything */ }
+  }
+  return [...found].sort()
 }
 
 /** Exact rollback state owned by one profile package operation. */
@@ -1290,7 +1350,7 @@ export function conflictingEntryIds(
  * @param profileDirectory - resolved profile directory (host-authoritative under Desktop).
  * @param name - installed package name.
  */
-export function hasLoadableEntry(profileDirectory: string, name: string): boolean {
+export function hasLoadableEntry(profileDirectory: string, name: string, hostDirectory?: string | null): boolean {
   const dir = join(profileDirectory, 'node_modules', name)
   if (entryArtifactExists(dir)) return true
   // A carrier is only sound when something it mounts is itself loadable.
@@ -1303,11 +1363,39 @@ export function hasLoadableEntry(profileDirectory: string, name: string): boolea
   // exiting 0 was immediately followed by the market removing what it had
   // just, correctly, installed.
   const workspaceRoot = dirname(profileDirectory)
-  return bundlePatchTargets(dir)
-    .filter(target => target !== name)
-    .some(target => entryArtifactExists(join(profileDirectory, 'node_modules', target))
-      || entryArtifactExists(join(dir, 'node_modules', target))
-      || entryArtifactExists(join(workspaceRoot, 'node_modules', target)))
+  const targets = bundlePatchTargets(dir).filter(target => target !== name)
+  if (targets.some(target => entryArtifactExists(join(profileDirectory, 'node_modules', target))
+    || entryArtifactExists(join(dir, 'node_modules', target))
+    || entryArtifactExists(join(workspaceRoot, 'node_modules', target)))) return true
+  // #906: the host's OWN packages live in its install tree, not in any
+  // profile node_modules — `<install>/dsh/node_modules/...`, often inside
+  // app.asar. A carrier whose patch mounts nothing but in-box packages
+  // (@deepseek-ai/dsh-mcp-client and the like) therefore failed every root
+  // above, was reported "broken", and — through validateAddedPlugins — was
+  // uninstalled right after a successful install. `undefined` resolves the
+  // install dir lazily (only carriers pay for it); `null` means "do not look".
+  //
+  // Inside app.asar the probe is blind for EVERY @deepseek-ai/ name (the
+  // same measurement behind #676), so there identity decides instead of the
+  // filesystem — the host publishes that scope, and our own composer loads
+  // those packages from the archive at boot.
+  const host = hostDirectory === undefined ? findDshInstallDir() : hostDirectory
+  if (host === null || targets.length === 0) return false
+  const packaged = /[/\\]app\.asar[/\\]/iu.test(host)
+  return targets.some(target => packaged && target.startsWith('@deepseek-ai/')
+    || packageResolvableFrom(join(host, 'package.json'), target))
+}
+
+/** Whether `target` resolves from the host's own dependency tree. */
+function packageResolvableFrom(anchorPackageJson: string, target: string): boolean {
+  try {
+    const paths = createRequire(anchorPackageJson).resolve.paths(target) ?? []
+    return paths.some(searchPath => existsSync(join(searchPath, target, 'package.json')))
+  } catch {
+    // An unreadable anchor says nothing about the target: treat as absent
+    // rather than loadable, so the caller keeps its conservative answer.
+    return false
+  }
 }
 
 /** Plugin subdirectories (depth 2) of a collection checkout, as relative paths. */

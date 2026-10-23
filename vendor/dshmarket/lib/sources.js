@@ -3,6 +3,8 @@
  * installable pnpm target. Pure string logic, no I/O.
  */
 const REPO_RE = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+const MARKET_REPO = 'dsh-market/dsh-market';
+const MARKET_NPM_NAME = 'dshmarket';
 function validSubpath(subpath) {
     if (!/^[A-Za-z0-9_./-]+$/.test(subpath))
         return false;
@@ -505,6 +507,13 @@ export function installTargetFor(entry) {
     const source = parseSourceUrl(entry.url);
     if (source === null)
         return null;
+    // The market manages its own installation and is published to npm. Keep
+    // legacy catalog snapshots and self-update requests on that prebuilt
+    // registry package even when the entry has not yet gained its generated
+    // `npm` mapping; installing the repository URL runs its `prepare` script
+    // before the market can show the build-approval UI.
+    if (source.subpath === null && source.repo.toLowerCase() === MARKET_REPO)
+        return MARKET_NPM_NAME;
     if (typeof entry.npm === 'string' && NPM_NAME_RE.test(entry.npm))
         return entry.npm;
     const tarball = releaseTarballTarget(entry.tarball, source.repo);

@@ -6,21 +6,34 @@
  * primitive (progress bar, banners, tabs, swatches). */
 
 .root{height:100%;display:flex;flex-direction:column;min-width:0;color:var(--dsw-alias-label-primary,#1f2328);position:relative;container-type:inline-size}
-.head{display:flex;flex-direction:column;gap:12px;padding:4px 4px 6px}
-.title{font-size:16px;line-height:24px;font-weight:500;margin:0;white-space:nowrap}
-.sub{display:flex;align-items:center;gap:8px;font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary,#8b93a1);margin:0}
-.submitLink{font-size:11px;line-height:18px;color:var(--dsw-alias-label-tertiary,#8b93a1);text-decoration:none;white-space:nowrap}
+.head{display:flex;flex-direction:column;gap:8px;padding:0 4px 4px}
+/* One identity line: the sentence describes the section, the cluster on the
+   right says which section — the host's pageHead already carries the name, so
+   repeating it as a heading was a third title for the same thing. */
+.headTop{display:flex;align-items:center;justify-content:space-between;gap:6px 16px;flex-wrap:wrap;min-width:0}
+/* The sentence follows the name and is allowed to wrap: it is the one piece of
+   prose in the header, and truncating it would say less than wrapping does. */
+.headTop > .titleRow > .sub{max-width:100%}
+.title{font-size:15px;line-height:22px;font-weight:600;margin:0;white-space:nowrap;color:var(--dsw-alias-label-primary,#1f2328)}
+.sub{flex:1 1 auto;min-width:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary,#8b93a1);margin:0}
+.sidebarTip{display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#5c6570)}
+.submitLink{font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary,#8b93a1);text-decoration:none;white-space:nowrap}
 .submitLink:hover{color:var(--dsw-alias-brand-primary,#4f6ef7);text-decoration:underline}
 /* Wrap instead of clipping controls or the Tasks popover in narrow panels.
    position:relative is the popover's anchor — see .opPanel (#866). */
-.tabs{position:relative;display:flex;flex-wrap:wrap;gap:2px;border-bottom:1px solid var(--dsw-alias-border-l2,#e5e7eb);align-items:flex-end}
-.tab{border:none;background:none;font:inherit;font-size:13px;color:var(--dsw-alias-label-secondary,#6b7280);padding:7px 12px;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
-.tab.on{color:var(--dsw-alias-brand-primary,#4f6ef7);border-bottom-color:var(--dsw-alias-brand-primary,#4f6ef7);font-weight:600}
+.tabs{position:relative;display:flex;flex-wrap:wrap;gap:4px;padding:0 0 2px;align-items:center}
+.tab{position:relative;display:inline-flex;align-items:center;height:32px;border:none;background:none;font:inherit;font-size:13px;line-height:20px;color:var(--dsw-alias-label-secondary,#5c6570);padding:0 10px;border-radius:var(--dsw-radius-sm,#8px);cursor:pointer;white-space:nowrap;transition:background-color 120ms ease,color 120ms ease}
+.tab:hover:not(.on){background:var(--dsw-alias-interactive-bg-hover,#2631480f);color:var(--dsw-alias-label-primary,#1f2328)}
+.tab.on{color:var(--dsw-alias-label-primary,#1f2328);font-weight:600}
+/* The underline is its own box, inset to the label rather than the button:
+   the same 2px drawn as an inset box-shadow inherited the button's 8px radius
+   and curled up at both ends, which read as a bracket rather than an underline. */
+.tab.on::after{content:'';position:absolute;left:10px;right:10px;bottom:3px;height:2px;border-radius:1px;background:var(--dsw-alias-label-primary,#1f2328)}
 /* Second-level tabs under "Advanced" — same button styling as .tabs so the
    two read as one family, but no full-width bottom border of its own: that
    border is what visually says "top-level tab row", and having two of them
    stacked read as two unrelated tab bars rather than a parent/child pair. */
-.subTabs{display:flex;gap:2px;align-items:flex-end;margin:-4px 0 4px}
+.subTabs{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:0 0 2px}
 .banner{display:flex;align-items:center;gap:8px;background:var(--dsw-alias-bg-layer-2,#fdf3e3);border:1px solid var(--dsw-alias-border-l2,#f3e3c3);border-radius:8px;padding:8px 12px;font-size:12px;margin:0}
 .bannerIcon{flex-shrink:0;color:var(--dsw-alias-label-secondary,#6b7280)}
 .bannerHint{display:inline-flex;color:var(--dsw-alias-label-tertiary,#8b93a1);cursor:help}
@@ -48,7 +61,7 @@
    bottom-right corner, sat under the button once the list hit the end and
    could not be scrolled out from under it (#765). scroll-padding-bottom
    keeps keyboard focus from parking a control there too. */
-.body{flex:1;overflow-y:auto;padding:12px 4px 64px;scroll-padding-bottom:64px;overflow-x:hidden;overflow-anchor:none}
+.body{flex:1;overflow-y:auto;padding:8px 4px 64px;scroll-padding-bottom:64px;overflow-x:hidden;overflow-anchor:none}
 /* Sticky, so the search box and the category row both stay reachable while
    the grid scrolls — they used to stick separately (only .cats did), which
    left the search row to scroll away under .head's fixed title/tabs strip,
@@ -70,11 +83,11 @@
    ::before paints that strip in the same background and inherits the row's
    z-index, so the row covers what it cannot reach. Fixing it by removing the
    scroller's padding would re-space all five tabs to repair one. */
-.stickyHead{position:sticky;top:-1px;z-index:5;background:var(--dsw-alias-bg-layer-2,#f7f8fa)}
+.stickyHead{position:sticky;top:-1px;z-index:5;background:var(--dsw-alias-bg-base,#fff)}
 .stickyHead::before{content:'';position:absolute;left:0;right:0;bottom:100%;height:14px;background:inherit;pointer-events:none}
-.cats{padding:12px 4px 4px;margin:0 -4px 2px}
-.catsRow{display:flex;gap:8px;align-items:flex-start;position:relative}
-.star{font-size:11px;color:var(--dsw-alias-label-secondary,#9ca3af);flex:0 0 auto;white-space:nowrap}
+.cats{padding:0 4px 4px;margin:0 -4px 2px}
+.catsRow{display:flex;gap:6px;align-items:flex-start;position:relative}
+.star{font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary,#8b93a1);flex:0 0 auto;white-space:nowrap}
 /* Opaque disc behind the outline Button. The host outline fill (incl.
    :hover) is transparent by design — without a surface under it the
    chevron sits on card text. Keep the fill on this wrapper so the
@@ -86,24 +99,24 @@
   box-shadow:var(--dsw-shadow-lv1,0 4px 12px rgba(31,35,40,.08));
 }
 .topBtn{width:38px;height:38px;border-radius:99px;padding:0}
-.tag{border:1px solid var(--dsw-alias-border-l3,#d9dde3);color:var(--dsw-alias-label-secondary,#6b7280);border-radius:4px;flex-shrink:0;padding:1px 6px;font-size:11px;line-height:16px}
+.tag{border:.5px solid var(--dsw-alias-border-l3,#d9dde3);color:var(--dsw-alias-label-secondary,#5c6570);border-radius:999px;flex-shrink:0;padding:1px 8px;font-size:11px;line-height:17px;font-weight:500;white-space:nowrap}
 /* Same quiet chrome as `.tag`. Compatible / undeclared / unknown stay here —
    declaration satisfaction is the common case and must not outshout category
    tags. Only a confirmed mismatch (.hostRequirementBad) takes colour.
    "Compatible" means the declared range is satisfied, not that the plugin
    was tested on this host (RFC 2714 §4.4). */
-.hostRequirement{border:1px solid var(--dsw-alias-border-l3,#d9dde3);color:var(--dsw-alias-label-secondary,#6b7280);border-radius:4px;min-width:0;max-width:100%;padding:1px 6px;font-size:11px;line-height:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hostRequirement{border:.5px solid var(--dsw-alias-border-l3,#d9dde3);color:var(--dsw-alias-label-secondary,#5c6570);border-radius:999px;min-width:0;max-width:18em;padding:1px 8px;font-size:11px;line-height:17px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hostRequirementBad{border-color:var(--dsw-alias-state-error-primary,#dc2626);color:var(--dsw-alias-state-error-primary,#dc2626);background:#dc262614}
-.hostFilterNote{margin-top:6px;color:var(--dsw-alias-label-tertiary,#8b93a1);font-size:11px;line-height:16px}
+.hostFilterNote{margin-top:6px;color:var(--dsw-alias-label-tertiary,#8b93a1);font-size:12px;line-height:18px}
 .okState{font-size:12px;font-weight:600;color:var(--dsw-alias-state-success-primary,#16a34a);white-space:nowrap}
 .catsWrap{display:flex;gap:6px;flex-wrap:wrap;flex:1;min-width:0;align-items:center}
 .catsCollapsed{max-height:62px;overflow:hidden}
-.catsToggle.catsToggle{height:26px;min-height:26px;padding:0 6px;color:var(--dsw-alias-label-secondary,#6b7280)}
+.catsToggle.catsToggle{flex:0 0 auto;height:26px;min-height:26px;padding:0 6px;color:var(--dsw-alias-label-secondary,#5c6570)}
 .shots{display:flex;gap:8px;overflow-x:auto;padding:2px 0 6px;margin:6px 0 8px;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
 /* width, not just max-width — a slot with only a height reservation still
    collapses to zero width until the image loads, so the strip snaps wider
    the instant each one arrives instead of holding its place from the start. */
-.shot{width:220px;height:150px;flex:0 0 auto;object-fit:cover;border-radius:8px;border:1px solid var(--dsw-alias-border-l2,#e5e7eb);background:var(--dsw-alias-bg-layer-2,#f3f4f6);cursor:pointer}
+.shot{width:220px;height:150px;flex:0 0 auto;object-fit:cover;border-radius:var(--dsw-radius-lg,16px);border:.5px solid var(--dsw-alias-border-l3,#d9dde3);background:var(--dsw-alias-bg-layer-2,#f3f4f6);cursor:pointer}
 .cardShots{display:flex;gap:6px;overflow-x:auto;padding:0 0 2px;margin:0 0 6px;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
 /* A fixed box so the strip holds its place: with width:auto the browser had
    no aspect ratio until the bytes arrived, so each thumbnail rendered at its
@@ -111,8 +124,8 @@
    `contain`, not `cover`: reserving the space is what fixes the jump, and
    cropping to fill would throw away the uncropped thumbnail this strip was
    built for. The letterbox shows through as the tile's own background. */
-.cardShot{width:132px;height:88px;flex:0 0 auto;object-fit:contain;border-radius:8px;
-          border:1px solid var(--dsw-alias-border-l2,#e5e7eb);
+.cardShot{width:132px;height:88px;flex:0 0 auto;object-fit:contain;border-radius:var(--dsw-radius-lg,16px);
+          border:.5px solid var(--dsw-alias-border-l3,#d9dde3);
           background:var(--dsw-alias-bg-layer-2,#f3f4f6);cursor:pointer;display:block}
 /* Full-bleed overlay, not the Modal primitive — Modal is sized chrome
    (title/description/footer) for making a decision, this is just an image
@@ -209,10 +222,24 @@
 .installCautionLink{margin-left:auto;flex:none;white-space:nowrap;font-weight:600;font-size:13px;line-height:20px;color:var(--dsw-alias-link,#3b82f6);text-decoration:none}
 .installCautionLink:hover{text-decoration:underline}
 .confirmFineprint{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#6b7280)}
-.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;gap:10px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;gap:12px}
 /* One row; its observer counts 280px cards plus the 10px gap at the actual panel width. */
 .recentRow{display:grid;align-items:start;gap:10px;margin-bottom:16px}
 .recentRow > *{min-width:0}
+/* #940: 最近收录 is a fixed ~quarter of the first screen and could only be
+   dodged by changing the search or the filters. Collapse clips it in place
+   (max-height + visibility, NOT display:none and NOT unmounting): the grid is
+   what the column-counting ResizeObserver measures, and a zero-width box would
+   collapse it to one column. visibility keeps the clipped cards out of the tab
+   order and the accessibility tree while the box keeps its width. */
+.recentCollapsed{max-height:0;overflow:hidden;visibility:hidden;margin-bottom:0}
+.recentHead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:14px 0 8px;padding:0 4px}
+.recentHead .favoritesSectionHead{margin:0;padding:0}
+.recentToggle{display:inline-flex;align-items:center;gap:4px;margin:0;padding:0;border:0;background:none;font:inherit;color:inherit;cursor:pointer}
+.recentToggle:hover{color:var(--dsw-alias-label-secondary,#6b7280)}
+.recentHide.recentHide{height:26px;min-height:26px;padding:0 6px;color:var(--dsw-alias-label-secondary,#6b7280)}
+.recentShow{display:inline-flex;align-items:center;gap:4px;margin:0 0 8px;padding:0 4px;border:0;background:none;font:inherit;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#8b93a1);cursor:pointer}
+.recentShow:hover{color:var(--dsw-alias-label-primary,#1f2328)}
 /* Masonry: two independent columns, each packing its own cards tight.
    A CSS grid cannot do this — its rows are as tall as their tallest cell, so
    a card with screenshots left a matching hole beside a card without them,
@@ -266,7 +293,7 @@
 .themeToolbarActions{display:flex;align-items:center;justify-content:flex-end;gap:8px}
 .themeFullscreenBtn.themeFullscreenBtn{width:28px;min-width:28px;padding:0}
 .themeResultBar{display:flex;align-items:center;min-height:24px;padding:0 4px 8px;color:var(--dsw-alias-label-tertiary,#8b93a1);font-size:12px;line-height:18px}
-.favoritesSectionHead{margin:16px 0 8px;padding:0 4px;font-size:13px;font-weight:600;line-height:20px;color:var(--dsw-alias-label-primary,#1f2328)}
+.favoritesSectionHead{margin:16px 0 8px;padding:0 4px;font-size:14px;font-weight:500;line-height:22px;color:var(--dsw-alias-label-primary,#1f2328)}
 .favoritesSectionHead:first-of-type{margin-top:0}
 .brokenPluginNotice{display:flex;flex-direction:column;gap:8px;margin:0 0 8px}
 .brokenPluginItem{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 10px;border:1px solid var(--dsw-alias-state-warn-tertiary,rgba(180,83,9,.2));border-radius:8px;background:var(--dsw-alias-state-warn-tertiary,rgba(180,83,9,.06));color:var(--dsw-alias-state-warn-primary,#b45309);font-size:12px;line-height:18px}
@@ -274,17 +301,17 @@
 .favoritesStaleBar{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:0 0 8px;padding:8px 10px;border:1px solid var(--dsw-alias-state-warn-tertiary,rgba(180,83,9,.2));border-radius:8px;background:var(--dsw-alias-state-warn-tertiary,rgba(180,83,9,.06));color:var(--dsw-alias-state-warn-primary,#b45309);font-size:12px;line-height:18px}
 .favoritesStaleOnly{display:flex;flex-direction:column;align-items:flex-start;gap:10px}
 .themeGallery{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));align-items:stretch;gap:10px}
-.themeCard{display:flex;flex-direction:column;min-width:0;overflow:hidden;border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:8px;background:var(--dsw-alias-bg-layer-1,#fff);transition:border-color 160ms cubic-bezier(.16,1,.3,1),box-shadow 160ms cubic-bezier(.16,1,.3,1),transform 160ms cubic-bezier(.16,1,.3,1)}
-.themeCard:hover{border-color:var(--dsw-alias-border-l3,#d9dde3);box-shadow:var(--dsw-shadow-lv1,0 4px 12px rgba(31,35,40,.08));transform:translateY(-1px)}
-.themeCover{position:relative;display:block;width:100%;aspect-ratio:16/10;overflow:hidden;padding:0;border:0;border-bottom:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:0;background:var(--dsw-alias-bg-layer-2,#f3f4f6);color:var(--dsw-alias-label-secondary,#6b7280);cursor:zoom-in}
+.themeCard{display:flex;flex-direction:column;min-width:0;overflow:hidden;border:.5px solid var(--dsw-alias-settings-card-stroke,var(--dsw-alias-border-l4,#00000029));border-radius:var(--dsw-radius-lg,16px);background:var(--dsw-alias-bg-layer-1,#fff);transition:border-color 160ms cubic-bezier(.16,1,.3,1),box-shadow 160ms cubic-bezier(.16,1,.3,1),transform 160ms cubic-bezier(.16,1,.3,1)}
+.themeCard:hover{border-color:var(--dsw-alias-label-dimmed,#c8ccd4);box-shadow:var(--dsw-shadow-lv1,0 4px 12px rgba(31,35,40,.08));transform:translateY(-1px)}
+.themeCover{position:relative;display:block;width:100%;aspect-ratio:16/10;overflow:hidden;padding:0;border:0;border-bottom:.5px solid var(--dsw-alias-border-l3,#d9dde3);border-radius:0;background:var(--dsw-alias-bg-layer-2,#f3f4f6);color:var(--dsw-alias-label-secondary,#6b7280);cursor:zoom-in}
 .themeCover img{display:block;width:100%;height:100%;object-fit:contain;background:var(--dsw-alias-bg-layer-2,#f3f4f6);transition:transform 180ms cubic-bezier(.16,1,.3,1)}
 .themeCover:hover img{transform:scale(1.012)}
 .themeCover:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary,#4f6ef7);outline-offset:-3px}
-.themeCoverEmpty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;cursor:default;color:var(--dsw-alias-label-tertiary,#8b93a1);font-size:12px;line-height:18px}
-.themePreviewAction,.themePreviewCount{position:absolute;bottom:8px;display:inline-flex;align-items:center;height:24px;padding:0 8px;border:1px solid rgba(255,255,255,.34);border-radius:4px;background:rgba(20,24,31,.78);color:#fff;font-size:11px;line-height:16px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.themeCoverEmpty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;cursor:default;color:var(--dsw-alias-label-tertiary,#8b93a1);font-size:12px;line-height:18px;background:var(--dsw-alias-bg-module-platform,#f4f5f7);border-radius:var(--dsw-radius-lg,16px) 0 0 0}
+.themePreviewAction,.themePreviewCount{position:absolute;bottom:8px;display:inline-flex;align-items:center;height:24px;padding:0 8px;border:1px solid rgba(255,255,255,.34);border-radius:4px;background:rgba(20,24,31,.78);color:#fff;font-size:11px;line-height:16px}
 .themePreviewAction{right:8px;gap:4px}
 .themePreviewCount{left:8px}
-.themeCardBody{display:flex;flex:1;flex-direction:column;gap:8px;padding:12px}
+.themeCardBody{display:flex;flex:1;flex-direction:column;gap:8px;padding:14px}
 .themeCardHead{display:flex;align-items:flex-start;gap:8px;min-width:0}
 .themeIdentity{min-width:0;flex:1}
 .themeStatus,.themeStatusMuted{flex:none;display:inline-flex;align-items:center;min-height:22px;padding:0 8px;border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap}
@@ -306,12 +333,19 @@
 @container (max-width:460px){
   .themeGallery{grid-template-columns:minmax(0,1fr)}
 }
+/* Keep the control one line tall even when the row is short — a flex child
+   with shrink left on will squeeze until the host Button stacks its icon
+   above the label. */
+.exportLogBtn{flex-shrink:0;white-space:nowrap}
+@container (max-width:560px){
+  .headTop{flex-direction:column;align-items:stretch}
+  .headTop > .titleRow{margin-left:0}
+}
 @container (max-width:420px){
-  .sub{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:2px 8px}
-  .sub > span:first-child{grid-column:1;grid-row:1}
-  .sub > .grow{display:none}
-  .submitLink{grid-column:1;grid-row:2}
-  .exportLogBtn{grid-column:2;grid-row:1 / span 2;flex-shrink:0}
+  /* The two text rows this block used to align are gone: the submit link and
+     the export button now sit in .titleActions. What still matters is that the
+     outline Button never stretches into an icon-over-label stack. */
+  .exportLogBtn{align-self:center}
   .themeToolbar{grid-template-columns:minmax(0,1fr)}
   .themeCardHead{flex-wrap:wrap}
   .themeStatus,.themeStatusMuted{order:3}
@@ -328,9 +362,29 @@
   [role="dialog"]:has([data-dsh-market-root]) > nav{display:none}
   [role="dialog"]:has([data-dsh-market-root]) > div{width:100%;min-width:0;flex:1 1 100%}
 }
+/* The sidebar page (#846): the market fills the main column so its own
+   scroller (.body) puts the scrollbar on the panel edge — a 960px-wide
+   root left the bar floating in the middle of a wide window. Content
+   stays at the host Plugins page's 960px cap via side padding on .head
+   and .body; the same max() keeps a 16–48px gutter when the panel is
+   narrower than 960. Top padding clears the window chrome the way the
+   Plugins page does. Settings dialog is untouched: it never mounts this
+   host.
+   Containment moves from .root to .body so @container rules still see
+   the ~960px content box, not the full panel width. */
+.panelHost{box-sizing:border-box;height:100%;display:flex;flex-direction:column;min-height:0;padding:calc(28px + var(--dsh-frame-top-clearance,0px)) 0 0}
+.panelHost > .root{flex:1;min-height:0;width:100%;min-width:0;container-type:normal}
+/* Head sits outside .body; give it its own containment so the narrow
+   .sub / exportLogBtn rules still fire at the same visual width. */
+.panelHost .head{container-type:inline-size;padding-left:max(clamp(16px,4vw,48px),calc((100% - 960px) / 2));padding-right:max(clamp(16px,4vw,48px),calc((100% - 960px) / 2))}
+.panelHost .body{container-type:inline-size;padding-left:max(clamp(16px,4vw,48px),calc((100% - 960px) / 2));padding-right:max(clamp(16px,4vw,48px),calc((100% - 960px) / 2))}
 /* Explicit immersive mode: the normal Settings width remains the default,
    while the user can opt into a Wallpaper-style multi-column gallery. */
 [role="dialog"]:has([data-dsh-market-fullscreen="true"]){position:fixed;inset:0;width:100vw;height:100vh;max-width:none;max-height:none;border-radius:0}
+/* Fullscreen from the Plugins page has no dialog to expand, so the
+   market covers the window itself. The inline height is the tab room measured
+   from the host's page, hence !important. */
+[data-dsh-market-plugins-tab="true"][data-dsh-market-fullscreen="true"]{position:fixed;inset:0;z-index:60;height:100vh!important;background:var(--dsw-alias-bg-layer-1,#fff)}
 @media (prefers-reduced-motion:reduce){
   .themeCard,.themeCover img{transition:none}
   .themeCard:hover{transform:none}
@@ -342,7 +396,42 @@
    footer, reading as a layout bug rather than "this one's row-mate had a
    longer description". Un-stretched, any leftover row height sits outside
    the card as ordinary grid gutter instead. */
-.card{background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:12px;align-self:start}
+.card{background:var(--dsw-alias-settings-card-fill,var(--dsw-alias-bg-layer-1,#fff));border:.5px solid var(--dsw-alias-settings-card-stroke,var(--dsw-alias-border-l4,#00000029));border-radius:var(--dsw-radius-xl,20px);padding:14px 16px;display:flex;flex-direction:column;gap:10px;align-self:start;min-width:0;transition:background-image 160ms cubic-bezier(.16,1,.3,1)}
+/* A wash painted as a background-image so the card keeps its own fill under it;
+   the card body is not clickable, so this has to stay a hover cue, not a state. */
+.card:hover{background-image:linear-gradient(var(--dsw-alias-interactive-bg-hover,#2631480f),var(--dsw-alias-interactive-bg-hover,#2631480f))}
+.card:hover .installBtn:not(:disabled),.themeCard:hover .installBtn:not(:disabled){border-color:transparent;background:var(--dsw-alias-button-primary-fill,#0f1115);color:var(--dsw-alias-label-primary-foreground,#fff)}
+/* Description + screenshots as one box, so the reveal can be anchored to what
+   the reader is pointing at rather than to the whole card. */
+.introScope{position:relative;display:flex;flex-direction:column;gap:10px;min-width:0}
+/* The introduction, whole, floating above the grid in the card's own column so
+   the text keeps the same measure it had. Pointer-events stay off: the panel is
+   a reading copy, not a surface, and must not steal the pointer from the card. */
+.introPanel{
+  position:fixed;z-index:60;
+  box-sizing:border-box;padding:10px 16px 14px;overflow:hidden;
+  border:.5px solid var(--dsw-alias-settings-card-stroke,var(--dsw-alias-border-l4,#00000029));
+  border-top:none;
+  border-radius:0 0 var(--dsw-radius-xl,20px) var(--dsw-radius-xl,20px);
+  /* Same wash the card carries while hovered, so the sheet reads as that card
+     continuing rather than as a second surface stacked on top of it. */
+  background:var(--dsw-alias-bg-layer-1,#fff);
+  background-image:linear-gradient(var(--dsw-alias-interactive-bg-hover,#2631480f),var(--dsw-alias-interactive-bg-hover,#2631480f));
+  box-shadow:var(--dsw-shadow-lv1,0 4px 12px rgba(31,35,40,.08));
+  color:var(--dsw-alias-label-secondary,#5c6570);
+  font-size:13px;line-height:20px;
+  pointer-events:none;
+  animation:dshmIntroIn 140ms cubic-bezier(.16,1,.3,1);
+}
+
+
+.introHead{display:flex;align-items:baseline;gap:8px;min-width:0;margin-bottom:6px}
+.introName{color:var(--dsw-alias-label-primary,#1f2328);font-size:14px;line-height:20px;font-weight:600;
+           overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.introOwner{flex-shrink:0;color:var(--dsw-alias-label-tertiary,#8b93a1);font-size:12px;line-height:18px}
+.introBody{margin:0;overflow:hidden}
+@keyframes dshmIntroIn{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.introPanel{animation:none}}
 .row1{display:flex;align-items:flex-start;gap:10px;min-width:0}
 .cardAction{flex-shrink:0;display:inline-flex;align-items:center}
 .installBtn.installBtn{min-width:64px}
@@ -353,7 +442,7 @@
    author sits under it as a signature. Same reading order as a post
    header — you take in who wrote it in one glance and spend the rest on
    what it is. */
-.nm{font-weight:600;font-size:15px;line-height:22px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nm{font-weight:500;font-size:14px;line-height:20px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* display:block is load-bearing, not cosmetic. `.nm` clips with
    overflow:hidden + text-overflow:ellipsis, and neither applies to an
    INLINE box — so once the title became an <a> (it links to the repo), a
@@ -385,9 +474,9 @@
 .metaInline{font-size:11px;color:var(--dsw-alias-label-secondary,#9ca3af)}
 /* The author name is the only variable-length part, so it is the only part
    that shrinks; the counts stay whole because a truncated one is not a fact. */
-.owner{font-size:11px;color:var(--dsw-alias-label-secondary,#9ca3af);flex:0 1 auto;min-width:44px;
+.owner{font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#5c6570);flex:0 1 auto;min-width:44px;
        overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.desc{font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary,#8b93a1);margin:0}
+.desc{font-size:13px;line-height:18px;color:var(--dsw-alias-label-tertiary,#8b93a1);margin:0}
 /* A FIXED 5-line slot (not just a cap): a one-line description reserves the
    same 90px as a five-line one, so every card in a row starts its thumbnail
    strip/footer at the same y — a clamp with no floor still let a short card
@@ -413,7 +502,7 @@
 .titleRow{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px}
 /* The update buttons wrap as one group: in a narrow settings panel they
    drop below the heading together instead of squeezing it into two lines. */
-.titleActions{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.titleActions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:4px 10px;margin-left:auto;flex:0 1 auto;min-width:0}
 .titleActions:empty{display:none}
 .titleActions>*{white-space:nowrap;flex-shrink:0}
 /* Sits beside the heading so a screenshot of the page carries the
@@ -460,22 +549,55 @@
 .actWhy{margin-top:2px;color:var(--dsw-alias-label-secondary,#6b7280)}
 .loading{display:flex;flex-direction:column;align-items:center;gap:12px;padding:48px;color:var(--dsw-alias-label-secondary,#9ca3af);font-size:13px}
 .spin{display:inline-flex;flex-shrink:0;color:var(--dsw-alias-brand-primary,#4f6ef7);animation:sp .8s linear infinite}
-/* Brand loading: the loose block plugs itself into the grid's empty corner
-   and springs back out. It is the mark's own story — a plugin arriving —
-   rather than a generic rotation, and it stays legible at 22px because the
-   moving part travels a full block-width against a still grid.
-   `transform-box: fill-box` makes the offsets below user units of THIS rect,
-   so they are the same (+1.28, -1.27) the static mark is drawn with. */
+/* The mark's two motions, on one clock.
+   The grid breathes along the diagonal — `--dshm-wave` is each cell's
+   row + column — and the plug arrives behind that wave, seats in the corner
+   the wave has just left, holds, then withdraws before the next pass. One
+   duration for both is the point: the block has to read as following the
+   wave, and two independently timed loops drift apart the moment either is
+   retuned. `transform-box: fill-box` makes the offsets below user units of
+   THIS rect, so they are the same (+1.28, -1.27) the static mark is drawn
+   with. Both are opacity and transform only: no filter, no layout. */
 .logoMark{display:inline-flex;flex-shrink:0;color:var(--dsw-alias-brand-primary,#4f6ef7)}
-.logoPlug{transform-box:fill-box;transform-origin:50% 50%;animation:dshmPlug 1.5s cubic-bezier(.4,0,.2,1) infinite}
-@keyframes dshmPlug{
-  0%,12%{transform:rotate(9deg)}
-  45%,62%{transform:translate(-1.28px,1.27px) rotate(0)}
-  95%,100%{transform:rotate(9deg)}
+.logoCell,.logoPlug,.logoPlugAmbient{--dshm-cycle:2.8s}
+/* The loading form is the same gesture at a working pace. It is reporting that
+   something is happening, and the block rests for roughly a third of a cycle —
+   at the ambient 2.8s that rest reads as stuck. Only the pace differs; phases,
+   geometry and curve are shared, so the two forms cannot drift apart in shape. */
+.logoMark .logoCell,.logoMark .logoPlug{--dshm-cycle:2s}
+/* The cell's place on the diagonal, set per cell from market-mark.ts. Declared
+   here as well, because the stylesheet is where it is read: a variable that
+   exists only as an inline style is indistinguishable from a host variable that
+   does not exist, which is what tests/client/host-theme-vars.spec.ts guards. */
+.logoCell{--dshm-wave:0;animation:dshmMarkWave var(--dshm-cycle) cubic-bezier(.4,0,.2,1) infinite;animation-delay:calc(var(--dshm-wave) * 110ms)}
+.logoPlug,.logoPlugAmbient{transform-box:fill-box;transform-origin:50% 50%;animation:dshmMarkPlug var(--dshm-cycle) cubic-bezier(.4,0,.2,1) infinite}
+/* The dip is short on purpose. A long one (a quarter of the cycle, which is
+   what a plain "breathing" loop wants) leaves five of the eight cells below
+   full at any instant, and at 18px the whole grid greys out together — it
+   reads as a loading skeleton, not as a wave. Ten percent of the cycle per
+   cell, stepped 110ms, keeps the band to about two cells wide, so the eye
+   follows a passing shadow and most of the grid stays ink. */
+@keyframes dshmMarkWave{
+  0%,100%{opacity:1}
+  6%{opacity:.5}
+  16%{opacity:1}
 }
-/* Motion is the whole signal here, so with it suppressed the block still has
-   to say "working" — it breathes in place instead of sitting inert. */
+/* The block arrives behind the wave: the empty slot is `wave` 2, which dips at
+   ~15% and is lit again by ~25%, and the block settles at 30%. It overshoots by
+   a tenth of a block at 22% so it lands in the corner rather than stopping on
+   it, then holds until 62% and withdraws before the next pass. */
+@keyframes dshmMarkPlug{
+  0%,8%{transform:rotate(9deg)}
+  22%{transform:translate(-1.35px,1.34px) rotate(0)}
+  30%,62%{transform:translate(-1.28px,1.27px) rotate(0)}
+  76%,100%{transform:rotate(9deg)}
+}
+/* A reader who asked for less motion gets a still mark — except in the loading
+   state, where motion is the signal and suppressing it would leave nothing to
+   say "working". There the block keeps its drawn position (the rect's own
+   transform attribute, which a running animation outranks) and breathes. */
 @media (prefers-reduced-motion: reduce){
+  .logoCell,.logoPlugAmbient{animation:none}
   .logoPlug{animation:dshmPlugFade 1.5s ease-in-out infinite}
   .spin{animation:dshmPlugFade 1.5s ease-in-out infinite}
 }
@@ -488,7 +610,7 @@
 @keyframes dshmSlide{0%{margin-left:-30%}100%{margin-left:100%}}
 .irow .progress{margin-top:8px}
 .progress code{font-family:var(--ds-font-family-code,ui-monospace,Menlo,Consolas,monospace);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.empty{color:var(--dsw-alias-label-secondary,#9ca3af);font-size:13px;padding:32px;text-align:center}
+.empty{color:var(--dsw-alias-label-secondary,#5c6570);font-size:13px;line-height:20px;margin:0 auto;max-width:520px;padding:56px 32px 40px;text-align:center}
 .err{color:var(--dsw-alias-state-error-primary,#dc2626);font-size:12px;margin:8px 0;white-space:pre-wrap;word-break:break-all}
 /* Loader-id clash, rendered ON the card the user pressed Install on rather
    than in the page-level .err banner: that banner is shared by a dozen
@@ -572,6 +694,8 @@
            background:color-mix(in srgb, var(--dsw-alias-state-success-primary,#16a34a) 10%, transparent)}
 /* The name owns the line; the version and source sit on the meta line below,
    so a long name cannot push them out (#257). */
+.irow{transition:background-image 160ms cubic-bezier(.16,1,.3,1)}
+.irow:hover{background-image:linear-gradient(var(--dsw-alias-interactive-bg-hover,#2631480f),var(--dsw-alias-interactive-bg-hover,#2631480f))}
 .irowHead{display:flex;align-items:flex-start;gap:8px;min-width:0}
 .irowHead .irowName{flex:1 1 0;min-width:0}
 .irowMenu{margin-left:auto;flex-shrink:0;margin-top:-4px;margin-right:-6px}
@@ -629,13 +753,22 @@
    row is the anchor instead, so the panel hangs from the container's right
    edge wherever the entry ends up. */
 .opWrap{display:inline-flex;flex-shrink:0;margin-bottom:6px}
-.opEntry{display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:12px;
-         padding:4px 10px;border-radius:7px;cursor:pointer;position:relative;white-space:nowrap;
+.opEntry{display:inline-flex;align-items:center;gap:5px;font:inherit;font-size:12px;
+         height:28px;padding:0 7px 0 10px;border-radius:8px;cursor:pointer;position:relative;white-space:nowrap;
          color:var(--dsw-alias-label-primary,#1f2328);
          background:var(--dsw-alias-bg-layer-1,#fff);
-         border:1px solid var(--dsw-alias-border-l3,#d9dde3)}
-/* Idle is not news: no border, no fill, nothing competing with the tabs. */
-.opEntryQuiet{border-color:transparent;background:transparent;color:var(--dsw-alias-label-secondary,#6b7280)}
+         border:.5px solid var(--dsw-alias-border-l3,#d9dde3);
+         transition:background-color 120ms ease,color 120ms ease,border-color 120ms ease}
+/* Idle used to be bare text, and bare text at the end of a tab row reads as a
+   caption: it is the only way into the task list, and it looked like it could
+   not be clicked. Idle is a quiet chip on the host's grouped surface instead —
+   still subordinate to the tabs, but visibly a control. */
+.opEntryQuiet{background:var(--dsw-alias-bg-module-platform,#f4f5f7);color:var(--dsw-alias-label-secondary,#5c6570)}
+.opEntry:hover{color:var(--dsw-alias-label-primary,#1f2328);border-color:var(--dsw-alias-border-l2,#e5e7eb);
+               background:var(--dsw-alias-bg-module-platform,#f4f5f7)}
+.opChevron{display:inline-flex;flex-shrink:0;color:var(--dsw-alias-label-tertiary,#8b93a1);
+           transition:transform 140ms cubic-bezier(.16,1,.3,1)}
+.opChevronOpen{transform:rotate(180deg)}
 .opEntryAlert{border-color:var(--dsw-alias-state-error-primary,#dc2626);color:var(--dsw-alias-state-error-primary,#dc2626)}
 .opDot{position:absolute;top:-3px;right:-3px;width:8px;height:8px;border-radius:99px;
        background:var(--dsw-alias-state-error-primary,#dc2626)}
@@ -692,8 +825,8 @@
 .dangerBtn.dangerBtn:hover:not(:disabled){background:var(--dsw-alias-state-error-primary,#dc2626);color:#fff}
 .dangerArmed.dangerArmed{background:var(--dsw-alias-state-error-primary,#dc2626);border-color:var(--dsw-alias-state-error-primary,#dc2626);color:var(--dsw-alias-label-primary-foreground,#fff)}
 .retryBtn{margin-top:4px}
-.irow{background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l2,#e5e7eb);
-      border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.irow{background:var(--dsw-alias-settings-card-fill,var(--dsw-alias-bg-layer-1,#fff));border:.5px solid var(--dsw-alias-settings-card-stroke,var(--dsw-alias-border-l4,#00000029));
+      border-radius:var(--dsw-radius-xl,20px);padding:12px 14px;display:flex;flex-direction:column;gap:10px;min-width:0}
 /* Everything packs left. Pushing the trailing controls right — whether with
    justify-content or an auto margin on the tag — made the switch's position
    depend on whether its neighbour rendered 更新 or 已是最新, so the switch
@@ -708,7 +841,7 @@
 .irowMissing{filter:grayscale(1);opacity:.5}
 .irow>.src,.irow>.owner{white-space:nowrap;flex-shrink:0}
 .irow button{white-space:nowrap;flex-shrink:0}
-.tabSearchRow{display:flex;align-items:center;gap:8px;padding:0 4px 12px}
+.tabSearchRow{display:flex;align-items:center;gap:8px;padding:0 4px 10px}
 .tabSearch{flex:1;min-width:0}
 /* Capability disclosure (#401). Quiet by design: these are facts beside the
    install button, not a warning banner — the one loud element is a red line,
@@ -778,11 +911,11 @@
 .switchKnob{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:99px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:left .15s ease}
 .switchOn .switchKnob,.switchMixed .switchKnob{left:18px}
 .switch:disabled{opacity:.5;cursor:default}
-.viewBar{display:flex;gap:2px;align-items:center;border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:8px;padding:2px;margin-bottom:12px;width:fit-content}
-.viewBtn{border:none;background:none;font:inherit;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#6b7280);padding:4px 10px;border-radius:6px;cursor:pointer;white-space:nowrap}
+.viewBar{display:flex;gap:2px;align-items:center;border:none;border-radius:var(--dsw-radius-md,12px);background:var(--dsw-alias-bg-module-platform,#f4f5f7);padding:3px;margin-bottom:12px;width:fit-content}
+.viewBtn{border:none;background:none;font:inherit;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#5c6570);height:26px;padding:0 10px;border-radius:var(--dsw-radius-sm,8px);cursor:pointer;white-space:nowrap;transition:background-color 120ms ease,color 120ms ease}
 .viewBtn:hover{color:var(--dsw-alias-brand-primary,#4f6ef7)}
-.viewOn{background:var(--dsw-alias-bg-layer-2,#eef0f4);color:var(--dsw-alias-label-primary,#1f2328);font-weight:600}
-.groupRow{background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:12px;padding:12px 14px;margin-bottom:10px}
+.viewOn{background:var(--dsw-alias-bg-layer-3,#fff);color:var(--dsw-alias-label-primary,#1f2328);font-weight:600;box-shadow:0 0 0 .5px var(--dsw-alias-border-l3,#0000001f)}
+.groupRow{background:var(--dsw-alias-settings-card-fill,var(--dsw-alias-bg-layer-1,#fff));border:.5px solid var(--dsw-alias-settings-card-stroke,var(--dsw-alias-border-l4,#00000029));border-radius:var(--dsw-radius-xl,20px);padding:12px 14px;margin-bottom:10px}
 .groupHead{display:flex;align-items:center;gap:10px;min-width:0;flex-wrap:wrap}
 .groupCollapse{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;padding:0;border:none;border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary,#6b7280);cursor:pointer;flex-shrink:0}
 .groupCollapse:hover{background:var(--dsw-alias-bg-layer-2,#eef0f4);color:var(--dsw-alias-label-primary,#1f2328)}
@@ -833,9 +966,14 @@
 .sect{margin:14px 2px 8px;font-size:12px;font-weight:600;color:var(--dsw-alias-label-secondary,#6b7280)}
 .sectAction{margin:14px 2px 8px;font-size:12px;font-weight:600;color:var(--dsw-alias-label-secondary,#6b7280);display:flex;align-items:center;gap:8px}
 
-/* #61: profile backup & restore */
-.backupGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
-.backupCard{background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px}
+/* #61: profile backup & restore.
+   One column always. These are forms (URL / token / password), not browse
+   cards: two-up on the sidebar page's 960px column left a half-empty
+   「本地文件」 beside a tall WebDAV card, and three-up crushed the inputs.
+   Full width matches how the block is filled in, in both the settings
+   dialog and the sidebar page. */
+.backupGrid{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
+.backupCard{background:var(--dsw-alias-settings-card-fill,var(--dsw-alias-bg-layer-1,#fff));border:.5px solid var(--dsw-alias-settings-card-stroke,var(--dsw-alias-border-l4,#00000029));border-radius:var(--dsw-radius-xl,20px);padding:16px;display:flex;flex-direction:column;gap:10px}
 .backupCard h3{font-size:14px;margin:0}
 .backupCard p{font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#6b7280);margin:0}
 .backupActions{display:flex;gap:8px;flex-wrap:wrap;position:relative}
@@ -852,10 +990,14 @@
    itself (overflow-y:auto), so the outer dialog never overflows and its own
    overflow-y:auto stays silent (no outer scrollbar). */
 .diagPage{display:flex;flex-direction:column;gap:12px;height:100%;min-height:0;overflow-y:auto}
-.diagSummary{display:flex;flex-wrap:wrap;align-items:center;gap:12px;background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:12px;padding:10px 14px;font-size:12px}
+/* Sidebar page (#846): let .body own the scroll so the bar sits on the
+   panel edge. Nested height:100% + overflow here parked the bar on the
+   960px content column and left a gutter to the window edge. */
+.panelHost .diagPage{height:auto;overflow:visible}
+.diagSummary{display:flex;flex-wrap:wrap;align-items:center;gap:12px;background:var(--dsw-alias-settings-card-fill,var(--dsw-alias-bg-layer-1,#fff));border:.5px solid var(--dsw-alias-settings-card-stroke,var(--dsw-alias-border-l4,#00000029));border-radius:var(--dsw-radius-lg,16px);padding:10px 14px;font-size:12px}
 .diagSummaryItem{display:inline-flex;align-items:center;gap:6px;color:var(--dsw-alias-label-secondary,#6b7280);white-space:nowrap}
 .diagSummaryMeta{color:var(--dsw-alias-label-tertiary,#9ca3af);font-family:var(--ds-font-family-code,ui-monospace,Menlo,Consolas,monospace);font-size:11px;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.diagSection{background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.diagSection{background:var(--dsw-alias-settings-card-fill,var(--dsw-alias-bg-layer-1,#fff));border:.5px solid var(--dsw-alias-settings-card-stroke,var(--dsw-alias-border-l4,#00000029));border-radius:var(--dsw-radius-lg,16px);padding:12px 14px;display:flex;flex-direction:column;gap:8px}
 .diagSection h3{font-size:13px;font-weight:600;margin:0;color:var(--dsw-alias-label-primary,#1f2328)}
 .diagCount{font-size:11px;color:var(--dsw-alias-label-tertiary,#9ca3af);font-weight:400}
 .diagEmpty{color:var(--dsw-alias-label-secondary,#9ca3af);font-size:12px;padding:8px 0}
@@ -899,7 +1041,11 @@
 /* #98 phase 3: collapsible snapshots & rollback panel */
 .collapseHead{display:flex;align-items:center;gap:8px;border:none;background:none;font:inherit;font-size:13px;font-weight:600;color:var(--dsw-alias-label-primary,#1f2328);padding:0;cursor:pointer;text-align:left;width:100%}
 .collapseIcon{display:inline-flex;flex-shrink:0;color:var(--dsw-alias-label-secondary,#6b7280)}
-.collapseTitle{flex:1;min-width:0}
+/* Title sizes to its text so `.diagCount` sits as 「错误 (0)」, not halfway
+   across the row. `flex:1` here used to share free space with a trailing
+   `.grow` and parked the count in a dead middle column on wide panels. */
+.collapseTitle{flex:0 1 auto;min-width:0}
+.collapseHead .diagCount{flex-shrink:0}
 .collapseBody{display:flex;flex-direction:column;gap:10px;padding-top:10px;border-top:1px solid var(--dsw-alias-border-l2,#f0f1f3);margin-top:8px;min-width:0;overflow-wrap:anywhere}
 .orderPanel{display:flex;flex-direction:column;gap:10px;min-width:0}
 .panelNote{font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#6b7280);margin:0}
@@ -929,10 +1075,10 @@
    the host's own PluginCard one for one — same tokens, same sizes — so the
    market's card is indistinguishable from the rows above and below it. An
    earlier version invented a flat, always-open box and stood out badly. */
-.setCard{border:1px solid var(--dsw-alias-border-l2,#e5e7eb);background:var(--dsw-alias-bg-layer-3,#fff);border-radius:12px;list-style:none;transition:border-color .16s,background .16s}
+.setCard{border:.5px solid var(--dsw-alias-settings-card-stroke,var(--dsw-alias-border-l4,#00000029));background:var(--dsw-alias-bg-layer-3,#fff);border-radius:var(--dsw-radius-lg,16px);list-style:none;transition:border-color .16s,background .16s}
 .setCard:hover{border-color:var(--dsw-alias-label-dimmed,#c8ccd4)}
 .setCardOpen{background:var(--dsw-alias-bg-layer-2,#f7f8fa);border-color:var(--dsw-alias-label-dimmed,#c8ccd4)}
-.setHeader{appearance:none;width:100%;font:inherit;color:inherit;text-align:left;cursor:pointer;background:0 0;border:0;border-radius:12px;align-items:center;gap:12px;padding:14px 16px;display:flex}
+.setHeader{appearance:none;width:100%;font:inherit;color:inherit;text-align:left;cursor:pointer;background:0 0;border:0;border-radius:var(--dsw-radius-lg,16px);align-items:center;gap:12px;padding:14px 16px;display:flex}
 .setHeader:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#4f6ef7);outline-offset:-2px}
 .setHeadText{flex-direction:column;flex:1;gap:4px;min-width:0;display:flex}
 .setName{color:var(--dsw-alias-label-primary,#1f2328);font-size:15px;font-weight:600;line-height:1.4}
@@ -959,20 +1105,23 @@
 /* A two-state segmented control rather than a switch: "stable / beta" is a
    choice between two named things, and a toggle would force one of them to
    be the unlabelled "off". */
-.setSeg{display:inline-flex;flex-shrink:0;border:1px solid var(--dsw-alias-border-l2,#e5e7eb);border-radius:8px;padding:2px;gap:2px}
-.setSegBtn{font:inherit;font-size:12px;line-height:18px;padding:3px 10px;border:none;border-radius:6px;background:0 0;color:var(--dsw-alias-label-secondary,#6b7280);cursor:pointer}
+.setSeg{display:inline-flex;flex-shrink:0;border:none;border-radius:var(--dsw-radius-md,12px);background:var(--dsw-alias-bg-module-platform,#f4f5f7);padding:3px;gap:2px}
+.setSegBtn{font:inherit;font-size:12px;line-height:18px;height:26px;padding:0 10px;border:none;border-radius:var(--dsw-radius-sm,8px);background:0 0;color:var(--dsw-alias-label-secondary,#5c6570);cursor:pointer}
 .setSegBtn:disabled{cursor:default;opacity:.5}
-.setSegOn{background:var(--dsw-alias-bg-layer-2,#eef0f4);color:var(--dsw-alias-label-primary,#1f2328);font-weight:600}
+.setSegOn{background:var(--dsw-alias-bg-layer-3,#fff);color:var(--dsw-alias-label-primary,#1f2328);font-weight:600;box-shadow:0 0 0 .5px var(--dsw-alias-border-l3,#0000001f)}
 .setBetaTag{margin-left:6px;padding:0 6px;border-radius:9px;font-size:11px;font-weight:600;line-height:17px;background:var(--dsw-alias-bg-module-platform,#eef0f4);color:var(--dsw-alias-label-secondary,#6b7280)}
 
 /* ---------------------------------------------------------- comments */
 /* Card footer entry point. Styled as the quiet sibling of .src, not as a
    button: it competes with Install for attention otherwise, and Install is
    what the card is for. */
-.commentsLink{background:none;border:0;padding:0;cursor:pointer;font-size:11px;line-height:16px;white-space:nowrap;color:var(--dsw-alias-label-secondary,#9ca3af)}
+.commentsLink{background:none;border:0;padding:0;cursor:pointer;font-size:12px;line-height:18px;white-space:nowrap;color:var(--dsw-alias-label-tertiary,#8b93a1)}
 .commentsLink:hover{color:var(--dsw-alias-brand-primary,#4f6ef7)}
 .footActions{display:inline-flex;align-items:center;gap:8px;flex-shrink:0}
 .favoriteBtn{background:none;border:0;padding:0;cursor:pointer;display:inline-flex;align-items:center;color:var(--dsw-alias-label-secondary,#9ca3af)}
+/* The click gesture is a ribbon being tugged: scale from the top edge, so the
+   mark stretches downward and snaps back rather than growing from its middle. */
+.favoriteMark{display:block;transform-box:fill-box;transform-origin:50% 0}
 .favoriteBtn:hover{color:var(--dsw-alias-brand-primary,#4f6ef7)}
 .favoriteOn{color:var(--dsw-alias-brand-primary,#4f6ef7)}
 .cardMore{background:none;border:0;padding:0 2px;cursor:pointer;font:inherit;font-size:14px;line-height:16px;letter-spacing:1px;color:var(--dsw-alias-label-secondary,#9ca3af)}

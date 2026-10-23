@@ -18,9 +18,33 @@ function text(value) {
 function bool(value) {
     return value === true;
 }
+/**
+ * Host refusal codes that may travel through `failureCode` unchanged.
+ *
+ * The route forwards the desktop manager's own codes (#909); the v1 API only
+ * re-publishes the ones a caller can act on, so an internal code cannot leak
+ * by accident. `market-self-update` is the one this exists for: the market
+ * cannot update itself on a host whose manager refuses re-adds, and a caller
+ * should be able to say so instead of retrying.
+ */
+const FORWARDED_FAILURE_CODES = new Set([
+    'DOWNGRADE_DETECTED',
+    'RESOLVED_VERSION_MISMATCH',
+    'market-self-update',
+    'already-installed',
+    'bundle-in-use',
+    'not-removable',
+    'stop-profile',
+    'management-required',
+    'incompatible-version',
+    // The desktop manager stopped answering mid-update and the market will
+    // finish or forget it on the next start (#928, #949): an external caller
+    // must be able to tell this from an ordinary failure.
+    'update-incomplete',
+]);
 function failureCode(status, body) {
     const explicit = text(body.failureCode);
-    if (explicit === 'DOWNGRADE_DETECTED' || explicit === 'RESOLVED_VERSION_MISMATCH')
+    if (explicit !== null && FORWARDED_FAILURE_CODES.has(explicit))
         return explicit;
     if (body.agentsBusy === true)
         return 'AGENTS_RUNNING';

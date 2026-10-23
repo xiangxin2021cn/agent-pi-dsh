@@ -9,7 +9,7 @@
 
 import { spawn, spawnSync } from 'node:child_process'
 import type { ChildProcess, SpawnOptions } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { logEvent } from './log.ts'
@@ -354,7 +354,7 @@ export function setBuildEnvSource(source: () => Readonly<Record<string, string>>
   return previous
 }
 
-function spawnEnv(): NodeJS.ProcessEnv {
+function spawnEnv(invocation: HostPackageManager | null = hostPackageManager): NodeJS.ProcessEnv {
   // pnpm v10+ blocks forever on a silent interactive prompt without a TTY;
   // CI mode forces it to act or fail instead of asking.
   const separator = process.platform === 'win32' ? ';' : ':'
@@ -363,7 +363,7 @@ function spawnEnv(): NodeJS.ProcessEnv {
   // goes FIRST so its bundled Node wins on a machine where nothing else is
   // on the process PATH — and it reaches every child, including the
   // `dsh plugin` forwarder, which is the only way an install can run there.
-  const hostEnv = hostPackageManager?.env ?? {}
+  const hostEnv = invocation?.env ?? {}
   const parts = `${hostEnv.PATH ?? ''}${separator}${process.env.PATH ?? ''}`
     .split(separator).filter(part => part !== '')
   for (const bin of toolSearchDirs()) {
@@ -478,13 +478,21 @@ function spawnShim(file: string, args: readonly string[], options: SpawnShimOpti
  */
 export function dshArgv(): { file: string; args: string[]; cwd: string | undefined; viaShell: boolean } {
   const entry = process.argv[1]
-  if (entry !== undefined && /[\\/](?:bin\.(?:js|ts)|dsh)$/.test(entry)) {
+  // Desktop's installed `dsh web` uses this CLI carrier too. Keep
+  // that installation's dispatcher instead of silently selecting a different
+  // dsh from PATH. Do not accept arbitrary applications named cli.js.
+  const desktopCli = entry !== undefined
+    && /[\\/]node_modules[\\/]@deepseek-ai[\\/]dsh-desktop-host[\\/]lib[\\/]cli\.js$/.test(entry)
+  if (entry !== undefined && (desktopCli || /[\\/](?:bin\.(?:js|ts)|dsh)$/.test(entry))) {
     // Absolute paths are required: source launches (`pnpm dsh`) pass a
     // relative entry, which the child resolves against its OWN cwd and dies
     // with MODULE_NOT_FOUND (#13). cwd near the entry keeps execArgv imports
     // (tsx/esm) resolvable on source launches.
     const abs = resolve(entry)
-    return { file: nodeExecutable(), args: [...process.execArgv, abs], cwd: dirname(abs), viaShell: false }
+    // The official bundled CLI inherits the launcher's cwd. Its entry can
+    // live inside app.asar: Electron can read it, but the OS cannot chdir there.
+    // Do not probe that directory through Electron's virtual filesystem.
+    return { file: nodeExecutable(), args: [...process.execArgv, abs], cwd: desktopCli ? undefined : dirname(abs), viaShell: false }
   }
   // Bare `dsh` is a .cmd shim on Windows that only a shell can start (#13).
   return { file: 'dsh', args: [], cwd: undefined, viaShell: winCmdShim }
@@ -500,6 +508,39 @@ export interface InstallResult {
   cancelled: boolean
   /** Desktop's generation-wide package-operation gate rejected the start. */
   busy?: boolean
+  /**
+   * The host refused before it ran the package manager, so the profile is
+   * exactly as it was.
+   *
+   * The update route answers a failed run by reinstalling the previous build
+   * and, when that cannot be verified, tells the user to inspect a profile
+   * nothing touched. Desktop's manager has refusals of this kind of its own —
+   * it declines a spec it considers already installed before pnpm starts
+   * (#897) — and their only true account is "nothing happened".
+   */
+  wroteNothing?: boolean
+  /**
+   * The desktop manager stopped answering, and the profile may be
+   * half-updated: a removal it was asked to perform can already be on disk.
+   *
+   * The update route normally answers a failed run by restoring the previous
+   * build through the same manager. That is exactly wrong here — the manager
+   * is what stopped answering, and its profile write lock is still held — so
+   * the route leaves the profile alone and the market's journal
+   * (`src/pending-updates.ts`) finishes or undoes the removal on the next
+   * start (#928).
+   */
+  repairOnRestart?: boolean
+  /**
+   * The host's own refusal code, when it stopped before running pnpm.
+   *
+   * The desktop manager answers with structured codes — `already-installed`,
+   * `bundle-in-use`, `market-self-update` — but they used to survive only as
+   * text inside `stderr`. The update route forwards this to `failureCode`,
+   * so a client can tell "the market cannot update itself here" (#909) from
+   * an ordinary failure without parsing a sentence.
+   */
+  refusalCode?: string
   /** Package names pnpm reported as having ignored build scripts (ndjson). */
   ignoredBuilds?: string[]
   /**
@@ -701,6 +742,35 @@ export function killChild(child: ChildProcess): void {
 /** The child of the operation currently running, for /dsh-market/cancel. */
 let activeChild: ChildProcess | null = null
 let cancelRequested = false
+
+/**
+ * Remove the profile's `package.json.lock` when it is provably ours (#914).
+ *
+ * The dsh CLI writes that lock through the host's atomic-write, whose
+ * `finally` releases it. A timeout kills the whole tree with `taskkill /F`,
+ * so that release never runs and the file outlives the child — and on
+ * Windows the host cannot reliably tell a dead PID from a live one, so every
+ * later change waits the full lock timeout and fails.
+ *
+ * Only a lock naming OUR killed child is removed: that PID is provably dead
+ * because we just killed its whole tree, and it cannot belong to another
+ * operation. A lock naming anything else is left for the classifier to name
+ * (#914), because deleting a live operation's lock would race it.
+ */
+export function clearOwnedProfileLock(profile: string, pid: number | undefined): boolean {
+  if (pid === undefined) return false
+  try {
+    const lock = join(profileDir(profile), 'package.json.lock')
+    const recorded = Number(readFileSync(lock, 'utf8').trim())
+    if (!Number.isInteger(recorded) || recorded !== pid) return false
+    rmSync(lock, { force: true })
+    logEvent('warn', 'install', `the timed-out operation left ${lock} behind (pid ${pid}, already killed with its tree) — removed it so the next change is not blocked (#914)`)
+    return true
+  } catch {
+    // Absent, unreadable, or removed by the child on its way out: nothing to do.
+    return false
+  }
+}
 
 interface ActiveDesktopOperation {
   readonly owner: symbol
@@ -1197,6 +1267,81 @@ function makeProgressFeeder(tracker: ReturnType<typeof createProgressTracker>): 
   }
 }
 
+/**
+ * Run the host-supplied package manager in a profile directory.
+ *
+ * Official Desktop publishes this invocation on `profileContext` and uses it
+ * for every managed install. The market's official branch must not send
+ * `dsh plugin --profile desktop`, and must not go through the manager for the
+ * market's own package (#900). This is that remaining door: `pnpm add` (or
+ * whatever argv the caller names) against the bundled Node, with the
+ * invocation's own env. Callers must not add `--config.minimum-release-age=0`
+ * here — that is the #944 lockfile write.
+ */
+export function runHostPnpm(
+  invocation: HostPackageManager,
+  cwd: string,
+  args: readonly string[],
+): Promise<InstallResult> {
+  if (invocation.command.trim() === '') {
+    return Promise.resolve({
+      exitCode: 127, timedOut: false, stdout: '', stderr: 'host package manager has no command', cancelled: false,
+    })
+  }
+  const tracker = beginProgress(args[args.length - 1] ?? '')
+  const feed = makeProgressFeeder(tracker)
+  return new Promise((resolvePromise) => {
+    const child = spawnShim(invocation.command, [...invocation.args, ...args], {
+      cwd,
+      env: { ...spawnEnv(invocation), ...pnpmConfigEnvForArgs(args) },
+      stdio: ['ignore', 'pipe', 'pipe'],
+      viaShell: winCmdShim && /\.cmd$/i.test(invocation.command),
+      detached: process.platform !== 'win32',
+    })
+    activeChild = child
+    cancelRequested = false
+    let stdout = ''
+    let stderr = ''
+    let timedOut = false
+    const timer = setTimeout(() => {
+      timedOut = true
+      killTree(child)
+    }, INSTALL_TIMEOUT_MS)
+    child.stdout?.on('data', (chunk: Buffer) => {
+      const text = chunk.toString()
+      stdout = (stdout + text).slice(-256 * 1024)
+      feed(text)
+      syncProgress(tracker)
+    })
+    child.stderr?.on('data', (chunk: Buffer) => {
+      const text = chunk.toString()
+      stderr = (stderr + text).slice(-64 * 1024)
+      feed(text)
+      syncProgress(tracker)
+    })
+    child.on('error', (error) => {
+      clearTimeout(timer)
+      progress.active = false
+      progress.cancelling = false
+      if (activeChild === child) activeChild = null
+      resolvePromise({ exitCode: 127, timedOut: false, stdout, stderr: `${stderr}\n${error.message}`.trim(), cancelled: false })
+    })
+    child.on('close', (code) => {
+      clearTimeout(timer)
+      progress.active = false
+      progress.cancelling = false
+      if (activeChild === child) activeChild = null
+      resolvePromise({
+        exitCode: code,
+        timedOut,
+        stdout,
+        stderr,
+        cancelled: cancelRequested,
+      })
+    })
+  })
+}
+
 /** Run one `dsh plugin --profile <p> …` command with timeout and progress tracking. */
 export function runDshPlugin(profile: string, pluginArgs: string[]): Promise<InstallResult> {
   const { file, args, cwd, viaShell } = dshArgv()
@@ -1256,6 +1401,9 @@ export function runDshPlugin(profile: string, pluginArgs: string[]): Promise<Ins
     })
     child.on('close', (code) => {
       clearTimeout(timer)
+      // A timed-out run was killed hard, so the host's lock release in the
+      // child's `finally` never ran. Clear only OUR child's lock (#914).
+      if (timedOut) clearOwnedProfileLock(profile, child.pid)
       progress.active = false
       progress.cancelling = false
       if (activeChild === child) activeChild = null

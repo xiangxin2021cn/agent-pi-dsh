@@ -32,7 +32,14 @@ export function asRegion(value) {
  * pnpm's registry alone and setting it.
  */
 export const DEFAULT_NPM_REGISTRY = 'https://registry.npmjs.org';
-const NPM_CHINA = 'https://mirrors.cloud.tencent.com/npm';
+/**
+ * Default npm registry for the China download region, no trailing slash.
+ *
+ * Exported so failure classifiers can recognize this host in pnpm's output
+ * (#926) without duplicating the URL.
+ */
+export const CHINA_NPM_REGISTRY = 'https://mirrors.cloud.tencent.com/npm';
+const NPM_CHINA = CHINA_NPM_REGISTRY;
 /**
  * First public prefix used for unauthenticated GitHub reads, no trailing slash.
  * Authenticated API calls and canonical codeload tarballs never use it.
@@ -107,6 +114,34 @@ const ROUTES = {
         ],
     },
 };
+/**
+ * Every catalog source worth trying for a region: its own list, plus the
+ * catalog's published package on that region's own registry when the list
+ * does not already name it.
+ *
+ * The catalog hangs off a SECOND, independently blockable host (#891), and
+ * the probe that picks a region measures only the npm registry. A network
+ * where npm answers fast and GitHub Pages is blocked therefore measures
+ * `global` — whose one source is that very host — and since the region is
+ * decided once and persisted, nothing ever reconsiders: "catalog fetch
+ * failed" forever, on a machine whose registry is serving the catalog as a
+ * package all along.
+ *
+ * Appending the package closes that blind spot without asking the probe to
+ * learn about the second host, without revisiting the decision, and without
+ * sending anyone to another region's mirror: it rides the registry the probe
+ * already proved reachable. Last, not first — for everyone the official
+ * domain serves, this stays a source that is never contacted.
+ */
+export function catalogSourcesFor(region) {
+    const routes = routesFor(region);
+    const sources = [...routes.catalog];
+    const served = sources.some(source => source.kind === 'npm'
+        && source.registry === routes.npmRegistry && source.pkg === CATALOG_PACKAGE);
+    if (!served)
+        sources.push({ kind: 'npm', registry: routes.npmRegistry, pkg: CATALOG_PACKAGE });
+    return sources;
+}
 /** Read an environment override, treating blank as unset. */
 function override(env, name) {
     const raw = env[name];

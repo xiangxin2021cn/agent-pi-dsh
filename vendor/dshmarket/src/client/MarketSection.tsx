@@ -3,7 +3,7 @@
  * /dsh-market/* host routes, with install/update/uninstall flows and the
  * pending-restart bookkeeping in sessionStorage.
  */
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode, type Ref } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Button,
@@ -46,14 +46,16 @@ import { downloadStatsText } from './download-stats.ts'
 import { OperationsPanel } from './OperationsPanel.tsx'
 import { applyRecovery, fetchRecovery, initialKeep, RecoveryPanel, watchRestart, type RecoveryView } from './RecoveryPanel.tsx'
 import { HostRecoveryBanner } from './HostRecoveryBanner.tsx'
-import { clearSettled, drop, enqueue, patch as patchRecord, recordForUrl } from './operations.ts'
+import { clearSettled, drop, enqueue, patch as patchRecord, recordForUrl, restoreSettled, serializeSettled, SETTLED_STORAGE_KEY } from './operations.ts'
 import type { OperationRecord } from './operations.ts'
 import { Diagnostics } from './Diagnostics.tsx'
 import { exportMarketLog } from './self-check.ts'
+import type { HostNavigationStore } from './host-navigation.ts'
+import type { SidebarEntry } from './sidebar-entry.ts'
 import {
   installCommandFor,
   api, applyGithubRouting, avatarColor, catalogEntryForInstalled, entryForDep, failureText, githubRouteCandidates, groupSwitchState, installedForCatalog, isGenerationSpec, isInstalled, localizeBilingual, localizeBilingualList, looksTerminal, matchInstalledName, orderedCategories, pluginCategories,
-  formatCount, pageItems, pluginName, blockAliases, pluginScreenshotCandidates, pluginScreenshots, pluginsForFavorites, queuedRowApplies, rankThemeScreenshots, readSession, releaseNotesHttpsImage, rememberGithubRoute, resetScreenshotsCache, resolveCatalogRestore, safeScreenshots, sanitizeReleaseNotesBody, staleFavoriteUrls, themePlugins as themePluginsOf, themeSwatch, TIME_RANGE_DAYS, visiblePlugins, restartHintKey,
+  formatCount, pageItems, pluginName, blockAliases, pluginScreenshotCandidates, pluginScreenshots, pluginsForFavorites, queuedRowApplies, rankThemeScreenshots, readSession, safeIcon, releaseNotesHttpsImage, rememberGithubRoute, resetScreenshotsCache, resolveCatalogRestore, safeScreenshots, sanitizeReleaseNotesBody, staleFavoriteUrls, themePlugins as themePluginsOf, themeSwatch, TIME_RANGE_DAYS, visiblePlugins, restartHintKey,
 } from './market-data.ts'
 import type {
 ActivationInfo, ActivationState, GistExportResult, InstalledMap, InstalledRepoHints, InstalledRepoIdentities, MarketStatus, Registry, RegistryPlugin,
@@ -140,7 +142,9 @@ function activationMeta(
   t: Translate,
   dependencyOf?: string,
   loadedByProfile?: true,
+  library?: true,
 ): { label: string; dot: 'done' | 'warning' | 'error' } {
+  if (library === true) return { label: t('stateLibrary'), dot: 'done' }
   // Loaded by the user's own setup, out of the market's sight (#813): a fact
   // about where it comes from, not a warning.
   if (state === 'inert' && loadedByProfile === true) return { label: t('stateLoadedByProfile'), dot: 'done' }
@@ -491,9 +495,24 @@ function renderMarkdown(md: string): Array<JSX.Element | string> {
   return out
 }
 
-export function OwnerAvatar({ name, owner }: { name: string; owner: string }) {
+export function OwnerAvatar({ name, owner, icon }: { name: string; owner: string; icon?: string | null }) {
   const [failed, setFailed] = useState(false)
   const [routeIndex, setRouteIndex] = useState(0)
+  const [iconFailed, setIconFailed] = useState(false)
+  const tile = iconFailed ? null : safeIcon(icon)
+  if (tile !== null) {
+    return (
+      <img
+        className={css.av}
+        src={tile}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        referrerPolicy="no-referrer"
+        onError={() => setIconFailed(true)}
+      />
+    )
+  }
   if (failed || owner === '') {
     return (
       <div className={css.av} style={{ background: avatarColor(name) }}>
@@ -774,7 +793,7 @@ function ThemeCover({ plugin, onOpen, t }: {
   }, [curatedKey, near, plugin.url])
   const shots = curated.length > 0 ? curated : fallback.shots
   const visible = shots.filter(src => !broken.includes(src))
-  const name = pluginName(plugin.name)
+  const name = pluginName(plugin.name, plugin.npm)
 
   if (visible.length === 0) {
     return (
@@ -836,20 +855,33 @@ function ThemeCover({ plugin, onOpen, t }: {
  * Below the two-up breakpoint the CSS collapses to one column, and dealing
  * alternately would then interleave the list wrongly — so at one column the
  * items stay in a single stack in their original order.
+ *
+ * Two columns at the settings dialog's width; the sidebar page is wider and
+ * gets a third once each column still has room for a full card.
  */
-function Masonry<T>({ items, render, columns = 2 }: {
+function Masonry<T>({ items, render }: {
   items: T[]
   render: (item: T) => ReactNode
-  columns?: number
 }) {
   const wide = useMediaWide()
-  if (!wide || columns < 2) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [columns, setColumns] = useState(2)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (el === null || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry !== undefined) setColumns(Math.min(3, Math.max(2, Math.floor((entry.contentRect.width + 10) / 290))))
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [wide])
+  if (!wide) {
     return <div className={css.masonry}><div className={css.masonryCol}>{items.map(render)}</div></div>
   }
   const buckets: T[][] = Array.from({ length: columns }, () => [])
   items.forEach((item, index) => { buckets[index % columns]!.push(item) })
   return (
-    <div className={css.masonry}>
+    <div ref={ref} className={css.masonry}>
       {buckets.map((bucket, index) => (
         <div key={index} className={css.masonryCol}>{bucket.map(render)}</div>
       ))}
@@ -888,6 +920,111 @@ function useMediaWide(): boolean {
  * actually overflows the clamp: a two-line description has nothing to
  * "expand", so no button beats a button that does nothing.
  */
+/**
+ * Description + screenshots, and the introduction's reading view.
+ *
+ * The card itself is a `.map()` body with no hooks of its own, so the peek that
+ * needs to know when a pointer is resting on a card lives here.
+ *
+ * It is open to any card that has an introduction — not only to the ones whose
+ * five-line clamp cuts text off. That gate was the first design, and measured
+ * on this catalog it left the feature invisible: at 1280px, two cards out of
+ * twenty-eight are clipped, because most descriptions are two or three lines.
+ * For the other twenty-six it looked broken, which is a worse outcome than a
+ * peek that mostly confirms what the card already says.
+ *
+ * The reveal is a fixed-position panel rather than something inside the card:
+ * the space a card can give back is whatever its screenshots happen to occupy,
+ * and a card without screenshots has none — measured on this catalog, the
+ * first attempt showed exactly the same five lines, just cut at the box edge.
+ * It is pointer-events:none, so it can never take the pointer from the card
+ * underneath it, and it starts below the title row so the name and the install
+ * button stay visible and clickable while it is open.
+ */
+function CardBody({ text, name, owner, children }: {
+  text: string
+  name: string
+  owner?: string
+  children: ReactNode
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [hasText, setHasText] = useState(false)
+  const [anchor, setAnchor] = useState<{ left: number; top: number; width: number; maxHeight: number } | null>(null)
+  const timer = useRef<number | null>(null)
+  useLayoutEffect(() => {
+    const host = ref.current
+    if (host === null) return
+    const desc = host.querySelector<HTMLElement>(`.${css.descClamp}`) ?? host.querySelector<HTMLElement>(`.${css.desc}`)
+    if (desc === null) { setHasText(false); return }
+    const measure = () => setHasText((desc.textContent ?? '').trim().length > 0)
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measure)
+    observer.observe(desc)
+    return () => observer.disconnect()
+  }, [text])
+  const close = useCallback(() => {
+    if (timer.current !== null) { window.clearTimeout(timer.current); timer.current = null }
+    setAnchor(null)
+  }, [])
+  const open = useCallback(() => {
+    const host = ref.current
+    if (host === null || !hasText) return
+    if (timer.current !== null) window.clearTimeout(timer.current)
+    // Long enough that sweeping across the grid does not flash a panel per card.
+    timer.current = window.setTimeout(() => {
+      timer.current = null
+      const card = host.parentElement?.getBoundingClientRect() ?? host.getBoundingClientRect()
+      // Starts where the card's own body starts — under the title row — so the
+      // name and the install button stay visible and clickable while it is open.
+      // Same column and same width, so it reads as this card continuing rather
+      // than as a box that appeared nearby; it grows down to the window's edge.
+      const top = host.getBoundingClientRect().top - 8
+      const room = window.innerHeight - top - 16
+      setAnchor({
+        left: card.left,
+        top,
+        width: card.width,
+        maxHeight: Math.max(120, Math.min(window.innerHeight * 0.6, room)),
+      })
+    }, 420)
+  }, [hasText])
+  useEffect(() => {
+    const card = ref.current?.parentElement
+    if (card === null || card === undefined) return undefined
+    card.addEventListener('pointerenter', open)
+    card.addEventListener('pointerleave', close)
+    card.addEventListener('pointerdown', close)
+    return () => {
+      card.removeEventListener('pointerenter', open)
+      card.removeEventListener('pointerleave', close)
+      card.removeEventListener('pointerdown', close)
+    }
+  }, [open, close])
+  // A fixed panel would hang over the grid while the page scrolls under it.
+  useEffect(() => {
+    if (anchor === null) return undefined
+    const onScroll = () => close()
+    window.addEventListener('scroll', onScroll, { capture: true, passive: true })
+    return () => window.removeEventListener('scroll', onScroll, true)
+  }, [anchor, close])
+  return (
+    <div ref={ref} className={css.introScope}>
+      {children}
+      {anchor !== null && createPortal(
+        <div className={css.introPanel} style={{ left: anchor.left, top: anchor.top, width: anchor.width, maxHeight: anchor.maxHeight }} aria-hidden="true">
+          <div className={css.introHead}>
+            <span className={css.introName}>{name}</span>
+            {owner !== undefined && owner !== '' && <span className={css.introOwner}>{owner}</span>}
+          </div>
+          <p className={css.introBody}>{text}</p>
+        </div>,
+        document.body,
+      )}
+    </div>
+  )
+}
+
 function CardDesc({ text, t, lines = 5, className, textClassName }: {
   text: string
   t: Translate
@@ -1142,24 +1279,51 @@ export function resetMarketPortalHost(): void {
  * follows the active theme. Mirrors the settings-nav glyph used for the
  * "market" section id — both now draw the geometry in market-mark.ts, so the
  * nav entry and the section it opens cannot drift apart.
+ *
+ * Two animated forms, differing in what they are for rather than in looks:
+ *
+ * - `animated` — the loading state. Motion is the whole signal, so under
+ *   `prefers-reduced-motion` it still moves, just without displacement.
+ * - `ambient` — the section's own heading mark. Decoration, so the same
+ *   preference stops it dead.
+ *
+ * Both draw the one timeline in the stylesheet: the grid breathes along the
+ * diagonal and the block rides in behind that wave. They share `--dshm-cycle`
+ * so the block cannot arrive after the wave it is supposed to follow.
  */
-function MarketLogo({ size = 16, style, animated = false }: { size?: number; style?: CSSProperties; animated?: boolean }) {
+export function MarketLogo({ size = 16, style, animated = false, ambient = false }: {
+  size?: number
+  style?: CSSProperties
+  animated?: boolean
+  ambient?: boolean
+}) {
+  const moving = animated || ambient
   return (
     <svg width={size} height={size} viewBox={`0 0 ${MARK_VIEW_BOX} ${MARK_VIEW_BOX}`} fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style={style}>
       <g fill="currentColor">
         {MARK_GRID_BLOCKS.map(block => (
-          <rect key={`${block.x},${block.y}`} x={block.x} y={block.y} width={MARK_BLOCK_SIZE} height={MARK_BLOCK_SIZE} rx={MARK_BLOCK_RADIUS} />
+          <rect
+            key={`${block.x},${block.y}`}
+            className={moving ? css.logoCell : undefined}
+            style={moving ? { '--dshm-wave': block.wave } as CSSProperties : undefined}
+            x={block.x} y={block.y} width={MARK_BLOCK_SIZE} height={MARK_BLOCK_SIZE} rx={MARK_BLOCK_RADIUS}
+          />
         ))}
       </g>
       {/* The block being plugged in: OUTSIDE the grid's empty corner, offset
           (+1.28, -1.27) and tilted 9deg, exactly as in assets/logo.svg. The
           earlier icon sat it neatly in the empty slot, which reads as one
           crooked tile rather than a block arriving — the whole idea of the
-          mark, and the reason it no longer matched the GitHub logo. */}
+          mark, and the reason it no longer matched the GitHub logo.
+
+          The tilt stays a presentation attribute even in the animated forms:
+          a CSS animation outranks it while running, and when the animation is
+          suppressed (reduced motion) the attribute is what leaves the block in
+          its drawn position instead of sitting square in the corner. */}
       <rect
-        className={animated ? css.logoPlug : undefined}
+        className={animated ? css.logoPlug : ambient ? css.logoPlugAmbient : undefined}
         x={MARK_PLUG_BLOCK.x} y={MARK_PLUG_BLOCK.y} width={MARK_BLOCK_SIZE} height={MARK_BLOCK_SIZE} rx={MARK_BLOCK_RADIUS} fill="currentColor"
-        transform={animated ? undefined : `rotate(${MARK_PLUG_BLOCK.degrees} ${MARK_PLUG_BLOCK.originX} ${MARK_PLUG_BLOCK.originY})`}
+        transform={`rotate(${MARK_PLUG_BLOCK.degrees} ${MARK_PLUG_BLOCK.originX} ${MARK_PLUG_BLOCK.originY})`}
       />
     </svg>
   )
@@ -1194,9 +1358,64 @@ function GithubRepoMark({ size = 12, className }: { size?: number; className?: s
 
 /** Bookmark toggle on catalog cards (#414). Outline when off, filled when on —
  * deliberately not a star, which the byline already uses for GitHub popularity. */
-function BookmarkMark({ size = 14, filled = false, className }: { size?: number; filled?: boolean; className?: string }) {
+/**
+ * The bookmark, with the click felt rather than only seen.
+ *
+ * Filling the mark is the state; the pop is what makes it read as something
+ * the reader did. It is a bookmark, so the mark is pulled down from its top
+ * edge and snaps back — a ribbon tugged and released, not a checkbox ticking.
+ *
+ * Web Animations rather than a class toggled through React state: a second
+ * click has to restart the gesture, and "set a flag, clear it on a timer"
+ * either coalesces the two renders or leaves the flag set when the click
+ * lands mid-animation. Each call here owns its own animation object.
+ *
+ * `prefers-reduced-motion` skips the gesture; the fill still changes, so the
+ * action is never silent.
+ */
+function FavoriteButton({ filled, label, onToggle }: { filled: boolean; label: string; onToggle: () => void }) {
+  const markRef = useRef<SVGSVGElement>(null)
+  return (
+    <Tooltip label={label} side="top">
+      <button
+        type="button"
+        className={filled ? `${css.favoriteBtn} ${css.favoriteOn}` : css.favoriteBtn}
+        aria-pressed={filled}
+        aria-label={label}
+        onClick={() => {
+          onToggle()
+          const el = markRef.current
+          if (el === null || typeof el.animate !== 'function') return
+          if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true) return
+          // Per-segment easing, not one curve over the whole gesture: a spring
+          // easing on the whole timeline reaches the stretch keyframe in the
+          // first few frames and spends the rest of the time settling, which
+          // measured as a peak of 1.12 instead of the 1.42 asked for.
+          el.animate([
+            { transform: 'scaleY(1) translateY(0)', easing: 'cubic-bezier(.32,.72,.42,1)' },
+            { transform: 'scaleY(1.42) translateY(1px)', offset: 0.18, easing: 'cubic-bezier(.42,0,.58,1)' },
+            { transform: 'scaleY(.84) translateY(-1px)', offset: 0.42, easing: 'cubic-bezier(.3,.75,.5,1)' },
+            { transform: 'scaleY(1.1) translateY(.4px)', offset: 0.62, easing: 'cubic-bezier(.3,.75,.5,1)' },
+            { transform: 'scaleY(.96) translateY(0)', offset: 0.8, easing: 'ease-out' },
+            { transform: 'scaleY(1) translateY(0)' },
+          ], { duration: 460 })
+        }}
+      >
+        <BookmarkMark filled={filled} className={css.favoriteMark} markRef={markRef} />
+      </button>
+    </Tooltip>
+  )
+}
+
+function BookmarkMark({ size = 14, filled = false, className, markRef }: {
+  size?: number
+  filled?: boolean
+  className?: string
+  markRef?: Ref<SVGSVGElement>
+}) {
   return (
     <svg
+      ref={markRef}
       width={size}
       height={size}
       viewBox="0 0 16 16"
@@ -1512,11 +1731,91 @@ function CatalogVersionMark({ version, tip }: { version: string | null | undefin
  * Module-scope caches so re-entering the section renders instantly instead
  * of refetching and rebuilding from a spinner (#30 by @StarsTom). Module
  * state survives section switches; a background refetch keeps it current.
+ *
+ * #846 adds the sidebar page as a second mount of MarketSection. Anything
+ * that paints buttons or badges (updates, live/disabled, tab counts, host
+ * filter) has to live here too — otherwise each open starts from empty and
+ * the Installed tab's red dot / 「更新」buttons flash off then on, and the
+ * two entries disagree until both refetches finish.
  */
 let cachedRegistry: Registry | null = null
 let cachedInstalled: InstalledMap | null = null
 let cachedRepoIdentities: InstalledRepoIdentities | null = null
 let cachedRepoHints: InstalledRepoHints | null = null
+let cachedHostCompatibility: HostCompatibilityMap = {}
+let cachedHostVersion: string | null | undefined = undefined
+/** Names with an in-flight discovery-compatibility request (module-wide). */
+const hostCompatibilityInFlight = new Set<string>()
+/** Subscribers for useSyncExternalStore — every mounted MarketSection. */
+const hostCompatibilityListeners = new Set<() => void>()
+let cachedUpdates: Record<string, UpdateStatus> = {}
+/** False until /dsh-market/updates has answered at least once this process. */
+let cachedUpdatesReady = false
+let cachedInstalledReady = false
+let cachedSkins: string[] = []
+let cachedDisabledNames: string[] = []
+let cachedInstalledFiles: string[] = []
+let cachedFavoriteUrls: string[] = []
+let cachedBlockedNames: string[] = []
+let cachedInstalledBundles: string[] = []
+let cachedActivations: Record<string, ActivationInfo> = {}
+/** Market package version from /status — the 「v1.66.x」 next to the title. */
+let cachedMarketVersion: string | null = null
+
+/** Keep a React state setter and its module cache in lockstep. */
+function cacheState<T>(write: (value: T) => void, setState: (value: T | ((current: T) => T)) => void) {
+  return (value: T | ((current: T) => T)): void => {
+    setState(current => {
+      const next = typeof value === 'function' ? (value as (current: T) => T)(current) : value
+      write(next)
+      return next
+    })
+  }
+}
+
+/** Test helper: drop the shared surface caches between cases. */
+export function resetHostCompatibilityCache(): void {
+  cachedHostCompatibility = {}
+  cachedHostVersion = undefined
+  hostCompatibilityInFlight.clear()
+  cachedUpdates = {}
+  cachedUpdatesReady = false
+  cachedInstalledReady = false
+  cachedSkins = []
+  cachedDisabledNames = []
+  cachedInstalledFiles = []
+  cachedFavoriteUrls = []
+  cachedBlockedNames = []
+  cachedInstalledBundles = []
+  cachedActivations = {}
+  cachedMarketVersion = null
+}
+
+/** Any cached answer counts — including unavailable. Re-querying every
+ * remount used to re-POST thousands of names; a host-version change (below)
+ * is what drops the map for a fresh scan. */
+function hostCompatibilitySettled(name: string): boolean {
+  return cachedHostCompatibility[name] !== undefined
+}
+
+function clearHostCompatibilityCache(): void {
+  cachedHostCompatibility = {}
+  hostCompatibilityInFlight.clear()
+  for (const listener of hostCompatibilityListeners) listener()
+}
+
+function subscribeHostCompatibility(onStoreChange: () => void): () => void {
+  hostCompatibilityListeners.add(onStoreChange)
+  return () => { hostCompatibilityListeners.delete(onStoreChange) }
+}
+
+/** Merge into the module cache and notify every mounted MarketSection — a
+ * sidebar/settings switch used to drop in-flight setStates and leave the
+ * note frozen at 「正在检查 665/2455」. */
+function commitHostCompatibility(accepted: HostCompatibilityMap): void {
+  cachedHostCompatibility = { ...cachedHostCompatibility, ...accepted }
+  for (const listener of hostCompatibilityListeners) listener()
+}
 
 /** Discover grid page-size choices — the catalog grows daily, so cap each page. */
 const PAGE_SIZES = [24, 48, 96]
@@ -1701,6 +2000,19 @@ export interface MarketSectionProps {
   }
   /** Optional host-provided destination: `discover:<query>` or `installed:<query>`. */
   preferredSubsectionId?: string
+  /** The opt-in sidebar row. Absent, the page offers no shortcut tip. */
+  sidebar?: SidebarEntry
+  /**
+   * The host's `pluginNavigation` (dsh 0.2.1+). Absent, installed plugins
+   * offer no link to the host's own page for them.
+   */
+  hostNavigation?: HostNavigationStore
+  /**
+   * Which mount this is. Only the settings page may offer the sidebar
+   * shortcut; the sidebar page must not ask to open itself, and the Plugins
+   * page's tab is already one click from 已安装.
+   */
+  surface?: 'settings' | 'sidebar' | 'plugins'
 }
 
 interface SourceMigrationConfirm {
@@ -1737,6 +2049,36 @@ function readHostFilterPreference(): boolean {
   try { return localStorage.getItem(HOST_FILTER_KEY) !== 'all' } catch { return true }
 }
 
+/**
+ * 最近收录 display preferences: collapsed / hidden (#940).
+ *
+ * The block only appears on the discover tab with an empty search and both
+ * filters on "all", so it cannot be avoided without changing what the user is
+ * looking at — and it costs about a quarter of the first screen. Both states
+ * are display preferences, not profile settings: since 0.1.7 the settings
+ * surface is deliberately just `allowRestart`.
+ *
+ * Same read discipline as HOST_FILTER_KEY above: an unavailable store falls
+ * back to the default, and the default is "expanded and shown".
+ */
+const RECENT_COLLAPSED_KEY = 'dshm-recent-collapsed'
+const RECENT_HIDDEN_KEY = 'dshm-recent-hidden'
+function readRecentFlag(key: string): boolean {
+  try { return localStorage.getItem(key) === '1' } catch { return false }
+}
+function writeRecentFlag(key: string, next: boolean): void {
+  try { localStorage.setItem(key, next ? '1' : '0') } catch { /* storage unavailable — the choice just won't survive a reload */ }
+}
+
+/** "不再提示" on the settings-page sidebar tip. A missing store means show it. */
+const SIDEBAR_TIP_KEY = 'dshm-sidebar-tip-dismissed'
+function readSidebarTipDismissed(): boolean {
+  try { return localStorage.getItem(SIDEBAR_TIP_KEY) === '1' } catch { return false }
+}
+function writeSidebarTipDismissed(): void {
+  try { localStorage.setItem(SIDEBAR_TIP_KEY, '1') } catch { /* private mode: the tip can return */ }
+}
+
 export function MarketSection(props: MarketSectionProps) {
   const t = props.t
   const initialWebdav = useMemo(savedWebdav, [])
@@ -1745,6 +2087,50 @@ export function MarketSection(props: MarketSectionProps) {
     () => props.locale.getSnapshot(),
   )
   const lang = String(localeSnap.active).toLowerCase().startsWith('zh') ? 'zh' : 'en'
+  const surface = props.surface ?? 'settings'
+  const sidebar = props.sidebar
+  // The host's own page for a bundle (dsh 0.2.1+). Subscribed rather than read
+  // once: the service arrives with the host's plugin manager, which may load
+  // after this panel is already on screen.
+  const hostNavigation = props.hostNavigation
+  const openInHost = useSyncExternalStore(
+    cb => hostNavigation?.subscribe(cb) ?? (() => {}),
+    () => hostNavigation?.get(),
+  )
+  const [sidebarSnap, setSidebarSnap] = useState(() => ({
+    supported: sidebar?.supported() === true,
+    enabled: sidebar?.enabled() === true,
+    ready: sidebar?.ready() === true,
+  }))
+  const [sidebarTipDismissed, setSidebarTipDismissed] = useState(readSidebarTipDismissed)
+  const [sidebarTipSaving, setSidebarTipSaving] = useState(false)
+  const [sidebarTipError, setSidebarTipError] = useState<string | null>(null)
+  useEffect(() => {
+    if (sidebar === undefined) return undefined
+    const sync = (): void => {
+      setSidebarSnap({
+        supported: sidebar.supported(),
+        enabled: sidebar.enabled(),
+        ready: sidebar.ready(),
+      })
+    }
+    sync()
+    return sidebar.subscribe(sync)
+  }, [sidebar])
+  // Wait for load(): until then enabled is the default off, not a known choice.
+  const showSidebarTip = surface === 'settings'
+    && sidebarSnap.ready
+    && sidebarSnap.supported
+    && !sidebarSnap.enabled
+    && !sidebarTipDismissed
+  const enableSidebar = useCallback(() => {
+    if (sidebar === undefined) return
+    setSidebarTipError(null)
+    setSidebarTipSaving(true)
+    void sidebar.set(true).catch((cause: unknown) => {
+      setSidebarTipError(cause instanceof Error ? cause.message : String(cause))
+    }).finally(() => { setSidebarTipSaving(false) })
+  }, [sidebar])
   // null when the composition has no theme service — the Themes tab hides.
   const themeSnap = useSyncExternalStore(
     props.themeStore.subscribe,
@@ -1752,6 +2138,16 @@ export function MarketSection(props: MarketSectionProps) {
   )
   const [data, setData] = useState<Registry | null>(cachedRegistry)
   const [loadError, setLoadError] = useState<string | null>(null)
+  /**
+   * The host answered 404 on one of the market's own routes (#962).
+   *
+   * That is not a failed request: it means DSH reloaded its plugins and did
+   * not mount the market again, so nothing on this page can reach the host —
+   * not the catalog, not the operation lock, not the restart route. The page
+   * already on screen keeps rendering (it is a client-side app), which is
+   * exactly why it owes the user this sentence instead of a spinner.
+   */
+  const [marketGone, setMarketGone] = useState(false)
   const [installed, setInstalledState] = useState<InstalledMap>(cachedInstalled ?? {})
   const setInstalled = useCallback((value: InstalledMap) => { cachedInstalled = value; setInstalledState(value) }, [])
   const [repoIdentities, setRepoIdentitiesState] = useState<InstalledRepoIdentities>(cachedRepoIdentities ?? {})
@@ -1764,8 +2160,10 @@ export function MarketSection(props: MarketSectionProps) {
     cachedRepoHints = value
     setRepoHintsState(value)
   }, [])
-  const [installedFiles, setInstalledFiles] = useState<string[]>([])
-  const [skins, setSkins] = useState<string[]>([])
+  const [installedFiles, setInstalledFilesState] = useState<string[]>(() => cachedInstalledFiles)
+  const setInstalledFiles = useCallback(cacheState(value => { cachedInstalledFiles = value }, setInstalledFilesState), [])
+  const [skins, setSkinsState] = useState<string[]>(() => cachedSkins)
+  const setSkins = useCallback(cacheState(value => { cachedSkins = value }, setSkinsState), [])
   const [tab, setTab] = useState(() => {
     const saved = sessionStorage.getItem('dshm-tab')
     if (saved !== null) sessionStorage.removeItem('dshm-tab')
@@ -1810,7 +2208,8 @@ export function MarketSection(props: MarketSectionProps) {
   /**
    * Every mutating operation the user started. Records outlive the card that
    * started them, so paginating or searching cannot take a pending decision
-   * off screen.
+   * off screen — and finished records outlive the page load too (see the
+   * settled restore below); one still moving or waiting on a decision does not.
    */
   const [records, setRecords] = useState<OperationRecord[]>([])
   const recordSeq = useRef(0)
@@ -1824,9 +2223,13 @@ export function MarketSection(props: MarketSectionProps) {
    * Persisted in localStorage so a refresh keeps the queue; only `queued`
    * records persist — `running` recovery stays on the dshm-pending paths.
    */
-  const [updates, setUpdates] = useState<Record<string, UpdateStatus>>({})
+  const [updates, setUpdatesState] = useState<Record<string, UpdateStatus>>(() => cachedUpdates)
+  const setUpdates = useCallback(cacheState(value => { cachedUpdates = value }, setUpdatesState), [])
   const queueRestoredRef = useRef(false)
-  const [queueSnapshotReady, setQueueSnapshotReady] = useState({ installed: false, updates: false })
+  const [queueSnapshotReady, setQueueSnapshotReady] = useState({
+    installed: cachedInstalledReady,
+    updates: cachedUpdatesReady,
+  })
   useEffect(() => {
     if (queueRestoredRef.current) return
     let saved: unknown = null
@@ -1943,6 +2346,59 @@ export function MarketSection(props: MarketSectionProps) {
       else localStorage.setItem('dshm-queue-v1', JSON.stringify(queued))
     } catch { /* storage unavailable */ }
   }, [records])
+  /**
+   * Finished rows survive a page load — and only finished rows.
+   *
+   * A failed operation is the one thing the panel cannot recover by itself:
+   * after a reload the card is back to "Install", the plugin is not in
+   * Installed (the host rolled the change back), and the sentence naming what
+   * went wrong — plus the build-script approval that is the way out of it
+   * (#314) — lived only in React state.
+   *
+   * The queue key owns `queued`, the dshm-pending markers own `running`, and
+   * this key owns the rows that already ended. Unlike a queued row, a finished
+   * one has nothing left to judge, so the restore waits for nothing — not even
+   * the catalog.
+   */
+  const settledRestoredRef = useRef(false)
+  /** The restore's merge has not reached a render yet; see the write below. */
+  const settledMergePendingRef = useRef(false)
+  useEffect(() => {
+    if (settledRestoredRef.current) return
+    settledRestoredRef.current = true
+    let saved: string | null = null
+    try { saved = localStorage.getItem(SETTLED_STORAGE_KEY) } catch { saved = null }
+    const restored = restoreSettled(saved)
+    if (restored.length === 0) return
+    // Ids came from a previous mount's counter. Continue past them, or the next
+    // operation reuses an id and drop/patch would address two rows at once.
+    for (const record of restored) {
+      const match = /^op-(\d+)$/.exec(record.id)
+      if (match !== null) recordSeq.current = Math.max(recordSeq.current, Number(match[1]))
+    }
+    settledMergePendingRef.current = true
+    setRecords(prev => {
+      const known = new Set(prev.map(record => record.id))
+      const missing = restored.filter(record => !known.has(record.id))
+      return missing.length === 0 ? prev : [...prev, ...missing]
+    })
+  }, [])
+  useEffect(() => {
+    // Never write before the restore has read, and never write the pre-restore
+    // list: on the first render `records` is empty, so a write here would
+    // replace the stored rows with nothing just as the restore put them back.
+    // (The queue's restore has the same hazard, for the same reason.)
+    if (!settledRestoredRef.current) return
+    if (settledMergePendingRef.current) {
+      settledMergePendingRef.current = false
+      return
+    }
+    try {
+      const settled = serializeSettled(records)
+      if (settled.length === 0) localStorage.removeItem(SETTLED_STORAGE_KEY)
+      else localStorage.setItem(SETTLED_STORAGE_KEY, JSON.stringify(settled))
+    } catch { /* storage unavailable — the rows just won't survive a reload */ }
+  }, [records])
   /** Raised by the card marker, so "查看详情" lands on the record itself. */
   const [operationsOpen, setOperationsOpen] = useState(false)
   const openOperations = useCallback(() => setOperationsOpen(true), [])
@@ -1957,9 +2413,9 @@ export function MarketSection(props: MarketSectionProps) {
     const entry = data?.plugins.find(plugin => plugin.npm === name || plugin.name === name)
     if (entry === undefined) return { title: name }
     return {
-      title: pluginName(entry.name),
+      title: pluginName(entry.name, entry.npm),
       author: entry.owner === '' ? undefined : entry.owner,
-      avatar: <OwnerAvatar name={entry.name} owner={entry.owner || ''} />,
+      avatar: <OwnerAvatar name={entry.name} owner={entry.owner || ''} icon={entry.icon ?? undefined} />,
     }
   }, [data])
   /** Ids are sequential rather than random so a replayed session is stable. */
@@ -2146,15 +2602,19 @@ export function MarketSection(props: MarketSectionProps) {
   const [hotNames, setHotNames] = useState<string[]>([])
   const [progressLine, setProgressLine] = useState<string | null>(null)
   /** Per-package activation states from /dsh-market/installed + operations. */
-  const [activations, setActivations] = useState<Record<string, ActivationInfo>>({})
+  const [activations, setActivationsState] = useState<Record<string, ActivationInfo>>(() => cachedActivations)
+  const setActivations = useCallback(cacheState(value => { cachedActivations = value }, setActivationsState), [])
   /** #60: persisted disable list + custom groups, straight from /installed. */
-  const [disabledNames, setDisabledNames] = useState<string[]>([])
+  const [disabledNames, setDisabledNamesState] = useState<string[]>(() => cachedDisabledNames)
+  const setDisabledNames = useCallback(cacheState(value => { cachedDisabledNames = value }, setDisabledNamesState), [])
   /** The user's own note per plugin (#347): package name → text. */
   const [notes, setNotes] = useState<Record<string, string>>({})
   /** Catalog URLs bookmarked for later install (#414). */
-  const [favoriteUrls, setFavoriteUrls] = useState<string[]>([])
+  const [favoriteUrls, setFavoriteUrlsState] = useState<string[]>(() => cachedFavoriteUrls)
+  const setFavoriteUrls = useCallback(cacheState(value => { cachedFavoriteUrls = value }, setFavoriteUrlsState), [])
   /** Package names the user hid from Discover (#657). */
-  const [blockedNames, setBlockedNames] = useState<string[]>([])
+  const [blockedNames, setBlockedNamesState] = useState<string[]>(() => cachedBlockedNames)
+  const setBlockedNames = useCallback(cacheState(value => { cachedBlockedNames = value }, setBlockedNamesState), [])
   const [updateExemptNames, setUpdateExemptNames] = useState<string[]>([])
   /** Rows the user asked to show the AUTHOR's description on, despite a note. */
   const [showTheirs, setShowTheirs] = useState<string[]>([])
@@ -2205,7 +2665,8 @@ export function MarketSection(props: MarketSectionProps) {
    * arrive as a photo of the screen, and without a version in frame the
    * first reply always has to ask which one it was.
    */
-  const [version, setVersion] = useState<string | null>(null)
+  const [version, setVersionState] = useState<string | null>(() => cachedMarketVersion)
+  const setVersion = useCallback(cacheState(value => { cachedMarketVersion = value }, setVersionState), [])
   /**
    * The catalog's own build date (#712). The version on a card is the
    * catalog's copy, not a live npm lookup, so a plugin published after the
@@ -2324,15 +2785,71 @@ export function MarketSection(props: MarketSectionProps) {
   /** Export failure shown INSIDE the picker so it is never hidden behind it. */
   const [exportError, setExportError] = useState<string | null>(null)
   /** Bundle-only plugin names from /dsh-market/installed (picker list). */
-  const [installedBundles, setInstalledBundles] = useState<string[]>([])
+  const [installedBundles, setInstalledBundlesState] = useState<string[]>(() => cachedInstalledBundles)
+  const setInstalledBundles = useCallback(cacheState(value => { cachedInstalledBundles = value }, setInstalledBundlesState), [])
   const bodyRef = useRef<HTMLDivElement | null>(null)
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  /**
+   * The Plugins page's tab has no height of its own.
+   *
+   * The host's page owns the scroll there and its tab panel is content-sized,
+   * so a `height: 100%` child resolves to auto: the market's own scroller
+   * would disappear and take the sticky category row, the back-to-top button
+   * and the collapse-on-scroll header with it. Measure the room left under
+   * the host's header and tabs and hand it back to the panel, so every other
+   * mount's layout rules keep working unchanged.
+   */
+  const [pluginsTabHeight, setPluginsTabHeight] = useState<number | null>(null)
+  useLayoutEffect(() => {
+    const root = rootRef.current
+    if (surface !== 'plugins' || root === null) {
+      setPluginsTabHeight(null)
+      return undefined
+    }
+    // Which ancestor scrolls is the host's business; find it rather than name it.
+    let page: HTMLElement | null = null
+    for (let node = root.parentElement; node !== null; node = node.parentElement) {
+      if (/^(auto|scroll)$/.test(getComputedStyle(node).overflowY)) { page = node; break }
+    }
+    if (page === null) return undefined
+    const host = page
+    const measure = (): void => {
+      // Hidden behind another tab the host keeps mounted: every rect is zero
+      // and the answer would be the whole page height. The observer fires
+      // again when this panel is shown.
+      if (root.getClientRects().length === 0) return
+      const bottom = Number.parseFloat(getComputedStyle(host).paddingBottom)
+      const room = host.clientHeight
+        - (root.getBoundingClientRect().top - host.getBoundingClientRect().top)
+        - (Number.isFinite(bottom) ? bottom : 0)
+      // A host that has not laid the page out yet answers with a negative
+      // room; the floor keeps the panel usable until the next measurement.
+      const next = Math.max(320, Math.round(room))
+      setPluginsTabHeight(prev => (prev === next ? prev : next))
+    }
+    measure()
+    if (typeof ResizeObserver === 'undefined') return undefined
+    const observer = new ResizeObserver(measure)
+    observer.observe(host)
+    observer.observe(root)
+    return () => { observer.disconnect() }
+  }, [surface])
   /** Hidden file input behind the Import button (a Button can't host an <input>). */
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [sortField, setSortField] = useState<SortField>('downloads')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [timeRange, setTimeRange] = useState<TimeRange>('all')
   /** Undefined while the first catalog response is pending; null means the host cannot be located. */
-  const [hostVersion, setHostVersion] = useState<string | null | undefined>(undefined)
+  const [hostVersion, setHostVersionState] = useState<string | null | undefined>(() => cachedHostVersion)
+  const setHostVersion = useCallback((value: string | null | undefined) => {
+    // Same process, different DSH — peer ranges were judged against the old
+    // host and must not keep filtering the list.
+    if (typeof cachedHostVersion === 'string' && typeof value === 'string' && value !== cachedHostVersion) {
+      clearHostCompatibilityCache()
+    }
+    cachedHostVersion = value
+    setHostVersionState(value)
+  }, [])
   /** v1 is deliberately opt-in: undeclared/unknown entries stay visible even when enabled. */
   // #872: ON by default. The report measured it on a live 0.2.0-rc.2 host —
   // 175 discovered plugins, 45 of them declaring that host — so the default
@@ -2348,10 +2865,12 @@ export function MarketSection(props: MarketSectionProps) {
   /** The profile this page is running in, for the manual command's own
    * `--profile` token (#872). The catalog's is always `web`. */
   const [profileName, setProfileName] = useState<string | null>(null)
-  const [hostCompatibility, setHostCompatibility] = useState<HostCompatibilityMap>({})
+  const hostCompatibility = useSyncExternalStore(
+    subscribeHostCompatibility,
+    () => cachedHostCompatibility,
+    () => cachedHostCompatibility,
+  )
   const [hostCompatibilityPending, setHostCompatibilityPending] = useState(0)
-  /** Names already resolved or in flight; failed/unavailable names are released for an explicit retry. */
-  const requestedHostCompatibility = useRef(new Set<string>())
   const [catsOpen, setCatsOpen] = useState(false)
   /** Themes tab: independent from Discover's sort/time state above — a
    * search or sort choice in one tab has no business resetting the other. */
@@ -2379,14 +2898,10 @@ export function MarketSection(props: MarketSectionProps) {
   const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false)
   /** Plugins that failed to install during a restore (replaces window.alert). */
   const [restoreErrors, setRestoreErrors] = useState<string[]>([])
-  // How many category pills fit in the two collapsed rows (measured once —
-  // the settings panel width is fixed); null = measuring render with all
-  // pills clamped, then slice so the chevron flows inline after the last one.
+  // How many category pills fit in ONE row (measured; the panel width is
+  // fixed). Collapsed shows that row; expanded shows them all. null = the
+  // measuring render, where every pill is painted so the widths can be read.
   const [visibleCats, setVisibleCats] = useState<number | null>(null)
-  /** Same idea as `visibleCats`, but how many fit in a single row — used to
-   *  shrink an expanded (2+ row) category list while the sticky header is
-   *  pinned during scroll, distinct from the two-row collapsed default. */
-  const [visibleCatsOneRow, setVisibleCatsOneRow] = useState<number | null>(null)
   const catsWrapRef = useRef<HTMLDivElement | null>(null)
   // Whether the sticky header is currently pinned to the top of the scroll
   // area. Tracked via a sentinel just above it rather than a scrollTop
@@ -2454,6 +2969,7 @@ export function MarketSection(props: MarketSectionProps) {
         setBrokenPlugins(isRecordOfRecords(body.brokenPlugins) ? body.brokenPlugins : {})
         installedReadGen.current += 1
         setHostDependencyFindings(findings)
+        cachedInstalledReady = true
         setQueueSnapshotReady(ready => ({ ...ready, installed: true }))
       })
       .catch(() => {})
@@ -2461,10 +2977,11 @@ export function MarketSection(props: MarketSectionProps) {
       .then(res => res.json())
       .then(body => {
         setUpdates(body.updates || {})
+        cachedUpdatesReady = true
         setQueueSnapshotReady(ready => ({ ...ready, updates: true }))
       })
       .catch(() => {})
-  }, [])
+  }, [setActivations, setBlockedNames, setDisabledNames, setFavoriteUrls, setInstalledBundles, setInstalledFiles, setSkins, setUpdates])
 
   /** Active Bundles count as installed in Discover without becoming package-manager targets. */
   const catalogInstalled = useMemo(
@@ -2497,6 +3014,43 @@ export function MarketSection(props: MarketSectionProps) {
     return () => window.removeEventListener('keydown', onKey, true)
   }, [lightbox, themesFullscreen])
 
+  /**
+   * The host is no longer serving the market's routes (#962).
+   *
+   * Only a 404 says this: any other status means the route ran and answered.
+   * When it happens mid-operation, the response that would have settled the
+   * install was lost with the routes, so the spinner has to be released and
+   * the row told what became of it — otherwise it turns until DSH restarts,
+   * with the user left to guess whether the plugin landed.
+   */
+  const noteMarketGone = useCallback(() => {
+    setMarketGone(true)
+    setBusyUrl(null)
+    setUpdatingName(null)
+    setRemovingName(null)
+    setRecords(list => list.map(record =>
+      record.state === 'running' || record.state === 'queued'
+        ? { ...record, state: 'failed' as const, reason: t('marketGoneRecord') }
+        : record))
+    try {
+      sessionStorage.removeItem('dshm-pending')
+      sessionStorage.removeItem('dshm-updating')
+    } catch { /* storage unavailable */ }
+  }, [t])
+
+  /**
+   * The status payload, or `null` when the route answered 404 (#962). Every
+   * poll that reads this stops on the null: the market is no longer mounted,
+   * so there is no status to read and nothing left to poll for.
+   */
+  const readMarketStatus = useCallback(async (res: Response): Promise<MarketStatus | null> => {
+    if (res.status === 404) {
+      noteMarketGone()
+      return null
+    }
+    return await res.json() as MarketStatus
+  }, [noteMarketGone])
+
   const loadCatalog = useCallback(() => {
     setLoadError(null)
     return fetch(api('/dsh-market/registry'), { cache: 'no-store' })
@@ -2505,6 +3059,10 @@ export function MarketSection(props: MarketSectionProps) {
           registry?: Registry
           hostVersion?: string | null
           error?: string
+        }
+        if (res.status === 404) {
+          noteMarketGone()
+          throw new Error(t('marketGoneTitle'))
         }
         if (!res.ok) throw new Error(typeof body.error === 'string' ? body.error : `HTTP ${String(res.status)}`)
         return body
@@ -2527,12 +3085,12 @@ export function MarketSection(props: MarketSectionProps) {
       // smaller today" looked identical on screen — and the second reading
       // is the one users reached.
       .catch((error: unknown) => { setLoadError(error instanceof Error ? error.message : String(error)) })
-  }, [])
+  }, [noteMarketGone, t])
 
   const loadHostCompatibility = useCallback(async (names: readonly string[]): Promise<void> => {
     const unique = [...new Set(names)].filter(name => {
-      if (name === '' || requestedHostCompatibility.current.has(name)) return false
-      requestedHostCompatibility.current.add(name)
+      if (name === '' || hostCompatibilitySettled(name) || hostCompatibilityInFlight.has(name)) return false
+      hostCompatibilityInFlight.add(name)
       return true
     })
     if (unique.length === 0) return
@@ -2563,33 +3121,27 @@ export function MarketSection(props: MarketSectionProps) {
             || !['manifest', 'undeclared', 'unavailable'].includes(item.basis)
             || (item.requirement !== null && typeof item.requirement !== 'string')
             || !Array.isArray(item.declarations)) {
-            requestedHostCompatibility.current.delete(name)
             accepted[name] = UNAVAILABLE_HOST_COMPATIBILITY
             continue
           }
           accepted[name] = item
-          // A transient registry failure is shown as unknown, but remains
-          // retryable when navigation or a filter toggle asks again later.
-          if (item.basis === 'unavailable') requestedHostCompatibility.current.delete(name)
         }
-        setHostCompatibility(current => ({ ...current, ...accepted }))
+        commitHostCompatibility(accepted)
       } catch {
-        for (const name of chunk) requestedHostCompatibility.current.delete(name)
-        setHostCompatibility(current => ({
-          ...current,
-          ...Object.fromEntries(chunk.map(name => [name, UNAVAILABLE_HOST_COMPATIBILITY])),
-        }))
+        commitHostCompatibility(Object.fromEntries(chunk.map(name => [name, UNAVAILABLE_HOST_COMPATIBILITY])))
       } finally {
+        for (const name of chunk) hostCompatibilityInFlight.delete(name)
         setHostCompatibilityPending(count => Math.max(0, count - chunk.length))
       }
     }
-  }, [])
+  }, [setHostVersion])
 
   useEffect(() => {
     void loadCatalog()
     fetch(api('/dsh-market/status'), { cache: 'no-store' })
-      .then(res => res.json())
+      .then(readMarketStatus)
       .then(status => {
+        if (status === null) return
         statusRef.current = {
           busy: status.busy === true,
           runningAgents: Array.isArray(status.runningAgents) ? status.runningAgents.map(String) : [],
@@ -2620,7 +3172,7 @@ export function MarketSection(props: MarketSectionProps) {
       })
       .catch(() => {})
     refreshInstalled()
-  }, [refreshInstalled, loadCatalog])
+  }, [refreshInstalled, loadCatalog, readMarketStatus])
 
   // Pending-restart flags survive tab switches and page reloads, scoped to
   // one host process: a different boot id means the restart happened and the
@@ -2746,8 +3298,12 @@ export function MarketSection(props: MarketSectionProps) {
     }
     const timer = setInterval(() => {
       fetch(api('/dsh-market/status'), { cache: 'no-store' })
-        .then(res => res.json())
+        .then(readMarketStatus)
         .then(status => {
+          // 404: the host unloaded the market, and this poll is the only
+          // witness left of the operation it was tracking — noteMarketGone
+          // released the button and settled the row (#962).
+          if (status === null) return
           statusRef.current = {
             busy: status.busy === true,
             runningAgents: Array.isArray(status.runningAgents) ? status.runningAgents.map(String) : [],
@@ -2791,8 +3347,9 @@ export function MarketSection(props: MarketSectionProps) {
             // declare the install done nor count an idle strike yet — a
             // premature banner here invited a restart click into a 409.
             if (pending !== null && busyUrl !== null && status.busy !== true) {
+              const url = busyUrl
               const nowInstalled = data !== null && data.plugins.some(p =>
-                p.url === busyUrl && isInstalled(p, statusInstalled, repoIdentities, data.plugins, repoHints))
+                p.url === url && isInstalled(p, statusInstalled, repoIdentities, data.plugins, repoHints))
               if (nowInstalled) {
                 idleStrikes.current = 0
                 sessionStorage.removeItem('dshm-pending')
@@ -2801,7 +3358,19 @@ export function MarketSection(props: MarketSectionProps) {
                   setRecords(list => drop(list, recovered.id))
                   recoveredInstall.current = null
                 }
-                setDoneUrls(urls => urls.includes(busyUrl) ? urls : urls.concat(busyUrl))
+                // This poll is the only witness when the install response was
+                // lost (#100): the record `doInstall` created is still
+                // `running`, and releasing only the card's busy state leaves
+                // the Tasks entry claiming "Installing 1/1" for the rest of
+                // the mount. A remount used to hide it — `records` is React
+                // state, and a `running` row is still not one of the finished
+                // rows restored from storage — so the record has to land here.
+                // The install landed, so it does (#904).
+                setRecords(list => list.map(record =>
+                  record.kind === 'install' && record.url === url && record.state === 'running'
+                    ? { ...record, state: 'done' as const, needsRefresh: true }
+                    : record))
+                setDoneUrls(urls => urls.includes(url) ? urls : urls.concat(url))
                 setBusyUrl(null)
               } else if (++idleStrikes.current >= 2) {
                 // Host is idle and the plugin never landed: the install died
@@ -2814,6 +3383,13 @@ export function MarketSection(props: MarketSectionProps) {
                   setRecords(list => drop(list, recovered.id))
                   recoveredInstall.current = null
                 }
+                // Same release for the record this mount created: an install
+                // that died without a response must not leave the Tasks entry
+                // "Installing 1/1" either (#904).
+                setRecords(list => list.map(record =>
+                  record.kind === 'install' && record.url === url && record.state === 'running'
+                    ? { ...record, state: 'failed' as const, reason: t('installFail') }
+                    : record))
                 setBusyUrl(null)
                 setInstallError(t('installFail') + ' — ' + t('exportLog'))
               }
@@ -2915,18 +3491,44 @@ export function MarketSection(props: MarketSectionProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [data, tab, q, cat, timeRange, lang, hostCompatibility, compatibleWithHost, blockedNameSet, installed, repoIdentities, repoHints])
   const recentRowRef = useRef<HTMLDivElement>(null)
+  // Two per row, like the grid below it: three across read as a different
+  // list rather than the same one (and left an odd one out at any width).
+  // Two rows of two keeps the block square and the cards the size of the
+  // cards underneath.
   const [recentColumns, setRecentColumns] = useState(1)
   const hasRecent = recentlyAdded.length > 0
+  const [recentCollapsed, setRecentCollapsed] = useState(() => readRecentFlag(RECENT_COLLAPSED_KEY))
+  const [recentHidden, setRecentHidden] = useState(() => readRecentFlag(RECENT_HIDDEN_KEY))
+  const toggleRecentCollapsed = useCallback(() => {
+    const next = !recentCollapsed
+    setRecentCollapsed(next)
+    writeRecentFlag(RECENT_COLLAPSED_KEY, next)
+  }, [recentCollapsed])
+  const hideRecent = useCallback(() => {
+    setRecentHidden(true)
+    writeRecentFlag(RECENT_HIDDEN_KEY, true)
+  }, [])
+  const showRecent = useCallback(() => {
+    setRecentHidden(false)
+    writeRecentFlag(RECENT_HIDDEN_KEY, false)
+  }, [])
   useLayoutEffect(() => {
     const row = recentRowRef.current
     if (row === null || typeof ResizeObserver === 'undefined') return
     const observer = new ResizeObserver(([entry]) => {
-      if (entry !== undefined) setRecentColumns(Math.max(1, Math.floor((entry.contentRect.width + 10) / 290)))
+      if (entry !== undefined) setRecentColumns(Math.min(2, Math.max(1, Math.floor((entry.contentRect.width + 10) / 290))))
     })
     observer.observe(row)
     return () => observer.disconnect()
-  }, [hasRecent, loadError])
-  const recentPlugins = recentlyAdded.slice(0, recentColumns)
+    // recentHidden belongs in the deps: hiding unmounts the row, so `ref` is
+    // null when this effect runs and it bails out. Restoring has to re-run it,
+    // or the observer is never attached and the block stops tracking width
+    // (it reopens at whatever column count it last saw, and never follows a
+    // resize again) — the trap #940's plan 1 walks into.
+    // recentCollapsed deliberately stays out: collapsing clips in place, the
+    // element keeps its width, and the existing observer stays correct.
+  }, [hasRecent, loadError, recentHidden])
+  const recentPlugins = recentlyAdded.slice(0, recentColumns * 2)
   const { currentPage, totalPages, pageSize, goToPage, changePageSize } =
     usePagination(plugins.length, [q, cat, sortField, sortDir, timeRange, compatibleWithHost], scrollToTop)
   const pagePlugins = plugins.slice((currentPage - 1) * pageSize, currentPage * pageSize)
@@ -3135,7 +3737,7 @@ export function MarketSection(props: MarketSectionProps) {
           if (body.activation && typeof body.activation === 'object') {
             setActivations(prev => ({ ...prev, ...body.activation }))
             const warns = Object.entries(body.activation as Record<string, ActivationInfo>)
-              .filter(([, info]) => info.state !== 'live' && info.state !== 'missing' && info.loadedByProfile !== true)
+              .filter(([, info]) => info.state !== 'live' && info.state !== 'missing' && info.loadedByProfile !== true && info.library !== true)
               .map(([name, info]) => ({ name, info }))
             setActivationWarnings(warns)
           }
@@ -3146,7 +3748,7 @@ export function MarketSection(props: MarketSectionProps) {
             setDoneUrls(urls => urls.filter(url => url !== plugin.url))
             setHotUrls(urls => urls.includes(plugin.url) ? urls : urls.concat(plugin.url))
             setHotNames(names => names.includes(plugin.name) ? names : names.concat(plugin.name))
-          } else if (body.activation?.[plugin.name]?.state !== 'incompatible') {
+          } else if (body.activation?.[plugin.name]?.state !== 'incompatible' && body.activation?.[plugin.name]?.library !== true) {
             // An incompatible plugin stays incompatible across restarts, so
             // "restart to apply" would promise a fix no restart can deliver;
             // the activation warning on the installed card already says what
@@ -3171,6 +3773,7 @@ export function MarketSection(props: MarketSectionProps) {
                 heldRelease: body.heldRelease,
               }
             : body.compatibility?.code === 'soft-incompatible'
+              && (body.compatibility.risks.length > 0 || (body.compatibility.brokenBundles?.length ?? 0) > 0)
               ? { state: 'warned', reason: t('compatRiskBanner') }
               : { state: 'done', needsRefresh: body.hot !== true }))
           refreshInstalled()
@@ -3391,6 +3994,20 @@ export function MarketSection(props: MarketSectionProps) {
     setRestarting(true)
     setInstallError(null)
     setRecovery(null)
+    // A shell that runs this host as its own child process owns the lifecycle:
+    // it stops the process it started and relaunches its window. The helper
+    // below would be a second lifecycle competing with it — two processes, one
+    // port — so where the shell is there, ask it instead of spawning anything.
+    const shellRestart = typeof window === 'undefined' ? undefined : window.__dshHostShell?.restart
+    if (typeof shellRestart === 'function') {
+      try {
+        shellRestart()
+        return
+      } catch {
+        // A shell that published the bridge and then threw is not a restart:
+        // fall through to the host's own route, which is the pre-existing path.
+      }
+    }
     const awaitNewBoot = () => {
       const deadline = Date.now() + 60000
       const poll = () => {
@@ -4213,9 +4830,9 @@ export function MarketSection(props: MarketSectionProps) {
       // (#838). Ask first — with no record there is nothing to drain.
       if (!recordsRef.current.some(record => record.state === 'queued')) return
       void fetch(api('/dsh-market/status'), { cache: 'no-store' })
-        .then(res => res.json())
+        .then(readMarketStatus)
         .then(status => {
-          if (disposed) return
+          if (disposed || status === null) return
           const runningAgents: string[] = Array.isArray(status.runningAgents) ? status.runningAgents.map(String) : []
           const busy = status.busy === true
           statusRef.current = { busy, runningAgents }
@@ -4244,7 +4861,7 @@ export function MarketSection(props: MarketSectionProps) {
       disposed = true
       clearInterval(timer)
     }
-  }, [])
+  }, [readMarketStatus])
 
   /** A queued record's "run now": retry immediately instead of waiting for idle. */
   const runQueuedNow = useCallback((record: OperationRecord, confirmAgentsRunning = false) => {
@@ -4888,22 +5505,13 @@ export function MarketSection(props: MarketSectionProps) {
       ? data?.plugins.find(r => r.name === p.replacement)
       : undefined
 
-  const renderFavoriteControl = (url: string) => {
-    const favorited = favoriteUrlSet.has(url)
-    return (
-      <Tooltip label={favorited ? t('favoriteRemove') : t('favoriteAdd')} side="top">
-        <button
-          type="button"
-          className={favorited ? `${css.favoriteBtn} ${css.favoriteOn}` : css.favoriteBtn}
-          aria-pressed={favorited}
-          aria-label={favorited ? t('favoriteRemove') : t('favoriteAdd')}
-          onClick={() => toggleFavorite(url)}
-        >
-          <BookmarkMark filled={favorited} />
-        </button>
-      </Tooltip>
-    )
-  }
+  const renderFavoriteControl = (url: string) => (
+    <FavoriteButton
+      filled={favoriteUrlSet.has(url)}
+      label={favoriteUrlSet.has(url) ? t('favoriteRemove') : t('favoriteAdd')}
+      onToggle={() => toggleFavorite(url)}
+    />
+  )
 
   const renderPluginMenu = (plugin: RegistryPlugin, key = plugin.url) => {
     const aliases = blockAliases(plugin, matchInstalledName(plugin, installed, repoIdentities, data?.plugins, repoHints))
@@ -4933,6 +5541,11 @@ export function MarketSection(props: MarketSectionProps) {
   }
 
   const renderInstalledBlockMenu = (name: string) => {
+    // The host's page for this bundle, when it offers one. It is the only
+    // place a bundle's ROWS can be switched one by one, which is the reason
+    // to leave a page that already installs, updates and removes.
+    const hostPage = openInHost === undefined ? null : () => { openInHost.openBundle(name) }
+
     const entry = data === null ? undefined : catalogEntryForInstalled(data.plugins, name, String(installed[name] ?? ''), repoIdentities[name], repoHints[name])
     const aliases = entry === undefined ? [name] : blockAliases(entry, name)
     const hidden = aliases.some(alias => blockedNameSet.has(alias))
@@ -4968,6 +5581,7 @@ export function MarketSection(props: MarketSectionProps) {
           if (id === 'block') toggleBlock(blockToggleName(aliases))
           if (id === 'update-exempt') toggleUpdateExempt(name)
           if (id === 'ignore-boot') ignoreUpdateNotices([name])
+          if (id === 'host-page') hostPage?.()
           if (id === 'uninstall' && !uninstallBusy) setRemoveConfirm(name)
         }}
         align="end"
@@ -4989,6 +5603,7 @@ export function MarketSection(props: MarketSectionProps) {
           ...(favoriteUrl === undefined ? [] : [{ id: 'favorite', label: favorited ? t('favoriteRemove') : t('favoriteAdd') }]),
           { id: 'block', label: hidden ? t('blockRemove') : t('blockAdd') },
           ...(showBootIgnore ? [{ id: 'ignore-boot', label: t('ignoreUpdateNotice') }] : []),
+          ...(hostPage === null ? [] : [{ id: 'host-page', label: t('openInHostPage') }]),
           ...(showExempt ? [{ id: 'update-exempt', label: exempt ? t('updateExemptRemove') : t('updateExemptAdd') }] : []),
           { type: 'separator' as const, id: 'uninstall-sep' },
           { id: 'uninstall', label: removing ? t('uninstalling') : t('uninstall'), danger: true, disabled: uninstallBusy },
@@ -5238,12 +5853,12 @@ export function MarketSection(props: MarketSectionProps) {
               the same name without either card needing a qualifier. */}
           <div style={{ minWidth: 0 }}>
             <a className={`${css.nm} ${css.nmLink}`} href={p.url} target="_blank" rel="noreferrer" title={p.name} aria-label={`${p.name} — ${t('repoLink')}`}>
-              {pluginName(p.name)}
+              {pluginName(p.name, p.npm)}
               <GithubRepoMark className={css.repoMark} />
               {p.deprecated === true && <span className={css.depBadge}>{t('deprecatedBadge')}</span>}
             </a>
             <div className={css.byline}>
-              <OwnerAvatar name={p.name} owner={p.owner || ''} />
+              <OwnerAvatar name={p.name} owner={p.owner || ''} icon={p.icon ?? undefined} />
               <span className={css.owner} title={p.owner}>{p.owner}</span>
               <CatalogVersionMark version={p.version} tip={catalogVersionTip} />
               <DownloadCount plugin={p} t={t} />
@@ -5264,7 +5879,7 @@ export function MarketSection(props: MarketSectionProps) {
               : already
                 ? <span className={css.okState}>{t('alreadyInstalled')}</span>
                 : busy
-                  ? <Button variant="primary" size="sm" className={css.installBtn} disabled>{t('installing')}</Button>
+                  ? <Button variant="outline" size="sm" className={css.installBtn} disabled>{t('installing')}</Button>
                   : queued
                     ? (
                         <button type="button" className={css.cardBlockedMark} onClick={openOperations}>
@@ -5281,7 +5896,7 @@ export function MarketSection(props: MarketSectionProps) {
                       )
                     : (
                         <Button
-                          variant="primary"
+                          variant="outline"
                           size="sm"
                           className={css.installBtn}
                           disabled={busyUrl !== null || !envReady}
@@ -5290,6 +5905,7 @@ export function MarketSection(props: MarketSectionProps) {
                       )}
           </div>
         </div>
+        <CardBody text={desc} name={pluginName(p.name, p.npm)} owner={p.owner}>
         <CardDesc text={desc} t={t} />
         <CardShot plugin={p} onOpen={openLightbox} />
         {p.deprecated === true && (
@@ -5304,6 +5920,7 @@ export function MarketSection(props: MarketSectionProps) {
             </div>
           </div>
         )}
+        </CardBody>
         <div className={css.foot}>
           <div className={css.footTags}>
             <span
@@ -5386,11 +6003,11 @@ export function MarketSection(props: MarketSectionProps) {
           <div className={css.themeCardHead}>
             <div className={css.themeIdentity}>
               <a className={`${css.nm} ${css.nmLink}`} href={p.url} target="_blank" rel="noreferrer" title={p.name} aria-label={`${p.name} — ${t('repoLink')}`}>
-                {pluginName(p.name)}
+                {pluginName(p.name, p.npm)}
                 <GithubRepoMark className={css.repoMark} />
               </a>
               <div className={css.byline}>
-                <OwnerAvatar name={p.name} owner={p.owner || ''} />
+                <OwnerAvatar name={p.name} owner={p.owner || ''} icon={p.icon ?? undefined} />
                 <span className={css.owner} title={p.owner}>{p.owner}</span>
                 <CatalogVersionMark version={p.version} tip={catalogVersionTip} />
                 <DownloadCount plugin={p} t={t} />
@@ -5438,7 +6055,7 @@ export function MarketSection(props: MarketSectionProps) {
                 ? done
                   ? <span className={css.okState}>{t('installedBadge')}</span>
                   : busy
-                    ? <Button variant="primary" size="sm" className={css.installBtn} disabled>{t('installing')}</Button>
+                    ? <Button variant="outline" size="sm" className={css.installBtn} disabled>{t('installing')}</Button>
                     : themeQueued
                       ? (
                           <button type="button" className={css.cardBlockedMark} onClick={openOperations}>
@@ -5455,7 +6072,7 @@ export function MarketSection(props: MarketSectionProps) {
                         )
                       : (
                           <Button
-                            variant="primary"
+                            variant="outline"
                             size="sm"
                             className={css.installBtn}
                             disabled={busyUrl !== null || !envReady}
@@ -5515,7 +6132,7 @@ export function MarketSection(props: MarketSectionProps) {
             ? <span className={css.okState}>{t('themeActive')}</span>
             : (
                 <Button
-                  variant="primary"
+                  variant="outline"
                   size="sm"
                   onClick={() => { try { props.theme.setTheme(id) } catch (error) { setInstallError(String(error)) } }}
                 >{t('themeApply')}</Button>
@@ -5527,28 +6144,41 @@ export function MarketSection(props: MarketSectionProps) {
 
   const categories = data === null ? [] : Object.keys(data.categories)
 
-  useLayoutEffect(() => { setVisibleCats(null); setVisibleCatsOneRow(null) }, [lang, categories.length])
+  useLayoutEffect(() => { setVisibleCats(null) }, [lang, categories.length])
+  // The sidebar page is often much wider than the settings dialog. A budget
+  // measured once at the first (sometimes still-zero) width left a half-empty
+  // category row on the wide panel — remeasure whenever the wrap's width
+  // actually changes.
   useLayoutEffect(() => {
-    if (catsOpen || visibleCats !== null) return
+    const el = catsWrapRef.current
+    if (el === null || typeof ResizeObserver === 'undefined') return
+    let width = el.clientWidth
+    const observer = new ResizeObserver(entries => {
+      const next = entries[0]?.contentRect.width ?? el.clientWidth
+      // jsdom (and a pre-layout frame in the host) reports 0 — treating that
+      // as a real shrink cleared the budget and left every chip painted.
+      if (next < 80 || Math.abs(next - width) < 8) return
+      width = next
+      setVisibleCats(null)
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [data])
+  useLayoutEffect(() => {
+    if (visibleCats !== null) return
     const el = catsWrapRef.current
     if (el === null) return
     const chips = [...el.children].filter((c): c is HTMLElement => (c as HTMLElement).dataset?.chip === '1')
     if (chips.length === 0) return
+    // How many pills sit in the first row — the collapsed state is exactly one
+    // row, so this is the whole budget. It counts 「全部」 too, which is why the
+    // slice below gives the category list one slot fewer.
     const first = chips[0]!
-    const rowThreeTop = first.offsetTop + (first.offsetHeight + 6) * 2 - 3
-    let fits = 0
-    for (const chip of chips) { if (chip.offsetTop < rowThreeTop) fits += 1 }
-    // Reserve the tail slot of row two for the chevron itself.
-    setVisibleCats(fits >= chips.length ? fits : Math.max(1, fits - 1))
-    // Same measuring pass, one row's worth instead of two — used only while
-    // the sticky header is pinned during scroll (#188-adjacent request), to
-    // shrink an OPEN multi-row category list down to its first row without
-    // touching the user's actual open/closed choice.
     const rowTwoTop = first.offsetTop + first.offsetHeight + 6 - 3
-    let fitsOneRow = 0
-    for (const chip of chips) { if (chip.offsetTop < rowTwoTop) fitsOneRow += 1 }
-    setVisibleCatsOneRow(fitsOneRow >= chips.length ? fitsOneRow : Math.max(1, fitsOneRow - 1))
-  }, [catsOpen, visibleCats, data])
+    let fits = 0
+    for (const chip of chips) { if (chip.offsetTop < rowTwoTop) fits += 1 }
+    setVisibleCats(Math.max(1, fits))
+  }, [visibleCats, data])
 
   useEffect(() => {
     if (catsSentinel === null || typeof IntersectionObserver === 'undefined') return
@@ -5594,6 +6224,26 @@ export function MarketSection(props: MarketSectionProps) {
    * (see stuckExpanded state). Leaving stuck falls back to `catsOpen`,
    * which still holds the pre-pin / in-pin user choice. */
   const catsExpanded = catsStuck ? stuckExpanded : catsOpen
+
+  /**
+   * The collapsed row must be exactly one row.
+   *
+   * Whatever the measuring pass predicts, the answer is only right once the
+   * chips are painted with the host's real font — an early pass measures
+   * narrower pills and lands one too many, which wraps the last one onto a
+   * second row. So: after a collapsed render, look at what actually happened
+   * and step the budget down until the row holds. A layout effect, so the
+   * correction lands before paint and the user never sees the two-row state.
+   */
+  useLayoutEffect(() => {
+    const el = catsWrapRef.current
+    if (el === null || visibleCats === null || catsExpanded) return
+    const chips = [...el.children].filter((c): c is HTMLElement => (c as HTMLElement).dataset?.chip === '1')
+    if (chips.length < 2) return
+    const top = Math.round(chips[0]!.getBoundingClientRect().top)
+    if (chips.every(chip => Math.round(chip.getBoundingClientRect().top) === top)) return
+    setVisibleCats(Math.max(1, chips.length - 1))
+  }, [visibleCats, catsExpanded, catsStuck])
 
   /**
    * A fresh install (hotUrls/hotNames) and a toggle/group action
@@ -5670,8 +6320,11 @@ export function MarketSection(props: MarketSectionProps) {
 
   return (
     <div
+      ref={rootRef}
       className={`${css.root} notranslate`}
+      style={surface === 'plugins' && pluginsTabHeight !== null ? { height: `${String(pluginsTabHeight)}px` } : undefined}
       data-dsh-market-root
+      data-dsh-market-plugins-tab={surface === 'plugins' ? 'true' : undefined}
       /* Browser page translation is the one reported cause of the blank
          market (#293 by @apdc111, and the same shape in #286 / #241, none of
          which ever reproduced in an untranslated browser). Chrome and Edge
@@ -5692,15 +6345,27 @@ export function MarketSection(props: MarketSectionProps) {
       data-dsh-market-fullscreen={tab === 'themes' && themesFullscreen ? 'true' : undefined}
     >
       <div className={css.head}>
+        <div className={css.headTop}>
         <div className={css.titleRow}>
-          <MarketLogo size={22} style={{ flexShrink: 0 }} />
+          <MarketLogo size={18} ambient style={{ flexShrink: 0 }} />
           <h2 className={css.title}>{t('nav')}</h2>
+          <p className={css.sub}>{t('subtitle')}</p>
+          </div>
+          <div className={css.titleActions}>
           {/* A quiet pointer back to the project — most visitors reach the
               market through a client that embeds it, with no other way to
               find the repo it came from. */}
           <a className={css.repoLink} href="https://github.com/dsh-market/dsh-market" target="_blank" rel="noreferrer" title="dsh-market · GitHub">dsh-market</a>
           {version !== null && <span className={css.version} title={t('versionHint')}>v{version}</span>}
-          <div className={css.titleActions}>
+          <a className={css.submitLink} href="https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/blob/main/contributing.md" target="_blank" rel="noreferrer">{t('submitPlugin')}</a>
+          <Button
+            variant="ghost"
+            size="sm"
+            className={css.exportLogBtn}
+            icon={<IconDownloadOutline16 size={14} />}
+            disabled={exportState === 'busy'}
+            onClick={doExportLog}
+          >{exportState === 'busy' ? t('exportingLog') : t('exportLog')}</Button>
           {(() => {
             const self = installed['dshmarket'] !== undefined ? 'dshmarket' : 'dsh-market'
             const status = updates[self]
@@ -5736,19 +6401,27 @@ export function MarketSection(props: MarketSectionProps) {
           )}
           </div>
         </div>
-        <div className={css.sub}>
-          <span>{t('subtitle')}</span>
-          <a className={css.submitLink} href="https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/blob/main/contributing.md" target="_blank" rel="noreferrer">{t('submitPlugin')}</a>
-          <span className={css.grow} />
-          <Button
-            variant="outline"
-            size="sm"
-            className={css.exportLogBtn}
-            icon={<IconDownloadOutline16 size={14} />}
-            disabled={exportState === 'busy'}
-            onClick={doExportLog}
-          >{exportState === 'busy' ? t('exportingLog') : t('exportLog')}</Button>
-        </div>
+        {showSidebarTip && (
+          <div className={css.sidebarTip}>
+            <span>{t('sidebarTip')}</span>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={sidebarTipSaving}
+              onClick={enableSidebar}
+            >{t('setSidebarOn')}</Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={sidebarTipSaving}
+              onClick={() => {
+                writeSidebarTipDismissed()
+                setSidebarTipDismissed(true)
+              }}
+            >{t('sidebarTipDismiss')}</Button>
+            {sidebarTipError !== null && <span>{sidebarTipError}</span>}
+          </div>
+        )}
         <div className={css.tabs}>
           <button className={tab === 'discover' ? `${css.tab} ${css.on}` : css.tab} onClick={() => setTab('discover')}>{t('tabDiscover')}</button>
           {themeSnap !== null && <button className={tab === 'themes' ? `${css.tab} ${css.on}` : css.tab} onClick={() => setTab('themes')}>{t('tabThemes')}</button>}
@@ -5875,7 +6548,7 @@ export function MarketSection(props: MarketSectionProps) {
             >
               <span className={css.bannerHint}><IconQuestionOutline14 size={14} /></span>
             </Tooltip>
-            {restartEnabled && restartReachable && debuggerLatch === null && recovery === null && (
+            {restartEnabled && restartReachable && debuggerLatch === null && recovery === null && !marketGone && (
               <Button
                 variant="primary"
                 size="sm"
@@ -5905,7 +6578,7 @@ export function MarketSection(props: MarketSectionProps) {
             <span className={css.grow}>
               {activationWarnings.map(({ name, info }) => (
                 <div key={name}>
-                  <b>{name}</b> — {activationMeta(info.state, t, info.dependencyOf, info.loadedByProfile).label}
+                  <b>{name}</b> — {activationMeta(info.state, t, info.dependencyOf, info.loadedByProfile, info.library).label}
                   {info.reasons.length > 0 && <span className={css.spec}>（{localizeBilingualList(info.reasons, lang)}）</span>}
                 </div>
               ))}
@@ -6014,7 +6687,11 @@ export function MarketSection(props: MarketSectionProps) {
             )}
           </span>
           <Button variant="outline" size="sm" onClick={() => setTab('diagnostics')}>{t('goDiagnose')}</Button>
-          {compatibilityNotice.rollbackId === undefined
+          {compatibilityNotice.risks.length === 0 && (compatibilityNotice.brokenBundles?.length ?? 0) === 0
+            // Same-name rows alone are informational (#913): they prove nothing
+            // broke, so there is nothing to roll back and nothing to warn about.
+            ? null
+            : compatibilityNotice.rollbackId === undefined
             ? <span>{compatibilityNotice.rollbackUnavailable ? localizeBilingual(compatibilityNotice.rollbackUnavailable, lang) : t('rollbackUnavailable')}</span>
             : (
                 <Button variant="primary" size="sm" disabled={rollingBack} onClick={() => void doRollback(compatibilityNotice.rollbackId!)}>
@@ -6075,7 +6752,18 @@ export function MarketSection(props: MarketSectionProps) {
           setAssignFor(null)
         }}
       >
-        {tab === 'backup'
+        {/* Everything below reaches the host through the market's own routes;
+            with those gone (#962) every control here would fail on click, so
+            the body says the one thing that is both true and actionable
+            instead of leaving a page of dead buttons. */}
+        {marketGone
+          ? (
+              <div className={css.empty} role="alert">
+                <div><b>{t('marketGoneTitle')}</b></div>
+                <div className={css.spec}>{t('marketGoneBody')}</div>
+              </div>
+            )
+          : tab === 'backup'
           ? (
               <div className={css.backupGrid}>
                 <section className={css.backupCard}>
@@ -6226,54 +6914,6 @@ export function MarketSection(props: MarketSectionProps) {
                     <div className={css.stickyHead}>
                     <div className={css.tabSearchRow}>
                       <SearchInput key="discover" resetToken={discoverSearchReset} className={css.tabSearch} placeholder={t('searchPh')} value={q} onCommit={setQ} t={t} />
-                    </div>
-                    <div className={css.cats}>
-                      <div className={css.catsRow}>
-                      {/* The height cap belongs to the MEASURING pass only: that pass
-                          renders every chip so their offsets can be counted, and
-                          clipping hides the tall row from the user for the frame it
-                          exists. Applying it while OPEN clipped the very rows the
-                          user had just asked to see — with 20 categories, expanding
-                          revealed two rows out of six and read as "nothing
-                          happened". Collapsed after measuring needs no cap: the list
-                          is already sliced to what fits. */}
-                      <div ref={catsWrapRef} className={visibleCats === null ? `${css.catsWrap} ${css.catsCollapsed}` : css.catsWrap}>
-                        {(() => {
-                          // Collapsed, the selected category is pulled to the front so it never hides.
-                          // Whenever collapsed (default, or auto-collapsed by the sticky
-                          // header going stuck — see catsExpanded / stuckExpanded), a stuck
-                          // header uses the one-row budget instead of the two-row one so an
-                          // already-open list that just got pinned shrinks further.
-                          const budget = catsStuck ? visibleCatsOneRow : visibleCats
-                          const ordered = orderedCategories(categories, cat, catsExpanded, budget)
-                          const shown = catsExpanded || budget === null ? ordered : ordered.slice(0, Math.max(0, budget - 1))
-                          return (
-                            <>
-                              <Pill data-chip="1" active={cat === 'all'} onClick={() => setCat('all')}>{t('all') + ' (' + formatCount(data!.count) + ')'}</Pill>
-                              {shown.map(id => (
-                                <Pill
-                                  key={id}
-                                  data-chip="1"
-                                  active={cat === id}
-                                  onClick={() => setCat(id)}
-                                >{(data.categories[id] && (data.categories[id]![lang] || data.categories[id]!.en)) || id}</Pill>
-                              ))}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className={css.catsToggle}
-                                icon={catsExpanded ? <IconChevronUpOutline14 size={14} /> : <IconChevronDownOutline14 size={14} />}
-                                aria-label={catsExpanded ? t('catsLess') : t('catsMore')}
-                                onClick={() => {
-                                  const next = !catsExpanded
-                                  if (catsStuck) setStuckExpanded(next)
-                                  setCatsOpen(next)
-                                }}
-                              />
-                            </>
-                          )
-                        })()}
-                      </div>
                       <FilterMenu
                         sortField={sortField}
                         sortDir={sortDir}
@@ -6285,6 +6925,58 @@ export function MarketSection(props: MarketSectionProps) {
                         onTimeRange={setTimeRange}
                         onCompatibleWithHost={setCompatibleWithHost}
                         t={t}
+                      />
+                    </div>
+                    <div className={css.cats}>
+                      <div className={css.catsRow}>
+                      {/* The height cap belongs to the MEASURING pass only: that pass
+                          renders every chip so their offsets can be counted, and
+                          clipping hides the tall row from the user for the frame it
+                          exists. Applying it while OPEN clipped the very rows the
+                          user had just asked to see — with 20 categories, expanding
+                          revealed two rows out of six and read as "nothing
+                          happened". Collapsed after measuring needs no cap: the list
+                          is already sliced to what fits. */}
+                      <div ref={catsWrapRef} className={visibleCats === null && !catsExpanded ? `${css.catsWrap} ${css.catsCollapsed}` : css.catsWrap}>
+                        {(() => {
+                          // Collapsed, the selected category is pulled to the front so it
+                          // never hides: the one row in view always contains the choice.
+                          const budget = visibleCats
+                          const ordered = orderedCategories(categories, cat, catsExpanded, budget)
+                          // Collapsed is a single row; expanded shows every category —
+                          // including while the header is pinned, where the chevron has
+                          // to keep working (a pinned list that ignores the click read as
+                          // broken). Pinning an already-open list collapses it because
+                          // catsExpanded follows stuckExpanded, not catsOpen.
+                          const shown = catsExpanded
+                            ? ordered
+                            : budget === null ? ordered : ordered.slice(0, Math.max(0, budget - 1))
+                          return (
+                            <>
+                              <Pill data-chip="1" active={cat === 'all'} onClick={() => setCat('all')}>{t('all') + ' (' + formatCount(data!.count) + ')'}</Pill>
+                              {shown.map(id => (
+                                <Pill
+                                  key={id}
+                                  data-chip="1"
+                                  active={cat === id}
+                                  onClick={() => setCat(id)}
+                                >{(data.categories[id] && (data.categories[id]![lang] || data.categories[id]!.en)) || id}</Pill>
+                              ))}
+                            </>
+                          )
+                        })()}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={css.catsToggle}
+                        icon={catsExpanded ? <IconChevronUpOutline14 size={14} /> : <IconChevronDownOutline14 size={14} />}
+                        aria-label={catsExpanded ? t('catsLess') : t('catsMore')}
+                        onClick={() => {
+                          const next = !catsExpanded
+                          if (catsStuck) setStuckExpanded(next)
+                          setCatsOpen(next)
+                        }}
                       />
                       </div>
                       {compatibleWithHost && typeof hostVersion === 'string' && (
@@ -6300,13 +6992,37 @@ export function MarketSection(props: MarketSectionProps) {
                       )}
                     </div>
                     </div>
-                    {hasRecent && (
-                      <section aria-labelledby="dshm-recently-added">
-                        <h3 id="dshm-recently-added" className={css.favoritesSectionHead}>{t('recentlyAdded')}</h3>
-                        <div ref={recentRowRef} className={css.recentRow} style={{ gridTemplateColumns: `repeat(${recentPlugins.length}, minmax(0, 1fr))` }}>
-                          {recentPlugins.map(plugin => pluginCard(plugin, `recent:${plugin.url}`))}
-                        </div>
-                      </section>
+                    {hasRecent && (recentHidden
+                      ? <button type="button" className={css.recentShow} onClick={showRecent}>
+                          <IconChevronDownOutline14 size={14} />{t('recentShow')}
+                        </button>
+                      : <section aria-labelledby="dshm-recently-added">
+                          <div className={css.recentHead}>
+                            <h3 id="dshm-recently-added" className={css.favoritesSectionHead}>
+                              <button
+                                type="button"
+                                className={css.recentToggle}
+                                aria-expanded={!recentCollapsed}
+                                aria-controls="dshm-recent-grid"
+                                onClick={toggleRecentCollapsed}
+                              >
+                                {recentCollapsed ? <IconChevronRightOutline14 size={14} /> : <IconChevronDownOutline14 size={14} />}
+                                {t('recentlyAdded')}
+                              </button>
+                            </h3>
+                            <Button variant="ghost" size="sm" className={css.recentHide} onClick={hideRecent}>{t('recentHide')}</Button>
+                          </div>
+                          {/* #940: clipped in place, never unmounted — the grid is what
+                              the column-counting ResizeObserver measures. */}
+                          <div
+                            id="dshm-recent-grid"
+                            ref={recentRowRef}
+                            className={recentCollapsed ? `${css.recentRow} ${css.recentCollapsed}` : css.recentRow}
+                            style={{ gridTemplateColumns: `repeat(${recentColumns}, minmax(0, 1fr))` }}
+                          >
+                            {recentPlugins.map(plugin => pluginCard(plugin, `recent:${plugin.url}`))}
+                          </div>
+                        </section>
                     )}
                     {plugins.length === 0
                       ? <EmptyResults blocked={pluginsAll.length > 0} t={t}
@@ -6562,8 +7278,9 @@ export function MarketSection(props: MarketSectionProps) {
                                   ).slice().sort((a, b) => Number(installedThemeNames.has(b)) - Number(installedThemeNames.has(a)))
                                   const themeSlot = visibleMembers.some(name => installedThemeNames.has(name)) && visibleMembers.some(name => !installedThemeNames.has(name))
                                   if (groupQuery !== '' && !nameHit && visibleMembers.length === 0) return null
-                                  const sw = groupSwitchState(members, effectiveDisabledSet)
-                                  const enabledCount = members.filter(member => !effectiveDisabledSet.has(member)).length
+                                  const switchableMembers = members.filter(member => activations[member]?.library !== true)
+                                  const sw = groupSwitchState(switchableMembers, effectiveDisabledSet)
+                                  const enabledCount = switchableMembers.filter(member => !effectiveDisabledSet.has(member)).length
                                   const collapsed = groupQuery === '' && collapsedGroups.has(gid)
                                   const meta = t('groupMembersMeta')
                                     .replace('{0}', String(members.length))
@@ -6666,8 +7383,9 @@ export function MarketSection(props: MarketSectionProps) {
                                                 <span className={css.nm}>{member}</span>
                                                 {installedThemeNames.has(member) && <span className={css.memberKind}>· {t('groupThemeBadge')}</span>}
                                               </span>
-                                              {effectiveDisabledSet.has(member) && <span className={css.spec}>{t('disabledState')}</span>}
-                                              {onOffSwitch({
+                                              {activations[member]?.library === true && <span className={css.spec}>{t('stateLibrary')}</span>}
+                                              {activations[member]?.library !== true && effectiveDisabledSet.has(member) && <span className={css.spec}>{t('disabledState')}</span>}
+                                              {activations[member]?.library !== true && onOffSwitch({
                                                 label: (effectiveDisabledSet.has(member) ? t('enable') : t('disable')) + ' ' + member,
                                                 on: !effectiveDisabledSet.has(member),
                                                 disabled: togglingName !== null,
@@ -6689,7 +7407,7 @@ export function MarketSection(props: MarketSectionProps) {
                                   <span className={css.groupMeta}>
                                     {t('groupMembersMeta')
                                       .replace('{0}', String((groupQuery === '' ? ungroupedNames : visibleUngrouped).length))
-                                      .replace('{1}', String((groupQuery === '' ? ungroupedNames : visibleUngrouped).filter(name => !effectiveDisabledSet.has(name)).length))}
+                                      .replace('{1}', String((groupQuery === '' ? ungroupedNames : visibleUngrouped).filter(name => activations[name]?.library !== true && !effectiveDisabledSet.has(name)).length))}
                                   </span>
                                 </div>
                               </div>
@@ -6698,15 +7416,17 @@ export function MarketSection(props: MarketSectionProps) {
                                   ? <div className={css.empty}>{t('installedEmpty')}</div>
                                   : visibleUngrouped.map(name => {
                                       const entry = data === null ? undefined : catalogEntryForInstalled(data.plugins, name, String(installed[name]), repoIdentities[name], repoHints[name])
-                                      const off = effectiveDisabledSet.has(name)
                                       const act = activations[name]
-                                      const meta = !off && act !== undefined ? activationMeta(act.state, t, act.dependencyOf, act.loadedByProfile) : null
+                                      const off = act?.library !== true && effectiveDisabledSet.has(name)
+                                      const meta = !off && act !== undefined ? activationMeta(act.state, t, act.dependencyOf, act.loadedByProfile, act.library) : null
                                       const note = notes[name]
                                       const authored = (entry?.description && (entry.description[lang] || entry.description.en)) || ''
                                       const shown = note ?? authored
-                                      const stateLabel = off
-                                        ? t('disabledState')
-                                        : act?.state === 'inert' && act.dependencyOf === undefined && act.loadedByProfile !== true
+                                      const stateLabel = act?.library === true
+                                        ? meta?.label
+                                        : off
+                                          ? t('disabledState')
+                                          : act?.state === 'inert' && act.dependencyOf === undefined && act.loadedByProfile !== true
                                           ? t('groupStateInert')
                                           : act?.state === 'restart'
                                             ? t('groupStateRestart')
@@ -6724,7 +7444,9 @@ export function MarketSection(props: MarketSectionProps) {
                                           {installedThemeNames.has(name) && <span className={css.memberKind}>· {t('groupThemeBadge')}</span>}
                                           {stateLabel !== undefined && (
                                             <span className={css.ungroupedState}>
-                                              <span className={stateClass} title={stateLabel}><StateDot state={stateDot} size={7} />{stateLabel}</span>
+                                              {act?.library === true
+                                                ? <span className={css.spec}>{stateLabel}</span>
+                                                : <span className={stateClass} title={stateLabel}><StateDot state={stateDot} size={7} />{stateLabel}</span>}
                                             </span>
                                           )}
                                           {shown !== '' && (
@@ -6807,7 +7529,7 @@ export function MarketSection(props: MarketSectionProps) {
                             const generation = status?.kind === 'generation' || isGenerationSpec(String(spec))
                             const localDev = isLocalDev(String(spec), status)
                             const act = activations[name]
-                            const meta = act !== undefined ? activationMeta(act.state, t, act.dependencyOf, act.loadedByProfile) : null
+                            const meta = act !== undefined ? activationMeta(act.state, t, act.dependencyOf, act.loadedByProfile, act.library) : null
                             const version = status && status.version ? 'v' + status.version : ''
                             const specText = String(spec)
                             // A plain range beside the resolved version says the
@@ -6818,12 +7540,12 @@ export function MarketSection(props: MarketSectionProps) {
                             const localPath = localPathOf(specText)
                             const ghSpec = /^github:([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+?)(?:#|$)/.exec(specText)
                             const repoUrl = entry !== undefined ? entry.url : ghSpec !== null ? 'https://github.com/' + ghSpec[1] : null
-                            const off = effectiveDisabledSet.has(name)
+                            const off = act?.library !== true && effectiveDisabledSet.has(name)
                             // Switches only where they make sense: everything in
                             // the disable list (to re-enable), plus live/restart
                             // states. inert/broken rows keep their diagnosis
                             // without a misleading toggle (#60).
-                            const toggleable = off || (act !== undefined && (act.state === 'live' || act.state === 'restart'))
+                            const toggleable = act?.library !== true && (off || (act !== undefined && (act.state === 'live' || act.state === 'restart')))
                             return (
                               <div key={name} className={missing ? `${css.irow} ${css.irowMissing}` : css.irow}>
                                 <div style={{ minWidth: 0 }}>
@@ -7014,13 +7736,16 @@ export function MarketSection(props: MarketSectionProps) {
                                           {/* Only a state the switch does NOT already show earns a
                                               line here: "installed but not active" is news, "live"
                                               is what the switch is for. */}
-                                          {meta.dot !== 'done' && (
-                                            <span className={meta.dot === 'error' ? css.actBroken : css.actWarn}>
-                                              <StateDot state={meta.dot} size={7} />
-                                              {meta.label}
-                                            </span>
-                                          )}
-                                          {act.state !== 'live' && act.reasons.length > 0 && (
+                                          {act.library === true
+                                            ? <span className={css.metaTag}>{meta.label}</span>
+                                            : meta.dot !== 'done' && (
+                                                <span className={meta.dot === 'error' ? css.actBroken : css.actWarn}>
+                                                  <StateDot state={meta.dot} size={7} />
+                                                  {meta.label}
+                                                </span>
+                                              )}
+                                          {act.library === true && <div className={css.spec}>{t('libraryUseHint')}</div>}
+                                          {act.library !== true && act.state !== 'live' && act.reasons.length > 0 && (
                                             <DisclosureRow
                                               icon={<IconQuestionOutline14 size={14} />}
                                               title={t('actWhy')}
@@ -7072,7 +7797,7 @@ export function MarketSection(props: MarketSectionProps) {
                                 <div className={css.irowActions}>
                                 {/* Dot + tag, the pairing the host's own plugin
                                     inventory uses for exactly this state. */}
-                                {!missing && (
+                                {!missing && act?.library !== true && (
                                   <span className={css.stateTag} data-on={off ? 'false' : 'true'}>
                                     <span className={css.stateDot} data-on={off ? 'false' : 'true'} />
                                     {off ? t('disabledState') : t('switchOnLabel')}
@@ -7116,15 +7841,15 @@ export function MarketSection(props: MarketSectionProps) {
                                 {missing
                                   ? <span className={css.metaTag}>{t('notInstalled')}</span>
                                   : updatedNames.includes(name)
-                                    ? <span className={`${css.metaTag} ${css.metaTagOk}`}>{act?.state === 'live' ? t('updatedLive') : t('updated')}</span>
+                                    ? <span className={`${css.metaTag} ${css.metaTagOk}`}>{act?.library === true ? t('updatedLibrary') : act?.state === 'live' ? t('updatedLive') : t('updated')}</span>
                                     : updatingName === name
-                                      ? <Button variant="primary" size="sm" className={css.warnBtn} disabled>{t('updating')}</Button>
+                                      ? <Button variant="outline" size="sm" className={css.warnBtn} disabled>{t('updating')}</Button>
                                       : status !== undefined && generation && status.latest != null
                                         ? <span className={css.metaTag} title={t('hostUpdateHint')}>{t('hostUpdateReady').replace('{0}', status.latest)}</span>
                                       : status && status.updateAvailable
                                         ? (
                                             <Button
-                                              variant="primary"
+                                              variant="outline"
                                               size="sm"
                                               className={css.warnBtn}
                                               disabled={updatingName !== null}
@@ -7134,6 +7859,27 @@ export function MarketSection(props: MarketSectionProps) {
                                               }}
                                             >{status.restoreRequired === true ? t('restoreOnline') : t('update')}</Button>
                                           )
+                                        : status?.heldUpdate !== undefined
+                                          // A newer release exists but pnpm will refuse
+                                          // it until the profile's fresh-release wait
+                                          // passes (#945). The official Desktop has no
+                                          // bypass, so the honest state is "waiting",
+                                          // not a button that fails by construction.
+                                          ? (() => {
+                                              const left = Date.parse(status.heldUpdate.until) - Date.now()
+                                              // An estimated hold is the registry failing to say when
+                                              // the version shipped (#961), not a known window: say
+                                              // minutes and say why, rather than claiming a wait the
+                                              // market cannot know.
+                                              const estimated = status.heldUpdate.estimated === true
+                                              const amount = String(Math.max(1, Math.ceil(left / (estimated ? 60_000 : 3_600_000))))
+                                              const hint = t(estimated ? 'updateHeldEstimatedHint' : 'updateHeldHint').replace('{1}', amount)
+                                              return (
+                                                <span className={css.metaTag} title={hint}>
+                                                  {t('updateHeldTag').replace('{0}', displayLatest(status.heldUpdate.latest))}
+                                                </span>
+                                              )
+                                            })()
                                         : localDev
                                           ? null
                                           : status?.unreleasedCommit != null
@@ -7332,7 +8078,7 @@ export function MarketSection(props: MarketSectionProps) {
           className={css.confirmModal}
           contentClassName={css.confirmContent}
           onClose={() => setConfirming(null)}
-          title={t('confirmTitle') + ' ' + confirming.name + '?'}
+          title={t('confirmTitle') + ' ' + pluginName(confirming.name, confirming.npm) + '?'}
           footer={(
             <>
               <Button variant="ghost" onClick={() => setConfirming(null)}>{t('cancel')}</Button>
@@ -7348,7 +8094,7 @@ export function MarketSection(props: MarketSectionProps) {
               first paragraph made the methodology louder than the blurb (#739). */}
           <div className={css.confirmBody}>
           <div className={css.byline}>
-            <OwnerAvatar name={confirming.name} owner={confirming.owner || ''} />
+            <OwnerAvatar name={confirming.name} owner={confirming.owner || ''} icon={confirming.icon ?? undefined} />
             <span className={css.owner} title={confirming.owner}>{confirming.owner}</span>
             <CatalogVersionMark version={confirming.version} tip={catalogVersionTip} />
             <DownloadCount plugin={confirming} t={t} />
@@ -7458,7 +8204,7 @@ export function MarketSection(props: MarketSectionProps) {
       {commentsFor !== null && (
         <CommentsModal
           key={commentsFor.url}
-          name={pluginName(commentsFor.name)}
+          name={pluginName(commentsFor.name, commentsFor.npm)}
           url={commentsFor.url}
           lang={lang}
           onClose={() => setCommentsFor(null)}
@@ -7542,7 +8288,7 @@ export function MarketSection(props: MarketSectionProps) {
           open
           onClose={() => setRemoveConfirm(null)}
           title={t('uninstall') + ' ' + removeConfirm + '?'}
-          description={t('uninstallConfirmDesc')}
+          description={t(activations[removeConfirm]?.library === true ? 'uninstallLibraryConfirmDesc' : 'uninstallConfirmDesc')}
           footer={(
             <>
               <Button variant="ghost" onClick={() => setRemoveConfirm(null)}>{t('cancel')}</Button>

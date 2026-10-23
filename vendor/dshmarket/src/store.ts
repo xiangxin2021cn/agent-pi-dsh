@@ -1,5 +1,6 @@
 /**
- * pnpm store hygiene: reclaim staging directories orphaned by aborted runs.
+ * pnpm store hygiene: reclaim staging directories orphaned by aborted runs,
+ * and the profile-side quarantine pnpm never empties (`node_modules/.ignored`).
  *
  * pnpm extracts every fetched tarball under the store's `tmp/` directory as
  * `tmp/_tmp_<pid>_<hex>/`. A run that is killed, cancelled, or timed out —
@@ -11,6 +12,15 @@
  * The directory name carries the owning pnpm process id, which makes
  * reclamation safe by construction: when that pid is gone, no live download
  * can be using the directory. Live pnpm tmp dirs are never touched.
+ *
+ * Separately, under `nodeLinker: hoisted` pnpm moves alien / interrupted
+ * package directories into `node_modules/.ignored` and never reclaims them
+ * (#974; pnpm #13720). Those copies are already out of the tree — Node does
+ * not resolve through `.ignored` — so they are safe to delete once our pnpm
+ * process has exited. The pid in a `_tmp_<pid>_` name is historical there
+ * and is not consulted (Windows reuses pids; a live match would skip a
+ * dead quarantine). `.bak` leftovers stay: they are someone else's wreckage,
+ * not pnpm staging (#205, #974).
  */
 
 import { readdirSync, rmSync, type Dirent } from 'node:fs'
@@ -84,6 +94,62 @@ export async function cleanOrphanedStore(run: PluginRunner, profile: string): Pr
   if (removed.length > 0) {
     logEvent('info', 'install',
       `removed ${removed.length} orphaned pnpm store tmp dir(s) under ${storePath}: ${removed.slice(0, 3).join(', ')}${removed.length > 3 ? ', …' : ''}`)
+  }
+  return removed
+}
+
+/** Same `.bak` shapes backup.ts refuses to re-export (#205). */
+const BAK_NAME = /\.bak\b/
+
+/**
+ * Remove quarantined copies under the profile's `node_modules/.ignored`,
+ * except `.bak` leftovers. Scoped directories are walked one level so a
+ * leftover `@jimp/png` is reclaimed without deleting `@scope/foo.bak-*`.
+ * Locked entries are left for a later run.
+ */
+export function cleanOrphanedIgnored(profileDirectory: string): string[] {
+  const ignored = join(profileDirectory, 'node_modules', '.ignored')
+  let entries: Dirent[]
+  try {
+    entries = readdirSync(ignored, { withFileTypes: true })
+  } catch {
+    return []
+  }
+  const removed: string[] = []
+  for (const entry of entries) {
+    if (BAK_NAME.test(entry.name)) continue
+    const path = join(ignored, entry.name)
+    if (entry.isDirectory() && entry.name.startsWith('@')) {
+      let children: Dirent[]
+      try {
+        children = readdirSync(path, { withFileTypes: true })
+      } catch {
+        continue
+      }
+      let kept = 0
+      for (const child of children) {
+        if (BAK_NAME.test(child.name)) {
+          kept += 1
+          continue
+        }
+        try {
+          rmSync(join(path, child.name), { recursive: true, force: true })
+          removed.push(`${entry.name}/${child.name}`)
+        } catch {
+          kept += 1
+        }
+      }
+      if (kept === 0) {
+        try { rmSync(path, { recursive: true, force: true }) } catch { /* leave the empty scope */ }
+      }
+      continue
+    }
+    try {
+      rmSync(path, { recursive: true, force: true })
+      removed.push(entry.name)
+    } catch {
+      // Locked or still being written — leave it for a later run.
+    }
   }
   return removed
 }

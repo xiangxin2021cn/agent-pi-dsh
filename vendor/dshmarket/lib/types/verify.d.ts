@@ -48,6 +48,8 @@ export interface ActivationResult {
      * restart nor calls the plugin off; it says where the plugin comes from.
      */
     loadedByProfile?: true;
+    /** The package explicitly declares itself a library, without a plugin surface. */
+    library?: true;
 }
 /**
  * Whether every bundle patch the package declares parses to an empty list.
@@ -58,6 +60,13 @@ export interface ActivationResult {
  * patch that is missing or unreadable is NOT empty — other verdicts own it.
  */
 export declare function bundlePatchIsEmpty(packageDir: string): boolean;
+interface PkgDsh {
+    bundle?: unknown;
+    client?: unknown;
+    kind?: unknown;
+}
+/** Manifest-only library declaration; observed loader activity can override its status. */
+export declare function isDeclaredLibraryDsh(dsh: PkgDsh | null | undefined): boolean;
 /**
  * What the running host is, for the #757 boot-gate prediction.
  *
@@ -117,7 +126,7 @@ export declare function peerGateRemedy(gate: PeerGate): {
  * compatibility.json takes effect without a market restart.
  */
 export declare function defaultHostRuntimeFacts(activeProfileDir: string): HostRuntimeFacts;
-export declare function verifyActivation(profile: string, name: string, live?: ReadonlySet<string>, explicitDir?: string, isDisabled?: boolean, hostFacts?: HostRuntimeFacts): ActivationResult;
+export declare function verifyActivation(profile: string, name: string, live?: ReadonlySet<string>, explicitDir?: string, isDisabled?: boolean, hostFacts?: HostRuntimeFacts, loaderObserved?: boolean): ActivationResult;
 /**
  * Correct a post-UPDATE verdict for a plugin that was already running.
  *
@@ -258,3 +267,4 @@ export declare function newlyBrokenBundles(before: readonly {
     reason: string;
 }[];
 export declare function checkClientBundle(profile: string, name: string, explicitDir?: string): BundleCheck;
+export {};

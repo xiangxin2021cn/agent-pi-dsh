@@ -56,7 +56,8 @@ export function projectTaskPatch(state: ProfessionalTask, cwd: string, project: 
     return known ? [known] : []
   }
   let workspace: ReturnType<typeof loadWorkspace> | undefined
-  if (usesTenderControlProfile(project) && existsSync(workspacePaths(cwd, project.projectId).model)) workspace = loadWorkspace(cwd, project.projectId)
+  const workspaceModule = project.module === 'china-tender' ? 'china-tender' : usesTenderControlProfile(project) ? 'tender' : undefined
+  if (workspaceModule && existsSync(workspacePaths(cwd, project.projectId, workspaceModule).model)) workspace = loadWorkspace(cwd, project.projectId, workspaceModule)
   for (const claim of loadEvidenceLedger(cwd, project.projectId, project.module).claims) {
     const path = project.inputPaths.find(path => key(path, cwd) === key(claim.sourceId, cwd))
     const valid = path && sourceVersions.get(key(path, cwd)) === claim.sourceHash
@@ -105,7 +106,7 @@ export function projectTaskPatch(state: ProfessionalTask, cwd: string, project: 
     finding({ id: id('domain', domain.domain), title: domain.labelZh, summary: domain.conclusion, goalImpact: `该分析直接关系到「${domain.labelZh}」的任务判断${domain.humanConfirmationRequired ? '，需要用户确认关键决策条件。' : '，相关结论应落实到计划与交付检查。'}`, evidenceIds: domain.evidenceClaimIds.map(value => id('claim', value)).filter(value => evidence.some(row => row.id === value)), importance: domain.humanConfirmationRequired ? 'critical' : 'normal' })
   }
   if (workspace) {
-    const paths = workspacePaths(cwd, project.projectId)
+    const paths = workspacePaths(cwd, project.projectId, workspaceModule)
     for (const [capability, name] of Object.entries(CAPABILITY_FILE_NAMES)) {
       const path = join(paths.packs, `${name}.json`)
       if (!existsSync(path)) continue

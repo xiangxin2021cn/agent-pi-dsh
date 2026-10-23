@@ -9,6 +9,7 @@ import { DIST_TAG } from "./channels.js";
 import { resolveHeadCommit } from "./accelerate.js";
 import { marketFetch } from "./net.js";
 import { activeRegion, githubRoutesFor, rememberGithubRoute, throughProxy } from "./regions.js";
+import { readMinimumReleaseAgeMs } from "./install.js";
 import { hasDshManifest, profileDir, readGitResolutionCommit, readInstalled, readInstalledVersion, readLockCommits, readProfileBundles } from "./profile.js";
 import { userPatchPackageReferences } from "./patch.js";
 import { catalogRepoKey, gitCommitOfTarget, gitRefOfTarget, gitUploadPackUrl, hasSemverSelector, hostedRepoKey, githubCommitOfTarget, githubRefOfTarget, isGenerationLink, isGitHostedSpec, lookupRepoFromUrl, parseGitHubRemote, repoOfTarget } from "./sources.js";
@@ -235,6 +236,45 @@ export async function latestPublishedRecently(name, windowMs = 26 * 60 * 60 * 10
         return null;
     }
 }
+/**
+ * When a specific version was published, from the packument's own time map
+ * (#945). Null when the registry cannot answer — callers must not claim a
+ * wait on null.
+ */
+/**
+ * How long a hold stands when the registry cannot say when a version was
+ * published. Bounded rather than the full window: the usual cause is a mirror
+ * that has served the new `/latest` but not yet the packument entry (#961,
+ * #927 measured 14 minutes, #961 observed 27), and by the next poll the real
+ * timestamp is there and the hold is recomputed from it. A registry that never
+ * ships a time map keeps holding — the safe direction, and the one the market
+ * chose after #945.
+ */
+const UNKNOWN_PUBLISH_HOLD_MS = 30 * 60 * 1000;
+/**
+ * When a version was published, retried once when the packument does not say.
+ *
+ * A missing `time[version]` is NOT evidence that the release is old — on a
+ * mirror mid-sync it is the opposite: `/latest` already answers the new
+ * version while the full document still lags (#961). The second attempt asks
+ * with a cache-buster because the first answer is exactly what a warm edge
+ * cache serves.
+ */
+async function npmPublishAge(name, version) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+            const query = attempt === 0 ? '' : `?t=${String(Date.now())}`;
+            const doc = (await fetchJson(npmUrl(`${encodeURIComponent(name)}${query}`)));
+            const published = doc.time?.[version];
+            if (published !== undefined) {
+                const at = Date.parse(published);
+                return Number.isFinite(at) ? { kind: 'at', at } : { kind: 'unknown' };
+            }
+        }
+        catch { /* retry once below */ }
+    }
+    return { kind: 'unknown' };
+}
 /** The registry's current `latest` version for a package, or null when it can't be read. */
 /**
  * The version a channel subscriber should be offered: the newest build in
@@ -289,7 +329,22 @@ async function tagVersion(name, tag) {
 export async function fetchNpmLatest(name) {
     try {
         const meta = (await fetchJson(npmUrl(`${encodeURIComponent(name)}/latest`)));
-        return typeof meta.version === 'string' ? meta.version : null;
+        if (typeof meta.version === 'string')
+            return meta.version;
+    }
+    catch {
+        // Fall through to the full packument (#932).
+    }
+    // #932: the `/latest` shortcut can fail on its own — measured HTTP 429 from
+    // registry.npmjs.org while the full packument answered 200 with the same
+    // dist-tag. Returning null there made a fresh install fall back to the bare
+    // name, and pnpm's fresh-release hold then installed an OLDER version than
+    // the catalog and the confirmation screen had just shown. The packument is
+    // a bigger read, so it is only asked when the shortcut failed.
+    try {
+        const doc = (await fetchJson(npmUrl(encodeURIComponent(name))));
+        const latest = doc['dist-tags']?.latest;
+        return typeof latest === 'string' ? latest : null;
     }
     catch {
         return null;
@@ -433,6 +488,37 @@ async function gitVersionUpdate(spec, installedVersion, region) {
     const compared = compareVersions(remoteVersion, installedVersion);
     return compared === null ? null : compared > 0;
 }
+async function releaseAgeHold(name, latest, profile, activeProfileDir) {
+    if (latest === null)
+        return null;
+    const windowMs = readMinimumReleaseAgeMs(profile, activeProfileDir);
+    if (windowMs === null)
+        return null;
+    const age = await npmPublishAge(name, latest);
+    if (age.kind === 'unknown') {
+        // Fail CLOSED (#961). Returning null here meant "no wait needed", so a
+        // mirror that had not synced its packument yet let a 13-minute-old release
+        // through the gate #945 built — and on the official Desktop there is no
+        // bypass to fall back on, so the click could only fail.
+        return { until: new Date(Date.now() + UNKNOWN_PUBLISH_HOLD_MS).toISOString(), estimated: true };
+    }
+    const until = age.at + windowMs;
+    return until > Date.now() ? { until: new Date(until).toISOString(), estimated: false } : 'past';
+}
+function refreshExpiredHolds(data) {
+    let changed = false;
+    const out = {};
+    for (const [name, status] of Object.entries(data)) {
+        if (status.heldUpdate === undefined || Date.parse(status.heldUpdate.until) > Date.now()) {
+            out[name] = status;
+            continue;
+        }
+        const { heldUpdate: _held, ...rest } = status;
+        out[name] = { ...rest, updateAvailable: true };
+        changed = true;
+    }
+    return changed ? out : data;
+}
 /** Per-plugin update checks; a failed check reports no update rather than failing the listing. */
 export async function checkUpdates(profile, force = false, explicitDir, 
 /**
@@ -455,15 +541,23 @@ onlineSourceFor = new Map(),
  * entry that owns both the repo and the name, the npm fallback would
  * compare the install with whatever package merely shares its name.
  */
-catalogNpmByRepo = new Map()) {
+catalogNpmByRepo = new Map(), 
+/**
+ * Hold back releases that this profile's `minimumReleaseAge` will refuse
+ * (#945). Only true where the install path has no bypass: the official
+ * Desktop's manager takes no pnpm options, while the CLI path retries once
+ * with `--config.minimum-release-age=0` and CAN install a young release.
+ * Hiding those on the CLI would suppress updates that work.
+ */
+options = {}) {
     const activeProfileDir = profileDir(profile, explicitDir);
     // The channel is part of the key: switching to betas has to change the
     // answer immediately, and a cache keyed on the profile alone would serve
     // the stable verdict for the rest of the TTL — reading as "the setting did
     // nothing".
-    const cacheKey = `${activeProfileDir}\u0000${[...channelFor].map(([n, c]) => `${n}:${c}`).sort().join(',')}\u0000${[...onlineSourceFor].map(([n, s]) => `${n}:${s}`).sort().join(',')}\u0000${[...catalogNpmByRepo].map(([n, s]) => `${n}:${s}`).sort().join(',')}`;
+    const cacheKey = `${activeProfileDir}\u0000${options.holdYoungReleases === true ? 'hold' : 'any'}\u0000${[...channelFor].map(([n, c]) => `${n}:${c}`).sort().join(',')}\u0000${[...onlineSourceFor].map(([n, s]) => `${n}:${s}`).sort().join(',')}\u0000${[...catalogNpmByRepo].map(([n, s]) => `${n}:${s}`).sort().join(',')}`;
     if (!force && updatesCache?.key === cacheKey && Date.now() - updatesCache.at < UPDATES_TTL_MS) {
-        return updatesCache.data;
+        return refreshExpiredHolds(updatesCache.data);
     }
     const installed = readInstalled(profile, activeProfileDir);
     const lockCommits = readLockCommits(profile, activeProfileDir);
@@ -475,10 +569,16 @@ catalogNpmByRepo = new Map()) {
             const onlineSource = onlineSourceFor.get(name);
             if (onlineSource !== undefined) {
                 const latest = await fetchNpmLatest(onlineSource);
-                const updateAvailable = isUpgrade(version, latest);
+                const upgrade = isUpgrade(version, latest);
+                const hold = upgrade && options.holdYoungReleases === true
+                    ? await releaseAgeHold(onlineSource, latest, profile, activeProfileDir)
+                    : null;
+                const held = hold !== null && hold !== 'past';
                 result[name] = {
-                    kind: 'linked', version, current: version, latest, updateAvailable,
-                    ...(updateAvailable ? { restoreRequired: true } : {}),
+                    kind: 'linked', version, current: version, latest,
+                    updateAvailable: upgrade && !held,
+                    ...(held ? { heldUpdate: { latest: latest, until: hold.until, ...(hold.estimated ? { estimated: true } : {}) } } : {}),
+                    ...(upgrade ? { restoreRequired: true } : {}),
                 };
                 return;
             }
@@ -604,9 +704,14 @@ catalogNpmByRepo = new Map()) {
                 const mayFollowATag = !upgrade
                     && (version?.includes('-') === true || (stable !== null && version !== null && isUpgrade(stable, version) === false && stable !== version));
                 const newerPrerelease = mayFollowATag ? await newerPrereleaseFor(name, version) : null;
+                const hold = upgrade && options.holdYoungReleases === true
+                    ? await releaseAgeHold(name, latest, profile, activeProfileDir)
+                    : null;
+                const held = hold !== null && hold !== 'past';
                 result[name] = {
                     kind: 'npm', version, current: version, latest,
-                    updateAvailable: upgrade,
+                    updateAvailable: upgrade && !held,
+                    ...(held ? { heldUpdate: { latest: latest, until: hold.until, ...(hold.estimated ? { estimated: true } : {}) } } : {}),
                     ...(newerPrerelease === null ? {} : { newerPrerelease }),
                     ...(sideways ? { channelSwitch: latest } : {}),
                 };

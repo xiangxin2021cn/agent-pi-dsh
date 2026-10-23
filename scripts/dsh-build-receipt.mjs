@@ -39,6 +39,7 @@ function run(command, args, options = {}) {
     cwd: options.cwd,
     encoding: 'utf8',
     windowsHide: true,
+    maxBuffer: 16 * 1024 * 1024,
     stdio: options.stdio ?? 'pipe',
   })
   if (result.error) throw result.error

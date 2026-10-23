@@ -15,7 +15,8 @@
  * see — the two patches side by side.
  */
 import { useCallback, useEffect, useState, type ReactElement } from 'react'
-import { Button, IconWarningOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconWarningOutline16 } from './icons.ts'
 import css from './Market.module.css'
 import { api } from './market-data.ts'
 import type { Translate } from './market-data.ts'

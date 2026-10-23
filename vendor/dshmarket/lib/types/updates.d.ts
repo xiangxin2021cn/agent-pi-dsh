@@ -64,6 +64,19 @@ export interface UpdateStatus {
         target: string;
     };
     /**
+     * A newer release exists but this profile's `minimumReleaseAge` will not let
+     * pnpm install it yet (#945). The official Desktop takes no one-shot bypass,
+     * so offering the update there means offering a button that is guaranteed
+     * to fail; the market names the wait instead. `updateAvailable` is false —
+     * an update the user cannot apply is not available — and `until` is when
+     * pnpm will accept it.
+     */
+    heldUpdate?: {
+        latest: string;
+        until: string;
+        estimated?: true;
+    };
+    /**
      * The version this package's channel points at, when it differs from what
      * is installed and is NOT newer.
      *
@@ -210,4 +223,14 @@ onlineSourceFor?: ReadonlyMap<string, string>,
  * entry that owns both the repo and the name, the npm fallback would
  * compare the install with whatever package merely shares its name.
  */
-catalogNpmByRepo?: ReadonlyMap<string, string>): Promise<Record<string, UpdateStatus>>;
+catalogNpmByRepo?: ReadonlyMap<string, string>, 
+/**
+ * Hold back releases that this profile's `minimumReleaseAge` will refuse
+ * (#945). Only true where the install path has no bypass: the official
+ * Desktop's manager takes no pnpm options, while the CLI path retries once
+ * with `--config.minimum-release-age=0` and CAN install a young release.
+ * Hiding those on the CLI would suppress updates that work.
+ */
+options?: {
+    holdYoungReleases?: boolean;
+}): Promise<Record<string, UpdateStatus>>;

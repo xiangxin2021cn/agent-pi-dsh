@@ -8,7 +8,7 @@ export const briefFields = ['purpose', 'depth', 'evidence', 'format', 'acceptanc
 type Criterion = QualityCriterion
 type Check = QualityCheck
 export type DepthState = TaskQuality & { sessionId: string; revision: number }
-type Session = { id: string; header: { cwd?: string; parentSession?: string } }
+type Session = { id: string; header: { cwd?: string; parentSession?: string; origin?: string } }
 const states = new WeakMap<Session, DepthState>()
 const stores = new WeakMap<Session, ReturnType<typeof createDepthStore>>()
 const changes = new WeakMap<Session, () => void>()
@@ -290,8 +290,8 @@ export function registerProfessionalDepth(ctx: any, defineTool: (definition: any
     async execute(args: any, exec: any) {
       const session = exec.agent?.session
       if (!session || !depthState(session).enabled) throw new Error('本对话未启用专业深度。')
-      if (args.action === 'status') return session.header.parentSession ? depthState(session) : refreshDepthChecks(session, exec.agent.ctx.get?.('fs'), exec.signal)
-      if (session.header.parentSession) throw new Error('专业深度要求与交付检查由主执行器更新；子智能体请提交发现和证据。')
+      if (args.action === 'status') return session.header.origin === 'subagent' ? depthState(session) : refreshDepthChecks(session, exec.agent.ctx.get?.('fs'), exec.signal)
+      if (session.header.origin === 'subagent') throw new Error('专业深度要求与交付检查由主执行器更新；子智能体请提交发现和证据。')
       if (args.action === 'brief') return updateDepth(session, args, 'agent')
       if (args.action === 'check') return checkDepth(session, exec.agent.ctx.get('fs'), args, exec.signal)
       throw new Error('未知专业深度操作。')
@@ -325,7 +325,7 @@ export function registerProfessionalDepth(ctx: any, defineTool: (definition: any
   ctx.on('tools/result', async (exec: any, _result: any) => {
     if (!exec.agent) return
     const session = exec.agent.session
-    if (session.header.parentSession) return
+    if (session.header.origin === 'subagent') return
     const state = depthState(session)
     if ((['write', 'edit', 'bash', 'pwsh'].includes(exec.name) || exec.name.startsWith('univer_')) && state.checks.length) {
       try { await refreshDepthChecks(session, exec.agent.ctx.get('fs'), exec.signal) }
@@ -337,7 +337,7 @@ export function registerProfessionalDepth(ctx: any, defineTool: (definition: any
     const state = session && depthState(session)
     // A PTC call can write, check and present inside one run_code. Check after
     // that outer call without erasing its nested check or delaying execution.
-    if (state?.enabled && !session.header.parentSession && !state.needsAssessment && state.checks.length && ['present', 'run_code'].includes(exec.name)) {
+    if (state?.enabled && session.header.origin !== 'subagent' && !state.needsAssessment && state.checks.length && ['present', 'run_code'].includes(exec.name)) {
       try { await checkDepth(session, exec.agent.ctx.get('fs'), { revision: state.revision, reviewNotes: state.reviewNotes, automatic: true }, exec.signal) }
       catch (error) { ctx.logger?.debug?.('professional-depth check: %s', String(error)) }
     }

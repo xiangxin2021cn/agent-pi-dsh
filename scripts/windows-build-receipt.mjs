@@ -41,7 +41,8 @@ function releaseIdentity(root) {
   if (packageJson.license !== 'GPL-3.0-only') {
     throw new Error('Windows 3.6.0 release must declare GPL-3.0-only')
   }
-  const releaseTag = `v${appVersion}`
+  const edition = packageJson.agentPiProduct?.edition || 'mainline'
+  const releaseTag = `${packageJson.agentPiProduct?.releaseTagPrefix || 'v'}${appVersion}`
   const sourceCommit = git(root, ['rev-parse', 'HEAD'])
   let exactTag = ''
   try {
@@ -57,6 +58,7 @@ function releaseIdentity(root) {
   if (status) throw new Error('Windows build requires a completely clean checkout')
   return {
     appVersion,
+    edition,
     releaseTag,
     sourceCommit,
     dshPin: readFileSync(join(root, 'DSH_PIN'), 'utf8').trim(),
@@ -93,7 +95,7 @@ export function verifyWindowsBuildReceipt(options) {
     throw new Error('unsupported Windows build receipt')
   }
   const expected = currentReceipt(options)
-  for (const key of ['appVersion', 'releaseTag', 'sourceCommit', 'dshPin']) {
+  for (const key of ['appVersion', 'edition', 'releaseTag', 'sourceCommit', 'dshPin']) {
     if (receipt[key] !== expected[key]) throw new Error(`Windows build receipt ${key} mismatch`)
   }
   for (const key of ['installer', 'installerPayload', 'cadRuntimeManifest', 'cadSource', 'dshBuildReceipt']) {

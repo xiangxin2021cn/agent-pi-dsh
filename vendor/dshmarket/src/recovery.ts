@@ -33,10 +33,10 @@ import { spawn } from 'node:child_process'
 import { appendFileSync, openSync, readFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { connect } from 'node:net'
-import { homedir } from 'node:os'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readJsonBody, sameOrigin, sendJson } from './http.ts'
+import { redactHomePaths } from './log-redaction.ts'
 import { disableRow, enableRow } from './patch.ts'
 import { addProfileBundle, removeProfileBundle } from './profile.ts'
 
@@ -566,8 +566,7 @@ async function waitForPortFree(port: number, timeoutMs: number): Promise<boolean
  * one unreadable line, which is the opposite of what the export is for.
  */
 function redactLog(text: string): string {
-  return text
-    .replaceAll(homedir(), '~')
+  return redactHomePaths(text)
     .replace(/sk-[A-Za-z0-9_-]{8,}/g, 'sk-***')
     .replace(/gh[pousr]_[A-Za-z0-9]{16,}/g, 'gh*_***')
     .replace(/npm_[A-Za-z0-9]{16,}/g, 'npm_***')

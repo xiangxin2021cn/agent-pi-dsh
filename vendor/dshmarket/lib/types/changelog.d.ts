@@ -63,6 +63,15 @@ export declare function sliceCommitsAt(items: CommitNote[], installed: string | 
     items: CommitNote[];
     found: boolean;
 };
+/**
+ * The version a release tag names, when it names one.
+ *
+ * Tags come as `v1.2.3`, `1.2.3`, `@scope/pkg@1.2.3` or `pkg-v1.2.3`; the
+ * FIRST semver-shaped run is the version in all of them. A tag that names no
+ * version (`nightly`) returns null, and callers must treat "unknown" as "do
+ * not judge" rather than "older".
+ */
+export declare function releaseVersionOf(tag: string | null): string | null;
 /** The repo url key an entry's update notes live under, or null. */
 export declare function repoKeyOf(spec: string): string | null;
 /**

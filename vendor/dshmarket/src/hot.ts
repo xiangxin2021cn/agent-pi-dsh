@@ -304,6 +304,20 @@ export interface MarketState {
   /** User-supplied HTTPS prefix used when the built-in GitHub routes fail. */
   githubProxy?: string
   /**
+   * Whether the market also opens from its own row in the sidebar (#846).
+   *
+   * Off unless the user turned it on: the sidebar's global rows are the
+   * host's own pages, and installing plugins is occasional, so a row nobody
+   * asked for would be a permanent fixture for an occasional task. The
+   * settings entry stays either way — it is the way in on hosts with no
+   * sidebar panels, and turning this off must never leave the market
+   * unreachable.
+   *
+   * Omission preserves, an explicit value wins — the githubProxy contract,
+   * because turning it off has to be expressible.
+   */
+  sidebarEntry?: boolean
+  /**
    * Packages the market removed from the profile's own declarations because
    * the build on disk can no longer compose (#663).
    *
@@ -484,6 +498,7 @@ export function readMarketState(profileDir: string): MarketState {
       blocked?: unknown
       updateExempt?: unknown
       brokenPlugins?: unknown
+      sidebarEntry?: unknown
     }
     const disabled = uniqueStrings(state.disabled !== undefined ? state.disabled : state.disabledSkins)
     const groups: Record<string, string[]> = {}
@@ -502,11 +517,21 @@ export function readMarketState(profileDir: string): MarketState {
     }
     const githubProxy = normalizeGithubProxy(state.githubProxy)
     const brokenPlugins = brokenPluginsFromUnknown(state.brokenPlugins)
+    // The order and the map are two halves of one fact, and a state file can
+    // carry them out of step (#964): the UI then lists a group the routes
+    // cannot find, so "assign to" and even "delete" answer group-not-found
+    // forever. Normalize on read — a name with no group disappears from the
+    // order, and a group with no order entry gets one appended — so the two
+    // cannot disagree however the file got that way.
+    const groupOrder = uniqueStrings(state.groupOrder).filter(name => groups[name] !== undefined)
+    for (const name of Object.keys(groups)) {
+      if (!groupOrder.includes(name)) groupOrder.push(name)
+    }
     return {
       disabled: new Set(disabled),
       groups,
       notes,
-      groupOrder: uniqueStrings(state.groupOrder),
+      groupOrder,
       channel: asChannel(state.channel) ?? undefined,
       region: asRegion(state.region) ?? undefined,
       // Only meaningful beside a region, and only when true: a stray flag
@@ -517,6 +542,10 @@ export function readMarketState(profileDir: string): MarketState {
       updateExempt: updateExemptNames(state.updateExempt),
       ...(githubProxy === null ? {} : { githubProxy }),
       ...(brokenPlugins === undefined ? {} : { brokenPlugins }),
+      // true AND false are both preserved: on a host with no settings page
+      // this switch is the market's only entry, so "the user turned it off"
+      // must be distinguishable from "nobody has chosen yet" (#846).
+      ...(typeof state.sidebarEntry === 'boolean' ? { sidebarEntry: state.sidebarEntry } : {}),
       buildEnv: buildEnvFromUnknown(state.buildEnv),
     }
   } catch (error) {
@@ -612,6 +641,9 @@ export function writeMarketState(profileDir: string, state: MarketState): void {
   const broken = Object.prototype.hasOwnProperty.call(state, 'brokenPlugins')
     ? state.brokenPlugins
     : onDisk.brokenPlugins
+  const sidebarEntry = Object.prototype.hasOwnProperty.call(state, 'sidebarEntry')
+    ? state.sidebarEntry
+    : onDisk.sidebarEntry
   publishFile(stateFile(profileDir), JSON.stringify({
     disabled: [...state.disabled],
     groups: state.groups,
@@ -633,6 +665,10 @@ export function writeMarketState(profileDir: string, state: MarketState): void {
     // githubProxy above, and the one a repaired plugin needs: the entry
     // exists only while the declaration is still missing.
     ...(broken === undefined ? {} : { brokenPlugins: broken }),
+    // Written for both answers: on a host with no settings page this switch
+    // is the market's only entry, so a deliberate OFF has to survive a reload
+    // instead of being read back as "never chosen" (#846).
+    ...(typeof sidebarEntry === 'boolean' ? { sidebarEntry } : {}),
     ...(state.region === undefined ? {} : { region: state.region }),
     ...(state.regionAuto === true ? { regionAuto: true } : {}),
     // Omitted while not saved, so a card that was never touched keeps

@@ -179,7 +179,6 @@ function Section(props: {
         {alert && <span className={css.diagAlert}>⚠</span>}
         <span className={`${css.collapseTitle}${alert ? ` ${css.diagAlert}` : ''}`}>{title}</span>
         <span className={css.diagCount}>({count})</span>
-        <span className={css.grow} />
       </button>
       {!open && overview !== undefined && <div className={css.sectionOverview}>{overview}</div>}
       <div className={css.collapseBody} style={open ? undefined : { display: 'none' }}>
@@ -204,7 +203,6 @@ function CollapsibleSection(props: { title: string; count?: number; open: boolea
         </span>
         <span className={css.collapseTitle}>{title}</span>
         {count !== undefined && <span className={css.diagCount}>({count})</span>}
-        <span className={css.grow} />
       </button>
       <div className={css.collapseBody} style={open ? undefined : { display: 'none' }}>
         {children}

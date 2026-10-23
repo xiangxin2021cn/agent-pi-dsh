@@ -8,7 +8,7 @@
 
 <h1 align="center">Agent Pi DSH</h1>
 
-3.8.3 本地升级版使用官方 DSH 0.2.1-alpha.5，包含任务交互、Codex 发送与安全端口修复。变更及使用方法见 [3.8.3 升级说明](release/github-notes-3.8.3.md)和[使用指南](docs/3.8.3-user-guide.md)；本地安装产物以同名校验文件和构建回执确认，公开下载仍按已发布 Release 提供。
+3.8.5 将主线与投标专版拆为独立产品分支，共享升级后的官方 DSH 内核。主线保留专业工作台、知识库、技能和完整 Univer；投标专版提供项目、章节、正文及评分证据操作界面。安装标识、用户数据目录及更新通道相互独立，分支与迁移方式见 [3.8.5 双版本说明](release/3.8.5-product-editions.md)。公开下载以实际已发布 Release 为准。
 
 3.8.2 已发布，整合官方 DSH 0.2.1-alpha.2、大 DWG 磁盘读取、块名修复、内嵌图像及工程缺口与任务联动，并更新核心插件。安装包和分发材料见 [GitHub v3.8.2 Release](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/tag/v3.8.2)，具体改动及用法见 [3.8.2 升级说明](release/github-notes-3.8.2.md)和[使用指南](docs/3.8.2-user-guide.md)。
 

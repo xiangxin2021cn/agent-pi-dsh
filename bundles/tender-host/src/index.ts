@@ -36,13 +36,13 @@ function ensureWindowsNativeOpenPath(): void {
 export const name = 'tender-host'
 export const inject = ['tools', 'systemPrompt']
 
-const { defineTool } = await importDsh<{ defineTool: (options: Record<string, unknown>) => unknown }>('packages/core/tools/src/index.ts')
+const { defineTool } = await importDsh<{ defineTool: (options: Record<string, unknown>) => unknown }>('packages/core/tools/lib/index.js')
 const { createUserMessage } = await importDsh<{
   createUserMessage: (input: {
     content: Array<{ type: 'text'; text: string }>
     source: { kind: 'plugin:tender-host'; form: 'instructions' }
   }) => unknown
-}>('packages/llm/llm/src/message.ts')
+}>('packages/llm/llm/lib/index.js')
 
 export async function apply(ctx: {
   tools: { register: (definition: unknown) => unknown; schemas: () => Array<{ name: string }> }

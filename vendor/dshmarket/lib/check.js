@@ -761,15 +761,27 @@ export function composeLayers(layers) {
  * patch row plus a user-patch row on the same id: fatal forever meant every
  * update of every plugin rolled back.
  *
- * Unknown version stays fatal: the conservative direction, and the case where
- * the evidence to be less strict is missing.
+ * An empty answer from the PROFILE lockfile is not "unknown" on the official
+ * Desktop: that host embeds the loader in `app.asar` and provides it to every
+ * profile, so no profile can ever name it (#943). Reading that as an old
+ * loader made the gate fatal for every update on 0.2.1-rc.2 — the exact report
+ * #853's fix was supposed to close. The host installation is asked before the
+ * evidence is treated as missing; only when both are silent does the
+ * conservative answer stand.
  */
-export function duplicateEntryIdsAreFatal(profileDirectory) {
+export function duplicateEntryIdsAreFatal(profileDirectory, dshInstallDir) {
     const versions = lockfileCoreVersions(profileDirectory).get('@deepseek-ai/cordis-plugin-loader') ?? [];
-    if (versions.length === 0)
+    if (versions.length > 0) {
+        const newest = versions.reduce((a, b) => (compareSemver(a, b) >= 0 ? a : b));
+        return compareSemver(newest, '1.0.4') < 0;
+    }
+    const install = dshInstallDir === undefined ? findDshInstallDir() : dshInstallDir;
+    const host = install === null
+        ? null
+        : readNodeModulesVersion(dirname(hostNodeModulesRoot(install)), '@deepseek-ai/cordis-plugin-loader');
+    if (host === null)
         return true;
-    const newest = versions.reduce((a, b) => (compareSemver(a, b) >= 0 ? a : b));
-    return compareSemver(newest, '1.0.4') < 0;
+    return compareSemver(host, '1.0.4') < 0;
 }
 /** Distinct versions of `@deepseek-ai/{dsh,cordis}*` packages in the lockfile. */
 function lockfileCoreVersions(profileDir) {
@@ -1251,7 +1263,15 @@ export function analyzeProfile(profileDirectory, options = {}) {
             // Peer checks cover EVERY declared peer, not just host core packages:
             // plugin-to-plugin peer mismatches break runtime registration just as
             // hard (issue #98 optimization round).
-            const satisfied = resolved !== null ? satisfiesRange(resolved, spec) : null;
+            // #1000: the same prerelease admission the discovery and verify checks
+            // already use. A peer range written for the host line (`>=0.2.0-rc.0
+            // <0.3.0`) can only ever be satisfied by a prerelease host version, and
+            // npm's default rule refuses it unless a comparator pins the exact
+            // [major, minor, patch] tuple — so a healthy profile carried the same
+            // six permanent warnings, with no way to clear them but pinning exact
+            // rc versions. The flag widens admission only; `^`/`~` ceilings still
+            // apply (exclusiveUpperBound), so a cross-minor host line stays out.
+            const satisfied = resolved !== null ? satisfiesRange(resolved, spec, { includePrerelease: true }) : null;
             const optional = pkg.peerDependenciesMeta?.[name]?.optional === true;
             peerMismatches.push({
                 plugin, name, range: spec, resolved,
@@ -1349,7 +1369,7 @@ export function analyzeProfile(profileDirectory, options = {}) {
     // Rows on one id: a boot failure on an old loader, a silent override on a
     // new one (see duplicateEntryIdsAreFatal). Refusing an operation over the
     // second shape rolled back every update for the reporter's profile.
-    const duplicateFatal = duplicateEntryIdsAreFatal(profileDirectory);
+    const duplicateFatal = duplicateEntryIdsAreFatal(profileDirectory, dshInstall);
     for (const dup of composed.duplicates) {
         if (duplicateFatal) {
             errors.push(`duplicate loader entry id ${JSON.stringify(dup.id)} (${dup.count} rows: ${dup.layers.join(', ')})`);

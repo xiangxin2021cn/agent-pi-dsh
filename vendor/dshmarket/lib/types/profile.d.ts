@@ -55,12 +55,16 @@ export declare function generationManagedNames(profile: string, explicitDir?: st
 export declare function readManifestDeps(profile: string, explicitDir?: string): Record<string, string>;
 /**
  * For each installed package, the OTHER installed package that declares it —
- * as a dependency or a peer dependency — in its own manifest.
+ * as a dependency, an optional dependency, or a peer dependency — in its own
+ * manifest.
  *
  * pnpm's auto-install-peers writes a plugin's peers into the profile manifest
  * as direct dependencies, so a native binding a plugin needs shows up in the
  * installed list looking exactly like a plugin the user chose (#634). What
- * separates them is that somebody else asked for it.
+ * separates them is that somebody else asked for it. Optional dependencies
+ * count for the same reason (#941): a platform-specific binary a plugin lists
+ * under `optionalDependencies` is payload, not a plugin the user chose, even
+ * when pnpm installed that package and the card rendered.
  *
  * Ownership is decided by the first owner in sorted order, so the answer does
  * not depend on the manifest's key order. A package that declares itself is
@@ -412,7 +416,7 @@ export declare function conflictingEntryIds(profileDirectory: string, candidate:
  * @param profileDirectory - resolved profile directory (host-authoritative under Desktop).
  * @param name - installed package name.
  */
-export declare function hasLoadableEntry(profileDirectory: string, name: string): boolean;
+export declare function hasLoadableEntry(profileDirectory: string, name: string, hostDirectory?: string | null): boolean;
 /** Plugin subdirectories (depth 2) of a collection checkout, as relative paths. */
 export declare function pluginSubdirs(root: string): string[];
 /**

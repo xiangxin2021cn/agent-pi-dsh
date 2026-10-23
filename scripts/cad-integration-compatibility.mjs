@@ -214,6 +214,26 @@ const reviewed383HostExtension = {
     'bundles/tender-host/package-lock.json': 'a0aa977cf45c80fa1ce9fd04e9cbc0f7bafc390d426e8e3b2215110bd99dec96',
   },
 }
+// 3.8.5 separates product identity and upgrades non-CAD host dependencies.
+// Each edition is an exact reviewed input pair; decoder/source/toolchain pins remain unchanged.
+const reviewed385HostExtensions = [
+  { edition: 'mainline', rootHash: '17e3f5c1a6588626a7253660b9bf2ee9305b0500a5389d291233548828e834ab', httpHash: '1b0ad90827db6414cf587403f6c103cbb363d5a248ebaa78e3c2713e0ee6f4da' },
+  { edition: 'tender', rootHash: 'cf3311284a96fde989a1ea1ae53a4278e627013553925df8fa0c0d5fe3030acc', httpHash: 'aab3d2d7f0d5802ce520911dfd67685b00b7574eac907714b2bac4c526b723d1' },
+].map(({ edition, rootHash, httpHash }) => ({
+  review: '3.8.5-' + edition + '-core-upgrade',
+  shared: {
+    ...reviewed383HostExtension.shared,
+    'package.json': [reviewed383HostExtension.shared['package.json'][0], rootHash],
+    'bundles/tender-host/src/http.ts': [reviewed383HostExtension.shared['bundles/tender-host/src/http.ts'][0], httpHash],
+    'THIRD_PARTY_NOTICES.md': [reviewed383HostExtension.shared['THIRD_PARTY_NOTICES.md'][0], 'fec6fcecb606a9dc7c33d1edcebd81035c1b0908ca33d1c9b9367db57e984442'],
+  },
+  files: {
+    ...reviewed383HostExtension.files,
+    'bundles/tender-host/package.json': '0d9c8e05ba01dcc3d6731e644b342af91becbb29cf8814cacdda2f62724facda',
+    'bundles/tender-host/package-lock.json': 'c18ec9d21ea3aae69230d5ab536589274d0854e256c4cc1902730486dc11d397',
+  },
+}))
+
 const diskIndexPaths = ['bundles/engineering-cad/src/dxf-disk-source.ts', 'bundles/engineering-cad/src/cad-disk-index.ts']
 const patchedDecoderPaths = ['bundles/tender-host/src/cad-dwg-model-quality.mjs', 'bundles/engineering-cad/src/cad-embedded.ts', 'bundles/tender-host/lib/cad-decoder', 'scripts/cad-host-clean-release.mjs', 'scripts/build-cad-host-clean.sh', 'scripts/cad-host-bit-position-overflow.patch', 'scripts/cad-host-bit-position.test.c', 'scripts/cad-host-clean-pins.json']
 const hostExtensionPaths = [...new Set([
@@ -235,6 +255,11 @@ function reviewedHostPair(path, before, after, extension) {
 function reviewedHostExtensionForTarget(root, target) {
   if (git(root, ['ls-tree', target, '--', 'scripts/cad-browser-decoder-release.mjs', 'scripts/cad-browser-decoder-release.json']).trim()) {
     const path = 'bundles/tender-host/package.json'
+    const hostHash = reviewedHash(path, git(root, ['show', `${target}:${path}`], null))
+    const upgraded = reviewed385HostExtensions.find(extension => hostHash === extension.files[path]
+      && reviewedHash('package.json', git(root, ['show', `${target}:package.json`], null)) === extension.shared['package.json'][1]
+      && reviewedHash('bundles/tender-host/src/http.ts', git(root, ['show', `${target}:bundles/tender-host/src/http.ts`], null)) === extension.shared['bundles/tender-host/src/http.ts'][1])
+    if (upgraded) return upgraded
     return reviewedHash(path, git(root, ['show', `${target}:${path}`], null)) === reviewed383HostExtension.files[path]
       ? reviewed383HostExtension : reviewed382BrowserHostExtension
   }
@@ -252,7 +277,7 @@ function reviewedHostExtensionForTarget(root, target) {
 
 function verifyReviewedHostExtension(root, sourceCommit, target) {
   const extension = reviewedHostExtensionForTarget(root, target)
-  if ([reviewed382PatchedHostExtension, reviewed382ReleaseHostExtension, reviewed382BrowserHostExtension, reviewed383HostExtension].includes(extension)) {
+  if ([reviewed382PatchedHostExtension, reviewed382ReleaseHostExtension, reviewed382BrowserHostExtension, reviewed383HostExtension, ...reviewed385HostExtensions].includes(extension)) {
     const runtime = git(root, ['ls-tree', '-r', '--name-only', target, '--', 'bundles/tender-host/lib/cad-decoder']).trim().split('\n')
     for (const path of runtime) if (!extension.files[path]) fail(`reviewed CAD host extension differs: ${path}`)
   }

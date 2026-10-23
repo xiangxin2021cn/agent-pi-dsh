@@ -76,6 +76,8 @@ export interface RegistryPlugin {
   capabilities?: string[]
   capabilityRedLines?: string[]
   capabilityCheckedAt?: string | null
+  /** Catalog-declared storefront tile; same image gate as screenshots; optional. */
+  icon?: string | null
   /** Author-curated screenshot URLs from the registry (#61); optional. */
   screenshots?: string[]
 }
@@ -212,6 +214,10 @@ export interface UpdateStatus {
   unreleasedCommit?: string
   /** Updating this local package switches it to its matched online release. */
   restoreRequired?: boolean
+  /** A newer release exists but the profile's fresh-release wait has not
+      passed yet (#945). `updateAvailable` is false and this names the wait;
+      on the official Desktop there is no bypass to offer. */
+  heldUpdate?: { latest: string; until: string; estimated?: true }
   /** Explicit source migration; never part of update-all. */
   sourceMigration?: { kind: 'git-to-npm'; repo: string; target: string }
 }
@@ -280,6 +286,11 @@ export interface MarketStatus {
    * behaviour, never a button taken away on a guess.
    */
   restartReachable?: boolean
+  /**
+   * Whether this profile offers a market restart route at all. Absent from an
+   * older host, which reads as "no button": the banner explains instead.
+   */
+  restart?: boolean
 }
 
 /**
@@ -316,6 +327,8 @@ export interface ActivationInfo {
   dependencyOf?: string
   /** Loaded by the user's own setup, which the market cannot see (#813). */
   loadedByProfile?: true
+  /** Explicit dsh.kind library, without a plugin surface. */
+  library?: true
 }
 
 /**
@@ -430,15 +443,21 @@ export function readSession(key: string): any {
 
 /** Heuristic: plugins that target a terminal surface rather than the web UI. */
 export function looksTerminal(plugin: RegistryPlugin, lang: string): boolean {
+  // The package NAME is a claim about the package itself: `dsh-tui` is a
+  // terminal surface. Descriptions are not — they mention the terminal for
+  // many reasons, including a companion CLI that ships from the same
+  // repository (#931). A bare "CLI"/"terminal" mention in prose used to be
+  // enough to warn that a web plugin "may not work in the web app", and a
+  // warning that fires on ordinary plugins is one users learn to ignore.
+  if (/\b(tui|cli|tty|terminal)\b|终端|命令行/i.test(plugin.name)) return true
   const desc = (plugin.description && (plugin.description[lang] || plugin.description.en)) || ''
-  // A description can mention a CLI only to say it is NOT required. Treating
-  // that as positive evidence labels web plugins as terminal-only. Strip
-  // bounded negated clauses before applying the deliberately broad heuristic;
-  // the package name remains untouched and therefore stays strong evidence.
+  // A description can also mention a CLI only to say it is NOT required
+  // (#237). Strip bounded negated clauses first.
   const positiveDesc = desc
     .replace(/\b(?:no|without)\b[^.!?;:，。！？；\n]{0,80}\b(?:tui|cli|tty|terminal)\b/gi, '')
     .replace(/(?:无需|无须|不需要|不用)[^。！？；\n]{0,48}(?:tui|cli|tty|terminal|终端|命令行)/gi, '')
-  return /\b(tui|cli|tty|terminal)\b|终端|命令行/i.test(plugin.name + ' ' + positiveDesc)
+  // Only phrases that assert THIS plugin's own surface count.
+  return /\b(?:terminal|cli)[ -]only\b|\btui (?:app|plugin|client)\b|\bterminal (?:ui|app|plugin|client)\b|\bcommand[- ]line (?:tool|interface|app|client|plugin)\b|命令行(?:工具|插件|应用|界面|客户端)|终端(?:工具|插件|应用|界面|客户端)|只在终端|仅在终端|需要(?:一个)?终端|在终端(?:里|中)运行/i.test(positiveDesc)
 }
 
 /** Sortable field for the Discover list. */
@@ -1141,6 +1160,15 @@ function safeScreenshot(value: unknown): string | null {
 }
 
 /**
+ * A catalog-declared storefront tile. Same https/GitHub-only gate as
+ * screenshots (an icon URL is still a request carrying the user's IP) and
+ * raster-only, because an SVG tile is a document, not an image.
+ */
+export function safeIcon(value: unknown): string | null {
+  return safeScreenshot(value)
+}
+
+/**
  * Prepare a GitHub release body for the update-notes dialog's tiny markdown
  * renderer. HTML — especially pasted `<img>` tags — must not surface as
  * literal text; markdown syntax is left intact for the dialog to render.
@@ -1604,14 +1632,17 @@ export function localizeBilingualList(parts: string[], lang: 'zh' | 'en'): strin
  *
  * The repository name IS the plugin name in the ordinary case, because a
  * repository holding one plugin is named after it. Only the compound form
- * needs unpicking, and its last segment is the plugin's own directory.
+ * needs unpicking. Prefer its mapped npm package when available: a generic
+ * directory such as `plugin` is not the product name. Without that mapping,
+ * keep the directory-leaf fallback for source-only entries.
  *
  * Not a substitute for the identity: every key, lookup and install still
  * uses `name` unchanged.
  */
-export function pluginName(name: string): string {
+export function pluginName(name: string, npm?: string | null): string {
   const hash = name.indexOf('#')
   if (hash === -1) return name
+  if (typeof npm === 'string' && npm.trim() !== '') return npm.trim()
   const sub = name.slice(hash + 1)
   const leaf = sub.slice(sub.lastIndexOf('/') + 1)
   // A sub-path that is empty or trailing-slashed tells us nothing; the

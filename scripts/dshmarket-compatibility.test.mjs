@@ -11,8 +11,8 @@ import {
   reconcileKnownPluginCompatibility,
   TEAM_COMPONENTS,
 } from '../vendor/dshmarket/compatibility.js'
-import { verifyActivation, hostPeerGate } from '../vendor/dshmarket/src/verify.ts'
-import { hotMount, mountClientOnlyDeps } from '../vendor/dshmarket/src/hot.ts'
+import { verifyActivation, hostPeerGate } from '../vendor/dshmarket/lib/verify.js'
+import { hotMount, mountClientOnlyDeps } from '../vendor/dshmarket/lib/hot.js'
 
 test('official Team components report managed/off, configured, live and missing artifacts accurately', async (t) => {
   const { profile } = profileFixture(t)

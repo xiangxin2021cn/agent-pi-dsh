@@ -166,6 +166,20 @@ export interface MarketState {
     /** User-supplied HTTPS prefix used when the built-in GitHub routes fail. */
     githubProxy?: string;
     /**
+     * Whether the market also opens from its own row in the sidebar (#846).
+     *
+     * Off unless the user turned it on: the sidebar's global rows are the
+     * host's own pages, and installing plugins is occasional, so a row nobody
+     * asked for would be a permanent fixture for an occasional task. The
+     * settings entry stays either way — it is the way in on hosts with no
+     * sidebar panels, and turning this off must never leave the market
+     * unreachable.
+     *
+     * Omission preserves, an explicit value wins — the githubProxy contract,
+     * because turning it off has to be expressible.
+     */
+    sidebarEntry?: boolean;
+    /**
      * Packages the market removed from the profile's own declarations because
      * the build on disk can no longer compose (#663).
      *

@@ -19,7 +19,7 @@ export function registerEngineering(ctx: any, defineTool: (definition: any) => a
   const rootSession = (id: string) => {
     let session = ctx.get('sessions')?.get(id) || ctx.get('agents')?.get(id)?.session
     const seen = new Set<string>()
-    while (session?.header?.parentSession) {
+    while (session?.header?.origin === 'subagent' && session.header.parentSession) {
       if (seen.has(session.id)) throw new Error('会话父级关系异常。')
       seen.add(session.id)
       const parent = ctx.get('sessions')?.get(session.header.parentSession) || ctx.get('agents')?.get(session.header.parentSession)?.session

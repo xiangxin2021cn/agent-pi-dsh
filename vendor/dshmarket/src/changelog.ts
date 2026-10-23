@@ -24,9 +24,9 @@
 import { fileFromTarball } from './catalog-npm.ts'
 import { marketFetch } from './net.ts'
 import { activeRegion, routesFor } from './regions.ts'
-import { profileDir, readGitResolutionCommit, readInstalled, readInstalledRepoEvidence, readLockCommits } from './profile.ts'
+import { profileDir, readGitResolutionCommit, readInstalled, readInstalledRepoEvidence, readInstalledVersion, readLockCommits } from './profile.ts'
 import { githubRepoOfRemote, hostedRepoKey, isGitHostedSpec, lookupRepoFromUrl, parseHostShorthand, parseSourceUrl, repoOf, repoOfTarget } from './sources.ts'
-import { checkUpdates } from './updates.ts'
+import { checkUpdates, compareVersions } from './updates.ts'
 import { loadRegistry, type RegistryPlugin } from './registry.ts'
 
 const UPDATES_PACKAGE = 'dsh-plugin-updates'
@@ -139,6 +139,20 @@ export function sliceCommitsAt(items: CommitNote[], installed: string | null): {
     out.push(commit)
   }
   return { items: out, found: false }
+}
+
+/**
+ * The version a release tag names, when it names one.
+ *
+ * Tags come as `v1.2.3`, `1.2.3`, `@scope/pkg@1.2.3` or `pkg-v1.2.3`; the
+ * FIRST semver-shaped run is the version in all of them. A tag that names no
+ * version (`nightly`) returns null, and callers must treat "unknown" as "do
+ * not judge" rather than "older".
+ */
+export function releaseVersionOf(tag: string | null): string | null {
+  if (tag === null) return null
+  const match = /(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/.exec(tag)
+  return match?.[1] ?? null
 }
 
 /** The repo url key an entry's update notes live under, or null. */
@@ -450,7 +464,23 @@ export async function updateNotesFor(
     }
 
     if (entry?.release !== undefined && entry.release !== null && (entry.release.body !== '' || entry.release.tag !== null)) {
-      return { kind: 'release', release: entry.release }
+      // The release feed is a DAILY snapshot while the update target is read
+      // live from npm, so the snapshot's newest release is often the version
+      // already installed (or older). Showing it next to "1.66.39 → 1.66.40"
+      // describes a change the user already has (#925). When the release
+      // names a version no newer than the installed one AND a better tier
+      // exists, take the better tier: the commit tail is sliced at this
+      // install's sha, and npm publish times are newer than the install by
+      // construction. With nothing better, the stale release still beats an
+      // empty dialog.
+      const installed = readInstalledVersion(profile, name, activeProfileDir)
+      const released = releaseVersionOf(entry.release.tag)
+      const behind = installed !== null && released !== null
+        && (compareVersions(released, installed) ?? 0) <= 0
+      const hasCommits = (entry.commits?.length ?? 0) > 0
+      if (!(behind && (hasCommits || (specKey === null && npmName !== null)))) {
+        return { kind: 'release', release: entry.release }
+      }
     }
     if (entry?.commits !== undefined && entry.commits.length > 0) {
       return { kind: 'commits', commits: sliceCommitsAt(entry.commits, current) }

@@ -2,7 +2,7 @@ import { projectForBoundSession } from './orchestration.ts'
 
 type Agent = {
   id?: string
-  session?: { id?: string; header?: { cwd?: string; parentSession?: string } }
+  session?: { id?: string; header?: { cwd?: string; parentSession?: string; origin?: string } }
   ctx?: { tools?: { restrict: (filter: { deny: string[] }) => () => void }; get?: (name: string) => any }
 }
 
@@ -16,7 +16,7 @@ export function businessContextForAgent(agent?: Agent, get?: (name: string) => a
     const cwd = session.header?.cwd
     const project = cwd && projectForBoundSession(cwd, sessionId)
     if (project) return { project, cwd: cwd!, sessionId }
-    const parentId = session.header?.parentSession
+    const parentId = session.header?.origin === 'subagent' ? session.header.parentSession : undefined
     if (!parentId) break
     const parentProject = cwd && projectForBoundSession(cwd, parentId)
     if (parentProject) return { project: parentProject, cwd: cwd!, sessionId: parentId }

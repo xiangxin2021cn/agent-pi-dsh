@@ -32,6 +32,7 @@ import {
   type PluginCommandRuntime,
 } from './dsh-cli.ts'
 import { packageOfEntryName } from './entry-identity.ts'
+import { PendingRowJournal, repairOrphanedRows } from './pending-rows.ts'
 import { addProfileBundle, bundleOptOutRowIds, bundlePatchInsertedIds, bundlesDroppedFromProfile, declareProfileDependency, dropFromManifest, generationManagedNames, hasLoadableEntry, holdsNativeAddon, INBOX_BUNDLES, isDshProfileName, profileDir, readDependencyOwners, readGitResolutionCommit, readInstalled, readInstalledManifest, readInstalledPackageName, readInstalledRepoEvidence, readInstalledVersion, readLockCommits, readProfileBundles, readProfileManifestSnapshot, removeProfileBundle, restoreProfileManifest, setAllowBuilds, type ProfileManifestSnapshot } from './profile.ts'
 import { assessProfile, classifyPeer, introducedDuplicateNames, introducedRisks, type CompatibilityRisk } from './compatibility.ts'
 import { runningAgentIds, type AgentsLookup } from './agents.ts'
@@ -42,7 +43,7 @@ import { createProfileSnapshot, DEFAULT_MAX_SNAPSHOTS, deleteSnapshot, listSnaps
 import { readHostRecoveryView, restoreHostRecoveryBackup } from './host-recovery.ts'
 import { trialValidate } from './trial.ts'
 import { catalogRepoKey, findCatalogEntryForLocal, findInstalledAlias, gitCommitOfTarget, githubCommitOfTarget, githubTargetAtCommit, gitAllowBuildsKey, gitRefOfTarget, gitTargetAtCommit, gitUpdateTarget, hostedRepoKey, lookupRepoFromUrl, pinnedAllowBuildsKeys, installTargetFor, isGenerationLink, isLocalSpec, NPM_NAME_RE, repoOfTarget, restoreBlockedByWorkspace, restoreTargetForLocal, sourceFallbackFor, workspaceProtocolDeps } from './sources.ts'
-import { failureDetail, groupConflictsByOwner, isStaleUpdate, parseIgnoredBuildEntries, parseIgnoredBuilds, parsePrepareKey, parsePrepareNotAllowed, pnpmBlockedByOpenFiles, pnpmNeverStarted, RELEASE_AGE_OVERRIDE, removeDanglingHostBridge, retargetCollections, validateAddedPlugins, withHoistRecovery } from './install.ts'
+import { failureDetail, groupConflictsByOwner, installApplied, isHostPortCollision, isStaleUpdate, parseIgnoredBuildEntries, parseIgnoredBuilds, parsePrepareKey, parsePrepareNotAllowed, pnpmBlockedByOpenFiles, pnpmNeverStarted, pnpmRefusedYoungRelease, RELEASE_AGE_OVERRIDE, removeDanglingHostBridge, retargetCollections, updateApplied, validateAddedPlugins, withHoistRecovery } from './install.ts'
 import { classifyPnpmFailure } from './pnpm-compat.ts'
 import { asChannel, CHANNELS, DIST_TAG, resolveChannel, type Channel } from './channels.ts'
 import {
@@ -56,15 +57,15 @@ import { checkUpdates, isUpdatablePlugin, compareVersions, fetchNpmLatest, inval
 import { createThemeManager, type LoaderEntry } from './themes.ts'
 import { readJsonBody, refuseUnadmitted, sameOrigin, sendJson } from './http.ts'
 import { resolveDshHome } from './home-paths.ts'
-import { detectedDebugger, detectedSupervisor, restartAllowed, scheduleRestart, servingPort, trustedRestartRequest, trustedDownloadRequest, type RecoveryHandoffConfig, restartReachableFrom } from './restart.ts'
+import { detectedDebugger, detectedSupervisor, restartAllowed, scheduleRestart, servingPort, trustedRestartRequest, trustedDownloadRequest, trustedSelfUninstallRequest, selfUninstallReachableFrom, type RecoveryHandoffConfig, restartReachableFrom } from './restart.ts'
 import type { RecoveryPlugin } from './recovery.ts'
-import { activationAfterReplace, brokenClientBundles, bundlePatchIsEmpty, checkClientBundle, defaultHostRuntimeFacts, findUnservedConfigNamespaces, hasHostHalf, hostPeerGate, newlyBrokenBundles, peerGateRemedy, verifyActivation } from './verify.ts'
+import { activationAfterReplace, brokenClientBundles, bundlePatchIsEmpty, checkClientBundle, defaultHostRuntimeFacts, findUnservedConfigNamespaces, hasHostHalf, hostPeerGate, isDeclaredLibraryDsh, newlyBrokenBundles, peerGateRemedy, verifyActivation } from './verify.ts'
 import {
-  carrierDisableIds, disableRow, enableRow, findUserPatchPath, foreignRowIds, isProtectedModule, packagePatchFlags,
+  carrierRowIds, disableRow, enableRow, findUserPatchPath, foreignRowIds, isProtectedModule, packagePatchFlags,
   readUserPatchState, removeRowBlocks, rowIdsForPackage, userPatchPackageReferences,
 } from './patch.ts'
 import {
-  createProfileBackup, downloadWebdav, MAX_BACKUP_BYTES, mergeRestoreManifest, restoreProfileBackup, secretFileCount, unportableDeps, uploadWebdav,
+  createProfileBackup, downloadWebdav, MAX_BACKUP_BYTES, mergeRestoreManifest, restoreProfileBackup, secretFileCount, unportableDeps, uploadWebdav, WebdavUrlError,
   type ProfileBackup,
 } from './backup.ts'
 import {
@@ -452,6 +453,14 @@ function pnpmFailureMessage(result: { exitCode: number | null; stdout: string; s
   const failure = classifyPnpmFailure(`${result.stderr}\n${result.stdout}`, result.exitCode)
   if (failure === null) return undefined
   if (failure.code === 'ignored-builds' || failure.code === 'git-prepare-not-allowed') return undefined
+  // Desktop release-age note is already the actionable sentence (#919). Do
+  // not cover it with the classifier's "market already retried" claim —
+  // install/uninstall fall through to stderr via failureText when error is
+  // undefined.
+  if (failure.code === 'release-age-violation'
+    && /没有自动重试|no automatic retry happens here/.test(`${result.stderr}\n${result.stdout}`)) {
+    return undefined
+  }
   return failure.message
 }
 
@@ -485,6 +494,18 @@ export function mountMarketRoutes(
     throw new Error(message)
   }
   const activeProfileDir = profileDir(config.profile, config.profileDirectory)
+  // #987: a remove that died between deleting the package and clearing the
+  // rows its bundle patch declares leaves an insert naming a missing module —
+  // and DSH's boot is all-or-nothing, so that row can keep the host from
+  // starting at all. The intent was journaled before the destructive step;
+  // settle it now, against what the profile actually holds.
+  try {
+    const settled = repairOrphanedRows({ profile: config.profile, profileDirectory: activeProfileDir })
+    if (settled.removed.length > 0) logEvent('info', 'uninstall', `cleared patch rows left by an interrupted uninstall: ${settled.removed.join(', ')}`)
+    if (settled.failed.length > 0) logEvent('warn', 'uninstall', `patch rows from an interrupted uninstall could not be cleared, will retry: ${settled.failed.join(', ')}`)
+  } catch (error) {
+    logEvent('warn', 'uninstall', `could not settle interrupted uninstall rows — ${error instanceof Error ? error.message : String(error)}`)
+  }
   const analyzeActiveProfile = () => analyzeProfile(activeProfileDir, {
     ...(config.dshInstallDir === undefined ? {} : { dshInstallDir: config.dshInstallDir }),
   })
@@ -940,7 +961,8 @@ export function mountMarketRoutes(
     /** The subset a user decision can be read from (#876). */
     userRows: string[]
     patchWrite: { ok: boolean; reason: string | null } | null
-    disablesOthers: string[]
+    /** Foreign rows this bundle rewires: disabled or given a new inject (#224, #938). */
+    carrierRows: string[]
     isCarrier: boolean
     bundleSwitch: { ok: boolean; reason: string | null }
   }> {
@@ -973,9 +995,9 @@ export function mountMarketRoutes(
     // A bundle that merely reconfigures a neighbour (config without
     // disabled) is NOT dropped: #147 requires disabling it to leave the
     // neighbour live, and the e2e fixture-cross re-enable breaks otherwise.
-    const disablesOthers = carrierDisableIds(activeProfileDir, name)
+    const carrierRows = carrierRowIds(activeProfileDir, name)
     const foreignRows = foreignRowIds(activeProfileDir, name)
-    const isCarrier = disablesOthers.length > 0
+    const isCarrier = carrierRows.length > 0
     // Both layers, or neither (#696 B). `dsh.profile.bundles` is the
     // package-level declaration the official plugins page's switch reads
     // and the loader composes; the patch rows above are the runtime
@@ -1005,7 +1027,7 @@ export function mountMarketRoutes(
           ? addProfileBundle(activeProfileDir, name)
           : removeProfileBundle(activeProfileDir, name)
         logEvent('info', 'toggle', isCarrier
-          ? `${name}: disable-carrier ${enabled ? 're-added to' : 'removed from'} dsh.profile.bundles (disables: ${disablesOthers.join(', ')})`
+          ? `${name}: disable-carrier ${enabled ? 're-added to' : 'removed from'} dsh.profile.bundles (carrier rows: ${carrierRows.join(', ')})`
           : reBundle
             ? `${name}: re-added to dsh.profile.bundles, which nothing was composing (#696)`
             : `${name}: dsh.profile.bundles ${enabled ? 're-added' : 'removed'} so the official page's package switch agrees (#696)`)
@@ -1100,7 +1122,7 @@ export function mountMarketRoutes(
       }
     }
     logEvent(ok ? 'info' : 'error', 'toggle', `${name}: ${enabled ? 'on' : 'off'} ok=${String(ok)}`)
-    return { ok, reason, patchRows, userRows, patchWrite, disablesOthers, isCarrier, bundleSwitch }
+    return { ok, reason, patchRows, userRows, patchWrite, carrierRows, isCarrier, bundleSwitch }
   }
 
   /**
@@ -1127,7 +1149,7 @@ export function mountMarketRoutes(
     const plugins: RecoveryPlugin[] = []
     for (const name of names) {
       const rows = rowIdsForPackage(host, activeProfileDir, name)
-      const carrier = carrierDisableIds(activeProfileDir, name).length > 0
+      const carrier = carrierRowIds(activeProfileDir, name).length > 0
       if (rows.length === 0 && !carrier) continue
       const isProtected = isProtectedModule(name)
       plugins.push({
@@ -1183,6 +1205,27 @@ export function mountMarketRoutes(
       }
     }
     return live
+  }
+
+  /** A disabled loader row has no fiber but still makes its package switchable. */
+  function loaderEntryObserved(name: string): boolean {
+    const entries = [...host.loader.entries()]
+    if (entries.some(entry => {
+      const entryName = entry.options.name
+      return typeof entryName === 'string' && (entryName === name || packageOfEntryName(entryName) === name)
+    })) return true
+    const ownedRows = new Set(rowIdsForPackage(host, activeProfileDir, name))
+    return entries.some(entry => {
+      const id = entry.options.id
+      return typeof id === 'string' && ownedRows.has(id.split(':').pop() ?? id)
+    })
+  }
+
+  function isNonToggleableLibrary(name: string): boolean {
+    const manifest = readInstalledManifest(config.profile, name, activeProfileDir) as { dsh?: { kind?: unknown; bundle?: unknown; client?: unknown } } | null
+    if (!isDeclaredLibraryDsh(manifest?.dsh)) return false
+    return verifyActivation(config.profile, name, liveNames(), activeProfileDir, disabled.has(name), undefined,
+      loaderEntryObserved(name)).library === true
   }
 
   /**
@@ -1631,8 +1674,15 @@ export function mountMarketRoutes(
     // deletes. Read afterwards this returns [] and the rows survive the
     // package as boot-time orphans (#799).
     const ownedRows = rowIdsForPackage(host, activeProfileDir, name)
+    // #987: written down before the destructive step, because the process can
+    // be unloaded between the remove and the cleanup below — and a row whose
+    // package is gone can stop the next boot.
+    const rowJournal = PendingRowJournal.forProfile(activeProfileDir)
+    rowJournal.begin({ profile: config.profile, name, patchPath: userPatchPath, rows: ownedRows })
     const result = await runPlugin(config.profile, ['remove', name])
     if (result.exitCode !== 0 || result.timedOut || result.cancelled) {
+      // Nothing was removed: the rows are still configuration, not orphans.
+      rowJournal.finish(config.profile, name)
       return { ok: false, hot: false, detail: failureDetail(result) }
     }
     // A host that owns the composition replays it instead of being
@@ -1660,6 +1710,7 @@ export function mountMarketRoutes(
     }
     const cleanedOwned = removeRowBlocks(userPatchPath, ownedRows)
     if (!cleanedOwned.ok) logEvent('warn', 'uninstall', `patch rows could not be cleared — ${cleanedOwned.reason}`)
+    else rowJournal.finish(config.profile, name)
     disabled.delete(name)
     replacedWhileLive.delete(name)
     removeFromGroups({ groups, groupOrder }, name)
@@ -2047,6 +2098,12 @@ export function mountMarketRoutes(
         version,
         requirement: verdict.requirement,
         hostVersion: host?.version ?? null,
+        // #923: the client's "find a compatible version" search is keyed by
+        // the npm name, and the install branch could fall back to the catalog
+        // entry's `npm` while the update branch had nothing. The value is
+        // already here — it is this function's first argument and the key the
+        // registry lookup above used — so publish it.
+        npmName,
       },
       error: nothingWasInstalled
         ? `${displayName} ${version ?? ''} 要求的 DSH 版本是 ${verdict.requirement ?? '未知'}，而当前运行的是 ${host?.version ?? '未知版本'}，装上多半会直接报错。已停止，没有安装任何东西。 / ${displayName} ${version ?? ''} declares it needs DSH ${verdict.requirement ?? '(unknown)'}, and this host is ${host?.version ?? 'unknown'}; installing it would most likely break the plugin. Nothing was installed.`
@@ -2145,7 +2202,7 @@ export function mountMarketRoutes(
         }
         try {
           const { channelFor, onlineSourceFor, catalogNpmByRepo } = await updateCheckInputs()
-          const updates = await checkUpdates(config.profile, forceCheckFrom(request), activeProfileDir, channelFor, onlineSourceFor, catalogNpmByRepo)
+          const updates = await checkUpdates(config.profile, forceCheckFrom(request), activeProfileDir, channelFor, onlineSourceFor, catalogNpmByRepo, { holdYoungReleases: config.desktopHost === true })
           // `packages` carries the same objects the single-package endpoint
           // returns, so one parser serves both. Only updatable ones: a badge
           // wants the count, a panel wants the rows, and neither wants to
@@ -2192,7 +2249,7 @@ export function mountMarketRoutes(
             // or a catalog-matched local package answers here with the
             // release it can be compared against rather than with nothing.
             const { channelFor, onlineSourceFor, catalogNpmByRepo } = await updateCheckInputs()
-            const update = (await checkUpdates(config.profile, force, activeProfileDir, channelFor, onlineSourceFor, catalogNpmByRepo))[name]
+            const update = (await checkUpdates(config.profile, force, activeProfileDir, channelFor, onlineSourceFor, catalogNpmByRepo, { holdYoungReleases: config.desktopHost === true }))[name]
             if (update === undefined) {
               sendJson(response, 404, { schema: UPDATE_API_V1_SCHEMA, error: 'plugin is not installed' })
               return
@@ -2446,7 +2503,14 @@ export function mountMarketRoutes(
             sendJson(response, 200, { ok: true, backup: await downloadWebdav(url, username, password) })
           } else sendJson(response, 400, { error: 'invalid WebDAV action' })
         } catch (error) {
-          sendJson(response, 400, { error: error instanceof Error ? error.message : String(error) })
+          // #999: a refusal that is not "the URL is wrong" says so — the code
+          // and the address it resolved to ride along, so the UI (and any bug
+          // report quoting the response) can tell a bad URL from a fake-ip
+          // resolver answering 198.18.x.x for every host.
+          const webdav = error instanceof WebdavUrlError
+            ? { code: error.code, ...(error.address === undefined ? {} : { address: error.address }) }
+            : {}
+          sendJson(response, 400, { error: error instanceof Error ? error.message : String(error), ...webdav })
         }
       },
     }),
@@ -2694,9 +2758,12 @@ export function mountMarketRoutes(
             && !bundlePatchIsEmpty(join(activeProfileDir, 'node_modules', name))
         })
         for (const name of Object.keys(installed)) {
+          const manifest = installedManifests.get(name) as { dsh?: { kind?: unknown; bundle?: unknown; client?: unknown } } | null | undefined
           const result = activationAfterReplace(
             verifyActivation(config.profile, name, live, activeProfileDir,
-              disabled.has(name) || patchFlags.disabled.includes(name) || unbundled.includes(name)),
+              disabled.has(name) || patchFlags.disabled.includes(name) || unbundled.includes(name),
+              undefined,
+              isDeclaredLibraryDsh(manifest?.dsh) && loaderEntryObserved(name)),
             replacedWhileLive.has(name),
           )
           // A package with no dsh surface of its own, outside the bundle
@@ -3225,6 +3292,10 @@ export function mountMarketRoutes(
               sendJson(response, 400, { error: 'plugin is not installed' })
               return
             }
+            if (isNonToggleableLibrary(name)) {
+              sendJson(response, 400, { error: '这是供插件使用的依赖库，无需启用或停用 / this library is for plugins to use; it has no on/off switch' })
+              return
+            }
           // Host infrastructure (port of dsh-plugin-hub): switching off the
           // timer/hmr/webserver/storage chain would break the very HMR the
           // patch layer relies on, so those rows refuse to toggle.
@@ -3270,7 +3341,7 @@ export function mountMarketRoutes(
           const layers = await switchPluginLayers(name, enabled, ok, reason)
           ok = layers.ok
           reason = layers.reason
-          const { patchRows, userRows, patchWrite, disablesOthers, isCarrier, bundleSwitch } = layers
+          const { patchRows, userRows, patchWrite, carrierRows, isCarrier, bundleSwitch } = layers
           // Activation reads the post-write truth: the switch state OR the
           // patch layer, so a disabled plugin never reports "restart to
           // apply".
@@ -3310,14 +3381,15 @@ export function mountMarketRoutes(
               // activationAfterReplace — said `restart`. One moment, one story.
               activation: {
                 [name]: activationAfterReplace(
-                  verifyActivation(config.profile, name, liveNames(), activeProfileDir, offNow),
+                  verifyActivation(config.profile, name, liveNames(), activeProfileDir, offNow, undefined,
+                    loaderEntryObserved(name)),
                   replacedWhileLive.has(name),
                 ),
               },
               reason,
               patchRows,
               patchWrite: patchWrite ?? { ok: true, reason: null },
-              carrier: disablesOthers,
+              carrier: carrierRows,
               bundleSwitch,
               restart,
               refresh,
@@ -3640,6 +3712,7 @@ export function mountMarketRoutes(
             const failures: string[] = []
             for (const member of groups[name]) {
               if (!installed.has(member)) continue
+              if (isNonToggleableLibrary(member)) continue
               let result: { ok: boolean; reason?: string }
               if (enabled && themeNames.has(member)) {
                 result = { ok: await themes.activateTheme(member), reason: undefined }
@@ -3751,6 +3824,7 @@ export function mountMarketRoutes(
           // by the user — the card explains a choice it made on their behalf
           // exactly once, so nobody has to wonder why downloads moved.
           regionAuto,
+          sidebarEntry: marketState.sidebarEntry === true,
           restart: restartAllowed(config),
           // Named so the UI can say WHY the button is gone. A blank
           // "no restart button" is the state #229 reported as broken.
@@ -3765,6 +3839,9 @@ export function mountMarketRoutes(
           // Deliberately NOT folded into `restart`, which is also what the
           // settings page reads and writes back as the user's own choice.
           restartReachable: restartReachableFrom(request),
+          // Same door, one notch wider for the desktop proxy (#903): the
+          // card hides a remove button that could only ever answer 403.
+          selfUninstallReachable: selfUninstallReachableFrom(request),
           selfManaged: installed.dshmarket !== undefined || installed['dsh-market'] !== undefined,
           // Whether the host took the market's settings namespace (#677).
           // `unsupported-by-host` is 0.1.7 and newer, where settings come from
@@ -3869,7 +3946,7 @@ export function mountMarketRoutes(
           } catch (error) {
             logEvent('warn', 'updates', `package source lookup failed — ${error instanceof Error ? error.message : String(error)}`)
           }
-          const updates = await checkUpdates(config.profile, force, activeProfileDir, channelFor, onlineSourceFor, catalogNpmByRepo)
+          const updates = await checkUpdates(config.profile, force, activeProfileDir, channelFor, onlineSourceFor, catalogNpmByRepo, { holdYoungReleases: config.desktopHost === true })
           for (const [name, migration] of sourceMigrationFor) {
             const status = updates[name]
             if (status !== undefined) updates[name] = { ...status, sourceMigration: migration }
@@ -4686,6 +4763,12 @@ sendJson(response, 200, { updates })
             if (pinnedForIdentification) {
               declareProfileDependency(config.profile, name, pinValue, activeProfileDir)
             }
+            // #928: an update is remove-then-add, and a host killed between
+            // the two leaves a package that is simply gone — with no record
+            // of what was being attempted, because the completion log never
+            // runs. Write the intent first, so the log can answer "where did
+            // my plugin go" after the fact.
+            logEvent('info', 'update-start', `${name} -> ${target} (profile ${config.profile})`)
             const result = await runPlugin(config.profile, addArgs)
             const cancelled = result.cancelled
             // The pin above is the market's own write, so it is undone whenever
@@ -4816,8 +4899,44 @@ sendJson(response, 200, { updates })
                 `${name}: ${reason}; removed from the profile's dependencies and dsh.profile.bundles so the next start can compose — reinstall it from the market after quitting DSH`
                 + (dropped ? '' : ' (nothing to drop: the profile did not declare it under either key)'))
             }
+            if (result.repairOnRestart === true) {
+              // The manager stopped answering and may already have removed the
+              // package. Restoring through it would block on the profile lock
+              // it still holds, so the journal repairs the profile on the next
+              // start instead (#928).
+              logEvent('warn', 'update',
+                `${name}: the desktop manager did not settle; the removal will be finished or undone on the next start`)
+            }
             if ((result.exitCode !== 0 || result.timedOut) && !cancelled && result.busy !== true
-              && !pnpmNeverStarted(result)) {
+              && !pnpmNeverStarted(result)
+              // The manager never settled (#928): the profile may be
+              // half-updated, and its write lock is still held by whatever
+              // stopped answering. Nothing the route can do here can restore
+              // it; the market's journal does that on the next start.
+              && result.repairOnRestart !== true
+              // The host refused before running pnpm (#897): nothing was
+              // written, so there is nothing to restore — and the "could not
+              // verify restoration, inspect this profile" warning this block
+              // raises on a failed rollback would be alarm about an untouched
+              // profile.
+              && result.wroteNothing !== true
+              // pnpm ran, then refused a too-young release without writing
+              // (#919). Same untouched profile; skipping the rollback keeps
+              // the release-age reason visible instead of covering it with a
+              // false "restoration could not be verified" alarm.
+              && !pnpmRefusedYoungRelease(result)
+              // The child booted the profile again and lost the host port
+              // AFTER pnpm wrote this update (#975). Rolling back would
+              // undo a build that is already on disk.
+              && !(isHostPortCollision(result) && updateApplied({
+                profile: config.profile,
+                name,
+                isGit,
+                beforeVersion,
+                beforeCommit,
+                spec,
+                explicitDir: activeProfileDir,
+              }))) {
               if (pnpmBlockedByOpenFiles(result)) {
                 const kept = keepLockedBuild()
                 rollbackOk = kept.ok
@@ -4871,6 +4990,18 @@ sendJson(response, 200, { updates })
               }
             }
             let ok = result.exitCode === 0 && !result.timedOut && !cancelled
+            if (!ok && !cancelled && isHostPortCollision(result) && updateApplied({
+              profile: config.profile,
+              name,
+              isGit,
+              beforeVersion,
+              beforeCommit,
+              spec,
+              explicitDir: activeProfileDir,
+            })) {
+              ok = true
+              logEvent('info', 'update', `${name}: command exited after the host port was already in use; the new build is on disk, treating as success (#975)`)
+            }
             let stale = false
             let versionFailureCode: 'DOWNGRADE_DETECTED' | 'RESOLVED_VERSION_MISMATCH' | null = null
             let versionFailureError: string | null = null
@@ -5068,8 +5199,12 @@ sendJson(response, 200, { updates })
                   ...brokenClientBundles(config.profile, activeProfileDir),
                 ].filter((entry, index, all) => all.findIndex(other => other.name === entry.name) === index),
               )
-              if (risks.length > 0 || shadowed.length > 0 || brokenBundles.length > 0) {
-                const rollbackId = rollbackPlan.available
+              const needsRollback = risks.length > 0 || brokenBundles.length > 0
+              // Shadowing alone stays informational (#913): still reported so the
+              // operator can look, but it proves nothing broke — so it must not
+              // arm a rollback button or claim the previous state was lost.
+              if (needsRollback || shadowed.length > 0) {
+                const rollbackId = needsRollback && rollbackPlan.available
                   ? savePendingRollback({
                       kind: 'update',
                       names: [name],
@@ -5082,13 +5217,15 @@ sendJson(response, 200, { updates })
                   risks,
                   shadowedNames: shadowed.length > 0 ? shadowed : undefined,
                   brokenBundles: brokenBundles.length > 0 ? brokenBundles : undefined,
-                  ...(rollbackId !== null
-                    ? { rollbackId }
-                    : {
+                  ...(needsRollback
+                    ? rollbackId !== null
+                      ? { rollbackId }
+                      : {
                         rollbackUnavailable: rollbackPlan.available
                           ? `更新完成后无法安全捕获 profile 状态（${previousVersionZh}），因此自动回滚不可用；需要时请从可信来源手工重新安装先前版本。 / The post-update profile state could not be captured safely (${previousVersionEn}), so automatic rollback is unavailable. Reinstall the prior version manually from a trusted source if needed.`
                           : rollbackPlan.detail,
-                      }),
+                        }
+                    : {}),
                 }
                 if (brokenBundles.length > 0) {
                   logEvent('error', 'update-bundle', `${brokenBundles.map(entry => `${entry.name}: ${entry.reason}`).join('; ')}`)
@@ -5154,6 +5291,24 @@ sendJson(response, 200, { updates })
               logEvent('warn', 'update-bundles-dropped',
                 `${name}: after this update ${droppedBundles.join(', ')} ${droppedBundles.length === 1 ? 'is' : 'are'} still declared in dependencies but no longer in dsh.profile.bundles, so ${droppedBundles.length === 1 ? 'it' : 'they'} will not load — the market did not write that change (#720)`)
             }
+            // #935: the desktop manager's removeBundle writes the bundle row
+            // out FIRST and only then checks whether a live fiber still uses
+            // the package — so a `bundle-in-use` refusal leaves the row gone
+            // while dependencies and node_modules stay. The plugin keeps
+            // running this session and silently fails to load next boot.
+            // Restore the row, scoped to exactly that refusal and to this
+            // operation's own target: the read-only stance in #720/#696
+            // still holds for every other way a row can disappear.
+            if (!ok && !cancelled && result.refusalCode === 'bundle-in-use') {
+              const targetRowDropped = bundlesDroppedFromProfile(
+                manifestBefore, config.profile, activeProfileDir,
+                new Set(removedDeclaration === null ? [] : [removedDeclaration.name]),
+              ).includes(name)
+              if (targetRowDropped && addProfileBundle(activeProfileDir, name)) {
+                logEvent('warn', 'update-bundles-restored',
+                  `${name}: the desktop app removed its bundle row before refusing the update (bundle-in-use) — restored it so the plugin still loads on the next boot (#935)`)
+              }
+            }
             logEvent(ok || cancelled ? 'info' : 'error', 'update',
               `${name} -> ${target} exit=${String(result.exitCode)}${result.timedOut ? ' TIMEOUT' : ''}${cancelled ? ' CANCELLED' : ''}${stale ? ` STALE(${staleReason ?? 'unknown'})` : ''}${ok || cancelled ? '' : ` err=${failureDetail(result)}`}`)
             // A user-cancelled run is a quiet outcome, not an error.
@@ -5172,14 +5327,31 @@ sendJson(response, 200, { updates })
               // ever sees this when something really is unbootable.
               ...(() => { const orphans = orphanBundles(); return orphans.length > 0 ? { orphanBundles: orphans } : {} })(),
               staleReason: staleReason ?? undefined,
-              failureCode: versionFailureCode ?? undefined,
+              // The host's own refusal code when it stopped before pnpm
+              // (#909): `market-self-update` tells a client that the button
+              // cannot work on this host, not that the update was broken.
+              failureCode: versionFailureCode ?? result.refusalCode ?? undefined,
               renamedTo: renamedTo ?? undefined,
               removedDeclaration: removedDeclaration ?? undefined,
               ...(droppedBundles.length > 0 ? { droppedBundles } : {}),
               // Last, so the specific ones above keep the floor they had: this
               // only fills the case where every named branch said nothing and
               // the user would otherwise get pnpm's stack (#848).
-              error: versionFailureError ?? renamedError ?? trialError ?? brokenEntryError ?? hardFailureRollbackError ?? staleError ?? pnpmFailureMessage(result) ?? undefined,
+              // The host's own refusal sentence (#897): when it stopped
+              // before running pnpm there is no classifier for its words and
+              // no rollback behind it, so without this the answer carried no
+              // reason at all.
+              // Release-age on Desktop (#919): withHoistRecovery already wrote
+              // the wait note into stderr (and stripped the false "already
+              // retried" classifier). Prefer that over pnpmFailureMessage,
+              // which would re-surface the classifier alone — the client
+              // shows body.error first.
+              error: versionFailureError ?? renamedError ?? trialError ?? brokenEntryError
+                ?? (result.repairOnRestart === true && result.stderr.trim() !== '' ? result.stderr.trim() : undefined)
+                ?? hardFailureRollbackError ?? staleError
+                ?? (result.wroteNothing === true && result.stderr.trim() !== '' ? result.stderr.trim() : undefined)
+                ?? (pnpmRefusedYoungRelease(result) && result.stderr.trim() !== '' ? result.stderr.trim() : undefined)
+                ?? pnpmFailureMessage(result) ?? undefined,
               exitCode: result.exitCode,
               timedOut: result.timedOut,
               stdout: result.stdout,
@@ -5325,6 +5497,55 @@ sendJson(response, 200, { updates })
     }),
 
     /**
+     * Whether the market also has its own row in the sidebar (#846).
+     *
+     * GET as well as POST: the browser half decides whether to register the
+     * row on every page load, and `/dsh-market/status` probes pnpm on each
+     * call — too much to pay before a sidebar row can appear.
+     *
+     * Written through the long-lived `marketState` like the region, so a
+     * later write from that object cannot put the old answer back (#435).
+     */
+    registerRoute({
+      kind: 'exact',
+      path: '/dsh-market/sidebar-entry',
+      handler: async (request, response) => {
+        if (request.method === 'GET') {
+          sendJson(response, 200, {
+            enabled: marketState.sidebarEntry === true,
+            // Absent means nobody has ever chosen. On a host with no settings
+            // page the row is then shown by default, because it is the only
+            // way into the market (#846).
+            chosen: typeof marketState.sidebarEntry === 'boolean',
+          })
+          return
+        }
+        if (request.method !== 'POST') {
+          response.writeHead(405, { allow: 'GET, POST' })
+          response.end()
+          return
+        }
+        if (!sameOrigin(request)) {
+          sendJson(response, 403, { error: 'untrusted origin' })
+          return
+        }
+        try {
+          const body = (await readJsonBody(request)) as { enabled?: unknown }
+          if (typeof body.enabled !== 'boolean') {
+            sendJson(response, 400, { error: 'enabled must be true or false' })
+            return
+          }
+          marketState.sidebarEntry = body.enabled
+          writeMarketState(activeProfileDir, marketState)
+          logEvent('info', 'sidebar', `sidebar entry ${body.enabled ? 'on' : 'off'}`)
+          sendJson(response, 200, { ok: true, enabled: body.enabled })
+        } catch (error) {
+          sendJson(response, 500, { error: error instanceof Error ? error.message : String(error) })
+        }
+      },
+    }),
+
+    /**
      * Last-resort GitHub prefix for networks where every built-in route is
      * unavailable. It is one escape hatch, not three service-level knobs;
      * the service ordering itself remains maintained by the routing table.
@@ -5432,8 +5653,13 @@ sendJson(response, 200, { updates })
         // read as an extra guard while testing nothing: origin-matches-host
         // is already part of what this checks, so no request can fail one
         // and pass the other.
-        if (!trustedRestartRequest(request)) {
-          sendJson(response, 403, { error: 'self-uninstall is limited to same-origin loopback requests' })
+        if (!trustedSelfUninstallRequest(request)) {
+          // Says what to do, not only which policy refused it: this is the one
+          // button whose failure leaves the user with no other way out of the
+          // page they are looking at (#903).
+          sendJson(response, 403, {
+            error: `不能从这个地址卸载插件市场（只接受本机同源请求）。请在运行 DSH 的机器上执行 \`dsh plugin --profile ${config.profile} remove dshmarket\`；桌面端也可以在它自己的「设置 → 插件」里移除。 / The market can only be removed from the same machine it runs on. Run \`dsh plugin --profile ${config.profile} remove dshmarket\` there, or remove it from the desktop app's Settings → Plugins.`,
+          })
           return
         }
         try {
@@ -5880,9 +6106,20 @@ sendJson(response, 200, { updates })
             // it is meant to clean up after, and the rows outlive the package
             // as boot-time orphans (#799).
             const ownedRows = rowIdsForPackage(host, activeProfileDir, name)
+            // #928: the same intent record as the update path — an uninstall
+            // interrupted mid-remove leaves the same "where did it go" with no
+            // entry saying what was running.
+            logEvent('info', 'uninstall-start', `${name} (profile ${config.profile})`)
+            // #987: the rows are journaled BEFORE the remove for the same
+            // reason they are read before it — and because this process can be
+            // unloaded in between (the official Desktop replays its plugin set
+            // after a profile change), which used to leave an insert naming a
+            // package that is no longer installed.
+            const rowJournal = PendingRowJournal.forProfile(activeProfileDir)
+            rowJournal.begin({ profile: config.profile, name, patchPath: userPatchPath, rows: ownedRows })
             const result = await runPlugin(config.profile, ['remove', name])
             const cancelled = result.cancelled
-            const ok = result.exitCode === 0 && !result.timedOut && !cancelled
+            let ok = result.exitCode === 0 && !result.timedOut && !cancelled
             const cancelDiff = cancelled ? changedSince(beforeInstalled) : null
             // Half-uninstall guard: pnpm can fail a remove AFTER deleting
             // node_modules but BEFORE saving package.json (#65's write-order
@@ -5898,7 +6135,14 @@ sendJson(response, 200, { updates })
             if (halfGone) {
               reconciled = dropFromManifest(config.profile, name, activeProfileDir)
               logEvent('warn', 'uninstall', `${name}: remove failed (exit ${String(result.exitCode)}) but the package is gone from disk; ${reconciled ? 'reconciled manifest lists to match' : 'manifest lists already clean'}`)
+              // Same disk truth, but the failure is the host port collision
+              // after a successful remove (#975): report success so the
+              // client does not treat a finished uninstall as a failure.
+              if (isHostPortCollision(result)) ok = true
             }
+            // The remove did not land and nothing half-gone was found: the
+            // package (and its rows) are exactly as they were.
+            if (!ok && !halfGone && !cancelled) rowJournal.finish(config.profile, name)
             let hot = false
             if (ok || halfGone) {
               invalidateUpdates()
@@ -5945,6 +6189,10 @@ sendJson(response, 200, { updates })
               // mounts is a boot-time orphan (port of dsh-plugin-hub).
               const cleanedOwned = removeRowBlocks(userPatchPath, ownedRows)
               if (!cleanedOwned.ok) logEvent('warn', 'uninstall', `patch rows could not be cleared — ${cleanedOwned.reason}`)
+              // Either way the record is settled: cleaned means nothing is
+              // left to do, and an unclean file is reported above rather than
+              // turned into a silent retry loop on every start.
+              else rowJournal.finish(config.profile, name)
               // The disable list must not keep a removed plugin: a later
               // reinstall starts enabled. Group memberships follow the same
               // rule so no group toggle ever targets a ghost member.
@@ -6274,7 +6522,13 @@ sendJson(response, 200, { updates })
               // (a 404 for this package's own download: the classifier names
               // the last path segment, the tarball file for that URL form).
               const ownTarball = `${plainTarget.slice(plainTarget.lastIndexOf('/') + 1)}-${String(registryLatest)}.tgz`
-              const notOnMirror = (failure?.code === 'no-matching-version' && aboutThisPackage)
+              // `exact-version-missing` (#927) is the same lag shape with a
+              // clearer sentence; install still falls back to the bare name
+              // after withHoistRecovery's one same-argv retry loses.
+              const notOnMirror = (
+                (failure?.code === 'no-matching-version' || failure?.code === 'exact-version-missing')
+                && aboutThisPackage
+              )
                 || (failure?.code === 'fetch-404' && (failure.pkg === plainTarget || failure.pkg === ownTarball))
               if (heldBack || notOnMirror) {
                 // The user asked for the young release anyway. That request is
@@ -6328,7 +6582,10 @@ sendJson(response, 200, { updates })
               }
             }
             const cancelled = result.cancelled
-            if ((result.exitCode !== 0 || result.timedOut) && !cancelled) {
+            const portCollisionLanded = !cancelled
+              && isHostPortCollision(result)
+              && installApplied(config.profile, before, activeProfileDir)
+            if ((result.exitCode !== 0 || result.timedOut) && !cancelled && !portCollisionLanded) {
               const rolledBack = restoreProfileManifest(config.profile, manifestBefore, activeProfileDir)
               if (rolledBack.length > 0) logEvent('warn', 'install', `${target}: rolled back manifest residue of the failed run: ${rolledBack.join(', ')}`)
               if (lockfileBefore.ok) {
@@ -6336,7 +6593,10 @@ sendJson(response, 200, { updates })
                 if (!lock.ok) logEvent('warn', 'install', `${target}: could not restore pnpm-lock.yaml after the failed run: ${lock.detail ?? 'unknown'}`)
               }
             }
-            let ok = result.exitCode === 0 && !result.timedOut && !cancelled
+            let ok = (result.exitCode === 0 && !result.timedOut && !cancelled) || portCollisionLanded
+            if (portCollisionLanded && result.exitCode !== 0) {
+              logEvent('info', 'install', `${target}: command exited after the host port was already in use; the new plugin is on disk, treating as success (#975)`)
+            }
             const cancelDiff = cancelled ? changedSince(beforeSpecs) : null
             if (ok) invalidateUpdates()
             if (ok) {
@@ -6355,7 +6615,7 @@ sendJson(response, 200, { updates })
             let addedNothing = false
             let removedBroken: string[] = []
             let conflicts: { name: string; id: string; owner: string }[] = []
-            if (result.exitCode === 0 && !result.timedOut && !cancelled) {
+            if ((result.exitCode === 0 || portCollisionLanded) && !cancelled) {
               const validated = await validateAddedPlugins(runPlugin, config.profile, before, activeProfileDir)
               removedBroken = validated.removedBroken
               conflicts = validated.conflicts
@@ -6497,16 +6757,19 @@ sendJson(response, 200, { updates })
                   ...brokenClientBundles(config.profile, activeProfileDir),
                 ].filter((entry, index, all) => all.findIndex(other => other.name === entry.name) === index),
               )
-              if (risks.length > 0 || shadowed.length > 0 || brokenBundles.length > 0) {
-                const rollbackId = savePendingRollback({ kind: 'install', names: addedPackages })
+              const needsRollback = risks.length > 0 || brokenBundles.length > 0
+              if (needsRollback || shadowed.length > 0) {
+                const rollbackId = needsRollback ? savePendingRollback({ kind: 'install', names: addedPackages }) : null
                 compatibility = {
                   code: 'soft-incompatible',
                   risks,
                   shadowedNames: shadowed.length > 0 ? shadowed : undefined,
                   brokenBundles: brokenBundles.length > 0 ? brokenBundles : undefined,
-                  ...(rollbackId !== null
-                    ? { rollbackId }
-                    : { rollbackUnavailable: '安装完成后无法安全捕获 profile 状态，因此自动回滚不可用；需要时请手工卸载新安装的插件。 / The post-install profile state could not be captured safely, so automatic rollback is unavailable. Remove the newly installed plugin manually if needed.' }),
+                  ...(needsRollback
+                    ? rollbackId !== null
+                      ? { rollbackId }
+                      : { rollbackUnavailable: '安装完成后无法安全捕获 profile 状态，因此自动回滚不可用；需要时请手工卸载新安装的插件。 / The post-install profile state could not be captured safely, so automatic rollback is unavailable. Remove the newly installed plugin manually if needed.' }
+                    : {}),
                 }
                 if (brokenBundles.length > 0) {
                   logEvent('error', 'install-bundle', `${brokenBundles.map(entry => `${entry.name}: ${entry.reason}`).join('; ')}`)

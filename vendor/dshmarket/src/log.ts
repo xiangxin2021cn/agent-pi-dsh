@@ -14,7 +14,7 @@
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { homedir } from 'node:os'
+import { redactHomePaths } from './log-redaction.ts'
 
 export type LogLevel = 'info' | 'warn' | 'error'
 
@@ -35,8 +35,7 @@ let persistentFile: string | null = null
 let persistentBytes = 0
 
 function sanitize(text: string): string {
-  return text
-    .replaceAll(homedir(), '~')
+  return redactHomePaths(text)
     // Log-injection guard: control characters (newlines above all) would
     // forge extra lines in the exported log file. The #98 routes pass
     // user-supplied names into logEvent (bundle-order order entries, trial

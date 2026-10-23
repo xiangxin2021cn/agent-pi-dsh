@@ -3,5 +3,5 @@ import { registerEngineeringPdf } from './plugin.ts'
 
 export const name = 'agent-pi-engineering-pdf'
 export const inject = ['tools', 'systemPrompt']
-const { defineTool } = await importDsh<any>('packages/core/tools/src/index.ts')
+const { defineTool } = await importDsh<any>('packages/core/tools/lib/index.js')
 export function apply(ctx: any) { registerEngineeringPdf(ctx, defineTool) }

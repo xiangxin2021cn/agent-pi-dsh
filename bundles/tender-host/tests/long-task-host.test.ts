@@ -23,7 +23,7 @@ function fixture(t: any) {
   t.mock.method(globalThis, 'setInterval', (fn: Function) => { timer = fn; return { unref() {} } as any })
   t.mock.method(globalThis, 'clearInterval', () => {})
   const session = (id: string, parentSession?: string) => {
-    const row = Session.create(id as any, undefined, { version: SESSION_FORMAT_VERSION, id: id as any, createdAt: Date.now(), cwd, isSeeded: false, ...(parentSession ? { parentSession: parentSession as any } : {}) })
+    const row = Session.create(id as any, undefined, { version: SESSION_FORMAT_VERSION, id: id as any, createdAt: Date.now(), cwd, isSeeded: false, ...(parentSession ? { parentSession: parentSession as any, origin: 'subagent' as const } : {}) })
     sessions.set(id, row); return row
   }
   const append = (row: Session, type: any, data: any) => { const event = row.append(type, data, ...(['user/message', 'assistant/message', 'tool/result'].includes(type) ? [{ surfaceOp: 'append' as const }] : [])); listeners.get('session/event')?.(row, event); return event }

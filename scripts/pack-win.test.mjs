@@ -38,7 +38,8 @@ function makeToolchainFixture(t, npmExit = 0, { version = '3.3.5', extraArgs = [
   mkdirSync(join(nodeBin, 'node_modules', 'npm', 'bin'), { recursive: true })
   mkdirSync(globalBin, { recursive: true })
   copyFileSync(packScript, fixtureScript)
-  writeFileSync(join(desktop, 'package.json'), JSON.stringify({ version }))
+  writeFileSync(join(dir, 'package.json'), JSON.stringify({ version, agentPiProduct: { edition: 'mainline', artifactStem: 'Agent-Pi-DSH' } }))
+  writeFileSync(join(desktop, 'package.json'), JSON.stringify({ version, build: { appId: 'do.agentpi.dsh', productName: 'Agent Pi DSH', win: { executableName: 'agent-pi-DSH' } } }))
   copyFileSync(process.execPath, join(nodeBin, 'node.exe'))
   writeFileSync(join(nodeBin, 'node_modules', 'npm', 'bin', 'npm-cli.js'), [
     "const { appendFileSync, mkdirSync } = require('node:fs')",
@@ -260,4 +261,17 @@ test('runtime cleanup uses bounded native PowerShell paths, not a second shell',
 test('Windows verifies native modules using the staged and unpacked Node executables', () => {
   assert.match(prepareRuntimeSource, /& \$nodeDest[^\r\n]*verify-dsh-runtime\.mjs[^\r\n]*--native/)
   assert.match(packSource, /& \$unpackedNode[^\r\n]*verify-dsh-runtime\.mjs[^\r\n]*--native/)
+})
+
+test('compiled tender installer has independent paths, shortcuts, processes and uninstall ownership', {
+  skip: !makensis && 'makensis.exe is required for the Windows installer contract',
+}, () => {
+  const result = spawnSync(makensis, ['/PPO', '/DPRODUCT_NAME=Agent Pi DSH Tender', '/DPRODUCT_ID=do.agentpi.dsh.tender', '/DPRODUCT_EXE=agent-pi-DSH-tender', '/DPRODUCT_ARTIFACT=Agent-Pi-DSH-Tender', '/DPRODUCT_USER_DATA=agent-pi-dsh-tender-desktop', '/DPRODUCT_EDITION=tender', '/DUNINST_KEY=Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\AgentPiDSHTender', nsisScript], { cwd: dirname(nsisScript), encoding: 'utf8' })
+  assert.equal(result.status, 0, result.stderr)
+  assert.ok(result.stdout.includes('Agent Pi DSH Tender'))
+  assert.ok(result.stdout.includes('agent-pi-DSH-tender.exe'))
+  assert.ok(result.stdout.includes('AgentPiDSHTender'))
+  assert.ok(result.stdout.includes('agent-pi-dsh-tender-desktop'))
+  assert.ok(!result.stdout.includes('IMAGENAME eq agent-pi-DSH.exe'))
+  assert.ok(!result.stdout.includes('DeleteRegKey HKCU "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\AgentPi30"'))
 })

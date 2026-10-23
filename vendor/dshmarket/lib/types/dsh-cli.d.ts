@@ -161,6 +161,39 @@ export interface InstallResult {
     cancelled: boolean;
     /** Desktop's generation-wide package-operation gate rejected the start. */
     busy?: boolean;
+    /**
+     * The host refused before it ran the package manager, so the profile is
+     * exactly as it was.
+     *
+     * The update route answers a failed run by reinstalling the previous build
+     * and, when that cannot be verified, tells the user to inspect a profile
+     * nothing touched. Desktop's manager has refusals of this kind of its own —
+     * it declines a spec it considers already installed before pnpm starts
+     * (#897) — and their only true account is "nothing happened".
+     */
+    wroteNothing?: boolean;
+    /**
+     * The desktop manager stopped answering, and the profile may be
+     * half-updated: a removal it was asked to perform can already be on disk.
+     *
+     * The update route normally answers a failed run by restoring the previous
+     * build through the same manager. That is exactly wrong here — the manager
+     * is what stopped answering, and its profile write lock is still held — so
+     * the route leaves the profile alone and the market's journal
+     * (`src/pending-updates.ts`) finishes or undoes the removal on the next
+     * start (#928).
+     */
+    repairOnRestart?: boolean;
+    /**
+     * The host's own refusal code, when it stopped before running pnpm.
+     *
+     * The desktop manager answers with structured codes — `already-installed`,
+     * `bundle-in-use`, `market-self-update` — but they used to survive only as
+     * text inside `stderr`. The update route forwards this to `failureCode`,
+     * so a client can tell "the market cannot update itself here" (#909) from
+     * an ordinary failure without parsing a sentence.
+     */
+    refusalCode?: string;
     /** Package names pnpm reported as having ignored build scripts (ndjson). */
     ignoredBuilds?: string[];
     /**
@@ -278,6 +311,21 @@ export interface DesktopPluginRuntime extends PluginCommandRuntime {
  * (Contributed in #7 by @mraing.)
  */
 export declare function killChild(child: ChildProcess): void;
+/**
+ * Remove the profile's `package.json.lock` when it is provably ours (#914).
+ *
+ * The dsh CLI writes that lock through the host's atomic-write, whose
+ * `finally` releases it. A timeout kills the whole tree with `taskkill /F`,
+ * so that release never runs and the file outlives the child — and on
+ * Windows the host cannot reliably tell a dead PID from a live one, so every
+ * later change waits the full lock timeout and fails.
+ *
+ * Only a lock naming OUR killed child is removed: that PID is provably dead
+ * because we just killed its whole tree, and it cannot belong to another
+ * operation. A lock naming anything else is left for the classifier to name
+ * (#914), because deleting a live operation's lock would race it.
+ */
+export declare function clearOwnedProfileLock(profile: string, pid: number | undefined): boolean;
 /**
  * Cancel the plugin command currently running.
  * @returns true when there was one to cancel.
@@ -399,6 +447,18 @@ export declare const BOOT_ID: string;
  * rejected — the win32 bare-dsh fallback is the reason to keep them out).
  */
 export declare const TARGET_RE: RegExp;
+/**
+ * Run the host-supplied package manager in a profile directory.
+ *
+ * Official Desktop publishes this invocation on `profileContext` and uses it
+ * for every managed install. The market's official branch must not send
+ * `dsh plugin --profile desktop`, and must not go through the manager for the
+ * market's own package (#900). This is that remaining door: `pnpm add` (or
+ * whatever argv the caller names) against the bundled Node, with the
+ * invocation's own env. Callers must not add `--config.minimum-release-age=0`
+ * here — that is the #944 lockfile write.
+ */
+export declare function runHostPnpm(invocation: HostPackageManager, cwd: string, args: readonly string[]): Promise<InstallResult>;
 /** Run one `dsh plugin --profile <p> …` command with timeout and progress tracking. */
 export declare function runDshPlugin(profile: string, pluginArgs: string[]): Promise<InstallResult>;
 /**

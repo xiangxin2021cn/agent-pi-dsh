@@ -64,7 +64,7 @@ export function registerTaskGuide(ctx: any, defineTool: (options: any) => unknow
   const rootSession = (id: string) => {
     let session = ctx.get('sessions')?.get(id) || ctx.get('agents')?.get(id)?.session
     const seen = new Set<string>()
-    while (session?.header?.parentSession && !seen.has(session.id)) {
+    while (session?.header?.origin === 'subagent' && session.header.parentSession && !seen.has(session.id)) {
       seen.add(session.id)
       const parent = ctx.get('sessions')?.get(session.header.parentSession) || ctx.get('agents')?.get(session.header.parentSession)?.session
       if (!parent) break

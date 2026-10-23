@@ -19,7 +19,7 @@ function fixture() {
   const sessions = new Map<string, any>()
   const denied = new Map<string, string[]>()
   const agent = (id: string, parentSession?: string) => {
-    const session = { id, header: { cwd, ...(parentSession ? { parentSession } : {}) } }
+    const session = { id, header: { cwd, ...(parentSession ? { parentSession, origin: 'subagent' } : {}) } }
     sessions.set(id, session)
     return { id, session, ctx: {
       get: (name: string) => name === 'sessions' ? { get: (id: string) => sessions.get(id) } : undefined,

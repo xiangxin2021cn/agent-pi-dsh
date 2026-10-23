@@ -5,7 +5,7 @@ import { businessProjectForAgent } from '../../tender-host/src/business-activati
 import { importDsh } from '../../tender-host/src/dsh.ts'
 import type { ProductToolOwner } from '../../tender-host/src/plugin-ownership.ts'
 
-const { defineTool } = await importDsh<any>('packages/core/tools/src/index.ts')
+const { defineTool } = await importDsh<any>('packages/core/tools/lib/index.js')
 export function registerWorkbenchTools(ctx: any, registry: WorkbenchRegistry, owner: ProductToolOwner): void {
   registerTools(ctx, (options) => {
     const execute = options.execute as (...args: any[]) => unknown

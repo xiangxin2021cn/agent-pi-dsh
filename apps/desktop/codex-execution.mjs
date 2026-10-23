@@ -215,7 +215,7 @@ export function createCodexExecutionController(options) {
         try { void onMessage(JSON.parse(line)).catch(failProcess) } catch { failProcess(); return }
       }
     })
-    ready = request('initialize', { clientInfo: { name: 'agent-pi-dsh', version: options.appVersion || '3.8.3' }, capabilities: { experimentalApi: true } }).then(() => send({ method: 'initialized', params: {} }))
+    ready = request('initialize', { clientInfo: { name: 'agent-pi-dsh', version: options.appVersion || '3.8.5' }, capabilities: { experimentalApi: true } }).then(() => send({ method: 'initialized', params: {} }))
     return ready
   }
   const assertRecord = (identity) => {

@@ -5,7 +5,7 @@ import { importDsh } from './dsh.ts'
 import { formatSelectedKbContext } from './kb.ts'
 import { depthState, refreshDepthChecks } from './professional-depth.ts'
 
-type NativeLease = { token: string; agent: any; controller: AbortController; calls: Set<Promise<any>>; admissionId?: string; restorePresentation?: () => void }
+type NativeLease = { token: string; agent: any; controller: AbortController; calls: Set<Promise<any>>; admissionId?: string; admittedMessageId?: string; executor: { execute(input: any): Promise<any> } }
 
 const TRANSPORT = 'agent_pi_codex_bridge'
 const EXCLUDED = new Set([TRANSPORT, 'run_code', 'subagent', 'subagent_codex', 'workflow', 'ask_user', 'request_user_input', 'report'])
@@ -16,7 +16,7 @@ const DYNAMIC_TOOL = {
 }
 
 /** Only a live, idle session can lend its professional tools to a native turn. */
-export function createCodexToolBridge(ctx: any, defineTool: (options: any) => unknown, renderPrompt: (assembly: any) => string, renderContextSnapshot: (assembly: any) => string, createUserMessage: (input: any) => any) {
+export function createCodexToolBridge(ctx: any, defineTool: (options: any) => unknown, renderPrompt: (assembly: any) => string, renderContextSnapshot: (assembly: any) => string, createUserMessage: (input: any) => any, execution: { native(ctx: any): { execute(input: any): Promise<any> }; pipeline(ctx: any): any }) {
   const leases = new Map<string, NativeLease>()
   const disposers: Array<() => void> = []
   const interactions = new Map<string, { sessionId: string; operationId: string; kind: string; createdAt: number; message?: any; claim?: string; admittedLease?: string; result?: any }>()
@@ -52,10 +52,11 @@ export function createCodexToolBridge(ctx: any, defineTool: (options: any) => un
     return { ...bound, lease }
   }
   const registry = (agent: any) => agent.ctx?.get('tools') || ctx.tools
-  const catalogue = (agent: any) => {
+  const resolveTools = async (agent: any, signal: AbortSignal) => {
     ctx.emit('agent-pi/business-activation-sync', { agent })
-    return registry(agent).schemas(agent).filter((row: any) => !EXCLUDED.has(row.name))
+    return registry(agent).resolve({ agent, modelSelection: agent.model.current(), signal })
   }
+  const catalogue = (agent: any, toolSet: any) => registry(agent).schemas(agent, toolSet).filter((row: any) => !EXCLUDED.has(row.name))
   const definition = defineTool({
     name: TRANSPORT, description: 'Transport for the app-owned Codex main executor; requires an active native task lease.',
     parameters: { lease: { type: 'string', required: true }, tool: { type: 'string', required: true }, args: { type: 'json', required: true } },
@@ -63,8 +64,11 @@ export function createCodexToolBridge(ctx: any, defineTool: (options: any) => un
     async execute(args: any, exec: any) {
       const lease = leases.get(exec.agent?.session.id)
       if (!lease || lease.agent !== exec.agent || lease.token !== args.lease) throw new Error('No native task owner')
-      if (!catalogue(exec.agent).some((row: any) => row.name === args.tool)) throw new Error('Tool is not available to the current native task')
-      return registry(exec.agent).execute({ callId: `${exec.callId}:cordis`, rootCallId: exec.rootCallId, name: args.tool, arguments: args.args, agent: exec.agent, signal: exec.signal, parent: exec.token })
+      if (!catalogue(exec.agent, exec.toolSet).some((row: any) => row.name === args.tool)) throw new Error('Tool is not available to the current native task')
+      const pipeline = execution.pipeline(exec.agent.ctx)
+      const prepared = await pipeline.prepare({ callId: `${exec.callId}:cordis`, rootCallId: exec.rootCallId, name: args.tool, arguments: args.args, agent: exec.agent, signal: exec.signal, parent: exec.token, toolSet: exec.toolSet })
+      const outcome = prepared.kind === 'dispatch' ? await pipeline.dispatch(prepared.exec) : prepared
+      return pipeline.complete(prepared.exec, outcome)
     },
   })
   const dispose = ctx.tools.register(definition)
@@ -75,7 +79,7 @@ export function createCodexToolBridge(ctx: any, defineTool: (options: any) => un
     // Let the official driver open/close its real admission turn, without making an LLM request.
     // Only the bridge's own message is copied to the durable shared conversation.
     const message = (messages || []).find((row: any) => row.id === lease.admissionId)
-    if (message) agent.session.append('user/message', message, { surfaceOp: 'append' })
+    if (message) { agent.session.append('user/message', message, { surfaceOp: 'append' }); lease.admittedMessageId = message.id }
     for (const other of [...(messages || [])].reverse()) if (other.id !== lease.admissionId) agent.inbox.prepend('next-turn', other)
     return { kind: 'reject' }
   }, { prepend: true })
@@ -92,6 +96,7 @@ export function createCodexToolBridge(ctx: any, defineTool: (options: any) => un
     lease.admissionId = message.id
     agent.send(message, 'next-turn', true)
     await agent.whenIdle()
+    if (lease.admittedMessageId !== message.id) throw new Error('DSH 未能保存本次原生任务的真实用户消息，请修复上下文后重试。')
     if (agent.inbox?.hasPending) throw new Error('当前对话仍有待处理消息，不能开始另一个主执行者。')
     if (!prepared) ctx.get('taskGuide')?.admitHumanMessage?.(agent.session.id, text, message.id)
     lease.admissionId = undefined
@@ -99,9 +104,6 @@ export function createCodexToolBridge(ctx: any, defineTool: (options: any) => un
   const drain = async (lease: any) => {
     lease.controller.abort()
     while (lease.calls.size) await Promise.allSettled([...lease.calls])
-    const restore = lease.restorePresentation
-    lease.restorePresentation = undefined
-    restore?.()
   }
   for (const install of [
     () => ctx.on('workspace/session-activity', async ({ sessionId }: any, next: any) => { const rest = await next(); return leases.has(sessionId) ? [{ kind: 'turn' }, ...rest] : rest }),
@@ -116,14 +118,11 @@ export function createCodexToolBridge(ctx: any, defineTool: (options: any) => un
         if (resolved?.error) throw resolved.error
       }
       const { agent, cwd, sessionId } = identity(input)
-      if (agent.session.header.parentSession) throw new Error('Codex 主执行只能在主对话中启动，子任务需向主任务汇报。')
+      if (agent.session.header.origin === 'subagent') throw new Error('Codex 主执行只能在主对话中启动，子任务需向主任务汇报。')
       if (agent.status !== 'idle' || agent.inbox?.hasPending || leases.has(sessionId)) throw new Error('当前任务已有执行者或待处理消息，请等待完成或停止后再切换引擎。')
-      const lease: NativeLease = { token: randomUUID(), agent, controller: new AbortController(), calls: new Set<Promise<any>>() }
+      const lease: NativeLease = { token: randomUUID(), agent, controller: new AbortController(), calls: new Set<Promise<any>>(), executor: execution.native(agent.ctx) }
       leases.set(sessionId, lease)
       try {
-        // Codex owns the native loop and persists its calls in the desktop history.
-        // DSH run_code would append turn-scoped PTC events after admission closed.
-        lease.restorePresentation = registry(agent).presentAs('native')
         for (const row of input.attachments || []) {
           // Clipboard bytes are validated and sent to Codex by the trusted desktop process.
           if (row.kind === 'image' && !row.path && row.nativeImage === true) continue
@@ -137,7 +136,10 @@ export function createCodexToolBridge(ctx: any, defineTool: (options: any) => un
         if (previousTask?.questions?.some((row: any) => row.provider === 'codex' && ['open', 'pending', 'continued'].includes(row.status))) taskService.update(sessionId, { questions: previousTask.questions.map((row: any) => row.provider === 'codex' && ['open', 'pending', 'continued'].includes(row.status) ? { ...row, status: 'cancelled' } : row) }, previousTask.revision, 'host', { summary: '恢复原生任务时关闭旧执行中未结算的提问，保留历史记录' })
         const task = taskService?.status ? (await taskService.status(agent)).task : taskService?.read(sessionId)
         if (agent.ctx.get('fs')?.readBytes) await refreshDepthChecks(agent.session, agent.ctx.get('fs'), lease.controller.signal)
-        const assembly = await ctx.systemPrompt.assemble({ scope: agent, agent, signal: lease.controller.signal })
+        const toolSet = await resolveTools(agent, lease.controller.signal)
+        let assembly: any
+        try { assembly = await ctx.systemPrompt.assemble({ scope: agent, agent, signal: lease.controller.signal, modelSelection: agent.model.current(), toolSet }) }
+        finally { toolSet.dispose() }
         const professional = { ...assembly, sections: assembly.sections.filter((row: any) => row.name.startsWith('agent-pi:')), contexts: assembly.contexts.filter((row: any) => row.name.startsWith('agent-pi:')) }
         const depth = depthState(agent.session)
         const history = agent.session.deriveMessages?.().filter((row: any) => row.role === 'user' || row.role === 'assistant').slice(-30).map((row: any) => ({ role: row.role, text: (row.content || []).filter((part: any) => part.type === 'text').map((part: any) => part.text).join('\n') })) || []
@@ -186,13 +188,21 @@ export function createCodexToolBridge(ctx: any, defineTool: (options: any) => un
     },
     async tool(input: any) {
       const { agent, lease } = owned(input)
-      if (input.action === 'catalogue') return { tools: catalogue(agent) }
-      if (input.action !== 'call' || typeof input.tool !== 'string' || !input.args || typeof input.args !== 'object' || Array.isArray(input.args)) throw new Error('Invalid Cordis tool request')
-      const tools = registry(agent)
-      const args = { lease: lease.token, tool: input.tool, args: input.args }
-      const running = tools.execute({ callId: `codex-${String(input.callId || randomUUID())}`, name: TRANSPORT, arguments: args, agent, signal: lease.controller.signal })
+      if (input.action !== 'catalogue' && (input.action !== 'call' || typeof input.tool !== 'string' || !input.args || typeof input.args !== 'object' || Array.isArray(input.args))) throw new Error('Invalid Cordis tool request')
+      const running = (async () => {
+        const toolSet = await resolveTools(agent, lease.controller.signal)
+        try {
+          if (input.action === 'catalogue') return { tools: catalogue(agent, toolSet) }
+          if (!catalogue(agent, toolSet).some((row: any) => row.name === input.tool)) throw new Error('Tool is not available to the current native task')
+          const args = { lease: lease.token, tool: input.tool, args: input.args }
+          // Native Codex owns its durable call journal; no DSH model step is open.
+          const batch = await lease.executor.execute({ calls: [{ type: 'tool-call', id: `codex-${String(input.callId || randomUUID())}`, name: TRANSPORT, arguments: JSON.stringify(args) }], agent, signal: lease.controller.signal, toolSet })
+          const result = batch.results[0].result
+          return result.isError ? result : result.value
+        } finally { toolSet.dispose() }
+      })()
       lease.calls.add(running)
-      try { const result = await running; return result.isError ? result : result.value }
+      try { return await running }
       finally { lease.calls.delete(running) }
     },
     async record(input: any) {
@@ -227,10 +237,12 @@ export function createCodexToolBridge(ctx: any, defineTool: (options: any) => un
 }
 
 export async function attachCodexToolBridge(ctx: any) {
-  const { defineTool } = await importDsh<any>('packages/core/tools/src/index.ts')
-  const { renderPrompt, renderContextSnapshot } = await importDsh<any>('packages/core/system-prompt/src/index.ts')
-  const { createUserMessage } = await importDsh<any>('packages/llm/llm/src/message.ts')
-  const bridge = createCodexToolBridge(ctx, defineTool, renderPrompt, renderContextSnapshot, createUserMessage)
+  const { defineTool } = await importDsh<any>('packages/core/tools/lib/index.js')
+  const { renderPrompt, renderContextSnapshot } = await importDsh<any>('packages/core/system-prompt/lib/index.js')
+  const { createUserMessage } = await importDsh<any>('packages/llm/llm/lib/index.js')
+  const { NativeToolExecutor } = await importDsh<any>('packages/core/tool-executor-native/lib/index.js')
+  const { ToolExecutionPipeline } = await importDsh<any>('packages/core/tools/lib/pipeline.js')
+  const bridge = createCodexToolBridge(ctx, defineTool, renderPrompt, renderContextSnapshot, createUserMessage, { native: (scope) => new NativeToolExecutor(scope), pipeline: (scope) => new ToolExecutionPipeline(scope) })
   ctx.effect(() => () => bridge.dispose())
   ctx.inject(['webServer'], (scope: any) => {
     scope.effect(() => scope.webServer.register({ kind: 'prefix', path: '/api/agent-pi/codex', async handler(req: any, res: any) {

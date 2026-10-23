@@ -235,7 +235,7 @@ test('delegated agents read shared quality but cannot revise its goal or check t
   const tasks = createTaskStore(home)
   let definition: any
   const parent = session()
-  const child = { ...session('child'), header: { cwd: '/other-workspace', parentSession: parent.id } }
+  const child = { ...session('child'), header: { cwd: '/other-workspace', parentSession: parent.id, origin: 'subagent' } }
   const makeAgent = (s: any) => ({ session: s, ctx: { tools: { restrict: () => () => {} }, get: () => { throw new Error('child fs must not be used') } } })
   registerProfessionalDepth({
     tools: { register: (value: any) => { definition = value } }, on: (event: string, fn: any) => listeners.set(event, fn),

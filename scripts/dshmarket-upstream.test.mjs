@@ -3,11 +3,11 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
-import { isUpdatablePlugin } from '../vendor/dshmarket/src/updates.ts'
-import { bundlesDroppedFromProfile, readProfileManifestSnapshot } from '../vendor/dshmarket/src/profile.ts'
-import { sourceFallbackFor } from '../vendor/dshmarket/src/sources.ts'
-import { classifyPnpmFailure } from '../vendor/dshmarket/src/pnpm-compat.ts'
-import { restartReachableFrom, trustedRestartRequest } from '../vendor/dshmarket/src/restart.ts'
+import { isUpdatablePlugin } from '../vendor/dshmarket/lib/updates.js'
+import { bundlesDroppedFromProfile, readProfileManifestSnapshot } from '../vendor/dshmarket/lib/profile.js'
+import { sourceFallbackFor } from '../vendor/dshmarket/lib/sources.js'
+import { classifyPnpmFailure } from '../vendor/dshmarket/lib/pnpm-compat.js'
+import { restartReachableFrom, trustedRestartRequest } from '../vendor/dshmarket/lib/restart.js'
 
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'agent-pi-market-upstream-'))

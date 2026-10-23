@@ -1,12 +1,12 @@
 {
   "name": "agent-pi-dsh",
-  "version": "3.8.3",
+  "version": "3.8.5",
   "private": true,
   "license": "GPL-3.0-only",
   "type": "module",
-  "description": "Agent Pi DSH workbench on DeepSeek Harness",
+  "description": "Agent Pi DSH professional workspace",
   "engines": {
-    "node": "^22.19.0 || >=24.0.0"
+    "node": ">=24.9.0"
   },
   "scripts": {
     "test:engineering": "node scripts/test-engineering.mjs",
@@ -23,5 +23,10 @@
     "measure-runtime": "powershell -File scripts/measure-dsh-size.ps1",
     "vendor-plugins": "powershell -File scripts/vendor-dsh-plugins.ps1",
     "pack:win": "powershell -File scripts/pack-win.ps1"
+  },
+  "agentPiProduct": {
+    "edition": "mainline",
+    "artifactStem": "Agent-Pi-DSH",
+    "releaseTagPrefix": "v"
   }
 }

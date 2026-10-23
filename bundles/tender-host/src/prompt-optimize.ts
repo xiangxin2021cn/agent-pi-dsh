@@ -188,7 +188,7 @@ export async function optimizePromptWithLlm(
   try {
     const { createUserMessage } = await importDsh<{
       createUserMessage: (input: { content: Array<{ type: 'text'; text: string }>; source: { kind: 'plugin:tender-host' } }) => unknown
-    }>('packages/llm/llm/src/message.ts')
+    }>('packages/llm/llm/lib/index.js')
     const instruction = buildPromptOptimizationInstruction(context)
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 45_000)

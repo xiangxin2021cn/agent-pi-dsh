@@ -3,7 +3,7 @@ import { createBimProvider } from './provider.ts'
 import { runBim } from '../../../packages/engineering-bim/index.ts'
 export const name = 'agent-pi-engineering-bim'
 export const inject = ['engineering', 'tools']
-const { defineTool } = await importDsh<any>('packages/core/tools/src/index.ts')
+const { defineTool } = await importDsh<any>('packages/core/tools/lib/index.js')
 
 export function apply(ctx: any, config: { pythonPath?: string; timeoutMs?: number } = {}) {
   const provider = createBimProvider(config)

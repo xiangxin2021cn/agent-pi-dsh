@@ -11,14 +11,23 @@ $ErrorActionPreference = "Stop"
 if (-not $IncludeLicensedUniver) { throw "Desktop releases require the complete official Univer Office plugin" }
 $Root = Split-Path -Parent $PSScriptRoot
 $Desktop = Join-Path $Root "apps\desktop"
-$AppVersion = (Get-Content (Join-Path $Desktop "package.json") -Raw | ConvertFrom-Json).version
+$DesktopConfig = Get-Content (Join-Path $Desktop "package.json") -Raw | ConvertFrom-Json
+$ProductConfig = Get-Content (Join-Path $Root "package.json") -Raw | ConvertFrom-Json
+$AppVersion = $DesktopConfig.version
+$ProductEdition = if ($ProductConfig.agentPiProduct.edition) { $ProductConfig.agentPiProduct.edition } else { "mainline" }
+$ArtifactStem = if ($ProductConfig.agentPiProduct.artifactStem) { $ProductConfig.agentPiProduct.artifactStem } else { "Agent-Pi-DSH" }
+$ExecutableName = $DesktopConfig.build.win.executableName
+$ProductName = $DesktopConfig.build.productName
+$ProductId = $DesktopConfig.build.appId
+$ProductUserData = if ($ProductEdition -eq "tender") { "agent-pi-dsh-tender-desktop" } else { "agent-pi-dsh-desktop" }
+$ProductUninstallKey = if ($ProductEdition -eq "tender") { "AgentPiDSHTender" } else { "AgentPiDSH" }
 if ([version]$AppVersion -ge [version]"3.6.0" -and ($SkipPrepare -or $ReuseUnpacked)) {
   throw "Agent Pi DSH $AppVersion packaging forbids -SkipPrepare and -ReuseUnpacked"
 }
 if ($IncludeLicensedUniver -and ($SkipPrepare -or $ReuseUnpacked)) {
   throw "-IncludeLicensedUniver requires a fresh runtime and unpacked application"
 }
-$InstallerName = "Agent-Pi-DSH-$AppVersion-x64.exe"
+$InstallerName = "$ArtifactStem-$AppVersion-x64.exe"
 $Dsh = Join-Path $Root "vendor\deepseek-harness"
 $WebDist = Join-Path $Dsh "apps\web\dist\index.html"
 $Biz = Join-Path $Root "packages\business-core"
@@ -221,7 +230,7 @@ function Install-CadCleanRuntime([string]$destination, [string]$label) {
 
 function Test-UnpackedApp([string]$dir) {
   $need = @(
-    (Join-Path $dir "agent-pi-DSH.exe"),
+    (Join-Path $dir "$ExecutableName.exe"),
     (Join-Path $dir "resources\runtime\node\node.exe"),
     (Join-Path $dir "resources\runtime\deepseek-harness\package.json"),
     (Join-Path $dir "resources\runtime\deepseek-harness\$DshReceiptName"),
@@ -523,7 +532,7 @@ if (-not (Test-Path -LiteralPath $cleanupPacked -PathType Leaf) -or
 
 if ($DirOnly) {
   Write-Host "Unpacked app written under $unpacked"
-  Get-Item (Join-Path $unpacked "agent-pi-DSH.exe") | Format-Table Name, Length, LastWriteTime
+  Get-Item (Join-Path $unpacked "$ExecutableName.exe") | Format-Table Name, Length, LastWriteTime
   return
 }
 
@@ -602,7 +611,10 @@ if ($IncludeLicensedUniver) {
   }
 }
 Push-Location $nsisRoot
-$nsisArgs = @('/V2', "/DAPP_VERSION=$AppVersion", '/DAPP_ICON=app-icon.ico', '/DINSTALLER_HEADER=installer-header.bmp')
+$nsisArgs = @('/V2', "/DAPP_VERSION=$AppVersion", '/DAPP_ICON=app-icon.ico', '/DINSTALLER_HEADER=installer-header.bmp',
+  "/DPRODUCT_NAME=$ProductName", "/DPRODUCT_ID=$ProductId", "/DPRODUCT_EXE=$ExecutableName", "/DPRODUCT_ARTIFACT=$ArtifactStem",
+  "/DPRODUCT_USER_DATA=$ProductUserData", "/DPRODUCT_EDITION=$ProductEdition",
+  "/DUNINST_KEY=Software\Microsoft\Windows\CurrentVersion\Uninstall\$ProductUninstallKey")
 if ($IncludeLicensedUniver) { $nsisArgs += '/DINCLUDE_LICENSED_UNIVER=1' }
 & $makensis @nsisArgs "setup.nsi"
 $nsisExit = $LASTEXITCODE

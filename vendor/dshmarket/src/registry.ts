@@ -4,9 +4,10 @@
  * behind it any more.
  */
 
+import { logEvent } from './log.ts'
 import { configuredProxy, marketFetch } from './net.ts'
 import { catalogFromPackage } from './catalog-npm.ts'
-import { activeRegion, routesFor, type CatalogSource, type Region } from './regions.ts'
+import { activeRegion, catalogSourcesFor, routesFor, type CatalogSource, type Region } from './regions.ts'
 
 export interface RegistryPlugin {
   name: string
@@ -35,6 +36,13 @@ export interface RegistryPlugin {
    * omits the byline segment rather than showing a placeholder.
    */
   version?: string | null
+  /**
+   * Catalog-declared storefront tile (icon). Same trust boundary as screenshots:
+   * the catalog is untrusted input, so the client re-validates the URL before
+   * creating an <img>. Absent = fall back to the owner's GitHub avatar.
+   */
+  icon?: string | null
+
   install: string
   added: string
   /**
@@ -245,8 +253,23 @@ export async function loadRegistry(region: Region = activeRegion()): Promise<Reg
   // the FIRST request the market makes, so a mirror that has gone down must
   // mean a slow market rather than an empty one — the list ends at the
   // address that has always worked.
-  for (const source of routesFor(region).catalog) {
+  //
+  // The list runs one entry past the region's own sources on purpose (#891):
+  // the region probe measures the npm registry, so it cannot see a network
+  // where npm is fast and the catalog's host is blocked — and the region is
+  // decided once and persisted. The catalog's published package, on the
+  // registry the probe just proved reachable, is the repair that needs
+  // neither the probe nor the decision to change.
+  const ownSources = routesFor(region).catalog.length
+  const catalogSources = catalogSourcesFor(region)
+  for (const [sourceIndex, source] of catalogSources.entries()) {
     const key = sourceKey(source)
+    const servedBy = <T>(data: T): T => {
+      if (sourceIndex >= ownSources) {
+        logEvent('warn', 'registry', `catalog: the ${region} sources did not answer; read the catalog package from ${key} instead (#891)`)
+      }
+      return data
+    }
     // Two attempts each. A catalog fetch crossing a long, lossy path fails
     // transiently often enough that one retry is worth more than the second
     // or two it costs — and with nothing behind this call any more, a
@@ -263,11 +286,11 @@ export async function loadRegistry(region: Region = activeRegion()): Promise<Reg
             source.registry, source.pkg, reusable?.version ?? undefined,
           )
           // `data === null` means the published version is the one in hand.
-          if (data === null && reusable !== null) return reusable.data
+          if (data === null && reusable !== null) return servedBy(reusable.data)
           if (data === null) throw new Error('the catalog package reported no change with nothing to reuse')
           const parsed = asRegistry(data)
           served = { key, etag: null, modified: null, version, data: parsed }
-          return parsed
+          return servedBy(parsed)
         }
         // ETag first: it is exact, while a date has one-second resolution and
         // a catalog republished twice within the same second would validate
@@ -300,7 +323,7 @@ export async function loadRegistry(region: Region = activeRegion()): Promise<Reg
           // Guarded anyway: answering a 304 with nothing to reuse would
           // otherwise surface as a confusing parse error on an empty body.
           if (reusable === null) throw new Error('the catalog answered "not modified" with nothing to revalidate')
-          return reusable.data
+          return servedBy(reusable.data)
         }
         if (!res.ok) throw new Error(`HTTP ${String(res.status)}`)
         const data = asRegistry(JSON.parse(new TextDecoder().decode(
@@ -309,7 +332,7 @@ export async function loadRegistry(region: Region = activeRegion()): Promise<Reg
         served = {
           key, etag: res.headers.get('etag'), modified: res.headers.get('last-modified'), version: null, data,
         }
-        return data
+        return servedBy(data)
       } catch (error) {
         last = error
         failures.push({

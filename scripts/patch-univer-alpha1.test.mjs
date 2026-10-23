@@ -25,7 +25,7 @@ test('Office peer adapter accepts only the reviewed DSH and vendor alpha version
   assert.throws(() => patchUniver020PeerRanges(source.replace('^4.0.2', '^5.0.0')), /unexpected Univer vendor peer range/)
 })
 
-for (const version of ['0.3.6', '0.3.7']) test(`Office ${version} retains its official peer ranges and adds only the reviewed alphas`, () => {
+for (const version of ['0.3.6', '0.3.7']) test(`Office ${version} retains its official peer ranges and adds only the reviewed kernel versions`, () => {
   const original = '^0.1.5-rc.3 || ^0.1.7-rc.1 || ^0.2.0-rc.1'
   const peers = Object.fromEntries([
     'attachment', 'host-webserver', 'llm', 'session', 'settings', 'skill', 'tools',
@@ -37,7 +37,7 @@ for (const version of ['0.3.6', '0.3.7']) test(`Office ${version} retains its of
   for (const [name, value] of Object.entries(JSON.parse(patched).peerDependencies)) {
     if (name === '@deepseek-ai/cordis') assert.equal(value, '^4.0.2 || 4.0.5-alpha.1')
     else if (name === '@deepseek-ai/schemastery') assert.equal(value, '^3.18.1 || 3.18.5-alpha.1')
-    else assert.equal(value, original + ' || 0.2.1-alpha.1' + (version === '0.3.7' ? ' || 0.2.1-alpha.2 || 0.2.1-alpha.4 || 0.2.1-alpha.5' : ''))
+    else assert.equal(value, original + ' || 0.2.1-alpha.1' + (version === '0.3.7' ? ' || 0.2.1-alpha.2 || 0.2.1-alpha.4 || 0.2.1-alpha.5 || 0.2.1-rc.3' : ''))
   }
   assert.equal(patchUniver020PeerRanges(patched), patched)
   assert.throws(() => patchUniver020PeerRanges(source.replace(original, '^0.3.0')), /unexpected Univer DSH peer range/)
@@ -45,6 +45,7 @@ for (const version of ['0.3.6', '0.3.7']) test(`Office ${version} retains its of
     const previous = source.replaceAll(original, original + ' || 0.2.1-alpha.1 || 0.2.1-alpha.2 || 0.2.1-alpha.4')
     assert.equal(patchUniver020PeerRanges(previous), patched)
     assert.throws(() => patchUniver020PeerRanges(patched.replaceAll('0.2.1-alpha.5', '0.2.1-alpha.6')), /unexpected Univer DSH peer range/)
+    assert.throws(() => patchUniver020PeerRanges(patched.replaceAll('0.2.1-rc.3', '0.2.1-rc.4')), /unexpected Univer DSH peer range/)
   }
 })
 

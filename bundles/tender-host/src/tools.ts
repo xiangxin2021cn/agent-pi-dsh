@@ -150,7 +150,7 @@ export function registerTools(ctx: {
     const originalAgent = exec.agent
     const businessTool = String(options.name).startsWith('tender_')
     const context = businessTool ? businessContextForAgent(exec.agent, ctx.get?.bind(ctx)) : null
-    const child = Boolean(exec.agent?.session?.header?.parentSession)
+    const child = exec.agent?.session?.header?.origin === 'subagent'
     if (options.name === 'tender_project' && args.action === 'configure' && (!context || args.projectId !== context.project.projectId || (args.module && args.module !== context.project.module))) throw new Error('项目配置只能修改当前主会话已绑定的业务项目。')
     if (businessTool && options.name !== 'tender_project') {
       if (!context) throw new Error('本会话尚未明确绑定业务项目；子任务需要真实主会话绑定。')
@@ -456,7 +456,7 @@ export function registerTools(ctx: {
       const projectId = String(args.projectId)
       if (args.action === 'list') return textResult(listOfficialOutputs(cwd, projectId))
       if (args.action === 'verify_and_publish') {
-        if (exec.agent?.session?.header?.parentSession) throw new Error('共同成果的统一审核与发布由主执行者处理。')
+        if (exec.agent?.session?.header?.origin === 'subagent') throw new Error('共同成果的统一审核与发布由主执行者处理。')
         const checked = await ctx.get?.('taskGuide')?.verifyDeliverable?.(exec.agent.session.id, String(args.deliverableId || ''), { agent: exec.agent })
         if (!checked) throw new Error('共同任务审核服务尚不可用。')
         const { task, deliverable } = checked

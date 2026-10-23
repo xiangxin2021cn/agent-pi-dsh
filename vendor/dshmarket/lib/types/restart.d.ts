@@ -3,10 +3,13 @@
  * pending (non-hot) plugin changes take effect without the user leaving the
  * UI. Contributed in #14 by @ysyyhhh; ported onto the layered architecture.
  *
- * Safety model: the endpoint accepts only direct same-origin loopback
- * requests (no forwarding headers), refuses while a plugin operation runs,
- * and deployments under a supervisor (systemd/launchd/pm2) can disable the
- * whole feature with `allowRestart: false` — the supervisor owns restarts.
+ * Safety model: the endpoint accepts only same-origin requests whose Host
+ * names an authority this deployment serves — a loopback authority reached
+ * directly (no forwarding headers), or a name the host DECLARED
+ * (`dsh web --trusted-host <name>`), which is how a deployment behind a
+ * tunnel or a reverse proxy is reached. It refuses while a plugin operation
+ * runs, and deployments under a supervisor (systemd/launchd/pm2) can disable
+ * the whole feature with `allowRestart: false` — the supervisor owns restarts.
  */
 import type { IncomingMessage } from 'node:http';
 import type { RecoveryConfig } from './recovery.ts';
@@ -113,7 +116,11 @@ export declare function restartAllowed(config: {
  * below before any of this runs.
  * @returns the port, or null when the header carries none (a default port).
  */
-export declare function servingPort(request: Pick<IncomingMessage, 'headers'>): number | null;
+export declare function servingPort(request: Pick<IncomingMessage, 'headers'> & {
+    socket?: {
+        localPort?: unknown;
+    };
+}): number | null;
 /**
  * Whether a restart request made from the same page as THIS request could pass
  * the fence (#782): the answer the status poll reports so the banner can say
@@ -124,8 +131,32 @@ export declare function servingPort(request: Pick<IncomingMessage, 'headers'>): 
  * the same path, so it fails for the same reasons this request shows — a proxy
  * peer, forwarding headers, a non-loopback Host. It is a prediction, never a
  * grant: the route still runs the full fence, including `Origin`, on the POST.
+ *
+ * A deployment that DECLARES its public name answers it truthfully now: the
+ * status poll sees the declared Host and reports the restart as reachable,
+ * exactly as the route will judge it.
  */
 export declare function restartReachableFrom(request: Pick<IncomingMessage, 'headers' | 'socket'>): boolean;
+/**
+ * Whether a self-uninstall request may proceed.
+ *
+ * Same door as the restart route, plus the desktop proxy's headerless shape
+ * (#903): on Desktop the market's own card is the place users go to remove it,
+ * and the fence was refusing every such click because the proxy had stripped
+ * the very headers it required. Restart keeps the stricter predicate — it
+ * spawns a replacement host, which is not something a desktop-managed profile
+ * should get from here.
+ */
+export declare function trustedSelfUninstallRequest(request: Pick<IncomingMessage, 'headers' | 'socket'>): boolean;
+/**
+ * Whether the request that asked for status could uninstall the market (#903).
+ *
+ * The prediction, like the restart one, leaves `Origin` out: the status poll
+ * is a same-origin GET and carries none, so a prediction that required one
+ * would hide the button on every deployment that has a declared authority —
+ * the same shape the route accepts.
+ */
+export declare function selfUninstallReachableFrom(request: Pick<IncomingMessage, 'headers' | 'socket'>): boolean;
 /** Whether a process-control request came from this Web host on loopback. */
 export declare function trustedRestartRequest(request: Pick<IncomingMessage, 'headers' | 'socket'>): boolean;
 /**
@@ -133,9 +164,10 @@ export declare function trustedRestartRequest(request: Pick<IncomingMessage, 'he
  * Browsers do NOT send an Origin header on same-origin GET navigations
  * (`<a href="/..." download>`), so unlike process-control requests a missing
  * Origin is the NORMAL shape of a user-initiated download and must pass.
- * Keep the rest of the posture: loopback peer only, no proxy forwarding
- * headers, and — when an Origin IS present (fetch/CORS attempts) — it must
- * still match Host so a cross-origin page cannot read the export.
+ * Keep the rest of the posture: the Host must name an authority this
+ * deployment serves (loopback, or one the host declared), and — when an
+ * Origin IS present (fetch/CORS attempts) — it must still match Host so a
+ * cross-origin page cannot read the export.
  */
 export declare function trustedDownloadRequest(request: Pick<IncomingMessage, 'headers' | 'socket'>): boolean;
 /** The exact boot invocation the detached restart helper replays. */

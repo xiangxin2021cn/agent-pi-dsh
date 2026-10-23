@@ -17,9 +17,13 @@ import {
   createCompactionFallbackPreferenceUpdate,
   normalizeCompactionFallbackPreference,
 } from './compaction-preferences.mjs'
+import { desktopProductIdentity, editionUserDataPath, matchingProductRelease } from './product-identity.mjs'
 import { createDshWebUrlTracker, isAuthenticatedDshWebUrl } from './dsh-web-url.mjs'
 
-const APP_NAME = 'agent-pi-DSH'
+const product = desktopProductIdentity(JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')))
+const APP_NAME = product.executableName
+app.setPath('userData', editionUserDataPath(product, app.getPath('appData'), app.commandLine.getSwitchValue('user-data-dir')))
+if (process.platform === 'win32') app.setAppUserModelId(product.appId)
 const pluginRecovery = process.argv.includes('--agent-pi-plugin-recovery')
 let startupOutput = ''
 let showingStartupFailure = false
@@ -38,7 +42,7 @@ const dshHome = packaged
   ? join(app.getPath('userData'), 'dsh-home')
   : (process.env.DSH_HOME || join(repoRoot, '.dsh-home'))
 const macosIntelCompatibility = existsSync(join(productRoot, 'MACOS-INTEL-MONTEREY.json'))
-const codexHome = packaged
+const codexHome = packaged || app.commandLine.getSwitchValue('user-data-dir')
   ? join(app.getPath('userData'), 'codex-home')
   : join(repoRoot, '.codex-home')
 const bundledNode = runtimeRoot
@@ -489,7 +493,7 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
-    title: 'Agent Pi DSH',
+    title: product.name,
     icon: packedBrandIcon || undefined,
     backgroundColor: '#eef2f6',
     webPreferences: {
@@ -501,13 +505,14 @@ function createWindow() {
   applyWindowIcon(win)
   win.on('page-title-updated', (event, title) => {
     const next = String(title || '')
-      .replace(/DSH Local Build/g, 'Agent Pi DSH')
-      .replace(/DeepSeek Harness/g, 'Agent Pi DSH')
-      .replace(/Agent π/g, 'Agent Pi DSH')
-      .trim() || 'Agent Pi DSH'
-    if (next === title) return
+      .replace(/DSH Local Build/g, product.name)
+      .replace(/DeepSeek Harness/g, product.name)
+      .replace(/Agent π/g, product.name)
+      .trim() || product.name
+    const windowTitle = product.edition === 'tender' && !next.includes(product.name) ? product.name + ' · ' + next : next
+    if (windowTitle === title) return
     event.preventDefault()
-    win.setTitle(next)
+    win.setTitle(windowTitle)
   })
   for (const event of ['page-favicon-updated', 'did-finish-load', 'did-navigate', 'did-navigate-in-page']) {
     win.webContents.on(event, () => applyWindowIcon(win))
@@ -644,9 +649,9 @@ function showMainWindow() {
 function ensureTray() {
   if (tray && !tray.isDestroyed()) return tray
   tray = new Tray(resolveTrayIcon())
-  tray.setToolTip('Agent Pi DSH — 点击打开')
+  tray.setToolTip(product.name + ' — 点击打开')
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: '打开 Agent Pi DSH', click: () => showMainWindow() },
+    { label: '打开 ' + product.name, click: () => showMainWindow() },
     {
       label: '检查更新...',
       click: () => {
@@ -669,7 +674,7 @@ function hideToTray(win) {
     trayBalloonShown = true
     try {
       tray.displayBalloon({
-        title: 'Agent Pi DSH 仍在后台运行',
+        title: product.name + ' 仍在后台运行',
         content: '点击托盘图标随时回来；右键托盘图标可退出。',
         iconType: 'info',
       })
@@ -715,7 +720,7 @@ async function askCloseAction(win) {
 // temp -> launch it and quit. No code signing, so electron-updater's verified
 // channel does not apply; the NSIS installer itself guides the user through.
 const UPDATE_REPO = 'xiangxin2021cn/agent-pi-dsh'
-const RELEASES_PAGE = `https://github.com/${UPDATE_REPO}/releases/latest`
+const RELEASES_PAGE = `https://github.com/${UPDATE_REPO}/releases`
 const updateState = {
   phase: 'idle', // idle | checking | available | downloading | ready | none | error
   info: null, // { version, assetUrl, assetName, size, notes }
@@ -740,24 +745,24 @@ function isNewerVersion(remote, local) {
 }
 
 async function fetchLatestRelease() {
-  const res = await fetch(`https://api.github.com/repos/${UPDATE_REPO}/releases/latest`, {
+  const res = await fetch(`https://api.github.com/repos/${UPDATE_REPO}/releases?per_page=100`, {
     headers: { accept: 'application/vnd.github+json', 'user-agent': 'agent-pi-dsh-updater' },
   })
   if (!res.ok) throw new Error(`GitHub API ${res.status}`)
-  return res.json()
+  return matchingProductRelease(product, await res.json())
 }
 
 async function checkForUpdate() {
   updateState.phase = 'checking'
   try {
     const release = await fetchLatestRelease()
-    const remote = String(release.tag_name || '').replace(/^v/, '')
+    const remote = String(release?.tag_name || '').slice(product.releaseTagPrefix.length)
     if (!isNewerVersion(remote, app.getVersion())) {
       updateState.phase = 'none'
       updateState.info = null
       return null
     }
-    const wanted = `Agent-Pi-DSH-${remote}-x64.exe`
+    const wanted = `${product.artifactStem}-${remote}-x64.exe`
     const asset = (release.assets || []).find((a) => a.name === wanted)
     updateState.info = {
       version: remote,
@@ -787,7 +792,7 @@ function sendUpdateProgress() {
 async function downloadUpdate() {
   const info = updateState.info
   if (!info?.assetUrl) throw new Error('no downloadable asset for this platform')
-  const dir = join(app.getPath('temp'), 'agent-pi-update')
+  const dir = join(app.getPath('temp'), product.userDataName + '-update')
   mkdirSync(dir, { recursive: true })
   const file = join(dir, info.assetName)
   if (existsSync(file) && info.size > 0 && statSync(file).size === info.size) {
@@ -1343,6 +1348,32 @@ ipcMain.handle('print-to-pdf', async (_event, html) => {
   return run
 })
 
+
+async function prepareTenderEditionData(win) {
+  if (!packaged || product.edition !== 'tender' || app.commandLine.getSwitchValue('user-data-dir')) return true
+  if (existsSync(dshHome) || existsSync(codexHome)) return true
+  const sourceUserData = join(app.getPath('appData'), 'agent-pi-dsh-desktop')
+  if (!existsSync(join(sourceUserData, 'dsh-home'))) return true
+  const { response } = await dialog.showMessageBox(win, {
+    type: 'question', title: '接续原项目',
+    message: '检测到原 Agent Pi DSH 的项目数据',
+    detail: '投标专版使用独立的数据目录。可复制原会话、知识库、个人技能和 Codex 线程及登录配置，保留原会话编号；原目录保持不变。请先完全退出原应用（含托盘），再开始复制。也可以创建全新环境。',
+    buttons: ['已退出旧版，复制项目数据', '创建全新环境', '稍后'], defaultId: 0, cancelId: 2,
+  })
+  if (response === 2) { app.quit(); return false }
+  if (response === 1) return true
+  if (process.platform === 'win32') {
+    const running = spawnSync('tasklist.exe', ['/FI', 'IMAGENAME eq agent-pi-DSH.exe', '/FO', 'CSV', '/NH'], { encoding: 'utf8', windowsHide: true })
+    if (running.error || running.status !== 0) throw new Error('无法确认原应用已退出，请退出原应用后重新启动投标专版。')
+    if (running.stdout.toLowerCase().includes('"agent-pi-dsh.exe"')) throw new Error('原 Agent Pi DSH 仍在运行，请退出程序和托盘后重新启动投标专版。')
+  }
+  const { importEditionData } = await import('./edition-data-import.mjs')
+  win.setTitle(product.name + ' · 正在复制原项目数据')
+  try { await importEditionData({ sourceUserData, targetUserData: app.getPath('userData'), sourceConfirmedStopped: true }) }
+  finally { if (!win.isDestroyed()) win.setTitle(product.name) }
+  return true
+}
+
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) {
   app.quit()
@@ -1364,6 +1395,7 @@ if (!gotLock) {
     try {
       assertDshRuntime()
       repairPackedLinks()
+      if (!await prepareTenderEditionData(win)) return
       ensureProfile()
       let launchedDsh = false
       if (!process.env.AGENT_PI_DSH_URL) {
@@ -1388,7 +1420,7 @@ if (!gotLock) {
       else await waitForUrl(appUrl)
       await win.loadURL(appUrl)
       if (pluginRecovery) {
-        win.setTitle('Agent Pi DSH · 插件恢复模式')
+        win.setTitle(product.name + ' · 插件恢复模式')
         await dialog.showMessageBox(win, { type: 'info', message: '已进入插件恢复模式', detail: '本次暂不启用外部插件及团队协作。插件、账号配置和会话均保留；可进入插件市场回退或移除故障插件。关闭应用后从快捷方式正常启动即可恢复。' })
       }
       applyWindowIcon(win)

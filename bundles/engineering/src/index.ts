@@ -4,7 +4,7 @@ import { engineeringWorkflow } from './workflow.ts'
 
 export const name = 'agent-pi-engineering'
 export const inject = ['tools', 'systemPrompt']
-const { defineTool } = await importDsh<any>('packages/core/tools/src/index.ts')
+const { defineTool } = await importDsh<any>('packages/core/tools/lib/index.js')
 export function apply(ctx: any) {
   registerEngineering(ctx, defineTool)
   ctx.inject(['workbench'], (scope: any) => scope.effect(() => scope.workbench.registerModule({ owner: 'dsh-agent-pi-engineering', workflow: engineeringWorkflow })))

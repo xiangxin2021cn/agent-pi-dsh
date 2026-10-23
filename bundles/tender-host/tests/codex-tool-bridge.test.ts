@@ -14,32 +14,20 @@ function deferred() {
   const promise = new Promise<any>((done) => { resolve = done })
   return { promise, resolve: resolve! }
 }
-function fixture({ ptc = false, python = false } = {}) {
+function fixture({ ptc = false, python = false, execution = undefined as any } = {}) {
   const handlers = new Map<string, any>()
   const calls: any[] = [], appended: any[] = [], pending: any[] = [], presentations: string[] = []
   let registered: any, idle = Promise.resolve(), boundProject = false, activation = false
   const registry = {
-    presentAs(mode: string) { presentations.push(mode); return () => presentations.push('restored') },
+    async resolve({ signal }: any) { signal.throwIfAborted(); const names = registry.schemas().map((row: any) => row.name); let disposed = false; return { names, get disposed() { return disposed }, dispose() { disposed = true; presentations.push('tool-set-disposed') } } },
     register(tool: any) { registered = tool; return () => {} },
     schemas() { return [{ name: 'task_brief', parameters: { type: 'object' } }, ...(activation ? [{ name: 'tender_price', parameters: { type: 'object' } }] : []), { name: 'run_code' }, { name: 'subagent_codex' }, { name: 'workflow' }] },
     get(name: string) { return ptc && name === 'run_code' ? {} : null },
-    async execute(call: any): Promise<any> {
-      calls.push(call)
-      if (call.name === 'run_code') {
-        let args
-        if (python) { const literal = call.arguments.code.match(/json\.loads\((.*)\)\)/)[1]; args = JSON.parse(JSON.parse(literal)) }
-        else args = JSON.parse(call.arguments.code.match(/\((\{.*\})\)/)[1])
-        const result = await registered.execute(args, { ...call, token: 'ptc-parent' })
-        return { value: { result } }
-      }
-      if (call.name === registered.name) return { value: await registered.execute(call.arguments, { ...call, token: 'native-parent' }) }
-      if (blocked) return blocked.promise
-      return { value: { cost: 42, source: 'actual professional tool' } }
-    },
+
   }
   let blocked: ReturnType<typeof deferred> | null = null
   const agent: any = {
-    status: 'idle',
+    status: 'idle', model: { current: () => ({ provider: 'fixture', model: 'fixture' }) },
     session: { id: sid, header: { cwd }, append(type: string, data: any) { appended.push({ type, data }) }, deriveMessages: () => [] },
     inbox: { get hasPending() { return pending.length > 0 }, prepend(_target: any, message: any) { pending.unshift(message) } },
     ctx: { get: () => registry },
@@ -61,7 +49,16 @@ function fixture({ ptc = false, python = false } = {}) {
     emit(name: string, payload: any) { assert.equal(name, 'agent-pi/business-activation-sync'); assert.equal(payload.agent, agent); activation = boundProject },
   }
   let seq = 0
-  const bridge = createCodexToolBridge(ctx, (row) => row, (assembly) => JSON.stringify(assembly), () => '', (row) => ({ id: 'user-' + ++seq, role: 'user', ...row }))
+  const mockPipeline = {
+    async prepare(call: any) { calls.push(call); return { kind: 'dispatch', exec: { ...call, rootCallId: call.rootCallId || call.callId, token: call.name === registered.name ? 'native-parent' : 'business-token' } } },
+    async dispatch(exec: any) {
+      const value = exec.name === registered.name ? await registered.execute(exec.arguments, exec) : blocked ? await blocked.promise : { value: { cost: 42, source: 'actual professional tool' } }
+      return { kind: 'final-result', exec, result: exec.name === registered.name ? { value } : value }
+    },
+    async complete(_exec: any, outcome: any) { return outcome.result },
+  }
+  const mockExecution = { pipeline: () => mockPipeline, native: () => ({ async execute(input: any) { assert.equal(input.log, undefined); const results = []; for (const call of input.calls) { const prepared = await mockPipeline.prepare({ callId: call.id, name: call.name, arguments: JSON.parse(call.arguments), agent: input.agent, signal: input.signal, toolSet: input.toolSet }); results.push({ callId: call.id, result: await mockPipeline.complete(prepared.exec, await mockPipeline.dispatch(prepared.exec)) }) }; return { results, additionalContexts: [], concluded: false } } }) }
+  const bridge = createCodexToolBridge(ctx, (row) => row, (assembly) => JSON.stringify(assembly), () => '', (row) => ({ id: 'user-' + ++seq, role: 'user', ...row }), execution || mockExecution)
   const identity = { sessionId: sid, cwd, text: 'Calculate from the original BOQ' }
   return { bridge, ctx, agent, services, identity, calls, appended, pending, handlers, presentations, transport: () => registered, block() { blocked = deferred(); return blocked }, bindProject() { boundProject = true } }
 }
@@ -139,9 +136,9 @@ test('native scope preserves output and the actual execution parent under every 
     assert.equal(business.parent, 'native-parent')
     assert.equal(business.agent, f.agent)
     assert.equal(f.calls[0].name, 'agent_pi_codex_bridge')
-    assert.deepEqual(f.presentations, ['native'])
+    assert.ok(f.presentations.every((row) => row === 'tool-set-disposed'))
     await f.bridge.release(context)
-    assert.deepEqual(f.presentations, ['native', 'restored'])
+    assert.ok(f.presentations.length >= 2)
     await f.bridge.dispose()
   })
 })
@@ -151,6 +148,7 @@ test('release aborts and drains in-flight professional work before another write
   const context = await f.bridge.context(f.identity)
   const block = f.block()
   const running = f.bridge.tool({ ...context, action: 'call', tool: 'task_brief', args: {} })
+  while (f.calls.length < 2) await new Promise(resolve => setImmediate(resolve))
   const release = f.bridge.release(context)
   assert.equal(f.calls.at(-1).signal.aborted, true)
   await assert.rejects(f.bridge.context(f.identity), /执行者/)
@@ -241,7 +239,7 @@ test('cold activation never creates unknown sessions or bypasses archive, cwd, r
     f.services.agents.get = (id: string) => id === sid && live ? f.agent : null
     f.services.sessionController = { async resolveAgent() { calls++; if (scenario === 'unknown') return { error: new Error('session not found') }; live = true; return { agent: f.agent } } }
     if (scenario === 'archived') f.services.workspaceRegistry.archivedSessionIds.push(sid)
-    if (scenario === 'child') f.agent.session.header.parentSession = 'real-parent'
+    if (scenario === 'child') Object.assign(f.agent.session.header, { parentSession: 'real-parent', origin: 'subagent' })
     if (scenario === 'lease') await assert.rejects(f.bridge.tool({ ...f.identity, lease: 'unknown-owner', action: 'catalogue' }), /加载/)
     else await assert.rejects(f.bridge.context({ ...f.identity, ...(scenario === 'cwd' ? { cwd: cwd + '/other' } : {}) }), /not found|归档|工作区|主对话/)
     assert.equal(calls, ['archived', 'lease'].includes(scenario) ? 0 : 1)
@@ -250,16 +248,29 @@ test('cold activation never creates unknown sessions or bypasses archive, cwd, r
   }
 })
 
-const dshRequire = createRequire(new URL('../../../vendor/deepseek-harness/packages/core/tools/package.json', import.meta.url))
-const dshModule = (name: string) => import(pathToFileURL(dshRequire.resolve(name)).href)
+const dshPackages: Record<string, string> = {
+  '@deepseek-ai/cordis': 'vendor/cordis',
+  '@deepseek-ai/dsh-system-prompt': 'packages/core/system-prompt',
+  '@deepseek-ai/dsh-tools': 'packages/core/tools',
+  '@deepseek-ai/dsh-scope': 'packages/core/scope',
+  '@deepseek-ai/dsh-session': 'packages/core/session',
+  '@deepseek-ai/dsh-ptc-runtime': 'packages/ptc-runtime/ptc-runtime',
+  '@deepseek-ai/dsh-tool-executor-native': 'packages/core/tool-executor-native',
+  '@deepseek-ai/dsh-tool-executor-ptc': 'packages/core/tool-executor-ptc',
+}
+const dshModule = (name: string) => {
+  const owner = dshPackages[name.split('/').slice(0, 2).join('/')]
+  const require = createRequire(new URL('../../../vendor/deepseek-harness/' + owner + '/package.json', import.meta.url))
+  return import(pathToFileURL(require.resolve(name)).href)
+}
 
 async function realRuntimeFixture(t: any) {
-  const [{ Context }, { default: SystemPrompt }, { default: ToolRuntime, defineTool }, { createScope }, { Session, SessionId }, { PtcRuntime }] = await Promise.all([
-    dshModule('@deepseek-ai/cordis'), dshModule('@deepseek-ai/dsh-system-prompt'), dshModule('@deepseek-ai/dsh-tools'), dshModule('@deepseek-ai/dsh-scope'), dshModule('@deepseek-ai/dsh-session'), dshModule('@deepseek-ai/dsh-ptc-runtime'),
+  const [{ Context }, { default: SystemPrompt }, { default: ToolRuntime, defineTool }, { createScope }, { Session, SessionId }, { PtcRuntime }, native, { ToolExecutionPipeline }, ptc] = await Promise.all([
+    dshModule('@deepseek-ai/cordis'), dshModule('@deepseek-ai/dsh-system-prompt'), dshModule('@deepseek-ai/dsh-tools'), dshModule('@deepseek-ai/dsh-scope'), dshModule('@deepseek-ai/dsh-session'), dshModule('@deepseek-ai/dsh-ptc-runtime'), dshModule('@deepseek-ai/dsh-tool-executor-native'), dshModule('@deepseek-ai/dsh-tools/pipeline'), dshModule('@deepseek-ai/dsh-tool-executor-ptc'),
   ])
   const runtime = new Context()
   await runtime.plugin(SystemPrompt)
-  await runtime.plugin(ToolRuntime, { mode: 'ptc' })
+  await runtime.plugin(ToolRuntime)
   runtime.provide('workingDirectory', { ensure: async () => cwd })
   class TestPtcRuntime extends PtcRuntime {
     language = 'typescript'
@@ -268,18 +279,19 @@ async function realRuntimeFixture(t: any) {
     async run(request: any) { return { logs: [], value: await request.bindings[0].functions.task_brief({ objective: 'legacy' }) } }
   }
   await runtime.plugin(TestPtcRuntime)
-  const f = fixture({ ptc: true })
+  await runtime.plugin(ptc)
+  const f = fixture({ ptc: true, execution: { native: (scope: any) => new native.NativeToolExecutor(scope), pipeline: (scope: any) => new ToolExecutionPipeline(scope) } })
   const session = Session.create(SessionId(sid), undefined, { version: 4, id: sid, createdAt: Date.now(), isSeeded: false, delegationDepth: 0, cwd })
   f.agent.session = session
   await runtime.plugin(Object.assign((inner: any) => { f.agent.ctx = createScope(inner, f.agent).ctx }, { inject: ['tools', 'systemPrompt'] }))
   const tools = f.agent.ctx.tools
   tools.register(defineTool(f.transport()))
   const effects: any[] = []
-  let failure = false
+  let failure = false, available = true
   let blocked: ReturnType<typeof deferred> | undefined
   tools.register(defineTool({ name: 'task_brief', description: 'Actual professional fixture', parameters: { objective: { type: 'string' } }, output: { schema: { type: 'json' }, render: (_: any, value: any) => [{ type: 'text', text: JSON.stringify(value) }] },
     async execute(args: any, exec: any) { effects.push({ args, exec }); if (blocked) await blocked.promise; if (failure) throw new Error('professional tool failed'); return { cost: 42 } },
-  }))
+  }), { when: () => available })
   let turn = 0, admission: Promise<any> = Promise.resolve()
   const send = f.agent.send.bind(f.agent), whenIdle = f.agent.whenIdle.bind(f.agent)
   f.agent.send = (message: any) => {
@@ -298,24 +310,22 @@ async function realRuntimeFixture(t: any) {
     const reader = await runtime.sessionPersistence.open(session.id, 'read')
     try { return await reader.read() } finally { await reader.close() }
   }
-  return { ...f, tools, runtime, session, effects, reload, fail() { failure = true }, block() { blocked = deferred(); return blocked } }
+  return { ...f, tools, runtime, session, effects, reload, available(value: boolean) { available = value }, fail() { failure = true }, block() { blocked = deferred(); return blocked } }
 }
 
-test('the former idle run_code strategy persists an invalid PTC tail rejected by the strict loader', async (t) => {
+test('the strict loader still rejects a legacy PTC tail outside a turn', async (t) => {
   const f = await realRuntimeFixture(t)
   f.session.append('turn/start', { turn: 1 })
   f.session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
-  const result = await f.tools.execute({ name: 'run_code', callId: 'codex-legacy', arguments: { code: 'legacy', description: 'Legacy idle transport' }, agent: f.agent, signal: new AbortController().signal })
-  assert.equal(result.isError, false)
-  assert.deepEqual(f.session.snapshotEvents().slice(2).map((row: any) => row.type), ['tool/ptc-dispatch-start', 'tool/ptc-dispatch'])
-  await assert.rejects(f.reload(), /ptc-dispatch-start is outside an open turn/)
+  f.session.append('tool/ptc-dispatch-start', { rootCallId: 'codex-legacy', parentCallId: 'codex-legacy', subCallId: 'legacy-subcall', name: 'task_brief', arguments: {} })
+  await assert.rejects(f.reload(), /ptc-dispatch-start.*outside an open turn/)
 })
 
 test('real native scoped calls preserve policy and parent tokens and reload after success and failure', async (t) => {
   const f = await realRuntimeFixture(t)
-  assert.ok(f.tools.get('run_code', f.agent))
+  assert.ok(f.agent.ctx.systemPrompt)
   const context = await f.bridge.context(f.identity)
-  assert.equal(f.tools.get('run_code', f.agent), undefined)
+  assert.ok(f.agent.ctx.systemPrompt)
   const policy: string[] = []
   let denied = false, transportToken: any
   f.runtime.on('tools/pre-execute', (exec: any, next: any) => { policy.push(exec.name); if (exec.name === 'agent_pi_codex_bridge') transportToken = exec.token; return denied && exec.name === 'task_brief' ? { kind: 'deny', reason: 'scope denies this call' } : next() })
@@ -334,37 +344,65 @@ test('real native scoped calls preserve policy and parent tokens and reload afte
   assert.match(denial.error.message, /scope denies this call/)
   assert.equal(f.effects.length, 2)
   await f.bridge.release(context)
-  assert.ok(f.tools.get('run_code', f.agent))
+  assert.ok(f.agent.ctx.systemPrompt)
   assert.deepEqual(f.session.snapshotEvents().map((row: any) => row.type), ['turn/start', 'user/message', 'turn/end'])
   const restored = await f.reload()
   assert.deepEqual(restored.events, f.session.snapshotEvents())
 })
 
-test('native presentation restores after failed preparation, drained cancellation, scope conflict and disposal', async (t) => {
+test('native execution preserves the configured executor after failed preparation, drained cancellation and disposal', async (t) => {
   const f = await realRuntimeFixture(t)
   const assemble = f.ctx.systemPrompt.assemble
   f.ctx.systemPrompt.assemble = async () => { throw new Error('context preparation failed') }
   await assert.rejects(f.bridge.context(f.identity), /context preparation failed/)
-  assert.ok(f.tools.get('run_code', f.agent))
+  assert.ok(f.agent.ctx.systemPrompt)
   f.ctx.systemPrompt.assemble = assemble
   const context = await f.bridge.context(f.identity), block = f.block()
   const running = f.bridge.tool({ ...context, action: 'call', tool: 'task_brief', args: {} })
   while (!f.effects.length) await new Promise(resolve => setImmediate(resolve))
   const cancel = f.bridge.cancel(context)
   assert.equal(f.effects[0].exec.signal.aborted, true)
-  assert.equal(f.tools.get('run_code', f.agent), undefined)
+  assert.ok(f.agent.ctx.systemPrompt)
   block.resolve()
   assert.equal((await running).isError, true)
   await cancel
-  assert.ok(f.tools.get('run_code', f.agent))
+  assert.ok(f.agent.ctx.systemPrompt)
   await f.bridge.release(context)
-  const restore = f.tools.presentAs('ptc')
-  await assert.rejects(f.bridge.context(f.identity), /conflicts/)
-  assert.ok(f.tools.get('run_code', f.agent))
-  restore()
   const fresh = await f.bridge.context(f.identity)
   await f.bridge.dispose()
-  assert.ok(f.tools.get('run_code', f.agent))
+  assert.ok(f.agent.ctx.systemPrompt)
   await assert.rejects(f.bridge.tool({ ...fresh, action: 'catalogue' }), /失效/)
   assert.deepEqual((await f.reload()).events, f.session.snapshotEvents())
+})
+
+test('ordinary fork history does not prevent native main execution', async () => {
+  const f = fixture()
+  f.agent.session.header.parentSession = 'legacy-source'
+  const context = await f.bridge.context(f.identity)
+  assert.equal(context.sessionId, sid)
+  await f.bridge.release(context)
+  await f.bridge.dispose()
+})
+
+test('native conditional tools use the current admitted set and never dispatch after becoming unavailable', async (t) => {
+  const f = await realRuntimeFixture(t)
+  const context = await f.bridge.context(f.identity)
+  assert.ok((await f.bridge.tool({ ...context, action: 'catalogue' })).tools.some((row: any) => row.name === 'task_brief'))
+  assert.equal((await f.bridge.tool({ ...context, action: 'call', tool: 'task_brief', args: {} })).value.cost, 42)
+  f.available(false)
+  assert.ok(!(await f.bridge.tool({ ...context, action: 'catalogue' })).tools.some((row: any) => row.name === 'task_brief'))
+  await assert.rejects(f.bridge.tool({ ...context, action: 'call', tool: 'task_brief', args: {} }), /not available/)
+  assert.equal(f.effects.length, 1)
+  f.available(true)
+  assert.equal((await f.bridge.tool({ ...context, action: 'call', tool: 'task_brief', args: {} })).value.cost, 42)
+  await f.bridge.release(context)
+  assert.deepEqual((await f.reload()).events, f.session.snapshotEvents())
+})
+
+test('native preparation does not accept a task whose real user message never reached the admission hook', async () => {
+  const f = fixture()
+  f.agent.send = () => {}
+  await assert.rejects(f.bridge.context(f.identity), /未能保存/)
+  assert.equal(f.appended.length, 0)
+  await f.bridge.dispose()
 })

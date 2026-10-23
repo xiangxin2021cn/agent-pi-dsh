@@ -128,7 +128,7 @@ test('only the main executor may mark an actually parsed workbench original revi
   assert.equal(original.review, 'reviewed')
   assert.equal((await f.call('status')).task.revision, state.revision)
   for (const change of [{ locator: join(f.cwd, 'other.md') }, { version: '0'.repeat(64) }, { status: 'missing' }, { title: '替换原稿身份' }]) await assert.rejects(f.call('update', { revision: state.revision, patch: { coverage: [{ ...original, ...change }] } }), /工作台/)
-  const session = { id: 'source-child', header: { cwd: f.cwd, parentSession: 'main' } }
+  const session = { id: 'source-child', header: { cwd: f.cwd, parentSession: 'main', origin: 'subagent' } }
   f.sessions.set(session.id, session)
   await assert.rejects(f.call('update', { revision: state.revision, patch: { coverage: [{ ...original, review: 'pending' }] } }, { session, ctx: f.main.ctx }), /工作台/)
   await assert.rejects(f.call('update', { revision: state.revision, patch: { coverage: [{ ...original, id: 'child-whole-file', review: 'reviewed' }] } }, { session, ctx: f.main.ctx }), /主执行者/, 'a child cannot indirectly promote the original through a non-workbench full-file record')
@@ -180,7 +180,7 @@ test('the main executor can review projected artifacts without changing their ac
     { status: 'accepted' },
     { signature: 'signed' },
   ]) await assert.rejects(f.call('update', { revision: state.revision, patch: { deliverables: [{ ...reviewed, ...change }] } }), /文件身份|实际成果版本|真实用户/)
-  const session = { id: 'review-child', header: { cwd: f.cwd, parentSession: 'main' } }
+  const session = { id: 'review-child', header: { cwd: f.cwd, parentSession: 'main', origin: 'subagent' } }
   f.sessions.set(session.id, session)
   const child = { session, ctx: f.main.ctx }
   await assert.rejects(f.call('update', { revision: state.revision, patch: { deliverables: [reviewed] } }, child), /子任务不能修改/)
@@ -366,7 +366,7 @@ test('workbench sources, real analysis findings and artifacts project into one t
 test('children upsert their contributions into the root without deleting another branch or host projection', async t => {
   const f = fixture(t)
   const agents = ['worker-one', 'worker-two'].map(id => {
-    const session = { id, header: { cwd: f.cwd, parentSession: 'main' } }
+    const session = { id, header: { cwd: f.cwd, parentSession: 'main', origin: 'subagent' } }
     f.sessions.set(id, session)
     const agent = { session, ctx: f.main.ctx }
     f.agents.set(id, agent)
@@ -525,7 +525,7 @@ test('child status reads its parent task even when the child has an old separate
   const f = fixture(t)
   const root = f.store.read('main')
   f.store.update('main', { brief: { ...root.brief, objective: '父任务共同目标' } }, 0, 'user')
-  const child = { id: 'child', header: { cwd: join(f.cwd, 'other-cwd'), parentSession: 'main' } }
+  const child = { id: 'child', header: { cwd: join(f.cwd, 'other-cwd'), parentSession: 'main', origin: 'subagent' } }
   const own = f.store.read('child')
   f.store.update('child', { brief: { ...own.brief, objective: '旧子任务目标' } }, 0, 'user')
   f.sessions.set(child.id, child)
@@ -564,7 +564,7 @@ test('child status verifies parent artifacts through the main executor filesyste
   const fingerprint = createHash('sha256').update(readFileSync(join(f.cwd, 'parent-report.md'))).digest('hex')
   const root = f.store.read('main')
   f.store.update('main', { deliverables: [{ id: 'parent-report', title: '父任务成果', path: 'parent-report.md', requirementIds: [], evidenceIds: [], stepIds: [], status: 'reviewed', signature: 'not_required', checks: [{ kind: 'file', status: 'passed', detail: '实际文件已检查。', fingerprint }] }] }, root.revision, 'user')
-  const child = { id: 'child', header: { cwd: join(f.cwd, 'child-cwd'), parentSession: 'main' } }
+  const child = { id: 'child', header: { cwd: join(f.cwd, 'child-cwd'), parentSession: 'main', origin: 'subagent' } }
   f.sessions.set(child.id, child)
   let childReads = 0
   const agent = { session: child, ctx: { get: (name: string) => name === 'fs' ? { resolve: async () => { childReads++; throw new Error('child sandbox cannot read parent output') } } : undefined } }
@@ -684,7 +684,7 @@ function verificationFixture(t: any, content = '# 工期核验\n根据原始范�
 
 test('human HTTP verification binds actual input and artifact bytes without granting acceptance, then source changes invalidate once', async t => {
   const f = verificationFixture(t), before = f.store.read('main')
-  const childSession = { id: 'verification-child', header: { cwd: f.cwd, parentSession: 'main' } }
+  const childSession = { id: 'verification-child', header: { cwd: f.cwd, parentSession: 'main', origin: 'subagent' } }
   f.sessions.set(childSession.id, childSession)
   await assert.rejects(f.call('check', { revision: before.revision }, { session: childSession, ctx: f.main.ctx }), /主执行者/)
   const stale = await f.http('POST', { action: 'verify', deliverableId: 'report', revision: before.revision - 1 })
@@ -836,7 +836,7 @@ test('task actions dispatch one real main-session message and reject stale or ch
   const stale = await f.http('POST', { ...input, operationId: 'continue-stale' })
   assert.equal(stale.status, 409)
   assert.equal(f.sent.length, 1)
-  f.sessions.set('child', { id: 'child', header: { cwd: f.cwd, parentSession: 'main' } })
+  f.sessions.set('child', { id: 'child', header: { cwd: f.cwd, parentSession: 'main', origin: 'subagent' } })
   f.agents.set('child', { session: f.sessions.get('child') })
   await assert.rejects(f.service.userAction('child', { ...input, revision: f.store.read('main').revision, operationId: 'child-control' }), /主对话/)
 })
@@ -887,7 +887,7 @@ test('pause stops root and child execution, disarms existing goals and survives 
   const f = fixture(t), pauses: any[] = []
   f.services.set('goals', { get: () => ({ id: 'existing-goal', revision: 3, phase: 'active' }), pause: (_agent: any, ref: any) => pauses.push(ref) })
   const childCancels: any[] = []
-  f.sessions.set('child', { id: 'child', header: { cwd: f.cwd, parentSession: 'main' } })
+  f.sessions.set('child', { id: 'child', header: { cwd: f.cwd, parentSession: 'main', origin: 'subagent' } })
   f.agents.set('child', { session: f.sessions.get('child'), cancel: (cause: any, options: any) => childCancels.push({ cause, options }) })
   const next = await f.http('POST', { action: 'user_action', operationId: 'pause-root', revision: 0, command: { kind: 'pause' } })
   assert.equal(next.value.interaction.dispatch, 'paused')
@@ -1086,7 +1086,7 @@ test('DSH pause waits for actual parent and child idle rather than trusting the 
 
 test('native pause reaches Codex even when a child is still stopping and never certifies that child stopped', async t => {
   const f = fixture(t), pauses: string[] = []
-  f.sessions.set('slow-child', { id: 'slow-child', header: { cwd: f.cwd, parentSession: 'main' } })
+  f.sessions.set('slow-child', { id: 'slow-child', header: { cwd: f.cwd, parentSession: 'main', origin: 'subagent' } })
   f.agents.set('slow-child', { session: f.sessions.get('slow-child'), status: 'running', cancel() {}, whenIdle: async () => {} })
   f.services.set('nativeTaskExecutor', { status: () => ({ active: true }), pause: async (_id: string, operationId: string) => { pauses.push(operationId); return { dispatch: 'requires_executor', reason: 'Waiting for native interrupt' } } })
   const next = await f.http('POST', { action: 'user_action', operationId: 'pause-slow-child', revision: 0, command: { kind: 'pause' } })
@@ -1110,7 +1110,7 @@ async function useOfficialInbox(f: any, agent = f.main) {
     f.listeners.get('session/event')?.(agent.session, event)
     return event
   }
-  const inbox = new ReactLoopInbox({ stateOf: () => state } as any, agent.session, { emit: (name: string, value: any) => f.listeners.get(name)?.({ ...value, agent }) } as any)
+  const inbox = new ReactLoopInbox(() => state, agent.session, { emit: (name: string, value: any) => f.listeners.get(name)?.({ ...value, agent }) } as any)
   agent.inbox = inbox
   agent.send = (message: any, target: any, wake: boolean) => { inbox.splice(target, Infinity, 0, [message]); if (wake) f.sent.push({ mode: 'wake', message }) }
   agent.followup = (message: any) => agent.send(message, 'next-turn', true)
@@ -1297,7 +1297,7 @@ test('expired or missing stage offer blocks shared continue instead of inventing
 test('switching an idle parent to native execution is blocked while its DSH child still runs', async t => {
   const f = fixture(t), calls: any[] = []
   f.admit('核验当前专业项目', 'native-child-boundary')
-  const child = { id: 'active-child', header: { cwd: f.cwd, parentSession: 'main' } }
+  const child = { id: 'active-child', header: { cwd: f.cwd, parentSession: 'main', origin: 'subagent' } }
   f.sessions.set(child.id, child)
   f.agents.set(child.id, { session: child, status: 'running' })
   f.services.set('nativeTaskExecutor', { status: () => ({ active: false }), dispatch: (input: any) => { calls.push(input); return { dispatch: 'requires_executor', reason: 'Waiting for native executor' } } })
@@ -1427,4 +1427,22 @@ test('an explicit first budget cannot be silently dropped behind an existing nat
   assert.deepEqual(inbox.nextTurn, [original], 'no generic continue or budgetless attempt is queued')
   assert.equal(f.sent.length, 0)
   assert.equal((await host.status(f.cwd, project, 'main')).run, undefined)
+})
+
+test('ordinary forks keep their own task while true subagents inherit the direct parent task', async (t) => {
+  const f = fixture(t)
+  f.admit('原会话任务', 'parent-request')
+  for (const header of [
+    { id: 'legacy-fork', cwd: f.cwd, parentSession: 'main' },
+    { id: 'independent-fork', cwd: f.cwd },
+    { id: 'real-child', cwd: f.cwd, parentSession: 'main', origin: 'subagent' },
+  ]) {
+    const session = { id: header.id, header }
+    f.sessions.set(session.id, session)
+    const task = f.store.read(session.id)
+    f.store.update(session.id, { brief: { ...task.brief, objective: session.id + '独立目标' } }, task.revision, 'user')
+    const state = f.service.read(session.id)
+    assert.equal(state.sessionId, header.origin === 'subagent' ? 'main' : session.id)
+    assert.equal(state.brief.objective, header.origin === 'subagent' ? f.store.read('main').brief.objective : session.id + '独立目标')
+  }
 })

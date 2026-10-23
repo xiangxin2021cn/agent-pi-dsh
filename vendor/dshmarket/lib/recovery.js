@@ -32,10 +32,10 @@ import { spawn } from 'node:child_process';
 import { appendFileSync, openSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { connect } from 'node:net';
-import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readJsonBody, sameOrigin, sendJson } from "./http.js";
+import { redactHomePaths } from "./log-redaction.js";
 import { disableRow, enableRow } from "./patch.js";
 import { addProfileBundle, removeProfileBundle } from "./profile.js";
 /** How long the replacement gets to bind the port before it is a failure. */
@@ -464,8 +464,7 @@ async function waitForPortFree(port, timeoutMs) {
  * one unreadable line, which is the opposite of what the export is for.
  */
 function redactLog(text) {
-    return text
-        .replaceAll(homedir(), '~')
+    return redactHomePaths(text)
         .replace(/sk-[A-Za-z0-9_-]{8,}/g, 'sk-***')
         .replace(/gh[pousr]_[A-Za-z0-9]{16,}/g, 'gh*_***')
         .replace(/npm_[A-Za-z0-9]{16,}/g, 'npm_***')

@@ -321,7 +321,7 @@ test('project binding and child sessions cannot redirect writes or panel reads',
   assert.equal((await f.http('&projectId=wrong&module=tender')).status, 409)
   assert.equal((await f.http('&projectId=first&module=tender')).status, 200)
   assert.equal((await f.http('', 'POST')).status, 405)
-  const child = { id: 'child', header: { cwd: f.cwd, parentSession: 'main' } }; f.sessions.set('child', child)
+  const child = { id: 'child', header: { cwd: f.cwd, parentSession: 'main', origin: 'subagent' } }; f.sessions.set('child', child)
   const childAgent = { ...f.main, session: child }
   assert.equal((await f.call({ action: 'status' }, childAgent)).project.id, 'tender:first')
   await assert.rejects(f.call({ action: 'update', revision: 2, operationId: 'child-write', patch: {} }, childAgent), /主执行者/)

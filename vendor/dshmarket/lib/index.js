@@ -11,6 +11,16 @@ import { setRequestGateSource, setTrustedHostsSource } from "./http.js";
 import { mountMarketRoutes } from "./routes.js";
 import { installDesktopMarketSettings, installMarketSettings } from "./settings.js";
 export const name = 'dsh-market';
+/**
+ * How long after the market mounts an interrupted update is repaired.
+ *
+ * The market mounts while the composition is still starting its entries, and
+ * an install at that moment would reconcile the profile underneath the boot.
+ * The desktop host's own replay wait is the same order of magnitude (8 s), so
+ * this waits that long once, then fixes what a previous start left behind
+ * (#928). Nothing happens when the journal is empty, which is the normal case.
+ */
+const PENDING_UPDATE_REPAIR_DELAY_MS = 8_000;
 export const Config = z.object({
     profile: z.string(), allowRestart: z.boolean().volatile(), maxSnapshots: z.natural(), buildEnv: z.dict(z.string()),
 });
@@ -210,7 +220,11 @@ export function apply(ctx, config) {
                 const profileDirectory = launched !== undefined && launched.name.toLowerCase() === profileName.toLowerCase()
                     ? launched.dir
                     : undefined;
-                const runtime = createOfficialDesktopRuntime(() => hostCtx.get('pluginManager'), profileName, profileDirectory);
+                const runtime = createOfficialDesktopRuntime(() => hostCtx.get('pluginManager'), profileName, profileDirectory, 
+                // Hand the invocation to the runtime only. Do not register it
+                // globally: other official-desktop installs still go through the
+                // manager (#702). The market itself is the one exception (#982).
+                hostPackageManagerOf(profileContext));
                 const resolved = {
                     profile: profileName,
                     ...(profileDirectory === undefined ? {} : { profileDirectory }),
@@ -234,7 +248,16 @@ export function apply(ctx, config) {
                 host.effect(() => {
                     const restoreTrustedHosts = useTrustedHosts(ctx);
                     const disposeRoutes = mountMarketRoutes(host, resolved, runtime, agentsLookupOf(ctx));
+                    const repairTimer = setTimeout(() => {
+                        void runtime.repairPendingUpdates().then(report => {
+                            if (report.reinstalled.length === 0 && report.failed.length === 0)
+                                return;
+                            console.warn(`dsh-market: ${report.reinstalled.length} interrupted update(s) reinstalled, ${report.failed.length} still pending`);
+                        });
+                    }, PENDING_UPDATE_REPAIR_DELAY_MS);
+                    repairTimer.unref?.();
                     return async () => {
+                        clearTimeout(repairTimer);
                         disposeRoutes();
                         restoreTrustedHosts();
                         await runtime.dispose();
@@ -316,12 +339,19 @@ export function apply(ctx, config) {
             const desktopHost = desktopCtx;
             installDesktopMarketSettings(desktopCtx);
             desktopHost.effect(() => {
+                // Same authority source as the other two branches (#960): this is the
+                // branch Desktop actually takes, and without it the fence only ever
+                // accepted loopback — every mutating route answered 403 untrusted
+                // origin on a LAN, Tailscale or hostname deployment the host itself
+                // had declared.
+                const restoreTrustedHosts = useTrustedHosts(ctx);
                 // The host that publishes `desktopProfiles` is the one that may own
                 // activation (#551): hand it the bridge it published, if any, so the
                 // market can ask for a replay instead of mounting a second entry.
                 const disposeRoutes = mountMarketRoutes(host, resolved, runtime, agentsLookupOf(ctx), desktopProfiles.pluginActivation);
                 return async () => {
                     disposeRoutes();
+                    restoreTrustedHosts();
                     await runtime.dispose();
                 };
             }, 'dsh-market: Desktop http routes and package operations');

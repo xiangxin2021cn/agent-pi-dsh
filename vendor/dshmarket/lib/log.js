@@ -13,7 +13,7 @@
  */
 import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { homedir } from 'node:os';
+import { redactHomePaths } from "./log-redaction.js";
 const MAX_ENTRIES = 200;
 const DETAIL_MAX = 600;
 const PERSISTENT_MAX_BYTES = 256 * 1024;
@@ -22,8 +22,7 @@ let persistentFile = null;
 /** Bytes in the sink file, tracked so the cap holds without a stat per event. */
 let persistentBytes = 0;
 function sanitize(text) {
-    return text
-        .replaceAll(homedir(), '~')
+    return redactHomePaths(text)
         // Log-injection guard: control characters (newlines above all) would
         // forge extra lines in the exported log file. The #98 routes pass
         // user-supplied names into logEvent (bundle-order order entries, trial

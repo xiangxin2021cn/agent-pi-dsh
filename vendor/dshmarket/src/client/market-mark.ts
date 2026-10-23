@@ -23,11 +23,24 @@ export const MARK_BLOCK_RADIUS = 0.53
 /** The square every coordinate in the mark is expressed in. */
 export const MARK_VIEW_BOX = 16
 
-/** The eight grid cells, row-major. The ninth slot stays empty on purpose. */
-export const MARK_GRID_BLOCKS: readonly { readonly x: number; readonly y: number }[] = [
-  { x: 1.96, y: 3.36 }, { x: 5.71, y: 3.36 },
-  { x: 1.96, y: 7.11 }, { x: 5.71, y: 7.11 }, { x: 9.46, y: 7.11 },
-  { x: 1.96, y: 10.86 }, { x: 5.71, y: 10.86 }, { x: 9.46, y: 10.86 },
+/**
+ * The eight grid cells, row-major. The ninth slot stays empty on purpose.
+ *
+ * `wave` is the cell's diagonal, `row + column` in the 3×3 grid. The animated
+ * variants stagger on it, so the breath travels across the grid instead of
+ * sweeping it left to right; the empty slot sits at `wave` 2, which is what
+ * the plug block's own timing is keyed to (see `dshmMarkPlug`). It is geometry
+ * like the coordinates are, so it lives here rather than being re-derived by
+ * both renderers — the mask serialiser ignores it.
+ */
+export const MARK_GRID_BLOCKS: readonly {
+  readonly x: number
+  readonly y: number
+  readonly wave: number
+}[] = [
+  { x: 1.96, y: 3.36, wave: 0 }, { x: 5.71, y: 3.36, wave: 1 },
+  { x: 1.96, y: 7.11, wave: 1 }, { x: 5.71, y: 7.11, wave: 2 }, { x: 9.46, y: 7.11, wave: 3 },
+  { x: 1.96, y: 10.86, wave: 2 }, { x: 5.71, y: 10.86, wave: 3 }, { x: 9.46, y: 10.86, wave: 4 },
 ]
 
 /**

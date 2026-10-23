@@ -31,7 +31,7 @@ export function registerLongTaskHost(ctx: any, createUserMessage: (input: any) =
     const found = projectForBoundSession(cwd, sessionId)
     if (!found || found.projectId !== project.projectId || found.module !== project.module) throw new Error('执行恢复只能控制当前项目绑定的主会话。')
     const session = ctx.get('sessions')?.get(sessionId) || getAgent(sessionId)?.session
-    if (session?.header?.parentSession) throw new Error('子任务不能控制主任务的执行范围或预算。')
+    if (session?.header?.origin === 'subagent') throw new Error('子任务不能控制主任务的执行范围或预算。')
   }
   function registerChild(cwd: string, project: any, sessionId: string, child: any, fromSeq?: number, newTurn = false) {
     const attempt = longTaskStatus(cwd, project, sessionId).attempt

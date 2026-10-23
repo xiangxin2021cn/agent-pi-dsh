@@ -12,7 +12,7 @@ export function registerEngineeringDelivery(ctx: any, defineTool: (definition: a
       const session = exec.agent?.session
       if (!session?.id || !session.header?.cwd) throw new Error('工程交付需要实际主对话及工作目录。')
       const state = structuredClone(ctx.engineering.status(session.id)) as ExportState
-      if (state.scope?.sessionId !== session.id || session.header.parentSession) throw new Error('工程交付由所属主对话生成；子任务先提交结果。')
+      if (state.scope?.sessionId !== session.id || session.header.origin === 'subagent') throw new Error('工程交付由所属主对话生成；子任务先提交结果。')
       if (args.project !== undefined || args.state !== undefined || args.cwd !== undefined) throw new Error('导出只能读取本会话工程账本，不能使用调用者提供的项目 JSON 或工作目录。')
       exec.signal?.throwIfAborted()
       const result = exportEngineeringFiles(session.header.cwd, state, args.outputBasename)

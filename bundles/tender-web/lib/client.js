@@ -11344,14 +11344,14 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 		/**
 		* Resolve a Workspace-relative path into the Host-facing spelling used by path operations.
 		* @param cwd - Session Workspace root, when known.
-		* @param path - Absolute or Workspace-relative path.
+		* @param path - Absolute or Workspace-relative path; leading `./` segments are dropped when joining.
 		* @returns an absolute path when a Workspace root is available, otherwise the original path.
 		*/
 		function resolveWorkspacePath(cwd, path) {
 			if (isAbsoluteWorkspacePath(path)) return path;
 			if (cwd === void 0 || cwd === "") return path;
 			const separator = isWindowsStylePath(cwd) && cwd.includes("\\") ? "\\" : "/";
-			return `${cwd.replace(/[/\\]+$/, "")}${separator}${path.replace(/^[/\\]+/, "")}`;
+			return `${cwd.replace(/[/\\]+$/, "")}${separator}${path.replace(/^(?:\.?[/\\])+/, "")}`;
 		}
 		//#endregion
 		//#region src/client/native-work-file-preview.js

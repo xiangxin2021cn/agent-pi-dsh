@@ -6,7 +6,7 @@ import { registerBusinessActivation } from '../../tender-host/src/business-activ
 import { registerLongTaskHost } from '../../tender-host/src/long-task-host.ts'
 import { importDsh } from '../../tender-host/src/dsh.ts'
 
-const { createUserMessage } = await importDsh<any>('packages/llm/llm/src/message.ts')
+const { createUserMessage } = await importDsh<any>('packages/llm/llm/lib/index.js')
 
 export const name = 'agent-pi-workbench'
 export const inject = ['tools', 'systemPrompt']

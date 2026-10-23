@@ -87,6 +87,23 @@ export declare function isPublicTarget(hostname: string): boolean;
 export declare function isPublicIpv6(ip: string): boolean;
 /** Resolve once, reject every unsafe answer, and return the address to pin. */
 export declare function resolvePublicAddress(hostname: string): Promise<PublicAddress>;
+/**
+ * Why a WebDAV target was refused, when the answer is not "the URL is wrong"
+ * (#999).
+ *
+ * The gate used to answer `invalid WebDAV URL` for every branch — a non-https
+ * scheme, embedded credentials, a `.local` name, an empty DNS answer and a
+ * private resolution all read the same. That made one very common setup
+ * undebuggable: a proxy client in fake-ip mode (Clash/Mihomo, the default for
+ * most Chinese setups) answers `198.18.x.x` for every proxied hostname, so
+ * every WebDAV target was refused with a message pointing at the URL.
+ */
+export type WebdavUrlErrorCode = 'webdav_bad_url' | 'webdav_unresolvable' | 'webdav_private_resolution';
+export declare class WebdavUrlError extends Error {
+    readonly code: WebdavUrlErrorCode;
+    readonly address?: string | undefined;
+    constructor(code: WebdavUrlErrorCode, message: string, address?: string | undefined);
+}
 export declare function downloadWebdav(url: string, username: string, password: string): Promise<unknown>;
 export interface PluginSelection {
     deps: Record<string, string>;

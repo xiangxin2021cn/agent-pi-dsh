@@ -9,7 +9,9 @@ English | [中文](README.zh.md)
 [![npm](https://img.shields.io/npm/v/dshmarket)](https://www.npmjs.com/package/dshmarket)
 [![stars](https://img.shields.io/github/stars/dsh-market/dsh-market?style=flat)](https://github.com/dsh-market/dsh-market)
 
-The plugin market inside DeepSeek Harness. Open Settings → **Plugin Market** → browse, search, one-click install.
+The plugin market inside DeepSeek Harness. On dsh 0.2.1+ it is a tab on the **Plugins** page, right next to **Installed**; on older hosts open Settings → **Plugin Market**. Browse, search, one-click install.
+
+> 📡 **The same catalog is also a plugin market index.** On dsh 0.2.1+, open **Plugins → Discover → Index sources** and add `https://cdn.jsdelivr.net/npm/dsh-plugin-catalog/index.json`. That is this list as a format-1 index, served from npm so it loads quickly everywhere — dsh gives a source 15 seconds, and the GitHub Pages copies (`https://awesome-dsh-plugin.com/index.json` and `https://dshmarket.com/index.json`) can exceed that from some networks. The host's Discover tab and the `plugin_market` agent tool then search it.
 
 ![dsh-market](assets/demo-en.png)
 
@@ -21,7 +23,22 @@ One-click themes: install, switch live, no restart.
 dsh plugin --profile web add dshmarket
 ```
 
-Restart `dsh web`, then open **Settings → Plugin Market**.
+Restart `dsh web`, open the **Plugins** page, and pick the **Plugin Market**
+tab next to **Installed** (dsh 0.2.1 and newer — plain `dsh web` included, no
+desktop app needed). The market is also still a section of **Settings → Plugin
+Market**: on dsh 0.2.0 and older that is the only way in, and from 0.2.1 the
+Settings dialog lives in the account menu. If you would rather reach it in one
+click from anywhere, the market can also put its own **Plugin Market** row in
+the sidebar; turn it on from the market's card under **Plugins**. Going the
+other way, an installed plugin's **···** menu offers **View in Plugins** on
+dsh 0.2.1+: it opens the host's own page for that plugin, which is the only
+place its individual rows can be switched one by one.
+
+A host that runs under another profile name takes the same command with that
+name instead — `dsh plugin --profile <profile> add dshmarket`. On the official
+DSH Desktop app, install from the app's own **Settings → Plugins** rather than
+the command line: that profile belongs to the app's plugin manager, and the CLI
+will not change it while the app is running.
 
 **Requires dsh web 0.1.0-rc.6 or newer.** On an older host the market
 disables itself and says so in the browser console rather than rendering
@@ -36,7 +53,7 @@ its own dsh: it may be older than the one `npm` would give you (#139).
 - **Screenshots** — AppStore-style screenshots, auto-carousel when there's more than one, click to preview full-size: author-curated shots show right on the card (zero extra requests); plugins without curated shots fall back to automatic README extraction once you open the install dialog. Images load from GitHub hosting only
 - **Comments** — every card opens the plugin's discussion thread in place. It is the same thread its pages on [dshmarket.com](https://dshmarket.com) and the [catalog](https://awesome-dsh-plugin.com) show, so a plugin has one conversation rather than three. Backed by GitHub Discussions through giscus: it loads when you open it, needs a GitHub account only to post, and the note above it says plainly that opening it contacts giscus.app and GitHub. On local dsh web, reading stays embedded while a dedicated GitHub action opens the exact discussion in a new tab for sign-in and posting, so the cross-site return never carries or depends on the host session
 - **Favorites** — bookmark plugins and themes from Discover or the Themes tab; a dedicated Favorites tab lists them with search, sort, and install actions. Bookmarks persist in the profile's market state (`state.json`); entries that leave the catalog can be cleared in one click
-- **Groups** — organise installed plugins into named groups (rename, delete, and per-group search); a plugin lives in one group and ungrouped is the default. Purely organisational: the panel says so, and nothing about enable state changes. The grouping itself is local state in the profile's `state.json`
+- **Groups** — organise installed plugins into named groups (rename, delete, and per-group search); a plugin lives in one group and ungrouped is the default. A group carries its own switch: all-on, all-off, or the mixed state its members are really in, so a working set can be switched as a unit without touching the rest. A group holds at most one theme. The grouping itself is local state in the profile's `state.json`
 - **Notes** — write your own one-line description for any installed plugin and it replaces the author's on that row, so a shelf of forty plugins answers "why did I install this" in your words. Stored locally beside groups and favorites, never sent anywhere
 - **Themes** — a dedicated tab for community themes and skins: install → active immediately, switch with one click (themes are mutually exclusive, your choice survives restarts), uninstall to revert
 - **One-click install** — confirm the source, watch live progress; most plugins go live after a page refresh, no restart
@@ -50,7 +67,7 @@ its own dsh: it may be older than the one `npm` would give you (#139).
 - **Recovery when a restart does not come back** — DSH's boot is all-or-nothing: one plugin that cannot load stops the whole process, and the market's own UI dies with the host it was serving from. Now that failure prompt offers **Adjust plugins**: the ones DSH blamed are marked red and left unticked, you choose what should be enabled at the next start, the choice is written through the same `cordis.patch.yml` rows the market's own toggles use (plus `dsh.profile.bundles` for a disable-carrier), and the boot is retried. It is served by the detached restart helper on the same address the page was already polling, so it works even though the host is gone — and opening the URL fresh renders a standalone version of the same page. When DSH starts normally, none of it appears
 - **Zero jargon** — if a component is missing (pnpm), the market detects it and offers a one-click automatic setup
 - **Log export** — one click produces a sanitized plain-text log for bug reports (home paths and credential shapes are masked; nothing is ever sent anywhere). The market's version sits next to the page heading, so a screenshot of a problem already carries it
-- **Settings card** — on dsh 0.1.0-rc.7 and newer the market manages *itself* from **Settings → Plugins → Plugin configuration**, next to every other plugin: see the running version, pick a **release channel** (stable, or beta to try builds still being verified — the market only, never your other plugins; a third *dev* channel appears once developer mode is switched on, and carries builds published straight off a branch), update, or remove the market — with an opt-in cleanup that also drops the disable rows it wrote, so plugins it switched off start running again rather than staying off with no UI left to switch them back on
+- **Settings card** — on dsh 0.1.0-rc.7 and newer the market manages *itself* next to every other plugin — under **Settings → Plugins → Plugin configuration** while the host still has a Settings page, and on the market's own card on the **Plugins** page from dsh 0.2.1, where Settings is gone: see the running version, pick a **release channel** (stable, or beta to try builds still being verified — the market only, never your other plugins; a third *dev* channel appears once developer mode is switched on, and carries builds published straight off a branch), update, or remove the market — with an opt-in cleanup that also drops the disable rows it wrote, so plugins it switched off start running again rather than staying off with no UI left to switch them back on
 - **Diagnostics** — the plugin load order and conflict surface, one page: bundle stack with official/community badges, duplicate loader entries, dependency version mismatches, multi-version core packages, overrides and invalid config entries, and leftover directories — a package directory an interrupted update left without its `package.json`, and pnpm's own `*_tmp_*` staging directories. Nothing there stops a start, so it is listed rather than warned about, and it is the only place that names what is on disk. Plain-language terms, problem blocks highlighted, everything collapsible
 
 - **Load order** — drag community bundles into the order you want, or take the suggested one derived from the plugins' own before/after rules. Nothing is written until a trial composition passes, and the panel tells you what the new order would change (overrides, invalid or duplicate entries) before you apply it

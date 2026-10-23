@@ -148,6 +148,54 @@ export declare function diagnosticsTail(result: {
  */
 export declare function pnpmNeverStarted(result: InstallResult): boolean;
 /**
+ * Whether pnpm refused a too-young release without writing to the profile.
+ *
+ * Same nature as wroteNothing / pnpmNeverStarted for the update route's
+ * rollback (#919): pnpm DID start, read the lockfile, then exited 1 on
+ * ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION (or the sibling mature-match /
+ * resolution-policy shapes). Nothing was installed or removed, so restoring
+ * "the previous build" is alarm about an untouched profile — and on the
+ * official desktop bridge it pairs every wait with a false
+ * "restoration could not be verified" line that covers the real reason.
+ * @param result - the failed run.
+ * @returns true when the failure is pnpm's fresh-release gate.
+ */
+export declare function pnpmRefusedYoungRelease(result: InstallResult): boolean;
+/**
+ * The profile's fresh-release wait window in ms (#919).
+ *
+ * Reads `minimumReleaseAge` (minutes) from pnpm-workspace.yaml, then
+ * `minimum-release-age` from `.npmrc`. A key that is present but not a
+ * number returns null — callers must not invent a remaining wait. When
+ * neither file names the key, pnpm's default 1440 minutes applies.
+ */
+export declare function readMinimumReleaseAgeMs(profile: string, explicitDir?: string): number | null;
+/**
+ * The `name@version` pnpm actually refused, when its refusal named one (#944).
+ *
+ * {@link remainingReleaseAgeWait} reads only the timestamp on the same line,
+ * which is fine while the offender IS the package being installed. It is not
+ * always: a plugin install can be refused by a DIFFERENT, younger package that
+ * is already in the lockfile, because pnpm verifies the whole lockfile before
+ * any mutation (#39). #944 hit exactly that — updating `dsh-cost-meter` failed
+ * with `dshmarket@1.66.44` named in the error, and the note then told the user
+ * to wait out *the plugin's* version, which was not the version holding them.
+ *
+ * Only the entry pnpm prints in its violation line is read (`  <name>@<version>
+ * was published at …`), so this cannot invent an offender from unrelated text.
+ * Null when no such line is present — callers must then keep their existing
+ * wording rather than guess.
+ */
+export declare function refusedReleaseAgePackage(output: string): {
+    name: string;
+    version: string;
+} | null;
+/**
+ * How long is left in the fresh-release wait, when pnpm named the publish
+ * time in its refusal (#919). Null when the output has no usable timestamp.
+ */
+export declare function remainingReleaseAgeWait(output: string, now?: number, windowMs?: number): number | null;
+/**
  * Whether pnpm failed because the running host holds the package's files
  * open, so nothing pnpm runs from inside that host can replace them.
  *
@@ -162,6 +210,49 @@ export declare function pnpmNeverStarted(result: InstallResult): boolean;
  * @returns true when pnpm was stopped by files the host holds open.
  */
 export declare function pnpmBlockedByOpenFiles(result: InstallResult): boolean;
+/**
+ * Whether a failed run is the running host colliding with a second profile
+ * boot (#975).
+ *
+ * Market install / update / uninstall spawn `dsh plugin …`. On a live
+ * `dsh web` that child can boot the profile again, bind the same port, and
+ * exit 1 AFTER pnpm has already written. The signature is DSH's own boot
+ * failure — `listen EADDRINUSE` plus `Full diagnostics` pointing at a
+ * `startup-*.log` — not a pnpm classifier code. All three pieces are
+ * required so a stray EADDRINUSE or an unrelated diagnostics line cannot
+ * flip a real failure into success.
+ */
+export declare function isHostPortCollision(result: {
+    stdout: string;
+    stderr: string;
+}): boolean;
+/**
+ * Whether this install left at least one new, loadable plugin on disk (#975).
+ *
+ * Read-only half of the #18 guard: a name that landed without a dsh surface
+ * or entry is not this operation's intent, so the caller still rolls back.
+ * The route then runs the full validator on the success path.
+ */
+export declare function installApplied(profile: string, before: ReadonlySet<string>, explicitDir?: string): boolean;
+/**
+ * Whether this update changed the installed version or git commit (#975).
+ *
+ * Same question `isStaleUpdate` asks, but a missing after-value is "did not
+ * land", not "not stale". The package must still be on disk.
+ *
+ * Git commits use the same two reads as `gitIdentityCommit` in routes.ts:
+ * `type: git` first, then the archive/codeload URL a floating `github:`
+ * install actually leaves.
+ */
+export declare function updateApplied(check: {
+    profile: string;
+    name: string;
+    isGit: boolean;
+    beforeVersion: string | null;
+    beforeCommit: string | null;
+    spec?: string;
+    explicitDir?: string;
+}): boolean;
 /**
  * The most specific description of a failed run available, for logs.
  *

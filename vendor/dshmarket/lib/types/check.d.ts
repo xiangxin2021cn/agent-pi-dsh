@@ -302,10 +302,15 @@ export declare function composeLayers(layers: LayerInput[]): Composed;
  * patch row plus a user-patch row on the same id: fatal forever meant every
  * update of every plugin rolled back.
  *
- * Unknown version stays fatal: the conservative direction, and the case where
- * the evidence to be less strict is missing.
+ * An empty answer from the PROFILE lockfile is not "unknown" on the official
+ * Desktop: that host embeds the loader in `app.asar` and provides it to every
+ * profile, so no profile can ever name it (#943). Reading that as an old
+ * loader made the gate fatal for every update on 0.2.1-rc.2 — the exact report
+ * #853's fix was supposed to close. The host installation is asked before the
+ * evidence is treated as missing; only when both are silent does the
+ * conservative answer stand.
  */
-export declare function duplicateEntryIdsAreFatal(profileDirectory: string): boolean;
+export declare function duplicateEntryIdsAreFatal(profileDirectory: string, dshInstallDir?: string | null): boolean;
 /**
  * Build the bundle layer stack for a profile under a GIVEN bundle order —
  * the manifest order for analyzeProfile, or a candidate order for trial

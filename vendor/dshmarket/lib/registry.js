@@ -3,9 +3,10 @@
  * fresh on every request. See `loadRegistry` for why there is nothing
  * behind it any more.
  */
+import { logEvent } from "./log.js";
 import { configuredProxy, marketFetch } from "./net.js";
 import { catalogFromPackage } from "./catalog-npm.js";
-import { activeRegion, routesFor } from "./regions.js";
+import { activeRegion, catalogSourcesFor, routesFor } from "./regions.js";
 /**
  * Category ids for one catalog entry, de-duplicated in declaration order.
  *
@@ -166,8 +167,23 @@ export async function loadRegistry(region = activeRegion()) {
     // the FIRST request the market makes, so a mirror that has gone down must
     // mean a slow market rather than an empty one — the list ends at the
     // address that has always worked.
-    for (const source of routesFor(region).catalog) {
+    //
+    // The list runs one entry past the region's own sources on purpose (#891):
+    // the region probe measures the npm registry, so it cannot see a network
+    // where npm is fast and the catalog's host is blocked — and the region is
+    // decided once and persisted. The catalog's published package, on the
+    // registry the probe just proved reachable, is the repair that needs
+    // neither the probe nor the decision to change.
+    const ownSources = routesFor(region).catalog.length;
+    const catalogSources = catalogSourcesFor(region);
+    for (const [sourceIndex, source] of catalogSources.entries()) {
         const key = sourceKey(source);
+        const servedBy = (data) => {
+            if (sourceIndex >= ownSources) {
+                logEvent('warn', 'registry', `catalog: the ${region} sources did not answer; read the catalog package from ${key} instead (#891)`);
+            }
+            return data;
+        };
         // Two attempts each. A catalog fetch crossing a long, lossy path fails
         // transiently often enough that one retry is worth more than the second
         // or two it costs — and with nothing behind this call any more, a
@@ -183,12 +199,12 @@ export async function loadRegistry(region = activeRegion()) {
                     const { version, data } = await catalogFromPackage(source.registry, source.pkg, reusable?.version ?? undefined);
                     // `data === null` means the published version is the one in hand.
                     if (data === null && reusable !== null)
-                        return reusable.data;
+                        return servedBy(reusable.data);
                     if (data === null)
                         throw new Error('the catalog package reported no change with nothing to reuse');
                     const parsed = asRegistry(data);
                     served = { key, etag: null, modified: null, version, data: parsed };
-                    return parsed;
+                    return servedBy(parsed);
                 }
                 // ETag first: it is exact, while a date has one-second resolution and
                 // a catalog republished twice within the same second would validate
@@ -221,7 +237,7 @@ export async function loadRegistry(region = activeRegion()) {
                     // otherwise surface as a confusing parse error on an empty body.
                     if (reusable === null)
                         throw new Error('the catalog answered "not modified" with nothing to revalidate');
-                    return reusable.data;
+                    return servedBy(reusable.data);
                 }
                 if (!res.ok)
                     throw new Error(`HTTP ${String(res.status)}`);
@@ -229,7 +245,7 @@ export async function loadRegistry(region = activeRegion()) {
                 served = {
                     key, etag: res.headers.get('etag'), modified: res.headers.get('last-modified'), version: null, data,
                 };
-                return data;
+                return servedBy(data);
             }
             catch (error) {
                 last = error;
