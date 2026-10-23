@@ -272,6 +272,7 @@ function reviewedHostFixture(t, review = '3.8.2-disk') {
     '3.8.2-patched': '4cbcc177b48e455246ed10a75bf391b2ef6e144e',
     '3.8.2-release': 'dc99fa96961dfff28fba93551d02b0f78a82cc2c',
     '3.8.2-browser': 'v3.8.2',
+    '3.8.3': 'd78d89a37f7aa5e7ab1f3e841cc806c4ab44cca6',
   }[review]
   const raw = path => path.startsWith('bundles/tender-host/lib/cad-decoder/') || path === 'scripts/cad-host-bit-position-overflow.patch'
   const read = path => historical
