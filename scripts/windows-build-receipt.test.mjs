@@ -72,3 +72,26 @@ test('refuses to create a receipt away from the exact version tag or from a dirt
   writeFileSync(join(value.root, 'package.json'), '{"version":"3.6.0","license":"GPL-3.0-only","dirty":true}\n')
   assert.throws(() => createWindowsBuildReceipt(value), /clean checkout/)
 })
+
+test('tender receipts require their own exact tag and installer, and reject mainline payload naming', t => {
+  const value = fixture(t)
+  const packagePath = join(value.root, 'package.json')
+  const manifest = JSON.parse(readFileSync(packagePath, 'utf8'))
+  manifest.agentPiProduct = { edition: 'tender', artifactStem: 'Agent-Pi-DSH-Tender', releaseTagPrefix: 'tender-v' }
+  writeFileSync(packagePath, JSON.stringify(manifest) + '\n')
+  execFileSync('git', ['add', 'package.json'], { cwd: value.root })
+  execFileSync('git', ['commit', '-m', 'independent tender fixture'], { cwd: value.root })
+  execFileSync('git', ['tag', 'v3.6.0-tender-invalid'], { cwd: value.root })
+  assert.throws(() => createWindowsBuildReceipt(value), /exact tender-v3\.6\.0 tag/)
+  execFileSync('git', ['tag', '-d', 'v3.6.0-tender-invalid'], { cwd: value.root })
+  execFileSync('git', ['tag', 'tender-v3.6.0'], { cwd: value.root })
+  assert.throws(() => createWindowsBuildReceipt(value), /different product edition/)
+  value.installerPath = join(value.root, 'release', 'Agent-Pi-DSH-Tender-3.6.0-x64.exe')
+  value.receiptPath = value.installerPath + '.build.json'
+  writeFileSync(value.installerPath, 'tender installer fixture')
+  const receipt = createWindowsBuildReceipt(value)
+  assert.equal(receipt.edition, 'tender')
+  assert.equal(receipt.releaseTag, 'tender-v3.6.0')
+  assert.equal(receipt.installer.name, 'Agent-Pi-DSH-Tender-3.6.0-x64.exe')
+  assert.deepEqual(verifyWindowsBuildReceipt(value), receipt)
+})

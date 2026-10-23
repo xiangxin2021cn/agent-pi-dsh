@@ -21,7 +21,7 @@ test('this product has one version, edition, installer and update identity', () 
   assert.ok(desktop.build.files.includes('product-identity.mjs'))
   assert.ok(desktop.build.files.includes('edition-data-import.mjs'))
 })
-test('the mainline physically excludes dedicated tender UI while retaining professional workbench capabilities', () => {
+test('each edition has its expected UI boundary and retains professional workbench capabilities', () => {
   const dedicated = 'bundles/tender-web/src/client/tender-edition.js'
   assert.equal(existsSync(resolve(root, dedicated)), product.edition === 'tender')
   const client = readFileSync(resolve(root, 'bundles/tender-web/src/client/index.js'), 'utf8')

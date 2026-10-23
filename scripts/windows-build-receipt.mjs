@@ -42,7 +42,12 @@ function releaseIdentity(root) {
     throw new Error('Windows 3.6.0 release must declare GPL-3.0-only')
   }
   const edition = packageJson.agentPiProduct?.edition || 'mainline'
-  const releaseTag = `${packageJson.agentPiProduct?.releaseTagPrefix || 'v'}${appVersion}`
+  if (!['mainline', 'tender'].includes(edition)) throw new Error('invalid Windows product edition')
+  const artifactStem = edition === 'tender' ? 'Agent-Pi-DSH-Tender' : 'Agent-Pi-DSH'
+  const tagPrefix = edition === 'tender' ? 'tender-v' : 'v'
+  if (packageJson.agentPiProduct?.artifactStem && packageJson.agentPiProduct.artifactStem !== artifactStem
+      || packageJson.agentPiProduct?.releaseTagPrefix && packageJson.agentPiProduct.releaseTagPrefix !== tagPrefix) throw new Error('Windows product edition identity mismatch')
+  const releaseTag = tagPrefix + appVersion
   const sourceCommit = git(root, ['rev-parse', 'HEAD'])
   let exactTag = ''
   try {
@@ -59,6 +64,7 @@ function releaseIdentity(root) {
   return {
     appVersion,
     edition,
+    artifactStem,
     releaseTag,
     sourceCommit,
     dshPin: readFileSync(join(root, 'DSH_PIN'), 'utf8').trim(),
@@ -68,6 +74,7 @@ function releaseIdentity(root) {
 function currentReceipt(options) {
   const root = resolve(options.root)
   const identity = releaseIdentity(root)
+  if (basename(options.installerPath) !== `${identity.artifactStem}-${identity.appVersion}-x64.exe`) throw new Error('Windows installer belongs to a different product edition or version')
   const cadManifestPath = join(resolve(options.cadRuntimeDir), 'CAD-CLEAN-BUILD.json')
   return {
     schemaVersion: windowsBuildReceiptSchema,
@@ -95,7 +102,7 @@ export function verifyWindowsBuildReceipt(options) {
     throw new Error('unsupported Windows build receipt')
   }
   const expected = currentReceipt(options)
-  for (const key of ['appVersion', 'edition', 'releaseTag', 'sourceCommit', 'dshPin']) {
+  for (const key of ['appVersion', 'edition', 'artifactStem', 'releaseTag', 'sourceCommit', 'dshPin']) {
     if (receipt[key] !== expected[key]) throw new Error(`Windows build receipt ${key} mismatch`)
   }
   for (const key of ['installer', 'installerPayload', 'cadRuntimeManifest', 'cadSource', 'dshBuildReceipt']) {
