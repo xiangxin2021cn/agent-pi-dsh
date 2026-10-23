@@ -310,17 +310,22 @@ test('stop during a pending turn acknowledgement interrupts the newly acknowledg
   } finally { h.controller.dispose() }
 })
 
-test('native thread identity is durable and resumed after app restart with original conversation', async () => {
+test('native thread identity and professional tool results survive app restart', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'agent-pi-native-test-'))
   const stateFile = join(dir, 'state.json')
   const first = harness({ stateFile })
   try {
     await first.controller.submit({ ...identity, text: 'Task one' })
+    first.children[0].reply({ id: 'tool-call', method: 'item/tool/call', params: { threadId: 'native-thread', callId: 'durable-professional-call', tool: 'cordis', arguments: { action: 'call', tool: 'professional_task', args: { action: 'status' } } } })
+    await tick()
     first.children[0].reply({ method: 'turn/completed', params: { threadId: 'native-thread', turn: { status: 'completed' } } })
     await tick(); first.controller.dispose()
     const resumed = harness({ stateFile })
     try {
       assert.equal(resumed.controller.status(identity.sessionId).messages[0].text, 'Task one')
+      const toolResult = resumed.controller.status(identity.sessionId).messages.find(row => row.id === 'cordis-durable-professional-call')
+      assert.equal(toolResult.role, 'tool')
+      assert.match(toolResult.text, /professional_task.*completed.*"cost":25/)
       await resumed.controller.submit({ ...identity, text: 'Continue same task' })
       assert.ok(resumed.calls.some((row) => row.method === 'thread/resume' && row.params.threadId === 'native-thread'))
       assert.ok(!resumed.calls.some((row) => row.method === 'thread/start'))

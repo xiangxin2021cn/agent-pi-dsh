@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import { createRequire } from 'node:module'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { createCodexToolBridge } from '../src/codex-tool-bridge.ts'
 
 const sid = 'native-task'
@@ -11,9 +16,10 @@ function deferred() {
 }
 function fixture({ ptc = false, python = false } = {}) {
   const handlers = new Map<string, any>()
-  const calls: any[] = [], appended: any[] = [], pending: any[] = []
+  const calls: any[] = [], appended: any[] = [], pending: any[] = [], presentations: string[] = []
   let registered: any, idle = Promise.resolve(), boundProject = false, activation = false
   const registry = {
+    presentAs(mode: string) { presentations.push(mode); return () => presentations.push('restored') },
     register(tool: any) { registered = tool; return () => {} },
     schemas() { return [{ name: 'task_brief', parameters: { type: 'object' } }, ...(activation ? [{ name: 'tender_price', parameters: { type: 'object' } }] : []), { name: 'run_code' }, { name: 'subagent_codex' }, { name: 'workflow' }] },
     get(name: string) { return ptc && name === 'run_code' ? {} : null },
@@ -55,9 +61,9 @@ function fixture({ ptc = false, python = false } = {}) {
     emit(name: string, payload: any) { assert.equal(name, 'agent-pi/business-activation-sync'); assert.equal(payload.agent, agent); activation = boundProject },
   }
   let seq = 0
-  const bridge = createCodexToolBridge(ctx, (row) => row, (assembly) => JSON.stringify(assembly), () => '', (row) => ({ id: 'user-' + ++seq, ...row }))
+  const bridge = createCodexToolBridge(ctx, (row) => row, (assembly) => JSON.stringify(assembly), () => '', (row) => ({ id: 'user-' + ++seq, role: 'user', ...row }))
   const identity = { sessionId: sid, cwd, text: 'Calculate from the original BOQ' }
-  return { bridge, ctx, agent, services, identity, calls, appended, pending, handlers, block() { blocked = deferred(); return blocked }, bindProject() { boundProject = true } }
+  return { bridge, ctx, agent, services, identity, calls, appended, pending, handlers, presentations, transport: () => registered, block() { blocked = deferred(); return blocked }, bindProject() { boundProject = true } }
 }
 
 test('native context admits the real user message without a DSH model and inherits read-only permission', async () => {
@@ -122,7 +128,7 @@ test('catalogue refreshes the actual business scope after a project is bound; un
   await f.bridge.dispose()
 })
 
-test('native and both PTC flavors preserve output and the actual execution parent', async (t) => {
+test('native scope preserves output and the actual execution parent under every configured PTC flavor', async (t) => {
   for (const config of [{}, { ptc: true }, { ptc: true, python: true }]) await t.test(JSON.stringify(config), async () => {
     const f = fixture(config)
     const context = await f.bridge.context(f.identity)
@@ -130,10 +136,12 @@ test('native and both PTC flavors preserve output and the actual execution paren
     assert.equal(result.value.cost, 42)
     const business = f.calls.at(-1)
     assert.equal(business.name, 'task_brief')
-    assert.equal(business.parent, config.ptc ? 'ptc-parent' : 'native-parent')
+    assert.equal(business.parent, 'native-parent')
     assert.equal(business.agent, f.agent)
-    if (config.ptc) assert.match(f.calls[0].arguments.code, /return await/)
+    assert.equal(f.calls[0].name, 'agent_pi_codex_bridge')
+    assert.deepEqual(f.presentations, ['native'])
     await f.bridge.release(context)
+    assert.deepEqual(f.presentations, ['native', 'restored'])
     await f.bridge.dispose()
   })
 })
@@ -240,4 +248,123 @@ test('cold activation never creates unknown sessions or bypasses archive, cwd, r
     assert.equal(f.appended.length, 0)
     await f.bridge.dispose()
   }
+})
+
+const dshRequire = createRequire(new URL('../../../vendor/deepseek-harness/packages/core/tools/package.json', import.meta.url))
+const dshModule = (name: string) => import(pathToFileURL(dshRequire.resolve(name)).href)
+
+async function realRuntimeFixture(t: any) {
+  const [{ Context }, { default: SystemPrompt }, { default: ToolRuntime, defineTool }, { createScope }, { Session, SessionId }, { PtcRuntime }] = await Promise.all([
+    dshModule('@deepseek-ai/cordis'), dshModule('@deepseek-ai/dsh-system-prompt'), dshModule('@deepseek-ai/dsh-tools'), dshModule('@deepseek-ai/dsh-scope'), dshModule('@deepseek-ai/dsh-session'), dshModule('@deepseek-ai/dsh-ptc-runtime'),
+  ])
+  const runtime = new Context()
+  await runtime.plugin(SystemPrompt)
+  await runtime.plugin(ToolRuntime, { mode: 'ptc' })
+  runtime.provide('workingDirectory', { ensure: async () => cwd })
+  class TestPtcRuntime extends PtcRuntime {
+    language = 'typescript'
+    isolation = 'fixture'
+    resolve(request: any) { return { ...request, cwd, timeoutMs: 1000 } }
+    async run(request: any) { return { logs: [], value: await request.bindings[0].functions.task_brief({ objective: 'legacy' }) } }
+  }
+  await runtime.plugin(TestPtcRuntime)
+  const f = fixture({ ptc: true })
+  const session = Session.create(SessionId(sid), undefined, { version: 4, id: sid, createdAt: Date.now(), isSeeded: false, delegationDepth: 0, cwd })
+  f.agent.session = session
+  await runtime.plugin(Object.assign((inner: any) => { f.agent.ctx = createScope(inner, f.agent).ctx }, { inject: ['tools', 'systemPrompt'] }))
+  const tools = f.agent.ctx.tools
+  tools.register(defineTool(f.transport()))
+  const effects: any[] = []
+  let failure = false
+  let blocked: ReturnType<typeof deferred> | undefined
+  tools.register(defineTool({ name: 'task_brief', description: 'Actual professional fixture', parameters: { objective: { type: 'string' } }, output: { schema: { type: 'json' }, render: (_: any, value: any) => [{ type: 'text', text: JSON.stringify(value) }] },
+    async execute(args: any, exec: any) { effects.push({ args, exec }); if (blocked) await blocked.promise; if (failure) throw new Error('professional tool failed'); return { cost: 42 } },
+  }))
+  let turn = 0, admission: Promise<any> = Promise.resolve()
+  const send = f.agent.send.bind(f.agent), whenIdle = f.agent.whenIdle.bind(f.agent)
+  f.agent.send = (message: any) => {
+    session.append('turn/start', { turn: ++turn })
+    send(message)
+    admission = whenIdle().finally(() => session.append('turn/end', { turn, reason: { kind: 'blocked' } }))
+  }
+  f.agent.whenIdle = () => admission
+  const root = await mkdtemp(join(tmpdir(), 'agent-pi-codex-bridge-'))
+  const persistence = await import(new URL('../../../vendor/deepseek-harness/packages/session/session-persistence-jsonl/lib/index.js', import.meta.url).href)
+  await runtime.plugin(persistence, { root, compression: 'zstd' })
+  t.after(async () => { await f.bridge.dispose(); await runtime.fiber.dispose(); await rm(root, { recursive: true, force: true }) })
+  async function reload() {
+    const writer = await runtime.sessionPersistence.create(session.header)
+    try { await writer.append(session.snapshotEvents()) } finally { await writer.close() }
+    const reader = await runtime.sessionPersistence.open(session.id, 'read')
+    try { return await reader.read() } finally { await reader.close() }
+  }
+  return { ...f, tools, runtime, session, effects, reload, fail() { failure = true }, block() { blocked = deferred(); return blocked } }
+}
+
+test('the former idle run_code strategy persists an invalid PTC tail rejected by the strict loader', async (t) => {
+  const f = await realRuntimeFixture(t)
+  f.session.append('turn/start', { turn: 1 })
+  f.session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+  const result = await f.tools.execute({ name: 'run_code', callId: 'codex-legacy', arguments: { code: 'legacy', description: 'Legacy idle transport' }, agent: f.agent, signal: new AbortController().signal })
+  assert.equal(result.isError, false)
+  assert.deepEqual(f.session.snapshotEvents().slice(2).map((row: any) => row.type), ['tool/ptc-dispatch-start', 'tool/ptc-dispatch'])
+  await assert.rejects(f.reload(), /ptc-dispatch-start is outside an open turn/)
+})
+
+test('real native scoped calls preserve policy and parent tokens and reload after success and failure', async (t) => {
+  const f = await realRuntimeFixture(t)
+  assert.ok(f.tools.get('run_code', f.agent))
+  const context = await f.bridge.context(f.identity)
+  assert.equal(f.tools.get('run_code', f.agent), undefined)
+  const policy: string[] = []
+  let denied = false, transportToken: any
+  f.runtime.on('tools/pre-execute', (exec: any, next: any) => { policy.push(exec.name); if (exec.name === 'agent_pi_codex_bridge') transportToken = exec.token; return denied && exec.name === 'task_brief' ? { kind: 'deny', reason: 'scope denies this call' } : next() })
+  const result = await f.bridge.tool({ ...context, action: 'call', tool: 'task_brief', args: { objective: 'verified' }, callId: 'native-success' })
+  assert.equal(result.value.cost, 42)
+  assert.equal(f.effects[0].exec.parent, transportToken)
+  assert.equal(f.effects[0].exec.rootCallId, 'codex-native-success')
+  assert.deepEqual(policy, ['agent_pi_codex_bridge', 'task_brief'])
+  f.fail()
+  const failure = await f.bridge.tool({ ...context, action: 'call', tool: 'task_brief', args: {}, callId: 'native-failure' })
+  assert.equal(failure.isError, true)
+  assert.equal(failure.error.message, 'professional tool failed')
+  denied = true
+  const denial = await f.bridge.tool({ ...context, action: 'call', tool: 'task_brief', args: {}, callId: 'native-denied' })
+  assert.equal(denial.isError, true)
+  assert.match(denial.error.message, /scope denies this call/)
+  assert.equal(f.effects.length, 2)
+  await f.bridge.release(context)
+  assert.ok(f.tools.get('run_code', f.agent))
+  assert.deepEqual(f.session.snapshotEvents().map((row: any) => row.type), ['turn/start', 'user/message', 'turn/end'])
+  const restored = await f.reload()
+  assert.deepEqual(restored.events, f.session.snapshotEvents())
+})
+
+test('native presentation restores after failed preparation, drained cancellation, scope conflict and disposal', async (t) => {
+  const f = await realRuntimeFixture(t)
+  const assemble = f.ctx.systemPrompt.assemble
+  f.ctx.systemPrompt.assemble = async () => { throw new Error('context preparation failed') }
+  await assert.rejects(f.bridge.context(f.identity), /context preparation failed/)
+  assert.ok(f.tools.get('run_code', f.agent))
+  f.ctx.systemPrompt.assemble = assemble
+  const context = await f.bridge.context(f.identity), block = f.block()
+  const running = f.bridge.tool({ ...context, action: 'call', tool: 'task_brief', args: {} })
+  while (!f.effects.length) await new Promise(resolve => setImmediate(resolve))
+  const cancel = f.bridge.cancel(context)
+  assert.equal(f.effects[0].exec.signal.aborted, true)
+  assert.equal(f.tools.get('run_code', f.agent), undefined)
+  block.resolve()
+  assert.equal((await running).isError, true)
+  await cancel
+  assert.ok(f.tools.get('run_code', f.agent))
+  await f.bridge.release(context)
+  const restore = f.tools.presentAs('ptc')
+  await assert.rejects(f.bridge.context(f.identity), /conflicts/)
+  assert.ok(f.tools.get('run_code', f.agent))
+  restore()
+  const fresh = await f.bridge.context(f.identity)
+  await f.bridge.dispose()
+  assert.ok(f.tools.get('run_code', f.agent))
+  await assert.rejects(f.bridge.tool({ ...fresh, action: 'catalogue' }), /失效/)
+  assert.deepEqual((await f.reload()).events, f.session.snapshotEvents())
 })

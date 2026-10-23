@@ -5,6 +5,8 @@ import { importDsh } from './dsh.ts'
 import { formatSelectedKbContext } from './kb.ts'
 import { depthState, refreshDepthChecks } from './professional-depth.ts'
 
+type NativeLease = { token: string; agent: any; controller: AbortController; calls: Set<Promise<any>>; admissionId?: string; restorePresentation?: () => void }
+
 const TRANSPORT = 'agent_pi_codex_bridge'
 const EXCLUDED = new Set([TRANSPORT, 'run_code', 'subagent', 'subagent_codex', 'workflow', 'ask_user', 'request_user_input', 'report'])
 const DYNAMIC_TOOL = {
@@ -15,7 +17,7 @@ const DYNAMIC_TOOL = {
 
 /** Only a live, idle session can lend its professional tools to a native turn. */
 export function createCodexToolBridge(ctx: any, defineTool: (options: any) => unknown, renderPrompt: (assembly: any) => string, renderContextSnapshot: (assembly: any) => string, createUserMessage: (input: any) => any) {
-  const leases = new Map<string, { token: string; agent: any; controller: AbortController; calls: Set<Promise<any>>; admissionId?: string }>()
+  const leases = new Map<string, NativeLease>()
   const disposers: Array<() => void> = []
   const interactions = new Map<string, { sessionId: string; operationId: string; kind: string; createdAt: number; message?: any; claim?: string; admittedLease?: string; result?: any }>()
   const interactionKey = (sessionId: string, operationId: string) => sessionId + ':' + operationId
@@ -62,7 +64,7 @@ export function createCodexToolBridge(ctx: any, defineTool: (options: any) => un
       const lease = leases.get(exec.agent?.session.id)
       if (!lease || lease.agent !== exec.agent || lease.token !== args.lease) throw new Error('No native task owner')
       if (!catalogue(exec.agent).some((row: any) => row.name === args.tool)) throw new Error('Tool is not available to the current native task')
-      return registry(exec.agent).execute({ callId: `${exec.callId}:cordis`, name: args.tool, arguments: args.args, agent: exec.agent, signal: exec.signal, parent: exec.token })
+      return registry(exec.agent).execute({ callId: `${exec.callId}:cordis`, rootCallId: exec.rootCallId, name: args.tool, arguments: args.args, agent: exec.agent, signal: exec.signal, parent: exec.token })
     },
   })
   const dispose = ctx.tools.register(definition)
@@ -97,6 +99,9 @@ export function createCodexToolBridge(ctx: any, defineTool: (options: any) => un
   const drain = async (lease: any) => {
     lease.controller.abort()
     while (lease.calls.size) await Promise.allSettled([...lease.calls])
+    const restore = lease.restorePresentation
+    lease.restorePresentation = undefined
+    restore?.()
   }
   for (const install of [
     () => ctx.on('workspace/session-activity', async ({ sessionId }: any, next: any) => { const rest = await next(); return leases.has(sessionId) ? [{ kind: 'turn' }, ...rest] : rest }),
@@ -113,9 +118,12 @@ export function createCodexToolBridge(ctx: any, defineTool: (options: any) => un
       const { agent, cwd, sessionId } = identity(input)
       if (agent.session.header.parentSession) throw new Error('Codex 主执行只能在主对话中启动，子任务需向主任务汇报。')
       if (agent.status !== 'idle' || agent.inbox?.hasPending || leases.has(sessionId)) throw new Error('当前任务已有执行者或待处理消息，请等待完成或停止后再切换引擎。')
-      const lease = { token: randomUUID(), agent, controller: new AbortController(), calls: new Set<Promise<any>>() }
+      const lease: NativeLease = { token: randomUUID(), agent, controller: new AbortController(), calls: new Set<Promise<any>>() }
       leases.set(sessionId, lease)
       try {
+        // Codex owns the native loop and persists its calls in the desktop history.
+        // DSH run_code would append turn-scoped PTC events after admission closed.
+        lease.restorePresentation = registry(agent).presentAs('native')
         for (const row of input.attachments || []) {
           // Clipboard bytes are validated and sent to Codex by the trusted desktop process.
           if (row.kind === 'image' && !row.path && row.nativeImage === true) continue
@@ -145,7 +153,7 @@ export function createCodexToolBridge(ctx: any, defineTool: (options: any) => un
         const sandbox = policy?.mode || 'read-only'
         if (!['read-only', 'workspace-write', 'danger-full-access'].includes(sandbox)) throw new Error('当前对话的文件权限无法确认。')
         return { sessionId, cwd, lease: lease.token, sandbox, developerInstructions: instructions, dynamicTools: [DYNAMIC_TOOL] }
-      } catch (error) { leases.delete(sessionId); throw error }
+      } catch (error) { await drain(lease); leases.delete(sessionId); throw error }
     },
     async interaction(input: any) {
       identity(input)
@@ -182,14 +190,9 @@ export function createCodexToolBridge(ctx: any, defineTool: (options: any) => un
       if (input.action !== 'call' || typeof input.tool !== 'string' || !input.args || typeof input.args !== 'object' || Array.isArray(input.args)) throw new Error('Invalid Cordis tool request')
       const tools = registry(agent)
       const args = { lease: lease.token, tool: input.tool, args: input.args }
-      const ptc = tools.get?.('run_code', agent)
-      const language = ctx.get('ptcRuntime')?.language || 'typescript'
-      const program = language === 'python'
-        ? `import json\nreturn await tools.${TRANSPORT}(json.loads(${JSON.stringify(JSON.stringify(args))}))`
-        : `return await tools.${TRANSPORT}(${JSON.stringify(args)});`
-      const running = tools.execute({ callId: `codex-${String(input.callId || randomUUID())}`, name: ptc ? 'run_code' : TRANSPORT, arguments: ptc ? { description: `Shared professional tool: ${input.tool}`, code: program } : args, agent, signal: lease.controller.signal })
+      const running = tools.execute({ callId: `codex-${String(input.callId || randomUUID())}`, name: TRANSPORT, arguments: args, agent, signal: lease.controller.signal })
       lease.calls.add(running)
-      try { const result = await running; return result.isError ? result : ptc ? result.value?.result : result.value }
+      try { const result = await running; return result.isError ? result : result.value }
       finally { lease.calls.delete(running) }
     },
     async record(input: any) {
