@@ -73,7 +73,7 @@ foreach ($name in @("corepack", "corepack.cmd", "pnpm", "pnpm.CMD", "pnpm.ps1", 
   $shim = Join-Path $nodeSrc $name
   if (Test-Path $shim) { Copy-Item -Force $shim $NodeDir }
 }
-foreach ($manager in @("corepack", "npm")) {
+foreach ($manager in @("corepack", "npm", "pnpm")) {
   $managerSource = Join-Path $nodeSrc "node_modules\$manager"
   if (-not (Test-Path $managerSource)) { continue }
   $managerDest = Join-Path $NodeDir "node_modules\$manager"
@@ -85,6 +85,12 @@ $bundledNpmCli = Join-Path $NodeDir "node_modules\npm\bin\npm-cli.js"
 if (-not (Test-Path $bundledNpmCli)) { throw "Bundled npm CLI is missing; plugin dependency repair requires npm" }
 & $nodeDest $bundledNpmCli --version
 if ($LASTEXITCODE -ne 0) { throw "Bundled npm CLI does not start" }
+$bundledPnpmCli = Join-Path $NodeDir "node_modules\pnpm\bin\pnpm.cjs"
+if (-not (Test-Path $bundledPnpmCli)) { throw "Bundled pnpm CLI is missing; native plugin management requires pnpm" }
+$pnpmVersion = & $nodeDest $bundledPnpmCli --version
+$expectedPnpm = (Get-Content (Join-Path $Dsh "package.json") -Raw | ConvertFrom-Json).packageManager
+if ($LASTEXITCODE -ne 0 -or "pnpm@$pnpmVersion" -ne $expectedPnpm) { throw "Bundled pnpm differs from the official DSH packageManager pin" }
+Write-Host "Bundled pnpm $pnpmVersion"
 
 $productItems = @(
   "skills",
