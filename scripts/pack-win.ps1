@@ -374,6 +374,8 @@ $brandPython = Find-BrandPython
 & $brandPython (Join-Path $Root "scripts\make-installer-brand.py") $IconSrc $InstallerIcon $InstallerHeader
 if ($LASTEXITCODE -ne 0) { throw "installer brand generation failed: $LASTEXITCODE" }
 
+Install-CadCleanRuntime (Join-Path $Root "bundles\tender-web\lib\cad-viewer") "source runtime before preparation"
+
 if (-not $SkipPrepare) {
   if ($IncludeLicensedUniver) {
     & (Join-Path $Root "scripts\prepare-win-runtime.ps1") -FullCopy -IncludeLicensedUniver -DshBuildReceipt $DshBuildReceipt
