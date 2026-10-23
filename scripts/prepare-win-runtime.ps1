@@ -73,13 +73,18 @@ foreach ($name in @("corepack", "corepack.cmd", "pnpm", "pnpm.CMD", "pnpm.ps1", 
   $shim = Join-Path $nodeSrc $name
   if (Test-Path $shim) { Copy-Item -Force $shim $NodeDir }
 }
-$corepack = Join-Path $nodeSrc "node_modules\corepack"
-if (Test-Path $corepack) {
-  $corepackDest = Join-Path $NodeDir "node_modules\corepack"
-  New-Item -ItemType Directory -Force -Path (Split-Path $corepackDest) | Out-Null
-  if (Test-Path $corepackDest) { Remove-Item -Recurse -Force $corepackDest }
-  Copy-Item -Recurse -Force $corepack $corepackDest
+foreach ($manager in @("corepack", "npm")) {
+  $managerSource = Join-Path $nodeSrc "node_modules\$manager"
+  if (-not (Test-Path $managerSource)) { continue }
+  $managerDest = Join-Path $NodeDir "node_modules\$manager"
+  New-Item -ItemType Directory -Force -Path (Split-Path $managerDest) | Out-Null
+  if (Test-Path $managerDest) { Remove-Item -Recurse -Force $managerDest }
+  Copy-Item -Recurse -Force $managerSource $managerDest
 }
+$bundledNpmCli = Join-Path $NodeDir "node_modules\npm\bin\npm-cli.js"
+if (-not (Test-Path $bundledNpmCli)) { throw "Bundled npm CLI is missing; plugin dependency repair requires npm" }
+& $nodeDest $bundledNpmCli --version
+if ($LASTEXITCODE -ne 0) { throw "Bundled npm CLI does not start" }
 
 $productItems = @(
   "skills",
