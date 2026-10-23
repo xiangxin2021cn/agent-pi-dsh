@@ -31,14 +31,18 @@ export function assertKernelVersionBump({ basePin, baseVersion, currentPin, curr
   }
 }
 
-export function assertKernelVersionHistory(history, currentPin, currentVersion) {
+export function assertKernelVersionHistory(history, currentPin, currentVersion, edition = 'mainline') {
+  if (edition !== 'mainline' && edition !== 'tender') throw new Error(`unknown product edition: ${edition}`)
   if (!Array.isArray(history) || history.length === 0) throw new Error('kernel version history is empty')
   const versions = new Set()
   for (let index = 0; index < history.length; index += 1) {
     const entry = history[index]
     if (versions.has(entry.version)) throw new Error(`duplicate release version: ${entry.version}`)
     versions.add(entry.version)
-    if (entry.releaseTag !== `v${entry.version}`) throw new Error(`release tag mismatch for ${entry.version}`)
+    if (entry.releaseTag !== `v${entry.version}`
+      && (edition !== 'tender' || entry.releaseTag !== `tender-v${entry.version}`)) {
+      throw new Error(`release tag mismatch for ${entry.version}`)
+    }
     if (index > 0 && compareVersions(entry.version, history[index - 1].version) <= 0) {
       throw new Error(`release versions must increase: ${history[index - 1].version} -> ${entry.version}`)
     }
@@ -47,6 +51,8 @@ export function assertKernelVersionHistory(history, currentPin, currentVersion) 
   if (latest.version !== currentVersion || latest.dshPin !== currentPin) {
     throw new Error(`latest kernel history entry must match ${currentVersion} / ${currentPin}`)
   }
+  const currentTag = `${edition === 'tender' ? 'tender-v' : 'v'}${currentVersion}`
+  if (latest.releaseTag !== currentTag) throw new Error(`release tag mismatch for current ${edition} ${currentVersion}`)
 }
 
 function readJson(...parts) {
@@ -68,6 +74,7 @@ function currentIdentity() {
   if (new Set(versions).size !== 1) throw new Error(`release manifests disagree: ${versions.join(', ')}`)
   return {
     version: versions[0],
+    edition: rootPackage.agentPiProduct?.edition ?? 'mainline',
     pin: readFileSync(join(root, 'DSH_PIN'), 'utf8').trim(),
   }
 }
@@ -79,7 +86,7 @@ function readAt(ref, path) {
 export function main(args = process.argv.slice(2)) {
   const current = currentIdentity()
   if (args[0] === '--history') {
-    assertKernelVersionHistory(readJson('release', 'kernel-version-history.json'), current.pin, current.version)
+    assertKernelVersionHistory(readJson('release', 'kernel-version-history.json'), current.pin, current.version, current.edition)
     console.log(`kernel release history verified: ${current.version} / ${current.pin}`)
     return
   }
