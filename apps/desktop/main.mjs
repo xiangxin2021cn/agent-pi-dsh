@@ -100,7 +100,6 @@ if (process.platform === 'win32') {
 let child = null
 let mainWindow = null
 let appUrl = process.env.AGENT_PI_DSH_URL || 'http://127.0.0.1:3080'
-const forceColdStart = process.env.AGENT_PI_DSH_FORCE_COLD_START === '1'
 let launchLogStream = null
 let dshPort = 3080
 let dshRestartCount = 0
@@ -1399,22 +1398,11 @@ if (!gotLock) {
       ensureProfile()
       let launchedDsh = false
       if (!process.env.AGENT_PI_DSH_URL) {
-        const existing = packaged || forceColdStart
-          ? null
-          : (await urlAlive('http://127.0.0.1:3080')
-            ? 'http://127.0.0.1:3080'
-            : await urlAlive('http://127.0.0.1:3081')
-              ? 'http://127.0.0.1:3081'
-              : null)
-        if (existing) {
-          appUrl = existing
-        } else {
-          const port = await findFreePort(3080)
-          dshPort = port
-          appUrl = `http://127.0.0.1:${port}`
-          startDsh(port)
-          launchedDsh = true
-        }
+        const port = await findFreePort(3080)
+        dshPort = port
+        appUrl = `http://127.0.0.1:${port}`
+        startDsh(port)
+        launchedDsh = true
       }
       if (launchedDsh) appUrl = await waitForDshUrl()
       else await waitForUrl(appUrl)
