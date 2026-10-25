@@ -43,6 +43,55 @@ class MacOSIntelTests(unittest.TestCase):
     def test_universal_binary_intel_slice_is_accepted(self):
         self.assertEqual(module.validate_slice("x86_64 arm64", modern("11.0"), "12.0"), "11.0")
 
+    def test_arm64_slice_requires_the_selected_architecture(self):
+        self.assertEqual(module.validate_slice("arm64", modern("14.0"), "14.0", "arm64"), "14.0")
+        with self.assertRaisesRegex(ValueError, "Missing arm64 slice"):
+            module.validate_slice("x86_64", modern("14.0"), "14.0", "arm64")
+
+    def test_arm64_app_checks_target_dependencies_and_plist_but_ignores_foreign_prebuilds(self):
+        for dependency_minimum, plist_minimum in (("14.0", "14.0"), ("15.0", "14.0"), ("14.0", "15.0")):
+            with self.subTest(dependency=dependency_minimum, plist=plist_minimum), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                app = root / "Example.app"
+                runtimes = ["Contents/MacOS/Example", "Contents/Resources/runtime/node/node",
+                            "Contents/Resources/runtime/product/bundles/project-plan/runtime/jre/bin/java",
+                            "Contents/Resources/runtime/node_modules/@koromix/koffi-darwin-arm64/koffi.node"]
+                foreign = "Contents/Resources/runtime/node_modules/@koromix/koffi-darwin-x64/koffi.node"
+                for name in runtimes + [foreign]:
+                    path = app / name
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes(bytes.fromhex("cffaedfe") + b"mock Mach-O")
+                (app / "Contents/Info.plist").write_bytes(plistlib.dumps({
+                    "CFBundleExecutable": "Example", "LSMinimumSystemVersion": "14.0",
+                    "LSMinimumSystemVersionByArchitecture": {"arm64": plist_minimum}}))
+                observed = []
+
+                def fake_tool(*args):
+                    self.assertNotIn("koffi-darwin-x64", args[-1])
+                    observed.append(args)
+                    if args[0] == "lipo":
+                        return "arm64"
+                    self.assertEqual(args[1:3], ("-arch", "arm64"))
+                    if "-hv" in args:
+                        return "MH_MAGIC_64 ARM64 EXECUTE"
+                    return modern(dependency_minimum if args[-1].endswith("koffi.node") else "14.0")
+
+                report_path = root / "report.json"
+                with patch.object(module, "tool", side_effect=fake_tool), \
+                        patch.object(module.sys, "platform", "darwin"), \
+                        patch.object(module.sys, "argv", ["verify-macos-intel.py", str(app), "--arch", "arm64",
+                                                        "--maximum-macos", "14.0", "--report", str(report_path)]):
+                    expected = dependency_minimum == "14.0" and plist_minimum == "14.0"
+                    self.assertEqual(module.main(), 0 if expected else 1)
+                report = json.loads(report_path.read_text(encoding="utf-8"))
+                self.assertEqual(report["architecture"], "arm64")
+                self.assertEqual(report["passed"], expected)
+                self.assertEqual({row["path"] for row in report["checkedFiles"]}, set(runtimes))
+                self.assertEqual(report["ignoredForeignPrebuilds"], [foreign])
+                self.assertTrue(any(args[0] == "otool" for args in observed))
+                if not expected:
+                    self.assertTrue(any("15.0 exceeds 14.0" in row["error"] for row in report["errors"]))
+
     def test_old_minimum_version_command(self):
         text = """Load command 7
           cmd LC_VERSION_MIN_MACOSX

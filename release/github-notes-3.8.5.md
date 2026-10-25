@@ -21,7 +21,7 @@
 
 安装前保存文件并退出主线应用及托盘进程，使用默认安装目录。主线继续使用原 `agent-pi-dsh-desktop` 用户目录；请先备份重要项目。主线与投标版不要同时编辑同一个项目文件。
 
-本版不提供 Monterey 兼容包：Node 24 官方 macOS 运行时最低为 macOS 13.5，Electron 45 最低为 macOS 13。平台构建在各自 GitHub runner 上验证，不代表所有旧系统已实机验收。安装包未签名，macOS 未公证。
+macOS 系统要求：Apple Silicon 为 macOS 14 及以上，Intel 为 macOS 15 及以上。两架构保留原生语音、工具和完整 Office 能力，最低系统要求由实际随包原生库决定；平台构建分别检查整包 Mach-O 部署目标。各自 GitHub runner 上的验证不代表所有支持系统已实机验收。安装包未签名，macOS 未公证。
 
 ## 功能与边界
 

@@ -1,7 +1,7 @@
-"""Check the packaged Intel app's actual Mach-O deployment targets on macOS.
+"""Check the packaged app's actual Mach-O deployment targets on macOS.
 
 Run after electron-builder, before publishing. This does not rewrite binaries
-and cannot replace a launch test on a real Monterey installation.
+and cannot replace a launch test on the minimum supported macOS release.
 """
 import argparse
 from contextlib import ExitStack
@@ -50,9 +50,9 @@ def parse_minimum_versions(output):
     return versions
 
 
-def validate_slice(architectures, load_commands, maximum):
-    if "x86_64" not in architectures.split():
-        raise ValueError("Missing x86_64 slice: " + architectures.strip())
+def validate_slice(architectures, load_commands, maximum, arch="x86_64"):
+    if arch not in architectures.split():
+        raise ValueError(f"Missing {arch} slice: " + architectures.strip())
     versions = parse_minimum_versions(load_commands)
     minimum = max(versions, key=version_tuple)
     if version_tuple(minimum) > version_tuple(maximum):
@@ -60,14 +60,15 @@ def validate_slice(architectures, load_commands, maximum):
     return minimum
 
 
-def foreign_prebuild(path):
+def foreign_prebuild(path, arch="x86_64"):
     """Allow only named foreign platform directories inside node_modules."""
     if "node_modules" not in path.parts:
         return False
+    target = "darwin-" + ("x64" if arch == "x86_64" else arch)
     for part in path.parts:
         # Handles prebuilds/darwin-arm64 and optional npm platform packages.
         match = re.search(r"(?:^|[-+])((?:darwin|linux|win32|freebsd|openbsd|android|aix)-[a-z0-9_]+)(?:$|@)", part)
-        if match and match.group(1) != "darwin-x64":
+        if match and match.group(1) != target:
             return True
     return False
 
@@ -93,11 +94,11 @@ def tool(*args):
     return result.stdout
 
 
-def inspect_app(app, maximum):
+def inspect_app(app, maximum, arch="x86_64"):
     app = Path(app).resolve(strict=True)
-    report = {"app": str(app), "architecture": "x86_64", "maximumMacOS": maximum,
+    report = {"app": str(app), "architecture": arch, "maximumMacOS": maximum,
               "checkedFiles": [], "ignoredForeignPrebuilds": [], "errors": [],
-              "limitation": "Static deployment-target validation; Monterey hardware launch remains required."}
+              "limitation": "Static deployment-target validation; launch on the minimum supported macOS release remains required."}
     info = app / "Contents/Info.plist"
     with info.open("rb") as stream:
         plist = plistlib.load(stream)
@@ -131,13 +132,13 @@ def inspect_app(app, maximum):
                     with path.open("rb") as stream:
                         values = plistlib.load(stream)
                     targets = [values.get("LSMinimumSystemVersion")]
-                    targets.append(values.get("LSMinimumSystemVersionByArchitecture", {}).get("x86_64"))
+                    targets.append(values.get("LSMinimumSystemVersionByArchitecture", {}).get(arch))
                     for target in filter(None, targets):
                         if version_tuple(target) > version_tuple(maximum):
                             raise ValueError(f"Info.plist minimum macOS {target} exceeds {maximum}")
                 except (ValueError, plistlib.InvalidFileException) as error:
                     report["errors"].append({"path": relative, "error": str(error)})
-            if foreign_prebuild(Path(relative)):
+            if foreign_prebuild(Path(relative), arch):
                 if path.suffix == ".node" or path.suffix == ".dylib" or os.access(path, os.X_OK):
                     report["ignoredForeignPrebuilds"].append(relative)
                 continue
@@ -157,16 +158,16 @@ def inspect_app(app, maximum):
             try:
                 architectures = tool("lipo", "-archs", str(path)).strip()
                 row["architectures"] = architectures.split()
-                if "x86_64" not in row["architectures"]:
-                    raise ValueError("Missing x86_64 slice: " + architectures)
-                commands = tool("otool", "-arch", "x86_64", "-l", str(path))
+                if arch not in row["architectures"]:
+                    raise ValueError(f"Missing {arch} slice: " + architectures)
+                commands = tool("otool", "-arch", arch, "-l", str(path))
                 # Relocatable object files are build inputs, not runtime code.
-                header = tool("otool", "-arch", "x86_64", "-hv", str(path))
+                header = tool("otool", "-arch", arch, "-hv", str(path))
                 if re.search(r"\bOBJECT\b", header):
                     continue
                 versions = parse_minimum_versions(commands)
                 row["minimumMacOS"] = max(versions, key=version_tuple)
-                validate_slice(architectures, commands, maximum)
+                validate_slice(architectures, commands, maximum, arch)
                 seen_required.add(path)
             except ValueError as error:
                 report["errors"].append({"path": relative, "error": str(error)})
@@ -183,17 +184,18 @@ def inspect_app(app, maximum):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("app", help="Path to the final packaged .app")
+    parser.add_argument("--arch", choices=("x86_64", "arm64"), default="x86_64")
     parser.add_argument("--maximum-macos", default="12.0")
     parser.add_argument("--report", required=True)
     args = parser.parse_args()
     version_tuple(args.maximum_macos)
     if sys.platform != "darwin":
         parser.error("Actual scanning requires macOS lipo and otool")
-    report = inspect_app(args.app, args.maximum_macos)
+    report = inspect_app(args.app, args.maximum_macos, args.arch)
     destination = Path(args.report)
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-    print(f"Intel macOS check: {len(report['checkedFiles'])} binaries, {len(report['errors'])} errors; report: {destination}")
+    print(f"{args.arch} macOS check: {len(report['checkedFiles'])} binaries, {len(report['errors'])} errors; report: {destination}")
     return 0 if report["passed"] else 1
 
 

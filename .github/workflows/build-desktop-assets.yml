@@ -47,12 +47,14 @@ jobs:
             name: mac-arm64
             platform: mac
             arch: arm64
+            minimum_macos: '14.0.0'
             node_dist: darwin-arm64
             node_ext: tar.gz
           - os: macos-15-intel
             name: mac-x64
             platform: mac
             arch: x64
+            minimum_macos: '15.0.0'
             node_dist: darwin-x64
             node_ext: tar.gz
     env:
@@ -232,20 +234,37 @@ jobs:
         # into publish mode, which fails because the payload is not a git repo.
         run: |
           if [ "${{ matrix.platform }}" = mac ]; then
-            npx electron-builder --mac dmg zip --${{ matrix.arch }} --publish never --config.mac.minimumSystemVersion=13.5.0
+            npx electron-builder --mac dmg zip --${{ matrix.arch }} --publish never --config.mac.minimumSystemVersion=${{ matrix.minimum_macos }}
           else
             npx electron-builder --linux AppImage deb --x64 --publish never \
               --config.appImage.artifactName='Agent-Pi-DSH-${version}-linux-x86_64.${ext}' \
               --config.deb.artifactName='Agent-Pi-DSH-${version}-linux-amd64.${ext}'
           fi
 
-      - name: Verify Intel macOS packaged deployment targets
-        if: matrix.name == 'mac-x64'
+      - name: Verify macOS packaged deployment targets
+        if: matrix.platform == 'mac'
         run: |
+          if [ "${{ matrix.arch }}" = arm64 ]; then
+            app_dir=mac-arm64
+            binary_arch=arm64
+          else
+            app_dir=mac
+            binary_arch=x86_64
+          fi
           python3 payload/product/scripts/verify-macos-intel.py \
-            "payload/desktop/dist-unpacked/mac/Agent Pi DSH.app" \
-            --maximum-macos 13.5 \
-            --report 385-mac-x64-scan.json
+            "payload/desktop/dist-unpacked/${app_dir}/Agent Pi DSH.app" \
+            --arch "$binary_arch" \
+            --maximum-macos "${{ matrix.minimum_macos }}" \
+            --report "385-${{ matrix.name }}-scan.json"
+
+      - name: Preserve macOS deployment target diagnostics
+        if: always() && matrix.platform == 'mac'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ matrix.name }}-deployment-targets
+          path: 385-${{ matrix.name }}-scan.json
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Upload release assets
         run: |
