@@ -540,7 +540,7 @@ html[data-theme="light"] .cta-banner.on-flow .rl-note { color: #8593ab; }
 .docs-side a.side-link:hover { color: var(--text); background: var(--accent-soft); text-decoration: none; }
 .docs-side a.side-link.active { color: var(--accent-ink); background: var(--accent-soft); font-weight: 600; }
 
-.docs-main { padding: 44px 24px 100px; max-width: 800px; }
+.docs-main { padding: 44px 24px 100px; max-width: 800px; min-width: 0; overflow-wrap: anywhere; }
 .docs-main section.doc { margin-bottom: 84px; scroll-margin-top: 92px; }
 .docs-main h2 { font-size: 1.75rem; padding-bottom: 14px; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
 .docs-main h3 { margin-top: 34px; }
@@ -584,7 +584,7 @@ html[data-theme="light"] .cta-banner.on-flow .rl-note { color: #8593ab; }
   }
   .nav.open .nav-links a { padding: 12px 14px; font-size: 1rem; }
 
-  .docs-layout { grid-template-columns: 1fr; gap: 0; }
+  .docs-layout { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .docs-side { display: none; }
   .docs-mobile-toc {
     display: block; position: sticky; top: 68px; z-index: 50;
@@ -597,6 +597,7 @@ html[data-theme="light"] .cta-banner.on-flow .rl-note { color: #8593ab; }
     color: var(--text); font-family: var(--font-sans); font-size: 0.95rem;
   }
   .docs-main { padding: 30px 24px 80px; }
+  .docs-main .tbl td:first-child { white-space: normal; }
 }
 
 @media (max-width: 600px) {
