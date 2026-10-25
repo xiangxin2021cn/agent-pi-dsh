@@ -64,6 +64,11 @@ def foreign_prebuild(path, arch="x86_64"):
     """Allow only named foreign platform directories inside node_modules."""
     if "node_modules" not in path.parts:
         return False
+    if tuple(path.parts[-4:]) in {
+        ("node_modules", "@reflink", "reflink-win32-x64-msvc", "reflink.win32-x64-msvc.node"),
+        ("node_modules", "@reflink", "reflink-win32-arm64-msvc", "reflink.win32-arm64-msvc.node"),
+    }:
+        return True
     target = "darwin-" + ("x64" if arch == "x86_64" else arch)
     for part in path.parts:
         # Handles prebuilds/darwin-arm64 and optional npm platform packages.

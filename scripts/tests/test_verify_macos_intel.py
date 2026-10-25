@@ -101,6 +101,44 @@ class MacOSIntelTests(unittest.TestCase):
 """
         self.assertEqual(module.validate_slice("x86_64", text, "12.0"), "10.15")
 
+    def test_pnpm_windows_reflinks_do_not_hide_real_macos_15_requirements(self):
+        with tempfile.TemporaryDirectory() as directory:
+            app = Path(directory) / "Example.app"
+            runtimes = ["Contents/MacOS/Example", "Contents/Resources/runtime/node/node",
+                        "Contents/Resources/runtime/product/bundles/project-plan/runtime/jre/bin/java"]
+            newer = ["Contents/Resources/runtime/node_modules/node-addon-require-builtin-darwin-arm64/prebuilt/darwin-arm64-napi-v9.node",
+                     "Contents/Resources/runtime/node_modules/@openai/codex/vendor/aarch64-apple-darwin/codex-resources/zsh/bin/zsh"]
+            foreign = [f"Contents/Resources/runtime/node/node_modules/pnpm/dist/node_modules/@reflink/reflink-win32-{arch}-msvc/reflink.win32-{arch}-msvc.node"
+                       for arch in ("x64", "arm64")]
+            for name in runtimes + newer + foreign:
+                path = app / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"MZ Windows prebuild" if name in foreign else bytes.fromhex("cffaedfe") + b"mock Mach-O")
+            (app / "Contents/Info.plist").write_bytes(plistlib.dumps({"CFBundleExecutable": "Example"}))
+
+            def fake_tool(*args):
+                self.assertNotIn("reflink-win32", args[-1])
+                if args[0] == "lipo":
+                    return "arm64"
+                if "-hv" in args:
+                    return "MH_MAGIC_64 ARM64 EXECUTE"
+                relative = Path(args[-1]).relative_to(app).as_posix()
+                return modern("15.0" if relative in newer else "14.0")
+
+            with patch.object(module, "tool", side_effect=fake_tool):
+                report = module.inspect_app(app, "14.0", "arm64")
+                self.assertEqual({row["path"] for row in report["errors"]}, set(newer))
+                self.assertTrue(all("15.0 exceeds 14.0" in row["error"] for row in report["errors"]))
+                self.assertEqual(set(report["ignoredForeignPrebuilds"]), set(foreign))
+                self.assertTrue(module.inspect_app(app, "15.0", "arm64")["passed"])
+                unknown = app / "Contents/Resources/runtime/node_modules/unknown/native.node"
+                unknown.parent.mkdir(parents=True)
+                unknown.write_bytes(b"MZ unknown runtime")
+                report = module.inspect_app(app, "15.0", "arm64")
+                self.assertFalse(report["passed"])
+                self.assertEqual(report["errors"], [{"path": unknown.relative_to(app).as_posix(),
+                                                     "error": "Required runtime is not Mach-O"}])
+
     def test_missing_minimum_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "no minimum"):
             module.validate_slice("x86_64", "Load command 1\n cmd LC_SOURCE_VERSION\n version 12.0", "12.0")
@@ -115,7 +153,10 @@ class MacOSIntelTests(unittest.TestCase):
                      "node_modules/node-pty/prebuilds/win32-x64/conpty.node"):
             self.assertTrue(module.foreign_prebuild(Path(path)), path)
         for path in ("Contents/Frameworks/arm64/helper", "node_modules/koffi/build/Release/koffi.node",
-                     "node_modules/@koromix/koffi-darwin-x64/koffi.node"):
+                     "node_modules/@koromix/koffi-darwin-x64/koffi.node",
+                     "node_modules/@other/reflink-win32-x64-msvc/reflink.win32-x64-msvc.node",
+                     "node_modules/@reflink/reflink-win32-x64-msvc/unknown.node",
+                     "node_modules/@reflink/reflink-darwin-x64/reflink.darwin-x64.node"):
             self.assertFalse(module.foreign_prebuild(Path(path)), path)
 
     def test_otool_parenthesized_helper_uses_identical_temporary_file(self):

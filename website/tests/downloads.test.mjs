@@ -129,13 +129,12 @@ test('3.8.5 snapshot metadata selects standard Intel downloads and the actual sy
     assert.ok(ui.links[key][0].href.includes('/v3.8.5/Agent-Pi-DSH-3.8.5-mac-x64.'))
     assert.equal(ui.links[key][1].href, 'https://gh-proxy.org/' + ui.links[key][0].href)
   }
-  assert.equal(ui.systems['mac-arm64'].textContent, 'Apple Silicon · macOS 14+')
+  assert.equal(ui.systems['mac-arm64'].textContent, 'Apple Silicon · macOS 15+')
   assert.equal(ui.systems['mac-x64'].textContent, 'Intel x64 · macOS 15+')
   assert.equal(ui.systemFallback.hidden, true)
   assert.equal(ui.systemNote.hidden, false)
-  assert.ok(ui.systemNote.innerHTML.includes('macOS 14'))
   assert.ok(ui.systemNote.innerHTML.includes('macOS 15'))
-  assert.doesNotMatch(ui.systemNote.innerHTML, /macOS 1[23]|Monterey|Electron 44/)
+  assert.doesNotMatch(ui.systemNote.innerHTML, /macOS 1[234]|Monterey|Electron 44/)
 })
 
 test('Intel downloads never mix partial standard and Monterey asset families', async () => {

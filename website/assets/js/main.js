@@ -183,7 +183,7 @@
         node.textContent = currentRequirements ? "45.0.0" : "See Release";
       });
       document.querySelectorAll('[data-release-system="mac-arm64"]').forEach(function (node) {
-        node.textContent = currentRequirements ? "Apple Silicon · macOS 14+" : "Apple Silicon · See Release";
+        node.textContent = currentRequirements ? "Apple Silicon · macOS 15+" : "Apple Silicon · See Release";
       });
       document.querySelectorAll('[data-release-system="mac-x64"]').forEach(function (node) {
         node.textContent = currentRequirements ? "Intel x64 · macOS 15+" : "Intel x64 · See Release";
@@ -193,7 +193,7 @@
          language change cannot restore the fallback system requirements. */
       document.querySelectorAll("[data-release-system-note]").forEach(function (node) {
         node.innerHTML = currentRequirements
-          ? '<span data-lang="zh">3.8.5：Apple Silicon 最低 macOS 14，Intel 最低 macOS 15；请按对应架构下载。</span><span data-lang="en">3.8.5 requires macOS 14+ on Apple Silicon and macOS 15+ on Intel. Download the package for your architecture.</span>'
+          ? '<span data-lang="zh">3.8.5：Apple Silicon 最低 macOS 15，Intel 最低 macOS 15；请按对应架构下载。</span><span data-lang="en">3.8.5 requires macOS 15+ on Apple Silicon and macOS 15+ on Intel. Download the package for your architecture.</span>'
           : '<span data-lang="zh">请参阅本次 GitHub Release 的系统要求，按对应架构下载。</span><span data-lang="en">Check the system requirements in this GitHub Release and download the package for your architecture.</span>';
         node.hidden = false;
       });

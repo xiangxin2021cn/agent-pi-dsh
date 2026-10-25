@@ -22,49 +22,102 @@ on:
         default: false
         type: boolean
 
+      macos_only:
+        description: Build only the two Mac packages from the unchanged release payload
+        required: false
+        default: false
+        type: boolean
+
 permissions:
   contents: write
 
 env:
   NODE_RUNTIME_VERSION: '24.22.1'
+  RELEASE_TAG: ${{ inputs.tag }}
+  V385_PAYLOAD_SHA256: '96e823b93395a1c64a5d49aa1153869485f5b5c3069365f9a6256f61b26e2765'
 
 jobs:
+  platform-matrix:
+    if: ${{ !inputs.assemble_windows }}
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - name: Select platform jobs
+        id: matrix
+        env:
+          MACOS_ONLY: ${{ inputs.macos_only }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from 'node:fs'
+          const include = [
+            { os: 'ubuntu-latest', name: 'linux-x64', platform: 'linux', arch: 'x64', node_dist: 'linux-x64', node_ext: 'tar.xz' },
+            { os: 'macos-15', name: 'mac-arm64', platform: 'mac', arch: 'arm64', minimum_macos: '15.0.0', node_dist: 'darwin-arm64', node_ext: 'tar.gz' },
+            { os: 'macos-15-intel', name: 'mac-x64', platform: 'mac', arch: 'x64', minimum_macos: '15.0.0', node_dist: 'darwin-x64', node_ext: 'tar.gz' },
+          ].filter(job => process.env.MACOS_ONLY !== 'true' || job.platform === 'mac')
+          appendFileSync(process.env.GITHUB_OUTPUT, `matrix=${JSON.stringify({ include })}\n`)
+          NODE
+
   build:
     if: ${{ !inputs.assemble_windows }}
+    needs: platform-matrix
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            name: linux-x64
-            platform: linux
-            arch: x64
-            node_dist: linux-x64
-            node_ext: tar.xz
-          - os: macos-15
-            name: mac-arm64
-            platform: mac
-            arch: arm64
-            minimum_macos: '14.0.0'
-            node_dist: darwin-arm64
-            node_ext: tar.gz
-          - os: macos-15-intel
-            name: mac-x64
-            platform: mac
-            arch: x64
-            minimum_macos: '15.0.0'
-            node_dist: darwin-x64
-            node_ext: tar.gz
+      matrix: ${{ fromJSON(needs.platform-matrix.outputs.matrix) }}
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
       - name: Verify immutable release ref
         shell: bash
+        env:
+          MACOS_ONLY: ${{ inputs.macos_only }}
         run: |
-          test "${GITHUB_REF_TYPE}" = "tag"
-          test "${GITHUB_REF_NAME}" = "${{ inputs.tag }}"
+          set -euo pipefail
+          RELEASE_COMMIT=$(git rev-parse --verify "refs/tags/${RELEASE_TAG}^{commit}")
+          CHECKOUT_COMMIT=$(git rev-parse HEAD)
+          export RELEASE_COMMIT CHECKOUT_COMMIT
+          git diff --name-only --no-renames -z "$RELEASE_COMMIT" HEAD -- > maintenance-changes.paths
+          if [ "$GITHUB_REF_TYPE" = branch ]; then
+            git merge-base --is-ancestor "$RELEASE_COMMIT" HEAD
+          fi
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict'
+          import { readFileSync } from 'node:fs'
+          const tag = process.env.RELEASE_TAG
+          assert.match(tag, /^v\d+\.\d+\.\d+$/)
+          assert.equal(process.env.CHECKOUT_COMMIT, process.env.GITHUB_SHA, 'checkout must be the dispatched workflow commit')
+          if (tag === 'v3.8.5') assert.equal(process.env.RELEASE_COMMIT, 'd8b8e6d1a55ff3e383b340f09cca44d2e38478cf', 'v3.8.5 application source is immutable')
+          if (process.env.GITHUB_REF_TYPE === 'tag') {
+            assert.equal(process.env.GITHUB_REF_NAME, tag)
+            assert.equal(process.env.GITHUB_SHA, process.env.RELEASE_COMMIT)
+          } else {
+            assert.equal(process.env.GITHUB_REF_TYPE, 'branch')
+            assert.equal(process.env.GITHUB_REF_NAME, 'main')
+            assert.equal(tag, 'v3.8.5')
+            assert.equal(process.env.MACOS_ONLY, 'true', 'maintenance dispatch must exclude the completed Linux job')
+            const allowed = new Set([
+              '.github/workflows/build-desktop-assets.yml',
+              'scripts/verify-macos-intel.py',
+              'scripts/tests/test_verify_macos_intel.py',
+              'scripts/platform-release-385.test.mjs',
+              'release/publish-v3.8.5-release.mjs',
+              'release/RELEASE_POLICY.md',
+              'release/github-notes-3.8.5.md',
+              'README.md',
+              'website/assets/js/main.js',
+              'website/tests/downloads.test.mjs',
+              'website/index.html',
+            ])
+            const changed = readFileSync('maintenance-changes.paths', 'utf8').split('\0').filter(Boolean)
+            for (const path of changed) assert.ok(allowed.has(path), `application source changed after the release: ${path}`)
+          }
+          NODE
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -84,7 +137,21 @@ jobs:
           version="${version#v}"
           test -f "release-inputs/runtime-payload-${version}.tar.gz"
           test -f "release-inputs/runtime-payload-${version}.tar.gz.sha256"
-          node -e 'const fs=require("node:fs"),crypto=require("node:crypto"),path=require("node:path"); for (const checksum of fs.readdirSync("release-inputs").filter((name)=>name.endsWith(".sha256"))) { const text=fs.readFileSync(path.join("release-inputs",checksum),"utf8").trim(); const match=text.match(/^([a-f0-9]{64})  ([^\\/]+)$/); if (!match) throw new Error(`malformed ${checksum}`); const target=path.join("release-inputs",match[2]); if (!fs.existsSync(target)) throw new Error(`missing ${match[2]}`); const actual=crypto.createHash("sha256").update(fs.readFileSync(target)).digest("hex"); if (actual!==match[1]) throw new Error(`SHA256 mismatch for ${match[2]}`); }'
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict'
+          import { createHash } from 'node:crypto'
+          import { readFileSync, readdirSync } from 'node:fs'
+          import { join } from 'node:path'
+          for (const checksum of readdirSync('release-inputs').filter(name => name.endsWith('.sha256'))) {
+            const match = readFileSync(join('release-inputs', checksum), 'utf8').trim().match(/^([a-f0-9]{64})  ([^\\/]+)$/)
+            assert.ok(match, `malformed ${checksum}`)
+            const actual = createHash('sha256').update(readFileSync(join('release-inputs', match[2]))).digest('hex')
+            assert.equal(actual, match[1], `SHA256 mismatch for ${match[2]}`)
+            if (match[2] === 'runtime-payload-3.8.5.tar.gz') {
+              assert.equal(actual, process.env.V385_PAYLOAD_SHA256, 'v3.8.5 payload differs from its fixed release input')
+            }
+          }
+          NODE
           mkdir -p payload
           tar -xzf release-inputs/runtime-payload-*.tar.gz -C payload
           ls payload
@@ -251,7 +318,7 @@ jobs:
             app_dir=mac
             binary_arch=x86_64
           fi
-          python3 payload/product/scripts/verify-macos-intel.py \
+          python3 scripts/verify-macos-intel.py \
             "payload/desktop/dist-unpacked/${app_dir}/Agent Pi DSH.app" \
             --arch "$binary_arch" \
             --maximum-macos "${{ matrix.minimum_macos }}" \

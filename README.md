@@ -54,7 +54,9 @@
   <a href="https://www.agent-pi.app/docs.html">文档</a>
 </p>
 
-3.8.5 的 macOS 系统要求：Apple Silicon 为 macOS 14 及以上，Intel 为 macOS 15 及以上；本版不提供 Monterey 兼容包。
+3.8.5 的 macOS 系统要求：Apple Silicon 与 Intel 均为 macOS 15 及以上；本版不提供 Monterey 兼容包。
+
+3.8.5 应用源码固定在公开标签 `v3.8.5`（`d8b8e6d1a55ff3e383b340f09cca44d2e38478cf`）；后续提交只维护发布 CI、Mach-O 扫描器及发行说明，不移动标签或变更应用、运行时与核心组件。Windows、Linux 沿用已通过验证的原资产；全平台发行状态以 Release 的实际发布状态与资产门禁为准。
 
 通用办公助手陪你聊天，**Agent Pi DSH 替你干活**：吃透投标、实施、投资的垂直作业系统。长程任务不断档、目标不偏离、证据可追溯——数十份标书文件一次搞定，数千条 BOQ 逐项推导，成果直接落盘为正式文档。
 
