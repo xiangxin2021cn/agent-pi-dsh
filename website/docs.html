@@ -118,10 +118,10 @@
       <h2 data-lang="zh">快速上手</h2>
       <h2 data-lang="en">Quickstart</h2>
       <div data-lang="zh">
-        <p><b>当前版本：</b>Agent Pi DSH <span data-release-version>3.8.2</span>。DSH 3.x 与 Craft Agents OSS 2.x 经典版的内核、数据目录和更新通道完全分开。</p>
+        <p><b>当前版本：</b>Agent Pi DSH <span data-release-version>3.8.5</span>。DSH 3.x 与 Craft Agents OSS 2.x 经典版的内核、数据目录和更新通道完全分开。</p>
         <p>Agent Pi DSH 的默认路径只有一条：<b>打开工作区，直接说任务</b>。工作台是加速器，不是闸门。</p>
         <ol>
-          <li>在<a href="index.html#download">官网下载区</a>选择 Windows、macOS 或 Linux 安装包；Windows 用户安装前核对 SHA256：<code data-release-sha data-release-sha-source="github-release">AA8441A3108F252D4AF63358012FAF0DD8D4BA2E979D6F212D66A1CC1F2B770E</code>。</li>
+          <li>在<a href="index.html#download">官网下载区</a>选择 Windows、macOS 或 Linux 安装包；Windows 用户安装前核对 SHA256：<code data-release-sha data-release-sha-source="github-release">ED95BA3301BEEFD0AD02689F9F03C3A7B052594CBD613C36E0C5885CBE07C992</code>。</li>
           <li>打开 <b>Agent Pi DSH</b>，选择项目工作区（投标资料所在目录）。</li>
           <li>配置 DeepSeek。新会话默认 <code>deepseek-v4-flash-vision-exp</code>。</li>
           <li>可选：设置 → Codex 智能体 → 使用 ChatGPT 登录；无需 API Key。</li>
@@ -131,10 +131,10 @@
         <div class="callout"><p><b>提示：</b>PDF 当文件读（能抽文本的不先转图）；图纸和照片交给官方视觉模型。</p></div>
       </div>
       <div data-lang="en">
-        <p><b>Current version:</b> Agent Pi DSH <span data-release-version>3.8.2</span>. DSH 3.x and Craft Agents OSS 2.x Classic use separate engines, data directories and update channels.</p>
+        <p><b>Current version:</b> Agent Pi DSH <span data-release-version>3.8.5</span>. DSH 3.x and Craft Agents OSS 2.x Classic use separate engines, data directories and update channels.</p>
         <p>The default path in Agent Pi DSH is a single one: <b>pick a workspace and talk</b>. The workbench accelerates work; it does not gate it.</p>
         <ol>
-          <li>Choose the Windows, macOS or Linux package in the <a href="index.html#download">website download section</a>. Windows users should verify SHA256 before installation: <code data-release-sha data-release-sha-source="github-release">AA8441A3108F252D4AF63358012FAF0DD8D4BA2E979D6F212D66A1CC1F2B770E</code>.</li>
+          <li>Choose the Windows, macOS or Linux package in the <a href="index.html#download">website download section</a>. Windows users should verify SHA256 before installation: <code data-release-sha data-release-sha-source="github-release">ED95BA3301BEEFD0AD02689F9F03C3A7B052594CBD613C36E0C5885CBE07C992</code>.</li>
           <li>Open <b>Agent Pi DSH</b> and pick the project workspace (the folder with the bid files).</li>
           <li>Connect DeepSeek. New sessions default to <code>deepseek-v4-flash-vision-exp</code>.</li>
           <li>Optional: Settings → Codex Agent → Sign in with ChatGPT. No API key is required.</li>
@@ -160,10 +160,10 @@
           <tr><td>数据目录</td><td><code>%APPDATA%\agent-pi-dsh-desktop</code>（首次启动写入可写 <code>dsh-home</code> 并组装 tender profile）。</td></tr>
         </table>
         <div class="callout warn"><p><b>若提示 <code>app.asar</code> 被占用：</b>退出 Agent Pi DSH（含托盘），并暂时关掉占用安装目录的编辑器，再重新安装。覆盖安装不会改动已有知识库。</p></div>
-        <p>Windows x64、macOS arm64 和 Linux x64 安装包可从<a href="index.html#download">官网下载区</a>进入对应的 GitHub Release 资产；Intel Mac 兼容包须通过独立构建检查并上传后才会显示。</p>
-        <p><b>Mac 机型与系统：</b>Apple Silicon（M 系列）使用 arm64 版，Electron 44 要求 macOS 13 Ventura 或更新系统；2015 款 Intel MacBook Pro 等 Intel 机型请选 <code>mac-x64-monterey</code> 兼容版，最低 macOS 12 Monterey，目标包含 macOS 12.7.4。Intel 下载项仅在对应版本的 DMG、ZIP 与 DMG 校验文件全部发布后显示；未显示时请查看 <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases" target="_blank" rel="noopener">GitHub Releases</a>。安装前核对同名 SHA256 文件，打开 DMG 后将应用拖入 Applications。应用未签名或公证，首次打开可能需要在“系统偏好设置 → 安全性与隐私”允许打开。</p>
-        <p><b>Intel Monterey 兼容包的能力边界：</b>保留 DSH 与 Codex 普通任务执行、系统 shell、Office 文档与表格及 CAD 读图算量。为兼容 macOS 12，该包不包含并禁用 Claude Code、本地 SenseVoice 语音识别、原生电脑控制、Codex 实时语音及特制 <code>zshfork</code>；终端使用系统 shell。<a href="https://code.claude.com/docs/en/setup" target="_blank" rel="noopener">Claude Code 官方要求 macOS 13+</a>。macOS BIM 需另配兼容的 Python/IfcOpenShell 引擎；大型 CAD/BIM 在 8 GB 内存机型上的性能尚待实机验证。</p>
-        <p>Office 数据库原生组件与核心加载器采用锁定版本的官方源码重建，保留原插件版本与功能，并记录源码版本、构建参数及校验结果。构建验收在 GitHub 的 Intel macOS 15 环境检查最终二进制最低系统版本、原生依赖与应用启动；具体结果以随包构建和核验报告为准，不能替代 Monterey 真机测试。当前尚未完成 Monterey 真机验证。</p>
+        <p>Windows x64、macOS arm64、macOS x64 和 Linux x64 安装包可从<a href="index.html#download">官网下载区</a>进入对应的 GitHub Release 资产。</p>
+        <p><b>Mac 机型与系统：</b>3.8.5 使用 Electron 45；Apple Silicon（M 系列）选择 <code>mac-arm64</code>，Intel 选择 <code>mac-x64</code>，两种架构均要求 macOS 15 或更新系统。Intel 下载项仅在对应版本的 DMG、ZIP 与 DMG 校验文件全部发布后显示；未显示时请查看 <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases" target="_blank" rel="noopener">GitHub Releases</a>。安装前核对同名 SHA256 文件，打开 DMG 后将应用拖入 Applications。应用未签名或公证，首次打开可能需要在“系统设置 → 隐私与安全性”允许打开。</p>
+        <p><b>macOS 能力与边界：</b>3.8.5 保留 DSH、Codex、Office 文档与表格、知识库、投标技能及 CAD 能力。macOS BIM 需另配兼容的 Python/IfcOpenShell 引擎；大型 CAD/BIM 在 8 GB 内存机型上的性能尚待实机验证。</p>
+        <p>发布检查覆盖最终应用中的 Mach-O 二进制最低系统版本与原生依赖，Apple Silicon 和 Intel 均按 macOS 15+ 发布；具体结果以随包构建和核验报告为准。这些检查不能替代各机型上的实际安装测试。</p>
       </div>
       <div data-lang="en">
         <p>The installer is unsigned: if SmartScreen blocks it, choose <b>“Run anyway”</b>. Before an in-place upgrade, <b>quit fully</b> — closing to the tray is not enough.</p>
@@ -176,10 +176,10 @@
           <tr><td>Data directory</td><td><code>%APPDATA%\agent-pi-dsh-desktop</code> (first launch writes a writable <code>dsh-home</code> and assembles the tender profile).</td></tr>
         </table>
         <div class="callout warn"><p><b>If <code>app.asar</code> is locked:</b> quit Agent Pi DSH (including the tray) and close any editor holding the install directory, then reinstall. In-place upgrades never touch your existing knowledge base.</p></div>
-        <p>Use the <a href="index.html#download">website download section</a> for Windows x64, macOS arm64 and Linux x64 release assets. The Intel Mac compatibility build appears only after its separate build checks succeed and the artifacts are uploaded.</p>
-        <p><b>Mac hardware and OS:</b> Apple Silicon (M-series) uses the arm64 build; Electron 44 requires macOS 13 Ventura or later. For Intel Macs such as the 2015 MacBook Pro, choose the <code>mac-x64-monterey</code> compatibility build, which requires macOS 12 Monterey or later and targets macOS 12.7.4. Intel downloads appear only after the matching release includes the DMG, ZIP and DMG checksum file. If absent, check <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases" target="_blank" rel="noopener">GitHub Releases</a>. Verify the matching SHA256 file, open the DMG and drag the app into Applications. This build is unsigned and unnotarized; the first launch may require approval in System Preferences → Security &amp; Privacy.</p>
-        <p><b>Intel Monterey compatibility limits:</b> DSH and ordinary Codex task execution, the system shell, Office documents and spreadsheets, and CAD drawing analysis and quantity takeoff remain available. For macOS 12 compatibility, this package omits and disables Claude Code, local SenseVoice speech recognition, native computer control, Codex realtime voice and the custom <code>zshfork</code>; terminals use the system shell. <a href="https://code.claude.com/docs/en/setup" target="_blank" rel="noopener">Claude Code officially requires macOS 13+</a>. macOS BIM requires a compatible external Python/IfcOpenShell engine. Performance for large CAD/BIM workloads on 8 GB Macs has not been tested on hardware.</p>
-        <p>The Office native database component and core loader are rebuilt from pinned official sources at the same dependency versions, retaining the original plugin version and functionality. Source revisions, build settings and verification results are recorded. GitHub CI on Intel macOS 15 checks final binary deployment targets, native dependencies and application startup; consult the accompanying build and verification reports for the results. These checks do not replace testing on Monterey hardware, which has not yet been completed.</p>
+        <p>Use the <a href="index.html#download">website download section</a> for Windows x64, macOS arm64, macOS x64 and Linux x64 release assets.</p>
+        <p><b>Mac hardware and OS:</b> 3.8.5 uses Electron 45. Choose <code>mac-arm64</code> for Apple Silicon (M-series) or <code>mac-x64</code> for Intel; both architectures require macOS 15 or later. Intel downloads appear only after the matching release includes the DMG, ZIP and DMG checksum file. If absent, check <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases" target="_blank" rel="noopener">GitHub Releases</a>. Verify the matching SHA256 file, open the DMG and drag the app into Applications. This build is unsigned and unnotarized; the first launch may require approval in System Settings → Privacy &amp; Security.</p>
+        <p><b>macOS capabilities and limits:</b> 3.8.5 retains DSH, Codex, Office documents and spreadsheets, the knowledge base, tender skills and CAD capabilities. macOS BIM requires a compatible external Python/IfcOpenShell engine. Performance for large CAD/BIM workloads on 8 GB Macs has not been tested on hardware.</p>
+        <p>Release checks cover the final application's Mach-O deployment targets and native dependencies. Both Apple Silicon and Intel packages are published for macOS 15+; consult the accompanying build and verification reports for the results. These checks do not replace installation tests on each hardware model.</p>
       </div>
     </section>
 
@@ -358,7 +358,7 @@
       <h2 data-lang="zh">模型、视觉与 Codex</h2>
       <h2 data-lang="en">Models, vision &amp; Codex</h2>
       <div data-lang="zh">
-        <p>内核钉在 DeepSeek Harness <code data-kernel-version>dsh-v0.2.1-alpha.2</code>（<code data-kernel-pin data-kernel-pin-length="10">d743267388</code>），桌面壳 Electron 44.7.0；Agent Pi 兼容层不修改官方 DSH 内核。</p>
+        <p>内核钉在 DeepSeek Harness <code data-kernel-version>0.2.1-rc.3 (master snapshot)</code>（<code data-kernel-pin data-kernel-pin-length="10">22ddee3792</code>），桌面壳 Electron <span data-release-electron-version>45.0.0</span>；Agent Pi 兼容层不修改官方 DSH 内核。</p>
         <ul>
           <li>新会话默认 <b>DeepSeek-V4-Flash-Vision-Exp</b>；Flash / Pro 仍是纯文本——只选它们<b>看不见图片</b>。已有会话沿用当时记在日志里的模型。</li>
           <li>贴图：规范化 → Files API，失败再 inline。工作区图片用官方 <code>read_image</code>。系统提示不再点名已卸掉的 <code>vision_*</code>。</li>
@@ -368,7 +368,7 @@
         <div class="callout"><p><b>选模型口诀：</b>要识图，选 Vision-Exp；只跑文本长任务，Flash / Pro 更省。推理强度可调到 <code>low</code> 进一步降本。</p></div>
       </div>
       <div data-lang="en">
-        <p>The kernel is pinned to DeepSeek Harness <code data-kernel-version>dsh-v0.2.1-alpha.2</code> (<code data-kernel-pin data-kernel-pin-length="10">d743267388</code>) on Electron 44.7.0; the Agent Pi compatibility layer does not modify the official DSH kernel.</p>
+        <p>The kernel is pinned to DeepSeek Harness <code data-kernel-version>0.2.1-rc.3 (master snapshot)</code> (<code data-kernel-pin data-kernel-pin-length="10">22ddee3792</code>) on Electron <span data-release-electron-version>45.0.0</span>; the Agent Pi compatibility layer does not modify the official DSH kernel.</p>
         <ul>
           <li>New sessions default to <b>DeepSeek-V4-Flash-Vision-Exp</b>; Flash / Pro are text-only — with those, <b>images are invisible</b>. Existing sessions keep the model recorded in their logs.</li>
           <li>Pasted images: normalize → Files API, inline as fallback. Workspace images use the official <code>read_image</code>. The system prompt no longer names the removed <code>vision_*</code> tools.</li>
@@ -503,7 +503,7 @@
   </div>
 </footer>
 
-<script src="assets/js/release-metadata.js?v=27"></script>
-<script src="assets/js/main.js?v=382-intel1"></script>
+<script src="assets/js/release-metadata.js?v=385-sync1"></script>
+<script src="assets/js/main.js?v=385-sync1"></script>
 </body>
 </html>

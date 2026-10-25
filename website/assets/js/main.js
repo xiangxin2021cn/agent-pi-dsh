@@ -177,16 +177,17 @@
     var digestMatch = digest.match(/^sha256:([a-f0-9]{64})$/i);
     if (!digestMatch) return;
 
-    if (version !== "3.8.2") {
+    {
       var currentRequirements = version === "3.8.5";
+      var legacyRequirements = version === "3.8.2";
       document.querySelectorAll("[data-release-electron-version]").forEach(function (node) {
-        node.textContent = currentRequirements ? "45.0.0" : "See Release";
+        node.textContent = currentRequirements ? "45.0.0" : legacyRequirements ? "44.7.0" : "See Release";
       });
       document.querySelectorAll('[data-release-system="mac-arm64"]').forEach(function (node) {
-        node.textContent = currentRequirements ? "Apple Silicon · macOS 15+" : "Apple Silicon · See Release";
+        node.textContent = currentRequirements ? "Apple Silicon · macOS 15+" : legacyRequirements ? "Apple Silicon · macOS 13+" : "Apple Silicon · See Release";
       });
       document.querySelectorAll('[data-release-system="mac-x64"]').forEach(function (node) {
-        node.textContent = currentRequirements ? "Intel x64 · macOS 15+" : "Intel x64 · See Release";
+        node.textContent = currentRequirements ? "Intel x64 · macOS 15+" : legacyRequirements ? "Intel x64 · macOS 12+" : "Intel x64 · See Release";
       });
       document.querySelectorAll("[data-release-system-fallback]").forEach(function (node) { node.hidden = true; });
       /* Live notes are inserted after initial translation collection so a
@@ -194,6 +195,8 @@
       document.querySelectorAll("[data-release-system-note]").forEach(function (node) {
         node.innerHTML = currentRequirements
           ? '<span data-lang="zh">3.8.5：Apple Silicon 最低 macOS 15，Intel 最低 macOS 15；请按对应架构下载。</span><span data-lang="en">3.8.5 requires macOS 15+ on Apple Silicon and macOS 15+ on Intel. Download the package for your architecture.</span>'
+          : legacyRequirements
+          ? '<span data-lang="zh">3.8.2：Apple Silicon 使用 Electron 44，最低 macOS 13；Intel Monterey 兼容版最低 macOS 12。这些要求仅适用于此历史版本。</span><span data-lang="en">3.8.2 uses Electron 44 on Apple Silicon and requires macOS 13+; its Intel Monterey compatibility build requires macOS 12+. These requirements apply only to this older release.</span>'
           : '<span data-lang="zh">请参阅本次 GitHub Release 的系统要求，按对应架构下载。</span><span data-lang="en">Check the system requirements in this GitHub Release and download the package for your architecture.</span>';
         node.hidden = false;
       });
