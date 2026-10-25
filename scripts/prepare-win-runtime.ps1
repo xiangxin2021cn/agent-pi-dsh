@@ -55,6 +55,8 @@ if (-not (Test-Path $iconIco) -and (Test-Path $IconSrc)) {
 $node = (Get-Command node).Source
 $nodeSrc = Split-Path $node
 $nodeDest = Join-Path $NodeDir "node.exe"
+$nodeLicense = Join-Path $nodeSrc "LICENSE"
+if (-not (Test-Path -LiteralPath $nodeLicense -PathType Leaf)) { throw "Official Node LICENSE is missing: $nodeLicense" }
 $copied = $false
 foreach ($attempt in 1..5) {
   try {
@@ -66,6 +68,7 @@ foreach ($attempt in 1..5) {
   }
 }
 if (-not $copied) { throw "failed to copy node.exe into $nodeDest" }
+Copy-Item -LiteralPath $nodeLicense -Destination (Join-Path $NodeDir "LICENSE") -Force
 Get-ChildItem -LiteralPath $nodeSrc -Filter "*.dll" -ErrorAction SilentlyContinue |
   Copy-Item -Force -Destination $NodeDir
 

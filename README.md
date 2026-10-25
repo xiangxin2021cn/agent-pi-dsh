@@ -10,9 +10,11 @@
 
 3.8.5 将主线与投标专版拆为独立产品分支，共享升级后的官方 DSH 内核。主线保留专业工作台、知识库、技能和完整 Univer；投标专版提供项目、章节、正文及评分证据操作界面。安装标识、用户数据目录及更新通道相互独立，分支与迁移方式见 [3.8.5 双版本说明](release/3.8.5-product-editions.md)。公开下载以实际已发布 Release 为准。
 
-3.8.2 已发布，整合官方 DSH 0.2.1-alpha.2、大 DWG 磁盘读取、块名修复、内嵌图像及工程缺口与任务联动，并更新核心插件。安装包和分发材料见 [GitHub v3.8.2 Release](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/tag/v3.8.2)，具体改动及用法见 [3.8.2 升级说明](release/github-notes-3.8.2.md)和[使用指南](docs/3.8.2-user-guide.md)。
+3.8.5 主线版使用原生 DSH 主界面，保留专业工作台、知识库、技能与完整 Univer。下载入口及改动见 [GitHub v3.8.5 Release](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/tag/v3.8.5) 和 [3.8.5 主线说明](release/github-notes-3.8.5.md)。
 
-保留 3.8.0 的九个工程插件，覆盖 CAD/PDF 图纸、钢筋与平法、道路市政及土建算量、IFC/BIM、中国招投标与计算书。Windows x64 内置官方 CPython 3.13.7 与经核验的 conda-forge IfcOpenShell 0.8.5，保留 CGAL/OCCT；macOS、Linux 仍需外接兼容 IFC 引擎。本版使用官方 DSH 0.2.1-alpha.2、AnySearch 0.1.7 与完整 Univer Office 0.3.7。能力范围与分发材料详见[3.8.0 说明](release/github-notes-3.8.0.md)。OfficeCLI 与 Univer Office 载体的评估见[专项评估](docs/office-carrier-evaluation-3.7.7.md)。
+历史版本 3.8.2 整合官方 DSH 0.2.1-alpha.2、大 DWG 磁盘读取、块名修复、内嵌图像及工程缺口与任务联动，并更新核心插件。安装包和分发材料见 [GitHub v3.8.2 Release](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/tag/v3.8.2)，具体改动及用法见 [3.8.2 升级说明](release/github-notes-3.8.2.md)和[使用指南](docs/3.8.2-user-guide.md)。
+
+保留 3.8.0 的九个工程插件，覆盖 CAD/PDF 图纸、钢筋与平法、道路市政及土建算量、IFC/BIM、中国招投标与计算书。Windows x64 内置官方 CPython 3.13.7 与经核验的 conda-forge IfcOpenShell 0.8.5，保留 CGAL/OCCT；macOS、Linux 仍需外接兼容 IFC 引擎。3.8.5 使用官方 DSH master 固定源码快照 `22ddee3792402c3e70ec5f86a63c3e3e895a2f60`（包版本 `0.2.1-rc.3`）、AnySearch 0.1.8 与完整 Univer Office 0.3.7，来源见[核心组件记录](release/3.8.5-core-components.json)。能力范围与分发材料详见[3.8.0 说明](release/github-notes-3.8.0.md)。OfficeCLI 与 Univer Office 载体的评估见[专项评估](docs/office-carrier-evaluation-3.7.7.md)。
 
 新增功能怎么用：参见 [3.8.0 使用指南](docs/3.8.0-user-guide.md)，包含 BIM 对话示例、九插件入口、专业工作台联动、能力边界和问题排查。
 
@@ -32,21 +34,27 @@
 
 <p align="center">
   <a href="https://www.agent-pi.app"><img src="https://img.shields.io/badge/官网-agent--pi.app-2f6df0?style=flat-square" alt="Website"></a>
-  <a href="https://github.com/deepseek-ai/deepseek-harness/commit/d743267388641bc76f17c45ce8b4c231aed1d32c"><img src="https://img.shields.io/badge/source-DSH%200.2.1--alpha.2-2f6df0?style=flat-square" alt="DSH 0.2.1-alpha.2"></a>
+  <a href="https://github.com/deepseek-ai/deepseek-harness/commit/22ddee3792402c3e70ec5f86a63c3e3e895a2f60"><img src="https://img.shields.io/badge/source-DSH%200.2.1--rc.3%20master%2022ddee37-2f6df0?style=flat-square" alt="DSH package 0.2.1-rc.3, official master snapshot 22ddee37"></a>
   <a href="https://www.agent-pi.app/docs.html"><img src="https://img.shields.io/badge/文档-Docs-0fb5c9?style=flat-square" alt="Docs"></a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.2/Agent-Pi-DSH-3.8.2-x64.exe"><b>Windows x64</b></a>
+  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.5/Agent-Pi-DSH-3.8.5-x64.exe"><b>Windows x64</b></a>
   ·
-  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.2/Agent-Pi-DSH-3.8.2-mac-arm64.dmg"><b>macOS arm64</b></a>
+  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.5/Agent-Pi-DSH-3.8.5-mac-arm64.dmg"><b>macOS Apple Silicon</b></a>
   ·
-  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.2/Agent-Pi-DSH-3.8.2-linux-x86_64.AppImage"><b>Linux AppImage</b></a>
+  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.5/Agent-Pi-DSH-3.8.5-mac-x64.dmg"><b>macOS Intel</b></a>
+  ·
+  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.5/Agent-Pi-DSH-3.8.5-linux-x86_64.AppImage"><b>Linux AppImage</b></a>
+  ·
+  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.5/Agent-Pi-DSH-3.8.5-linux-amd64.deb"><b>Linux DEB</b></a>
   ·
   <a href="https://www.agent-pi.app">官网</a>
   ·
   <a href="https://www.agent-pi.app/docs.html">文档</a>
 </p>
+
+3.8.5 的 macOS 系统要求：Apple Silicon 为 macOS 14 及以上，Intel 为 macOS 15 及以上；本版不提供 Monterey 兼容包。
 
 通用办公助手陪你聊天，**Agent Pi DSH 替你干活**：吃透投标、实施、投资的垂直作业系统。长程任务不断档、目标不偏离、证据可追溯——数十份标书文件一次搞定，数千条 BOQ 逐项推导，成果直接落盘为正式文档。
 

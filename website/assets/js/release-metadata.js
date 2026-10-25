@@ -29,13 +29,21 @@
     try { identity = JSON.parse(matches[0]); } catch (error) { return null; }
     var appVersion = identity && identity.appVersion;
     var kernel = identity && identity.kernel;
-    if (identity.schema !== 1 || !/^\d+\.\d+\.\d+$/.test(appVersion || "") || tag !== "v" + appVersion ||
-      !kernel || !/^dsh-v\d+\.\d+\.\d+(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?$/.test(kernel.releaseTag || "") ||
-      !/^[a-f0-9]{40}$/i.test(kernel.commit || "")) return null;
+    if (identity.schema !== 1 || typeof appVersion !== "string" || !/^\d+\.\d+\.\d+$/.test(appVersion) || tag !== "v" + appVersion ||
+      !kernel || typeof kernel.commit !== "string" || !/^[a-f0-9]{40}$/i.test(kernel.commit)) return null;
+
+    var kernelVersion = kernel.releaseTag;
+    if (kernel.sourceKind === "official-master-snapshot") {
+      if (typeof kernel.packageVersion !== "string" ||
+        !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?$/.test(kernel.packageVersion) ||
+        Object.prototype.hasOwnProperty.call(kernel, "releaseTag")) return null;
+      kernelVersion = kernel.packageVersion + " (master snapshot)";
+    } else if (kernel.sourceKind !== undefined ||
+      !/^dsh-v\d+\.\d+\.\d+(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?$/.test(kernel.releaseTag || "")) return null;
 
     return {
       appVersion: appVersion,
-      kernelVersion: kernel.releaseTag,
+      kernelVersion: kernelVersion,
       kernelPin: kernel.commit.toLowerCase()
     };
   }

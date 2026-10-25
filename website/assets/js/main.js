@@ -118,12 +118,13 @@
     "windows-sha": "-x64.exe.sha256",
     "mac-dmg": "-mac-arm64.dmg",
     "mac-zip": "-mac-arm64.zip",
-    "mac-intel-dmg": "-mac-x64-monterey.dmg",
-    "mac-intel-zip": "-mac-x64-monterey.zip",
-    "mac-intel-sha": "-mac-x64-monterey.dmg.sha256",
+    "mac-intel-dmg": "-mac-x64.dmg",
+    "mac-intel-zip": "-mac-x64.zip",
+    "mac-intel-sha": "-mac-x64.dmg.sha256",
     "linux-appimage": "-linux-x86_64.AppImage",
     "linux-deb": "-linux-amd64.deb"
   };
+  var intelKeys = ["mac-intel-dmg", "mac-intel-zip", "mac-intel-sha"];
 
   function fmtSize(bytes) {
     return (bytes / 1048576).toFixed(1) + " MB";
@@ -150,9 +151,23 @@
 
     var assets = {};
     Object.keys(assetSuffixes).forEach(function (key) {
+      if (intelKeys.indexOf(key) !== -1) return;
       var expected = prefix + assetSuffixes[key];
       var asset = byName[expected];
       if (validAsset(asset, expected, tag)) assets[key] = asset;
+    });
+    ["-mac-x64", "-mac-x64-monterey"].some(function (family) {
+      var group = {};
+      var complete = intelKeys.every(function (key) {
+        var expected = prefix + assetSuffixes[key].replace("-mac-x64", family);
+        var asset = byName[expected];
+        if (!validAsset(asset, expected, tag)) return false;
+        group[key] = asset;
+        return true;
+      });
+      if (!complete) return false;
+      intelKeys.forEach(function (key) { assets[key] = group[key]; });
+      return true;
     });
 
     /* Never switch the page to a newly published release until all three
@@ -161,6 +176,28 @@
     var digest = assets["windows-exe"].digest || "";
     var digestMatch = digest.match(/^sha256:([a-f0-9]{64})$/i);
     if (!digestMatch) return;
+
+    if (version !== "3.8.2") {
+      var currentRequirements = version === "3.8.5";
+      document.querySelectorAll("[data-release-electron-version]").forEach(function (node) {
+        node.textContent = currentRequirements ? "45.0.0" : "See Release";
+      });
+      document.querySelectorAll('[data-release-system="mac-arm64"]').forEach(function (node) {
+        node.textContent = currentRequirements ? "Apple Silicon · macOS 14+" : "Apple Silicon · See Release";
+      });
+      document.querySelectorAll('[data-release-system="mac-x64"]').forEach(function (node) {
+        node.textContent = currentRequirements ? "Intel x64 · macOS 15+" : "Intel x64 · See Release";
+      });
+      document.querySelectorAll("[data-release-system-fallback]").forEach(function (node) { node.hidden = true; });
+      /* Live notes are inserted after initial translation collection so a
+         language change cannot restore the fallback system requirements. */
+      document.querySelectorAll("[data-release-system-note]").forEach(function (node) {
+        node.innerHTML = currentRequirements
+          ? '<span data-lang="zh">3.8.5：Apple Silicon 最低 macOS 14，Intel 最低 macOS 15；请按对应架构下载。</span><span data-lang="en">3.8.5 requires macOS 14+ on Apple Silicon and macOS 15+ on Intel. Download the package for your architecture.</span>'
+          : '<span data-lang="zh">请参阅本次 GitHub Release 的系统要求，按对应架构下载。</span><span data-lang="en">Check the system requirements in this GitHub Release and download the package for your architecture.</span>';
+        node.hidden = false;
+      });
+    }
 
     document.querySelectorAll("[data-rel-version]").forEach(function (node) {
       node.textContent = tag;

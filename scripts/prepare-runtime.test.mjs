@@ -17,6 +17,7 @@ function fixture(t) {
     writeFileSync(join(root, file), content)
   }
   write('archive/lib/node_modules/npm/package.json', JSON.stringify({ name: 'npm', version: '11.19.1' }))
+  write('archive/LICENSE', 'Node.js fixture license\r\nCopyright fixture\r\n')
   write('pnpm/package.json', JSON.stringify({ name: 'pnpm', version: '11.28.5' }))
   for (const cli of ['npm-cli.js', 'npx-cli.js']) write(`archive/lib/node_modules/npm/bin/${cli}`, "console.log('11.19.1')\n")
   for (const cli of ['pnpm.cjs', 'pnpx.cjs']) write(`pnpm/bin/${cli}`, "console.log('11.28.5')\n")
@@ -31,6 +32,7 @@ test('portable runtime includes pinned npm and pnpm closures beside the packaged
   const f = fixture(t)
   const node = stageNodeRuntime(f.archive, f.pnpm, f.out, 'pnpm@11.28.5')
   assert.equal(node, join(f.out, nodeName))
+  assert.deepEqual(readFileSync(join(f.out, 'LICENSE')), readFileSync(join(f.archive, 'LICENSE')))
   assert.ok(existsSync(join(f.out, 'node_modules/npm/node_modules/locked-dependency/index.js')))
   assert.deepEqual(resolveNpmInvocation(node), { command: node, prefix: [join(f.out, 'node_modules/npm/bin/npm-cli.js')] })
   for (const [name, cli] of [['npm', 'npm/bin/npm-cli.js'], ['npx', 'npm/bin/npx-cli.js'], ['pnpm', 'pnpm/bin/pnpm.cjs'], ['pnpx', 'pnpm/bin/pnpx.cjs']]) {
@@ -49,6 +51,14 @@ test('a mismatched pnpm input is rejected before replacing the staged runtime', 
   const f = fixture(t)
   f.write('runtime/node/sentinel', 'keep')
   assert.throws(() => stageNodeRuntime(f.archive, f.pnpm, f.out, 'pnpm@11.28.4'), /packageManager pin/)
+  assert.equal(readFileSync(join(f.out, 'sentinel'), 'utf8'), 'keep')
+})
+
+test('a missing Node license is rejected before replacing the staged runtime', t => {
+  const f = fixture(t)
+  f.write('runtime/node/sentinel', 'keep')
+  rmSync(join(f.archive, 'LICENSE'))
+  assert.throws(() => stageNodeRuntime(f.archive, f.pnpm, f.out, 'pnpm@11.28.5'), /input missing/)
   assert.equal(readFileSync(join(f.out, 'sentinel'), 'utf8'), 'keep')
 })
 

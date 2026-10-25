@@ -27,17 +27,19 @@ export function stageNodeRuntime(nodeArchiveDir, pnpmPackageDir, nodeDir, packag
   const npmSource = join(resolve(nodeArchiveDir), 'lib/node_modules/npm')
   const pnpmSource = resolve(pnpmPackageDir)
   const sourceNode = join(resolve(nodeArchiveDir), 'bin', nodeName)
+  const sourceLicense = join(resolve(nodeArchiveDir), 'LICENSE')
   const npm = JSON.parse(readFileSync(join(npmSource, 'package.json'), 'utf8'))
   const pnpm = JSON.parse(readFileSync(join(pnpmSource, 'package.json'), 'utf8'))
   if (npm.name !== 'npm' || npm.version !== '11.19.1') throw new Error('Official Node archive must contain npm@11.19.1')
   if (pnpm.name !== 'pnpm' || `pnpm@${pnpm.version}` !== packageManager) throw new Error('pnpm differs from the official DSH packageManager pin')
-  for (const file of [sourceNode, join(npmSource, 'bin/npm-cli.js'), join(npmSource, 'bin/npx-cli.js'), join(pnpmSource, 'bin/pnpm.cjs'), join(pnpmSource, 'bin/pnpx.cjs')]) {
+  for (const file of [sourceNode, sourceLicense, join(npmSource, 'bin/npm-cli.js'), join(npmSource, 'bin/npx-cli.js'), join(pnpmSource, 'bin/pnpm.cjs'), join(pnpmSource, 'bin/pnpx.cjs')]) {
     if (!statSync(file, { throwIfNoEntry: false })?.isFile()) throw new Error(`Node package manager input missing: ${file}`)
   }
   if (existsSync(nodeDir)) rmSync(nodeDir, { recursive: true, force: true })
   mkdirSync(join(nodeDir, 'node_modules'), { recursive: true })
   const node = join(nodeDir, nodeName)
   copyFileSync(sourceNode, node)
+  copyFileSync(sourceLicense, join(nodeDir, 'LICENSE'))
   chmodSync(node, 0o755)
   for (const [name, source] of [['npm', npmSource], ['pnpm', pnpmSource]]) {
     cpSync(source, join(nodeDir, 'node_modules', name), { recursive: true, verbatimSymlinks: true })

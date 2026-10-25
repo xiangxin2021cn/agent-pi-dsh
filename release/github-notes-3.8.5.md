@@ -41,3 +41,5 @@ Windows 保留已审核的内置 BIM/IFC 引擎；macOS/Linux 使用兼容的外
 - `runtime-payload-3.8.5.tar.gz`：本次平台构建的固定载荷。
 
 [3.8.5 核心组件与来源](https://github.com/xiangxin2021cn/agent-pi-dsh/blob/v3.8.5/release/3.8.5-core-components.json) · [主线与投标版的边界](https://github.com/xiangxin2021cn/agent-pi-dsh/blob/v3.8.5/release/3.8.5-product-editions.md) · [主对话和工程工作台用法](https://github.com/xiangxin2021cn/agent-pi-dsh/blob/v3.8.5/docs/3.8.2-user-guide.md)。GPL 与第三方原始许可继续适用，Office 原有授权机制保留。
+
+<!-- agent-pi-release-meta: {"schema":1,"appVersion":"3.8.5","kernel":{"sourceKind":"official-master-snapshot","packageVersion":"0.2.1-rc.3","commit":"22ddee3792402c3e70ec5f86a63c3e3e895a2f60"}} -->

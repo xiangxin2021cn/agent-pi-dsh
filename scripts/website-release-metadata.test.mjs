@@ -28,6 +28,52 @@ test('reads the validated app and kernel identity from exactly one release marke
   })
 })
 
+const snapshotMetadata = {
+  schema: 1,
+  appVersion: '3.8.5',
+  kernel: {
+    sourceKind: 'official-master-snapshot',
+    packageVersion: '0.2.1-rc.3',
+    commit: '22ddee3792402c3e70ec5f86a63c3e3e895a2f60',
+  },
+}
+
+function structuredRelease(metadata) {
+  return release(`<!-- agent-pi-release-meta: ${JSON.stringify(metadata)} -->`, `v${metadata.appVersion}`)
+}
+
+test('formats official master snapshots without inventing a release tag', () => {
+  assert.deepEqual(plain(releaseIdentity(structuredRelease(snapshotMetadata))), {
+    appVersion: '3.8.5',
+    kernelVersion: '0.2.1-rc.3 (master snapshot)',
+    kernelPin: '22ddee3792402c3e70ec5f86a63c3e3e895a2f60',
+  })
+  const laterSnapshot = {
+    ...snapshotMetadata,
+    appVersion: '3.8.6',
+    kernel: { ...snapshotMetadata.kernel, packageVersion: '0.3.0-rc.1', commit: 'A'.repeat(40) },
+  }
+  assert.deepEqual(plain(releaseIdentity(structuredRelease(laterSnapshot))), {
+    appVersion: '3.8.6',
+    kernelVersion: '0.3.0-rc.1 (master snapshot)',
+    kernelPin: 'a'.repeat(40),
+  })
+})
+
+test('rejects incomplete, malformed and ambiguous snapshot identity fields', () => {
+  for (const [field, value] of [
+    ['sourceKind', undefined], ['sourceKind', null], ['sourceKind', 'other-snapshot'],
+    ['packageVersion', undefined], ['packageVersion', ''], ['packageVersion', 'dsh-v0.2.1-rc.3'],
+    ['packageVersion', ['0.2.1-rc.3']],
+    ['commit', undefined], ['commit', '22ddee37'], ['commit', 'g'.repeat(40)],
+    ['commit', [snapshotMetadata.kernel.commit]],
+    ['releaseTag', 'dsh-v0.2.1-rc.3'], ['releaseTag', ''], ['releaseTag', null],
+  ]) {
+    const metadata = { ...snapshotMetadata, kernel: { ...snapshotMetadata.kernel, [field]: value } }
+    assert.equal(releaseIdentity(structuredRelease(metadata)), null, `${field}: ${JSON.stringify(value)}`)
+  }
+})
+
 test('supports the pre-marker 3.5.2 body only when it names one distinct kernel version', () => {
   assert.deepEqual(plain(releaseIdentity(release('DSH dsh-v0.1.2-alpha.3; again DSH-V0.1.2-ALPHA.3', 'v3.5.2'))), {
     appVersion: '3.5.2',
@@ -53,7 +99,16 @@ test('checked-in release metadata matches the current version and kernel history
   const identity = releaseIdentity(release(notes, `v${appVersion}`))
 
   assert.ok(current)
+  assert.ok(identity)
   assert.equal(identity.appVersion, current.version)
-  assert.equal(identity.kernelVersion, current.dshVersion)
+  const marker = notes.match(/<!--\s*agent-pi-release-meta:\s*({[\s\S]*?})\s*-->/)
+  assert.ok(marker)
+  const kernel = JSON.parse(marker[1]).kernel
+  if (kernel.sourceKind === 'official-master-snapshot') {
+    assert.equal(`dsh-v${kernel.packageVersion}`, current.dshVersion)
+    assert.equal(identity.kernelVersion, `${kernel.packageVersion} (master snapshot)`)
+  } else {
+    assert.equal(identity.kernelVersion, current.dshVersion)
+  }
   assert.equal(identity.kernelPin, current.dshPin)
 })

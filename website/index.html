@@ -877,7 +877,7 @@
           </span>
         </div>
         <div class="rl-row" data-release-platform="macos">
-          <span class="rl-kind">Apple Silicon · macOS 13+</span>
+          <span class="rl-kind" data-release-system="mac-arm64">Apple Silicon · macOS 13+</span>
           <span class="rl-name" data-release-name="mac-dmg">Agent-Pi-DSH-3.8.2-mac-arm64.dmg</span>
           <span class="rl-size" data-release-size="mac-dmg">935.6 MB</span>
           <span class="rl-btns">
@@ -888,7 +888,7 @@
         </div>
         <div data-require-release-asset="mac-intel-dmg mac-intel-zip mac-intel-sha">
           <div class="rl-row" data-release-platform="macos-intel">
-            <span class="rl-kind">Intel x64 · macOS 12+</span>
+            <span class="rl-kind" data-release-system="mac-x64">Intel x64 · macOS 12+</span>
             <span class="rl-name" data-release-name="mac-intel-dmg">Agent-Pi-DSH-3.8.2-mac-x64-monterey.dmg</span>
             <span class="rl-size" data-release-size="mac-intel-dmg">840.0 MB</span>
             <span class="rl-btns">
@@ -915,7 +915,8 @@
           <span data-lang="en">The page syncs a complete GitHub Latest Release when opened; if the API is temporarily unavailable, it uses the verified fallback links embedded in the page.</span>
         </p>
         <p class="rl-note"><span data-lang="zh">加速下载由第三方 gh-proxy.org 提供；如不可用，请使用 GitHub 原站。下载后请核对 SHA256。</span><span data-lang="en">Accelerated downloads use the third-party service gh-proxy.org. Use GitHub if unavailable, and verify SHA256 after downloading.</span></p>
-        <p class="rl-note"><span data-lang="zh">Apple Silicon 版使用 Electron 44，最低 macOS 13 Ventura；Intel 兼容版最低 macOS 12 Monterey，适用于 2015 款 Intel MacBook Pro。</span><span data-lang="en">The Apple Silicon build uses Electron 44 and requires macOS 13 Ventura or later. The Intel compatibility build requires macOS 12 Monterey or later and supports the 2015 Intel MacBook Pro.</span></p>
+        <p class="rl-note" data-release-system-fallback><span data-lang="zh">Apple Silicon 版使用 Electron 44，最低 macOS 13 Ventura；Intel 兼容版最低 macOS 12 Monterey，适用于 2015 款 Intel MacBook Pro。</span><span data-lang="en">The Apple Silicon build uses Electron 44 and requires macOS 13 Ventura or later. The Intel compatibility build requires macOS 12 Monterey or later and supports the 2015 Intel MacBook Pro.</span></p>
+        <p class="rl-note" data-release-system-note hidden></p>
         <p class="hero-meta">
           <span data-lang="zh">Windows SHA256：<code data-release-sha data-release-sha-source="github-release">AA8441A3108F252D4AF63358012FAF0DD8D4BA2E979D6F212D66A1CC1F2B770E</code></span>
           <span data-lang="en">Windows SHA256: <code data-release-sha data-release-sha-source="github-release">AA8441A3108F252D4AF63358012FAF0DD8D4BA2E979D6F212D66A1CC1F2B770E</code></span>
@@ -961,7 +962,7 @@
     <div class="footer-bottom">
       <span>© <span data-year></span> Agent Pi · Always π AI studio<br><small data-lang="zh">由 Always π AI studio 独立开发和维护</small><small data-lang="en">Independently developed and maintained by Always π AI studio.</small></span>
       <img class="studio-logo" src="assets/img/studio-logo.png?v=24" alt="Always π AI studio" />
-      <span class="mono" style="font-size:0.8rem">pinned: <span data-kernel-version>dsh-v0.2.1-alpha.2</span> · Electron 44.7.0</span>
+      <span class="mono" style="font-size:0.8rem">pinned: <span data-kernel-version>dsh-v0.2.1-alpha.2</span> · Electron <span data-release-electron-version>44.7.0</span></span>
     </div>
   </div>
 </footer>
