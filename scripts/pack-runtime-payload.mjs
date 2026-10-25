@@ -156,7 +156,7 @@ for (const sourcePath of [cadSourceArchive, cadSourceChecksum]) {
 // 1. desktop shell (whitelist: only what electron-builder needs)
 const desktopDest = join(stage, 'desktop')
 mkdirSync(join(desktopDest, 'build'), { recursive: true })
-for (const file of ['main.mjs', 'dsh-web-url.mjs', 'codex-auth.mjs', 'codex-models.mjs', 'codex-execution.mjs', 'compaction-preferences.mjs', 'agent-team-preferences.mjs', 'startup-diagnostics.mjs', 'preload.cjs', 'boot.html', 'after-pack.cjs', 'package.json', 'package-lock.json']) {
+for (const file of ['main.mjs', 'dsh-web-url.mjs', 'codex-auth.mjs', 'codex-models.mjs', 'codex-execution.mjs', 'compaction-preferences.mjs', 'agent-team-preferences.mjs', 'startup-diagnostics.mjs', 'product-identity.mjs', 'edition-data-import.mjs', 'preload.cjs', 'boot.html', 'after-pack.cjs', 'package.json', 'package-lock.json']) {
   cpSync(join(desktop, file), join(desktopDest, file))
 }
 cpSync(join(desktop, 'brand'), join(desktopDest, 'brand'), { recursive: true })
@@ -170,6 +170,7 @@ const productDest = join(stage, 'product')
 const productItems = [
   'skills', 'knowledge', 'bundles', 'packages', 'scripts',
   'package.json', 'LICENSE', 'README.md', 'THIRD_PARTY_NOTICES.md', 'DSH_PIN', '.gitmodules',
+  'release/kernel-version-history.json',
   'vendor/dsh-super-injector', 'vendor/dsh-router-standard', 'vendor/dshmarket',
   'vendor/anysearch-dsh', 'vendor/dsh-univer-office',
   'vendor/README.md', 'vendor/dsh-super-injector.pin', 'vendor/dsh-router-standard.pin',

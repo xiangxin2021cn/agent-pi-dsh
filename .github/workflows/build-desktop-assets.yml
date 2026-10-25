@@ -26,24 +26,34 @@ permissions:
   contents: write
 
 env:
-  NODE_RUNTIME_VERSION: '22.20.0'
+  NODE_RUNTIME_VERSION: '24.22.1'
 
 jobs:
   build:
     if: ${{ !inputs.assemble_windows }}
-    name: ${{ matrix.platform }}
+    name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
+            name: linux-x64
             platform: linux
+            arch: x64
             node_dist: linux-x64
             node_ext: tar.xz
-          - os: macos-latest
+          - os: macos-15
+            name: mac-arm64
             platform: mac
+            arch: arm64
             node_dist: darwin-arm64
+            node_ext: tar.gz
+          - os: macos-15-intel
+            name: mac-x64
+            platform: mac
+            arch: x64
+            node_dist: darwin-x64
             node_ext: tar.gz
     env:
       GH_TOKEN: ${{ github.token }}
@@ -88,7 +98,11 @@ jobs:
             --runtime-dir payload/product/bundles/tender-web/lib/cad-viewer
 
       - name: Enable pnpm via corepack
-        run: corepack enable
+        run: |
+          corepack enable
+          manager=$(node -p "require('./payload/deepseek-harness/package.json').packageManager")
+          corepack prepare "$manager" --activate
+          test "pnpm@$(pnpm --version)" = "$manager"
 
       - uses: actions/setup-java@v4
         with:
@@ -128,11 +142,45 @@ jobs:
 
       - name: Download Node runtime binary
         run: |
-          curl -fsSL "https://nodejs.org/dist/v${NODE_RUNTIME_VERSION}/node-v${NODE_RUNTIME_VERSION}-${{ matrix.node_dist }}.${{ matrix.node_ext }}" -o node-runtime.archive
+          archive="node-v${NODE_RUNTIME_VERSION}-${{ matrix.node_dist }}.${{ matrix.node_ext }}"
+          curl -fsSL "https://nodejs.org/dist/v${NODE_RUNTIME_VERSION}/${archive}" -o node-runtime.archive
+          curl -fsSL "https://nodejs.org/dist/v${NODE_RUNTIME_VERSION}/SHASUMS256.txt" -o node-runtime.SHASUMS256.txt
+          node --input-type=module - "$archive" <<'NODE'
+          import assert from 'node:assert/strict'
+          import { createHash } from 'node:crypto'
+          import { readFileSync } from 'node:fs'
+          const matches = readFileSync('node-runtime.SHASUMS256.txt', 'utf8').split(/\r?\n/)
+            .map(line => line.match(/^([a-f0-9]{64})\s+(.+)$/)).filter(match => match?.[2] === process.argv[2])
+          assert.equal(matches.length, 1, 'official Node archive checksum must be unique')
+          assert.equal(createHash('sha256').update(readFileSync('node-runtime.archive')).digest('hex'), matches[0][1])
+          NODE
           mkdir -p node-runtime
           tar -xf node-runtime.archive -C node-runtime --strip-components=1
           node-runtime/bin/node --version
           node-runtime/bin/node payload/product/scripts/install-univer-runtime-deps.mjs payload/product/vendor/dsh-univer-office --verify-only
+
+      - name: Prepare pinned pnpm for the installed app
+        run: |
+          version=$(node -p "require('./payload/deepseek-harness/package.json').packageManager.replace(/^pnpm@/, '')")
+          mkdir -p verified-pnpm
+          npm pack "pnpm@${version}" --ignore-scripts --pack-destination verified-pnpm --json > verified-pnpm/pack.json
+          node --input-type=module - "$version" <<'NODE'
+          import assert from 'node:assert/strict'
+          import { createHash } from 'node:crypto'
+          import { readFileSync } from 'node:fs'
+          const version = process.argv[2]
+          assert.match(version, /^\d+\.\d+\.\d+$/)
+          const key = `  pnpm@${version}:`
+          const lines = readFileSync('payload/deepseek-harness/pnpm-lock.yaml', 'utf8').split(/\r?\n/)
+          const entries = lines.map((line, index) => ({ line, index })).filter(({ line }) => line === key)
+          assert.equal(entries.length, 1, 'expected one exact pnpm package resolution in the official DSH lock')
+          const integrity = lines[entries[0].index + 1].match(/^    resolution: \{integrity: (sha512-[A-Za-z0-9+/=]+)\}$/)?.[1]
+          assert.ok(integrity, 'official DSH lock must pin pnpm integrity')
+          const [packed] = JSON.parse(readFileSync('verified-pnpm/pack.json', 'utf8'))
+          assert.equal(packed.filename, `pnpm-${version}.tgz`)
+          assert.equal(`sha512-${createHash('sha512').update(readFileSync(`verified-pnpm/${packed.filename}`)).digest('base64')}`, integrity)
+          NODE
+          tar -xzf "verified-pnpm/pnpm-${version}.tgz" -C verified-pnpm
 
       - name: Verify DSH session native modules with packaged Node
         run: |
@@ -160,7 +208,8 @@ jobs:
           node payload/product/scripts/prepare-runtime.mjs \
             --dsh payload/deepseek-harness \
             --product payload/product \
-            --node-bin node-runtime/bin/node \
+            --node-dir node-runtime \
+            --pnpm-dir verified-pnpm/package \
             --out payload/desktop/runtime
           payload/desktop/runtime/node/node payload/desktop/runtime/product/scripts/verify-dsh-runtime.mjs \
             payload/desktop/runtime/deepseek-harness payload/desktop/runtime/product --native
@@ -181,7 +230,22 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         # --publish never: GH_TOKEN in the environment flips electron-builder
         # into publish mode, which fails because the payload is not a git repo.
-        run: npx electron-builder --${{ matrix.platform }} --publish never
+        run: |
+          if [ "${{ matrix.platform }}" = mac ]; then
+            npx electron-builder --mac dmg zip --${{ matrix.arch }} --publish never --config.mac.minimumSystemVersion=13.5.0
+          else
+            npx electron-builder --linux AppImage deb --x64 --publish never \
+              --config.appImage.artifactName='Agent-Pi-DSH-${version}-linux-x86_64.${ext}' \
+              --config.deb.artifactName='Agent-Pi-DSH-${version}-linux-amd64.${ext}'
+          fi
+
+      - name: Verify Intel macOS packaged deployment targets
+        if: matrix.name == 'mac-x64'
+        run: |
+          python3 payload/product/scripts/verify-macos-intel.py \
+            "payload/desktop/dist-unpacked/mac/Agent Pi DSH.app" \
+            --maximum-macos 13.5 \
+            --report 385-mac-x64-scan.json
 
       - name: Upload release assets
         run: |
