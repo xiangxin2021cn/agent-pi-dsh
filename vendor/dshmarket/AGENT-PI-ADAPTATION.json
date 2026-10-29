@@ -1,6 +1,6 @@
 {
   "schema": "agent-pi-dsh/market-adaptation/v1",
-  "checkedAt": "2026-10-23",
+  "checkedAt": "2026-10-29",
   "source": {
     "name": "dshmarket",
     "version": "1.70.0",
@@ -148,7 +148,7 @@
     {
       "file": "lib/registry.js",
       "upstreamSha256": "12c7546beb44fc4916f904ea78cae1055710fe527da450011ba68d7554047349",
-      "adaptedSha256": "b44762897393f15894a432a5f445595a02a5091f08451af145c3241d90747dce"
+      "adaptedSha256": "c085db9cf2adb6e436fa48ad63806cc81ba7446a63d5d5beed044dc5c5b17fe6"
     },
     {
       "file": "lib/restart.js",
@@ -238,7 +238,7 @@
     {
       "file": "src/registry.ts",
       "upstreamSha256": "767b54a13370f1da9a9ff9bae7ff7f20a88cbe2ee141c76df9571f277059a014",
-      "adaptedSha256": "0dc660e14a0e2fa6c8e4d07a14cf3dccbafd9012bca5fd759d4be80bb7de6d0a"
+      "adaptedSha256": "3bf48c832e674ee83d24417dc132b0984a10489824898df771278596c0ffbfd5"
     },
     {
       "file": "src/restart.ts",

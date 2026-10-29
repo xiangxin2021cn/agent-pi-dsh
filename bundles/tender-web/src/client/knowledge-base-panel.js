@@ -1,4 +1,5 @@
 import { createKnowledgeVersionPanel } from './knowledge-version.js'
+import { createTemplateDnaPanel, isUserTemplate } from './template-dna-panel.js'
 
 export function createKnowledgeBasePanel(dependencies) {
   const {
@@ -41,6 +42,7 @@ export function createKnowledgeBasePanel(dependencies) {
     useApLang,
   } = dependencies
   const KnowledgeVersionPanel = createKnowledgeVersionPanel({ React, api })
+  const TemplateDnaPanel = createTemplateDnaPanel({ React, api })
 
     const newDraftKey = () => 'kb-draft:' + Date.now().toString(36) + ':' + Math.random().toString(36).slice(2)
     let draftKey = newDraftKey()
@@ -52,6 +54,17 @@ export function createKnowledgeBasePanel(dependencies) {
     }
     function kbTaskStorageKey(sessionId) {
       return 'ap-kb-task:' + kbSessionKey(sessionId)
+    }
+    function kbTemplateStorageKey(sessionId) { return 'ap-kb-template-bindings:' + kbSessionKey(sessionId) }
+    function normalizeTemplateBindings(bindings, slugs) {
+      const bySlug = new Map()
+      for (const row of Array.isArray(bindings) ? bindings : []) {
+        if (slugs.includes(row?.slug) && typeof row.versionId === 'string' && typeof row.dnaId === 'string') bySlug.set(row.slug, { slug: row.slug, versionId: row.versionId, dnaId: row.dnaId })
+      }
+      return [...bySlug.values()]
+    }
+    function readTemplateBindings(sessionId, slugs) {
+      try { return normalizeTemplateBindings(JSON.parse(sessionStorage.getItem(kbTemplateStorageKey(sessionId)) || '[]'), slugs) } catch { return [] }
     }
     function readKbTaskSlugs(sessionId) {
       try {
@@ -65,29 +78,33 @@ export function createKnowledgeBasePanel(dependencies) {
     function kbTaskStore() {
       return window.__apKbTask || (window.__apKbTask = { bySession: {} })
     }
-    function publishKbTask(sessionId, slugs, entries) {
+    function publishKbTask(sessionId, slugs, entries, templateBindings) {
       const sid = kbSessionKey(sessionId)
       const picked = (entries || []).filter((entry) => entry && slugs.indexOf(entry.slug) >= 0)
-      kbTaskStore().bySession[sid] = { slugs: (slugs || []).slice(), entries: picked }
+      const bindings = normalizeTemplateBindings(templateBindings === undefined ? kbTaskStore().bySession[sid]?.templateBindings || readTemplateBindings(sid, slugs || []) : templateBindings, slugs || [])
+      kbTaskStore().bySession[sid] = { slugs: (slugs || []).slice(), entries: picked, templateBindings: bindings }
       writeKbTaskSlugs(sid, slugs)
+      try { sessionStorage.setItem(kbTemplateStorageKey(sid), JSON.stringify(bindings)) } catch { /* ignore */ }
     }
     function kbTaskOf(sessionId) {
       const sid = kbSessionKey(sessionId)
       const published = kbTaskStore().bySession[sid]
-      if (published && Array.isArray(published.slugs)) return published
-      return { slugs: readKbTaskSlugs(sid), entries: [] }
+      if (published && Array.isArray(published.slugs)) return { ...published, templateBindings: normalizeTemplateBindings(published.templateBindings, published.slugs) }
+      const slugs = readKbTaskSlugs(sid)
+      return { slugs, entries: [], templateBindings: readTemplateBindings(sid, slugs) }
     }
-    function persistKbTask(sessionId, slugs, entries, cwd) {
+    function kbTemplateSelectionKey(sessionId) { return JSON.stringify(kbTaskOf(sessionId).templateBindings) }
+    function persistKbTask(sessionId, slugs, entries, cwd, templateBindings) {
       const sid = kbSessionKey(sessionId)
-      publishKbTask(sid, slugs, entries)
+      publishKbTask(sid, slugs, entries, templateBindings)
       if (sid === draftKey) return Promise.resolve(slugs)
       const published = kbTaskStore().bySession[sid]
       const previous = pendingSelections.get(sid) || Promise.resolve()
       const request = previous.catch(() => {}).then(() => api('/api/agent-pi/kb', cwd || '', {
-        method: 'POST', body: JSON.stringify({ action: 'select', slugs, sessionId: sid }),
+        method: 'POST', body: JSON.stringify({ action: 'select', slugs, sessionId: sid, templateBindings: published.templateBindings }),
       })).then((body) => {
         if (kbTaskStore().bySession[sid] === published && body && Array.isArray(body.selectedSlugs)) {
-          publishKbTask(sid, body.selectedSlugs.map(String), entries)
+          publishKbTask(sid, body.selectedSlugs.map(String), entries, Array.isArray(body.templateBindings) ? body.templateBindings : published.templateBindings)
         }
         return kbTaskOf(sid).slugs
       })
@@ -99,7 +116,7 @@ export function createKnowledgeBasePanel(dependencies) {
     }
     function resetDraftKbTask() {
       delete kbTaskStore().bySession[draftKey]
-      try { sessionStorage.removeItem(kbTaskStorageKey(draftKey)) } catch {}
+      try { sessionStorage.removeItem(kbTaskStorageKey(draftKey)); sessionStorage.removeItem(kbTemplateStorageKey(draftKey)) } catch {}
       draftKey = newDraftKey()
     }
     function claimDraftKbTask(sessionId, createdFromDraft = false, expectedDraftKey = draftKey) {
@@ -107,7 +124,7 @@ export function createKnowledgeBasePanel(dependencies) {
       if (!createdFromDraft || expectedDraftKey !== draftKey || !sid || sid === 'active') return Promise.resolve([])
       const task = kbTaskOf(draftKey)
       resetDraftKbTask()
-      return persistKbTask(sid, task.slugs, task.entries)
+      return persistKbTask(sid, task.slugs, task.entries, undefined, task.templateBindings)
     }
     async function flushKbTaskSelection(sessionId) {
       const sid = kbSessionKey(sessionId)
@@ -197,12 +214,12 @@ export function createKnowledgeBasePanel(dependencies) {
               : null
             const local = readKbTaskSlugs(sessionId)
             const current = kbTaskStore().bySession[sessionId]
-            const next = current && (current !== before || pendingSelections.has(sessionId) || sessionId === draftKey)
-              ? current.slugs
-              : fromServer || preferredSlugs || local
+            const keepCurrent = current && (current !== before || pendingSelections.has(sessionId) || sessionId === draftKey)
+            const next = keepCurrent ? current.slugs : fromServer || preferredSlugs || local
+            const bindings = keepCurrent ? current.templateBindings : Array.isArray(body?.templateBindings) ? body.templateBindings : readTemplateBindings(sessionId, next)
             selectedRef.current = next
             setSelectedSlugs(next)
-            publishKbTask(sessionId, next, (body && body.entries) || [])
+            publishKbTask(sessionId, next, (body && body.entries) || [], bindings)
             if (body && !Object.prototype.hasOwnProperty.call(body, 'mineru')) {
               setNotice(tAp('kb.oldHostMineru'))
             }
@@ -266,6 +283,23 @@ export function createKnowledgeBasePanel(dependencies) {
           .finally(() => setBusy(''))
       }
 
+      async function useTemplateProfile(profile) {
+        const capturedSession = sessionId
+        const slugs = [...new Set([...selectedRef.current, profile.source.slug])]
+        const binding = { slug: profile.source.slug, versionId: profile.source.versionId, dnaId: profile.dnaId }
+        const previousBindings = kbTaskOf(capturedSession).templateBindings
+        const bindings = [binding]
+        selectedRef.current = slugs
+        setSelectedSlugs(slugs)
+        try { await persistKbTask(capturedSession, slugs, data?.entries || [], cwd, bindings) }
+        catch (error) {
+          const current = kbTaskOf(capturedSession).templateBindings[0]
+          if (current?.slug === binding.slug && current?.versionId === binding.versionId && current?.dnaId === binding.dnaId) publishKbTask(capturedSession, kbTaskOf(capturedSession).slugs, data?.entries || [], previousBindings)
+          if (sessionRef.current === capturedSession) { setSelectedSlugs(kbTaskOf(capturedSession).slugs); setError(error.message) }
+          throw error
+        }
+        if (sessionRef.current === capturedSession) setSelectedSlugs(kbTaskOf(capturedSession).slugs)
+      }
       const mergeKbEntry = (entry) => {
         if (!entry || !entry.slug) return
         kbPickUpsert(entry)
@@ -948,6 +982,7 @@ export function createKnowledgeBasePanel(dependencies) {
           h('section', { className: 'ap-sec' },
             h('h2', null, tAp('kb.entries', { n: (data && data.entryCount) || 0 })),
             h('p', { className: 'ap-sub' }, tAp('kb.entriesLead', { say: chatImport.say, n: selectedSlugs.length })),
+            kbTaskOf(sessionId).templateBindings[0] && h('p', { className: 'ap-sub', role: 'status' }, '本次主范本：', kbTitle(entries.find(row => row.slug === kbTaskOf(sessionId).templateBindings[0].slug) || { name: '已选范本（来源需核对）' }), ' · 固定版本规则；其他勾选模板仅作为参考。'),
             entries.length === 0 && folders.length === 0
               ? h('p', { className: 'ap-sub', style: { padding: '14px 0' } }, tAp('kb.empty'))
               : sortKbCategories(Object.keys(groups)).map((category) => {
@@ -1023,7 +1058,7 @@ export function createKnowledgeBasePanel(dependencies) {
                       : null,
                     h('button', { type: 'button', className: 'ap-btn link', disabled: !!busy || entry.parseStatus === 'parsing', onClick: () => doRemove(entry) }, tAp('kb.delete')),
                   ),
-                ), entry.parseStatus === 'ready' ? h(KnowledgeVersionPanel, { cwd, entry, onChanged: () => load(selectedRef.current) }) : null)
+                ), entry.parseStatus === 'ready' ? h(KnowledgeVersionPanel, { cwd, entry, onChanged: () => load(selectedRef.current) }) : null, isUserTemplate(entry.category) ? h(TemplateDnaPanel, { cwd, entry, binding: kbTaskOf(sessionId).templateBindings.find(row => row.slug === entry.slug), onUseProfile: useTemplateProfile, onChanged: () => load(selectedRef.current) }) : null)
                 return h('div', { key: category, style: { marginTop: 10 } },
                   h('div', { className: 'ap-row', style: { gap: 8, flexWrap: 'wrap' } },
                     h('strong', null, kbCategoryLabel(category)),
@@ -1141,5 +1176,5 @@ export function createKnowledgeBasePanel(dependencies) {
         ) : null,
       )
     }
-  return { KnowledgeBasePanel, formatKbTaskBlock, kbTaskOf, claimDraftKbTask, flushKbTaskSelection, hasKbTaskSelectionSave, resetDraftKbTask, kbDraftKey }
+  return { KnowledgeBasePanel, formatKbTaskBlock, kbTaskOf, kbTemplateSelectionKey, claimDraftKbTask, flushKbTaskSelection, hasKbTaskSelectionSave, resetDraftKbTask, kbDraftKey }
 }

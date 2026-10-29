@@ -1,6 +1,6 @@
 import { workflowForCreation } from './modules.ts'
 import { toolOwner, type ProductToolOwner } from './plugin-ownership.ts'
-import { isAbsolute, resolve } from 'node:path'
+import { extname, isAbsolute, resolve } from 'node:path'
 import {
   createBusinessProject,
   getBusinessProject,
@@ -77,7 +77,11 @@ import { refreshStageMemorySnapshot, slimStageMemorySnapshot } from './stage-mem
 import { businessContextForAgent } from './business-activation.ts'
 import { verificationCurrent } from '../../../packages/professional-tasks/verification.ts'
 import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { readFileSync, statSync } from 'node:fs'
+import { assertInside } from './files.ts'
+import { kbRoot } from './kb.ts'
+import { distillTemplateDna, readTemplateDna, listTemplateDna } from './template-dna.ts'
+import { getSessionTemplateBindings, verifySessionTemplateArtifact } from './template-dna-task.ts'
 
 type DefineTool = (options: Record<string, unknown>) => unknown
 
@@ -180,6 +184,22 @@ export function registerTools(ctx: {
   const tools = { register: (definition: any) => {
     if (!owner || toolOwner(definition.name) === owner) return ctx.tools.register(definition)
   } }
+
+  function checkActiveTemplateArtifact(sourcePath: string, exec: any) {
+    const root = kbRoot(), sessionId = String(exec.agent?.session?.id || '')
+    const bindings = getSessionTemplateBindings(root, sessionId)
+
+    if (!bindings.length) return null
+    const cwd = sessionCwd(exec), path = assertInside(cwd, sourcePath)
+    const extension = extname(path).toLowerCase()
+    const format = extension === '.docx' ? 'docx' : extension === '.pdf' ? 'pdf' : ['.md', '.markdown', '.txt'].includes(extension) ? 'md' : null
+    if (!format) return { path, sessionId, status: 'review', gaps: ['此格式尚不支持自动范本校验，不能宣称完全符合范本。'], receipts: [] }
+    if (statSync(path).size > 80 * 1024 * 1024) throw new Error('成果超过本次自动范本检查大小限制。')
+    const bytes = readFileSync(path)
+
+    if (!bindings.length) return null
+    return { ...verifySessionTemplateArtifact(root, sessionId, { bytes, format }), path, sessionId }
+  }
 
   tools.register(defineTool({
     name: 'tender_knowledge',
@@ -466,17 +486,22 @@ export function registerTools(ctx: {
         }
         const readiness = verificationCurrent(task, deliverable, actual)
         if (!readiness.ready) throw new Error('成果尚未满足当前验收规则：' + [...readiness.reasons, ...(deliverable.verification?.unresolved || [])].join('；'))
+        const templateChecks = checkActiveTemplateArtifact(resolve(cwd, deliverable.path), exec)
+        if (templateChecks?.receipts.some(receipt => receipt.status === 'failed')) throw new Error('成果存在实际范本规则不符，先修正再登记：' + templateChecks.receipts.flatMap(receipt => receipt.violations).join('；'))
         const published = publishOfficialOutput(cwd, projectId, resolve(cwd, deliverable.path), 'other', undefined, String(args.module || 'tender'))
         if (createHash('sha256').update(readFileSync(published.dest)).digest('hex') !== deliverable.verification.artifactSha256) throw new Error('发布文件已变化，请重新审核。')
-        return textResult({ ...published, deliveryState: deliverable.status === 'accepted' ? 'accepted' : 'reviewed', verification: deliverable.verification })
+        return textResult({ ...published, deliveryState: deliverable.status === 'accepted' ? 'accepted' : 'reviewed', verification: deliverable.verification, templateChecks })
       }
       if (args.action !== 'publish') throw new Error('未知成果操作。')
-      return textResult(publishOfficialOutput(
+      const templateChecks = checkActiveTemplateArtifact(String(args.sourcePath || ''), exec)
+      if (templateChecks?.receipts.some(receipt => receipt.status === 'failed')) throw new Error('成果存在实际范本规则不符，先修正再登记：' + templateChecks.receipts.flatMap(receipt => receipt.violations).join('；'))
+      const published = publishOfficialOutput(
         cwd,
         projectId,
         String(args.sourcePath),
         (args.kind as 'json' | 'markdown' | 'other') ?? 'other',
-      ))
+      )
+      return textResult({ ...published, templateChecks })
     },
   }))
 
@@ -630,6 +655,33 @@ export function registerTools(ctx: {
         baseDir: cwd,
         metadata: { ...(args.metadata as object || {}), sourceKind: 'generated' },
       }))
+    },
+  }))
+
+  tools.register(defineTool({
+    name: 'kb_template_dna',
+    description: 'Distill or read a fixed user-template DNA and verify an actual workspace artifact. Read writing-dna-skill and all layered artifacts before authoring. A single sample is a template contract, not a complete author corpus. Binding remains the user task selection; do not copy old project facts.',
+    parameters: {
+      action: { type: 'string', required: true, description: 'list | read | distill | verify' },
+      slug: { type: 'string' }, versionId: { type: 'string' }, dnaId: { type: 'string' },
+      analysis: { type: 'json', description: 'Optional six grounded layers: id L1..L6, observations [{text,sourceQuote}], unknowns. Quote must occur verbatim in the fixed original manuscript. Never supply native format values.' },
+      path: { type: 'string', description: 'Actual artifact inside the current task workspace for verify. Compliance claims are not accepted.' },
+    },
+    output: jsonOut(),
+    execute(args: any, exec: any = {}) {
+      const root = kbRoot(), ref = { slug: String(args.slug || ''), versionId: String(args.versionId || '') }
+      if (args.action === 'list') return textResult({ profiles: listTemplateDna(root, ref) })
+      if (args.action === 'distill') return textResult({ profile: distillTemplateDna(root, { ...ref, edition: 'mainline', analysis: args.analysis }) })
+      if (args.action === 'read') {
+        const profile = readTemplateDna(root, { ...ref, dnaId: String(args.dnaId || '') })
+        return textResult({ profile, layeredArtifacts: Object.fromEntries(Object.entries(profile.artifacts).map(([key, item]) => [key, readFileSync(item.path, 'utf8')])) })
+      }
+      if (args.action === 'verify') {
+        const result = checkActiveTemplateArtifact(String(args.path || ''), exec)
+        if (!result) throw new Error('本次任务或当前项目尚未选用严格主范本。')
+        return textResult(result)
+      }
+      throw new Error('未知范本 DNA 操作。')
     },
   }))
 

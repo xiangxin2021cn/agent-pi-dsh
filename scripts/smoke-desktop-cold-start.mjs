@@ -41,7 +41,7 @@ const userDataDir = join(scratch, 'electron-user-data')
 const dshHome = join(scratch, 'dsh-home')
 const seedHome = process.env.AGENT_PI_SMOKE_DSH_HOME_SOURCE
 const seedSessionDir = process.env.AGENT_PI_SMOKE_SESSION_DIR
-const artifactDir = join(root, 'output', 'playwright')
+const artifactDir = process.env.AGENT_PI_SMOKE_ARTIFACT_DIR ? resolve(process.env.AGENT_PI_SMOKE_ARTIFACT_DIR) : join(root, 'output', 'playwright')
 let electronApp
 let page
 let processOutput = ''
@@ -54,13 +54,24 @@ if (seedHome && existsSync(join(seedHome, 'storages'))) {
   }
 }
 
+// A cold-start acceptance run owns every writable home and default Workspace.
+const profile386 = join(dshHome, 'profiles', 'tender')
+mkdirSync(profile386, { recursive: true })
+writeFileSync(join(profile386, 'cordis.patch.yml'), '- id: workspace-controller\n  config:\n    documentsDirectory: ' + JSON.stringify(join(scratch, 'Documents')) + '\n')
+const runtimeEnv = {
+  ...process.env, DSH_HOME: dshHome, CODEX_HOME: join(scratch, 'codex-home'),
+  AGENT_PI_KB_ROOT: join(dshHome, 'knowledge-base'), AGENT_PI_SKILLS_ROOT: join(dshHome, 'skills'),
+  DO_NOT_TRACK: '1',
+}
+for (const name of Object.keys(runtimeEnv)) if (/(?:API_KEY|ACCESS_TOKEN|AUTH_TOKEN|API_TOKEN)$/i.test(name)) delete runtimeEnv[name]
+
 try {
   electronApp = await electron.launch({
     executablePath: electronExe,
     args: [`--user-data-dir=${userDataDir}`, desktopDir],
     cwd: root,
     env: {
-      ...process.env,
+      ...runtimeEnv,
       AGENT_PI_DSH_FORCE_COLD_START: '1',
       DSH_CHECKOUT: join(root, 'vendor', 'deepseek-harness'),
       DSH_HOME: dshHome,
@@ -70,7 +81,7 @@ try {
   })
   const electronProcess = electronApp.process()
   const rememberOutput = (chunk) => {
-    processOutput = (processOutput + String(chunk)).slice(-32_768)
+    processOutput = (processOutput + String(chunk).replace(/(token=)[^\s&"']+/g, '$1<redacted>')).slice(-32_768)
   }
   electronProcess.stdout?.on('data', rememberOutput)
   electronProcess.stderr?.on('data', rememberOutput)
@@ -102,6 +113,10 @@ try {
   const configureLaterButton = page.locator('button').filter({ hasText: /稍后配置|Configure later/i }).first()
   await configureLaterButton.waitFor({ state: 'visible', timeout: Math.min(5_000, remaining()) })
     .then(() => configureLaterButton.click())
+    .catch(() => {})
+  const signIn = page.getByRole('dialog', { name: /^(开始使用|Get started)$/ })
+  await signIn.waitFor({ state: 'visible', timeout: Math.min(5_000, remaining()) })
+    .then(() => signIn.getByRole('button', { name: /^(关闭|Close)$/ }).click())
     .catch(() => {})
   if (seedHome) {
     const sessionRow = page.locator('[role="treeitem"][aria-selected]').first()

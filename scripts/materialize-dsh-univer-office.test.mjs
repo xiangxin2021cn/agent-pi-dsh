@@ -105,18 +105,18 @@ function fixture(t, {
   return { archivePath, directory, pin, pinPath, root }
 }
 
-test('tracked pin binds Univer 0.3.7 to the npm tarball and upstream source commit', () => {
+test('tracked pin binds Univer 0.3.8 to the npm tarball and upstream source commit', () => {
   const pin = loadUniverPin(join(import.meta.dirname, '..', 'vendor', 'dsh-univer-office.pin'))
-  assert.equal(pin.version, '0.3.7')
+  assert.equal(pin.version, '0.3.8')
   assert.equal(pin.license, 'Apache-2.0')
-  assert.equal(pin.source.tag, 'v0.3.7')
-  assert.equal(pin.source.tagObject, '8f85ce4074fdbe51416b6c337468bb916a302c2a')
-  assert.equal(pin.source.commit, '8f85ce4074fdbe51416b6c337468bb916a302c2a')
-  assert.equal(pin.tarball, 'https://registry.npmjs.org/dsh-univer-office/-/dsh-univer-office-0.3.7.tgz')
-  assert.equal(pin.integrity, 'sha512-2eEi35ZzTOZiFQEEuNiF68MKWGKlXhVJiaOwCO5gdgNj0ZA+VesdoRxmT8hhFspbMtPfRp/0CoSo7PwFwBbBWw==')
-  assert.equal(pin.shasum, 'e983284b0a411f97d250a64e226775434d776349')
-  assert.equal(pin.archiveBytes, 49_184_591)
-  assert.equal(pin.archiveEntries, 282)
+  assert.equal(pin.source.tag, 'v0.3.8')
+  assert.equal(pin.source.tagObject, '59ceb1cd062069fd0cadb82d4c055b82a3bef0d5')
+  assert.equal(pin.source.commit, '59ceb1cd062069fd0cadb82d4c055b82a3bef0d5')
+  assert.equal(pin.tarball, 'https://registry.npmjs.org/dsh-univer-office/-/dsh-univer-office-0.3.8.tgz')
+  assert.equal(pin.integrity, 'sha512-thsbqNngDmuVThNDzoBfRJvQIpuy1bglDJyiqd8dY/4YxZWsCQbib0iW00mg1vlWumfbcdx5qAcEb8kj4MZedg==')
+  assert.equal(pin.shasum, '214e84e3f38ed23f39f64c530b6b668c02afbaea')
+  assert.equal(pin.archiveBytes, 60_092_833)
+  assert.equal(pin.archiveEntries, 289)
 })
 
 test('materializes, receipts, and verifies the clean native package without modifying the upstream client', async (t) => {

@@ -2846,9 +2846,16 @@ window.__ModuleLoader__.load({
 					const blob = await res.blob();
 					const disposition = res.headers.get("content-disposition") || "";
 					const match = /filename\*=UTF-8''([^;]+)|filename="?([^"]+)"?/i.exec(disposition);
+					const filename = decodeURIComponent(match && (match[1] || match[2]) || "download");
+					const templateStatus = res.headers.get("x-agent-pi-template-status") || "";
+					const templateArtifactSha256 = res.headers.get("x-agent-pi-template-artifact-sha256") || "";
 					return {
 						blob,
-						filename: decodeURIComponent(match && (match[1] || match[2]) || "download")
+						filename,
+						...templateStatus ? {
+							templateStatus,
+							templateArtifactSha256
+						} : {}
 					};
 				});
 			}
@@ -5109,7 +5116,8 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 						body: JSON.stringify({
 							path: file.path,
 							format,
-							content
+							content,
+							sessionId: String(props.sessionId || runtime.sessionId || "")
 						})
 					});
 					const run = async () => {
@@ -5119,14 +5127,14 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 							const bytes = asPdfBytes(await window.agentPiDesktop.printToPdf(html));
 							const filename = String(prepared.filename || file.name).replace(/\.html$/i, ".pdf");
 							downloadBlob(new Blob([bytes], { type: "application/pdf" }), filename);
-							setStatus("已下载 " + filename);
+							setStatus("已下载 " + filename + (prepared.templateStatus ? "；已应用主范本格式，PDF页面仍需审阅" : ""));
 							return;
 						} catch {
 							setStatus("桌面排版未完成，改用服务端导出…");
 						}
 						const result = await requestExport(formatName);
 						downloadBlob(result.blob, result.filename);
-						setStatus("已下载 " + result.filename);
+						setStatus("已下载 " + result.filename + (result.templateStatus === "review" ? "；主范本仍有待审阅项" : result.templateStatus === "passed" ? "；主范本机器格式检查通过，内容仍需审阅" : ""));
 					};
 					run().catch((e) => {
 						setStatus("");
@@ -5927,10 +5935,219 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 			};
 		}
 		//#endregion
+		//#region src/client/template-dna-panel.js
+		const layerLabels = {
+			L1: "语言与表达",
+			L2: "章节与结构",
+			L3: "内容范围与切入",
+			L4: "素材与证据",
+			L5: "判断依据与深度",
+			L6: "版式与视觉"
+		};
+		const statusLabels = {
+			observed: "已识别",
+			partial: "部分识别",
+			unknown: "待核对"
+		};
+		const isUserTemplate = (value) => [
+			"用户模板",
+			"用户模版",
+			"模板",
+			"模版"
+		].includes(value);
+		function createTemplateDnaPanel({ React, api }) {
+			const h = React.createElement;
+			return function TemplateDnaPanel({ cwd, entry, binding, onUseProfile, onChanged, useLabel = "本次按此范本", useHint = "每次任务使用一个主范本，选用会替换原主范本；不会自动启动编写或覆盖文档。" }) {
+				const [open, setOpen] = React.useState(false), [profiles, setProfiles] = React.useState([]), [selectedId, setSelectedId] = React.useState("");
+				const [busy, setBusy] = React.useState(""), [error, setError] = React.useState(""), [notice, setNotice] = React.useState(""), [analysis, setAnalysis] = React.useState(null);
+				const requestId = React.useRef(0), mounted = React.useRef(true);
+				const slug = entry.slug, versionId = entry.versionId;
+				const profile = profiles.find((row) => row.dnaId === selectedId) || null;
+				const selected = profile && binding?.dnaId === profile.dnaId && binding?.versionId === profile.source.versionId;
+				const ai = analysis?.dnaId === profile?.dnaId ? analysis : null;
+				const ready = entry.parseStatus === "ready" && /^[a-f0-9]{64}$/.test(versionId || "");
+				const post = (body) => api("/api/agent-pi/kb", cwd, {
+					method: "POST",
+					body: JSON.stringify(body)
+				});
+				React.useEffect(() => {
+					mounted.current = true;
+					return () => {
+						mounted.current = false;
+						requestId.current++;
+					};
+				}, []);
+				async function load() {
+					const token = ++requestId.current;
+					setBusy("读取范本规则");
+					setError("");
+					setNotice("");
+					try {
+						const results = await Promise.allSettled([post({
+							action: "template_dna_list",
+							slug,
+							versionId
+						}), binding?.dnaId ? post({
+							action: "template_dna_read",
+							slug,
+							versionId: binding.versionId,
+							dnaId: binding.dnaId
+						}) : Promise.resolve(null)]);
+						if (!mounted.current || token !== requestId.current) return;
+						const list = results[0].status === "fulfilled" ? results[0].value.profiles || [] : [];
+						const bound = results[1].status === "fulfilled" ? results[1].value?.profile : null;
+						const rows = bound && !list.some((row) => row.dnaId === bound.dnaId) ? [bound, ...list] : list;
+						setProfiles(rows);
+						setSelectedId(bound?.dnaId || rows[0]?.dnaId || "");
+						const failure = results.find((result) => result.status === "rejected");
+						if (failure) setError(failure.reason?.message || "范本规则暂时无法读取，请重试。");
+					} catch (e) {
+						if (mounted.current && token === requestId.current) setError(e.message);
+					} finally {
+						if (mounted.current && token === requestId.current) setBusy("");
+					}
+				}
+				React.useEffect(() => {
+					setProfiles([]);
+					setSelectedId("");
+					setError("");
+					setNotice("");
+					setAnalysis(null);
+					if (open && ready) load();
+					return () => {
+						requestId.current++;
+					};
+				}, [
+					open,
+					cwd,
+					slug,
+					versionId,
+					binding?.dnaId,
+					binding?.versionId,
+					ready
+				]);
+				function announce(profile) {
+					const detail = {
+						cwd,
+						slug,
+						versionId: profile.source.versionId,
+						dnaId: profile.dnaId
+					};
+					window.dispatchEvent(new window.CustomEvent("agent-pi-kb-changed", { detail }));
+					window.dispatchEvent(new window.CustomEvent("agent-pi-project-state-changed", { detail }));
+				}
+				async function distill(intelligent = false) {
+					const token = ++requestId.current;
+					setBusy(intelligent ? "正在AI蒸馏表达与深度" : "正在提取范本规则");
+					setError("");
+					setNotice("");
+					try {
+						const body = await post({
+							action: "template_dna_distill",
+							slug,
+							versionId,
+							intelligent,
+							localOnly: !intelligent
+						});
+						if (!mounted.current || token !== requestId.current) return;
+						if (!body.profile?.dnaId) throw new Error("未获得可核对的范本规则，请重试。");
+						setAnalysis(body.ai ? {
+							...body.ai,
+							dnaId: body.profile.dnaId
+						} : null);
+						setProfiles((rows) => [body.profile, ...rows.filter((row) => row.dnaId !== body.profile.dnaId)]);
+						setSelectedId(body.profile.dnaId);
+						setNotice(intelligent && body.profile.method !== "grounded-ai" ? "AI分析未形成有效规则，已保留本机提取结果；原因见下方。" : "规则已提取，请核对来源与待确认项；选用后才约束本次任务。");
+						announce(body.profile);
+						onChanged?.();
+					} catch (e) {
+						if (mounted.current && token === requestId.current) setError(e.message);
+					} finally {
+						if (mounted.current && token === requestId.current) setBusy("");
+					}
+				}
+				async function useProfile() {
+					if (!profile || !onUseProfile) return;
+					const token = ++requestId.current;
+					setBusy("正在选用范本");
+					setError("");
+					setNotice("");
+					try {
+						await onUseProfile(profile);
+						if (!mounted.current || token !== requestId.current) return;
+						setNotice("已选用此固定版本的范本规则。" + useHint);
+						announce(profile);
+					} catch (e) {
+						if (mounted.current && token === requestId.current) setError(e.message);
+					} finally {
+						if (mounted.current && token === requestId.current) setBusy("");
+					}
+				}
+				const button = (label, onClick, disabled = false) => h("button", {
+					type: "button",
+					className: "ap-btn",
+					onClick,
+					disabled: !!busy || disabled
+				}, label);
+				return h("details", {
+					className: "ap-sec ap-template-dna",
+					onToggle: (event) => setOpen(event.currentTarget.open),
+					"data-template-slug": slug
+				}, h("summary", null, "范本规则 · 蒸馏与选用", binding?.dnaId ? " · 已关联" : ""), open && h(React.Fragment, null, h("p", { className: "ap-sub" }, "从当前文档提取可复用的结构、表达和版式规则。单份范本不能代表完整作者风格；原项目名称、数字、资质和结论不能直接套用。"), !ready ? h("p", { role: "status" }, "原件解析完成并形成固定版本后，可提取范本规则。") : h("div", {
+					className: "ap-row",
+					style: {
+						gap: 8,
+						flexWrap: "wrap"
+					}
+				}, button(profiles.length ? "重新提取当前范本" : "提取范本规则", () => distill(false)), button("AI蒸馏表达与深度（当前模型）", () => distill(true)), button("刷新规则", load)), ready && h("p", { className: "ap-sub" }, "本机提取不会调用模型。点击AI蒸馏会将当前范本片段交给已配置的模型，分析候选仍须结合本次任务核对。"), busy && h("p", { role: "status" }, busy + "…"), error && h("p", {
+					role: "alert",
+					className: "ap-err"
+				}, error), notice && h("p", {
+					role: "status",
+					className: "ap-sub"
+				}, notice), profiles.length > 1 && h("label", { className: "ap-mm-field" }, "选择范本规则版本", h("select", {
+					value: selectedId,
+					disabled: !!busy,
+					onChange: (event) => {
+						setSelectedId(event.target.value);
+						setNotice("");
+					}
+				}, profiles.map((row) => h("option", {
+					key: row.dnaId,
+					value: row.dnaId
+				}, new Date(row.createdAt).toLocaleString() + (row.dnaId === binding?.dnaId ? " · 当前选用" : ""))))), profile && h("div", { style: { overflowWrap: "anywhere" } }, h("p", null, h("strong", null, profile.source.name || entry.name || slug), " · 固定来源 ", profile.source.versionId.slice(0, 12), selected ? " · 当前选用" : ""), h("p", { className: "ap-sub" }, "提取方式：", profile.method === "grounded-ai" ? "AI有据分析候选" : "本机规则提取"), ai?.status && h("p", { className: "ap-sub" }, "AI分析状态：", {
+					completed: "已完成",
+					failed: "未完成，保留本机提取",
+					unavailable: "当前不可用，保留本机提取"
+				}[ai.status] || ai.status, ai.reason ? " · " + ai.reason : ""), profile.source.versionId !== versionId && h("p", { className: "ap-sub" }, "当前任务固定的是历史范本版本。重新提取当前文档不会自动替换它。"), ...(profile.warnings || []).map((warning, index) => h("p", {
+					className: "ap-sub",
+					key: "warning-" + index
+				}, warning)), ...(profile.layers || []).map((layer) => h("details", {
+					key: layer.id,
+					open: layer.status === "unknown",
+					style: { margin: "8px 0" }
+				}, h("summary", null, layerLabels[layer.id] || layer.title, " · ", statusLabels[layer.status] || "待核对"), ...(layer.observations || []).map((text, index) => h("p", { key: "rule-" + index }, text)), ...(layer.unknowns || []).map((text, index) => h("p", {
+					key: "unknown-" + index,
+					className: "ap-sub"
+				}, "待核对：" + text)), (layer.evidence || []).length > 0 && h("details", null, h("summary", null, "查看原文依据"), ...layer.evidence.map((evidence, index) => h("blockquote", { key: index }, h("small", null, evidence.locator), h("p", null, evidence.excerpt)))))), onUseProfile && h("div", {
+					className: "ap-row",
+					style: {
+						gap: 8,
+						flexWrap: "wrap",
+						marginTop: 12
+					}
+				}, button(selected ? "本次已按此范本" : useLabel, useProfile, !!selected), h("small", null, useHint)))));
+			};
+		}
+		//#endregion
 		//#region src/client/knowledge-base-panel.js
 		function createKnowledgeBasePanel(dependencies) {
 			const { Icon, KB_PRESET_CATEGORIES, React, apJoin, api, apiBlob, desktopApi, diskPathOf, downloadBlob, ensureKbFileInput, fileIconClass, fileIconName, fileName, formatKbBytes, groupKbEntries, h, kbCategoryHint, kbCategoryLabel, kbChatImportCopy, kbFidelityLabel, kbIngestKind, kbIngestLabel, kbLandingCardVisible, kbPickPatch, kbPickState, kbPickUpsert, kbProgressText, kbTitle, mergeKbEntries, normalizePickedPaths, parkKbFileInput, resolveSessionId, runtime, sortKbCategories, tAp, uploadKbBytes, useApLang } = dependencies;
 			const KnowledgeVersionPanel = createKnowledgeVersionPanel({
+				React,
+				api
+			});
+			const TemplateDnaPanel = createTemplateDnaPanel({
 				React,
 				api
 			});
@@ -5944,6 +6161,25 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 			}
 			function kbTaskStorageKey(sessionId) {
 				return "ap-kb-task:" + kbSessionKey(sessionId);
+			}
+			function kbTemplateStorageKey(sessionId) {
+				return "ap-kb-template-bindings:" + kbSessionKey(sessionId);
+			}
+			function normalizeTemplateBindings(bindings, slugs) {
+				const bySlug = /* @__PURE__ */ new Map();
+				for (const row of Array.isArray(bindings) ? bindings : []) if (slugs.includes(row?.slug) && typeof row.versionId === "string" && typeof row.dnaId === "string") bySlug.set(row.slug, {
+					slug: row.slug,
+					versionId: row.versionId,
+					dnaId: row.dnaId
+				});
+				return [...bySlug.values()];
+			}
+			function readTemplateBindings(sessionId, slugs) {
+				try {
+					return normalizeTemplateBindings(JSON.parse(sessionStorage.getItem(kbTemplateStorageKey(sessionId)) || "[]"), slugs);
+				} catch {
+					return [];
+				}
 			}
 			function readKbTaskSlugs(sessionId) {
 				try {
@@ -5961,27 +6197,40 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 			function kbTaskStore() {
 				return window.__apKbTask || (window.__apKbTask = { bySession: {} });
 			}
-			function publishKbTask(sessionId, slugs, entries) {
+			function publishKbTask(sessionId, slugs, entries, templateBindings) {
 				const sid = kbSessionKey(sessionId);
 				const picked = (entries || []).filter((entry) => entry && slugs.indexOf(entry.slug) >= 0);
+				const bindings = normalizeTemplateBindings(templateBindings === void 0 ? kbTaskStore().bySession[sid]?.templateBindings || readTemplateBindings(sid, slugs || []) : templateBindings, slugs || []);
 				kbTaskStore().bySession[sid] = {
 					slugs: (slugs || []).slice(),
-					entries: picked
+					entries: picked,
+					templateBindings: bindings
 				};
 				writeKbTaskSlugs(sid, slugs);
+				try {
+					sessionStorage.setItem(kbTemplateStorageKey(sid), JSON.stringify(bindings));
+				} catch {}
 			}
 			function kbTaskOf(sessionId) {
 				const sid = kbSessionKey(sessionId);
 				const published = kbTaskStore().bySession[sid];
-				if (published && Array.isArray(published.slugs)) return published;
+				if (published && Array.isArray(published.slugs)) return {
+					...published,
+					templateBindings: normalizeTemplateBindings(published.templateBindings, published.slugs)
+				};
+				const slugs = readKbTaskSlugs(sid);
 				return {
-					slugs: readKbTaskSlugs(sid),
-					entries: []
+					slugs,
+					entries: [],
+					templateBindings: readTemplateBindings(sid, slugs)
 				};
 			}
-			function persistKbTask(sessionId, slugs, entries, cwd) {
+			function kbTemplateSelectionKey(sessionId) {
+				return JSON.stringify(kbTaskOf(sessionId).templateBindings);
+			}
+			function persistKbTask(sessionId, slugs, entries, cwd, templateBindings) {
 				const sid = kbSessionKey(sessionId);
-				publishKbTask(sid, slugs, entries);
+				publishKbTask(sid, slugs, entries, templateBindings);
 				if (sid === draftKey) return Promise.resolve(slugs);
 				const published = kbTaskStore().bySession[sid];
 				const request = (pendingSelections.get(sid) || Promise.resolve()).catch(() => {}).then(() => api("/api/agent-pi/kb", cwd || "", {
@@ -5989,10 +6238,11 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 					body: JSON.stringify({
 						action: "select",
 						slugs,
-						sessionId: sid
+						sessionId: sid,
+						templateBindings: published.templateBindings
 					})
 				})).then((body) => {
-					if (kbTaskStore().bySession[sid] === published && body && Array.isArray(body.selectedSlugs)) publishKbTask(sid, body.selectedSlugs.map(String), entries);
+					if (kbTaskStore().bySession[sid] === published && body && Array.isArray(body.selectedSlugs)) publishKbTask(sid, body.selectedSlugs.map(String), entries, Array.isArray(body.templateBindings) ? body.templateBindings : published.templateBindings);
 					return kbTaskOf(sid).slugs;
 				});
 				pendingSelections.set(sid, request);
@@ -6005,6 +6255,7 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 				delete kbTaskStore().bySession[draftKey];
 				try {
 					sessionStorage.removeItem(kbTaskStorageKey(draftKey));
+					sessionStorage.removeItem(kbTemplateStorageKey(draftKey));
 				} catch {}
 				draftKey = newDraftKey();
 			}
@@ -6013,7 +6264,7 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 				if (!createdFromDraft || expectedDraftKey !== draftKey || !sid || sid === "active") return Promise.resolve([]);
 				const task = kbTaskOf(draftKey);
 				resetDraftKbTask();
-				return persistKbTask(sid, task.slugs, task.entries);
+				return persistKbTask(sid, task.slugs, task.entries, void 0, task.templateBindings);
 			}
 			async function flushKbTaskSelection(sessionId) {
 				const sid = kbSessionKey(sessionId);
@@ -6118,10 +6369,12 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 						const fromServer = Object.prototype.hasOwnProperty.call(body, "selectedSlugs") && Array.isArray(body.selectedSlugs) ? body.selectedSlugs.map(String) : null;
 						const local = readKbTaskSlugs(sessionId);
 						const current = kbTaskStore().bySession[sessionId];
-						const next = current && (current !== before || pendingSelections.has(sessionId) || sessionId === draftKey) ? current.slugs : fromServer || preferredSlugs || local;
+						const keepCurrent = current && (current !== before || pendingSelections.has(sessionId) || sessionId === draftKey);
+						const next = keepCurrent ? current.slugs : fromServer || preferredSlugs || local;
+						const bindings = keepCurrent ? current.templateBindings : Array.isArray(body?.templateBindings) ? body.templateBindings : readTemplateBindings(sessionId, next);
 						selectedRef.current = next;
 						setSelectedSlugs(next);
-						publishKbTask(sessionId, next, body && body.entries || []);
+						publishKbTask(sessionId, next, body && body.entries || [], bindings);
 						if (body && !Object.prototype.hasOwnProperty.call(body, "mineru")) setNotice(tAp("kb.oldHostMineru"));
 						return body;
 					}).catch((e) => {
@@ -6197,6 +6450,31 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 						return null;
 					}).finally(() => setBusy(""));
 				};
+				async function useTemplateProfile(profile) {
+					const capturedSession = sessionId;
+					const slugs = [...new Set([...selectedRef.current, profile.source.slug])];
+					const binding = {
+						slug: profile.source.slug,
+						versionId: profile.source.versionId,
+						dnaId: profile.dnaId
+					};
+					const previousBindings = kbTaskOf(capturedSession).templateBindings;
+					const bindings = [binding];
+					selectedRef.current = slugs;
+					setSelectedSlugs(slugs);
+					try {
+						await persistKbTask(capturedSession, slugs, data?.entries || [], cwd, bindings);
+					} catch (error) {
+						const current = kbTaskOf(capturedSession).templateBindings[0];
+						if (current?.slug === binding.slug && current?.versionId === binding.versionId && current?.dnaId === binding.dnaId) publishKbTask(capturedSession, kbTaskOf(capturedSession).slugs, data?.entries || [], previousBindings);
+						if (sessionRef.current === capturedSession) {
+							setSelectedSlugs(kbTaskOf(capturedSession).slugs);
+							setError(error.message);
+						}
+						throw error;
+					}
+					if (sessionRef.current === capturedSession) setSelectedSlugs(kbTaskOf(capturedSession).slugs);
+				}
 				const mergeKbEntry = (entry) => {
 					if (!entry || !entry.slug) return;
 					kbPickUpsert(entry);
@@ -6955,7 +7233,10 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 				}, h("strong", null, hit.title), h("span", { className: "ap-chip" }, hit.slug + ":" + hit.chunkId), h("span", { className: "ap-chip" }, tAp("kb.score", { n: hit.score }))), h("span", { className: "ap-sub" }, hit.snippet)))), h("section", { className: "ap-sec" }, h("h2", null, tAp("kb.entries", { n: data && data.entryCount || 0 })), h("p", { className: "ap-sub" }, tAp("kb.entriesLead", {
 					say: chatImport.say,
 					n: selectedSlugs.length
-				})), entries.length === 0 && folders.length === 0 ? h("p", {
+				})), kbTaskOf(sessionId).templateBindings[0] && h("p", {
+					className: "ap-sub",
+					role: "status"
+				}, "本次主范本：", kbTitle(entries.find((row) => row.slug === kbTaskOf(sessionId).templateBindings[0].slug) || { name: "已选范本（来源需核对）" }), " · 固定版本规则；其他勾选模板仅作为参考。"), entries.length === 0 && folders.length === 0 ? h("p", {
 					className: "ap-sub",
 					style: { padding: "14px 0" }
 				}, tAp("kb.empty")) : sortKbCategories(Object.keys(groups)).map((category) => {
@@ -7051,6 +7332,12 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 					}, tAp("kb.delete")))), entry.parseStatus === "ready" ? h(KnowledgeVersionPanel, {
 						cwd,
 						entry,
+						onChanged: () => load(selectedRef.current)
+					}) : null, isUserTemplate(entry.category) ? h(TemplateDnaPanel, {
+						cwd,
+						entry,
+						binding: kbTaskOf(sessionId).templateBindings.find((row) => row.slug === entry.slug),
+						onUseProfile: useTemplateProfile,
 						onChanged: () => load(selectedRef.current)
 					}) : null);
 					return h("div", {
@@ -7153,6 +7440,7 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 				KnowledgeBasePanel,
 				formatKbTaskBlock,
 				kbTaskOf,
+				kbTemplateSelectionKey,
 				claimDraftKbTask,
 				flushKbTaskSelection,
 				hasKbTaskSelectionSave,
@@ -14444,7 +14732,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			}
 			const live = controller.latestProps;
 			const attachmentIds = codexAttachmentIds(codexAttachItems(key));
-			if (!sessionSnapshot || !inputSnapshot || inputSnapshot.phase !== "plain" || inputSnapshot.draft !== controller.originalDraft || !live || attachmentTurnKey(live) !== key || !sameCodexAttachmentIds(attachmentIds, controller.capturedAttachmentIds) || !sameCodexAttachmentIds(nativeCodexAttachmentIds(inputSnapshot), controller.capturedNativeAttachmentIds) || !sameCodexAttachmentIds(kbTaskOf(key).slugs, controller.capturedKbSlugs)) {
+			if (!sessionSnapshot || !inputSnapshot || inputSnapshot.phase !== "plain" || inputSnapshot.draft !== controller.originalDraft || !live || attachmentTurnKey(live) !== key || !sameCodexAttachmentIds(attachmentIds, controller.capturedAttachmentIds) || !sameCodexAttachmentIds(nativeCodexAttachmentIds(inputSnapshot), controller.capturedNativeAttachmentIds) || !sameCodexAttachmentIds(kbTaskOf(key).slugs, controller.capturedKbSlugs) || kbTemplateSelectionKey(key) !== controller.capturedKbTemplateKey) {
 				abortAttachmentTurn(key, controller);
 				return null;
 			}
@@ -14650,6 +14938,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				capturedAttachmentIds: codexAttachmentIds(attachments),
 				capturedNativeAttachmentIds: nativeCodexAttachmentIds(inputSnapshot),
 				capturedKbSlugs: kbTaskOf(key).slugs.slice(),
+				capturedKbTemplateKey: kbTemplateSelectionKey(key),
 				preSubmitUserNodeWatermark: -1,
 				preSubmitPromptErrorRef: sessionSnapshot.promptError || null,
 				preSubmitPromptErrorToken: JSON.stringify(sessionSnapshot.promptError || null),
@@ -14695,12 +14984,13 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			const attachments = codexAttachItems(key).slice();
 			const ids = nativeCodexAttachmentIds(authority.inputStore.getSnapshot());
 			const kbSlugs = kbTaskOf(key).slugs.slice();
+			const kbTemplateKey = kbTemplateSelectionKey(key);
 			const selectedModel = controller.selectedModel;
 			const selectedReasoningEffort = controller.selectedReasoningEffort;
 			const unchanged = () => {
 				const live = codexTurnAuthorities(key);
 				const state = live && sessionSnapshotWithChat(key, live.session);
-				if (!state || state.removed || snapshotIsBusy(state) || live.session !== authority.session || live.inputStore.getSnapshot().draft !== original || !sameCodexAttachmentIds(codexAttachmentIds(codexAttachItems(key)), codexAttachmentIds(attachments)) || !sameCodexAttachmentIds(nativeCodexAttachmentIds(live.inputStore.getSnapshot()), ids) || !sameCodexAttachmentIds(kbTaskOf(key).slugs, kbSlugs)) throw new Error(tCodexExecution("sessionBusy", langState.lang));
+				if (!state || state.removed || snapshotIsBusy(state) || live.session !== authority.session || live.inputStore.getSnapshot().draft !== original || !sameCodexAttachmentIds(codexAttachmentIds(codexAttachItems(key)), codexAttachmentIds(attachments)) || !sameCodexAttachmentIds(nativeCodexAttachmentIds(live.inputStore.getSnapshot()), ids) || !sameCodexAttachmentIds(kbTaskOf(key).slugs, kbSlugs) || kbTemplateSelectionKey(key) !== kbTemplateKey) throw new Error(tCodexExecution("sessionBusy", langState.lang));
 			};
 			controller.nativePreparing = true;
 			try {
@@ -15263,7 +15553,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				onClick: () => props.onToggle(path)
 			}, "移除")))) : h("p", { className: "ap-sub" }, "可暂不添加，进入项目后继续上传。"));
 		}
-		const { KnowledgeBasePanel, formatKbTaskBlock, kbTaskOf, claimDraftKbTask, flushKbTaskSelection, hasKbTaskSelectionSave, resetDraftKbTask, kbDraftKey } = createKnowledgeBasePanel({
+		const { KnowledgeBasePanel, formatKbTaskBlock, kbTaskOf, kbTemplateSelectionKey, claimDraftKbTask, flushKbTaskSelection, hasKbTaskSelectionSave, resetDraftKbTask, kbDraftKey } = createKnowledgeBasePanel({
 			Icon,
 			KB_PRESET_CATEGORIES,
 			React: react,

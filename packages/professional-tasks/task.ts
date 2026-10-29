@@ -31,6 +31,9 @@ export function qualityInputFingerprint(task: ProfessionalTask, criterion: Quali
     evidence: (criterion.evidenceIds || []).map(id => task.evidence.find(row => row.id === id)),
     requirements: (criterion.requirementIds || []).map(id => task.requirements.find(row => row.id === id)),
     template: criterion.kind === 'review' ? task.quality.template : undefined,
+    templateBindings: criterion.kind === 'review' ? task.templateBindings : undefined,
+    templateWritingFingerprint: criterion.kind === 'review' ? task.templateWritingFingerprint : undefined,
+    templateBindingIssue: criterion.kind === 'review' ? task.templateBindingIssue : undefined,
     qualityBrief: criterion.kind === 'review' ? task.quality.brief : undefined })
 }
 
@@ -93,6 +96,9 @@ export function validateEvidence(evidence: Evidence): void {
 }
 
 export function validateTask(task: ProfessionalTask): void {
+  if (task.templateBindings !== undefined && (!Array.isArray(task.templateBindings) || task.templateBindings.length > 501 || task.templateBindings.some(row => !row || Object.keys(row).sort().join(',') !== 'dnaId,slug,versionId' || !/^[a-z0-9][a-z0-9-]*$/.test(row.slug) || !/^[a-f0-9]{64}$/.test(row.versionId) || !/^[a-f0-9]{64}$/.test(row.dnaId)))) throw new Error('Invalid host template binding')
+  if (task.templateWritingFingerprint !== undefined && !/^[a-f0-9]{64}$/.test(task.templateWritingFingerprint)) throw new Error('Invalid host template writing fingerprint')
+  if (task.templateBindingIssue !== undefined && (typeof task.templateBindingIssue !== 'string' || !task.templateBindingIssue.trim() || task.templateBindingIssue.length > 4000)) throw new Error('Invalid host template issue')
   if (!task.control || typeof task.control.paused !== 'boolean') throw new Error('Invalid task execution control')
   const parked = task.control.parked || []
   if (!Array.isArray(parked) || parked.some(row => !row.sessionId?.trim() || !row.cwd?.trim() || !['next-step', 'next-turn'].includes(row.target) || !row.message?.id?.trim() || row.message.role !== 'user' || !Array.isArray(row.message.content) || !row.message.source?.kind) || new Set(parked.map(row => `${row.sessionId}:${row.message.id}`)).size !== parked.length || task.control.restoredMessageIds && (!Array.isArray(task.control.restoredMessageIds) || task.control.restoredMessageIds.some(id => typeof id !== 'string' || !id))) throw new Error('Invalid parked task input')
@@ -185,6 +191,8 @@ export function reviseTask(current: ProfessionalTask, input: TaskPatch, revision
   if (actor !== 'host' && input.control !== undefined && !equal(input.control, current.control)) throw new Error('任务执行控制只能由真实用户操作的宿主入口维护。')
   if (actor !== 'host' && ((!equal(input.binding ?? current.binding, current.binding)) || ('pendingProjectSync' in input && !equal(input.pendingProjectSync, current.pendingProjectSync)))) throw new Error('工作台绑定和同步状态由宿主维护。')
   const next = structuredClone({ ...current, ...input, sessionId: current.sessionId, schemaVersion: 2, revision: revision + 1, updatedAt: new Date().toISOString() }) as ProfessionalTask
+  if (actor !== 'host' && (!equal(next.templateBindings, current.templateBindings) || !equal(next.templateWritingFingerprint, current.templateWritingFingerprint) || !equal(next.templateBindingIssue, current.templateBindingIssue))) throw new Error('固定主范本绑定与来源校验由宿主维护，请使用知识库范本选用入口。')
+  if (actor !== 'host' && next.deliverables.some(row => !equal(row.checks.filter(check => check.kind === 'template'), current.deliverables.find(old => old.id === row.id)?.checks.filter(check => check.kind === 'template') || []))) throw new Error('主范本检查由宿主读取实际文件登记。')
   if (actor === 'agent' && next.brief.webDiligence !== current.brief.webDiligence) throw new Error('网络尽调授权只能由用户修改。')
   if (actor === 'agent' && (next.latestMessageId !== current.latestMessageId || next.latestRequest !== current.latestRequest)) throw new Error('实际用户请求由宿主输入适配器登记。')
   if (actor === 'agent' && !equal(next.directives, current.directives)) throw new Error('持久约束和撤销只能依据真实用户输入由宿主登记。')

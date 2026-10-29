@@ -21,6 +21,11 @@ const univer037AdaptedPeerRange = univer036AdaptedPeerRange + ' || 0.2.1-alpha.2
 const univer037Alpha4PeerRange = univer037AdaptedPeerRange + ' || 0.2.1-alpha.4'
 const univer037Alpha5PeerRange = univer037Alpha4PeerRange + ' || 0.2.1-alpha.5'
 const univer037Rc3PeerRange = univer037Alpha5PeerRange + ' || 0.2.1-rc.3'
+const univer038PeerRange = univer036PeerRange + ' || ^0.2.1-rc.3'
+const univer038VendorPeers = {
+  '@deepseek-ai/cordis': ['^4.0.2'],
+  '@deepseek-ai/schemastery': ['^3.18.1'],
+}
 const univerVendorPeers = {
   '@deepseek-ai/cordis': ['^4.0.2', '^4.0.2 || 4.0.5-alpha.1'],
   '@deepseek-ai/schemastery': ['^3.18.1', '^3.18.1 || 3.18.5-alpha.1'],
@@ -29,8 +34,10 @@ const univerVendorPeers = {
 /** Extends only the Office-facing APIs and vendor versions reviewed for this pin. */
 export function patchUniver020PeerRanges(source) {
   const manifest = JSON.parse(source)
-  if (manifest.name !== 'dsh-univer-office' || !['0.3.5', '0.3.6', '0.3.7'].includes(manifest.version) || !manifest.peerDependencies) return source
-  const ranges = manifest.version === '0.3.7'
+  if (manifest.name !== 'dsh-univer-office' || !['0.3.5', '0.3.6', '0.3.7', '0.3.8'].includes(manifest.version) || !manifest.peerDependencies) return source
+  const ranges = manifest.version === '0.3.8'
+    ? [univer038PeerRange]
+    : manifest.version === '0.3.7'
     ? [univer036PeerRange, univer036AdaptedPeerRange, univer037AdaptedPeerRange, univer037Alpha4PeerRange, univer037Alpha5PeerRange, univer037Rc3PeerRange]
     : manifest.version === '0.3.6'
     ? [univer036PeerRange, univer036AdaptedPeerRange]
@@ -42,22 +49,23 @@ export function patchUniver020PeerRanges(source) {
     }
     manifest.peerDependencies[name] = adaptedRange
   }
-  for (const [name, ranges] of Object.entries(univerVendorPeers)) {
+  for (const [name, ranges] of Object.entries(manifest.version === '0.3.8' ? univer038VendorPeers : univerVendorPeers)) {
     if (!ranges.includes(manifest.peerDependencies[name])) throw new Error('unexpected Univer vendor peer range: ' + name)
-    manifest.peerDependencies[name] = ranges[1]
+    manifest.peerDependencies[name] = ranges.at(-1)
   }
-  return JSON.stringify(manifest, null, 2) + '\n'
+  return manifest.version === '0.3.8' ? source : JSON.stringify(manifest, null, 2) + '\n'
 }
 
 export function assertUniver020PeerRanges(manifest) {
   if (!manifest.peerDependencies) return
-  const adaptedRange = manifest.version === '0.3.7' ? univer037Rc3PeerRange
+  const adaptedRange = manifest.version === '0.3.8' ? univer038PeerRange
+    : manifest.version === '0.3.7' ? univer037Rc3PeerRange
     : manifest.version === '0.3.6' ? univer036AdaptedPeerRange : univer021PeerRange
   for (const name of univerDshPeers) {
     if (manifest.peerDependencies[name] !== adaptedRange) throw new Error('Univer DSH peer adaptation missing: ' + name)
   }
-  for (const [name, ranges] of Object.entries(univerVendorPeers)) {
-    if (manifest.peerDependencies[name] !== ranges[1]) throw new Error('Univer vendor peer adaptation missing: ' + name)
+  for (const [name, ranges] of Object.entries(manifest.version === '0.3.8' ? univer038VendorPeers : univerVendorPeers)) {
+    if (manifest.peerDependencies[name] !== ranges.at(-1)) throw new Error('Univer vendor peer adaptation missing: ' + name)
   }
 }
 /** Minimal Office 0.3.2 adaptation to DSH 0.1.7's entry-backed settings. */
@@ -88,7 +96,7 @@ export function patchUniver017Client(source) {
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const legacyPatchVersions = new Set(['0.2.9', '0.2.10'])
-const nativeCompatibleVersions = new Set(['0.2.13', '0.2.14', '0.3.0', '0.3.2', '0.3.5', '0.3.6', '0.3.7'])
+const nativeCompatibleVersions = new Set(['0.2.13', '0.2.14', '0.3.0', '0.3.2', '0.3.5', '0.3.6', '0.3.7', '0.3.8'])
 const alpha2TurnTailReplacements = [
   ['name: "conversation.chat.turnTail",\n              priority: -10,', 'name: "conversation.chat.turnTail",\n              id: "univer-turn-preview",\n              order: -10,'],
   ['              select: selectUniverTurn,\n', ''],
@@ -191,7 +199,7 @@ export function assertUniverClientCompatibility({ version, source }) {
     return 'legacy-patched'
   }
   if (nativeCompatibleVersions.has(version)) {
-    if (version === '0.3.5' || version === '0.3.6' || version === '0.3.7') {
+    if (version === '0.3.5' || version === '0.3.6' || version === '0.3.7' || version === '0.3.8') {
       // Upstream now handles the list slot and entry-backed settings itself.
       // Its guarded legacy fallbacks are retained; do not rewrite the bundle.
       for (const marker of [

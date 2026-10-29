@@ -8,11 +8,13 @@ import { inspectWriting } from '../../../packages/professional-tasks/quality.ts'
 import { qualityInputFingerprint } from '../../../packages/professional-tasks/task.ts'
 import { buildArtifactVerification, deliverableEvidence } from '../../../packages/professional-tasks/verification.ts'
 import type { Deliverable, ProfessionalTask, QualityCriterion } from '../../../packages/professional-tasks/types.ts'
+import { readTaskTemplateState, sameTaskTemplateState, verifyTaskTemplateBytes } from './template.ts'
 
 /** A receipt is based on actual authorized reads, not a model's completion report. */
 export async function verifyTaskDeliverable(fs: any, cwd: string, task: ProfessionalTask, original: Deliverable, signal?: AbortSignal): Promise<Deliverable> {
   if (!fs) throw new Error('主执行者的授权文件系统不可用，不能签发审核凭据。')
   const row = structuredClone(original), sourceHashes: Record<string, string | null> = {}, unresolved: string[] = []
+  const templateState = readTaskTemplateState(task)
   const cache = new Map<string, { bytes: Uint8Array; sha256: string; text: string | null; evidence: string; inspected: boolean }>()
   let artifactText: string | null = null
   const read = async (path: string, inspect = true) => {
@@ -29,7 +31,7 @@ export async function verifyTaskDeliverable(fs: any, cwd: string, task: Professi
     cache.set(path, value)
     return value
   }
-  const checks = row.checks.filter(value => !['file', 'writing'].includes(value.kind))
+  const checks = row.checks.filter(value => !['file', 'writing', 'template'].includes(value.kind))
   let artifactSha256: string | null = null
   try {
     const actual = await read(row.path)
@@ -41,6 +43,14 @@ export async function verifyTaskDeliverable(fs: any, cwd: string, task: Professi
     checks.push({ kind: 'file', status: 'passed', detail: actual.evidence, fingerprint: artifactSha256 })
     const writing = actual.text === null ? null : inspectWriting(actual.text, task.brief.profession)
     checks.push({ kind: 'writing', status: writing && !writing.findings.length ? 'passed' : 'review', detail: writing ? writing.findings.length ? JSON.stringify(writing.findings) : '已检查实际正文的套话、内部说明和重复；专业准确性仍需明确复核。' : '正文尚不能自动检查。', fingerprint: artifactSha256 })
+    if (!sameTaskTemplateState(task, templateState)) {
+      checks.push({ kind: 'template', status: 'review', detail: '任务主范本已变化，请刷新共同任务后按当前绑定重新审核。', fingerprint: artifactSha256 })
+    } else {
+      try {
+        const template = verifyTaskTemplateBytes(task, cwd, row.path, actual.bytes)
+        if (template) checks.push({ kind: 'template', ...template, fingerprint: artifactSha256 })
+      } catch (error) { checks.push({ kind: 'template', status: 'review', detail: '实际成果的主范本检查未完成：' + (error as Error).message, fingerprint: artifactSha256 }) }
+    }
   } catch (error) { signal?.throwIfAborted(); checks.push({ kind: 'file', status: 'failed', detail: (error as Error).message }) }
   for (const evidence of deliverableEvidence(task, row).filter(value => value.sourcePath)) {
     try { sourceHashes[evidence.sourcePath!] = (await read(evidence.sourcePath!, false)).sha256 }
@@ -87,6 +97,7 @@ export async function verifyTaskDeliverable(fs: any, cwd: string, task: Professi
     const target = await fs.resolve(path, { cwd, signal }), bytes = await fs.readBytes(target, signal, 32 * 1024 * 1024)
     if (createHash('sha256').update(bytes).digest('hex') !== inspected.sha256) unresolved.push(`文件在审核过程中变化，请按最新字节重新审核：${path}`)
   }
+  if (!sameTaskTemplateState(templateState, readTaskTemplateState(task))) unresolved.push('主范本或其固定来源在审核过程中变化，请按最新绑定重新审核。')
   row.checks = checks
   row.verification = buildArtifactVerification(task, row, { artifactSha256, sourceHashes, checks, unresolved })
   row.status = row.verification.status === 'passed' ? original.status === 'accepted' ? 'accepted' : 'reviewed' : original.status === 'accepted' || original.status === 'stale' ? 'stale' : 'draft'

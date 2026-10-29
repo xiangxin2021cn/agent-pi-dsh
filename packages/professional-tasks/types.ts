@@ -79,7 +79,7 @@ export interface Deliverable {
   stepIds: string[]
   status: 'draft' | 'reviewed' | 'accepted' | 'stale'
   signature: 'not_required' | 'pending' | 'signed'
-  checks: Array<{ kind: 'file' | 'format' | 'coverage' | 'calculation' | 'professional' | 'writing' | 'signature'; status: CheckStatus; detail: string; fingerprint?: string }>
+  checks: Array<{ kind: 'file' | 'format' | 'coverage' | 'calculation' | 'professional' | 'writing' | 'signature' | 'template'; status: CheckStatus; detail: string; fingerprint?: string }>
   briefDependencies?: Array<keyof TaskBrief>
   verification?: ArtifactVerification
 }
@@ -219,6 +219,10 @@ export interface ProfessionalTask {
   briefProvenance: Record<string, BriefProvenance>
   findings: TaskFinding[]
   quality: TaskQuality
+  /** Canonical knowledge-template selection, synchronized and verified by the host. */
+  templateBindings?: Array<{ slug: string; versionId: string; dnaId: string }>
+  templateWritingFingerprint?: string
+  templateBindingIssue?: string
   binding?: TaskBinding
   pendingProjectSync?: { id: string; text: string; stageId?: string; messageId?: string; createdAt: string }
   recentChanges: TaskChange[]

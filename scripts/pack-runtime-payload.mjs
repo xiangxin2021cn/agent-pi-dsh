@@ -24,6 +24,7 @@ import { createHash } from 'node:crypto'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { verifyCadCleanRelease } from './cad-clean-release.mjs'
+import { verifyWritingDnaSkill } from './verify-writing-dna-skill.mjs'
 import { verifyCadHostCleanRelease } from './cad-host-clean-release.mjs'
 import { verifyCadBrowserDecoderRelease } from './cad-browser-decoder-release.mjs'
 import {
@@ -107,6 +108,7 @@ function verifyCadViewerAssets(dir, label) {
   if (missing.length) throw new Error(`${label} CAD viewer missing: ${missing.join(', ')}`)
 }
 
+verifyWritingDnaSkill(root)
 run(process.execPath, [join(root, 'scripts', 'kernel-version-policy.mjs'), '--history'])
 run(process.execPath, [join(root, 'scripts', 'apply-dsh-patches.mjs')])
 try {
@@ -191,6 +193,7 @@ for (const item of productItems) {
     cpSync(src, dest)
   }
 }
+verifyWritingDnaSkill(productDest)
 assertUniverPublicReleaseTree(productDest, { runtime: false })
 verifyCadHostCleanRelease(productDest)
 verifyProjectPlanRuntime(productDest, { portable: true })

@@ -19,6 +19,7 @@ import { chunksFromPackUnits, loadPackContentList, looksLikeKbPack, resolveKbPac
 import { createKbMiniSearch, persistMiniSearchIndex, searchDocumentFromChunk } from './kb-search.ts'
 import { chunkByStructure, clauseRelation, measureFidelity, normalizeClauseId, type KbUnitKind, type StructureChunk } from './kb-structure.ts'
 import { resolveKbCategory, userTemplateInstruction } from './kb-template.ts'
+import { formatTemplateDnaTaskContext, pruneSessionTemplateBindings } from './template-dna-task.ts'
 import { standardizeKbMarkdown } from './kb-md-standardize.ts'
 import {
   normalizeKbFolderName,
@@ -1757,6 +1758,7 @@ export function setKbTaskSlugs(sessionId: string | undefined, slugs: string[]): 
   const stored = loadTaskSelection()
   stored.bySession[key] = next
   writeJson(taskSelectionPath(), stored)
+  pruneSessionTemplateBindings(kbRoot(), sessionId, next)
   return next
 }
 
@@ -1774,6 +1776,7 @@ function dropSlugFromTaskSelections(slug: string): void {
     const next = slugs.filter((item) => item !== slug)
     if (next.length !== slugs.length) {
       stored.bySession[key] = next
+      pruneSessionTemplateBindings(kbRoot(), key, next)
       changed = true
     }
   }
@@ -1782,17 +1785,22 @@ function dropSlugFromTaskSelections(slug: string): void {
 
 /** Inject only user-checked entries. Empty string = nothing in this conversation. */
 export function formatSelectedKbContext(sessionId?: string): string {
+  const templateDna = formatTemplateDnaTaskContext(kbRoot(), sessionId)
   const slugs = getKbTaskSlugs(sessionId)
-  if (slugs.length === 0) return ''
+  if (slugs.length === 0) return templateDna
   const entries = listKbEntries().filter((entry) => slugs.includes(entry.slug) && entry.parseStatus !== 'parsing' && entry.parseStatus !== 'failed' && entry.parseStatus !== 'staged')
-  if (entries.length === 0) return ''
+  if (entries.length === 0) return templateDna
   const rows = entries.map((entry) => `- [${entry.category}] ${kbDisplayName(entry)} — ${entry.slug}`)
-  const templateNote = userTemplateInstruction(entries)
+  const templateNote = templateDna
+    ? 'Only the fixed primary template DNA below defines the task template. Other selected user-template slugs are references; do not combine their formats or silently replace the primary.'
+    : userTemplateInstruction(entries)
+
   return [
     'User-selected knowledge entries for THIS task only. Do not treat other knowledge-base entries as in-scope unless the user asks.',
     rows.join('\n'),
     'Retrieve these slugs with kb_search({ slugs }) / kb_find_clause / kb_find_table then kb_read_chunk. Copy the exact returned citation token, including @version; never invent or remove its version. Do not invent spec/contract/method facts from memory.',
     templateNote,
+    templateDna,
   ].filter(Boolean).join('\n')
 }
 

@@ -705,7 +705,7 @@ export function createFilePreviewOverlay(dependencies) {
         const desktopPdf = formatName === 'pdf' && window.agentPiDesktop && typeof window.agentPiDesktop.printToPdf === 'function'
         const requestExport = (format) => apiBlob('/api/agent-pi/files/export', cwd, {
           method: 'POST',
-          body: JSON.stringify({ path: file.path, format: format, content: content }),
+          body: JSON.stringify({ path: file.path, format: format, content: content, sessionId: String(props.sessionId || runtime.sessionId || '') }),
         })
         const run = async () => {
           if (desktopPdf) {
@@ -715,7 +715,7 @@ export function createFilePreviewOverlay(dependencies) {
               const bytes = asPdfBytes(await window.agentPiDesktop.printToPdf(html))
               const filename = String(prepared.filename || file.name).replace(/\.html$/i, '.pdf')
               downloadBlob(new Blob([bytes], { type: 'application/pdf' }), filename)
-              setStatus('已下载 ' + filename)
+              setStatus('已下载 ' + filename + (prepared.templateStatus ? '；已应用主范本格式，PDF页面仍需审阅' : ''))
               return
             } catch {
               setStatus('桌面排版未完成，改用服务端导出…')
@@ -723,7 +723,7 @@ export function createFilePreviewOverlay(dependencies) {
           }
           const result = await requestExport(formatName)
           downloadBlob(result.blob, result.filename)
-          setStatus('已下载 ' + result.filename)
+          setStatus('已下载 ' + result.filename + (result.templateStatus === 'review' ? '；主范本仍有待审阅项' : result.templateStatus === 'passed' ? '；主范本机器格式检查通过，内容仍需审阅' : ''))
         }
         run().catch((e) => {
           setStatus('')

@@ -44,3 +44,11 @@ Never invent a template. If none is selected and the user did not point at one, 
 ## After the file exists
 
 Tell the user, in Chinese, which template slug you cloned and where the new file is. If a heading could not be filled, list it as a gap.
+
+## Agent Pi 3.8.6 fixed template DNA
+
+Use `kb_template_dna` to distill/read a fixed `slug` + `versionId` + `dnaId`. Read its six layered artifacts and the exact original before writing; the source remains form, never this project's facts. The bundled `writing-dna-skill` is pinned at ee3d97ee27268004b5187d97711161f44fc4aae4 (MIT). Its full author-corpus mode expects at least 20 complete articles; Agent Pi single-template-contract uses the actual one template and does not invent missing articles or image review.
+
+A user may request local format extraction or explicitly start AI semantic distillation with the configured model. These are separate from selecting a primary template and starting document authoring. Exact native page/font/heading rules come from the original OOXML, never a model claim. AI rules need verbatim source quotes. Missing layout and uncertain interpretation remain review gaps.
+
+Bind the selected immutable DNA to this task, or to the existing tender project default/chapter source. Preserve employer-mandated forms, scoring responses, and the current project's evidence. Do not move old sample facts or header/footer project text into new documents. When the generation/export path supports native template formatting, apply it and call `kb_template_dna(action=verify,path=actual_artifact)` on the actual file; never treat a successful export, prompt injection or self-reported compliance as verification. Keep machine findings distinct from professional review. A changed DNA/source/artifact invalidates prior checks. Office changes continue through the native isolated worktree and explicit review/merge flow.

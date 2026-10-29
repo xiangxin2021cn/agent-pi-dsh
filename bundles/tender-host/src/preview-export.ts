@@ -2,7 +2,9 @@ import { basename, dirname, extname, join, relative } from 'node:path'
 import { readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { assertInside } from './files.ts'
-import { syncKbFromMarkdownSave } from './kb.ts'
+import { syncKbFromMarkdownSave, kbRoot } from './kb.ts'
+import { getSessionTemplateBindings, validateTemplateBindings, verifySessionTemplateArtifact } from './template-dna-task.ts'
+import { readTemplateDna, validateTemplateDnaArtifact, type TemplateDnaValidation } from './template-dna.ts'
 import { syncOrchestrationReportFromMarkdown } from './orchestration.ts'
 import { syncPackSidecarFromMarkdown } from './setup-restore.ts'
 import {
@@ -167,15 +169,31 @@ export function exportMarkdownFile(
   sourcePath: string,
   format: MarkdownExportFormat,
   content?: string,
-): { path: string; filename: string; mime: string; body: Buffer } {
+  options: { sessionId?: string } = {},
+): { path: string; filename: string; mime: string; body: Buffer; templateValidation?: TemplateDnaValidation; templateWarnings?: string[]; templateArtifactSha256?: string } {
   const path = assertInside(cwd, sourcePath)
   const markdown = typeof content === 'string' ? content : readFileSync(path, 'utf8')
-  const exported = exportPreparedMarkdown(path, markdown, format)
+  const binding = getSessionTemplateBindings(kbRoot(), options.sessionId)[0]
+  if (binding) validateTemplateBindings(kbRoot(), [binding], [binding.slug])
+  const profile = binding ? readTemplateDna(kbRoot(), binding) : undefined
+  if (profile) {
+    const structure = validateTemplateDnaArtifact(profile, { bytes: Buffer.from(markdown), format: 'md' })
+    if (structure.violations.length) throw new Error('当前稿件未满足已选主范本结构：' + structure.violations.join('；'))
+  }
+  const exported = exportPreparedMarkdown(path, markdown, format, profile?.format)
+  const templateValidation = profile && format !== 'html'
+    ? verifySessionTemplateArtifact(kbRoot(), String(options.sessionId || ''), { bytes: exported.body, format }).receipts[0] : undefined
+  const templateWarnings = profile ? [...(exported.templateWarnings || []), ...(format === 'html' ? ['HTML 是排版中间稿，最终 PDF 仍须按实际输出字节与页面复核。'] : [])] : undefined
+  if (templateValidation && templateWarnings?.length) {
+    templateValidation.gaps.push(...templateWarnings)
+    templateValidation.checks.push(...templateWarnings.map(message => ({ id: 'template-rendering', status: 'review' as const, message })))
+    if (templateValidation.status === 'passed') templateValidation.status = 'review'
+    templateValidation.machinePassed = false
+  }
+  if (templateValidation?.violations.length) throw new Error('实际导出文件不符合主范本：' + templateValidation.violations.join('；'))
   return {
-    path: join(dirname(path), exported.filename),
-    filename: exported.filename,
-    mime: exported.mime,
-    body: exported.body,
+    path: join(dirname(path), exported.filename), filename: exported.filename, mime: exported.mime, body: exported.body,
+    ...(profile ? { templateValidation, templateWarnings, templateArtifactSha256: createHash('sha256').update(exported.body).digest('hex') } : {}),
   }
 }
 

@@ -46,7 +46,9 @@ export function createAgentPiApiClient(options = {}) {
       const disposition = res.headers.get('content-disposition') || ''
       const match = /filename\*=UTF-8''([^;]+)|filename="?([^"]+)"?/i.exec(disposition)
       const filename = decodeURIComponent((match && (match[1] || match[2])) || 'download')
-      return { blob, filename }
+      const templateStatus = res.headers.get('x-agent-pi-template-status') || ''
+      const templateArtifactSha256 = res.headers.get('x-agent-pi-template-artifact-sha256') || ''
+      return { blob, filename, ...(templateStatus ? { templateStatus, templateArtifactSha256 } : {}) }
     })
   }
 

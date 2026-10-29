@@ -18,6 +18,7 @@ export function deliverableInputFingerprint(task: ProfessionalTask, row: Deliver
     requirements: task.requirements.filter(value => value.mandatory || row.requirementIds.includes(value.id)), evidence: deliverableEvidence(task, row),
     steps: row.stepIds.map(id => task.plan.find(value => value.id === id)).map(value => value && ({ id: value.id, title: value.title, evidenceIds: value.evidenceIds, requirementIds: value.requirementIds })),
     quality: { enabled: task.quality.enabled, criteria: task.quality.criteria, brief: { ...task.quality.brief, purpose: task.brief.objective || task.quality.brief.purpose }, template: task.quality.template },
+    templateBindings: task.templateBindings, templateWritingFingerprint: task.templateWritingFingerprint, templateBindingIssue: task.templateBindingIssue,
     references: { evidenceIds: row.evidenceIds, requirementIds: row.requirementIds, stepIds: row.stepIds } })
 }
 
@@ -25,6 +26,8 @@ export function deliverableInputFingerprint(task: ProfessionalTask, row: Deliver
 export function buildArtifactVerification(task: ProfessionalTask, row: Deliverable, input: { artifactSha256: string | null; sourceHashes: Record<string, string | null>; checks: Deliverable['checks']; unresolved?: string[]; ruleVersion?: string }): ArtifactVerification {
   const unresolved = [...(input.unresolved || [])]
   if (!input.artifactSha256) unresolved.push('没有可核验的实际成果版本。')
+  if (task.templateBindingIssue) unresolved.push(task.templateBindingIssue)
+  if (task.templateBindings?.length && !input.checks.some(value => value.kind === 'template' && value.status === 'passed' && value.fingerprint === input.artifactSha256)) unresolved.push('当前成果尚未通过固定主范本的实际文件校验。')
   for (const kind of ['file', 'professional', 'writing'] as const) if (!input.checks.some(value => value.kind === kind && value.status === 'passed' && value.fingerprint === input.artifactSha256)) unresolved.push(`${kind}：当前成果尚未通过检查。`)
   for (const requirement of task.requirements.filter(value => value.mandatory)) if (!row.requirementIds.includes(requirement.id) || !input.checks.some(value => value.kind === 'coverage' && value.status === 'passed' && value.fingerprint === input.artifactSha256)) unresolved.push(`尚未核验必需要求：${requirement.title}`)
   for (const evidence of deliverableEvidence(task, row)) {

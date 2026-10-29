@@ -11,6 +11,10 @@ export function apply(ctx: any): void {
   registerTools(ctx, defineTool, 'knowledge')
   registerKnowledgePrompt(ctx)
   ctx.inject(['webServer'], (inner: any) => {
-    attachHttp({ webServer: inner.webServer, effect: (fn: any) => inner.effect(fn) }, 'knowledge')
+    attachHttp({
+      webServer: inner.webServer, effect: (fn: any) => inner.effect(fn),
+      getDefaultModel: () => ctx.get?.('agentDefaultModel')?.currentSelection?.(),
+      getAgent: (id: string) => ctx.get?.('agents')?.get(id),
+    }, 'knowledge')
   })
 }

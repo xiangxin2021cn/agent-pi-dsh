@@ -1,0 +1,123 @@
+{
+  "repository": "https://github.com/larashero3-dotcom/writing-dna-skill",
+  "commit": "ee3d97ee27268004b5187d97711161f44fc4aae4",
+  "license": "MIT",
+  "archiveSha256": "234fe3e211518127b639fe68dda472c3b59b057f01a6cd2e599de9ca1ca52819",
+  "files": [
+    {
+      "path": "LICENSE",
+      "sha256": "1126322e2cc8d165adc4c792eeb195717de2bcc7b39be1ce77959d78e87ef685",
+      "bytes": 1056
+    },
+    {
+      "path": "README.en.md",
+      "sha256": "54aa9bd3492bb88a05026907d81912b065a7ded089833a9e3aa0f7e9763130f7",
+      "bytes": 12415
+    },
+    {
+      "path": "README.md",
+      "sha256": "872c5b8d44232a1661a6436ed45d12ba3873533c8c2fe99b29b0bf787937988d",
+      "bytes": 11698
+    },
+    {
+      "path": "SKILL.md",
+      "sha256": "6edb2cca7e938d301c79b6605189d7dd7243fefe30e91de31b5cd9ab5df4b6d7",
+      "bytes": 14598
+    },
+    {
+      "path": "docs/release-checklist.md",
+      "sha256": "2880fbbbeb763715b3a0d407431c18cdf265bfd1a62c504373e6f9285f32e7a7",
+      "bytes": 1373
+    },
+    {
+      "path": "docs/usage-boundaries.md",
+      "sha256": "e0676f60246f5ea82d3b5d73c8296ef4ca626597d112f382032cd2482bb03dc4",
+      "bytes": 768
+    },
+    {
+      "path": "references/workflow.en.md",
+      "sha256": "8c13efd81ec070a945faf7d6cc6013ed8bec6af50335d067d6ace7ff47164a14",
+      "bytes": 9573
+    },
+    {
+      "path": "skills/lieflat-less-ai-tone/SKILL.md",
+      "sha256": "16661f5c97fc856d21d7bd0b33471e7f0ca20fbc13c4d5136ef5288680bea7d1",
+      "bytes": 28453
+    },
+    {
+      "path": "templates/author-corpus/README.md",
+      "sha256": "2e2321dae2b272fd4ec52ddc7270387032bbab852c7c4bbad281cfd350eeaeb0",
+      "bytes": 438
+    },
+    {
+      "path": "templates/author-corpus/en/README.md",
+      "sha256": "5285aebbb953c3db4ccee0ac6185aff5aab772dd1f86c1d4c77a93237aa4cfda",
+      "bytes": 484
+    },
+    {
+      "path": "templates/author-corpus/en/Writing-DNA.md",
+      "sha256": "17ec8c6074bf2d53979d8736210357f99797440c80c037e1f1b916e0985e27ff",
+      "bytes": 363
+    },
+    {
+      "path": "templates/author-corpus/en/_meta/example.schema.json",
+      "sha256": "8c8c2a0ddcde2fee2ecde4b570148f18bb64f583b381e1d638238330e3c41149",
+      "bytes": 525
+    },
+    {
+      "path": "templates/author-corpus/en/cognitive-framework.md",
+      "sha256": "b58638d60dae5cf78ec3a0bd38bba350611cdb1378383fedfd1e848020490141",
+      "bytes": 206
+    },
+    {
+      "path": "templates/author-corpus/en/language-dna.md",
+      "sha256": "142d7d8af70af1654ecd1196af836aecef8f09e18c48d1424d675d0668ae9108",
+      "bytes": 194
+    },
+    {
+      "path": "templates/author-corpus/en/structure-patterns.md",
+      "sha256": "a212d4f6f8147092c04d4404d36493a7bb01cc2157689322d24149880c7a8cb2",
+      "bytes": 129
+    },
+    {
+      "path": "templates/author-corpus/en/visual-style-guide.md",
+      "sha256": "e2e9d1f3294e17d732452f608f0f051c402c4e6479e629484a25cbb3d38d2b4e",
+      "bytes": 172
+    },
+    {
+      "path": "templates/author-corpus/zh/README.md",
+      "sha256": "b954fc1acf4b2263865baa619e75c6f9a1093f1cd3a903f7a8350c06a076cdb5",
+      "bytes": 433
+    },
+    {
+      "path": "templates/author-corpus/zh/Writing-DNA.md",
+      "sha256": "b1043c1ca187e5422184d987d15d4d1362dd4216c1f1ea4bf1212bd55bac4cd9",
+      "bytes": 276
+    },
+    {
+      "path": "templates/author-corpus/zh/_meta/example.schema.json",
+      "sha256": "61f2989f6a436f12bc7b509ff5d028059ed3e6bf0db527bce4ceb360963ff087",
+      "bytes": 516
+    },
+    {
+      "path": "templates/author-corpus/zh/写作视角与认知框架.md",
+      "sha256": "88520683916a2efb14f4187514d0886d99042d4ad2cb4c9e03f77fdf10529edf",
+      "bytes": 148
+    },
+    {
+      "path": "templates/author-corpus/zh/文章结构模板.md",
+      "sha256": "84eee8b355261ef0cffb54d73d5ef00e14da68b6292c0b7ce10477816f033d16",
+      "bytes": 121
+    },
+    {
+      "path": "templates/author-corpus/zh/视觉风格指南.md",
+      "sha256": "7de68631cdb2fe3718e5d0122cdf5e3ffc6953c5e03b9d951fa506e3356eb446",
+      "bytes": 151
+    },
+    {
+      "path": "templates/author-corpus/zh/语言DNA.md",
+      "sha256": "20fcd0bb7350ff8cd5260d0fa8b965bf320e577fa62871a3166db24109a85186",
+      "bytes": 139
+    }
+  ]
+}

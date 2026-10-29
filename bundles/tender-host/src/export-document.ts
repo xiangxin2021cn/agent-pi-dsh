@@ -6,6 +6,8 @@ import { randomBytes } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
 import { marked } from 'marked'
 import { renderMermaidSVG } from 'beautiful-mermaid'
+import type { TemplateDocxFormat } from './template-dna-office.ts'
+import { applyTemplateDocxFormat, applyTemplateHtmlFormat, prepareTemplateExport, templateExportCss, templateNumberingForList } from './template-dna-export.ts'
 
 export type MarkdownExportFormat = 'md' | 'html' | 'pdf' | 'docx'
 
@@ -259,8 +261,9 @@ export function prepareMarkdownContentForExport(sourcePath: string, content: str
   return { content: parts.join(''), pageLayout }
 }
 
-export function createMarkdownHtml(content: string, title: string, pageLayout?: MarkdownExportPageLayout): string {
-  const body = marked.parse(content, { gfm: true, breaks: false, async: false }) as string
+export function createMarkdownHtml(content: string, title: string, pageLayout?: MarkdownExportPageLayout, templateFormat?: TemplateDocxFormat): string {
+  let body = marked.parse(content, { gfm: true, breaks: false, async: false }) as string
+  if (templateFormat) body = applyTemplateHtmlFormat(body, templateFormat)
   const pageSize = pageLayout ? `${pageLayout.pageSize} ${pageLayout.orientation}` : 'A4'
   return [
     '<!doctype html>',
@@ -287,6 +290,7 @@ export function createMarkdownHtml(content: string, title: string, pageLayout?: 
     'code{padding:.15em .3em;} pre{padding:12px;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;} pre code{padding:0;background:transparent;}',
     'img,svg,canvas{max-width:100%;height:auto;}',
     '@media print{body{font-size:11pt;}.markdown-body{max-width:none;margin:0;padding:0;}a{color:#202124;}h1{font-size:22pt;}h2{font-size:17pt;}h3{font-size:14pt;}}',
+    ...(templateFormat ? [templateExportCss(templateFormat)] : []),
     '</style>',
     '</head>',
     '<body>',
@@ -357,9 +361,10 @@ function docxRun(text: string, options: { bold?: boolean; size?: number } = {}):
   return `<w:r><w:rPr>${props}</w:rPr><w:t xml:space="preserve">${xmlEscape(text)}</w:t></w:r>`
 }
 
-function docxParagraph(text: string, options: { bold?: boolean; size?: number; indent?: number; after?: number; style?: string } = {}): string {
+function docxParagraph(text: string, options: { bold?: boolean; size?: number; indent?: number; after?: number; style?: string; numId?: number } = {}): string {
   const pPr = [
     options.style ? `<w:pStyle w:val="${options.style}"/>` : '',
+    options.numId ? `<w:numPr><w:ilvl w:val="0"/><w:numId w:val="${options.numId}"/></w:numPr>` : '',
     options.indent ? `<w:ind w:left="${options.indent}"/>` : '',
     `<w:spacing w:after="${options.after ?? 120}"/>`,
   ].filter(Boolean).join('')
@@ -518,7 +523,8 @@ function docxStylesXml(): string {
   ].join('')
 }
 
-export function createDocxBuffer(markdown: string, pageLayout?: MarkdownExportPageLayout): Buffer {
+export function createDocxBuffer(markdown: string, pageLayout?: MarkdownExportPageLayout, templateFormat?: TemplateDocxFormat): Buffer {
+  if (templateFormat) templateFormat = prepareTemplateExport(templateFormat).format
   const blocks = renderMarkdownBlocksForExport(markdown)
   const media: DocxImageMedia[] = []
   const documentContent = blocks.map((block) => {
@@ -528,14 +534,16 @@ export function createDocxBuffer(markdown: string, pageLayout?: MarkdownExportPa
           bold: true,
           size: block.depth === 1 ? 32 : block.depth === 2 ? 28 : 24,
           after: 180,
-          style: block.depth <= 3 ? `Heading${block.depth}` : 'Heading3',
+          style: templateFormat ? `Heading${Math.min(block.depth, 9)}` : block.depth <= 3 ? `Heading${block.depth}` : 'Heading3',
         })
       case 'paragraph':
         return docxParagraph(block.text)
       case 'image':
         return docxImageParagraph(block, media)
-      case 'listItem':
-        return docxParagraph(`${block.ordered ? `${block.index}.` : '•'} ${block.text}`, { indent: 360 })
+      case 'listItem': {
+        const numId = templateNumberingForList(templateFormat, block.ordered)
+        return docxParagraph(numId ? block.text : `${block.ordered ? `${block.index}.` : '•'} ${block.text}`, { indent: 360, numId })
+      }
       case 'quote':
         return docxParagraph(block.text, { indent: 360 })
       case 'code':
@@ -592,7 +600,8 @@ export function createDocxBuffer(markdown: string, pageLayout?: MarkdownExportPa
       '</w:body></w:document>',
     ].join(''), 'utf8'),
   })
-  return zipStore(files)
+  const body = zipStore(files)
+  return templateFormat ? applyTemplateDocxFormat(body, templateFormat) : body
 }
 
 function utf16BeHex(value: string): string {
@@ -758,7 +767,7 @@ function printHtmlWithChromium(
   return printedPdfReady(pdfPath)
 }
 
-export function renderHtmlToPdf(html: string): Buffer | null {
+export function renderHtmlToPdf(html: string, requireSandbox = false): Buffer | null {
   const chrome = findChromium()
   if (!chrome) return null
   const id = randomBytes(8).toString('hex')
@@ -768,7 +777,7 @@ export function renderHtmlToPdf(html: string): Buffer | null {
   writeFileSync(htmlPath, html, 'utf8')
   mkdirSync(userDataDir, { recursive: true })
   try {
-    const attempts = [
+    const attempts = requireSandbox ? [['--headless=new'], ['--headless']] : [
       ['--headless=new'],
       ['--headless=new', '--no-sandbox'],
       ['--headless'],
@@ -790,7 +799,7 @@ export function renderHtmlToPdf(html: string): Buffer | null {
   }
 }
 
-export function buildPreparedExport(sourcePath: string, markdown: string): {
+export function buildPreparedExport(sourcePath: string, markdown: string, templateFormat?: TemplateDocxFormat): {
   prepared: PreparedMarkdownExportContent
   title: string
   html: string
@@ -800,7 +809,7 @@ export function buildPreparedExport(sourcePath: string, markdown: string): {
   return {
     prepared,
     title,
-    html: createMarkdownHtml(prepared.content, title, prepared.pageLayout),
+    html: createMarkdownHtml(prepared.content, title, prepared.pageLayout, templateFormat),
   }
 }
 
@@ -808,8 +817,12 @@ export function exportPreparedMarkdown(
   sourcePath: string,
   markdown: string,
   format: MarkdownExportFormat,
-): { filename: string; mime: string; body: Buffer } {
+  templateFormat?: TemplateDocxFormat,
+): { filename: string; mime: string; body: Buffer; templateWarnings?: string[] } {
   const parsed = parse(sourcePath)
+  const template = templateFormat ? prepareTemplateExport(templateFormat) : undefined
+  if (template) templateFormat = template.format
+  const templateMetadata = template ? { templateWarnings: template.warnings } : {}
   if (format === 'md') {
     return {
       filename: `${parsed.name}.md`,
@@ -817,25 +830,29 @@ export function exportPreparedMarkdown(
       body: Buffer.from(markdown, 'utf8'),
     }
   }
-  const { prepared, title, html } = buildPreparedExport(sourcePath, markdown)
+  const { prepared, title, html } = buildPreparedExport(sourcePath, markdown, templateFormat)
   if (format === 'html') {
     return {
       filename: `${parsed.name}.html`,
       mime: 'text/html; charset=utf-8',
       body: Buffer.from(html, 'utf8'),
+      ...templateMetadata,
     }
   }
   if (format === 'docx') {
     return {
       filename: `${parsed.name}.docx`,
       mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      body: createDocxBuffer(prepared.content, prepared.pageLayout),
+      body: createDocxBuffer(prepared.content, prepared.pageLayout, templateFormat),
+      ...templateMetadata,
     }
   }
-  const printed = renderHtmlToPdf(html)
+  const printed = renderHtmlToPdf(html, Boolean(templateFormat))
+  if (templateFormat && !printed) throw new Error('范本 PDF 需要可用的 HTML 打印引擎；未降级生成不保留版式的 PDF。')
   return {
     filename: `${parsed.name}.pdf`,
     mime: 'application/pdf',
     body: printed ?? createPdfBuffer(prepared.content, prepared.pageLayout),
+    ...templateMetadata,
   }
 }

@@ -25,6 +25,8 @@ if (-not $DshBuildReceipt) {
 }
 $NodeDir = Join-Path $Runtime "node"
 $Product = Join-Path $Runtime "product"
+& node (Join-Path $Root "scripts\verify-writing-dna-skill.mjs") $Root
+if ($LASTEXITCODE -ne 0) { throw "Writing DNA source is missing or differs from its reviewed upstream pin" }
 & node (Join-Path $Root "scripts\verify-project-plan-runtime.mjs") $Root
 if ($LASTEXITCODE -ne 0) { throw "Project plan runtime is missing or stale; run scripts/build-project-plan.mjs" }
 & node (Join-Path $Root "scripts\cad-host-clean-release.mjs") $Root
@@ -277,6 +279,8 @@ $stagedDshReceipt = if ($FullCopy) { Join-Path $dshTarget $DshReceiptName } else
 node (Join-Path $Root "scripts\dsh-build-receipt.mjs") verify `
   --dsh $dshTarget --product $Product --receipt $stagedDshReceipt
 if ($LASTEXITCODE -ne 0) { throw "staged DSH build receipt verification failed" }
+& $nodeDest (Join-Path $Root "scripts\verify-writing-dna-skill.mjs") $Product
+if ($LASTEXITCODE -ne 0) { throw "Writing DNA Windows payload lost or changed an upstream file" }
 & $nodeDest (Join-Path $Root "scripts\verify-dsh-runtime.mjs") $dshTarget $Product --native
 if ($LASTEXITCODE -ne 0) { throw "staged DSH runtime verification failed" }
 

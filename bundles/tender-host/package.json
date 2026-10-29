@@ -1,6 +1,6 @@
 {
   "name": "dsh-tender-host",
-  "version": "3.8.5",
+  "version": "3.8.6",
   "private": true,
   "type": "module",
   "main": "./src/index.ts",

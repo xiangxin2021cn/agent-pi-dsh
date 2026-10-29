@@ -167,5 +167,12 @@
     "releaseTag": "v3.8.5",
     "reason": "Upgrade shared professional workspace to audited official DSH 0.2.1-rc.3 master with independent tender product separation",
     "dshVersion": "dsh-v0.2.1-rc.3"
+  },
+  {
+    "version": "3.8.6",
+    "dshPin": "f3803c96974ad4a94195fb97e5c637e9c2a3afe3",
+    "releaseTag": "v3.8.6",
+    "dshVersion": "dsh-v0.2.2-alpha.2",
+    "reason": "Official alpha.2 release; source tree matches user-referenced 00d541438b9beabb4d876a14371aea69f58c397a"
   }
 ]

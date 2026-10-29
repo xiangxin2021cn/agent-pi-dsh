@@ -60,18 +60,18 @@ test('real composer native-submit failures retain the draft and attachments and 
   const start = source.indexOf('async function submitCodexTurn(props) {')
   const end = source.indexOf('\n    function wrapComposerSubmit(props)', start)
   assert.ok(start >= 0 && end > start)
-  for (const authState of ['logged-in', 'logged-out']) {
+  for (const authState of ['logged-in', 'logged-out', 'dna-changed']) {
     let draft = '核查原图并保留我的任务描述'
     let attachments = [{ id: 'original-drawing', path: 'C:/project/original.dwg' }]
     const controller = {}, toasts = [], consumed = []
-    let submissions = 0
+    let submissions = 0, templateKey = 'pinned-dna-one'
     const authority = { session: {}, inputStore: { getSnapshot: () => ({ draft }) } }
     const handler = runInNewContext('(' + source.slice(start, end) + ')', {
       codexTurnKey: () => 'one', codexTurnController: () => controller, attachmentTurnControllers: new Map(),
       codexTurnAuthorities: () => authority, sessionSnapshotWithChat: () => ({}), snapshotIsBusy: () => false,
-      codexAttachItems: () => attachments, nativeCodexAttachmentIds: () => [], kbTaskOf: () => ({ slugs: [] }),
+      codexAttachItems: () => attachments, nativeCodexAttachmentIds: () => [], kbTaskOf: () => ({ slugs: ['neutral-template'] }), kbTemplateSelectionKey: () => templateKey,
       codexAttachmentIds: rows => rows.map(row => row.id), sameCodexAttachmentIds: (a, b) => JSON.stringify(a) === JSON.stringify(b),
-      flushKbTaskSelection: async () => {}, window: { agentPiDesktop: { codexAuthStatus: async () => ({ state: authState }) } },
+      flushKbTaskSelection: async () => {}, window: { agentPiDesktop: { codexAuthStatus: async () => { if (authState === 'dna-changed') templateKey = 'pinned-dna-two'; return { state: authState === 'logged-out' ? 'logged-out' : 'logged-in' } } } },
       resolveCodexTurnSelection: () => ({ model: 'fixture-model', reasoningEffort: 'high' }), workspaceCwd: () => 'C:/project',
       runtime: { conversation: { resolveDraftAttachments: () => [], releaseDraftAttachments: () => consumed.push('release') } },
       stripMentionArtifacts: text => text, nativeCodex: { async submit() { submissions++; throw new Error("Error invoking remote method 'codex-execution-submit': Error: Shared context refused; token=submit-secret") } },
@@ -88,7 +88,8 @@ test('real composer native-submit failures retain the draft and attachments and 
     assert.equal(submissions, authState === 'logged-in' ? 1 : 0)
     assert.equal(toasts.length, 1)
     assert.doesNotMatch(toasts[0], /submit-secret|invoking remote/)
-    assert.match(toasts[0], authState === 'logged-in' ? /Shared context refused/ : /请先在 Codex 设置中登录账户/)
+    if (authState === 'dna-changed') assert.equal(toasts[0], tCodexExecution('sessionBusy', 'zh'))
+    else assert.match(toasts[0], authState === 'logged-in' ? /Shared context refused/ : /请先在 Codex 设置中登录账户/)
   }
 })
 

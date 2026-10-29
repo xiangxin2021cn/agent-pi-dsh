@@ -3,7 +3,9 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { addKbContent, formatSelectedKbContext, setKbTaskSlugs } from '../src/kb.ts'
+import { addKbContent, formatSelectedKbContext, setKbTaskSlugs, listKbVersions } from '../src/kb.ts'
+import { distillTemplateDna } from '../src/template-dna.ts'
+import { setSessionTemplateBindings } from '../src/template-dna-task.ts'
 import {
   isUserTemplateCategory,
   KB_USER_TEMPLATE_CATEGORY,
@@ -108,6 +110,26 @@ test('selecting only 规范 does not inject the clone-form instruction', () => {
     assert.match(text, /\[规范\]/)
     assert.doesNotMatch(text, /kb-user-template/)
   } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('a fixed primary DNA keeps other selected user templates as references', () => {
+  const previousRoot = process.env.AGENT_PI_KB_ROOT, root = withKbRoot()
+  try {
+    for (const slug of ['primary-template', 'reference-template']) addKbContent({ fileName: slug + '.md', text: SAMPLE, category: '用户模板', slug })
+    const versionId = listKbVersions('primary-template')[0].versionId
+    const profile = distillTemplateDna(root, { slug: 'primary-template', versionId })
+    const slugs = ['primary-template', 'reference-template']
+    setKbTaskSlugs('fixed-primary', slugs)
+    setSessionTemplateBindings(root, 'fixed-primary', [{ slug: 'primary-template', versionId, dnaId: profile.dnaId }], slugs)
+    const context = formatSelectedKbContext('fixed-primary')
+    assert.match(context, /Other selected user-template slugs are references/)
+    assert.match(context, /明确清空范本/)
+    assert.match(context, /reference-template/)
+    assert.doesNotMatch(context, /clone their format/)
+  } finally {
+    if (previousRoot === undefined) delete process.env.AGENT_PI_KB_ROOT; else process.env.AGENT_PI_KB_ROOT = previousRoot
     rmSync(root, { recursive: true, force: true })
   }
 })

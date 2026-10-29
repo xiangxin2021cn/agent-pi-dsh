@@ -7,6 +7,7 @@ import { auditTask, inspectWriting, writingPreset } from '../../../packages/prof
 import type { Capability, ProfessionalTask } from '../../../packages/professional-tasks/types.ts'
 import { admitTaskDirectives, durableTaskContext, extractTaskDirectives, revokeTaskDirective } from '../../../packages/professional-tasks/directives.ts'
 import { verifyTaskDeliverable } from './verify.ts'
+import { readTaskTemplateState, sameTaskTemplateState } from './template.ts'
 import { parseTaskSource } from './sources.ts'
 import { professionalTaskContext, isTaskStatusRequest, taskWebDiligenceCommand } from './context.ts'
 import { projectTaskPatch, isWorkbenchRecord } from './workbench.ts'
@@ -100,6 +101,10 @@ export function registerTaskGuide(ctx: any, defineTool: (options: any) => unknow
     setPendingTaskSync(state.binding.cwd, project, state.sessionId)
     return next
   }
+  const refreshTemplate = (state: ProfessionalTask) => {
+    const templateState = readTaskTemplateState(state)
+    return sameTaskTemplateState(state, templateState) ? state : commit(state.sessionId, templateState, state.revision, 'host', { summary: '固定主范本或来源适用性已变化，相关成果需要重新审核' })
+  }
   const refreshBinding = (session: any) => {
     let state = store.read(session.id)
     const project = session.header?.cwd && projectForBoundSession(session.header.cwd, session.id)
@@ -110,7 +115,7 @@ export function registerTaskGuide(ctx: any, defineTool: (options: any) => unknow
       const stage = workflow.stages.find(row => row.id === board.currentStageId)
       binding = { cwd: session.header.cwd, projectId: project.projectId, moduleId: project.module, projectGoal: project.projectGoal || workflow.projectGoal, terminalDeliverables: project.terminalDeliverables || workflow.terminalDeliverables, workflowRevision: project.workflowSnapshot?.revision, stageId: stage?.id, stageLabel: stage?.labelZh }
     }
-    if (state.pendingProjectSync && JSON.stringify(binding) !== JSON.stringify(state.binding)) return state
+    if (state.pendingProjectSync && JSON.stringify(binding) !== JSON.stringify(state.binding)) return refreshTemplate(state)
     if (JSON.stringify(binding) !== JSON.stringify(state.binding)) state = commit(session.id, { binding }, state.revision, 'host', { summary: binding ? '共同任务已关联当前工作台阶段' : '共同任务已解除工作台关联' })
     if (project && !state.pendingProjectSync) {
       const pending = loadUserRequirementLedger(session.header.cwd, project).pendingTaskSync?.[session.id]
@@ -120,7 +125,7 @@ export function registerTaskGuide(ctx: any, defineTool: (options: any) => unknow
       const patch = projectTaskPatch(state, session.header.cwd, project)
       if (Object.keys(patch).length) state = commit(session.id, patch, state.revision, 'host', { summary: '工作台实际资料、阶段、发现及成果已同步到共同任务' })
     }
-    return state
+    return refreshTemplate(state)
   }
   const readStatus = async (agent: any) => {
     const session = rootSession(agent.session.id)
@@ -170,7 +175,7 @@ export function registerTaskGuide(ctx: any, defineTool: (options: any) => unknow
     return agent?.session ? refreshBinding(rootSession(agent.session.id)) : undefined
   }
   const service = {
-    apiVersion: 2, read: (id: string) => store.read(rootSession(id).id),
+    apiVersion: 2, read: (id: string) => refreshTemplate(store.read(rootSession(id).id)),
     userAction: (id: string, input: any) => interactions.run(id, input),
     ackUserAction: (id: string, operationId: string, receipt: any) => interactions.ackUserAction(id, operationId, receipt),
     syncWorkbench: (id: string) => refreshBinding(rootSession(id)),
@@ -352,7 +357,7 @@ export function registerTaskGuide(ctx: any, defineTool: (options: any) => unknow
     async execute(args: any, exec: any) {
       const agent = exec.agent
       if (!agent?.session) throw new Error('Task requires a live session')
-      let state = store.read(rootSession(agent.session.id).id)
+      let state = refreshTemplate(store.read(rootSession(agent.session.id).id))
       if (agent.session.id !== state.sessionId && ['apply_understanding', 'link_question', 'sync_project', 'check'].includes(args.action)) throw new Error('子任务只贡献证据和发现，共同目标与交付检查由主执行者更新。')
       if (args.operationId && ['apply_understanding', 'record_finding', 'resolve_finding', 'link_question', 'update'].includes(args.action)) {
         const replay = store.replay(state.sessionId, args.operationId, { action: args.action, input: args.input, patch: args.patch }, args.action === 'apply_understanding' ? 'host' : 'agent')

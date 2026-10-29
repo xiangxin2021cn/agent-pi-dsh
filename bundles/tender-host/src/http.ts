@@ -61,8 +61,12 @@ import {
   pendingVisionTransactionStatus,
   readVisionImages,
 } from './attachment-context.ts'
-import { addKbBytes, addKbContent, addKbFile, createKbFolder, exportKbTransfer, getKbTaskSlugs, importKbPack, importKbTransfer, importKbTransferFromPath, kbOverview, kbSourcePath, listKbVersions, updateKbMetadata, moveKbEntry, parseKbEntries, parseKbEntry, readKbChunk, readKbMarkdown, reindexKb, removeKbEntry, removeKbFolder, saveKbMarkdown, searchKb, seedBundledKnowledge, selectKbSlugForSession, setKbTaskSlugs, stageKbBytes, stageKbContent, stageKbFile } from './kb.ts'
+import { addKbBytes, addKbContent, addKbFile, createKbFolder, exportKbTransfer, getKbTaskSlugs, importKbPack, importKbTransfer, importKbTransferFromPath, kbOverview, kbSourcePath, listKbEntries, listKbVersions, updateKbMetadata, moveKbEntry, parseKbEntries, parseKbEntry, readKbChunk, readKbMarkdown, reindexKb, removeKbEntry, removeKbFolder, saveKbMarkdown, searchKb, seedBundledKnowledge, selectKbSlugForSession, setKbTaskSlugs, stageKbBytes, stageKbContent, stageKbFile } from './kb.ts'
 import { looksLikeKbTransfer, looksLikeKbTransferPath } from './kb-transfer.ts'
+import { kbRoot } from './kb.ts'
+import { distillTemplateDna, readTemplateDna, listTemplateDna } from './template-dna.ts'
+import { distillTemplateDnaWithLlm } from './template-dna-llm.ts'
+import { getSessionTemplateBindings, setSessionTemplateBindings, validateTemplateBindings, assertSessionTemplateBindingTarget } from './template-dna-task.ts'
 import { clearMineruToken, mineruStatus, probeMineruToken, saveMineruToken } from './mineru.ts'
 import { forgetSession, forgetWorkspace, markWorkspaceArchived, readArchiveStore } from './archive-store.ts'
 import { ackHostRestart, hostStatus } from './host-status.ts'
@@ -416,7 +420,7 @@ export function attachHttp(ctx: {
           if (req.method === 'GET') {
             seedBundledKnowledge()
             const sessionId = String(url.searchParams.get('sessionId') || '')
-            send(res, 200, { ...kbOverview(), selectedSlugs: getKbTaskSlugs(sessionId), mineru: mineruStatus() })
+            send(res, 200, { ...kbOverview(), selectedSlugs: getKbTaskSlugs(sessionId), templateBindings: getSessionTemplateBindings(kbRoot(), sessionId), mineru: mineruStatus() })
             return
           }
           if (req.method === 'POST') {
@@ -432,6 +436,10 @@ export function attachHttp(ctx: {
               sessionId?: string
               chunkId?: string
               versionId?: string
+              dnaId?: string
+              templateBindings?: unknown
+              intelligent?: boolean
+              localOnly?: boolean
               metadata?: import('./knowledge-versions.ts').KnowledgeMetadata
               region?: string
               asOf?: string
@@ -444,6 +452,19 @@ export function attachHttp(ctx: {
               preferMineru?: boolean
             }
             const action = body.action || 'list'
+            if (action === 'template_dna_list' || action === 'template_dna_read' || action === 'template_dna_distill') {
+              const source = { slug: String(body.slug || ''), versionId: String(body.versionId || '') }
+              if (action === 'template_dna_list') send(res, 200, { profiles: listTemplateDna(kbRoot(), source) })
+              else if (action === 'template_dna_read') send(res, 200, { profile: readTemplateDna(kbRoot(), { ...source, dnaId: String(body.dnaId || '') }) })
+              else {
+                const current = ctx.getDefaultModel?.()
+                const edition = 'mainline' as const
+                const result = body.intelligent !== true || body.localOnly === true ? { profile: distillTemplateDna(kbRoot(), { ...source, edition }) }
+                  : await distillTemplateDnaWithLlm(kbRoot(), { ...source, edition, ...current }, llmRuntime)
+                send(res, 200, result)
+              }
+              return
+            }
             if (action === 'read') {
               send(res, 200, readKbChunk(String(body.slug ?? ''), String(body.chunkId ?? ''), body.versionId))
               return
@@ -593,7 +614,22 @@ export function attachHttp(ctx: {
               const slugs = Array.isArray(body.slugs)
                 ? body.slugs.map(String)
                 : (body.slug ? [String(body.slug)] : [])
-              send(res, 200, { selectedSlugs: setKbTaskSlugs(body.sessionId, slugs) })
+              const knownSlugs = new Set(listKbEntries().map(entry => entry.slug))
+              const applicableSlugs = [...new Set(slugs)].filter(slug => knownSlugs.has(slug))
+              const bindings = body.templateBindings === undefined
+                ? getSessionTemplateBindings(kbRoot(), body.sessionId).filter(binding => applicableSlugs.includes(binding.slug))
+                : validateTemplateBindings(kbRoot(), body.templateBindings, applicableSlugs)
+              assertSessionTemplateBindingTarget(body.sessionId, bindings)
+              const bindingSessionId = String(body.sessionId || '').trim()
+              if (ctx.getAgent && bindingSessionId && bindingSessionId !== 'active' && !bindingSessionId.startsWith('kb-draft:')) {
+                const selectedAgent = ctx.getAgent(bindingSessionId)
+                const selectedCwd = selectedAgent?.session?.header?.cwd
+                const requestedCwd = url.searchParams.get('cwd')
+                if (!selectedCwd || (requestedCwd && resolve(selectedCwd).toLowerCase() !== resolve(String(requestedCwd)).toLowerCase())) throw new Error('范本绑定会话与当前工作目录不一致。')
+              }
+              const selectedSlugs = setKbTaskSlugs(body.sessionId, applicableSlugs)
+              const templateBindings = setSessionTemplateBindings(kbRoot(), body.sessionId, bindings, selectedSlugs)
+              send(res, 200, { selectedSlugs, templateBindings })
               return
             }
             seedBundledKnowledge()
@@ -1236,11 +1272,19 @@ export function attachHttp(ctx: {
             path?: string
             format?: 'md' | 'html' | 'pdf' | 'docx'
             content?: string
+            sessionId?: string
           }
           const format = body.format === 'pdf' || body.format === 'docx' || body.format === 'html' || body.format === 'md'
             ? body.format
             : 'md'
-          const exported = exportMarkdownFile(cwd, String(body.path ?? ''), format, body.content)
+          const sessionId = String(body.sessionId || url.searchParams.get('sessionId') || '')
+          const selectedAgent = sessionId ? ctx.getAgent?.(sessionId) : undefined
+          if (sessionId && ctx.getAgent && (!selectedAgent?.session?.header?.cwd || resolve(selectedAgent.session.header.cwd).toLowerCase() !== resolve(cwd).toLowerCase())) throw new Error('导出会话与当前工作目录不一致。')
+          const exported = exportMarkdownFile(cwd, String(body.path ?? ''), format, body.content, { sessionId })
+          if (exported.templateArtifactSha256) {
+            res.setHeader('X-Agent-Pi-Template-Status', exported.templateValidation?.status || 'review')
+            res.setHeader('X-Agent-Pi-Template-Artifact-SHA256', exported.templateArtifactSha256)
+          }
           sendFile(res, exported.body, exported.mime, exported.filename, true)
           return
         }

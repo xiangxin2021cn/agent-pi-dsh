@@ -1,0 +1,284 @@
+{
+  "schemaVersion": 1,
+  "productVersion": "3.8.6",
+  "checkedAt": "2026-10-29",
+  "scope": "Shared reviewed core for independently packaged mainline and tender editions",
+  "kernel": {
+    "name": "deepseek-harness",
+    "packageVersion": "0.2.2-alpha.2",
+    "releaseTag": "dsh-v0.2.2-alpha.2",
+    "commit": "f3803c96974ad4a94195fb97e5c637e9c2a3afe3",
+    "source": "https://github.com/deepseek-ai/deepseek-harness/commit/f3803c96974ad4a94195fb97e5c637e9c2a3afe3",
+    "userReferencedCommit": "00d541438b9beabb4d876a14371aea69f58c397a",
+    "sourceEquivalence": {
+      "tree": "457c6e9983dd1af8683453f871ce84a4eff1247d",
+      "userCommitMatchesOfficialTagTree": true
+    },
+    "officialComposition": {
+      "cordis": "4.0.6-alpha.1",
+      "schemastery": "3.18.6-alpha.1",
+      "piAiDeclared": "^1.3.0"
+    },
+    "sourcePolicy": "Unmodified official upstream; product compatibility stays outside vendor/deepseek-harness",
+    "validation": {
+      "status": "verified-official-source-build-and-isolated-native-runtime",
+      "officialBuildGates": {
+        "passed": 10,
+        "failed": 0
+      },
+      "sourceFiles": 14799,
+      "artifacts": 7552,
+      "buildReceiptSha256": "6dadc2407dc192c39fc04fae80f8b50e06ebc1d22cf30b2e6e53d4b833f670af",
+      "mainline": "fresh official full build with source and artifact receipt",
+      "tender": "same 14799 source files verified byte-for-byte; all 7552 original official artifacts copied and independently receipt-verified",
+      "officialWorkspaceNavigationTests": {
+        "passed": 100,
+        "failed": 0
+      },
+      "runtimeDependencyClosure": {
+        "packages": 638,
+        "editions": [
+          "mainline",
+          "tender"
+        ]
+      },
+      "nativeRuntimeChecks": [
+        "official flock module",
+        "Windows koffi",
+        "official LibreOffice capabilities",
+        "exact product Codex CLI"
+      ],
+      "tenderProductNavigation": {
+        "status": "real-isolated-electron-verified",
+        "version": "3.8.6",
+        "elapsedMs": 34225,
+        "modelRequests": 0,
+        "cases": [
+          "new project A native session and persisted /goal command history",
+          "project center return to original Session",
+          "independent workspace B original Session",
+          "switch from workspace B back to original project A",
+          "reload restores original project A history and skill context"
+        ],
+        "originalSessionOpenCreatesReplacement": false,
+        "portCoexistence": {
+          "testOwnedOccupiedCandidate": true,
+          "webPortDistinct": true,
+          "gatewayPortDistinct": true,
+          "instanceUserDataMatched": true
+        },
+        "legacy385ProfileFlag": "isolated profile generation and actual official alpha2 plugin load accepted the retained field; it has no Config/schema and ignores the removed option"
+      }
+    }
+  },
+  "runtime": {
+    "name": "Node.js",
+    "version": "24.22.1",
+    "channel": "LTS Krypton",
+    "target": "win32-x64",
+    "source": "https://nodejs.org/dist/v24.22.1/node-v24.22.1-win-x64.zip",
+    "archiveSha256": "d2046d28c2c3dcd211ac5145c0bf30e2047ef9dfb306693c8c6e2eccd8b95fa5",
+    "executableSha256": "d702daa815eabbff763c7d3808e235cf031cf2ca70211b56847bc72f51e240e5",
+    "officialChecksums": "https://nodejs.org/dist/v24.22.1/SHASUMS256.txt",
+    "nativeOfficeBindings": {
+      "status": "loaded-under-pinned-node-in-both-editions",
+      "lockSha256": "a547400db997514df5be6c8ea491b3813ec9d2da60eb07405a5a9a97c0f582ce",
+      "packages": [
+        {
+          "name": "@libsql/win32-x64-msvc",
+          "version": "0.5.29"
+        },
+        {
+          "name": "@univerjs-pro/engine-formula-rust-binding-win32-x64-msvc",
+          "version": "1.0.3"
+        },
+        {
+          "name": "@univerjs-pro/exchange-node-binding-win32-x64-msvc",
+          "version": "1.0.4"
+        }
+      ],
+      "scope": "Actual native module loading; no model request"
+    }
+  },
+  "dependencies": [
+    {
+      "name": "electron",
+      "version": "45.0.0",
+      "source": "https://registry.npmjs.org/electron/-/electron-45.0.0.tgz",
+      "integrity": "sha512-yjz4uhMBcO6L5X7CWgRMobf2EMJPnb9j4zuf+nu/TU/6E4Sqfx7fn/a2eACo4qngjml/0JnsoZhxYroJLxLd2w=="
+    },
+    {
+      "name": "electron-builder",
+      "version": "26.18.0",
+      "source": "https://registry.npmjs.org/electron-builder/-/electron-builder-26.18.0.tgz",
+      "integrity": "sha512-ASgIuQnOq4RuD8jMhS9hI0LS3EMRT1I/M5R6utqifB/BHN80IcCjBdt+DED+NmNPvmBgEtrlExXZitNdA7kXOg=="
+    },
+    {
+      "name": "@openai/codex",
+      "version": "0.164.0",
+      "source": "https://registry.npmjs.org/@openai/codex/-/codex-0.164.0.tgz",
+      "integrity": "sha512-TWj7UGyPRe3Pj/A3ddNAxs1te3a/W/xAd+J0LHrrFTmsSfahGMOLF/vn88D3QCIgAT3B1rm1y/Z3NYE0rx6cZQ=="
+    },
+    {
+      "name": "@openai/codex-win32-x64",
+      "version": "0.164.0-win32-x64",
+      "source": "https://registry.npmjs.org/@openai/codex/-/codex-0.164.0-win32-x64.tgz",
+      "integrity": "sha512-urWPhwh9YavuoAPIkmVYKBTtd5OtGVL4Ki0Fb28dhK/Mz6Pt4LSy+gbRrZFz5+RXrw9ubvXuXDCcd8beYcWhDg=="
+    },
+    {
+      "name": "@napi-rs/canvas",
+      "version": "1.0.13",
+      "source": "https://registry.npmjs.org/@napi-rs/canvas/-/canvas-1.0.13.tgz",
+      "integrity": "sha512-b87ugZpQ5ViwqVBkjervxpwa0GmJPsKHLBNoZN6GpjWeHzTbDUGryriq+2DYW2XbB+xCqSIINQysC0/I87nPbw=="
+    },
+    {
+      "name": "marked",
+      "version": "18.1.1",
+      "source": "https://registry.npmjs.org/marked/-/marked-18.1.1.tgz",
+      "integrity": "sha512-zEGgrtUG8crk+TrMacJSVABU4DYDDkS8uqgU3ohrn/2fW9C2AEfUrO3m6IhpIpQpl7YcVpiXXC9cSMWDANT3dg=="
+    },
+    {
+      "name": "zod",
+      "version": "4.6.7",
+      "source": "https://registry.npmjs.org/zod/-/zod-4.6.7.tgz",
+      "integrity": "sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg=="
+    }
+  ],
+  "electronArchive": {
+    "source": "https://github.com/electron/electron/releases/download/v45.0.0/electron-v45.0.0-win32-x64.zip",
+    "bytes": 158223852,
+    "sha256": "ae53887a23bb640369c93dbd38c408a2af5c0deb86f2fa76c6c244cb444b7f47",
+    "officialChecksumMatch": true
+  },
+  "managedPlugins": [
+    {
+      "name": "dshmarket",
+      "version": "1.70.0",
+      "source": "https://registry.npmjs.org/dshmarket",
+      "commit": "b27986ab35d5834a54e0fe5113adc1e1ff11a95c",
+      "archiveBytes": 1419699,
+      "integrity": "sha512-Nkk5BQHy/jEnsTZhKy/EweSXLTOO8Ob3eRzSk5ITncrays8wF4SekfQ152fAkTYRSx262MW935RrfFov8SIdiQ==",
+      "adaptationReceipt": "vendor/dshmarket/AGENT-PI-ADAPTATION.json",
+      "validation": {
+        "status": "isolated-desktop-client-active-both-editions",
+        "officeCatalogVersion": "0.3.8",
+        "catalogSourceAndRuntime": "same surgical version text update with adaptation receipt hashes",
+        "marketInstallUpdateWorkflows": "pending-plugin-specific-regression"
+      }
+    },
+    {
+      "name": "@anysearch/anysearch-dsh",
+      "version": "0.1.8",
+      "source": "https://registry.npmjs.org/@anysearch/anysearch-dsh",
+      "commit": "d20ab97727b36b4341977e53d7c9b7d2e93d3d03",
+      "archiveBytes": 173153,
+      "integrity": "sha512-N00VwXW5j2+IJKtURJIv5eaLJBqr+b/1oLL+B8pX2CfaHjIGPXop0l5fKXpr/iR9cS8cf9yjFOSeVaUa+rEO9A==",
+      "adaptationReceipt": "vendor/anysearch-dsh/AGENT-PI-ADAPTATION.json",
+      "validation": {
+        "status": "verified-actual-bundled-web-fetch-registration-test-and-isolated-profile-startup",
+        "sourceVersionRetained": "0.1.8",
+        "productEngineGate": "0.2.2-alpha.2",
+        "upstreamPeerRanges": "unchanged",
+        "reviewedJsAdaptations": "preserved exact previously reviewed hashes",
+        "networkSearch": "not-invoked"
+      }
+    },
+    {
+      "name": "dsh-router-standard",
+      "source": "https://github.com/yjh051108/dsh-router-standard",
+      "commit": "b39112dce54b90e67b50b166c2773861d7945d1f",
+      "decision": "Retain reviewed immutable source; no new upstream version or latest-head claim",
+      "validation": {
+        "status": "retained-reviewed-source-and-profile-startup",
+        "pluginSpecificFlows": "pending-new-runtime-behavior-validation"
+      }
+    },
+    {
+      "name": "dsh-super-injector",
+      "version": "0.3.5",
+      "source": "https://github.com/yjh051108/dsh-super-injector/releases/tag/v0.3.5",
+      "commit": "735c212b136e3fb3f9769e1f07266cd091570a55",
+      "archiveSha256": "49dc9c868704da0e73658976b37b55050bfefa8c22be5606dc290cdb77906f41",
+      "decision": "Retain current official release and reviewed product adaptations",
+      "validation": {
+        "status": "retained-reviewed-source-and-profile-startup",
+        "pluginSpecificFlows": "pending-new-runtime-behavior-validation"
+      }
+    },
+    {
+      "name": "dsh-univer-office",
+      "version": "0.3.8",
+      "source": "https://github.com/dream-num/dsh-univer-office",
+      "commit": "59ceb1cd062069fd0cadb82d4c055b82a3bef0d5",
+      "archive": "https://registry.npmjs.org/dsh-univer-office/-/dsh-univer-office-0.3.8.tgz",
+      "archiveBytes": 60092833,
+      "archiveEntries": 289,
+      "archiveSha256": "3bcc7afe76bfd312b73722ae3cc5d334ae71ddc12ce097961c9f70d14bf76683",
+      "integrity": "sha512-thsbqNngDmuVThNDzoBfRJvQIpuy1bglDJyiqd8dY/4YxZWsCQbib0iW00mg1vlWumfbcdx5qAcEb8kj4MZedg==",
+      "materialization": {
+        "status": "verified-complete-both-editions",
+        "archiveEntries": 289,
+        "originalManifestPreserved": true,
+        "originalHostAndClientPreserved": true,
+        "licensesRetained": true
+      },
+      "compatibility": {
+        "host": "0.2.2-alpha.2",
+        "cordis": "4.0.6-alpha.1",
+        "schemastery": "3.18.6-alpha.1",
+        "upstreamPeers": "preserved unchanged; official loader semver includePrerelease policy admits the pinned runtime",
+        "productKernelGuard": "exact DSH_PIN and verified build receipt; no version exemption"
+      },
+      "nativeBindings": {
+        "formula": "1.0.3",
+        "exchange": "1.0.4"
+      },
+      "validation": {
+        "status": "actual-public-plugin-load-and-native-bindings-verified-both-editions",
+        "registeredTools": 14,
+        "registeredRoutes": 4,
+        "skillsProviders": 1,
+        "settingsNamespaces": 1,
+        "desktopClientAndHost": "active in isolated mainline and tender Electron runs",
+        "wordPdfRoundTrip": "pending-actual-0.3.8-engine-artifact-export"
+      }
+    }
+  ],
+  "cad": {
+    "decision": "Retain reviewed clean-source and decoder combination; a current upstream version alone does not authorize replacing WASM or weakening provenance gates",
+    "versions": {
+      "@mlightcad/data-model": "1.14.3",
+      "@mlightcad/libredwg-converter": "3.14.3",
+      "@mlightcad/libredwg-web": "0.7.10"
+    }
+  },
+  "validationPolicy": "Current evidence separates official source/build receipts, isolated native SDK and desktop registration, and actual product workflows. Unperformed plugin-specific behavior and real Office 0.3.8 Word/PDF exports remain explicit pending items; no model generation result is claimed.",
+  "writingDnaSkill": {
+    "repository": "https://github.com/larashero3-dotcom/writing-dna-skill",
+    "commit": "ee3d97ee27268004b5187d97711161f44fc4aae4",
+    "license": "MIT",
+    "archiveSha256": "234fe3e211518127b639fe68dda472c3b59b057f01a6cd2e599de9ca1ca52819",
+    "sourceFiles": 23,
+    "receipt": "skills/writing-dna-skill/UPSTREAM.json",
+    "receiptSha256": "e5622b340e89d15b7dbe61a39b15ddd8b30a12195d158c9813e9fddb96de6796",
+    "sourcePolicy": "Keep all 23 upstream files byte-exact plus the product provenance receipt; no upstream script execution",
+    "validation": {
+      "sourceAndWindowsCopyPreflight": "23 original hashes verified and all 24 product files retained",
+      "releaseGates": [
+        "scripts/prepare-win-runtime.ps1 source and target",
+        "scripts/pack-runtime-payload.mjs source and target"
+      ],
+      "gateTests": {
+        "passed": 6,
+        "failed": 0
+      }
+    }
+  },
+  "packagingPreflight": {
+    "status": "verified-prerequisites-both-editions",
+    "cad": "unchanged reviewed CAD viewer, host/browser decoders and corresponding source archives verified",
+    "projectPlan": "JRE/JAR closure verified",
+    "skill": "23 original source hashes and 24 total skill files verified after Windows copy",
+    "candidateInstaller": "pending-fresh-build-after-final-source-commit-and-edition-tag"
+  }
+}

@@ -76,6 +76,7 @@ export async function apply(ctx: {
     attachHttp({
       webServer: inner.webServer,
       effect: (fn) => inner.effect(fn),
+      getAgent: (id: string) => ctx.get?.('agents')?.get(id),
       getCapabilities: () => ({ workbench: Boolean(ctx.get?.('workbench')), knowledge: Boolean(ctx.get?.('agentPiKnowledge')), taskGuide: Boolean(ctx.get?.('taskGuide')) }),
       getDefaultModel: () => {
         const service = ctx.get?.('agentDefaultModel') as {

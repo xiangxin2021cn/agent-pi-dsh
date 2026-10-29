@@ -699,7 +699,8 @@ const SearchSettings = createSearchSettings(React)
         || inputSnapshot.draft !== controller.originalDraft || !live || codexTurnKey(live) !== key
         || !sameCodexAttachmentIds(attachmentIds, controller.capturedAttachmentIds)
         || !sameCodexAttachmentIds(nativeCodexAttachmentIds(inputSnapshot), controller.capturedNativeAttachmentIds)
-        || !sameCodexAttachmentIds(kbTaskOf(key).slugs, controller.capturedKbSlugs)) {
+        || !sameCodexAttachmentIds(kbTaskOf(key).slugs, controller.capturedKbSlugs)
+        || kbTemplateSelectionKey(key) !== controller.capturedKbTemplateKey) {
         rearmCodexTurn(key, controller)
         return null
       }
@@ -2955,7 +2956,8 @@ const SearchSettings = createSearchSettings(React)
         || inputSnapshot.draft !== controller.originalDraft || !live || attachmentTurnKey(live) !== key
         || !sameCodexAttachmentIds(attachmentIds, controller.capturedAttachmentIds)
         || !sameCodexAttachmentIds(nativeCodexAttachmentIds(inputSnapshot), controller.capturedNativeAttachmentIds)
-        || !sameCodexAttachmentIds(kbTaskOf(key).slugs, controller.capturedKbSlugs)) {
+        || !sameCodexAttachmentIds(kbTaskOf(key).slugs, controller.capturedKbSlugs)
+        || kbTemplateSelectionKey(key) !== controller.capturedKbTemplateKey) {
         abortAttachmentTurn(key, controller)
         return null
       }
@@ -3173,6 +3175,7 @@ const SearchSettings = createSearchSettings(React)
         capturedAttachmentIds: codexAttachmentIds(attachments),
         capturedNativeAttachmentIds: nativeCodexAttachmentIds(inputSnapshot),
         capturedKbSlugs: kbTaskOf(key).slugs.slice(),
+        capturedKbTemplateKey: kbTemplateSelectionKey(key),
         preSubmitUserNodeWatermark: -1,
         preSubmitPromptErrorRef: sessionSnapshot.promptError || null,
         preSubmitPromptErrorToken: JSON.stringify(sessionSnapshot.promptError || null),
@@ -3423,6 +3426,7 @@ const SearchSettings = createSearchSettings(React)
       controller.attemptToken = token
       controller.capturedNativeAttachmentIds = nativeCodexAttachmentIds(inputSnapshot)
       controller.capturedKbSlugs = kbTaskOf(key).slugs.slice()
+      controller.capturedKbTemplateKey = kbTemplateSelectionKey(key)
       controller.originalDraft = inputSnapshot.draft
       controller.framedDraft = ''
       controller.capturedAttachments = attachments
@@ -3450,6 +3454,7 @@ const SearchSettings = createSearchSettings(React)
       const attachments = codexAttachItems(key).slice()
       const ids = nativeCodexAttachmentIds(authority.inputStore.getSnapshot())
       const kbSlugs = kbTaskOf(key).slugs.slice()
+      const kbTemplateKey = kbTemplateSelectionKey(key)
       const selectedModel = controller.selectedModel
       const selectedReasoningEffort = controller.selectedReasoningEffort
       const unchanged = () => {
@@ -3459,7 +3464,8 @@ const SearchSettings = createSearchSettings(React)
           || live.inputStore.getSnapshot().draft !== original
           || !sameCodexAttachmentIds(codexAttachmentIds(codexAttachItems(key)), codexAttachmentIds(attachments))
           || !sameCodexAttachmentIds(nativeCodexAttachmentIds(live.inputStore.getSnapshot()), ids)
-          || !sameCodexAttachmentIds(kbTaskOf(key).slugs, kbSlugs)) throw new Error(tCodexExecution('sessionBusy', langState.lang))
+          || !sameCodexAttachmentIds(kbTaskOf(key).slugs, kbSlugs)
+          || kbTemplateSelectionKey(key) !== kbTemplateKey) throw new Error(tCodexExecution('sessionBusy', langState.lang))
       }
       controller.nativePreparing = true
       try {
@@ -4051,7 +4057,7 @@ const SearchSettings = createSearchSettings(React)
       )
     }
 
-    const { KnowledgeBasePanel, formatKbTaskBlock, kbTaskOf, claimDraftKbTask, flushKbTaskSelection, hasKbTaskSelectionSave, resetDraftKbTask, kbDraftKey } = createKnowledgeBasePanel({
+    const { KnowledgeBasePanel, formatKbTaskBlock, kbTaskOf, kbTemplateSelectionKey, claimDraftKbTask, flushKbTaskSelection, hasKbTaskSelectionSave, resetDraftKbTask, kbDraftKey } = createKnowledgeBasePanel({
       Icon,
       KB_PRESET_CATEGORIES,
       React,
