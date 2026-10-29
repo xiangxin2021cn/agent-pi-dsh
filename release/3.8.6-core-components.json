@@ -240,7 +240,51 @@
         "skillsProviders": 1,
         "settingsNamespaces": 1,
         "desktopClientAndHost": "active in isolated mainline and tender Electron runs",
-        "wordPdfRoundTrip": "pending-actual-0.3.8-engine-artifact-export"
+        "wordPdfRoundTrip": {
+          "status": "verified-actual-public-tools-and-existing-product-safety-wrapper",
+          "operations": [
+            "new",
+            "isolated worktree",
+            "import DOCX",
+            "status and inspect",
+            "export DOCX",
+            "print PDF"
+          ],
+          "actualChecks": {
+            "passed": 6,
+            "failed": 0
+          },
+          "templateRoundTrip": "actual native DOCX passed fixed-template byte validation",
+          "pdf": {
+            "pageCount": 1,
+            "bytes": 20070,
+            "sha256": "52fbc3bb4150fa78157bfbecb38937ebfd56106bd16f001d874f39155c815dd2",
+            "textLayer": false,
+            "visualReview": "passed"
+          },
+          "safety": "existing product wrapper removed sandbox-disabled args, used pipe and fresh browser profile, verified cleanup",
+          "rawUpstreamPrinter": "unmodified; raw upstream uses --no-sandbox and is distinct from the protected product path"
+        },
+        "agentPdfToolSafety": {
+          "status": "verified-public-around-and-actual-native-executor",
+          "publicHook": "tools/execute",
+          "targetTool": "univer_print_pdf",
+          "regression": {
+            "mainline": {
+              "passed": 25,
+              "failed": 0
+            },
+            "tender": {
+              "passed": 25,
+              "failed": 0
+            }
+          },
+          "actualPublicToolOperationsPerEdition": 8,
+          "dshAndCodex": "both dispatch through the same public pipeline",
+          "nativeSemantics": "arguments, authorized scope, result object, context, concludesTurn, errors and cancellation preserved; cleanup errors remain authoritative",
+          "safety": "actual browser args exclude disabled-sandbox flags; headless and pipe true; owned temporary profiles removed; gateway stopped",
+          "modelRequests": 0
+        }
       }
     }
   ],
@@ -271,6 +315,19 @@
       "gateTests": {
         "passed": 6,
         "failed": 0
+      }
+    },
+    "effectiveTextFormatting": {
+      "status": "verified-original-native-roundtrip-and-tampered-actual-docx",
+      "sourceAndNormalNative": "passed with zero gaps in both editions",
+      "tamperedActual": "Courier New 36pt body run fails with exact font and size differences",
+      "inheritance": "paragraph and character styles plus direct run/paragraph properties",
+      "unknowns": "mixed, theme and unresolved style combinations remain explicit review gaps",
+      "regression": {
+        "mainline": 65,
+        "tender": 66,
+        "failed": 0,
+        "skipped": 0
       }
     }
   },

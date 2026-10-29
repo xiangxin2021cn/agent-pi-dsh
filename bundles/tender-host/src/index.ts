@@ -10,6 +10,7 @@ import { convertDwgToDxf } from './cad-convert.ts'
 import { sessionCwd, textResult } from './cwd.ts'
 import { registerAnySearchSettings } from './anysearch-settings.ts'
 import { attachCodexToolBridge } from './codex-tool-bridge.ts'
+import { registerOfficePdfToolSafety } from './office-pdf-tool-safety.ts'
 
 /**
  * Packaged Electron often hands the host a PATH that has System32 but not
@@ -61,6 +62,7 @@ export async function apply(ctx: {
   registerPrompt(ctx, createUserMessage)
   registerProfessionalDepth(ctx, defineTool)
   registerReportSkillRouting(ctx)
+  registerOfficePdfToolSafety(ctx)
   registerAnySearchSettings(ctx)
   await attachCodexToolBridge(ctx)
   ctx.tools.register(defineTool({

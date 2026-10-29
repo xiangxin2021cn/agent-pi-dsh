@@ -117,6 +117,49 @@ test('actual artifact bytes get hash-bound checks; layout mismatch and missing h
   } finally { f.dispose() }
 })
 
+test('effective run and paragraph properties reject direct, character-style and paragraph-style font changes', () => {
+  const source = docxFiles().map(row => ({ ...row, data: row.data.replace('使用本项目实际材料。', 'Actual project evidence.') }))
+  const body = '<w:p><w:r><w:t>Actual project evidence.</w:t></w:r></w:p>'
+  const replace = (paragraph: string, extraStyles = '') => zipStore(source.map(row => ({ ...row, data: row.name === 'word/document.xml' ? row.data.replace(body, paragraph) : row.name === 'word/styles.xml' ? row.data.replace('</w:styles>', extraStyles + '</w:styles>') : row.data })))
+  const f = fixture(zipStore(source))
+  try {
+    const profile = distillTemplateDna(f.root, f.ref)
+    const same = '<w:p/><w:p><w:pPr><w:spacing w:after="120" w:line="360" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:eastAsia="宋体"/><w:sz w:val="24"/><w:b/></w:rPr><w:t>Actual project evidence.</w:t></w:r></w:p>'
+    assert.equal(validateTemplateDnaArtifact(profile, { bytes: replace(same), format: 'docx' }).status, 'passed', 'equal direct properties and ordinary inline bold are allowed')
+    for (const [name, paragraph, styles] of [
+      ['direct run', same.replace('w:ascii="Arial" w:hAnsi="Arial"', 'w:ascii="Courier New" w:hAnsi="Courier New"').replace('w:val="24"', 'w:val="72"'), ''],
+      ['character inheritance', '<w:p><w:r><w:rPr><w:rStyle w:val="DerivedFace"/></w:rPr><w:t>Actual project evidence.</w:t></w:r></w:p>', '<w:style w:type="character" w:styleId="BaseFace"><w:rPr><w:rFonts w:ascii="Courier New"/></w:rPr></w:style><w:style w:type="character" w:styleId="DerivedFace"><w:basedOn w:val="BaseFace"/><w:rPr><w:sz w:val="72"/></w:rPr></w:style>'],
+      ['paragraph inheritance', '<w:p><w:pPr><w:pStyle w:val="BodyAlternative"/></w:pPr><w:r><w:t>Actual project evidence.</w:t></w:r></w:p>', '<w:style w:type="paragraph" w:styleId="BodyAlternative"><w:basedOn w:val="Normal"/><w:rPr><w:rFonts w:ascii="Courier New"/><w:sz w:val="72"/></w:rPr></w:style>'],
+      ['paragraph spacing', same.replace('w:after="120"', 'w:after="999"'), ''],
+    ]) {
+      const result = validateTemplateDnaArtifact(profile, { bytes: replace(paragraph!, styles), format: 'docx' })
+      assert.equal(result.status, 'failed', name); assert.equal(result.machinePassed, false, name)
+      assert.ok(result.checks.some(row => row.id.startsWith('actual-text:') && row.status === 'failed'), name)
+    }
+    const headingChanged = zipStore(source.map(row => ({ ...row, data: row.name === 'word/document.xml' ? row.data.replace('<w:r><w:t>范围</w:t>', '<w:r><w:rPr><w:sz w:val="72"/></w:rPr><w:t>范围</w:t>') : row.data })))
+    assert.equal(validateTemplateDnaArtifact(profile, { bytes: headingChanged, format: 'docx' }).status, 'failed')
+    for (const rPr of ['<w:rStyle w:val="MissingStyle"/>', '<w:rFonts w:asciiTheme="minorHAnsi"/>']) {
+      const result = validateTemplateDnaArtifact(profile, { bytes: replace('<w:p><w:r><w:rPr>' + rPr + '</w:rPr><w:t>Actual project evidence.</w:t></w:r></w:p>'), format: 'docx' })
+      assert.equal(result.status, 'review'); assert.equal(result.machinePassed, false)
+    }
+  } finally { f.dispose() }
+})
+
+test('a source derives uniform actual direct formatting and retains mixed-source formats as explicit gaps', () => {
+  const files = docxFiles().map(row => ({ ...row, data: row.data.replace('使用本项目实际材料。', 'Actual project evidence.') }))
+  const modified = files.map(row => ({ ...row, data: row.name === 'word/document.xml' ? row.data.replace('<w:r><w:t>Actual project evidence.</w:t>', '<w:r><w:rPr><w:rFonts w:ascii="Courier New"/><w:sz w:val="72"/></w:rPr><w:t>Actual project evidence.</w:t>') : row.data }))
+  const mixed = fixture(zipStore(modified))
+  try {
+    const profile = distillTemplateDna(mixed.root, mixed.ref)
+    assert.equal(profile.format?.body.fontSizePt, undefined, 'mixed actual body sizes do not inherit an invented global Normal size')
+    assert.ok(profile.format?.warnings.some(row => /多种有效格式/.test(row)))
+    assert.equal(validateTemplateDnaArtifact(profile, { bytes: zipStore(modified), format: 'docx' }).status, 'review')
+  } finally { mixed.dispose() }
+  const uniformBytes = zipStore(modified.map(row => ({ ...row, data: row.name === 'word/document.xml' ? row.data.replace(/<w:tbl\b[\s\S]*?<\/w:tbl>/g, '') : row.data })))
+  const uniform = inspectTemplateDocx(uniformBytes)
+  assert.equal(uniform.format.body.fontFamily, 'Courier New'); assert.equal(uniform.format.body.fontSizePt, 36)
+})
+
 test('plain text/PDF lack exact Word layout and remain review; unknown chapter mapping cannot self-pass', () => {
   const f = fixture()
   try {

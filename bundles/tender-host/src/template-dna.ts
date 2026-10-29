@@ -206,14 +206,23 @@ export function validateTemplateDnaArtifact(profile: TemplateDnaProfile, input: 
   } else if (!required.length) review('outline', '没有可自动验证的适用标题树。')
   if (profile.format && actual) {
     for (const [key, value] of Object.entries(profile.format.page || {})) check('page:' + key, (actual.format.page as any)?.[key] === value, `页面 ${key} 应为 ${value}。`)
-    for (const [key, value] of Object.entries(profile.format.body)) check('body:' + key, (actual.format.body as any)[key] === value, `正文样式 ${key} 应为 ${value}。`)
-    for (const style of profile.format.headingStyles) {
-      const target = actual.format.headingStyles.find(row => row.styleId === style.styleId) || actual.format.headingStyles.find(row => row.level === style.level)
-      for (const [key, value] of Object.entries(style).filter(([key]) => !['styleId', 'level'].includes(key))) check(`heading-style:${style.level}:${key}`, (target as any)?.[key] === value, `${style.level} 级标题 ${key} 应为 ${value}。`)
+    const first = required[0], mapped = first && actual.headings.find(row => titleKey(row.title) === titleKey(first.title))
+    const chapterOffset = input.scope === 'chapter' && first && mapped ? mapped.level - first.level : 0
+    if (!actual.textRuns.length) review('actual-text-format', '没有可逐段核对的实际文字格式。')
+    for (const run of actual.textRuns) {
+      const level = run.headingLevel && run.headingLevel - chapterOffset
+      const expected = level ? profile.format.headingStyles.find(row => row.styleId === run.styleId && row.level === level) || profile.format.headingStyles.find(row => row.level === level) : profile.format.body
+      if (!expected) { review('actual-text-style:' + run.locator, '实际标题文字没有唯一可核对的范本样式：' + run.locator); continue }
+      for (const [key, value] of Object.entries(expected).filter(([key]) => !['styleId', 'level', ...(!level ? ['bold'] : [])].includes(key))) {
+        if (key === 'fontFamily' && !run.latin || key === 'eastAsiaFontFamily' && !run.eastAsia) continue
+        if (run.unknown.includes(key as any) || (run.format as any)[key] === undefined) review(`actual-text:${run.locator}:${key}`, `${run.locator} 的有效 ${key} 尚不能确定，需复核。`)
+        else check(`actual-text:${run.locator}:${key}`, (run.format as any)[key] === value, `${run.locator} 的${level ? level + '级标题' : '正文'}有效 ${key} 应为 ${value}，实际为 ${(run.format as any)[key]}。`)
+      }
     }
     if (profile.format.numbering.length) check('numbering', JSON.stringify(actual.format.numbering.map(row => row.levels)) === JSON.stringify(profile.format.numbering.map(row => row.levels)), '编号定义应与范本一致。')
     for (const table of profile.structure.tables) check('table:' + table.locator, actual.format.tables.some(row => JSON.stringify(row.headers) === JSON.stringify(table.headers) && (!table.columnWidthsTwips.length || JSON.stringify(row.columnWidthsTwips) === JSON.stringify(table.columnWidthsTwips))), '表头及已观察列宽应与范本结构一致：' + table.headers.join(' / '))
     for (const warning of profile.format.warnings) review('source-format-gap', warning)
+    for (const warning of actual.format.warnings) review('actual-format-gap', warning)
   } else if (profile.format && input.format !== 'pdf') review('format-unsupported', '当前成果格式不能证明已复刻 DOCX 的字体、页面、段距与表格列宽。')
   else if (!profile.format) review('source-format-unknown', '源范本没有可验证的原始 DOCX 版式，不能将解析文本当成精确页面样式。')
   if (!actual && input.format !== 'pdf' && input.scope !== 'chapter') for (const table of profile.structure.tables) check('table:' + table.locator, textTables(text).some(row => JSON.stringify(row.headers) === JSON.stringify(table.headers)), '保留范本表格列结构：' + table.headers.join(' / '))
