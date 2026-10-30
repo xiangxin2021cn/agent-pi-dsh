@@ -46,6 +46,7 @@ const routerPresetSrc = join(root, 'vendor/dsh-router-standard/preset')
 const routerPresetDest = join(home, '.agent-presets/router-standard')
 const systemPresetRoot = join(home, '.agent-pi-presets')
 const systemPresetIds = ['standard', 'ptc', 'minimal', 'cordis']
+const presetYaml = createRequire(join(dsh, 'packages/settings/settings/package.json'))('yaml')
 
 const INJECTOR_NAME = '@dsh-external/dsh-super-injector'
 const GENUI_NAME = '@omdsh-dev/dsh-genui'
@@ -715,7 +716,7 @@ function syncSystemPresets() {
     const source = join(dsh, 'packages/bundle/web-app/presets', `${id}.patch.yml`)
     if (!existsSync(source)) throw new Error(`DSH shipped preset missing: ${id}`)
     mkdirSync(join(systemPresetRoot, id), { recursive: true })
-    writeFileSync(join(systemPresetRoot, id, 'agent.cordis.yml'), shippedPresetPlugins(readFileSync(source, 'utf8')))
+    writeFileSync(join(systemPresetRoot, id, 'agent.cordis.yml'), shippedPresetPlugins(readFileSync(source, 'utf8'), presetYaml))
   }
 }
 
@@ -840,7 +841,7 @@ if (teamsEnabled) {
   for (const file of desktopPresetFiles()) writeFileSync(file, configureTeamPreset(readFileSync(file, 'utf8')))
 }
 writePresetBundle({ systemRoot: systemPresetRoot, userRoot: join(home, '.agent-presets'), ids: systemPresetIds,
-  parseYaml: createRequire(join(dsh, 'packages/settings/settings/package.json'))('yaml').parse })
+  parseYaml: presetYaml.parse, yaml: presetYaml })
 linkLocalBundle(PRODUCT_PRESETS, systemPresetRoot)
 removeRetiredJSpace()
 removeRetiredVisionRouter()

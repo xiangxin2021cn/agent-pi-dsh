@@ -4573,6 +4573,7 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 					return String(visible || text || draft || "").trim();
 				};
 				const openAiSel = (raw) => {
+					if (props.readOnly) return;
 					const picked = String(raw || excerptForAi() || "").trim();
 					if (!picked) {
 						setError("没有可改的文字。先选一段，或打开一份文本/表格。");
@@ -5361,7 +5362,7 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 					if (kind === "project-plan" && !closePreview()) return;
 					mentionInChat(props.sessionProps || props, file);
 					if (kind !== "project-plan" && typeof props.onClose === "function") props.onClose();
-				}, [Icon("paperclip", 14), tAp("files.attachToChat")], loading || !!props.readOnly), isCad || kind === "project-plan" ? null : DocBtn(tAp("preview.aiEdit"), () => openAiSel(), [Icon("sparkles", 14), tAp("preview.aiEdit")], loading || !!busy), canEdit && !isUniver ? DocBtn(mode === "edit" ? "预览" : "编辑", toggleMode, [Icon(mode === "edit" ? "eye" : "pencil", 14)], loading) : null, canEdit && !isOfficeUniver ? DocBtn("保存", save, [Icon("save", 14)], loading || !dirty || !!busy) : null, isOffice && !isOfficeUniver ? DocBtn(isSlimUniver ? "对话完全体" : "用 Univer 打开", openUniver, [Icon("sparkles", 14), isSlimUniver ? "对话完全体" : "Univer"], loading || !!busy) : null, canExport ? DocBtn(copied ? "已复制" : "复制全文", copyAll, [Icon("copy", 14)], loading || !visible) : null, kbSlug && kbHasSource ? DocBtn("打开源文件", () => {
+				}, [Icon("paperclip", 14), tAp("files.attachToChat")], loading || !!props.readOnly), isCad || kind === "project-plan" ? null : DocBtn(tAp("preview.aiEdit"), () => openAiSel(), [Icon("sparkles", 14), tAp("preview.aiEdit")], loading || !!busy || !!props.readOnly), canEdit && !isUniver ? DocBtn(mode === "edit" ? "预览" : "编辑", toggleMode, [Icon(mode === "edit" ? "eye" : "pencil", 14)], loading) : null, canEdit && !isOfficeUniver ? DocBtn("保存", save, [Icon("save", 14)], loading || !dirty || !!busy) : null, isOffice && !isOfficeUniver ? DocBtn(isSlimUniver ? "对话完全体" : "用 Univer 打开", openUniver, [Icon("sparkles", 14), isSlimUniver ? "对话完全体" : "Univer"], loading || !!busy) : null, canExport ? DocBtn(copied ? "已复制" : "复制全文", copyAll, [Icon("copy", 14)], loading || !visible) : null, kbSlug && kbHasSource ? DocBtn("打开源文件", () => {
 					api("/api/agent-pi/kb", cwd, {
 						method: "POST",
 						body: JSON.stringify({

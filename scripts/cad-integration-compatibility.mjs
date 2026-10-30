@@ -255,7 +255,7 @@ const reviewed387HostExtensions = [
       ],
       "bundles/tender-web/src/client/file-preview-overlay.js": [
         "49ed4551ed5c04265b0b316acd565ab42dacc9fd325f2cba5da068c136d7439a",
-        "b9a291ab36480bceb1c6af8eb5359f08eec958942b64276308d2398b4bf5df37"
+        "733a219fc8b65e94baba93de98ac5c8c68549efa7b1177a3f4efb00d4ddb208d"
       ],
       "bundles/tender-web/src/client/styles.js": [
         "c1784d427a0c8ae2df46ccc6c6fb4504dcabcc0668d56a5a32d13af775defd19",
@@ -287,7 +287,7 @@ const reviewed387HostExtensions = [
       ],
       "bundles/tender-web/src/client/file-preview-overlay.js": [
         "49ed4551ed5c04265b0b316acd565ab42dacc9fd325f2cba5da068c136d7439a",
-        "b9a291ab36480bceb1c6af8eb5359f08eec958942b64276308d2398b4bf5df37"
+        "733a219fc8b65e94baba93de98ac5c8c68549efa7b1177a3f4efb00d4ddb208d"
       ],
       "bundles/tender-web/src/client/styles.js": [
         "c1784d427a0c8ae2df46ccc6c6fb4504dcabcc0668d56a5a32d13af775defd19",

@@ -50,7 +50,7 @@
       "guide": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/docs/upgrade-guide/v0.2.2-alpha.2/schedule-remote-host-tasks/guide.zh.md",
       "backup": "scripts/backup-schedule-v1.mjs",
       "backupDestination": "<edition DSH_HOME>/.runtime-install/schedule-v1-before-3.8.7/",
-      "productDefaultModelPolicy": "Host-wide model tools disabled in shipped standard/PTC/Cordis presets because records have no stable owner; human native task page and existing tasks retained; custom user presets unchanged"
+      "productDefaultModelPolicy": "Host-wide Schedule tools are disabled in generated product and custom preset copies and denied in the common tools/execute pipeline because records have no stable owner; human native task page and existing tasks retained; original user preset files unchanged"
     }
   },
   "runtime": {
@@ -516,11 +516,28 @@
       "passed": 70,
       "failed": 0
     },
+    "generatedPresetSafetyPerEdition": {
+      "passed": 9,
+      "failed": 0
+    },
+    "actualCanonicalScheduleToolGuardPerEdition": {
+      "passed": 1,
+      "failed": 0,
+      "hostToolBodiesExecuted": 0
+    },
+    "nativeDependencyClosurePackagesPerEdition": 638,
+    "tenderProfileAssembly": "Actual isolated profile initialization and official CLI --dump-config passed",
     "officePublicToolRoundtrip": "Actual Office 0.3.9 public pipeline, isolated worktree, import/export DOCX and PDF, 8 operations; actual DOCX template validation passed; PDF one-page visually checked and has no searchable text layer",
     "components": {
       "officeMaterializerAndPeerTests": {
-        "passed": 29,
-        "failed": 0
+        "mainline": {
+          "passed": 29,
+          "failed": 0
+        },
+        "tender": {
+          "passed": 29,
+          "failed": 0
+        }
       },
       "marketOfficePublicTests": {
         "passed": 40,
@@ -540,6 +557,130 @@
         "actualRequests": 24,
         "packageCommands": 0,
         "profileBytesUnchanged": true
+      },
+      "componentRegressionPerEdition": {
+        "mainline": {
+          "passed": 57,
+          "failed": 0
+        },
+        "tender": {
+          "passed": 57,
+          "failed": 0
+        }
+      },
+      "nativeSmokePerEdition": {
+        "mainline": {
+          "officeBindings": true,
+          "canvas110BytePng": true,
+          "codexCli": "0.166.0",
+          "electron": "45.2.0"
+        },
+        "tender": {
+          "officeBindings": true,
+          "canvas110BytePng": true,
+          "codexCli": "0.166.0",
+          "electron": "45.2.0"
+        }
+      },
+      "mainlineActualOfficeRoundTrip": {
+        "status": "passed",
+        "operations": 8,
+        "publicToolsExecute": true,
+        "nativeExecutor": true,
+        "pdfSafety": {
+          "sandboxDisabledFlagsRemoved": true,
+          "pipe": true,
+          "headless": true,
+          "ownedProfileCleaned": true
+        },
+        "nativeDocxTemplate": {
+          "status": "passed",
+          "machinePassed": true,
+          "violations": [],
+          "gaps": []
+        },
+        "pdf": {
+          "pages": 1,
+          "width": 1192,
+          "height": 842,
+          "textItems": 0,
+          "visualReview": "passed"
+        },
+        "originalSourceUnchanged": true,
+        "worktreeMerged": false,
+        "modelRequests": 0,
+        "report": "C:/Users/xiang/.codex/visualizations/2026/10/17/01a148a6-776f-7c80-8ad5-b07302733389/upgrade-387/office039-actual-public-tool-guard-mainline/report.json"
+      },
+      "history": [
+        {
+          "stage": "Initial Market imports during DSH rebuild",
+          "status": "environment-not-ready",
+          "error": "Cannot find module @deepseek-ai/schemastery/lib/index.mjs",
+          "resolution": "Retried only after official provider build completed;56/56 passed per edition"
+        },
+        {
+          "stage": "Previously stale Office runtime test expectation",
+          "status": "fixed",
+          "error": "Expected0.3.7/native1.0.1 while strict lock is formula1.0.3/exchange1.0.4",
+          "resolution": "Exact reviewed0.3.9 expectations updated in both editions; no runtime lock weakening",
+          "log": "C:/Users/xiang/Desktop/trace/agent-pi-dsh/.worktrees/dsh-3.6.2-codex-model-selection/.codex-temp/components-387/components-tests-tender.log"
+        },
+        {
+          "stage": "PDF verification-only renderer cleanup",
+          "status": "fixed-harness-only",
+          "error": "TypeError: pdf.destroy is not a function",
+          "resolution": "Use PDF loadingTask.destroy; actual exported file unchanged; render and visual inspection passed"
+        },
+        {
+          "stage": "Market1.73 new Japanese locale plus existing product managed state",
+          "status": "fixed",
+          "error": "Real dictionary comparison reproduced missingstatePreset inja",
+          "resolution": "Added exactlyone Japanese label and a key-set parity regression; rebuilt client and refreshed provenance in both editions",
+          "log": "C:/Users/xiang/Desktop/trace/agent-pi-dsh/.worktrees/mainline-3.8.5/.codex-temp/components-387/market-locale-before-fix.log"
+        }
+      ],
+      "offlineCacheProbe": {
+        "status": "passed",
+        "fixture": "C:\\Users\\xiang\\Desktop\\trace\\agent-pi-dsh\\.worktrees\\mainline-3.8.5\\.codex-temp\\components-387\\unified-offline-probe",
+        "cache": "C:\\Users\\xiang\\Desktop\\trace\\agent-pi-dsh\\.worktrees\\mainline-3.8.5\\.codex-temp\\components-387\\npm-cache",
+        "offline": true,
+        "hostNpmCi": true,
+        "officeNpmCiAndActualNativeBindings": true,
+        "electronCachePath": "C:\\Users\\xiang\\Desktop\\trace\\agent-pi-dsh\\.worktrees\\mainline-3.8.5\\.codex-temp\\components-387\\electron-cache\\e140ff2ea67f6f8a239f6c5ccab55ea68e9d2e82b326b89e21d8626caeff7584\\electron-v45.2.0-win32-x64.zip",
+        "forbiddenDownloads": 0
+      },
+      "tenderActualOfficeRoundTrip": {
+        "status": "passed",
+        "operations": 8,
+        "kernelCommit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+        "publicToolsExecute": true,
+        "nativeExecutor": true,
+        "pdfSafety": {
+          "sandboxDisabledFlagsRemoved": true,
+          "pipe": true,
+          "headless": true,
+          "ownedProfileCleaned": true
+        },
+        "nativeDocxTemplate": {
+          "status": "passed",
+          "machinePassed": true,
+          "violations": [],
+          "gaps": [],
+          "report": "C:/Users/xiang/.codex/visualizations/2026/10/17/01a148a6-776f-7c80-8ad5-b07302733389/upgrade-387/office039-actual-public-tool-guard-tender/native-template-validation.json",
+          "professionalReviewRequired": true
+        },
+        "pdf": {
+          "pages": 1,
+          "width": 1192,
+          "height": 842,
+          "textItems": 0,
+          "visualReview": "passed",
+          "matchesMainlinePng": true
+        },
+        "originalSourceUnchanged": true,
+        "worktreeMerged": false,
+        "modelRequests": 0,
+        "report": "C:/Users/xiang/.codex/visualizations/2026/10/17/01a148a6-776f-7c80-8ad5-b07302733389/upgrade-387/office039-actual-public-tool-guard-tender/report.json"
       }
     },
     "providerRequests": 0,

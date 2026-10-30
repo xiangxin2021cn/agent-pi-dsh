@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url'
 export const PRODUCT_PRESETS = 'dsh-agent-pi-presets'
 
 /** Extract the official child composition without evaluating Cordis !!js expressions. */
-export function shippedPresetPlugins(text) {
+export function shippedPresetPlugins(text, yaml) {
   const normalized = text.replaceAll('\r\n', '\n')
   const offset = normalized.indexOf('        plugins:\n')
   if (offset === -1) throw new Error('Official preset has no plugins declaration')
@@ -13,20 +13,41 @@ export function shippedPresetPlugins(text) {
   if (body.split('\n').some(line => line.trim() && !line.startsWith('          '))) {
     throw new Error('Official preset declaration shape changed')
   }
-  // New Schedule tools manage the whole host and have no stable task owner.
-  // Keep that model entry off in product defaults; the native task page stays on.
-  return body.split('\n').map(line => line.slice(10)).join('\n').replace(
-    /^(- id: tool-schedule\n  name: ['"]@deepseek-ai\/dsh-tool-schedule['"]\n)/gm,
-    '$1  disabled: true\n',
-  )
+  return restrictHostScheduleTools(body.split('\n').map(line => line.slice(10)).join('\n'), yaml)
+}
+
+/** Host-wide Schedule has no stable owner. Restrict generated copies, never user sources. */
+export function restrictHostScheduleTools(text, yaml) {
+  const document = yaml.parseDocument(text, {
+    customTags: [{ tag: 'tag:yaml.org,2002:js', resolve: value => value }],
+  })
+  if (document.errors.length) throw new Error('Cannot inspect preset Schedule scope: ' + document.errors[0].message)
+  let changed = false
+  function visit(sequence) {
+    if (!yaml.isSeq(sequence)) return
+    for (const row of sequence.items) {
+      if (!yaml.isMap(row)) continue
+      const name = row.get('name'), id = row.get('id')
+      const group = name === 'cordis:group' || row.get('group') === true
+      if (name === '@deepseek-ai/dsh-tool-schedule') {
+        if (row.get('disabled') !== true) { row.set('disabled', true); changed = true }
+      } else if (!group && !['@deepseek-ai/dsh-schedule', '@deepseek-ai/dsh-client-ui-schedule'].includes(name)
+        && /(?:^|[^\w])(?:@deepseek-ai\/dsh-)?tool-schedule(?:$|[^\w])/i.test(`${id || ''} ${name || ''}`)) {
+        throw new Error('Cannot verify Schedule scope for preset plugin: ' + (id || name))
+      }
+      if (group) visit(row.get('config', true))
+    }
+  }
+  visit(document.contents)
+  return changed ? document.toString({ lineWidth: 0 }) : text
 }
 
 /** Generate a normal DSH bundle; keep legacy custom preset files untouched. */
-export function writePresetBundle({ systemRoot, userRoot, ids, parseYaml }) {
+export function writePresetBundle({ systemRoot, userRoot, ids, parseYaml, yaml }) {
   const patches = []
   const rows = []
   for (const id of ids) {
-    const plugins = readFileSync(join(systemRoot, id, 'agent.cordis.yml'), 'utf8')
+    const plugins = restrictHostScheduleTools(readFileSync(join(systemRoot, id, 'agent.cordis.yml'), 'utf8'), yaml)
     rows.push(`- id: preset-${id}\n  config:\n    id: ${id}\n    order: ${ids.indexOf(id) + 1}\n    plugins:\n${indent(plugins, 6)}`)
   }
   // Preserve legacy user presets without editing their source or module base.
@@ -35,7 +56,7 @@ export function writePresetBundle({ systemRoot, userRoot, ids, parseYaml }) {
     .map(entry => entry.name).sort() : []
   for (const id of userIds) {
     const directory = join(userRoot, id)
-    const plugins = readFileSync(join(directory, 'agent.cordis.yml'), 'utf8').replace(
+    const plugins = restrictHostScheduleTools(readFileSync(join(directory, 'agent.cordis.yml'), 'utf8'), yaml).replace(
       /(^\s*name:\s*)(['"]?)(\.\.?\/[^\s'"\r\n]+)\2/gm,
       (_all, prefix, _quote, path) => prefix + JSON.stringify(pathToFileURL(resolve(directory, path)).href),
     )

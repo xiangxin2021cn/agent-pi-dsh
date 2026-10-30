@@ -211,6 +211,7 @@ export function createFilePreviewOverlay(dependencies) {
       }
 
       const openAiSel = (raw) => {
+        if (props.readOnly) return
         const picked = String(raw || excerptForAi() || '').trim()
         if (!picked) {
           setError('没有可改的文字。先选一段，或打开一份文本/表格。')
@@ -996,7 +997,7 @@ export function createFilePreviewOverlay(dependencies) {
               mentionInChat(props.sessionProps || props, file)
               if (kind !== 'project-plan' && typeof props.onClose === 'function') props.onClose()
             }, [Icon('paperclip', 14), tAp('files.attachToChat')], loading || !!props.readOnly),
-            isCad || kind === 'project-plan' ? null : DocBtn(tAp('preview.aiEdit'), () => openAiSel(), [Icon('sparkles', 14), tAp('preview.aiEdit')], loading || !!busy),
+            isCad || kind === 'project-plan' ? null : DocBtn(tAp('preview.aiEdit'), () => openAiSel(), [Icon('sparkles', 14), tAp('preview.aiEdit')], loading || !!busy || !!props.readOnly),
             canEdit && !isUniver ? DocBtn(mode === 'edit' ? '预览' : '编辑', toggleMode, [
               Icon(mode === 'edit' ? 'eye' : 'pencil', 14),
             ], loading) : null,
