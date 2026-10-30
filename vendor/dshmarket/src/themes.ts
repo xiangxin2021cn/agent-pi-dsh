@@ -18,6 +18,12 @@ import { parseSourceUrl, repoOfTarget } from './sources.ts'
 /** The slice of a cordis loader entry the market needs for live enable/disable. */
 export interface LoaderEntry {
   options: { id?: string; name?: string; disabled?: boolean | null }
+  /**
+   * Whether the row is switched off, after evaluating any `disabled`
+   * expression it carries — so reading it can throw, and callers that only
+   * want to know "is this row off" wrap the read (#1023).
+   */
+  disabled?: boolean
   fiber?: unknown
   update(options: { disabled: boolean | null }, create?: boolean, force?: boolean): Promise<void>
 }

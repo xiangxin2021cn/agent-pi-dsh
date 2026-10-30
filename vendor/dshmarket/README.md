@@ -19,26 +19,36 @@ One-click themes: install, switch live, no restart.
 
 ## Install
 
-```sh
-dsh plugin --profile web add dshmarket
-```
+- **Official DSH Desktop:** Open **Settings → Plugins** in the app, search for
+  `dshmarket`, and install it through the app's plugin manager. No command line
+  is needed.
+- **Regular `dsh web`:** Run this command, then restart `dsh web`:
 
-Restart `dsh web`, open the **Plugins** page, and pick the **Plugin Market**
+  ```sh
+  dsh plugin --profile web add dshmarket
+  ```
+
+- **Custom profile:** Replace `web` in that command with your host's actual
+  profile name: `dsh plugin --profile <profile> add dshmarket`. Follow your
+  host's restart instructions.
+
+On a machine with DSH Desktop, running `dsh plugin --profile web add dshmarket`
+may report success but installs the market into `profiles/web`, **not** the
+profile used by the Desktop app. It will not appear in Desktop. Install through
+the app's **Settings → Plugins** instead; Desktop's profile is managed by the app.
+
+Once it is installed, open the **Plugins** page and pick the **Plugin Market**
 tab next to **Installed** (dsh 0.2.1 and newer — plain `dsh web` included, no
 desktop app needed). The market is also still a section of **Settings → Plugin
 Market**: on dsh 0.2.0 and older that is the only way in, and from 0.2.1 the
 Settings dialog lives in the account menu. If you would rather reach it in one
 click from anywhere, the market can also put its own **Plugin Market** row in
-the sidebar; turn it on from the market's card under **Plugins**. Going the
+the sidebar; turn it on from the market's card under **Plugins**. All three
+entries can be switched individually under **Advanced** in that card, and the
+market refuses to close the last one. Going the
 other way, an installed plugin's **···** menu offers **View in Plugins** on
 dsh 0.2.1+: it opens the host's own page for that plugin, which is the only
 place its individual rows can be switched one by one.
-
-A host that runs under another profile name takes the same command with that
-name instead — `dsh plugin --profile <profile> add dshmarket`. On the official
-DSH Desktop app, install from the app's own **Settings → Plugins** rather than
-the command line: that profile belongs to the app's plugin manager, and the CLI
-will not change it while the app is running.
 
 **Requires dsh web 0.1.0-rc.6 or newer.** On an older host the market
 disables itself and says so in the browser console rather than rendering
@@ -49,7 +59,7 @@ its own dsh: it may be older than the one `npm` would give you (#139).
 ## What you get
 
 - **Browse & search** the full community catalog (4200+ plugins, growing daily) — category filters, star counts, top/new sorting, bilingual descriptions that follow your UI language
-- **Host-aware discovery** — cards show the DSH requirement declared by `engines.dsh` or lockstep `@deepseek-ai/dsh-*` peers; an opt-in filter hides only confirmed mismatches with the running host. Undeclared, malformed, unavailable, and GitHub-only entries remain visible rather than being guessed incompatible
+- **Host-aware discovery** — cards show the DSH requirement declared by `engines.dsh` or lockstep `@deepseek-ai/dsh-*` peers; the compatibility filter hides only confirmed mismatches with the running host. GitHub-only entries read the linked package's manifest, including monorepo subdirectories; Release downloads read the selected release tag, including the current tag behind `latest/download`. Undeclared, malformed or unavailable requirements stay unknown and visible. Public manifest facts are cached; compatibility is evaluated against the running host
 - **Screenshots** — AppStore-style screenshots, auto-carousel when there's more than one, click to preview full-size: author-curated shots show right on the card (zero extra requests); plugins without curated shots fall back to automatic README extraction once you open the install dialog. Images load from GitHub hosting only
 - **Comments** — every card opens the plugin's discussion thread in place. It is the same thread its pages on [dshmarket.com](https://dshmarket.com) and the [catalog](https://awesome-dsh-plugin.com) show, so a plugin has one conversation rather than three. Backed by GitHub Discussions through giscus: it loads when you open it, needs a GitHub account only to post, and the note above it says plainly that opening it contacts giscus.app and GitHub. On local dsh web, reading stays embedded while a dedicated GitHub action opens the exact discussion in a new tab for sign-in and posting, so the cross-site return never carries or depends on the host session
 - **Favorites** — bookmark plugins and themes from Discover or the Themes tab; a dedicated Favorites tab lists them with search, sort, and install actions. Bookmarks persist in the profile's market state (`state.json`); entries that leave the catalog can be cleared in one click

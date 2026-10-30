@@ -1,4 +1,9 @@
 /** Locate the DSH host package in CLI and packaged Desktop runtimes. */
+/** Where the host package was found, and the version its manifest declares. */
+export interface DshHostInfo {
+    version: string;
+    directory: string;
+}
 /**
  * Directories that can hold the DSH installation's OWN bundle layer — the
  * Desktop shell's package root and its `cordis.patch.yml`.
@@ -32,6 +37,30 @@
  */
 export declare function desktopApplicationRoots(dshInstallDir: string | null): string[];
 /**
+ * Point host detection at the install anchor the launcher published.
+ * @param source - live source of `profileContext.installAnchor`, re-read on
+ * every lookup; it answers null when the host publishes no anchor.
+ * @returns the previous source, so a caller can restore it on teardown.
+ */
+export declare function setLauncherInstallAnchorSource(source: () => string | null): () => string | null;
+/**
+ * Host info read from the anchor a launcher published.
+ *
+ * An embedded host — a packaged app that boots the dsh core tree in-process
+ * instead of exec'ing the CLI — is neither layout {@link dshHostInfo} probes:
+ * `process.argv[1]` is the app's own entry point, and there is no Electron
+ * resources directory. Its launcher still knows where the runtime lives and
+ * publishes that as `profileContext.installAnchor`, normally the dsh
+ * package's own `package.json` — the very file the CLI probe would have read.
+ * The same identity check applies, and an anchor that names a flat Desktop
+ * root still has to corroborate its version with the in-box runtime: an
+ * anchor is a place to look, not a thing to trust.
+ *
+ * @param anchor - the published anchor path, or null/undefined when none was.
+ * @returns the host info, or null when the anchor names no dsh host.
+ */
+export declare function hostInfoFromAnchor(anchor: string | null | undefined): DshHostInfo | null;
+/**
  * The version of the DSH host this market is running inside.
  *
  * CLI versions come from the host manifest. Flat Desktop shells additionally
@@ -47,14 +76,13 @@ export declare function desktopApplicationRoots(dshInstallDir: string | null): s
  * of the answer: a path under Electron's resources is a Desktop-bundled host,
  * which #139 established can be older than whatever `npm ls` would report.
  * Asking the user is not a substitute — that is the number they do not have.
+ * When both layouts miss — an embedded host has neither — the launcher's
+ * published install anchor is tried last ({@link hostInfoFromAnchor}).
  * @returns the host version and the directory it was read from, or null when
  * no host package is locatable (a plain `dsh web` from a global install can
  * legitimately land here).
  */
-export declare function dshHostInfo(entry?: string): {
-    version: string;
-    directory: string;
-} | null;
+export declare function dshHostInfo(entry?: string): DshHostInfo | null;
 /**
  * Walk up from the CLI entry first, then inspect Electron's authoritative
  * resources directory. Desktop distributions may keep node_modules outside

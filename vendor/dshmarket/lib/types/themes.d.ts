@@ -11,6 +11,12 @@ export interface LoaderEntry {
         name?: string;
         disabled?: boolean | null;
     };
+    /**
+     * Whether the row is switched off, after evaluating any `disabled`
+     * expression it carries — so reading it can throw, and callers that only
+     * want to know "is this row off" wrap the read (#1023).
+     */
+    disabled?: boolean;
     fiber?: unknown;
     update(options: {
         disabled: boolean | null;

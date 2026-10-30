@@ -48,6 +48,21 @@ export interface RegistryPlugin {
     /** Catalog name of the suggested replacement plugin, when deprecated. */
     replacement?: string;
     /**
+     * npm package names this entry used BEFORE its current one (#1012).
+     *
+     * The catalog is the only place a rename can be stated ahead of time: the
+     * old name's npm metadata is gone (no dist-tags, no `deprecated` message),
+     * so nothing the market can fetch still knows the two names are one plugin.
+     * Same trust boundary as `deprecated`/`replacement` — absent for every
+     * normal entry, and a catalog without the field behaves exactly as before.
+     *
+     * Values are validated where they are consumed (normalized by
+     * {@link pluginPreviousNpm}, cross-entry rules in scripts/validate-registry.mjs):
+     * a former name must never be a live package in the catalog, and one former
+     * name may only have one successor.
+     */
+    previousNpm?: string[];
+    /**
      * Capability disclosure (#401): what a static scan of the artifact a user
      * would install reported touching — `shell`, `network`, `credentials`,
      * `fs-read`, `fs-write`, `env`, `llm`, `dynamic-code`, ...
@@ -77,6 +92,18 @@ export interface Registry {
     categories: Record<string, Record<string, string>>;
     plugins: RegistryPlugin[];
 }
+/**
+ * Former npm names for one catalog entry, normalized (#1012).
+ *
+ * Catalog JSON is external input, so a malformed declaration is dropped
+ * rather than trusted: only syntactically valid npm names survive, an entry
+ * may not list itself (its own `npm` or `name`), and duplicates collapse in
+ * declaration order. Cross-entry rules — a former name that is still live
+ * elsewhere, or two entries claiming one former name — cannot be judged per
+ * entry; the validator enforces them for the catalog, and
+ * `findCatalogRename` fails closed on ambiguity at runtime.
+ */
+export declare function pluginPreviousNpm(plugin: Pick<RegistryPlugin, 'name' | 'npm' | 'previousNpm'>): string[];
 /**
  * Drop what we remember, so the next call is unconditional.
  *

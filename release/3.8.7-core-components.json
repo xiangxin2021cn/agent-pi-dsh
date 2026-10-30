@@ -1,0 +1,554 @@
+{
+  "schemaVersion": 1,
+  "productVersion": "3.8.7",
+  "edition": "mainline",
+  "checkedAt": "2026-10-30T20:07:43.494Z",
+  "scope": "Reviewed shared core; independent product UI, application identity, storage and update channel",
+  "kernel": {
+    "name": "deepseek-harness",
+    "packageVersion": "0.2.2-alpha.2",
+    "channel": "official master snapshot",
+    "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+    "tree": "d3c6ee1d1f0ec8b71c92e1b62d0cf9a8d6553bf8",
+    "source": "https://github.com/deepseek-ai/deepseek-harness/commit/ce7073d51254c26cd63b22a60835b8f948deb447",
+    "aheadOfPrevious": 351,
+    "newestPublishedMaintenanceRelease": {
+      "tag": "dsh-v0.2.1-rc.5",
+      "commit": "b830ec950faba0a46dda564be3e2d854afed94f1",
+      "publishedAt": "2026-10-30T02:12:26Z",
+      "comparisonToPrevious": {
+        "status": "diverged",
+        "ahead": 4,
+        "behind": 2161
+      },
+      "decision": "Do not replace the alpha.2 product kernel with this older maintenance branch. Its thinking-preview fix is already merged into the selected master snapshot."
+    },
+    "sourcePolicy": "Unmodified exact official source; product adapters remain outside the submodule",
+    "sessionPersistence": {
+      "old": 65,
+      "new": 65,
+      "allDigestsIdentical": true
+    },
+    "schedule": {
+      "path": "<DSH_HOME>/storages/schedule.json",
+      "oldUnitVersion": 1,
+      "newUnitVersion": 2,
+      "compatibleVersions": [
+        1
+      ],
+      "readOnlyWrites": false,
+      "firstEditOrDeliveryWritesV2": true,
+      "rollback": "Preserve v1 bytes before new Host starts. Old kernels reject the v2 unit; restore an explicit preserved backup only after closing both versions.",
+      "sessionLogsChanged": false,
+      "newModelToolNames": [
+        "schedule_create",
+        "schedule_list",
+        "schedule_view",
+        "schedule_edit"
+      ],
+      "productUsesRemovedScheduleApis": false,
+      "guide": "https://github.com/deepseek-ai/deepseek-harness/blob/ce7073d51254c26cd63b22a60835b8f948deb447/docs/upgrade-guide/v0.2.2-alpha.2/schedule-remote-host-tasks/guide.zh.md",
+      "backup": "scripts/backup-schedule-v1.mjs",
+      "backupDestination": "<edition DSH_HOME>/.runtime-install/schedule-v1-before-3.8.7/",
+      "productDefaultModelPolicy": "Host-wide model tools disabled in shipped standard/PTC/Cordis presets because records have no stable owner; human native task page and existing tasks retained; custom user presets unchanged"
+    }
+  },
+  "runtime": {
+    "name": "Node.js",
+    "version": "24.22.2",
+    "channel": "LTS Krypton",
+    "target": "win32-x64",
+    "source": "https://nodejs.org/dist/v24.22.2/node-v24.22.2-win-x64.zip",
+    "officialChecksums": "https://nodejs.org/dist/v24.22.2/SHASUMS256.txt",
+    "archiveSha256": "ca1bff5d8ead13c9f2ea404a176db46bd430704d5b5113734049fa365e7799e2",
+    "executableSha256": "1c331340fa6cac5e4294725959070a143fa0507195a78ad77eed7943f719aac9",
+    "pnpm": "11.28.5",
+    "pnpmPolicy": "Exact official kernel packageManager; no automatic major upgrade"
+  },
+  "dependencies": [
+    {
+      "name": "electron",
+      "previous": "45.0.0",
+      "version": "45.2.0",
+      "latestAvailable": "45.2.0",
+      "decision": "update",
+      "reason": "Same Electron 45 line; official 45.2.0 includes Chromium/Dawn/Skia/V8 backports and fetch fixes.",
+      "metadata": "https://registry.npmjs.org/electron/45.2.0",
+      "sourceCommit": null,
+      "source": "https://registry.npmjs.org/electron/-/electron-45.2.0.tgz",
+      "integrity": "sha512-OLQ7ct4TEbXfIctVwId+3RlWGrHr/hVJdCJqwnFWmfsttWAyHdwUhSvJHr/k6j4K+3HxSWg6agFizEv8IHqEBw==",
+      "archiveBytes": null
+    },
+    {
+      "name": "electron-builder",
+      "previous": "26.18.0",
+      "version": "26.18.0",
+      "latestAvailable": "26.18.0",
+      "decision": "retain",
+      "reason": "Current version is still npm latest; packaging engine stays pinned.",
+      "metadata": "https://registry.npmjs.org/electron-builder/26.18.0",
+      "sourceCommit": null,
+      "source": "https://registry.npmjs.org/electron-builder/-/electron-builder-26.18.0.tgz",
+      "integrity": "sha512-ASgIuQnOq4RuD8jMhS9hI0LS3EMRT1I/M5R6utqifB/BHN80IcCjBdt+DED+NmNPvmBgEtrlExXZitNdA7kXOg==",
+      "archiveBytes": null
+    },
+    {
+      "name": "@openai/codex",
+      "previous": "0.164.0",
+      "version": "0.166.0",
+      "latestAvailable": "0.166.0",
+      "decision": "update",
+      "reason": "Update exact CLI wrapper and matching platform optional binaries; no model calls.",
+      "metadata": "https://registry.npmjs.org/%40openai%2Fcodex/0.166.0",
+      "sourceCommit": null,
+      "source": "https://registry.npmjs.org/@openai/codex/-/codex-0.166.0.tgz",
+      "integrity": "sha512-2Szlp1l1cz5TX1ccpX4Zok3DZrot9xeZe0km+6/1v8JmqxADwyJxKBJah4dBymkwtS25j/u6dipJusTOI97Z8Q==",
+      "archiveBytes": null
+    },
+    {
+      "name": "@openai/codex-win32-x64",
+      "previous": "0.164.0-win32-x64",
+      "version": "0.166.0-win32-x64",
+      "latestAvailable": "0.166.0",
+      "decision": "update",
+      "reason": "npm alias is @openai/codex@0.166.0-win32-x64, not a separate registry package.",
+      "metadata": "https://registry.npmjs.org/%40openai%2Fcodex/0.166.0-win32-x64",
+      "sourceCommit": null,
+      "source": "https://registry.npmjs.org/@openai/codex/-/codex-0.166.0-win32-x64.tgz",
+      "integrity": "sha512-NS8Ps5oG5r19pCrMCUXwUqOui6odnUIoBlQkrjCJ+h1k6KiwCzC/+mI9d3nSZCqFoVONPBTmqyq8NYq3YaFGyA==",
+      "archiveBytes": null
+    },
+    {
+      "name": "@napi-rs/canvas",
+      "previous": "1.0.13",
+      "version": "1.1.0",
+      "latestAvailable": "1.1.0",
+      "decision": "update",
+      "reason": "Use exact same-version platform native closure; actual PNG creation verified under Node24.22.2.",
+      "metadata": "https://registry.npmjs.org/%40napi-rs%2Fcanvas/1.1.0",
+      "sourceCommit": "5246bbf5573fdf53b5672a4d096d4d8fa660a406",
+      "source": "https://registry.npmjs.org/@napi-rs/canvas/-/canvas-1.1.0.tgz",
+      "integrity": "sha512-k+ph/D8H9GS8ZZ48okvHrKeJynkqAA1kMUZRuzRWNlQUDHXngq7oRaWMZBdmSfd9ZhVy9bwNKei/7wMboI/uMg==",
+      "archiveBytes": null
+    },
+    {
+      "name": "marked",
+      "previous": "18.1.1",
+      "version": "18.1.2",
+      "latestAvailable": "18.1.2",
+      "decision": "update",
+      "reason": "Same major patch; actual parse verified under Node24.22.2.",
+      "metadata": "https://registry.npmjs.org/marked/18.1.2",
+      "sourceCommit": "5beecae42b0beb07eaccc3a732560f56867a8301",
+      "source": "https://registry.npmjs.org/marked/-/marked-18.1.2.tgz",
+      "integrity": "sha512-DfOnvLAQ6WYeWxWO1u4RyFOeqyHup6dks5PPqnoFiooU7ipRvidO/2j8plhAHIiZg574E9ZlzSjUiPMLAzFkgg==",
+      "archiveBytes": null
+    },
+    {
+      "name": "zod",
+      "previous": "4.6.7",
+      "version": "4.6.7",
+      "latestAvailable": "4.6.7",
+      "decision": "retain",
+      "reason": "Current version is still npm latest.",
+      "metadata": "https://registry.npmjs.org/zod/4.6.7",
+      "sourceCommit": "b500a2ee95134f81d74da7911d7378dd2853d042",
+      "source": "https://registry.npmjs.org/zod/-/zod-4.6.7.tgz",
+      "integrity": "sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==",
+      "archiveBytes": null
+    },
+    {
+      "name": "dsh-univer-office",
+      "previous": "0.3.8",
+      "version": "0.3.9",
+      "latestAvailable": "0.3.9",
+      "decision": "update",
+      "reason": "Native API markers unchanged; fixes SDK duplication and floating-window pointer/resize/move. Preserve every original file.",
+      "metadata": "https://registry.npmjs.org/dsh-univer-office/0.3.9",
+      "sourceCommit": "c59332186fbd0051596b6ef5d73b8322204ad1d5",
+      "source": "https://registry.npmjs.org/dsh-univer-office/-/dsh-univer-office-0.3.9.tgz",
+      "integrity": "sha512-C0+EqSMC9XiSvmt6jQpUZnkIYeixE1DeOfQgzjsecJ2q4yNylGoS6y+lCpqNvIy2pHXYlqe/lsjDgSRPsgd1bA==",
+      "archiveBytes": 44566924
+    },
+    {
+      "name": "dshmarket",
+      "previous": "1.70.0",
+      "version": "1.73.6",
+      "latestAvailable": "1.73.6",
+      "decision": "update",
+      "reason": "Retain host-owned drain barriers and update rollback improvements plus reviewed product adaptations.",
+      "metadata": "https://registry.npmjs.org/dshmarket/1.73.6",
+      "sourceCommit": "81d03b611d1a61cae5865c442e3e7d9cf7f6ae05",
+      "source": "https://registry.npmjs.org/dshmarket/-/dshmarket-1.73.6.tgz",
+      "integrity": "sha512-dfE0kGbF/rVQAbUTLV8m2HTXOpeMjRBB4us0tNDKDGX9IDtNJStSHxT5TuIJaN+RG/PVzF8v1Z2zUyZJpM4RDg==",
+      "archiveBytes": 847595
+    },
+    {
+      "name": "@anysearch/anysearch-dsh",
+      "previous": "0.1.8",
+      "version": "0.1.8",
+      "latestAvailable": "0.1.8",
+      "decision": "retain",
+      "reason": "Current version is still npm latest; reviewed existing adaptations retained.",
+      "metadata": "https://registry.npmjs.org/%40anysearch%2Fanysearch-dsh/0.1.8",
+      "sourceCommit": "d20ab97727b36b4341977e53d7c9b7d2e93d3d03",
+      "source": "https://registry.npmjs.org/@anysearch/anysearch-dsh/-/anysearch-dsh-0.1.8.tgz",
+      "integrity": "sha512-N00VwXW5j2+IJKtURJIv5eaLJBqr+b/1oLL+B8pX2CfaHjIGPXop0l5fKXpr/iR9cS8cf9yjFOSeVaUa+rEO9A==",
+      "archiveBytes": null
+    },
+    {
+      "name": "pdfjs-dist",
+      "previous": "6.4.299",
+      "version": "6.4.299",
+      "latestAvailable": "6.4.299",
+      "decision": "retain",
+      "reason": "Current version is still npm latest.",
+      "metadata": "https://registry.npmjs.org/pdfjs-dist/6.4.299",
+      "sourceCommit": "d0991a0d53f3bb3a7307e3b83f279c1d117aafb3",
+      "source": "https://registry.npmjs.org/pdfjs-dist/-/pdfjs-dist-6.4.299.tgz",
+      "integrity": "sha512-AVl138zALtfaAPvADulE0PZThbYzCBS79nL4pOSL/6Sm/4AH5A21BD9VHt97OlCuzJuCpmeZtAtkinisF4Vb1g==",
+      "archiveBytes": null
+    },
+    {
+      "name": "undici",
+      "previous": "7.30.1",
+      "version": "7.30.1",
+      "latestAvailable": "8.12.3",
+      "decision": "retain",
+      "reason": "8.12.3 is a new major; Market official dependency remains ^7.29.1. Preserve the reviewed 7.x shared network boundary.",
+      "metadata": "https://registry.npmjs.org/undici/7.30.1",
+      "sourceCommit": "7507102a675b082a71437f0a00681e537875556c",
+      "source": "https://registry.npmjs.org/undici/-/undici-7.30.1.tgz",
+      "integrity": "sha512-03KrMbjIFDWQR5RNPrSw3bd1r12JpyFQl9/yxjUbJtqkjmllqC5lFjZh6ujeuJCKr8EOQvRW872Oy/az+nLYxg==",
+      "archiveBytes": null
+    },
+    {
+      "name": "yaml",
+      "previous": "2.9.1",
+      "version": "2.9.1",
+      "latestAvailable": "2.9.1",
+      "decision": "retain",
+      "reason": "Current version is still npm latest.",
+      "metadata": "https://registry.npmjs.org/yaml/2.9.1",
+      "sourceCommit": "1440ecd3d1bff41e4ac399f8f6839e810328bd16",
+      "source": "https://registry.npmjs.org/yaml/-/yaml-2.9.1.tgz",
+      "integrity": "sha512-3NxN8+78OdzbT7C/WjGsyfPAtJaN3FNDsWxv7Y7mcDsT/oOmgW8BpyQQFFBnvZE3j9Y2Sdz1ULFLezL7Eb2yFw==",
+      "archiveBytes": null
+    },
+    {
+      "name": "js-yaml",
+      "previous": "4.3.2",
+      "version": "4.3.2",
+      "latestAvailable": "5.5.0",
+      "decision": "retain",
+      "reason": "Latest5.5.0 is a new major; retain the reviewed4.x YAML schema and parser contract shared with officialMarket^4.3.2, without silently changing composition parsing.",
+      "metadata": "https://registry.npmjs.org/js-yaml/4.3.2",
+      "sourceCommit": "79ca68d90f333fbe6d9e42827527e62636200191",
+      "source": "https://registry.npmjs.org/js-yaml/-/js-yaml-4.3.2.tgz",
+      "integrity": "sha512-SFNOvSJ+Dgf/9An904Yx+CgSlIPCkIpao4qo51lpee25TIRejdH3rhR4EZMGoNx3/TP3O+wzWuiTFl4sqbltzA==",
+      "archiveBytes": null
+    },
+    {
+      "name": "beautiful-mermaid",
+      "previous": "1.1.3",
+      "version": "1.1.3",
+      "latestAvailable": "1.1.3",
+      "decision": "retain",
+      "reason": "Current version is still npm latest.",
+      "metadata": "https://registry.npmjs.org/beautiful-mermaid/1.1.3",
+      "sourceCommit": "65f4e0ab8c289e9691a9e5bc4f9eac7108cf449b",
+      "source": "https://registry.npmjs.org/beautiful-mermaid/-/beautiful-mermaid-1.1.3.tgz",
+      "integrity": "sha512-TItrtrAyHp1vwFfFVYauWGrquouk/6SS21Aq3RsxindSYZODcN4xYrPZD6BiZRU+o5mKJzDPz9MUSMvELdylyg==",
+      "archiveBytes": null
+    },
+    {
+      "name": "minisearch",
+      "previous": "7.2.0",
+      "version": "7.2.0",
+      "latestAvailable": "7.2.0",
+      "decision": "retain",
+      "reason": "Current version is still npm latest.",
+      "metadata": "https://registry.npmjs.org/minisearch/7.2.0",
+      "sourceCommit": null,
+      "source": "https://registry.npmjs.org/minisearch/-/minisearch-7.2.0.tgz",
+      "integrity": "sha512-dqT2XBYUOZOiC5t2HRnwADjhNS2cecp9u+TJRiJ1Qp/f5qjkeT5APcGPjHw+bz89Ms8Jp+cG4AlE+QZ/QnDglg==",
+      "archiveBytes": null
+    },
+    {
+      "name": "pdf-lib",
+      "previous": "1.17.1",
+      "version": "1.17.1",
+      "latestAvailable": "1.17.1",
+      "decision": "retain",
+      "reason": "Current version is still npm latest.",
+      "metadata": "https://registry.npmjs.org/pdf-lib/1.17.1",
+      "sourceCommit": null,
+      "source": "https://registry.npmjs.org/pdf-lib/-/pdf-lib-1.17.1.tgz",
+      "integrity": "sha512-V/mpyJAoTsN4cnP31vc0wfNA1+p20evqqnap0KLoRUN0Yk/p3wN52DOEsL4oBFcLdb76hlpKPtzJIgo67j/XLw==",
+      "archiveBytes": null
+    },
+    {
+      "name": "@mlightcad/libredwg-web",
+      "previous": "0.7.10",
+      "version": "0.7.10",
+      "latestAvailable": "0.8.2",
+      "decision": "retain-reviewed-clean-build",
+      "reason": "Latest0.8.2 source45a2a217f4916daddd7bd598c900d6c698d141b6 still contains long bit-position arithmetic; straight replacement drops reviewed >256MiB fix. Clean matched rebuild required, emcc/Docker not available.",
+      "metadata": "https://registry.npmjs.org/%40mlightcad%2Flibredwg-web/0.7.10",
+      "sourceCommit": null,
+      "source": "https://registry.npmjs.org/@mlightcad/libredwg-web/-/libredwg-web-0.7.10.tgz",
+      "integrity": "sha512-L9wnwQn8cgHIr6I5El/8TgKSXaRacW9vytSpsU19xufmrnAAqEEGcW0MU92PgEiDKuQtU4GBenERIDfSrbY99g==",
+      "archiveBytes": null
+    },
+    {
+      "name": "@mlightcad/libredwg-converter",
+      "previous": "3.14.3",
+      "version": "3.14.3",
+      "latestAvailable": "3.15.18",
+      "decision": "retain-reviewed-clean-build",
+      "reason": "Latest3.15.18 requires web^0.8.2 and data-model1.15.18; cannot replace individually.",
+      "metadata": "https://registry.npmjs.org/%40mlightcad%2Flibredwg-converter/3.14.3",
+      "sourceCommit": null,
+      "source": "https://registry.npmjs.org/@mlightcad/libredwg-converter/-/libredwg-converter-3.14.3.tgz",
+      "integrity": "sha512-Sd/bSUnfMX6q4QWbC8xt32F/TW0aq9FxG8cLdG1ZDfGWr/LbkqaaCDoiHmbU715spuq5PF6CsxXaS1EWZluJ3A==",
+      "archiveBytes": null
+    },
+    {
+      "name": "@mlightcad/data-model",
+      "previous": "1.14.3",
+      "version": "1.14.3",
+      "latestAvailable": "1.15.18",
+      "decision": "retain-reviewed-clean-build",
+      "reason": "Latest1.15.18 requires matched common/emf/geometry/graphic packages; retain audited combined source receipt.",
+      "metadata": "https://registry.npmjs.org/%40mlightcad%2Fdata-model/1.14.3",
+      "sourceCommit": null,
+      "source": "https://registry.npmjs.org/@mlightcad/data-model/-/data-model-1.14.3.tgz",
+      "integrity": "sha512-wB6JfxR4tQ52d3e0K/a+BQrL1ueMSzebKaXcob4JacO5Gw9OpFaGEjMLTbHHArCN6j+SRtHY5PJXgO2VWo1dNQ==",
+      "archiveBytes": null
+    }
+  ],
+  "electronArchive": {
+    "source": "https://github.com/electron/electron/releases/download/v45.2.0/electron-v45.2.0-win32-x64.zip",
+    "bytes": 158233976,
+    "sha256": "8b3475a4c1e56ac70f4802b4fc05db758c8821c766f26445acdb90e3c4e68e71",
+    "officialChecksumMatch": true
+  },
+  "managedPluginPins": {
+    "office": {
+      "schema": "agent-pi-dsh/univer-office-pin/v1",
+      "name": "dsh-univer-office",
+      "version": "0.3.9",
+      "license": "Apache-2.0",
+      "tarball": "https://registry.npmjs.org/dsh-univer-office/-/dsh-univer-office-0.3.9.tgz",
+      "integrity": "sha512-C0+EqSMC9XiSvmt6jQpUZnkIYeixE1DeOfQgzjsecJ2q4yNylGoS6y+lCpqNvIy2pHXYlqe/lsjDgSRPsgd1bA==",
+      "shasum": "f7f5ecad008a8c7081e4745b68c3debb17c71eef",
+      "archiveBytes": 44566924,
+      "archiveEntries": 368,
+      "source": {
+        "repository": "https://github.com/dream-num/dsh-univer-office",
+        "tag": "v0.3.9",
+        "tagObject": "c59332186fbd0051596b6ef5d73b8322204ad1d5",
+        "commit": "c59332186fbd0051596b6ef5d73b8322204ad1d5"
+      }
+    },
+    "otherPlugins": {
+      "checkedAt": "2026-10-30",
+      "packages": [
+        {
+          "name": "dshmarket",
+          "version": "1.73.6",
+          "integrity": "sha512-dfE0kGbF/rVQAbUTLV8m2HTXOpeMjRBB4us0tNDKDGX9IDtNJStSHxT5TuIJaN+RG/PVzF8v1Z2zUyZJpM4RDg==",
+          "shasum": "8e44a2458fc53326b8b06a22842a4a76060f390b",
+          "archiveBytes": 847595,
+          "sourceCommit": "81d03b611d1a61cae5865c442e3e7d9cf7f6ae05",
+          "publishedAt": "2026-10-30T18:46:17.882Z",
+          "adaptation": "vendor/dshmarket/AGENT-PI-ADAPTATION.json",
+          "tarball": "https://registry.npmjs.org/dshmarket/-/dshmarket-1.73.6.tgz",
+          "sourceArchive": {
+            "url": "https://codeload.github.com/dsh-market/dsh-market/tar.gz/81d03b611d1a61cae5865c442e3e7d9cf7f6ae05",
+            "sha256": "fca4b45ae0dbdc92d2206f4bbb3b625e35e2e876d93d70e4ccfbff8a820d3bec",
+            "note": "Official npm 1.73.6 omits src; retain exact fixed-commit sources for product adaptations and reproducible build."
+          }
+        },
+        {
+          "name": "@anysearch/anysearch-dsh",
+          "version": "0.1.8",
+          "integrity": "sha512-N00VwXW5j2+IJKtURJIv5eaLJBqr+b/1oLL+B8pX2CfaHjIGPXop0l5fKXpr/iR9cS8cf9yjFOSeVaUa+rEO9A==",
+          "shasum": "3a49c1d4bde698f004a32b97141e4559a494ceac",
+          "archiveBytes": 173153,
+          "adaptation": "vendor/anysearch-dsh/AGENT-PI-ADAPTATION.json",
+          "sourceCommit": "d20ab97727b36b4341977e53d7c9b7d2e93d3d03",
+          "publishedAt": "2026-10-10T08:56:08.514Z"
+        }
+      ],
+      "injector": {
+        "version": "0.3.5",
+        "commit": "735c212b136e3fb3f9769e1f07266cd091570a55",
+        "sha256": "49dc9c868704da0e73658976b37b55050bfefa8c22be5606dc290cdb77906f41",
+        "adaptations": [
+          "React settings supplied by Agent Pi",
+          "Preserve host unhandled rejection policy"
+        ]
+      }
+    }
+  },
+  "sourceHeads": {
+    "writingDna": {
+      "bundled": "ee3d97ee27268004b5187d97711161f44fc4aae4",
+      "latestHead": "ee3d97ee27268004b5187d97711161f44fc4aae4",
+      "source": "https://github.com/larashero3-dotcom/writing-dna-skill/commit/ee3d97ee27268004b5187d97711161f44fc4aae4",
+      "decision": "retain",
+      "reason": "Official main head unchanged; retain all23 original files and product provenance."
+    },
+    "router": {
+      "bundled": "b39112dce54b90e67b50b166c2773861d7945d1f",
+      "latestHead": "b39112dce54b90e67b50b166c2773861d7945d1f",
+      "source": "https://github.com/yjh051108/dsh-router-standard/commit/b39112dce54b90e67b50b166c2773861d7945d1f",
+      "decision": "retain",
+      "reason": "Official main head unchanged."
+    },
+    "injector": {
+      "bundled": "0.3.5",
+      "releaseCommit": "735c212b136e3fb3f9769e1f07266cd091570a55",
+      "latestStableTag": "v0.3.5",
+      "latestHead": "e2fca6e2dc5d926bb33fbd1376780bb5e93f4974",
+      "source": "https://github.com/yjh051108/dsh-super-injector/releases/tag/v0.3.5",
+      "decision": "retain-stable",
+      "reason": "Main head has later experimental recursive ESM hot-reload changes, but no new tagged release; preserve reviewed stable distribution and product adaptations."
+    }
+  },
+  "mineru": {
+    "source": "https://mineru.net/apiManage/docs",
+    "decision": "retain-current-official-api-contract",
+    "precision": {
+      "create": "/api/v4/file-urls/batch",
+      "results": "/api/v4/extract-results/batch/{batchId}",
+      "model": "vlm",
+      "maxBytes": 209715200,
+      "maxPages": 200
+    },
+    "agent": {
+      "create": "/api/v1/agent/parse/file",
+      "results": "/api/v1/agent/parse/{taskId}",
+      "maxBytes": 10485760,
+      "maxPages": 20
+    },
+    "validation": "Official docs rechecked; existing endpoints and model match. No API request or user file uploaded."
+  },
+  "bim": {
+    "decision": "retain-reviewed-native-closure",
+    "bundledIfcOpenShell": "0.8.5",
+    "embeddedCPython": "3.13.7",
+    "reason": "Latest IfcOpenShell0.9.0.post1 ships py313 Windows wheels. New release requires new matched Python/native dependency and corresponding-source receipts across supported platforms. Existing shipped source/wheel/geometry closure remains authoritative; latest availability is not runtime acceptance.",
+    "available": [
+      {
+        "name": "ifcopenshell",
+        "latestAvailable": "0.9.0.post1",
+        "source": "https://pypi.org/pypi/ifcopenshell/json"
+      },
+      {
+        "name": "numpy",
+        "latestAvailable": "2.5.4",
+        "source": "https://pypi.org/pypi/numpy/json"
+      },
+      {
+        "name": "shapely",
+        "latestAvailable": "2.2.0",
+        "source": "https://pypi.org/pypi/shapely/json"
+      },
+      {
+        "name": "lark",
+        "latestAvailable": "1.3.1",
+        "source": "https://pypi.org/pypi/lark/json"
+      },
+      {
+        "name": "typing-extensions",
+        "latestAvailable": "4.16.0",
+        "source": "https://pypi.org/pypi/typing-extensions/json"
+      },
+      {
+        "name": "python-dateutil",
+        "latestAvailable": "3.0.0",
+        "source": "https://pypi.org/pypi/python-dateutil/json"
+      },
+      {
+        "name": "isodate",
+        "latestAvailable": "0.7.2",
+        "source": "https://pypi.org/pypi/isodate/json"
+      }
+    ],
+    "publicPins": {
+      "schema": "agent-pi-dsh/bim-public-runtime/v1",
+      "runtimeReceiptSha256": "f6f9c81c4039ae6dd728d66494bf061e934b94d09f2bc27d86d66b36a16a5e46",
+      "sourceArchive": {
+        "name": "Agent-Pi-DSH-3.8.0-BIM-corresponding-source.tar.gz",
+        "bytes": 920568526,
+        "sha256": "b57fbcab1b7d3ab663e7347a6b896b071f1bd8830c890dbf57866a3ada10e9db"
+      }
+    }
+  },
+  "cadIntegration": {
+    "repair": "Registered source workspace, matching existing source session, scoped preview stack and read-only drawing without a source session; backend path boundary unchanged",
+    "layout": "CAD conversion status stays above the viewer without covering its title or controls",
+    "decoder": "0.7.10 + bit-cursor-fix.1",
+    "unmodifiedBinaryAndSourcePins": [
+      "scripts/cad-clean-pins.json",
+      "scripts/cad-host-clean-pins.json",
+      "scripts/cad-browser-decoder-release.json"
+    ],
+    "beforeRepair": "Actual packaged 3.8.6 reproduced wrong cwd, path is outside the workspace and no CAD iframe",
+    "specificUserDwg": "No failing user file supplied; standard 2000/2004/2010/2018 fixtures and integration paths tested"
+  },
+  "developmentValidation": {
+    "officialBuildGates": {
+      "passed": 10,
+      "failed": 0,
+      "skipped": 0
+    },
+    "sourceFiles": 15100,
+    "artifacts": 7691,
+    "officialBuildReceiptSha256": "938d40af06a0617de0e312c872e7c6c4e92b031ebe4fc8904c2057ce597e802c",
+    "upstreamIsolatedRegression": {
+      "passed": 282,
+      "failed": 0
+    },
+    "mainlineTemplateOfficeSafetyWorkspaceRegression": {
+      "passed": 70,
+      "failed": 0
+    },
+    "officePublicToolRoundtrip": "Actual Office 0.3.9 public pipeline, isolated worktree, import/export DOCX and PDF, 8 operations; actual DOCX template validation passed; PDF one-page visually checked and has no searchable text layer",
+    "components": {
+      "officeMaterializerAndPeerTests": {
+        "passed": 29,
+        "failed": 0
+      },
+      "marketOfficePublicTests": {
+        "passed": 40,
+        "failed": 0
+      },
+      "officeNative": "Fresh locked npm ci in isolatedfixture succeeded; three actual native modules loaded underNode24.22.2",
+      "canvasNative": "Actual110-bytePNG created underNode24.22.2; no model call",
+      "codexCli": "codex-cli0.166.0 --version passed; no provider/model call",
+      "unperformed": [
+        "Full desktop packaged application after finalDSH rebuild",
+        "Cross-platform native runtime and installer verification",
+        "Physical installations across OS versions"
+      ],
+      "marketManagedMutationRegression": {
+        "passed": 1,
+        "failed": 0,
+        "actualRequests": 24,
+        "packageCommands": 0,
+        "profileBytesUnchanged": true
+      }
+    },
+    "providerRequests": 0,
+    "originalProjectDataTouched": false,
+    "installer": "Final installer payload and native checks recorded separately in the installer build receipt and final acceptance artifacts; source checks alone are not installation acceptance",
+    "unperformed": [
+      "Physical customer installation",
+      "Cross-platform 3.8.7 native installers",
+      "User-specific failing DWG"
+    ]
+  }
+}

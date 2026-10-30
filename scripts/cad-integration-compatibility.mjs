@@ -235,12 +235,86 @@ const reviewed385HostExtensions = [
   },
 }))
 
+// 3.8.7 keeps the exact decoder and corresponding source while repairing registered
+// workspace/session routing and CAD status layout. Bind each independent edition.
+const reviewed387HostExtensions = [
+  {
+    "review": "3.8.7-mainline-scoped-cad-preview",
+    "shared": {
+      "package.json": [
+        "c81d6358654bd40d0f348c08f4f75d3489e7d59dbe70ddd2bbdc7212bbf8f850",
+        "17e3f5c1a6588626a7253660b9bf2ee9305b0500a5389d291233548828e834ab"
+      ],
+      "THIRD_PARTY_NOTICES.md": [
+        "13b82540786197ebb805a8b1088c41c856b8e251bfefd2ac1693002fe849f460",
+        "183b533c529ea150aa06ca54f16776cb0996e7b8503baa27cb6fa6cd5edda019"
+      ],
+      "bundles/tender-host/src/http.ts": [
+        "e93ed84a6d37dacd33f965828c59d466d80590f0e307a36783ff367b2ba77c80",
+        "fb351d229b7c6c53196b50d60f2420299782e898cd1c768b01425bf659a3e776"
+      ],
+      "bundles/tender-web/src/client/file-preview-overlay.js": [
+        "49ed4551ed5c04265b0b316acd565ab42dacc9fd325f2cba5da068c136d7439a",
+        "b9a291ab36480bceb1c6af8eb5359f08eec958942b64276308d2398b4bf5df37"
+      ],
+      "bundles/tender-web/src/client/styles.js": [
+        "c1784d427a0c8ae2df46ccc6c6fb4504dcabcc0668d56a5a32d13af775defd19",
+        "c04a3d3fef48e325276f7bfc5365f90cbcadbf76b4f699be496d78ca502a060e"
+      ]
+    },
+    "files": {
+      "bundles/tender-host/package.json": "ef92e978b958492188183f370c2c4d26fc5b352a6f970db49f1c7b0007be0d5b",
+      "bundles/tender-host/package-lock.json": "771a52f4a8e3021494b0f7e0dde7e61b0d2d306b740c82a9f4864811ee0332f7",
+      ".gitattributes": "b103c3430317242514fa912f4fe2f6576c9376fd3c3eecdc188db6dbf953c98a",
+      "bundles/tender-web/src/client/cad-preview-context.js": "2c6bca0ce32f0187f54ca4caa815f5612c85c00abf5ad9bb11feda22629cb33b",
+      "bundles/tender-web/src/client/index.js": "ad549888c2432fd152547926b24623667f6ebd0396cdde63f1bbe3fd87363132"
+    }
+  },
+  {
+    "review": "3.8.7-tender-scoped-cad-preview",
+    "shared": {
+      "package.json": [
+        "c81d6358654bd40d0f348c08f4f75d3489e7d59dbe70ddd2bbdc7212bbf8f850",
+        "cf3311284a96fde989a1ea1ae53a4278e627013553925df8fa0c0d5fe3030acc"
+      ],
+      "THIRD_PARTY_NOTICES.md": [
+        "13b82540786197ebb805a8b1088c41c856b8e251bfefd2ac1693002fe849f460",
+        "f79ac56cef76aa7bb1ab22d5e1ba84ee9a012974bd09d0d0420fd7acaa4eb651"
+      ],
+      "bundles/tender-host/src/http.ts": [
+        "e93ed84a6d37dacd33f965828c59d466d80590f0e307a36783ff367b2ba77c80",
+        "e88c4dc302e4d2d81d934a301e529badfd9dcc9c6e4019e13a9c28012472833e"
+      ],
+      "bundles/tender-web/src/client/file-preview-overlay.js": [
+        "49ed4551ed5c04265b0b316acd565ab42dacc9fd325f2cba5da068c136d7439a",
+        "b9a291ab36480bceb1c6af8eb5359f08eec958942b64276308d2398b4bf5df37"
+      ],
+      "bundles/tender-web/src/client/styles.js": [
+        "c1784d427a0c8ae2df46ccc6c6fb4504dcabcc0668d56a5a32d13af775defd19",
+        "c04a3d3fef48e325276f7bfc5365f90cbcadbf76b4f699be496d78ca502a060e"
+      ]
+    },
+    "files": {
+      "bundles/tender-host/package.json": "ef92e978b958492188183f370c2c4d26fc5b352a6f970db49f1c7b0007be0d5b",
+      "bundles/tender-host/package-lock.json": "771a52f4a8e3021494b0f7e0dde7e61b0d2d306b740c82a9f4864811ee0332f7",
+      ".gitattributes": "a2382170b04455554806619f08d0488665cfcb5aa7435909cf4f8fa7c84a01b2",
+      "bundles/tender-web/src/client/cad-preview-context.js": "2c6bca0ce32f0187f54ca4caa815f5612c85c00abf5ad9bb11feda22629cb33b",
+      "bundles/tender-web/src/client/index.js": "7df13a7a793f171a65b343c16f25e5bb5c69872c1e7cd97cea8238d397d459b8"
+    }
+  }
+].map((review, index) => ({
+  ...review,
+  shared: { ...reviewed385HostExtensions[index].shared, ...review.shared },
+  files: { ...reviewed385HostExtensions[index].files, ...review.files },
+}))
+
 const diskIndexPaths = ['bundles/engineering-cad/src/dxf-disk-source.ts', 'bundles/engineering-cad/src/cad-disk-index.ts']
 const patchedDecoderPaths = ['bundles/tender-host/src/cad-dwg-model-quality.mjs', 'bundles/engineering-cad/src/cad-embedded.ts', 'bundles/tender-host/lib/cad-decoder', 'scripts/cad-host-clean-release.mjs', 'scripts/build-cad-host-clean.sh', 'scripts/cad-host-bit-position-overflow.patch', 'scripts/cad-host-bit-position.test.c', 'scripts/cad-host-clean-pins.json']
 const hostExtensionPaths = [...new Set([
   ...Object.keys(reviewed381HostExtension.files), ...Object.keys(reviewed382HostExtension.files),
   ...Object.keys(reviewed382DiskHostExtension.files), ...Object.keys(reviewed382PatchedHostExtension.files),
   ...Object.keys(reviewed382ReleaseHostExtension.files), ...Object.keys(reviewed382BrowserHostExtension.files),
+  ...reviewed387HostExtensions.flatMap(extension => Object.keys(extension.files)),
 ])]
 
 function reviewedHash(path, text) {
@@ -257,7 +331,7 @@ function reviewedHostExtensionForTarget(root, target) {
   if (git(root, ['ls-tree', target, '--', 'scripts/cad-browser-decoder-release.mjs', 'scripts/cad-browser-decoder-release.json']).trim()) {
     const path = 'bundles/tender-host/package.json'
     const hostHash = reviewedHash(path, git(root, ['show', `${target}:${path}`], null))
-    const upgraded = reviewed385HostExtensions.find(extension => hostHash === extension.files[path]
+    const upgraded = [...reviewed385HostExtensions, ...reviewed387HostExtensions].find(extension => hostHash === extension.files[path]
       && reviewedHash('package.json', git(root, ['show', `${target}:package.json`], null)) === extension.shared['package.json'][1]
       && reviewedHash('bundles/tender-host/src/http.ts', git(root, ['show', `${target}:bundles/tender-host/src/http.ts`], null)) === extension.shared['bundles/tender-host/src/http.ts'][1])
     if (upgraded) return upgraded
@@ -278,7 +352,7 @@ function reviewedHostExtensionForTarget(root, target) {
 
 function verifyReviewedHostExtension(root, sourceCommit, target) {
   const extension = reviewedHostExtensionForTarget(root, target)
-  if ([reviewed382PatchedHostExtension, reviewed382ReleaseHostExtension, reviewed382BrowserHostExtension, reviewed383HostExtension, ...reviewed385HostExtensions].includes(extension)) {
+  if ([reviewed382PatchedHostExtension, reviewed382ReleaseHostExtension, reviewed382BrowserHostExtension, reviewed383HostExtension, ...reviewed385HostExtensions, ...reviewed387HostExtensions].includes(extension)) {
     const runtime = git(root, ['ls-tree', '-r', '--name-only', target, '--', 'bundles/tender-host/lib/cad-decoder']).trim().split('\n')
     for (const path of runtime) if (!extension.files[path]) fail(`reviewed CAD host extension differs: ${path}`)
   }

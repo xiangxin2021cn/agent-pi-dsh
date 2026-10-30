@@ -3,13 +3,17 @@
  * the source of truth — git HEAD for github installs, the npm latest
  * dist-tag for registry installs — with a TTL cache.
  */
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createHash } from 'node:crypto';
+import { JSON_SCHEMA, load } from 'js-yaml';
 import { DIST_TAG } from "./channels.js";
 import { resolveHeadCommit } from "./accelerate.js";
+import { inProbe } from "./probe-context.js";
 import { marketFetch } from "./net.js";
 import { activeRegion, githubRoutesFor, rememberGithubRoute, throughProxy } from "./regions.js";
-import { readMinimumReleaseAgeMs } from "./install.js";
+import { isNumericReleaseAgeWindow, readMinimumReleaseAgeMs } from "./install.js";
+import { isStableReleaseVersion, selectMatureUpdate } from "./release-candidates.js";
 import { hasDshManifest, profileDir, readGitResolutionCommit, readInstalled, readInstalledVersion, readLockCommits, readProfileBundles } from "./profile.js";
 import { userPatchPackageReferences } from "./patch.js";
 import { catalogRepoKey, gitCommitOfTarget, gitRefOfTarget, gitUploadPackUrl, hasSemverSelector, hostedRepoKey, githubCommitOfTarget, githubRefOfTarget, isGenerationLink, isGitHostedSpec, lookupRepoFromUrl, parseGitHubRemote, repoOfTarget } from "./sources.js";
@@ -169,6 +173,11 @@ export function isUpgrade(installed, latest) {
 }
 /** Drop the cached listing (after a successful install/update/uninstall). */
 export function invalidateUpdates() {
+    // A drain probe runs the same no-op/stale branches, but nothing changed on
+    // disk yet; dropping the listing there would make the UI re-check releases
+    // because a request merely entered the queue.
+    if (inProbe())
+        return;
     updatesCache = null;
 }
 /**
@@ -200,6 +209,168 @@ export function setUpdateRegistry(base) {
 /** A registry URL for `path`, on whichever registry is currently in force. */
 function npmUrl(path) {
     return `${registryBase}/${path}`;
+}
+/** Read observable profile policy; do not infer effective external settings. */
+function readReleaseAgeExclusions(dir, name) {
+    const unknown = { kind: 'unknown' };
+    // The Desktop manager owns the pnpm process/environment. An effective setting
+    // outside the profile cannot be inferred from workspace files.
+    const nativeTransitiveSetting = (key, value) => {
+        const normalized = key.replace(/[-_]/g, '').toLowerCase();
+        return (normalized === 'minimumreleaseagestrict' || normalized === 'minimumreleaseageignoremissingtime')
+            && /^(?:true|false)$/i.test(value?.trim() ?? '');
+    };
+    for (const [key, value] of Object.entries(process.env)) {
+        const setting = /(?:^|_)(minimum[-_]?release[-_]?age[\w-]*)/i.exec(key);
+        if (setting === null)
+            continue;
+        // A numeric window is knowable: install.ts reads the same variable as the
+        // wait this plugin enforces, and DSH Desktop sets it to `0` for every
+        // pnpm call. Treating it as external-and-unverifiable held every update
+        // forever (#1053). Other spellings still fail closed.
+        if (isNumericReleaseAgeWindow(setting[1], value) || nativeTransitiveSetting(setting[1], value))
+            continue;
+        return unknown;
+    }
+    let source;
+    try {
+        source = readFileSync(join(dir, 'pnpm-workspace.yaml'), 'utf8');
+    }
+    catch (error) {
+        if (error.code === 'ENOENT')
+            source = '';
+        else
+            return unknown;
+    }
+    let npmrc;
+    try {
+        npmrc = readFileSync(join(dir, '.npmrc'), 'utf8');
+    }
+    catch (error) {
+        if (error.code === 'ENOENT')
+            npmrc = '';
+        else
+            return unknown;
+    }
+    // A plain numeric window is a spelling this plugin can follow: install.ts
+    // reads exactly this key (`minimum-release-age`, same spelling) from the same
+    // file (readReleaseAgeMinutesFromNpmrc), so the wait it implies is the wait
+    // this plugin already enforces. Calling it unverifiable instead held every
+    // update forever (#1048 — `.npmrc minimum-release-age=0`). The engine split
+    // behind that choice: pnpm 10.20.0 honours the key here and in the
+    // environment, 11.7.0 and 12.16.1 read the policy from pnpm-workspace.yaml
+    // only. Following the file value is therefore exact on the old engine and at
+    // worst an over-hold on the new ones.
+    const windowSetting = (key, value) => (key === 'minimum-release-age' && /^\d+$/.test(value?.trim() ?? ''))
+        || nativeTransitiveSetting(key, value);
+    // Any other spelling may have independent precedence; never guess which value
+    // the official Desktop's pnpm will actually use.
+    for (const setting of npmrc.matchAll(/^\s*(minimum[-_]?release[-_]?age[^\s=]*)\s*=([^\r\n]*)/gmi)) {
+        if (!windowSetting(setting[1], setting[2]))
+            return unknown;
+    }
+    let doc;
+    try {
+        doc = load(source, { schema: JSON_SCHEMA });
+    }
+    catch {
+        return unknown;
+    }
+    if (doc === null || doc === undefined)
+        doc = {};
+    if (typeof doc !== 'object' || Array.isArray(doc))
+        return unknown;
+    const policy = doc;
+    if (policy.minimumReleaseAgeStrict !== undefined && typeof policy.minimumReleaseAgeStrict !== 'boolean')
+        return unknown;
+    if (policy.minimumReleaseAgeIgnoreMissingTime !== undefined && typeof policy.minimumReleaseAgeIgnoreMissingTime !== 'boolean')
+        return unknown;
+    // #991 approved: verify the selected top-level timestamp ourselves. Native
+    // pnpm owns transitive resolution, missing-time handling and persisted
+    // exemptions, including under its implicit/default non-strict policy.
+    const entries = policy.minimumReleaseAgeExclude;
+    if (entries === undefined)
+        return { kind: 'supported', exclusions: { exemptPackage: false, exemptVersions: new Set() } };
+    if (!Array.isArray(entries) || !entries.every(value => typeof value === 'string'))
+        return unknown;
+    // pnpm 11 evaluates rules in order and stops at the FIRST name match, even
+    // when its version union does not contain the version being installed.
+    let matched = false;
+    let selected = { exemptPackage: false, exemptVersions: new Set() };
+    for (const entry of entries) {
+        const at = entry.indexOf('@', entry.startsWith('@') ? 1 : 0);
+        const packageName = at < 0 ? entry : entry.slice(0, at);
+        const scopeWildcard = /^@[A-Za-z0-9._~-]+\/\*$/.test(packageName);
+        if (!scopeWildcard && !/^(?:@[A-Za-z0-9._~-]+\/)?[A-Za-z0-9._~-]+$/.test(packageName))
+            return unknown;
+        if (scopeWildcard && at >= 0)
+            return unknown; // pnpm forbids wildcard names with version unions.
+        const applies = scopeWildcard ? name.startsWith(packageName.slice(0, -1)) : packageName === name;
+        if (at < 0) {
+            if (applies && !matched) {
+                selected = { exemptPackage: true, exemptVersions: new Set() };
+                matched = true;
+            }
+            continue;
+        }
+        const selectors = entry.slice(at + 1).split(/[ \t]*\|\|[ \t]*/);
+        if (selectors.some(version => !/^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.test(version)))
+            return unknown;
+        if (applies && !matched) {
+            selected = { exemptPackage: false, exemptVersions: new Set(selectors) };
+            matched = true;
+        }
+    }
+    return { kind: 'supported', exclusions: selected };
+}
+/** Shared fresh registry/policy verification for listing and locked execution. */
+export async function resolveDesktopMatureUpdate(name, installed, profile, activeProfileDir, endpointLatest, maxVersion) {
+    const now = Date.now();
+    const empty = (reason) => ({ candidate: null, latest: endpointLatest, reason, nextMaturityAt: null });
+    const windowMs = readMinimumReleaseAgeMs(profile, activeProfileDir);
+    const policy = readReleaseAgeExclusions(activeProfileDir, name);
+    const uncertain = (reason) => ({
+        ...empty(reason),
+        ...(isUpgrade(installed, endpointLatest) ? { heldUpdate: {
+                latest: endpointLatest, until: new Date(now + UNKNOWN_PUBLISH_HOLD_MS).toISOString(), estimated: true,
+            } } : {}),
+    });
+    // A missing /latest answer provides no independent registry identity check.
+    if (endpointLatest === null)
+        return uncertain('latest-unavailable');
+    if (windowMs === null || policy.kind === 'unknown')
+        return uncertain('policy-unknown');
+    let selection = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+            const suffix = attempt === 0 ? '' : `?t=${String(Date.now())}`;
+            const packument = (await fetchJson(npmUrl(`${encodeURIComponent(name)}${suffix}`)));
+            selection = selectMatureUpdate(packument, installed, now, {
+                minimumReleaseAgeMs: windowMs,
+                latestFromEndpoint: endpointLatest,
+                ...(maxVersion === undefined ? {} : { maxVersion }),
+                ...policy.exclusions,
+            });
+            if (selection.reason !== 'inconsistent' && !(selection.held !== null && selection.latestMaturityAt === null))
+                break;
+        }
+        catch { /* Retry once against a potentially stale mirror. */ }
+    }
+    if (selection === null)
+        return uncertain('registry-unavailable');
+    if (selection.reason === 'inconsistent')
+        return uncertain('inconsistent');
+    const held = selection.held;
+    const until = selection.latestMaturityAt;
+    return {
+        candidate: selection.candidate, latest: selection.latest, reason: selection.reason,
+        nextMaturityAt: selection.nextMaturityAt,
+        ...(held === null ? {} : { heldUpdate: {
+                latest: held,
+                until: new Date(until !== null && until > now ? until : now + UNKNOWN_PUBLISH_HOLD_MS).toISOString(),
+                ...(until === null || until <= now ? { estimated: true } : {}),
+            } }),
+    };
 }
 async function fetchJson(url) {
     // Through the proxy when one is configured: Node's global fetch ignores
@@ -505,43 +676,52 @@ async function releaseAgeHold(name, latest, profile, activeProfileDir) {
     const until = age.at + windowMs;
     return until > Date.now() ? { until: new Date(until).toISOString(), estimated: false } : 'past';
 }
-function refreshExpiredHolds(data) {
-    let changed = false;
-    const out = {};
-    for (const [name, status] of Object.entries(data)) {
-        if (status.heldUpdate === undefined || Date.parse(status.heldUpdate.until) > Date.now()) {
-            out[name] = status;
-            continue;
+/** A hold expiration invalidates evidence; it cannot itself authorize an install. */
+function nextHoldRecheck(data) {
+    return Math.min(...Object.values(data).flatMap(status => status.heldUpdate === undefined ? [] : [Date.parse(status.heldUpdate.until)]));
+}
+function profilePolicyFingerprint(dir) {
+    const hash = createHash('sha256');
+    for (const filename of ['pnpm-workspace.yaml', '.npmrc', 'package.json']) {
+        hash.update(filename);
+        try {
+            hash.update(readFileSync(join(dir, filename)));
         }
-        const { heldUpdate: _held, ...rest } = status;
-        out[name] = { ...rest, updateAvailable: true };
-        changed = true;
+        catch {
+            hash.update('unavailable');
+        }
     }
-    return changed ? out : data;
+    // Otherwise an environment override appearing between refreshes could reuse
+    // a formerly eligible target from the 30-minute update cache.
+    for (const [key, value] of Object.entries(process.env).filter(([key]) => /(?:^|_)minimum[-_]?release[-_]?age/i.test(key)).sort(([a], [b]) => a.localeCompare(b))) {
+        hash.update(key);
+        hash.update(value ?? '');
+    }
+    return hash.digest('hex');
 }
 /** Per-plugin update checks; a failed check reports no update rather than failing the listing. */
-export async function checkUpdates(profile, force = false, explicitDir, 
+export async function checkUpdates(profile, force = false, explicitDir,
 /**
  * Packages that follow a release channel instead of plain `latest`. Only
  * ever the market itself: opting into early builds is volunteering to try
  * THIS plugin early, not a licence to pull every other author's
  * unreleased work.
  */
-channelFor = new Map(), 
+channelFor = new Map(),
 /**
  * Curated npm sources for the installs that carry no registry spec of
  * their own: `file:` packages matched to the market catalog (#429) and
  * the generations the desktop host links in (#497). Any other `link:` is
  * a development workspace and is never opted into online updates.
  */
-onlineSourceFor = new Map(), 
+onlineSourceFor = new Map(),
 /**
  * Registry names an archive-URL install may be checked against, keyed by
  * the GitHub repo (`owner/repo`) the archive came from (#768). Without an
  * entry that owns both the repo and the name, the npm fallback would
  * compare the install with whatever package merely shares its name.
  */
-catalogNpmByRepo = new Map(), 
+catalogNpmByRepo = new Map(),
 /**
  * Hold back releases that this profile's `minimumReleaseAge` will refuse
  * (#945). Only true where the install path has no bypass: the official
@@ -555,13 +735,14 @@ options = {}) {
     // answer immediately, and a cache keyed on the profile alone would serve
     // the stable verdict for the rest of the TTL — reading as "the setting did
     // nothing".
-    const cacheKey = `${activeProfileDir}\u0000${options.holdYoungReleases === true ? 'hold' : 'any'}\u0000${[...channelFor].map(([n, c]) => `${n}:${c}`).sort().join(',')}\u0000${[...onlineSourceFor].map(([n, s]) => `${n}:${s}`).sort().join(',')}\u0000${[...catalogNpmByRepo].map(([n, s]) => `${n}:${s}`).sort().join(',')}`;
-    if (!force && updatesCache?.key === cacheKey && Date.now() - updatesCache.at < UPDATES_TTL_MS) {
-        return refreshExpiredHolds(updatesCache.data);
+    const cacheKey = `${activeProfileDir}\u0000${options.holdYoungReleases === true ? 'hold' : 'any'}\u0000${[...channelFor].map(([n, c]) => `${n}:${c}`).sort().join(',')}\u0000${[...onlineSourceFor].map(([n, s]) => `${n}:${s}`).sort().join(',')}\u0000${[...catalogNpmByRepo].map(([n, s]) => `${n}:${s}`).sort().join(',')}\u0000${options.holdYoungReleases === true ? profilePolicyFingerprint(activeProfileDir) : ''}`;
+    if (!force && updatesCache?.key === cacheKey && Date.now() < updatesCache.recheckAt) {
+        return updatesCache.data;
     }
     const installed = readInstalled(profile, activeProfileDir);
     const lockCommits = readLockCommits(profile, activeProfileDir);
     const result = {};
+    let nextCandidateMaturityAt = Infinity;
     await Promise.all(Object.entries(installed).map(async ([name, spec]) => {
         const version = readInstalledVersion(profile, name, activeProfileDir);
         const normalizedSpec = spec.toLowerCase();
@@ -704,14 +885,24 @@ options = {}) {
                 const mayFollowATag = !upgrade
                     && (version?.includes('-') === true || (stable !== null && version !== null && isUpgrade(stable, version) === false && stable !== version));
                 const newerPrerelease = mayFollowATag ? await newerPrereleaseFor(name, version) : null;
-                const hold = upgrade && options.holdYoungReleases === true
-                    ? await releaseAgeHold(name, latest, profile, activeProfileDir)
+                const desktopStable = options.holdYoungReleases === true && channel === undefined
+                    && isStableReleaseVersion(version)
+                    && !/^https?:/i.test(spec) && !spec.includes(':') && !spec.includes('/');
+                const mature = desktopStable && upgrade
+                    ? await resolveDesktopMatureUpdate(name, version, profile, activeProfileDir, stable)
                     : null;
-                const held = hold !== null && hold !== 'past';
+                if (mature?.nextMaturityAt !== null && mature?.nextMaturityAt !== undefined) {
+                    nextCandidateMaturityAt = Math.min(nextCandidateMaturityAt, mature.nextMaturityAt);
+                }
+                const hold = mature === null && upgrade && options.holdYoungReleases === true
+                    ? await releaseAgeHold(name, latest, profile, activeProfileDir) : null;
+                const held = mature?.heldUpdate !== undefined || (hold !== null && hold !== 'past');
                 result[name] = {
                     kind: 'npm', version, current: version, latest,
-                    updateAvailable: upgrade && !held,
-                    ...(held ? { heldUpdate: { latest: latest, until: hold.until, ...(hold.estimated ? { estimated: true } : {}) } } : {}),
+                    updateAvailable: mature === null ? upgrade && !held : mature.candidate !== null,
+                    ...(mature?.candidate !== null && mature?.candidate !== undefined ? { eligibleVersion: mature.candidate } : {}),
+                    ...(mature?.heldUpdate !== undefined ? { heldUpdate: mature.heldUpdate }
+                        : hold !== null && hold !== 'past' ? { heldUpdate: { latest: latest, until: hold.until, ...(hold.estimated ? { estimated: true } : {}) } } : {}),
                     ...(newerPrerelease === null ? {} : { newerPrerelease }),
                     ...(sideways ? { channelSwitch: latest } : {}),
                 };
@@ -730,6 +921,7 @@ options = {}) {
             continue;
         result[name] = { ...status, updateAvailable: false, notAPlugin: true };
     }
-    updatesCache = { key: cacheKey, at: Date.now(), data: result };
+    const now = Date.now();
+    updatesCache = { key: cacheKey, at: now, recheckAt: Math.min(now + UPDATES_TTL_MS, nextHoldRecheck(result), nextCandidateMaturityAt), data: result };
     return result;
 }

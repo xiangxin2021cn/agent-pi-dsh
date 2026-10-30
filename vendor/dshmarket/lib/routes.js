@@ -12,6 +12,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync 
 import { dirname, join } from 'node:path';
 import { Readable } from 'node:stream';
 import { load as loadYaml } from 'js-yaml';
+import { packageFileFromRegistry } from "./catalog-npm.js";
 import { forgetCatalog, loadRegistry, pluginCategories } from "./registry.js";
 import { settingsNamespaceState } from "./settings.js";
 import { buildEnvFromUnknown, cleanHotDir, hotMount, hotUnmount, listHotMounts, MAX_BLOCKED, MAX_BLOCKED_NAME, MAX_FAVORITES, MAX_NOTE, MAX_UPDATE_EXEMPT, mountClientOnlyDeps, purgeMarketState, readMarketState, writeMarketState, } from "./hot.js";
@@ -24,16 +25,19 @@ import { diagnosePackageManifests } from "./diagnostics.js";
 import { BOOT_ID, cancelActive, probePnpm, progress, provisionPnpm, runDshPlugin, setBuildEnvSource, TARGET_RE, } from "./dsh-cli.js";
 import { packageOfEntryName } from "./entry-identity.js";
 import { PendingRowJournal, repairOrphanedRows } from "./pending-rows.js";
-import { addProfileBundle, bundleOptOutRowIds, bundlePatchInsertedIds, bundlesDroppedFromProfile, declareProfileDependency, dropFromManifest, generationManagedNames, hasLoadableEntry, holdsNativeAddon, INBOX_BUNDLES, isDshProfileName, profileDir, readDependencyOwners, readGitResolutionCommit, readInstalled, readInstalledManifest, readInstalledPackageName, readInstalledRepoEvidence, readInstalledVersion, readLockCommits, readProfileBundles, readProfileManifestSnapshot, removeProfileBundle, restoreProfileManifest, setAllowBuilds } from "./profile.js";
+import { addProfileBundle, bundleExpressionRowIds, bundleOptOutRowIds, bundlePatchInsertedIds, bundlesDroppedFromProfile, declareProfileDependency, dropFromManifest, generationManagedNames, hasLoadableEntry, holdsNativeAddon, INBOX_BUNDLES, isDshProfileName, profileDir, readDependencyOwners, readGitResolutionCommit, readInstalled, readInstalledManifest, readInstalledPackageName, readInstalledRepoEvidence, readInstalledVersion, readLockCommits, readProfileBundles, readProfileManifestSnapshot, removeProfileBundle, parsePatchRows, restoreProfileManifest, setAllowBuilds, shippedInsertedRowIds } from "./profile.js";
 import { assessProfile, classifyPeer, introducedDuplicateNames, introducedRisks } from "./compatibility.js";
 import { runningAgentIds } from "./agents.js";
+import { DrainCoordinator, DrainNoop, DrainRefusal } from "./drain.js";
+import { DrainJournal } from "./drain-journal.js";
+import { inProbe, runInProbe } from "./probe-context.js";
 import { analyzeProfile, corePackageNames } from "./check.js";
 import { applyBundleOrder, mergeOrder, readBundleRules, readBundleStack, validateOrder } from "./order.js";
 import { applyPreset, deletePreset, listPresets, previewPreset, savePreset } from "./presets.js";
 import { createProfileSnapshot, DEFAULT_MAX_SNAPSHOTS, deleteSnapshot, listSnapshots, restoreSnapshot } from "./snapshot.js";
 import { readHostRecoveryView, restoreHostRecoveryBackup } from "./host-recovery.js";
 import { trialValidate } from "./trial.js";
-import { catalogRepoKey, findCatalogEntryForLocal, findInstalledAlias, gitCommitOfTarget, githubCommitOfTarget, githubTargetAtCommit, gitAllowBuildsKey, gitRefOfTarget, gitTargetAtCommit, gitUpdateTarget, hostedRepoKey, lookupRepoFromUrl, pinnedAllowBuildsKeys, installTargetFor, isGenerationLink, isLocalSpec, NPM_NAME_RE, repoOfTarget, restoreBlockedByWorkspace, restoreTargetForLocal, sourceFallbackFor, workspaceProtocolDeps } from "./sources.js";
+import { catalogRepoKey, findCatalogEntryForLocal, findInstalledAlias, gitCommitOfTarget, githubCommitOfTarget, githubTargetAtCommit, gitAllowBuildsKey, gitRefOfTarget, gitTargetAtCommit, gitUpdateTarget, hostedRepoKey, lookupRepoFromUrl, pinnedAllowBuildsKeys, installTargetFor, isGenerationLink, isLocalSpec, NPM_NAME_RE, parseSourceUrl, repoOfTarget, restoreBlockedByWorkspace, restoreTargetForLocal, sourceFallbackFor, workspaceProtocolDeps } from "./sources.js";
 import { failureDetail, groupConflictsByOwner, installApplied, isHostPortCollision, isStaleUpdate, parseIgnoredBuildEntries, parseIgnoredBuilds, parsePrepareKey, parsePrepareNotAllowed, pnpmBlockedByOpenFiles, pnpmNeverStarted, pnpmRefusedYoungRelease, RELEASE_AGE_OVERRIDE, removeDanglingHostBridge, retargetCollections, updateApplied, validateAddedPlugins, withHoistRecovery } from "./install.js";
 import { classifyPnpmFailure } from "./pnpm-compat.js";
 import { asChannel, CHANNELS, DIST_TAG, resolveChannel } from "./channels.js";
@@ -41,7 +45,8 @@ import { asRegion, githubProxyManaged, normalizeGithubProxy, REGIONS, routesFor,
 import { resolveRegion } from "./region-probe.js";
 import { acceleratedTarget, resolveHeadCommit } from "./accelerate.js";
 import { updateNotesFor } from "./changelog.js";
-import { checkUpdates, isUpdatablePlugin, compareVersions, fetchNpmLatest, invalidateUpdates, resolveGitRemoteHead, isUpgrade, latestPublishedRecently, setUpdateRegistry, versionOnChannel } from "./updates.js";
+import { checkUpdates, isUpdatablePlugin, compareVersions, fetchNpmLatest, invalidateUpdates, resolveDesktopMatureUpdate, resolveGitRemoteHead, isUpgrade, latestPublishedRecently, setUpdateRegistry, versionOnChannel } from "./updates.js";
+import { isStableReleaseVersion } from "./release-candidates.js";
 import { createThemeManager } from "./themes.js";
 import { readJsonBody, refuseUnadmitted, sameOrigin, sendJson } from "./http.js";
 import { resolveDshHome } from "./home-paths.js";
@@ -51,7 +56,7 @@ import { carrierRowIds, disableRow, enableRow, findUserPatchPath, foreignRowIds,
 import { createProfileBackup, downloadWebdav, MAX_BACKUP_BYTES, mergeRestoreManifest, restoreProfileBackup, unportableDeps, uploadWebdav, WebdavUrlError, } from "./backup.js";
 import { createGist, fitsGistLimit, GistError, gistErrorCode, parseGistId, readGist, resolveGistTokenSource, updateGist, verifyGistToken, } from "./gist.js";
 import { MAX_UPDATE_OPERATIONS_V1, UpdateOperationStoreV1, UPDATE_API_V1_SCHEMA } from "./update-api-v1.js";
-import { findGitToNpmMigration } from "./source-migration.js";
+import { declaredPredecessors, findCatalogRename, findGitToNpmMigration, findNpmTargetEntry, isRegistryRangeSpec, sameLoaderRows } from "./source-migration.js";
 /**
  * Recognize the documented GitHub Release-download target shape. This does
  * not authorize a new URL: install trust remains catalog-bound in sources.ts,
@@ -406,6 +411,7 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
     const hostAnchorOption = config.dshInstallDir === undefined ? {} : { dshInstallDir: config.dshInstallDir };
     const persistentLogFile = join(activeProfileDir, '.dsh-market', 'log.ndjson');
     const discoveryManifests = new DiscoveryManifestIndex(join(activeProfileDir, '.dsh-market', 'discovery-compatibility-v1.json'));
+    const githubDiscoveryManifests = new DiscoveryManifestIndex(join(activeProfileDir, '.dsh-market', 'discovery-github-compatibility-v1.json'));
     configurePersistentLog(persistentLogFile);
     let agentGuardUnavailableLogged = false;
     /** Running-agent ids for the mutation gate; logs once when the host exposes no agents service. */
@@ -435,6 +441,48 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
     // re-applies the same choice on every boot (ported from dsh-plugin-hub).
     const userPatchPath = findUserPatchPath(host, activeProfileDir);
     const commands = commandRuntime ?? { runPlugin: runDshPlugin, probePnpm, provisionPnpm, cancelActive };
+    const drainCalls = new WeakMap();
+    const drainCallOf = (request) => drainCalls.get(request);
+    const drainPhaseOf = (request) => {
+        const call = drainCallOf(request);
+        return call?.role === 'execute' ? call.onPhase : undefined;
+    };
+    const agentFromEvent = (payload) => {
+        if (payload === null || typeof payload !== 'object')
+            return undefined;
+        return payload.agent;
+    };
+    const drainJournal = new DrainJournal(join(activeProfileDir, '.dsh-market', 'drain.ndjson'));
+    const drainCoordinator = new DrainCoordinator({
+        host: {
+            list: () => {
+                const service = agentsLookup?.();
+                if (service === undefined)
+                    return null;
+                try {
+                    const listed = service.list();
+                    return Array.isArray(listed) ? listed : null;
+                }
+                catch {
+                    return null;
+                }
+            },
+            onCreated: listener => host.on?.('agent/created', payload => {
+                const agent = agentFromEvent(payload);
+                if (agent !== undefined)
+                    listener(agent);
+            }) ?? null,
+            onDisposed: listener => host.on?.('agent/disposed', payload => {
+                const agent = agentFromEvent(payload);
+                if (agent !== undefined)
+                    listener(agent);
+            }) ?? null,
+        },
+        journal: drainJournal,
+        bootId: BOOT_ID,
+        log: (level, event, detail) => logEvent(level, event, detail),
+        abortMutation: () => commands.cancelActive(),
+    });
     /**
      * Whether this host runs pnpm itself and so takes the market's own options
      * (`--config.*`, `--force`, `--no-frozen-lockfile`).
@@ -468,6 +516,22 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
     const marketState = readMarketState(activeProfileDir);
     setCustomGithubProxy(marketState.githubProxy ?? null);
     const disabled = marketState.disabled;
+    /**
+     * The saved answer to "which doors into the market are open" (#1015).
+     *
+     * The HOST decides which doors exist; this only combines the user's
+     * preferences, because a request handler cannot see the browser's slots.
+     * `sidebarEntry` defaults off while the two page tabs default on, so
+     * "every door closed" is expressible — and has to be refused before it
+     * reaches disk. A market with no entry can only be recovered by editing
+     * state.json or removing the package, which the card must never cause.
+     */
+    const entryDoors = (state = marketState) => ({
+        settingsSection: state.settingsSection !== false,
+        pluginsTab: state.pluginsTab !== false,
+        sidebarEntry: state.sidebarEntry === true,
+    });
+    const closesEveryDoor = (doors) => !doors.settingsSection && !doors.pluginsTab && !doors.sidebarEntry;
     /**
      * Packages whose files were replaced while their host half was already
      * running, this process only.
@@ -579,6 +643,10 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
         // writer that saves `marketState` whole (#435, #728).
         marketState.updateExempt = fresh.updateExempt;
         marketState.githubProxy = fresh.githubProxy;
+        // A restore or an external writer can change these two too; a stale copy
+        // here would put the old answer back on the next whole-state save (#435).
+        marketState.settingsSection = fresh.settingsSection;
+        marketState.pluginsTab = fresh.pluginsTab;
         // Refreshed like the rest: a declaration this route dropped (#663) must
         // survive another writer's read-back, which is the whole point of this
         // list (#435).
@@ -669,7 +737,8 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
     // Self-healing guard: dsh's own patch overlay can re-update entries during
     // activation and wipe the runtime disabled flag — whenever a fiber comes
     // up for a plugin the user switched off, put it back down.
-    host.on?.('internal/plugin', (fiber) => {
+    host.on?.('internal/plugin', (payload) => {
+        const fiber = payload;
         const name = fiber.entry?.options?.name;
         if (name !== undefined && disabled.has(name) && !followOutsideEnable(name))
             void themes.setEntryDisabled(name, true);
@@ -682,6 +751,8 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
     // interleaved awaits, and a second mutating request answers 409
     // immediately instead of queueing (issue #125 review).
     let writing = false;
+    /** Routes currently running a drain probe; `/status.busy` covers them. */
+    let preflightActive = 0;
     let mutationBusy = false;
     /** The shared mutation chain: every mutating operation appends to it. */
     let mutationChain = Promise.resolve();
@@ -695,6 +766,46 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
         mutationChain = run.catch(() => undefined);
         return await run;
     }
+    /** Answer a drain gate that says the profile must not be touched. */
+    const sendDrainGate = (response, gate) => {
+        if (gate.ok)
+            return;
+        if (gate.reason === 'cancelled') {
+            // The user's cancel wins even when the executor had already returned a
+            // success; the client treats `cancelled` as a quiet reset.
+            sendJson(response, 200, { ok: false, cancelled: true });
+            return;
+        }
+        if (gate.reason === 'market-unloaded') {
+            sendJson(response, 503, {
+                ok: false,
+                failureCode: 'MARKET_UNLOADED',
+                error: '市场正在卸载，这次没有改任何文件。 / The market is unloading; nothing was changed.',
+            });
+            return;
+        }
+        sendJson(response, 409, {
+            ok: false,
+            failureCode: 'AGENT_BARRIER_LOST',
+            ...(gate.ids.length === 0 ? {} : { runningAgents: gate.ids }),
+            error: '有 Agent 在文件变更前恢复了活动，这次没有改任何文件。 / An Agent became active before the file change; nothing was changed.',
+        });
+    };
+    /**
+     * The executor's pre-command gate: called immediately before every
+     * `runPlugin` in the three package routes, including retry and fallback
+     * paths. A drain replay that cannot still hold every Agent answers here
+     * instead of starting pnpm.
+     */
+    const assertDrainMutation = (request, response) => {
+        if (drainCallOf(request)?.role !== 'execute')
+            return true;
+        const gate = drainCoordinator.assertCanMutate();
+        if (gate.ok)
+            return true;
+        sendDrainGate(response, gate);
+        return false;
+    };
     /**
      * Run a mutating operation under the shared mutation lock. `kind` selects
      * the UI busy flag (`install` = pnpm operation, `write` = direct profile
@@ -704,9 +815,28 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
      * busy flag instead of queueing (issue #125 review).
      * @returns the operation's value, or null when the lock was busy (409 sent).
      */
-    async function withMutationLock(response, kind, fn) {
-        if (mutationBusy) {
+    async function withMutationLock(response, kind, fn, request) {
+        const drainCall = request === undefined ? undefined : drainCallOf(request);
+        // A probe runs the ordinary validation without touching the mutation
+        // lane: it will not mutate, and the operator it is probing for has not
+        // been accepted yet. It still reports `/status.busy`: a registry or Git
+        // resolution can take seconds, and an idle-looking Host would let the
+        // client declare the install dead and send a second request.
+        if (drainCall?.role === 'probe') {
+            preflightActive += 1;
+            try {
+                return await fn();
+            }
+            finally {
+                preflightActive -= 1;
+            }
+        }
+        const drainReserved = drainCoordinator.hasActive() && drainCall?.role !== 'execute';
+        if (mutationBusy || drainReserved) {
             sendJson(response, 409, {
+                // The long-standing lock response stays byte-identical for ordinary
+                // contention; the drain reservation is the one callers can tell apart.
+                ...(drainReserved ? { failureCode: 'OPERATION_BUSY' } : {}),
                 error: kind === 'install' ? 'another install is already running' : 'another plugin operation is running',
             });
             return null;
@@ -717,6 +847,17 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
         else
             writing = true;
         try {
+            // FR-5: the lock is the serialization boundary, not the admission
+            // barrier. Re-enumerate once more while holding it, before the executor
+            // can start, so an Agent created without a delivered event is either
+            // claimed now or stops the operation with no file change.
+            if (drainCall?.role === 'execute') {
+                const gate = drainCoordinator.assertCanMutate();
+                if (!gate.ok) {
+                    sendDrainGate(response, gate);
+                    return null;
+                }
+            }
             const run = mutationChain.then(async () => fn());
             mutationChain = run.catch(() => undefined);
             return await run;
@@ -798,7 +939,13 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                 }
                 else {
                     const result = await hotMount(host, dir, name);
-                    ok = result.ok;
+                    // A package that can only come up on a start (config rows, a
+                    // carrier's disables) was never tried, so there is no crash to
+                    // refuse to persist (#575). Failing the enable here left the
+                    // durable layers half-written: the stack entry re-added, the rows
+                    // it owns still disabled, and both the stock UI and the plugin's
+                    // replacement off at the next boot (#1010).
+                    ok = result.ok || result.deferred === true;
                     reason = result.reason ?? undefined;
                     // Deliberately NOT clearing replacedWhileLive here (#685). This used
                     // to say "a mount that succeeded imported the module as it is on
@@ -811,6 +958,14 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                     // restart ends the process that holds it, and the flag with it.
                 }
             }
+        }
+        else if (carrierRowIds(dir, name).length > 0) {
+            // A carrier replaces something: its patch disables stock rows and its
+            // own rows stand in for them. Stopping its rows here, while the stock
+            // ones are still disabled, leaves a window with neither — the page
+            // throws and does not come back (#1010). The swap needs one
+            // composition, which only the layers below and a restart provide.
+            ok = true;
         }
         else {
             ok = await hotUnmount(name) || await themes.setEntryDisabled(name, true);
@@ -863,6 +1018,11 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
         // flip: a package whose rows are ALL opt-in rows still has to be
         // switchable.
         const optOutRows = new Set(bundleOptOutRowIds(join(activeProfileDir, 'node_modules', name)));
+        // Rows the bundle decides itself, by expression (`disabled: !!js …`),
+        // are a third shape next to opt-in rows: the market can neither read
+        // nor overrule the condition, so enabling the package must leave them
+        // exactly as the bundle ships them (#1043).
+        const expressionRows = new Set(bundleExpressionRowIds(join(activeProfileDir, 'node_modules', name)));
         const decided = patchRows.filter(rowId => !optOutRows.has(rowId));
         /** Rows that can carry a USER decision about this package — see above. */
         const userRows = decided.length > 0 ? decided : patchRows;
@@ -901,7 +1061,11 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
         const reBundle = enabled && !isCarrier && !readProfileBundles(activeProfileDir).includes(name);
         let stackChanged = false;
         let bundleSwitch = { ok: true, reason: null };
-        if (stackToggle) {
+        // A failed enable leaves the stack as it was, like the row layer below
+        // (#575). The entry used to go back in regardless, while the rows stayed
+        // disabled: a carrier then switched the stock rows off at the next boot
+        // and its own rows were still off, which no restart repairs (#1010).
+        if (stackToggle && (liveOk || !enabled)) {
             try {
                 stackChanged = enabled
                     ? addProfileBundle(activeProfileDir, name)
@@ -945,9 +1109,14 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
             // block by appending `disabled: false`, which would switch them on as a
             // side effect of turning the package itself back on (#876) — except to
             // remove a block an earlier disable left on one, which is a cleanup and
-            // never a force-enable.
+            // never a force-enable. Expression-decided rows stay out for the same
+            // reason (#1043): their condition is evaluated by the host at compose
+            // time, and a literal `disabled: false` written above it force-opened
+            // a row the environment keeps off, which then held the package pending
+            // at activation — except, again, to clean a block an earlier disable
+            // left, which restores the expression's authority, never a forced on.
             const targets = enabled
-                ? patchRows.filter(rowId => !optOutRows.has(rowId) || prePatch.disables.includes(rowId))
+                ? patchRows.filter(rowId => (!optOutRows.has(rowId) && !expressionRows.has(rowId)) || prePatch.disables.includes(rowId))
                 : patchRows;
             const flipped = [];
             for (const rowId of targets) {
@@ -1094,8 +1263,40 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
         }
         return live;
     }
+    /**
+     * The host's own rows for a package, as the loader holds them right now.
+     *
+     * Rows the MARKET created are left out (`mkt-` ids, see `hotMount`): a hot
+     * mount that failed in this session also leaves an entry without a fiber,
+     * and that one really does come back on the next start (#575).
+     */
+    function loaderRowsOf(name) {
+        const entries = [...host.loader.entries()];
+        const ownedRows = new Set(rowIdsForPackage(host, activeProfileDir, name));
+        const mine = (entry) => {
+            const id = typeof entry.options.id === 'string' ? entry.options.id : '';
+            const bare = id.split(':').pop() ?? id;
+            if (bare.startsWith('mkt-'))
+                return false;
+            const entryName = entry.options.name;
+            if (typeof entryName === 'string' && (entryName === name || packageOfEntryName(entryName) === name))
+                return true;
+            return ownedRows.has(bare);
+        };
+        return entries.filter(mine).map(entry => {
+            let disabled = false;
+            try {
+                disabled = entry.disabled === true;
+            }
+            catch { /* an expression that cannot be evaluated is not a switch */ }
+            return { disabled, live: entry.fiber !== undefined };
+        });
+    }
     /** A disabled loader row has no fiber but still makes its package switchable. */
     function loaderEntryObserved(name) {
+        // `loaderRowsOf` is the single reader: two callers disagreeing about what
+        // "observed" means is how a row ends up switchable and not-switchable at
+        // once (#1023).
         const entries = [...host.loader.entries()];
         if (entries.some(entry => {
             const entryName = entry.options.name;
@@ -1107,6 +1308,17 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
             const id = entry.options.id;
             return typeof id === 'string' && ownedRows.has(id.split(':').pop() ?? id);
         });
+    }
+    /**
+     * Rows the loaders made for this package and never started (#1023).
+     *
+     * Only a row this START created counts: the market's own hot mounts are
+     * excluded (they retry on the next start), and a package with no row at all
+     * is the ordinary "restart to apply" case, not this one.
+     */
+    function loaderNeverStarted(name) {
+        const rows = loaderRowsOf(name);
+        return rows.length > 0 && rows.every(row => !row.live && !row.disabled);
     }
     function isNonToggleableLibrary(name) {
         const manifest = readInstalledManifest(config.profile, name, activeProfileDir);
@@ -1129,14 +1341,16 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
         }
     }
     /** Every plugin command goes through the pnpm-drift recovery wrapper (#20). */
-    const runPlugin = async (profile, args) => {
-        const result = await withHoistRecovery(commands.runPlugin, profile, args, activeProfileDir, { marketFlags });
+    const runPlugin = async (profile, args, preserveProfilePolicy = false) => {
+        const result = await withHoistRecovery(commands.runPlugin, profile, args, activeProfileDir, { marketFlags, preserveProfilePolicy, ...(preserveProfilePolicy ? { releaseAgeBypass: false } : {}) });
         for (const name of Object.keys(readInstalled(profile, activeProfileDir)))
             reconcileKnownPluginCompatibility(activeProfileDir, name);
         return result;
     };
     /** The same, minus the release-age bypass: for a fresh install pinned to a young release (#594). */
     const runPluginKeepingReleaseAge = (profile, args) => withHoistRecovery(commands.runPlugin, profile, args, activeProfileDir, { releaseAgeBypass: false, marketFlags });
+    /** Mature npm updates must preserve both release-age enforcement and profile policy files. */
+    const runMaturePluginUpdate = (profile, args) => withHoistRecovery(commands.runPlugin, profile, args, activeProfileDir, { releaseAgeBypass: false, marketFlags, preserveProfilePolicy: true });
     /**
      * The argv that rematerializes a restored manifest's build on this host.
      *
@@ -1151,7 +1365,9 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
      * @returns null when nothing expressible is left, in which case the caller
      *   reports that rather than sending a command the host will refuse.
      */
-    function rematerializeArgs(name, pinned) {
+    function rematerializeArgs(name, pinned, preserveProfilePolicy = false) {
+        if (marketFlags && preserveProfilePolicy)
+            return ['--no-frozen-lockfile', 'install'];
         if (marketFlags)
             return ['--no-frozen-lockfile', RELEASE_AGE_OVERRIDE, 'install'];
         if (pinned !== undefined && /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(pinned))
@@ -1163,13 +1379,52 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
         return `这台宿主只接受按精确版本重新安装，「${name}」改动前在 profile 里写作 ${pinned ?? '（不在 profile 里）'}，市场无法在它上面重建上一版 / this host can only reinstall an exact version, and "${name}" was declared as ${pinned ?? '(not in the profile)'}, so the previous build cannot be rematerialized there`;
     }
     /**
+     * The installed package this entry replaces under a former name (#1012).
+     *
+     * Identity, not naming. Two packages are one plugin when they insert the
+     * same loader rows, and both sides state theirs: the installed copy in the
+     * patch files it ships, the published copy in its tarball. Comparing those
+     * costs no install and cannot be fooled by a package that merely shares a
+     * name — which is exactly what a rename breaks.
+     *
+     * The catalog's `previousNpm` narrows the candidates and supplies the only
+     * statement of intent; the rows confirm it. A row read that fails proves
+     * nothing, so the catalog's claim stands; rows that ARE readable and
+     * disjoint say these are two plugins after all, and the install proceeds.
+     */
+    async function renamePredecessor(entry, installed, registryBase) {
+        const candidates = declaredPredecessors(entry, installed);
+        if (candidates.length === 0)
+            return null;
+        if (typeof entry.npm !== 'string' || !NPM_NAME_RE.test(entry.npm))
+            return null;
+        if (candidates.length > 1) {
+            logEvent('warn', 'install', `${entry.name}: ${candidates.join(', ')} all answer to a former name — not replacing any of them`);
+            return null;
+        }
+        const current = candidates[0];
+        const installedIds = bundlePatchInsertedIds(join(activeProfileDir, 'node_modules', current));
+        if (installedIds.length === 0)
+            return current;
+        const bytes = await packageFileFromRegistry(registryBase, entry.npm, 'package/cordis.patch.yml');
+        if (bytes === null)
+            return current;
+        const incomingIds = parsePatchRows(bytes.toString('utf8')).insertedIds;
+        if (incomingIds.length === 0)
+            return current;
+        if (sameLoaderRows(installedIds, incomingIds))
+            return current;
+        logEvent('info', 'install', `${entry.name}: ${current} declares no row this release inserts — installing beside it`);
+        return null;
+    }
+    /**
      * Undo a clean-exit update whose new build cannot boot. Restoring only the
      * manifest pin (the original #159 behavior) leaves the bad package files
      * on disk, and the boot resolves bundle patches from node_modules — the
      * next start still fails. Re-run pnpm install against the restored
      * manifest to rematerialize the previous build's files.
      */
-    async function rollbackUpdateBuild(name, manifestBefore, rematerializeWhenManifestUnchanged = false) {
+    async function rollbackUpdateBuild(name, manifestBefore, rematerializeWhenManifestUnchanged = false, preserveProfilePolicy = false) {
         const rolledBack = restoreProfileManifest(config.profile, manifestBefore, activeProfileDir);
         if (rolledBack.length === 0 && !rematerializeWhenManifestUnchanged)
             return { ok: true, detail: null };
@@ -1186,10 +1441,10 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
         // accepted at all (#732), so there the build is rematerialized through the
         // exact target — see `rematerializeArgs`.
         const pinned = manifestBefore.dependencies[name];
-        const args = rematerializeArgs(name, pinned);
+        const args = rematerializeArgs(name, pinned, preserveProfilePolicy);
         if (args === null)
             return { ok: false, detail: cannotRematerializeDetail(name, pinned) };
-        const reinstall = await runPlugin(config.profile, args);
+        const reinstall = await runPlugin(config.profile, args, preserveProfilePolicy);
         const ok = reinstall.exitCode === 0 && !reinstall.timedOut && !reinstall.cancelled;
         if (ok)
             logEvent('info', 'update', `${name}: previous build rematerialized (${rolledBack.join(', ')})`);
@@ -1311,7 +1566,7 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
      * rewrites `latest` to an exact specifier during the add, and putting only
      * package.json back makes the next frozen install reject the profile.
      */
-    async function rollbackExactTarget(name, manifestBefore, lockfileBefore, target, keepRepairedLock = false) {
+    async function rollbackExactTarget(name, manifestBefore, lockfileBefore, target, keepRepairedLock = false, preserveProfilePolicy = false) {
         restoreProfileManifest(config.profile, manifestBefore, activeProfileDir);
         const preparedLock = restoreProfileLockfile(lockfileBefore);
         if (!preparedLock.ok)
@@ -1322,15 +1577,16 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
         // then an "already up to date" no-op; --force is what rematerializes the
         // captured version/commit/archive instead of blessing corrupted bytes.
         //
-        // `--force` and the age override are market options, and the official
+        // #991 recovery keeps release-age enforcement, just like the forward add.
+        // `--force` and the legacy age override are market options, and the official
         // Desktop bridge refuses them outright (#732). There the rollback is the
         // bare exact target: the host's own manager pipeline is what installs it,
         // and sending the options anyway failed the rollback with 127 — which
         // read as "the previous build could not be verified" while node_modules
         // still held the bad build.
         const add = await runPlugin(config.profile, marketFlags
-            ? ['add', '--force', RELEASE_AGE_OVERRIDE, target]
-            : ['add', target]);
+            ? ['add', '--force', ...(preserveProfilePolicy ? [] : [RELEASE_AGE_OVERRIDE]), target]
+            : ['add', target], preserveProfilePolicy);
         // Exact recovery targets deliberately pin versions/commits. Keep the
         // user's durable range, tag, floating github shortcut, or release URL.
         restoreProfileManifest(config.profile, manifestBefore, activeProfileDir);
@@ -1353,8 +1609,8 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
         return { ok: true, detail: null };
     }
     /** Restore the exact npm build that was on disk before the update. */
-    async function rollbackNpmBuild(name, manifestBefore, beforeVersion, lockfileBefore) {
-        const rollback = await rollbackExactTarget(name, manifestBefore, lockfileBefore, `${name}@${beforeVersion}`);
+    async function rollbackNpmBuild(name, manifestBefore, beforeVersion, lockfileBefore, preserveProfilePolicy = false) {
+        const rollback = await rollbackExactTarget(name, manifestBefore, lockfileBefore, `${name}@${beforeVersion}`, false, preserveProfilePolicy);
         if (!rollback.ok)
             return rollback;
         const restoredVersion = readInstalledVersion(config.profile, name, activeProfileDir);
@@ -1417,7 +1673,7 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
             : gitTargetAtCommit(target, beforeCommit);
     }
     /** Restore a git-sourced update by re-adding the commit captured before it. */
-    async function rollbackGitBuild(name, manifestBefore, target, beforeCommit, lockfileBefore, keepRepairedLock) {
+    async function rollbackGitBuild(name, manifestBefore, target, beforeCommit, lockfileBefore, keepRepairedLock, preserveProfilePolicy = false) {
         // Preserve an already immutable durable spelling (including a pinned
         // codeload URL). Rewriting that source to github: while keeping the
         // repaired lock would make its importer disagree with package.json.
@@ -1426,7 +1682,7 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
         if (rollbackTarget === null) {
             return { ok: false, detail: 'the previous git target is invalid; nothing to roll back to' };
         }
-        const rollback = await rollbackExactTarget(name, manifestBefore, lockfileBefore, rollbackTarget, keepRepairedLock);
+        const rollback = await rollbackExactTarget(name, manifestBefore, lockfileBefore, rollbackTarget, keepRepairedLock, preserveProfilePolicy);
         if (!rollback.ok)
             return rollback;
         // What pnpm actually resolved, read back the way the identity was
@@ -1438,14 +1694,14 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
         logEvent('info', 'update-rollback', `${name}: restored git build at ${beforeCommit}`);
         return { ok: true, detail: null };
     }
-    async function executeUpdateRollback(name, manifestBefore, source) {
+    async function executeUpdateRollback(name, manifestBefore, source, preserveProfilePolicy = false) {
         if (source.kind === 'npm') {
-            return rollbackNpmBuild(name, manifestBefore, source.beforeVersion, source.lockfileBefore);
+            return rollbackNpmBuild(name, manifestBefore, source.beforeVersion, source.lockfileBefore, preserveProfilePolicy);
         }
         if (source.kind === 'git') {
-            return rollbackGitBuild(name, manifestBefore, source.target, source.beforeCommit, source.lockfileBefore, source.keepRepairedLock);
+            return rollbackGitBuild(name, manifestBefore, source.target, source.beforeCommit, source.lockfileBefore, source.keepRepairedLock, preserveProfilePolicy);
         }
-        return rollbackUpdateBuild(name, manifestBefore, true);
+        return rollbackUpdateBuild(name, manifestBefore, true, preserveProfilePolicy);
     }
     const pendingRollbacks = new Map();
     let rollbackSequence = 0;
@@ -1743,7 +1999,7 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
     };
     const operationsV1 = new UpdateOperationStoreV1(BOOT_ID);
     /** Invoke one existing route in memory so v1 reuses the battle-tested executor. */
-    async function invokeLegacy(path, source, method, body, url = path) {
+    async function invokeLegacy(path, source, method, body, url = path, options) {
         const handler = legacyHandlers.get(path);
         if (handler === undefined)
             throw new Error(`legacy route is unavailable: ${path}`);
@@ -1755,6 +2011,8 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
             headers: { ...source.headers },
             socket: source.socket,
         });
+        if (options?.drainCall !== undefined)
+            drainCalls.set(replay, options.drainCall);
         let status = 200;
         let text = '';
         const captured = {
@@ -1775,6 +2033,147 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
         }
         return { status, payload };
     }
+    const drainPathOf = (kind) => kind === 'install' ? '/dsh-market/install' : kind === 'update' ? '/dsh-market/update' : '/dsh-market/uninstall';
+    const withoutBusyPolicy = (body) => {
+        const { busyPolicy: _busyPolicy, ...rest } = body;
+        return rest;
+    };
+    /** Whether the executor still sees the exact facts the user approved. */
+    const drainIntentMatches = (expected, actual) => {
+        if (expected.kind !== actual.kind)
+            return false;
+        if (expected.expected.target !== undefined && expected.expected.target !== actual.expected.target)
+            return false;
+        if (expected.expected.spec !== undefined && expected.expected.spec !== actual.expected.spec)
+            return false;
+        if (expected.expected.version !== undefined && expected.expected.version !== actual.expected.version)
+            return false;
+        return true;
+    };
+    /**
+     * Pin a GitHub shortcut to its current commit when the region has no proxy.
+     *
+     * `acceleratedTarget` deliberately leaves global installs to pnpm, but a
+     * deferred drain operation must name one immutable artifact. Without this, a
+     * bare `github:owner/repo` (and a `#path:` selector) could never satisfy the
+     * exact-target gate in the global region.
+     */
+    const pinDrainGithubTarget = async (target, region) => {
+        if (githubCommitOfTarget(target) !== null)
+            return target;
+        const match = /^github:([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)/.exec(target);
+        if (match === null)
+            return target;
+        const sha = await resolveHeadCommit(match[1], region);
+        if (sha === null)
+            return target;
+        return githubTargetAtCommit(target, sha) ?? target;
+    };
+    /**
+     * Run the route's ordinary validation without mutating anything, and keep
+     * the target it resolved. The probe body asks the agent guard to stand
+     * aside: drain mode is exactly what is going to wait for those Agents.
+     */
+    const captureDrainIntent = async (request, body, path) => {
+        let captured = null;
+        const result = await runInProbe(() => invokeLegacy(path, request, 'POST', {
+            ...withoutBusyPolicy(body),
+            confirmAgentsRunning: true,
+        }, path, {
+            drainCall: { role: 'probe', onIntent: intent => { captured = intent; } },
+        }));
+        if (captured === null) {
+            // A successful route answer with no boundary intent is the ordinary
+            // no-op (`skipped: "current"`), not a refusal. Keep that result.
+            if (result.status >= 200 && result.status < 300)
+                throw new DrainNoop(result.status, result.payload);
+            throw new DrainRefusal(result.status, result.payload);
+        }
+        return captured;
+    };
+    /**
+     * Re-run the route for real under the mutation lane. The expected intent is
+     * checked at the same boundary the probe captured it; a changed registry
+     * target or installed baseline stops with `targetChanged` before pnpm.
+     */
+    const executeDrain = async (kind, request, body, intent, onPhase) => {
+        const replayBody = {
+            ...withoutBusyPolicy(body),
+            confirmAgentsRunning: true,
+        };
+        const path = drainPathOf(kind);
+        return await invokeLegacy(path, request, 'POST', replayBody, path, {
+            drainCall: { role: 'execute', expected: intent, onPhase },
+        });
+    };
+    const drainUnsupported = (response, detail) => {
+        sendJson(response, 400, {
+            ok: false,
+            unsupported: true,
+            failureCode: 'AGENT_DRAIN_UNSUPPORTED',
+            error: `${detail} / This host cannot safely wait for running Agents, so nothing was changed.`,
+        });
+    };
+    const drainBusy = (response) => {
+        sendJson(response, 409, {
+            ok: false,
+            busy: true,
+            failureCode: 'OPERATION_BUSY',
+            error: '另一个插件操作正在等待或运行，未执行任何修改。 / Another plugin operation is already waiting or running; nothing was changed.',
+        });
+    };
+    /** Shared entry point for `busyPolicy: "drain"` in the three package routes. */
+    const handleDrainRequest = async (response, request, kind, body, name, url) => {
+        if (isTeamComponent(name) || name === 'dsh-agent-pi-compaction') {
+            sendJson(response, 400, { error: isTeamComponent(name) ? TEAM_MANAGED_REASON : '内置压缩组件由对话预设引用，不能单独修改或卸载。' });
+            return;
+        }
+        const support = drainCoordinator.support();
+        if (!support.supported) {
+            drainUnsupported(response, `这个宿主不支持等待 Agent 空闲（${support.reason}）`);
+            return;
+        }
+        if (drainCoordinator.hasActive() || mutationBusy) {
+            drainBusy(response);
+            return;
+        }
+        const result = await drainCoordinator.begin({
+            kind,
+            name,
+            ...(url === undefined ? {} : { url }),
+            captureIntent: () => captureDrainIntent(request, body, drainPathOf(kind)),
+            execute: (intent, onPhase) => executeDrain(kind, request, body, intent, onPhase),
+        });
+        if (result.mode === 'inline') {
+            sendJson(response, result.result.status, result.result.payload);
+            return;
+        }
+        if (result.mode === 'deferred') {
+            sendJson(response, 202, {
+                ok: true,
+                accepted: true,
+                operationId: result.operation.operationId,
+                operation: result.operation,
+            });
+            return;
+        }
+        if (result.mode === 'terminal') {
+            // The operation ended before it could be deferred (cancelled during the
+            // probe, or the inventory became unreadable). Do not answer 202 for a
+            // task the client would render as still waiting.
+            sendJson(response, result.status, result.payload);
+            return;
+        }
+        if (result.mode === 'refused') {
+            sendJson(response, result.status, result.payload);
+            return;
+        }
+        if (result.mode === 'busy') {
+            drainBusy(response);
+            return;
+        }
+        drainUnsupported(response, `这个宿主不支持等待 Agent 空闲（${result.reason}）`);
+    };
     const packageNameFrom = (request) => {
         try {
             return new URL(request.url ?? '', 'http://localhost').searchParams.get('name') ?? '';
@@ -1981,7 +2380,11 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                         // renders an update badge has to know the aggregate exists
                         // without probing for it (#602).
                         updatesSummary: true,
+                        // Whether this host can put live Agents under a maintenance hold
+                        // while a deferred mutation waits for a safe boundary (#411).
+                        agentDrain: drainCoordinator.support().supported,
                     },
+                    busyPolicies: ['reject', 'drain'],
                     restart: {
                         supported: canRestart,
                         managedBy: canRestart ? 'market' : config.desktopHost === true ? 'desktop-host' : 'operator',
@@ -2099,7 +2502,7 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                         sendJson(response, 400, { schema: UPDATE_API_V1_SCHEMA, error: 'a valid package name is required' });
                         return;
                     }
-                    if (operationsV1.hasActive()) {
+                    if (operationsV1.hasActive() || drainCoordinator.hasActive() || mutationBusy) {
                         sendJson(response, 409, {
                             schema: UPDATE_API_V1_SCHEMA,
                             error: 'another public update operation is already running',
@@ -2121,6 +2524,166 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                                 message: 'plugin is not installed in this profile',
                                 retryable: false,
                             },
+                        });
+                        return;
+                    }
+                    if (body.busyPolicy === 'drain') {
+                        const support = drainCoordinator.support();
+                        if (!support.supported) {
+                            sendJson(response, 400, {
+                                schema: UPDATE_API_V1_SCHEMA,
+                                error: `agent drain is unavailable on this host (${support.reason})`,
+                                failure: {
+                                    code: 'AGENT_DRAIN_UNSUPPORTED',
+                                    message: `agent drain is unavailable on this host (${support.reason})`,
+                                    retryable: false,
+                                },
+                            });
+                            return;
+                        }
+                        const replayBody = {
+                            name: packageName,
+                            ...(body.force === true ? { force: true } : {}),
+                        };
+                        let intent;
+                        try {
+                            intent = await captureDrainIntent(request, replayBody, '/dsh-market/update');
+                        }
+                        catch (error) {
+                            if (error instanceof DrainNoop) {
+                                const noop = (error.payload !== null && typeof error.payload === 'object' && !Array.isArray(error.payload))
+                                    ? error.payload
+                                    : {};
+                                sendJson(response, error.status, { schema: UPDATE_API_V1_SCHEMA, ...noop });
+                                return;
+                            }
+                            if (!(error instanceof DrainRefusal))
+                                throw error;
+                            const refused = (error.payload !== null && typeof error.payload === 'object')
+                                ? error.payload
+                                : {};
+                            const message = typeof refused.error === 'string' ? refused.error : 'the update was refused before it could be deferred';
+                            const code = refused.targetChanged === true ? 'TARGET_CHANGED' : 'UPDATE_REJECTED';
+                            sendJson(response, error.status, {
+                                schema: UPDATE_API_V1_SCHEMA,
+                                error: message,
+                                failure: { code, message, retryable: code === 'TARGET_CHANGED' },
+                            });
+                            return;
+                        }
+                        const operation = operationsV1.create(packageName, installedVersion);
+                        let finished = false;
+                        const finishPublic = (status, payload) => {
+                            operationsV1.finish(operation.operationId, status, payload, readInstalledVersion(config.profile, packageName, activeProfileDir));
+                            finished = true;
+                        };
+                        const begin = await drainCoordinator.begin({
+                            kind: 'update',
+                            name: packageName,
+                            forceDeferred: true,
+                            captureIntent: async () => intent,
+                            execute: async (planned, onPhase) => {
+                                const result = await executeDrain('update', request, replayBody, planned, onPhase);
+                                finishPublic(result.status, result.payload);
+                                return result;
+                            },
+                            onUpdate: view => {
+                                if (view.wait !== null)
+                                    operationsV1.setWait(operation.operationId, view.wait);
+                                if (view.state === 'running')
+                                    operationsV1.start(operation.operationId);
+                                if (view.state === 'verifying')
+                                    operationsV1.beginVerifying(operation.operationId);
+                                if (view.state === 'succeeded' || view.state === 'failed' || view.state === 'cancelled') {
+                                    if (view.state === 'failed' && view.failure?.code === 'AGENT_BARRIER_LOST') {
+                                        finishPublic(409, {
+                                            ok: false,
+                                            failureCode: 'AGENT_BARRIER_LOST',
+                                            error: view.failure.message,
+                                        });
+                                        return;
+                                    }
+                                    if (view.state === 'cancelled') {
+                                        // A cancel or unload that landed after the executor
+                                        // returned success still owns the final state.
+                                        finishPublic(200, { ok: false, cancelled: true });
+                                        return;
+                                    }
+                                    if (finished)
+                                        return;
+                                    {
+                                        finishPublic(500, {
+                                            ok: false,
+                                            error: view.failure?.message ?? 'the deferred update failed',
+                                            ...(view.failure?.code === undefined ? {} : { failureCode: view.failure.code }),
+                                            ...(view.failure?.code === 'TARGET_CHANGED' ? { targetChanged: true } : {}),
+                                        });
+                                    }
+                                }
+                            },
+                        });
+                        if (begin.mode === 'deferred') {
+                            sendJson(response, 202, {
+                                schema: UPDATE_API_V1_SCHEMA,
+                                operation: operationsV1.get(operation.operationId),
+                            });
+                            return;
+                        }
+                        if (begin.mode === 'terminal') {
+                            finishPublic(begin.status, begin.payload);
+                            if (begin.status >= 200 && begin.status < 300) {
+                                sendJson(response, 200, {
+                                    schema: UPDATE_API_V1_SCHEMA,
+                                    operation: operationsV1.get(operation.operationId),
+                                });
+                            }
+                            else {
+                                const error = begin.operation.failure?.message ?? 'the deferred update did not start';
+                                sendJson(response, begin.status, {
+                                    schema: UPDATE_API_V1_SCHEMA,
+                                    error,
+                                    failure: {
+                                        code: begin.operation.failure?.code ?? 'UPDATE_FAILED',
+                                        message: error,
+                                        retryable: true,
+                                    },
+                                });
+                            }
+                            return;
+                        }
+                        if (begin.mode === 'busy') {
+                            finishPublic(409, { ok: false, busy: true, error: 'another plugin operation is already waiting or running' });
+                            sendJson(response, 409, {
+                                schema: UPDATE_API_V1_SCHEMA,
+                                error: 'another plugin operation is already waiting or running',
+                                failure: { code: 'OPERATION_BUSY', message: 'another plugin operation is already waiting or running', retryable: true },
+                            });
+                            return;
+                        }
+                        if (begin.mode === 'unsupported') {
+                            finishPublic(400, { ok: false, error: `agent drain is unavailable on this host (${begin.reason})` });
+                            sendJson(response, 400, {
+                                schema: UPDATE_API_V1_SCHEMA,
+                                error: `agent drain is unavailable on this host (${begin.reason})`,
+                                failure: { code: 'AGENT_DRAIN_UNSUPPORTED', message: `agent drain is unavailable on this host (${begin.reason})`, retryable: false },
+                            });
+                            return;
+                        }
+                        if (begin.mode === 'refused') {
+                            finishPublic(begin.status, begin.payload);
+                            sendJson(response, begin.status, {
+                                schema: UPDATE_API_V1_SCHEMA,
+                                error: 'the deferred update was refused',
+                                failure: { code: 'UPDATE_REJECTED', message: 'the deferred update was refused', retryable: false },
+                            });
+                            return;
+                        }
+                        // `forceDeferred` never chooses the inline path; keep the response
+                        // shape honest if that ever changes.
+                        finishPublic(begin.result.status, begin.result.payload);
+                        sendJson(response, begin.result.status, {
+                            schema: UPDATE_API_V1_SCHEMA,
+                            operation: operationsV1.get(operation.operationId),
                         });
                         return;
                     }
@@ -2437,13 +3000,29 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                     sendJson(response, 400, { error: 'packages must be an array of at most 64 npm package names' });
                     return;
                 }
+                const requestedEntries = body.entries ?? [];
+                if (!Array.isArray(requestedEntries) || requestedEntries.length + requested.length > 64
+                    || !requestedEntries.every(url => typeof url === 'string' && parseSourceUrl(url) !== null)) {
+                    sendJson(response, 400, { error: 'entries must be GitHub catalog URLs; at most 64 packages and entries per batch' });
+                    return;
+                }
                 const packages = [...new Set(requested)];
                 try {
+                    const urls = new Set(requestedEntries);
+                    const entries = urls.size === 0 ? [] : (await loadRegistry()).plugins.filter(entry => urls.has(entry.url) && (entry.npm == null || entry.npm === ''));
+                    if (new Set(entries.map(entry => entry.url)).size !== urls.size) {
+                        sendJson(response, 400, { error: 'entries must name GitHub-only plugins in the current catalog' });
+                        return;
+                    }
                     const host = dshHostInfo();
                     const hostVersion = host?.version ?? null;
                     const hostPackages = corePackageNames(host?.directory ?? null);
-                    const facts = await discoveryManifests.lookup(packages, routesFor(region).npmRegistry);
-                    const plugins = Object.fromEntries(packages.map(name => [
+                    const [npmFacts, githubFacts] = await Promise.all([
+                        discoveryManifests.lookup(packages, routesFor(region).npmRegistry),
+                        githubDiscoveryManifests.lookupGitHub(entries),
+                    ]);
+                    const facts = { ...npmFacts, ...githubFacts };
+                    const plugins = Object.fromEntries([...packages, ...urls].map(name => [
                         name,
                         deriveHostCompatibility(facts[name] ?? null, hostVersion, hostPackages),
                     ]));
@@ -2562,7 +3141,7 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                 });
                 for (const name of Object.keys(installed)) {
                     const manifest = installedManifests.get(name);
-                    const result = activationAfterReplace(verifyActivation(config.profile, name, live, activeProfileDir, disabled.has(name) || patchFlags.disabled.includes(name) || unbundled.includes(name), undefined, isDeclaredLibraryDsh(manifest?.dsh) && loaderEntryObserved(name)), replacedWhileLive.has(name));
+                    const result = activationAfterReplace(verifyActivation(config.profile, name, live, activeProfileDir, disabled.has(name) || patchFlags.disabled.includes(name) || unbundled.includes(name), undefined, isDeclaredLibraryDsh(manifest?.dsh) && loaderEntryObserved(name), loaderNeverStarted(name)), replacedWhileLive.has(name));
                     // A package with no dsh surface of its own, outside the bundle
                     // layer, that another installed package declares, is that package's
                     // library rather than a plugin that failed to start (#634). Saying
@@ -3596,12 +4175,19 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                     // exits, install post-processing (retarget, validation, hot-mount)
                     // still holds the operation lock for a moment — the exact window
                     // where clicking the restart banner used to bounce off a 409 (#91).
-                    busy: installing,
+                    busy: installing || preflightActive > 0,
                     // Queue drain signal for the client's install queue: the agent-file
                     // guard values are already computed for every status poll, so the
                     // client can decide when a queued operation may run without an
                     // extra round trip. Absent ([]) means agents are idle.
                     runningAgents: runningAgentsForGuard(),
+                    // Host-owned drain mode (#411). `agentDrain` is per request: a host
+                    // whose live Agent handles lack the maintenance boundary, or that
+                    // cannot report Agent creation, must keep the 409 fallback.
+                    agentDrain: drainCoordinator.support().supported,
+                    drainActive: drainCoordinator.hasActive(),
+                    drainOperations: drainCoordinator.list(),
+                    drainHistory: drainJournal.recent(10),
                     pnpm: await commands.probePnpm(),
                     boot: BOOT_ID,
                     agentGuardAvailable: agentsGuardAvailable(),
@@ -3751,6 +4337,20 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                             if (migration !== null)
                                 sourceMigrationFor.set(name, migration);
                         }
+                        // A rename declared by the catalog (#1012, P1). This is the only
+                        // path that reaches a user whose old range no longer resolves:
+                        // their update fails before installing anything, so no offer was
+                        // ever recorded. The catalog states the rename up front, and the
+                        // row still has to be a plain registry range the transaction can
+                        // replace — and the successor must not already be installed.
+                        for (const [name, spec] of Object.entries(installed)) {
+                            if (sourceMigrationFor.has(name) || !isRegistryRangeSpec(spec))
+                                continue;
+                            const rename = findCatalogRename(registry.plugins, name);
+                            if (rename === null || installed[rename.target] !== undefined)
+                                continue;
+                            sourceMigrationFor.set(name, { kind: 'npm-rename', from: name, target: rename.target });
+                        }
                     }
                     catch (error) {
                         logEvent('warn', 'updates', `package source lookup failed — ${error instanceof Error ? error.message : String(error)}`);
@@ -3833,21 +4433,88 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                             sendJson(response, 400, { error: 'plugin is not installed' });
                             return;
                         }
-                        let migration = null;
-                        try {
-                            const registry = await loadRegistry();
-                            migration = findGitToNpmMigration(registry.plugins, spec);
-                        }
-                        catch (error) {
-                            logEvent('warn', 'source-migration', `${name}: catalog lookup failed — ${error instanceof Error ? error.message : String(error)}`);
-                        }
-                        if (migration === null) {
+                        // Two ways in, one transaction out (#1012). The discovered
+                        // Git -> npm case needs no request body. An npm -> npm rename
+                        // cannot be discovered (the old spec names only the old package,
+                        // and the registry answers 404 for it), so the client carries the
+                        // target from the update failure's own artifact — and it is
+                        // re-verified against the catalog here rather than trusted: this
+                        // body is user-reachable, and the transaction runs `add <to>@latest`.
+                        const kind = body.kind === 'npm-rename' ? 'npm-rename' : 'git-to-npm';
+                        if (body.kind !== undefined && body.kind !== 'git-to-npm' && body.kind !== 'npm-rename') {
                             sendJson(response, 400, {
-                                error: '当前 Git 来源无法唯一核验到一个 npm 包，或包含显式 branch/tag/commit/ref；未执行迁移。 / This Git source cannot be uniquely verified to one npm package, or it carries an explicit branch/tag/commit/ref; migration was not performed.',
+                                error: '迁移请求无法识别，没有做任何改动。 / This migration request could not be recognised; nothing was changed.',
                             });
                             return;
                         }
-                        const targetName = migration.target;
+                        let targetName;
+                        if (kind === 'npm-rename') {
+                            const to = typeof body.to === 'string' ? body.to.trim() : '';
+                            if (!NPM_NAME_RE.test(to) || to === name) {
+                                sendJson(response, 400, {
+                                    error: '目标包名无效，或仍是当前包名；未执行迁移。 / The target package name is invalid, or is still the current one; migration was not performed.',
+                                });
+                                return;
+                            }
+                            // A registry dependency is a bare version range (the same shape
+                            // `isNpmRollbackSource` accepts). Everything else carries a
+                            // protocol or a path separator — `github:`, `file:`, `link:`,
+                            // `workspace:`, `catalog:`, `npm:other@1.0.0`, a tarball URL — and
+                            // replacing one of those with `to@latest` is not a rename (#1012).
+                            if (!isRegistryRangeSpec(spec)) {
+                                sendJson(response, 400, {
+                                    error: '当前安装不是 npm 依赖，不能按包名迁移。 / The current install is not an npm dependency, so it cannot be migrated by package name.',
+                                });
+                                return;
+                            }
+                            // Verified the same way discovery finds it: exactly one catalog
+                            // entry declares this package as a former name of ITSELF, and
+                            // the target is the one it publishes under (#1012). A name pair
+                            // that nobody declares is not a rename, and two declarations are
+                            // ambiguity — both refuse, because the transaction removes an
+                            // installed package before this is answered.
+                            let verified = false;
+                            try {
+                                const registry = await loadRegistry();
+                                const declared = findCatalogRename(registry.plugins, name);
+                                const named = findNpmTargetEntry(registry.plugins, to);
+                                verified = declared !== null && named !== null
+                                    && declared.target.toLowerCase() === to.toLowerCase()
+                                    && declared.entry === named;
+                            }
+                            catch (error) {
+                                logEvent('warn', 'source-migration', `${name}: catalog lookup failed — ${error instanceof Error ? error.message : String(error)}`);
+                            }
+                            if (!verified) {
+                                sendJson(response, 400, {
+                                    error: `目标包名 ${to} 不在市场目录里，或目录没有声明它是「${name}」的新名字；未执行迁移。 / The target ${to} is not in the market catalog, or the catalog does not declare it as the new name of "${name}"; migration was not performed.`,
+                                });
+                                return;
+                            }
+                            targetName = to;
+                        }
+                        else {
+                            let migration = null;
+                            try {
+                                const registry = await loadRegistry();
+                                migration = findGitToNpmMigration(registry.plugins, spec);
+                            }
+                            catch (error) {
+                                logEvent('warn', 'source-migration', `${name}: catalog lookup failed — ${error instanceof Error ? error.message : String(error)}`);
+                            }
+                            if (migration === null) {
+                                sendJson(response, 400, {
+                                    error: '当前 Git 来源无法唯一核验到一个 npm 包，或包含显式 branch/tag/commit/ref；未执行迁移。 / This Git source cannot be uniquely verified to one npm package, or it carries an explicit branch/tag/commit/ref; migration was not performed.',
+                                });
+                                return;
+                            }
+                            targetName = migration.target;
+                        }
+                        // "The previous source" is the Git ref for a discovered migration
+                        // and the old package for a rename; every rollback sentence below
+                        // has to name whichever one this run actually restores.
+                        const restoredZh = kind === 'npm-rename' ? '原来的安装' : '原 Git 来源';
+                        const restoredEn = kind === 'npm-rename' ? 'the original install' : 'the previous Git source';
                         if (targetName !== name && manifestCapture.snapshot.dependencies[targetName] !== undefined) {
                             sendJson(response, 409, {
                                 error: `目标 npm 包 ${targetName} 已经作为独立依赖安装；为避免覆盖现有安装，未执行迁移。 / The target npm package ${targetName} is already installed as a separate dependency; migration was not performed to avoid overwriting it.`,
@@ -3871,6 +4538,12 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                         const wasLive = verifyActivation(config.profile, name, liveNames(), activeProfileDir, disabled.has(name)).state === 'live'
                             && hasHostHalf(config.profile, name, activeProfileDir);
                         const oldRows = rowIdsForPackage(host, activeProfileDir, name);
+                        // Identity evidence for a rename (#1012), read BEFORE the removal:
+                        // once `remove` runs, the installed old package — and with it the
+                        // only record of what it registers — is gone.
+                        const oldInsertIds = kind === 'npm-rename'
+                            ? shippedInsertedRowIds(join(activeProfileDir, 'node_modules', name))
+                            : [];
                         const patchFlags = packagePatchFlags(host, activeProfileDir, [name], readUserPatchState(userPatchPath));
                         const wasDisabled = disabled.has(name);
                         const manifestBefore = manifestCapture.snapshot;
@@ -3894,16 +4567,24 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                             }
                             return hasLoadableEntry(activeProfileDir, name)
                                 ? { ok: true, detail: null }
-                                : { ok: false, detail: 'the previous Git source was restored without a loadable entry' };
+                                : { ok: false, detail: `${restoredEn} was restored without a loadable entry` };
                         };
-                        const failWithRollback = async (detail, extra = {}) => {
+                        // `noteZh`/`noteEn` carry the "what you can do next" sentence, and
+                        // only the branch that actually restored the old install may say
+                        // it: after a failed rollback there is nothing to reassure the
+                        // user with, so the note is dropped rather than contradicting the
+                        // "could not be verified" fallout.
+                        const failWithRollback = async (detail, extra = {}, status = 500, noteZh = '', noteEn = '') => {
                             const rollback = await rollbackMigration();
-                            logEvent(rollback.ok ? 'warn' : 'error', 'source-migration', `${name}: migration failed — ${detail}; ${rollback.ok ? 'previous Git source restored' : `rollback failed: ${rollback.detail ?? 'unknown'}`}`);
-                            sendJson(response, 500, {
+                            logEvent(rollback.ok ? 'warn' : 'error', 'source-migration', `${name}: migration failed — ${detail}; ${rollback.ok ? `${restoredEn} restored` : `rollback failed: ${rollback.detail ?? 'unknown'}`}`);
+                            // A 409 whose rollback failed is not a conflict the user can walk
+                            // away from — the install itself is now unverified — so the
+                            // status follows the rollback, not the reason we got here.
+                            sendJson(response, rollback.ok ? status : 500, {
                                 ok: false,
                                 error: rollback.ok
-                                    ? `${detail}；已恢复原 Git 来源。 / ${detail}; the previous Git source was restored.`
-                                    : `${detail}；且原 Git 来源未能验证恢复（${rollback.detail ?? 'unknown'}）。 / ${detail}; restoration of the previous Git source could not be verified (${rollback.detail ?? 'unknown'}).`,
+                                    ? `${detail}；已恢复${restoredZh}。${noteZh === '' ? '' : ` ${noteZh}`} / ${detail}; ${restoredEn} was restored.${noteEn === '' ? '' : ` ${noteEn}`}`
+                                    : `${detail}；且${restoredZh}未能验证恢复（${rollback.detail ?? 'unknown'}）。 / ${detail}; restoration of ${restoredEn} could not be verified (${rollback.detail ?? 'unknown'}).`,
                                 rollback: rollback.ok,
                                 ...extra,
                             });
@@ -3925,6 +4606,37 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                         if (after[targetName] === undefined || (targetName !== name && after[name] !== undefined) || !hasLoadableEntry(activeProfileDir, targetName)) {
                             await failWithRollback('npm 目标安装完成后未形成可加载且唯一的依赖。 / The npm target did not produce one loadable replacement dependency.');
                             return;
+                        }
+                        // The catalog's `previousNpm` is a CLAIM that the two package names
+                        // are one plugin, and the transaction above already acted on it by
+                        // replacing what the user had. Ask the packages themselves: the
+                        // rows each side declares it inserts are registry evidence, and two
+                        // packages that register disjoint rows are not the same plugin —
+                        // whatever the catalog says. Refuse and put the old one back rather
+                        // than leave a stranger's rows running under the old plugin's name
+                        // (#1012). Same question, same parser as the install-path gate
+                        // (`renamePredecessor`), which compares the installed package's
+                        // declared rows against the incoming registry `cordis.patch.yml`;
+                        // here both packages are already on disk, so both sides are read
+                        // the same way — including the conventional root patch file, which
+                        // that gate only knows on the incoming side.
+                        //
+                        // Both sides must SHOW evidence: a package with no patch file
+                        // declares nothing, and silence is not a contradiction.
+                        if (kind === 'npm-rename') {
+                            const newInsertIds = shippedInsertedRowIds(join(activeProfileDir, 'node_modules', targetName));
+                            if (oldInsertIds.length > 0 && newInsertIds.length > 0 && !sameLoaderRows(oldInsertIds, newInsertIds)) {
+                                // Both sides are third-party YAML: clip each id so a hostile
+                                // patch cannot turn this refusal into a megabyte response.
+                                const rows = (ids) => {
+                                    const clip = (id) => (id.length <= 48 ? id : `${id.slice(0, 48)}…`);
+                                    return ids.length <= 3
+                                        ? ids.map(clip).join(', ')
+                                        : `${ids.slice(0, 3).map(clip).join(', ')}, +${ids.length - 3}`;
+                                };
+                                await failWithRollback(`目录声明 ${name} 已改名为 ${targetName}，但两边的注册行不同（${name}: ${rows(oldInsertIds)}；${targetName}: ${rows(newInsertIds)}），说明它们不是同一个插件。 / The catalog declares ${name} was renamed to ${targetName}, but the two packages register different plugin rows (${name}: ${rows(oldInsertIds)}; ${targetName}: ${rows(newInsertIds)}), so they are not the same plugin.`, {}, 409, `原来的版本仍然可用；如果目录写错了，请报告这一条。`, `The original install is still usable; if the catalog is wrong, report that entry.`);
+                                return;
+                            }
                         }
                         const stack = readBundleStack(activeProfileDir);
                         const trial = trialValidate(activeProfileDir, stack.community, hostAnchorOption);
@@ -4001,11 +4713,12 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                         const activation = {
                             [targetName]: activationAfterReplace(verifyActivation(config.profile, targetName, liveNames(), activeProfileDir, disabled.has(targetName)), wasLive),
                         };
-                        logEvent('info', 'source-migration', `${name}: ${spec} -> ${targetName}`);
+                        logEvent('info', 'source-migration', `${name}: ${spec} -> ${targetName} (${kind})`);
                         sendJson(response, 200, {
                             ok: true,
                             from: { name, source: spec },
                             to: { name: targetName, source: 'npm' },
+                            kind,
                             activation,
                             warnings: [stateWarning, ...patchWarnings].filter((value) => value !== null && value !== ''),
                         });
@@ -4030,9 +4743,23 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                     return;
                 }
                 try {
+                    const body = (await readJsonBody(request));
+                    const name = typeof body.name === 'string' ? body.name : '';
+                    const drainCall = drainCallOf(request);
+                    if (drainCall === undefined && body.busyPolicy === 'drain') {
+                        if (body.restore === true) {
+                            sendJson(response, 400, {
+                                ok: false,
+                                unsupported: true,
+                                failureCode: 'AGENT_DRAIN_UNSUPPORTED',
+                                error: '从本地开发恢复不会走等待 Agent 的流程，请等 Session 结束后再试。 / Restoring a local development install does not use drain mode; try again after the running sessions finish.',
+                            });
+                            return;
+                        }
+                        await handleDrainRequest(response, request, 'update', body, name);
+                        return;
+                    }
                     await withMutationLock(response, 'install', async () => {
-                        const body = (await readJsonBody(request));
-                        const name = typeof body.name === 'string' ? body.name : '';
                         if (isTeamComponent(name) || name === 'dsh-agent-pi-compaction') {
                             sendJson(response, 400, { error: isTeamComponent(name) ? TEAM_MANAGED_REASON : '内置压缩组件由对话预设引用，不能单独修改或卸载。' });
                             return;
@@ -4045,6 +4772,14 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                             ? body.compatVersion
                             : null;
                         const restore = body.restore === true;
+                        if (body.eligibleVersion !== undefined && !isStableReleaseVersion(body.eligibleVersion)) {
+                            sendJson(response, 400, { error: 'Invalid eligibleVersion' });
+                            return;
+                        }
+                        if (body.eligibleVersion !== undefined && compatVersion !== null) {
+                            sendJson(response, 400, { error: 'eligibleVersion and compatVersion cannot be combined' });
+                            return;
+                        }
                         const manifestCapture = captureUpdateManifest();
                         if (!manifestCapture.ok) {
                             sendJson(response, 500, {
@@ -4193,6 +4928,9 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                         const selfChannel = SELF_NAMES.has(name) ? activeChannel() : null;
                         const tag = selfChannel === null ? 'latest' : DIST_TAG[selfChannel];
                         let expectedNpmVersion = null;
+                        /** The target could not be pinned because registry lookups failed (#1047). */
+                        let versionUnverified = false;
+                        let enforceMatureReleaseAge = false;
                         // Resolve the registry pin BEFORE building the add target (#496).
                         // Desktop's install boundary otherwise fetches `latest` again to
                         // rewrite `@latest` into `name@x.y.z`; when the two views drift,
@@ -4226,6 +4964,78 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                         // failure with a name.
                         if (usesNpmUpdateTarget) {
                             const installedVersion = readInstalledVersion(config.profile, name, activeProfileDir);
+                            // #991: Revalidate under the mutation lock against the CURRENT registry
+                            // and profile policy. The client's target is an optimistic concurrency
+                            // token, never an authorization to bypass pnpm's release-age window.
+                            const desktopStable = config.desktopHost === true && !SELF_NAMES.has(name)
+                                && isNpmRollbackSource && isStableReleaseVersion(installedVersion);
+                            if (desktopStable && compatVersion !== null && !isStableReleaseVersion(compatVersion)) {
+                                sendJson(response, 409, {
+                                    staleTarget: true,
+                                    error: '官方桌面端稳定版 npm 更新不自动选择预发布兼容版本；未修改插件。 / The Desktop stable npm update cannot automatically select a prerelease compatibility target. Nothing was changed.',
+                                });
+                                return;
+                            }
+                            // Keep the compatibility dialog's original no-op/downgrade
+                            // decisions before consulting the mature-version ceiling.
+                            if (desktopStable && compatVersion !== null) {
+                                const direction = compareVersions(compatVersion, installedVersion);
+                                if (direction === 0) {
+                                    invalidateUpdates();
+                                    sendJson(response, 200, { ok: true, skipped: 'current', name, version: installedVersion });
+                                    return;
+                                }
+                                if (direction !== null && direction < 0) {
+                                    sendJson(response, 400, {
+                                        error: `无法用这个版本更新：它为当前 DSH 兼容，但 ${compatVersion} 比已装的 ${installedVersion} 更旧，更新会降级，已停止。 / That version cannot update this plugin: ${compatVersion} is compatible with this host but older than the installed ${installedVersion}, so it would be a downgrade. Nothing was changed.`,
+                                    });
+                                    return;
+                                }
+                            }
+                            if (desktopStable) {
+                                const endpointLatest = await fetchNpmLatest(name);
+                                // Repeated legacy requests are already complete. An explicit
+                                // client target must still pass the stale-target checks below.
+                                if (body.eligibleVersion === undefined && compatVersion === null && endpointLatest === installedVersion) {
+                                    invalidateUpdates();
+                                    sendJson(response, 200, { ok: true, skipped: 'current', name, version: installedVersion });
+                                    return;
+                                }
+                                const eligible = await resolveDesktopMatureUpdate(name, installedVersion, config.profile, activeProfileDir, endpointLatest, compatVersion ?? undefined);
+                                if (body.eligibleVersion !== undefined && body.eligibleVersion !== eligible.candidate) {
+                                    invalidateUpdates();
+                                    sendJson(response, 409, {
+                                        staleTarget: true,
+                                        error: `更新目标已经变化（原目标 ${body.eligibleVersion}；当前合规目标 ${eligible.candidate ?? '无'}）。请刷新后重新选择。 / The eligible update target changed. Refresh and choose again.`,
+                                    });
+                                    return;
+                                }
+                                if (eligible.candidate === null) {
+                                    invalidateUpdates();
+                                    sendJson(response, 409, {
+                                        staleTarget: true,
+                                        error: `无法确认 ${name} 存在符合当前等待策略的升级版本（${eligible.reason}），没有修改插件。 / No eligible update can be verified against the current release-age policy. Nothing was changed.`,
+                                    });
+                                    return;
+                                }
+                                // Older clients have no target token. They may still install
+                                // a mature latest, but cannot silently get a different build
+                                // from the version their UI presented.
+                                if (compatVersion === null && body.eligibleVersion === undefined && eligible.candidate !== endpointLatest) {
+                                    invalidateUpdates();
+                                    sendJson(response, 409, { staleTarget: true, error: '当前最新版仍在等待期；请刷新市场以确认可安装的成熟版本。 / The latest release is held. Refresh the market to confirm the exact mature target.' });
+                                    return;
+                                }
+                                // compatVersion is an existing host-compatibility escape hatch,
+                                // never an exemption from the profile's release-age policy.
+                                if (compatVersion !== null && eligible.candidate !== compatVersion) {
+                                    invalidateUpdates();
+                                    sendJson(response, 409, { staleTarget: true, error: 'The requested compatible version is not verified mature under the current profile policy.' });
+                                    return;
+                                }
+                                expectedNpmVersion = eligible.candidate;
+                                enforceMatureReleaseAge = true;
+                            }
                             // The requested release replaces the resolved one, and with it
                             // every check below that exists to judge `latest`: re-running
                             // them would refuse the version the dialog just found, in a loop
@@ -4249,11 +5059,20 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                                 }
                                 expectedNpmVersion = compatVersion;
                             }
-                            const registryLatest = compatVersion ?? (selfChannel === null
+                            const registryLatest = expectedNpmVersion ?? compatVersion ?? (selfChannel === null
                                 ? await fetchNpmLatest(name)
                                 : await versionOnChannel(name, selfChannel, await fetchNpmLatest(name)));
-                            if (compatVersion === null)
+                            if (expectedNpmVersion === null)
                                 expectedNpmVersion = registryLatest;
+                            // Both registry lookups failed (#1047): nothing can be pinned,
+                            // so pnpm resolves the dist-tag itself. That is a working
+                            // install on a degraded registry, not a failure — but the
+                            // version that lands was chosen by pnpm, not verified here, and
+                            // the user is told so once instead of never.
+                            if (expectedNpmVersion === null) {
+                                versionUnverified = true;
+                                logEvent('warn', 'update', `${name}: registry metadata unavailable; installing ${name}@${tag} unpinned — the resolved version is unverified (#1047)`);
+                            }
                             // Never let `@latest` walk a profile BACKWARDS (#64 by @ZeroOrigin64):
                             // a package whose latest dist-tag was left on an older release turns
                             // this update into a downgrade that also rewrites an exact pin to
@@ -4346,13 +5165,16 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                         // `github:owner/repo` untouched, so passing a restore through it
                         // still gets a China-region mirror where one applies and changes
                         // nothing where one does not.
-                        const target = restore
+                        let target = restore
                             ? (NPM_NAME_RE.test(spec) ? `${spec}@${tag}` : await acceleratedTarget(spec, region))
                             : usesNpmUpdateTarget
                                 ? (expectedNpmVersion !== null ? `${name}@${expectedNpmVersion}` : `${name}@${tag}`)
                                 : genericGitTarget !== null
                                     ? genericGitTarget
                                     : await acceleratedTarget(gitSpec, region);
+                        if (drainCall !== undefined && (drainCall.role === 'probe' || drainCall.expected !== null)) {
+                            target = await pinDrainGithubTarget(target, region);
+                        }
                         const repoIdentity = isGit ? repoOfTarget(spec) : null;
                         const repoKey = repoIdentity?.split('#')[0] ?? null;
                         // A non-GitHub remote (#632) has no repo key. Its identity is the
@@ -4426,7 +5248,45 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                         // the update check.
                         const addArgs = inPlaceUpdate
                             ? (force ? ['update', RELEASE_AGE_OVERRIDE, name] : ['update', name])
-                            : (force && marketFlags ? ['add', RELEASE_AGE_OVERRIDE, target] : ['add', target]);
+                            : (force && marketFlags && config.desktopHost !== true ? ['add', RELEASE_AGE_OVERRIDE, target] : ['add', target]);
+                        if (drainCall !== undefined) {
+                            // Only a deferred operation needs an immutable target. An inline
+                            // drain runs now, with the ordinary route's tolerance for an
+                            // unpinned registry answer.
+                            if (drainCall.role === 'probe' || drainCall.expected !== null) {
+                                const exact = restore
+                                    ? false
+                                    : usesNpmUpdateTarget
+                                        ? expectedNpmVersion !== null
+                                        : /^https?:/i.test(target)
+                                            || githubCommitOfTarget(target) !== null
+                                            || gitCommitOfTarget(target) !== null;
+                                if (!exact) {
+                                    sendJson(response, 409, {
+                                        targetChanged: true,
+                                        error: '无法确认这次要更新的精确版本，因此不会在等待后执行。请刷新市场后重新选择。 / The exact update target could not be verified, so it will not run after waiting. Refresh the market and choose again.',
+                                    });
+                                    return;
+                                }
+                            }
+                            const intent = {
+                                kind: 'update',
+                                name,
+                                expected: { target, spec, version: beforeVersion },
+                            };
+                            if (drainCall.role === 'probe') {
+                                drainCall.onIntent(intent);
+                                sendJson(response, 200, { ok: true, drainPreflight: true });
+                                return;
+                            }
+                            if (drainCall.expected !== null && !drainIntentMatches(drainCall.expected, intent)) {
+                                sendJson(response, 409, {
+                                    targetChanged: true,
+                                    error: '等待期间更新目标或已装版本变了，没有执行更新。请刷新后重新选择。 / The update target or the installed version changed while waiting; nothing was updated. Refresh and choose again.',
+                                });
+                                return;
+                            }
+                        }
                         // Exact manifest snapshot for failure rollback (#65, #339) — the
                         // host can write dependencies AND dsh.profile.bundles before a
                         // hard-failed add, leaving residue that breaks the next boot.
@@ -4577,7 +5437,30 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                         // runs. Write the intent first, so the log can answer "where did
                         // my plugin go" after the fact.
                         logEvent('info', 'update-start', `${name} -> ${target} (profile ${config.profile})`);
-                        const result = await runPlugin(config.profile, addArgs);
+                        // A live hot mount is an include tree holding an ABSOLUTE file URL
+                        // into node_modules. pnpm replaces that directory while the tree
+                        // is still mounted, and the tree's next import of the old path
+                        // fails with ERR_MODULE_NOT_FOUND — reported as THIS update's
+                        // failure, rolled back, every time (#1022). Drop the mount first:
+                        // the files are about to be replaced anyway, and the market
+                        // already tells the user the new build needs a restart.
+                        // Only a package the profile's bundle layer composes again is
+                        // dropped: that is the one whose mount comes back on the next
+                        // start, and the one the report is about — the market re-adds a
+                        // newly enabled plugin to that list itself (#696). A mount with no
+                        // durable row behind it is the only thing keeping such a package
+                        // running, so this leaves it alone.
+                        if (listHotMounts().includes(name) && readProfileBundles(activeProfileDir).includes(name)) {
+                            const dropped = await hotUnmount(name);
+                            logEvent('info', 'update', `${name}: hot mount dropped before the files are replaced (#1022)${dropped ? '' : ' (no live handle)'}`);
+                        }
+                        // Even when a candidate was mature during validation, pnpm may
+                        // reject the operation because another lockfile entry is young or
+                        // the registry changes. Never retry this update with an age bypass.
+                        if (!assertDrainMutation(request, response))
+                            return;
+                        const result = await (enforceMatureReleaseAge ? runMaturePluginUpdate : runPlugin)(config.profile, addArgs);
+                        drainPhaseOf(request)?.('verifying');
                         const cancelled = result.cancelled;
                         // The pin above is the market's own write, so it is undone whenever
                         // pnpm did not replace it. Measured on pnpm 11.7.0 and 12.4.1, a
@@ -4594,7 +5477,7 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                         }
                         const rollbackAttemptBuild = async () => {
                             if (rollbackPlan.available) {
-                                return executeUpdateRollback(name, manifestBefore, rollbackPlan.source);
+                                return executeUpdateRollback(name, manifestBefore, rollbackPlan.source, enforceMatureReleaseAge);
                             }
                             restoreProfileManifest(config.profile, manifestBefore, activeProfileDir);
                             const lockRestore = rollbackPlan.lockfileBefore === undefined
@@ -5003,6 +5886,7 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                                         names: [name],
                                         manifestBefore,
                                         updateSource: rollbackPlan.source,
+                                        preserveProfilePolicy: enforceMatureReleaseAge,
                                     })
                                     : null;
                                 compatibility = {
@@ -5054,8 +5938,8 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                         // rewriting the profile's bundle list.
                         const renamedError = renamedTo === null ? null
                             : rollbackOk
-                                ? `${name} 的上游已把包改名为 ${renamedTo}：新版本会装在旧名字下，DSH 下次启动会拒绝这个 profile，所以本次更新已自动回滚、原版本已恢复。要用新版本，请卸载 ${name} 后按新名字 ${renamedTo} 重新安装。 / ${name} was renamed upstream to ${renamedTo}: the new version would sit under the old name and DSH would refuse to start this profile, so the update was rolled back and the previous build restored. To move to the new version, remove ${name} and install ${renamedTo}.`
-                                : `${name} 的上游已把包改名为 ${renamedTo}，且未能验证恢复原版本（${rollbackDetail ?? 'unknown'}）；在卸载 ${name} 之前 DSH 会拒绝启动这个 profile，卸载后再按新名字 ${renamedTo} 重新安装。 / ${name} was renamed upstream to ${renamedTo}, and restoration of the previous build could not be verified (${rollbackDetail ?? 'unknown'}); DSH will refuse to start this profile until ${name} is removed — then install ${renamedTo}.`;
+                                ? `${name} 的上游已把包改名为 ${renamedTo}：新版本会装在旧名字下，DSH 下次启动会拒绝这个 profile，所以本次更新已自动回滚、原版本已恢复。目录如果声明了这次改名，「已安装」里会出现迁移入口。 / ${name} was renamed upstream to ${renamedTo}: the new version would sit under the old name and DSH would refuse to start this profile, so the update was rolled back and the previous build restored. If the catalog declares this rename, the installed list offers the migration.`
+                                : `${name} 的上游已把包改名为 ${renamedTo}，且未能验证恢复原版本（${rollbackDetail ?? 'unknown'}）。 / ${name} was renamed upstream to ${renamedTo}, and restoration of the previous build could not be verified (${rollbackDetail ?? 'unknown'}).`;
                         const cancelDiff = cancelled ? changedSince(beforeInstalled) : null;
                         // Build-script blocks hit updates too (#69): a leftover invalid
                         // allowBuilds entry (pnpm's placeholder bug, #56) or a newly
@@ -5094,6 +5978,29 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                                 logEvent('warn', 'update-bundles-restored', `${name}: the desktop app removed its bundle row before refusing the update (bundle-in-use) — restored it so the plugin still loads on the next boot (#935)`);
                             }
                         }
+                        // A FAILED update can also drop rows it never intended to touch.
+                        // The rollback path ("restoration of the previous build could not
+                        // be verified") rewrites the manifest through pnpm and the plugin
+                        // command, and neither carries the bundle rows it did not own: a
+                        // bystander keeps its dependency and its node_modules but loses
+                        // its `dsh.profile.bundles` row, so it silently stops loading on
+                        // the next boot while this operation reported a failure about
+                        // something else entirely.
+                        //
+                        // Restoring is sound exactly because the operation FAILED: nobody
+                        // expressed a deliberate removal, and the package is still on
+                        // disk — putting the row back restores what the user had before
+                        // the operation. A successful update keeps the read-only stance
+                        // (#720/#696), where a missing row may be a deliberate switch-off.
+                        if (!ok && !cancelled) {
+                            const lostRows = bundlesDroppedFromProfile(manifestBefore, config.profile, activeProfileDir, new Set(removedDeclaration === null ? [] : [removedDeclaration.name])).filter(bundle => bundle !== name
+                                && existsSync(join(activeProfileDir, 'node_modules', bundle, 'package.json')));
+                            for (const bundle of lostRows) {
+                                if (addProfileBundle(activeProfileDir, bundle)) {
+                                    logEvent('warn', 'update-bundles-restored', `${bundle}: lost its dsh.profile.bundles row while ${name}'s update failed — restored it so the plugin still loads on the next boot (#720)`);
+                                }
+                            }
+                        }
                         logEvent(ok || cancelled ? 'info' : 'error', 'update', `${name} -> ${target} exit=${String(result.exitCode)}${result.timedOut ? ' TIMEOUT' : ''}${cancelled ? ' CANCELLED' : ''}${stale ? ` STALE(${staleReason ?? 'unknown'})` : ''}${ok || cancelled ? '' : ` err=${failureDetail(result)}`}`);
                         // A user-cancelled run is a quiet outcome, not an error.
                         sendJson(response, ok || cancelled ? 200 : result.busy === true ? 409 : 502, {
@@ -5117,6 +6024,11 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                             failureCode: versionFailureCode ?? result.refusalCode ?? undefined,
                             renamedTo: renamedTo ?? undefined,
                             removedDeclaration: removedDeclaration ?? undefined,
+                            // #1047: no version could be pinned, so this is the one pnpm
+                            // chose. The client marks the row `warned` rather than `done`
+                            // and names the version, because "installed" and "installed
+                            // something we verified" are not the same answer.
+                            ...(versionUnverified ? { versionUnverified: { installed: readInstalledVersion(config.profile, name, activeProfileDir) } } : {}),
                             ...(droppedBundles.length > 0 ? { droppedBundles } : {}),
                             // Last, so the specific ones above keep the floor they had: this
                             // only fills the case where every named branch said nothing and
@@ -5142,11 +6054,12 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                             stderr: result.stderr,
                             installed: readInstalled(config.profile, activeProfileDir),
                         });
-                    });
+                    }, request);
                 }
                 catch (error) {
                     const message = error instanceof Error ? error.message : String(error);
-                    host.logger?.warn(`[dsh-market] update failed: ${message}`);
+                    if (!inProbe())
+                        host.logger?.warn(`[dsh-market] update failed: ${message}`);
                     logEvent('error', 'update', `route error: ${message}`);
                     sendJson(response, 500, { error: message });
                 }
@@ -5319,10 +6232,95 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                         sendJson(response, 400, { error: 'enabled must be true or false' });
                         return;
                     }
+                    // The row is one of three doors (#1015). Turning it off while both
+                    // page entries are already hidden would leave the market with no
+                    // way in at all, so the pair of preferences is answered together.
+                    if (!body.enabled && closesEveryDoor({ ...entryDoors(), sidebarEntry: false })) {
+                        sendJson(response, 409, { error: 'at least one market entry must stay visible / 至少保留一个市场入口' });
+                        return;
+                    }
                     marketState.sidebarEntry = body.enabled;
                     writeMarketState(activeProfileDir, marketState);
                     logEvent('info', 'sidebar', `sidebar entry ${body.enabled ? 'on' : 'off'}`);
                     sendJson(response, 200, { ok: true, enabled: body.enabled });
+                }
+                catch (error) {
+                    sendJson(response, 500, { error: error instanceof Error ? error.message : String(error) });
+                }
+            },
+        }),
+        /**
+         * Whether the market's own page stays in Settings and whether it keeps
+         * its tab on the host's Plugins page (#1015).
+         *
+         * One route for both because the rule that binds them spans all three
+         * doors: refusing the last one needs the sidebar's saved answer, which
+         * each handler here can see. Two separate routes would each know half
+         * the state and each have to re-derive it.
+         *
+         * GET as well as POST: the browser half registers both entries during
+         * page load, before /status — which probes pnpm on every call.
+         *
+         * The HOST still decides which of these doors exist (older hosts have no
+         * Plugins tab, and the desktop shell may hide the settings section).
+         * That half is answered in the browser; this route only stores and
+         * combines the user's answers.
+         */
+        registerRoute({
+            kind: 'exact',
+            path: '/dsh-market/entry-visibility',
+            handler: async (request, response) => {
+                if (request.method === 'GET') {
+                    const doors = entryDoors();
+                    sendJson(response, 200, { settingsSection: doors.settingsSection, pluginsTab: doors.pluginsTab });
+                    return;
+                }
+                if (request.method !== 'POST') {
+                    response.writeHead(405, { allow: 'GET, POST' });
+                    response.end();
+                    return;
+                }
+                if (!sameOrigin(request)) {
+                    sendJson(response, 403, { error: 'untrusted origin' });
+                    return;
+                }
+                try {
+                    const body = (await readJsonBody(request));
+                    const hasSection = body !== null && body.settingsSection !== undefined;
+                    const hasTab = body !== null && body.pluginsTab !== undefined;
+                    if (!hasSection && !hasTab) {
+                        sendJson(response, 400, { error: 'settingsSection or pluginsTab is required' });
+                        return;
+                    }
+                    if ((hasSection && typeof body?.settingsSection !== 'boolean') || (hasTab && typeof body?.pluginsTab !== 'boolean')) {
+                        sendJson(response, 400, { error: 'settingsSection and pluginsTab must be true or false' });
+                        return;
+                    }
+                    const next = {
+                        ...entryDoors(),
+                        ...(hasSection ? { settingsSection: body?.settingsSection } : {}),
+                        ...(hasTab ? { pluginsTab: body?.pluginsTab } : {}),
+                    };
+                    if (closesEveryDoor(next)) {
+                        sendJson(response, 409, { error: 'at least one market entry must stay visible / 至少保留一个市场入口' });
+                        return;
+                    }
+                    // Written through the long-lived object like the sidebar choice, so
+                    // a later whole-state save cannot put the old answer back (#435).
+                    // `true` is the default: the writer omits it, clearing any stored
+                    // OFF rather than pinning today's default. The write happens BEFORE
+                    // the in-memory copy changes, so a failed write cannot leave a GET
+                    // reporting an answer that never reached disk.
+                    const nextState = {
+                        ...marketState,
+                        ...(hasSection ? { settingsSection: body?.settingsSection } : {}),
+                        ...(hasTab ? { pluginsTab: body?.pluginsTab } : {}),
+                    };
+                    writeMarketState(activeProfileDir, nextState);
+                    marketState.settingsSection = nextState.settingsSection;
+                    marketState.pluginsTab = nextState.pluginsTab;
+                    logEvent('info', 'entries', `settings section ${next.settingsSection ? 'on' : 'off'}, plugins tab ${next.pluginsTab ? 'on' : 'off'}`);
+                    sendJson(response, 200, { ok: true, settingsSection: next.settingsSection, pluginsTab: next.pluginsTab });
                 }
                 catch (error) {
                     sendJson(response, 500, { error: error instanceof Error ? error.message : String(error) });
@@ -5777,6 +6775,24 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                     sendJson(response, 403, { error: 'untrusted origin' });
                     return;
                 }
+                let operationId = '';
+                try {
+                    const body = await readJsonBody(request);
+                    if (typeof body.operationId === 'string')
+                        operationId = body.operationId;
+                }
+                catch {
+                    // The existing cancel-active callers post an empty body.
+                }
+                if (operationId !== '') {
+                    if (!drainCoordinator.cancel(operationId)) {
+                        sendJson(response, 400, { error: 'no deferred operation with that id' });
+                        return;
+                    }
+                    logEvent('info', 'cancel', `cancelled deferred ${operationId}`);
+                    sendJson(response, 200, { ok: true, cancelled: true, operationId });
+                    return;
+                }
                 // Cancel flow contributed in #6 by @qichuang321.
                 if (!commands.cancelActive()) {
                     sendJson(response, 400, { error: 'no operation is running' });
@@ -5786,7 +6802,7 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                 sendJson(response, 200, { ok: true, cancelled: true, target: progress.target });
             },
         }),
-        registerRoute({
+        registerRoute(captureLegacy('/dsh-market/uninstall', {
             kind: 'exact',
             path: '/dsh-market/uninstall',
             handler: async (request, response) => {
@@ -5800,9 +6816,13 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                     return;
                 }
                 try {
+                    const body = (await readJsonBody(request));
+                    const name = typeof body.name === 'string' ? body.name : '';
+                    if (drainCallOf(request) === undefined && body.busyPolicy === 'drain') {
+                        await handleDrainRequest(response, request, 'uninstall', body, name);
+                        return;
+                    }
                     await withMutationLock(response, 'install', async () => {
-                        const body = (await readJsonBody(request));
-                        const name = typeof body.name === 'string' ? body.name : '';
                         if (isTeamComponent(name) || name === 'dsh-agent-pi-compaction') {
                             sendJson(response, 400, { error: isTeamComponent(name) ? TEAM_MANAGED_REASON : '内置压缩组件由对话预设引用，不能单独修改或卸载。' });
                             return;
@@ -5866,6 +6886,31 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                             });
                             return;
                         }
+                        const drainCall = drainCallOf(request);
+                        if (drainCall !== undefined) {
+                            const installedSpec = readInstalled(config.profile, activeProfileDir)[name];
+                            if (installedSpec === undefined) {
+                                sendJson(response, 400, { error: 'plugin is not installed' });
+                                return;
+                            }
+                            const intent = {
+                                kind: 'uninstall',
+                                name,
+                                expected: { spec: installedSpec, version: readInstalledVersion(config.profile, name, activeProfileDir) },
+                            };
+                            if (drainCall.role === 'probe') {
+                                drainCall.onIntent(intent);
+                                sendJson(response, 200, { ok: true, drainPreflight: true });
+                                return;
+                            }
+                            if (drainCall.expected !== null && !drainIntentMatches(drainCall.expected, intent)) {
+                                sendJson(response, 409, {
+                                    targetChanged: true,
+                                    error: '等待期间这个插件的已装版本变了，没有执行卸载。请刷新后重新确认。 / The installed version changed while waiting; nothing was uninstalled. Refresh and confirm again.',
+                                });
+                                return;
+                            }
+                        }
                         pendingRollbacks.clear();
                         const beforeInstalled = readInstalled(config.profile, activeProfileDir);
                         // isDisabled comes from the patch layer (#130) — keep it while the
@@ -5903,7 +6948,10 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                         // package that is no longer installed.
                         const rowJournal = PendingRowJournal.forProfile(activeProfileDir);
                         rowJournal.begin({ profile: config.profile, name, patchPath: userPatchPath, rows: ownedRows });
+                        if (!assertDrainMutation(request, response))
+                            return;
                         const result = await runPlugin(config.profile, ['remove', name]);
+                        drainPhaseOf(request)?.('verifying');
                         const cancelled = result.cancelled;
                         let ok = result.exitCode === 0 && !result.timedOut && !cancelled;
                         const cancelDiff = cancelled ? changedSince(beforeInstalled) : null;
@@ -6020,16 +7068,17 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                             stderr: result.stderr,
                             installed: readInstalled(config.profile, activeProfileDir),
                         });
-                    });
+                    }, request);
                 }
                 catch (error) {
                     const message = error instanceof Error ? error.message : String(error);
-                    host.logger?.warn(`[dsh-market] uninstall failed: ${message}`);
+                    if (!inProbe())
+                        host.logger?.warn(`[dsh-market] uninstall failed: ${message}`);
                     logEvent('error', 'uninstall', `route error: ${message}`);
                     sendJson(response, 500, { error: message });
                 }
             },
-        }),
+        })),
         registerRoute(captureLegacy('/dsh-market/rollback', {
             kind: 'exact',
             path: '/dsh-market/rollback',
@@ -6071,7 +7120,7 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                             const name = pending.names[0];
                             const result = pending.updateSource === undefined
                                 ? { ok: false, detail: 'the saved update rollback source is unavailable' }
-                                : await executeUpdateRollback(name, pending.manifestBefore, pending.updateSource);
+                                : await executeUpdateRollback(name, pending.manifestBefore, pending.updateSource, pending.preserveProfilePolicy);
                             ok = result.ok;
                             detail = result.detail;
                         }
@@ -6111,7 +7160,7 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                 }
             },
         })),
-        registerRoute({
+        registerRoute(captureLegacy('/dsh-market/install', {
             kind: 'exact',
             path: '/dsh-market/install',
             handler: async (request, response) => {
@@ -6125,8 +7174,14 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                     return;
                 }
                 try {
+                    const body = (await readJsonBody(request));
+                    const drainCall = drainCallOf(request);
+                    if (drainCall === undefined && body.busyPolicy === 'drain') {
+                        const requestedUrl = typeof body.url === 'string' ? body.url : '';
+                        await handleDrainRequest(response, request, 'install', body, requestedUrl === '' ? 'install' : requestedUrl, requestedUrl === '' ? undefined : requestedUrl);
+                        return;
+                    }
                     await withMutationLock(response, 'install', async () => {
-                        const body = (await readJsonBody(request));
                         const force = body.force === true;
                         const url = typeof body.url === 'string' ? body.url : '';
                         // A release the user picked from the refusal dialog's own search
@@ -6182,6 +7237,12 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                         let target = await acceleratedTarget(pinnedTarget, region);
                         if (target !== pinnedTarget) {
                             logEvent('info', 'region', `${entry.name}: resolved HEAD through an available ${region} route; downloading the commit-pinned GitHub target directly for pnpm integrity`);
+                        }
+                        // The global region has no proxy, so `acceleratedTarget` leaves a
+                        // bare `github:` shortcut to pnpm. A deferred drain operation
+                        // still needs the commit it was approved against.
+                        if (drainCall !== undefined && (drainCall.role === 'probe' || drainCall.expected !== null)) {
+                            target = await pinDrainGithubTarget(target, region);
                         }
                         // Duplicate guard (#27): the same plugin listed under another name
                         // (an alias entry pointing at the same repo) must never install
@@ -6252,6 +7313,28 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                                 return;
                             }
                         }
+                        // Rename guard (#1012): the package this entry used to publish
+                        // under may still be in the profile, and a rename re-registers the
+                        // same loader rows — installing the successor beside it registers
+                        // them twice and bricks the next start (#122). The market does not
+                        // answer that with "uninstall, then install": when the old copy is
+                        // a registry dependency the migration replaces it in place and
+                        // carries switches, groups and notes across, so the response names
+                        // both ends and the client continues straight into that
+                        // transaction. A Git or path copy cannot be moved by that
+                        // transaction, so it is named without promising the dialog.
+                        const predecessor = await renamePredecessor(entry, installedNow, routesFor(region).npmRegistry);
+                        if (predecessor !== null && typeof entry.npm === 'string') {
+                            const movable = isRegistryRangeSpec(String(installedNow[predecessor] ?? ''));
+                            logEvent('warn', 'install-rejected', `${entry.name}: predecessor ${predecessor} is installed — ${movable ? 'migration replaces it' : 'not a registry dependency, cannot be migrated here'}`);
+                            sendJson(response, 409, {
+                                error: movable
+                                    ? `「${predecessor}」是这个插件改名前用的名字，已经装在 profile 里。装新名字会把同一个插件装成两份、下次启动可能失败；改用迁移把它换过来，开关、分组和备注都会保留。 / "${predecessor}" is already installed under this plugin's former package name. Installing the new name would put two copies of one plugin in the profile and can break the next start — migrate it instead; switches, groups and notes come along.`
+                                    : `「${predecessor}」是这个插件改名前用的名字，已经装在 profile 里，而它是从 Git 或本地路径装的。装新名字会把同一个插件装成两份、下次启动可能失败；请先把旧的那份换成 npm 包（「已安装」里会给出可用的移动方式）。 / "${predecessor}" is already installed under this plugin's former package name, and it comes from a Git or local path. Installing the new name would put two copies of one plugin in the profile and can break the next start — move the old copy to the npm package first (the installed list shows what can be moved).`,
+                                ...(movable ? { migration: { kind: 'npm-rename', from: predecessor, target: entry.npm } } : {}),
+                            });
+                            return;
+                        }
                         // Fresh installs ask the host requirement too (#404/#473: the
                         // update route refuses a declared-incompatible release before
                         // installing; an unguarded fresh install would hit exactly the
@@ -6270,6 +7353,39 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                         const before = new Set(Object.keys(beforeSpecs));
                         if (retryAlias !== null)
                             before.delete(retryAlias);
+                        if (drainCall !== undefined) {
+                            // Only a deferred operation needs an immutable target. The
+                            // inline path runs immediately, exactly like an ordinary
+                            // install, so a registry that cannot pin a version must not
+                            // turn into a refusal there.
+                            if (drainCall.role === 'probe' || drainCall.expected !== null) {
+                                const exact = NPM_NAME_RE.test(plainTarget)
+                                    ? requestedVersion !== null || registryLatest !== null
+                                    : /^https?:|^file:/i.test(target)
+                                        || githubCommitOfTarget(target) !== null
+                                        || gitCommitOfTarget(target) !== null;
+                                if (!exact) {
+                                    sendJson(response, 409, {
+                                        targetChanged: true,
+                                        error: '无法确认这次要装的精确版本，因此不会在等待后执行。请刷新市场后重新选择。 / The exact release could not be verified, so it will not run after waiting. Refresh the market and choose again.',
+                                    });
+                                    return;
+                                }
+                            }
+                            const intent = { kind: 'install', name: entry.name, url, expected: { target } };
+                            if (drainCall.role === 'probe') {
+                                drainCall.onIntent(intent);
+                                sendJson(response, 200, { ok: true, drainPreflight: true });
+                                return;
+                            }
+                            if (drainCall.expected !== null && !drainIntentMatches(drainCall.expected, intent)) {
+                                sendJson(response, 409, {
+                                    targetChanged: true,
+                                    error: '等待期间要安装的版本或来源变了，没有执行安装。请重新确认后再试。 / The release or source to install changed while waiting; nothing was installed. Confirm it again and retry.',
+                                });
+                                return;
+                            }
+                        }
                         pendingRollbacks.clear();
                         const compatibilityBefore = assessProfile(config.profile, activeProfileDir);
                         // pnpm re-extracts the whole tree on any operation, so a plugin
@@ -6292,6 +7408,8 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                         // the manifest and left the half for the next pnpm run to trip on.
                         const lockfileBefore = captureProfileLockfile();
                         const pinned = target === pinnedTarget && pinnedTarget !== plainTarget;
+                        if (!assertDrainMutation(request, response))
+                            return;
                         let result = await (pinned ? runPluginKeepingReleaseAge : runPlugin)(config.profile, ['add', target]);
                         // Set when the profile's own minimumReleaseAge is what kept this
                         // install off the newest release (#635). The install SUCCEEDS —
@@ -6337,6 +7455,8 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                                         : `${entry.name}: the profile's registry could not resolve ${String(registryLatest)} (a mirror behind the registry that answered latest) — retrying with the bare name`);
                                 restoreProfileManifest(config.profile, manifestBefore, activeProfileDir);
                                 if (bypass) {
+                                    if (!assertDrainMutation(request, response))
+                                        return;
                                     result = await runPlugin(config.profile, ['add', RELEASE_AGE_OVERRIDE, pinnedTarget]);
                                 }
                                 if (!bypass || result.exitCode !== 0 || result.timedOut || result.cancelled) {
@@ -6346,6 +7466,8 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                                     if (heldBack)
                                         heldByAge = true;
                                     target = plainTarget;
+                                    if (!assertDrainMutation(request, response))
+                                        return;
                                     result = await runPlugin(config.profile, ['add', target]);
                                 }
                             }
@@ -6359,7 +7481,12 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                         // exact failure on this exact target: any other failure keeps its
                         // own diagnosis, and a target that was never the entry's verified
                         // tarball (an npm name, or already `github:`) is left alone.
-                        if ((result.exitCode !== 0 || result.timedOut) && !result.cancelled) {
+                        // A deferred drain operation approved one exact artifact. Falling
+                        // back to the repository source would install a different one
+                        // after the wait. An inline drain (no Agent was running) is the
+                        // ordinary install path and keeps the fallback.
+                        const deferredArtifact = drainCall?.role === 'execute' && drainCall.expected !== null;
+                        if ((result.exitCode !== 0 || result.timedOut) && !result.cancelled && !deferredArtifact) {
                             const sourceTarget = sourceFallbackFor(entry, target);
                             const failure = sourceTarget === null
                                 ? null
@@ -6370,9 +7497,12 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                                 if (lockfileBefore.ok)
                                     restoreProfileLockfile(lockfileBefore.snapshot);
                                 target = await acceleratedTarget(sourceTarget, region);
+                                if (!assertDrainMutation(request, response))
+                                    return;
                                 result = await runPlugin(config.profile, ['add', target]);
                             }
                         }
+                        drainPhaseOf(request)?.('verifying');
                         const cancelled = result.cancelled;
                         const portCollisionLanded = !cancelled
                             && isHostPortCollision(result)
@@ -6398,6 +7528,8 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                             // Collection repos (e.g. skin monorepos) install as a junk
                             // fileset with no root package.json; retarget to the real
                             // plugin subdirectories via pnpm's #path: selector.
+                            if (!assertDrainMutation(request, response))
+                                return;
                             ok = await retargetCollections(runPlugin, config.profile, before, target, activeProfileDir);
                         }
                         // Fake-success guard (#18): a clean exit that added nothing
@@ -6411,6 +7543,8 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                         let removedBroken = [];
                         let conflicts = [];
                         if ((result.exitCode === 0 || portCollisionLanded) && !cancelled) {
+                            if (!assertDrainMutation(request, response))
+                                return;
                             const validated = await validateAddedPlugins(runPlugin, config.profile, before, activeProfileDir);
                             removedBroken = validated.removedBroken;
                             conflicts = validated.conflicts;
@@ -6642,7 +7776,13 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                                             // where the button is not (#314). The panel now carries
                                             // the action on this very row, so the text can just say
                                             // what to press.
-                                            ? `构建脚本被 pnpm 默认拦截（${ignoredBuilds.join(', ')}），点击「放行构建脚本并重试」即可放行并重装 / build scripts are blocked by pnpm by default (${ignoredBuilds.join(', ')}); use "Allow build scripts and retry" to approve and reinstall`
+                                            // #1034: pnpm reports every undecided build in the
+                                            // workspace, not only the ones this operation needed — an
+                                            // entry left from an earlier install shows up here too, and
+                                            // saying "this install needs dsh-purge approved" was wrong
+                                            // for a plugin that never depended on it. Name them as
+                                            // decisions, with where the decision is written.
+                                            ? `pnpm 要求先决定这些依赖能否运行构建脚本（${ignoredBuilds.join(', ')}）：有的是这次安装带进来的，也可能是之前留下的未决定条目。点「放行构建脚本并重试」会把它们写进 pnpm-workspace.yaml 的 allowBuilds，然后重新安装 / pnpm wants a decision on these packages before it runs their build scripts (${ignoredBuilds.join(', ')}); some came in with this install, and some may be entries an earlier one left undecided. "Allow build scripts and retry" writes them into allowBuilds in pnpm-workspace.yaml and installs again`
                                             // Same last resort as the update route (#848), and on THIS
                                             // route too: a recognized failure like an expired
                                             // `patchedDependencies` key had no branch here either.
@@ -6653,19 +7793,24 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                             stderr: result.stderr,
                             installed,
                         });
-                    });
+                    }, request);
                 }
                 catch (error) {
                     const message = error instanceof Error ? error.message : String(error);
-                    host.logger?.warn(`[dsh-market] install failed: ${message}`);
+                    if (!inProbe())
+                        host.logger?.warn(`[dsh-market] install failed: ${message}`);
                     logEvent('error', 'install', `route error: ${message}`);
                     sendJson(response, 500, { error: message });
                 }
             },
-        }),
+        })),
     ];
     return () => {
         disposed = true;
+        // Release Agent maintenance holds before the routes disappear. This is the
+        // disposer half of the single-finally + disposer guarantee (#411): an
+        // unloaded market must never leave an Agent parked behind a hold.
+        drainCoordinator.dispose();
         setBuildEnvSource(previousBuildEnvSource);
         configurePersistentLog(null);
         for (const dispose of disposers)

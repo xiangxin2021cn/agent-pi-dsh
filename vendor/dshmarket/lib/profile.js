@@ -924,18 +924,78 @@ export function bundlePatchInsertedIds(dir) {
  * conventional root cordis.patch.yml a package may ship instead.
  */
 export function bundleOptOutRowIds(dir) {
+    return declaredPatchRowIds(dir, 'disabledIds');
+}
+/**
+ * Row ids a package's own patch sources decide with an EXPRESSION rather
+ * than a literal — `disabled: !!js …` (#1043). The bundle's default for
+ * these rows is whatever the condition evaluates to on the host that
+ * composes the profile, so no literal the market writes above the bundle
+ * layer can stand in for the user: force-writing `disabled: false` switches
+ * on a row the environment keeps off (a TUI row on a Desktop without the TUI
+ * services), which then holds the package pending at activation and fails
+ * the next install's check.
+ *
+ * Reads the same two patch sources as `bundleOptOutRowIds` above.
+ */
+export function bundleExpressionRowIds(dir) {
+    return declaredPatchRowIds(dir, 'expressionIds');
+}
+/**
+ * Row ids a package's own patch sources declare for one role — the loop the
+ * two readers above and below share.
+ *
+ * They read the same two sources: every declared `dsh.bundle.patch` (one file,
+ * or an ordered list of them, #792) and the conventional root
+ * `cordis.patch.yml` a package may ship instead. Keeping that loop in one place
+ * is the point — `bundlePatchInsertedIds` above is declared-files-only, and a
+ * copy of this scan that forgot the root file is exactly how the two sides of
+ * one question drift apart.
+ *
+ * A source that cannot be read contributes nothing rather than throwing: this
+ * answers "what does the package say it ships", and a file that is not there
+ * says nothing. That is the tolerant half of the family by design — the strict
+ * one (`readBundlePatchRows`) refuses the whole declaration, because the host
+ * loads none of a patch it cannot read completely.
+ */
+function declaredPatchRowIds(dir, role) {
     const ids = new Set();
     const read = (file) => {
         try {
-            for (const id of parsePatchRows(readFileSync(file, 'utf8')).disabledIds)
+            for (const id of parsePatchRows(readFileSync(file, 'utf8'))[role])
                 ids.add(id);
         }
-        catch { /* no such patch — nothing shipped off through it */ }
+        catch { /* no such patch — nothing declared through it */ }
     };
     for (const file of declaredBundlePatchFiles(dir))
         read(file);
     read(join(dir, 'cordis.patch.yml'));
     return [...ids];
+}
+/**
+ * Row ids the installed copy of a package DECLARES it inserts (#1012).
+ *
+ * The evidence half of `rowIdsForPackage`: the same two patch sources (the
+ * declared `dsh.bundle.patch`, one file or an ordered list, and the
+ * conventional root `cordis.patch.yml`), insert rows only, and — unlike that
+ * reader — no live loader rows.
+ *
+ * Live rows are exactly what this cannot use. A rename transaction asks the
+ * question twice: of the old package just before it is removed (whose rows are
+ * still live, but whose patch files are about to be the only copy left) and of
+ * the new package right after its first install (which has never been booted,
+ * so the loader has never heard of it). Only the package's own declaration can
+ * answer for both.
+ *
+ * That is the same question, and the same parser, as `renamePredecessor` asks
+ * on the install path — an install never boots the package either, so it
+ * compares declarations too and the two refusals agree on what "one plugin"
+ * means (#1012). Where they differ is the root `cordis.patch.yml`: see
+ * `declaredPatchRowIds` for why this reader covers it and that gate's
+ * declared-only reader does not.
+ */
+export function shippedInsertedRowIds(dir) {
+    return declaredPatchRowIds(dir, 'insertedIds');
 }
 /**
  * Rows of one patch file. Exported because a package may ship its patch at
@@ -949,13 +1009,17 @@ export function bundleOptOutRowIds(dir) {
  * rows, but for "what does this bundle bring in" any row counts. `insertedIds`
  * is the subset under an `insert:` key (#147) — and "under `insert:`" is not
  * the same as "deeper than it", because a row's `config:` carries its payload
- * (#841).
+ * (#841). `expressionIds` (#1043) is the subset whose `disabled` is decided
+ * by an expression rather than a literal — a row the market must never
+ * answer with a literal of its own, because the host re-evaluates the
+ * condition on every compose and no user-layer value can stand in for it.
  */
 export function parsePatchRows(text) {
     const names = [];
     const ids = [];
     const insertedIds = [];
     const disabledIds = [];
+    const expressionIds = [];
     {
         // CRLF too, for consistency with the hot-mount parser, which a
         // Windows-authored patch genuinely broke. Here it changes no outcome
@@ -1062,6 +1126,38 @@ export function parsePatchRows(text) {
             return false;
         };
         /**
+         * Whether the row holding the `id:` at `from` declares `disabled` with
+         * a value that is not the literal `true` or `false` — an expression such
+         * as `disabled: !!js …`, or anything else the market cannot read (#1043).
+         * The bundle's own default for such a row is decided by the host at
+         * compose time, so a literal written above it never speaks for the user:
+         * force-enabling it switches on a row the environment keeps off. A row
+         * with NO `disabled` key is not decided at all and stays out — its
+         * default is plain "on".
+         *
+         * Same row span as `rowDeclaresDisabled`, and for the same reason: the
+         * marker line and the row's own keys at the key column, never a nested
+         * block.
+         */
+        const rowDeclaresExpressionDisabled = (from) => {
+            const start = rowStart(from);
+            if (start === -1)
+                return false;
+            const markerIndent = rows[start].indent;
+            const col = keyCol(start);
+            for (let j = start; j < rows.length; j++) {
+                const row = rows[j];
+                if (j > start && row.indent <= markerIndent)
+                    break;
+                if (j > start && (row.indent !== col || isDash(j)))
+                    continue;
+                const value = /^\s*-?\s*disabled:\s*(.*)$/u.exec(row.line);
+                if (value !== null && !/^(?:true|false)\s*$/u.test(value[1]))
+                    return true;
+            }
+            return false;
+        };
+        /**
          * Whether the key at `keyIndent` holds a block sequence. YAML lets that
          * sequence sit at the key's own column (`config:` then `- id:` without
          * further indent), so a `- ` there is the value, not a sibling.
@@ -1116,6 +1212,10 @@ export function parsePatchRows(text) {
                 // rows and never land here.
                 if (payloadIndent === null && rowDeclaresDisabled(i) && !disabledIds.includes(id[1]))
                     disabledIds.push(id[1]);
+                // An expression-decided row is the third shape: neither opt-in nor
+                // plain, and the market must not write over it (#1043).
+                if (payloadIndent === null && rowDeclaresExpressionDisabled(i) && !expressionIds.includes(id[1]))
+                    expressionIds.push(id[1]);
                 // A top-level `- id:` row closes any open insert block: it is a
                 // sibling of `- insert:`, not a member of it.
                 if (insertIndent !== null && indent > insertIndent) {
@@ -1128,7 +1228,7 @@ export function parsePatchRows(text) {
             }
         }
     }
-    return { names, ids, insertedIds, disabledIds };
+    return { names, ids, insertedIds, disabledIds, expressionIds };
 }
 /**
  * Where a package's bundle patches live, according to the package itself.
@@ -1491,6 +1591,15 @@ export function setAllowBuilds(profile, packages, explicitDir) {
     const SEG = '[A-Za-z0-9_-][A-Za-z0-9_.-]*';
     const NAME = '[A-Za-z0-9@/_.-]+';
     const SHA = '[0-9a-f]{40}';
+    // A dependency pnpm resolved from a BRANCH keys its decision by the ref,
+    // not by a commit: `name@https://codeload.github.com/o/r/tar.gz/refs/heads/main`
+    // (#1034). The ref is path segments only — no `.`/`..`, no empty piece —
+    // so it cannot walk out of the URL it is written into.
+    const REF = `refs/(?:heads|tags)/${SEG}(?:/${SEG})*`;
+    // pnpm's exact monorepo key includes the selected directory; dropping it
+    // makes approve-and-retry write only a bare name that git builds ignore.
+    const DIR = '(?!\\.{1,2}(?:/|$))[A-Za-z0-9_.-]+';
+    const SUBPATH = `path:/${DIR}(?:/${DIR})*`;
     // The stable clone-URL key: github's (#68) and, since #637, every other
     // host's — pnpm keys a git dependency by the remote it would clone, whoever
     // serves it. Optionally pinned to a commit, which is the form pnpm 11.8.0
@@ -1502,16 +1611,16 @@ export function setAllowBuilds(profile, packages, explicitDir) {
     // authorizes under `name@git+…/repo` and NOT under `…/repo.git`, so
     // requiring the suffix dropped a correctly derived key on its way out, and
     // appending it would have written one pnpm never reads.
-    const GIT_KEY_RE = new RegExp(`^${NAME}@git\\+https://[A-Za-z0-9_.-]+(?::\\d{1,5})?/${SEG}(?:/${SEG})*(?:\\.git)?(?:#${SHA})?$`);
+    const GIT_KEY_RE = new RegExp(`^${NAME}@git\\+https://[A-Za-z0-9_.-]+(?::\\d{1,5})?/${SEG}(?:/${SEG})*(?:\\.git)?(?:#${SHA}(?:&${SUBPATH})?|#${SUBPATH})?$`);
     // The commit-pinned download a host serves, which is what pnpm below 11.21
     // matches instead (#285): codeload for github, the project archive for
     // gitlab.com and bitbucket.org (#637). Each branch names its host and its
     // exact path shape.
     const ARCHIVE_KEY_RE = new RegExp(`^${NAME}@https://(?:`
-        + `codeload\\.github\\.com/${SEG}/${SEG}/tar\\.gz/${SHA}`
-        + `|bitbucket\\.org/${SEG}/${SEG}/get/${SHA}\\.tar\\.gz`
-        + `|gitlab\\.com/${SEG}(?:/${SEG})+/-/archive/${SHA}/${SEG}-${SHA}\\.tar\\.gz`
-        + ')$');
+        + `codeload\\.github\\.com/${SEG}/${SEG}/tar\\.gz/(?:${SHA}|${REF})`
+        + `|bitbucket\\.org/${SEG}/${SEG}/get/(?:${SHA}|${REF})\\.tar\\.gz`
+        + `|gitlab\\.com/${SEG}(?:/${SEG})+/-/archive/(?:${SHA}|${REF})/${SEG}-(?:${SHA}|${REF})\\.tar\\.gz`
+        + `)(?:#${SUBPATH})?$`);
     for (const pkg of packages) {
         if (/^[A-Za-z0-9@/_.-]+$/.test(pkg) || GIT_KEY_RE.test(pkg) || ARCHIVE_KEY_RE.test(pkg))
             map[pkg] = 'true';

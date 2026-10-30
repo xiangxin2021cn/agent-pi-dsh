@@ -21,14 +21,14 @@ import { profileDir, readInstalledManifest } from "./profile.js";
 const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 function parseComparator(part) {
     const p = part.trim();
-    const m = /^(\^|~|>=|<=|>|<)?(.*)$/.exec(p);
+    const m = /^(\^|~|>=|<=|>|<|=)?(.*)$/.exec(p);
     if (m === null)
         return null;
     const target = (m[2] ?? '').trim();
     if (!SEMVER.test(target))
         return null;
     const raw = m[1] ?? '';
-    return { op: raw === '' ? 'exact' : raw, target };
+    return { op: raw === '' || raw === '=' ? 'exact' : raw, target };
 }
 /** Next breaking bump for `^` / `~`, using `-0` so prereleases compare consistently. */
 function nextBound(target, kind) {

@@ -46,6 +46,19 @@ export const DEFAULT_NPM_REGISTRY = 'https://registry.npmjs.org'
  */
 export const CHINA_NPM_REGISTRY = 'https://mirrors.cloud.tencent.com/npm'
 const NPM_CHINA = CHINA_NPM_REGISTRY
+/**
+ * Second China npm mirror, used only as a catalog fallback (#1051), no
+ * trailing slash.
+ *
+ * The catalog list named the Tencent mirror and the origin and nothing else,
+ * so a network that blocks or outranks one of them lost both: a corporate
+ * egress proxy refusing that host (measured: HTTP 522/525) left GitHub Pages
+ * as the only way to the catalog, and on the China line that host is the one
+ * that has to be reachable. The catalog package is published to npm proper,
+ * and this mirror carries it, so naming it costs one request only when the
+ * first mirror has already failed.
+ */
+const CHINA_NPM_FALLBACK = 'https://registry.npmmirror.com'
 
 /**
  * First public prefix used for unauthenticated GitHub reads, no trailing slash.
@@ -189,6 +202,19 @@ export function catalogSourcesFor(region: Region): CatalogSource[] {
   const served = sources.some(source => source.kind === 'npm'
     && source.registry === routes.npmRegistry && source.pkg === CATALOG_PACKAGE)
   if (!served) sources.push({ kind: 'npm', registry: routes.npmRegistry, pkg: CATALOG_PACKAGE })
+  // A second China mirror, before the origin (#1051). The list named one
+  // mirror, so a corporate proxy or a 522/525 window on it left the origin —
+  // the host the China line exists to avoid — as the only way to the catalog.
+  // Only while the region's own registry is the default one: a run pointed at
+  // a registry the operator chose must not fall back to a public mirror that
+  // is not on their network.
+  if (region === 'china' && routes.npmRegistry === CHINA_NPM_REGISTRY
+    && !sources.some(source => source.kind === 'npm' && source.registry === CHINA_NPM_FALLBACK)) {
+    const fallback: CatalogSource = { kind: 'npm', registry: CHINA_NPM_FALLBACK, pkg: CATALOG_PACKAGE }
+    const origin = sources.findIndex(source => source.kind === 'url')
+    if (origin < 0) sources.push(fallback)
+    else sources.splice(origin, 0, fallback)
+  }
   return sources
 }
 

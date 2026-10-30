@@ -170,15 +170,34 @@ export interface MarketState {
      *
      * Off unless the user turned it on: the sidebar's global rows are the
      * host's own pages, and installing plugins is occasional, so a row nobody
-     * asked for would be a permanent fixture for an occasional task. The
-     * settings entry stays either way — it is the way in on hosts with no
-     * sidebar panels, and turning this off must never leave the market
+     * asked for would be a permanent fixture for an occasional task. The page
+     * entries are the defaults, and the last-door rule (#1015) — enforced by
+     * the route — is what keeps turning this off from leaving the market
      * unreachable.
      *
      * Omission preserves, an explicit value wins — the githubProxy contract,
      * because turning it off has to be expressible.
      */
     sidebarEntry?: boolean;
+    /**
+     * Whether the market still lists its own page in Settings (#1015).
+     *
+     * Absent means shown. Only an explicit `false` is stored, unlike
+     * `sidebarEntry`: this entry has always been on, and every host before
+     * 0.2.1 offers it as the only door, so an absent field is the ordinary
+     * case rather than an unanswered question. Turning it back on clears the
+     * field so a later default change still reaches users who never touched it.
+     */
+    settingsSection?: boolean;
+    /**
+     * Whether the market still adds its tab to the host's Plugins page
+     * (#1015). Absent means shown, on the same contract as
+     * {@link settingsSection}.
+     *
+     * A host that never declares the slot has no tab to hide; the saved
+     * answer is kept for the hosts that do.
+     */
+    pluginsTab?: boolean;
     /**
      * Packages the market removed from the profile's own declarations because
      * the build on disk can no longer compose (#663).
@@ -304,6 +323,13 @@ export interface HotMountResult {
     ok: boolean;
     /** Bilingual reason shown to the user instead of a bare restart banner. */
     reason: string | null;
+    /**
+     * Set when nothing was attempted because this package can only come up on a
+     * start — its patch holds more than plain inserts. That is a verdict about
+     * the package, not a mount that crashed: the durable switch can still be
+     * written, where a crash must not be persisted (#575, #1010).
+     */
+    deferred?: true;
 }
 /**
  * Dispose a plugin hot-mounted earlier in this session, removing it from the

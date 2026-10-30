@@ -45,3 +45,18 @@ file?: string): Promise<{
     version: string;
     data: unknown | null;
 }>;
+/**
+ * One file out of a package's newest tarball, or null when it cannot be read
+ * (#1012).
+ *
+ * The install route asks a package what it declares before it installs it: a
+ * rename can only be detected from the rows the artifact carries, not from
+ * the name it was published under. A failed read is not a verdict — the
+ * caller treats null as "not declared", because a registry hiccup must never
+ * become a refusal to install.
+ *
+ * @param registry - registry base, no trailing slash.
+ * @param pkg - package name.
+ * @param file - exact entry name inside the tarball (`package/cordis.patch.yml`).
+ */
+export declare function packageFileFromRegistry(registry: string, pkg: string, file: string): Promise<Buffer | null>;

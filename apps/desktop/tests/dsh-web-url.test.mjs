@@ -56,11 +56,11 @@ test('desktop boot waits without consuming the one-time authenticated URL and pa
 
 test('desktop startup chooses a free port without killing listeners and shutdown stops only its own child', async () => {
   const main = readFileSync(join(desktopRoot, 'main.mjs'), 'utf8')
-  const startup = main.match(/else \{\s*(?:reapPackagedPort\(3080\)\s*)?const port = await findFreePort\(3080\)[\s\S]*?launchedDsh = true\r?\n\s*\}/)?.[0]
+  const startup = main.match(/if \(!process.env.AGENT_PI_DSH_URL\) \{\s*const port = await findFreePort\(3080\)[\s\S]*?launchedDsh = true\r?\n\s*\}/)?.[0]
   assert.ok(startup, 'startup must use findFreePort(3080) before starting its own DSH child')
   const commands = [], preferredPorts = [], startedPorts = []
   const scope = {
-    packaged: true, process: { platform: 'win32', pid: 123 }, child: { pid: 222, exitCode: null },
+    packaged: true, process: { platform: 'win32', pid: 123, env: {} }, child: { pid: 222, exitCode: null },
     spawnSync(command, args) { commands.push([command, Array.from(args)]); return { status: 0, stdout: 'TCP 127.0.0.1:3080 0.0.0.0:0 LISTENING 45001' } },
     logLine() {}, async findFreePort(preferred) { preferredPorts.push(preferred); return 4081 },
     startDsh(port) { startedPorts.push(port) }, dshPort: 3080, appUrl: '', launchedDsh: false,
@@ -69,7 +69,7 @@ test('desktop startup chooses a free port without killing listeners and shutdown
     const declaration = main.match(new RegExp(`function ${name}\\([\\s\\S]*?^}`, 'm'))?.[0]
     if (declaration) runInNewContext(declaration, scope)
   }
-  await runInNewContext(`(async () => { if (false) {} ${startup} })()`, scope)
+  await runInNewContext(`(async () => { ${startup} })()`, scope)
   assert.deepEqual(preferredPorts, [3080])
   assert.deepEqual(startedPorts, [4081])
   assert.equal(scope.dshPort, 4081)

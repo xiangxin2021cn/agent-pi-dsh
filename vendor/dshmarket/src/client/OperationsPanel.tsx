@@ -211,6 +211,17 @@ function statusLine(t: Translate, lang: 'zh' | 'en', record: OperationRecord, ah
       // guard will NOT start when the ones ahead of it finish, so a position
       // would answer a question the user is not asking (#752).
       const blockers = record.blockedBy?.length ?? 0
+      if (record.hostOperationId !== undefined) {
+        // The Host is holding a safe boundary; name the wait and its age, not
+        // a queue position, because nothing else has to finish first.
+        const elapsed = record.waitSince === undefined
+          ? null
+          : Math.max(0, Math.floor((Date.now() - record.waitSince) / 1000))
+        const base = blockers > 0
+          ? t('agentDrainWaiting').replace('{0}', String(blockers))
+          : t('agentBusyQueued')
+        return elapsed === null ? base : `${base} (${String(elapsed)}s)`
+      }
       if (blockers > 0) return `${t('opQueued')} · ${t('opQueuedWaitingAgents').replace('{0}', String(blockers))}`
       return ahead === null || ahead === 0 ? t('opQueued') : `${t('opQueued')} · ${t('opQueuedAhead')} ${String(ahead)}`
     }
@@ -233,6 +244,17 @@ export function OperationsPanel(props: OperationsPanelProps) {
   const wrapRef = useRef<HTMLDivElement | null>(null)
   const summary = summarize(records)
   const busy = summary.running + summary.queued > 0
+  // The elapsed wait has to move while the Host is holding Agents; the status
+  // poll is every 2 s, so a local second tick keeps the row honest without
+  // adding requests.
+  const waitingOnHost = records.some(record =>
+    record.hostOperationId !== undefined && record.state === 'queued' && record.waitSince !== undefined)
+  const [, setClock] = useState(0)
+  useEffect(() => {
+    if (!waitingOnHost) return undefined
+    const timer = setInterval(() => setClock(value => value + 1), 1000)
+    return () => clearInterval(timer)
+  }, [waitingOnHost])
 
   // Dismissing a popover by pressing the control that opened it is the one
   // route nobody looks for. Escape and an outside click are; the header also
@@ -365,6 +387,14 @@ export function OperationsPanel(props: OperationsPanelProps) {
                   <div className={bucketOf(record.state) === 'attention' ? `${css.opStatus} ${css.opStatusBad}` : css.opStatus}>
                     {statusLine(t, props.lang, record, ahead)}
                   </div>
+                  {record.hostOperationId !== undefined && record.state === 'queued' && (record.blockedBy?.length ?? 0) > 0 && (
+                    <details>
+                      <summary>{t('agentDrainShowAgents')}</summary>
+                      <ul>
+                        {record.blockedBy!.map(id => <li key={id}>{id}</li>)}
+                      </ul>
+                    </details>
+                  )}
                   {needsUser(record) && (
                     <ConflictChoice
                       t={t}
@@ -381,12 +411,14 @@ export function OperationsPanel(props: OperationsPanelProps) {
                     <Button variant="outline" size="sm" onClick={() => props.onCancel(record)}>{t('cancelOp')}</Button>
                   )}
                   {record.state === 'queued' && (
-                    <>
-                      {props.onRunNow !== undefined && (
-                        <Button variant="primary" size="sm" onClick={() => props.onRunNow?.(record)}>{t(record.kind === 'update' ? 'opUpdateNow' : record.kind === 'uninstall' ? 'opUninstallNow' : 'opRunNow')}</Button>
-                      )}
-                      <Button variant="ghost" size="sm" onClick={() => props.onDismiss(record)}>{t('opDequeue')}</Button>
-                    </>
+                    record.hostOperationId !== undefined
+                      ? <Button variant="outline" size="sm" onClick={() => props.onCancel(record)}>{t('cancelOp')}</Button>
+                      : <>
+                          {props.onRunNow !== undefined && (
+                            <Button variant="primary" size="sm" onClick={() => props.onRunNow?.(record)}>{t(record.kind === 'update' ? 'opUpdateNow' : record.kind === 'uninstall' ? 'opUninstallNow' : 'opRunNow')}</Button>
+                          )}
+                          <Button variant="ghost" size="sm" onClick={() => props.onDismiss(record)}>{t('opDequeue')}</Button>
+                        </>
                   )}
                   {record.state === 'done' && record.needsRefresh === true && (
                     <Button variant="primary" size="sm" onClick={props.onRefresh}>{t('refresh')}</Button>

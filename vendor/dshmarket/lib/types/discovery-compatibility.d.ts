@@ -1,7 +1,7 @@
 /**
  * Discovery-time DSH compatibility metadata.
  *
- * The public catalog does not carry npm manifests. Fetching every manifest
+ * The public catalog does not carry package manifests. Fetching every manifest
  * while the market opens would turn one catalog request into more than a
  * thousand registry requests, so this module supplies a bounded, on-demand
  * index. Successful public manifest facts are cached beside the market's
@@ -32,6 +32,10 @@ type FetchLike = (url: string, init?: {
     signal?: AbortSignal;
     headers?: Record<string, string>;
 }) => Promise<Response>;
+export interface GitHubManifestSource {
+    url: string;
+    tarball?: string | null;
+}
 /** Keep only the small public subset of an npm manifest needed by discovery. */
 export declare function manifestFacts(value: unknown): NpmManifestFacts;
 /**
@@ -43,7 +47,7 @@ export declare function manifestFacts(value: unknown): NpmManifestFacts;
  */
 export declare function deriveHostCompatibility(facts: NpmManifestFacts | null, hostVersion: string | null, hostPackages: ReadonlySet<string>): HostCompatibility;
 /**
- * Durable, bounded lookup of npm `latest` manifests.
+ * Durable, bounded lookup of npm `latest` and catalog GitHub manifests.
  *
  * Failed requests are intentionally memory-only and short-lived: a mirror
  * outage must not become a day-long false "undeclared" result on disk.
@@ -107,6 +111,8 @@ export declare class DiscoveryManifestIndex {
     lookup(names: readonly string[], registry: string, options?: {
         record?: boolean;
     }): Promise<Record<string, NpmManifestFacts | null>>;
+    /** Catalog-approved GitHub sources, cached by both package path and selected archive. */
+    lookupGitHub(sources: readonly GitHubManifestSource[]): Promise<Record<string, NpmManifestFacts | null>>;
 }
 /**
  * The newest release of `npmName` whose own declarations this host satisfies.

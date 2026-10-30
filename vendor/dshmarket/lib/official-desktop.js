@@ -211,7 +211,7 @@ async function updateMarketInPlace(spec, name, options, context) {
     if (context === undefined || invocation === undefined || invocation === null || directory === undefined) {
         return { application: 'failed', error: { code: 'market-self-update', message: selfUpdateMessage(spec) } };
     }
-    progress.lastLine = 'Updating the market without unloading it';
+    progress.lastLine = '正在更新市场本身，不会先卸载它 / Updating the market itself without unloading it';
     const args = ['add', spec];
     if (typeof options.registry === 'string' && options.registry !== '')
         args.push(`--registry=${options.registry}`);
@@ -320,7 +320,7 @@ async function installOrReinstall(manager, spec, options, context) {
             to: targetVersionOf(spec),
             spec,
         });
-    progress.lastLine = 'Removing the installed copy so the desktop app can install the new version';
+    progress.lastLine = '先移除旧版本，桌面端才能装新版本 / Removing the old version so the desktop app can install the new one';
     let removed;
     try {
         removed = await withDeadline(manager.removeBundle(name), REMOVE_DEADLINE_MS, `remove ${name}`);
@@ -340,7 +340,7 @@ async function installOrReinstall(manager, spec, options, context) {
     }
     if (record !== undefined)
         context?.journal.mark(record.id, 'installing');
-    progress.lastLine = 'Installing the new version';
+    progress.lastLine = '正在安装新版本 / Installing the new version';
     try {
         const installed = await withDeadline(install(), INSTALL_DEADLINE_MS, `install ${spec}`);
         if (installed.application === 'failed' || installed.application === 'cancelled') {
@@ -379,11 +379,11 @@ function safeProfileDirectory(profile, explicit) {
  * for the market the answer is the same on every version: the app's own
  * plugin manager is the only door.
  */
-export function createOfficialDesktopRuntime(managerLookup, profileName, 
+export function createOfficialDesktopRuntime(managerLookup, profileName,
 // Unused by the manager bridge — it takes the profile by NAME — and optional
 // because an explicitly configured `profile: desktop` may be the only thing
 // that names this profile, with no launcher directory to go with it (#744).
-_profileDirectory, 
+_profileDirectory,
 // Official Desktop publishes its bundled pnpm here. Used only to overlay
 // the market itself (#982). Other packages still go through the manager.
 packageManager) {
@@ -442,7 +442,7 @@ packageManager) {
         progress.active = true;
         progress.target = target;
         progress.startedAt = Date.now();
-        progress.lastLine = 'Using the official desktop plugin manager';
+        progress.lastLine = '桌面端的插件管理器正在处理 / The desktop app\'s plugin manager is working on it';
         progress.error = null;
         progress.cancelling = false;
         let operation;

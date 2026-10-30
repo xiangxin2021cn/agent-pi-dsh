@@ -56,10 +56,22 @@ export interface UpdateOperationV1 {
     }
   }
   failure: UpdateFailureV1 | null
+  /**
+   * Present while a deferred operation is waiting for a safe boundary. The
+   * state remains `queued`; this explains why (#411).
+   */
+  wait: {
+    reason: 'agents'
+    activeCount: number
+    activeAgentIds: string[]
+    since: number
+  } | null
 }
 
 interface StoredOperation extends UpdateOperationV1 {
   legacyRollbackId: string | null
+  /** Internal `verifying` projects as `running` with this phase. */
+  verifying: boolean
 }
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -99,11 +111,15 @@ const FORWARDED_FAILURE_CODES = new Set([
   // finish or forget it on the next start (#928, #949): an external caller
   // must be able to tell this from an ordinary failure.
   'update-incomplete',
+  // An Agent became active between the final drain check and the mutation
+  // lock; nothing was changed, and the caller may retry.
+  'AGENT_BARRIER_LOST',
 ])
 
 function failureCode(status: number, body: Record<string, unknown>): string {
   const explicit = text(body.failureCode)
   if (explicit !== null && FORWARDED_FAILURE_CODES.has(explicit)) return explicit
+  if (body.targetChanged === true) return 'TARGET_CHANGED'
   if (body.agentsBusy === true) return 'AGENTS_RUNNING'
   if (body.busy === true || status === 409) return 'OPERATION_BUSY'
   if (body.stale === true && body.staleReason === 'release-age') return 'RELEASE_TOO_FRESH'
@@ -124,6 +140,8 @@ function failureOf(status: number, body: Record<string, unknown>): UpdateFailure
     code,
     message: message.slice(-1200),
     retryable: code === 'AGENTS_RUNNING'
+      || code === 'AGENT_BARRIER_LOST'
+      || code === 'TARGET_CHANGED'
       || code === 'OPERATION_BUSY'
       || code === 'RELEASE_TOO_FRESH'
       || code === 'VERSION_UNCHANGED'
@@ -208,7 +226,9 @@ export class UpdateOperationStoreV1 {
         rollback: { available: false, state: 'unavailable', detail: null },
       },
       failure: null,
+      wait: null,
       legacyRollbackId: null,
+      verifying: false,
     }
     this.operations.set(operationId, operation)
     this.activeId = operationId
@@ -225,7 +245,27 @@ export class UpdateOperationStoreV1 {
     if (operation === undefined) return
     operation.state = 'running'
     operation.startedAt = this.now()
+    operation.wait = null
+    operation.verifying = false
     this.activeId = operationId
+  }
+
+  /**
+   * Explain why a deferred operation is still queued. Additive: an operation
+   * that never waits keeps `wait: null`.
+   */
+  setWait(operationId: string, wait: UpdateOperationV1['wait']): UpdateOperationV1 | null {
+    const operation = this.operations.get(operationId)
+    if (operation === undefined) return null
+    operation.wait = wait === null ? null : { ...wait, activeAgentIds: [...wait.activeAgentIds] }
+    return this.snapshot(operation)
+  }
+
+  /** Project the post-pnpm validation window as `running` + phase `verifying`. */
+  beginVerifying(operationId: string): void {
+    const operation = this.operations.get(operationId)
+    if (operation === undefined || operation.state !== 'running') return
+    operation.verifying = true
   }
 
   finish(
@@ -242,6 +282,8 @@ export class UpdateOperationStoreV1 {
     operation.state = cancelled ? 'cancelled' : ok ? 'succeeded' : 'failed'
     operation.finishedAt = this.now()
     operation.installedVersion = installedVersion
+    operation.wait = null
+    operation.verifying = false
     operation.failure = ok || cancelled ? null : failureOf(status, body)
     const activation = activationState(body, operation.packageName)
     operation.outcome.restartRequired = activation === 'restart'
@@ -292,11 +334,14 @@ export class UpdateOperationStoreV1 {
     if (operation === undefined) return null
     const view = this.snapshot(operation)
     if (this.activeId === operationId && operation.state === 'running') view.progress = progressView(progress)
+    if (this.activeId === operationId && operation.state === 'running' && operation.verifying) {
+      view.progress.phase = 'verifying'
+    }
     return view
   }
 
   private snapshot(operation: StoredOperation): UpdateOperationV1 {
-    const { legacyRollbackId: _legacyRollbackId, ...view } = operation
+    const { legacyRollbackId: _legacyRollbackId, verifying: _verifying, ...view } = operation
     return structuredClone(view)
   }
 }

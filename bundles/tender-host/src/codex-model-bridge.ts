@@ -63,7 +63,7 @@ export function applyCodexModelProvider(ctx: Context, config: Record<string, any
 }
 
 /** Keep the official tool's managed activation, parent delivery and cancellation. */
-export function applyCodexModelTool(ctx: Context, config: Record<string, any>, apply: PluginApply): void {
+export function applyCodexModelTool(ctx: Context, config: Record<string, any>, apply: (ctx: Context, config: Record<string, any>) => void | Promise<void>): void | Promise<void> {
   const tools = new Proxy(ctx.tools, {
     get(target, key) {
       if (key !== 'register') {
@@ -106,5 +106,5 @@ export function applyCodexModelTool(ctx: Context, config: Record<string, any>, a
       })
     },
   })
-  apply(withService(ctx, 'tools', tools), config)
+  return apply(withService(ctx, 'tools', tools), config)
 }

@@ -13,7 +13,12 @@ export function shippedPresetPlugins(text) {
   if (body.split('\n').some(line => line.trim() && !line.startsWith('          '))) {
     throw new Error('Official preset declaration shape changed')
   }
-  return body.split('\n').map(line => line.slice(10)).join('\n')
+  // New Schedule tools manage the whole host and have no stable task owner.
+  // Keep that model entry off in product defaults; the native task page stays on.
+  return body.split('\n').map(line => line.slice(10)).join('\n').replace(
+    /^(- id: tool-schedule\n  name: ['"]@deepseek-ai\/dsh-tool-schedule['"]\n)/gm,
+    '$1  disabled: true\n',
+  )
 }
 
 /** Generate a normal DSH bundle; keep legacy custom preset files untouched. */

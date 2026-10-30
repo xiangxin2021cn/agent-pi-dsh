@@ -41,11 +41,16 @@ const FORWARDED_FAILURE_CODES = new Set([
     // finish or forget it on the next start (#928, #949): an external caller
     // must be able to tell this from an ordinary failure.
     'update-incomplete',
+    // An Agent became active between the final drain check and the mutation
+    // lock; nothing was changed, and the caller may retry.
+    'AGENT_BARRIER_LOST',
 ]);
 function failureCode(status, body) {
     const explicit = text(body.failureCode);
     if (explicit !== null && FORWARDED_FAILURE_CODES.has(explicit))
         return explicit;
+    if (body.targetChanged === true)
+        return 'TARGET_CHANGED';
     if (body.agentsBusy === true)
         return 'AGENTS_RUNNING';
     if (body.busy === true || status === 409)
@@ -72,6 +77,8 @@ function failureOf(status, body) {
         code,
         message: message.slice(-1200),
         retryable: code === 'AGENTS_RUNNING'
+            || code === 'AGENT_BARRIER_LOST'
+            || code === 'TARGET_CHANGED'
             || code === 'OPERATION_BUSY'
             || code === 'RELEASE_TOO_FRESH'
             || code === 'VERSION_UNCHANGED'
@@ -152,7 +159,9 @@ export class UpdateOperationStoreV1 {
                 rollback: { available: false, state: 'unavailable', detail: null },
             },
             failure: null,
+            wait: null,
             legacyRollbackId: null,
+            verifying: false,
         };
         this.operations.set(operationId, operation);
         this.activeId = operationId;
@@ -170,7 +179,27 @@ export class UpdateOperationStoreV1 {
             return;
         operation.state = 'running';
         operation.startedAt = this.now();
+        operation.wait = null;
+        operation.verifying = false;
         this.activeId = operationId;
+    }
+    /**
+     * Explain why a deferred operation is still queued. Additive: an operation
+     * that never waits keeps `wait: null`.
+     */
+    setWait(operationId, wait) {
+        const operation = this.operations.get(operationId);
+        if (operation === undefined)
+            return null;
+        operation.wait = wait === null ? null : { ...wait, activeAgentIds: [...wait.activeAgentIds] };
+        return this.snapshot(operation);
+    }
+    /** Project the post-pnpm validation window as `running` + phase `verifying`. */
+    beginVerifying(operationId) {
+        const operation = this.operations.get(operationId);
+        if (operation === undefined || operation.state !== 'running')
+            return;
+        operation.verifying = true;
     }
     finish(operationId, status, payload, installedVersion) {
         const operation = this.operations.get(operationId);
@@ -182,6 +211,8 @@ export class UpdateOperationStoreV1 {
         operation.state = cancelled ? 'cancelled' : ok ? 'succeeded' : 'failed';
         operation.finishedAt = this.now();
         operation.installedVersion = installedVersion;
+        operation.wait = null;
+        operation.verifying = false;
         operation.failure = ok || cancelled ? null : failureOf(status, body);
         const activation = activationState(body, operation.packageName);
         operation.outcome.restartRequired = activation === 'restart';
@@ -230,10 +261,13 @@ export class UpdateOperationStoreV1 {
         const view = this.snapshot(operation);
         if (this.activeId === operationId && operation.state === 'running')
             view.progress = progressView(progress);
+        if (this.activeId === operationId && operation.state === 'running' && operation.verifying) {
+            view.progress.phase = 'verifying';
+        }
         return view;
     }
     snapshot(operation) {
-        const { legacyRollbackId: _legacyRollbackId, ...view } = operation;
+        const { legacyRollbackId: _legacyRollbackId, verifying: _verifying, ...view } = operation;
         return structuredClone(view);
     }
 }

@@ -11,6 +11,7 @@ import { dshFile, importDsh } from '../src/dsh.ts'
 const officialRequire = createRequire(dshFile('packages/subagent/subagent/package.json'))
 const { Context } = await import(pathToFileURL(officialRequire.resolve('@deepseek-ai/cordis')).href)
 const { default: SubagentRuntime } = await importDsh<any>('packages/subagent/subagent/lib/index.js')
+const { default: SessionProjectionRegistry } = await importDsh<any>('packages/session/session-projection/lib/index.js')
 const { Session, SessionId } = await importDsh<any>('packages/core/session/lib/index.js')
 
 async function harness(t: any, { holdTurn = false, holdDirectory = false, answers = [{ text: 'done', phase: 'final_answer' }] } = {}) {
@@ -35,7 +36,7 @@ async function harness(t: any, { holdTurn = false, holdDirectory = false, answer
   ctx.provide('agents', { get: (id: string) => id === parent.id ? parent : undefined, list: () => [parent] })
   ctx.provide('tools', { register(value: unknown) { tool = value; return () => {} } })
   ctx.provide('systemPrompt', { section() {}, context() {}, getSectionOrder: () => 0, getContextOrder: () => 0 })
-  ctx.provide('sessionProjections', { register() {} })
+  await ctx.plugin(SessionProjectionRegistry)
   ctx.provide('llm', { resolveModelInfo() { throw new Error('Native Codex models must never resolve a DSH LLM route') } })
   ctx.provide('workingDirectory', {
     async ensure(agent: unknown, signal: AbortSignal) {
@@ -100,12 +101,24 @@ async function harness(t: any, { holdTurn = false, holdDirectory = false, answer
   })
   const config = { providerName: 'codex', permissionMode: 'approve-for-me', env: { CODEX_HOME: 'isolated-codex-home' }, disposeGraceMs: 3000 }
   applyProvider(ctx, config)
-  applyTool(ctx, { provider: 'codex', toolName: 'subagent_codex', maxDepth: 'provider-managed' })
+  await applyTool(ctx, { provider: 'codex', toolName: 'subagent_codex', maxDepth: 'provider-managed' })
   const execute = (args: Record<string, unknown>, signal = new AbortController().signal) => tool.execute({ description: 'test delegation', prompt: 'return done', ...args }, { agent: parent, signal })
   const settle = () => ctx.subagents.waitForChildren(parent)
   const interrupt = (id: string) => ctx.subagents.interrupt(id, { kind: 'ancestor', agent: parent })
   return { tool, execute, threads, spawnSpecs, children, config, notices, lifecycle, settle, interrupt, directoryRequests, releaseDirectory: directory.resolve }
 }
+
+test('the public Codex tool waits for official projection activation and preserves its failure', async () => {
+  const registration = Promise.withResolvers<void>()
+  const failure = new Error('projection activation failed')
+  const ready = applyTool({ tools: {}, sessionProjections: { register: () => registration.promise } }, {
+    provider: 'codex', maxDepth: 'provider-managed',
+  })
+  assert.equal(typeof ready?.then, 'function')
+  const rejected = assert.rejects(ready!, error => error === failure)
+  registration.reject(failure)
+  await rejected
+})
 
 test('official adapters import under the packaged default Node mode without a TypeScript transform loader', () => {
   const entries = ['codex-tool.ts', 'codex-provider.ts', 'goal-round-driver.ts'].map(file => new URL('../src/' + file, import.meta.url).href)

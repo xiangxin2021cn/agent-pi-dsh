@@ -5361,7 +5361,7 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 					if (kind === "project-plan" && !closePreview()) return;
 					mentionInChat(props.sessionProps || props, file);
 					if (kind !== "project-plan" && typeof props.onClose === "function") props.onClose();
-				}, [Icon("paperclip", 14), tAp("files.attachToChat")], loading), isCad || kind === "project-plan" ? null : DocBtn(tAp("preview.aiEdit"), () => openAiSel(), [Icon("sparkles", 14), tAp("preview.aiEdit")], loading || !!busy), canEdit && !isUniver ? DocBtn(mode === "edit" ? "预览" : "编辑", toggleMode, [Icon(mode === "edit" ? "eye" : "pencil", 14)], loading) : null, canEdit && !isOfficeUniver ? DocBtn("保存", save, [Icon("save", 14)], loading || !dirty || !!busy) : null, isOffice && !isOfficeUniver ? DocBtn(isSlimUniver ? "对话完全体" : "用 Univer 打开", openUniver, [Icon("sparkles", 14), isSlimUniver ? "对话完全体" : "Univer"], loading || !!busy) : null, canExport ? DocBtn(copied ? "已复制" : "复制全文", copyAll, [Icon("copy", 14)], loading || !visible) : null, kbSlug && kbHasSource ? DocBtn("打开源文件", () => {
+				}, [Icon("paperclip", 14), tAp("files.attachToChat")], loading || !!props.readOnly), isCad || kind === "project-plan" ? null : DocBtn(tAp("preview.aiEdit"), () => openAiSel(), [Icon("sparkles", 14), tAp("preview.aiEdit")], loading || !!busy), canEdit && !isUniver ? DocBtn(mode === "edit" ? "预览" : "编辑", toggleMode, [Icon(mode === "edit" ? "eye" : "pencil", 14)], loading) : null, canEdit && !isOfficeUniver ? DocBtn("保存", save, [Icon("save", 14)], loading || !dirty || !!busy) : null, isOffice && !isOfficeUniver ? DocBtn(isSlimUniver ? "对话完全体" : "用 Univer 打开", openUniver, [Icon("sparkles", 14), isSlimUniver ? "对话完全体" : "Univer"], loading || !!busy) : null, canExport ? DocBtn(copied ? "已复制" : "复制全文", copyAll, [Icon("copy", 14)], loading || !visible) : null, kbSlug && kbHasSource ? DocBtn("打开源文件", () => {
 					api("/api/agent-pi/kb", cwd, {
 						method: "POST",
 						body: JSON.stringify({
@@ -5369,7 +5369,7 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 							slug: kbSlug
 						})
 					}).catch((e) => setError(String(e.message || e)));
-				}, [Icon("folder", 14), "打开源文件"], !!busy) : null, kbSlug ? null : DocBtn("删除", remove, [Icon("trash", 14)], !!busy), isCad ? DocBtn("系统打开", () => {
+				}, [Icon("folder", 14), "打开源文件"], !!busy) : null, kbSlug ? null : DocBtn("删除", remove, [Icon("trash", 14)], !!busy || !!props.readOnly), isCad ? DocBtn("系统打开", () => {
 					openInExplorer(cwd, file.path, {
 						file,
 						reveal: false
@@ -5831,6 +5831,33 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 				FilePreviewOverlay,
 				FolderPreviewOverlay,
 				FilesPanel
+			};
+		}
+		//#endregion
+		//#region src/client/cad-preview-context.js
+		function workspacePath(path) {
+			const normalized = String(path || "").replaceAll("\\", "/").replace(/\/+$/, "");
+			return /^(?:[a-z]:\/|\/\/)/i.test(normalized) ? normalized.toLowerCase() : normalized;
+		}
+		/** Drawing links may use only a source workspace already registered by the Host. */
+		function resolveCadPreviewContext(detail, active, workspaces, sessions) {
+			if (!/\.(?:dwg|dxf)$/i.test(detail.path || "")) return void 0;
+			const requested = detail.cwd || active.cwd;
+			if (workspacePath(requested) === workspacePath(active.cwd) && (!detail.sessionId || detail.sessionId === active.sessionId)) return {
+				cwd: active.cwd,
+				sessionId: active.sessionId,
+				readOnly: !active.sessionId
+			};
+			const workspace = (workspaces.items || []).find((item) => item.path && workspacePath(item.path) === workspacePath(requested));
+			if (!workspace) return null;
+			const members = workspace.sessionIds || [];
+			const archived = workspaces.archivedSessionIds || [];
+			const sessionId = (detail.sessionId ? [detail.sessionId] : [active.sessionId, ...members]).find((id) => id && members.includes(id) && !archived.includes(id) && workspacePath(sessions.byId?.[id]?.cwd) === workspacePath(workspace.path)) || "";
+			if (detail.sessionId && !sessionId) return null;
+			return {
+				cwd: workspace.path,
+				sessionId,
+				readOnly: !sessionId
 			};
 		}
 		//#endregion
@@ -8182,8 +8209,8 @@ html.ap-doc-open [data-shell-overlay]{z-index:400;pointer-events:auto}
 .ap-doc-scroll{flex:1;min-height:0;overflow:auto;padding:40px 24px 80px}
 .ap-doc-scroll.univer{padding:0;overflow:hidden;background:#fff;position:relative}
 .ap-univer-frame{position:absolute;inset:0;display:block;width:100%;height:100%;border:0;background:#fff}
-.ap-doc-scroll.cad{padding:0;overflow:hidden;background:#111827;position:relative}
-.ap-cad-frame{position:absolute;inset:0;display:block;width:100%;height:100%;border:0;background:#111827}
+.ap-doc-scroll.cad{display:flex;flex-direction:column;padding:0;overflow:hidden;background:#111827;position:relative}
+.ap-cad-frame{display:block;flex:1;min-height:0;width:100%;border:0;background:#111827}
 .ap-doc-sheet{width:min(960px,100%);margin:0 auto;background:var(--dsw-alias-bg-base);border-radius:16px;padding:36px 44px 56px;box-shadow:0 18px 48px color-mix(in srgb, var(--dsw-alias-label-primary) 16%, transparent)}
 .ap-doc-sheet.wide{width:min(1180px,100%);padding:28px 28px 40px}
 .ap-doc-sheet h1{font-size:22px;line-height:1.3;margin:0 0 16px;font-weight:650}
@@ -17698,7 +17725,8 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				else window.dispatchEvent(new CustomEvent("agent-pi-open-file", { detail: {
 					cwd: result.cwd,
 					path: result.path,
-					locator: result.locator
+					locator: result.locator,
+					sessionId: id
 				} }));
 			} catch (error) {
 				showToast(error.message);
@@ -18117,12 +18145,18 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					const detail = event && event.detail;
 					const path = detail && detail.path;
 					if (!path) return;
+					const context = resolveCadPreviewContext(detail, snapshotComposer(), readWorkspaceListSnap(), readSessionListSnap());
+					if (context === null) {
+						showToast("请先在工作区中打开这张图纸的来源项目。");
+						return;
+					}
 					onOpen();
 					setStack((prev) => {
 						const top = prev.length > 0 ? prev[prev.length - 1] : null;
-						if (top && top.type === "file" && top.file && top.file.path === path && (!detail.kbSlug || top.file.kbSlug === detail.kbSlug) && top.file.locator === detail.locator) return prev;
+						if (top && top.type === "file" && top.file && top.file.path === path && (!detail.kbSlug || top.file.kbSlug === detail.kbSlug) && top.file.locator === detail.locator && top.context?.cwd === context?.cwd && top.context?.sessionId === context?.sessionId) return prev;
 						return prev.concat([{
 							type: "file",
+							context,
 							file: {
 								path,
 								name: detail.name || fileName(path),
@@ -18199,12 +18233,17 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					file
 				}]))
 			}) : preview && preview.type === "file" ? h(FilePreviewOverlay, {
-				key: preview.file.kbSlug || preview.file.path,
-				cwd,
+				key: (preview.context?.cwd || cwd) + "\0" + (preview.file.kbSlug || preview.file.path),
+				cwd: preview.context?.cwd || cwd,
 				file: preview.file,
 				kbSlug: preview.file.kbSlug || "",
 				kbHasSource: !!preview.file.kbHasSource,
-				sessionProps: props,
+				sessionProps: preview.context && preview.context.sessionId !== sessionId ? {
+					sessionId: preview.context.sessionId,
+					cwd: preview.context.cwd,
+					session: sessionFaceById(preview.context.sessionId)
+				} : props,
+				readOnly: !!preview.context?.readOnly,
 				onClose: closePreview,
 				onDeleted: closePreview,
 				onKbSaved: () => window.dispatchEvent(new Event("agent-pi-files-changed"))

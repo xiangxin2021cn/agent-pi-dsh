@@ -995,7 +995,7 @@ export function createFilePreviewOverlay(dependencies) {
               if (kind === 'project-plan' && !closePreview()) return
               mentionInChat(props.sessionProps || props, file)
               if (kind !== 'project-plan' && typeof props.onClose === 'function') props.onClose()
-            }, [Icon('paperclip', 14), tAp('files.attachToChat')], loading),
+            }, [Icon('paperclip', 14), tAp('files.attachToChat')], loading || !!props.readOnly),
             isCad || kind === 'project-plan' ? null : DocBtn(tAp('preview.aiEdit'), () => openAiSel(), [Icon('sparkles', 14), tAp('preview.aiEdit')], loading || !!busy),
             canEdit && !isUniver ? DocBtn(mode === 'edit' ? '预览' : '编辑', toggleMode, [
               Icon(mode === 'edit' ? 'eye' : 'pencil', 14),
@@ -1007,7 +1007,7 @@ export function createFilePreviewOverlay(dependencies) {
               api('/api/agent-pi/kb', cwd, { method: 'POST', body: JSON.stringify({ action: 'open-source', slug: kbSlug }) })
                 .catch((e) => setError(String(e.message || e)))
             }, [Icon('folder', 14), '打开源文件'], !!busy) : null,
-            kbSlug ? null : DocBtn('删除', remove, [Icon('trash', 14)], !!busy),
+            kbSlug ? null : DocBtn('删除', remove, [Icon('trash', 14)], !!busy || !!props.readOnly),
             isCad ? DocBtn('系统打开', () => {
               openInExplorer(cwd, file.path, { file: file, reveal: false })
                 .catch((err) => setError(String(err && err.message || err)))

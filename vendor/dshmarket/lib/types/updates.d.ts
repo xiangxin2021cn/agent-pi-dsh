@@ -4,6 +4,7 @@
  * dist-tag for registry installs — with a TTL cache.
  */
 import { type Channel } from './channels.ts';
+import type { GitToNpmMigration, NpmRenameMigration } from './source-migration.ts';
 export interface UpdateStatus {
     /**
      * `generation` is a `link:` the desktop host wrote (#497): the host
@@ -21,6 +22,8 @@ export interface UpdateStatus {
      * as "there is an upgrade" and labels a button accordingly.
      */
     updateAvailable: boolean;
+    /** Exact mature npm stable target for Desktop; `latest` remains the registry tag. */
+    eligibleVersion?: string;
     /**
      * HEAD of the chosen line for a floating git install whose repository has
      * moved without publishing: newer commits exist (current ≠ latest) but the
@@ -57,19 +60,19 @@ export interface UpdateStatus {
     newerPrerelease?: string;
     /** Taking this update replaces a local package source with its matched online release. */
     restoreRequired?: boolean;
-    /** Independent, explicit source switch offered for verified legacy Git installs. */
-    sourceMigration?: {
-        kind: 'git-to-npm';
-        repo: string;
-        target: string;
-    };
+    /**
+     * Independent, explicit source switch offered for an installed profile: a
+     * verified legacy Git install (#461), or an npm install whose package was
+     * renamed and no longer resolves (#1012).
+     */
+    sourceMigration?: GitToNpmMigration | NpmRenameMigration;
     /**
      * A newer release exists but this profile's `minimumReleaseAge` will not let
      * pnpm install it yet (#945). The official Desktop takes no one-shot bypass,
      * so offering the update there means offering a button that is guaranteed
-     * to fail; the market names the wait instead. `updateAvailable` is false —
-     * an update the user cannot apply is not available — and `until` is when
-     * pnpm will accept it.
+     * to fail; the market names the wait instead. `updateAvailable` can still
+     * be true if `eligibleVersion` names a different, already mature upgrade.
+     * `until` is when the newer held release should become installable.
      */
     heldUpdate?: {
         latest: string;
@@ -157,6 +160,19 @@ export declare function invalidateUpdates(): void;
  * cannot yet serve.
  */
 export declare function setUpdateRegistry(base: string): void;
+export interface DesktopMatureResult {
+    candidate: string | null;
+    latest: string | null;
+    heldUpdate?: {
+        latest: string;
+        until: string;
+        estimated?: true;
+    };
+    nextMaturityAt: number | null;
+    reason: string;
+}
+/** Shared fresh registry/policy verification for listing and locked execution. */
+export declare function resolveDesktopMatureUpdate(name: string, installed: string | null, profile: string, activeProfileDir: string, endpointLatest: string | null, maxVersion?: string): Promise<DesktopMatureResult>;
 /**
  * Evidence check behind the "wait a day" stale diagnosis (#45): whether the
  * package's CURRENT latest release was published recently enough to sit

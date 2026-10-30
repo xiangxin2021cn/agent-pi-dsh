@@ -13,6 +13,53 @@ import {
 } from '../vendor/dshmarket/compatibility.js'
 import { verifyActivation, hostPeerGate } from '../vendor/dshmarket/lib/verify.js'
 import { hotMount, mountClientOnlyDeps } from '../vendor/dshmarket/lib/hot.js'
+import { mountMarketRoutes } from '../vendor/dshmarket/lib/routes.js'
+
+test('all market locales retain the managed-component status and the full upstream dictionary', async () => {
+  const { zh, en, ja } = await import('../vendor/dshmarket/src/client/locales.ts')
+  for (const dictionary of [en, ja]) {
+    assert.deepEqual(Object.keys(dictionary).sort(), Object.keys(zh).sort())
+    assert.ok(dictionary.statePreset)
+  }
+})
+
+test('direct and deferred market mutations reject managed components without running commands or changing the profile', async t => {
+  const { profile } = profileFixture(t, { bundles: [] })
+  const before = readFileSync(join(profile, 'package.json'), 'utf8')
+  const routes = new Map()
+  let commands = 0
+  const stop = mountMarketRoutes({
+    webServer: { register(route) { routes.set(route.path, route.handler); return () => routes.delete(route.path) } },
+    loader: { entries: () => [] },
+    plugin: () => ({ await: async () => undefined, dispose: async () => undefined }),
+  }, { profile: 'isolated', profileDirectory: profile }, {
+    runPlugin() { commands++; throw new Error('managed component reached a package command') },
+    probePnpm() { commands++; throw new Error('managed component reached a package probe') },
+    provisionPnpm() { commands++; throw new Error('managed component reached package provisioning') },
+    cancelActive() { commands++; throw new Error('managed component reached package cancellation') },
+  })
+  t.after(stop)
+  for (const name of [...TEAM_COMPONENTS, 'dsh-agent-pi-compaction']) {
+    for (const path of ['/dsh-market/update', '/dsh-market/uninstall']) {
+      for (const busyPolicy of [undefined, 'drain']) {
+        let status, body
+        const request = {
+          method: 'POST', url: path,
+          headers: { host: '127.0.0.1:3080', origin: 'http://127.0.0.1:3080' },
+          socket: { remoteAddress: '127.0.0.1' },
+          async *[Symbol.asyncIterator]() { yield Buffer.from(JSON.stringify({ name, busyPolicy })) },
+        }
+        await routes.get(path)(request, {
+          writeHead(value) { status = value }, end(value) { body = JSON.parse(value) },
+        })
+        assert.equal(status, 400, `${name} ${path} ${busyPolicy}`)
+        assert.match(body.error, /内置|built-in/)
+        assert.equal(commands, 0)
+        assert.equal(readFileSync(join(profile, 'package.json'), 'utf8'), before)
+      }
+    }
+  }
+})
 
 test('official Team components report managed/off, configured, live and missing artifacts accurately', async (t) => {
   const { profile } = profileFixture(t)

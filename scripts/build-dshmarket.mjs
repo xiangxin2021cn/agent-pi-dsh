@@ -15,7 +15,7 @@ for (const name of readdirSync(join(market, 'src')).filter(name => name.endsWith
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, rewriteRelativeImportExtensions: true },
   })
   if (result.diagnostics?.some(item => item.category === ts.DiagnosticCategory.Error)) throw new Error(`Market syntax check failed: ${name}`)
-  writeFileSync(join(market, 'lib', name.replace(/\.ts$/, '.js')), result.outputText)
+  writeFileSync(join(market, 'lib', name.replace(/\.ts$/, '.js')), result.outputText.replace(/[ \t]+$/gm, ''))
 }
 const built = spawnSync(process.execPath, [join(root, 'vendor/deepseek-harness/node_modules/tsdown/dist/run.mjs'), '--config', 'tsdown.config.ts'], {
   cwd: market, stdio: 'inherit', windowsHide: true,

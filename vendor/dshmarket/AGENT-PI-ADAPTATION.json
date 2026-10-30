@@ -1,29 +1,35 @@
 {
   "schema": "agent-pi-dsh/market-adaptation/v1",
-  "checkedAt": "2026-10-29",
+  "checkedAt": "2026-10-30",
   "source": {
     "name": "dshmarket",
-    "version": "1.70.0",
-    "integrity": "sha512-Nkk5BQHy/jEnsTZhKy/EweSXLTOO8Ob3eRzSk5ITncrays8wF4SekfQ152fAkTYRSx262MW935RrfFov8SIdiQ==",
-    "shasum": "b11dd99644253c4dd316f5cea348bb8b96dfe23f",
-    "archiveBytes": 1419699,
-    "sourceCommit": "b27986ab35d5834a54e0fe5113adc1e1ff11a95c",
-    "publishedAt": "2026-10-23T18:17:24.943Z",
+    "version": "1.73.6",
+    "integrity": "sha512-dfE0kGbF/rVQAbUTLV8m2HTXOpeMjRBB4us0tNDKDGX9IDtNJStSHxT5TuIJaN+RG/PVzF8v1Z2zUyZJpM4RDg==",
+    "shasum": "8e44a2458fc53326b8b06a22842a4a76060f390b",
+    "archiveBytes": 847595,
+    "sourceCommit": "81d03b611d1a61cae5865c442e3e7d9cf7f6ae05",
+    "publishedAt": "2026-10-30T18:46:17.882Z",
     "adaptation": "vendor/dshmarket/AGENT-PI-ADAPTATION.json",
-    "tarball": "https://registry.npmjs.org/dshmarket/-/dshmarket-1.70.0.tgz"
+    "tarball": "https://registry.npmjs.org/dshmarket/-/dshmarket-1.73.6.tgz"
+  },
+  "sourceArchive": {
+    "url": "https://codeload.github.com/dsh-market/dsh-market/tar.gz/81d03b611d1a61cae5865c442e3e7d9cf7f6ae05",
+    "sha256": "fca4b45ae0dbdc92d2206f4bbb3b625e35e2e876d93d70e4ccfbff8a820d3bec",
+    "note": "Official npm 1.73.6 omits src; retain exact fixed-commit sources for product adaptations and reproducible build."
   },
   "adaptations": [
-    "Preserve Agent Pi host peer compatibility and managed Team/compaction boundaries",
+    "Preserve Agent Pi host peer compatibility and managed Team/compaction boundaries, including the new drain entrypoint",
     "Delegate desktop restart to Electron",
-    "Retain complete Office integration and existing IM/email compatibility gates",
-    "Retain Intel Monterey optional-native capability exclusions",
+    "Retain complete Office 0.3.9 integration and existing IM/email compatibility gates",
+    "Retain Intel optional-native capability exclusions",
+    "Retain upstream drain barriers, release-age and profile-policy preservation",
     "Rebuild adapted source with the pinned DSH toolchain"
   ],
   "modifiedFiles": [
     {
       "file": "client/client.js",
-      "upstreamSha256": "a387f2b9f06f75dfe139bd39facfd70176e45ad24d1b0a53664bafcb8b388dd2",
-      "adaptedSha256": "169b57b6de9099ecf54494f4256ff6da6331b3e0a8a1a69cf07c25a50577ad1d"
+      "upstreamSha256": "513227ef3df120ed1a608936c2328c105eca5e48c29320ac94286001c3a1324b",
+      "adaptedSha256": "9b0a3fd9a0c2de5519df2c22207514d3cdd5af98476511f75217129e6fb9d1e8"
     },
     {
       "file": "lib/accelerate.js",
@@ -32,13 +38,13 @@
     },
     {
       "file": "lib/backup.js",
-      "upstreamSha256": "4991cbbcdbefe903a3098886209dd7ca96d65f1984cdbda7dfccf2e694cbb6eb",
-      "adaptedSha256": "b873db870d7067731c3e902613c9c56ff8bcc27ff5fd3fedc44bb35310fc6d70"
+      "upstreamSha256": "af77137bebb05462f12e69093abed0e4db2bd9baaebbe0cafcce541513acbd05",
+      "adaptedSha256": "72d8f1556d09a32d96bce3422fd057db8281707d29a9173fb0d6ab3cfd9b8e25"
     },
     {
       "file": "lib/catalog-npm.js",
-      "upstreamSha256": "8cdfe7a6d76ade6ab12a0a46ff8fcc8c0e4b859b3c7c3f7fd0eccf70becafdad",
-      "adaptedSha256": "08e6861ad8f8fc56914949fffed18b63e7f3bfbd79bc133b01613f909dbc4d4c"
+      "upstreamSha256": "ae7f7cc6fb961ac2fbbe424552d59b9b3657a742bfaa83e9230ef8c1ff2e4ac6",
+      "adaptedSha256": "c89159b9179622460570f3f7ca0baabf0524f1dcdef17db50c3bad07892203af"
     },
     {
       "file": "lib/changelog.js",
@@ -47,18 +53,28 @@
     },
     {
       "file": "lib/check.js",
-      "upstreamSha256": "fceb2f2afb1da117691896650c1dc5000eadbe5ca7463a7cdec212e42424e93d",
-      "adaptedSha256": "b8c6b3f515b0f8a26c670a5a7c463b2bfa9bd977deaf08d04a732ffc063f8dae"
+      "upstreamSha256": "8fca069888846bfcee135075df8cd4cd5d844419f3d59478be7cdaac260ab9f7",
+      "adaptedSha256": "2dae37336ee3d67e3acbff225e56e3544eb989baeccc28fc2704ccf67ed74bce"
     },
     {
       "file": "lib/compatibility.js",
-      "upstreamSha256": "70e5dea24734d6dd61f52337db9cc56b338f8bbe9810389acf6b354110812cdf",
-      "adaptedSha256": "c5238e47b4779cfcfe21435f11a8c287e15839af3a85b3b446611c3bad688c6e"
+      "upstreamSha256": "cc3189d01a17e8d7f84b146678ae8bb5fbabdf9075c467f5499386747eecacd2",
+      "adaptedSha256": "962d354e84c5db31d3e48f840f59be36ded4ba54672590cecf2a1ae1d661682c"
     },
     {
       "file": "lib/discovery-compatibility.js",
-      "upstreamSha256": "b3596f813e84a984a3093846b38fa881f4b111751d118a733e0f2e4dc582316c",
-      "adaptedSha256": "6bfda26a8073564e5f756c4f64794242b70ac2830b474c3c593dfb49fb6bf48f"
+      "upstreamSha256": "82c6217da3ee7b377f19bb00dfba304298483feaf8b3312c19b0c9fb8a8c1c84",
+      "adaptedSha256": "59c08e2082264b4dccbdd1ca36de91c4602f055694e5188088e8fd6a4e2a855b"
+    },
+    {
+      "file": "lib/drain-journal.js",
+      "upstreamSha256": "412421d9a30901f5b2d0c43aac21ce0da7d0cad55c84adddc2d69241bf0fc2fd",
+      "adaptedSha256": "0ddffc858a1cfcc79dfc15578ac443d8d2215e2edbb11554ebff7b746c718f34"
+    },
+    {
+      "file": "lib/drain.js",
+      "upstreamSha256": "f222ee2cb3d22cfe546644a4c300a3a6bcc246aca117848b05ff2b8df4224c91",
+      "adaptedSha256": "f179127f1631727ee01336d60891c1d84ae529cedf4632d251f183bb7858ad99"
     },
     {
       "file": "lib/dsh-cli.js",
@@ -77,28 +93,28 @@
     },
     {
       "file": "lib/hot.js",
-      "upstreamSha256": "1005a86ef0fd101ab04d711ab600f65be0381b09e5f0218a8ac5faddba61ae2d",
-      "adaptedSha256": "d4a58a6f1ea23ef5ed3a30b73781815557b5cfa2f7a90158f52317f86f350cb1"
+      "upstreamSha256": "ec7e809e049a5a74cda45dcea21903b181b920b78ea19e299a8af7c20a8635f3",
+      "adaptedSha256": "3fe1b6b8804f33decd5514be8d9286baa78568b3c4ea13e0ab3596ef4a94e0ca"
     },
     {
       "file": "lib/index.js",
-      "upstreamSha256": "4016d488a61c200464fd8c953d2ff5db4c8f70128c8306f5805793fa45bfbc4b",
-      "adaptedSha256": "2034215a8223b63dd4b1d9cc04f6622d3f394ada723bac1778c825d5b61da2ac"
+      "upstreamSha256": "951b2fffa7dc8d0498bed7120d9e3c7dbec61a32f72c1b88f477e9feef8ef534",
+      "adaptedSha256": "5697092c777b6be5eaf6f10e54a8f2f41d0b0ae085ac9bf33cffd60ce0d7b216"
     },
     {
       "file": "lib/install.js",
-      "upstreamSha256": "46c4df972f34fb767a9ef76a756a9d4a6c51b0becd60457707658e3aca1b7bd8",
-      "adaptedSha256": "a1b2127274dc1db95316c964556e2284183eb82a30d1a5141f0d4ebb994b72a3"
+      "upstreamSha256": "28c3862e84dbad3f81945b8d1f584d2d898942d7513cc6e6983a998cfd8bdcce",
+      "adaptedSha256": "288dc47dc8345b3e14dfebc3336fc20e303528a7fe616c8a93fcf9a1411cbed4"
     },
     {
       "file": "lib/log.js",
-      "upstreamSha256": "4ca116f53fb419f7d6416b2c694ef6fd99c5c5a64bf18eeceb51cefd66df7c79",
-      "adaptedSha256": "3e8e70e0d66ef32e6f310cfc974d304ba29c1c781174591fcdfd96afd81d3c70"
+      "upstreamSha256": "4ae5fd53d5794df3ff10c49a246fbb43a6e75248d46e1406fcee9168c9b422f3",
+      "adaptedSha256": "f31a1b81adab76125296f205e95f5a17b7df9465377ecd3265fadf4f9d148590"
     },
     {
       "file": "lib/official-desktop.js",
-      "upstreamSha256": "1cc3b96fa5520600337bbc8c287d96a0d11fdc3c0016286646210615357808c6",
-      "adaptedSha256": "9c839598de7d159729546438c2ec7166c45d29d44bf7abd28fb52aca481bacce"
+      "upstreamSha256": "a0fb64a2e97e26725fb7114cb3f1d04e9153126ea6f96a4fb7cf4ed7e22c276c",
+      "adaptedSha256": "be69d22e9980efd289da36fce6f34e9f135d7e13c809df8758c3498f343fc262"
     },
     {
       "file": "lib/order.js",
@@ -117,8 +133,8 @@
     },
     {
       "file": "lib/pending-updates.js",
-      "upstreamSha256": "06016125920d4e4385ca4eeb2b60dbcdcecff650779e9b5277dc2ed1e38c1df6",
-      "adaptedSha256": "40605601c255f4bdd145c755af9ede0143703c3968fe42f4cc3906cb17725e11"
+      "upstreamSha256": "24df77e2c8beef24fbd31ab2b385d3ad46db26563dff8371959342b05cdd05b0",
+      "adaptedSha256": "ac52964b00474d10c24dbba4f506731ed1f901bee108719272ce8d23c829beb0"
     },
     {
       "file": "lib/pnpm-compat.js",
@@ -128,12 +144,12 @@
     {
       "file": "lib/presets.js",
       "upstreamSha256": "243af666ba44ff2b74675b45bd233e2c6207bd7f28a56a0768c4ce70c3927618",
-      "adaptedSha256": "4cc89b6bd37ad73a837f1574c18962312258aba97c6762cdd1fc376770d94dac"
+      "adaptedSha256": "95e160b23397b635cfcb03ee2cdf1e2a85836d683b2b27ea84bc9b2a199a8ad1"
     },
     {
       "file": "lib/profile.js",
-      "upstreamSha256": "da4b60e68189913c3ff23e5ab496cdc006b6a77a03ffc540e74d13fa51d90585",
-      "adaptedSha256": "6c3adb7139d57d895b64a9d38bfcc6d8675641475a310888b239abec727b3385"
+      "upstreamSha256": "7d6e4e1a5abacee565bc2658cbdcca7c83aab6da0a4f8a2ad3c9f8987ff550b8",
+      "adaptedSha256": "6571c0018f5474a0df4f19ebadbfa214dd4439a1e30aa516950b59924ae5bf3b"
     },
     {
       "file": "lib/recovery.js",
@@ -147,8 +163,8 @@
     },
     {
       "file": "lib/registry.js",
-      "upstreamSha256": "12c7546beb44fc4916f904ea78cae1055710fe527da450011ba68d7554047349",
-      "adaptedSha256": "c085db9cf2adb6e436fa48ad63806cc81ba7446a63d5d5beed044dc5c5b17fe6"
+      "upstreamSha256": "85d866dd5588e2e09996b00b7e40748ee0f7bd448125b7bee8f7419fbcbea52c",
+      "adaptedSha256": "8b5d4a27e2678c0dfb60ce0a4d4b916ea27764bf1e062eab1d2bed68ad149a59"
     },
     {
       "file": "lib/restart.js",
@@ -157,8 +173,8 @@
     },
     {
       "file": "lib/routes.js",
-      "upstreamSha256": "64d25696f938b4e752e5c0642862dbdeaebbb63b1863179b55d699c1bf9ca532",
-      "adaptedSha256": "7579d6c1db8fc67b8c8cb45ee043dc63451170e2588a985ac1615ecf9e5d966e"
+      "upstreamSha256": "119ea58be71a7279ba259558cb7810c3dc9e12d4e1ca626695bfe874df3ae863",
+      "adaptedSha256": "c8865bf80ab793966d5df144d40833d3f4fd5e3b9b5057dd779accce5723ad93"
     },
     {
       "file": "lib/settings.js",
@@ -172,8 +188,8 @@
     },
     {
       "file": "lib/source-migration.js",
-      "upstreamSha256": "68e9fa84d9be377265c453ed8eb7a5ad5a03aad905ea223ececcf6c5f0b13bbd",
-      "adaptedSha256": "ab53150744232bbbbabd4eab860df3c508d8b01f87227ee21096a26e5c29d221"
+      "upstreamSha256": "dc1f87007a78e7822b43891591a5f177014afe33c6fca6c7b1b80881ba56816f",
+      "adaptedSha256": "a8fcb4164fc8917b809ad51b1314252689013e5e2d6d167dbc89fc3987c6d572"
     },
     {
       "file": "lib/sources.js",
@@ -196,49 +212,54 @@
       "adaptedSha256": "b7fa896e1c2617ec5fba62978c14f8caac083457ad94b0276b8bbac16e5f9c6a"
     },
     {
+      "file": "lib/types/verify.d.ts",
+      "upstreamSha256": "c07e91894b83dc2894fa4b4af01b035ec4c5b54da026843f273c91d126163bd5",
+      "adaptedSha256": "7b6b1b3e9c481acb385fcf9c689afb1bab3779fbc358045d336fb2bb8026c99f"
+    },
+    {
       "file": "lib/updates.js",
-      "upstreamSha256": "1cbbd42f6317e02aaed9cd3f60e592274bccf785e171187358de39448263fc60",
-      "adaptedSha256": "7a84f6d62b153575c773ec4ff9049f1886dee991ca19c737725c7ed86a2aea72"
+      "upstreamSha256": "a542abc0e59a884e79bb9802ecf5714e282293368ef70710770f0cc4533290f0",
+      "adaptedSha256": "fb5108cc72534bba9921b1de461093d56a4e986244e5111e78a7944edd70d3ce"
     },
     {
       "file": "lib/verify.js",
-      "upstreamSha256": "9b178db901673c4dadb855373d4797aa5d1f0430a1953c3bb6da7b88ee61e352",
-      "adaptedSha256": "5876340cd89a2f16a4d841ac799704c1a2e6b65e883a3af2a31f481aa5412171"
+      "upstreamSha256": "511df22195defa70723f20838a10eb0b75865abd10a595440f3782f6c31de0fb",
+      "adaptedSha256": "dbc3b4a463458ad3386aff37906f220272c70e36ba15cee16cea3b5061e52385"
     },
     {
       "file": "src/client/index.ts",
-      "upstreamSha256": "0136ea0f4b6c9083a50b5502232a798019c4df95bd2586fb951b47a52b25b3a0",
-      "adaptedSha256": "b305559f570eef232270cba1a8042a306b178d8441b1b038ddde69ad3dbf379c"
+      "upstreamSha256": "77d8fe6cc641f123c48ddc43bf44ac88b1c4612e5c938158806bdfa622d523b2",
+      "adaptedSha256": "f0b2325cf0a188bc354422e4723b2542a2c438b54b22e61c501a6b99a9a74750"
     },
     {
       "file": "src/client/locales.ts",
-      "upstreamSha256": "721c135d19abfd49605d985fd3f45d32b348173e8564342137c179596a3bbade",
-      "adaptedSha256": "1b2f088a953593835e168931324c1bfc399771aec1fd6ec382c8ae8d5c4116fb"
+      "upstreamSha256": "d7a13a0a91bc9baf6bc07b4a5b4c9280c18839ed6bdc923a6a6580b078586275",
+      "adaptedSha256": "93db8157cb292b9be9f59abec64b87d04ed5bb6d8138a948720c67bc3d3b8bfe"
     },
     {
       "file": "src/client/market-data.ts",
-      "upstreamSha256": "66b8274beaf3a9bf2a4984f897aad36813538d0723bb0a905d51fcad3572b38f",
-      "adaptedSha256": "4720b5df2a082080c6712a5342d0b99409224695fe10d8a6ad51046c2f66ab4c"
+      "upstreamSha256": "df4fe4dd290d1d7d212d8cc1023df03fb50cddeb9972dbd5b44e48c6e662be4d",
+      "adaptedSha256": "5d9e2c4acb4a443f4a2e897a5b45967e3e7d2cf1b5a896da21e64a9f4ab05be2"
     },
     {
       "file": "src/client/MarketSection.tsx",
-      "upstreamSha256": "414a804cbfdebe6ca55a557fbff85444cb82258b889f85b087fb35f2719f4fc7",
-      "adaptedSha256": "db2098494886f517887972dc88489d066a620a1cd07aa3cf2f03a98f95cbe110"
+      "upstreamSha256": "f75366895ff285f95311cd1f7692d18d85db43b25a7e32f5c3b1a4723b92151c",
+      "adaptedSha256": "208bc34c6f1a4de85997128d5a644207abb4fc87f3e3d6f107603d34c6066044"
     },
     {
       "file": "src/hot.ts",
-      "upstreamSha256": "d11470a7f78cedd2a4637270e441e3fe596ecf805ba289b0b9ee2eb112cafed3",
-      "adaptedSha256": "ecb83d3d33171291a8fde3bcd69727db227a5a018c3b69bd5978e3128a71d72d"
+      "upstreamSha256": "5c358f3ddccd8f0cc525982cdcd55f1ac3889b8314927d9eee021450dc26075c",
+      "adaptedSha256": "94e039bc28772ca752484eb26c0416d1becbf6ec28f6f32a8ff49146e01697ad"
     },
     {
       "file": "src/index.ts",
-      "upstreamSha256": "0e37af6fcffb64fbc328d3e31bf86dd459482f8366824c3e9f7aad680271f955",
-      "adaptedSha256": "b0a0a4704e9ab2db31feeff9249705614b9507c13840566d8c2792e9851d334c"
+      "upstreamSha256": "b9f80fe7ee76c96d4f3c1315bd723efff8382d8c81e3fba83b169576c303f86e",
+      "adaptedSha256": "e923c3a2931b1bfbc6cf84cf56ddbc197d88cb3afcbe99455ba4a8d1483f7d0b"
     },
     {
       "file": "src/registry.ts",
-      "upstreamSha256": "767b54a13370f1da9a9ff9bae7ff7f20a88cbe2ee141c76df9571f277059a014",
-      "adaptedSha256": "3bf48c832e674ee83d24417dc132b0984a10489824898df771278596c0ffbfd5"
+      "upstreamSha256": "09b46fd5fffdc76af142cc0c55c3dd09d6cb1e0f3de4e66bb4510e5ffcd51466",
+      "adaptedSha256": "85b88e3119af5b92a1b5fcff18bb029543b841d2df145deade4a404251734312"
     },
     {
       "file": "src/restart.ts",
@@ -247,13 +268,18 @@
     },
     {
       "file": "src/routes.ts",
-      "upstreamSha256": "7d9d5eb44e52a0467c4e3e1923b028420744e2b660bdcd83523df0f727fcc1bd",
-      "adaptedSha256": "29e8a238dc8369fbda4f68b882314935b1465f87b2cb6c53be08eadfafbf0227"
+      "upstreamSha256": "19814bc61148b15f2db9147640f2573a9c7a6e6dd4f080046405988fa141b91b",
+      "adaptedSha256": "8330b949680eb142e001ddd23e134a23df6c4a54deb250ecb31b0200e3f3679e"
     },
     {
       "file": "src/settings.ts",
       "upstreamSha256": "e6ef765d9c0a24a6aa043943eb4a15c082fc5bb01079f6ab60293a1b80f1fd67",
       "adaptedSha256": "c485e983a63b1e30eb92441e869905ca60874e3fae99586bf5f7ff60cf763292"
+    },
+    {
+      "file": "src/source-migration.ts",
+      "upstreamSha256": "d12133975fc28c02056287b074f5eab59d4335d2d2f1ab21a0391375006746be",
+      "adaptedSha256": "3b5217dbe5411d0da89a1549e8d4acc3a262879f8f43e69f64ab346d7793b454"
     },
     {
       "file": "src/sources.ts",
@@ -262,8 +288,8 @@
     },
     {
       "file": "src/verify.ts",
-      "upstreamSha256": "d8a27e255ee69e7753abe5b6bf735db108b41967d3b701e8e5d8d8699ed1825c",
-      "adaptedSha256": "f403d620931508544af8d1549b1e2f784405c8374dbcd1f3bf3de23e7966886d"
+      "upstreamSha256": "9a85edf24d92d9e657ab167d665fe0b78a4fef25a1f29e074cbad4900936a6e8",
+      "adaptedSha256": "9bd0e53bb97a0366d510067a4eb1b33e35b1413fe7d5c713bf0770bf2531e8a3"
     }
   ],
   "productFiles": [
@@ -274,6 +300,16 @@
     {
       "file": "tsdown.config.ts",
       "sha256": "f5d2fd1c83aca679095bcd58615f69e7ad38f7245b2ca7dc41a552f37a1e888e"
+    },
+    {
+      "file": "data/registry-snapshot.json",
+      "sha256": "90686c02da3a9e8550bcda3a6bade7fe38129f0ba2062d85929b18b44c9691d8",
+      "source": "unchanged previous product extra"
+    },
+    {
+      "file": "tests/restart-host.test.mjs",
+      "sha256": "568dd6f088ce0cb088987bc8893f5212adf6d2c4d22ab61a9a7cb15dc2e78a8f",
+      "source": "unchanged previous product extra"
     }
   ]
 }

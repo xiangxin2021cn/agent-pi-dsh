@@ -416,8 +416,8 @@ function exclusiveUpperBound(release) {
     return `${release}-0`;
 }
 /**
- * Minimal range matcher for the peer-range check: `*`, exact, ^, ~, >=, >,
- * <=, <, whitespace-separated pairs, and `||` alternatives. Anything else
+ * Minimal range matcher for the peer-range check: `*`, exact (with or without =),
+ * ^, ~, >=, >, <=, <, whitespace-separated pairs, and `||` alternatives. Anything else
  * returns null (unknown — reported, not asserted).
  *
  * Prerelease handling follows npm's semver rule, evaluated at the comparator
@@ -465,8 +465,8 @@ export function satisfiesRange(version, range, options = {}) {
         const p = part.trim();
         if (p === '' || p === '*' || p === 'x' || p === 'X')
             return true;
-        const m = /^(\^|~|>=|<=|>|<)?(.*)$/.exec(p);
-        const op = m?.[1] ?? '';
+        const m = /^(\^|~|>=|<=|>|<|=)?(.*)$/.exec(p);
+        const op = m?.[1] === '=' ? '' : (m?.[1] ?? '');
         const target = (m?.[2] ?? '').trim();
         const tv = parseComparatorTarget(target, op);
         if (tv === null)
@@ -507,17 +507,18 @@ export function satisfiesRange(version, range, options = {}) {
         const p = part.trim();
         if (p === '' || p === '*' || p === 'x' || p === 'X')
             return { op: '', target: '' };
-        const m = /^(\^|~|>=|<=|>|<)?(.*)$/.exec(p);
+        const m = /^(\^|~|>=|<=|>|<|=)?(.*)$/.exec(p);
         if (m === null)
             return null;
+        const op = m[1] === '=' ? '' : (m[1] ?? '');
         const target = (m[2] ?? '').trim();
         // Enforce this function's documented unknown-range contract before the
         // prerelease admission gate. Otherwise an unknown protocol such as
         // `workspace:^` or `catalog:default` is misreported as a definite false
         // whenever the resolved version happens to carry a prerelease tag.
-        if (parseComparatorTarget(target, m[1] ?? '') === null)
+        if (parseComparatorTarget(target, op) === null)
             return null;
-        return { op: m[1] ?? '', target };
+        return { op, target };
     };
     /** Evaluate ONE comparator set (a `||` alternative) as a conjunction. */
     const evaluateSet = (set) => {

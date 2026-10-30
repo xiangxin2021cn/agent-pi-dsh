@@ -353,10 +353,33 @@ export async function uploadWebdav(url: string, username: string, password: stri
   }
   const response = await webdavRequest(url, username, password, 'PUT', JSON.stringify(backup))
   if (response.status < 200 || response.status >= 300) {
-    throw new Error(response.status === 404
-      ? `WebDAV upload failed: HTTP 404 — the target folder does not exist and could not be created. Some providers (e.g. Jianguoyun) refuse files at the root: use a path inside a folder, e.g. https://dav.example.com/dsh/backup.json / 目标目录不存在且无法自动创建；部分服务商（如坚果云）不允许在根目录放文件，请使用形如 https://dav.example.com/dsh/backup.json 的子目录路径`
-      : `WebDAV upload failed: HTTP ${response.status}`)
+    throw new Error(describeUploadFailure(response.status))
   }
+}
+
+/**
+ * What an upload failure means, in the three things a report needs (#1058).
+ *
+ * A bare `HTTP 401` is the worst of them: it is by far the most common
+ * answer, it happens for a reason the user can fix in one field, and the
+ * message said nothing about either. The password is deliberately never
+ * stored, so "re-entered after a page reload" is the ordinary cause, not an
+ * edge case.
+ *
+ * @param status - the HTTP status the PUT answered with.
+ * @returns a bilingual sentence: what happened, why, and what to do.
+ */
+function describeUploadFailure(status: number): string {
+  if (status === 401) {
+    return 'WebDAV 上传被拒绝（HTTP 401）：服务端不认这个用户名或密码。密码不会保存到磁盘，刷新页面或重启后需要重新输入；填好后点「上传备份」重试。 / The WebDAV server rejected these credentials (HTTP 401). The password is never stored, so it has to be entered again after a reload or restart; fill it in and press Upload backup.'
+  }
+  if (status === 403) {
+    return 'WebDAV 上传被拒绝（HTTP 403）：凭据有效，但这个账号没有写入该路径的权限。换一个可写的目录，或检查服务商的权限设置。 / The WebDAV server refused the write (HTTP 403): the credentials are valid but this account cannot write to that path. Use a writable folder, or check the provider\'s permissions.'
+  }
+  if (status === 404) {
+    return 'WebDAV upload failed: HTTP 404 — the target folder does not exist and could not be created. Some providers (e.g. Jianguoyun) refuse files at the root: use a path inside a folder, e.g. https://dav.example.com/dsh/backup.json / 目标目录不存在且无法自动创建；部分服务商（如坚果云）不允许在根目录放文件，请使用形如 https://dav.example.com/dsh/backup.json 的子目录路径'
+  }
+  return `WebDAV upload failed: HTTP ${status}`
 }
 
 /** Refuse non-global IPv4 targets, including metadata and carrier NAT ranges. */

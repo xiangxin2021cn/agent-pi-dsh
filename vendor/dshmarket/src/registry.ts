@@ -4,10 +4,12 @@
  * behind it any more.
  */
 
+import { BODY_STALL_TIMEOUT_MS, HEADERS_TIMEOUT_MS, readBodyWhileProgressing } from './body-progress.ts'
 import { logEvent } from './log.ts'
 import { configuredProxy, marketFetch } from './net.ts'
 import { catalogFromPackage } from './catalog-npm.ts'
 import { activeRegion, catalogSourcesFor, routesFor, type CatalogSource, type Region } from './regions.ts'
+import { NPM_NAME_RE } from './sources.ts'
 
 export interface RegistryPlugin {
   name: string
@@ -54,6 +56,21 @@ export interface RegistryPlugin {
   /** Catalog name of the suggested replacement plugin, when deprecated. */
   replacement?: string
   /**
+   * npm package names this entry used BEFORE its current one (#1012).
+   *
+   * The catalog is the only place a rename can be stated ahead of time: the
+   * old name's npm metadata is gone (no dist-tags, no `deprecated` message),
+   * so nothing the market can fetch still knows the two names are one plugin.
+   * Same trust boundary as `deprecated`/`replacement` — absent for every
+   * normal entry, and a catalog without the field behaves exactly as before.
+   *
+   * Values are validated where they are consumed (normalized by
+   * {@link pluginPreviousNpm}, cross-entry rules in scripts/validate-registry.mjs):
+   * a former name must never be a live package in the catalog, and one former
+   * name may only have one successor.
+   */
+  previousNpm?: string[]
+  /**
    * Capability disclosure (#401): what a static scan of the artifact a user
    * would install reported touching — `shell`, `network`, `credentials`,
    * `fs-read`, `fs-write`, `env`, `llm`, `dynamic-code`, ...
@@ -97,6 +114,36 @@ export interface Registry {
 }
 
 /**
+ * Former npm names for one catalog entry, normalized (#1012).
+ *
+ * Catalog JSON is external input, so a malformed declaration is dropped
+ * rather than trusted: only syntactically valid npm names survive, an entry
+ * may not list itself (its own `npm` or `name`), and duplicates collapse in
+ * declaration order. Cross-entry rules — a former name that is still live
+ * elsewhere, or two entries claiming one former name — cannot be judged per
+ * entry; the validator enforces them for the catalog, and
+ * `findCatalogRename` fails closed on ambiguity at runtime.
+ */
+export function pluginPreviousNpm(
+  plugin: Pick<RegistryPlugin, 'name' | 'npm' | 'previousNpm'>,
+): string[] {
+  const declared: unknown = plugin.previousNpm
+  const values: unknown[] = Array.isArray(declared) ? declared : declared === undefined || declared === null ? [] : [declared]
+  const own = new Set<string>([plugin.name.toLowerCase()])
+  if (typeof plugin.npm === 'string' && plugin.npm !== '') own.add(plugin.npm.toLowerCase())
+  const names: string[] = []
+  const seen = new Set<string>()
+  for (const value of values) {
+    if (typeof value !== 'string' || value === '' || !NPM_NAME_RE.test(value)) continue
+    const key = value.toLowerCase()
+    if (own.has(key) || seen.has(key)) continue
+    seen.add(key)
+    names.push(value)
+  }
+  return names
+}
+
+/**
  * Where the curated list comes from now lives in the region routing table
  * (src/regions.ts), because it is one of several addresses that move
  * together when a user changes download region.
@@ -113,49 +160,9 @@ export interface Registry {
  * changes is WHICH list is curated, never WHETHER the check runs.
  */
 
-/**
- * How long to wait for the catalog to START answering.
- *
- * Headers arrive in one burst or not at all, so a fixed budget still fits
- * them. This used to cover the whole fetch, which was fine at 282KB and is
- * wrong now that the catalog runs past a megabyte: on a lossy proxied link
- * the body keeps trickling long after 15s, and a total timer cuts off a
- * download that was still moving and would have finished (measured: killed
- * at 15s on both attempts, 89.9s end-to-end when allowed to run). The body
- * is read under a stall watchdog instead — see readBodyWhileProgressing.
- */
-const HEADERS_TIMEOUT_MS = 15_000
 
-/**
- * How long the body may stay SILENT before we give up on it.
- *
- * Deliberately not a total budget. As long as bytes keep arriving, however
- * slowly, the read continues; the watchdog only fires on a download that has
- * actually stopped, which is the one failure a slow link cannot fake.
- */
-const BODY_STALL_TIMEOUT_MS = 15_000
 
-/**
- * How long the whole body may take, however much progress it keeps making.
- *
- * The stall watchdog can only act on a pause, so a mirror that sends one
- * byte inside every 15s window would hold the read open forever. 10 minutes
- * is ~7x the slowest measured full download (89.9s); a body still going
- * after that is broken, not slow, and the byte count in the message says
- * which of the two it was.
- */
-const BODY_TOTAL_CEILING_MS = 600_000
 
-/**
- * The most body bytes to accept before declaring the response not a catalog.
- *
- * The catalog passed 5 MB in September 2026; 256 MB is ~48x that — years of
- * headroom — and still a hard bound on memory, because the whole body is
- * buffered before parsing and a mirror streaming garbage at line speed
- * would otherwise grow that buffer until the process dies. backup.ts and
- * gist.ts cap their downloads for the same reason.
- */
-const MAX_CATALOG_BODY_BYTES = 256 * 1024 * 1024
 
 /**
  * The catalog we were last served, with the validator identifying it.
@@ -199,7 +206,14 @@ function asRegistry(value: unknown): Registry {
   const plugins = data.plugins.map((plugin, index) => {
     const category = pluginCategories(plugin)
     if (category.length === 0) throw new Error(`catalog plugin ${String(index)} carries no usable category`)
-    return { ...plugin, category }
+    const previousNpm = pluginPreviousNpm(plugin)
+    // An entry with nothing usable to declare looks exactly like one that
+    // declared nothing, so the field stays absent rather than becoming [].
+    if (previousNpm.length === 0) {
+      const { previousNpm: _declared, ...rest } = plugin
+      return { ...rest, category }
+    }
+    return { ...plugin, category, previousNpm }
   })
   return applyAgentPiUniverPolicy({ ...data, plugins })
 }
@@ -380,108 +394,8 @@ export function describeFetchFailure(
 }
 
 export function applyAgentPiUniverPolicy(registry: Registry): Registry {
-  const bundled: RegistryPlugin = { name: 'dsh-univer-office', owner: 'dream-num', url: 'https://github.com/dream-num/dsh-univer-office', npm: 'dsh-univer-office', category: 'tools', install: 'dsh plugin --profile tender add dsh-univer-office', added: '2026-09-16', description: { zh: '官方 Office 插件 0.3.8 已预装，可创建、编辑和预览文档、表格及演示文稿；完整保留上游组件及许可证。', en: 'Official Office plugin 0.3.8 is preinstalled for creating, editing and previewing docs, sheets and slides; upstream components and licenses are retained.' } }
+  const bundled: RegistryPlugin = { name: 'dsh-univer-office', owner: 'dream-num', url: 'https://github.com/dream-num/dsh-univer-office', npm: 'dsh-univer-office', category: 'tools', install: 'dsh plugin --profile tender add dsh-univer-office', added: '2026-09-16', description: { zh: '官方 Office 插件 0.3.9 已预装，可创建、编辑和预览文档、表格及演示文稿；完整保留上游组件及许可证。', en: 'Official Office plugin 0.3.9 is preinstalled for creating, editing and previewing docs, sheets and slides; upstream components and licenses are retained.' } }
   const plugins = registry.plugins.map(plugin => plugin.name === bundled.name || plugin.npm === bundled.npm ? { ...plugin, description: bundled.description } : plugin)
   if (!plugins.some(plugin => plugin.name === bundled.name || plugin.npm === bundled.npm)) plugins.push(bundled)
   return { ...registry, count: plugins.length, plugins }
-}
-
-/**
- * Read a catalog body under a stall watchdog instead of a total budget.
- *
- * One timer for the whole fetch was the mistake both before and after #188:
- * at 4s it hid slowness behind a stale snapshot, at 15s it kills downloads
- * that are still moving. On a lossy proxied link the catalog body trickles
- * for far longer than 15s while never once going silent — measured 89.9s
- * end-to-end for a body the 15s cutoff had declared dead twice. This reader
- * lets a moving body run as long as it keeps moving, in either direction's
- * sense of "slow", and ends one that goes quiet for `stallMs` with a message
- * that says what actually happened and how much had arrived.
- *
- * The rejection comes from here, not from an abort: undici's abort message
- * ("This operation was aborted") cannot tell a user anything actionable, and
- * a bug report containing this string will contain the byte count too.
- *
- * Two backstops keep "still moving" from meaning "forever", because the
- * watchdog can only see pauses: a total ceiling for a body that trickles
- * without ever pausing, and a size cap for one that outruns any catalog.
- */
-function readBodyWhileProgressing(res: Response, stallMs: number): Promise<Uint8Array> {
-  // The stand-in closes at once, so an absent body reads as "no body"
-  // below instead of parking this reader on a stream that never ends.
-  const reader = (res.body ?? new ReadableStream<Uint8Array>({ start(controller) { controller.close() } })).getReader()
-  return new Promise<Uint8Array>((resolve, reject) => {
-    const chunks: Uint8Array[] = []
-    let received = 0
-    let settled = false
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const finish = (error?: Error): void => {
-      if (settled) return
-      settled = true
-      if (timer !== undefined) clearTimeout(timer)
-      clearTimeout(ceiling)
-      // Tell the origin we are done with the socket; its refusal is not ours to report.
-      reader.cancel().catch(() => {})
-      if (error !== undefined) reject(error)
-      // An empty body otherwise surfaces as a JSON parse error, which tells
-      // the user nothing about the network that caused it.
-      else if (received === 0) reject(new Error('the catalog response carried no body'))
-      else resolve(concatBytes(chunks))
-    }
-    const ceiling = setTimeout(
-      () => {
-        finish(new DOMException(
-          `the catalog download did not finish within ${String(Math.round(BODY_TOTAL_CEILING_MS / 1000))}s (received ${String(received)} bytes)`,
-          'TimeoutError',
-        ))
-      },
-      BODY_TOTAL_CEILING_MS,
-    )
-    const arm = (): void => {
-      if (timer !== undefined) clearTimeout(timer)
-      timer = setTimeout(
-        () => {
-          finish(new DOMException(
-            `no new data for ${String(Math.round(stallMs / 1000))}s while downloading the catalog (received ${String(received)} bytes)`,
-            'TimeoutError',
-          ))
-        },
-        stallMs,
-      )
-    }
-    const step = (): void => {
-      reader.read().then((r) => {
-        if (settled) return
-        if (r.done || r.value === undefined) {
-          finish()
-          return
-        }
-        chunks.push(r.value)
-        received += r.value.byteLength
-        if (received > MAX_CATALOG_BODY_BYTES) {
-          finish(new Error(
-            `the catalog response grew past ${String(MAX_CATALOG_BODY_BYTES / 1024 / 1024)} MB without ending (received ${String(received)} bytes)`,
-          ))
-          return
-        }
-        arm()
-        step()
-      }, (error: unknown) => {
-        finish(error instanceof Error ? error : new Error(String(error)))
-      })
-    }
-    arm()
-    step()
-  })
-}
-
-function concatBytes(chunks: Uint8Array[]): Uint8Array {
-  const all = new Uint8Array(chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0))
-  let at = 0
-  for (const chunk of chunks) {
-    all.set(chunk, at)
-    at += chunk.byteLength
-  }
-  return all
-
 }

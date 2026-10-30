@@ -8,6 +8,7 @@ import { createDesktopPluginRuntime, setHostPackageManager } from "./dsh-cli.js"
 import { createOfficialDesktopRuntime } from "./official-desktop.js";
 import { isDshProfileName } from "./profile.js";
 import { setRequestGateSource, setTrustedHostsSource } from "./http.js";
+import { setLauncherInstallAnchorSource } from "./dsh-install.js";
 import { mountMarketRoutes } from "./routes.js";
 import { installDesktopMarketSettings, installMarketSettings } from "./settings.js";
 export const name = 'dsh-market';
@@ -176,9 +177,40 @@ export function useTrustedHosts(ctx) {
         setRequestGateSource(previousGate);
     };
 }
+/**
+ * Feed host detection the install anchor the launcher published.
+ *
+ * The CLI is located by walking `process.argv[1]` up to its package, and the
+ * official Desktop by Electron's resources directory. An embedded host — a
+ * packaged app that boots the dsh core tree in-process — has neither, so
+ * `dshHostInfo()` answered null there and every host-version surface read
+ * "unknown": Discover's compatibility filter (#473), the pre-install refusal
+ * (#404), and the exported log's `dsh host:` line (#426). The launcher does
+ * publish where its runtime is (`profileContext.installAnchor`), so hand
+ * that to detection. Read through a live source, not a mount-time copy:
+ * launchers may provide `profileContext` after the market mounts (the same
+ * timing problem the origins above handle), and a frozen value would answer
+ * "unknown" for the whole session on exactly those hosts.
+ *
+ * Exported for the specs that cover this wiring.
+ * @returns a restore function for the effect that installed it.
+ */
+export function useLauncherInstallAnchor(ctx) {
+    const previous = setLauncherInstallAnchorSource(() => {
+        const profileContext = ctx.get('profileContext');
+        const anchor = profileContext?.installAnchor;
+        return typeof anchor === 'string' ? anchor : null;
+    });
+    return () => {
+        setLauncherInstallAnchorSource(previous);
+    };
+}
 export function apply(ctx, config) {
     ctx.inject(['webServer', 'loader'], (hostCtx) => {
         const host = hostCtx;
+        // Before any branch mounts: every host-version surface reads detection
+        // through the anchor, so it has to be in place before those exist.
+        host.effect(() => useLauncherInstallAnchor(ctx), 'dsh-market: launcher install anchor');
         const desktopProfiles = ctx.get('desktopProfiles');
         if (desktopProfiles === undefined) {
             // An explicit `profile:` in cordis.yml is the operator speaking and
@@ -220,7 +252,7 @@ export function apply(ctx, config) {
                 const profileDirectory = launched !== undefined && launched.name.toLowerCase() === profileName.toLowerCase()
                     ? launched.dir
                     : undefined;
-                const runtime = createOfficialDesktopRuntime(() => hostCtx.get('pluginManager'), profileName, profileDirectory, 
+                const runtime = createOfficialDesktopRuntime(() => hostCtx.get('pluginManager'), profileName, profileDirectory,
                 // Hand the invocation to the runtime only. Do not register it
                 // globally: other official-desktop installs still go through the
                 // manager (#702). The market itself is the one exception (#982).

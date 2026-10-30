@@ -58,12 +58,12 @@ const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
 
 function parseComparator(part: string): ParsedComparator | null {
   const p = part.trim()
-  const m = /^(\^|~|>=|<=|>|<)?(.*)$/.exec(p)
+  const m = /^(\^|~|>=|<=|>|<|=)?(.*)$/.exec(p)
   if (m === null) return null
   const target = (m[2] ?? '').trim()
   if (!SEMVER.test(target)) return null
   const raw = m[1] ?? ''
-  return { op: raw === '' ? 'exact' : raw as ParsedComparator['op'], target }
+  return { op: raw === '' || raw === '=' ? 'exact' : raw as ParsedComparator['op'], target }
 }
 
 /** Next breaking bump for `^` / `~`, using `-0` so prereleases compare consistently. */

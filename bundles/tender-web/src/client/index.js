@@ -12,6 +12,7 @@ import { searchSettingsText } from './locales/search-settings.js'
 import * as ReactDOM from 'react-dom'
 import { createAgentPiApiClient } from './api-client.js'
 import { createFilePreviewOverlay } from './file-preview-overlay.js'
+import { resolveCadPreviewContext } from './cad-preview-context.js'
 import { createKnowledgeBasePanel } from './knowledge-base-panel.js'
 import { installKbSessionBridge, installKbWorkspaceBridge, mainSessionId } from './kb-session-bridge.js'
 import { addNativeComposerFiles } from './native-attachment-adapter.js'
@@ -6246,7 +6247,7 @@ const SearchSettings = createSearchSettings(React)
       try {
         const result = await api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(id)}&action=source&evidenceId=${encodeURIComponent(evidence.id)}`, snapshotComposer()?.cwd || '')
         if (result.url) window.open(result.url, '_blank', 'noopener,noreferrer')
-        else window.dispatchEvent(new CustomEvent('agent-pi-open-file', { detail: { cwd: result.cwd, path: result.path, locator: result.locator } }))
+        else window.dispatchEvent(new CustomEvent('agent-pi-open-file', { detail: { cwd: result.cwd, path: result.path, locator: result.locator, sessionId: id } }))
       } catch (error) { showToast(error.message) }
     }
     const performTaskUserAction = async payload => {
@@ -6648,12 +6649,15 @@ const SearchSettings = createSearchSettings(React)
           const detail = event && event.detail
           const path = detail && detail.path
           if (!path) return
+          const context = resolveCadPreviewContext(detail, snapshotComposer(), readWorkspaceListSnap(), readSessionListSnap())
+          if (context === null) { showToast('请先在工作区中打开这张图纸的来源项目。'); return }
           onOpen()
           setStack((prev) => {
             const top = prev.length > 0 ? prev[prev.length - 1] : null
-            if (top && top.type === 'file' && top.file && top.file.path === path && (!detail.kbSlug || top.file.kbSlug === detail.kbSlug) && top.file.locator === detail.locator) return prev
+            if (top && top.type === 'file' && top.file && top.file.path === path && (!detail.kbSlug || top.file.kbSlug === detail.kbSlug) && top.file.locator === detail.locator && top.context?.cwd === context?.cwd && top.context?.sessionId === context?.sessionId) return prev
             return prev.concat([{
               type: 'file',
+              context,
               file: {
                 path: path,
                 name: detail.name || fileName(path),
@@ -6714,12 +6718,15 @@ const SearchSettings = createSearchSettings(React)
         })
         : preview && preview.type === 'file'
           ? h(FilePreviewOverlay, {
-            key: preview.file.kbSlug || preview.file.path,
-            cwd: cwd,
+            key: (preview.context?.cwd || cwd) + '\0' + (preview.file.kbSlug || preview.file.path),
+            cwd: preview.context?.cwd || cwd,
             file: preview.file,
             kbSlug: preview.file.kbSlug || '',
             kbHasSource: !!preview.file.kbHasSource,
-            sessionProps: props,
+            sessionProps: preview.context && preview.context.sessionId !== sessionId
+              ? { sessionId: preview.context.sessionId, cwd: preview.context.cwd, session: sessionFaceById(preview.context.sessionId) }
+              : props,
+            readOnly: !!preview.context?.readOnly,
             onClose: closePreview,
             onDeleted: closePreview,
             onKbSaved: () => window.dispatchEvent(new Event('agent-pi-files-changed')),

@@ -258,12 +258,12 @@ test('Viewer tunnel preserves the ticket and queued/live text and binary frames'
   assert.deepEqual(received,[{data:'reply',binary:false}])
 })
 
-test('Office 0.3.8 preserves the original manifest and rejects unreviewed peer layouts', () => {
+for (const version of ['0.3.8', '0.3.9']) test(`Office ${version} preserves the original manifest and rejects unreviewed peer layouts`, () => {
   const original = '^0.1.5-rc.3 || ^0.1.7-rc.1 || ^0.2.0-rc.1 || ^0.2.1-rc.3'
   const peers = Object.fromEntries(['attachment', 'host-webserver', 'llm', 'session', 'settings', 'skill', 'tools'].map(name => ['@deepseek-ai/dsh-' + name, original]))
   peers['@deepseek-ai/cordis'] = '^4.0.2'
   peers['@deepseek-ai/schemastery'] = '^3.18.1'
-  const source = JSON.stringify({ name: 'dsh-univer-office', version: '0.3.8', peerDependencies: peers }) + '\n'
+  const source = JSON.stringify({ name: 'dsh-univer-office', version, peerDependencies: peers }) + '\n'
   assert.equal(patchUniver020PeerRanges(source), source)
   assert.throws(() => patchUniver020PeerRanges(source.replaceAll('^0.2.1-rc.3', '^0.9.0')), /unexpected Univer DSH peer range/)
   assert.throws(() => patchUniver020PeerRanges(source.replace('^4.0.2', '^5.0.0')), /unexpected Univer vendor peer range/)

@@ -265,7 +265,7 @@ async function updateMarketInPlace(
   if (context === undefined || invocation === undefined || invocation === null || directory === undefined) {
     return { application: 'failed', error: { code: 'market-self-update', message: selfUpdateMessage(spec) } }
   }
-  progress.lastLine = 'Updating the market without unloading it'
+  progress.lastLine = '正在更新市场本身，不会先卸载它 / Updating the market itself without unloading it'
   const args = ['add', spec]
   if (typeof options.registry === 'string' && options.registry !== '') args.push(`--registry=${options.registry}`)
   const run = await runHostPnpm(invocation, directory, args)
@@ -375,7 +375,7 @@ async function installOrReinstall(
       to: targetVersionOf(spec),
       spec,
     })
-  progress.lastLine = 'Removing the installed copy so the desktop app can install the new version'
+  progress.lastLine = '先移除旧版本，桌面端才能装新版本 / Removing the old version so the desktop app can install the new one'
   let removed: ManagedResult
   try {
     removed = await withDeadline(manager.removeBundle(name), REMOVE_DEADLINE_MS, `remove ${name}`)
@@ -390,7 +390,7 @@ async function installOrReinstall(
     return removed
   }
   if (record !== undefined) context?.journal.mark(record.id, 'installing')
-  progress.lastLine = 'Installing the new version'
+  progress.lastLine = '正在安装新版本 / Installing the new version'
   try {
     const installed = await withDeadline(install(), INSTALL_DEADLINE_MS, `install ${spec}`)
     if (installed.application === 'failed' || installed.application === 'cancelled') {
@@ -501,7 +501,7 @@ export function createOfficialDesktopRuntime(
     progress.active = true
     progress.target = target
     progress.startedAt = Date.now()
-    progress.lastLine = 'Using the official desktop plugin manager'
+    progress.lastLine = '桌面端的插件管理器正在处理 / The desktop app\'s plugin manager is working on it'
     progress.error = null
     progress.cancelling = false
     let operation: Promise<ManagedResult>

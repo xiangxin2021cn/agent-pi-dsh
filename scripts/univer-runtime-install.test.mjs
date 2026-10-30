@@ -51,12 +51,12 @@ test('profile startup uses preinstalled Office while platform builds prepare and
   assert.match(workflow, /univer-public-release\.mjs assert-tree/)
 })
 
-test('tracked Univer production lock exactly matches the pinned 0.3.7 dependency graph', () => {
+test('tracked Univer production lock exactly matches the pinned 0.3.9 dependency graph', () => {
   assert.deepEqual(pinnedDependencies, {
     '@puppeteer/browsers': '^3.2.0',
     '@univerjs-pro/cli-assets': '0.1.0',
-    '@univerjs-pro/engine-formula-rust-binding': '1.0.1',
-    '@univerjs-pro/exchange-node-binding': '1.0.1',
+    '@univerjs-pro/engine-formula-rust-binding': '1.0.3',
+    '@univerjs-pro/exchange-node-binding': '1.0.4',
     libsql: '^0.5.29',
     'puppeteer-core': '^25.7.0',
   })

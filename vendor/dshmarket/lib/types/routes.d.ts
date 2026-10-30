@@ -31,13 +31,7 @@ export interface MarketHost {
         await(): Promise<unknown>;
         dispose(): Promise<unknown> | void;
     };
-    on?(event: string, callback: (fiber: {
-        entry?: {
-            options?: {
-                name?: string;
-            };
-        };
-    }) => void): () => void;
+    on?(event: string, callback: (payload: unknown) => void): () => void;
     logger?: {
         info?(message: string): void;
         warn(message: string): void;

@@ -20,6 +20,7 @@ import { migrateSettings017 } from './migrate-settings-017.mjs'
 import { repairDeepSeekModelCapacities, ensureDeepSeekOfficialModel, migrateDeepSeekDefault } from './deepseek-model-capacities.mjs'
 import { removeProductParallelCap } from './heal-agent-loop-settings.mjs'
 import { migrateLegacyAgentPresetSessions } from './migrate-legacy-agent-preset-sessions.mjs'
+import { backupScheduleV1 } from './backup-schedule-v1.mjs'
 import { repairProfessionalDepthSessions } from './repair-professional-depth-sessions.mjs'
 import {
   removeMissingProductUniverDependency,
@@ -37,6 +38,7 @@ const { evaluatePluginCompatibility, readProfileVersionExemptions } = await impo
   pathToFileURL(join(dsh, 'packages/boot/app-boot/lib/index.js')).href
 )
 const home = process.env.DSH_HOME || join(root, '.dsh-home')
+backupScheduleV1(home)
 const profileDir = join(home, 'profiles/tender')
 const manifestPath = join(profileDir, 'package.json')
 const injectorDir = join(root, 'vendor/dsh-super-injector')

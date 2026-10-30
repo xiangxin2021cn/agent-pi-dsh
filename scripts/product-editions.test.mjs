@@ -11,7 +11,7 @@ const manifest = read('package.json'), desktop = read('apps/desktop/package.json
 const product = desktopProductIdentity(desktop)
 
 test('this product has one version, edition, installer and update identity', () => {
-  assert.equal(manifest.version, '3.8.5')
+  assert.equal(manifest.version, '3.8.7')
   for (const file of ['apps/desktop/package.json', 'bundles/tender-host/package.json', 'bundles/agent-pi-compaction/package.json']) assert.equal(read(file).version, manifest.version, file)
   assert.equal(manifest.agentPiProduct.edition, product.edition)
   assert.equal(manifest.agentPiProduct.artifactStem, product.artifactStem)

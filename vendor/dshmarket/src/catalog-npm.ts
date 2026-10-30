@@ -20,6 +20,7 @@
  */
 
 import { gunzipSync } from 'node:zlib'
+import { fetchBodyWhileProgressing } from './body-progress.ts'
 import { marketFetch } from './net.ts'
 
 /** Long enough for a multi-megabyte tarball on a slow link, short enough to fall back. */
@@ -112,9 +113,48 @@ export async function catalogFromPackage(
   // Follow `dist.tarball` rather than composing a URL. A mirror rewrites
   // this field to its own host, and composing one would send the download
   // back to the origin registry the region exists to avoid.
-  const tarRes = await marketFetch(tarball, { signal: AbortSignal.timeout(TIMEOUT_MS) })
-  if (!tarRes.ok) throw new Error(`HTTP ${String(tarRes.status)} reading ${pkg} tarball`)
-  const bytes = fileFromTarball(Buffer.from(await tarRes.arrayBuffer()), file)
+  //
+  // The body is read under a stall watchdog rather than a total budget
+  // (#1049). A 3.2 MB tarball needs 158 KB/s to clear a fixed 20s ceiling,
+  // and a China mirror jittering to 17–40 KB/s cannot: both attempts died at
+  // the ceiling while bytes were still arriving, and the catalog fell through
+  // to a source that took longer still. TIMEOUT_MS still bounds the wait for
+  // the response to start, the one thing a fixed timer is good at.
+  const bytes = fileFromTarball(Buffer.from(
+    await fetchBodyWhileProgressing(marketFetch, tarball, `${pkg} tarball`),
+  ), file)
   if (bytes === null) throw new Error(`${pkg}@${version} carries no ${file}`)
   return { version, data: JSON.parse(bytes.toString('utf8')) as unknown }
+}
+
+/**
+ * One file out of a package's newest tarball, or null when it cannot be read
+ * (#1012).
+ *
+ * The install route asks a package what it declares before it installs it: a
+ * rename can only be detected from the rows the artifact carries, not from
+ * the name it was published under. A failed read is not a verdict — the
+ * caller treats null as "not declared", because a registry hiccup must never
+ * become a refusal to install.
+ *
+ * @param registry - registry base, no trailing slash.
+ * @param pkg - package name.
+ * @param file - exact entry name inside the tarball (`package/cordis.patch.yml`).
+ */
+export async function packageFileFromRegistry(registry: string, pkg: string, file: string): Promise<Buffer | null> {
+  try {
+    const metaRes = await marketFetch(`${registry}/${encodeURIComponent(pkg)}/latest`, {
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+      headers: { accept: 'application/json', 'user-agent': 'dsh-market' },
+    })
+    if (!metaRes.ok) return null
+    const meta = (await metaRes.json()) as Packument
+    const tarball = typeof meta.dist?.tarball === 'string' ? meta.dist.tarball : null
+    if (tarball === null) return null
+    const tarRes = await marketFetch(tarball, { signal: AbortSignal.timeout(TIMEOUT_MS) })
+    if (!tarRes.ok) return null
+    return fileFromTarball(Buffer.from(await tarRes.arrayBuffer()), file)
+  } catch {
+    return null
+  }
 }

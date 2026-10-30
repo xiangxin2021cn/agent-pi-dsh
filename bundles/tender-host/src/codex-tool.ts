@@ -6,6 +6,6 @@ export const name = 'agent-pi-codex-tool'
 export const inject = official.inject
 export const Config = official.Config
 
-export function apply(ctx: any, config: any): void {
-  applyCodexModelTool(ctx, config, official.apply)
+export function apply(ctx: any, config: any): void | Promise<void> {
+  return applyCodexModelTool(ctx, config, official.apply)
 }

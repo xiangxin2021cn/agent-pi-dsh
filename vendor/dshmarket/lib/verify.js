@@ -380,7 +380,14 @@ export function defaultHostRuntimeFacts(activeProfileDir) {
     catch { /* no exemption file — nothing may bypass the gate */ }
     return { runtimeVersion: discoverRuntimeVersion(), exemptions };
 }
-export function verifyActivation(profile, name, live = new Set(listHotMounts()), explicitDir, isDisabled = false, hostFacts, loaderObserved = false) {
+export function verifyActivation(profile, name, live = new Set(listHotMounts()), explicitDir, isDisabled = false, hostFacts, loaderObserved = false,
+/**
+ * The host's OWN row for this package exists and has no fiber (#1023).
+ * The loader creates an entry before it imports the module, so an entry
+ * that never got a fiber is a row the boot tried and did not activate —
+ * "restart to apply" would promise something the next start cannot deliver.
+ */
+loaderNeverStarted = false) {
     const activeProfileDir = profileDir(profile, explicitDir);
     const bundles = readBundles(profile, activeProfileDir);
     const inBundles = bundles.has(name);
@@ -592,6 +599,19 @@ export function verifyActivation(profile, name, live = new Set(listHotMounts()),
                 state: 'incompatible',
                 reasons: [
                     `它加载的插件 ${plugin} 要求 ${gate.peer} ${gate.range}，当前 dsh 为 ${gate.runtimeVersion}，重启也不会生效；${remedy.zh} / its plugin ${plugin} requires ${gate.peer} ${gate.range}, but dsh runs ${gate.runtimeVersion} — a restart will not activate it; ${remedy.en}`,
+                ],
+                bundle: true,
+                hot: false,
+            };
+        }
+        // #1023: an entry the loader created and never started is not a pending
+        // change. A restart re-runs the same import, so the banner it produced
+        // ("1 change needs a restart") could never be cleared by restarting.
+        if (loaderNeverStarted) {
+            return {
+                state: 'failed',
+                reasons: [
+                    '宿主这次启动没能加载它；重启会再试一次，还是失败就说明它和当前宿主版本不兼容——更新它，或卸载 / the host could not load it during this start; a restart tries again, but if it keeps failing the package does not fit this host version — update it, or remove it',
                 ],
                 bundle: true,
                 hot: false,

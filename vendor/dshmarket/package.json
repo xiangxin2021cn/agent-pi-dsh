@@ -1,7 +1,7 @@
 {
   "name": "dshmarket",
   "description": "Visual plugin market inside DeepSeek Harness — browse, search, and one-click install community plugins. · DSH 可视化插件市场：逛一逛，点一下，装好。",
-  "version": "1.70.0",
+  "version": "1.73.6",
   "icon": "assets/logo.svg",
   "type": "module",
   "main": "lib/index.js",
@@ -76,7 +76,6 @@
     "assets/logo.svg",
     "locale",
     "lib",
-    "src",
     "client",
     "UPDATE-API-V1.md",
     "cordis.patch.yml",

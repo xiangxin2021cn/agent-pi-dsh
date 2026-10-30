@@ -82,7 +82,7 @@ test('rejects a mismatched DSH version or product pin', () => {
   const replacement = join(root, 'replacement')
   cpSync(dsh, replacement, { recursive: true })
   writeFileSync(join(replacement, 'package.json'), '{"version":"0.2.2-alpha.2"}\n')
-  for (const pin of ['14bab4422b12ab80cd79de59e086c12888fe00be', 'a5e553a5ee04fc66bc264fd25b71a71668727115']) {
+  for (const pin of ['14bab4422b12ab80cd79de59e086c12888fe00be', 'a5e553a5ee04fc66bc264fd25b71a71668727115', 'f3803c96974ad4a94195fb97e5c637e9c2a3afe3']) {
     writeFileSync(join(product, 'DSH_PIN'), pin + '\n')
     assert.throws(() => verifyDshRuntime(replacement, product), /staged DSH_PIN/)
   }

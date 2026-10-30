@@ -15,6 +15,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { redactHomePaths } from './log-redaction.ts'
+import { inProbe } from './probe-context.ts'
 
 export type LogLevel = 'info' | 'warn' | 'error'
 
@@ -56,6 +57,10 @@ function sanitize(text: string): string {
  * @param detail - free-form context; credentials and home paths are masked.
  */
 export function logEvent(level: LogLevel, event: string, detail: string): void {
+  // A drain probe replays a route only to capture its target. Writing the
+  // same "pinned to" lines a second time would claim an operation happened
+  // before the operation was even accepted.
+  if (inProbe()) return
   const entry = {
     at: new Date().toISOString(),
     level,

@@ -45,6 +45,16 @@ export interface UpdateOperationV1 {
         };
     };
     failure: UpdateFailureV1 | null;
+    /**
+     * Present while a deferred operation is waiting for a safe boundary. The
+     * state remains `queued`; this explains why (#411).
+     */
+    wait: {
+        reason: 'agents';
+        activeCount: number;
+        activeAgentIds: string[];
+        since: number;
+    } | null;
 }
 /** Process-local operation registry. A boot id scopes ids across restarts. */
 export declare class UpdateOperationStoreV1 {
@@ -58,6 +68,13 @@ export declare class UpdateOperationStoreV1 {
     hasActive(): boolean;
     create(packageName: string, beforeVersion: string | null): UpdateOperationV1;
     start(operationId: string): void;
+    /**
+     * Explain why a deferred operation is still queued. Additive: an operation
+     * that never waits keeps `wait: null`.
+     */
+    setWait(operationId: string, wait: UpdateOperationV1['wait']): UpdateOperationV1 | null;
+    /** Project the post-pnpm validation window as `running` + phase `verifying`. */
+    beginVerifying(operationId: string): void;
     finish(operationId: string, status: number, payload: unknown, installedVersion: string | null): UpdateOperationV1 | null;
     beginRollback(operationId: string): string | null;
     finishRollback(operationId: string, status: number, payload: unknown, installedVersion?: string | null): UpdateOperationV1 | null;

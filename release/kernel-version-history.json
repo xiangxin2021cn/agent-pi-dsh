@@ -174,5 +174,13 @@
     "releaseTag": "v3.8.6",
     "dshVersion": "dsh-v0.2.2-alpha.2",
     "reason": "Official alpha.2 release; source tree matches user-referenced 00d541438b9beabb4d876a14371aea69f58c397a"
+  },
+  {
+    "version": "3.8.7",
+    "dshPin": "ce7073d51254c26cd63b22a60835b8f948deb447",
+    "releaseTag": "v3.8.7",
+    "dshVersion": "0.2.2-alpha.2",
+    "sourceChannel": "official master snapshot",
+    "reason": "Forward-only upgrade from alpha.2; latest rc.5 belongs to the older 0.2.1 maintenance branch"
   }
 ]

@@ -1,5 +1,26 @@
 # Third-party notices
 
+## 3.8.7 component update
+
+The official DSH master snapshot is fixed at
+`ce7073d51254c26cd63b22a60835b8f948deb447` (package version
+`0.2.2-alpha.2`). This is a source snapshot, not a newly named upstream release.
+The original upstream source remains unmodified.
+
+The product upgrades Electron to 45.2.0, Node.js LTS to 24.22.2, Codex CLI
+to 0.166.0, Canvas to 1.1.0, marked to 18.1.2, DSH Market to 1.73.6 and
+the complete official Univer Office distribution to 0.3.9. Their original
+licenses and immutable package/source provenance remain included. Univer
+retains exchange binding 1.0.4 and formula binding 1.0.3 in the exact
+production dependency lock. Earlier version sections below are historical.
+
+Sources: https://github.com/deepseek-ai/deepseek-harness/commit/ce7073d51254c26cd63b22a60835b8f948deb447,
+https://github.com/electron/electron/releases/tag/v45.2.0,
+https://nodejs.org/dist/v24.22.2/SHASUMS256.txt,
+https://github.com/dream-num/dsh-univer-office/tree/v0.3.9,
+https://github.com/openai/codex/tree/rust-v0.166.0,
+https://registry.npmjs.org/dshmarket/1.73.6.
+
 ## huashu-report
 
 Source: https://github.com/alchaincyf/huashu-report

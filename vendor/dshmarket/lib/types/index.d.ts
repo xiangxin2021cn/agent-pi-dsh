@@ -30,4 +30,23 @@ export declare function describeProfileContext(value: unknown): string;
  * @returns a restore function for the effect that installed it.
  */
 export declare function useTrustedHosts(ctx: Context): () => void;
+/**
+ * Feed host detection the install anchor the launcher published.
+ *
+ * The CLI is located by walking `process.argv[1]` up to its package, and the
+ * official Desktop by Electron's resources directory. An embedded host — a
+ * packaged app that boots the dsh core tree in-process — has neither, so
+ * `dshHostInfo()` answered null there and every host-version surface read
+ * "unknown": Discover's compatibility filter (#473), the pre-install refusal
+ * (#404), and the exported log's `dsh host:` line (#426). The launcher does
+ * publish where its runtime is (`profileContext.installAnchor`), so hand
+ * that to detection. Read through a live source, not a mount-time copy:
+ * launchers may provide `profileContext` after the market mounts (the same
+ * timing problem the origins above handle), and a frozen value would answer
+ * "unknown" for the whole session on exactly those hosts.
+ *
+ * Exported for the specs that cover this wiring.
+ * @returns a restore function for the effect that installed it.
+ */
+export declare function useLauncherInstallAnchor(ctx: Context): () => void;
 export declare function apply(ctx: Context, config?: Config): void;

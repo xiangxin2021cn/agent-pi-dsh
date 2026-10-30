@@ -240,8 +240,8 @@ export declare function corePackageNames(dshInstallDir: string | null): Set<stri
 export declare function isSemver(value: string): boolean;
 export declare function compareSemver(a: string, b: string): number;
 /**
- * Minimal range matcher for the peer-range check: `*`, exact, ^, ~, >=, >,
- * <=, <, whitespace-separated pairs, and `||` alternatives. Anything else
+ * Minimal range matcher for the peer-range check: `*`, exact (with or without =),
+ * ^, ~, >=, >, <=, <, whitespace-separated pairs, and `||` alternatives. Anything else
  * returns null (unknown — reported, not asserted).
  *
  * Prerelease handling follows npm's semver rule, evaluated at the comparator

@@ -8,6 +8,8 @@
 
 <h1 align="center">Agent Pi DSH</h1>
 
+当前开发版 3.8.7 升级到经审核的官方 DSH master 快照 `ce7073d5`、Univer Office 0.3.9、Electron 45.2.0 与 Node.js 24.22.2，修复跨项目 DWG 预览的来源目录及会话关联。保留原工作区边界、模板 DNA、知识库和技能；新增定时任务 v1 升级前备份。改动及回退边界见 [3.8.7 说明](release/github-notes-3.8.7.md)与[组件记录](release/3.8.7-core-components.json)。以下公开下载仍以实际已发布的 3.8.6 为准。
+
 自 3.8.5 起，主线与投标专版拆为独立产品分支，共享升级后的官方 DSH 内核。主线保留专业工作台、知识库、技能和完整 Univer；投标专版提供项目、章节、正文及评分证据操作界面。安装标识、用户数据目录及更新通道相互独立，分支与迁移方式见 [3.8.5 双版本说明](release/3.8.5-product-editions.md)。公开下载以实际已发布 Release 为准。
 
 3.8.6 主线版升级官方 DSH 0.2.2-alpha.2 和完整 Univer Office 0.3.8，继续使用原生 DSH 主界面，保留专业工作台、知识库、技能与原项目会话。新增知识库“用户模板 DNA”：本地提取或主动选择配置模型蒸馏语言、结构、内容范围、证据、深度和格式约束，绑定当前会话任务，并核验实际导出 DOCX。下载与改动见 [GitHub v3.8.6 Release](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/tag/v3.8.6)、[3.8.6 主线说明](release/github-notes-3.8.6.md)、[模板设计](docs/3.8.6-template-dna-design.md)及[验收记录](docs/3.8.6-template-dna-validation.md)。本次公开发行仅包含主线，投标专版独立保留。

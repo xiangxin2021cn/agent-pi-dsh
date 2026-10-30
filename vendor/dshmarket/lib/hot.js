@@ -81,6 +81,10 @@ export function resolveProfileEntry(profileDir, name) {
         return name;
     }
 }
+// File URLs may contain apostrophes; YAML single-quoted scalars escape them by doubling.
+function yamlSingleQuoted(value) {
+    return value.replace(/'/g, "''");
+}
 const HOT_DIR = '.dsh-market';
 /**
  * Ceiling for one hot-mount activation, env-overridable like the install
@@ -359,6 +363,10 @@ export function readMarketState(profileDir) {
             // this switch is the market's only entry, so "the user turned it off"
             // must be distinguishable from "nobody has chosen yet" (#846).
             ...(typeof state.sidebarEntry === 'boolean' ? { sidebarEntry: state.sidebarEntry } : {}),
+            // Only `false` is a stored answer here: shown is the default, and a
+            // state file that says anything else reads as "never touched".
+            ...(state.settingsSection === false ? { settingsSection: false } : {}),
+            ...(state.pluginsTab === false ? { pluginsTab: false } : {}),
             buildEnv: buildEnvFromUnknown(state.buildEnv),
         };
     }
@@ -462,6 +470,14 @@ export function writeMarketState(profileDir, state) {
     const sidebarEntry = Object.prototype.hasOwnProperty.call(state, 'sidebarEntry')
         ? state.sidebarEntry
         : onDisk.sidebarEntry;
+    // Shown is the default, so only `false` needs writing. An omitted field
+    // still falls back to disk: partial callers must not erase the choice.
+    const settingsSection = Object.prototype.hasOwnProperty.call(state, 'settingsSection')
+        ? state.settingsSection
+        : onDisk.settingsSection;
+    const pluginsTab = Object.prototype.hasOwnProperty.call(state, 'pluginsTab')
+        ? state.pluginsTab
+        : onDisk.pluginsTab;
     publishFile(stateFile(profileDir), JSON.stringify({
         disabled: [...state.disabled],
         groups: state.groups,
@@ -487,6 +503,10 @@ export function writeMarketState(profileDir, state) {
         // is the market's only entry, so a deliberate OFF has to survive a reload
         // instead of being read back as "never chosen" (#846).
         ...(typeof sidebarEntry === 'boolean' ? { sidebarEntry } : {}),
+        // Only the OFF is written; `true` means "the default", so re-enabling
+        // clears the field rather than pinning today's default forever (#1015).
+        ...(settingsSection === false ? { settingsSection: false } : {}),
+        ...(pluginsTab === false ? { pluginsTab: false } : {}),
         ...(state.region === undefined ? {} : { region: state.region }),
         ...(state.regionAuto === true ? { regionAuto: true } : {}),
         // Omitted while not saved, so a card that was never touched keeps
@@ -649,6 +669,7 @@ export async function hotMount(ctx, profileDir, packageName) {
             if (rows === null) {
                 return {
                     ok: false,
+                    deferred: true,
                     reason: 'bundle patch 含配置行/表达式,热挂载仅支持纯 insert,重启后生效 / the bundle patch contains config/expression rows; hot-mount only supports plain inserts — it activates on restart',
                 };
             }
@@ -688,7 +709,7 @@ export async function hotMount(ctx, profileDir, packageName) {
         // `cleanHotDir` wipes it on every boot and the bundle layer owns
         // persistence, so nothing reads these files back.
         const yml = rows
-            .map(row => `- id: 'mkt-${row.id}'\n  name: '${resolveProfileEntry(profileDir, row.name)}'\n`)
+            .map(row => `- id: '${yamlSingleQuoted(`mkt-${row.id}`)}'\n  name: '${yamlSingleQuoted(resolveProfileEntry(profileDir, row.name))}'\n`)
             .join('');
         writeFileSync(file, yml);
         const handle = ctx.plugin(HotTree, { path: pathToFileURL(file).href });

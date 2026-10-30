@@ -3,7 +3,7 @@
  * /dsh-market/* host routes, with install/update/uninstall flows and the
  * pending-restart bookkeeping in sessionStorage.
  */
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode, type Ref } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactElement, type ReactNode, type Ref } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Button,
@@ -53,12 +53,12 @@ import { exportMarketLog } from './self-check.ts'
 import type { HostNavigationStore } from './host-navigation.ts'
 import type { SidebarEntry } from './sidebar-entry.ts'
 import {
-  installCommandFor,
+  installCommandFor, hostCompatibilityKey,
   api, applyGithubRouting, avatarColor, catalogEntryForInstalled, entryForDep, failureText, githubRouteCandidates, groupSwitchState, installedForCatalog, isGenerationSpec, isInstalled, localizeBilingual, localizeBilingualList, looksTerminal, matchInstalledName, orderedCategories, pluginCategories,
-  formatCount, pageItems, pluginName, blockAliases, pluginScreenshotCandidates, pluginScreenshots, pluginsForFavorites, queuedRowApplies, rankThemeScreenshots, readSession, safeIcon, releaseNotesHttpsImage, rememberGithubRoute, resetScreenshotsCache, resolveCatalogRestore, safeScreenshots, sanitizeReleaseNotesBody, staleFavoriteUrls, themePlugins as themePluginsOf, themeSwatch, TIME_RANGE_DAYS, visiblePlugins, restartHintKey,
+  formatCount, pageItems, pluginName, blockAliases, pluginScreenshotCandidates, pluginScreenshots, pluginsForFavorites, previewDimensionScore, queuedRowApplies, rankThemeScreenshots, readSession, safeIcon, releaseNotesHttpsImage, rememberGithubRoute, resetScreenshotsCache, resolveCatalogRestore, safeScreenshots, sanitizeReleaseNotesBody, staleFavoriteUrls, themePlugins as themePluginsOf, themeSwatch, TIME_RANGE_DAYS, visiblePlugins, restartHintKey,
 } from './market-data.ts'
 import type {
-ActivationInfo, ActivationState, GistExportResult, InstalledMap, InstalledRepoHints, InstalledRepoIdentities, MarketStatus, Registry, RegistryPlugin,
+ActivationInfo, ActivationState, DrainHistoryWire, DrainOperationWire, GistExportResult, InstalledMap, InstalledRepoHints, InstalledRepoIdentities, MarketStatus, Registry, RegistryPlugin,
   HostCompatibility, HostCompatibilityMap, ScreenshotCandidate, ScreenshotMeasurement, SharedHostPackageDependencyFinding, SortDir, SortField, ThemeSnapshot, TimeRange, Translate, UpdateStatus,
 } from './market-data.ts'
 
@@ -76,6 +76,8 @@ function isHostDependencyFinding(value: unknown): value is SharedHostPackageDepe
 }
 
 const HOST_DEPENDENCY_PREVIEW_LIMIT = 5
+/** After this long without a structured phase, the install line adds a note that waiting is normal (#1011). */
+const SLOW_INSTALL_SECONDS = 90
 const IGNORED_UPDATES_SESSION_KEY = 'dshm-updates-ignored'
 const UNAVAILABLE_HOST_COMPATIBILITY: HostCompatibility = {
   status: 'unknown',
@@ -162,6 +164,9 @@ function activationMeta(
   if (state === 'incompatible') return { label: t('stateIncompatible'), dot: 'error' }
   if (state === 'inert') return { label: t('stateInert'), dot: 'warning' }
   if (state === 'broken') return { label: t('stateBroken'), dot: 'error' }
+  // The host's loader made a row for it and never started one (#1023): not a
+  // pending change, so it must not read like one.
+  if (state === 'failed') return { label: t('stateFailed'), dot: 'error' }
   if (state === 'disabled') return { label: t('stateDisabled'), dot: 'warning' }
   return { label: '—', dot: 'warning' }
 }
@@ -495,15 +500,16 @@ function renderMarkdown(md: string): Array<JSX.Element | string> {
   return out
 }
 
-export function OwnerAvatar({ name, owner, icon }: { name: string; owner: string; icon?: string | null }) {
+export function OwnerAvatar({ name, owner, icon, className }: { name: string; owner: string; icon?: string | null; className?: string }) {
   const [failed, setFailed] = useState(false)
   const [routeIndex, setRouteIndex] = useState(0)
   const [iconFailed, setIconFailed] = useState(false)
+  const av = className === undefined ? css.av : `${css.av} ${className}`
   const tile = iconFailed ? null : safeIcon(icon)
   if (tile !== null) {
     return (
       <img
-        className={css.av}
+        className={av}
         src={tile}
         alt=""
         loading="lazy"
@@ -515,7 +521,7 @@ export function OwnerAvatar({ name, owner, icon }: { name: string; owner: string
   }
   if (failed || owner === '') {
     return (
-      <div className={css.av} style={{ background: avatarColor(name) }}>
+      <div className={av} style={{ background: avatarColor(name) }}>
         {name.replace(/^dsh[-_]/i, '').charAt(0).toUpperCase() || 'P'}
       </div>
     )
@@ -527,7 +533,7 @@ export function OwnerAvatar({ name, owner, icon }: { name: string; owner: string
   const candidate = candidates[Math.min(routeIndex, candidates.length - 1)]!
   return (
     <img
-      className={css.av}
+      className={av}
       src={candidate.url}
       alt=""
       loading="lazy"
@@ -618,7 +624,7 @@ function useAutoCarousel(count: number, initial: number, intervalMs = 3500): [nu
  * left to save, and once the thumbnail is genuinely smaller it can no longer
  * share a cache entry with the full-size open anyway.
  */
-function thumbUrl(src: string, height: number): string {
+function thumbUrl(src: string, height: number, options: { webp?: boolean } = {}): string {
   // The resizer stays in every region, including China.
   //
   // It was briefly bypassed there on the assumption that a service in the
@@ -627,7 +633,14 @@ function thumbUrl(src: string, height: number): string {
   // in 1.39s, and it answers with 23KB where the original is 41KB. Routing
   // around it would have traded a working request for a bigger one, on a
   // page that makes dozens of them.
-  return `https://images.weserv.nl/?url=${encodeURIComponent(src.replace(/^https?:\/\//, ''))}&h=${String(height)}&fit=inside&we=1`
+  const encoded = encodeURIComponent(src.replace(/^https?:\/\//, ''))
+  let url = `https://images.weserv.nl/?url=${encoded}&h=${String(height)}&fit=inside&we=1`
+  // Theme covers ask for webp on still photos: a 520px PNG of a UI
+  // screenshot still weighed 0.4–0.6 MB (#1060). Only png/jpeg/webp URLs
+  // opt in — GIFs and extension-less GitHub attachments stay resized-only
+  // so an animated cover is not flattened to its first frame.
+  if (options.webp === true && /\.(?:png|jpe?g|webp)(?:$|[?#])/iu.test(src)) url += '&output=webp'
+  return url
 }
 
 /**
@@ -670,6 +683,17 @@ function useNearViewport<T extends Element>(rootMargin = '200px'): [(node: T | n
 /** Thumbnails per card. The dialog shows every screenshot; a grid of cards
  * pulling six full-size PNGs each is what makes the first paint crawl. */
 const CARD_SHOT_LIMIT = 3
+/**
+ * Theme gallery is 4-up (16:10 tile ≈ 150px tall in a typical panel). 320px
+ * is ~2× that; 520 was a near-full-bleed PNG and still hundreds of KB (#1060).
+ */
+const THEME_COVER_HEIGHT = 320
+/** About half a cover row — off-screen theme cards must not prefetch. */
+const THEME_COVER_ROOT_MARGIN = '80px'
+/** First-pass geometry probes for a README fallback. If none of these
+ * pass as a cover, the remaining candidates (still capped at six) are
+ * measured too — otherwise a later landscape is dropped before ranking. */
+const THEME_PREVIEW_PROBE_LIMIT = 3
 
 function CardShot({ plugin, onOpen }: { plugin: RegistryPlugin; onOpen: (shots: string[], index: number) => void }) {
   const shots = safeScreenshots(plugin.screenshots)
@@ -704,24 +728,30 @@ function CardShot({ plugin, onOpen }: { plugin: RegistryPlugin; onOpen: (shots: 
  */
 function measureThemeCandidates(candidates: ScreenshotCandidate[]): Promise<ScreenshotMeasurement[]> {
   if (typeof Image === 'undefined') return Promise.resolve([])
-  return Promise.all(candidates.map(candidate => new Promise<ScreenshotMeasurement | null>((resolve) => {
-    const probe = new Image()
-    let settled = false
-    const finish = (measurement: ScreenshotMeasurement | null) => {
-      if (settled) return
-      settled = true
-      window.clearTimeout(timer)
-      probe.onload = null
-      probe.onerror = null
-      resolve(measurement)
-    }
-    const timer = window.setTimeout(() => finish(null), 6_000)
-    probe.onload = () => finish({ src: candidate.src, width: probe.naturalWidth, height: probe.naturalHeight })
-    probe.onerror = () => finish(null)
-    probe.referrerPolicy = 'no-referrer'
-    probe.decoding = 'async'
-    probe.src = thumbUrl(candidate.src, 240)
-  }))).then(results => results.filter((result): result is ScreenshotMeasurement => result !== null))
+  const measureBatch = (batch: ScreenshotCandidate[]): Promise<ScreenshotMeasurement[]> =>
+    Promise.all(batch.map(candidate => new Promise<ScreenshotMeasurement | null>((resolve) => {
+      const probe = new Image()
+      let settled = false
+      const finish = (measurement: ScreenshotMeasurement | null) => {
+        if (settled) return
+        settled = true
+        window.clearTimeout(timer)
+        probe.onload = null
+        probe.onerror = null
+        resolve(measurement)
+      }
+      const timer = window.setTimeout(() => finish(null), 6_000)
+      probe.onload = () => finish({ src: candidate.src, width: probe.naturalWidth, height: probe.naturalHeight })
+      probe.onerror = () => finish(null)
+      probe.referrerPolicy = 'no-referrer'
+      probe.decoding = 'async'
+      probe.src = thumbUrl(candidate.src, 240)
+    }))).then(results => results.filter((result): result is ScreenshotMeasurement => result !== null))
+  return measureBatch(candidates.slice(0, THEME_PREVIEW_PROBE_LIMIT)).then(first => {
+    if (first.some(item => previewDimensionScore(item.width, item.height) !== null)
+      || candidates.length <= THEME_PREVIEW_PROBE_LIMIT) return first
+    return measureBatch(candidates.slice(THEME_PREVIEW_PROBE_LIMIT)).then(rest => first.concat(rest))
+  })
 }
 
 const measuredThemePreviewTasks = new Map<string, Promise<string[]>>()
@@ -770,7 +800,7 @@ function ThemeCover({ plugin, onOpen, t }: {
     shots: cachedFallback ?? [],
   })
   const [broken, setBroken] = useState<string[]>([])
-  const [setCoverRef, near] = useNearViewport<HTMLButtonElement>()
+  const [setCoverRef, near] = useNearViewport<HTMLButtonElement>(THEME_COVER_ROOT_MARGIN)
   useEffect(() => {
     setBroken([])
     if (curated.length > 0) {
@@ -822,7 +852,7 @@ function ThemeCover({ plugin, onOpen, t }: {
       onClick={() => onOpen(visible, 0)}
     >
       <img
-        src={near ? thumbUrl(src, 520) : undefined}
+        src={near ? thumbUrl(src, THEME_COVER_HEIGHT, { webp: true }) : undefined}
         alt=""
         loading="lazy"
         decoding="async"
@@ -920,111 +950,6 @@ function useMediaWide(): boolean {
  * actually overflows the clamp: a two-line description has nothing to
  * "expand", so no button beats a button that does nothing.
  */
-/**
- * Description + screenshots, and the introduction's reading view.
- *
- * The card itself is a `.map()` body with no hooks of its own, so the peek that
- * needs to know when a pointer is resting on a card lives here.
- *
- * It is open to any card that has an introduction — not only to the ones whose
- * five-line clamp cuts text off. That gate was the first design, and measured
- * on this catalog it left the feature invisible: at 1280px, two cards out of
- * twenty-eight are clipped, because most descriptions are two or three lines.
- * For the other twenty-six it looked broken, which is a worse outcome than a
- * peek that mostly confirms what the card already says.
- *
- * The reveal is a fixed-position panel rather than something inside the card:
- * the space a card can give back is whatever its screenshots happen to occupy,
- * and a card without screenshots has none — measured on this catalog, the
- * first attempt showed exactly the same five lines, just cut at the box edge.
- * It is pointer-events:none, so it can never take the pointer from the card
- * underneath it, and it starts below the title row so the name and the install
- * button stay visible and clickable while it is open.
- */
-function CardBody({ text, name, owner, children }: {
-  text: string
-  name: string
-  owner?: string
-  children: ReactNode
-}) {
-  const ref = useRef<HTMLDivElement>(null)
-  const [hasText, setHasText] = useState(false)
-  const [anchor, setAnchor] = useState<{ left: number; top: number; width: number; maxHeight: number } | null>(null)
-  const timer = useRef<number | null>(null)
-  useLayoutEffect(() => {
-    const host = ref.current
-    if (host === null) return
-    const desc = host.querySelector<HTMLElement>(`.${css.descClamp}`) ?? host.querySelector<HTMLElement>(`.${css.desc}`)
-    if (desc === null) { setHasText(false); return }
-    const measure = () => setHasText((desc.textContent ?? '').trim().length > 0)
-    measure()
-    if (typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(measure)
-    observer.observe(desc)
-    return () => observer.disconnect()
-  }, [text])
-  const close = useCallback(() => {
-    if (timer.current !== null) { window.clearTimeout(timer.current); timer.current = null }
-    setAnchor(null)
-  }, [])
-  const open = useCallback(() => {
-    const host = ref.current
-    if (host === null || !hasText) return
-    if (timer.current !== null) window.clearTimeout(timer.current)
-    // Long enough that sweeping across the grid does not flash a panel per card.
-    timer.current = window.setTimeout(() => {
-      timer.current = null
-      const card = host.parentElement?.getBoundingClientRect() ?? host.getBoundingClientRect()
-      // Starts where the card's own body starts — under the title row — so the
-      // name and the install button stay visible and clickable while it is open.
-      // Same column and same width, so it reads as this card continuing rather
-      // than as a box that appeared nearby; it grows down to the window's edge.
-      const top = host.getBoundingClientRect().top - 8
-      const room = window.innerHeight - top - 16
-      setAnchor({
-        left: card.left,
-        top,
-        width: card.width,
-        maxHeight: Math.max(120, Math.min(window.innerHeight * 0.6, room)),
-      })
-    }, 420)
-  }, [hasText])
-  useEffect(() => {
-    const card = ref.current?.parentElement
-    if (card === null || card === undefined) return undefined
-    card.addEventListener('pointerenter', open)
-    card.addEventListener('pointerleave', close)
-    card.addEventListener('pointerdown', close)
-    return () => {
-      card.removeEventListener('pointerenter', open)
-      card.removeEventListener('pointerleave', close)
-      card.removeEventListener('pointerdown', close)
-    }
-  }, [open, close])
-  // A fixed panel would hang over the grid while the page scrolls under it.
-  useEffect(() => {
-    if (anchor === null) return undefined
-    const onScroll = () => close()
-    window.addEventListener('scroll', onScroll, { capture: true, passive: true })
-    return () => window.removeEventListener('scroll', onScroll, true)
-  }, [anchor, close])
-  return (
-    <div ref={ref} className={css.introScope}>
-      {children}
-      {anchor !== null && createPortal(
-        <div className={css.introPanel} style={{ left: anchor.left, top: anchor.top, width: anchor.width, maxHeight: anchor.maxHeight }} aria-hidden="true">
-          <div className={css.introHead}>
-            <span className={css.introName}>{name}</span>
-            {owner !== undefined && owner !== '' && <span className={css.introOwner}>{owner}</span>}
-          </div>
-          <p className={css.introBody}>{text}</p>
-        </div>,
-        document.body,
-      )}
-    </div>
-  )
-}
-
 function CardDesc({ text, t, lines = 5, className, textClassName }: {
   text: string
   t: Translate
@@ -1356,6 +1281,34 @@ function GithubRepoMark({ size = 12, className }: { size?: number; className?: s
   )
 }
 
+/**
+ * Sweeping cards or the recent strip must not flash tips. Same dwell as
+ * the recent-tile name/blurb tips.
+ */
+const HOVER_TIP_DELAY_MS = 700
+
+/**
+ * Hover tips on catalog cards. Matches official Discover placement
+ * (`portal`, `side="bottom"`) so the bubble escapes card overflow and the
+ * theme-card hover transform, and does not cover the name. Extra props
+ * are ignored on hosts whose Tooltip is older than portal.
+ */
+function CardTip({
+  label,
+  maxWidth,
+  children,
+}: {
+  label: string
+  maxWidth?: number
+  children: ReactElement
+}): ReactElement {
+  return (
+    <Tooltip label={label} side="bottom" delayMs={HOVER_TIP_DELAY_MS} portal maxWidth={maxWidth}>
+      {children}
+    </Tooltip>
+  )
+}
+
 /** Bookmark toggle on catalog cards (#414). Outline when off, filled when on —
  * deliberately not a star, which the byline already uses for GitHub popularity. */
 /**
@@ -1376,7 +1329,7 @@ function GithubRepoMark({ size = 12, className }: { size?: number; className?: s
 function FavoriteButton({ filled, label, onToggle }: { filled: boolean; label: string; onToggle: () => void }) {
   const markRef = useRef<SVGSVGElement>(null)
   return (
-    <Tooltip label={label} side="top">
+    <CardTip label={label}>
       <button
         type="button"
         className={filled ? `${css.favoriteBtn} ${css.favoriteOn}` : css.favoriteBtn}
@@ -1403,7 +1356,7 @@ function FavoriteButton({ filled, label, onToggle }: { filled: boolean; label: s
       >
         <BookmarkMark filled={filled} className={css.favoriteMark} markRef={markRef} />
       </button>
-    </Tooltip>
+    </CardTip>
   )
 }
 
@@ -1438,16 +1391,16 @@ function BookmarkMark({ size = 14, filled = false, className, markRef }: {
   )
 }
 
-/** A compact rolling-period label, with source metadata on hover or focus. */
+/** Compact abbreviated count; hover names the exact figure and the 30-day window. */
 function DownloadCount({ plugin, t }: { plugin: RegistryPlugin; t: Translate }) {
   const tip = downloadStatsText(plugin, t)
   if (tip === null) return null
   return (
-    <Tooltip label={tip} side="top">
+    <CardTip label={tip}>
       <span className={css.star} tabIndex={0} aria-label={tip}>
-        {'· ↓ ' + formatCount(plugin.downloads!) + ' / ' + t('downloadsPeriod')}
+        {'· ↓ ' + formatCount(plugin.downloads!)}
       </span>
-    </Tooltip>
+    </CardTip>
   )
 }
 
@@ -1721,9 +1674,9 @@ function CatalogVersionMark({ version, tip }: { version: string | null | undefin
   if (typeof version !== 'string' || version.length === 0) return null
   const label = /^v/i.test(version) ? version : `v${version}`
   return (
-    <Tooltip label={tip} side="top">
+    <CardTip label={tip} maxWidth={280}>
       <span className={css.star}>{`· ${label}`}</span>
-    </Tooltip>
+    </CardTip>
   )
 }
 
@@ -2019,6 +1972,43 @@ interface SourceMigrationConfirm {
   name: string
   source: string
   target: string
+  kind: SourceMigrationKind
+}
+
+/**
+ * The two moves one dialog serves: a Git install switching to the npm
+ * package its own repository publishes (#461), and an npm install following a
+ * package rename (#1012). Same confirmation, same transaction.
+ */
+type SourceMigrationKind = 'git-to-npm' | 'npm-rename'
+
+/**
+ * What the two moves say (#1012). Same dialog and same transaction, so the
+ * difference belongs in one branch rather than a ternary per line.
+ */
+function sourceMigrationCopy(confirm: SourceMigrationConfirm, t: (key: string) => string) {
+  if (confirm.kind === 'npm-rename') {
+    return {
+      title: t('renameTitle'),
+      description: t('renameDescription'),
+      confirmLabel: t('renameContinue'),
+      currentLabel: t('renameCurrentPackage'),
+      targetLabel: t('renameTargetPackage'),
+      note: t('renameWarning'),
+      // Reassurance, not a warning: a rename cannot touch what the plugin
+      // saved itself, and painting that as a warning is the #4 relapse.
+      noteTone: 'plain' as const,
+    }
+  }
+  return {
+    title: t('migrateTitle'),
+    description: t('migrateDescription'),
+    confirmLabel: t('migrateContinue'),
+    currentLabel: t('migrateCurrentSource'),
+    targetLabel: t('migrateTargetSource'),
+    note: t('migrateWarning'),
+    noteTone: 'warning' as const,
+  }
 }
 
 /**
@@ -2038,6 +2028,24 @@ function blockedSessions(body: { runningAgents?: unknown }): string[] | undefine
 }
 
 /**
+ * Drop a Host-projected row before the page's own record adopts the same
+ * operation id (#411).
+ *
+ * The status poll can create `host-<id>` while a slow probe is still running;
+ * without this the 202 would leave both rows pointing at one Host operation,
+ * and the panel's first match would keep the synthetic one forever.
+ */
+function withoutHostProjection(
+  list: readonly OperationRecord[],
+  operationId: string,
+  keepId: string,
+): OperationRecord[] {
+  return list.filter(record =>
+    record.id === keepId
+    || (record.id !== `host-${operationId}` && record.hostOperationId !== operationId))
+}
+
+/**
  * Whether the "compatible with this host" filter starts on, and remembers the
  * answer once the user disagrees with the default (#872).
  *
@@ -2054,7 +2062,7 @@ function readHostFilterPreference(): boolean {
  *
  * The block only appears on the discover tab with an empty search and both
  * filters on "all", so it cannot be avoided without changing what the user is
- * looking at — and it costs about a quarter of the first screen. Both states
+ * looking at. It is a one-row teaser, not a second catalog. Both states
  * are display preferences, not profile settings: since 0.1.7 the settings
  * surface is deliberately just `allowRestart`.
  *
@@ -2063,6 +2071,9 @@ function readHostFilterPreference(): boolean {
  */
 const RECENT_COLLAPSED_KEY = 'dshm-recent-collapsed'
 const RECENT_HIDDEN_KEY = 'dshm-recent-hidden'
+/** Cap for the Discover teaser. Extra tiles live in a quiet horizontal
+ * scroll so the block stays one row tall. */
+const RECENT_STRIP_LIMIT = 8
 function readRecentFlag(key: string): boolean {
   try { return localStorage.getItem(key) === '1' } catch { return false }
 }
@@ -2278,13 +2289,18 @@ export function MarketSection(props: MarketSectionProps) {
       const stale = (reason: string) => [{ ok: false as const, kind, name, url, reason }]
       const options = row.updateOptions !== null && typeof row.updateOptions === 'object'
         ? row.updateOptions as Record<string, unknown> : {}
-      const verdict = queuedRowApplies({ kind, name, restore: options.restore === true, ...(url === undefined ? {} : { url }) }, { installed, updates, plugins: data.plugins })
-      if (verdict !== null) return stale(verdict === 'gone' ? t('agentQueueStaleGone') : t('agentQueueStaleNoUpdate'))
+      const verdict = queuedRowApplies({ kind, name, restore: options.restore === true,
+        ...(typeof options.eligibleVersion === 'string' ? { eligibleVersion: options.eligibleVersion } : {}),
+        ...(url === undefined ? {} : { url }) }, { installed, updates, plugins: data.plugins })
+      if (verdict !== null) return stale(verdict === 'target-changed'
+        ? localizeBilingual('更新目标已变化，已跳过。请重新选择更新。 / The update target changed, so this task was skipped. Choose the update again.', lang)
+        : verdict === 'gone' ? t('agentQueueStaleGone') : t('agentQueueStaleNoUpdate'))
       if (kind === 'install' && url === undefined) return []
       const updateOptions = kind === 'update' ? {
         force: options.force === true,
         restore: options.restore === true,
         ...(typeof options.compatVersion === 'string' ? { compatVersion: options.compatVersion } : {}),
+        ...(typeof options.eligibleVersion === 'string' ? { eligibleVersion: options.eligibleVersion } : {}),
       } : undefined
       return [{ ok: true as const, row: { kind, name, ...(url === undefined ? {} : { url }), updateOptions } }]
     })
@@ -2329,7 +2345,7 @@ export function MarketSection(props: MarketSectionProps) {
       return kept
     })
     setOperationsOpen(true)
-  }, [data, t, queueSnapshotReady, installed, updates])
+  }, [data, t, lang, queueSnapshotReady, installed, updates])
   useEffect(() => {
     // Never write before the restore has read. On the first render `records`
     // is empty, and this effect would then delete the stored queue that the
@@ -2340,7 +2356,10 @@ export function MarketSection(props: MarketSectionProps) {
     if (!queueRestoredRef.current) return
     try {
       const queued = records
-        .filter(record => record.state === 'queued')
+        // Host-owned rows are persisted by the Host, not replayed from this
+        // key: writing them here would let a later page run the operation
+        // itself and bypass the maintenance barrier (#411).
+        .filter(record => record.state === 'queued' && record.hostOperationId === undefined)
         .map(record => ({ kind: record.kind, name: record.name, ...(record.url === undefined ? {} : { url: record.url }), ...(record.updateOptions === undefined ? {} : { updateOptions: record.updateOptions }) }))
       if (queued.length === 0) localStorage.removeItem('dshm-queue-v1')
       else localStorage.setItem('dshm-queue-v1', JSON.stringify(queued))
@@ -2590,7 +2609,7 @@ export function MarketSection(props: MarketSectionProps) {
    * approve-and-retry (#6; updates in #69). Exactly one of `plugin`
    * (retry installs it) / `updateName` (retry re-runs the update) is set.
    */
-  const [buildsSkipped, setBuildsSkipped] = useState<{ plugin?: RegistryPlugin; updateName?: string; names: string[]; restore?: boolean } | null>(null)
+  const [buildsSkipped, setBuildsSkipped] = useState<{ plugin?: RegistryPlugin; updateName?: string; names: string[]; updateOptions?: OperationRecord['updateOptions'] } | null>(null)
   const [updatingAll, setUpdatingAll] = useState(false)
   const [updatedNames, setUpdatedNames] = useState<string[]>([])
   // #558: session-tracked updates the host actually parked behind a restart.
@@ -2763,6 +2782,16 @@ export function MarketSection(props: MarketSectionProps) {
   const [webdavUrl, setWebdavUrl] = useState(initialWebdav.url)
   const [webdavUser, setWebdavUser] = useState(initialWebdav.username)
   const [webdavPassword, setWebdavPassword] = useState(initialWebdav.password)
+  /**
+   * Auto-backup found a configured username but no password (#1058).
+   *
+   * The password is never written to browser storage (deliberate), so after a
+   * reload it is gone — and the daily upload then ran with an empty password
+   * and failed with a bare `HTTP 401` every time the market opened. A missing
+   * password is not a failure to retry blindly; it is a state the card should
+   * say out loud and the auto-run should not enter.
+   */
+  const [webdavNeedsPassword, setWebdavNeedsPassword] = useState(false)
   const [autoBackup, setAutoBackup] = useState(initialWebdav.auto)
   /** GitHub token — session memory only, never written to any storage. */
   const [gistToken, setGistToken] = useState('')
@@ -2923,7 +2952,12 @@ export function MarketSection(props: MarketSectionProps) {
    * `runningAgents` gates the agent-file guard. A ref (not state) because the
    * drain interval is mount-once and must never read a stale closure.
    */
-  const statusRef = useRef<{ busy: boolean; runningAgents: string[] }>({ busy: false, runningAgents: [] })
+  const statusRef = useRef<{ busy: boolean; runningAgents: string[]; agentDrain: boolean; boot: string | null }>({
+    busy: false,
+    runningAgents: [],
+    agentDrain: false,
+    boot: null,
+  })
   /** True while the drain is executing one queued request (no parallel starts). */
   const drainingRef = useRef(false)
 
@@ -2982,6 +3016,235 @@ export function MarketSection(props: MarketSectionProps) {
       })
       .catch(() => {})
   }, [setActivations, setBlockedNames, setDisabledNames, setFavoriteUrls, setInstalledBundles, setInstalledFiles, setSkins, setUpdates])
+
+  /**
+   * Host-owned deferred operations (#411).
+   *
+   * These rows are projections of `/status`, never entries in the client
+   * queue: the Host owns the maintenance holds, and re-running a row here
+   * would start a second mutation outside that barrier. `dshm-drain-v1`
+   * remembers only which operations this page asked for, so a Host restart can
+   * say "that one was cancelled" instead of leaving the user to guess.
+   */
+  const settledHostRef = useRef(new Set<string>())
+  const knownHostIdsRef = useRef(new Set<string>())
+  /** Host operations the user cleared; a status poll must not add them back. */
+  const dismissedHostRef = useRef(new Set<string>())
+  const drainMarkerRestoredRef = useRef(false)
+
+  const clearDrainMarker = useCallback((operationId: string) => {
+    try {
+      const raw = localStorage.getItem('dshm-drain-v1')
+      if (raw === null) return
+      const parsed = JSON.parse(raw) as unknown
+      if (!Array.isArray(parsed)) return
+      const kept = parsed.filter(entry => (entry as { id?: unknown } | null)?.id !== operationId)
+      if (kept.length === 0) localStorage.removeItem('dshm-drain-v1')
+      else localStorage.setItem('dshm-drain-v1', JSON.stringify(kept))
+    } catch { /* storage unavailable — the Host record is still the source of truth */ }
+  }, [])
+
+  const rememberDrainMarker = useCallback((operation: { operationId: string; kind: string; name: string; url?: string }) => {
+    try {
+      const raw = localStorage.getItem('dshm-drain-v1')
+      const parsed = raw === null ? [] : JSON.parse(raw) as unknown
+      const list = Array.isArray(parsed) ? parsed : []
+      if (list.some(entry => (entry as { id?: unknown } | null)?.id === operation.operationId)) return
+      list.push({
+        id: operation.operationId,
+        kind: operation.kind,
+        name: operation.name,
+        ...(operation.url === undefined ? {} : { url: operation.url }),
+      })
+      localStorage.setItem('dshm-drain-v1', JSON.stringify(list))
+    } catch { /* storage unavailable — the Host record still projects the row */ }
+  }, [])
+
+  /** Mark operations this page started in an earlier boot as cancelled by restart. */
+  const restoreDrainMarkers = useCallback((status: MarketStatus) => {
+    if (drainMarkerRestoredRef.current) return
+    const boot = typeof status.boot === 'string' ? status.boot : null
+    if (boot === null) return
+    drainMarkerRestoredRef.current = true
+    let saved: unknown = null
+    try { saved = JSON.parse(localStorage.getItem('dshm-drain-v1') ?? 'null') } catch { saved = null }
+    if (!Array.isArray(saved) || saved.length === 0) return
+    const entries = saved.filter((entry): entry is { id: string; kind?: unknown; name?: unknown; url?: unknown } => {
+      if (entry === null || typeof entry !== 'object') return false
+      return typeof (entry as { id?: unknown }).id === 'string'
+    })
+    const stale = entries.filter(entry => !entry.id.startsWith(`${boot}-`))
+    // Same-boot markers stay: the Host record reconstructs an active one, and
+    // a later Host restart still needs the marker to say the task was cut off.
+    const current = entries.filter(entry => entry.id.startsWith(`${boot}-`))
+    if (stale.length > 0) {
+      setRecords(previous => {
+        let next = previous
+        for (const entry of stale) {
+          if (dismissedHostRef.current.has(entry.id)) continue
+          if (next.some(record => record.hostOperationId === entry.id || record.id === `host-${entry.id}`)) continue
+          const kind = entry.kind === 'install' || entry.kind === 'update' || entry.kind === 'uninstall'
+            ? entry.kind : 'update'
+          next = enqueue(next, {
+            id: `host-${entry.id}`,
+            kind,
+            name: typeof entry.name === 'string' ? entry.name : 'plugin',
+            ...(typeof entry.url === 'string' ? { url: entry.url } : {}),
+            hostOperationId: entry.id,
+            // A Host restart cancelled the task; it did not fail on its own.
+            state: 'warned',
+            reason: t('agentDrainRestarted'),
+          })
+        }
+        return next
+      })
+      setOperationsOpen(true)
+    }
+    try {
+      if (current.length > 0) localStorage.setItem('dshm-drain-v1', JSON.stringify(current))
+      else localStorage.removeItem('dshm-drain-v1')
+    } catch { /* storage unavailable */ }
+  }, [t])
+
+  /** Project Host-owned operations into the Tasks panel. */
+  const applyDrainStatus = useCallback((status: MarketStatus) => {
+    const operations: DrainOperationWire[] = Array.isArray(status.drainOperations) ? status.drainOperations : []
+    const history: DrainHistoryWire[] = Array.isArray(status.drainHistory) ? status.drainHistory : []
+    if (operations.length === 0 && history.length === 0) return
+
+    // A page reopened while the Host is still working should show the waiting
+    // task immediately. Only a newly seen operation raises the panel; a later
+    // poll must not reopen it after the user closed it.
+    let opened = false
+    for (const operation of operations) {
+      if (operation.state === 'accepted' || operation.state === 'draining'
+        || operation.state === 'queued-for-mutation' || operation.state === 'running'
+        || operation.state === 'verifying') {
+        if (!knownHostIdsRef.current.has(operation.operationId)) {
+          knownHostIdsRef.current.add(operation.operationId)
+          opened = true
+        }
+      }
+    }
+
+    for (const operation of operations) {
+      if (dismissedHostRef.current.has(operation.operationId)) continue
+      if (operation.state !== 'succeeded' && operation.state !== 'failed' && operation.state !== 'cancelled') continue
+      clearDrainMarker(operation.operationId)
+      if (settledHostRef.current.has(operation.operationId)) continue
+      settledHostRef.current.add(operation.operationId)
+      if (operation.state === 'succeeded') {
+        refreshInstalled()
+        if (operation.outcome?.restartRequired === true) {
+          setRestartNames(names => names.includes(operation.name) ? names : names.concat(operation.name))
+        }
+        if (operation.kind === 'update') {
+          setUpdatedNames(names => names.includes(operation.name) ? names : names.concat(operation.name))
+        }
+        if (operation.kind === 'install' && operation.url !== undefined) {
+          setDoneUrls(urls => urls.includes(operation.url!) ? urls : urls.concat(operation.url!))
+        }
+      } else {
+        refreshInstalled()
+      }
+    }
+
+    const hostRecord = (operation: DrainOperationWire): OperationRecord => {
+      const base = {
+        id: `host-${operation.operationId}`,
+        kind: operation.kind,
+        name: operation.name,
+        ...(operation.url === undefined ? {} : { url: operation.url }),
+        hostOperationId: operation.operationId,
+      }
+      if (operation.state === 'accepted' || operation.state === 'draining' || operation.state === 'queued-for-mutation') {
+        return {
+          ...base,
+          state: 'queued',
+          ...(operation.wait === null ? {} : { blockedBy: operation.wait.activeAgentIds, waitSince: operation.wait.since }),
+          reason: operation.wait === null
+            ? t('agentBusyQueued')
+            : t('agentDrainWaiting').replace('{0}', String(operation.wait.activeCount)),
+        }
+      }
+      if (operation.state === 'running') {
+        return { ...base, state: 'running', blockedBy: undefined, waitSince: undefined, reason: undefined }
+      }
+      if (operation.state === 'verifying') {
+        return { ...base, state: 'running', detail: t('agentDrainVerifying'), blockedBy: undefined, waitSince: undefined, reason: undefined }
+      }
+      if (operation.state === 'succeeded') {
+        return {
+          ...base,
+          state: 'done',
+          needsRefresh: operation.outcome?.needsRefresh === true,
+          blockedBy: undefined,
+          waitSince: undefined,
+          reason: undefined,
+        }
+      }
+      if (operation.state === 'cancelled') {
+        // Cancellation is not a failure (AGENTS.md): keep the row settled and
+        // readable without the red attention state.
+        return { ...base, state: 'warned', reason: t('agentDrainCancelled'), blockedBy: undefined, waitSince: undefined }
+      }
+      return {
+        ...base,
+        state: 'failed',
+        reason: operation.failure?.message ?? t('installFail'),
+        blockedBy: undefined,
+        waitSince: undefined,
+      }
+    }
+
+    setRecords(previous => {
+      let next = previous
+      for (const operation of operations) {
+        if (dismissedHostRef.current.has(operation.operationId)) continue
+        const existing = next.find(record => record.hostOperationId === operation.operationId)
+        const desired = hostRecord(operation)
+        if (existing === undefined) {
+          next = enqueue(next, desired)
+        } else {
+          const { id: _id, kind: _kind, name: _name, hostOperationId: _host, ...changes } = desired
+          next = patchRecord(next, existing.id, changes)
+        }
+      }
+      for (const entry of history) {
+        if (dismissedHostRef.current.has(entry.id)) continue
+        const id = `host-${entry.id}`
+        // A row projected while the operation was active must settle from the
+        // journal, not stay queued forever because it already existed.
+        const existing = next.find(record => record.id === id || record.hostOperationId === entry.id)
+        const changes = entry.state === 'succeeded'
+          // The journal does not carry the activation outcome, but a row that
+          // already reported "refresh needed" must keep that report: this
+          // projection runs after the live operation, not instead of it.
+          ? (existing?.needsRefresh === true
+              ? { state: 'done' as const, blockedBy: undefined, waitSince: undefined, reason: undefined }
+              : { state: 'done' as const, needsRefresh: false, blockedBy: undefined, waitSince: undefined, reason: undefined })
+          : {
+              state: entry.state === 'cancelled' ? 'warned' as const : 'failed' as const,
+              reason: entry.state === 'cancelled' ? t('agentDrainHistoryCancelled') : t('agentDrainHistoryFailedShort'),
+              blockedBy: undefined,
+              waitSince: undefined,
+            }
+        if (existing !== undefined) {
+          next = patchRecord(next, existing.id, changes)
+        } else {
+          next = enqueue(next, {
+            id,
+            kind: entry.kind,
+            name: entry.name,
+            hostOperationId: entry.id,
+            ...changes,
+          })
+        }
+      }
+      return next
+    })
+    if (opened) setOperationsOpen(true)
+  }, [clearDrainMarker, refreshInstalled, t])
 
   /** Active Bundles count as installed in Discover without becoming package-manager targets. */
   const catalogInstalled = useMemo(
@@ -3101,7 +3364,11 @@ export function MarketSection(props: MarketSectionProps) {
         const response = await fetch(api('/dsh-market/discovery-compatibility'), {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ packages: chunk }),
+          body: JSON.stringify({
+            packages: chunk.filter(key => !key.startsWith('https://')),
+            ...(chunk.some(key => key.startsWith('https://'))
+              ? { entries: chunk.filter(key => key.startsWith('https://')) } : {}),
+          }),
         })
         const body = await response.json() as {
           hostVersion?: string | null
@@ -3145,7 +3412,11 @@ export function MarketSection(props: MarketSectionProps) {
         statusRef.current = {
           busy: status.busy === true,
           runningAgents: Array.isArray(status.runningAgents) ? status.runningAgents.map(String) : [],
+          agentDrain: status.agentDrain === true,
+          boot: typeof status.boot === 'string' ? status.boot : null,
         }
+        applyDrainStatus(status)
+        restoreDrainMarkers(status)
         setEnvReady(status.pnpm !== false)
         // Applied before anything renders a github.com URL. The catalog this
         // page draws from is a larger request through the same server, so it
@@ -3172,7 +3443,7 @@ export function MarketSection(props: MarketSectionProps) {
       })
       .catch(() => {})
     refreshInstalled()
-  }, [refreshInstalled, loadCatalog, readMarketStatus])
+  }, [applyDrainStatus, refreshInstalled, loadCatalog, readMarketStatus, restoreDrainMarkers])
 
   // Pending-restart flags survive tab switches and page reloads, scoped to
   // one host process: a different boot id means the restart happened and the
@@ -3307,7 +3578,11 @@ export function MarketSection(props: MarketSectionProps) {
           statusRef.current = {
             busy: status.busy === true,
             runningAgents: Array.isArray(status.runningAgents) ? status.runningAgents.map(String) : [],
+            agentDrain: status.agentDrain === true,
+            boot: typeof status.boot === 'string' ? status.boot : null,
           }
+          applyDrainStatus(status)
+          restoreDrainMarkers(status)
           setHostBusy(status.busy === true)
           setDebuggerLatch(typeof status.debugger === 'string' ? status.debugger : null)
           if (status.active) {
@@ -3322,7 +3597,12 @@ export function MarketSection(props: MarketSectionProps) {
                 setProgressPct(Math.max(4, Math.min(96, Math.round(status.downloaded / status.size * 100))))
               }
             } else {
-              setProgressLine((status.lastLine || '…') + '  (' + status.seconds + 's)')
+              // The desktop manager reports one fixed line and no phases, so
+              // a long wait would otherwise look like a hang. Say it is normal
+              // when a dependency downloads or compiles, and what to do if it
+              // is not.
+              const slow = (status.seconds ?? 0) >= SLOW_INSTALL_SECONDS ? ' · ' + t('progressSlow') : ''
+              setProgressLine(localizeBilingual(status.lastLine || '…', lang) + '  (' + status.seconds + 's)' + slow)
               setProgressPhase(null)
               setProgressCurrent(null)
               setProgressDone(0)
@@ -3421,7 +3701,7 @@ export function MarketSection(props: MarketSectionProps) {
         .catch(() => {})
     }, 2000)
     return () => clearInterval(timer)
-  }, [busyUrl, updatingName, data, installed, repoIdentities, repoHints, refreshInstalled])
+  }, [applyDrainStatus, busyUrl, updatingName, data, installed, repoIdentities, repoHints, refreshInstalled, lang, restoreDrainMarkers, t])
 
   const scrollToTop = () => {
     const el = bodyRef.current
@@ -3481,21 +3761,23 @@ export function MarketSection(props: MarketSectionProps) {
     // pluginBlocked closes over the installed map and the catalog match.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [pluginsAll, blockedNameSet, installed, repoIdentities, data, repoHints])
+  // A sort the user chose is a request to see the list in THAT order, and
+  // this block ignores the sort by design (it is "what was added in the last
+  // seven days", ordered by downloads). Left in place it sits between the
+  // control and the list it just reordered: on a 1166px window it fills the
+  // screen, so switching to Stars looked like it did nothing (#1016). The
+  // block is a front-page teaser for the unfiltered default view — one more
+  // narrowing, alongside query, category and time range.
   const recentlyAdded = useMemo(
     () => data === null || tab !== 'discover' || q.trim() !== '' || cat !== 'all' || timeRange !== 'all'
+      || sortField !== 'downloads' || sortDir !== 'desc'
       ? []
       : visiblePlugins(data.plugins, {
           category: 'all', query: '', lang, sort: 'downloads-desc', sinceDays: 7,
           hostCompatibility, compatibleWithHost,
         }).filter(plugin => !pluginBlocked(plugin)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data, tab, q, cat, timeRange, lang, hostCompatibility, compatibleWithHost, blockedNameSet, installed, repoIdentities, repoHints])
-  const recentRowRef = useRef<HTMLDivElement>(null)
-  // Two per row, like the grid below it: three across read as a different
-  // list rather than the same one (and left an odd one out at any width).
-  // Two rows of two keeps the block square and the cards the size of the
-  // cards underneath.
-  const [recentColumns, setRecentColumns] = useState(1)
+    [data, tab, q, cat, timeRange, sortField, sortDir, lang, hostCompatibility, compatibleWithHost, blockedNameSet, installed, repoIdentities, repoHints])
   const hasRecent = recentlyAdded.length > 0
   const [recentCollapsed, setRecentCollapsed] = useState(() => readRecentFlag(RECENT_COLLAPSED_KEY))
   const [recentHidden, setRecentHidden] = useState(() => readRecentFlag(RECENT_HIDDEN_KEY))
@@ -3511,39 +3793,28 @@ export function MarketSection(props: MarketSectionProps) {
   const showRecent = useCallback(() => {
     setRecentHidden(false)
     writeRecentFlag(RECENT_HIDDEN_KEY, false)
+    // The one-line control is "show recently added", not "restore the
+    // previous fold". Landing on a collapsed heading would be a second
+    // click to see the tiles.
+    setRecentCollapsed(false)
+    writeRecentFlag(RECENT_COLLAPSED_KEY, false)
   }, [])
-  useLayoutEffect(() => {
-    const row = recentRowRef.current
-    if (row === null || typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(([entry]) => {
-      if (entry !== undefined) setRecentColumns(Math.min(2, Math.max(1, Math.floor((entry.contentRect.width + 10) / 290))))
-    })
-    observer.observe(row)
-    return () => observer.disconnect()
-    // recentHidden belongs in the deps: hiding unmounts the row, so `ref` is
-    // null when this effect runs and it bails out. Restoring has to re-run it,
-    // or the observer is never attached and the block stops tracking width
-    // (it reopens at whatever column count it last saw, and never follows a
-    // resize again) — the trap #940's plan 1 walks into.
-    // recentCollapsed deliberately stays out: collapsing clips in place, the
-    // element keeps its width, and the existing observer stays correct.
-  }, [hasRecent, loadError, recentHidden])
-  const recentPlugins = recentlyAdded.slice(0, recentColumns * 2)
+  const recentPlugins = recentlyAdded.slice(0, RECENT_STRIP_LIMIT)
   const { currentPage, totalPages, pageSize, goToPage, changePageSize } =
     usePagination(plugins.length, [q, cat, sortField, sortDir, timeRange, compatibleWithHost], scrollToTop)
   const pagePlugins = plugins.slice((currentPage - 1) * pageSize, currentPage * pageSize)
   const pageHostPackages = [...new Set([...pagePlugins, ...recentPlugins].flatMap(plugin =>
-    typeof plugin.npm === 'string' && plugin.npm !== '' ? [plugin.npm] : []))]
+    hostCompatibilityKey(plugin) === null ? [] : [hostCompatibilityKey(plugin)!]))]
   const allHostPackages = useMemo(
     () => [...new Set((data?.plugins ?? []).flatMap(plugin =>
-      typeof plugin.npm === 'string' && plugin.npm !== '' ? [plugin.npm] : []))],
+      hostCompatibilityKey(plugin) === null ? [] : [hostCompatibilityKey(plugin)!]))],
     [data],
   )
   const pageHostPackagesKey = pageHostPackages.join('\u0000')
   const allHostPackagesKey = allHostPackages.join('\u0000')
   useEffect(() => {
     if (tab === 'discover') void loadHostCompatibility(pageHostPackages)
-    // The key is the stable identity of this page's npm package set; the
+    // The key is the stable identity of this page's package/source set; the
     // array itself is recreated as compatibility results arrive.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, pageHostPackagesKey, loadHostCompatibility])
@@ -3610,7 +3881,7 @@ export function MarketSection(props: MarketSectionProps) {
   // already loads compatibility for the current page; without the same
   // fetch here the badge stays on "Reading host requirement…" forever.
   const favoritePageHostPackages = [...new Set(favoritePagePlugins.flatMap(plugin =>
-    typeof plugin.npm === 'string' && plugin.npm !== '' ? [plugin.npm] : []))]
+    hostCompatibilityKey(plugin) === null ? [] : [hostCompatibilityKey(plugin)!]))]
   const favoritePageHostPackagesKey = favoritePageHostPackages.join('\u0000')
   useEffect(() => {
     if (tab === 'favorites') void loadHostCompatibility(favoritePageHostPackages)
@@ -3693,7 +3964,7 @@ export function MarketSection(props: MarketSectionProps) {
     return `${first.name} — ${first.layers.join(' / ')}${rest}`
   }
 
-  const doInstall = useCallback((plugin: RegistryPlugin, force = false, version?: string) => {
+  const doInstall = useCallback((plugin: RegistryPlugin, force = false, version?: string, preferReject = false) => {
     setBuildsSkipped(null)
     setConfirming(null)
     setInstallError(null)
@@ -3712,12 +3983,33 @@ export function MarketSection(props: MarketSectionProps) {
       // `version` when the refusal dialog found a release this host supports:
       // the route pins THAT release instead of resolving the newest one —
       // which is the release that was just refused (#581).
-      body: JSON.stringify({ url: plugin.url, ...(force ? { force: true } : {}), ...(version !== undefined ? { version } : {}) }),
+      body: JSON.stringify({
+        url: plugin.url,
+        ...(force ? { force: true } : {}),
+        ...(version !== undefined ? { version } : {}),
+        ...(statusRef.current.agentDrain && !preferReject ? { busyPolicy: 'drain' } : {}),
+      }),
     })
       .then(res => res.json().then(body => ({ status: res.status, body })))
       .then(({ status, body }) => {
         setBusyUrl(null)
         sessionStorage.removeItem('dshm-pending')
+        if (status === 202 && typeof body.operationId === 'string') {
+          const operation = body.operation as DrainOperationWire | undefined
+          setRecords(list => patchRecord(withoutHostProjection(list, body.operationId, recordId), recordId, {
+            state: 'queued',
+            hostOperationId: body.operationId,
+            ...(operation?.wait === null || operation?.wait === undefined
+              ? {}
+              : { blockedBy: operation.wait.activeAgentIds, waitSince: operation.wait.since }),
+            reason: operation?.wait === null || operation?.wait === undefined
+              ? t('agentBusyQueued')
+              : t('agentDrainWaiting').replace('{0}', String(operation.wait.activeCount)),
+          }))
+          rememberDrainMarker({ operationId: body.operationId, kind: 'install', name: plugin.name, url: plugin.url })
+          setOperationsOpen(true)
+          return
+        }
         if (status === 200 && body.ok && body.hot && pluginCategories(plugin).includes('theme')) {
           // Themes auto-activate on install; reload straight into the Themes
           // tab so the new look is on screen immediately.
@@ -3778,7 +4070,52 @@ export function MarketSection(props: MarketSectionProps) {
               : { state: 'done', needsRefresh: body.hot !== true }))
           refreshInstalled()
         } else {
+          // The Host lost the drain capability between the status sample and
+          // this request. Fall back to the ordinary reject path once, which
+          // keeps the current 409/queue guidance on that Host (FR-9).
+          if (body.unsupported === true) {
+            setRecords(list => drop(list, recordId))
+            doInstall(plugin, force, version, true)
+            return
+          }
+          // A rename the catalog declares and this profile still holds under
+          // the former name (#1012): the host refuses to install the successor
+          // beside it, because both would register the same loader rows and
+          // the next start would refuse the tree (#122). That refusal is a
+          // question with one answer, not a failure to report — the record is
+          // replaced by the migration dialog, and its answer runs the same
+          // transaction that carries switches, groups and notes across.
+          if (body.agentsBusy !== true && body.migration && typeof body.migration === 'object') {
+            const { from, target } = body.migration as { from?: unknown; target?: unknown }
+            if (typeof from === 'string' && typeof target === 'string') {
+              setRecords(list => drop(list, recordId))
+              setMigrationConfirm({ name: from, source: String(installed[from] ?? ''), target, kind: 'npm-rename' })
+              setOperationsOpen(true)
+              return
+            }
+          }
           if (status === 409) {
+            if (body.failureCode === 'AGENT_BARRIER_LOST') {
+              // An Agent resumed before the Host could start the file change.
+              // Nothing changed; retrying is a new decision, not a queue item.
+              setRecords(list => patchRecord(list, recordId, {
+                state: 'failed',
+                reason: String(body.error ?? t('installFail')),
+              }))
+              setOperationsOpen(true)
+              return
+            }
+            if (body.targetChanged === true) {
+              // The Host refused before accepting the drain: the release it
+              // would have installed changed while the confirmation sat.
+              // That is a failure to report, not a lock to queue behind.
+              setRecords(list => patchRecord(list, recordId, {
+                state: 'failed',
+                reason: String(body.error ?? t('installFail')),
+              }))
+              setOperationsOpen(true)
+              return
+            }
             if (body.agentsBusy === true) {
               // Agents-busy is a queue, not a failure: keep the record as
               // `queued` so the drain below runs it when agents go idle.
@@ -3883,7 +4220,7 @@ export function MarketSection(props: MarketSectionProps) {
         // success once the plugin lands (busy-aware since #91) and strikes
         // out genuinely dead installs (#32).
       })
-  }, [nextRecordId, refreshInstalled, t])
+  }, [nextRecordId, refreshInstalled, rememberDrainMarker, t, installed])
 
   /**
    * Resolve a loader-id clash the only way one profile allows: uninstall the
@@ -4103,12 +4440,16 @@ export function MarketSection(props: MarketSectionProps) {
   }, [recovery, recoveryBusy, recoveryKeep, t, enterRecovery])
 
   /** Cancel the running plugin command (#6 by @qichuang321). */
-  const doCancel = useCallback(() => {
-    fetch(api('/dsh-market/cancel'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })
+  const doCancel = useCallback((record?: OperationRecord) => {
+    const body = record?.hostOperationId === undefined ? {} : { operationId: record.hostOperationId }
+    fetch(api('/dsh-market/cancel'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
       .catch(() => {})
   }, [])
 
-  const doUpdate = useCallback((name: string, force = false, restore = false, compatVersion?: string, confirmAgentsRunning = false) => {
+  const doUpdate = useCallback((name: string, force = false, restore = false, compatVersion?: string, confirmAgentsRunning = false, eligibleVersion?: string, preferReject = false) => {
+    const expectedVersion = compatVersion === undefined && !restore
+      ? (eligibleVersion ?? updates[name]?.eligibleVersion) : undefined
+    const updateOptions = { force, restore, compatVersion, eligibleVersion: expectedVersion }
     setInstallError(null)
     setActivationWarnings([])
     // Only THIS row's stale marker is cleared. "Update all" walks the list
@@ -4131,11 +4472,21 @@ export function MarketSection(props: MarketSectionProps) {
     // "update all" left the panel empty while several plugins were mid-flight
     // (#295 by @sanyecao88). One record per attempt, like the install flow.
     const updateRecordId = nextRecordId()
-    setRecords(list => enqueue(list, { id: updateRecordId, kind: 'update', name, state: 'running', updateOptions: { force, restore, compatVersion } }))
+    setRecords(list => enqueue(list, { id: updateRecordId, kind: 'update', name, state: 'running', updateOptions }))
     return fetch(api('/dsh-market/update'), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name, ...(force ? { force: true } : {}), ...(restore ? { restore: true } : {}), ...(compatVersion !== undefined ? { compatVersion } : {}), ...(confirmAgentsRunning ? { confirmAgentsRunning: true } : {}) }),
+      body: JSON.stringify({
+        name,
+        ...(force ? { force: true } : {}),
+        ...(restore ? { restore: true } : {}),
+        ...(compatVersion !== undefined ? { compatVersion } : {}),
+        ...(expectedVersion !== undefined ? { eligibleVersion: expectedVersion } : {}),
+        ...(confirmAgentsRunning ? { confirmAgentsRunning: true } : {}),
+        // `restore` is deliberately outside drain mode: a local-development
+        // restore keeps its current wait/cancel guidance.
+        ...(!restore && statusRef.current.agentDrain && !preferReject ? { busyPolicy: 'drain' } : {}),
+      }),
     })
       .then(res => res.json().then(body => ({ status: res.status, body })))
       .then(({ status, body }) => {
@@ -4144,10 +4495,32 @@ export function MarketSection(props: MarketSectionProps) {
         // marker + row for the poll to converge.
         sessionStorage.removeItem('dshm-updating')
         setUpdatingName(null)
+        if (status === 202 && typeof body.operationId === 'string') {
+          const operation = body.operation as DrainOperationWire | undefined
+          setRecords(list => patchRecord(withoutHostProjection(list, body.operationId, updateRecordId), updateRecordId, {
+            state: 'queued',
+            hostOperationId: body.operationId,
+            ...(operation?.wait === null || operation?.wait === undefined
+              ? {}
+              : { blockedBy: operation.wait.activeAgentIds, waitSince: operation.wait.since }),
+            reason: operation?.wait === null || operation?.wait === undefined
+              ? t('agentBusyUpdateQueued')
+              : t('agentDrainWaiting').replace('{0}', String(operation.wait.activeCount)),
+          }))
+          rememberDrainMarker({ operationId: body.operationId, kind: 'update', name })
+          setOperationsOpen(true)
+          return
+        }
         if (body.cancelled === true) {
           setRecords(list => drop(list, updateRecordId))
           refreshInstalled()
           if (body.partial === true) setInstallError(t('partialNote'))
+          return
+        }
+        if (status === 409 && body.staleTarget === true) {
+          setRecords(list => patchRecord(list, updateRecordId, { state: 'failed', reason: String(body.error ?? 'Update target changed') }))
+          setInstallError(localizeBilingual(String(body.error ?? 'Update target changed'), lang))
+          refreshInstalled(true)
           return
         }
         // The plugin is already on the version this update would install
@@ -4162,7 +4535,22 @@ export function MarketSection(props: MarketSectionProps) {
           return
         }
         if (status === 200 && body.ok) {
-          setRecords(list => patchRecord(list, updateRecordId, { state: 'done' }))
+          // The install worked, but no version could be pinned (#1047): both
+          // registry lookups failed and pnpm chose the release itself. The ✓
+          // stays, because the plugin IS on disk and usable; the note names
+          // what actually arrived so the user can check it against what the
+          // card now shows.
+          const unverified = body.versionUnverified !== null && typeof body.versionUnverified === 'object'
+            ? body.versionUnverified as { installed?: unknown }
+            : null
+          setRecords(list => patchRecord(list, updateRecordId, unverified === null
+            ? { state: 'done' }
+            : {
+                state: 'warned',
+                reason: typeof unverified.installed === 'string' && unverified.installed !== ''
+                  ? t('versionUnverifiedNote').replace('{0}', unverified.installed)
+                  : t('versionUnverifiedNoteUnknown'),
+              }))
           setUpdatedNames(names => names.concat(name))
           // #558: the restart banner counts plugins the host parked behind a
           // restart, not every completed change. A client-only plugin comes
@@ -4180,7 +4568,31 @@ export function MarketSection(props: MarketSectionProps) {
           }
           refreshInstalled()
         } else {
+          if (body.unsupported === true) {
+            // The Host lost the drain capability after the status sample;
+            // retry once on the ordinary reject path (FR-9).
+            setRecords(list => drop(list, updateRecordId))
+            void doUpdate(name, force, restore, compatVersion, confirmAgentsRunning, eligibleVersion, true)
+            return
+          }
           if (status === 409) {
+            if (body.failureCode === 'AGENT_BARRIER_LOST') {
+              setRecords(list => patchRecord(list, updateRecordId, {
+                state: 'failed',
+                reason: String(body.error ?? 'An Agent became active before the update; nothing was changed.'),
+              }))
+              setOperationsOpen(true)
+              return
+            }
+            if (body.targetChanged === true) {
+              setRecords(list => patchRecord(list, updateRecordId, {
+                state: 'failed',
+                reason: String(body.error ?? 'Update target changed'),
+              }))
+              setInstallError(localizeBilingual(String(body.error ?? 'Update target changed'), lang))
+              setOperationsOpen(true)
+              return
+            }
             if (body.agentsBusy === true) {
               // Same queue treatment as installs: the host refused before
               // touching pnpm, so this becomes a `queued` record the drain
@@ -4226,7 +4638,7 @@ export function MarketSection(props: MarketSectionProps) {
           // Blocked build scripts during an update (#69): same
           // approve-and-retry banner as the install flow, retrying the update.
           if (Array.isArray(body.ignoredBuilds) && body.ignoredBuilds.length > 0) {
-            setBuildsSkipped({ updateName: name, names: body.ignoredBuilds.map(String), restore })
+            setBuildsSkipped({ updateName: name, names: body.ignoredBuilds.map(String), updateOptions })
           }
           const orphans = Array.isArray(body.orphanBundles) ? body.orphanBundles.map(String) : []
           const failure = failureText(body)
@@ -4247,7 +4659,9 @@ export function MarketSection(props: MarketSectionProps) {
           // what is left here is our own bilingual sentence, and keeping its
           // last 600 characters kept the English and dropped the Chinese.
           const clipped = detail.trim().slice(0, 1200)
-          setRecords(list => patchRecord(list, updateRecordId, { state: 'failed', reason: clipped }))
+          setRecords(list => patchRecord(list, updateRecordId, { state: 'failed', reason: clipped,
+            ...(Array.isArray(body.ignoredBuilds) && body.ignoredBuilds.length > 0 ? { blockedBuilds: body.ignoredBuilds.map(String) } : {}),
+          }))
           // Localize the server half before prepending t() chrome.
           setInstallError((restore ? t('restoreFail') : t('updateFail')) + ': ' + name + ' — ' + localizeBilingual(clipped, lang))
         }
@@ -4258,10 +4672,10 @@ export function MarketSection(props: MarketSectionProps) {
         // running row, and let the status poll converge the outcome instead
         // of declaring a false failure — mirroring the install flow's catch.
       })
-  }, [refreshInstalled, t, lang])
+  }, [refreshInstalled, installed, rememberDrainMarker, t, lang, updates])
 
 
-  const doSourceMigration = useCallback((name: string, confirmAgentsRunning = false) => {
+  const doSourceMigration = useCallback((name: string, confirmAgentsRunning = false, renameTo?: string) => {
     setInstallError(null)
     setActivationWarnings([])
     setMigrationConfirm(null)
@@ -4269,7 +4683,11 @@ export function MarketSection(props: MarketSectionProps) {
     return fetch(api('/dsh-market/migrate-source'), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name, ...(confirmAgentsRunning ? { confirmAgentsRunning: true } : {}) }),
+      body: JSON.stringify({
+        name,
+        ...(renameTo === undefined ? {} : { kind: 'npm-rename', to: renameTo }),
+        ...(confirmAgentsRunning ? { confirmAgentsRunning: true } : {}),
+      }),
     })
       .then(res => res.json().then(body => ({ status: res.status, body })))
       .then(({ status, body }) => {
@@ -4286,7 +4704,7 @@ export function MarketSection(props: MarketSectionProps) {
           return
         }
         if (status === 409 && body.agentsBusy === true) {
-          setAgentsConfirm({ name, kind: 'update', run: () => { void doSourceMigration(name, true) } })
+          setAgentsConfirm({ name, kind: 'update', run: () => { void doSourceMigration(name, true, renameTo) } })
           return
         }
         setInstallError(t('migrateFail') + ': ' + localizeBilingual(String(body.error || ('HTTP ' + String(status))), lang))
@@ -4315,6 +4733,7 @@ export function MarketSection(props: MarketSectionProps) {
       name,
       source: String(source),
       target: migration.target,
+      kind: migration.kind,
     })
   }, [installed, updates])
 
@@ -4686,7 +5105,7 @@ export function MarketSection(props: MarketSectionProps) {
     setRefreshNames(names => names.filter(entry => entry !== name))
   }, [])
 
-  const doUninstall = useCallback((name: string, confirmAgentsRunning = false) => {
+  const doUninstall = useCallback((name: string, confirmAgentsRunning = false, preferReject = false) => {
     setRemoveConfirm(null)
     setInstallError(null)
     setActivationWarnings([])
@@ -4698,10 +5117,53 @@ export function MarketSection(props: MarketSectionProps) {
     return fetch(api('/dsh-market/uninstall'), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name, ...(confirmAgentsRunning ? { confirmAgentsRunning: true } : {}) }),
+      body: JSON.stringify({
+        name,
+        ...(confirmAgentsRunning ? { confirmAgentsRunning: true } : {}),
+        ...(statusRef.current.agentDrain && !preferReject ? { busyPolicy: 'drain' } : {}),
+      }),
     })
       .then(res => res.json().then(body => ({ status: res.status, body })))
       .then(({ status, body }) => {
+        if (status === 202 && typeof body.operationId === 'string') {
+          const operation = body.operation as DrainOperationWire | undefined
+          setRecords(list => patchRecord(withoutHostProjection(list, body.operationId, uninstallRecordId), uninstallRecordId, {
+            state: 'queued',
+            hostOperationId: body.operationId,
+            ...(operation?.wait === null || operation?.wait === undefined
+              ? {}
+              : { blockedBy: operation.wait.activeAgentIds, waitSince: operation.wait.since }),
+            reason: operation?.wait === null || operation?.wait === undefined
+              ? t('agentBusyUninstallQueued')
+              : t('agentDrainWaiting').replace('{0}', String(operation.wait.activeCount)),
+          }))
+          rememberDrainMarker({ operationId: body.operationId, kind: 'uninstall', name })
+          setOperationsOpen(true)
+          return
+        }
+        if (body.unsupported === true) {
+          // The Host lost the drain capability after the status sample;
+          // retry once on the ordinary reject path (FR-9).
+          setRecords(list => drop(list, uninstallRecordId))
+          void doUninstall(name, confirmAgentsRunning, true)
+          return
+        }
+        if (status === 409 && body.failureCode === 'AGENT_BARRIER_LOST') {
+          setRecords(list => patchRecord(list, uninstallRecordId, {
+            state: 'failed',
+            reason: String(body.error ?? 'An Agent became active before the uninstall; nothing was changed.'),
+          }))
+          setOperationsOpen(true)
+          return
+        }
+        if (status === 409 && body.targetChanged === true) {
+          setRecords(list => patchRecord(list, uninstallRecordId, {
+            state: 'failed',
+            reason: String(body.error ?? t('installFail')),
+          }))
+          setOperationsOpen(true)
+          return
+        }
         if (status === 409 && body.agentsBusy === true) {
           setRecords(list => patchRecord(list, uninstallRecordId, {
             state: 'queued',
@@ -4755,7 +5217,7 @@ export function MarketSection(props: MarketSectionProps) {
       .finally(() => setRemovingName(null))
     // hotNames/refreshNames are read above to tell a plugin this page loaded
     // from one installed inside it, so they belong in the closure.
-  }, [refreshInstalled, hotNames, refreshNames, nextRecordId, t])
+  }, [refreshInstalled, hotNames, refreshNames, nextRecordId, rememberDrainMarker, t])
 
   // Drain-loop refs, assigned after doInstall/doUpdate/doUninstall exist
   // (the mount-once drain effect below only reads refs, never closures).
@@ -4783,7 +5245,7 @@ export function MarketSection(props: MarketSectionProps) {
   dataRef.current = data
   const doInstallRef = useRef<((plugin: RegistryPlugin) => void) | null>(null)
   doInstallRef.current = doInstall
-  const doUpdateRef = useRef<((name: string, force?: boolean, restore?: boolean, compatVersion?: string) => Promise<void>) | null>(null)
+  const doUpdateRef = useRef<((name: string, force?: boolean, restore?: boolean, compatVersion?: string, confirmAgentsRunning?: boolean, eligibleVersion?: string) => Promise<void>) | null>(null)
   doUpdateRef.current = doUpdate
   const doUninstallRef = useRef<((name: string) => Promise<void>) | null>(null)
   doUninstallRef.current = doUninstall
@@ -4828,18 +5290,36 @@ export function MarketSection(props: MarketSectionProps) {
       // before asking whether anything was queued, so an open page polled
       // /status every 2 s for as long as it stayed open, queue or no queue
       // (#838). Ask first — with no record there is nothing to drain.
-      if (!recordsRef.current.some(record => record.state === 'queued')) return
+      const hasWork = recordsRef.current.some(record =>
+        record.hostOperationId === undefined
+          ? record.state === 'queued'
+          : record.state === 'queued' || record.state === 'running')
+      if (!hasWork) return
       void fetch(api('/dsh-market/status'), { cache: 'no-store' })
         .then(readMarketStatus)
         .then(status => {
           if (disposed || status === null) return
           const runningAgents: string[] = Array.isArray(status.runningAgents) ? status.runningAgents.map(String) : []
           const busy = status.busy === true
-          statusRef.current = { busy, runningAgents }
+          statusRef.current = {
+            busy,
+            runningAgents,
+            agentDrain: status.agentDrain === true,
+            boot: typeof status.boot === 'string' ? status.boot : null,
+          }
+          applyDrainStatus(status)
+          restoreDrainMarkers(status)
           if (busy) return
+          // A Host-owned operation owns the lane. Client-queued rows must not
+          // start beside it: the Host's maintenance barrier is what makes the
+          // package command safe.
+          if (status.drainActive === true) return
           if (operationInFlight()) return
-          const task = recordsRef.current.find(record => record.state === 'queued' && (record.kind === 'install' || runningAgents.length === 0))
-          if (task === undefined || recordsRef.current.some(record => record.state === 'running')) return
+          const task = recordsRef.current.find(record =>
+            record.state === 'queued'
+            && record.hostOperationId === undefined
+            && (record.kind === 'install' || runningAgents.length === 0))
+          if (task === undefined || recordsRef.current.some(record => record.state === 'running' && record.hostOperationId === undefined)) return
           setRecords(list => list.filter(record => record.id !== task.id))
           drainingRef.current = true
           try {
@@ -4847,7 +5327,7 @@ export function MarketSection(props: MarketSectionProps) {
               const plugin = dataRef.current?.plugins.find(candidate => candidate.url === task.url)
               if (plugin !== undefined) doInstallRef.current?.(plugin)
             } else if (task.kind === 'update') {
-              void doUpdateRef.current?.(task.name, task.updateOptions?.force, task.updateOptions?.restore, task.updateOptions?.compatVersion)
+              void doUpdateRef.current?.(task.name, task.updateOptions?.force, task.updateOptions?.restore, task.updateOptions?.compatVersion, false, task.updateOptions?.eligibleVersion)
             } else {
               void doUninstallRef.current?.(task.name)
             }
@@ -4861,10 +5341,13 @@ export function MarketSection(props: MarketSectionProps) {
       disposed = true
       clearInterval(timer)
     }
-  }, [readMarketStatus])
+  }, [applyDrainStatus, readMarketStatus, restoreDrainMarkers])
 
   /** A queued record's "run now": retry immediately instead of waiting for idle. */
   const runQueuedNow = useCallback((record: OperationRecord, confirmAgentsRunning = false) => {
+    // A Host-owned row is already being coordinated; running it here would
+    // start a second mutation outside the maintenance barrier.
+    if (record.hostOperationId !== undefined) return
     if (!recordsRef.current.some(item => item.id === record.id && item.state === 'queued')) return
     if (record.kind !== 'install' && !confirmAgentsRunning &&
         (statusRef.current.runningAgents.length > 0 || (record.blockedBy?.length ?? 0) > 0)) {
@@ -4897,7 +5380,7 @@ export function MarketSection(props: MarketSectionProps) {
       doInstall(plugin)
     } else if (record.kind === 'update') {
       setRecords(prev => drop(prev, record.id))
-      void doUpdate(record.name, record.updateOptions?.force, record.updateOptions?.restore, record.updateOptions?.compatVersion, confirmAgentsRunning)
+      void doUpdate(record.name, record.updateOptions?.force, record.updateOptions?.restore, record.updateOptions?.compatVersion, confirmAgentsRunning, record.updateOptions?.eligibleVersion)
     } else {
       setRecords(prev => drop(prev, record.id))
       void doUninstall(record.name, confirmAgentsRunning)
@@ -5181,11 +5664,11 @@ export function MarketSection(props: MarketSectionProps) {
   }, [bootId])
 
   const doUpdateAll = useCallback(() => {
-    const names = reminderBatchUpdatableNames.slice()
+    const names = reminderBatchUpdatableNames.map(name => ({ name, eligibleVersion: updates[name]?.eligibleVersion }))
     setUpdatingAll(true)
     const next = () => {
-      const name = names.shift()
-      if (name === undefined) {
+      const item = names.shift()
+      if (item === undefined) {
         setUpdatingAll(false)
         // The queue was a snapshot taken before any of it ran, and a batch is
         // where it drifts furthest from the profile (#495): re-read the list
@@ -5194,10 +5677,10 @@ export function MarketSection(props: MarketSectionProps) {
         refreshInstalled(true)
         return
       }
-      doUpdate(name).then(next, next)
+      doUpdate(item.name, false, false, undefined, false, item.eligibleVersion).then(next, next)
     }
     next()
-  }, [reminderBatchUpdatableNames, doUpdate, refreshInstalled])
+  }, [reminderBatchUpdatableNames, doUpdate, refreshInstalled, updates])
 
   const finishRestore = useCallback((body: { errors?: unknown; unportable?: unknown; bootErrors?: unknown }) => {
     const errors = Array.isArray(body.errors) ? body.errors as { name?: unknown; error?: unknown }[] : []
@@ -5272,7 +5755,19 @@ export function MarketSection(props: MarketSectionProps) {
         try { localStorage.setItem('dshm-webdav-last', String(Date.now())) } catch { /* storage unavailable */ }
         setBackupMessage(t('backupDone'))
       }
-    }).catch(error => setBackupMessage(String(error))).finally(() => {
+    }).catch(error => {
+      const message = String(error)
+      // #1058: a 401 with an empty password field is not a mystery — the
+      // password is never stored, so this is what every reload looks like.
+      // Name the state on the card instead of a bare `HTTP 401`, and clear it
+      // the moment a password is typed.
+      if (action === 'backup' && webdavPassword === '' && /HTTP 401|401/u.test(message)) {
+        setWebdavNeedsPassword(true)
+        setBackupMessage(null)
+        return
+      }
+      setBackupMessage(message)
+    }).finally(() => {
       webdavInFlight.current = false
       setBackupBusy(false)
     })
@@ -5538,6 +6033,18 @@ export function MarketSection(props: MarketSectionProps) {
         items={[{ id: 'block', label: hidden ? t('blockRemove') : t('blockAdd') }]}
       />
     )
+  }
+
+  /**
+   * What the group view says about an installed plugin beyond its name: the
+   * user's own note, else the catalog's description (#1006). One place, so a
+   * plugin reads the same whether it sits in a group or in "Ungrouped".
+   */
+  const installedBlurb = (name: string) => {
+    const entry = data === null ? undefined : catalogEntryForInstalled(data.plugins, name, String(installed[name]), repoIdentities[name], repoHints[name])
+    const note = notes[name]
+    const authored = (entry?.description && (entry.description[lang] || entry.description.en)) || ''
+    return { entry, note, shown: note ?? authored }
   }
 
   const renderInstalledBlockMenu = (name: string) => {
@@ -5817,10 +6324,75 @@ export function MarketSection(props: MarketSectionProps) {
         </label>
       ))
 
-  const pluginCard = (p: RegistryPlugin, menuKey = p.url) => {
-    const desc = (p.description && (p.description[lang] || p.description.en)) || ''
+  const installAction = (p: RegistryPlugin) => {
     const done = doneUrls.includes(p.url) || hotUrls.includes(p.url)
     const already = isInstalled(p, catalogInstalled, repoIdentities, data?.plugins, repoHints)
+    const busy = busyUrl === p.url
+    const record = recordForUrl(records, p.url)
+    const blocked = record !== null && (record.state === 'input' || record.state === 'failed')
+    const queued = record !== null && record.state === 'queued'
+    return done
+      ? <span className={css.okState}>{t('installedBadge')}</span>
+      : already
+        ? <span className={css.okState}>{t('alreadyInstalled')}</span>
+        : busy
+          ? <Button variant="outline" size="sm" className={css.installBtn} disabled>{t('installing')}</Button>
+          : queued
+            ? (
+                <button type="button" className={css.cardBlockedMark} onClick={openOperations}>
+                  <IconWarningOutline16 size={13} />
+                  {t(record?.hostOperationId !== undefined && (record.blockedBy?.length ?? 0) > 0 ? 'agentDrainBadge' : 'queuedBadge')}
+                </button>
+              )
+            : blocked
+              ? (
+                  <button type="button" className={css.cardBlockedMark} onClick={openOperations}>
+                    <IconWarningOutline16 size={13} />
+                    {t('opBlockedCard')}
+                  </button>
+                )
+              : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={css.installBtn}
+                    disabled={busyUrl !== null || !envReady}
+                    onClick={() => setConfirming(p)}
+                  >{t('install')}</Button>
+                )
+  }
+
+  const recentTile = (p: RegistryPlugin) => {
+    const desc = (p.description && (p.description[lang] || p.description.en)) || ''
+    const record = recordForUrl(records, p.url)
+    const blocked = record !== null && (record.state === 'input' || record.state === 'failed')
+    return (
+      <div key={p.url} className={blocked ? `${css.recentTile} ${css.cardBlocked}` : css.recentTile}>
+        <div className={css.recentTitle}>
+          <OwnerAvatar name={p.name} owner={p.owner || ''} icon={p.icon ?? undefined} className={css.recentAv} />
+          <div className={css.recentName}>
+            <Tooltip label={p.name} side="bottom" maxWidth={320} delayMs={HOVER_TIP_DELAY_MS}>
+              <a className={`${css.nm} ${css.nmLink}`} href={p.url} target="_blank" rel="noreferrer" aria-label={`${p.name} — ${t('repoLink')}`}>
+                {pluginName(p.name, p.npm)}
+              </a>
+            </Tooltip>
+          </div>
+          {installAction(p)}
+        </div>
+        <div className={css.recentBottom}>
+          {desc !== '' && (
+            <Tooltip label={desc} side="bottom" maxWidth={320} delayMs={HOVER_TIP_DELAY_MS}>
+              <p className={css.recentDesc} tabIndex={0}>{desc}</p>
+            </Tooltip>
+          )}
+          {renderPluginMenu(p, `recent:${p.url}`)}
+        </div>
+      </div>
+    )
+  }
+
+  const pluginCard = (p: RegistryPlugin, menuKey = p.url) => {
+    const desc = (p.description && (p.description[lang] || p.description.en)) || ''
     const busy = busyUrl === p.url
     const replacement = replacementOf(p)
     // The card reflects its own latest operation. Without this a rejected
@@ -5828,11 +6400,11 @@ export function MarketSection(props: MarketSectionProps) {
     // is the obvious next move — which is how the same clash gets hit twice.
     const record = recordForUrl(records, p.url)
     const blocked = record !== null && (record.state === 'input' || record.state === 'failed')
-    const queued = record !== null && record.state === 'queued'
-    const compatibility = typeof p.npm === 'string' ? hostCompatibility[p.npm] : undefined
+    const compatibilityKey = hostCompatibilityKey(p)
+    const compatibility = compatibilityKey === null ? undefined : hostCompatibility[compatibilityKey]
     const hostRequirementLabel = compatibility?.requirement !== null && compatibility?.requirement !== undefined
       ? t('hostRequirement').replace('{0}', compatibility.requirement)
-      : typeof p.npm !== 'string'
+      : compatibilityKey === null
         ? t('hostRequirementUnavailable')
         : compatibility === undefined
           ? t('hostRequirementLoading')
@@ -5863,9 +6435,9 @@ export function MarketSection(props: MarketSectionProps) {
               <CatalogVersionMark version={p.version} tip={catalogVersionTip} />
               <DownloadCount plugin={p} t={t} />
               {typeof p.stars === 'number' && (
-                <Tooltip label={String(p.stars)} side="top">
+                <CardTip label={String(p.stars)}>
                   <span className={css.star}>{'· ★ ' + formatCount(p.stars)}</span>
-                </Tooltip>
+                </CardTip>
               )}
             </div>
           </div>
@@ -5874,38 +6446,9 @@ export function MarketSection(props: MarketSectionProps) {
               height whether or not it had anything else to say. */}
           <span className={css.grow} />
           <div className={css.cardAction}>
-            {done
-              ? <span className={css.okState}>{t('installedBadge')}</span>
-              : already
-                ? <span className={css.okState}>{t('alreadyInstalled')}</span>
-                : busy
-                  ? <Button variant="outline" size="sm" className={css.installBtn} disabled>{t('installing')}</Button>
-                  : queued
-                    ? (
-                        <button type="button" className={css.cardBlockedMark} onClick={openOperations}>
-                          <IconWarningOutline16 size={13} />
-                          {t('queuedBadge')}
-                        </button>
-                      )
-                    : blocked
-                    ? (
-                        <button type="button" className={css.cardBlockedMark} onClick={openOperations}>
-                          <IconWarningOutline16 size={13} />
-                          {t('opBlockedCard')}
-                        </button>
-                      )
-                    : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className={css.installBtn}
-                          disabled={busyUrl !== null || !envReady}
-                          onClick={() => setConfirming(p)}
-                        >{t('install')}</Button>
-                      )}
+            {installAction(p)}
           </div>
         </div>
-        <CardBody text={desc} name={pluginName(p.name, p.npm)} owner={p.owner}>
         <CardDesc text={desc} t={t} />
         <CardShot plugin={p} onOpen={openLightbox} />
         {p.deprecated === true && (
@@ -5920,18 +6463,17 @@ export function MarketSection(props: MarketSectionProps) {
             </div>
           </div>
         )}
-        </CardBody>
         <div className={css.foot}>
           <div className={css.footTags}>
             <span
-          className={compatibility?.status === 'incompatible'
-            ? `${css.hostRequirement} ${css.hostRequirementBad}`
-            : css.hostRequirement}
-          data-status={compatibility?.status ?? 'unknown'}
-          title={(compatibility?.status === 'compatible' || compatibility?.status === 'incompatible'
-            ? t(compatibility.status === 'compatible' ? 'hostStatusCompatible' : 'hostStatusIncompatible') + '\n'
-            : '') + hostRequirementTitle}
-        >{hostRequirementLabel}</span>
+              className={compatibility?.status === 'incompatible'
+                ? `${css.hostRequirement} ${css.hostRequirementBad}`
+                : css.hostRequirement}
+              data-status={compatibility?.status ?? 'unknown'}
+              title={(compatibility?.status === 'compatible' || compatibility?.status === 'incompatible'
+                ? t(compatibility.status === 'compatible' ? 'hostStatusCompatible' : 'hostStatusIncompatible') + '\n'
+                : '') + hostRequirementTitle}
+            >{hostRequirementLabel}</span>
             {pluginCategories(p).map(category => (
               <span key={category} className={css.tag}>
                 {(data!.categories[category] && (data!.categories[category]![lang] || data!.categories[category]!.en)) || category}
@@ -5955,7 +6497,7 @@ export function MarketSection(props: MarketSectionProps) {
             <span className={css.spin}><IconLoadingOutline16 size={14} /></span>
             <code className={css.grow}>{progressText}</code>
             {progressPct !== null && <span className={css.pct}>{progressPct}%</span>}
-            <Button variant="outline" size="sm" disabled={cancelling} onClick={doCancel}>
+            <Button variant="outline" size="sm" disabled={cancelling} onClick={() => doCancel()}>
               {cancelling ? t('cancelling') : t('cancelOp')}
             </Button>
             <div className={css.bar}>
@@ -6012,9 +6554,9 @@ export function MarketSection(props: MarketSectionProps) {
                 <CatalogVersionMark version={p.version} tip={catalogVersionTip} />
                 <DownloadCount plugin={p} t={t} />
                 {typeof p.stars === 'number' && (
-                  <Tooltip label={String(p.stars)} side="top">
+                  <CardTip label={String(p.stars)}>
                     <span className={css.star}>{'· ★ ' + formatCount(p.stars)}</span>
-                  </Tooltip>
+                  </CardTip>
                 )}
               </div>
             </div>
@@ -6060,7 +6602,7 @@ export function MarketSection(props: MarketSectionProps) {
                       ? (
                           <button type="button" className={css.cardBlockedMark} onClick={openOperations}>
                             <IconWarningOutline16 size={13} />
-                            {t('queuedBadge')}
+                            {t(record?.hostOperationId !== undefined && (record.blockedBy?.length ?? 0) > 0 ? 'agentDrainBadge' : 'queuedBadge')}
                           </button>
                         )
                       : blocked
@@ -6104,7 +6646,7 @@ export function MarketSection(props: MarketSectionProps) {
               <span className={css.spin}><IconLoadingOutline16 size={14} /></span>
               <code className={css.grow}>{progressText}</code>
               {progressPct !== null && <span className={css.pct}>{progressPct}%</span>}
-              <Button variant="outline" size="sm" disabled={cancelling} onClick={doCancel}>
+              <Button variant="outline" size="sm" disabled={cancelling} onClick={() => doCancel()}>
                 {cancelling ? t('cancelling') : t('cancelOp')}
               </Button>
               <div className={css.bar}>
@@ -6452,9 +6994,20 @@ export function MarketSection(props: MarketSectionProps) {
             onOpenChange={setOperationsOpen}
             replacing={replacing}
             envReady={envReady}
-            onClearSettled={() => setRecords(list => clearSettled(list))}
-            onCancel={() => doCancel()}
-            onDismiss={record => setRecords(list => drop(list, record.id))}
+            onClearSettled={() => {
+              for (const record of recordsRef.current) {
+                if (record.hostOperationId !== undefined
+                  && (record.state === 'done' || record.state === 'warned' || record.state === 'failed')) {
+                  dismissedHostRef.current.add(record.hostOperationId)
+                }
+              }
+              setRecords(list => clearSettled(list))
+            }}
+            onCancel={record => doCancel(record)}
+            onDismiss={record => {
+              if (record.hostOperationId !== undefined) dismissedHostRef.current.add(record.hostOperationId)
+              setRecords(list => drop(list, record.id))
+            }}
             onRefresh={() => location.reload()}
             onResolveConflict={resolveConflict}
             onForceInstall={(record) => {
@@ -6475,7 +7028,7 @@ export function MarketSection(props: MarketSectionProps) {
               const plugin = record.url === undefined ? undefined : data?.plugins.find(p => p.url === record.url)
               approveAndRetry(names, () => {
                 if (plugin !== undefined) doInstall(plugin)
-                else doUpdate(record.name, false, false)
+                else doUpdate(record.name, record.updateOptions?.force, record.updateOptions?.restore, record.updateOptions?.compatVersion, false, record.updateOptions?.eligibleVersion)
               })
             }}
           />
@@ -6651,11 +7204,11 @@ export function MarketSection(props: MarketSectionProps) {
             size="sm"
             disabled={busyUrl !== null}
             onClick={() => {
-              const { plugin, updateName, names, restore } = buildsSkipped
+              const { plugin, updateName, names, updateOptions } = buildsSkipped
               setBuildsSkipped(null)
               approveAndRetry(names, () => {
                 if (plugin !== undefined) doInstall(plugin)
-                else if (updateName !== undefined) doUpdate(updateName, false, restore === true)
+                else if (updateName !== undefined) doUpdate(updateName, updateOptions?.force, updateOptions?.restore, updateOptions?.compatVersion, false, updateOptions?.eligibleVersion)
               })
             }}
           >{t('approveBuilds')}</Button>
@@ -6838,7 +7391,7 @@ export function MarketSection(props: MarketSectionProps) {
                       name has to stay put: restore looks for that same one. */}
                   <p>{t('webdavPathHint')}</p>
                   <Input className={css.backupInput} autoComplete="username" value={webdavUser} placeholder={t('webdavUser')} onChange={e => setWebdavUser(e.target.value)} />
-                  <Input className={css.backupInput} type="password" autoComplete="current-password" value={webdavPassword} placeholder={t('webdavPassword')} onChange={e => setWebdavPassword(e.target.value)} />
+                  <Input className={css.backupInput} type="password" autoComplete="current-password" value={webdavPassword} placeholder={t('webdavPassword')} onChange={e => { setWebdavPassword(e.target.value); if (e.target.value !== '') setWebdavNeedsPassword(false) }} />
                   <div className={css.backupActions}>
                     <Button variant="primary" size="sm" disabled={backupBusy || webdavUrl.trim() === ''} onClick={() => runWebdav('backup')}>{backupBusy ? t('backupWorking') : t('webdavUpload')}</Button>
                     <Button variant="outline" size="sm" disabled={backupBusy || webdavUrl.trim() === ''} onClick={() => runWebdav('restore')}>{t('webdavRestore')}</Button>
@@ -6850,6 +7403,7 @@ export function MarketSection(props: MarketSectionProps) {
                     onChange: setAutoBackup,
                   })}
                   <p>{t('webdavNote')}</p>
+                  {webdavNeedsPassword && <p className={css.backupWarn}>{t('webdavAutoBackupPaused')}</p>}
                   <p className={css.backupWarn}>{t('credsWarning')}</p>
                 </section>
                 <section className={css.backupCard}>
@@ -6994,9 +7548,9 @@ export function MarketSection(props: MarketSectionProps) {
                     </div>
                     {hasRecent && (recentHidden
                       ? <button type="button" className={css.recentShow} onClick={showRecent}>
-                          <IconChevronDownOutline14 size={14} />{t('recentShow')}
+                          <IconChevronRightOutline14 size={14} />{t('recentShow')}
                         </button>
-                      : <section aria-labelledby="dshm-recently-added">
+                      : <section className={css.recentBlock} aria-labelledby="dshm-recently-added">
                           <div className={css.recentHead}>
                             <h3 id="dshm-recently-added" className={css.favoritesSectionHead}>
                               <button
@@ -7012,15 +7566,12 @@ export function MarketSection(props: MarketSectionProps) {
                             </h3>
                             <Button variant="ghost" size="sm" className={css.recentHide} onClick={hideRecent}>{t('recentHide')}</Button>
                           </div>
-                          {/* #940: clipped in place, never unmounted — the grid is what
-                              the column-counting ResizeObserver measures. */}
+                          {/* #940: clipped in place, never unmounted. */}
                           <div
                             id="dshm-recent-grid"
-                            ref={recentRowRef}
                             className={recentCollapsed ? `${css.recentRow} ${css.recentCollapsed}` : css.recentRow}
-                            style={{ gridTemplateColumns: `repeat(${recentColumns}, minmax(0, 1fr))` }}
                           >
-                            {recentPlugins.map(plugin => pluginCard(plugin, `recent:${plugin.url}`))}
+                            {recentPlugins.map(plugin => recentTile(plugin))}
                           </div>
                         </section>
                     )}
@@ -7377,12 +7928,19 @@ export function MarketSection(props: MarketSectionProps) {
                                       {!collapsed && (
                                         <div className={css.groupMembers}>
                                           {members.length === 0 && <div className={css.groupHint}>{t('groupEmpty')}</div>}
-                                          {visibleMembers.map(member => (
+                                          {visibleMembers.map(member => {
+                                            const { note, shown } = installedBlurb(member)
+                                            return (
                                             <div className={installedThemeNames.has(member) && themeSlot ? `${css.groupMember} ${css.themeSlot}` : css.groupMember} key={member}>
-                                              <span className={css.memberName}>
+                                              <span className={shown !== '' ? `${css.memberName} ${css.memberNameWithDesc}` : css.memberName}>
                                                 <span className={css.nm}>{member}</span>
                                                 {installedThemeNames.has(member) && <span className={css.memberKind}>· {t('groupThemeBadge')}</span>}
                                               </span>
+                                              {shown !== '' && (
+                                                <Tooltip label={shown} side="top" maxWidth={320}>
+                                                  <span className={note !== undefined ? `${css.ungroupedDesc} ${css.noteMine}` : css.ungroupedDesc}>{shown}</span>
+                                                </Tooltip>
+                                              )}
                                               {activations[member]?.library === true && <span className={css.spec}>{t('stateLibrary')}</span>}
                                               {activations[member]?.library !== true && effectiveDisabledSet.has(member) && <span className={css.spec}>{t('disabledState')}</span>}
                                               {activations[member]?.library !== true && onOffSwitch({
@@ -7393,7 +7951,8 @@ export function MarketSection(props: MarketSectionProps) {
                                               })}
                                               <Button variant="ghost" size="sm" onClick={() => doRemoveMember(gid, member)}>{t('groupRemove')}</Button>
                                             </div>
-                                          ))}
+                                            )
+                                          })}
                                         </div>
                                       )}
                                     </div>
@@ -7415,13 +7974,10 @@ export function MarketSection(props: MarketSectionProps) {
                                 {(groupQuery === '' ? ungroupedNames : visibleUngrouped).length === 0
                                   ? <div className={css.empty}>{t('installedEmpty')}</div>
                                   : visibleUngrouped.map(name => {
-                                      const entry = data === null ? undefined : catalogEntryForInstalled(data.plugins, name, String(installed[name]), repoIdentities[name], repoHints[name])
+                                      const { entry, note, shown } = installedBlurb(name)
                                       const act = activations[name]
                                       const off = act?.library !== true && effectiveDisabledSet.has(name)
                                       const meta = !off && act !== undefined ? activationMeta(act.state, t, act.dependencyOf, act.loadedByProfile, act.library) : null
-                                      const note = notes[name]
-                                      const authored = (entry?.description && (entry.description[lang] || entry.description.en)) || ''
-                                      const shown = note ?? authored
                                       const stateLabel = act?.library === true
                                         ? meta?.label
                                         : off
@@ -7688,7 +8244,9 @@ export function MarketSection(props: MarketSectionProps) {
                                             {!generation && (
                                               <span className={css.irowStatusPart}>
                                                 <span className={css.irowStatusFact}>
-                                                  {status?.latest != null ? t('hostUpdateReady').replace('{0}', displayLatest(status.latest)) : t('updateAvailableShort')}
+                                                  {status?.eligibleVersion != null
+                                                    ? t('hostUpdateReady').replace('{0}', displayLatest(status.eligibleVersion))
+                                                    : status?.latest != null ? t('hostUpdateReady').replace('{0}', displayLatest(status.latest)) : t('updateAvailableShort')}
                                                 </span>
                                                 {sep}
                                               </span>
@@ -7700,6 +8258,17 @@ export function MarketSection(props: MarketSectionProps) {
                                             >{`${t('notesLink')} ›`}</button>
                                           </div>
                                         )}
+                                        {updatable && status?.eligibleVersion !== undefined && status.restoreRequired !== true &&
+                                          status.heldUpdate !== undefined && status.heldUpdate.latest !== status.eligibleVersion && (() => {
+                                            const left = Date.parse(status.heldUpdate.until) - Date.now()
+                                            const known = status.heldUpdate.estimated !== true && Number.isFinite(left) && left > 0
+                                            return <div className={css.irowStatus}><span className={css.metaInline}>{
+                                              t(known ? 'updateHeldTarget' : 'updateHeldTargetUnknown')
+                                                .replace('{0}', displayLatest(status.heldUpdate.latest))
+                                                .replace('{1}', String(Math.max(1, Math.ceil(left / 3_600_000))))
+                                                .replace('{2}', displayLatest(status.eligibleVersion))
+                                            }</span></div>
+                                          })()}
                                         {(exempt || ignored) && (
                                           <div className={css.irowStatus}>
                                             <span className={css.irowStatusIcon}><IconBellOff size={16} /></span>
@@ -7775,7 +8344,7 @@ export function MarketSection(props: MarketSectionProps) {
                                       <span className={css.spin}><IconLoadingOutline16 size={14} /></span>
                                       <code className={css.grow}>{progressText}</code>
                                       {progressPct !== null && <span className={css.pct}>{progressPct}%</span>}
-                                      <Button variant="outline" size="sm" disabled={cancelling} onClick={doCancel}>
+                                      <Button variant="outline" size="sm" disabled={cancelling} onClick={() => doCancel()}>
                                         {cancelling ? t('cancelling') : t('cancelOp')}
                                       </Button>
                                       <div className={css.bar}>
@@ -7836,7 +8405,7 @@ export function MarketSection(props: MarketSectionProps) {
                                     size="sm"
                                     disabled={updatingName !== null || removingName !== null || busyUrl !== null}
                                     onClick={() => askSourceMigration(name)}
-                                  >{t('migrateNpm')}</Button>
+                                  >{status.sourceMigration.kind === 'npm-rename' ? t('renameRowAction') : t('migrateNpm')}</Button>
                                 )}
                                 {missing
                                   ? <span className={css.metaTag}>{t('notInstalled')}</span>
@@ -7848,16 +8417,24 @@ export function MarketSection(props: MarketSectionProps) {
                                         ? <span className={css.metaTag} title={t('hostUpdateHint')}>{t('hostUpdateReady').replace('{0}', status.latest)}</span>
                                       : status && status.updateAvailable
                                         ? (
-                                            <Button
-                                              variant="outline"
-                                              size="sm"
-                                              className={css.warnBtn}
-                                              disabled={updatingName !== null}
-                                              onClick={() => {
-                                                if (status.restoreRequired === true) askRestore(name)
-                                                else doUpdate(name)
-                                              }}
-                                            >{status.restoreRequired === true ? t('restoreOnline') : t('update')}</Button>
+                                            <>
+                                              <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className={css.warnBtn}
+                                                disabled={updatingName !== null}
+                                                onClick={() => {
+                                                  if (status.restoreRequired === true) askRestore(name)
+                                                  else doUpdate(name)
+                                                }}
+                                              >{status.restoreRequired === true ? t('restoreOnline')
+                                                : status.eligibleVersion !== undefined ? `${t('update')} ${displayLatest(status.eligibleVersion)}` : t('update')}</Button>
+                                              {status.heldUpdate !== undefined && (
+                                                <span className={css.metaTag}>
+                                                  {t('updateHeldTag').replace('{0}', displayLatest(status.heldUpdate.latest))}
+                                                </span>
+                                              )}
+                                            </>
                                           )
                                         : status?.heldUpdate !== undefined
                                           // A newer release exists but pnpm will refuse
@@ -8089,9 +8666,9 @@ export function MarketSection(props: MarketSectionProps) {
           {/* The detail dialog has to show at LEAST what the card already
               does — owner, version, downloads, stars, published date, category —
               a "detail" view that shows less than the summary it opened from
-              is backwards. The rolling-window explanation stays on the
-              download mark (hover, focus, aria-label): repeating it as the
-              first paragraph made the methodology louder than the blurb (#739). */}
+              is backwards. The download number's meaning stays on the mark
+              (hover, focus, aria-label), not as a paragraph above the blurb
+              (#739). */}
           <div className={css.confirmBody}>
           <div className={css.byline}>
             <OwnerAvatar name={confirming.name} owner={confirming.owner || ''} icon={confirming.icon ?? undefined} />
@@ -8219,53 +8796,60 @@ export function MarketSection(props: MarketSectionProps) {
           t={t}
         />
       )}
-      {migrationConfirm !== null && (
-        <Modal
-          open
-          onClose={() => setMigrationConfirm(null)}
-          title={t('migrateTitle')}
-          description={t('migrateDescription')}
-          footer={(
-            <>
-              <Button
-                variant="ghost"
-                onClick={() => setMigrationConfirm(null)}
-              >
-                {t('cancel')}
-              </Button>
-              <Button
-                variant="primary"
-                disabled={updatingName !== null}
-                onClick={() => doSourceMigration(migrationConfirm.name)}
-              >
-                {t('migrateContinue')}
-              </Button>
-            </>
-          )}
-        >
-          <div className={css.migrationSources}>
-            <div className={css.migrationSource}>
-              <span className={css.migrationLabel}>
-                {t('migrateCurrentSource')}
-              </span>
-              <code>
-                {migrationConfirm.name}: {migrationConfirm.source}
-              </code>
+      {migrationConfirm !== null && (() => {
+        const copy = sourceMigrationCopy(migrationConfirm, t)
+        return (
+          <Modal
+            open
+            onClose={() => setMigrationConfirm(null)}
+            title={copy.title}
+            description={copy.description}
+            footer={(
+              <>
+                <Button
+                  variant="ghost"
+                  onClick={() => setMigrationConfirm(null)}
+                >
+                  {t('cancel')}
+                </Button>
+                <Button
+                  variant="primary"
+                  disabled={updatingName !== null}
+                  onClick={() => doSourceMigration(
+                    migrationConfirm.name,
+                    false,
+                    migrationConfirm.kind === 'npm-rename' ? migrationConfirm.target : undefined,
+                  )}
+                >
+                  {copy.confirmLabel}
+                </Button>
+              </>
+            )}
+          >
+            <div className={css.migrationSources}>
+              <div className={css.migrationSource}>
+                <span className={css.migrationLabel}>{copy.currentLabel}</span>
+                <code>
+                  {migrationConfirm.name}: {migrationConfirm.source}
+                </code>
+              </div>
+              <div className={css.migrationArrow}>↓</div>
+              <div className={css.migrationSource}>
+                <span className={css.migrationLabel}>{copy.targetLabel}</span>
+                <code>{migrationConfirm.target}</code>
+              </div>
             </div>
-            <div className={css.migrationArrow}>↓</div>
-            <div className={css.migrationSource}>
-              <span className={css.migrationLabel}>
-                {t('migrateTargetSource')}
-              </span>
-              <code>{migrationConfirm.target}</code>
-            </div>
-          </div>
-          <p className={css.migrationWarning}>
-            <IconWarningOutline16 size={14} />
-            {t('migrateWarning')}
-          </p>
-        </Modal>
-      )}
+            {copy.noteTone === 'warning' ? (
+              <p className={css.migrationWarning}>
+                <IconWarningOutline16 size={14} />
+                {copy.note}
+              </p>
+            ) : (
+              <p className={css.migrationNote}>{copy.note}</p>
+            )}
+          </Modal>
+        )
+      })()}
       {agentsConfirm !== null && (
         <Modal
           open

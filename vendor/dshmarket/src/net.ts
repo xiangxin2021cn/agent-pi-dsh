@@ -149,5 +149,36 @@ export async function marketFetch(
     httpProxy: http ?? undefined,
     httpsProxy: https ?? undefined,
   })
-  return await undiciFetch(url, { ...init, dispatcher: proxyAgent }) as unknown as Response
+  const proxy = https ?? http
+  try {
+    return await undiciFetch(url, { ...init, dispatcher: proxyAgent }) as unknown as Response
+  } catch (error) {
+    // A LOOPBACK proxy that refused this host is usually not this user's
+    // (#1042): the Desktop host runs one on 127.0.0.1 for its own child
+    // processes, changes its port every session, and answers 403 to any
+    // CONNECT for a host outside its allowlist — so every catalog fetch died
+    // there while `curl` straight to the origin worked. Nothing is leaked by
+    // trying the same request directly: a proxy on loopback is on this
+    // machine. A proxy anywhere else is left to fail as it would have: it was
+    // configured on purpose, and going around it could put the request
+    // outside the network that person is supposed to be on.
+    if (!isLoopbackProxy(proxy) || init?.signal?.aborted === true) throw error
+    directAgent ??= new Agent()
+    return await undiciFetch(url, { ...init, dispatcher: directAgent }) as unknown as Response
+  }
+}
+
+/**
+ * Whether a proxy URL points at this machine.
+ *
+ * @param proxy - the resolved proxy URL, or null when there is none.
+ */
+function isLoopbackProxy(proxy: string | null): boolean {
+  if (proxy === null) return false
+  try {
+    const host = new URL(proxy).hostname.replace(/^\[|\]$/gu, '')
+    return host === '127.0.0.1' || host === 'localhost' || host === '::1'
+  } catch {
+    return false
+  }
 }

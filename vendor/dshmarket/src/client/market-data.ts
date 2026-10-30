@@ -5,6 +5,7 @@
 
 import type { DiagnosticReportV1 } from '../diagnostics.ts'
 import { findCatalogEntryForLocal } from '../catalog-local-match.ts'
+import { parseSourceUrl } from '../sources.ts'
 export type { SharedHostPackageDependencyFinding } from '../diagnostics.ts'
 
 /** Localized text keyed by language ('zh' / 'en'). */
@@ -104,7 +105,7 @@ export interface Registry {
   plugins: RegistryPlugin[]
 }
 
-/** Discovery-time verdict derived from a package's public npm manifest. */
+/** Discovery-time verdict derived from a package's public manifest. */
 export interface HostCompatibility {
   status: 'compatible' | 'incompatible' | 'unknown'
   basis: 'manifest' | 'undeclared' | 'unavailable'
@@ -112,8 +113,14 @@ export interface HostCompatibility {
   declarations: Array<{ kind: 'engine' | 'peer'; package?: string; range: string }>
 }
 
-/** npm package name -> discovery-time host verdict. */
+/** npm package name or GitHub catalog URL -> discovery-time host verdict. */
 export type HostCompatibilityMap = Record<string, HostCompatibility>
+
+/** Keep GitHub packages in one repository distinct, independently of their display names. */
+export function hostCompatibilityKey(plugin: Pick<RegistryPlugin, 'npm' | 'url'>): string | null {
+  if (typeof plugin.npm === 'string' && plugin.npm !== '') return plugin.npm
+  return parseSourceUrl(plugin.url) === null ? null : plugin.url
+}
 
 /** Profile dependency map: package name → install spec. */
 export type InstalledMap = Record<string, string>
@@ -126,7 +133,7 @@ export type InstalledMap = Record<string, string>
  * dsh installation is not owned by the profile package manager.
  */
 /** Why a queued operation may no longer be run. */
-export type QueuedRowStaleReason = 'gone' | 'no-update'
+export type QueuedRowStaleReason = 'gone' | 'no-update' | 'target-changed'
 
 /**
  * Whether a queued operation still applies — `null` when it does.
@@ -145,7 +152,7 @@ export type QueuedRowStaleReason = 'gone' | 'no-update'
  * have landed already).
  */
 export function queuedRowApplies(
-  row: { kind: 'install' | 'update' | 'uninstall'; name: string; url?: string; restore?: boolean },
+  row: { kind: 'install' | 'update' | 'uninstall'; name: string; url?: string; restore?: boolean; eligibleVersion?: string },
   world: { installed: InstalledMap; updates: Record<string, UpdateStatus>; plugins: readonly RegistryPlugin[] },
 ): QueuedRowStaleReason | null {
   if (row.kind === 'install') {
@@ -159,6 +166,8 @@ export function queuedRowApplies(
         findCatalogEntryForLocal(world.plugins, row.name) !== null) return null
     return 'no-update'
   }
+  if (row.kind === 'update' && row.eligibleVersion !== undefined &&
+      row.eligibleVersion !== world.updates[row.name]?.eligibleVersion) return 'target-changed'
   return null
 }
 
@@ -194,6 +203,8 @@ export function isGenerationSpec(spec: string): boolean {
 /** Per-package update status from /dsh-market/updates. */
 export interface UpdateStatus {
   updateAvailable?: boolean
+  /** Server-verified precise Desktop stable npm update target. */
+  eligibleVersion?: string
   version?: string
   /** `github` | `npm` | `linked` | `generation` — the last is a host-managed
       install (#497): `latest` names a newer release, never an offer. */
@@ -214,12 +225,58 @@ export interface UpdateStatus {
   unreleasedCommit?: string
   /** Updating this local package switches it to its matched online release. */
   restoreRequired?: boolean
-  /** A newer release exists but the profile's fresh-release wait has not
-      passed yet (#945). `updateAvailable` is false and this names the wait;
-      on the official Desktop there is no bypass to offer. */
+  /** A newer release is still waiting (#945). An older mature release may
+      remain available as `eligibleVersion` (#991); this names the held latest.
+      `estimated` means the publication time is unknown, not a release-age ETA. */
   heldUpdate?: { latest: string; until: string; estimated?: true }
   /** Explicit source migration; never part of update-all. */
-  sourceMigration?: { kind: 'git-to-npm'; repo: string; target: string }
+  sourceMigration?:
+    | { kind: 'git-to-npm'; repo: string; target: string }
+    /**
+     * The package was renamed on npm (#1012). Only ever reported from a
+     * recorded fact — a failed update that came back under another name — so
+     * the row can offer the move instead of asking for uninstall + install.
+     */
+    | { kind: 'npm-rename'; from: string; target: string }
+}
+
+/** Why a Host-owned drain operation is still queued (#411). */
+export interface DrainWaitWire {
+  reason: 'agents'
+  activeCount: number
+  activeAgentIds: string[]
+  since: number
+}
+
+/** One Host-owned deferred operation, as `/status` projects it. */
+export interface DrainOperationWire {
+  operationId: string
+  kind: 'install' | 'update' | 'uninstall'
+  name: string
+  url?: string
+  state: 'accepted' | 'draining' | 'queued-for-mutation' | 'running' | 'verifying' | 'succeeded' | 'failed' | 'cancelled'
+  createdAt: number
+  startedAt: number | null
+  finishedAt: number | null
+  wait: DrainWaitWire | null
+  failure: { code: string; message: string } | null
+  outcome: {
+    needsRefresh: boolean
+    restartRequired: boolean
+    activation: string | null
+    hot: boolean
+  } | null
+}
+
+/** A terminal record that outlives a Host restart (no prompt or path data). */
+export interface DrainHistoryWire {
+  at: number
+  id: string
+  kind: 'install' | 'update' | 'uninstall'
+  name: string
+  state: 'succeeded' | 'failed' | 'cancelled'
+  agentsAtStart: number
+  agentsAtEnd: number
 }
 
 /** Poll payload from /dsh-market/status. */
@@ -266,6 +323,14 @@ export interface MarketStatus {
    * is empty and the operation lock is free; absent means idle.
    */
   runningAgents?: string[]
+  /** Whether this Host can hold Agents at the maintenance boundary (#411). */
+  agentDrain?: boolean
+  /** True while a deferred operation owns the mutation lane. */
+  drainActive?: boolean
+  /** Host-owned deferred operations, active first and recent terminal last. */
+  drainOperations?: DrainOperationWire[]
+  /** Terminal records from earlier Host processes (terminal journal). */
+  drainHistory?: DrainHistoryWire[]
   /**
    * The process supervisor the host detected around itself (systemd, pm2),
    * or null/absent when none. Present so the UI can explain WHY the restart
@@ -316,7 +381,7 @@ export function restartHintKey(state: {
 }
 
 /** Post-install activation state (P0-2), per installed package. */
-export type ActivationState = 'live' | 'preset' | 'restart' | 'incompatible' | 'inert' | 'broken' | 'missing' | 'disabled'
+export type ActivationState = 'live' | 'preset' | 'restart' | 'incompatible' | 'inert' | 'broken' | 'failed' | 'missing' | 'disabled'
 
 export interface ActivationInfo {
   state: ActivationState
@@ -657,8 +722,9 @@ export function visiblePlugins(plugins: RegistryPlugin[], options: ListQuery): R
     const categories = pluginCategories(plugin)
     if (options.category !== 'all' && !categories.includes(options.category)) return []
     if (options.sinceDays !== undefined && !withinDays(plugin.added, options.sinceDays)) return []
-    if (options.compatibleWithHost === true && plugin.npm != null
-      && options.hostCompatibility?.[plugin.npm]?.status === 'incompatible') return []
+    const compatibilityKey = hostCompatibilityKey(plugin)
+    if (options.compatibleWithHost === true && compatibilityKey !== null
+      && options.hostCompatibility?.[compatibilityKey]?.status === 'incompatible') return []
     const relevance = query === '' ? 0 : pluginRelevance(plugin, query, tokens, options.lang, options.categories)
     return relevance === 0 && query !== '' ? [] : [{ plugin, relevance, index }]
   })

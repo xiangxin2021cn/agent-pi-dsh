@@ -4,4 +4,5 @@ scripts/cad-host-bit-position-overflow.patch -text whitespace=-blank-at-eol
 scripts/build-cad-host-clean.sh text eol=lf
 bundles/tender-host/lib/cad-decoder/** -text
 skills/writing-dna-skill/** -text
+vendor/dshmarket/** -text
 skills/writing-dna-skill/UPSTREAM.json whitespace=cr-at-eol

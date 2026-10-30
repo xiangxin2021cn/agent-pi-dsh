@@ -77,7 +77,10 @@ export declare function trustedAuthority(host: string, trustedHosts: readonly st
  * - a cross-site page is refused — its Origin is present and different;
  * - `Origin: null` (a sandboxed iframe, a `data:` document) is refused, because
  *   `null` is a present-but-unparseable origin, not an absent one;
- * - a same-host-but-different-port request is refused;
+ * - a same-host-but-different-port request is refused, except that a loopback
+ *   Host accepts a port-less same-hostname Origin (#1031: Chrome 151+ omits
+ *   the port on loopback Origins, and the dsh core fence follows the same
+ *   rule);
  * - an EMPTY Origin is refused too: the header being present and unparseable
  *   is not the same statement as its being absent, and only absence is what
  *   a stripping proxy produces.
