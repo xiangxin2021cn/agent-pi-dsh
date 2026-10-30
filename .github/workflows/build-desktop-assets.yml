@@ -68,10 +68,12 @@ jobs:
       matrix: ${{ fromJSON(needs.platform-matrix.outputs.matrix) }}
     env:
       GH_TOKEN: ${{ github.token }}
+      NODE_RUNTIME_VERSION: ${{ inputs.tag == 'v3.8.7' && '24.22.2' || '24.22.1' }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
+          ref: ${{ inputs.tag == 'v3.8.7' && inputs.tag || github.sha }}
 
       - name: Verify immutable release ref
         shell: bash
@@ -84,13 +86,34 @@ jobs:
           export RELEASE_COMMIT CHECKOUT_COMMIT
           git diff --name-only --no-renames -z "$RELEASE_COMMIT" HEAD -- > maintenance-changes.paths
           if [ "$GITHUB_REF_TYPE" = branch ]; then
-            git merge-base --is-ancestor "$RELEASE_COMMIT" HEAD
+            if [ "$RELEASE_TAG" = v3.8.7 ]; then
+              git merge-base --is-ancestor "$RELEASE_COMMIT" "$GITHUB_SHA"
+              git diff --name-status --no-renames -z "$RELEASE_COMMIT" "$GITHUB_SHA" -- > maintenance-changes-387.paths
+            else
+              git merge-base --is-ancestor "$RELEASE_COMMIT" HEAD
+            fi
           fi
           node --input-type=module <<'NODE'
           import assert from 'node:assert/strict'
           import { readFileSync } from 'node:fs'
           const tag = process.env.RELEASE_TAG
           assert.match(tag, /^v\d+\.\d+\.\d+$/)
+          if (tag === 'v3.8.7') {
+            const source = '63815f174216f3d41a26b1c31516bc554400c5e1'
+            assert.equal(process.env.RELEASE_COMMIT, source, '3.8.7 application tag is immutable')
+            assert.equal(process.env.CHECKOUT_COMMIT, source, 'build scripts must come from the exact application tag')
+            assert.equal(process.env.NODE_RUNTIME_VERSION, '24.22.2')
+            if (process.env.GITHUB_REF_TYPE === 'tag') {
+              assert.equal(process.env.GITHUB_REF_NAME, tag)
+              assert.equal(process.env.GITHUB_SHA, source)
+            } else {
+              assert.equal(process.env.GITHUB_REF_TYPE, 'branch')
+              assert.equal(process.env.GITHUB_REF_NAME, 'main')
+              assert.deepEqual(readFileSync('maintenance-changes-387.paths', 'utf8').split('\0').filter(Boolean),
+                ['M', '.github/workflows/build-desktop-assets.yml'], '3.8.7 maintenance may only modify the existing workflow')
+            }
+            process.exit(0)
+          }
           assert.equal(process.env.CHECKOUT_COMMIT, process.env.GITHUB_SHA, 'checkout must be the dispatched workflow commit')
           if (tag === 'v3.8.5') assert.equal(process.env.RELEASE_COMMIT, 'd8b8e6d1a55ff3e383b340f09cca44d2e38478cf', 'v3.8.5 application source is immutable')
           if (process.env.GITHUB_REF_TYPE === 'tag') {
