@@ -2211,42 +2211,35 @@ window.__ModuleLoader__.load({
 		/** Keep the native bubble, attachments, references, copy action and localization. */
 		function installAttachmentMessageView(ctx, React) {
 			return ctx.slots.inject(slot, () => {
-				const wrappers = /* @__PURE__ */ new Set();
 				const installed = /* @__PURE__ */ new Map();
 				let stopped = false;
-				let scheduled = false;
 				const refresh = () => {
-					scheduled = false;
 					if (stopped) return;
 					for (const key of ["user", "steering"]) {
-						const native = ctx.slots.entries(slot).find((entry) => entry.options.key === key && !wrappers.has(entry.component));
+						const native = ctx.slots.entries(slot).find((entry) => entry.options.key === key);
 						const previous = installed.get(key);
-						if (previous?.native === native) continue;
+						if (previous?.native === native && native?.component === previous?.View) continue;
 						installed.delete(key);
 						previous?.dispose();
 						if (!native) continue;
-						const View = React.memo((props) => React.createElement(native.component, {
+						const Component = native.component;
+						const View = React.memo((props) => React.createElement(Component, {
 							...props,
 							node: attachmentDisplayNode(props.node)
 						}));
-						wrappers.add(View);
-						const dispose = ctx.slots.register({
-							name: slot,
-							key,
-							priority: (native.options.priority ?? 0) - 1,
-							...native.locale ? { locale: native.locale } : {},
-							...native.inject ? { inject: native.inject } : {}
-						}, View);
+						native.component = View;
+						const dispose = () => {
+							if (native.component === View) native.component = Component;
+						};
 						installed.set(key, {
 							native,
+							View,
 							dispose
 						});
 					}
 				};
-				const unsubscribe = ctx.slots.subscribe(slot, () => {
-					if (stopped || scheduled) return;
-					scheduled = true;
-					queueMicrotask(refresh);
+				const unsubscribe = ctx.on("slots/changed", (key) => {
+					if (key === slot) refresh();
 				});
 				refresh();
 				return () => {

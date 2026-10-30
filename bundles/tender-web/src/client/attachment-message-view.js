@@ -17,35 +17,26 @@ export function attachmentDisplayNode(node) {
 /** Keep the native bubble, attachments, references, copy action and localization. */
 export function installAttachmentMessageView(ctx, React) {
   return ctx.slots.inject(slot, () => {
-    const wrappers = new Set()
     const installed = new Map()
     let stopped = false
-    let scheduled = false
     const refresh = () => {
-      scheduled = false
       if (stopped) return
       for (const key of ['user', 'steering']) {
-        const native = ctx.slots.entries(slot).find(entry => entry.options.key === key && !wrappers.has(entry.component))
+        const native = ctx.slots.entries(slot).find(entry => entry.options.key === key)
         const previous = installed.get(key)
-        if (previous?.native === native) continue
+        if (previous?.native === native && native?.component === previous?.View) continue
         installed.delete(key)
         previous?.dispose()
         if (!native) continue
-        const View = React.memo(props => React.createElement(native.component, { ...props, node: attachmentDisplayNode(props.node) }))
-        wrappers.add(View)
-        const dispose = ctx.slots.register({
-          name: slot, key, priority: (native.options.priority ?? 0) - 1,
-          ...(native.locale ? { locale: native.locale } : {}),
-          ...(native.inject ? { inject: native.inject } : {}),
-        }, View)
-        installed.set(key, { native, dispose })
+        const Component = native.component
+        const View = React.memo(props => React.createElement(Component, { ...props, node: attachmentDisplayNode(props.node) }))
+        // Keep the native entry as the sole owner of its child slots and inject face.
+        native.component = View
+        const dispose = () => { if (native.component === View) native.component = Component }
+        installed.set(key, { native, View, dispose })
       }
     }
-    const unsubscribe = ctx.slots.subscribe(slot, () => {
-      if (stopped || scheduled) return
-      scheduled = true
-      queueMicrotask(refresh)
-    })
+    const unsubscribe = ctx.on('slots/changed', key => { if (key === slot) refresh() })
     refresh()
     return () => {
       stopped = true

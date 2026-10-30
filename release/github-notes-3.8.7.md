@@ -8,6 +8,7 @@
 - Node.js 24.22.2 LTS、Electron 45.2.0、Codex CLI 0.166.0、Canvas 1.1.0、marked 18.1.2。
 - 完整官方 Univer Office 0.3.9，保留原始发行包、授权材料、Gateway、Viewer、导入导出及原生计算与交换依赖；DSH Market 1.73.6。
 - 修复 Codex 插件异步初始化的 Promise 传播，等真正就绪后再激活工具，保留原生失败和取消语义。
+- 附件消息展示适配器保留新版 DSH 的用户来源链插槽及原生注入，修复旧会话用户消息的 `renderSlotChain` 渲染错误，不改写历史日志。
 - 保留经核验的 AnySearch、router、injector、Writing DNA 与 Windows BIM 运行时。详细来源及验收状态见同目录的 `3.8.7-core-components.json`。
 
 ## DWG 打开修复

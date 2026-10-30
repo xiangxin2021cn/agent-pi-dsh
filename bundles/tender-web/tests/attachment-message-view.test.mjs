@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { SlotCore } from '../../../vendor/deepseek-harness/packages/client/ui-slots/lib/index.js'
 import { attachmentDisplayNode, installAttachmentMessageView } from '../src/client/attachment-message-view.js'
 
 test('display removes the transaction marker without changing durable text, images or references', () => {
@@ -15,34 +16,82 @@ test('display removes the transaction marker without changing durable text, imag
 })
 
 test('native bubble arrives late, retains actions and localization, and survives overlay disposal', async () => {
-  const entries = [], listeners = new Set()
-  const notify = () => { for (const fn of listeners) fn() }
+  const core = new SlotCore()
+  core.register({ name: 'root', children: { 'conversation.chat.node': { kind: 'keyed', scope: 'session' } } }, () => {})
   const slots = {
-    inject: (_, setup) => setup(), entries: () => entries,
-    subscribe: (_, fn) => { listeners.add(fn); return () => listeners.delete(fn) },
-    register: (options, component) => {
-      const entry = { options, component, locale: options.locale }
-      entries.push(entry); notify()
-      return () => { const i = entries.indexOf(entry); if (i >= 0) { entries.splice(i, 1); notify() } }
-    },
+    inject: (_, setup) => setup(), entries: key => core.entries(key),
+    subscribe: (key, fn) => core.subscribe(key, fn),
   }
   const React = { memo: fn => fn, createElement: (component, props) => ({ component, props }) }
-  const dispose = installAttachmentMessageView({ slots }, React)
+  const dispose = installAttachmentMessageView({ slots, on: (_, callback) => core.onMutate(callback) }, React)
   const Native = () => {}
-  slots.register({ name: 'conversation.chat.node', key: 'user', locale: 'chat' }, Native)
+  const children = { 'conversation.chat.user.before': { kind: 'chain', scope: 'session' } }
+  const inject = () => ({ businessAction: () => {} })
+  core.register({ name: 'conversation.chat.node', key: 'user', locale: 'chat', children, inject }, Native)
+  const native = core.entries('conversation.chat.node')[0]
+  assert.notEqual(native.component, Native)
+  const Chain = () => {}
+  core.register({ name: 'conversation.chat.user.before', select: () => true }, Chain)
   await new Promise(resolve => setImmediate(resolve))
-  const wrapper = entries.find(entry => entry.component !== Native)
+  const [wrapper] = core.entriesOfSlot('conversation.chat.node')
+  assert.equal(core.entries('conversation.chat.node').length, 1)
+  assert.equal(wrapper, native)
+  assert.equal(wrapper.children, children)
+  assert.equal(wrapper.inject, inject)
   assert.equal(wrapper.locale, 'chat')
-  assert.ok(wrapper.options.priority < 0)
-  const openFile = () => {}, renderMessageImages = () => {}
+  assert.deepEqual(core.specDynamic('conversation.chat.user.before'), { kind: 'chain', scope: 'session' })
+  assert.equal(core.entries('conversation.chat.user.before')[0].component, Chain)
+  const openFile = () => {}, renderMessageImages = () => {}, renderSlotChain = () => 'origin'
   const node = { data: { content: [{ type: 'text', text: 'PDF\n<!--agent-pi-attachment-tx:123-->' }] } }
-  const result = wrapper.component({ node, openFile, renderMessageImages })
+  const result = wrapper.component({ node, openFile, renderMessageImages, renderSlotChain })
   assert.equal(result.component, Native)
   assert.equal(result.props.openFile, openFile)
   assert.equal(result.props.renderMessageImages, renderMessageImages)
+  assert.equal(result.props.renderSlotChain, renderSlotChain)
   assert.equal(result.props.node.data.content[0].text, 'PDF')
   dispose()
   await new Promise(resolve => setImmediate(resolve))
-  assert.equal(listeners.size, 0)
-  assert.deepEqual(entries.map(entry => entry.component), [Native])
+  assert.equal(native.component, Native)
+  assert.equal(core.isLive(native), true)
+  assert.equal(core.entries('conversation.chat.user.before')[0].component, Chain)
+})
+
+test('native reload owns the child cascade and steering keeps its native inject face', async () => {
+  const slot = 'conversation.chat.node'
+  const child = 'conversation.chat.user.before'
+  const core = new SlotCore()
+  core.register({ name: 'root', children: { [slot]: { kind: 'keyed', scope: 'session' } } }, () => {})
+  const slots = { inject: (_, setup) => setup(), entries: key => core.entries(key), subscribe: (key, fn) => core.subscribe(key, fn) }
+  const React = { memo: fn => fn, createElement: (component, props) => ({ component, props }) }
+  const Native = () => {}
+  const mount = () => core.register({ name: slot, key: 'user', children: { [child]: { kind: 'chain', scope: 'session' } } }, Native)
+  const removeNative = mount()
+  const steeringInject = () => ({ renderSlotChain: () => null })
+  core.register({ name: slot, key: 'steering', inject: steeringInject }, Native)
+  const dispose = installAttachmentMessageView({ slots, on: (_, callback) => core.onMutate(callback) }, React)
+  const [user, steering] = core.entries(slot)
+  assert.notEqual(user.component, Native)
+  assert.equal(steering.inject, steeringInject)
+  assert.equal(steering.children, undefined)
+  assert.equal(steering.inject().renderSlotChain(), null)
+  const removeContribution = core.register({ name: child, select: () => true }, () => {})
+  removeNative()
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(core.isLive(user), false)
+  assert.equal(core.specDynamic(child), undefined)
+  assert.equal(core.entries(child).length, 0)
+  removeContribution()
+  const removeReplacement = mount()
+  await new Promise(resolve => setImmediate(resolve))
+  const replacement = core.entries(slot).find(entry => entry.options.key === 'user')
+  assert.notEqual(replacement, user)
+  assert.notEqual(replacement.component, Native)
+  assert.equal(core.specDynamic(child).kind, 'chain')
+  dispose()
+  assert.equal(replacement.component, Native)
+  assert.equal(steering.component, Native)
+  assert.equal(core.isLive(replacement), true)
+  assert.equal(core.specDynamic(child).kind, 'chain')
+  removeReplacement()
+  assert.equal(core.specDynamic(child), undefined)
 })
