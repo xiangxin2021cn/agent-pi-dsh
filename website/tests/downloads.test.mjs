@@ -20,8 +20,8 @@ const suffixes = {
   'mac-intel-sha': '-mac-x64.dmg.sha256',
 }
 const intel = 'mac-intel-dmg mac-intel-zip mac-intel-sha'
-const releaseBase = 'https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.6/'
-const windowsSha = 'E1359F766A7094BF42F60128E8F499E267B7DD3D71DDB1895210979E30D11C85'
+const releaseBase = 'https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.7/'
+const windowsSha = '246C211A2F2A2E8DFF4E548299D7A19A888217A628481CFE5E2172F2567F2553'
 
 function fallbackText(attribute) {
   const match = html.match(new RegExp(attribute + '(?:\\s[^>]*)?>([^<]*)<'))
@@ -41,6 +41,8 @@ function element(attributes = {}) {
 function release(withIntel = true, version = '3.8.3', intelFamily = '-mac-x64-monterey') {
   const kernel = version === '3.8.5'
     ? { sourceKind: 'official-master-snapshot', packageVersion: '0.2.1-rc.3', commit: '22ddee3792402c3e70ec5f86a63c3e3e895a2f60' }
+    : version === '3.8.7'
+    ? { sourceKind: 'official-master-snapshot', packageVersion: '0.2.2-alpha.2', commit: 'ce7073d51254c26cd63b22a60835b8f948deb447' }
     : version === '3.8.6'
     ? { releaseTag: 'dsh-v0.2.2-alpha.2', commit: 'f3803c96974ad4a94195fb97e5c637e9c2a3afe3' }
     : { releaseTag: 'dsh-v0.2.1-alpha.2', commit: 'a'.repeat(40) }
@@ -64,6 +66,7 @@ async function render(data, { offline = false } = {}) {
   const panel = element({ 'data-release-state': 'fallback' })
   const electron = element()
   electron.textContent = fallbackText('data-release-electron-version')
+  const date = element()
   const group = element({ 'data-require-release-asset': intel })
   const missing = element({ 'data-missing-release-asset': intel })
   missing.hidden = true
@@ -92,6 +95,7 @@ async function render(data, { offline = false } = {}) {
         if (selector === '[data-rel-version], [data-release-version]' || selector === '[data-rel-version]') return [version]
         if (selector === '[data-require-release-asset], [data-missing-release-asset]') return [group, missing]
         if (selector === '[data-release-electron-version]') return [electron]
+        if (selector === '[data-release-date]') return [date]
         if (selector === '[data-release-system-fallback]') return [systemFallback]
         if (selector === '[data-release-system-note]') return [systemNote]
         const system = selector.match(/^\[data-release-system="([^"]+)"\]$/)
@@ -106,7 +110,7 @@ async function render(data, { offline = false } = {}) {
   vm.runInNewContext(metadata, context)
   vm.runInNewContext(main.slice(main.indexOf('/* ---- Latest complete')), context)
   await new Promise(setImmediate)
-  return { version, panel, electron, group, missing, links, sizes, systems, systemFallback, systemNote }
+  return { version, panel, electron, date, group, missing, links, sizes, systems, systemFallback, systemNote }
 }
 
 test('complete legacy Intel assets update together and retain accelerator prefixes', async () => {
@@ -164,7 +168,7 @@ test('3.8.6 official release keeps all mainline downloads and both current macOS
   assert.equal(ui.electron.textContent, '45.0.0')
   assert.equal(ui.group.hidden, false)
   for (const [key, suffix] of Object.entries(suffixes)) {
-    assert.equal(ui.links[key][0].href, releaseBase + 'Agent-Pi-DSH-3.8.6' + suffix)
+    assert.equal(ui.links[key][0].href, 'https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.6/' + 'Agent-Pi-DSH-3.8.6' + suffix)
     assert.equal(ui.links[key][0].hidden, false)
   }
   assert.equal(ui.systems['mac-arm64'].textContent, 'Apple Silicon · macOS 15+')
@@ -173,17 +177,17 @@ test('3.8.6 official release keeps all mainline downloads and both current macOS
 })
 
 test('a tender release cannot replace the mainline site identity or download links', async () => {
-  const data = release(true, '3.8.6', '-mac-x64')
-  data.tag_name = 'tender-v3.8.6'
+  const data = release(true, '3.8.7', '-mac-x64')
+  data.tag_name = 'tender-v3.8.7'
   for (const asset of data.assets) {
     asset.name = asset.name.replace('Agent-Pi-DSH-', 'Agent-Pi-DSH-Tender-')
-    asset.browser_download_url = asset.browser_download_url.replace('/v3.8.6/', '/tender-v3.8.6/').replace('/Agent-Pi-DSH-', '/Agent-Pi-DSH-Tender-')
+    asset.browser_download_url = asset.browser_download_url.replace('/v3.8.7/', '/tender-v3.8.7/').replace('/Agent-Pi-DSH-', '/Agent-Pi-DSH-Tender-')
   }
   const ui = await render(data)
-  assert.equal(ui.version.textContent, 'v3.8.6')
+  assert.equal(ui.version.textContent, 'v3.8.7')
   assert.equal(ui.panel.getAttribute('data-release-state'), 'fallback')
-  assert.equal(ui.links['windows-exe'][0].href, releaseBase + 'Agent-Pi-DSH-3.8.6-x64.exe')
-  assert.doesNotMatch(html, /tender-v3\.8\.6|Agent-Pi-DSH-Tender-3\.8\.6/)
+  assert.equal(ui.links['windows-exe'][0].href, releaseBase + 'Agent-Pi-DSH-3.8.7-x64.exe')
+  assert.doesNotMatch(html, /tender-v3\.8\.7|Agent-Pi-DSH-Tender-3\.8\.7/)
 })
 
 test('Intel downloads never mix partial standard and Monterey asset families', async () => {
@@ -215,8 +219,8 @@ test('complete standard Intel downloads take precedence when both families exist
 })
 
 test('unknown releases direct users to that release requirements instead of inheriting old macOS claims', async () => {
-  const ui = await render(release(true, '3.8.7', '-mac-x64'))
-  assert.equal(ui.version.textContent, 'v3.8.7')
+  const ui = await render(release(true, '3.8.8', '-mac-x64'))
+  assert.equal(ui.version.textContent, 'v3.8.8')
   assert.equal(ui.systems['mac-arm64'].textContent, 'Apple Silicon · See Release')
   assert.equal(ui.systems['mac-x64'].textContent, 'Intel x64 · See Release')
   assert.equal(ui.systemFallback.hidden, true)
@@ -225,8 +229,8 @@ test('unknown releases direct users to that release requirements instead of inhe
 })
 
 test('the footer Electron version follows the known release and preserves the verified fallback', async () => {
-  assert.match(html, /data-release-electron-version>45\.0\.0<\/span>/)
-  for (const [version, expected] of [['3.8.5', '45.0.0'], ['3.8.6', '45.0.0'], ['3.8.7', 'See Release'], ['3.8.2', '44.7.0']]) {
+  assert.match(html, /data-release-electron-version>45\.2\.0<\/span>/)
+  for (const [version, expected] of [['3.8.5', '45.0.0'], ['3.8.6', '45.0.0'], ['3.8.7', '45.2.0'], ['3.8.8', 'See Release'], ['3.8.2', '44.7.0']]) {
     const ui = await render(release(true, version, '-mac-x64'))
     assert.equal(ui.electron.textContent, expected)
   }
@@ -239,21 +243,21 @@ test('an incomplete primary release or invalid metadata preserves the verified f
   invalid.body = 'no release identity'
   for (const data of [incomplete, invalid]) {
     const ui = await render(data)
-    assert.equal(ui.version.textContent, 'v3.8.6')
+    assert.equal(ui.version.textContent, 'v3.8.7')
     assert.equal(ui.panel.getAttribute('data-release-state'), 'fallback')
     assert.equal(ui.systems['mac-arm64'].textContent, 'Apple Silicon · macOS 15+')
     assert.equal(ui.systems['mac-x64'].textContent, 'Intel x64 · macOS 15+')
     assert.equal(ui.systemFallback.hidden, false)
     assert.equal(ui.systemNote.hidden, true)
-    assert.equal(ui.links['mac-intel-dmg'][0].href, releaseBase + 'Agent-Pi-DSH-3.8.6-mac-x64.dmg')
+    assert.equal(ui.links['mac-intel-dmg'][0].href, releaseBase + 'Agent-Pi-DSH-3.8.7-mac-x64.dmg')
   }
 })
 
-test('the 3.8.6 fallback has matching binary names, sizes, checksums and both Mac requirements', () => {
+test('the 3.8.7 fallback has matching binary names, sizes, checksums and both Mac requirements', () => {
   for (const suffix of ['-x64.exe', '-mac-arm64.dmg', '-mac-arm64.zip', '-mac-x64.dmg', '-mac-x64.zip', '-linux-x86_64.AppImage', '-linux-amd64.deb']) {
-    assert.ok(html.includes('href="' + releaseBase + 'Agent-Pi-DSH-3.8.6' + suffix + '"'), suffix)
+    assert.ok(html.includes('href="' + releaseBase + 'Agent-Pi-DSH-3.8.7' + suffix + '"'), suffix)
   }
-  for (const [key, bytes] of Object.entries({ 'windows-exe': 1245998942, 'mac-dmg': 1026088014, 'mac-intel-dmg': 1066819615, 'linux-appimage': 1098146315 })) {
+  for (const [key, bytes] of Object.entries({ 'windows-exe': 1238813070, 'mac-dmg': 1018689498, 'mac-intel-dmg': 1060159149, 'linux-appimage': 1077290263 })) {
     assert.equal(fallbackText('data-release-size="' + key + '"'), (bytes / 1048576).toFixed(1) + ' MB')
   }
   for (const key of ['windows-exe', 'mac-dmg', 'mac-intel-dmg', 'linux-appimage']) {
@@ -262,21 +266,21 @@ test('the 3.8.6 fallback has matching binary names, sizes, checksums and both Ma
     const direct = opening.find(match => !match[0].includes('data-release-proxy'))[0].match(/href="([^"]+)"/)[1]
     assert.ok(opening.some(match => match[0].includes('href="https://gh-proxy.org/' + direct + '"')), key)
   }
-  assert.ok(html.includes(releaseBase + 'Agent-Pi-DSH-3.8.6-x64.exe.sha256'))
-  assert.ok(html.includes(releaseBase + 'Agent-Pi-DSH-3.8.6-mac-x64.dmg.sha256'))
+  assert.ok(html.includes(releaseBase + 'Agent-Pi-DSH-3.8.7-x64.exe.sha256'))
+  assert.ok(html.includes(releaseBase + 'Agent-Pi-DSH-3.8.7-mac-x64.dmg.sha256'))
   assert.equal(fallbackText('data-release-sha'), windowsSha)
-  assert.equal(fallbackText('data-release-date'), '2026-10-30')
-  assert.equal(fallbackText('data-kernel-version'), 'dsh-v0.2.2-alpha.2')
+  assert.equal(fallbackText('data-release-date'), '2026-10-31')
+  assert.equal(fallbackText('data-kernel-version'), '0.2.2-alpha.2 (master snapshot)')
   assert.match(html, /data-release-system="mac-arm64">Apple Silicon · macOS 15\+/)
   assert.match(html, /data-release-system="mac-x64">Intel x64 · macOS 15\+/)
   assert.doesNotMatch(html, /Monterey|Electron 44|macOS 1[23]\+|releases\/download\/v3\.8\.2\//)
   assert.match(html, /data-release-system-note hidden><\/p>/)
 })
 
-test('an offline GitHub API preserves the embedded 3.8.6 fallback links and requirements', async () => {
+test('an offline GitHub API preserves the embedded 3.8.7 fallback links and requirements', async () => {
   const ui = await render(null, { offline: true })
-  assert.equal(ui.version.textContent, 'v3.8.6')
-  assert.equal(ui.electron.textContent, '45.0.0')
+  assert.equal(ui.version.textContent, 'v3.8.7')
+  assert.equal(ui.electron.textContent, '45.2.0')
   assert.equal(ui.panel.getAttribute('data-release-state'), 'fallback')
   assert.equal(ui.systems['mac-arm64'].textContent, 'Apple Silicon · macOS 15+')
   assert.equal(ui.systems['mac-x64'].textContent, 'Intel x64 · macOS 15+')
@@ -284,7 +288,7 @@ test('an offline GitHub API preserves the embedded 3.8.6 fallback links and requ
   assert.equal(ui.systemFallback.hidden, false)
   assert.equal(ui.systemNote.hidden, true)
   for (const [key, suffix] of Object.entries(suffixes)) {
-    const expected = releaseBase + 'Agent-Pi-DSH-3.8.6' + suffix
+    const expected = releaseBase + 'Agent-Pi-DSH-3.8.7' + suffix
     assert.equal(ui.links[key][0].href, expected)
     assert.equal(ui.links[key][0].hidden, false)
     if (ui.links[key][1]) assert.equal(ui.links[key][1].href, 'https://gh-proxy.org/' + expected)
@@ -296,12 +300,12 @@ test('all release-facing HTML uses the current script cache keys and verified st
     const source = readFileSync(join(website, file), 'utf8')
     const scripts = [...source.matchAll(/assets\/js\/(?:main|release-metadata)\.js\?v=([^"\s]+)/g)]
     assert.ok(scripts.length > 0, file)
-    for (const script of scripts) assert.equal(script[1], '386-sync1', file)
-    for (const version of source.matchAll(/data-release-version>([^<]+)</g)) assert.equal(version[1], '3.8.6', file)
+    for (const script of scripts) assert.equal(script[1], '387-sync1', file)
+    for (const version of source.matchAll(/data-release-version>([^<]+)</g)) assert.equal(version[1], '3.8.7', file)
     for (const sha of source.matchAll(/data-release-sha\s[^>]*>([^<]+)</g)) assert.equal(sha[1], windowsSha, file)
   }
   const docs = readFileSync(join(website, 'docs.html'), 'utf8')
-  assert.match(docs, /data-kernel-pin data-kernel-pin-length="10">f3803c9697</)
+  assert.match(docs, /data-kernel-pin data-kernel-pin-length="10">ce7073d512</)
   assert.doesNotMatch(docs, /Monterey|Electron 44|mac-x64-monterey/)
 })
 
@@ -315,4 +319,28 @@ test('the older 3.8.2 API still selects its legacy downloads and historical requ
   assert.equal(ui.systemNote.hidden, false)
   assert.match(ui.systemNote.innerHTML, /3\.8\.2.*macOS 13.*macOS 12/)
   assert.ok(ui.links['mac-intel-dmg'][0].href.includes('/v3.8.2/Agent-Pi-DSH-3.8.2-mac-x64-monterey.dmg'))
+})
+
+
+test('3.8.7 snapshot identity selects its mainline assets and Electron 45.2 requirements', async () => {
+  const ui = await render(release(true, '3.8.7', '-mac-x64'))
+  assert.equal(ui.version.textContent, 'v3.8.7')
+  assert.equal(ui.electron.textContent, '45.2.0')
+  assert.equal(ui.group.hidden, false)
+  for (const [key, suffix] of Object.entries(suffixes)) {
+    const expected = 'https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.7/Agent-Pi-DSH-3.8.7' + suffix
+    assert.equal(ui.links[key][0].href, expected)
+    assert.equal(ui.links[key][0].hidden, false)
+    if (ui.links[key][1]) assert.equal(ui.links[key][1].href, 'https://gh-proxy.org/' + expected)
+  }
+  assert.equal(ui.systems['mac-arm64'].textContent, 'Apple Silicon · macOS 15+')
+  assert.equal(ui.systems['mac-x64'].textContent, 'Intel x64 · macOS 15+')
+  assert.match(ui.systemNote.innerHTML, /3\.8\.7.*macOS 15/)
+})
+
+test('the published date uses Africa/Windhoek across the UTC day boundary', async () => {
+  const data = release(true, '3.8.7', '-mac-x64')
+  data.published_at = '2026-10-30T23:30:00Z'
+  const ui = await render(data)
+  assert.equal(ui.date.textContent, '2026-10-31')
 })

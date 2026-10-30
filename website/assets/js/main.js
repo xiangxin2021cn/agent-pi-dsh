@@ -178,10 +178,10 @@
     if (!digestMatch) return;
 
     {
-      var currentRequirements = version === "3.8.5" || version === "3.8.6";
+      var currentRequirements = version === "3.8.5" || version === "3.8.6" || version === "3.8.7";
       var legacyRequirements = version === "3.8.2";
       document.querySelectorAll("[data-release-electron-version]").forEach(function (node) {
-        node.textContent = currentRequirements ? "45.0.0" : legacyRequirements ? "44.7.0" : "See Release";
+        node.textContent = version === "3.8.7" ? "45.2.0" : currentRequirements ? "45.0.0" : legacyRequirements ? "44.7.0" : "See Release";
       });
       document.querySelectorAll('[data-release-system="mac-arm64"]').forEach(function (node) {
         node.textContent = currentRequirements ? "Apple Silicon · macOS 15+" : legacyRequirements ? "Apple Silicon · macOS 13+" : "Apple Silicon · See Release";
@@ -208,8 +208,11 @@
     document.querySelectorAll("[data-release-version]").forEach(function (node) {
       node.textContent = version;
     });
+    var releaseDay = {};
+    new Intl.DateTimeFormat("en", { timeZone: "Africa/Windhoek", year: "numeric", month: "2-digit", day: "2-digit" })
+      .formatToParts(new Date(release.published_at)).forEach(function (part) { releaseDay[part.type] = part.value; });
     document.querySelectorAll("[data-release-date]").forEach(function (node) {
-      node.textContent = (release.published_at || "").slice(0, 10);
+      node.textContent = releaseDay.year + "-" + releaseDay.month + "-" + releaseDay.day;
     });
     document.querySelectorAll("[data-release-sha]").forEach(function (node) {
       node.textContent = digestMatch[1].toUpperCase();
