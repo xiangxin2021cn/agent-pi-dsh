@@ -142,18 +142,26 @@ FunctionEnd
 
 Function EnsureInstallRootReceipt
   IfFileExists "$INSTDIR\${INSTALL_ROOT_RECEIPT}" install_receipt_ok 0
+  StrCpy $9 ""
   ClearErrors
-  WriteINIStr "$INSTDIR\${INSTALL_ROOT_RECEIPT}" "${INSTALL_ROOT_RECEIPT_SECTION}" "Schema" "1"
+  CreateDirectory "$INSTDIR"
   IfErrors install_receipt_failed 0
-  WriteINIStr "$INSTDIR\${INSTALL_ROOT_RECEIPT}" "${INSTALL_ROOT_RECEIPT_SECTION}" "Product" "${PRODUCT_ID}"
+  ; Publish the complete receipt atomically on the same volume. An interrupted
+  ; temporary write stays outside the still-empty first-install directory.
+  ${GetParent} "$INSTDIR" $8
+  GetTempFileName $9 "$8"
   IfErrors install_receipt_failed 0
-  WriteINIStr "$INSTDIR\${INSTALL_ROOT_RECEIPT}" "${INSTALL_ROOT_RECEIPT_SECTION}" "InstallLocation" "$INSTDIR"
+  FileOpen $8 "$9" w
+  IfErrors install_receipt_failed 0
+  FileWriteUTF16LE /BOM $8 "[${INSTALL_ROOT_RECEIPT_SECTION}]$\r$\nSchema=1$\r$\nProduct=${PRODUCT_ID}$\r$\nInstallLocation=$INSTDIR$\r$\n"
+  FileClose $8
+  IfErrors install_receipt_failed 0
+  Rename "$9" "$INSTDIR\${INSTALL_ROOT_RECEIPT}"
   IfErrors install_receipt_failed 0
   Goto install_receipt_ok
   install_receipt_failed:
-    Delete "$INSTDIR\${INSTALL_ROOT_RECEIPT}"
-    Call RollbackUniverVendor
-    Call RollbackAppAsar
+    StrCmp $9 "" +2
+    Delete "$9"
     SetErrorLevel 6
     MessageBox MB_OK|MB_ICONSTOP "无法写入 Agent Pi DSH 安装收据；为保护该目录，安装已中止。 Failed to write the Agent Pi DSH install receipt; setup stopped to protect this directory."
     Abort
@@ -227,17 +235,83 @@ Function PrepareUniverCleanup
   ; Use this payload's Node and standalone helper even when an older install
   ; is incomplete. Never run cleanup through the tree being replaced.
   DetailPrint "Preparing safe Office cleanup..."
-  nsExec::ExecToLog '"$PLUGINSDIR\7za.exe" e -y -aoa -bd "$PLUGINSDIR\payload.7z" "-o$PLUGINSDIR" "resources\runtime\node\node.exe" "resources\runtime\product\scripts\installer-remove-univer-tree.mjs"'
+  nsExec::ExecToLog '"$PLUGINSDIR\7za.exe" e -y -aoa -bd "$PLUGINSDIR\payload.7z" "-o$PLUGINSDIR" "resources\runtime\node\node.exe" "resources\runtime\product\scripts\installer-remove-univer-tree.mjs" "resources\runtime\product\scripts\installer-stage-runtime.mjs"'
   Pop $0
   StrCmp $0 "0" cleanup_runtime_files cleanup_runtime_failed
   cleanup_runtime_files:
   IfFileExists "$PLUGINSDIR\node.exe" 0 cleanup_runtime_failed
-  IfFileExists "$PLUGINSDIR\installer-remove-univer-tree.mjs" cleanup_runtime_ready cleanup_runtime_failed
+  IfFileExists "$PLUGINSDIR\installer-remove-univer-tree.mjs" 0 cleanup_runtime_failed
+  IfFileExists "$PLUGINSDIR\installer-stage-runtime.mjs" cleanup_runtime_ready cleanup_runtime_failed
   cleanup_runtime_failed:
     SetErrorLevel 9
     MessageBox MB_OK|MB_ICONSTOP "无法从安装包准备安全清理程序，安装尚未修改旧应用。请重新下载安装包后重试。 Failed to prepare safe cleanup from the installer payload. The old application has not been changed. Download the installer again and retry."
     Abort
   cleanup_runtime_ready:
+  nsExec::ExecToLog '"$PLUGINSDIR\node.exe" "$PLUGINSDIR\installer-stage-runtime.mjs" "$INSTDIR" check'
+  Pop $0
+  StrCmp $0 "0" cleanup_paths_ready
+  StrCmp $0 "20" cleanup_resume_commit
+    SetErrorLevel 9
+    MessageBox MB_OK|MB_ICONSTOP "安装目录的运行时路径或事务记录未通过安全检查，旧应用尚未修改。请点「显示详情」查看错误。 Managed runtime paths or transaction records failed the safety check. The old application has not been changed."
+    Abort
+  cleanup_resume_commit:
+  Call CompleteVerifiedRuntime
+  cleanup_paths_ready:
+FunctionEnd
+
+Function StageManagedRuntime
+  DetailPrint "Staging previous installer-owned runtime dependencies..."
+  nsExec::ExecToLog '"$PLUGINSDIR\node.exe" "$PLUGINSDIR\installer-stage-runtime.mjs" "$INSTDIR" stage'
+  Pop $0
+  StrCmp $0 "0" stage_managed_done
+    Call RollbackUniverVendor
+    Call RollbackAppAsar
+    SetErrorLevel 11
+    MessageBox MB_OK|MB_ICONSTOP "无法安全暂存旧运行时依赖，安装已停止；旧目录和事务记录已保留。请完全退出应用后在原目录重试。 Failed to stage the managed runtime dependencies safely. Quit the app and reinstall to the same directory."
+    Abort
+  stage_managed_done:
+FunctionEnd
+
+Function RollbackManagedRuntime
+  nsExec::ExecToLog '"$PLUGINSDIR\node.exe" "$PLUGINSDIR\installer-stage-runtime.mjs" "$INSTDIR" rollback'
+  Pop $0
+  StrCmp $0 "0" rollback_managed_done
+    Call RollbackAppAsar
+    SetErrorLevel 11
+    MessageBox MB_OK|MB_ICONSTOP "无法安全恢复旧运行时依赖，安装已停止；备份和事务记录已保留。请完全退出应用后在原目录重试。 Failed to restore managed runtime dependencies safely. Backups were preserved; reinstall to the same directory."
+    Abort
+  rollback_managed_done:
+FunctionEnd
+
+Function CommitManagedRuntime
+  DetailPrint "Removing verified previous runtime dependencies..."
+  nsExec::ExecToLog '"$PLUGINSDIR\node.exe" "$PLUGINSDIR\installer-stage-runtime.mjs" "$INSTDIR" commit'
+  Pop $0
+  StrCmp $0 "0" commit_managed_done
+    SetErrorLevel 11
+    MessageBox MB_OK|MB_ICONSTOP "新运行时已校验，但旧依赖备份尚未清理完成。安装事务已保留，请完全退出应用后在原目录重试。 The new runtime was verified, but previous dependencies could not be fully cleaned up. Reinstall to the same directory."
+    Abort
+  commit_managed_done:
+FunctionEnd
+
+Function CompleteVerifiedRuntime
+  ; The durable committing marker must precede every backup deletion. A retry
+  ; resumes this sequence before staging any verified current app or Office.
+  Call CommitManagedRuntime
+  Call CommitUniverVendor
+  IfFileExists "$INSTDIR\resources\app.asar.old" 0 finish_verified_archive_done
+  ClearErrors
+  Delete "$INSTDIR\resources\app.asar.old"
+  IfErrors finish_verified_failed
+  finish_verified_archive_done:
+  nsExec::ExecToLog '"$PLUGINSDIR\node.exe" "$PLUGINSDIR\installer-stage-runtime.mjs" "$INSTDIR" finish'
+  Pop $0
+  StrCmp $0 "0" finish_verified_done
+  finish_verified_failed:
+    SetErrorLevel 11
+    MessageBox MB_OK|MB_ICONSTOP "新运行时已校验，但升级备份尚未全部清理。事务已保留，请完全退出应用后在原目录重试。 The verified upgrade still has pending backup cleanup. Quit the app and reinstall to the same directory."
+    Abort
+  finish_verified_done:
 FunctionEnd
 
 Function StageUniverVendor
@@ -267,6 +341,7 @@ Function StageUniverVendor
 FunctionEnd
 
 Function RollbackUniverVendor
+  Call RollbackManagedRuntime
   nsExec::ExecToLog '"$PLUGINSDIR\node.exe" "$PLUGINSDIR\installer-remove-univer-tree.mjs" "$INSTDIR" current'
   Pop $0
   StrCmp $0 "0" rollback_univer_removed rollback_univer_failed
@@ -300,6 +375,7 @@ Function StageAppAsar
   IfFileExists "$INSTDIR\resources\app.asar" stage_asar_current 0
   Goto stage_asar_done
   stage_asar_has_backup:
+  IfFileExists "$INSTDIR\resources\app.asar" 0 stage_asar_done
   ClearErrors
   Delete "$INSTDIR\resources\app.asar"
   IfErrors stage_asar_delete_failed 0
@@ -349,8 +425,10 @@ Section "Install"
   File "payload.7z"
   Call CloseRunningApp
   Call PrepareUniverCleanup
+  Call EnsureInstallRootReceipt
   Call StageAppAsar
   Call StageUniverVendor
+  Call StageManagedRuntime
   SetOutPath "$INSTDIR"
   DetailPrint "Extracting Agent Pi DSH..."
   nsExec::ExecToLog '"$PLUGINSDIR\7za.exe" x -y -aoa -bd "$PLUGINSDIR\payload.7z" "-o$INSTDIR"'
@@ -426,22 +504,21 @@ Section "Install"
     MessageBox MB_OK|MB_ICONSTOP "dsh-univer-office 校验失败。已尝试恢复旧 Office 和应用入口，但不保证整套运行时已恢复。请点「显示详情」查看具体错误，并在原目录重试安装。$\r$\n$\r$\ndsh-univer-office verification failed. Restoration of the previous Office and app archive was attempted; the entire runtime is not rolled back. See Show details for the error and reinstall to the same directory."
     Abort
   univer_verify_ok:
-  Call EnsureInstallRootReceipt
-  Call CommitUniverVendor
-  ; Cleanup must finish before the final integrity gate: old Office peers
-  ; point into the newly extracted DSH tree during an in-place upgrade.
+  ; Keep both Office and dependency backups until every installed gate passes.
   DetailPrint "Verifying installed DeepSeek Harness build receipt..."
   ; Keep this command below NSIS's string limit for long install directories.
   SetOutPath "$INSTDIR\resources\runtime"
   nsExec::ExecToLog '"$PLUGINSDIR\node.exe" "product\scripts\dsh-build-receipt.mjs" verify-installed --dsh "deepseek-harness" --product "product" --receipt "deepseek-harness\DSH-BUILD-RECEIPT.json"'
   Pop $0
   StrCmp $0 "0" installed_runtime_verified
+    Call RollbackUniverVendor
+    Call RollbackAppAsar
     SetErrorLevel 10
     MessageBox MB_OK|MB_ICONSTOP "DSH 运行时完整性校验失败，安装尚未完成。请点「显示详情」查看缺失或变化的必需文件；不要启动此安装，请修复运行时后重试。 DeepSeek Harness runtime integrity verification failed. Setup is incomplete. See Show details for missing or changed required files. Do not launch this installation until its runtime is repaired."
     Abort
   installed_runtime_verified:
   SetOutPath "$INSTDIR"
-  Delete "$INSTDIR\resources\app.asar.old"
+  Call CompleteVerifiedRuntime
   CreateShortCut "$DESKTOP\${PRODUCT_NAME}.lnk" "$INSTDIR\${PRODUCT_EXE}.exe"
   CreateDirectory "$SMPROGRAMS\${PRODUCT_NAME}"
   CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME}.lnk" "$INSTDIR\${PRODUCT_EXE}.exe"

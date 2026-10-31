@@ -320,6 +320,16 @@ const reviewed387HotfixHostExtension = {
   },
 }
 
+// The runtime installation repair only advances the application build revision.
+const reviewed387Hotfix2HostExtension = {
+  ...reviewed387HotfixHostExtension,
+  review: '3.8.7-mainline-hotfix.2-runtime-baseline',
+  shared: {
+    ...reviewed387HotfixHostExtension.shared,
+    'package.json': [reviewed387HotfixHostExtension.shared['package.json'][0], 'ac4edd6dc39fd728316f924a51a2d1b351d5b924f55fe180c697423b35cf0555'],
+  },
+}
+
 const diskIndexPaths = ['bundles/engineering-cad/src/dxf-disk-source.ts', 'bundles/engineering-cad/src/cad-disk-index.ts']
 const patchedDecoderPaths = ['bundles/tender-host/src/cad-dwg-model-quality.mjs', 'bundles/engineering-cad/src/cad-embedded.ts', 'bundles/tender-host/lib/cad-decoder', 'scripts/cad-host-clean-release.mjs', 'scripts/build-cad-host-clean.sh', 'scripts/cad-host-bit-position-overflow.patch', 'scripts/cad-host-bit-position.test.c', 'scripts/cad-host-clean-pins.json']
 const hostExtensionPaths = [...new Set([
@@ -343,7 +353,7 @@ function reviewedHostExtensionForTarget(root, target) {
   if (git(root, ['ls-tree', target, '--', 'scripts/cad-browser-decoder-release.mjs', 'scripts/cad-browser-decoder-release.json']).trim()) {
     const path = 'bundles/tender-host/package.json'
     const hostHash = reviewedHash(path, git(root, ['show', `${target}:${path}`], null))
-    const upgraded = [...reviewed385HostExtensions, ...reviewed387HostExtensions, reviewed387HotfixHostExtension].find(extension => hostHash === extension.files[path]
+    const upgraded = [...reviewed385HostExtensions, ...reviewed387HostExtensions, reviewed387HotfixHostExtension, reviewed387Hotfix2HostExtension].find(extension => hostHash === extension.files[path]
       && reviewedHash('package.json', git(root, ['show', `${target}:package.json`], null)) === extension.shared['package.json'][1]
       && reviewedHash('bundles/tender-host/src/http.ts', git(root, ['show', `${target}:bundles/tender-host/src/http.ts`], null)) === extension.shared['bundles/tender-host/src/http.ts'][1])
     if (upgraded) return upgraded
@@ -364,7 +374,7 @@ function reviewedHostExtensionForTarget(root, target) {
 
 function verifyReviewedHostExtension(root, sourceCommit, target) {
   const extension = reviewedHostExtensionForTarget(root, target)
-  if ([reviewed382PatchedHostExtension, reviewed382ReleaseHostExtension, reviewed382BrowserHostExtension, reviewed383HostExtension, ...reviewed385HostExtensions, ...reviewed387HostExtensions, reviewed387HotfixHostExtension].includes(extension)) {
+  if ([reviewed382PatchedHostExtension, reviewed382ReleaseHostExtension, reviewed382BrowserHostExtension, reviewed383HostExtension, ...reviewed385HostExtensions, ...reviewed387HostExtensions, reviewed387HotfixHostExtension, reviewed387Hotfix2HostExtension].includes(extension)) {
     const runtime = git(root, ['ls-tree', '-r', '--name-only', target, '--', 'bundles/tender-host/lib/cad-decoder']).trim().split('\n')
     for (const path of runtime) if (!extension.files[path]) fail(`reviewed CAD host extension differs: ${path}`)
   }

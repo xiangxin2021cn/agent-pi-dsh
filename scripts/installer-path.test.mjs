@@ -27,7 +27,7 @@ function findMakensis() {
 }
 
 function extractDefine(source, name) {
-  const line = source.match(new RegExp(`^!define ${name} [^\\r\\n]+$`, 'm'))?.[0]
+  const line = source.match(new RegExp(`^[ \\t]*!define ${name} [^\\r\\n]+$`, 'm'))?.[0]
   assert.ok(line, `setup.nsi is missing ${name}`)
   return line
 }
@@ -48,6 +48,8 @@ function buildProbeSource(setup, executableName) {
     `OutFile "${executableName}"`,
     '!include "LogicLib.nsh"',
     '!include "FileFunc.nsh"',
+    extractDefine(setup, 'PRODUCT_NAME'),
+    extractDefine(setup, 'PRODUCT_EXE'),
     extractDefine(setup, 'PRODUCT_ID'),
     extractDefine(setup, 'INSTALL_ROOT_RECEIPT'),
     extractDefine(setup, 'INSTALL_ROOT_RECEIPT_SECTION'),

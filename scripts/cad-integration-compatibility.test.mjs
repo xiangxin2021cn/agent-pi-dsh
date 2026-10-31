@@ -678,6 +678,16 @@ test('3.8.7 mainline hotfix accepts its exact metadata and preview pair, refusin
   const historical = assertCadIntegrationUnchanged(value)
   assert.equal(historical.hostExtension.review, '3.8.7-mainline-scoped-cad-preview')
   const changed = ['package.json', 'bundles/tender-web/src/client/file-preview-overlay.js']
+  // The immutable source of v3.8.7-hotfix.1, also available without that local tag.
+  for (const path of changed) {
+    const previous = execFileSync('git', ['show', `d170a7b3318ca59b490565f5b0aba5d10dbd67f4:${path}`], {
+      cwd: repository, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    write(join(value.root, path), previous)
+  }
+  commit(value.root)
+  const previousHotfix = assertCadIntegrationUnchanged(value)
+  assert.equal(previousHotfix.hostExtension.review, '3.8.7-mainline-hotfix.1-cad-preview-recovery')
   for (const path of changed) {
     const current = readFileSync(join(repository, path), 'utf8').replaceAll('\r\n', '\n')
     value.reviewed.set(path, current)
@@ -685,8 +695,9 @@ test('3.8.7 mainline hotfix accepts its exact metadata and preview pair, refusin
   }
   commit(value.root)
   const proof = assertCadIntegrationUnchanged(value)
-  assert.equal(proof.hostExtension.review, '3.8.7-mainline-hotfix.1-cad-preview-recovery')
+  assert.equal(proof.hostExtension.review, '3.8.7-mainline-hotfix.2-runtime-baseline')
   assert.deepEqual(proof.hostExtension.additionalFileHashes, historical.hostExtension.additionalFileHashes)
+  assert.deepEqual(proof.hostExtension.sharedFileHashes[changed[1]], previousHotfix.hostExtension.sharedFileHashes[changed[1]])
   for (const path of [...changed, 'bundles/tender-host/lib/cad-decoder/libredwg-web.wasm']) {
     const original = value.reviewed.get(path)
     write(join(value.root, path), Buffer.concat([Buffer.from(original), Buffer.from('\n')]))

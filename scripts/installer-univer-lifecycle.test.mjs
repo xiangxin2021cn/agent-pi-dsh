@@ -250,7 +250,7 @@ test('NSIS stages the old vendor before overlay, verifies before commit, and rol
   const stage = nsisSource.indexOf('Call StageUniverVendor')
   const extract = nsisSource.indexOf('7za.exe" x')
   const verify = nsisSource.indexOf('installer-univer-lifecycle.mjs" verify-product')
-  const commit = nsisSource.indexOf('Call CommitUniverVendor')
+  const commit = nsisSource.indexOf('Call CompleteVerifiedRuntime', nsisSource.indexOf('Section "Install"'))
   assert.ok(stage >= 0 && stage < extract)
   assert.ok(verify > extract && commit > verify)
   const stageBody = nsisSource.match(/Function StageUniverVendor([\s\S]*?)FunctionEnd/)?.[1] ?? ''
@@ -262,7 +262,9 @@ test('NSIS stages the old vendor before overlay, verifies before commit, and rol
   assert.match(nsisSource, /extract_fail:[\s\S]*Call RollbackUniverVendor/)
   assert.match(nsisSource, /DetailPrint "Retrying extract[\s\S]*Pop \$0[\s\S]*\$0 != 0[\s\S]*Goto extract_fail/)
   assert.match(nsisSource, /Failed to repair plugin links[\s\S]*Call RollbackAppAsar|Call RollbackAppAsar[\s\S]*Failed to repair plugin links/)
-  assert.match(nsisSource, /univer_verify_ok:[\s\S]*Call CommitUniverVendor[\s\S]*Delete "\$INSTDIR\\resources\\app\.asar\.old"/)
+  assert.match(nsisSource, /univer_verify_ok:[\s\S]*Call CompleteVerifiedRuntime/)
+  const complete = nsisSource.match(/Function CompleteVerifiedRuntime([\s\S]*?)FunctionEnd/)?.[1] ?? ''
+  assert.match(complete, /Call CommitManagedRuntime[\s\S]*Call CommitUniverVendor[\s\S]*Delete "\$INSTDIR\\resources\\app\.asar\.old"[\s\S]*installer-stage-runtime\.mjs" "\$INSTDIR" finish/)
   const asarStageBody = nsisSource.match(/Function StageAppAsar([\s\S]*?)FunctionEnd/)?.[1] ?? ''
   assert.match(asarStageBody, /IfFileExists "\$INSTDIR\\resources\\app\.asar\.old" stage_asar_has_backup/)
   assert.doesNotMatch(asarStageBody, /Delete "\$INSTDIR\\resources\\app\.asar\.old"/)
@@ -280,8 +282,7 @@ test('NSIS stages the old vendor before overlay, verifies before commit, and rol
   }
   const finalVerify = installSection.indexOf('dsh-build-receipt.mjs" verify-installed ')
   assert.doesNotMatch(installSection, /dsh-build-receipt\.mjs" verify /)
-  assert.ok(finalVerify > installSection.indexOf('Call CommitUniverVendor'))
-  assert.ok(finalVerify < installSection.indexOf('Delete "$INSTDIR\\resources\\app.asar.old"'))
+  assert.ok(finalVerify < installSection.indexOf('Call CompleteVerifiedRuntime'))
   assert.ok(finalVerify < installSection.indexOf('CreateShortCut'))
   assert.match(installSection, /StrCmp \$0 "0" installed_runtime_verified[\s\S]*?Abort\s+installed_runtime_verified:/)
   assert.match(nsisSource, /un\.CloseRunningApp/)
