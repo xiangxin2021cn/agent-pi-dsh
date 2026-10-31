@@ -4438,7 +4438,7 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 				const [officeSaved, setOfficeSaved] = React.useState(null);
 				const [siteUrl, setSiteUrl] = React.useState("");
 				const [cadUrl, setCadUrl] = React.useState("");
-				const [cadConversionStatus, setCadConversionStatus] = React.useState("");
+				const [cadReload, setCadReload] = React.useState(0);
 				const [aiSel, setAiSel] = React.useState(null);
 				const [sheetTab, setSheetTab] = React.useState(0);
 				const [univerDirty, setUniverDirty] = React.useState(false);
@@ -4619,7 +4619,6 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 					setUniverDirty(false);
 					setSiteUrl("");
 					setCadUrl("");
-					setCadConversionStatus("");
 					setAiSel(null);
 					const cacheKey = previewCacheKey(cwd, file.path, kbSlug);
 					const cached = previewCacheGet(cacheKey);
@@ -4723,26 +4722,6 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 					};
 					window.addEventListener("message", onMessage);
 					return () => window.removeEventListener("message", onMessage);
-				}, [
-					isCad,
-					cwd,
-					file.path
-				]);
-				React.useEffect(() => {
-					if (!isCad || !/\.dwg$/i.test(file.path || "")) return void 0;
-					let cancelled = false;
-					api("/api/agent-pi/cad/convert", cwd, {
-						method: "POST",
-						body: JSON.stringify({ path: file.path }),
-						timeoutMs: 2e5
-					}).then((result) => {
-						if (!cancelled) setCadConversionStatus("已生成供智能体读图的 DXF：" + result.relativePath);
-					}).catch((error) => {
-						if (!cancelled) setCadConversionStatus(String(error.message || error));
-					});
-					return () => {
-						cancelled = true;
-					};
 				}, [
 					isCad,
 					cwd,
@@ -5276,6 +5255,7 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 					sandbox: "allow-same-origin allow-scripts allow-forms allow-popups"
 				});
 				else if (isCad) body = cadUrl ? h("iframe", {
+					key: file.path + ":" + cadReload,
 					ref: cadRef,
 					className: "ap-cad-frame",
 					title: file.name,
@@ -5368,7 +5348,11 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 						file,
 						reveal: false
 					}).catch((err) => setError(String(err && err.message || err)));
-				}, [Icon("folder", 14), "系统打开"], loading || !!busy) : null, kbSlug ? null : canExport ? h("div", { className: "ap-doc-exports" }, DocBtn("导出 Markdown", () => exportFile("md"), [Icon("download", 14), " MD"], !!busy), DocBtn("导出 PDF", () => exportFile("pdf"), [Icon("download", 14), " PDF"], !!busy), DocBtn("导出 Word", () => exportFile("docx"), [Icon("download", 14), " DOCX"], !!busy)) : null, kind === "binary" || kind === "pdf" || kind === "image" || isOffice || kind === "html" || isCad || kind === "project-plan" ? DocBtn("下载原件", () => {
+				}, [Icon("folder", 14), "系统打开"], loading || !!busy) : null, isCad && error && cadUrl ? DocBtn("重新打开图纸", () => {
+					setError("");
+					setStatus("");
+					setCadReload((value) => value + 1);
+				}, [Icon("refresh", 14), "重新打开图纸"], loading) : null, kbSlug ? null : canExport ? h("div", { className: "ap-doc-exports" }, DocBtn("导出 Markdown", () => exportFile("md"), [Icon("download", 14), " MD"], !!busy), DocBtn("导出 PDF", () => exportFile("pdf"), [Icon("download", 14), " PDF"], !!busy), DocBtn("导出 Word", () => exportFile("docx"), [Icon("download", 14), " DOCX"], !!busy)) : null, kind === "binary" || kind === "pdf" || kind === "image" || isOffice || kind === "html" || isCad || kind === "project-plan" ? DocBtn("下载原件", () => {
 					apiBlob("/api/agent-pi/files/raw?path=" + encodeURIComponent(file.path), cwd, { method: "GET" }).then((result) => downloadBlob(result.blob, result.filename || file.name)).catch((e) => setError(String(e.message || e)));
 				}, [Icon("download", 14)], !!busy) : null, DocBtn("关闭", closePreview, [Icon("x", 14)]))), h("div", { className: "ap-doc-scroll" + (isUniver ? " univer" : isCad ? " cad" : kind === "project-plan" ? " plan" : "") }, isUniver || isCad || kind === "project-plan" ? h(React.Fragment, null, error ? h("div", {
 					className: "ap-err",
@@ -5377,14 +5361,7 @@ body[data-ds-dark-theme] .ap-plan-tick{border-color:#35414c}
 						position: "relative",
 						zIndex: 2
 					}
-				}, error) : null, isCad && cadConversionStatus ? h("div", {
-					className: "ap-doc-status",
-					style: {
-						padding: "8px 12px",
-						position: "relative",
-						zIndex: 2
-					}
-				}, cadConversionStatus) : null, (!isOfficeUniver && !isCad || isCad && error) && status ? h("div", {
+				}, error) : null, (!isOfficeUniver && !isCad || isCad && error) && status ? h("div", {
 					className: "ap-doc-status",
 					style: {
 						padding: "8px 12px",

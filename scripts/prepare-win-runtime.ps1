@@ -15,11 +15,9 @@ $Runtime = Join-Path $Desktop "runtime"
 $Dsh = Join-Path $Root "vendor\deepseek-harness"
 $DshReceiptName = "DSH-BUILD-RECEIPT.json"
 $DshRuntimeFilePolicy = Get-Content (Join-Path $Root "scripts\dsh-runtime-file-policy.json") -Raw | ConvertFrom-Json
-# Windows bundles the platform-specific pnpm closure. It remains outside the
-# cross-platform receipt, while portable CI installs its own closure later.
-$WindowsDshCopyExcludedDirectoryNames = @(
-  $DshRuntimeFilePolicy.excludedDirectoryNames | Where-Object { $_ -ne "node_modules" }
-)
+# Reinstall target-platform production dependencies in staging, as portable CI
+# does. The developer's node_modules is outside the source/build receipt.
+$WindowsDshCopyExcludedDirectoryNames = @($DshRuntimeFilePolicy.excludedDirectoryNames)
 if (-not $DshBuildReceipt) {
   $DshBuildReceipt = Join-Path $Root ".codex-temp\dsh-build\$DshReceiptName"
 }
@@ -231,11 +229,9 @@ if (Test-Path $dshTarget) {
   }
 }
 if ($FullCopy) {
-  Write-Host "Copying DeepSeek Harness closure from $Dsh (preserving internal symlinks)..."
-  # Keep pnpm's relative symlinks. Following them explodes node_modules into a
-  # multi-hour full-tree duplicate and breaks workspace links.
+  Write-Host "Copying DeepSeek Harness source and build artifacts from $Dsh..."
   $roboArgs = @(
-    $Dsh, $dshTarget, "/E", "/SL", "/SJ", "/MT:16", "/R:1", "/W:1",
+    $Dsh, $dshTarget, "/E", "/XJ", "/MT:16", "/R:1", "/W:1",
     "/XD"
   )
   $roboArgs += $WindowsDshCopyExcludedDirectoryNames
@@ -258,13 +254,56 @@ if ($FullCopy) {
       throw "FullCopy missing $need"
     }
   }
-  Write-Host "Writing dsh symlink manifest and repairing junctions..."
-  node (Join-Path $Root "scripts\repair-dsh-links.mjs") write $Dsh $dshTarget
-  if ($LASTEXITCODE -ne 0) { throw "write dsh link manifest failed" }
-  node (Join-Path $Root "scripts\repair-dsh-links.mjs") repair $dshTarget
-  if ($LASTEXITCODE -ne 0) { throw "repair dsh links failed" }
-  node (Join-Path $Root "scripts\stage-office-engine.mjs") $dshTarget
+  $productionState = Join-Path $Root ".codex-temp\windows-production-runtime"
+  New-Item -ItemType Directory -Force -Path $productionState, (Join-Path $productionState "temp") | Out-Null
+  $emptyNpmUserConfig = Join-Path $productionState "empty-user-npmrc"
+  $emptyNpmGlobalConfig = Join-Path $productionState "empty-global-npmrc"
+  [System.IO.File]::WriteAllText($emptyNpmUserConfig, "", [System.Text.UTF8Encoding]::new($false))
+  [System.IO.File]::WriteAllText($emptyNpmGlobalConfig, "", [System.Text.UTF8Encoding]::new($false))
+  $productionEnvironment = @{
+    PATH = "$NodeDir;$env:PATH"
+    NODE_OPTIONS = ""
+    NODE_PATH = ""
+    TEMP = (Join-Path $productionState "temp")
+    TMP = (Join-Path $productionState "temp")
+    XDG_CACHE_HOME = (Join-Path $productionState "cache")
+    XDG_CONFIG_HOME = (Join-Path $productionState "config")
+    XDG_STATE_HOME = (Join-Path $productionState "state")
+    NPM_CONFIG_CACHE = (Join-Path $productionState "npm-cache")
+    NPM_CONFIG_USERCONFIG = $emptyNpmUserConfig
+    NPM_CONFIG_GLOBALCONFIG = $emptyNpmGlobalConfig
+    PNPM_HOME = (Join-Path $productionState "pnpm-home")
+    NODE_COMPILE_CACHE = (Join-Path $productionState "node-cache")
+  }
+  $previousEnvironment = @{}
+  $stagedLock = Join-Path $dshTarget "pnpm-lock.yaml"
+  $stagedLockHash = (Get-FileHash -LiteralPath $stagedLock -Algorithm SHA256).Hash
+  try {
+    foreach ($name in $productionEnvironment.Keys) {
+      $previousEnvironment[$name] = [System.Environment]::GetEnvironmentVariable($name, "Process")
+      [System.Environment]::SetEnvironmentVariable($name, $productionEnvironment[$name], "Process")
+    }
+    Write-Host "Installing locked DSH production dependencies in staging..."
+    & $nodeDest $bundledPnpmCli --dir $dshTarget install --prod --frozen-lockfile --ignore-scripts --prefer-offline `
+      --store-dir (Join-Path $productionState "store") --registry https://registry.npmjs.org/
+    if ($LASTEXITCODE -ne 0) { throw "DSH production dependency install failed" }
+    if ((Get-FileHash -LiteralPath $stagedLock -Algorithm SHA256).Hash -ne $stagedLockHash) {
+      throw "DSH production install changed the frozen lockfile"
+    }
+  } finally {
+    foreach ($name in $previousEnvironment.Keys) {
+      [System.Environment]::SetEnvironmentVariable($name, $previousEnvironment[$name], "Process")
+    }
+  }
+  & $nodeDest (Join-Path $Root "scripts\repair-dsh-runtime-peers.mjs") $dshTarget
+  if ($LASTEXITCODE -ne 0) { throw "DSH production workspace peer repair failed" }
+  & $nodeDest (Join-Path $Root "scripts\stage-office-engine.mjs") $dshTarget
   if ($LASTEXITCODE -ne 0) { throw "stage official Office engine failed" }
+  Write-Host "Writing staged production symlink manifest and repairing junctions..."
+  & $nodeDest (Join-Path $Root "scripts\repair-dsh-links.mjs") write $dshTarget
+  if ($LASTEXITCODE -ne 0) { throw "write dsh link manifest failed" }
+  & $nodeDest (Join-Path $Root "scripts\repair-dsh-links.mjs") repair $dshTarget
+  if ($LASTEXITCODE -ne 0) { throw "repair dsh links failed" }
   Copy-Item -LiteralPath $DshBuildReceipt -Destination (Join-Path $dshTarget $DshReceiptName) -Force
 } else {
   cmd /c "mklink /J `"$dshTarget`" `"$Dsh`"" | Out-Null

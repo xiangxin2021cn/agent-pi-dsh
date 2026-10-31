@@ -16,6 +16,14 @@ $ProductConfig = Get-Content (Join-Path $Root "package.json") -Raw | ConvertFrom
 $AppVersion = $DesktopConfig.version
 $ProductEdition = if ($ProductConfig.agentPiProduct.edition) { $ProductConfig.agentPiProduct.edition } else { "mainline" }
 $ArtifactStem = if ($ProductConfig.agentPiProduct.artifactStem) { $ProductConfig.agentPiProduct.artifactStem } else { "Agent-Pi-DSH" }
+$BuildRevision = $ProductConfig.agentPiProduct.buildRevision
+$DesktopBuildRevision = $DesktopConfig.agentPiProduct.buildRevision
+$HasBuildRevision = $ProductConfig.agentPiProduct -and ($ProductConfig.agentPiProduct.PSObject.Properties.Name -contains "buildRevision")
+$DesktopHasBuildRevision = $DesktopConfig.agentPiProduct -and ($DesktopConfig.agentPiProduct.PSObject.Properties.Name -contains "buildRevision")
+if ($HasBuildRevision -or $DesktopHasBuildRevision) {
+  if (-not $HasBuildRevision -or -not $DesktopHasBuildRevision -or $BuildRevision -cne $DesktopBuildRevision) { throw "Product and desktop build revision mismatch" }
+  if ($BuildRevision -isnot [string] -or $BuildRevision -cnotmatch '^hotfix\.[1-9][0-9]*\z') { throw "Invalid Windows build revision" }
+}
 $ExecutableName = $DesktopConfig.build.win.executableName
 $ProductName = $DesktopConfig.build.productName
 $ProductId = $DesktopConfig.build.appId
@@ -27,7 +35,8 @@ if ([version]$AppVersion -ge [version]"3.6.0" -and ($SkipPrepare -or $ReuseUnpac
 if ($IncludeLicensedUniver -and ($SkipPrepare -or $ReuseUnpacked)) {
   throw "-IncludeLicensedUniver requires a fresh runtime and unpacked application"
 }
-$InstallerName = "$ArtifactStem-$AppVersion-x64.exe"
+$ArtifactVersion = if ($HasBuildRevision) { "$AppVersion-$BuildRevision" } else { $AppVersion }
+$InstallerName = "$ArtifactStem-$ArtifactVersion-x64.exe"
 $Dsh = Join-Path $Root "vendor\deepseek-harness"
 $WebDist = Join-Path $Dsh "apps\web\dist\index.html"
 $Biz = Join-Path $Root "packages\business-core"
@@ -472,7 +481,8 @@ if (Test-Path $unpackedProduct) {
     $parent = Split-Path $dest
     New-Item -ItemType Directory -Force -Path $parent | Out-Null
     if ((Get-Item $src) -is [System.IO.DirectoryInfo]) {
-      robocopy $src $dest /E /XJ /NFL /NDL /NJH /NJS /NP | Out-Null
+      # Keep the same build-output exclusion as prepare-win-runtime.ps1.
+      robocopy $src $dest /E /XJ /NFL /NDL /NJH /NJS /NP /XD (Join-Path $Root "bundles\project-plan\target") | Out-Null
       if ($LASTEXITCODE -ge 8) { throw "robocopy product $item failed: $LASTEXITCODE" }
     } else {
       Copy-Item -Force $src $dest
@@ -613,7 +623,7 @@ if ($IncludeLicensedUniver) {
   }
 }
 Push-Location $nsisRoot
-$nsisArgs = @('/V2', "/DAPP_VERSION=$AppVersion", '/DAPP_ICON=app-icon.ico', '/DINSTALLER_HEADER=installer-header.bmp',
+$nsisArgs = @('/V2', "/DAPP_VERSION=$AppVersion", "/DINSTALLER_NAME=$InstallerName", '/DAPP_ICON=app-icon.ico', '/DINSTALLER_HEADER=installer-header.bmp',
   "/DPRODUCT_NAME=$ProductName", "/DPRODUCT_ID=$ProductId", "/DPRODUCT_EXE=$ExecutableName", "/DPRODUCT_ARTIFACT=$ArtifactStem",
   "/DPRODUCT_USER_DATA=$ProductUserData", "/DPRODUCT_EDITION=$ProductEdition",
   "/DUNINST_KEY=Software\Microsoft\Windows\CurrentVersion\Uninstall\$ProductUninstallKey")

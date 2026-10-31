@@ -308,6 +308,18 @@ const reviewed387HostExtensions = [
   files: { ...reviewed385HostExtensions[index].files, ...review.files },
 }))
 
+// The mainline hotfix only removes eager DXF conversion and adds a manual iframe
+// retry. Decoder, viewer, worker and corresponding-source pins are inherited.
+const reviewed387HotfixHostExtension = {
+  ...reviewed387HostExtensions[0],
+  review: '3.8.7-mainline-hotfix.1-cad-preview-recovery',
+  shared: {
+    ...reviewed387HostExtensions[0].shared,
+    'package.json': [reviewed387HostExtensions[0].shared['package.json'][0], '90c42a08defabe738b365c181b6dd5877457ecc8829039a82bb693aef9b34191'],
+    'bundles/tender-web/src/client/file-preview-overlay.js': [reviewed387HostExtensions[0].shared['bundles/tender-web/src/client/file-preview-overlay.js'][0], '7d89205daa1929fd67d6259dc0e1094e6ad94ef44cae8249cad1446ee2b38787'],
+  },
+}
+
 const diskIndexPaths = ['bundles/engineering-cad/src/dxf-disk-source.ts', 'bundles/engineering-cad/src/cad-disk-index.ts']
 const patchedDecoderPaths = ['bundles/tender-host/src/cad-dwg-model-quality.mjs', 'bundles/engineering-cad/src/cad-embedded.ts', 'bundles/tender-host/lib/cad-decoder', 'scripts/cad-host-clean-release.mjs', 'scripts/build-cad-host-clean.sh', 'scripts/cad-host-bit-position-overflow.patch', 'scripts/cad-host-bit-position.test.c', 'scripts/cad-host-clean-pins.json']
 const hostExtensionPaths = [...new Set([
@@ -331,7 +343,7 @@ function reviewedHostExtensionForTarget(root, target) {
   if (git(root, ['ls-tree', target, '--', 'scripts/cad-browser-decoder-release.mjs', 'scripts/cad-browser-decoder-release.json']).trim()) {
     const path = 'bundles/tender-host/package.json'
     const hostHash = reviewedHash(path, git(root, ['show', `${target}:${path}`], null))
-    const upgraded = [...reviewed385HostExtensions, ...reviewed387HostExtensions].find(extension => hostHash === extension.files[path]
+    const upgraded = [...reviewed385HostExtensions, ...reviewed387HostExtensions, reviewed387HotfixHostExtension].find(extension => hostHash === extension.files[path]
       && reviewedHash('package.json', git(root, ['show', `${target}:package.json`], null)) === extension.shared['package.json'][1]
       && reviewedHash('bundles/tender-host/src/http.ts', git(root, ['show', `${target}:bundles/tender-host/src/http.ts`], null)) === extension.shared['bundles/tender-host/src/http.ts'][1])
     if (upgraded) return upgraded
@@ -352,7 +364,7 @@ function reviewedHostExtensionForTarget(root, target) {
 
 function verifyReviewedHostExtension(root, sourceCommit, target) {
   const extension = reviewedHostExtensionForTarget(root, target)
-  if ([reviewed382PatchedHostExtension, reviewed382ReleaseHostExtension, reviewed382BrowserHostExtension, reviewed383HostExtension, ...reviewed385HostExtensions, ...reviewed387HostExtensions].includes(extension)) {
+  if ([reviewed382PatchedHostExtension, reviewed382ReleaseHostExtension, reviewed382BrowserHostExtension, reviewed383HostExtension, ...reviewed385HostExtensions, ...reviewed387HostExtensions, reviewed387HotfixHostExtension].includes(extension)) {
     const runtime = git(root, ['ls-tree', '-r', '--name-only', target, '--', 'bundles/tender-host/lib/cad-decoder']).trim().split('\n')
     for (const path of runtime) if (!extension.files[path]) fail(`reviewed CAD host extension differs: ${path}`)
   }

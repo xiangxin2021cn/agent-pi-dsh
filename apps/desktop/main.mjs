@@ -1,5 +1,5 @@
 import { normalizeAgentTeamsPreference, createAgentTeamsPreferenceUpdate } from './agent-team-preferences.mjs'
-import { sanitizeStartupLog, startupFailureDetail } from './startup-diagnostics.mjs'
+import { cadViewerConsoleDiagnostic, rendererGoneDiagnostic, sanitizeStartupLog, startupFailureDetail } from './startup-diagnostics.mjs'
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, session, shell, Tray } from 'electron'
 import { spawn, spawnSync } from 'node:child_process'
 import { appendFileSync, copyFileSync, createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
@@ -554,8 +554,14 @@ function oshellOpen(url) {
 
 function attachRendererGuards(win) {
   const crashAt = []
+  let rendererPid = win.webContents.getOSProcessId()
+  win.webContents.on('dom-ready', () => { rendererPid = win.webContents.getOSProcessId() })
+  win.webContents.on('console-message', (details) => {
+    const diagnostic = cadViewerConsoleDiagnostic(details, appUrl)
+    if (diagnostic) logLine(diagnostic)
+  })
   win.webContents.on('render-process-gone', (_event, details) => {
-    logLine(`[renderer] gone reason=${details?.reason} exit=${details?.exitCode}`)
+    logLine(rendererGoneDiagnostic(details, { pid: rendererPid, version: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome }))
     if (win.isDestroyed() || app.isQuitting) return
     const now = Date.now()
     while (crashAt.length && now - crashAt[0] > 20_000) crashAt.shift()

@@ -333,7 +333,7 @@ test('all packaging and staging entrypoints require the DSH build receipt', () =
   }
 })
 
-test('Windows and portable staging consume the shared receipt scope without dropping Windows dependencies', () => {
+test('Windows and portable staging consume the shared receipt scope before platform dependency installation', () => {
   const repositoryRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
   const portable = readFileSync(join(repositoryRoot, 'scripts/pack-runtime-payload.mjs'), 'utf8')
   const windows = readFileSync(join(repositoryRoot, 'scripts/prepare-win-runtime.ps1'), 'utf8')
@@ -343,7 +343,7 @@ test('Windows and portable staging consume the shared receipt scope without drop
   assert.match(portable, /const dshSrc = realpathSync\(join\(root, 'vendor', 'deepseek-harness'\)\)/)
   assert.match(windows, /dsh-runtime-file-policy\.json/)
   assert.match(windows, /WindowsDshCopyExcludedDirectoryNames/)
-  assert.match(windows, /Where-Object \{ \$_ -ne "node_modules" \}/)
+  assert.match(windows, /WindowsDshCopyExcludedDirectoryNames = @\(\$DshRuntimeFilePolicy\.excludedDirectoryNames\)/)
   assert.match(windows, /DshRuntimeFilePolicy\.excludedFileNames/)
   assert.match(windows, /DshRuntimeFilePolicy\.excludedFileGlobs/)
 })

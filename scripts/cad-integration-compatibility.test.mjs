@@ -232,12 +232,12 @@ test('permits exact reviewed 3.7.5 shared files while rejecting later CAD edits 
   }
 })
 
-function reviewedHostFixture(t, review = '3.8.2-disk') {
+function reviewedHostFixture(t, review = '3.8.2-disk', extraShared = []) {
   const value = fixture(t)
   const repository = join(dirname(cli), '..')
   const shared = ['package.json', 'bundles/tender-host/src/http.ts', 'bundles/tender-web/src/client/file-preview-overlay.js',
     ...(['3.8.2-patched', '3.8.2-release', '3.8.2-browser', '3.8.3'].includes(review) ? ['THIRD_PARTY_NOTICES.md'] : []),
-    ...(['3.8.2-browser', '3.8.3'].includes(review) ? ['bundles/tender-host/src/cad-viewer-assets.ts'] : [])]
+    ...(['3.8.2-browser', '3.8.3'].includes(review) ? ['bundles/tender-host/src/cad-viewer-assets.ts'] : []), ...extraShared]
   const added = [
     'bundles/tender-host/src/cad-convert.ts', 'bundles/tender-host/src/cad-convert-worker.mjs',
     'bundles/tender-host/package.json', 'bundles/tender-host/package-lock.json',
@@ -660,4 +660,39 @@ test('accepts only the reviewed browser host decoder composition without changin
   git(value.root, 'rm', 'scripts/cad-browser-decoder-release.json')
   git(value.root, 'commit', '-qm', 'missing browser decoder binding')
   assert.throws(() => assertCadIntegrationUnchanged(value), /host extension missing or mode changed/)
+})
+
+test('3.8.7 mainline hotfix accepts its exact metadata and preview pair, refusing later bytes and decoder changes', (t) => {
+  const value = reviewedHostFixture(t, '3.8.3', ['bundles/tender-web/src/client/styles.js'])
+  const repository = join(dirname(cli), '..')
+  const paths = [...value.reviewed.keys(), 'bundles/engineering-cad/src/index.ts',
+    'bundles/tender-web/src/client/cad-preview-context.js', 'bundles/tender-web/src/client/index.js']
+  for (const path of paths) {
+    const original = execFileSync('git', ['show', `v3.8.7:${path}`], {
+      cwd: repository, maxBuffer: 64 * 1024 * 1024, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    value.reviewed.set(path, original)
+    write(join(value.root, path), original)
+  }
+  commit(value.root)
+  const historical = assertCadIntegrationUnchanged(value)
+  assert.equal(historical.hostExtension.review, '3.8.7-mainline-scoped-cad-preview')
+  const changed = ['package.json', 'bundles/tender-web/src/client/file-preview-overlay.js']
+  for (const path of changed) {
+    const current = readFileSync(join(repository, path), 'utf8').replaceAll('\r\n', '\n')
+    value.reviewed.set(path, current)
+    write(join(value.root, path), current)
+  }
+  commit(value.root)
+  const proof = assertCadIntegrationUnchanged(value)
+  assert.equal(proof.hostExtension.review, '3.8.7-mainline-hotfix.1-cad-preview-recovery')
+  assert.deepEqual(proof.hostExtension.additionalFileHashes, historical.hostExtension.additionalFileHashes)
+  for (const path of [...changed, 'bundles/tender-host/lib/cad-decoder/libredwg-web.wasm']) {
+    const original = value.reviewed.get(path)
+    write(join(value.root, path), Buffer.concat([Buffer.from(original), Buffer.from('\n')]))
+    commit(value.root)
+    assert.throws(() => assertCadIntegrationUnchanged(value), /CAD inputs changed|reviewed CAD host extension differs/, path)
+    write(join(value.root, path), original)
+    commit(value.root)
+  }
 })

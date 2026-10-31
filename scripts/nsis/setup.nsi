@@ -20,6 +20,9 @@
 !ifndef PRODUCT_ARTIFACT
   !define PRODUCT_ARTIFACT "Agent-Pi-DSH"
 !endif
+!ifndef INSTALLER_NAME
+  !define INSTALLER_NAME "${PRODUCT_ARTIFACT}-${APP_VERSION}-x64.exe"
+!endif
 !ifndef PRODUCT_USER_DATA
   !define PRODUCT_USER_DATA "agent-pi-dsh-desktop"
 !endif
@@ -32,7 +35,7 @@
 !define INSTALL_ROOT_RECEIPT ".agent-pi-install-root.ini"
 !define INSTALL_ROOT_RECEIPT_SECTION "AgentPiDSH"
 Name "${PRODUCT_NAME}"
-OutFile "${PRODUCT_ARTIFACT}-${APP_VERSION}-x64.exe"
+OutFile "${INSTALLER_NAME}"
 InstallDir "$LOCALAPPDATA\Programs\${PRODUCT_NAME}"
 InstallDirRegKey HKCU "${UNINST_KEY}" "InstallLocation"
 RequestExecutionLevel user

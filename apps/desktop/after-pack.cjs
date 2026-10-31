@@ -1,6 +1,6 @@
 const { spawnSync } = require('node:child_process')
 const { copyFileSync, existsSync } = require('node:fs')
-const { join } = require('node:path')
+const { isAbsolute, join, relative, resolve, sep } = require('node:path')
 
 const isWindows = process.platform === 'win32'
 
@@ -77,29 +77,23 @@ function assertRuntime(dest) {
     // --prod workspace installs link @deepseek-ai under apps/cli, not the root.
     join(dsh, 'node_modules', '.pnpm'),
     join(dsh, 'apps', 'cli', 'node_modules', '@deepseek-ai'),
+    join(dsh, 'apps', 'cli', 'node_modules', '@deepseek-ai', 'dsh-app-boot', 'package.json'),
     join(dest, 'product', 'scripts', 'init-tender-profile.mjs'),
     nodeBin,
   ]
-  if (isWindows) {
-    // tsx is the source-launch fallback; production POSIX bundles install
-    // --prod dependencies only and always run the built bin.js.
-    need.push(join(dsh, 'node_modules', 'tsx', 'package.json'))
-  }
   const missing = need.filter((path) => !existsSync(path))
   if (missing.length > 0) {
     throw new Error(`runtime incomplete:\n${missing.join('\n')}`)
   }
-  // Probe a real symlink/junction so a copy that flattened links fails here:
-  // tsx is a junction on Windows; dsh-app-boot is a pnpm workspace symlink.
-  const probeTarget = isWindows
-    ? join(dsh, 'node_modules', 'tsx')
-    : join(dsh, 'apps', 'cli', 'node_modules', '@deepseek-ai', 'dsh-app-boot')
+  // Production bundles launch built bin.js and resolve this CLI workspace link.
+  const probeTarget = join(dsh, 'apps', 'cli', 'node_modules', '@deepseek-ai', 'dsh-app-boot')
   const probe = spawnSync(nodeBin, ['-e', 'console.log(require("fs").realpathSync(process.argv[1]))', probeTarget], {
     encoding: 'utf8',
     windowsHide: true,
   })
   const real = String(probe.stdout || '').trim()
-  if (probe.status !== 0 || !real.toLowerCase().startsWith(dest.toLowerCase())) {
+  const child = relative(resolve(dest), real)
+  if (probe.status !== 0 || !real || isAbsolute(child) || child === '..' || child.startsWith(`..${sep}`)) {
     throw new Error(`dsh dependency escaped the packed runtime:\n${real || probe.stderr}`)
   }
 }

@@ -108,7 +108,7 @@ export function createFilePreviewOverlay(dependencies) {
       const [officeSaved, setOfficeSaved] = React.useState(null)
       const [siteUrl, setSiteUrl] = React.useState('')
       const [cadUrl, setCadUrl] = React.useState('')
-      const [cadConversionStatus, setCadConversionStatus] = React.useState('')
+      const [cadReload, setCadReload] = React.useState(0)
       const [aiSel, setAiSel] = React.useState(null)
       const [sheetTab, setSheetTab] = React.useState(0)
       const [univerDirty, setUniverDirty] = React.useState(false)
@@ -254,7 +254,6 @@ export function createFilePreviewOverlay(dependencies) {
         setUniverDirty(false)
         setSiteUrl('')
         setCadUrl('')
-        setCadConversionStatus('')
         setAiSel(null)
         const cacheKey = previewCacheKey(cwd, file.path, kbSlug)
         const cached = previewCacheGet(cacheKey)
@@ -349,14 +348,6 @@ export function createFilePreviewOverlay(dependencies) {
         }
         window.addEventListener('message', onMessage)
         return () => window.removeEventListener('message', onMessage)
-      }, [isCad, cwd, file.path])
-      React.useEffect(() => {
-        if (!isCad || !/\.dwg$/i.test(file.path || '')) return undefined
-        let cancelled = false
-        api('/api/agent-pi/cad/convert', cwd, { method: 'POST', body: JSON.stringify({ path: file.path }), timeoutMs: 200000 })
-          .then((result) => { if (!cancelled) setCadConversionStatus('已生成供智能体读图的 DXF：' + result.relativePath) })
-          .catch((error) => { if (!cancelled) setCadConversionStatus(String(error.message || error)) })
-        return () => { cancelled = true }
       }, [isCad, cwd, file.path])
       const canEdit = kbSlug
         ? kind === 'markdown' || kind === 'text'
@@ -901,6 +892,7 @@ export function createFilePreviewOverlay(dependencies) {
       } else if (isCad) {
         body = cadUrl
           ? h('iframe', {
+            key: file.path + ':' + cadReload,
             ref: cadRef,
             className: 'ap-cad-frame',
             title: file.name,
@@ -1013,6 +1005,11 @@ export function createFilePreviewOverlay(dependencies) {
               openInExplorer(cwd, file.path, { file: file, reveal: false })
                 .catch((err) => setError(String(err && err.message || err)))
             }, [Icon('folder', 14), '系统打开'], loading || !!busy) : null,
+            isCad && error && cadUrl ? DocBtn('重新打开图纸', () => {
+              setError('')
+              setStatus('')
+              setCadReload(value => value + 1)
+            }, [Icon('refresh', 14), '重新打开图纸'], loading) : null,
             kbSlug ? null : (canExport ? h('div', { className: 'ap-doc-exports' },
               DocBtn('导出 Markdown', () => exportFile('md'), [Icon('download', 14), ' MD'], !!busy),
               DocBtn('导出 PDF', () => exportFile('pdf'), [Icon('download', 14), ' PDF'], !!busy),
@@ -1030,7 +1027,6 @@ export function createFilePreviewOverlay(dependencies) {
           isUniver || isCad || kind === 'project-plan'
             ? h(React.Fragment, null,
               error ? h('div', { className: 'ap-err', style: { padding: '8px 12px', position: 'relative', zIndex: 2 } }, error) : null,
-              isCad && cadConversionStatus ? h('div', { className: 'ap-doc-status', style: { padding: '8px 12px', position: 'relative', zIndex: 2 } }, cadConversionStatus) : null,
               ((!isOfficeUniver && !isCad) || (isCad && error)) && status ? h('div', { className: 'ap-doc-status', style: { padding: '8px 12px', position: 'relative', zIndex: 2 } }, status) : null,
               body,
             )
