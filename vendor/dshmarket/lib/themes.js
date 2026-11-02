@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { loadRegistry, pluginCategories } from "./registry.js";
 import { hotMount, hotUnmount, listHotMounts, writeDisabled } from "./hot.js";
 import { logEvent } from "./log.js";
+import { loaderEntryId } from "./patch.js";
 import { LifecyclePendingError, LifecycleWaitError, waitForLifecycle } from "./lifecycle.js";
 import { nameMatchesPackage } from "./entry-identity.js";
 import { bundlePatchInsertedIds, profileDir, readInstalled } from "./profile.js";
@@ -54,8 +55,10 @@ function ownsLoaderEntry(entry, packageName, ownedIds) {
     const entryName = entry.options.name;
     if (nameMatchesPackage(entryName, packageName))
         return true;
-    const id = entry.options.id;
-    if (id === undefined || id === '')
+    // A YAML `id: 1` reaches the loader as a NUMBER (#1071); `.split` on it
+    // threw and took the caller down.
+    const id = loaderEntryId(entry);
+    if (id === '')
         return false;
     // Loader ids may carry an include prefix (`include:<key>:<id>`); the bare
     // id is what a bundle patch declares.

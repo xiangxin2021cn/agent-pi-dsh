@@ -287,6 +287,13 @@ export function classifyPnpmFailure(output: string, exitCode?: number | null): P
   // clear error it replaced. The paths are in the message; the choice is
   // the user's.
   if (output.includes('ERR_PNPM_UNEXPECTED_STORE')) {
+    if (process.env.AGENT_PI_DESKTOP === '1') {
+      return {
+        code: 'unexpected-store',
+        recoverable: false,
+        message: '插件依赖仓库版本与新内核不兼容。请退出并重启应用，启动时会备份并迁移；若仍失败，请导出日志检查迁移结果。 / Plugin dependencies use an older layout. Restart the app to back up and migrate them. If it still fails, export the logs to check the migration result.',
+      }
+    }
     const linked = /currently linked from the store at "([^"]+)"/.exec(output)?.[1]
     const wanted = /wants to use the store at "([^"]+)"/.exec(output)?.[1]
     const modulesDir = /The dependencies at "([^"]+)"/.exec(output)?.[1]
@@ -451,9 +458,20 @@ export function classifyPnpmFailure(output: string, exitCode?: number | null): P
   // `setupPolicyHandlers`, which an integration calling the CLI cannot wire,
   // so the only answer is the one-shot override. Classifying it here is what
   // connects it to that retry; without it the raw internal hint was surfaced.
-  if (output.includes('ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION')
+  // ...unless the lockfile is what is actually wrong (#1075). A profile whose
+  // lockfile is missing an entry makes pnpm re-resolve, and the resolver then
+  // applies the fresh-release policy from scratch — so the SAME log carries
+  // the lockfile's own error AND this policy code as collateral. Waiting or
+  // retrying cannot repair a missing lockfile entry, and the one-shot override
+  // this branch exists to trigger only lifts the age window, so classifying
+  // the pair as a wait names the wrong cause and promises a retry that must
+  // fail. The lockfile diagnoses below say what it is and how to repair it.
+  const lockfileContradictsItself = output.includes('ERR_PNPM_OUTDATED_LOCKFILE')
+    || output.includes('ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY')
+    || /Broken lockfile/.test(output)
+  if (!lockfileContradictsItself && (output.includes('ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION')
     || output.includes('ERR_PNPM_NO_MATURE_MATCHING_VERSION')
-    || output.includes('ERR_PNPM_RESOLUTION_POLICY_VIOLATIONS_UNHANDLED')) {
+    || output.includes('ERR_PNPM_RESOLUTION_POLICY_VIOLATIONS_UNHANDLED'))) {
     return {
       code: 'release-age-violation',
       recoverable: false,

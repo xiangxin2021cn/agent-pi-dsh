@@ -1,4 +1,4 @@
-import { isTeamComponent, TEAM_MANAGED_REASON, reconcileKnownPluginCompatibility } from '../compatibility.js';
+import { agentPiBundledRegistrySource, agentPiBundledSourceFingerprint, isTeamComponent, TEAM_MANAGED_REASON, reconcileKnownPluginCompatibility } from '../compatibility.js';
 /**
  * HTTP routes bridging the browser market UI to the host. This layer only
  * parses requests, calls the service modules, and serializes responses —
@@ -18,7 +18,7 @@ import { settingsNamespaceState } from "./settings.js";
 import { buildEnvFromUnknown, cleanHotDir, hotMount, hotUnmount, listHotMounts, MAX_BLOCKED, MAX_BLOCKED_NAME, MAX_FAVORITES, MAX_NOTE, MAX_UPDATE_EXEMPT, mountClientOnlyDeps, purgeMarketState, readMarketState, writeMarketState, } from "./hot.js";
 import { createGroup, deleteGroup, removeFromGroups, renameGroup, setGroupMembers } from "./groups.js";
 import { dshHostInfo, findDshInstallDir } from "./dsh-install.js";
-import { deriveHostCompatibility, DiscoveryManifestIndex, findCompatibleVersion } from "./discovery-compatibility.js";
+import { catalogReleaseManifest, deriveHostCompatibility, DiscoveryManifestIndex, findCompatibleVersion } from "./discovery-compatibility.js";
 import { configurePersistentLog, exportLogs, logEvent, readPersistentLog } from "./log.js";
 import { marketFetch } from "./net.js";
 import { diagnosePackageManifests } from "./diagnostics.js";
@@ -52,7 +52,7 @@ import { readJsonBody, refuseUnadmitted, sameOrigin, sendJson } from "./http.js"
 import { resolveDshHome } from "./home-paths.js";
 import { detectedDebugger, detectedSupervisor, restartAllowed, scheduleRestart, servingPort, trustedRestartRequest, trustedDownloadRequest, trustedSelfUninstallRequest, selfUninstallReachableFrom, restartReachableFrom } from "./restart.js";
 import { activationAfterReplace, brokenClientBundles, bundlePatchIsEmpty, checkClientBundle, defaultHostRuntimeFacts, findUnservedConfigNamespaces, hasHostHalf, hostPeerGate, isDeclaredLibraryDsh, newlyBrokenBundles, peerGateRemedy, verifyActivation } from "./verify.js";
-import { carrierRowIds, disableRow, enableRow, findUserPatchPath, foreignRowIds, isProtectedModule, packagePatchFlags, readUserPatchState, removeRowBlocks, rowIdsForPackage, userPatchPackageReferences, } from "./patch.js";
+import { carrierRowIds, disableRow, enableRow, findUserPatchPath, foreignRowIds, isProtectedModule, loaderEntryId, packagePatchFlags, readUserPatchState, removeRowBlocks, rowIdsForPackage, userPatchPackageReferences, } from "./patch.js";
 import { createProfileBackup, downloadWebdav, MAX_BACKUP_BYTES, mergeRestoreManifest, restoreProfileBackup, unportableDeps, uploadWebdav, WebdavUrlError, } from "./backup.js";
 import { createGist, fitsGistLimit, GistError, gistErrorCode, parseGistId, readGist, resolveGistTokenSource, updateGist, verifyGistToken, } from "./gist.js";
 import { MAX_UPDATE_OPERATIONS_V1, UpdateOperationStoreV1, UPDATE_API_V1_SCHEMA } from "./update-api-v1.js";
@@ -1253,11 +1253,15 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
             // here — but the id it created does, and that id is unique to its
             // patch. Verification needs both, and putting them in one set means
             // no call site can pass the names and forget the ids.
-            if (entry.options.id !== undefined && entry.options.id !== '') {
-                live.add(`#${entry.options.id}`);
+            // `id: 1` in the patch file is a NUMBER by the time the loader holds
+            // it, and `.split` on it took the whole `/installed` handler down with
+            // a 400 and an empty body (#1071).
+            const entryId = loaderEntryId(entry);
+            if (entryId !== '') {
+                live.add(`#${entryId}`);
                 // Loader ids may carry an include prefix (`include:archify-…`).
-                const bare = entry.options.id.split(':').pop();
-                if (bare !== undefined && bare !== entry.options.id)
+                const bare = entryId.split(':').pop();
+                if (bare !== undefined && bare !== entryId)
                     live.add(`#${bare}`);
             }
         }
@@ -1695,6 +1699,16 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
         return { ok: true, detail: null };
     }
     async function executeUpdateRollback(name, manifestBefore, source, preserveProfilePolicy = false) {
+        if (source.kind === 'product-bundle') {
+            const restored = await rollbackExactTarget(name, manifestBefore, source.lockfileBefore, source.spec, false, true);
+            if (!restored.ok)
+                return restored;
+            if (readInstalledVersion(config.profile, name, activeProfileDir) !== source.beforeVersion
+                || agentPiBundledSourceFingerprint(activeProfileDir, name, source.spec) !== source.fingerprint) {
+                return { ok: false, detail: 'The retained product source or its installed link could not be verified.' };
+            }
+            return { ok: true, detail: null };
+        }
         if (source.kind === 'npm') {
             return rollbackNpmBuild(name, manifestBefore, source.beforeVersion, source.lockfileBefore, preserveProfilePolicy);
         }
@@ -2205,6 +2219,9 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
      * — a developer's own `link:` checkout is never compared online.
      */
     const onlineSourceOf = (plugins, name, spec) => {
+        const bundled = agentPiBundledRegistrySource(activeProfileDir, name, spec);
+        if (bundled !== null)
+            return bundled;
         if (!spec.toLowerCase().startsWith('file:') && !isGenerationLink(spec))
             return null;
         const evidence = readInstalledRepoEvidence(config.profile, name, spec, activeProfileDir);
@@ -3017,11 +3034,15 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                     const host = dshHostInfo();
                     const hostVersion = host?.version ?? null;
                     const hostPackages = corePackageNames(host?.directory ?? null);
+                    const catalogFacts = Object.fromEntries(entries.flatMap(entry => {
+                        const facts = catalogReleaseManifest(entry);
+                        return facts === null ? [] : [[entry.url, facts]];
+                    }));
                     const [npmFacts, githubFacts] = await Promise.all([
                         discoveryManifests.lookup(packages, routesFor(region).npmRegistry),
-                        githubDiscoveryManifests.lookupGitHub(entries),
+                        githubDiscoveryManifests.lookupGitHub(entries.filter(entry => catalogFacts[entry.url] === undefined)),
                     ]);
-                    const facts = { ...npmFacts, ...githubFacts };
+                    const facts = { ...npmFacts, ...githubFacts, ...catalogFacts };
                     const plugins = Object.fromEntries([...packages, ...urls].map(name => [
                         name,
                         deriveHostCompatibility(facts[name] ?? null, hostVersion, hostPackages),
@@ -3180,8 +3201,9 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                     for (const id of ids)
                         servedEntryIds.add(id);
                 for (const entry of host.loader.entries()) {
-                    const id = entry.options?.id;
-                    if (id === undefined || id === '')
+                    // Same numeric-id trap as `liveNames()` (#1071).
+                    const id = loaderEntryId(entry);
+                    if (id === '')
                         continue;
                     servedEntryIds.add(id);
                     const bare = id.split(':').pop();
@@ -4796,8 +4818,14 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                             sendJson(response, 400, { error: 'restore 只适用于 link:/file: 的本地开发安装。 / Restore only applies to locally developed link:/file: installs.' });
                             return;
                         }
-                        if (restore && SELF_NAMES.has(name) && spec.toLowerCase().startsWith('link:')) {
-                            sendJson(response, 400, { error: '市场的本地开发链接不会被线上版本替换。 / The market\'s local development link is never replaced by an online release.' });
+                        const productSource = agentPiBundledRegistrySource(activeProfileDir, name, spec);
+                        const productFingerprint = productSource === null ? null : agentPiBundledSourceFingerprint(activeProfileDir, name, spec);
+                        if (spec.toLowerCase().startsWith('link:') && productSource === null) {
+                            sendJson(response, 400, { error: '本地开发链接保留原来源，不能被同名线上包替换。 / Local development links retain their source and cannot be replaced by an online package.' });
+                            return;
+                        }
+                        if (productSource !== null && (productFingerprint === null || readInstalledVersion(config.profile, name, activeProfileDir) === null)) {
+                            sendJson(response, 400, { error: '无法核验内置插件的原来源，未执行更新。 / The retained bundled source could not be verified; nothing was updated.' });
                             return;
                         }
                         if (isLocalSpec(spec)) {
@@ -4808,12 +4836,14 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                             // Restore replaces the local checkout with the curated source
                             // so the ordinary update check can see it again. Same add path
                             // as a registry update — only the resolved target changes.
-                            let catalogTarget = null;
+                            let catalogTarget = productSource;
                             try {
-                                const registry = await loadRegistry();
-                                const evidence = readInstalledRepoEvidence(config.profile, name, spec, activeProfileDir);
-                                const entry = findCatalogEntryForLocal(registry.plugins, name, evidence.identities, evidence.hints);
-                                catalogTarget = entry === null ? null : restoreTargetForLocal(entry, evidence.identities);
+                                if (catalogTarget === null) {
+                                    const registry = await loadRegistry();
+                                    const evidence = readInstalledRepoEvidence(config.profile, name, spec, activeProfileDir);
+                                    const entry = findCatalogEntryForLocal(registry.plugins, name, evidence.identities, evidence.hints);
+                                    catalogTarget = entry === null ? null : restoreTargetForLocal(entry, evidence.identities);
+                                }
                                 const workspaceDeps = workspaceProtocolDeps(readInstalledManifest(config.profile, name, activeProfileDir));
                                 if (catalogTarget !== null && restoreBlockedByWorkspace(catalogTarget, workspaceDeps)) {
                                     sendJson(response, 400, {
@@ -5302,89 +5332,93 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                         const lockfileCapture = captureProfileLockfile();
                         const previousVersionZh = beforeVersion === null ? '更新前版本未知' : `更新前版本为 v${beforeVersion}`;
                         const previousVersionEn = beforeVersion === null ? 'the previous version is unknown' : `the previous version was v${beforeVersion}`;
-                        const rollbackPlan = restore
-                            ? { available: true, source: { kind: 'manifest' } }
-                            : !lockfileCapture.ok
-                                ? { available: false, detail: lockfileCapture.detail }
-                                : isGit
-                                    ? hasGitSubpath
-                                        ? {
-                                            available: false,
-                                            detail: `更新前的 ${sourceKind} 来源使用 monorepo 子目录${beforeCommit === null ? '' : `（提交 ${beforeCommit}）`}，当前 DSH 命令无法表达该精确目标，因此自动回滚不可用；需要时请手工重新安装该提交。 / The previous ${sourceKind} source uses a monorepo subpath${beforeCommit === null ? '' : ` at commit ${beforeCommit}`}; the current DSH command cannot express that exact target, so automatic rollback is unavailable. Reinstall that commit manually if needed.`,
-                                            lockfileBefore: lockfileCapture.snapshot,
-                                        }
-                                        : beforeCommit === null
-                                            ? {
-                                                available: false,
-                                                detail: `未能确认更新前的 ${sourceKind} 提交，因此自动回滚不可用；需要时请从可信来源手工重新安装先前版本。 / The previous ${sourceKind} commit could not be verified, so automatic rollback is unavailable. Reinstall the prior version manually from a trusted source if needed.`,
-                                                lockfileBefore: lockfileCapture.snapshot,
-                                            }
-                                            : gitRollbackTarget === null || !supportsExactRollbackTarget(gitRollbackTarget)
+                        const rollbackPlan = restore && productSource !== null && productFingerprint !== null && beforeVersion !== null && lockfileCapture.ok
+                            ? { available: true, source: { kind: 'product-bundle', spec: manifestBefore.dependencies[name], beforeVersion, fingerprint: productFingerprint, lockfileBefore: lockfileCapture.snapshot } }
+                            : restore && productSource !== null
+                                ? { available: false, detail: 'The original bundled source or lockfile could not be captured safely.' }
+                                : restore
+                                    ? { available: true, source: { kind: 'manifest' } }
+                                    : !lockfileCapture.ok
+                                        ? { available: false, detail: lockfileCapture.detail }
+                                        : isGit
+                                            ? hasGitSubpath
                                                 ? {
                                                     available: false,
-                                                    detail: `当前宿主无法安装更新前的精确 ${sourceKind} 提交 ${beforeCommit}，因此自动回滚不可用；需要时请手工重新安装该提交。 / This host cannot install the exact previous ${sourceKind} commit ${beforeCommit}, so automatic rollback is unavailable. Reinstall that commit manually if needed.`,
+                                                    detail: `更新前的 ${sourceKind} 来源使用 monorepo 子目录${beforeCommit === null ? '' : `（提交 ${beforeCommit}）`}，当前 DSH 命令无法表达该精确目标，因此自动回滚不可用；需要时请手工重新安装该提交。 / The previous ${sourceKind} source uses a monorepo subpath${beforeCommit === null ? '' : ` at commit ${beforeCommit}`}; the current DSH command cannot express that exact target, so automatic rollback is unavailable. Reinstall that commit manually if needed.`,
                                                     lockfileBefore: lockfileCapture.snapshot,
                                                 }
-                                                : {
-                                                    available: true,
-                                                    source: {
-                                                        kind: 'git',
-                                                        target: spec,
-                                                        beforeCommit,
-                                                        lockfileBefore: lockfileCapture.snapshot,
-                                                        keepRepairedLock: keepRepairedGitLock,
-                                                    },
-                                                }
-                                    : isReleaseTarball
-                                        // A release download URL is not a content identity: GitHub
-                                        // assets can be replaced unless immutable releases are
-                                        // enabled. Re-adding the same URL could bless different
-                                        // bytes, so restore durable state but never claim an exact
-                                        // build rollback without a captured content binding.
-                                        ? {
-                                            available: false,
-                                            detail: `${previousVersionZh}，但先前的 Release 归档没有经过验证的不可变内容标识；同一链接以后可能返回不同文件，因此自动回滚不可用。需要时请从可信来源手工重新安装${beforeVersion === null ? '先前版本' : ` v${beforeVersion}`}。 / ${previousVersionEn}, but the previous Release archive has no verified immutable content identity; the same URL may later return different bytes, so automatic rollback is unavailable. Reinstall ${beforeVersion === null ? 'the prior version' : `v${beforeVersion}`} manually from a trusted source if needed.`,
-                                            lockfileBefore: lockfileCapture.snapshot,
-                                        }
-                                        : isNpmRollbackSource
-                                            ? beforeVersion === null
-                                                ? {
-                                                    available: false,
-                                                    detail: '未能确认更新前安装的 npm 版本，因此自动回滚不可用；需要时请从可信来源手工重新安装先前版本。 / The previously installed npm version could not be verified, so automatic rollback is unavailable. Reinstall the prior version manually from a trusted source if needed.',
-                                                    lockfileBefore: lockfileCapture.snapshot,
-                                                }
-                                                : lockfileCapture.snapshot.present
-                                                    // ...except for the packages the host installs as
-                                                    // generations: their absence from the lockfile is
-                                                    // how that install works, not evidence of a source
-                                                    // this rollback cannot prove (#874).
-                                                    && !generationManaged
-                                                    && capturedNpmVersion(lockfileCapture.snapshot, name) !== beforeVersion
+                                                : beforeCommit === null
                                                     ? {
                                                         available: false,
-                                                        // Name all three: the version on disk, the version
-                                                        // the lockfile records, and the one a rollback
-                                                        // would install (#732). The old wording named the
-                                                        // first two only by implication, and a user who
-                                                        // reads "the exact source cannot be proven" has
-                                                        // nothing to act on — the reproducer's way out was
-                                                        // to align package.json with the installed build,
-                                                        // which is what this now says.
-                                                        detail: `更新前 node_modules 里装的是 v${beforeVersion}，但 pnpm-lock.yaml 里 ${name} 记的是 ${capturedNpmVersion(lockfileCapture.snapshot, name) ?? '（没有记录）'}，两者不一致，无法证明精确来源，因此自动回滚不可用（要回滚的是 ${name}@${beforeVersion}）。需要时请手工重新安装 ${name}@${beforeVersion}，或先把 package.json 与 pnpm-lock.yaml 对齐到 v${beforeVersion}。 / The build on disk before the update was v${beforeVersion}, but pnpm-lock.yaml records ${capturedNpmVersion(lockfileCapture.snapshot, name) ?? 'nothing'} for ${name}: they disagree, so the exact source cannot be proven and automatic rollback is unavailable. Reinstall ${name}@${beforeVersion} manually if needed, or align package.json and pnpm-lock.yaml with v${beforeVersion} first.`,
+                                                        detail: `未能确认更新前的 ${sourceKind} 提交，因此自动回滚不可用；需要时请从可信来源手工重新安装先前版本。 / The previous ${sourceKind} commit could not be verified, so automatic rollback is unavailable. Reinstall the prior version manually from a trusted source if needed.`,
                                                         lockfileBefore: lockfileCapture.snapshot,
                                                     }
-                                                    : !supportsExactRollbackTarget(`${name}@${beforeVersion}`)
+                                                    : gitRollbackTarget === null || !supportsExactRollbackTarget(gitRollbackTarget)
                                                         ? {
                                                             available: false,
-                                                            detail: `当前宿主无法安装更新前的精确 npm 目标 ${name}@${beforeVersion}（v${beforeVersion}），因此自动回滚不可用；需要时请手工重新安装该版本。 / This host cannot install the exact previous npm target ${name}@${beforeVersion} (v${beforeVersion}), so automatic rollback is unavailable. Reinstall that version manually if needed.`,
+                                                            detail: `当前宿主无法安装更新前的精确 ${sourceKind} 提交 ${beforeCommit}，因此自动回滚不可用；需要时请手工重新安装该提交。 / This host cannot install the exact previous ${sourceKind} commit ${beforeCommit}, so automatic rollback is unavailable. Reinstall that commit manually if needed.`,
                                                             lockfileBefore: lockfileCapture.snapshot,
                                                         }
-                                                        : { available: true, source: { kind: 'npm', beforeVersion, lockfileBefore: lockfileCapture.snapshot } }
-                                            : {
-                                                available: false,
-                                                detail: `更新前的来源 ${spec} 不是受支持的精确回滚目标（${previousVersionZh}），因此自动回滚不可用；需要时请从可信来源手工重新安装先前版本。 / The previous source ${spec} is not a supported exact rollback target (${previousVersionEn}), so automatic rollback is unavailable. Reinstall the prior version manually from a trusted source if needed.`,
-                                                lockfileBefore: lockfileCapture.snapshot,
-                                            };
+                                                        : {
+                                                            available: true,
+                                                            source: {
+                                                                kind: 'git',
+                                                                target: spec,
+                                                                beforeCommit,
+                                                                lockfileBefore: lockfileCapture.snapshot,
+                                                                keepRepairedLock: keepRepairedGitLock,
+                                                            },
+                                                        }
+                                            : isReleaseTarball
+                                                // A release download URL is not a content identity: GitHub
+                                                // assets can be replaced unless immutable releases are
+                                                // enabled. Re-adding the same URL could bless different
+                                                // bytes, so restore durable state but never claim an exact
+                                                // build rollback without a captured content binding.
+                                                ? {
+                                                    available: false,
+                                                    detail: `${previousVersionZh}，但先前的 Release 归档没有经过验证的不可变内容标识；同一链接以后可能返回不同文件，因此自动回滚不可用。需要时请从可信来源手工重新安装${beforeVersion === null ? '先前版本' : ` v${beforeVersion}`}。 / ${previousVersionEn}, but the previous Release archive has no verified immutable content identity; the same URL may later return different bytes, so automatic rollback is unavailable. Reinstall ${beforeVersion === null ? 'the prior version' : `v${beforeVersion}`} manually from a trusted source if needed.`,
+                                                    lockfileBefore: lockfileCapture.snapshot,
+                                                }
+                                                : isNpmRollbackSource
+                                                    ? beforeVersion === null
+                                                        ? {
+                                                            available: false,
+                                                            detail: '未能确认更新前安装的 npm 版本，因此自动回滚不可用；需要时请从可信来源手工重新安装先前版本。 / The previously installed npm version could not be verified, so automatic rollback is unavailable. Reinstall the prior version manually from a trusted source if needed.',
+                                                            lockfileBefore: lockfileCapture.snapshot,
+                                                        }
+                                                        : lockfileCapture.snapshot.present
+                                                            // ...except for the packages the host installs as
+                                                            // generations: their absence from the lockfile is
+                                                            // how that install works, not evidence of a source
+                                                            // this rollback cannot prove (#874).
+                                                            && !generationManaged
+                                                            && capturedNpmVersion(lockfileCapture.snapshot, name) !== beforeVersion
+                                                            ? {
+                                                                available: false,
+                                                                // Name all three: the version on disk, the version
+                                                                // the lockfile records, and the one a rollback
+                                                                // would install (#732). The old wording named the
+                                                                // first two only by implication, and a user who
+                                                                // reads "the exact source cannot be proven" has
+                                                                // nothing to act on — the reproducer's way out was
+                                                                // to align package.json with the installed build,
+                                                                // which is what this now says.
+                                                                detail: `更新前 node_modules 里装的是 v${beforeVersion}，但 pnpm-lock.yaml 里 ${name} 记的是 ${capturedNpmVersion(lockfileCapture.snapshot, name) ?? '（没有记录）'}，两者不一致，无法证明精确来源，因此自动回滚不可用（要回滚的是 ${name}@${beforeVersion}）。需要时请手工重新安装 ${name}@${beforeVersion}，或先把 package.json 与 pnpm-lock.yaml 对齐到 v${beforeVersion}。 / The build on disk before the update was v${beforeVersion}, but pnpm-lock.yaml records ${capturedNpmVersion(lockfileCapture.snapshot, name) ?? 'nothing'} for ${name}: they disagree, so the exact source cannot be proven and automatic rollback is unavailable. Reinstall ${name}@${beforeVersion} manually if needed, or align package.json and pnpm-lock.yaml with v${beforeVersion} first.`,
+                                                                lockfileBefore: lockfileCapture.snapshot,
+                                                            }
+                                                            : !supportsExactRollbackTarget(`${name}@${beforeVersion}`)
+                                                                ? {
+                                                                    available: false,
+                                                                    detail: `当前宿主无法安装更新前的精确 npm 目标 ${name}@${beforeVersion}（v${beforeVersion}），因此自动回滚不可用；需要时请手工重新安装该版本。 / This host cannot install the exact previous npm target ${name}@${beforeVersion} (v${beforeVersion}), so automatic rollback is unavailable. Reinstall that version manually if needed.`,
+                                                                    lockfileBefore: lockfileCapture.snapshot,
+                                                                }
+                                                                : { available: true, source: { kind: 'npm', beforeVersion, lockfileBefore: lockfileCapture.snapshot } }
+                                                    : {
+                                                        available: false,
+                                                        detail: `更新前的来源 ${spec} 不是受支持的精确回滚目标（${previousVersionZh}），因此自动回滚不可用；需要时请从可信来源手工重新安装先前版本。 / The previous source ${spec} is not a supported exact rollback target (${previousVersionEn}), so automatic rollback is unavailable. Reinstall the prior version manually from a trusted source if needed.`,
+                                                        lockfileBefore: lockfileCapture.snapshot,
+                                                    };
                         // The desktop host names the package a run installed by diffing the
                         // profile manifest before and after pnpm. A floating re-resolve is
                         // sent as the bare remote URL, which pnpm writes back byte-for-byte

@@ -30,6 +30,13 @@
 - **自定义 profile：** 把命令里的 `web` 换成宿主实际使用的 profile 名称：
   `dsh plugin --profile <profile> add dshmarket`。之后按宿主的说明重启。
 
+- **从 GitHub 源码安装（免构建）：** `add github:dsh-market/dsh-market` 会让
+  pnpm 先征求构建脚本授权。改用同一版本 Release 附带的预构建包，就不需要这一步：
+
+  ```sh
+  dsh plugin --profile <profile> add https://github.com/dsh-market/dsh-market/releases/download/v<version>/dshmarket-<version>.tgz
+  ```
+
 在装有 DSH Desktop 的电脑上执行 `dsh plugin --profile web add dshmarket`，
 命令可能提示成功，但市场装进的是 `profiles/web`，**不是**桌面应用使用的
 profile，因此不会出现在桌面端。请通过应用内的 **设置 → 插件** 安装；桌面端
@@ -125,6 +132,8 @@ profile，因此不会出现在桌面端。请通过应用内的 **设置 → �
 - 路线图上的每一项都欢迎社区 PR——动手前在对应条目里说一声，免得两个人重复造
 
 ## 数据源
+
+目录统计保留来源与口径：npm 显示注明日期范围的近 30 天下载量；仅通过 GitHub 发行的插件可显示仓库所有公开发行附件的累计下载量，包括安装包、校验和配套文件。两者不会相加，也不表示安装次数或用户数。提示中保留可用的采集时间，npm 下载排序仍使用原有时间窗口。目录提供的宿主声明仅用于完全匹配的固定安装地址，旧目录继续按需读取包清单。
 
 每次打开都实时请求 [awesome-dsh-plugin.com/plugins.json](https://awesome-dsh-plugin.com/plugins.json)——精选条目、npm 映射、star 数由 CI 每日刷新，不使用过期缓存兜底；连不上时会给出具体原因和耗时，并提供「重试」按钮。
 

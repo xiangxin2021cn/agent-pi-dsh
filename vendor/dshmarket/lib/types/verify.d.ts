@@ -26,7 +26,7 @@
  *             or a declared entry artifact that is missing
  *   missing – not present in node_modules
  */
-export type ActivationState = 'live' | 'preset' | 'restart' | 'incompatible' | 'inert' | 'broken' | 'failed' | 'missing' | 'disabled';
+export type ActivationState = 'live' | 'restart' | 'incompatible' | 'inert' | 'broken' | 'failed' | 'missing' | 'disabled';
 export interface ActivationResult {
     state: ActivationState;
     /** Bilingual, user-facing explanations (zh / en joined with " / "). */
@@ -126,7 +126,7 @@ export declare function peerGateRemedy(gate: PeerGate): {
  * compatibility.json takes effect without a market restart.
  */
 export declare function defaultHostRuntimeFacts(activeProfileDir: string): HostRuntimeFacts;
-export declare function verifyActivation(profile: string, name: string, live?: ReadonlySet<string>, explicitDir?: string, isDisabled?: boolean, hostFacts?: HostRuntimeFacts, loaderObserved?: boolean,
+export declare function verifyActivation(profile: string, name: string, live?: ReadonlySet<string>, explicitDir?: string, isDisabled?: boolean, hostFacts?: HostRuntimeFacts, loaderObserved?: boolean, 
 /**
  * The host's OWN row for this package exists and has no fiber (#1023).
  * The loader creates an entry before it imports the module, so an entry

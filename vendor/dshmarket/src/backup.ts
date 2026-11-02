@@ -20,7 +20,29 @@ export const BACKUP_FORMAT = 'dsh-profile-backup'
 export const MAX_BACKUP_BYTES = 2 * 1024 * 1024
 const MAX_FILES = 256
 const SKIP_NAMES = new Set(['node_modules', '.dsh-market', '.git', 'pnpm-lock.yaml'])
-const BACKUP_TOO_LARGE = `这个 profile 的配置超过 ${MAX_BACKUP_BYTES / (1024 * 1024)} MB，整份备份放不下。可以只导出选中的插件。 / this profile's configuration is larger than ${MAX_BACKUP_BYTES / (1024 * 1024)} MB, which is too much for one whole-profile backup. Export selected plugins instead.`
+/**
+ * Directories that are caches by name, wherever they sit.
+ *
+ * The market's own cache is `.dsh-market` (skipped above), but another
+ * component writes `<profile>/cache` — not hidden, so the dot rule below let
+ * it through and the whole thing was read as configuration. With a few
+ * multi-megabyte json files in there the profile could not be backed up at
+ * all, and the error blamed the profile's own configuration (#1064).
+ *
+ * Only the exporter skips these; `validatedBackup` still accepts a document
+ * that carries them, because backups written before this rule put them in.
+ */
+const SKIP_DIRS = new Set(['cache'])
+/**
+ * Said when the profile does not fit: the way out has to be one that works.
+ *
+ * The old sentence offered "只导出选中的插件" unconditionally, but that path
+ * walks the same profile once "包含配置文件" is ticked and fails with the
+ * same words (#1064) — so it now names the trap as well.
+ */
+const EXPORT_SELECTED_ZH = '可以改成只导出选中的插件，并且别勾「包含配置文件」，那会撞同一个上限'
+const EXPORT_SELECTED_EN = 'export selected plugins instead, and leave "Include config files" unticked — ticking it hits the same cap'
+const BACKUP_TOO_LARGE = `这个 profile 的配置超过 ${MAX_BACKUP_BYTES / (1024 * 1024)} MB，整份备份放不下。${EXPORT_SELECTED_ZH}。 / this profile's configuration is larger than ${MAX_BACKUP_BYTES / (1024 * 1024)} MB, which is too much for one whole-profile backup; ${EXPORT_SELECTED_EN}.`
 /** File names that routinely contain credentials (backup exports).
  *  Values are never masked in place — the export is one-to-one for
  *  faithful restores — but presence is surfaced by the UI warning. */
@@ -61,6 +83,8 @@ function profileFiles(root: string, dir = root): string[] {
     // "configuration" and blew the 2 MB cap (#972). Hidden FILES stay —
     // `.env` and `.npmrc` are real profile config.
     if (entry.isDirectory() && entry.name.startsWith('.')) continue
+    // Same rule, one name the dot check cannot cover (#1064).
+    if (entry.isDirectory() && SKIP_DIRS.has(entry.name)) continue
     const path = resolve(dir, entry.name)
     if (entry.isSymbolicLink()) continue
     if (entry.isDirectory()) files.push(...profileFiles(root, path))
@@ -68,7 +92,7 @@ function profileFiles(root: string, dir = root): string[] {
     // Told in the user's words, with the way out: this is the cap a heavy
     // profile actually hits, and the per-plugin export is the answer.
     if (files.length > MAX_FILES) {
-      throw new Error(`这个 profile 的配置文件超过 ${MAX_FILES} 个，整份备份放不下。可以只导出选中的插件。 / this profile has more than ${MAX_FILES} configuration files, which is too many for one whole-profile backup. Export selected plugins instead.`)
+      throw new Error(`这个 profile 的配置文件超过 ${MAX_FILES} 个，整份备份放不下。${EXPORT_SELECTED_ZH}。 / this profile has more than ${MAX_FILES} configuration files, which is too many for one whole-profile backup; ${EXPORT_SELECTED_EN}.`)
     }
   }
   return files

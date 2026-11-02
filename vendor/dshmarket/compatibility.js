@@ -1,4 +1,5 @@
-import { chmodSync, existsSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, lstatSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { createRequire } from 'node:module'
 import os from 'node:os'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
@@ -19,7 +20,49 @@ function isIntelCompatibilityDistribution() {
 
 export const TEAM_COMPONENTS = ['agent-team', 'tool-agent-team', 'agent-team-profile', 'agent-team-web-profile', 'client-ui-agent-team']
   .map(name => `@deepseek-ai/dsh-experimental-${name}`)
-export const TEAM_MANAGED_REASON = 'Agent Teams 内置组件，由设置 → Codex 智能体 → Agent Teams 统一开启或关闭，保存后重启；请勿单独安装、启停或卸载 / built-in Agent Teams component; use Settings → Codex agent → Agent Teams and restart; do not manage components individually'
+export const TEAM_MANAGED_REASON = 'Agent Teams 内置组件，由设置 → DSH 运行设置 → Agent Teams 统一开启或关闭，保存后重启；请勿单独安装、启停或卸载 / built-in Agent Teams component; use Settings → DSH runtime settings → Agent Teams and restart; do not manage components individually'
+
+const BUNDLED_REGISTRY_SOURCES = new Map([
+  ['dshmarket', 'vendor/dshmarket'],
+  ['dsh-univer-office', 'vendor/dsh-univer-office'],
+  ['@anysearch/anysearch-dsh', 'vendor/anysearch-dsh'],
+])
+
+/** Only the product's exact bundled trees may leave a link for an online release. */
+export function agentPiBundledRegistrySource(profileDirectory, name, spec) {
+  if (!String(spec).startsWith('link:') || !BUNDLED_REGISTRY_SOURCES.has(name)) return null
+  try {
+    const productRoot = process.env.DSH_BUNDLED_SKILL_DIR ? dirname(process.env.DSH_BUNDLED_SKILL_DIR)
+      : resolve(dirname(fileURLToPath(import.meta.url)), '../..')
+    const product = JSON.parse(readFileSync(join(productRoot, 'package.json'), 'utf8'))
+    if (!['mainline', 'tender'].includes(product.agentPiProduct?.edition)) return null
+    const expected = realpathSync(join(productRoot, BUNDLED_REGISTRY_SOURCES.get(name)))
+    const same = value => process.platform === 'win32' ? value.toLowerCase() : value
+    if (same(realpathSync(resolve(profileDirectory, spec.slice(5)))) !== same(expected)
+      || same(realpathSync(join(profileDirectory, 'node_modules', name))) !== same(expected)) return null
+    if (JSON.parse(readFileSync(join(expected, 'package.json'), 'utf8')).name !== name) return null
+    return name
+  } catch { return null }
+}
+
+export function agentPiBundledSourceFingerprint(profileDirectory, name, spec) {
+  if (agentPiBundledRegistrySource(profileDirectory, name, spec) !== name) return null
+  try {
+    const root = realpathSync(join(profileDirectory, 'node_modules', name)), hash = createHash('sha256')
+    const visit = (directory, prefix = '') => {
+      for (const entry of readdirSync(directory).sort()) {
+        if (entry === 'node_modules' || entry === '.git') continue
+        const file = join(directory, entry), key = prefix + entry, stat = lstatSync(file)
+        if (stat.isSymbolicLink()) throw new Error('linked bundled source')
+        if (stat.isDirectory()) visit(file, key + '/')
+        else if (stat.isFile()) hash.update(key + '\0').update(readFileSync(file)).update('\0')
+        else throw new Error('unsupported bundled source')
+      }
+    }
+    visit(root)
+    return hash.digest('hex')
+  } catch { return null }
+}
 
 export function isTeamComponent(name) {
   return TEAM_COMPONENTS.includes(name)
@@ -54,6 +97,38 @@ function runtimePath(info) {
 function installedMajor(version) {
   const match = /^(\d+)\./.exec(String(version ?? ''))
   return match === null ? null : Number(match[1])
+}
+
+const REVIEWED_PLUGIN_FILES = {
+  '@xmanrui/dsh-im@5.9.1': {
+    'lib/index.js': 'bd8a1c9a5dbef0dfeecd71a503dd93e82409ffb13c4dcd2b64851e5882c90b33',
+  },
+  'dsh-email@0.21.2': {
+    'lib/index.js': '03fd3336faf85ae3854dbf09d54923eaa823f61a23fe3c451fd651fab7f59cbe',
+    'lib/runtime.js': '29ef488f42aefe0a871001da0ec94eb30cd5fe4bcf108bcbf61d76b6853ed574',
+    'lib/tools.js': '100a5e756c7b8099ac801c51102a03fe7818cb3d167d76911125d634e2379d60',
+    'lib/approval.js': '848526b3274bedb7d316989eabbff36a055cc16299650f095b6f9a7474475060',
+    'lib/host-config.js': '4768ce411c6cd3468448366b1d801a9b58e5ce8db57951a799b9776d931337df',
+  },
+}
+
+function reviewedPluginEntry(info, name) {
+  const expected = info && REVIEWED_PLUGIN_FILES[`${name}@${info.manifest.version}`]
+  if (!expected || info.manifest.name !== name) return false
+  try {
+    const productRoot = process.env.DSH_BUNDLED_SKILL_DIR ? dirname(process.env.DSH_BUNDLED_SKILL_DIR)
+      : resolve(dirname(fileURLToPath(import.meta.url)), '../..')
+    if (readFileSync(join(productRoot, 'DSH_PIN'), 'utf8').trim() !== 'ce7073d51254c26cd63b22a60835b8f948deb447') return false
+    if (runtimePath(info) !== resolve(info.packageDirectory, 'lib/index.js')) return false
+    const root = realpathSync(info.packageDirectory)
+    for (const [file, hash] of Object.entries(expected)) {
+      const path = join(info.packageDirectory, file), relativePath = relative(root, realpathSync(path))
+      if (isAbsolute(relativePath) || relativePath === '..' || relativePath.startsWith('..\\') || relativePath.startsWith('../')
+        || !lstatSync(path).isFile() || lstatSync(path).isSymbolicLink()) return false
+      if (createHash('sha256').update(readFileSync(path)).digest('hex') !== hash) return false
+    }
+    return true
+  } catch { return false }
 }
 
 function replaceFileBreakingHardLinks(path, content) {
@@ -105,6 +180,7 @@ export function inspectKnownPluginCompatibility(profileDirectory, name) {
   if (name === DSH_EMAIL_PACKAGE) {
     const info = packageInfo(profileDirectory, name)
     if (info === null) return result('incompatible', '邮件插件包不完整 / email plugin package is incomplete')
+    if (reviewedPluginEntry(info, name)) return result('compatible', '已核验此版本与当前 DSH 内核兼容 / this exact release has been verified with the current DSH runtime')
     for (const entry of ['lib/runtime.js', 'lib/index.js']) {
       const path = join(info.packageDirectory, entry)
       if (existsSync(path) && /ctx\.settings\.register\s*\(/.test(readFileSync(path, 'utf8'))) {
@@ -118,6 +194,7 @@ export function inspectKnownPluginCompatibility(profileDirectory, name) {
   if (info === null) {
     return result('incompatible', '插件包不完整，无法检查兼容性 / plugin package is incomplete; compatibility cannot be checked')
   }
+  if (reviewedPluginEntry(info, name)) return result('compatible', '已核验此版本与当前 DSH 内核兼容 / this exact release has been verified with the current DSH runtime')
   const major = installedMajor(info.manifest.version)
   if (major === null || major < 4) {
     return result('incompatible', `不兼容：dsh-im ${String(info.manifest.version ?? 'unknown')} 依赖已移除的 apiProxy；需要 4.x / incompatible: dsh-im ${String(info.manifest.version ?? 'unknown')} depends on removed apiProxy; version 4.x is required`)

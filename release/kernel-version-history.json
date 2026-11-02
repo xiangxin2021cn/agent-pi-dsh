@@ -182,5 +182,13 @@
     "dshVersion": "0.2.2-alpha.2",
     "sourceChannel": "official master snapshot",
     "reason": "Forward-only upgrade from alpha.2; latest rc.5 belongs to the older 0.2.1 maintenance branch"
+  },
+  {
+    "version": "3.8.8",
+    "dshPin": "ce7073d51254c26cd63b22a60835b8f948deb447",
+    "releaseTag": "v3.8.8",
+    "dshVersion": "0.2.2-alpha.2",
+    "sourceChannel": "official master snapshot",
+    "reason": "Promote the mainline continuation/OAR and lean runtime work; upgrade Office 0.4.0 and market 1.73.9, repair multilingual sidebar recovery, plugin maintenance and experimental documentation without mixing the tender edition"
   }
 ]

@@ -456,6 +456,7 @@ window.__ModuleLoader__.load({
 			renameContinue: "迁移并更新",
 			restoreOnline: "换用线上版本",
 			restoreHint: "将卸载本地版本并安装线上版本，之后照常检查更新。此操作无法撤销。",
+			restoreProductMarketHint: "将改用社区原版插件市场，本应用的市场界面适配不会随该版本更新。DSH、项目数据和宿主迁移保护保留。",
 			hostIncompatibleTitle: "这个新版本要求更新的 DSH",
 			hostIncompatibleBody: "{plugin} 声明需要 DSH {requirement}，而你现在运行的是 {host}。装上去很可能用不了，只能手动装回旧版。\n已停止，插件仍是原来的版本。\n如果你确定这个版本号不准（例如桌面端自带的 DSH 不报告版本），仍可继续更新。",
 			hostIncompatibleUnknown: "未知版本",
@@ -577,11 +578,14 @@ window.__ModuleLoader__.load({
 			sortDownloads: "npm 下载量（近 30 天）",
 			downloadsPeriod: "近30天",
 			downloadsMeaning: "近 30 天 npm 下载：{0}",
+			githubReleaseDownloadsMeaning: "GitHub 发行附件累计下载：{0}（包括安装包、校验和配套文件）",
+			starsMeaning: "GitHub Star：{0}",
+			statisticCheckedAt: "；采集于 {0}",
 			downloadsWindow: "（{0} 至 {1}）",
 			/** Discover/theme card byline tooltip for catalog `version`. */
 			catalogNpmLatest: "npm 当前 latest",
-			catalogVersionDated: "目录（{0} 刷新）记录的 npm 版本；之后发布的版本要等下次刷新才会出现",
-			catalogVersionUndated: "目录记录的 npm 版本；目录每日刷新，可能滞后于 npm 上的实际 latest",
+			catalogVersionDated: "目录（{0} 更新）记录的安装版本；新发行需等待目录更新",
+			catalogVersionUndated: "目录记录的安装版本；可能滞后于项目的新发行",
 			sortStars: "Star 数",
 			sortAdded: "收录时间",
 			recentlyAdded: "最近收录",
@@ -603,6 +607,11 @@ window.__ModuleLoader__.load({
 			pageInfo: "第 {0} / {1} 页",
 			perPage: "每页",
 			marketUpdate: "更新插件市场",
+			marketCheck: "检查市场更新",
+			marketChecking: "检查中…",
+			marketCheckAvailable: "插件市场有新版本 {0}；请使用“更新插件市场”，更新将保留设置。",
+			marketCheckCurrent: "插件市场当前版本 {0}，没有确认到更高版本。",
+			marketCheckFailed: "无法确认插件市场最新版本，请检查网络后重试；当前安装未更改。",
 			updateAll: "全部更新",
 			heldReleaseNotice: "已安装，但不是最新版：这个 profile 的 minimumReleaseAge 挡住了 {0}，安装的是 {1}。",
 			versionUnverifiedNote: "已安装，但版本没能确认：registry 两次都查不到，这次装的是 {0}。插件页会显示实际版本，可以在那里核对。",
@@ -1239,6 +1248,7 @@ window.__ModuleLoader__.load({
 			renameContinue: "Migrate and update",
 			restoreOnline: "Use online version",
 			restoreHint: "This uninstalls the local version and installs the online version. Update checks continue as usual. This cannot be undone.",
+			restoreProductMarketHint: "This switches to the original community market. This app’s market interface adaptations will not carry over. DSH, project data and host migration protection remain.",
 			hostIncompatibleTitle: "This release needs a newer DSH",
 			hostIncompatibleBody: "{plugin} declares that it needs DSH {requirement}, and you are running {host}. Installing it would most likely break the plugin, leaving a manual downgrade as the only way back.\nNothing was changed — the plugin is still on its current version.\nIf you know the version number is wrong (a bundled DSH that does not report one, for example), you can update anyway.",
 			hostIncompatibleUnknown: "an unknown version",
@@ -1360,11 +1370,14 @@ window.__ModuleLoader__.load({
 			sortDownloads: "npm downloads (30d)",
 			downloadsPeriod: "30d",
 			downloadsMeaning: "Last 30 days on npm: {0}",
+			githubReleaseDownloadsMeaning: "GitHub Release asset downloads, all time: {0} (packages, checksums and companion files)",
+			starsMeaning: "GitHub stars: {0}",
+			statisticCheckedAt: "; checked {0}",
 			downloadsWindow: " ({0} – {1})",
 			/** Discover/theme card byline tooltip for catalog `version`. */
 			catalogNpmLatest: "npm latest",
-			catalogVersionDated: "the npm version as of the catalog's last refresh ({0}); a release published since then appears after the next refresh",
-			catalogVersionUndated: "the npm version as of the catalog's last refresh — the catalog updates daily, so this can lag npm's actual latest",
+			catalogVersionDated: "the installable version as of the catalog's last refresh ({0}); a release published since then appears after the next refresh",
+			catalogVersionUndated: "the installable version as of the catalog's last refresh — the catalog updates daily, so newer project releases may not appear yet",
 			sortStars: "Stars",
 			sortAdded: "Date added",
 			recentlyAdded: "Recently added",
@@ -1386,6 +1399,11 @@ window.__ModuleLoader__.load({
 			pageInfo: "Page {0} of {1}",
 			perPage: "Per page",
 			marketUpdate: "Update the plugin market",
+			marketCheck: "Check market updates",
+			marketChecking: "Checking…",
+			marketCheckAvailable: "Plugin market {0} is available. Use “Update the plugin market”; your settings are retained.",
+			marketCheckCurrent: "Plugin market {0}: no newer version confirmed.",
+			marketCheckFailed: "Could not verify the latest market version. Check your connection and retry; the current installation is unchanged.",
 			updateAll: "Update all",
 			heldReleaseNotice: "Installed, but not the newest: this profile's minimumReleaseAge held {0} back, so {1} was installed.",
 			versionUnverifiedNote: "Installed, but the version could not be confirmed: both registry lookups failed, so {0} is what pnpm chose. The plugin page shows the version actually on disk.",
@@ -2022,6 +2040,7 @@ window.__ModuleLoader__.load({
 			renameContinue: "移行して更新",
 			restoreOnline: "オンライン版に切り替える",
 			restoreHint: "ローカル版をアンインストールしてオンライン版をインストールします。その後も通常どおり更新を確認します。この操作は取り消せません。",
+			restoreProductMarketHint: "コミュニティのオリジナル版マーケットに切り替えます。本アプリのマーケット画面向け調整は引き継がれません。DSH、プロジェクトデータ、ホストの移行保護は維持されます。",
 			hostIncompatibleTitle: "この新しいバージョンには、より新しい DSH が必要です",
 			hostIncompatibleBody: "{plugin} は DSH {requirement} が必要だと宣言していますが、現在動作しているのは {host} です。インストールしてもほぼ確実に使えなくなり、手動で古い版に戻すしかなくなります。\n何も変更されていません。プラグインは現在のバージョンのままです。\nバージョン番号が正しくないと分かっている場合（バージョンを報告しない同梱の DSH など）は、そのまま更新できます。",
 			hostIncompatibleUnknown: "不明なバージョン",
@@ -2143,10 +2162,13 @@ window.__ModuleLoader__.load({
 			sortDownloads: "npm ダウンロード数（直近 30 日）",
 			downloadsPeriod: "30日",
 			downloadsMeaning: "直近 30 日の npm ダウンロード：{0}",
+			githubReleaseDownloadsMeaning: "GitHub Release 添付ファイルの累計ダウンロード：{0}（パッケージ、チェックサム、関連ファイルを含む）",
+			starsMeaning: "GitHub Star：{0}",
+			statisticCheckedAt: "；取得日時 {0}",
 			downloadsWindow: "（{0} ～ {1}）",
 			catalogNpmLatest: "npm の現在の latest",
-			catalogVersionDated: "カタログの前回更新（{0}）時点の npm バージョンです。それ以降に公開されたバージョンは、次回の更新後に現れます",
-			catalogVersionUndated: "カタログに記録された npm バージョンです。カタログは毎日更新されるため、npm の実際の latest より遅れていることがあります",
+			catalogVersionDated: "カタログ（{0} 更新）に記録されたインストール用バージョンです。新しいリリースはカタログ更新後に表示されます",
+			catalogVersionUndated: "カタログに記録されたインストール用バージョンです。新しいリリースがまだ反映されていない場合があります",
 			sortStars: "スター数",
 			sortAdded: "収録日時",
 			recentlyAdded: "最近の収録",
@@ -2168,6 +2190,11 @@ window.__ModuleLoader__.load({
 			pageInfo: "{0} / {1} ページ",
 			perPage: "1 ページあたり",
 			marketUpdate: "プラグインマーケットを更新",
+			marketCheck: "マーケットの更新を確認",
+			marketChecking: "確認中…",
+			marketCheckAvailable: "マーケットの新バージョン {0} があります。更新ボタンを使用してください。設定は保持されます。",
+			marketCheckCurrent: "現在のマーケットは {0} です。より新しいバージョンは確認されていません。",
+			marketCheckFailed: "最新バージョンを確認できませんでした。接続を確認して再試行してください。現在のインストールは変更されていません。",
 			updateAll: "すべて更新",
 			heldReleaseNotice: "インストールしましたが、最新版ではありません。この profile の minimumReleaseAge が {0} を保留したため、{1} がインストールされました。",
 			versionUnverifiedNote: "インストールしましたが、バージョンを確認できませんでした。レジストリの照会が 2 回とも失敗したため、pnpm が選んだ {0} が入っています。実際のバージョンはプラグイン画面で確認できます。",
@@ -2544,6 +2571,114 @@ window.__ModuleLoader__.load({
 			hostRecoveryRestored: "{0} 件の設定を復元しました。ページを更新すると表示されます。",
 			hostRecoveryFail: "復元に失敗しました：",
 			hostRecoveryNote: "復元の前にスナップショットが自動で保存されるため、元に戻せます。"
+		};
+		/** 3.8.8 maintenance controls; other market copy retains the host's English fallback. */
+		const maintenanceLocales = {
+			es: {
+				marketCheck: "Buscar actualizaciones del mercado",
+				marketChecking: "Buscando…",
+				marketCheckAvailable: "Está disponible el mercado {0}. Usa «Actualizar el mercado de plugins»; se conservará la configuración.",
+				marketCheckCurrent: "Mercado {0}: no se ha confirmado una versión más reciente.",
+				marketCheckFailed: "No se pudo comprobar la última versión del mercado. Revisa la conexión y reinténtalo; la instalación no ha cambiado.",
+				marketUpdate: "Actualizar el mercado de plugins",
+				updating: "Actualizando…",
+				restoreOnline: "Usar la versión en línea",
+				restoreProceed: "Confirmar cambio",
+				cancel: "Cancelar",
+				restoreHint: "Se desinstalará la versión local y se instalará la versión en línea. Las comprobaciones de actualización continuarán. Esta acción no se puede deshacer.",
+				restoreProductMarketHint: "Se usará la interfaz original de la comunidad, sin las adaptaciones del mercado de esta aplicación. Se conservarán DSH, los datos de los proyectos y la protección de migración del programa.",
+				restoreNameOnlyHint: "La copia local no indica su repositorio; la coincidencia del catálogo solo se basa en el nombre del paquete. Podría ser un plugin de otro autor. Verifica el autor y el repositorio antes de confirmar. Se desinstalará la copia local y se instalará ese plugin; esta acción no se puede deshacer."
+			},
+			fr: {
+				marketCheck: "Vérifier les mises à jour du marché",
+				marketChecking: "Vérification…",
+				marketCheckAvailable: "La version {0} du marché est disponible. Utilisez «Mettre à jour le marché des plugins» ; vos réglages seront conservés.",
+				marketCheckCurrent: "Marché {0} : aucune version plus récente confirmée.",
+				marketCheckFailed: "Impossible de vérifier la dernière version du marché. Vérifiez la connexion et réessayez ; l’installation est inchangée.",
+				marketUpdate: "Mettre à jour le marché des plugins",
+				updating: "Mise à jour…",
+				restoreOnline: "Utiliser la version en ligne",
+				restoreProceed: "Confirmer le remplacement",
+				cancel: "Annuler",
+				restoreHint: "La version locale sera désinstallée et remplacée par la version en ligne. Les vérifications de mise à jour continueront. Cette action est irréversible.",
+				restoreProductMarketHint: "L’interface communautaire remplacera celle-ci, sans les adaptations du marché propres à cette application. DSH, les données des projets et la protection de migration du programme seront conservés.",
+				restoreNameOnlyHint: "La copie locale ne précise pas son dépôt ; la correspondance du catalogue repose uniquement sur le nom du paquet. Il peut s’agir du plugin d’un autre auteur. Vérifiez l’auteur et le dépôt avant de confirmer. La copie locale sera désinstallée puis remplacée par ce plugin ; cette action est irréversible."
+			},
+			de: {
+				marketCheck: "Nach Marktplatz-Updates suchen",
+				marketChecking: "Wird geprüft…",
+				marketCheckAvailable: "Marktplatz-Version {0} ist verfügbar. Verwenden Sie „Plugin-Marktplatz aktualisieren“; Ihre Einstellungen bleiben erhalten.",
+				marketCheckCurrent: "Marktplatz {0}: Keine neuere Version bestätigt.",
+				marketCheckFailed: "Die neueste Marktplatz-Version konnte nicht geprüft werden. Verbindung prüfen und erneut versuchen; die Installation ist unverändert.",
+				marketUpdate: "Plugin-Marktplatz aktualisieren",
+				updating: "Wird aktualisiert…",
+				restoreOnline: "Online-Version verwenden",
+				restoreProceed: "Austausch bestätigen",
+				cancel: "Abbrechen",
+				restoreHint: "Die lokale Version wird deinstalliert und die Online-Version installiert. Update-Prüfungen werden fortgesetzt. Dieser Vorgang kann nicht rückgängig gemacht werden.",
+				restoreProductMarketHint: "Es wird die ursprüngliche Community-Oberfläche ohne die Marktplatz-Anpassungen dieser App verwendet. DSH, Projektdaten und der Migrationsschutz der Anwendung bleiben erhalten.",
+				restoreNameOnlyHint: "Die lokale Kopie nennt kein Quell-Repository; der Katalogabgleich beruht nur auf dem Paketnamen. Das Plugin könnte von einem anderen Autor stammen. Prüfen Sie Autor und Repository vor der Bestätigung. Die lokale Kopie wird deinstalliert und dieses Plugin installiert; dies kann nicht rückgängig gemacht werden."
+			},
+			ko: {
+				marketCheck: "마켓 업데이트 확인",
+				marketChecking: "확인 중…",
+				marketCheckAvailable: "마켓 {0} 버전을 사용할 수 있습니다. «플러그인 마켓 업데이트»를 누르세요. 설정은 유지됩니다.",
+				marketCheckCurrent: "마켓 {0}: 더 높은 버전이 확인되지 않았습니다.",
+				marketCheckFailed: "마켓의 최신 버전을 확인하지 못했습니다. 연결을 확인한 후 다시 시도하세요. 현재 설치는 변경되지 않았습니다.",
+				marketUpdate: "플러그인 마켓 업데이트",
+				updating: "업데이트 중…",
+				restoreOnline: "온라인 버전 사용",
+				restoreProceed: "교체 확인",
+				cancel: "취소",
+				restoreHint: "로컬 버전을 제거하고 온라인 버전을 설치합니다. 이후에도 업데이트를 확인합니다. 이 작업은 취소할 수 없습니다.",
+				restoreProductMarketHint: "커뮤니티 원본 화면으로 전환되며 이 앱의 마켓 화면 수정 사항은 포함되지 않습니다. DSH, 프로젝트 데이터와 앱의 마이그레이션 보호는 유지됩니다.",
+				restoreNameOnlyHint: "로컬 사본에 원본 저장소가 명시되지 않아 패키지 이름만으로 카탈로그와 일치시켰습니다. 다른 작성자의 플러그인일 수 있습니다. 확인하기 전에 작성자와 저장소를 검토하세요. 로컬 사본을 제거하고 해당 플러그인을 설치하며, 이 작업은 취소할 수 없습니다."
+			},
+			pt: {
+				marketCheck: "Verificar atualizações do mercado",
+				marketChecking: "Verificando…",
+				marketCheckAvailable: "O mercado {0} está disponível. Use “Atualizar o mercado de plugins”; suas configurações serão mantidas.",
+				marketCheckCurrent: "Mercado {0}: nenhuma versão mais recente confirmada.",
+				marketCheckFailed: "Não foi possível verificar a versão mais recente do mercado. Confira a conexão e tente novamente; a instalação não foi alterada.",
+				marketUpdate: "Atualizar o mercado de plugins",
+				updating: "Atualizando…",
+				restoreOnline: "Usar a versão on-line",
+				restoreProceed: "Confirmar substituição",
+				cancel: "Cancelar",
+				restoreHint: "A versão local será desinstalada e a versão on-line será instalada. A verificação de atualizações continuará. Esta ação não pode ser desfeita.",
+				restoreProductMarketHint: "Será usada a interface original da comunidade, sem as adaptações do mercado deste aplicativo. DSH, os dados dos projetos e a proteção de migração do programa serão mantidos.",
+				restoreNameOnlyHint: "A cópia local não informa o repositório de origem; a correspondência no catálogo usa apenas o nome do pacote. O plugin pode ser de outro autor. Confira o autor e o repositório antes de confirmar. A cópia local será desinstalada e esse plugin será instalado; esta ação não pode ser desfeita."
+			},
+			ru: {
+				marketCheck: "Проверить обновления каталога",
+				marketChecking: "Проверка…",
+				marketCheckAvailable: "Доступна версия каталога {0}. Нажмите «Обновить каталог плагинов»; настройки сохранятся.",
+				marketCheckCurrent: "Каталог {0}: более новая версия не подтверждена.",
+				marketCheckFailed: "Не удалось проверить последнюю версию каталога. Проверьте соединение и повторите попытку; установка не изменена.",
+				marketUpdate: "Обновить каталог плагинов",
+				updating: "Обновление…",
+				restoreOnline: "Использовать онлайн-версию",
+				restoreProceed: "Подтвердить замену",
+				cancel: "Отмена",
+				restoreHint: "Локальная версия будет удалена, затем будет установлена онлайн-версия. Проверка обновлений продолжится. Это действие нельзя отменить.",
+				restoreProductMarketHint: "Будет использован исходный интерфейс сообщества без изменений каталога, внесённых этим приложением. DSH, данные проектов и защита миграции приложения сохранятся.",
+				restoreNameOnlyHint: "В локальной копии не указан исходный репозиторий; совпадение в каталоге найдено только по имени пакета. Плагин может принадлежать другому автору. Перед подтверждением проверьте автора и репозиторий. Локальная копия будет удалена и заменена этим плагином; действие нельзя отменить."
+			},
+			ar: {
+				marketCheck: "التحقق من تحديثات المتجر",
+				marketChecking: "جارٍ التحقق…",
+				marketCheckAvailable: "يتوفر إصدار المتجر {0}. استخدم «تحديث متجر الإضافات»؛ ستُحفظ إعداداتك.",
+				marketCheckCurrent: "المتجر {0}: لم يُؤكَّد وجود إصدار أحدث.",
+				marketCheckFailed: "تعذر التحقق من أحدث إصدار للمتجر. تحقق من الاتصال وحاول مجددًا؛ لم يتغير التثبيت الحالي.",
+				marketUpdate: "تحديث متجر الإضافات",
+				updating: "جارٍ التحديث…",
+				restoreOnline: "استخدام الإصدار المتاح عبر الإنترنت",
+				restoreProceed: "تأكيد الاستبدال",
+				cancel: "إلغاء",
+				restoreHint: "سيُزال الإصدار المحلي ويُثبَّت الإصدار المتاح عبر الإنترنت. سيستمر التحقق من التحديثات. لا يمكن التراجع عن هذه العملية.",
+				restoreProductMarketHint: "ستُستخدم واجهة المجتمع الأصلية دون تعديلات واجهة المتجر الخاصة بهذا التطبيق. سيُحتفظ بـ DSH وبيانات المشاريع وحماية ترحيل التطبيق.",
+				restoreNameOnlyHint: "لا تحدد النسخة المحلية مستودع المصدر؛ لذا تستند مطابقة المتجر إلى اسم الحزمة فقط. قد تكون الإضافة لمؤلف آخر. تحقق من المؤلف والمستودع قبل التأكيد. ستُزال النسخة المحلية وتُثبَّت تلك الإضافة، ولا يمكن التراجع عن هذه العملية."
+			}
 		};
 		//#endregion
 		//#region src/catalog-local-match.ts
@@ -4032,486 +4167,486 @@ window.__ModuleLoader__.load({
 			document.head.appendChild(tag);
 		}
 		var Market_module_css_default = {
-			"envEditor": "nUhMVa_envEditor",
-			"themeCover": "nUhMVa_themeCover",
-			"cats": "nUhMVa_cats",
-			"deprecate": "nUhMVa_deprecate",
-			"ungroupedDesc": "nUhMVa_ungroupedDesc",
-			"orderPanel": "nUhMVa_orderPanel",
-			"opVerb": "nUhMVa_opVerb",
-			"themeDescription": "nUhMVa_themeDescription",
-			"opStatus": "nUhMVa_opStatus",
-			"empty": "nUhMVa_empty",
-			"favoriteBtn": "nUhMVa_favoriteBtn",
-			"cardBlockedMark": "nUhMVa_cardBlockedMark",
-			"setHeader": "nUhMVa_setHeader",
-			"memberNameWithDesc": "nUhMVa_memberNameWithDesc",
-			"cardShot": "nUhMVa_cardShot",
-			"migrationArrow": "nUhMVa_migrationArrow",
-			"diagBadgeCommunity": "nUhMVa_diagBadgeCommunity",
-			"switchOn": "nUhMVa_switchOn",
-			"opEmpty": "nUhMVa_opEmpty",
-			"presetList": "nUhMVa_presetList",
-			"opAggregateTop": "nUhMVa_opAggregateTop",
-			"setActions": "nUhMVa_setActions",
-			"barFill": "nUhMVa_barFill",
-			"opRowAlert": "nUhMVa_opRowAlert",
-			"groupHint": "nUhMVa_groupHint",
-			"favoriteOn": "nUhMVa_favoriteOn",
-			"lightboxNav": "nUhMVa_lightboxNav",
-			"modalNote": "nUhMVa_modalNote",
-			"confirmPanelMeta": "nUhMVa_confirmPanelMeta",
-			"irowStatusIcon": "nUhMVa_irowStatusIcon",
-			"footTags": "nUhMVa_footTags",
-			"irow": "nUhMVa_irow",
-			"setCard": "nUhMVa_setCard",
-			"notesH": "nUhMVa_notesH",
-			"recoveryLog": "nUhMVa_recoveryLog",
-			"notesSourceLink": "nUhMVa_notesSourceLink",
-			"shots": "nUhMVa_shots",
-			"opEntryAlert": "nUhMVa_opEntryAlert",
-			"nm": "nUhMVa_nm",
-			"recentBottom": "nUhMVa_recentBottom",
-			"on": "nUhMVa_on",
-			"confirmTerminalDot": "nUhMVa_confirmTerminalDot",
-			"confirmCmd": "nUhMVa_confirmCmd",
-			"installCautionLabel": "nUhMVa_installCautionLabel",
-			"notesRange": "nUhMVa_notesRange",
-			"notesVer": "nUhMVa_notesVer",
 			"themeActions": "nUhMVa_themeActions",
-			"panelHost": "nUhMVa_panelHost",
-			"installCautionMark": "nUhMVa_installCautionMark",
-			"cardMore": "nUhMVa_cardMore",
-			"top": "nUhMVa_top",
-			"themeStatus": "nUhMVa_themeStatus",
-			"lightboxClose": "nUhMVa_lightboxClose",
-			"choiceRadio": "nUhMVa_choiceRadio",
-			"diagBadgeShadow": "nUhMVa_diagBadgeShadow",
-			"row1": "nUhMVa_row1",
-			"av": "nUhMVa_av",
-			"brokenPluginText": "nUhMVa_brokenPluginText",
-			"setBetaTag": "nUhMVa_setBetaTag",
-			"recentDesc": "nUhMVa_recentDesc",
-			"confirmCopied": "nUhMVa_confirmCopied",
-			"diagArrow": "nUhMVa_diagArrow",
-			"themeToolbar": "nUhMVa_themeToolbar",
-			"masonryCol": "nUhMVa_masonryCol",
-			"recoveryNote": "nUhMVa_recoveryNote",
-			"roster": "nUhMVa_roster",
-			"pct": "nUhMVa_pct",
 			"catsRow": "nUhMVa_catsRow",
-			"diagCount": "nUhMVa_diagCount",
-			"tabSearch": "nUhMVa_tabSearch",
-			"collapseHead": "nUhMVa_collapseHead",
-			"groupRow": "nUhMVa_groupRow",
-			"orphBadge": "nUhMVa_orphBadge",
-			"choices": "nUhMVa_choices",
-			"themeSearch": "nUhMVa_themeSearch",
-			"setSegBtn": "nUhMVa_setSegBtn",
-			"pageEllipsis": "nUhMVa_pageEllipsis",
-			"panelActions": "nUhMVa_panelActions",
-			"backupActions": "nUhMVa_backupActions",
-			"cmd": "nUhMVa_cmd",
-			"logoCell": "nUhMVa_logoCell",
-			"src": "nUhMVa_src",
-			"noteInput": "nUhMVa_noteInput",
-			"opEmptyHint": "nUhMVa_opEmptyHint",
-			"noteAdd": "nUhMVa_noteAdd",
-			"shot": "nUhMVa_shot",
-			"recentAv": "nUhMVa_recentAv",
-			"ungroupedState": "nUhMVa_ungroupedState",
-			"recoveryHint": "nUhMVa_recoveryHint",
-			"choice": "nUhMVa_choice",
-			"setProxyLabel": "nUhMVa_setProxyLabel",
-			"themeCard": "nUhMVa_themeCard",
-			"tabs": "nUhMVa_tabs",
-			"confirmTags": "nUhMVa_confirmTags",
-			"groupMemberAction": "nUhMVa_groupMemberAction",
-			"diagSummary": "nUhMVa_diagSummary",
-			"confirmPanelRow": "nUhMVa_confirmPanelRow",
-			"irowStatusFact": "nUhMVa_irowStatusFact",
-			"warnLine": "nUhMVa_warnLine",
-			"themeCoverEmpty": "nUhMVa_themeCoverEmpty",
-			"confirmTerminalPrompt": "nUhMVa_confirmTerminalPrompt",
-			"conflictWhy": "nUhMVa_conflictWhy",
-			"irowActions": "nUhMVa_irowActions",
-			"headTop": "nUhMVa_headTop",
-			"confirmFineprint": "nUhMVa_confirmFineprint",
-			"irowDesc": "nUhMVa_irowDesc",
-			"themeSlot": "nUhMVa_themeSlot",
-			"dshmSlide": "nUhMVa_dshmSlide",
-			"recoveryMuted": "nUhMVa_recoveryMuted",
-			"reassureOk": "nUhMVa_reassureOk",
-			"confirmPanelRowStatic": "nUhMVa_confirmPanelRowStatic",
+			"topBtn": "nUhMVa_topBtn",
+			"capAheadRow": "nUhMVa_capAheadRow",
+			"irowStatusAction": "nUhMVa_irowStatusAction",
+			"groupRenameField": "nUhMVa_groupRenameField",
 			"inlineInput": "nUhMVa_inlineInput",
-			"commentsGithubAction": "nUhMVa_commentsGithubAction",
-			"setDesc": "nUhMVa_setDesc",
-			"brokenPluginNotice": "nUhMVa_brokenPluginNotice",
-			"reassure": "nUhMVa_reassure",
-			"choiceTitle": "nUhMVa_choiceTitle",
-			"barWave": "nUhMVa_barWave",
-			"recoverySummary": "nUhMVa_recoverySummary",
-			"installCautionBody": "nUhMVa_installCautionBody",
-			"descClamp3": "nUhMVa_descClamp3",
-			"groupActions": "nUhMVa_groupActions",
-			"hostFilterNote": "nUhMVa_hostFilterNote",
-			"backupInput": "nUhMVa_backupInput",
-			"irowStatusPart": "nUhMVa_irowStatusPart",
-			"dot": "nUhMVa_dot",
-			"bar": "nUhMVa_bar",
-			"ungroupedRow": "nUhMVa_ungroupedRow",
-			"choiceMain": "nUhMVa_choiceMain",
-			"conflictWhyText": "nUhMVa_conflictWhyText",
-			"recoveryList": "nUhMVa_recoveryList",
-			"masonry": "nUhMVa_masonry",
-			"switchMixed": "nUhMVa_switchMixed",
+			"confirmRow": "nUhMVa_confirmRow",
+			"confirmPanelMeta": "nUhMVa_confirmPanelMeta",
+			"backupGrid": "nUhMVa_backupGrid",
+			"titleRow": "nUhMVa_titleRow",
+			"opEntryAlert": "nUhMVa_opEntryAlert",
+			"grow": "nUhMVa_grow",
+			"cardShots": "nUhMVa_cardShots",
+			"confirmPanel": "nUhMVa_confirmPanel",
+			"err": "nUhMVa_err",
+			"capNote": "nUhMVa_capNote",
+			"noteRow": "nUhMVa_noteRow",
+			"opVerb": "nUhMVa_opVerb",
+			"metaTag": "nUhMVa_metaTag",
+			"actBroken": "nUhMVa_actBroken",
+			"themeToolbarActions": "nUhMVa_themeToolbarActions",
 			"owner": "nUhMVa_owner",
-			"recoveryBadge": "nUhMVa_recoveryBadge",
-			"notesA": "nUhMVa_notesA",
-			"backupCheckList": "nUhMVa_backupCheckList",
-			"commentsStatus": "nUhMVa_commentsStatus",
-			"notesBullets": "nUhMVa_notesBullets",
-			"groupAddModalList": "nUhMVa_groupAddModalList",
+			"warnLine": "nUhMVa_warnLine",
+			"cmd": "nUhMVa_cmd",
+			"staleAction": "nUhMVa_staleAction",
+			"notesSha": "nUhMVa_notesSha",
+			"noteMine": "nUhMVa_noteMine",
+			"opStatusBad": "nUhMVa_opStatusBad",
+			"shot": "nUhMVa_shot",
+			"reassureOk": "nUhMVa_reassureOk",
+			"irowDesc": "nUhMVa_irowDesc",
+			"cardAction": "nUhMVa_cardAction",
+			"ungroupedRow": "nUhMVa_ungroupedRow",
+			"fixFallbackText": "nUhMVa_fixFallbackText",
+			"setConfirm": "nUhMVa_setConfirm",
+			"notesVer": "nUhMVa_notesVer",
+			"confirmCmd": "nUhMVa_confirmCmd",
+			"themeGallery": "nUhMVa_themeGallery",
+			"setDanger": "nUhMVa_setDanger",
+			"noteInput": "nUhMVa_noteInput",
+			"pager": "nUhMVa_pager",
+			"notesBody": "nUhMVa_notesBody",
+			"favoritesSectionHead": "nUhMVa_favoritesSectionHead",
+			"masonry": "nUhMVa_masonry",
+			"envEditor": "nUhMVa_envEditor",
+			"themesGrid": "nUhMVa_themesGrid",
+			"themeLifecycle": "nUhMVa_themeLifecycle",
+			"rosterSplit": "nUhMVa_rosterSplit",
+			"diagSection": "nUhMVa_diagSection",
+			"specTagGit": "nUhMVa_specTagGit",
+			"groupHead": "nUhMVa_groupHead",
+			"rosterTagKeep": "nUhMVa_rosterTagKeep",
+			"favoritesStaleBar": "nUhMVa_favoritesStaleBar",
+			"themeResultBar": "nUhMVa_themeResultBar",
+			"setDesc": "nUhMVa_setDesc",
+			"bar": "nUhMVa_bar",
+			"setChevron": "nUhMVa_setChevron",
+			"blockedBarUndo": "nUhMVa_blockedBarUndo",
+			"recentCollapsed": "nUhMVa_recentCollapsed",
+			"retryBtn": "nUhMVa_retryBtn",
+			"diagAlert": "nUhMVa_diagAlert",
 			"exportLogBtn": "nUhMVa_exportLogBtn",
-			"root": "nUhMVa_root",
-			"stickyHead": "nUhMVa_stickyHead",
-			"themeCardFooter": "nUhMVa_themeCardFooter",
-			"lightboxDot": "nUhMVa_lightboxDot",
-			"confirmPanelIcon": "nUhMVa_confirmPanelIcon",
-			"irowTrailing": "nUhMVa_irowTrailing",
-			"stateDot": "nUhMVa_stateDot",
-			"tab": "nUhMVa_tab",
-			"setLabelBox": "nUhMVa_setLabelBox",
+			"irowMenu": "nUhMVa_irowMenu",
+			"diagSummaryItem": "nUhMVa_diagSummaryItem",
+			"irowStatusSep": "nUhMVa_irowStatusSep",
+			"blockedBarRow": "nUhMVa_blockedBarRow",
+			"deprecate": "nUhMVa_deprecate",
+			"favoriteMark": "nUhMVa_favoriteMark",
+			"diagBundle": "nUhMVa_diagBundle",
+			"submitLink": "nUhMVa_submitLink",
+			"nameLink": "nUhMVa_nameLink",
+			"collapseIcon": "nUhMVa_collapseIcon",
+			"backupCard": "nUhMVa_backupCard",
+			"orphBadge": "nUhMVa_orphBadge",
+			"head": "nUhMVa_head",
+			"metaInline": "nUhMVa_metaInline",
+			"confirmTags": "nUhMVa_confirmTags",
+			"groupAddModalBody": "nUhMVa_groupAddModalBody",
+			"recentHide": "nUhMVa_recentHide",
+			"confirmFold": "nUhMVa_confirmFold",
+			"spin": "nUhMVa_spin",
+			"reassure": "nUhMVa_reassure",
+			"choice": "nUhMVa_choice",
+			"opHead": "nUhMVa_opHead",
+			"footTags": "nUhMVa_footTags",
+			"version": "nUhMVa_version",
+			"setLabel": "nUhMVa_setLabel",
+			"recentBottom": "nUhMVa_recentBottom",
+			"diagBadgeOfficial": "nUhMVa_diagBadgeOfficial",
+			"opStatus": "nUhMVa_opStatus",
+			"migrationLabel": "nUhMVa_migrationLabel",
+			"recoveryMuted": "nUhMVa_recoveryMuted",
+			"dshmPlugFade": "nUhMVa_dshmPlugFade",
+			"noteCount": "nUhMVa_noteCount",
 			"progress": "nUhMVa_progress",
-			"diagList": "nUhMVa_diagList",
+			"commentsGithubHint": "nUhMVa_commentsGithubHint",
+			"recentToggle": "nUhMVa_recentToggle",
+			"opWrap": "nUhMVa_opWrap",
+			"catsToggle": "nUhMVa_catsToggle",
+			"lightboxDots": "nUhMVa_lightboxDots",
+			"confirmPanelChevron": "nUhMVa_confirmPanelChevron",
+			"capChip": "nUhMVa_capChip",
+			"recentTitle": "nUhMVa_recentTitle",
+			"irowPath": "nUhMVa_irowPath",
+			"opActions": "nUhMVa_opActions",
+			"switchOn": "nUhMVa_switchOn",
+			"sub": "nUhMVa_sub",
+			"confirmContent": "nUhMVa_confirmContent",
+			"presetName": "nUhMVa_presetName",
+			"spec": "nUhMVa_spec",
+			"body": "nUhMVa_body",
+			"shots": "nUhMVa_shots",
+			"choiceRadio": "nUhMVa_choiceRadio",
+			"loading": "nUhMVa_loading",
+			"modalNote": "nUhMVa_modalNote",
+			"catsWrap": "nUhMVa_catsWrap",
+			"diagBadgeInfo": "nUhMVa_diagBadgeInfo",
+			"themeCardHead": "nUhMVa_themeCardHead",
+			"confirmPanelRow": "nUhMVa_confirmPanelRow",
+			"opEntry": "nUhMVa_opEntry",
+			"caps": "nUhMVa_caps",
+			"switchKnob": "nUhMVa_switchKnob",
+			"groupAddFooterMeta": "nUhMVa_groupAddFooterMeta",
+			"setBetaTag": "nUhMVa_setBetaTag",
+			"capCaveat": "nUhMVa_capCaveat",
+			"themeCover": "nUhMVa_themeCover",
+			"confirmFineprint": "nUhMVa_confirmFineprint",
+			"themeCardBody": "nUhMVa_themeCardBody",
+			"conflictBody": "nUhMVa_conflictBody",
+			"themeCardFooter": "nUhMVa_themeCardFooter",
+			"setAdvancedBody": "nUhMVa_setAdvancedBody",
+			"recoveryBlamed": "nUhMVa_recoveryBlamed",
+			"catsCollapsed": "nUhMVa_catsCollapsed",
+			"themePreviewAction": "nUhMVa_themePreviewAction",
+			"diagBadgeWarn": "nUhMVa_diagBadgeWarn",
+			"byline": "nUhMVa_byline",
+			"recentDesc": "nUhMVa_recentDesc",
+			"panelActions": "nUhMVa_panelActions",
+			"irowPathCopy": "nUhMVa_irowPathCopy",
+			"pct": "nUhMVa_pct",
+			"sect": "nUhMVa_sect",
+			"irowName": "nUhMVa_irowName",
+			"lightboxImg": "nUhMVa_lightboxImg",
+			"groupAddModalHint": "nUhMVa_groupAddModalHint",
+			"installCautionMark": "nUhMVa_installCautionMark",
+			"cardShot": "nUhMVa_cardShot",
+			"commentsGithubPrompt": "nUhMVa_commentsGithubPrompt",
+			"notesModalWide": "nUhMVa_notesModalWide",
+			"lightboxDotOn": "nUhMVa_lightboxDotOn",
+			"recoveryLog": "nUhMVa_recoveryLog",
+			"opAggregate": "nUhMVa_opAggregate",
+			"star": "nUhMVa_star",
+			"presetRow": "nUhMVa_presetRow",
+			"okState": "nUhMVa_okState",
+			"migrationWarning": "nUhMVa_migrationWarning",
+			"irowTrailing": "nUhMVa_irowTrailing",
+			"footActions": "nUhMVa_footActions",
+			"depLine": "nUhMVa_depLine",
+			"root": "nUhMVa_root",
+			"collapseTitle": "nUhMVa_collapseTitle",
+			"backupCheckList": "nUhMVa_backupCheckList",
+			"recentAv": "nUhMVa_recentAv",
+			"cats": "nUhMVa_cats",
+			"dshmMarkPlug": "nUhMVa_dshmMarkPlug",
+			"groupTitle": "nUhMVa_groupTitle",
+			"depBadge": "nUhMVa_depBadge",
+			"dshmSlide": "nUhMVa_dshmSlide",
+			"opDot": "nUhMVa_opDot",
+			"irowMeta": "nUhMVa_irowMeta",
+			"irowStatusFact": "nUhMVa_irowStatusFact",
+			"diagEmpty": "nUhMVa_diagEmpty",
+			"searchInput": "nUhMVa_searchInput",
+			"cardMore": "nUhMVa_cardMore",
+			"groupCreate": "nUhMVa_groupCreate",
+			"groupMemberAction": "nUhMVa_groupMemberAction",
+			"opEntryQuiet": "nUhMVa_opEntryQuiet",
+			"stateDot": "nUhMVa_stateDot",
+			"descToggle": "nUhMVa_descToggle",
+			"dangerBtn": "nUhMVa_dangerBtn",
+			"dangerArmed": "nUhMVa_dangerArmed",
+			"panelNote": "nUhMVa_panelNote",
+			"orphRow": "nUhMVa_orphRow",
+			"setHint": "nUhMVa_setHint",
+			"groupRow": "nUhMVa_groupRow",
+			"confirmTerminalDot": "nUhMVa_confirmTerminalDot",
+			"viewOn": "nUhMVa_viewOn",
+			"recoverySummary": "nUhMVa_recoverySummary",
+			"ovByTag": "nUhMVa_ovByTag",
+			"presetList": "nUhMVa_presetList",
+			"top": "nUhMVa_top",
+			"notesA": "nUhMVa_notesA",
+			"switch": "nUhMVa_switch",
+			"setBody": "nUhMVa_setBody",
+			"choiceSafe": "nUhMVa_choiceSafe",
+			"rosterTag": "nUhMVa_rosterTag",
+			"setSegBtn": "nUhMVa_setSegBtn",
+			"viewBtn": "nUhMVa_viewBtn",
+			"commentsMount": "nUhMVa_commentsMount",
+			"repoMark": "nUhMVa_repoMark",
 			"capCaveatAt": "nUhMVa_capCaveatAt",
+			"setRow": "nUhMVa_setRow",
+			"opDecision": "nUhMVa_opDecision",
+			"opAggregateTop": "nUhMVa_opAggregateTop",
+			"blockedBarName": "nUhMVa_blockedBarName",
+			"viewBar": "nUhMVa_viewBar",
+			"card": "nUhMVa_card",
+			"conflictTitle": "nUhMVa_conflictTitle",
+			"themeDescription": "nUhMVa_themeDescription",
+			"diagBadgeCommunity": "nUhMVa_diagBadgeCommunity",
+			"pageEllipsis": "nUhMVa_pageEllipsis",
+			"banner": "nUhMVa_banner",
+			"capAhead": "nUhMVa_capAhead",
+			"installCautionLink": "nUhMVa_installCautionLink",
+			"choiceOn": "nUhMVa_choiceOn",
+			"opRow": "nUhMVa_opRow",
+			"recentRow": "nUhMVa_recentRow",
+			"opEmptyHint": "nUhMVa_opEmptyHint",
 			"tabSearchRow": "nUhMVa_tabSearchRow",
-			"metaTagOk": "nUhMVa_metaTagOk",
+			"groupActions": "nUhMVa_groupActions",
+			"repoLink": "nUhMVa_repoLink",
+			"capMuted": "nUhMVa_capMuted",
+			"conflictIcon": "nUhMVa_conflictIcon",
+			"stateTag": "nUhMVa_stateTag",
+			"groupCreateInline": "nUhMVa_groupCreateInline",
+			"groupHint": "nUhMVa_groupHint",
+			"brokenPluginNotice": "nUhMVa_brokenPluginNotice",
+			"themeStatusMuted": "nUhMVa_themeStatusMuted",
+			"row1": "nUhMVa_row1",
+			"dshmMarkWave": "nUhMVa_dshmMarkWave",
+			"choiceMain": "nUhMVa_choiceMain",
+			"pageInfo": "nUhMVa_pageInfo",
+			"snapList": "nUhMVa_snapList",
+			"notesRange": "nUhMVa_notesRange",
+			"notesRendered": "nUhMVa_notesRendered",
+			"ovFrom": "nUhMVa_ovFrom",
+			"notesCode": "nUhMVa_notesCode",
+			"groupOrgHint": "nUhMVa_groupOrgHint",
+			"snapRow": "nUhMVa_snapRow",
+			"src": "nUhMVa_src",
+			"capAddress": "nUhMVa_capAddress",
+			"opAggregateHint": "nUhMVa_opAggregateHint",
+			"sectAction": "nUhMVa_sectAction",
+			"setChevronOpen": "nUhMVa_setChevronOpen",
+			"themeCard": "nUhMVa_themeCard",
+			"notesImg": "nUhMVa_notesImg",
+			"rosterAuthor": "nUhMVa_rosterAuthor",
+			"av": "nUhMVa_av",
+			"actLive": "nUhMVa_actLive",
+			"collapseHead": "nUhMVa_collapseHead",
+			"diagSummary": "nUhMVa_diagSummary",
+			"diagPage": "nUhMVa_diagPage",
+			"capChipUncommon": "nUhMVa_capChipUncommon",
+			"groupAddFilters": "nUhMVa_groupAddFilters",
+			"brokenPluginItem": "nUhMVa_brokenPluginItem",
+			"irowStatusIcon": "nUhMVa_irowStatusIcon",
+			"meta": "nUhMVa_meta",
+			"diagCount": "nUhMVa_diagCount",
+			"groupMember": "nUhMVa_groupMember",
+			"installBtn": "nUhMVa_installBtn",
+			"opName": "nUhMVa_opName",
+			"groupAddModalList": "nUhMVa_groupAddModalList",
+			"irowStatusPart": "nUhMVa_irowStatusPart",
+			"logoPlug": "nUhMVa_logoPlug",
+			"themeSlot": "nUhMVa_themeSlot",
+			"memberKind": "nUhMVa_memberKind",
+			"specTagFile": "nUhMVa_specTagFile",
+			"backupActions": "nUhMVa_backupActions",
+			"backupCheck": "nUhMVa_backupCheck",
+			"memberNameWithDesc": "nUhMVa_memberNameWithDesc",
+			"roster": "nUhMVa_roster",
+			"notesPre": "nUhMVa_notesPre",
+			"notesSourceLink": "nUhMVa_notesSourceLink",
+			"setProxyEditor": "nUhMVa_setProxyEditor",
+			"descMore": "nUhMVa_descMore",
+			"groupAddPick": "nUhMVa_groupAddPick",
+			"descTight": "nUhMVa_descTight",
+			"conflictDetailsToggle": "nUhMVa_conflictDetailsToggle",
+			"recoveryNote": "nUhMVa_recoveryNote",
+			"notesH": "nUhMVa_notesH",
+			"title": "nUhMVa_title",
+			"setInlineActions": "nUhMVa_setInlineActions",
+			"opPanel": "nUhMVa_opPanel",
+			"commentsLink": "nUhMVa_commentsLink",
+			"descClamp": "nUhMVa_descClamp",
+			"brokenPluginText": "nUhMVa_brokenPluginText",
+			"lightboxNext": "nUhMVa_lightboxNext",
+			"irowPathIcon": "nUhMVa_irowPathIcon",
+			"notesMeta": "nUhMVa_notesMeta",
+			"lightboxNav": "nUhMVa_lightboxNav",
+			"installCautionBody": "nUhMVa_installCautionBody",
+			"rosterMain": "nUhMVa_rosterMain",
+			"opTop": "nUhMVa_opTop",
+			"groupAddPanel": "nUhMVa_groupAddPanel",
+			"stickyHead": "nUhMVa_stickyHead",
+			"commentsStatus": "nUhMVa_commentsStatus",
+			"themeToolbar": "nUhMVa_themeToolbar",
+			"opQueuedIcon": "nUhMVa_opQueuedIcon",
+			"rosterRow": "nUhMVa_rosterRow",
+			"groupCollapse": "nUhMVa_groupCollapse",
+			"bannerHint": "nUhMVa_bannerHint",
+			"capGroups": "nUhMVa_capGroups",
+			"conflictHead": "nUhMVa_conflictHead",
+			"noteEditBar": "nUhMVa_noteEditBar",
 			"commentsFail": "nUhMVa_commentsFail",
 			"rosterTagDrop": "nUhMVa_rosterTagDrop",
-			"setAdvancedHead": "nUhMVa_setAdvancedHead",
-			"confirmContent": "nUhMVa_confirmContent",
-			"setInlineActions": "nUhMVa_setInlineActions",
-			"groupOrgHint": "nUhMVa_groupOrgHint",
-			"memberKind": "nUhMVa_memberKind",
-			"recentCollapsed": "nUhMVa_recentCollapsed",
-			"sidebarTip": "nUhMVa_sidebarTip",
-			"setHint": "nUhMVa_setHint",
-			"act": "nUhMVa_act",
-			"setCheck": "nUhMVa_setCheck",
-			"staleAction": "nUhMVa_staleAction",
-			"irowNameText": "nUhMVa_irowNameText",
-			"diagBadgeInfo": "nUhMVa_diagBadgeInfo",
-			"opDecision": "nUhMVa_opDecision",
-			"capAhead": "nUhMVa_capAhead",
-			"actBroken": "nUhMVa_actBroken",
-			"noteToggle": "nUhMVa_noteToggle",
-			"specTag": "nUhMVa_specTag",
-			"favoritesSectionHead": "nUhMVa_favoritesSectionHead",
-			"submitLink": "nUhMVa_submitLink",
-			"loading": "nUhMVa_loading",
-			"conflictDetailsToggle": "nUhMVa_conflictDetailsToggle",
-			"diagBadgeOfficial": "nUhMVa_diagBadgeOfficial",
-			"themeResultBar": "nUhMVa_themeResultBar",
-			"pageInfo": "nUhMVa_pageInfo",
-			"dshmPlugFade": "nUhMVa_dshmPlugFade",
-			"notesMsg": "nUhMVa_notesMsg",
-			"viewBar": "nUhMVa_viewBar",
-			"metaTag": "nUhMVa_metaTag",
-			"migrationNote": "nUhMVa_migrationNote",
-			"groupCollapse": "nUhMVa_groupCollapse",
-			"diagBundle": "nUhMVa_diagBundle",
-			"caps": "nUhMVa_caps",
-			"recentHide": "nUhMVa_recentHide",
-			"confirmPanel": "nUhMVa_confirmPanel",
-			"logoPlugAmbient": "nUhMVa_logoPlugAmbient",
-			"switchKnob": "nUhMVa_switchKnob",
-			"capChipUncommon": "nUhMVa_capChipUncommon",
-			"themeFullscreenBtn": "nUhMVa_themeFullscreenBtn",
-			"setConfirm": "nUhMVa_setConfirm",
-			"irowStatusSep": "nUhMVa_irowStatusSep",
-			"groupCreate": "nUhMVa_groupCreate",
-			"themesGrid": "nUhMVa_themesGrid",
-			"migrationLabel": "nUhMVa_migrationLabel",
-			"specTagGit": "nUhMVa_specTagGit",
-			"pager": "nUhMVa_pager",
-			"commentsError": "nUhMVa_commentsError",
-			"dshmMarkWave": "nUhMVa_dshmMarkWave",
-			"body": "nUhMVa_body",
-			"diagPage": "nUhMVa_diagPage",
-			"irowHead": "nUhMVa_irowHead",
-			"rosterSplit": "nUhMVa_rosterSplit",
-			"groupCreateInline": "nUhMVa_groupCreateInline",
-			"notesRendered": "nUhMVa_notesRendered",
-			"choiceSafe": "nUhMVa_choiceSafe",
-			"dangerBtn": "nUhMVa_dangerBtn",
-			"snapRow": "nUhMVa_snapRow",
-			"groupMembers": "nUhMVa_groupMembers",
-			"notesImg": "nUhMVa_notesImg",
-			"notesP": "nUhMVa_notesP",
-			"setBody": "nUhMVa_setBody",
-			"backupMessage": "nUhMVa_backupMessage",
-			"snapList": "nUhMVa_snapList",
-			"confirmRow": "nUhMVa_confirmRow",
-			"diagSummaryItem": "nUhMVa_diagSummaryItem",
-			"footActions": "nUhMVa_footActions",
-			"rosterName": "nUhMVa_rosterName",
-			"groupTitle": "nUhMVa_groupTitle",
-			"backupCheck": "nUhMVa_backupCheck",
-			"lightboxPrev": "nUhMVa_lightboxPrev",
-			"opStatusBad": "nUhMVa_opStatusBad",
-			"opCloseBtn": "nUhMVa_opCloseBtn",
-			"setSegOn": "nUhMVa_setSegOn",
-			"star": "nUhMVa_star",
-			"cardShots": "nUhMVa_cardShots",
-			"confirmPanelChevron": "nUhMVa_confirmPanelChevron",
-			"setProxyEditor": "nUhMVa_setProxyEditor",
-			"recoveryName": "nUhMVa_recoveryName",
-			"blockedBarName": "nUhMVa_blockedBarName",
-			"descClamp": "nUhMVa_descClamp",
-			"memberName": "nUhMVa_memberName",
-			"panelNote": "nUhMVa_panelNote",
-			"commentsLink": "nUhMVa_commentsLink",
-			"opName": "nUhMVa_opName",
-			"notesQuote": "nUhMVa_notesQuote",
-			"recoveryReason": "nUhMVa_recoveryReason",
-			"specTagFile": "nUhMVa_specTagFile",
-			"logoPlug": "nUhMVa_logoPlug",
-			"favoriteMark": "nUhMVa_favoriteMark",
-			"migrationSources": "nUhMVa_migrationSources",
-			"opIcon": "nUhMVa_opIcon",
-			"notesLink": "nUhMVa_notesLink",
-			"cardAction": "nUhMVa_cardAction",
-			"irowMenu": "nUhMVa_irowMenu",
-			"groupMember": "nUhMVa_groupMember",
-			"commentsGithubPrompt": "nUhMVa_commentsGithubPrompt",
-			"opEntryQuiet": "nUhMVa_opEntryQuiet",
-			"byline": "nUhMVa_byline",
-			"recentTitle": "nUhMVa_recentTitle",
-			"opHead": "nUhMVa_opHead",
-			"switch": "nUhMVa_switch",
-			"titleActions": "nUhMVa_titleActions",
-			"opPanelTitle": "nUhMVa_opPanelTitle",
-			"themePreviewAction": "nUhMVa_themePreviewAction",
 			"setHeadText": "nUhMVa_setHeadText",
-			"notesSha": "nUhMVa_notesSha",
-			"recentToggle": "nUhMVa_recentToggle",
-			"capsTitle": "nUhMVa_capsTitle",
-			"repoLink": "nUhMVa_repoLink",
-			"confirmFold": "nUhMVa_confirmFold",
-			"capAheadRow": "nUhMVa_capAheadRow",
-			"recentBlock": "nUhMVa_recentBlock",
-			"capChip": "nUhMVa_capChip",
-			"presetName": "nUhMVa_presetName",
-			"irowStatusAction": "nUhMVa_irowStatusAction",
-			"opQueuedIcon": "nUhMVa_opQueuedIcon",
-			"irowMeta": "nUhMVa_irowMeta",
-			"descToggle": "nUhMVa_descToggle",
-			"opDecisionFoot": "nUhMVa_opDecisionFoot",
-			"noteEditBar": "nUhMVa_noteEditBar",
-			"notesBody": "nUhMVa_notesBody",
-			"opTop": "nUhMVa_opTop",
-			"dshmMarkPlug": "nUhMVa_dshmMarkPlug",
-			"snapMeta": "nUhMVa_snapMeta",
-			"bannerHint": "nUhMVa_bannerHint",
-			"rosterRowOut": "nUhMVa_rosterRowOut",
-			"notesRow": "nUhMVa_notesRow",
-			"groupAddFilters": "nUhMVa_groupAddFilters",
-			"notesMeta": "nUhMVa_notesMeta",
-			"lightbox": "nUhMVa_lightbox",
-			"capGroups": "nUhMVa_capGroups",
-			"blockedTabHint": "nUhMVa_blockedTabHint",
-			"searchInput": "nUhMVa_searchInput",
-			"diagRow": "nUhMVa_diagRow",
-			"favoritesStaleBar": "nUhMVa_favoritesStaleBar",
-			"rosterRow": "nUhMVa_rosterRow",
-			"setProxyInput": "nUhMVa_setProxyInput",
-			"rosterAuthor": "nUhMVa_rosterAuthor",
-			"diagVal": "nUhMVa_diagVal",
-			"favoritesStaleOnly": "nUhMVa_favoritesStaleOnly",
-			"commentsNote": "nUhMVa_commentsNote",
-			"snapConfirmText": "nUhMVa_snapConfirmText",
-			"groupAddModalHint": "nUhMVa_groupAddModalHint",
-			"irowPath": "nUhMVa_irowPath",
-			"collapseIcon": "nUhMVa_collapseIcon",
-			"setChevron": "nUhMVa_setChevron",
-			"notesArrow": "nUhMVa_notesArrow",
-			"dragHandle": "nUhMVa_dragHandle",
-			"opMain": "nUhMVa_opMain",
-			"recoveryRow": "nUhMVa_recoveryRow",
-			"dragging": "nUhMVa_dragging",
-			"ovByTag": "nUhMVa_ovByTag",
-			"spin": "nUhMVa_spin",
-			"grow": "nUhMVa_grow",
-			"themeIdentity": "nUhMVa_themeIdentity",
 			"ovArrow": "nUhMVa_ovArrow",
-			"recentName": "nUhMVa_recentName",
-			"noteRow": "nUhMVa_noteRow",
-			"groupAddFooterMeta": "nUhMVa_groupAddFooterMeta",
-			"subTabs": "nUhMVa_subTabs",
-			"setChevronOpen": "nUhMVa_setChevronOpen",
-			"setAdvancedBody": "nUhMVa_setAdvancedBody",
-			"title": "nUhMVa_title",
+			"setCheck": "nUhMVa_setCheck",
 			"confirmPanelBody": "nUhMVa_confirmPanelBody",
-			"version": "nUhMVa_version",
-			"sect": "nUhMVa_sect",
-			"recentRow": "nUhMVa_recentRow",
-			"backupCard": "nUhMVa_backupCard",
-			"notesDate": "nUhMVa_notesDate",
-			"notesPre": "nUhMVa_notesPre",
-			"tag": "nUhMVa_tag",
-			"catsWrap": "nUhMVa_catsWrap",
-			"groupHead": "nUhMVa_groupHead",
-			"sub": "nUhMVa_sub",
-			"installCaution": "nUhMVa_installCaution",
-			"collapseBody": "nUhMVa_collapseBody",
-			"depBadge": "nUhMVa_depBadge",
-			"actLive": "nUhMVa_actLive",
-			"conflictHead": "nUhMVa_conflictHead",
-			"pagerPages": "nUhMVa_pagerPages",
-			"pagerMeta": "nUhMVa_pagerMeta",
-			"setName": "nUhMVa_setName",
-			"setDanger": "nUhMVa_setDanger",
-			"groupAddModalBody": "nUhMVa_groupAddModalBody",
-			"opDot": "nUhMVa_opDot",
-			"capAddress": "nUhMVa_capAddress",
-			"groupRenameField": "nUhMVa_groupRenameField",
-			"confirmPanelTitle": "nUhMVa_confirmPanelTitle",
-			"capGroupLabel": "nUhMVa_capGroupLabel",
-			"irowPathIcon": "nUhMVa_irowPathIcon",
-			"themeGallery": "nUhMVa_themeGallery",
-			"commentsMount": "nUhMVa_commentsMount",
-			"lightboxNext": "nUhMVa_lightboxNext",
-			"swatches": "nUhMVa_swatches",
-			"noteMine": "nUhMVa_noteMine",
-			"opAggregate": "nUhMVa_opAggregate",
-			"presetRow": "nUhMVa_presetRow",
-			"diagBadgeWarn": "nUhMVa_diagBadgeWarn",
-			"notesList": "nUhMVa_notesList",
-			"blockedBarRow": "nUhMVa_blockedBarRow",
-			"installBtn": "nUhMVa_installBtn",
-			"catsCollapsed": "nUhMVa_catsCollapsed",
-			"opActions": "nUhMVa_opActions",
-			"viewOn": "nUhMVa_viewOn",
-			"opWrap": "nUhMVa_opWrap",
-			"titleRow": "nUhMVa_titleRow",
-			"diagIndex": "nUhMVa_diagIndex",
-			"actWarn": "nUhMVa_actWarn",
-			"conflictIcon": "nUhMVa_conflictIcon",
-			"themePreviewCount": "nUhMVa_themePreviewCount",
-			"descMore": "nUhMVa_descMore",
-			"ovFrom": "nUhMVa_ovFrom",
 			"installCautionFoot": "nUhMVa_installCautionFoot",
-			"confirmCopy": "nUhMVa_confirmCopy",
-			"confirmDesc": "nUhMVa_confirmDesc",
-			"dragOver": "nUhMVa_dragOver",
-			"noteCount": "nUhMVa_noteCount",
-			"conflictBody": "nUhMVa_conflictBody",
-			"opAggregateHint": "nUhMVa_opAggregateHint",
-			"capAheadLabel": "nUhMVa_capAheadLabel",
-			"collapseTitle": "nUhMVa_collapseTitle",
-			"hostRequirement": "nUhMVa_hostRequirement",
-			"depLine": "nUhMVa_depLine",
-			"notesModalWide": "nUhMVa_notesModalWide",
-			"repoMark": "nUhMVa_repoMark",
-			"migrationSource": "nUhMVa_migrationSource",
-			"irowStatus": "nUhMVa_irowStatus",
-			"choiceNote": "nUhMVa_choiceNote",
-			"setSeg": "nUhMVa_setSeg",
-			"migrationWarning": "nUhMVa_migrationWarning",
-			"nameLink": "nUhMVa_nameLink",
-			"opChevron": "nUhMVa_opChevron",
-			"backupGrid": "nUhMVa_backupGrid",
-			"dangerArmed": "nUhMVa_dangerArmed",
-			"nmLink": "nUhMVa_nmLink",
-			"spec": "nUhMVa_spec",
-			"head": "nUhMVa_head",
-			"installCautionLink": "nUhMVa_installCautionLink",
-			"okState": "nUhMVa_okState",
-			"hostRequirementBad": "nUhMVa_hostRequirementBad",
-			"sp": "nUhMVa_sp",
-			"conflictTitle": "nUhMVa_conflictTitle",
-			"themeToolbarActions": "nUhMVa_themeToolbarActions",
-			"foot": "nUhMVa_foot",
-			"sectAction": "nUhMVa_sectAction",
-			"capAheadIcon": "nUhMVa_capAheadIcon",
-			"irowPathCopy": "nUhMVa_irowPathCopy",
-			"metaInline": "nUhMVa_metaInline",
-			"searchClear": "nUhMVa_searchClear",
-			"rosterMain": "nUhMVa_rosterMain",
-			"opRow": "nUhMVa_opRow",
-			"lightboxDotOn": "nUhMVa_lightboxDotOn",
-			"setAdvanced": "nUhMVa_setAdvanced",
-			"brokenPluginItem": "nUhMVa_brokenPluginItem",
-			"diagSummaryMeta": "nUhMVa_diagSummaryMeta",
-			"setLabel": "nUhMVa_setLabel",
-			"retryBtn": "nUhMVa_retryBtn",
 			"diagKey": "nUhMVa_diagKey",
-			"setRow": "nUhMVa_setRow",
-			"themeCardHead": "nUhMVa_themeCardHead",
-			"rosterTagKeep": "nUhMVa_rosterTagKeep",
-			"bannerIcon": "nUhMVa_bannerIcon",
-			"confirmBody": "nUhMVa_confirmBody",
-			"err": "nUhMVa_err",
-			"groupAddPanel": "nUhMVa_groupAddPanel",
-			"searchField": "nUhMVa_searchField",
-			"viewBtn": "nUhMVa_viewBtn",
-			"backupWarn": "nUhMVa_backupWarn",
-			"grid": "nUhMVa_grid",
-			"card": "nUhMVa_card",
-			"desc": "nUhMVa_desc",
-			"actWhy": "nUhMVa_actWhy",
-			"diagEmpty": "nUhMVa_diagEmpty",
-			"ovRow": "nUhMVa_ovRow",
-			"opEntry": "nUhMVa_opEntry",
-			"groupAddPick": "nUhMVa_groupAddPick",
-			"topBtn": "nUhMVa_topBtn",
-			"capNote": "nUhMVa_capNote",
-			"capMuted": "nUhMVa_capMuted",
-			"descTight": "nUhMVa_descTight",
 			"recentTile": "nUhMVa_recentTile",
-			"logoMark": "nUhMVa_logoMark",
-			"commentsGithubHint": "nUhMVa_commentsGithubHint",
-			"noteEdit": "nUhMVa_noteEdit",
-			"capCaveatNote": "nUhMVa_capCaveatNote",
-			"recentShow": "nUhMVa_recentShow",
-			"stateTag": "nUhMVa_stateTag",
-			"blockedMissing": "nUhMVa_blockedMissing",
-			"notesCode": "nUhMVa_notesCode",
-			"notesFence": "nUhMVa_notesFence",
-			"capCaveat": "nUhMVa_capCaveat",
-			"setCardOpen": "nUhMVa_setCardOpen",
-			"groupMeta": "nUhMVa_groupMeta",
-			"rosterTag": "nUhMVa_rosterTag",
-			"groupName": "nUhMVa_groupName",
-			"sectionOverview": "nUhMVa_sectionOverview",
-			"confirmTerminalIcon": "nUhMVa_confirmTerminalIcon",
-			"orphRow": "nUhMVa_orphRow",
-			"fixFallback": "nUhMVa_fixFallback",
-			"fixFallbackText": "nUhMVa_fixFallbackText",
-			"themeLifecycle": "nUhMVa_themeLifecycle",
-			"hiddenFile": "nUhMVa_hiddenFile",
-			"themeStatusMuted": "nUhMVa_themeStatusMuted",
-			"themeCardBody": "nUhMVa_themeCardBody",
-			"recoveryBlamed": "nUhMVa_recoveryBlamed",
-			"irowName": "nUhMVa_irowName",
-			"installCautionHead": "nUhMVa_installCautionHead",
-			"cardBlocked": "nUhMVa_cardBlocked",
-			"blockedBarUndo": "nUhMVa_blockedBarUndo",
-			"banner": "nUhMVa_banner",
-			"confirmModal": "nUhMVa_confirmModal",
-			"opPanel": "nUhMVa_opPanel",
-			"catsToggle": "nUhMVa_catsToggle",
-			"diagSection": "nUhMVa_diagSection",
+			"switchMixed": "nUhMVa_switchMixed",
+			"on": "nUhMVa_on",
+			"irowStatus": "nUhMVa_irowStatus",
+			"notesRow": "nUhMVa_notesRow",
+			"notesList": "nUhMVa_notesList",
+			"setHeader": "nUhMVa_setHeader",
+			"grid": "nUhMVa_grid",
+			"recentBlock": "nUhMVa_recentBlock",
+			"diagList": "nUhMVa_diagList",
+			"diagBadgeShadow": "nUhMVa_diagBadgeShadow",
+			"tabSearch": "nUhMVa_tabSearch",
+			"themeIdentity": "nUhMVa_themeIdentity",
+			"setProxyInput": "nUhMVa_setProxyInput",
+			"capGroupLabel": "nUhMVa_capGroupLabel",
+			"capAheadLabel": "nUhMVa_capAheadLabel",
 			"irowMissing": "nUhMVa_irowMissing",
-			"diagAlert": "nUhMVa_diagAlert",
+			"confirmTerminalPrompt": "nUhMVa_confirmTerminalPrompt",
+			"recentName": "nUhMVa_recentName",
+			"act": "nUhMVa_act",
+			"dragOver": "nUhMVa_dragOver",
+			"sp": "nUhMVa_sp",
+			"nm": "nUhMVa_nm",
+			"subTabs": "nUhMVa_subTabs",
+			"themeStatus": "nUhMVa_themeStatus",
+			"commentsGithubAction": "nUhMVa_commentsGithubAction",
+			"notesP": "nUhMVa_notesP",
+			"notesArrow": "nUhMVa_notesArrow",
+			"rosterName": "nUhMVa_rosterName",
+			"actWhy": "nUhMVa_actWhy",
+			"conflictWhyText": "nUhMVa_conflictWhyText",
+			"setLabelBox": "nUhMVa_setLabelBox",
+			"panelHost": "nUhMVa_panelHost",
+			"themeSearch": "nUhMVa_themeSearch",
+			"opRowAlert": "nUhMVa_opRowAlert",
+			"setAdvanced": "nUhMVa_setAdvanced",
+			"diagArrow": "nUhMVa_diagArrow",
+			"installCautionLabel": "nUhMVa_installCautionLabel",
+			"opCloseBtn": "nUhMVa_opCloseBtn",
+			"notesBullets": "nUhMVa_notesBullets",
+			"cardBlockedMark": "nUhMVa_cardBlockedMark",
+			"themeCoverEmpty": "nUhMVa_themeCoverEmpty",
+			"confirmCopied": "nUhMVa_confirmCopied",
+			"orderPanel": "nUhMVa_orderPanel",
+			"descClamp3": "nUhMVa_descClamp3",
+			"diagMeta": "nUhMVa_diagMeta",
+			"masonryCol": "nUhMVa_masonryCol",
+			"diagVal": "nUhMVa_diagVal",
+			"memberName": "nUhMVa_memberName",
+			"logoCell": "nUhMVa_logoCell",
+			"groupName": "nUhMVa_groupName",
+			"recoveryName": "nUhMVa_recoveryName",
+			"favoriteOn": "nUhMVa_favoriteOn",
+			"dragHandle": "nUhMVa_dragHandle",
+			"opIcon": "nUhMVa_opIcon",
+			"recentShow": "nUhMVa_recentShow",
+			"recoveryReason": "nUhMVa_recoveryReason",
+			"notesQuote": "nUhMVa_notesQuote",
+			"bannerIcon": "nUhMVa_bannerIcon",
+			"choices": "nUhMVa_choices",
+			"opPanelTitle": "nUhMVa_opPanelTitle",
+			"installCautionHead": "nUhMVa_installCautionHead",
+			"ovRow": "nUhMVa_ovRow",
+			"commentsNote": "nUhMVa_commentsNote",
+			"pagerPages": "nUhMVa_pagerPages",
+			"lightboxClose": "nUhMVa_lightboxClose",
 			"opChevronOpen": "nUhMVa_opChevronOpen",
-			"choiceOn": "nUhMVa_choiceOn",
-			"meta": "nUhMVa_meta",
+			"notesMsg": "nUhMVa_notesMsg",
+			"lightbox": "nUhMVa_lightbox",
+			"choiceNote": "nUhMVa_choiceNote",
+			"nmLink": "nUhMVa_nmLink",
+			"confirmPanelTitle": "nUhMVa_confirmPanelTitle",
+			"tag": "nUhMVa_tag",
+			"diagSummaryMeta": "nUhMVa_diagSummaryMeta",
+			"searchField": "nUhMVa_searchField",
+			"swatches": "nUhMVa_swatches",
+			"specTag": "nUhMVa_specTag",
+			"recoveryHint": "nUhMVa_recoveryHint",
+			"foot": "nUhMVa_foot",
+			"migrationSource": "nUhMVa_migrationSource",
+			"lightboxDot": "nUhMVa_lightboxDot",
+			"hiddenFile": "nUhMVa_hiddenFile",
+			"setName": "nUhMVa_setName",
+			"barFill": "nUhMVa_barFill",
+			"favoriteBtn": "nUhMVa_favoriteBtn",
+			"opDecisionFoot": "nUhMVa_opDecisionFoot",
+			"confirmCopy": "nUhMVa_confirmCopy",
+			"notesLink": "nUhMVa_notesLink",
+			"diagIndex": "nUhMVa_diagIndex",
+			"tabs": "nUhMVa_tabs",
+			"recoveryRow": "nUhMVa_recoveryRow",
+			"backupMessage": "nUhMVa_backupMessage",
+			"blockedTabHint": "nUhMVa_blockedTabHint",
+			"noteEdit": "nUhMVa_noteEdit",
+			"commentsError": "nUhMVa_commentsError",
+			"confirmDesc": "nUhMVa_confirmDesc",
+			"headTop": "nUhMVa_headTop",
+			"cardBlocked": "nUhMVa_cardBlocked",
+			"logoPlugAmbient": "nUhMVa_logoPlugAmbient",
+			"choiceTitle": "nUhMVa_choiceTitle",
+			"notesDate": "nUhMVa_notesDate",
+			"searchClear": "nUhMVa_searchClear",
+			"irow": "nUhMVa_irow",
+			"opChevron": "nUhMVa_opChevron",
+			"capAheadIcon": "nUhMVa_capAheadIcon",
+			"pagerMeta": "nUhMVa_pagerMeta",
+			"titleActions": "nUhMVa_titleActions",
+			"recoveryList": "nUhMVa_recoveryList",
+			"logoMark": "nUhMVa_logoMark",
+			"confirmPanelIcon": "nUhMVa_confirmPanelIcon",
+			"themeFullscreenBtn": "nUhMVa_themeFullscreenBtn",
+			"groupMembers": "nUhMVa_groupMembers",
+			"empty": "nUhMVa_empty",
+			"collapseBody": "nUhMVa_collapseBody",
+			"snapConfirmText": "nUhMVa_snapConfirmText",
+			"opMain": "nUhMVa_opMain",
+			"barWave": "nUhMVa_barWave",
+			"noteAdd": "nUhMVa_noteAdd",
+			"dragging": "nUhMVa_dragging",
+			"dot": "nUhMVa_dot",
+			"lightboxPrev": "nUhMVa_lightboxPrev",
+			"confirmModal": "nUhMVa_confirmModal",
+			"confirmTerminalIcon": "nUhMVa_confirmTerminalIcon",
+			"noteToggle": "nUhMVa_noteToggle",
+			"capCaveatNote": "nUhMVa_capCaveatNote",
+			"irowHead": "nUhMVa_irowHead",
+			"favoritesStaleOnly": "nUhMVa_favoritesStaleOnly",
+			"irowNameText": "nUhMVa_irowNameText",
+			"ungroupedState": "nUhMVa_ungroupedState",
+			"ungroupedDesc": "nUhMVa_ungroupedDesc",
+			"sectionOverview": "nUhMVa_sectionOverview",
+			"installCaution": "nUhMVa_installCaution",
+			"hostRequirementBad": "nUhMVa_hostRequirementBad",
+			"diagRow": "nUhMVa_diagRow",
+			"themePreviewCount": "nUhMVa_themePreviewCount",
+			"setCardOpen": "nUhMVa_setCardOpen",
+			"blockedMissing": "nUhMVa_blockedMissing",
+			"setActions": "nUhMVa_setActions",
+			"setSegOn": "nUhMVa_setSegOn",
+			"rosterRowOut": "nUhMVa_rosterRowOut",
+			"confirmPanelRowStatic": "nUhMVa_confirmPanelRowStatic",
+			"migrationArrow": "nUhMVa_migrationArrow",
+			"sidebarTip": "nUhMVa_sidebarTip",
+			"desc": "nUhMVa_desc",
+			"setCard": "nUhMVa_setCard",
+			"setProxyLabel": "nUhMVa_setProxyLabel",
+			"opEmpty": "nUhMVa_opEmpty",
+			"fixFallback": "nUhMVa_fixFallback",
+			"metaTagOk": "nUhMVa_metaTagOk",
+			"groupMeta": "nUhMVa_groupMeta",
+			"notesFence": "nUhMVa_notesFence",
+			"tab": "nUhMVa_tab",
+			"backupWarn": "nUhMVa_backupWarn",
+			"confirmBody": "nUhMVa_confirmBody",
+			"snapMeta": "nUhMVa_snapMeta",
+			"setSeg": "nUhMVa_setSeg",
+			"hostFilterNote": "nUhMVa_hostFilterNote",
+			"recoveryBadge": "nUhMVa_recoveryBadge",
+			"setAdvancedHead": "nUhMVa_setAdvancedHead",
+			"migrationNote": "nUhMVa_migrationNote",
+			"irowActions": "nUhMVa_irowActions",
+			"actWarn": "nUhMVa_actWarn",
+			"backupInput": "nUhMVa_backupInput",
 			"recentHead": "nUhMVa_recentHead",
-			"lightboxImg": "nUhMVa_lightboxImg",
-			"lightboxDots": "nUhMVa_lightboxDots",
-			"diagMeta": "nUhMVa_diagMeta"
+			"capsTitle": "nUhMVa_capsTitle",
+			"migrationSources": "nUhMVa_migrationSources",
+			"conflictWhy": "nUhMVa_conflictWhy",
+			"hostRequirement": "nUhMVa_hostRequirement"
 		};
 		//#endregion
 		//#region src/client/market-mark.ts
@@ -4876,6 +5011,29 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region src/client/download-stats.ts
+		const validCount = (value) => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+		/** Keep the established npm window first; the two sources are never added together. */
+		function downloadStatistic(plugin) {
+			if (validCount(plugin.downloads)) return {
+				count: plugin.downloads,
+				source: "npm"
+			};
+			if (validCount(plugin.githubReleaseDownloads)) return {
+				count: plugin.githubReleaseDownloads,
+				source: "github"
+			};
+			return null;
+		}
+		function checkedAt(value, t) {
+			if (dateOnly(value)) return t("statisticCheckedAt").replace("{0}", value);
+			if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) return "";
+			const date = new Date(value);
+			if (!Number.isFinite(date.getTime()) || date.toISOString() !== value) return "";
+			return t("statisticCheckedAt").replace("{0}", value.slice(0, 16).replace("T", " ") + " UTC");
+		}
+		function starStatsText(plugin, t) {
+			return validCount(plugin.stars) ? t("starsMeaning").replace("{0}", String(plugin.stars)) + checkedAt(plugin.starsCheckedAt, t) : null;
+		}
 		/** Date-only values stay date-only; never derive a window from today's date. */
 		function dateOnly(value) {
 			if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -4884,8 +5042,10 @@ window.__ModuleLoader__.load({
 		}
 		/** Exact count and, when the catalog sent one, the 30-day window. */
 		function downloadStatsText(plugin, t) {
-			const count = plugin.downloads;
-			if (typeof count !== "number" || !Number.isSafeInteger(count) || count < 0) return null;
+			const statistic = downloadStatistic(plugin);
+			if (statistic === null) return null;
+			const { count, source } = statistic;
+			if (source === "github") return t("githubReleaseDownloadsMeaning").replace("{0}", String(count)) + checkedAt(plugin.githubReleaseDownloadsCheckedAt, t);
 			const meaning = t("downloadsMeaning").replace("{0}", String(count));
 			if (!(dateOnly(plugin.downloadsStart) && dateOnly(plugin.downloadsEnd) && plugin.downloadsStart <= plugin.downloadsEnd)) return meaning;
 			return meaning + t("downloadsWindow").replace("{0}", plugin.downloadsStart).replace("{1}", plugin.downloadsEnd);
@@ -8140,6 +8300,28 @@ window.__ModuleLoader__.load({
 		* interpreted as markup); remaining text arrives as React children or
 		* controlled nodes only.
 		*/
+		/**
+		* An <img> whose src lives on raw.githubusercontent.com, walked through the
+		* raw GitHub route candidates on failure (#1070 follow-up): the update-notes
+		* dialog was the last place still loading those images directly, so on
+		* networks where raw is unreachable the notes rendered with holes. When every
+		* candidate fails the last one is the direct URL, exactly the old behavior.
+		*/
+		function GithubRoutedImg({ src, alt, className, key }) {
+			const [routeIndex, setRouteIndex] = (0, react.useState)(0);
+			const candidates = githubRouteCandidates("raw", src);
+			const candidate = candidates[Math.min(routeIndex, candidates.length - 1)];
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("img", {
+				className,
+				src: candidate.url,
+				alt,
+				loading: "lazy",
+				onLoad: () => rememberGithubRoute("raw", candidate.proxy),
+				onError: () => {
+					if (routeIndex + 1 < candidates.length) setRouteIndex(routeIndex + 1);
+				}
+			}, key);
+		}
 		function renderMarkdown(md) {
 			const out = [];
 			let bullets = null;
@@ -8181,11 +8363,10 @@ window.__ModuleLoader__.load({
 				const image = releaseNotesHttpsImage(trimmed);
 				if (image !== null) {
 					flushList();
-					out.push(/* @__PURE__ */ (0, react_jsx_runtime.jsx)("img", {
+					out.push(/* @__PURE__ */ (0, react_jsx_runtime.jsx)(GithubRoutedImg, {
 						className: Market_module_css_default.notesImg,
 						src: image.src,
-						alt: image.alt,
-						loading: "lazy"
+						alt: image.alt
 					}, `i${out.length}`));
 					continue;
 				}
@@ -8226,17 +8407,26 @@ window.__ModuleLoader__.load({
 			const [failed, setFailed] = (0, react.useState)(false);
 			const [routeIndex, setRouteIndex] = (0, react.useState)(0);
 			const [iconFailed, setIconFailed] = (0, react.useState)(false);
+			const [iconRouteIndex, setIconRouteIndex] = (0, react.useState)(0);
 			const av = className === void 0 ? Market_module_css_default.av : `${Market_module_css_default.av} ${className}`;
 			const tile = iconFailed ? null : safeIcon(icon);
-			if (tile !== null) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("img", {
-				className: av,
-				src: tile,
-				alt: "",
-				loading: "lazy",
-				decoding: "async",
-				referrerPolicy: "no-referrer",
-				onError: () => setIconFailed(true)
-			});
+			if (tile !== null) {
+				const candidates = githubRouteCandidates("raw", tile);
+				const candidate = candidates[Math.min(iconRouteIndex, candidates.length - 1)];
+				return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("img", {
+					className: av,
+					src: candidate.url,
+					alt: "",
+					loading: "lazy",
+					decoding: "async",
+					referrerPolicy: "no-referrer",
+					onLoad: () => rememberGithubRoute("raw", candidate.proxy),
+					onError: () => {
+						if (iconRouteIndex + 1 < candidates.length) setIconRouteIndex(iconRouteIndex + 1);
+						else setIconFailed(true);
+					}
+				});
+			}
 			if (failed || owner === "") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 				className: av,
 				style: { background: avatarColor(name) },
@@ -8728,6 +8918,38 @@ window.__ModuleLoader__.load({
 		* already-downloaded image shown bigger — there is no separate "thumbnail"
 		* vs "full size" asset to fetch.
 		*/
+		/**
+		* The full-size screenshot, loaded through the configured GitHub route (#1070).
+		*
+		* Screenshots are GitHub-hosted, and on a mainland connection
+		* `raw.githubusercontent.com` is the slowest part of the page — the avatars
+		* next to them already go through the proxy the user chose, while this one
+		* still went direct. The thumbnail keeps its own resizer; this is the one
+		* place that wants the original bytes, so it is the one place the proxy
+		* itself is worth a hop.
+		*
+		* The route order is the same one avatars use: the prefix that last worked
+		* first, then the region's other prefixes, then direct. A failed load walks
+		* the list rather than leaving a blank image.
+		*/
+		function LightboxImage({ src, className, onClick }) {
+			const [routeIndex, setRouteIndex] = (0, react.useState)(0);
+			(0, react.useEffect)(() => {
+				setRouteIndex(0);
+			}, [src]);
+			const candidates = githubRouteCandidates("raw", src);
+			const candidate = candidates[Math.min(routeIndex, candidates.length - 1)];
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("img", {
+				className,
+				src: candidate.url,
+				alt: "",
+				onClick,
+				onLoad: () => rememberGithubRoute("raw", candidate.proxy),
+				onError: () => {
+					if (routeIndex + 1 < candidates.length) setRouteIndex((current) => current + 1);
+				}
+			});
+		}
 		function ScreenshotLightbox({ shots, startIndex, onClose, t }) {
 			const [index, setIndex] = useAutoCarousel(shots.length, startIndex, 0);
 			const titlebarHeight = useWindowTitlebarHeight();
@@ -8759,10 +8981,9 @@ window.__ModuleLoader__.load({
 						onClick: onClose,
 						children: "×"
 					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("img", {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(LightboxImage, {
 						className: Market_module_css_default.lightboxImg,
 						src: shots[index],
-						alt: "",
 						onClick: (e) => e.stopPropagation()
 					}),
 					shots.length > 1 && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
@@ -9024,9 +9245,23 @@ window.__ModuleLoader__.load({
 				})
 			});
 		}
-		/** Compact abbreviated count; hover names the exact figure and the 30-day window. */
+		/** Compact count; hover names the exact figure, source and reporting scope. */
 		function DownloadCount({ plugin, t }) {
 			const tip = downloadStatsText(plugin, t);
+			const statistic = downloadStatistic(plugin);
+			if (tip === null || statistic === null) return null;
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CardTip, {
+				label: tip,
+				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					className: Market_module_css_default.star,
+					tabIndex: 0,
+					"aria-label": tip,
+					children: "· " + (statistic.source === "github" ? "GitHub " : "") + "↓ " + formatCount(statistic.count)
+				})
+			});
+		}
+		function StarCount({ plugin, t }) {
+			const tip = starStatsText(plugin, t);
 			if (tip === null) return null;
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CardTip, {
 				label: tip,
@@ -9034,7 +9269,7 @@ window.__ModuleLoader__.load({
 					className: Market_module_css_default.star,
 					tabIndex: 0,
 					"aria-label": tip,
-					children: "· ↓ " + formatCount(plugin.downloads)
+					children: "· ★ " + formatCount(plugin.stars)
 				})
 			});
 		}
@@ -10285,6 +10520,8 @@ window.__ModuleLoader__.load({
 			* first reply always has to ask which one it was.
 			*/
 			const [version, setVersionState] = (0, react.useState)(() => cachedMarketVersion);
+			const [checkingMarketUpdate, setCheckingMarketUpdate] = (0, react.useState)(false);
+			const [marketUpdateCheck, setMarketUpdateCheck] = (0, react.useState)(null);
 			const setVersion = (0, react.useCallback)(cacheState((value) => {
 				cachedMarketVersion = value;
 			}, setVersionState), []);
@@ -13004,7 +13241,38 @@ window.__ModuleLoader__.load({
 			const quietUpdateSet = (0, react.useMemo)(() => new Set([...ignoredUpdateNames, ...updateExemptNames]), [ignoredUpdateNames, updateExemptNames]);
 			const reminderUpdatableNames = updatableNames.filter((name) => !quietUpdateSet.has(name) && !installedBlocked(name));
 			const reminderBatchUpdatableNames = batchUpdatableNames.filter((name) => !quietUpdateSet.has(name) && !installedBlocked(name));
-			const reminderUpdateNames = [...updates[selfName]?.updateAvailable === true && !updatedNames.includes(selfName) ? [selfName] : [], ...updatableNames].filter((name) => !quietUpdateSet.has(name) && !installedBlocked(name));
+			const selfUpdateAvailable = updates[selfName]?.updateAvailable === true && !updatedNames.includes(selfName);
+			const checkMarketUpdate = (0, react.useCallback)(async () => {
+				if (checkingMarketUpdate) return;
+				setCheckingMarketUpdate(true);
+				setMarketUpdateCheck(null);
+				try {
+					const response = await fetch(api("/dsh-market/updates") + "?force=1", {
+						cache: "no-store",
+						signal: AbortSignal.timeout(3e4)
+					});
+					if (!response.ok) throw new Error(t("marketCheckFailed"));
+					const body = await response.json();
+					const own = body.updates?.[selfName] ?? body.updates?.dshmarket ?? body.updates?.["dsh-market"];
+					if (!own || !own.latest) throw new Error(t("marketCheckFailed"));
+					setUpdates(body.updates ?? {});
+					setMarketUpdateCheck({
+						key: own.updateAvailable ? "marketCheckAvailable" : "marketCheckCurrent",
+						value: own.updateAvailable ? own.latest : own.version ?? version ?? own.latest
+					});
+				} catch {
+					setMarketUpdateCheck({ key: "marketCheckFailed" });
+				} finally {
+					setCheckingMarketUpdate(false);
+				}
+			}, [
+				checkingMarketUpdate,
+				selfName,
+				setUpdates,
+				t,
+				version
+			]);
+			const reminderUpdateNames = [...selfUpdateAvailable ? [selfName] : [], ...updatableNames].filter((name) => !quietUpdateSet.has(name) && !installedBlocked(name));
 			/**
 			* Installed packages that are not plugins at all: a plain library some
 			* other plugin pulled in — zustand, bufferutil, a peer of ws (#634's
@@ -13823,12 +14091,9 @@ window.__ModuleLoader__.load({
 												plugin: p,
 												t
 											}),
-											typeof p.stars === "number" && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CardTip, {
-												label: String(p.stars),
-												children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: Market_module_css_default.star,
-													children: "· ★ " + formatCount(p.stars)
-												})
+											/* @__PURE__ */ (0, react_jsx_runtime.jsx)(StarCount, {
+												plugin: p,
+												t
 											})
 										]
 									})]
@@ -13977,12 +14242,9 @@ window.__ModuleLoader__.load({
 													plugin: p,
 													t
 												}),
-												typeof p.stars === "number" && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CardTip, {
-													label: String(p.stars),
-													children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-														className: Market_module_css_default.star,
-														children: "· ★ " + formatCount(p.stars)
-													})
+												/* @__PURE__ */ (0, react_jsx_runtime.jsx)(StarCount, {
+													plugin: p,
+													t
 												})
 											]
 										})]
@@ -14360,6 +14622,15 @@ window.__ModuleLoader__.load({
 											title: t("versionHint"),
 											children: ["v", version]
 										}),
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+											variant: "outline",
+											size: "sm",
+											disabled: checkingMarketUpdate || updatingName !== null || busyUrl !== null,
+											onClick: () => {
+												checkMarketUpdate();
+											},
+											children: checkingMarketUpdate ? t("marketChecking") : t("marketCheck")
+										}),
 										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("a", {
 											className: Market_module_css_default.submitLink,
 											href: "https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/blob/main/contributing.md",
@@ -14379,7 +14650,7 @@ window.__ModuleLoader__.load({
 										(() => {
 											const self = installed["dshmarket"] !== void 0 ? "dshmarket" : "dsh-market";
 											const status = updates[self];
-											return status && status.updateAvailable && !updatedNames.includes(self) && !quietUpdateSet.has(self) && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+											return status && status.updateAvailable && !updatedNames.includes(self) && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
 												variant: "primary",
 												size: "sm",
 												disabled: updatingName !== null || busyUrl !== null,
@@ -14409,6 +14680,10 @@ window.__ModuleLoader__.load({
 										})
 									]
 								})]
+							}),
+							marketUpdateCheck !== null && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+								role: "status",
+								children: t(marketUpdateCheck.key).replace("{0}", marketUpdateCheck.value ?? "")
 							}),
 							showSidebarTip && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 								className: Market_module_css_default.sidebarTip,
@@ -16479,9 +16754,9 @@ window.__ModuleLoader__.load({
 											plugin: confirming,
 											t
 										}),
-										typeof confirming.stars === "number" && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-											className: Market_module_css_default.star,
-											children: "· ★ " + formatCount(confirming.stars)
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)(StarCount, {
+											plugin: confirming,
+											t
 										}),
 										confirming.added && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 											className: Market_module_css_default.star,
@@ -16705,7 +16980,7 @@ window.__ModuleLoader__.load({
 						open: true,
 						onClose: () => setRestoreConfirm(null),
 						title: `${t("restoreOnline")} ${restoreConfirm.name}?`,
-						description: `${restoreConfirm.verified ? t("restoreHint") : t("restoreNameOnlyHint")}\n\n${restoreConfirm.entry.owner} · ${restoreConfirm.entry.url}`,
+						description: `${updates[restoreConfirm.name]?.productBundled === true && ["dshmarket", "dsh-market"].includes(restoreConfirm.name) ? t("restoreProductMarketHint") : restoreConfirm.verified ? t("restoreHint") : t("restoreNameOnlyHint")}\n\n${restoreConfirm.entry.owner} · ${restoreConfirm.entry.url}`,
 						footer: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
 							variant: "ghost",
 							onClick: () => setRestoreConfirm(null),
@@ -18245,7 +18520,8 @@ window.__ModuleLoader__.load({
 			ctx.effect(() => ctx.locale.register(NS, {
 				zh,
 				en,
-				ja
+				ja,
+				...maintenanceLocales
 			}), "dsh-market: dictionaries");
 			const t = ctx.locale.bind(NS);
 			installSettingsNavIcon(ctx, () => t("nav"));

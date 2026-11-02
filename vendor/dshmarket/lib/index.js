@@ -11,6 +11,7 @@ import { setRequestGateSource, setTrustedHostsSource } from "./http.js";
 import { setLauncherInstallAnchorSource } from "./dsh-install.js";
 import { mountMarketRoutes } from "./routes.js";
 import { installDesktopMarketSettings, installMarketSettings } from "./settings.js";
+import { MAX_AUTO_REPAIR_ATTEMPTS } from "./pending-updates.js";
 export const name = 'dsh-market';
 /**
  * How long after the market mounts an interrupted update is repaired.
@@ -284,7 +285,10 @@ export function apply(ctx, config) {
                         void runtime.repairPendingUpdates().then(report => {
                             if (report.reinstalled.length === 0 && report.failed.length === 0)
                                 return;
-                            console.warn(`dsh-market: ${report.reinstalled.length} interrupted update(s) reinstalled, ${report.failed.length} still pending`);
+                            const abandoned = report.abandoned.length === 0
+                                ? ''
+                                : `, ${String(report.abandoned.length)} given up on after ${String(MAX_AUTO_REPAIR_ATTEMPTS)} starts — reinstall from Settings → Plugins: ${report.abandoned.join(', ')}`;
+                            console.warn(`dsh-market: ${String(report.reinstalled.length)} interrupted update(s) reinstalled, ${String(report.failed.length)} still pending${abandoned}`);
                         });
                     }, PENDING_UPDATE_REPAIR_DELAY_MS);
                     repairTimer.unref?.();

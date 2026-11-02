@@ -13,6 +13,7 @@ import { setRequestGateSource, setTrustedHostsSource } from './http.ts'
 import { setLauncherInstallAnchorSource } from './dsh-install.ts'
 import { mountMarketRoutes, type HostPluginActivation, type MarketConfig, type MarketHost } from './routes.ts'
 import { installDesktopMarketSettings, installMarketSettings } from './settings.ts'
+import { MAX_AUTO_REPAIR_ATTEMPTS } from './pending-updates.ts'
 import type { AgentsServiceLike } from './agents.ts'
 
 export const name = 'dsh-market'
@@ -332,7 +333,10 @@ export function apply(ctx: Context, config?: Config): void {
           const repairTimer = setTimeout(() => {
             void runtime.repairPendingUpdates().then(report => {
               if (report.reinstalled.length === 0 && report.failed.length === 0) return
-              console.warn(`dsh-market: ${report.reinstalled.length} interrupted update(s) reinstalled, ${report.failed.length} still pending`)
+              const abandoned = report.abandoned.length === 0
+                ? ''
+                : `, ${String(report.abandoned.length)} given up on after ${String(MAX_AUTO_REPAIR_ATTEMPTS)} starts — reinstall from Settings → Plugins: ${report.abandoned.join(', ')}`
+              console.warn(`dsh-market: ${String(report.reinstalled.length)} interrupted update(s) reinstalled, ${String(report.failed.length)} still pending${abandoned}`)
             })
           }, PENDING_UPDATE_REPAIR_DELAY_MS)
           repairTimer.unref?.()

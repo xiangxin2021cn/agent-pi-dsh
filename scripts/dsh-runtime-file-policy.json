@@ -3,7 +3,6 @@
     ".git",
     "node_modules",
     "website",
-    "docs",
     ".agents",
     ".github",
     "coverage",
@@ -13,6 +12,9 @@
     ".reasonix",
     ".agent-pi",
     ".dsh-build"
+  ],
+  "excludedRootDirectoryNames": [
+    "docs"
   ],
   "excludedFileNames": [
     ".git",

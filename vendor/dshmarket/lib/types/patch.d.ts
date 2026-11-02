@@ -75,6 +75,27 @@ export declare function readUserPatchState(patchPath: string): PatchState;
  */
 export declare function userPatchPackageReferences(patchPath: string, packageName: string): string[] | null;
 /**
+ * A loader entry's id as a string, or '' when it has none.
+ *
+ * `EntryOptions.id` is a TypeScript interface, not a runtime check: an
+ * unquoted `- id: 1` in `cordis.patch.yml` is parsed by YAML as the NUMBER 1,
+ * the host's loader accepts it, and every `.split(':')` on it then throws —
+ * `/dsh-market/installed` answered 400 with an empty body and the UI showed
+ * "no community plugins installed" (#1071). The market's own regex parser
+ * only ever produces strings, so this is reachable only through the loader.
+ *
+ * Numbers are stringified rather than dropped: `id: 1` names the same entry
+ * the user wrote, and the market's own row comparisons are string-keyed.
+ *
+ * @param entry - a host loader entry.
+ * @returns the id as a string, '' when absent or not a string/number.
+ */
+export declare function loaderEntryId(entry: {
+    options?: {
+        id?: unknown;
+    };
+} | null | undefined): string;
+/**
  * The user-patch row ids one installed package owns: its bundle patch's
  * insert rows, plus the loader entries currently carrying its name.
  * Empty for client-only packages (no bundle rows) — the market's own

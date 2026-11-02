@@ -9,7 +9,7 @@
  * counts and time. No prompts, transcripts, tool input, environment values, or
  * paths.
  */
-import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, statSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { redactHomePaths } from "./log-redaction.js";
 const MAX_BYTES = 64 * 1024;
@@ -58,6 +58,32 @@ function parseLine(line) {
         agentsAtEnd: row.agentsAtEnd,
     };
 }
+/**
+ * Whether the file is empty or its last byte is a newline — i.e. whether an
+ * append starts a line of its own. Reads one byte rather than the file: this
+ * runs on every completed operation, and the journal is bounded but not tiny.
+ */
+function endsWithNewline(file) {
+    try {
+        const size = statSync(file).size;
+        if (size === 0)
+            return true;
+        const fd = openSync(file, 'r');
+        try {
+            const last = Buffer.alloc(1);
+            readSync(fd, last, 0, 1, size - 1);
+            return last[0] === 0x0a;
+        }
+        finally {
+            closeSync(fd);
+        }
+    }
+    catch {
+        // No file yet (a fresh append creates it) or unreadable: appending a
+        // leading newline to a missing file would only add a blank line.
+        return true;
+    }
+}
 export class DrainJournal {
     file;
     maxBytes;
@@ -82,7 +108,12 @@ export class DrainJournal {
         if (this.records.length > MAX_RECORDS)
             this.records.splice(0, this.records.length - MAX_RECORDS);
         mkdirSync(dirname(this.file), { recursive: true });
-        appendFileSync(this.file, `${JSON.stringify(cleaned)}\n`);
+        // An interrupted write leaves a tail without its newline. Appending to it
+        // would glue this record onto the damaged one, so the file would carry a
+        // single unparseable line and BOTH would be lost on reopen — the record
+        // this append just completed included (#1084). The damaged tail is
+        // dropped by load() on its own; this only keeps the next record separate.
+        appendFileSync(this.file, `${endsWithNewline(this.file) ? '' : '\n'}${JSON.stringify(cleaned)}\n`);
         if (existsSync(this.file) && statSync(this.file).size > this.maxBytes)
             this.trim();
     }

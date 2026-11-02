@@ -755,14 +755,14 @@ import { WORKFLOW_EDITOR_I18N } from './workflow-editor.js'
 import { WORKBENCH_FIELDS } from './workbench-fields.js'
 for (const [locale, messages] of Object.entries(WORKFLOW_EDITOR_I18N)) Object.assign(AP_I18N[locale], messages)
 for (const [locale, messages] of Object.entries(WORKBENCH_FIELDS)) Object.assign(AP_I18N[locale], messages)
-Object.assign(AP_I18N.es, {"workbench.title":"Panel profesional","files.workspace":"Carpeta de trabajo","module.delivery":"Control de proyectos"})
-Object.assign(AP_I18N.fr, {"workbench.title":"Atelier professionnel","files.workspace":"Dossier de travail","module.delivery":"Pilotage de projet"})
-Object.assign(AP_I18N.de, {"workbench.title":"Facharbeitsbereich","files.workspace":"Arbeitsverzeichnis","module.delivery":"Projektsteuerung"})
-Object.assign(AP_I18N.ja, {"workbench.title":"専門ワークベンチ","files.workspace":"作業フォルダー","module.delivery":"プロジェクト管理"})
-Object.assign(AP_I18N.ko, {"workbench.title":"전문 작업대","files.workspace":"작업 폴더","module.delivery":"프로젝트 관리"})
-Object.assign(AP_I18N.pt, {"workbench.title":"Bancada profissional","files.workspace":"Pasta de trabalho","module.delivery":"Controle de projetos"})
-Object.assign(AP_I18N.ru, {"workbench.title":"Профессиональная рабочая панель","files.workspace":"Рабочая папка","module.delivery":"Управление проектом"})
-Object.assign(AP_I18N.ar, {"workbench.title":"لوحة العمل المتخصصة","files.workspace":"مجلد العمل","module.delivery":"ضبط المشروع"})
+Object.assign(AP_I18N.es, {"workbench.title":"Panel profesional","files.workspace":"Carpeta de trabajo","module.delivery":"Control de proyectos","lang.switchFailed":"No se pudo cambiar el idioma. Inténtalo de nuevo."})
+Object.assign(AP_I18N.fr, {"workbench.title":"Atelier professionnel","files.workspace":"Dossier de travail","module.delivery":"Pilotage de projet","lang.switchFailed":"Impossible de changer la langue. Réessayez."})
+Object.assign(AP_I18N.de, {"workbench.title":"Facharbeitsbereich","files.workspace":"Arbeitsverzeichnis","module.delivery":"Projektsteuerung","lang.switchFailed":"Die Sprache konnte nicht gewechselt werden. Bitte erneut versuchen."})
+Object.assign(AP_I18N.ja, {"workbench.title":"専門ワークベンチ","files.workspace":"作業フォルダー","module.delivery":"プロジェクト管理","lang.switchFailed":"言語を切り替えられませんでした。もう一度お試しください。"})
+Object.assign(AP_I18N.ko, {"workbench.title":"전문 작업대","files.workspace":"작업 폴더","module.delivery":"프로젝트 관리","lang.switchFailed":"언어를 변경하지 못했습니다. 다시 시도해 주세요."})
+Object.assign(AP_I18N.pt, {"workbench.title":"Bancada profissional","files.workspace":"Pasta de trabalho","module.delivery":"Controle de projetos","lang.switchFailed":"Não foi possível mudar o idioma. Tente novamente."})
+Object.assign(AP_I18N.ru, {"workbench.title":"Профессиональная рабочая панель","files.workspace":"Рабочая папка","module.delivery":"Управление проектом","lang.switchFailed":"Не удалось сменить язык. Повторите попытку."})
+Object.assign(AP_I18N.ar, {"workbench.title":"لوحة العمل المتخصصة","files.workspace":"مجلد العمل","module.delivery":"ضبط المشروع","lang.switchFailed":"تعذر تغيير اللغة. يُرجى المحاولة مرة أخرى."})
 const FILE_ACTION_I18N = {
   zh: {
     'files.attachToChat': '注入对话', 'preview.aiEdit': 'AI 改', 'preview.aiEditSelection': 'AI 改选区',

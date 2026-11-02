@@ -9,7 +9,7 @@ import { createElement as h } from 'react'
 import type { ReactNode } from 'react'
 import * as primitives from '@deepseek-ai/dsh-client-ui-primitives'
 import { missingIcons } from './icons.ts'
-import { en, ja, zh } from './locales.ts'
+import { en, ja, zh, maintenanceLocales } from './locales.ts'
 import { InstallToast } from './InstallToast.tsx'
 import { MarketErrorBoundary } from './ErrorBoundary.tsx'
 import { MarketSection } from './MarketSection.tsx'
@@ -139,7 +139,7 @@ export function apply(ctx: MarketClientContext): void {
  * of them. Not exported: the split is a guard, not a surface.
  */
 function mountMarket(ctx: MarketClientContext): void {
-  ctx.effect(() => ctx.locale.register(NS, { zh, en, ja }), 'dsh-market: dictionaries')
+  ctx.effect(() => ctx.locale.register(NS, { zh, en, ja, ...maintenanceLocales }), 'dsh-market: dictionaries')
   const t = ctx.locale.bind(NS)
 
   // The section's nav glyph. The shell picks nav icons from its own built-in

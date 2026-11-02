@@ -8,7 +8,7 @@
 
 <h1 align="center">Agent Pi DSH</h1>
 
-当前开发版 3.8.7 升级到经审核的官方 DSH master 快照 `ce7073d5`、Univer Office 0.3.9、Electron 45.2.0 与 Node.js 24.22.2，修复跨项目 DWG 预览的来源目录及会话关联。保留原工作区边界、模板 DNA、知识库和技能；新增定时任务 v1 升级前备份。改动及回退边界见 [3.8.7 说明](release/github-notes-3.8.7.md)与[组件记录](release/3.8.7-core-components.json)。以下公开下载仍以实际已发布的 3.8.6 为准。
+当前开发版 3.8.8 整合主线长程任务、官方 OAR 外派与精简运行时，修复左右侧栏恢复、插件市场维护和实验插件介绍文档。沿用经审核的官方 DSH master 快照 `ce7073d5`、Electron 45.2.0 与 Node.js 24.22.2，升级完整 Univer Office 0.4.0、插件市场 1.73.9，保留原项目、知识库、模板 DNA、技能及工程组件；新增界面维护文案覆盖十种语言。改动和使用边界见 [3.8.8 说明](release/github-notes-3.8.8.md)。3.8.8 目前为本地测试候选，公开最新版以 [GitHub v3.8.7](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/tag/v3.8.7) 的实际资产为准，投标专版保持独立。
 
 自 3.8.5 起，主线与投标专版拆为独立产品分支，共享升级后的官方 DSH 内核。主线保留专业工作台、知识库、技能和完整 Univer；投标专版提供项目、章节、正文及评分证据操作界面。安装标识、用户数据目录及更新通道相互独立，分支与迁移方式见 [3.8.5 双版本说明](release/3.8.5-product-editions.md)。公开下载以实际已发布 Release 为准。
 

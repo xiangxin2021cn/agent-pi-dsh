@@ -31,6 +31,7 @@ import { prepareKnownPluginCompatibility, inspectKnownPluginCompatibility, CLAUD
 import { PRODUCT_PRESETS, shippedPresetPlugins, writePresetBundle } from './preset-bundle-017.mjs'
 import { writeMacOSIntelCapabilities } from './macos-intel-capabilities.mjs'
 import { retireCodexInText } from './enable-desktop-codex.mjs'
+import { migrateProfilePnpm } from './migrate-profile-pnpm.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const dsh = process.env.DSH_CHECKOUT || join(root, 'vendor/deepseek-harness')
@@ -191,6 +192,11 @@ if (existsSync(join(bundledUniver, 'package.json'))) {
 }
 
 mkdirSync(profileDir, { recursive: true })
+const pnpmMigration = await migrateProfilePnpm({ profileDir, dshRoot: dsh })
+if (pnpmMigration.status === 'recovery-required') throw new Error(`profile dependency migration requires recovery (${pnpmMigration.error ?? 'verification failed'}); ${pnpmMigration.backup ? `retained backup: ${pnpmMigration.backup}` : 'profile was not modified'}`)
+if (pnpmMigration.status !== 'not-needed') {
+  process.stdout.write(`profile pnpm migration: ${pnpmMigration.status} (${pnpmMigration.previous ?? 'unknown'} -> ${pnpmMigration.target ?? 'unknown'}; ${pnpmMigration.error ?? 'verified'}); previous dependencies retained\n`)
+}
 
 let dependencies = {}
 if (existsSync(manifestPath)) {

@@ -1,4 +1,4 @@
-import { isTeamComponent, TEAM_MANAGED_REASON, reconcileKnownPluginCompatibility } from '../compatibility.js'
+import { agentPiBundledRegistrySource, agentPiBundledSourceFingerprint, isTeamComponent, TEAM_MANAGED_REASON, reconcileKnownPluginCompatibility } from '../compatibility.js'
 /**
  * HTTP routes bridging the browser market UI to the host. This layer only
  * parses requests, calls the service modules, and serializes responses —
@@ -24,7 +24,7 @@ import {
 } from './hot.ts'
 import { createGroup, deleteGroup, removeFromGroups, renameGroup, setGroupMembers } from './groups.ts'
 import { dshHostInfo, findDshInstallDir } from './dsh-install.ts'
-import { deriveHostCompatibility, DiscoveryManifestIndex, findCompatibleVersion } from './discovery-compatibility.ts'
+import { catalogReleaseManifest, deriveHostCompatibility, DiscoveryManifestIndex, findCompatibleVersion } from './discovery-compatibility.ts'
 import { configurePersistentLog, exportLogs, logEvent, readPersistentLog } from './log.ts'
 import { marketFetch } from './net.ts'
 import { diagnosePackageManifests } from './diagnostics.ts'
@@ -66,7 +66,7 @@ import { detectedDebugger, detectedSupervisor, restartAllowed, scheduleRestart, 
 import type { RecoveryPlugin } from './recovery.ts'
 import { activationAfterReplace, brokenClientBundles, bundlePatchIsEmpty, checkClientBundle, defaultHostRuntimeFacts, findUnservedConfigNamespaces, hasHostHalf, hostPeerGate, isDeclaredLibraryDsh, newlyBrokenBundles, peerGateRemedy, verifyActivation } from './verify.ts'
 import {
-  carrierRowIds, disableRow, enableRow, findUserPatchPath, foreignRowIds, isProtectedModule, packagePatchFlags,
+  carrierRowIds, disableRow, enableRow, findUserPatchPath, foreignRowIds, isProtectedModule, loaderEntryId, packagePatchFlags,
   readUserPatchState, removeRowBlocks, rowIdsForPackage, userPatchPackageReferences,
 } from './patch.ts'
 import {
@@ -1375,11 +1375,15 @@ export function mountMarketRoutes(
       // here — but the id it created does, and that id is unique to its
       // patch. Verification needs both, and putting them in one set means
       // no call site can pass the names and forget the ids.
-      if (entry.options.id !== undefined && entry.options.id !== '') {
-        live.add(`#${entry.options.id}`)
+      // `id: 1` in the patch file is a NUMBER by the time the loader holds
+      // it, and `.split` on it took the whole `/installed` handler down with
+      // a 400 and an empty body (#1071).
+      const entryId = loaderEntryId(entry)
+      if (entryId !== '') {
+        live.add(`#${entryId}`)
         // Loader ids may carry an include prefix (`include:archify-…`).
-        const bare = entry.options.id.split(':').pop()
-        if (bare !== undefined && bare !== entry.options.id) live.add(`#${bare}`)
+        const bare = entryId.split(':').pop()
+        if (bare !== undefined && bare !== entryId) live.add(`#${bare}`)
       }
     }
     return live
@@ -1593,6 +1597,7 @@ export function mountMarketRoutes(
     // source pinned to the commit captured before the update.
     | { kind: 'git'; target: string; beforeCommit: string; lockfileBefore: ProfileLockfileSnapshot; keepRepairedLock: boolean }
     | { kind: 'manifest' }
+    | { kind: 'product-bundle'; spec: string; beforeVersion: string; fingerprint: string; lockfileBefore: ProfileLockfileSnapshot }
 
   type UpdateRollbackPlan =
     | { available: true; source: UpdateRollbackSource }
@@ -1871,6 +1876,15 @@ export function mountMarketRoutes(
     source: UpdateRollbackSource,
     preserveProfilePolicy = false,
   ): Promise<{ ok: boolean; detail: string | null }> {
+    if (source.kind === 'product-bundle') {
+      const restored = await rollbackExactTarget(name, manifestBefore, source.lockfileBefore, source.spec, false, true)
+      if (!restored.ok) return restored
+      if (readInstalledVersion(config.profile, name, activeProfileDir) !== source.beforeVersion
+        || agentPiBundledSourceFingerprint(activeProfileDir, name, source.spec) !== source.fingerprint) {
+        return { ok: false, detail: 'The retained product source or its installed link could not be verified.' }
+      }
+      return { ok: true, detail: null }
+    }
     if (source.kind === 'npm') {
       return rollbackNpmBuild(name, manifestBefore, source.beforeVersion, source.lockfileBefore, preserveProfilePolicy)
     }
@@ -2415,6 +2429,8 @@ export function mountMarketRoutes(
     name: string,
     spec: string,
   ): string | null => {
+    const bundled = agentPiBundledRegistrySource(activeProfileDir, name, spec)
+    if (bundled !== null) return bundled
     if (!spec.toLowerCase().startsWith('file:') && !isGenerationLink(spec)) return null
     const evidence = readInstalledRepoEvidence(config.profile, name, spec, activeProfileDir)
     const entry = findCatalogEntryForLocal(plugins, name, evidence.identities, evidence.hints)
@@ -3236,11 +3252,15 @@ export function mountMarketRoutes(
           const host = dshHostInfo()
           const hostVersion = host?.version ?? null
           const hostPackages = corePackageNames(host?.directory ?? null)
+          const catalogFacts = Object.fromEntries(entries.flatMap(entry => {
+            const facts = catalogReleaseManifest(entry)
+            return facts === null ? [] : [[entry.url, facts]]
+          }))
           const [npmFacts, githubFacts] = await Promise.all([
             discoveryManifests.lookup(packages, routesFor(region).npmRegistry),
-            githubDiscoveryManifests.lookupGitHub(entries),
+            githubDiscoveryManifests.lookupGitHub(entries.filter(entry => catalogFacts[entry.url] === undefined)),
           ])
-          const facts = { ...npmFacts, ...githubFacts }
+          const facts = { ...npmFacts, ...githubFacts, ...catalogFacts }
           const plugins = Object.fromEntries([...packages, ...urls].map(name => [
             name,
             deriveHostCompatibility(facts[name] ?? null, hostVersion, hostPackages),
@@ -3415,8 +3435,9 @@ export function mountMarketRoutes(
         const servedEntryIds = new Set<string>([...patch.inserts, ...patch.disables, ...patch.forced])
         for (const ids of ownEntryIds.values()) for (const id of ids) servedEntryIds.add(id)
         for (const entry of host.loader.entries()) {
-          const id = entry.options?.id
-          if (id === undefined || id === '') continue
+          // Same numeric-id trap as `liveNames()` (#1071).
+          const id = loaderEntryId(entry)
+          if (id === '') continue
           servedEntryIds.add(id)
           const bare = id.split(':').pop()
           if (bare !== undefined) servedEntryIds.add(bare)
@@ -5039,8 +5060,14 @@ sendJson(response, 200, { updates })
               sendJson(response, 400, { error: 'restore 只适用于 link:/file: 的本地开发安装。 / Restore only applies to locally developed link:/file: installs.' })
               return
             }
-            if (restore && SELF_NAMES.has(name) && spec.toLowerCase().startsWith('link:')) {
-              sendJson(response, 400, { error: '市场的本地开发链接不会被线上版本替换。 / The market\'s local development link is never replaced by an online release.' })
+            const productSource = agentPiBundledRegistrySource(activeProfileDir, name, spec)
+            const productFingerprint = productSource === null ? null : agentPiBundledSourceFingerprint(activeProfileDir, name, spec)
+            if (spec.toLowerCase().startsWith('link:') && productSource === null) {
+              sendJson(response, 400, { error: '本地开发链接保留原来源，不能被同名线上包替换。 / Local development links retain their source and cannot be replaced by an online package.' })
+              return
+            }
+            if (productSource !== null && (productFingerprint === null || readInstalledVersion(config.profile, name, activeProfileDir) === null)) {
+              sendJson(response, 400, { error: '无法核验内置插件的原来源，未执行更新。 / The retained bundled source could not be verified; nothing was updated.' })
               return
             }
             if (isLocalSpec(spec)) {
@@ -5051,12 +5078,14 @@ sendJson(response, 200, { updates })
               // Restore replaces the local checkout with the curated source
               // so the ordinary update check can see it again. Same add path
               // as a registry update — only the resolved target changes.
-              let catalogTarget: string | null = null
+              let catalogTarget: string | null = productSource
               try {
-                const registry = await loadRegistry()
-                const evidence = readInstalledRepoEvidence(config.profile, name, spec, activeProfileDir)
-                const entry = findCatalogEntryForLocal(registry.plugins, name, evidence.identities, evidence.hints)
-                catalogTarget = entry === null ? null : restoreTargetForLocal(entry, evidence.identities)
+                if (catalogTarget === null) {
+                  const registry = await loadRegistry()
+                  const evidence = readInstalledRepoEvidence(config.profile, name, spec, activeProfileDir)
+                  const entry = findCatalogEntryForLocal(registry.plugins, name, evidence.identities, evidence.hints)
+                  catalogTarget = entry === null ? null : restoreTargetForLocal(entry, evidence.identities)
+                }
                 const workspaceDeps = workspaceProtocolDeps(readInstalledManifest(config.profile, name, activeProfileDir))
                 if (catalogTarget !== null && restoreBlockedByWorkspace(catalogTarget, workspaceDeps)) {
                   sendJson(response, 400, {
@@ -5542,7 +5571,11 @@ sendJson(response, 200, { updates })
             const lockfileCapture = captureProfileLockfile()
             const previousVersionZh = beforeVersion === null ? '更新前版本未知' : `更新前版本为 v${beforeVersion}`
             const previousVersionEn = beforeVersion === null ? 'the previous version is unknown' : `the previous version was v${beforeVersion}`
-            const rollbackPlan: UpdateRollbackPlan = restore
+            const rollbackPlan: UpdateRollbackPlan = restore && productSource !== null && productFingerprint !== null && beforeVersion !== null && lockfileCapture.ok
+              ? { available: true, source: { kind: 'product-bundle', spec: manifestBefore.dependencies[name]!, beforeVersion, fingerprint: productFingerprint, lockfileBefore: lockfileCapture.snapshot } }
+              : restore && productSource !== null
+                ? { available: false, detail: 'The original bundled source or lockfile could not be captured safely.' }
+                : restore
               ? { available: true, source: { kind: 'manifest' } }
               : !lockfileCapture.ok
                 ? { available: false, detail: lockfileCapture.detail }

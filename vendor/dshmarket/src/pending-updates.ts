@@ -223,9 +223,30 @@ export interface RepairReport {
   /** Records that needed no work: the profile already held a settled version. */
   finished: string[]
   failed: Array<{ name: string; reason: string }>
+  /** Packages the market has stopped retrying by itself (see MAX_AUTO_REPAIR_ATTEMPTS). */
+  abandoned: string[]
 }
 
 export const REPAIR_INSTALL_TIMEOUT_MS = 300_000
+
+/**
+ * How many starts may each spend up to REPAIR_INSTALL_TIMEOUT_MS trying to put
+ * one package back before the market stops trying by itself.
+ *
+ * Retrying is right while the cause might be transient (offline, a registry
+ * briefly down, the host still shutting down). It stops being right when every
+ * start pays the full timeout for a spec that will never install — the shape a
+ * reporter lived through on the Desktop host (#1061: five days of failing
+ * reinstalls on every boot, all of it invisible). The record is kept, so the
+ * package is not forgotten; only the automatic attempt stops, and the user is
+ * told where to act.
+ */
+export const MAX_AUTO_REPAIR_ATTEMPTS = 3
+
+/** What the user is told once the cap is reached: what, why, and what to do. */
+function gaveUpCopy(name: string, attempts: number): string {
+  return `${name} 还没装回来：之前 ${String(attempts)} 次启动都没能装好，市场不再自动重试。请到「设置 → 插件」重新安装它 / ${name} is still missing: ${String(attempts)} starts could not reinstall it, so the market stopped retrying — reinstall it from Settings → Plugins`
+}
 
 function managerSucceeded(result: { application: string }): boolean {
   return result.application === 'applied'
@@ -307,7 +328,7 @@ export function clearStaleProfileLock(profileDirectory: string): boolean {
  */
 export async function repairInterruptedUpdates(options: RepairOptions): Promise<RepairReport> {
   const journal = options.journal ?? PendingUpdateJournal.forProfile(options.profileDirectory)
-  const report: RepairReport = { reinstalled: [], finished: [], failed: [] }
+  const report: RepairReport = { reinstalled: [], finished: [], failed: [], abandoned: [] }
   const pending = journal.list().filter(entry => entry.profile === options.profile)
   for (const entry of pending) {
     const installed = readInstalledVersion(options.profile, entry.name, options.profileDirectory)
@@ -327,6 +348,16 @@ export async function repairInterruptedUpdates(options: RepairOptions): Promise<
         name: entry.name,
         reason: `installed version ${installed} is neither ${entry.from || 'the previous build'} nor ${entry.to || 'the requested build'}`,
       })
+      continue
+    }
+    if (entry.attempts >= MAX_AUTO_REPAIR_ATTEMPTS) {
+      // Not bumped: the count is already the reason this start does nothing,
+      // and growing it would re-log the same sentence on every boot.
+      if (entry.attempts === MAX_AUTO_REPAIR_ATTEMPTS) {
+        logEvent('error', 'update-repair', gaveUpCopy(entry.name, entry.attempts))
+      }
+      report.failed.push({ name: entry.name, reason: gaveUpCopy(entry.name, entry.attempts) })
+      report.abandoned.push(entry.name)
       continue
     }
     const spec = entry.to === '' ? entry.spec : `${entry.name}@${entry.to}`

@@ -1,6 +1,6 @@
 {
   "name": "agent-pi-dsh-desktop",
-  "version": "3.8.7",
+  "version": "3.8.8",
   "private": true,
   "license": "GPL-3.0-only",
   "author": "Always π AI studio",
@@ -120,7 +120,6 @@
     }
   },
   "agentPiProduct": {
-    "edition": "mainline",
-    "buildRevision": "hotfix.5"
+    "edition": "mainline"
   }
 }

@@ -299,6 +299,45 @@ test('ignores directories and generated metadata intentionally excluded from bot
   }
 })
 
+test('receipts retain declared package details while excluding repository documentation', () => {
+  const value = fixture()
+  const base = 'packages/experimental/example'
+  try {
+    for (const [path, text] of [
+      [`${base}/package.json`, '{"name":"detail-example"}\n'],
+      [`${base}/locale/zh.json`, '{"meta":{"detail":"docs/DETAIL.zh.md"}}\n'],
+      [`${base}/docs/DETAIL.zh.md`, '# 插件说明\n'],
+    ]) {
+      mkdirSync(dirname(join(value.dsh, path)), { recursive: true })
+      writeFileSync(join(value.dsh, path), text)
+    }
+    const receipt = JSON.parse(readFileSync(value.receiptPath, 'utf8'))
+    receipt.sourceFiles.push(...['package.json', 'locale/zh.json', 'docs/DETAIL.zh.md'].map((path) => entry(value.dsh, `${base}/${path}`)))
+    receipt.sourceFiles.sort((a, b) => a.path < b.path ? -1 : 1)
+    writeFileSync(value.receiptPath, JSON.stringify(receipt))
+    assert.doesNotThrow(() => verifyDshBuildReceipt(value))
+    rmSync(join(value.dsh, base, 'docs/DETAIL.zh.md'))
+    assert.throws(() => verifyDshBuildReceipt(value), /Plugin detail file missing/)
+  } finally {
+    rmSync(value.root, { recursive: true, force: true })
+  }
+})
+
+test('the packaging detail gate rejects a declaration outside its own package', () => {
+  const value = fixture()
+  const base = 'packages/experimental/example'
+  try {
+    mkdirSync(join(value.dsh, base, 'locale'), { recursive: true })
+    writeFileSync(join(value.dsh, base, 'package.json'), '{"name":"detail-example"}\n')
+    for (const detail of ['../README.md', '/README.md', 'C:/README.md', 'docs\\README.md', 'docs/./README.md']) {
+      writeFileSync(join(value.dsh, base, 'locale/zh.json'), JSON.stringify({ meta: { detail } }))
+      assert.throws(() => verifyDshBuildReceipt(value), /Invalid plugin detail path/)
+    }
+  } finally {
+    rmSync(value.root, { recursive: true, force: true })
+  }
+})
+
 test('verifies a Windows FullCopy tree after staged link metadata is written', () => {
   const value = fixture()
   try {
@@ -340,10 +379,12 @@ test('Windows and portable staging consume the shared receipt scope before platf
   assert.match(portable, /dshRuntimeFilePolicy\.excludedDirectoryNames/)
   assert.match(portable, /dshRuntimeFilePolicy\.excludedFileNames/)
   assert.match(portable, /dshRuntimeFilePolicy\.excludedFileGlobs/)
+  assert.match(portable, /dshRuntimeFilePolicy\.excludedRootDirectoryNames\.map\(name => join\(dshSrc, name\)\)/)
   assert.match(portable, /const dshSrc = realpathSync\(join\(root, 'vendor', 'deepseek-harness'\)\)/)
   assert.match(windows, /dsh-runtime-file-policy\.json/)
   assert.match(windows, /WindowsDshCopyExcludedDirectoryNames/)
   assert.match(windows, /WindowsDshCopyExcludedDirectoryNames = @\(\$DshRuntimeFilePolicy\.excludedDirectoryNames\)/)
   assert.match(windows, /DshRuntimeFilePolicy\.excludedFileNames/)
   assert.match(windows, /DshRuntimeFilePolicy\.excludedFileGlobs/)
+  assert.match(windows, /DshRuntimeFilePolicy\.excludedRootDirectoryNames \| ForEach-Object \{ Join-Path \$Dsh \$_ \}/)
 })

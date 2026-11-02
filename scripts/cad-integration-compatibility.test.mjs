@@ -662,7 +662,7 @@ test('accepts only the reviewed browser host decoder composition without changin
   assert.throws(() => assertCadIntegrationUnchanged(value), /host extension missing or mode changed/)
 })
 
-test('3.8.7 mainline hotfix accepts its exact metadata and preview pair, refusing later bytes and decoder changes', (t) => {
+test('3.8.8 mainline accepts its exact metadata and prior hotfix pairs, refusing later bytes and decoder changes', (t) => {
   const value = reviewedHostFixture(t, '3.8.3', ['bundles/tender-web/src/client/styles.js'])
   const repository = join(dirname(cli), '..')
   const paths = [...value.reviewed.keys(), 'bundles/engineering-cad/src/index.ts',
@@ -712,13 +712,20 @@ test('3.8.7 mainline hotfix accepts its exact metadata and preview pair, refusin
   commit(value.root)
   assert.equal(assertCadIntegrationUnchanged(value).hostExtension.review, '3.8.7-mainline-hotfix.4-oar-policy-baseline')
   for (const path of changed) {
+    write(join(value.root, path), execFileSync('git', ['show', `5d7624326233445d07c3c28289edce9fc63c740d:${path}`], {
+      cwd: repository, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
+    }))
+  }
+  commit(value.root)
+  assert.equal(assertCadIntegrationUnchanged(value).hostExtension.review, '3.8.7-mainline-hotfix.5-fresh-runtime-baseline')
+  for (const path of changed) {
     const current = readFileSync(join(repository, path), 'utf8').replaceAll('\r\n', '\n')
     value.reviewed.set(path, current)
     write(join(value.root, path), current)
   }
   commit(value.root)
   const proof = assertCadIntegrationUnchanged(value)
-  assert.equal(proof.hostExtension.review, '3.8.7-mainline-hotfix.5-fresh-runtime-baseline')
+  assert.equal(proof.hostExtension.review, '3.8.8-mainline-maintenance-baseline')
   const indexPath = changed[2]
   assert.equal(proof.hostExtension.additionalFileHashes[indexPath], '673ae2fed66e098fd3fea783ee58b5439d6c4344988ddb3dd5da4e893fdf95d7')
   const manifestChanges = [indexPath, changed[3], changed[4]]

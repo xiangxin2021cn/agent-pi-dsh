@@ -51,13 +51,12 @@ test('profile startup uses preinstalled Office while platform builds prepare and
   assert.match(workflow, /univer-public-release\.mjs assert-tree/)
 })
 
-test('tracked Univer production lock exactly matches the pinned 0.3.9 dependency graph', () => {
+test('tracked Univer production lock matches Office 0.4.0 without the retired libsql driver', () => {
   assert.deepEqual(pinnedDependencies, {
     '@puppeteer/browsers': '^3.2.0',
     '@univerjs-pro/cli-assets': '0.1.0',
     '@univerjs-pro/engine-formula-rust-binding': '1.0.3',
     '@univerjs-pro/exchange-node-binding': '1.0.4',
-    libsql: '^0.5.29',
     'puppeteer-core': '^25.7.0',
   })
   assert.equal(validateUniverRuntimeLock({ dependencies: pinnedDependencies }, lock), lock)
@@ -71,9 +70,7 @@ test('tracked Univer production lock exactly matches the pinned 0.3.9 dependency
     assert.match(entry.resolved, /^https:\/\/registry\.npmjs\.org\//, name)
     assert.match(entry.integrity, /^sha512-/, name)
   }
-  for (const suffix of ['darwin-arm64', 'linux-arm64-gnu', 'linux-x64-gnu', 'win32-x64-msvc']) {
-    assert.equal(lock.packages[`node_modules/@libsql/${suffix}`].version, '0.5.29')
-  }
+  assert.equal(Object.keys(lock.packages).some(path => path === 'node_modules/libsql' || path.startsWith('node_modules/@libsql/')), false)
 
 })
 
@@ -158,17 +155,14 @@ test('Univer readiness requires every direct production package at the locked ve
 test('target runtime package selection covers the supported Windows, macOS, and Linux builds', () => {
   const expected = {
     'win32/x64': [
-      '@libsql/win32-x64-msvc',
       '@univerjs-pro/engine-formula-rust-binding-win32-x64-msvc',
       '@univerjs-pro/exchange-node-binding-win32-x64-msvc',
     ],
     'darwin/arm64': [
-      '@libsql/darwin-arm64',
       '@univerjs-pro/engine-formula-rust-binding-darwin-arm64',
       '@univerjs-pro/exchange-node-binding-darwin-arm64',
     ],
     'linux/x64': [
-      '@libsql/linux-x64-gnu',
       '@univerjs-pro/engine-formula-rust-binding-linux-x64-gnu',
       '@univerjs-pro/exchange-node-binding-linux-x64-gnu',
     ],
@@ -179,7 +173,7 @@ test('target runtime package selection covers the supported Windows, macOS, and 
     const selected = runtimePackagesForTarget(pinnedDependencies, lock, target)
     assert.deepEqual(selected.filter((item) => item.native).map((item) => item.name), nativeNames)
     const closure = selected.filter((item) => !item.native)
-    assert.equal(closure.length, 31)
+    assert.equal(closure.length, 28)
     assert.ok(closure.some((item) => item.lockPath === 'node_modules/zod'))
     assert.ok(closure.some((item) => item.lockPath === 'node_modules/cliui/node_modules/string-width'))
     assert.ok(Object.keys(pinnedDependencies).every((name) => closure.some((item) => item.name === name)))

@@ -10,6 +10,7 @@ import { join } from 'node:path'
 import { loadRegistry, pluginCategories } from './registry.ts'
 import { hotMount, hotUnmount, listHotMounts, writeDisabled } from './hot.ts'
 import { logEvent } from './log.ts'
+import { loaderEntryId } from './patch.ts'
 import { LifecyclePendingError, LifecycleWaitError, waitForLifecycle } from './lifecycle.ts'
 import { nameMatchesPackage } from './entry-identity.ts'
 import { bundlePatchInsertedIds, profileDir, readInstalled } from './profile.ts'
@@ -87,8 +88,10 @@ function ownsLoaderEntry(
 ): boolean {
   const entryName = entry.options.name
   if (nameMatchesPackage(entryName, packageName)) return true
-  const id = entry.options.id
-  if (id === undefined || id === '') return false
+  // A YAML `id: 1` reaches the loader as a NUMBER (#1071); `.split` on it
+  // threw and took the caller down.
+  const id = loaderEntryId(entry)
+  if (id === '') return false
   // Loader ids may carry an include prefix (`include:<key>:<id>`); the bare
   // id is what a bundle patch declares.
   return ownedIds.has(id.split(':').pop() ?? id)

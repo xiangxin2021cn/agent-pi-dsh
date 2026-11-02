@@ -1,6 +1,6 @@
 {
   "name": "agent-pi-dsh",
-  "version": "3.8.7",
+  "version": "3.8.8",
   "private": true,
   "license": "GPL-3.0-only",
   "type": "module",
@@ -26,7 +26,6 @@
   },
   "agentPiProduct": {
     "edition": "mainline",
-    "buildRevision": "hotfix.5",
     "artifactStem": "Agent-Pi-DSH",
     "releaseTagPrefix": "v"
   }

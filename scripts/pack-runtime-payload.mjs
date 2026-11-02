@@ -215,6 +215,7 @@ console.log('staged product tree')
 const dshDest = join(stage, 'deepseek-harness')
 robocopy(dshSrc, dshDest, [
   '/XD', ...dshRuntimeFilePolicy.excludedDirectoryNames,
+  ...dshRuntimeFilePolicy.excludedRootDirectoryNames.map(name => join(dshSrc, name)),
   '/XF', ...dshRuntimeFilePolicy.excludedFileNames, ...dshRuntimeFilePolicy.excludedFileGlobs,
 ])
 cpSync(dshBuildReceipt, join(dshDest, dshBuildReceiptName))

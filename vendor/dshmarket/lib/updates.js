@@ -4,6 +4,7 @@
  * dist-tag for registry installs — with a TTL cache.
  */
 import { existsSync, readFileSync } from 'node:fs';
+import { agentPiBundledRegistrySource } from '../compatibility.js';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { JSON_SCHEMA, load } from 'js-yaml';
@@ -746,8 +747,9 @@ options = {}) {
     await Promise.all(Object.entries(installed).map(async ([name, spec]) => {
         const version = readInstalledVersion(profile, name, activeProfileDir);
         const normalizedSpec = spec.toLowerCase();
-        if (normalizedSpec.startsWith('file:')) {
-            const onlineSource = onlineSourceFor.get(name);
+        const productSource = agentPiBundledRegistrySource(activeProfileDir, name, spec);
+        if (normalizedSpec.startsWith('file:') || productSource !== null) {
+            const onlineSource = productSource ?? onlineSourceFor.get(name);
             if (onlineSource !== undefined) {
                 const latest = await fetchNpmLatest(onlineSource);
                 const upgrade = isUpgrade(version, latest);
@@ -760,6 +762,7 @@ options = {}) {
                     updateAvailable: upgrade && !held,
                     ...(held ? { heldUpdate: { latest: latest, until: hold.until, ...(hold.estimated ? { estimated: true } : {}) } } : {}),
                     ...(upgrade ? { restoreRequired: true } : {}),
+                    ...(productSource !== null ? { productBundled: true } : {}),
                 };
                 return;
             }
@@ -885,7 +888,18 @@ options = {}) {
                 const mayFollowATag = !upgrade
                     && (version?.includes('-') === true || (stable !== null && version !== null && isUpgrade(stable, version) === false && stable !== version));
                 const newerPrerelease = mayFollowATag ? await newerPrereleaseFor(name, version) : null;
-                const desktopStable = options.holdYoungReleases === true && channel === undefined
+                // `channel === undefined` used to stand for "this row follows `latest`",
+                // and the market itself always has a channel (it is the one package
+                // the setting is for), so the mature-release fallback (#1019) skipped
+                // exactly the package that needs it most. The market releases about
+                // daily: every release restarted the age window on `/latest`, so the
+                // row showed "up to date" while releases from the previous two days
+                // were long past the window (#1087). What the guard actually means is
+                // "the target this row follows IS `latest`" — true on the stable
+                // channel, and false only when beta/dev resolve something newer, where
+                // a mature stable candidate is not the version the user asked for.
+                const followsLatest = channel === undefined || (stable !== null && latest === stable);
+                const desktopStable = options.holdYoungReleases === true && followsLatest
                     && isStableReleaseVersion(version)
                     && !/^https?:/i.test(spec) && !spec.includes(':') && !spec.includes('/');
                 const mature = desktopStable && upgrade

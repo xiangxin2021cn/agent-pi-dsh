@@ -43,7 +43,11 @@ export interface RegistryPlugin {
   /** One legacy category id or several category ids. */
   category: string | string[]
   description?: LocalizedText
-  stars?: number
+  stars?: number | null
+  starsCheckedAt?: string | null
+  /** Lifetime downloads of every public Release asset, not installations or users. */
+  githubReleaseDownloads?: number | null
+  githubReleaseDownloadsCheckedAt?: string | null
   /**
    * npm downloads in the last 30 days, when the entry has a published
    * package. Absent means "no npm package" — a coverage gap, not a zero.
@@ -225,6 +229,7 @@ export interface UpdateStatus {
   unreleasedCommit?: string
   /** Updating this local package switches it to its matched online release. */
   restoreRequired?: boolean
+  productBundled?: boolean
   /** A newer release is still waiting (#945). An older mature release may
       remain available as `eligibleVersion` (#991); this names the held latest.
       `estimated` means the publication time is unknown, not a release-age ETA. */

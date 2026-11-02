@@ -35,7 +35,10 @@ type FetchLike = (url: string, init?: {
 export interface GitHubManifestSource {
     url: string;
     tarball?: string | null;
+    releaseManifest?: unknown;
 }
+/** Reuse catalog facts only for this repository's exact pinned install asset. */
+export declare function catalogReleaseManifest(source: GitHubManifestSource): NpmManifestFacts | null;
 /** Keep only the small public subset of an npm manifest needed by discovery. */
 export declare function manifestFacts(value: unknown): NpmManifestFacts;
 /**

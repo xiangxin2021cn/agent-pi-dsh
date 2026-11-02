@@ -1,35 +1,42 @@
 {
   "schema": "agent-pi-dsh/market-adaptation/v1",
-  "checkedAt": "2026-10-30",
+  "checkedAt": "2026-11-02",
   "source": {
     "name": "dshmarket",
-    "version": "1.73.6",
-    "integrity": "sha512-dfE0kGbF/rVQAbUTLV8m2HTXOpeMjRBB4us0tNDKDGX9IDtNJStSHxT5TuIJaN+RG/PVzF8v1Z2zUyZJpM4RDg==",
-    "shasum": "8e44a2458fc53326b8b06a22842a4a76060f390b",
-    "archiveBytes": 847595,
-    "sourceCommit": "81d03b611d1a61cae5865c442e3e7d9cf7f6ae05",
-    "publishedAt": "2026-10-30T18:46:17.882Z",
+    "version": "1.73.9",
+    "integrity": "sha512-uXjKoRSf6MIZGC5nDa9SzZzCg45kYMxWSD5jxQIWoO3Zw6DhCnbZEg8slrviVeXjToPSJvLQ6qo1CuuZmabfVQ==",
+    "shasum": "27df32e73654bef018478205f1535846f939b6cd",
+    "archiveBytes": 854558,
+    "sourceCommit": "c57e77ac22fe33dc91134346c2ca8882da488152",
+    "publishedAt": "2026-11-02T18:57:34.594Z",
     "adaptation": "vendor/dshmarket/AGENT-PI-ADAPTATION.json",
-    "tarball": "https://registry.npmjs.org/dshmarket/-/dshmarket-1.73.6.tgz"
+    "tarball": "https://registry.npmjs.org/dshmarket/-/dshmarket-1.73.9.tgz"
   },
   "sourceArchive": {
-    "url": "https://codeload.github.com/dsh-market/dsh-market/tar.gz/81d03b611d1a61cae5865c442e3e7d9cf7f6ae05",
-    "sha256": "fca4b45ae0dbdc92d2206f4bbb3b625e35e2e876d93d70e4ccfbff8a820d3bec",
-    "note": "Official npm 1.73.6 omits src; retain exact fixed-commit sources for product adaptations and reproducible build."
+    "url": "https://codeload.github.com/dsh-market/dsh-market/tar.gz/c57e77ac22fe33dc91134346c2ca8882da488152",
+    "sha256": "774e146052db58af4584adacac02b58b465faad94e277a94b47d9f3ac6326136",
+    "note": "Official npm 1.73.9 omits src; retain exact fixed-commit sources for product adaptations and reproducible build."
   },
   "adaptations": [
     "Preserve Agent Pi host peer compatibility and managed Team/compaction boundaries, including the new drain entrypoint",
     "Delegate desktop restart to Electron",
-    "Retain complete Office 0.3.9 integration and existing IM/email compatibility gates",
+    "Retain complete Office 0.4.0 integration and exact reviewed IM/email compatibility gates",
     "Retain Intel optional-native capability exclusions",
     "Retain upstream drain barriers, release-age and profile-policy preservation",
-    "Rebuild adapted source with the pinned DSH toolchain"
+    "Rebuild adapted source with the pinned DSH toolchain",
+    "Expose a permanent market update check with bounded requests and reuse the existing self-update/source-confirmation route",
+    "Show actionable desktop pnpm-layout migration guidance; product startup performs backed-up migration before loading plugins",
+    "Merge the complete official 1.73.9 runtime fixes; retain exact fixed-commit source and npm integrity",
+    "Permit only three exact verified product bundled links to switch to registry releases after explicit source confirmation; retain and verify original-source rollback",
+    "Disclose that independent community-market upgrades replace product market UI adaptations while preserving DSH, project data and host migration protection",
+    "Translate market maintenance actions and source confirmation into ten product languages and translate existing check status on language changes",
+    "Accept reviewed IM 5.9.1 and email 0.21.2 only with the fixed DSH source pin and exact verified runtime file hashes"
   ],
   "modifiedFiles": [
     {
       "file": "client/client.js",
-      "upstreamSha256": "513227ef3df120ed1a608936c2328c105eca5e48c29320ac94286001c3a1324b",
-      "adaptedSha256": "9b0a3fd9a0c2de5519df2c22207514d3cdd5af98476511f75217129e6fb9d1e8"
+      "upstreamSha256": "d31b9e942ee6bf4ccfa967f467c38e1dc39f65f679a9ea2f96410f4b77754adf",
+      "adaptedSha256": "4f071b5ab0a51399063985c93a67be7474fe3693f62f660ffd3aca79f2b171b3"
     },
     {
       "file": "lib/accelerate.js",
@@ -38,8 +45,8 @@
     },
     {
       "file": "lib/backup.js",
-      "upstreamSha256": "af77137bebb05462f12e69093abed0e4db2bd9baaebbe0cafcce541513acbd05",
-      "adaptedSha256": "72d8f1556d09a32d96bce3422fd057db8281707d29a9173fb0d6ab3cfd9b8e25"
+      "upstreamSha256": "1dba1668ef6f7e46ed8a3d4b95428df4f3b97c27e69031f20624828aa390909a",
+      "adaptedSha256": "cb2ad51ce47b10358479890b7cd2de562bdec4690029f5d76b9916caf3dade6a"
     },
     {
       "file": "lib/catalog-npm.js",
@@ -63,13 +70,13 @@
     },
     {
       "file": "lib/discovery-compatibility.js",
-      "upstreamSha256": "82c6217da3ee7b377f19bb00dfba304298483feaf8b3312c19b0c9fb8a8c1c84",
-      "adaptedSha256": "59c08e2082264b4dccbdd1ca36de91c4602f055694e5188088e8fd6a4e2a855b"
+      "upstreamSha256": "d8cd02a046321dbfe65f1de6436f564178382bb82487b8981c634e26bd46810f",
+      "adaptedSha256": "53e6f1f2e7c57e69ce58306a8520113e5d9d2744a9e1e203f4567aa05cf92076"
     },
     {
       "file": "lib/drain-journal.js",
-      "upstreamSha256": "412421d9a30901f5b2d0c43aac21ce0da7d0cad55c84adddc2d69241bf0fc2fd",
-      "adaptedSha256": "0ddffc858a1cfcc79dfc15578ac443d8d2215e2edbb11554ebff7b746c718f34"
+      "upstreamSha256": "4fde603c673226c5b9853df59d66f27b84cea159c7e70247407fa5ea3d5ddbf3",
+      "adaptedSha256": "2b1fc7c3e36bad61cdd10d1687042302d18f6a0e18e3d0db2398a49b5f815b16"
     },
     {
       "file": "lib/drain.js",
@@ -98,8 +105,8 @@
     },
     {
       "file": "lib/index.js",
-      "upstreamSha256": "951b2fffa7dc8d0498bed7120d9e3c7dbec61a32f72c1b88f477e9feef8ef534",
-      "adaptedSha256": "5697092c777b6be5eaf6f10e54a8f2f41d0b0ae085ac9bf33cffd60ce0d7b216"
+      "upstreamSha256": "3c7a9717144a1b50c3196e640b7bff0673c84862ba411067e1a3501d5ed2f2fb",
+      "adaptedSha256": "bbaaeb9a0d2ad9d20f61656d0f121c4bc53831e4c646e6f748444941ef5b889c"
     },
     {
       "file": "lib/install.js",
@@ -113,8 +120,8 @@
     },
     {
       "file": "lib/official-desktop.js",
-      "upstreamSha256": "a0fb64a2e97e26725fb7114cb3f1d04e9153126ea6f96a4fb7cf4ed7e22c276c",
-      "adaptedSha256": "be69d22e9980efd289da36fce6f34e9f135d7e13c809df8758c3498f343fc262"
+      "upstreamSha256": "727eac01aac9371252aacf07c04b865e2ae06c8364069ecec750915875ba303c",
+      "adaptedSha256": "17270a938fa581b425c2365d6ff4d2b3a89741ffb2c753d2fc638c231ec8bc16"
     },
     {
       "file": "lib/order.js",
@@ -123,8 +130,8 @@
     },
     {
       "file": "lib/patch.js",
-      "upstreamSha256": "4b86146d140d0bc8183be717f932d1db3611e76ec3933df3d906f2746b61c926",
-      "adaptedSha256": "da4e78b4b2116a657aa6aefa795de391307eeea4a50f842854c91a6bc15af9d5"
+      "upstreamSha256": "9fd74e342e55286063c1de31b42f3e2942bf8476cc3d3ded328f92ea3aff47ac",
+      "adaptedSha256": "c8bc476b23e89551ddd324621cecbe68ef93c3bd9071d0dc21c9a21ded1b8a65"
     },
     {
       "file": "lib/pending-rows.js",
@@ -133,13 +140,13 @@
     },
     {
       "file": "lib/pending-updates.js",
-      "upstreamSha256": "24df77e2c8beef24fbd31ab2b385d3ad46db26563dff8371959342b05cdd05b0",
-      "adaptedSha256": "ac52964b00474d10c24dbba4f506731ed1f901bee108719272ce8d23c829beb0"
+      "upstreamSha256": "86f6ac125561f16b0d1c52f5a8472bed743ffd90c7c653ae4a1190717c2f8efc",
+      "adaptedSha256": "cdf5542c686e84669314bb17b5ef42d4d027479bb25a8d9a0b21fbc004cb607d"
     },
     {
       "file": "lib/pnpm-compat.js",
-      "upstreamSha256": "c6923480cd613f435d4216765bb8fd71a4a505c222dbbcd6cc43391bcdc1b2e8",
-      "adaptedSha256": "667c829d0c6959b86e3fd66f7d1f9731735ab3b9e2ee01ee0eab33a5061114ee"
+      "upstreamSha256": "a9554fe127bfe54928fe98ae61f1f5f61386463e65cf82d5bf2f07cdfb87b1dd",
+      "adaptedSha256": "b13aef8b57d4472584cbbd539335c3e27629755ac35ccdb307a1849dcdb0a240"
     },
     {
       "file": "lib/presets.js",
@@ -164,7 +171,7 @@
     {
       "file": "lib/registry.js",
       "upstreamSha256": "85d866dd5588e2e09996b00b7e40748ee0f7bd448125b7bee8f7419fbcbea52c",
-      "adaptedSha256": "8b5d4a27e2678c0dfb60ce0a4d4b916ea27764bf1e062eab1d2bed68ad149a59"
+      "adaptedSha256": "ad267a1c5f703e395b8cf6d6cdd69c646af2dcae01a63ae8f4a590776b525f69"
     },
     {
       "file": "lib/restart.js",
@@ -173,8 +180,8 @@
     },
     {
       "file": "lib/routes.js",
-      "upstreamSha256": "119ea58be71a7279ba259558cb7810c3dc9e12d4e1ca626695bfe874df3ae863",
-      "adaptedSha256": "c8865bf80ab793966d5df144d40833d3f4fd5e3b9b5057dd779accce5723ad93"
+      "upstreamSha256": "3b6e46989d8fc66e35bb58d70339a567a28d6a93acb9fa76c8070bdf5671dce7",
+      "adaptedSha256": "4fabc0e0b14faa2c000612738799d53e837f2c3d453c60ee79c6257510da23e0"
     },
     {
       "file": "lib/settings.js",
@@ -203,8 +210,8 @@
     },
     {
       "file": "lib/themes.js",
-      "upstreamSha256": "6f2bbdcfe8569240b65a2a2ff04b8b6ed79ab625514d6879682fb030587f5a20",
-      "adaptedSha256": "d8744e76671aca59b4a50eb62717c9a31fee368016cf7a14a93b5bdf7eeb88bd"
+      "upstreamSha256": "6428361175738f7c9301e35e1ab34a8d419e9dc2572e9659cc93080c1b8dc3ae",
+      "adaptedSha256": "f3bc5759e99a62c8fa4bfb2b8f31e6e36e81e26a9796a17b2a35cdcdcb130b40"
     },
     {
       "file": "lib/trial.js",
@@ -212,14 +219,14 @@
       "adaptedSha256": "b7fa896e1c2617ec5fba62978c14f8caac083457ad94b0276b8bbac16e5f9c6a"
     },
     {
-      "file": "lib/types/verify.d.ts",
-      "upstreamSha256": "c07e91894b83dc2894fa4b4af01b035ec4c5b54da026843f273c91d126163bd5",
-      "adaptedSha256": "7b6b1b3e9c481acb385fcf9c689afb1bab3779fbc358045d336fb2bb8026c99f"
+      "file": "lib/types/updates.d.ts",
+      "upstreamSha256": "7fadd188b8d883f37ce4256d914fdf71c2168a63fc6de58dc709943a86e4f688",
+      "adaptedSha256": "14cd8e3ba05c43be6333e7c81ee9ab6a0db538faad6e9638c6fc9bf96f3684a0"
     },
     {
       "file": "lib/updates.js",
-      "upstreamSha256": "a542abc0e59a884e79bb9802ecf5714e282293368ef70710770f0cc4533290f0",
-      "adaptedSha256": "fb5108cc72534bba9921b1de461093d56a4e986244e5111e78a7944edd70d3ce"
+      "upstreamSha256": "bf604c296bf1744b04d6eba5683c80692ff088681b9e4caa444fa08981b8d58b",
+      "adaptedSha256": "3ee0b1b6de5d6aa939241050bff5ada8ba1a5ce0eea4366d71de214971c4050c"
     },
     {
       "file": "lib/verify.js",
@@ -229,22 +236,22 @@
     {
       "file": "src/client/index.ts",
       "upstreamSha256": "77d8fe6cc641f123c48ddc43bf44ac88b1c4612e5c938158806bdfa622d523b2",
-      "adaptedSha256": "f0b2325cf0a188bc354422e4723b2542a2c438b54b22e61c501a6b99a9a74750"
+      "adaptedSha256": "ea3314549c44361882aaf6094b45b6c716ca2cf642b054fa86231325cfd6b3ba"
     },
     {
       "file": "src/client/locales.ts",
-      "upstreamSha256": "d7a13a0a91bc9baf6bc07b4a5b4c9280c18839ed6bdc923a6a6580b078586275",
-      "adaptedSha256": "93db8157cb292b9be9f59abec64b87d04ed5bb6d8138a948720c67bc3d3b8bfe"
+      "upstreamSha256": "7b4b6632d20574a09d8e76c979e8387e9ed211025052019829e681095d3db893",
+      "adaptedSha256": "673e59943f07e3841be7921c88c03a73557141c9a81b0d7b7055949a6bb110fb"
     },
     {
       "file": "src/client/market-data.ts",
-      "upstreamSha256": "df4fe4dd290d1d7d212d8cc1023df03fb50cddeb9972dbd5b44e48c6e662be4d",
-      "adaptedSha256": "5d9e2c4acb4a443f4a2e897a5b45967e3e7d2cf1b5a896da21e64a9f4ab05be2"
+      "upstreamSha256": "ffc91068c775e2a1de7ca4d944da8b2a582774dc6c627251c5ca3a1dc8280705",
+      "adaptedSha256": "8309dcddd178d932c859835b2142493483741d3153ed1deb96da406ccf683039"
     },
     {
       "file": "src/client/MarketSection.tsx",
-      "upstreamSha256": "f75366895ff285f95311cd1f7692d18d85db43b25a7e32f5c3b1a4723b92151c",
-      "adaptedSha256": "208bc34c6f1a4de85997128d5a644207abb4fc87f3e3d6f107603d34c6066044"
+      "upstreamSha256": "77bd693837c9696ed0542e881beea37f35bdc599e9edb45f0f6072ebf6b5b847",
+      "adaptedSha256": "29d38f3e1f49791f133471b3734d139889e45d83f9c5c0297c2c07ad070fd434"
     },
     {
       "file": "src/hot.ts",
@@ -253,13 +260,18 @@
     },
     {
       "file": "src/index.ts",
-      "upstreamSha256": "b9f80fe7ee76c96d4f3c1315bd723efff8382d8c81e3fba83b169576c303f86e",
-      "adaptedSha256": "e923c3a2931b1bfbc6cf84cf56ddbc197d88cb3afcbe99455ba4a8d1483f7d0b"
+      "upstreamSha256": "3c548181f28343c912c073c092438eeae00d9c9436677836a67226a4b0db2fd3",
+      "adaptedSha256": "d92bbfcb054646069020aa671e50447df0dafac8de764f3ea258f2f573fae206"
+    },
+    {
+      "file": "src/pnpm-compat.ts",
+      "upstreamSha256": "419a567d050ecb6a48c47ee840051e02f213b9ea9f6a06c3c03fdba2edf6895f",
+      "adaptedSha256": "052e8922098d20e0eca9b52524a8468964edc2e441c01cf6ba1dc8a764f386a8"
     },
     {
       "file": "src/registry.ts",
-      "upstreamSha256": "09b46fd5fffdc76af142cc0c55c3dd09d6cb1e0f3de4e66bb4510e5ffcd51466",
-      "adaptedSha256": "85b88e3119af5b92a1b5fcff18bb029543b841d2df145deade4a404251734312"
+      "upstreamSha256": "f44e1f5d77664ad9c0c0edb0a364ac763096d4e0b9bfee4dbc2522bb50f71588",
+      "adaptedSha256": "b4f33b6d3fa8141142c018e817cfec08e68ab1d8d002c1a9a584877823a16e3d"
     },
     {
       "file": "src/restart.ts",
@@ -268,8 +280,8 @@
     },
     {
       "file": "src/routes.ts",
-      "upstreamSha256": "19814bc61148b15f2db9147640f2573a9c7a6e6dd4f080046405988fa141b91b",
-      "adaptedSha256": "8330b949680eb142e001ddd23e134a23df6c4a54deb250ecb31b0200e3f3679e"
+      "upstreamSha256": "2849a3c45fb10e2d514082c51fc63f139ece12d08a9ab6aa03e7f976d15eee1b",
+      "adaptedSha256": "78f0acdc5e7e58f7b9f3836f69adcff71a632611fae7a3369442a51fcd8729fb"
     },
     {
       "file": "src/settings.ts",
@@ -287,6 +299,11 @@
       "adaptedSha256": "59540fdad2fbad7703db1d54a492832a9d473cb36677fbbaa88050b7c43da803"
     },
     {
+      "file": "src/updates.ts",
+      "upstreamSha256": "dec7c70872bfff6fdd0c3a464b9a70ee9475948889d25ee889798357fe725814",
+      "adaptedSha256": "81802418283e47736a20c1d53556120eab28adabe43e1bb9ed3579a642b7bccd"
+    },
+    {
       "file": "src/verify.ts",
       "upstreamSha256": "9a85edf24d92d9e657ab167d665fe0b78a4fef25a1f29e074cbad4900936a6e8",
       "adaptedSha256": "9bd0e53bb97a0366d510067a4eb1b33e35b1413fe7d5c713bf0770bf2531e8a3"
@@ -295,7 +312,7 @@
   "productFiles": [
     {
       "file": "compatibility.js",
-      "sha256": "e731ebbb1241717c2e99484c9e112265951c8b463bf31cb67d42d99758cd924e"
+      "sha256": "e69bc3e28e377d0bc7bc6ae04c4d70121d51f4038e475e1e0a335c54b0d9df93"
     },
     {
       "file": "tsdown.config.ts",

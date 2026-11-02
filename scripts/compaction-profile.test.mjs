@@ -34,6 +34,7 @@ const univerPeerNames = [
 ]
 const scriptNames = [
   'init-tender-profile.mjs',
+  'migrate-profile-pnpm.mjs',
   'backup-schedule-v1.mjs',
   'macos-intel-capabilities.mjs',
   'workbench-plugin-defaults.mjs',

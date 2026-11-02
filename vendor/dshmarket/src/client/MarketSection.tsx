@@ -3,7 +3,7 @@
  * /dsh-market/* host routes, with install/update/uninstall flows and the
  * pending-restart bookkeeping in sessionStorage.
  */
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactElement, type ReactNode, type Ref } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent as ReactMouseEvent, type ReactElement, type ReactNode, type Ref } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Button,
@@ -42,7 +42,7 @@ import css from './Market.module.css'
 import { MARK_BLOCK_RADIUS, MARK_BLOCK_SIZE, MARK_GRID_BLOCKS, MARK_PLUG_BLOCK, MARK_VIEW_BOX } from './market-mark.ts'
 import { CommentsModal } from './CommentsModal.tsx'
 import { SearchInput } from './SearchInput.tsx'
-import { downloadStatsText } from './download-stats.ts'
+import { downloadStatistic, downloadStatsText, starStatsText } from './download-stats.ts'
 import { OperationsPanel } from './OperationsPanel.tsx'
 import { applyRecovery, fetchRecovery, initialKeep, RecoveryPanel, watchRestart, type RecoveryView } from './RecoveryPanel.tsx'
 import { HostRecoveryBanner } from './HostRecoveryBanner.tsx'
@@ -429,6 +429,31 @@ function mdInline(text: string): Array<string | JSX.Element> {
  * interpreted as markup); remaining text arrives as React children or
  * controlled nodes only.
  */
+
+/**
+ * An <img> whose src lives on raw.githubusercontent.com, walked through the
+ * raw GitHub route candidates on failure (#1070 follow-up): the update-notes
+ * dialog was the last place still loading those images directly, so on
+ * networks where raw is unreachable the notes rendered with holes. When every
+ * candidate fails the last one is the direct URL, exactly the old behavior.
+ */
+export function GithubRoutedImg({ src, alt, className, key }: { src: string; alt: string; className?: string; key?: string }) {
+  const [routeIndex, setRouteIndex] = useState(0)
+  const candidates = githubRouteCandidates('raw', src)
+  const candidate = candidates[Math.min(routeIndex, candidates.length - 1)]!
+  return (
+    <img
+      key={key}
+      className={className}
+      src={candidate.url}
+      alt={alt}
+      loading="lazy"
+      onLoad={() => rememberGithubRoute('raw', candidate.proxy)}
+      onError={() => { if (routeIndex + 1 < candidates.length) setRouteIndex(routeIndex + 1) }}
+    />
+  )
+}
+
 function renderMarkdown(md: string): Array<JSX.Element | string> {
   const out: Array<JSX.Element | string> = []
   let bullets: string[] | null = null
@@ -465,12 +490,11 @@ function renderMarkdown(md: string): Array<JSX.Element | string> {
     if (image !== null) {
       flushList()
       out.push(
-        <img
+        <GithubRoutedImg
           key={`i${out.length}`}
           className={css.notesImg}
           src={image.src}
           alt={image.alt}
-          loading="lazy"
         />,
       )
       continue
@@ -504,18 +528,30 @@ export function OwnerAvatar({ name, owner, icon, className }: { name: string; ow
   const [failed, setFailed] = useState(false)
   const [routeIndex, setRouteIndex] = useState(0)
   const [iconFailed, setIconFailed] = useState(false)
+  const [iconRouteIndex, setIconRouteIndex] = useState(0)
   const av = className === undefined ? css.av : `${css.av} ${className}`
   const tile = iconFailed ? null : safeIcon(icon)
   if (tile !== null) {
+    // A declared icon is almost always a raw.githubusercontent.com URL, so it
+    // goes through the raw route candidates the lightbox uses (#1070) instead
+    // of a direct connection: on networks where raw is unreachable the icon
+    // would fail on first request and silently degrade to the owner's avatar
+    // (#1078). Candidates are walked on error, like the avatar branch below.
+    const candidates = githubRouteCandidates('raw', tile)
+    const candidate = candidates[Math.min(iconRouteIndex, candidates.length - 1)]!
     return (
       <img
         className={av}
-        src={tile}
+        src={candidate.url}
         alt=""
         loading="lazy"
         decoding="async"
         referrerPolicy="no-referrer"
-        onError={() => setIconFailed(true)}
+        onLoad={() => rememberGithubRoute('raw', candidate.proxy)}
+        onError={() => {
+          if (iconRouteIndex + 1 < candidates.length) setIconRouteIndex(iconRouteIndex + 1)
+          else setIconFailed(true)
+        }}
       />
     )
   }
@@ -1050,6 +1086,41 @@ function useWindowTitlebarHeight(): number {
  * already-downloaded image shown bigger — there is no separate "thumbnail"
  * vs "full size" asset to fetch.
  */
+/**
+ * The full-size screenshot, loaded through the configured GitHub route (#1070).
+ *
+ * Screenshots are GitHub-hosted, and on a mainland connection
+ * `raw.githubusercontent.com` is the slowest part of the page — the avatars
+ * next to them already go through the proxy the user chose, while this one
+ * still went direct. The thumbnail keeps its own resizer; this is the one
+ * place that wants the original bytes, so it is the one place the proxy
+ * itself is worth a hop.
+ *
+ * The route order is the same one avatars use: the prefix that last worked
+ * first, then the region's other prefixes, then direct. A failed load walks
+ * the list rather than leaving a blank image.
+ */
+function LightboxImage({ src, className, onClick }: {
+  src: string
+  className: string
+  onClick: (event: ReactMouseEvent<HTMLImageElement>) => void
+}) {
+  const [routeIndex, setRouteIndex] = useState(0)
+  useEffect(() => { setRouteIndex(0) }, [src])
+  const candidates = githubRouteCandidates('raw', src)
+  const candidate = candidates[Math.min(routeIndex, candidates.length - 1)]!
+  return (
+    <img
+      className={className}
+      src={candidate.url}
+      alt=""
+      onClick={onClick}
+      onLoad={() => rememberGithubRoute('raw', candidate.proxy)}
+      onError={() => { if (routeIndex + 1 < candidates.length) setRouteIndex(current => current + 1) }}
+    />
+  )
+}
+
 function ScreenshotLightbox({ shots, startIndex, onClose, t }: { shots: string[]; startIndex: number; onClose: () => void; t: Translate }) {
   // Full-bleed previews must not auto-advance: a chart or a screenshot needs
   // to stay readable until the viewer moves on, so the carousel timer is
@@ -1108,7 +1179,11 @@ function ScreenshotLightbox({ shots, startIndex, onClose, t }: { shots: string[]
         aria-label={t('lightboxClose')}
         onClick={onClose}
       >×</button>
-      <img className={css.lightboxImg} src={shots[index]} alt="" onClick={e => e.stopPropagation()} />
+      <LightboxImage
+        className={css.lightboxImg}
+        src={shots[index]!}
+        onClick={e => e.stopPropagation()}
+      />
       {shots.length > 1 && (
         <>
           <button
@@ -1391,17 +1466,26 @@ function BookmarkMark({ size = 14, filled = false, className, markRef }: {
   )
 }
 
-/** Compact abbreviated count; hover names the exact figure and the 30-day window. */
+/** Compact count; hover names the exact figure, source and reporting scope. */
 function DownloadCount({ plugin, t }: { plugin: RegistryPlugin; t: Translate }) {
   const tip = downloadStatsText(plugin, t)
-  if (tip === null) return null
+  const statistic = downloadStatistic(plugin)
+  if (tip === null || statistic === null) return null
   return (
     <CardTip label={tip}>
       <span className={css.star} tabIndex={0} aria-label={tip}>
-        {'· ↓ ' + formatCount(plugin.downloads!)}
+        {'· ' + (statistic.source === 'github' ? 'GitHub ' : '') + '↓ ' + formatCount(statistic.count)}
       </span>
     </CardTip>
   )
+}
+
+function StarCount({ plugin, t }: { plugin: RegistryPlugin; t: Translate }) {
+  const tip = starStatsText(plugin, t)
+  if (tip === null) return null
+  return <CardTip label={tip}><span className={css.star} tabIndex={0} aria-label={tip}>
+    {'· ★ ' + formatCount(plugin.stars!)}
+  </span></CardTip>
 }
 
 /** Monochrome mark for one fact in front of the capability fold. Ink, not a warning colour. */
@@ -2685,6 +2769,8 @@ export function MarketSection(props: MarketSectionProps) {
    * first reply always has to ask which one it was.
    */
   const [version, setVersionState] = useState<string | null>(() => cachedMarketVersion)
+  const [checkingMarketUpdate, setCheckingMarketUpdate] = useState(false)
+  const [marketUpdateCheck, setMarketUpdateCheck] = useState<{ key: string; value?: string } | null>(null)
   const setVersion = useCallback(cacheState(value => { cachedMarketVersion = value }, setVersionState), [])
   /**
    * The catalog's own build date (#712). The version on a card is the
@@ -5616,6 +5702,25 @@ export function MarketSection(props: MarketSectionProps) {
   const reminderUpdatableNames = updatableNames.filter(name => !quietUpdateSet.has(name) && !installedBlocked(name))
   const reminderBatchUpdatableNames = batchUpdatableNames.filter(name => !quietUpdateSet.has(name) && !installedBlocked(name))
   const selfUpdateAvailable = updates[selfName]?.updateAvailable === true && !updatedNames.includes(selfName)
+  const checkMarketUpdate = useCallback(async () => {
+    if (checkingMarketUpdate) return
+    setCheckingMarketUpdate(true)
+    setMarketUpdateCheck(null)
+    try {
+      const response = await fetch(api('/dsh-market/updates') + '?force=1', { cache: 'no-store', signal: AbortSignal.timeout(30000) })
+      if (!response.ok) throw new Error(t('marketCheckFailed'))
+      const body = await response.json() as { updates?: Record<string, UpdateStatus> }
+      const own = body.updates?.[selfName] ?? body.updates?.dshmarket ?? body.updates?.['dsh-market']
+      if (!own || !own.latest) throw new Error(t('marketCheckFailed'))
+      setUpdates(body.updates ?? {})
+      setMarketUpdateCheck({ key: own.updateAvailable ? 'marketCheckAvailable' : 'marketCheckCurrent',
+        value: own.updateAvailable ? own.latest : own.version ?? version ?? own.latest })
+    } catch {
+      setMarketUpdateCheck({ key: 'marketCheckFailed' })
+    } finally {
+      setCheckingMarketUpdate(false)
+    }
+  }, [checkingMarketUpdate, selfName, setUpdates, t, version])
   const reminderUpdateNames = [
     ...(selfUpdateAvailable ? [selfName] : []),
     ...updatableNames,
@@ -6434,11 +6539,7 @@ export function MarketSection(props: MarketSectionProps) {
               <span className={css.owner} title={p.owner}>{p.owner}</span>
               <CatalogVersionMark version={p.version} tip={catalogVersionTip} />
               <DownloadCount plugin={p} t={t} />
-              {typeof p.stars === 'number' && (
-                <CardTip label={String(p.stars)}>
-                  <span className={css.star}>{'· ★ ' + formatCount(p.stars)}</span>
-                </CardTip>
-              )}
+              <StarCount plugin={p} t={t} />
             </div>
           </div>
           {/* Top right, at its natural size: in the footer it needed a row of
@@ -6553,11 +6654,7 @@ export function MarketSection(props: MarketSectionProps) {
                 <span className={css.owner} title={p.owner}>{p.owner}</span>
                 <CatalogVersionMark version={p.version} tip={catalogVersionTip} />
                 <DownloadCount plugin={p} t={t} />
-                {typeof p.stars === 'number' && (
-                  <CardTip label={String(p.stars)}>
-                    <span className={css.star}>{'· ★ ' + formatCount(p.stars)}</span>
-                  </CardTip>
-                )}
+                <StarCount plugin={p} t={t} />
               </div>
             </div>
             {p.deprecated === true && <span className={css.depBadge}>{t('deprecatedBadge')}</span>}
@@ -6899,6 +6996,10 @@ export function MarketSection(props: MarketSectionProps) {
               find the repo it came from. */}
           <a className={css.repoLink} href="https://github.com/dsh-market/dsh-market" target="_blank" rel="noreferrer" title="dsh-market · GitHub">dsh-market</a>
           {version !== null && <span className={css.version} title={t('versionHint')}>v{version}</span>}
+          <Button variant="outline" size="sm" disabled={checkingMarketUpdate || updatingName !== null || busyUrl !== null}
+            onClick={() => { void checkMarketUpdate() }}>
+            {checkingMarketUpdate ? t('marketChecking') : t('marketCheck')}
+          </Button>
           <a className={css.submitLink} href="https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/blob/main/contributing.md" target="_blank" rel="noreferrer">{t('submitPlugin')}</a>
           <Button
             variant="ghost"
@@ -6912,7 +7013,6 @@ export function MarketSection(props: MarketSectionProps) {
             const self = installed['dshmarket'] !== undefined ? 'dshmarket' : 'dsh-market'
             const status = updates[self]
             return status && status.updateAvailable && !updatedNames.includes(self)
-              && !quietUpdateSet.has(self)
               && (
                 <Button
                   variant="primary"
@@ -6943,6 +7043,7 @@ export function MarketSection(props: MarketSectionProps) {
           )}
           </div>
         </div>
+        {marketUpdateCheck !== null && <p role="status">{t(marketUpdateCheck.key).replace('{0}', marketUpdateCheck.value ?? '')}</p>}
         {showSidebarTip && (
           <div className={css.sidebarTip}>
             <span>{t('sidebarTip')}</span>
@@ -8675,9 +8776,7 @@ export function MarketSection(props: MarketSectionProps) {
             <span className={css.owner} title={confirming.owner}>{confirming.owner}</span>
             <CatalogVersionMark version={confirming.version} tip={catalogVersionTip} />
             <DownloadCount plugin={confirming} t={t} />
-            {typeof confirming.stars === 'number' && (
-              <span className={css.star}>{'· ★ ' + formatCount(confirming.stars)}</span>
-            )}
+            <StarCount plugin={confirming} t={t} />
             {confirming.added && (
               <span className={css.star} title={t('published')}>{`· ${confirming.added}`}</span>
             )}
@@ -8890,7 +8989,7 @@ export function MarketSection(props: MarketSectionProps) {
           // copy declares no repository, so the only thing that agrees with
           // the catalog entry below is the package name — and the owner on
           // that line may be a stranger, not the author of this checkout.
-          description={`${restoreConfirm.verified ? t('restoreHint') : t('restoreNameOnlyHint')}\n\n${restoreConfirm.entry.owner} · ${restoreConfirm.entry.url}`}
+          description={`${updates[restoreConfirm.name]?.productBundled === true && ['dshmarket', 'dsh-market'].includes(restoreConfirm.name) ? t('restoreProductMarketHint') : restoreConfirm.verified ? t('restoreHint') : t('restoreNameOnlyHint')}\n\n${restoreConfirm.entry.owner} · ${restoreConfirm.entry.url}`}
           footer={(
             <>
               <Button variant="ghost" onClick={() => setRestoreConfirm(null)}>{t('cancel')}</Button>

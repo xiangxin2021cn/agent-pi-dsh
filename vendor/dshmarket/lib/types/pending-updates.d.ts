@@ -120,8 +120,23 @@ export interface RepairReport {
         name: string;
         reason: string;
     }>;
+    /** Packages the market has stopped retrying by itself (see MAX_AUTO_REPAIR_ATTEMPTS). */
+    abandoned: string[];
 }
 export declare const REPAIR_INSTALL_TIMEOUT_MS = 300000;
+/**
+ * How many starts may each spend up to REPAIR_INSTALL_TIMEOUT_MS trying to put
+ * one package back before the market stops trying by itself.
+ *
+ * Retrying is right while the cause might be transient (offline, a registry
+ * briefly down, the host still shutting down). It stops being right when every
+ * start pays the full timeout for a spec that will never install — the shape a
+ * reporter lived through on the Desktop host (#1061: five days of failing
+ * reinstalls on every boot, all of it invisible). The record is kept, so the
+ * package is not forgotten; only the automatic attempt stops, and the user is
+ * told where to act.
+ */
+export declare const MAX_AUTO_REPAIR_ATTEMPTS = 3;
 /**
  * Drop a profile write lock whose owner is gone.
  *

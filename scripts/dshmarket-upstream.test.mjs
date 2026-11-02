@@ -71,3 +71,18 @@ test('restart availability predicts direct loopback and retains the POST origin 
   assert.equal(restartReachableFrom({ ...local, headers: { ...local.headers, 'x-forwarded-for': '10.0.0.4' } }), false)
   assert.equal(restartReachableFrom({ ...local, socket: { remoteAddress: '10.0.0.4' } }), false)
 })
+
+test('desktop store drift offers restart migration without unsafe live-reinstall advice', () => {
+  const previous = process.env.AGENT_PI_DESKTOP
+  process.env.AGENT_PI_DESKTOP = '1'
+  try {
+    const failure = classifyPnpmFailure('ERR_PNPM_UNEXPECTED_STORE Unexpected store location', 1)
+    assert.equal(failure.code, 'unexpected-store')
+    assert.equal(failure.recoverable, false)
+    assert.match(failure.message, /重启/)
+    assert.doesNotMatch(failure.message, /--force|--store-dir|storeDir:/)
+  } finally {
+    if (previous === undefined) delete process.env.AGENT_PI_DESKTOP
+    else process.env.AGENT_PI_DESKTOP = previous
+  }
+})

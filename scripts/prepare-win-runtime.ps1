@@ -231,6 +231,8 @@ if ($FullCopy) {
     "/XD"
   )
   $roboArgs += $WindowsDshCopyExcludedDirectoryNames
+  # Package docs contain declared plugin descriptions and their local artwork.
+  $roboArgs += @($DshRuntimeFilePolicy.excludedRootDirectoryNames | ForEach-Object { Join-Path $Dsh $_ })
   $roboArgs += "/XF"
   $roboArgs += @($DshRuntimeFilePolicy.excludedFileNames)
   $roboArgs += @($DshRuntimeFilePolicy.excludedFileGlobs)

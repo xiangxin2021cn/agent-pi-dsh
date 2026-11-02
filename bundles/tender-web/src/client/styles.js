@@ -163,13 +163,20 @@ html.ap-rail-resizing{cursor:col-resize;user-select:none}
 .ap-files-dock.collapsed .ap-err,
 .ap-files-dock.collapsed .ap-files-hd strong{display:none}
 .ap-files-dock.collapsed .ap-files-hd{
-  flex-direction:column;flex:1;height:100%;border:0;padding:18px 10px 10px;align-items:center;
+  flex-direction:column;flex:none;height:auto;border:0;padding:18px 10px 10px;align-items:center;box-sizing:border-box;
 }
 .ap-files-dock.collapsed .ap-files-hd .ap-row{
-  flex-direction:column;flex:1;width:100%;justify-content:flex-start;align-items:center;gap:8px;
+  flex-direction:column;flex:none;width:100%;justify-content:flex-start;align-items:center;gap:8px;
 }
 .ap-files-dock.collapsed .ap-files-hd .ap-toolbtn{width:36px;height:36px}
-.ap-files-dock.collapsed .ap-files-toggle{margin-top:auto}
+.ap-files-dock.collapsed .ap-files-toggle{order:-1;margin-top:0;flex:none;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-base)}
+/* Keep the original sidebar action visible without the native logo-hover swap. */
+[data-sidebar-collapsed] [data-sidebar-toggle]>svg{display:inline!important}
+[data-sidebar-collapsed] [data-sidebar-toggle]>span[aria-hidden="true"]{display:none!important}
+[data-sidebar-collapsed] [data-sidebar-toggle]{border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-base)}
+[data-sidebar-drawer] [data-shell-leading]{z-index:30}
+html[dir="rtl"] [data-sidebar-drawer] [data-shell-leading]{left:auto;right:12px}
+[data-sidebar-toggle]:focus-visible,[data-sidebar-opener]:focus-visible,.ap-files-toggle:focus-visible{outline:2px solid var(--ap-accent);outline-offset:-2px}
 html.ap-files-rail [data-phase="hero"],
 html.ap-files-rail [data-phase="active"],
 html.ap-files-rail [data-phase="settling"]{margin-inline-end:var(--ap-files-w)}
@@ -186,8 +193,10 @@ html.ap-wb-open [data-shell-overlay]{z-index:20}
 html.ap-files-rail .ap-wb-page{inset-inline-end:var(--ap-files-w)}
 html.ap-files-rail.ap-files-collapsed .ap-wb-page{inset-inline-end:56px}
 @media(max-width:760px){
-  html.ap-wb-open .ap-files-dock{display:none}
-  html.ap-files-rail .ap-wb-page{inset-inline-end:0}
+  html.ap-wb-open .ap-files-dock{width:min(var(--ap-files-w),calc(100vw - 56px))}
+  html.ap-wb-open .ap-files-dock.collapsed{width:56px}
+  html.ap-files-rail .ap-wb-page{inset-inline-end:56px}
+  [data-sidebar-drawer] .ap-wb-page{padding-block-start:48px;box-sizing:border-box}
   .ap-wb .ap-ov-hd,.ap-wb .ap-mm-row{flex-wrap:wrap}
 }
 .ap-nav{

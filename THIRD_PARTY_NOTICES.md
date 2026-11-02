@@ -66,6 +66,22 @@ synthesized.
 
 ## dsh-univer-office integration
 
+### 3.8.8 update to Office 0.4.0
+
+The complete official `dsh-univer-office` 0.4.0 distribution is pinned to
+`b16565732104b17f1b27e31f0c11e222b6398a6c` under Apache-2.0. Its Host,
+Gateway, Worker, Viewer, render assets, skills and full license are retained.
+The upstream SQLite persistence layer now uses Node.js `node:sqlite` and no
+longer ships the retired libsql upgrade worker or libsql dependency closure.
+Exchange binding 1.0.4 and formula binding 1.0.3 remain in the frozen runtime
+lock. Archive integrity and the complete file inventory are recorded in
+`vendor/dsh-univer-office.pin` and the materialized vendor receipt.
+
+Sources: https://github.com/dream-num/dsh-univer-office/tree/v0.4.0,
+https://registry.npmjs.org/dsh-univer-office/0.4.0.
+
+### Earlier 0.3.7 integration
+
 Agent Pi DSH distributes the complete official `dsh-univer-office` 0.3.7
 package, pinned by `vendor/dsh-univer-office.pin`. Agent Pi integrates it with
 DSH 0.2.1-alpha.5 through the product's compatibility adapter. The upstream package declares Apache-2.0;

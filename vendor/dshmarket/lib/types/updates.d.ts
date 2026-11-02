@@ -60,6 +60,7 @@ export interface UpdateStatus {
     newerPrerelease?: string;
     /** Taking this update replaces a local package source with its matched online release. */
     restoreRequired?: boolean;
+    productBundled?: boolean;
     /**
      * Independent, explicit source switch offered for an installed profile: a
      * verified legacy Git install (#461), or an npm install whose package was

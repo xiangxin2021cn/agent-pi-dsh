@@ -31,6 +31,7 @@ export const dshRuntimeFilePolicy = Object.freeze(JSON.parse(readFileSync(
 )))
 
 const excludedDirectoryNames = new Set(dshRuntimeFilePolicy.excludedDirectoryNames)
+const excludedRootDirectoryNames = new Set(dshRuntimeFilePolicy.excludedRootDirectoryNames)
 const excludedFileNames = new Set(dshRuntimeFilePolicy.excludedFileNames)
 const excludedFileSuffixes = dshRuntimeFilePolicy.excludedFileSuffixes
 
@@ -83,6 +84,7 @@ function isExcludedFile(relativePath) {
   const parts = normalized.split('/')
   const name = parts.at(-1)
   return parts.slice(0, -1).some((part) => excludedDirectoryNames.has(part))
+    || (parts.length > 1 && excludedRootDirectoryNames.has(parts[0]))
     // Built per platform after extracting the portable receipt. The native
     // runtime gate exercises the actual flock binary with the packaged Node.
     || dshRuntimeFilePolicy.platformBuiltFiles.includes(normalized)
@@ -94,9 +96,11 @@ function walkFiles(root, directory = root, output = []) {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const absolute = join(directory, entry.name)
     const rel = normalizePath(root, absolute)
-    if (entry.isDirectory() && excludedDirectoryNames.has(entry.name)) continue
+    const excludedDirectory = excludedDirectoryNames.has(entry.name)
+      || (directory === root && excludedRootDirectoryNames.has(entry.name))
+    if (entry.isDirectory() && excludedDirectory) continue
     if (entry.isSymbolicLink()) {
-      if (excludedDirectoryNames.has(entry.name) || isExcludedFile(rel)) continue
+      if (excludedDirectory || isExcludedFile(rel)) continue
       throw new Error(`DSH packaged runtime must not be a symlink: ${rel}`)
     }
     if (entry.isDirectory()) walkFiles(root, absolute, output)
@@ -109,12 +113,31 @@ function walkFiles(root, directory = root, output = []) {
 
 function runtimeInventory(dsh) {
   const paths = walkFiles(dsh).sort()
+  assertPluginDetailFiles(dsh, paths)
   for (const marker of ['apps/cli/lib/bin.js', 'apps/web/dist/index.html']) {
     if (!paths.includes(marker)) throw new Error(`official DSH build did not produce ${marker}`)
   }
   return {
     sourceFiles: paths.filter((path) => !isArtifact(path)).map((path) => describeFile(dsh, path)),
     artifacts: paths.filter((path) => isArtifact(path)).map((path) => describeFile(dsh, path)),
+  }
+}
+
+function assertPluginDetailFiles(dsh, paths) {
+  const present = new Set(paths)
+  for (const path of paths) {
+    const locale = /^(.*)\/locale\/[^/]+\.json$/.exec(path)
+    if (!locale || !present.has(`${locale[1]}/package.json`)) continue
+    const detail = JSON.parse(readFileSync(join(dsh, path), 'utf8'))?.meta?.detail
+    if (detail === undefined) continue
+    if (typeof detail !== 'string' || !/\.(?:md|markdown)$/i.test(detail)
+      || detail.includes('\\') || /^[A-Za-z][A-Za-z\d+.-]*:/.test(detail)
+      || detail.split('/').some((part) => ['', '.', '..'].includes(part))) {
+      throw new Error(`Invalid plugin detail path in ${path}`)
+    }
+    if (!present.has(`${locale[1]}/${detail}`)) {
+      throw new Error(`Plugin detail file missing: ${locale[1]}/${detail} (declared in ${path})`)
+    }
   }
 }
 

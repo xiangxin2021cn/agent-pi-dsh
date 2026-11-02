@@ -21,6 +21,18 @@ export interface RegistryPlugin {
   npm?: string | null
   tarball?: string | null
   stars?: number | null
+  starsCheckedAt?: string | null
+  /** All public Release assets in this repository, lifetime count; never npm's window. */
+  githubReleaseDownloads?: number | null
+  githubReleaseDownloadsCheckedAt?: string | null
+  /** Public package declarations at this exact pinned install tag. */
+  releaseManifest?: {
+    tarball: string
+    checkedAt: string
+    version: string | null
+    enginesDsh: string | null
+    peerDependencies: Record<string, string>
+  }
   /**
    * npm downloads in the last 30 days, when the entry has a published
    * package. `null`/absent means "no npm package" — a coverage gap, not a
@@ -394,7 +406,7 @@ export function describeFetchFailure(
 }
 
 export function applyAgentPiUniverPolicy(registry: Registry): Registry {
-  const bundled: RegistryPlugin = { name: 'dsh-univer-office', owner: 'dream-num', url: 'https://github.com/dream-num/dsh-univer-office', npm: 'dsh-univer-office', category: 'tools', install: 'dsh plugin --profile tender add dsh-univer-office', added: '2026-09-16', description: { zh: '官方 Office 插件 0.3.9 已预装，可创建、编辑和预览文档、表格及演示文稿；完整保留上游组件及许可证。', en: 'Official Office plugin 0.3.9 is preinstalled for creating, editing and previewing docs, sheets and slides; upstream components and licenses are retained.' } }
+  const bundled: RegistryPlugin = { name: 'dsh-univer-office', owner: 'dream-num', url: 'https://github.com/dream-num/dsh-univer-office', npm: 'dsh-univer-office', category: 'tools', install: 'dsh plugin --profile tender add dsh-univer-office', added: '2026-09-16', description: { zh: '官方 Office 插件 0.4.0 已预装，可创建、编辑和预览文档、表格及演示文稿；完整保留上游组件及许可证。', en: 'Official Office plugin 0.4.0 is preinstalled for creating, editing and previewing docs, sheets and slides; upstream components and licenses are retained.' } }
   const plugins = registry.plugins.map(plugin => plugin.name === bundled.name || plugin.npm === bundled.npm ? { ...plugin, description: bundled.description } : plugin)
   if (!plugins.some(plugin => plugin.name === bundled.name || plugin.npm === bundled.npm)) plugins.push(bundled)
   return { ...registry, count: plugins.length, plugins }
