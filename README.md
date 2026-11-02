@@ -36,7 +36,7 @@
 
 <p align="center">
   <a href="https://www.agent-pi.app"><img src="https://img.shields.io/badge/官网-agent--pi.app-2f6df0?style=flat-square" alt="Website"></a>
-  <a href="https://github.com/deepseek-ai/deepseek-harness/commit/f3803c96974ad4a94195fb97e5c637e9c2a3afe3"><img src="https://img.shields.io/badge/source-DSH%200.2.2--alpha.2%20f3803c96-2f6df0?style=flat-square" alt="DSH 0.2.2-alpha.2, official release f3803c96"></a>
+  <a href="https://github.com/deepseek-ai/deepseek-harness/commit/ce7073d51254c26cd63b22a60835b8f948deb447"><img src="https://img.shields.io/badge/source-DSH%20master%20ce7073d5-2f6df0?style=flat-square" alt="DSH 0.2.2-alpha.2, official master snapshot ce7073d5"></a>
   <a href="https://www.agent-pi.app/docs.html"><img src="https://img.shields.io/badge/文档-Docs-0fb5c9?style=flat-square" alt="Docs"></a>
 </p>
 
@@ -113,14 +113,14 @@
 | | |
 | --- | --- |
 | **内核原生并行工人** | 工具、子任务、会话、权限由 DeepSeek Harness 直接跑，不隔一层自研调度器 |
-| **Codex 子智能体** | 设置页用 ChatGPT 登录，无需 API Key；DSH 主智能体按需调用 `subagent_codex` |
+| **官方本地智能体外派** | 本机 Codex 或 Claude CLI 完成原生安装、登录后，DSH 按独立任务需要通过官方 `subagent_oar` 外派；以实际可用性和当前权限为准 |
 | **证据门禁** | 项目特征缺口不能用模型记忆填：找到出处，或由你尽调后授权放行 |
 | **Official Outputs** | 统一成果树与阶段总报告写回 `Agent Pi Outputs`；已落盘的成果重启后不再重做 |
 | **出处芯片** | 只显示源文件、页或行、题目；证据正文不贴进正式稿 |
 | **本地知识库** | 两条入库路、按文档章节切条款、MinerU 转可读表、用户模板、`.apkb` 传递包 |
 | **用户模板 DNA** | Writing DNA 技能辅助提取六层约束并绑定当前任务；项目事实取自本项目，实际 DOCX 格式另行核验，复杂排版保留人工复核 |
 | **崩溃只救没递交的工人** | 已完工任务不重读、不重派；只找回还没递交成果的工人 |
-| **企业级插件** | 技能、工具、工作台页、验收门禁都可以加；官方 Univer Office 0.3.8 随安装包提供，支持软件内 Office 编辑与预览 |
+| **企业级插件** | 技能、工具、工作台页、验收门禁都可以加；官方 Univer Office 0.4.0 随安装包提供，支持软件内 Office 编辑与预览 |
 
 ---
 
@@ -157,7 +157,7 @@ flowchart LR
 | 投标 / 实施 / 投资工作台 | 对话页页签 + 建项目 |
 | 阶段准备、证据门禁、成果树 | 工作台插件 |
 | 并行拆活 | 内核原生 `subagent` / `workflow` |
-| 桌面壳 | Electron 45.0.0 |
+| 桌面壳 | Electron 45.2.0 |
 
 ---
 
@@ -179,8 +179,8 @@ Windows 安装包的正式 SHA256 以同一 Release 中的 `.sha256` 资产为�
 2. 未签名：SmartScreen / Gatekeeper 选「仍要运行」
 3. 打开 **Agent Pi DSH**，选择项目工作区
 4. 配置 DeepSeek；看图请用带图片输入的视觉模型
-5. 可选：设置 → Codex 智能体 → 使用 ChatGPT 登录；登录后 DSH 可按需委派 Codex
-5. 回形针上传资料后直接下任务
+5. 可选：在本机安装 Codex 或 Claude CLI，并完成各自原生登录；实际可用且权限允许时，DSH 可通过官方 `subagent_oar` 委派独立任务
+6. 回形针上传资料后直接下任务
 
 覆盖安装前请**完全退出**（不要只关到托盘）。工作目录和 `Agent Pi Outputs` 接着用。会话不从 2.x 迁移。
 
@@ -244,7 +244,7 @@ Agent Pi DSH 自 3.6.0 起的项目代码和发行物按 [GNU GPL v3](./LICENSE)
 
 ## 开发 / Develop
 
-当前开发分支钉住 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 `dsh-v0.2.2-alpha.2`（`f3803c96974ad4a94195fb97e5c637e9c2a3afe3`），具体提交见 [DSH_PIN](./DSH_PIN)。所有兼容能力均通过 Agent Pi 产品层启动迁移、preset overlay 和 bundle 适配实现；发布门禁要求官方 DSH 子模块保持字节干净。最初迁移记录见 [3.4.0 内核迁移计划](./docs/superpowers/plans/2026-08-29-dsh-0.1.2-alpha.1-migration.md)，后续能力记录见 [3.4.2 WorkSurface 实施记录](./docs/superpowers/specs/2026-08-30-pageindex-worksurface-3.4.2-implementation.md) 和 [3.5.0 阶段记忆实施规格](./docs/superpowers/specs/2026-08-30-stage-memory-3.5.0-implementation.md)。
+当前开发分支钉住 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的官方 master 快照 `ce7073d51254c26cd63b22a60835b8f948deb447`（版本标识 `0.2.2-alpha.2`），具体提交见 [DSH_PIN](./DSH_PIN)。所有兼容能力均通过 Agent Pi 产品层启动迁移、preset overlay 和 bundle 适配实现；发布门禁要求官方 DSH 子模块保持字节干净。最初迁移记录见 [3.4.0 内核迁移计划](./docs/superpowers/plans/2026-08-29-dsh-0.1.2-alpha.1-migration.md)，后续能力记录见 [3.4.2 WorkSurface 实施记录](./docs/superpowers/specs/2026-08-30-pageindex-worksurface-3.4.2-implementation.md) 和 [3.5.0 阶段记忆实施规格](./docs/superpowers/specs/2026-08-30-stage-memory-3.5.0-implementation.md)。
 
 ---
 
@@ -255,5 +255,5 @@ Agent Pi DSH 自 3.6.0 起的项目代码和发行物按 [GNU GPL v3](./LICENSE)
 <p align="center">
   <a href="https://www.agent-pi.app"><b>www.agent-pi.app</b></a>
   · Always π AI studio
-  · development kernel: dsh-v0.2.2-alpha.2
+  · development kernel: DSH master ce7073d5 (0.2.2-alpha.2)
 </p>
