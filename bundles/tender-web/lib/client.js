@@ -1806,42 +1806,50 @@ window.__ModuleLoader__.load({
 		Object.assign(AP_I18N.es, {
 			"workbench.title": "Panel profesional",
 			"files.workspace": "Carpeta de trabajo",
-			"module.delivery": "Control de proyectos"
+			"module.delivery": "Control de proyectos",
+			"lang.switchFailed": "No se pudo cambiar el idioma. Inténtalo de nuevo."
 		});
 		Object.assign(AP_I18N.fr, {
 			"workbench.title": "Atelier professionnel",
 			"files.workspace": "Dossier de travail",
-			"module.delivery": "Pilotage de projet"
+			"module.delivery": "Pilotage de projet",
+			"lang.switchFailed": "Impossible de changer la langue. Réessayez."
 		});
 		Object.assign(AP_I18N.de, {
 			"workbench.title": "Facharbeitsbereich",
 			"files.workspace": "Arbeitsverzeichnis",
-			"module.delivery": "Projektsteuerung"
+			"module.delivery": "Projektsteuerung",
+			"lang.switchFailed": "Die Sprache konnte nicht gewechselt werden. Bitte erneut versuchen."
 		});
 		Object.assign(AP_I18N.ja, {
 			"workbench.title": "専門ワークベンチ",
 			"files.workspace": "作業フォルダー",
-			"module.delivery": "プロジェクト管理"
+			"module.delivery": "プロジェクト管理",
+			"lang.switchFailed": "言語を切り替えられませんでした。もう一度お試しください。"
 		});
 		Object.assign(AP_I18N.ko, {
 			"workbench.title": "전문 작업대",
 			"files.workspace": "작업 폴더",
-			"module.delivery": "프로젝트 관리"
+			"module.delivery": "프로젝트 관리",
+			"lang.switchFailed": "언어를 변경하지 못했습니다. 다시 시도해 주세요."
 		});
 		Object.assign(AP_I18N.pt, {
 			"workbench.title": "Bancada profissional",
 			"files.workspace": "Pasta de trabalho",
-			"module.delivery": "Controle de projetos"
+			"module.delivery": "Controle de projetos",
+			"lang.switchFailed": "Não foi possível mudar o idioma. Tente novamente."
 		});
 		Object.assign(AP_I18N.ru, {
 			"workbench.title": "Профессиональная рабочая панель",
 			"files.workspace": "Рабочая папка",
-			"module.delivery": "Управление проектом"
+			"module.delivery": "Управление проектом",
+			"lang.switchFailed": "Не удалось сменить язык. Повторите попытку."
 		});
 		Object.assign(AP_I18N.ar, {
 			"workbench.title": "لوحة العمل المتخصصة",
 			"files.workspace": "مجلد العمل",
-			"module.delivery": "ضبط المشروع"
+			"module.delivery": "ضبط المشروع",
+			"lang.switchFailed": "تعذر تغيير اللغة. يُرجى المحاولة مرة أخرى."
 		});
 		for (const [locale, messages] of Object.entries({
 			zh: {
@@ -7991,13 +7999,20 @@ html.ap-rail-resizing{cursor:col-resize;user-select:none}
 .ap-files-dock.collapsed .ap-err,
 .ap-files-dock.collapsed .ap-files-hd strong{display:none}
 .ap-files-dock.collapsed .ap-files-hd{
-  flex-direction:column;flex:1;height:100%;border:0;padding:18px 10px 10px;align-items:center;
+  flex-direction:column;flex:none;height:auto;border:0;padding:18px 10px 10px;align-items:center;box-sizing:border-box;
 }
 .ap-files-dock.collapsed .ap-files-hd .ap-row{
-  flex-direction:column;flex:1;width:100%;justify-content:flex-start;align-items:center;gap:8px;
+  flex-direction:column;flex:none;width:100%;justify-content:flex-start;align-items:center;gap:8px;
 }
 .ap-files-dock.collapsed .ap-files-hd .ap-toolbtn{width:36px;height:36px}
-.ap-files-dock.collapsed .ap-files-toggle{margin-top:auto}
+.ap-files-dock.collapsed .ap-files-toggle{order:-1;margin-top:0;flex:none;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-base)}
+/* Keep the original sidebar action visible without the native logo-hover swap. */
+[data-sidebar-collapsed] [data-sidebar-toggle]>svg{display:inline!important}
+[data-sidebar-collapsed] [data-sidebar-toggle]>span[aria-hidden="true"]{display:none!important}
+[data-sidebar-collapsed] [data-sidebar-toggle]{border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-base)}
+[data-sidebar-drawer] [data-shell-leading]{z-index:30}
+html[dir="rtl"] [data-sidebar-drawer] [data-shell-leading]{left:auto;right:12px}
+[data-sidebar-toggle]:focus-visible,[data-sidebar-opener]:focus-visible,.ap-files-toggle:focus-visible{outline:2px solid var(--ap-accent);outline-offset:-2px}
 html.ap-files-rail [data-phase="hero"],
 html.ap-files-rail [data-phase="active"],
 html.ap-files-rail [data-phase="settling"]{margin-inline-end:var(--ap-files-w)}
@@ -8014,8 +8029,10 @@ html.ap-wb-open [data-shell-overlay]{z-index:20}
 html.ap-files-rail .ap-wb-page{inset-inline-end:var(--ap-files-w)}
 html.ap-files-rail.ap-files-collapsed .ap-wb-page{inset-inline-end:56px}
 @media(max-width:760px){
-  html.ap-wb-open .ap-files-dock{display:none}
-  html.ap-files-rail .ap-wb-page{inset-inline-end:0}
+  html.ap-wb-open .ap-files-dock{width:min(var(--ap-files-w),calc(100vw - 56px))}
+  html.ap-wb-open .ap-files-dock.collapsed{width:56px}
+  html.ap-files-rail .ap-wb-page{inset-inline-end:56px}
+  [data-sidebar-drawer] .ap-wb-page{padding-block-start:48px;box-sizing:border-box}
   .ap-wb .ap-ov-hd,.ap-wb .ap-mm-row{flex-wrap:wrap}
 }
 .ap-nav{
