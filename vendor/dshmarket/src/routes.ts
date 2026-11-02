@@ -2449,7 +2449,7 @@ export function mountMarketRoutes(
    * get the same answer, and the only way to guarantee that is for both to
    * ask the same question.
    */
-  async function updateCheckInputs(): Promise<{
+  async function updateCheckInputs(registryLoad = loadRegistry()): Promise<{
     channelFor: Map<string, Channel>
     onlineSourceFor: Map<string, string>
     catalogNpmByRepo: Map<string, string>
@@ -2472,7 +2472,7 @@ export function mountMarketRoutes(
     // empty, and an empty map authorizes nothing.
     const catalogNpmByRepo = new Map<string, string>()
     try {
-      const registry = await loadRegistry()
+      const registry = await registryLoad
       for (const [name, spec] of Object.entries(installed)) {
         const source = onlineSourceOf(registry.plugins, name, spec)
         if (source !== null) onlineSourceFor.set(name, source)
@@ -4570,13 +4570,23 @@ export function mountMarketRoutes(
         }
         try {
           const force = (request.url ?? '').includes('force=1')
-          const { channelFor, onlineSourceFor, catalogNpmByRepo } = await updateCheckInputs()
+          if (new URL(request.url ?? '', 'http://localhost').searchParams.get('scope') === 'market') {
+            // The market's explicit self-check only needs its own registry
+            // identity. A slow catalog must not delay this independent read.
+            const packageNames = Object.keys(readInstalled(config.profile, activeProfileDir)).filter(name => SELF_NAMES.has(name))
+            const channelFor = new Map(packageNames.map(name => [name, activeChannel()] as const))
+            const updates = await checkUpdates(config.profile, force, activeProfileDir, channelFor, new Map(), new Map(), { holdYoungReleases: config.desktopHost === true, packageNames })
+            sendJson(response, 200, { updates })
+            return
+          }
+          const registryLoad = loadRegistry()
+          const { channelFor, onlineSourceFor, catalogNpmByRepo } = await updateCheckInputs(registryLoad)
           // Migration hints are this listing's own business: the market page
           // is where "this could come from npm now" is offered, and no other
           // caller acts on it.
           const sourceMigrationFor = new Map<string, GitToNpmMigration | NpmRenameMigration>()
           try {
-            const registry = await loadRegistry()
+            const registry = await registryLoad
             const installed = readInstalled(config.profile, activeProfileDir)
             for (const [name, spec] of Object.entries(installed)) {
               const migration = findGitToNpmMigration(registry.plugins, spec)

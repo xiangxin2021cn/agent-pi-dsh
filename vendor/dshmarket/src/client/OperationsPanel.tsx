@@ -46,6 +46,8 @@ export interface OperationsPanelProps {
   /** Resolves a package name to the identity a card would show for it. */
   describe: DescribePlugin
   records: readonly OperationRecord[]
+  /** A successful inventory read from this mount, restricted to present packages. */
+  currentInstalled?: Readonly<Record<string, string>> | undefined
   open: boolean
   /** Owned by the parent: a card's "cannot install" marker raises the panel. */
   onOpenChange: (open: boolean) => void
@@ -371,11 +373,13 @@ export function OperationsPanel(props: OperationsPanelProps) {
           )}
           {sortForPanel(records).map((record) => {
             const ahead = queuePosition(records, record.id)
+            const currentSpec = props.currentInstalled?.[record.name]
             return (
               <div key={record.id} className={needsUser(record) ? `${css.opRow} ${css.opRowAlert}` : css.opRow}>
                 <span className={css.opIcon}><BucketIcon record={record} /></span>
                 <div className={css.opMain}>
                   <div className={css.opTop}>
+                    {record.restoredFromStorage === true && <span className={css.opVerb}>{t('opHistorical')}</span>}
                     <span className={css.opVerb}>{t(`opKind_${record.kind}`)}</span>
                     <span className={css.opName} title={record.name}>{record.name}</span>
                   </div>
@@ -383,6 +387,9 @@ export function OperationsPanel(props: OperationsPanelProps) {
                     <div className={css.bar}>
                       <div className={css.barFill} style={{ width: `${String(record.percent)}%` }} />
                     </div>
+                  )}
+                  {record.restoredFromStorage === true && typeof currentSpec === 'string' && currentSpec.trim() !== '' && (
+                    <div className={css.opStatus}>{t('opCurrentInstalled').replace('{0}', currentSpec)}</div>
                   )}
                   <div className={bucketOf(record.state) === 'attention' ? `${css.opStatus} ${css.opStatusBad}` : css.opStatus}>
                     {statusLine(t, props.lang, record, ahead)}

@@ -33,9 +33,10 @@ const components={Button:({children,onClick,disabled,title,type='button',...prop
 ${[...primitiveNames].map(name => `export const ${name}=components.${name}||(({children})=>h('span',null,children));`).join('\n')}`
   const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'http://127.0.0.1/' })
   const previous = new Map(), calls = [], controllers = [], errors = []
-  let view, loaded, checkReply, pendingCheck, installedSpec = '1.73.6', restoreRequired = false, holdInstalled = true
-  const pendingInstalled = []
+  let view, loaded, checkReply, pendingCheck, installedSpec = '1.73.6', restoreRequired = false, holdInstalled = true, otherEnabled = false, holdGeneralUpdates = false, generalUpdatesFailure
+  const pendingInstalled = [], pendingGeneralUpdates = []
   const self = { name: 'dshmarket', owner: 'dsh-market', url: 'https://github.com/dsh-market/dsh-market', npm: 'dshmarket', category: 'tools', description: { zh: '隔离市场案例' } }
+  const other = { name: 'neutral-office-plugin', owner: 'neutral', url: 'https://github.com/example/neutral-office-plugin', npm: 'neutral-office-plugin', category: 'tools', description: { zh: '中立隔离插件' } }
   const status = update => ({ version: '1.73.6', latest: update ? '1.73.7' : '1.73.6', updateAvailable: update, ...(update ? { eligibleVersion: '1.73.7' } : {}), ...(restoreRequired ? { restoreRequired: true, productBundled: true } : {}) })
   let updates = { dshmarket: status(false) }
   const response = (body, code = 200) => ({ ok: code >= 200 && code < 300, status: code, json: async () => structuredClone(body) })
@@ -50,7 +51,7 @@ ${[...primitiveNames].map(name => `export const ${name}=components.${name}||(({c
       assert.equal(url.origin, 'http://127.0.0.1', 'Fixture must not contact external HTTP')
       const call = { path: url.pathname + url.search, method: init.method || 'GET', init, body: init.body ? JSON.parse(init.body) : undefined }; calls.push(call)
       if (url.pathname === '/dsh-market/updates' && init.signal) {
-        assert.equal(url.search, '?force=1'); assert.equal(init.cache, 'no-store')
+        assert.equal(url.search, '?force=1&scope=market'); assert.equal(init.cache, 'no-store')
         return await new Promise((resolveReply, reject) => {
           pendingCheck = { resolve: resolveReply, reject }
           init.signal.addEventListener('abort', () => reject(init.signal.reason), { once: true })
@@ -59,10 +60,15 @@ ${[...primitiveNames].map(name => `export const ${name}=components.${name}||(({c
       }
       if (url.pathname === '/dsh-market/installed') {
         if (holdInstalled) await new Promise(resolveInstalled => pendingInstalled.push(resolveInstalled))
-        return response({ installed: { dshmarket: installedSpec }, present: ['dshmarket'], live: [], disabled: [], bundles: ['dshmarket'], repoIdentities: { dshmarket: ['dsh-market/dsh-market'] } })
+        return response({ installed: { dshmarket: installedSpec, ...(otherEnabled ? { [other.name]: '1.0.0' } : {}) }, present: ['dshmarket', ...(otherEnabled ? [other.name] : [])], live: [], disabled: [], bundles: ['dshmarket', ...(otherEnabled ? [other.name] : [])], repoIdentities: { dshmarket: ['dsh-market/dsh-market'] } })
       }
-      if (url.pathname === '/dsh-market/updates') return response({ updates })
-      if (url.pathname === '/dsh-market/registry') return response({ registry: { updated: 'isolated-388', count: 1, categories: { tools: { zh: '工具', en: 'Tools' } }, plugins: [self] }, hostVersion: '0.2.2-alpha.2' })
+      if (url.pathname === '/dsh-market/updates') {
+        if (holdGeneralUpdates) await new Promise(resolveUpdates => pendingGeneralUpdates.push(resolveUpdates))
+        if (generalUpdatesFailure === 'http') return response({}, 503)
+        if (generalUpdatesFailure === 'invalid') return response({ updates: null })
+        return response({ updates })
+      }
+      if (url.pathname === '/dsh-market/registry') return response({ registry: { updated: 'isolated-388', count: otherEnabled ? 2 : 1, categories: { tools: { zh: '工具', en: 'Tools' } }, plugins: [self, ...(otherEnabled ? [other] : [])] }, hostVersion: '0.2.2-alpha.2' })
       if (url.pathname === '/dsh-market/status') return response({ busy: false, active: false, boot: 'isolated-388', pnpm: true, version: '1.73.6', installed: { dshmarket: installedSpec }, runningAgents: [] })
       if (url.pathname === '/dsh-market/update') return response({ ok: true, skipped: 'current' })
       if (url.pathname === '/dsh-market/discovery-compatibility') return response({ hostVersion: '0.2.2-alpha.2', results: {} })
@@ -99,7 +105,7 @@ ${[...primitiveNames].map(name => `export const ${name}=components.${name}||(({c
       await act(async () => { localeSnapshot = { active: definition.id }; dom.window.document.documentElement.lang = definition.documentLang; dom.window.document.documentElement.dir = definition.rtl ? 'rtl' : 'ltr'; localeListeners.forEach(fn => fn()) })
       await tick()
     }
-    const maintenanceKeys = ['marketCheck', 'marketChecking', 'marketCheckAvailable', 'marketCheckCurrent', 'marketCheckFailed', 'marketUpdate', 'updating', 'restoreOnline', 'restoreProceed', 'cancel', 'restoreHint', 'restoreNameOnlyHint', 'restoreProductMarketHint']
+    const maintenanceKeys = ['marketCheck', 'marketChecking', 'marketCheckAvailable', 'marketCheckCurrent', 'marketCheckFailed', 'checkUnconfirmed', 'marketUpdate', 'updating', 'restoreOnline', 'restoreProceed', 'cancel', 'restoreHint', 'restoreNameOnlyHint', 'restoreProductMarketHint']
     for (const { id } of AP_LANGUAGE_DEFINITIONS) {
       for (const key of maintenanceKeys) {
         assert.equal(typeof dictionaries[id]?.[key], 'string', id + ':' + key)
@@ -107,8 +113,14 @@ ${[...primitiveNames].map(name => `export const ${name}=components.${name}||(({c
       }
       for (const key of ['files.expand', 'files.collapse', 'lang.switchFailed']) assert.equal(typeof AP_I18N[id]?.[key], 'string', id + ':' + key)
     }
-    const mount = async () => { loaded.resetHostCompatibilityCache(); view = createRoot(dom.window.document.querySelector('#root')); await act(async () => view.render(React.createElement(loaded.MarketSection, props))); await tick(); await tick() }
+    const mount = async (reset = true) => { if (reset) loaded.resetHostCompatibilityCache(); view = createRoot(dom.window.document.querySelector('#root')); await act(async () => view.render(React.createElement(loaded.MarketSection, props))); await tick(); await tick() }
+    const historicalFailure = { id: 'op-4', kind: 'update', name: 'dshmarket', state: 'failed', reason: '旧操作 ERR_PNPM_UNEXPECTED_STORE，恢复未验证' }
+    dom.window.localStorage.setItem('dshm-settled-v1', JSON.stringify([historicalFailure]))
     await mount()
+    await click(button(loaded.zh.opTitle))
+    assert.ok(dom.window.document.body.textContent.includes(loaded.zh.opHistorical))
+    assert.ok(dom.window.document.body.textContent.includes(historicalFailure.reason))
+    assert.ok(!dom.window.document.body.textContent.includes(loaded.zh.opCurrentInstalled.replace('{0}', '1.73.6')), 'No current inventory claim while initial installed request is pending')
     assert.ok(button(loaded.zh.marketCheck), 'Check remains present with no available update'); assert.equal(button(loaded.zh.marketCheck).disabled, false); assert.equal(button(loaded.zh.marketUpdate), undefined)
     checkReply = undefined; await click(button(loaded.zh.marketCheck))
     assert.equal(button(loaded.zh.marketChecking).disabled, true)
@@ -116,6 +128,9 @@ ${[...primitiveNames].map(name => `export const ${name}=components.${name}||(({c
     assert.equal(button(loaded.zh.marketCheck).disabled, false); assert.match(dom.window.document.body.textContent, /没有确认到更高版本/)
     holdInstalled = false
     await act(async () => pendingInstalled.splice(0).forEach(resolveInstalled => resolveInstalled())); await tick()
+    assert.ok(dom.window.document.body.textContent.includes(loaded.zh.opCurrentInstalled.replace('{0}', '1.73.6')), 'A fresh present inventory entry is shown separately from the retained historical failure')
+    assert.ok(dom.window.document.body.textContent.includes(historicalFailure.reason))
+    assert.deepEqual(JSON.parse(dom.window.localStorage.getItem('dshm-settled-v1')), [historicalFailure], 'Restored failure evidence is not cleared or rewritten as success')
     checkReply = resolveReply => resolveReply(response({}, 503)); await click(button(loaded.zh.marketCheck))
     assert.equal(button(loaded.zh.marketCheck).disabled, false); assert.ok(dom.window.document.body.textContent.includes(loaded.zh.marketCheckFailed))
     checkReply = resolveReply => resolveReply(response({ updates: { dshmarket: { updateAvailable: false } } })); await click(button(loaded.zh.marketCheck))
@@ -156,8 +171,66 @@ ${[...primitiveNames].map(name => `export const ${name}=components.${name}||(({c
       assert.ok(button(dictionary.restoreProceed)); await click(button(dictionary.cancel)); assert.equal(dom.window.document.querySelector('[role=dialog]'), null)
     }
     assert.equal(calls.filter(row => row.path === '/dsh-market/update').length, 2, 'Language changes and cancelled confirmations never install')
+    await selectLanguage(AP_LANGUAGE_DEFINITIONS[0])
+    await act(async () => view.unmount()); view = undefined; dom.window.sessionStorage.clear()
+    dom.window.sessionStorage.setItem('dshm-tab', 'installed')
+    otherEnabled = true; restoreRequired = false; installedSpec = '1.73.6'
+    updates = { dshmarket: status(false), [other.name]: { kind: 'npm', version: '1.0.0', current: '1.0.0', latest: '2.0.0', updateAvailable: true } }
+    await mount()
+    assert.ok(button(loaded.zh.update), 'The unrelated plugin has a confirmed upgrade before the market-only check')
+    checkReply = resolveReply => resolveReply(response({ updates: { dshmarket: status(false) } }))
+    await click(button(loaded.zh.marketCheck))
+    assert.ok(button(loaded.zh.update), 'A market-only result preserves the unrelated plugin update state')
+    await act(async () => view.unmount()); view = undefined; dom.window.sessionStorage.clear()
+    dom.window.sessionStorage.setItem('dshm-tab', 'installed')
+    holdGeneralUpdates = true
+    updates = { dshmarket: { kind: 'npm', version: '1.73.6', latest: null, updateAvailable: false }, [other.name]: { kind: 'npm', version: '1.0.0', latest: null, updateAvailable: false } }
+    await mount()
+    assert.ok(dom.window.document.body.textContent.includes(loaded.zh.marketChecking), 'The initial update request is visibly pending')
+    await act(async () => pendingGeneralUpdates.splice(0).forEach(resolveUpdates => resolveUpdates())); await tick()
+    for (const language of AP_LANGUAGE_DEFINITIONS) {
+      await selectLanguage(language)
+      assert.ok(dom.window.document.body.textContent.includes(dictionaries[language.id].checkUnconfirmed), 'Unknown network result remains unconfirmed: ' + language.id)
+      assert.equal(dom.window.document.querySelectorAll('[title="' + dictionaries[language.id].upToDate + '"]').length, 0, 'Unknown is never labelled up to date: ' + language.id)
+    }
+    assert.equal(calls.filter(row => row.path === '/dsh-market/update').length, 2, 'Read-only network cases never install')
+    await selectLanguage(AP_LANGUAGE_DEFINITIONS[0])
+    await act(async () => view.unmount()); view = undefined; dom.window.sessionStorage.clear()
+    dom.window.sessionStorage.setItem('dshm-tab', 'installed')
+    generalUpdatesFailure = 'http'
+    await mount()
+    checkReply = resolveReply => resolveReply(response({ updates: { dshmarket: status(true) } }))
+    await click(button(loaded.zh.marketCheck))
+    await act(async () => pendingGeneralUpdates.splice(0).forEach(resolveUpdates => resolveUpdates())); await tick()
+    assert.ok(button(loaded.zh.marketUpdate), 'A late full-list failure preserves the separately confirmed market result')
+    await act(async () => view.unmount()); view = undefined; dom.window.sessionStorage.clear()
+    holdGeneralUpdates = false
+    const knownUpdates = { dshmarket: status(false), [other.name]: { kind: 'npm', version: '1.0.0', current: '1.0.0', latest: '2.0.0', updateAvailable: true } }
+    const savedQueue = JSON.stringify([{ kind: 'update', name: other.name, url: other.url }])
+    for (const failure of ['http', 'invalid']) {
+      generalUpdatesFailure = undefined; updates = knownUpdates
+      await mount()
+      await act(async () => view.unmount()); view = undefined; dom.window.sessionStorage.clear()
+      dom.window.sessionStorage.setItem('dshm-tab', 'installed')
+      dom.window.localStorage.setItem('dshm-queue-v1', savedQueue)
+      generalUpdatesFailure = failure
+      const beforeFailure = calls.filter(row => row.method === 'POST').length
+      await mount(false)
+      await act(async () => { await new Promise(resolveWait => setTimeout(resolveWait, 2100)) }); await tick()
+      assert.equal(dom.window.localStorage.getItem('dshm-queue-v1'), savedQueue, 'Failed fresh snapshot retains the durable queue: ' + failure)
+      assert.equal(calls.filter(row => row.method === 'POST').length, beforeFailure, 'Cached update cannot authorize queue execution: ' + failure)
+      assert.ok(dom.window.document.body.textContent.includes(loaded.zh.checkUnconfirmed), 'Failed fresh snapshot settles as unconfirmed: ' + failure)
+      await act(async () => view.unmount()); view = undefined; dom.window.sessionStorage.clear()
+    }
+    generalUpdatesFailure = undefined; updates = knownUpdates
+    const beforeFresh = calls.filter(row => row.path === '/dsh-market/update').length
+    await mount(false)
+    await act(async () => { await new Promise(resolveWait => setTimeout(resolveWait, 2100)) }); await tick()
+    const freshPosts = calls.filter(row => row.path === '/dsh-market/update').slice(beforeFresh)
+    assert.equal(freshPosts.length, 1, 'Fresh successful snapshots allow the retained neutral queue to resume')
+    assert.equal(freshPosts[0].body.name, other.name)
     assert.equal(errors.length, 0, errors.join('\n'))
-    console.log(JSON.stringify({ marketDom: { languages: AP_LANGUAGE_DEFINITIONS.map(row => row.id), maintenancePlaceholderParity: true, liveResultLanguage: true, alwaysAvailable: true, initialInstalledAliasRace: true, forceGet: true, pendingDisabled: true, successFailureMalformedAndTimeoutRelease: true, unchangedExistingPost: true, sourceReplacementConfirmationAndCancel: true, pageErrors: errors.length, realHttpRequests: 0, realInstallations: 0, modelRequests: 0 } }))
+    console.log(JSON.stringify({ marketDom: { languages: AP_LANGUAGE_DEFINITIONS.map(row => row.id), maintenancePlaceholderParity: true, liveResultLanguage: true, alwaysAvailable: true, initialInstalledAliasRace: true, forceGet: true, pendingDisabled: true, successFailureMalformedAndTimeoutRelease: true, unchangedExistingPost: true, sourceReplacementConfirmationAndCancel: true, scopedResultPreservesOtherUpdates: true, pendingAndUnknownDiffer: true, unknownNeverLatest: true, lateFullFailurePreservesSelf: true, failedFreshSnapshotNeverResumesCachedQueue: true, freshSnapshotResumesNeutralQueue: true, pageErrors: errors.length, realHttpRequests: 0, realInstallations: 0, modelRequests: 0 } }))
   } finally {
     if (view) await React.act(async () => view.unmount())
     stop(); dom.window.close(); console.error = oldConsoleError

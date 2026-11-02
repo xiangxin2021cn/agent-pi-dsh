@@ -736,7 +736,7 @@ options = {}) {
     // answer immediately, and a cache keyed on the profile alone would serve
     // the stable verdict for the rest of the TTL — reading as "the setting did
     // nothing".
-    const cacheKey = `${activeProfileDir}\u0000${options.holdYoungReleases === true ? 'hold' : 'any'}\u0000${[...channelFor].map(([n, c]) => `${n}:${c}`).sort().join(',')}\u0000${[...onlineSourceFor].map(([n, s]) => `${n}:${s}`).sort().join(',')}\u0000${[...catalogNpmByRepo].map(([n, s]) => `${n}:${s}`).sort().join(',')}\u0000${options.holdYoungReleases === true ? profilePolicyFingerprint(activeProfileDir) : ''}`;
+    const cacheKey = `${activeProfileDir}\u0000${options.holdYoungReleases === true ? 'hold' : 'any'}\u0000${[...channelFor].map(([n, c]) => `${n}:${c}`).sort().join(',')}\u0000${[...onlineSourceFor].map(([n, s]) => `${n}:${s}`).sort().join(',')}\u0000${[...catalogNpmByRepo].map(([n, s]) => `${n}:${s}`).sort().join(',')}\u0000${options.holdYoungReleases === true ? profilePolicyFingerprint(activeProfileDir) : ''}\u0000${options.packageNames === undefined ? '*' : [...options.packageNames].sort().join(',')}`;
     if (!force && updatesCache?.key === cacheKey && Date.now() < updatesCache.recheckAt) {
         return updatesCache.data;
     }
@@ -744,7 +744,8 @@ options = {}) {
     const lockCommits = readLockCommits(profile, activeProfileDir);
     const result = {};
     let nextCandidateMaturityAt = Infinity;
-    await Promise.all(Object.entries(installed).map(async ([name, spec]) => {
+    const packages = options.packageNames === undefined ? null : new Set(options.packageNames);
+    await Promise.all(Object.entries(installed).filter(([name]) => packages === null || packages.has(name)).map(async ([name, spec]) => {
         const version = readInstalledVersion(profile, name, activeProfileDir);
         const normalizedSpec = spec.toLowerCase();
         const productSource = agentPiBundledRegistrySource(activeProfileDir, name, spec);

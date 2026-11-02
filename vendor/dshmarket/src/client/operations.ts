@@ -52,6 +52,8 @@ export interface OperationRecord {
   /** When the Host started waiting for a safe point (ms epoch). */
   waitSince?: number
   state: OperationState
+  /** Transient provenance: restored results describe an earlier page's operation. */
+  restoredFromStorage?: true
   /** 0-100 while running; null when the host reports no total to divide by. */
   percent?: number | null
   /** The host's latest progress line, shown verbatim under the bar. */
@@ -238,7 +240,7 @@ export function sortForPanel(list: readonly OperationRecord[]): OperationRecord[
 export function recordForUrl(list: readonly OperationRecord[], url: string): OperationRecord | null {
   for (let index = list.length - 1; index >= 0; index -= 1) {
     const record = list[index]
-    if (record.url === url) return record
+    if (record.url === url && record.restoredFromStorage !== true) return record
   }
   return null
 }
@@ -359,6 +361,7 @@ function restoreSettledRecord(value: unknown): OperationRecord | null {
     name,
     ...(url === undefined ? {} : { url }),
     state,
+    restoredFromStorage: true,
     ...(reason === undefined ? {} : { reason }),
     ...(detail === undefined ? {} : { detail }),
     ...(blockedBuilds === undefined ? {} : { blockedBuilds }),

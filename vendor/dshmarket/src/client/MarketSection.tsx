@@ -1786,9 +1786,6 @@ const hostCompatibilityInFlight = new Set<string>()
 /** Subscribers for useSyncExternalStore — every mounted MarketSection. */
 const hostCompatibilityListeners = new Set<() => void>()
 let cachedUpdates: Record<string, UpdateStatus> = {}
-/** False until /dsh-market/updates has answered at least once this process. */
-let cachedUpdatesReady = false
-let cachedInstalledReady = false
 let cachedSkins: string[] = []
 let cachedDisabledNames: string[] = []
 let cachedInstalledFiles: string[] = []
@@ -1816,8 +1813,6 @@ export function resetHostCompatibilityCache(): void {
   cachedHostVersion = undefined
   hostCompatibilityInFlight.clear()
   cachedUpdates = {}
-  cachedUpdatesReady = false
-  cachedInstalledReady = false
   cachedSkins = []
   cachedDisabledNames = []
   cachedInstalledFiles = []
@@ -2244,6 +2239,7 @@ export function MarketSection(props: MarketSectionProps) {
    */
   const [marketGone, setMarketGone] = useState(false)
   const [installed, setInstalledState] = useState<InstalledMap>(cachedInstalled ?? {})
+  const [operationInstalled, setOperationInstalled] = useState<InstalledMap | undefined>(undefined)
   const setInstalled = useCallback((value: InstalledMap) => { cachedInstalled = value; setInstalledState(value) }, [])
   const [repoIdentities, setRepoIdentitiesState] = useState<InstalledRepoIdentities>(cachedRepoIdentities ?? {})
   const setRepoIdentities = useCallback((value: InstalledRepoIdentities) => {
@@ -2320,10 +2316,12 @@ export function MarketSection(props: MarketSectionProps) {
    */
   const [updates, setUpdatesState] = useState<Record<string, UpdateStatus>>(() => cachedUpdates)
   const setUpdates = useCallback(cacheState(value => { cachedUpdates = value }, setUpdatesState), [])
+  const [updatesCheckFailed, setUpdatesCheckFailed] = useState(false)
+  const checkedMarketUpdates = useRef<Record<string, UpdateStatus>>({})
   const queueRestoredRef = useRef(false)
   const [queueSnapshotReady, setQueueSnapshotReady] = useState({
-    installed: cachedInstalledReady,
-    updates: cachedUpdatesReady,
+    installed: false,
+    updates: false,
   })
   useEffect(() => {
     if (queueRestoredRef.current) return
@@ -3048,10 +3046,14 @@ export function MarketSection(props: MarketSectionProps) {
   const drainingRef = useRef(false)
 
   const refreshInstalled = useCallback((force?: boolean) => {
+    setOperationInstalled(undefined)
+    setUpdatesCheckFailed(false)
     fetch(api('/dsh-market/installed'), { cache: 'no-store' })
-      .then(res => res.json())
+      .then(res => { if (!res.ok) throw new Error('Installed inventory unavailable'); return res.json() })
       .then(body => {
         setInstalled(body.installed || {})
+        setOperationInstalled(Object.fromEntries(Object.entries(installedMap(body.installed))
+          .filter(([name]) => Array.isArray(body.present) && body.present.includes(name))))
         setRepoIdentities(installedRepoIdentities(body.repoIdentities))
         setRepoHints(installedRepoHints(body.repoHints))
         setInstalledFiles(Array.isArray(body.present) ? body.present : Object.keys(body.installed || {}))
@@ -3089,18 +3091,17 @@ export function MarketSection(props: MarketSectionProps) {
         setBrokenPlugins(isRecordOfRecords(body.brokenPlugins) ? body.brokenPlugins : {})
         installedReadGen.current += 1
         setHostDependencyFindings(findings)
-        cachedInstalledReady = true
         setQueueSnapshotReady(ready => ({ ...ready, installed: true }))
       })
       .catch(() => {})
     fetch(api('/dsh-market/updates') + (force === true ? '?force=1' : ''), { cache: 'no-store' })
-      .then(res => res.json())
+      .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json() })
       .then(body => {
-        setUpdates(body.updates || {})
-        cachedUpdatesReady = true
+        if (!isRecordOfRecords(body.updates)) throw new Error('Update inventory unavailable')
+        setUpdates(body.updates)
         setQueueSnapshotReady(ready => ({ ...ready, updates: true }))
       })
-      .catch(() => {})
+      .catch(() => { setUpdates(checkedMarketUpdates.current); setUpdatesCheckFailed(true) })
   }, [setActivations, setBlockedNames, setDisabledNames, setFavoriteUrls, setInstalledBundles, setInstalledFiles, setSkins, setUpdates])
 
   /**
@@ -5707,12 +5708,13 @@ export function MarketSection(props: MarketSectionProps) {
     setCheckingMarketUpdate(true)
     setMarketUpdateCheck(null)
     try {
-      const response = await fetch(api('/dsh-market/updates') + '?force=1', { cache: 'no-store', signal: AbortSignal.timeout(30000) })
+      const response = await fetch(api('/dsh-market/updates') + '?force=1&scope=market', { cache: 'no-store', signal: AbortSignal.timeout(30000) })
       if (!response.ok) throw new Error(t('marketCheckFailed'))
       const body = await response.json() as { updates?: Record<string, UpdateStatus> }
       const own = body.updates?.[selfName] ?? body.updates?.dshmarket ?? body.updates?.['dsh-market']
       if (!own || !own.latest) throw new Error(t('marketCheckFailed'))
-      setUpdates(body.updates ?? {})
+      checkedMarketUpdates.current = Object.fromEntries(Object.entries(body.updates ?? {}).filter(([name]) => name === 'dshmarket' || name === 'dsh-market'))
+      setUpdates(current => ({ ...current, ...body.updates }))
       setMarketUpdateCheck({ key: own.updateAvailable ? 'marketCheckAvailable' : 'marketCheckCurrent',
         value: own.updateAvailable ? own.latest : own.version ?? version ?? own.latest })
     } catch {
@@ -7091,6 +7093,7 @@ export function MarketSection(props: MarketSectionProps) {
             lang={lang}
             describe={describePlugin}
             records={records}
+            currentInstalled={operationInstalled}
             open={operationsOpen}
             onOpenChange={setOperationsOpen}
             replacing={replacing}
@@ -8581,7 +8584,9 @@ export function MarketSection(props: MarketSectionProps) {
                                                     >{t('install')}</Button>
                                                   </>
                                                 )
-                                              : <span className={css.metaTag} title={t('upToDate')}>{t('upToDate')}</span>}
+                                              : status === undefined || ((status.kind === 'npm' || status.kind === 'github') && status.latest === null)
+                                                ? <span className={css.metaTag}>{t(status === undefined && !queueSnapshotReady.updates && !updatesCheckFailed ? 'marketChecking' : 'checkUnconfirmed')}</span>
+                                                : <span className={css.metaTag} title={t('upToDate')}>{t('upToDate')}</span>}
                                 {removingName === name && <span className={css.metaTag}>{t('uninstalling')}</span>}
                                 </span>
                                 </div>

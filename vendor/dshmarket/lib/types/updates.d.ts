@@ -250,4 +250,5 @@ catalogNpmByRepo?: ReadonlyMap<string, string>,
  */
 options?: {
     holdYoungReleases?: boolean;
+    packageNames?: readonly string[];
 }): Promise<Record<string, UpdateStatus>>;
