@@ -42,3 +42,13 @@ Windows 已安装应用在正常重启并完成 profile 加载后，原工作区
 借鉴 Superagent 的恢复、授权及外循环思路，并非整体加载其研究原型；尚未实现通用 Source/Thread/SQLite Engine、跨进程租约或统一保存导出 Outbox。官方 OAR 是执行适配器，不是另一套主任务账本。沿用已审核的 DSH `ce7073d51254c26cd63b22a60835b8f948deb447`，保留完整 Univer、知识库、技能、模板 DNA、CAD/PDF、BIM 和项目计划运行时。
 
 DWG 预览直接使用 DWG 解码；当前工程 `cad_read` 算量链仍包含 DWG 转 DXF，不能将预览成功等同于直接 DWG 算量或原客户图纸的精度验收。实际候选的验证范围与安装包 SHA256 以本次交付记录为准。
+
+## 主线公开发布计划
+
+最终 Windows 安装包、macOS Apple Silicon / Intel 的 DMG 与 ZIP、Linux x64 AppImage 与 DEB，均从最终验收的 `v3.8.8` 主线提交及本版新生成的运行时载荷构建。Node.js 统一为 24.22.2，Electron 为 45.2.0；两种 macOS 架构要求 macOS 15 及以上。macOS/Linux 不内置 Windows 专用 IFC 运行库，仍需配置兼容的外部引擎。
+
+Release 先保持草稿，安装资源、校验文件、Windows 构建回执、运行时载荷及三对 CAD/BIM 对应源码全部核验完成后才发布为 Latest。对应源码保留原审核版本、原名与 SHA256，不将 3.8.7 平台安装包改名充作 3.8.8。投标专版、原用户项目和已有公开版本的标签及资产均不在此次发布变更范围。
+
+官网仍部署到既有 Cloudflare Pages `agent-pi` 项目。应用冻结时先保留已验证的 3.8.7 静态下载信息，准备识别 3.8.8 的系统要求与新脚本缓存键；本版实际资产齐全后再生成官网维护提交及静态 ZIP，以真实发布的文件名、大小、日期和 SHA256 更新离线下载信息。官网维护不移动应用标签，也不重新改变已验证安装包的来源。
+
+<!-- agent-pi-release-meta: {"schema":1,"appVersion":"3.8.8","kernel":{"sourceKind":"official-master-snapshot","packageVersion":"0.2.2-alpha.2","commit":"ce7073d51254c26cd63b22a60835b8f948deb447"}} -->
