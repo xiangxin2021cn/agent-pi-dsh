@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 
-const preset = `plugins:
-  group:
+const preset = `- id: group
+  name: cordis:group
+  config:
     - id: compaction-basic
       name: '@deepseek-ai/dsh-compaction-basic'
 
@@ -28,8 +29,9 @@ function writePreset(file) {
   writeFileSync(file, preset)
 }
 
-test('staged runtime overlays mutate only the Agent Pi-owned router preset', () => {
+test('staged runtime overlays mutate only the Agent Pi-owned router preset', t => {
   const root = mkdtempSync(join(tmpdir(), 'agent-pi-runtime-overlays-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
   const dshRoot = join(root, 'deepseek-harness')
   const productRoot = join(root, 'product')
   const officialFiles = ['standard', 'ptc', 'cordis'].map((id) => join(
@@ -54,6 +56,6 @@ test('staged runtime overlays mutate only the Agent Pi-owned router preset', () 
   assert.match(product, /name: ['"]?dsh-agent-pi-compaction['"]?/)
   assert.match(product, /thresholdRatio: 0\.72/)
   assert.match(product, /summarizationFallbacks:[\s\S]*deepseek-flash/)
-  assert.doesNotMatch(product, /tool-subagent-codex[\s\S]*?disabled: true/)
+  assert.doesNotMatch(product, /tool-subagent-codex|dsh-tender-host\/codex-/)
   assert.match(product, /fetch: true/)
 })

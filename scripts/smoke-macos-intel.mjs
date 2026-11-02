@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { sanitizeStartupLog } from '../apps/desktop/startup-diagnostics.mjs'
+import { inspectMacOSOarProviders } from './macos-intel-capabilities.mjs'
 
 assert.equal(process.platform, 'darwin', 'Application startup check requires macOS')
 assert.equal(process.arch, 'x64', 'Application startup check requires an Intel runner')
@@ -20,9 +21,12 @@ const node = spawnSync(runtimeNode, ['-p', 'JSON.stringify({arch:process.arch,ve
 assert.equal(node.status, 0, node.stderr)
 assert.deepEqual(JSON.parse(node.stdout), { arch: 'x64', version: 'v22.20.0' })
 const runtime = join(app, 'Contents/Resources/runtime')
+const mainline = JSON.parse(readFileSync(join(runtime, 'product/package.json'), 'utf8')).agentPiProduct?.edition === 'mainline'
+let oar
+if (mainline) oar = await inspectMacOSOarProviders(join(runtime, 'deepseek-harness'))
 const codexHome = mkdtempSync(join(tmpdir(), 'agent-pi-codex-smoke-'))
 try {
-  for (const manifest of ['product/bundles/tender-host/package.json', 'deepseek-harness/packages/subagent/subagent-codex/package.json']) {
+  for (const manifest of mainline ? [] : ['product/bundles/tender-host/package.json', 'deepseek-harness/packages/subagent/subagent-codex/package.json']) {
     const wrapper = createRequire(join(runtime, manifest)).resolve('@openai/codex/bin/codex.js')
     const codex = spawn(runtimeNode, [wrapper, '--config', 'features.shell_zsh_fork=false', '--config', 'features.realtime_conversation=false', 'app-server', '--stdio'], {
       env: { ...process.env, CODEX_HOME: codexHome }, stdio: ['pipe', 'pipe', 'pipe'],
@@ -112,7 +116,7 @@ try {
   }
   assert.ok(rendered, `Packaged DSH page did not become ready: ${lastError?.message || ''}\n${output}`)
   console.log(JSON.stringify({ passed: true, electron: '43.7.11', node: '22.20.0', architecture: 'x64', renderer: rendered,
-    codexInitialization: true,
+    ...(mainline ? { oar, nativeCliTaskExecution: 'not-tested' } : { codexInitialization: true }),
     limitation: 'Startup was tested on the CI runner, not on macOS Monterey hardware.' }))
 } finally {
   if (child.exitCode === null && child.pid) {

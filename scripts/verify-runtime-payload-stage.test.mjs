@@ -92,8 +92,8 @@ test('portable runtime payload validates its nested official Office source witho
   for (const file of requiredModules) assert.ok(desktopFiles.includes(file), `portable desktop is missing ${file}`)
 })
 
-test('portable runtime payload rejects missing desktop entry, Codex execution and transitive imports', async (t) => {
-  for (const file of ['main.mjs', 'codex-execution.mjs', 'codex-models.mjs', 'product-identity.mjs']) await t.test(file, (t) => {
+test('portable runtime payload rejects missing desktop entry, history reader and transitive imports', async (t) => {
+  for (const file of ['main.mjs', 'codex-history.mjs', 'product-identity.mjs']) await t.test(file, (t) => {
     const { stage } = fixture(t)
     rmSync(join(stage, 'desktop', file))
     const result = run(stage)

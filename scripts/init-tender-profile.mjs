@@ -5,7 +5,6 @@ import {
   existsSync,
   lstatSync,
   mkdirSync,
-  readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
@@ -31,6 +30,7 @@ import { syncManagedUniverSkills } from './univer-skill-sync.mjs'
 import { prepareKnownPluginCompatibility, inspectKnownPluginCompatibility, CLAUDE_CODE_PACKAGE, DSH_EMAIL_PACKAGE, VOICE_INPUT_PACKAGE, NATIVE_CUA_PACKAGE, MACOS_CUA_PACKAGE } from '../vendor/dshmarket/compatibility.js'
 import { PRODUCT_PRESETS, shippedPresetPlugins, writePresetBundle } from './preset-bundle-017.mjs'
 import { writeMacOSIntelCapabilities } from './macos-intel-capabilities.mjs'
+import { retireCodexInText } from './enable-desktop-codex.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const dsh = process.env.DSH_CHECKOUT || join(root, 'vendor/deepseek-harness')
@@ -56,7 +56,8 @@ const WEB_FETCH_HTTP = '@deepseek-ai/dsh-web-fetch-http'
 import { TEAM_PACKAGES, TEAM_BUNDLES, configureTeamPreset } from './agent-teams-profile.mjs'
 const pluginRecovery = process.env.AGENT_PI_PLUGIN_RECOVERY === '1'
 const teamsEnabled = !pluginRecovery && process.env.AGENT_PI_AGENT_TEAMS === '1'
-const CODEX_SUBAGENT = '@deepseek-ai/dsh-subagent-codex'
+const OAR_SUBAGENT = '@deepseek-ai/dsh-experimental-subagent-oar'
+const OAR_TOOL = '@deepseek-ai/dsh-experimental-tool-subagent-oar'
 const AGENT_PI_COMPACTION = 'dsh-agent-pi-compaction'
 const DSH_IM_NAME = '@xmanrui/dsh-im'
 const workbenchSeedPath = join(profileDir, '.agent-pi-workbench-defaults.json')
@@ -68,7 +69,6 @@ const bundles = [
   '@deepseek-ai/dsh-web-app',
   PRODUCT_PRESETS,
   ...(teamsEnabled ? TEAM_BUNDLES : []),
-  CODEX_SUBAGENT,
   INJECTOR_NAME,
   'dsh-tender-host',
   ...workbenchDefaults.map(([name]) => name),
@@ -175,7 +175,8 @@ const localPlugins = [
   { name: '@deepseek-ai/dsh-tool-session-query', dir: join(dsh, 'packages/experimental/tool-session-query') },
   { name: 'dsh-tender-web', dir: join(root, 'bundles/tender-web') },
   { name: AGENT_PI_COMPACTION, dir: agentPiCompactionDir },
-  { name: CODEX_SUBAGENT, dir: join(dsh, 'packages/subagent/subagent-codex') },
+  { name: OAR_SUBAGENT, dir: join(dsh, 'packages/experimental/subagent-oar') },
+  { name: OAR_TOOL, dir: join(dsh, 'packages/experimental/tool-subagent-oar') },
   { name: INJECTOR_NAME, dir: embeddedInjector },
   // Vendored npm tarball of the community plugin market (offline preinstall;
   // the market updates itself through its own update channel afterwards).
@@ -266,7 +267,7 @@ function isRuntimeIncompatibleBundle(name) {
 }
 
 function composeBundles(deps) {
-  const hidden = new Set([WEB_FETCH_HTTP, '@deepseek-ai/dsh-experimental-agent-team-web-profile'])
+  const hidden = new Set([WEB_FETCH_HTTP, '@deepseek-ai/dsh-experimental-agent-team-web-profile', '@deepseek-ai/dsh-subagent-codex'])
   const extras = []
   const add = (name) => {
     if (pluginRecovery) return
@@ -368,16 +369,36 @@ function buildManagedPatch(deps) {
   config:
     default: standard
 
-# Alpha.2 treats patch names as identity assertions. Disable the native instance
-# before inserting the product provider; its registered provider name stays codex.
-- id: subagent-codex
-  name: '@deepseek-ai/dsh-subagent-codex'
-  disabled: true
+# DSH owns execution and delegates independent tasks through the official OAR
+# tool. Native CLI installation/authentication is checked only on delegation.
+# Keep native model/effort defaults and explicit workspace safety settings.
 - insert:
-    - id: agent-pi-subagent-codex
-      name: dsh-tender-host/codex-provider
+    - id: agent-pi-oar-codex
+      name: '${OAR_SUBAGENT}'
       config:
-        permissionMode: approve-for-me
+        runtime: codex
+        providerName: oar-codex
+        timeoutMs: 600000
+        launchArgs:
+          - -c
+          - sandbox_mode="workspace-write"
+    - id: agent-pi-oar-claude
+      name: '${OAR_SUBAGENT}'
+      config:
+        runtime: claude
+        providerName: oar-claude
+        timeoutMs: 600000
+        launchArgs:
+          - --permission-mode
+          - dontAsk
+          - --permission-prompts
+          - none
+    - id: agent-pi-tool-subagent-oar
+      name: '${OAR_TOOL}'
+      config:
+        providers:
+          codex: oar-codex
+          claude: oar-claude
 
 # Parallelism stays on the DSH native agent-loop rolling pool (omit
 # maxParallelToolCalls → default 10). Do not stamp a product cap here.
@@ -400,7 +421,7 @@ ${univerConfig}# Desktop workbench: alpha.1 dsh-base already owns web-fetch-http
 `
 }
 function migrateWrapperOverrides(text) {
-  if (!text.includes('goal-round-driver') && !text.includes('subagent-codex')) return text
+  if (!text.includes('goal-round-driver')) return text
   const { parseDocument } = createRequire(join(dsh, 'packages/settings/settings/package.json'))('yaml')
   const document = parseDocument(text)
   if (document.errors.length) throw new Error('Cannot migrate invalid profile cordis.patch.yml')
@@ -408,7 +429,6 @@ function migrateWrapperOverrides(text) {
   if (!Array.isArray(rows)) return text
   const replacements = {
     'goal-round-driver': { id: 'agent-pi-goal-round-driver', previous: '@deepseek-ai/dsh-goal-round-driver', name: 'dsh-tender-host/goal-round-driver' },
-    'subagent-codex': { id: 'agent-pi-subagent-codex', previous: '@deepseek-ai/dsh-subagent-codex', name: 'dsh-tender-host/codex-provider' },
   }
   const existing = new Set(rows.map(row => row?.get?.('id')))
   let changed = false
@@ -439,7 +459,7 @@ function writeManagedPatch(deps) {
     // Missing overlay: treat as managed.
   }
   if (currentPatch !== null) {
-    const migrated = migrateWrapperOverrides(currentPatch)
+    const migrated = migrateWrapperOverrides(retireCodexInText(currentPatch, presetYaml))
     if (migrated !== currentPatch) writeFileSync(patchPath, migrated)
     currentPatch = migrated
   }
@@ -543,19 +563,6 @@ function ensureJunction(sourceDir, dest) {
   }
 }
 
-function wireCodexRuntimeDeps() {
-  const sourceStore = join(dsh, 'node_modules', '.pnpm')
-  const targetStore = join(profileDir, 'node_modules', '.pnpm')
-  const entries = readdirSync(sourceStore, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && entry.name.startsWith('@openai+codex@'))
-  if (entries.length === 0) {
-    throw new Error(`Codex runtime packages missing under ${sourceStore}`)
-  }
-  for (const entry of entries) {
-    ensureJunction(join(sourceStore, entry.name), join(targetStore, entry.name))
-  }
-}
-
 function wireUniverPeerDependencies() {
   const pluginDir = moduleDest(UNIVER_NAME)
   if (!existsSync(join(pluginDir, 'package.json'))) return
@@ -644,7 +651,6 @@ for (const plugin of localPlugins) {
 }
 
 wireUniverPeerDependencies()
-wireCodexRuntimeDeps()
 
 writeManifest(dependencies)
 
@@ -742,18 +748,11 @@ function enableDesktopWebFetch() {
   }
 }
 
-function enableDesktopCodex() {
-  const helper = join(root, 'scripts/enable-desktop-codex.mjs')
-  if (!existsSync(helper)) return
-  const files = desktopPresetFiles()
-  if (files.length === 0) return
-  const result = spawnSync(process.execPath, [helper, ...files], {
-    encoding: 'utf8',
-    windowsHide: true,
-  })
-  if (result.stdout) process.stdout.write(result.stdout)
-  if (result.status !== 0) {
-    process.stderr.write(`desktop Codex overlay skipped: ${result.stderr || result.status}\n`)
+function retireDesktopCodex(files) {
+  for (const file of files) {
+    const text = readFileSync(file, 'utf8')
+    const next = retireCodexInText(text, presetYaml)
+    if (next !== text) writeFileSync(file, next)
   }
 }
 
@@ -836,12 +835,15 @@ installRouterPreset()
 syncSystemPresets()
 enableDesktopCompaction()
 enableDesktopWebFetch()
-enableDesktopCodex()
+retireDesktopCodex(desktopPresetFiles())
 if (teamsEnabled) {
   for (const file of desktopPresetFiles()) writeFileSync(file, configureTeamPreset(readFileSync(file, 'utf8')))
 }
 writePresetBundle({ systemRoot: systemPresetRoot, userRoot: join(home, '.agent-presets'), ids: systemPresetIds,
   parseYaml: presetYaml.parse, yaml: presetYaml })
+// User preset sources remain intact; retire product bridges in their generated
+// runtime copies as well, before the strict loader resolves removed exports.
+retireDesktopCodex([join(systemPresetRoot, 'cordis.patch.yml')])
 linkLocalBundle(PRODUCT_PRESETS, systemPresetRoot)
 removeRetiredJSpace()
 removeRetiredVisionRouter()

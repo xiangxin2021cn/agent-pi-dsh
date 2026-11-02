@@ -33,9 +33,7 @@
     "files": [
       "main.mjs",
       "dsh-web-url.mjs",
-      "codex-auth.mjs",
-      "codex-models.mjs",
-      "codex-execution.mjs",
+      "codex-history.mjs",
       "compaction-preferences.mjs",
       "agent-team-preferences.mjs",
       "startup-diagnostics.mjs",
@@ -123,6 +121,6 @@
   },
   "agentPiProduct": {
     "edition": "mainline",
-    "buildRevision": "hotfix.2"
+    "buildRevision": "hotfix.3"
   }
 }

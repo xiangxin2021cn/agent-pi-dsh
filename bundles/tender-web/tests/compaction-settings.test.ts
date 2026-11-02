@@ -6,7 +6,7 @@ import { test } from 'node:test'
 import { clientSource } from './client-source.ts'
 
 const client = clientSource
-const start = client.indexOf('function CodexSettingsSection()')
+const start = client.indexOf('function DshRuntimeSettingsSection()')
 const end = client.indexOf('function StudioCredit', start)
 const section = client.slice(start, end)
 
@@ -62,9 +62,9 @@ test('renderer neither restarts the app nor accesses preferences directly', () =
   assert.doesNotMatch(section, /window-prefs\.json|compactionFallbackEnabled|readFile|writeFile/)
 })
 
-test('Codex settings keep the login card and add an independent compaction card', () => {
-  assert.match(section, /ChatGPT \/ Codex/)
-  assert.match(section, /codexAuthLogin/)
-  assert.match(section, /codexAuthLogout/)
-  assert.equal(section.match(/className: 'ap-codex-card'/g)?.length, 2)
+test('DSH runtime settings keep independent compaction and team controls without the retired login card', () => {
+  assert.match(section, /DSH 运行设置/)
+  assert.match(section, /h\(AgentTeamsSettings, \{ desktop, zh \}\)/)
+  assert.doesNotMatch(section, /codexAuth|ChatGPT/)
+  assert.equal(section.match(/className: 'ap-codex-card'/g)?.length, 1)
 })

@@ -135,7 +135,7 @@ foreach ($item in $productItems) {
     # /XJ: node_modules junctions (injector / AnySearch peers) point
     # into this machine's DSH checkout; init-tender-profile rebuilds them on
     # the install machine, and following them here explodes the pnpm chain.
-    robocopy $src $dest /E /XJ /NFL /NDL /NJH /NJS /NP /XD (Join-Path $Root "bundles\project-plan\target") | Out-Null
+    robocopy $src $dest /E /XJ /NFL /NDL /NJH /NJS /NP /XD (Join-Path $Root "bundles\project-plan\target") (Join-Path $Root "bundles\tender-host\node_modules") (Join-Path $Root "packages\business-core\node_modules") | Out-Null
     if ($LASTEXITCODE -ge 8) { throw "robocopy $item failed: $LASTEXITCODE" }
   } else {
     Copy-Item -Force $src $dest
@@ -148,32 +148,28 @@ if ($LASTEXITCODE -ne 0) { throw "Staged project plan runtime verification faile
 if ($LASTEXITCODE -ne 0) { throw "Staged CAD host decoder verification failed" }
 
 function Stage-ProjectNodeModules([string]$projectRelative, [string]$requiredPackage) {
-  $sourceModules = Join-Path $Root "$projectRelative\node_modules"
-  $sourceMarker = Join-Path $sourceModules "$requiredPackage\package.json"
-  if (-not (Test-Path -LiteralPath $sourceMarker)) {
-    throw "$projectRelative dependencies are not installed; missing $sourceMarker"
-  }
-
-  $sourceItem = Get-Item -LiteralPath $sourceModules
-  if ($sourceItem.LinkType) {
-    $sourceModules = @($sourceItem.Target)[0]
-    Write-Host "Resolved $([System.IO.Path]::GetFileName($projectRelative)) node_modules $($sourceItem.LinkType) -> $sourceModules"
-  }
-
+  $stageProject = Join-Path $Product $projectRelative
   $stageModules = Join-Path $Product "$projectRelative\node_modules"
-  New-Item -ItemType Directory -Force -Path $stageModules | Out-Null
-  robocopy $sourceModules $stageModules /E /XJ /NFL /NDL /NJH /NJS /NP | Out-Null
-  if ($LASTEXITCODE -ge 8) { throw "staging $projectRelative node_modules failed: $LASTEXITCODE" }
+  if (Test-Path -LiteralPath $stageModules) { throw "Refusing to merge stale product dependencies: $stageModules" }
+  $lock = Join-Path $stageProject "package-lock.json"
+  $lockHash = (Get-FileHash -LiteralPath $lock -Algorithm SHA256).Hash
+  & $nodeDest $bundledNpmCli --prefix $stageProject ci --omit=dev --ignore-scripts --no-audit --no-fund --registry https://registry.npmjs.org/
+  if ($LASTEXITCODE -ne 0) { throw "Locked production dependency install failed: $projectRelative" }
+  if ((Get-FileHash -LiteralPath $lock -Algorithm SHA256).Hash -ne $lockHash) { throw "Frozen product lock changed: $projectRelative" }
   if (-not (Test-Path -LiteralPath (Join-Path $stageModules "$requiredPackage\package.json"))) {
     throw "staged $projectRelative is missing $requiredPackage"
   }
 }
 
-# The broad product copy intentionally excludes Junctions. These two projects
-# own runtime imports, so copy their already lock-installed dependency trees
-# explicitly and verify the first package Node must resolve during cold start.
+# Source node_modules may retain a retired executable even after its manifest
+# changes. Install these two complete prod closures only in the owned stage.
 Stage-ProjectNodeModules "packages\business-core" "zod"
 Stage-ProjectNodeModules "bundles\tender-host" "pdf-lib"
+foreach ($relativePath in @("@mlightcad\libredwg-web\wasm\libredwg-web.wasm", "@mlightcad\libredwg-converter\dist\libredwg-web.wasm")) {
+  $publishedWasm = Join-Path (Join-Path $Product "bundles\tender-host\node_modules") $relativePath
+  if (-not (Test-Path -LiteralPath $publishedWasm)) { throw "CAD npm WASM missing before clean-runtime staging: $publishedWasm" }
+  Remove-Item -LiteralPath $publishedWasm -Force
+}
 
 # The optional engine stays inside its removable bundle. Default preparation
 # never installs Python or reaches into a developer's Python installation.
@@ -276,7 +272,15 @@ if ($FullCopy) {
     NODE_COMPILE_CACHE = (Join-Path $productionState "node-cache")
   }
   $previousEnvironment = @{}
-  $stagedLock = Join-Path $dshTarget "pnpm-lock.yaml"
+  Copy-Item -LiteralPath $DshBuildReceipt -Destination (Join-Path $dshTarget $DshReceiptName) -Force
+  $selectedDistribution = (Get-Content (Join-Path $Product "package.json") -Raw | ConvertFrom-Json).agentPiProduct.edition -eq "mainline"
+  $installTarget = $dshTarget
+  if ($selectedDistribution) {
+    $installTarget = Join-Path $productionState ("selected-install-" + [guid]::NewGuid().ToString("N"))
+    & $nodeDest (Join-Path $Root "scripts\dsh-distribution-policy.mjs") prepare $dshTarget $Product $installTarget
+    if ($LASTEXITCODE -ne 0) { throw "DSH selected production workspace preparation failed" }
+  }
+  $stagedLock = Join-Path $installTarget "pnpm-lock.yaml"
   $stagedLockHash = (Get-FileHash -LiteralPath $stagedLock -Algorithm SHA256).Hash
   try {
     foreach ($name in $productionEnvironment.Keys) {
@@ -284,7 +288,7 @@ if ($FullCopy) {
       [System.Environment]::SetEnvironmentVariable($name, $productionEnvironment[$name], "Process")
     }
     Write-Host "Installing locked DSH production dependencies in staging..."
-    & $nodeDest $bundledPnpmCli --dir $dshTarget install --prod --frozen-lockfile --ignore-scripts --prefer-offline `
+    & $nodeDest $bundledPnpmCli --dir $installTarget install --prod --frozen-lockfile --ignore-scripts --prefer-offline `
       --store-dir (Join-Path $productionState "store") --registry https://registry.npmjs.org/
     if ($LASTEXITCODE -ne 0) { throw "DSH production dependency install failed" }
     if ((Get-FileHash -LiteralPath $stagedLock -Algorithm SHA256).Hash -ne $stagedLockHash) {
@@ -294,6 +298,10 @@ if ($FullCopy) {
     foreach ($name in $previousEnvironment.Keys) {
       [System.Environment]::SetEnvironmentVariable($name, $previousEnvironment[$name], "Process")
     }
+  }
+  if ($selectedDistribution) {
+    & $nodeDest (Join-Path $Root "scripts\dsh-distribution-policy.mjs") project $installTarget $dshTarget
+    if ($LASTEXITCODE -ne 0) { throw "DSH selected production dependency projection failed" }
   }
   & $nodeDest (Join-Path $Root "scripts\repair-dsh-runtime-peers.mjs") $dshTarget
   if ($LASTEXITCODE -ne 0) { throw "DSH production workspace peer repair failed" }
@@ -305,6 +313,10 @@ if ($FullCopy) {
   & $nodeDest (Join-Path $Root "scripts\repair-dsh-links.mjs") repair $dshTarget
   if ($LASTEXITCODE -ne 0) { throw "repair dsh links failed" }
   Copy-Item -LiteralPath $DshBuildReceipt -Destination (Join-Path $dshTarget $DshReceiptName) -Force
+  if ($selectedDistribution) {
+    & $nodeDest (Join-Path $Root "scripts\dsh-distribution-policy.mjs") seal $dshTarget $Product
+    if ($LASTEXITCODE -ne 0) { throw "DSH selected production inventory sealing failed" }
+  }
 } else {
   cmd /c "mklink /J `"$dshTarget`" `"$Dsh`"" | Out-Null
 }

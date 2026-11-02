@@ -81,10 +81,6 @@ function Invoke-NpmInstall([string]$dir, [string]$label) {
   Invoke-NpmCommand $dir $label @("install", "--no-fund", "--no-audit")
 }
 
-function Invoke-NpmCi([string]$dir, [string]$label) {
-  Invoke-NpmCommand $dir $label @("ci", "--no-fund", "--no-audit")
-}
-
 function Invoke-DesktopToolchain {
   if (-not (Test-Path (Join-Path $Desktop "node_modules\electron-builder"))) {
     Write-Host "Installing desktop pack dependencies..."
@@ -356,20 +352,10 @@ if (-not (Test-Path $NsisScript)) {
   throw "NSIS script missing: $NsisScript"
 }
 
-if (-not (Test-Path (Join-Path $Biz "node_modules\zod"))) {
-  Write-Host "Installing business-core dependencies..."
-  Invoke-NpmInstall $Biz "business-core"
+foreach ($marker in @((Join-Path $Biz "node_modules\zod\package.json"), (Join-Path $TenderHost "node_modules\js-yaml\package.json"))) {
+  if (-not (Test-Path -LiteralPath $marker)) { throw "Build dependencies are missing; provision the checkout before packaging: $marker" }
 }
-Write-Host "Installing tender-host locked dependencies, including the product Codex CLI..."
-Invoke-NpmCi $TenderHost "tender-host"
-foreach ($relativePath in @(
-  "@mlightcad\libredwg-web\wasm\libredwg-web.wasm",
-  "@mlightcad\libredwg-converter\dist\libredwg-web.wasm"
-)) {
-  $publishedWasm = Join-Path (Join-Path $TenderHost "node_modules") $relativePath
-  if (-not (Test-Path -LiteralPath $publishedWasm)) { throw "CAD npm WASM missing before clean-runtime staging: $publishedWasm" }
-  Remove-Item -LiteralPath $publishedWasm -Force
-}
+Write-Host "Source build dependencies verified; locked production dependencies are installed only in staging."
 
 Write-Host "Using verified clean MLightCAD viewer from $CadCleanOutput"
 

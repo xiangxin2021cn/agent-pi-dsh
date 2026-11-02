@@ -1,28 +1,24 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
-import { runInNewContext } from 'node:vm'
-import { createNativeCodexExecution, codexExecutionErrorMessage } from '../src/client/codex-execution.js'
-import { tCodexExecution } from '../src/client/locales/codex-execution.js'
+import { createNativeCodexHistory, codexExecutionErrorMessage } from '../src/client/codex-execution.js'
 
 function fixture() {
-  const callbacks = [], cleanup = [], rendered = [], opened = [], sent = []
-  let event, off = 0, lang = 'en', hookCalls = 0
-  const stored = new Map()
-  globalThis.localStorage = { getItem: (key) => stored.get(key), setItem: (key, value) => stored.set(key, value) }
+  const callbacks = [], cleanup = [], rendered = [], opened = [], forbidden = []
+  let lang = 'en', hookCalls = 0, snapshot = { cwd: 'C:/project', messages: [] }
+  const stored = new Map([['agent-pi:main-engine:one', 'codex']])
+  globalThis.localStorage = { getItem: () => { forbidden.push('storage read'); return 'codex' }, setItem: () => forbidden.push('storage write') }
   const desktop = {
-    onCodexExecution(listener) { event = listener; return () => off++ },
-    async codexExecutionStatus(sessionId) { return { sessionId, cwd: 'C:/project', phase: 'idle', messages: [], requests: [] } },
-    async codexExecutionSubmit(input) { sent.push(input); return { ...input, phase: 'running', messages: [], requests: [] } },
+    async codexHistoryStatus(sessionId) { return { ...snapshot, sessionId } },
   }
+  for (const name of ['codexExecutionSubmit', 'codexExecutionReply', 'codexExecutionInterrupt', 'codexTaskAction', 'codexAuthStatus', 'onCodexExecution']) desktop[name] = () => { forbidden.push(name); throw new Error('Historical reader cannot execute') }
   const React = {
     createElement(type, props, ...children) { return { type, props, children } },
     useState(value) { return [value, (update) => callbacks.push(update)] },
     useEffect(install) { const off = install(); if (off) cleanup.push(off) },
   }
-  const make = () => createNativeCodexExecution({ React, desktop, language: () => lang, useLanguage: () => { hookCalls++; return lang }, renderMessage: (text) => { rendered.push(text); return text }, openFile: (cwd, path) => opened.push({ cwd, path }) })
+  const make = () => createNativeCodexHistory({ React, desktop, language: () => lang, useLanguage: () => { hookCalls++; return lang }, renderMessage: (text) => { rendered.push(text); return text }, openFile: (cwd, path) => opened.push({ cwd, path }) })
   const api = make()
-  return { api, make, stored, rendered, opened, sent, cleanup, callbacks, emit: (state) => event(state), language(value) { lang = value }, get off() { return off }, get hookCalls() { return hookCalls } }
+  return { api, make, stored, rendered, opened, forbidden, desktop, cleanup, callbacks, async emit(state) { snapshot = state; await api.load(state.sessionId) }, language(value) { lang = value }, get hookCalls() { return hookCalls } }
 }
 const nodes = (tree) => typeof tree !== 'object' || !tree ? [] : [tree, ...(tree.children || []).flat(Infinity).flatMap(nodes)]
 const content = (tree) => typeof tree === 'string' ? tree : (tree?.children || []).flat(Infinity).map(content).join(' ')
@@ -44,7 +40,7 @@ test('Codex errors retain the useful IPC cause without exposing credentials or s
 test('native Codex failure panel shows the retained sanitized cause beneath its localized summary', async () => {
   const f = fixture()
   await f.api.load('one')
-  f.emit({ sessionId: 'one', cwd: 'C:/project', phase: 'failed', errorCode: 'requestFailed',
+  await f.emit({ sessionId: 'one', cwd: 'C:/project', phase: 'failed', errorCode: 'requestFailed',
     error: "Error invoking remote method 'codex-execution-submit': Error: Shared task context unavailable; token=panel-secret",
     requests: [], messages: [] })
   const alert = nodes(f.api.View({ sessionId: 'one' })).find(row => row.props?.role === 'alert')
@@ -54,61 +50,19 @@ test('native Codex failure panel shows the retained sanitized cause beneath its 
   f.api.dispose()
 })
 
-test('real composer native-submit failures retain the draft and attachments and show the specific cause', async () => {
-  // Run the production composer handler with isolated stores; no model or credentials.
-  const source = readFileSync(new URL('../src/client/index.js', import.meta.url), 'utf8')
-  const start = source.indexOf('async function submitCodexTurn(props) {')
-  const end = source.indexOf('\n    function wrapComposerSubmit(props)', start)
-  assert.ok(start >= 0 && end > start)
-  for (const authState of ['logged-in', 'logged-out', 'dna-changed']) {
-    let draft = '核查原图并保留我的任务描述'
-    let attachments = [{ id: 'original-drawing', path: 'C:/project/original.dwg' }]
-    const controller = {}, toasts = [], consumed = []
-    let submissions = 0, templateKey = 'pinned-dna-one'
-    const authority = { session: {}, inputStore: { getSnapshot: () => ({ draft }) } }
-    const handler = runInNewContext('(' + source.slice(start, end) + ')', {
-      codexTurnKey: () => 'one', codexTurnController: () => controller, attachmentTurnControllers: new Map(),
-      codexTurnAuthorities: () => authority, sessionSnapshotWithChat: () => ({}), snapshotIsBusy: () => false,
-      codexAttachItems: () => attachments, nativeCodexAttachmentIds: () => [], kbTaskOf: () => ({ slugs: ['neutral-template'] }), kbTemplateSelectionKey: () => templateKey,
-      codexAttachmentIds: rows => rows.map(row => row.id), sameCodexAttachmentIds: (a, b) => JSON.stringify(a) === JSON.stringify(b),
-      flushKbTaskSelection: async () => {}, window: { agentPiDesktop: { codexAuthStatus: async () => { if (authState === 'dna-changed') templateKey = 'pinned-dna-two'; return { state: authState === 'logged-out' ? 'logged-out' : 'logged-in' } } } },
-      resolveCodexTurnSelection: () => ({ model: 'fixture-model', reasoningEffort: 'high' }), workspaceCwd: () => 'C:/project',
-      runtime: { conversation: { resolveDraftAttachments: () => [], releaseDraftAttachments: () => consumed.push('release') } },
-      stripMentionArtifacts: text => text, nativeCodex: { async submit() { submissions++; throw new Error("Error invoking remote method 'codex-execution-submit': Error: Shared context refused; token=submit-secret") } },
-      setComposerDraft: (_props, next) => { draft = next }, setAttachItemsFor: (_id, next) => { attachments = next },
-      codexAttachmentToken: row => row.id, openNativeCodexView: () => consumed.push('open'), showToast: text => toasts.push(text),
-      tCodexExecution, codexExecutionErrorMessage, langState: { lang: 'zh' }, notifyCodexTurn: () => {},
-    })
-    await handler({ inputActions: { removeAttachment: () => consumed.push('remove') } })
-    assert.equal(draft, '核查原图并保留我的任务描述')
-    assert.equal(attachments.length, 1)
-    assert.equal(attachments[0].path, 'C:/project/original.dwg')
-    assert.deepEqual(consumed, [])
-    assert.equal(controller.nativePreparing, false)
-    assert.equal(submissions, authState === 'logged-in' ? 1 : 0)
-    assert.equal(toasts.length, 1)
-    assert.doesNotMatch(toasts[0], /submit-secret|invoking remote/)
-    if (authState === 'dna-changed') assert.equal(toasts[0], tCodexExecution('sessionBusy', 'zh'))
-    else assert.match(toasts[0], authState === 'logged-in' ? /Shared context refused/ : /请先在 Codex 设置中登录账户/)
-  }
-})
-
-test('main engine choice survives remount, remains separate per task, and cannot switch while running', async () => {
+test('historical Codex readers expose no execution or engine-selection methods and leave old preferences intact', async () => {
   const f = fixture()
-  f.api.setEnabled('one', true)
-  assert.equal(f.make().enabled('one'), true)
-  assert.equal(f.api.enabled('two'), false)
-  await f.api.submit({ sessionId: 'one', cwd: 'C:/project', text: 'Calculate BOQ', attachments: [] })
-  assert.equal(f.sent.length, 1)
-  assert.throws(() => f.api.setEnabled('one', false), /Stop/)
-  assert.equal(f.api.enabled('one'), true)
+  for (const method of ['submit', 'taskAction', 'enabled', 'setEnabled', 'busy']) assert.equal(f.api[method], undefined)
+  await f.api.load('one')
+  assert.equal(f.stored.get('agent-pi:main-engine:one'), 'codex')
+  assert.deepEqual(f.forbidden, [])
   f.api.dispose()
 })
 
 test('native answers render Markdown with actionable original file links and complete professional tool details', async () => {
   const f = fixture()
   await f.api.load('one')
-  f.emit({ sessionId: 'one', cwd: 'C:/project', phase: 'idle', requests: [], messages: [{ id: 'answer', role: 'assistant', text: '**Verified** [BOQ](<C:/project/original BOQ.xlsx>) completed.' }, { id: 'cost', role: 'tool', text: 'tender_price completed\n{"cost":42,"source":"original BOQ"}' }] })
+  await f.emit({ sessionId: 'one', cwd: 'C:/project', phase: 'idle', requests: [], messages: [{ id: 'answer', role: 'assistant', text: '**Verified** [BOQ](<C:/project/original BOQ.xlsx>) completed.' }, { id: 'cost', role: 'tool', text: 'tender_price completed\n{"cost":42,"source":"original BOQ"}' }] })
   const view = f.api.View({ sessionId: 'one' })
   const link = nodes(view).find((node) => node.type === 'button' && content(node) === 'BOQ')
   assert.ok(link)
@@ -130,31 +84,33 @@ test('native UI uses the live language hook and removes session listeners and it
   assert.ok(f.hookCalls >= 2)
   f.cleanup.forEach((off) => off())
   f.api.dispose()
-  assert.equal(f.off, 1)
+  assert.deepEqual(f.forbidden, [])
 })
 
-test('native approval previews the concrete extra file permissions and network destination', async () => {
+test('stale running states and pending approvals are rendered only as historical messages', async () => {
   const f = fixture()
-  await f.api.load('one')
-  f.emit({ sessionId: 'one', cwd: 'C:/project', phase: 'waiting', messages: [], requests: [{ id: 12, method: 'item/commandExecution/requestApproval', params: { command: 'fetch official source', cwd: 'C:/project', additionalPermissions: { fileSystem: { write: ['C:/approved/export'] } }, networkApprovalContext: { host: 'official-source.example', protocol: 'https' } } }] })
-  const question = nodes(f.api.View({ sessionId: 'one' })).find((row) => typeof row.type === 'function')
-  assert.ok(question)
-  const preview = content(question.type(question.props))
-  assert.match(preview, /C:\/approved\/export/)
-  assert.match(preview, /official-source\.example/)
-  assert.match(preview, /fetch official source/)
+  await f.emit({ sessionId: 'one', cwd: 'C:/project', phase: 'waiting', messages: [{ id: 'old', role: 'assistant', text: 'Preserved prior answer' }], requests: [{ id: 12, params: { command: 'must never run', questions: [{ id: 'q', question: 'Approve?' }] } }] })
+  const view = f.api.View({ sessionId: 'one' })
+  assert.match(content(view), /read-only|Preserved prior answer/)
+  assert.doesNotMatch(content(view), /Approve\?|must never run|Stop current execution/)
+  assert.equal(nodes(view).some(row => ['button', 'input', 'select', 'form'].includes(row.type)), false)
+  assert.equal(f.api.current('one').requests, undefined)
+  assert.equal(f.api.current('one').phase, undefined)
+  assert.deepEqual(f.forbidden, [])
+  f.cleanup.forEach(off => off())
   f.api.dispose()
 })
 
-test('a transient native reply failure is reported without claiming the interaction expired', async () => {
-  const errors=[]
-  const React={createElement(type,props,...children){return {type,props,children}},useState(value){return [value,update=>errors.push(update)]},useEffect(){}}
-  const api=createNativeCodexExecution({React,language:()=> 'en',desktop:{onCodexExecution:()=>()=>{},codexExecutionStatus:async()=>({cwd:'C:/project',phase:'waiting',messages:[],requests:[{id:1,params:{questions:[{id:'q',question:'Latest version?'}]}}]}),codexExecutionReply:async()=>{throw new Error('temporary write failure')}}})
-  await api.load('one')
-  const question=nodes(api.View({sessionId:'one'})).find(row=>typeof row.type==='function')
-  const send=nodes(question.type(question.props)).find(row=>row.type==='button')
-  await send.props.onClick()
-  assert.ok(errors.includes('Your response could not be submitted. Retry or load the latest task state.'))
-  assert.ok(!errors.some(row=>typeof row==='string'&&row.includes('expired')))
-  api.dispose()
+test('history prefers the new read-only endpoint and retains the legacy status read fallback', async () => {
+  const f = fixture()
+  let fallback = 0
+  f.desktop.codexExecutionStatus = async sessionId => { fallback++; return { sessionId, messages: [{ id: 'legacy', role: 'user', text: 'Original task' }] } }
+  await f.api.load('one')
+  assert.equal(fallback, 0)
+  delete f.desktop.codexHistoryStatus
+  await f.api.load('two')
+  assert.equal(fallback, 1)
+  assert.equal(f.api.current('two').messages[0].text, 'Original task')
+  assert.equal(f.api.current('one').messages.length, 0)
+  f.api.dispose()
 })

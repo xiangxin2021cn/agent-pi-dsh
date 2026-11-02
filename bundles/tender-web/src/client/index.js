@@ -27,10 +27,10 @@ import { createSkillLifecycle, skillLifecycleCss } from './skill-lifecycle.js'
 import { createProfessionalTaskSummary, professionalTaskSummaryCss } from './professional-task-summary.js'
 import { renderTenderResponseCoverage, tenderResponseCss } from './tender-response-panel.js'
 import { installProfessionalConversationView } from './professional-conversation-view.js'
-import { createNativeCodexExecution, codexExecutionErrorMessage } from './codex-execution.js'
+import { createNativeCodexHistory } from './codex-execution.js'
 import { tCodexExecution } from './locales/codex-execution.js'
 import { installNativeWorkFilePreviews, nativeWorkFilePreviewCss } from './native-work-file-preview.js'
-import { buildCodexTurnDelegation, codexTurnModel, codexSupportsEffort, resolveCodexTurnSelection } from '../codex-turn.ts'
+import { buildCodexTurnDelegation, resolveCodexTurnSelection } from '../codex-turn.ts'
 import { fileIconClass, fileIconMeta, fileIconName } from '../file-icons.ts'
 import {
   PREVIEW_HEAD_CHARS,
@@ -387,7 +387,7 @@ const SearchSettings = createSearchSettings(React)
 
     const codexTurnControllers = window.__apCodexTurnControllers || (window.__apCodexTurnControllers = new Map())
     const codexTurnListeners = window.__apCodexTurnListeners || (window.__apCodexTurnListeners = new Set())
-    const nativeCodex = createNativeCodexExecution({ React, desktop: window.agentPiDesktop, language: () => langState.lang, useLanguage: useApLang, notify: notifyCodexTurn,
+    const nativeCodex = createNativeCodexHistory({ React, desktop: window.agentPiDesktop, language: () => langState.lang, useLanguage: useApLang,
       renderMessage: (text, cwd) => h('div', { dangerouslySetInnerHTML: { __html: mdToHtml(text, { cwd }) } }),
       openFile: (cwd, path) => window.dispatchEvent(new CustomEvent('agent-pi-open-file', { detail: { cwd, path } })),
     })
@@ -443,50 +443,15 @@ const SearchSettings = createSearchSettings(React)
       if (controller && controller.phase !== 'disposed') controller.latestProps = props
     }
     function codexTurnPhase(props) {
-      if (nativeCodex.enabled(codexTurnKey(props))) return 'armed'
-      const controller = codexTurnController(props, false)
-      return controller ? controller.phase : 'idle'
+      return 'idle'
     }
     function codexTurnArmed(props) {
-      return nativeCodex.enabled(codexTurnKey(props))
-    }
-    function setCodexTurnModel(props, model, status) {
-      const controller = codexTurnController(props, true)
-      if (controller.phase !== 'idle' && controller.phase !== 'armed') return
-      controller.selectedModel = String(model || '')
-      if (!codexSupportsEffort(codexTurnModel(status || {}, controller.selectedModel), controller.selectedReasoningEffort)) {
-        controller.selectedReasoningEffort = ''
-      }
-      notifyCodexTurn()
-    }
-    function setCodexTurnReasoningEffort(props, effort) {
-      const controller = codexTurnController(props, true)
-      if (controller.phase !== 'idle' && controller.phase !== 'armed') return
-      controller.selectedReasoningEffort = String(effort || '')
-      notifyCodexTurn()
+      return false
     }
     function setCodexTurnArmed(props, armed) {
-      const key = codexTurnKey(props)
-      if (!isLiveSessionId(key)) { showToast(tCodexExecution('openConversation', langState.lang)); return }
-      if (armed && attachmentTurnControllers.has(key)) {
-        showToast(workbenchText('当前会话已有附件发送事务，请等待完成后再切换 Codex 执行'))
-        return
-      }
-      const controller = codexTurnController(props, armed)
-      if (!controller) return
-      controller.latestProps = props
-      try { nativeCodex.setEnabled(key, armed) } catch (error) { showToast(error.message); return }
-      controller.phase = armed ? 'armed' : 'idle'
-      if (armed) openNativeCodexView()
-      notifyCodexTurn()
+      return false
     }
 
-    function openNativeCodexView() {
-      requestAnimationFrame(() => {
-        const tab = [...document.querySelectorAll('[data-conversation-tabs] [role="tab"]')].find((item) => item.textContent.trim() === 'Codex')
-        tab?.click()
-      })
-    }
     function disposeCodexTurnInputSubscription(controller) {
       const unsubscribeInput = controller.unsubscribeInput
       controller.unsubscribeInput = null
@@ -3443,63 +3408,6 @@ const SearchSettings = createSearchSettings(React)
       void prepareCodexTurn(key, token)
     }
 
-    async function submitCodexTurn(props) {
-      const key = codexTurnKey(props)
-      const controller = codexTurnController(props, true)
-      if (controller.nativePreparing || attachmentTurnControllers.has(key)) return
-      let authority
-      try { authority = codexTurnAuthorities(key) } catch { showToast(tCodexExecution('sessionBusy', langState.lang)); return }
-      const snapshot = authority && sessionSnapshotWithChat(key, authority.session)
-      if (!snapshot || snapshot.removed || snapshotIsBusy(snapshot)) { showToast(tCodexExecution('sessionBusy', langState.lang)); return }
-      const original = authority.inputStore.getSnapshot().draft || ''
-      const attachments = codexAttachItems(key).slice()
-      const ids = nativeCodexAttachmentIds(authority.inputStore.getSnapshot())
-      const kbSlugs = kbTaskOf(key).slugs.slice()
-      const kbTemplateKey = kbTemplateSelectionKey(key)
-      const selectedModel = controller.selectedModel
-      const selectedReasoningEffort = controller.selectedReasoningEffort
-      const unchanged = () => {
-        const live = codexTurnAuthorities(key)
-        const state = live && sessionSnapshotWithChat(key, live.session)
-        if (!state || state.removed || snapshotIsBusy(state) || live.session !== authority.session
-          || live.inputStore.getSnapshot().draft !== original
-          || !sameCodexAttachmentIds(codexAttachmentIds(codexAttachItems(key)), codexAttachmentIds(attachments))
-          || !sameCodexAttachmentIds(nativeCodexAttachmentIds(live.inputStore.getSnapshot()), ids)
-          || !sameCodexAttachmentIds(kbTaskOf(key).slugs, kbSlugs)
-          || kbTemplateSelectionKey(key) !== kbTemplateKey) throw new Error(tCodexExecution('sessionBusy', langState.lang))
-      }
-      controller.nativePreparing = true
-      try {
-        await flushKbTaskSelection(key)
-        const auth = await window.agentPiDesktop?.codexAuthStatus?.()
-        if (auth?.state !== 'logged-in') throw new Error(tCodexExecution('loginRequired', langState.lang))
-        unchanged()
-        const selection = resolveCodexTurnSelection(auth, selectedModel, selectedReasoningEffort)
-        const cwd = workspaceCwd(props)
-        const native = runtime.conversation?.resolveDraftAttachments?.(ids) || []
-        if (native.length !== ids.length) throw new Error(tCodexExecution('attachmentsNotReady', langState.lang))
-        const rows = attachments.map((item) => ({ ...item, path: item.path || joinPath(cwd, item.relativePath || item.name) }))
-        for (const item of native) {
-          const path = window.agentPiDesktop.pathForFile(item.file)
-          if (path) rows.push({ path, name: item.file.name, kind: item.kind })
-          else if (item.kind === 'image') {
-            const dataUrl = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(item.file) })
-            rows.push({ name: item.file.name, kind: 'image', dataUrl })
-          } else throw new Error(tCodexExecution('attachmentPathUnavailable', langState.lang))
-        }
-        unchanged()
-        const text = stripMentionArtifacts(original) || (rows.length ? tCodexExecution('attachmentTask', langState.lang) : '')
-        await nativeCodex.submit({ sessionId: key, cwd, text, attachments: rows, model: selection.model, reasoningEffort: selection.reasoningEffort })
-        if (authority.inputStore.getSnapshot().draft === original) setComposerDraft(props, '')
-        const consumed = new Set(attachments.map(codexAttachmentToken))
-        setAttachItemsFor(key, codexAttachItems(key).filter((item) => !consumed.has(codexAttachmentToken(item))))
-        for (const id of ids) props.inputActions?.removeAttachment?.(id)
-        runtime.conversation?.releaseDraftAttachments?.(native)
-        openNativeCodexView()
-      } catch (error) { showToast(codexExecutionErrorMessage(error, langState.lang)) }
-      finally { controller.nativePreparing = false; notifyCodexTurn() }
-    }
-
     function wrapComposerSubmit(props) {
       const actions = props && props.inputActions
       if (!actions || typeof actions.submit !== 'function') return
@@ -3517,10 +3425,6 @@ const SearchSettings = createSearchSettings(React)
         if (depthDraft !== before) {
           fillComposer(live, depthDraft)
           requestAnimationFrame(() => actions.submit())
-          return
-        }
-        if (codexTurnArmed(live)) {
-          submitCodexTurn(live)
           return
         }
         const attachmentKey = attachmentTurnKey(live)
@@ -4854,7 +4758,6 @@ const SearchSettings = createSearchSettings(React)
       const row = projects.find((item) => item.project.projectId === selectedId) || null
       const monitorParent = pinParentSessionId(props)
       const runtimeBudgetBinding = JSON.stringify([cwd, row?.project?.module, row?.project?.projectId, monitorParent])
-      const nativeBudgetExecutor = nativeCodex.busy(monitorParent) || nativeCodex.enabled(monitorParent)
       const runtimeBudgetRun = row?.project && monitorState.projectId === row.project.projectId
         && monitorState.module === row.project.module && sameFilePath(monitorState.cwd, cwd)
         && monitorState.parentSessionId === monitorParent ? monitorState.runtime?.run : null
@@ -4950,7 +4853,7 @@ const SearchSettings = createSearchSettings(React)
 
       const runStage = (project, stageId, action, submit, closeWorkbench) => {
         const parentId = pinParentSessionId(props)
-        const editedLimits = submit && !nativeBudgetExecutor && Object.keys(runtimeLimitEdits).length ? { ...runtimeLimitEdits } : undefined
+        const editedLimits = submit && Object.keys(runtimeLimitEdits).length ? { ...runtimeLimitEdits } : undefined
         setBusy(action + ':' + (stageId || ''))
         setError('')
         setNotice('')
@@ -4969,12 +4872,8 @@ const SearchSettings = createSearchSettings(React)
             else {
               if (['queued', 'steered'].includes(started.interaction?.dispatch)) clearSubmittedLimits()
               setNotice(started.interaction?.reason || '执行器已接收当前阶段任务。')
-              if (nativeCodex.enabled(parentId)) {
-                if (closeWorkbench !== false) props.openView?.('agent-pi-codex-main', '')
-              } else {
-                monitorEngine.restore({ cwd, module: project.module, projectId: project.projectId }, parentId)
-                if (closeWorkbench !== false) focusMainConversation(props)
-              }
+              monitorEngine.restore({ cwd, module: project.module, projectId: project.projectId }, parentId)
+              if (closeWorkbench !== false) focusMainConversation(props)
             }
             return refresh()
           }).catch(error => { setError(error.message); return refresh() })
@@ -5372,22 +5271,20 @@ const SearchSettings = createSearchSettings(React)
             h('details', { className: 'ap-sec' },
               h('summary', null, 'DSH 自动阶段执行预算'),
               h('div', { className: 'ap-row', style: { flexWrap: 'wrap', gap: 12 } },
-                [['maxRounds', '父子模型轮次'], ['maxTokens', '父子 token'], ['maxElapsedMs', '累计执行分钟'], ['maxNoProgress', '连续无进展次数'], ['maxCostUsd', '金额上限 USD（可选）']].map(([key, label]) =>
-                  h('label', { key, className: 'ap-mm-field' }, label, h('input', { type: 'number', min: key === 'maxCostUsd' ? 0.0001 : 1, step: key === 'maxCostUsd' ? 'any' : 1,
-                    disabled: !!busy || !monitorParent || nativeBudgetExecutor,
+                [['maxRounds', '父子模型轮次'], ['maxTokens', '父子 token'], ['maxElapsedMs', '累计执行分钟'], ['maxNoProgress', '连续无进展次数']].map(([key, label]) =>
+                  h('label', { key, className: 'ap-mm-field' }, label, h('input', { type: 'number', min: 1, step: 1,
+                    disabled: !!busy || !monitorParent,
                     value: key === 'maxElapsedMs' ? runtimeLimits[key] / 60000 : runtimeLimits[key] ?? '',
                     onChange: e => {
                       const value = e.target.value
                       setRuntimeLimitDraft(previous => {
                         const edits = { ...(previous.binding === runtimeBudgetBinding ? previous.edits : {}) }
-                        edits[key] = value === '' && key === 'maxCostUsd' ? null : Number(value) * (key === 'maxElapsedMs' ? 60000 : 1)
+                        edits[key] = Number(value) * (key === 'maxElapsedMs' ? 60000 : 1)
                         return { binding: runtimeBudgetBinding, edits }
                       })
                     } }))),
               ),
-              h('p', { className: 'ap-sub' }, nativeBudgetExecutor
-                ? '当前主执行器为原生 Codex；此处仅设置 DSH 自动阶段预算，控件已禁用。'
-                : '未编辑时保留已登记预算；仅将本次明确修改的值在下一次继续推进时提交。清空金额上限表示明确移除；费用未知时需核对后才能续派。'),
+              h('p', { className: 'ap-sub' }, '未编辑时保留已登记限制；仅将本次明确修改的轮次、token、执行时间及无进展限制在下一次继续推进时提交。本版不设 API 金额上限。'),
             ),
             h('div', { className: 'ap-dual-state' },
               h('article', { className: 'ap-state-card' },
@@ -6224,11 +6121,10 @@ const SearchSettings = createSearchSettings(React)
     const openTaskView = (id, view) => taskViews.get(id)?.at(-1)?.(view, '')
     const taskSubscriptions = (id, listener) => {
       const dsh = subscribeSessionWithChat(id, codexTurnAuthorities(id)?.session, listener)
-      const codex = nativeCodex.subscribe(id, listener)
       const changed = event => { if (event.detail?.sessionId === id) listener() }
       window.addEventListener('agent-pi-task-snapshot', changed)
       window.addEventListener('agent-pi-project-state-changed', listener)
-      return () => { dsh?.(); codex?.(); window.removeEventListener('agent-pi-task-snapshot', changed);window.removeEventListener('agent-pi-project-state-changed', listener) }
+      return () => { dsh?.(); window.removeEventListener('agent-pi-task-snapshot', changed);window.removeEventListener('agent-pi-project-state-changed', listener) }
     }
     const rememberProfessionalTask = (id, task, binding) => {
       const old = professionalTasks.get(id)
@@ -6254,14 +6150,8 @@ const SearchSettings = createSearchSettings(React)
       const id = payload.sessionId
       const authority = codexTurnAuthorities(id)
       const session = sessionSnapshotWithChat(id, authority?.session)
-      const cwd = professionalTasks.get(id)?.binding?.cwd || nativeCodex.current(id).cwd || session?.cwd || session?.header?.cwd || workspaceCwd({ sessionId: id })
-      const executor = nativeCodex.busy(id) || nativeCodex.enabled(id) ? 'codex' : 'dsh'
-      if (executor === 'codex' && !window.agentPiDesktop?.codexTaskAction) throw new Error('原生任务操作需要更新后的桌面应用，请在桌面端打开此对话。')
-      let result = await api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(id)}`, cwd, { method: 'POST', body: JSON.stringify({ ...payload, action: 'user_action', command: { ...payload.command, executor } }) })
-      if (result.interaction?.dispatch === 'requires_executor') {
-        const controller = codexTurnController({ sessionId: id }, false)
-        result = await nativeCodex.taskAction({ sessionId: id, cwd, operationId: payload.operationId, kind: payload.command.kind, model: controller?.selectedModel || undefined, reasoningEffort: controller?.selectedReasoningEffort || undefined })
-      }
+      const cwd = professionalTasks.get(id)?.binding?.cwd || session?.cwd || session?.header?.cwd || workspaceCwd({ sessionId: id })
+      const result = await api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(id)}`, cwd, { method: 'POST', body: JSON.stringify({ ...payload, action: 'user_action', command: { ...payload.command, executor: 'dsh' } }) })
       if (result?.task) rememberProfessionalTask(id, result.task, result.binding)
       window.dispatchEvent(new CustomEvent('agent-pi-task-snapshot', { detail: { sessionId: id } }))
       return result
@@ -6269,7 +6159,7 @@ const SearchSettings = createSearchSettings(React)
     const TaskSummary = createProfessionalTaskSummary({ React, api,
       cwd: () => snapshotComposer()?.cwd || '', language: () => document.documentElement.lang || 'zh',
       subscribe: taskSubscriptions, onOpenSource: openTaskSource, onUserAction: performTaskUserAction,
-      onOpenChat: id => openTaskView(id, nativeCodex.enabled(id) ? 'agent-pi-codex-main' : 'chat'),
+      onOpenChat: id => openTaskView(id, 'chat'),
       onOpenTask: id => openTaskView(id, 'agent-pi-task-guide'),
       onOpenWorkbench: openTaskWorkbench,
       onTask: rememberProfessionalTask,
@@ -6284,7 +6174,7 @@ const SearchSettings = createSearchSettings(React)
     const TaskProcess = createTaskProcess({
       React,
       language: () => document.documentElement.lang?.startsWith('en') ? 'en' : 'zh',
-      snapshot: (id) => nativeCodex.enabled(id) ? nativeCodex.current(id) : sessionSnapshotWithChat(id, codexTurnAuthorities(id)?.session),
+      snapshot: (id) => sessionSnapshotWithChat(id, codexTurnAuthorities(id)?.session),
       subscribe: taskSubscriptions,
       professionalTask: id => professionalTasks.get(id)?.task,
     })
@@ -6305,7 +6195,7 @@ const SearchSettings = createSearchSettings(React)
       useApLang()
       const capabilities = productCapabilities.use()
       React.useEffect(() => rememberTaskView(props.sessionId || '', props.openView), [props.sessionId, props.openView])
-      return capabilities.taskGuide ? h(TaskGuide, { sessionId: props.sessionId || '', onClose: () => props.openView(nativeCodex.enabled(props.sessionId) ? 'agent-pi-codex-main' : 'chat', '') }) : h('p', null, langState.lang === 'zh' ? '任务引导插件未启用。' : 'Task guide plugin is not enabled.')
+      return capabilities.taskGuide ? h(TaskGuide, { sessionId: props.sessionId || '', onClose: () => props.openView('chat', '') }) : h('p', null, langState.lang === 'zh' ? '任务引导插件未启用。' : 'Task guide plugin is not enabled.')
     }
 
     const ProfessionalDepth = createProfessionalDepth({
@@ -6349,7 +6239,6 @@ const SearchSettings = createSearchSettings(React)
         codexTurnListeners.add(sync)
         return () => { codexTurnListeners.delete(sync) }
       }, [])
-      const armed = codexTurnArmed(live)
       React.useEffect(() => {
         const onFill = (event) => {
           const text = event && event.detail && event.detail.text
@@ -6377,31 +6266,23 @@ const SearchSettings = createSearchSettings(React)
           return !/停止|Stop|stop/i.test(label)
         }
         const onClick = (event) => {
-          if (!codexTurnArmed(propsRef.current) && !codexAttachItems(attachmentTurnKey(propsRef.current)).length) return
+          if (!codexAttachItems(attachmentTurnKey(propsRef.current)).length) return
           if (!isSendButton(event.target.closest('button'))) return
           event.preventDefault()
           event.stopPropagation()
-          if (codexTurnArmed(propsRef.current)) {
-            void submitCodexTurn(propsRef.current)
-            return
-          }
           foldAndSubmit(propsRef.current)
         }
         const onKeyDown = (event) => {
           if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return
           if (Date.now() - compositionEndedAt < 10) return
           if (event.altKey || event.repeat || event.keyCode === 229 || (event.ctrlKey && event.metaKey) || event.getModifierState?.('AltGraph')) return
-          if (!codexTurnArmed(propsRef.current) && !codexAttachItems(attachmentTurnKey(propsRef.current)).length) return
+          if (!codexAttachItems(attachmentTurnKey(propsRef.current)).length) return
           const input = event.target && typeof event.target.closest === 'function'
             ? event.target.closest('textarea, [data-composer-input]')
             : null
           if (!input || !input.closest('[data-composer-card]')) return
           event.preventDefault()
           event.stopPropagation()
-          if (codexTurnArmed(propsRef.current)) {
-            void submitCodexTurn(propsRef.current)
-            return
-          }
           foldAndSubmit(propsRef.current)
         }
         document.addEventListener('click', onClick, true)
@@ -6446,17 +6327,6 @@ const SearchSettings = createSearchSettings(React)
             onMouseDown: (e) => e.preventDefault(),
             onClick: polish,
           }, Icon('sparkles', 15, busy ? 'ap-spin' : '')),
-          h('button', {
-            type: 'button',
-            className: 'ap-codex-turn' + (armed ? ' on' : ''),
-            'aria-pressed': armed ? 'true' : 'false',
-            title: armed
-              ? tCodexExecution('engineCodexTitle', langState.lang)
-              : tCodexExecution('engineDshTitle', langState.lang),
-            onMouseDown: (event) => event.preventDefault(),
-            onClick: () => setCodexTurnArmed(propsRef.current, !armed),
-          }, Icon('sparkles', 14), armed ? 'Codex' : 'DSH / Codex'),
-            armed && h(ComposerCodexModelSelector, { composer: live }),
             h(ProfessionalDepth, { key: live.sessionId || 'draft', composer: live }),
           h('button', {
             type: 'button',
@@ -7723,101 +7593,16 @@ const SearchSettings = createSearchSettings(React)
       injectWorkspaceArchiveMenu(document)
     }
 
-    function useCodexStatus() {
-      const desktop = window.agentPiDesktop
-      const [auth, setAuth] = React.useState({ available: true, state: 'checking' })
-      const [refreshing, setRefreshing] = React.useState(false)
-      const latestRequest = React.useRef(0)
-      const refresh = React.useCallback(async () => {
-        const request = ++latestRequest.current
-        setRefreshing(true)
-        try {
-          const next = desktop && typeof desktop.codexAuthStatus === 'function'
-            ? await desktop.codexAuthStatus()
-            : { available: false, state: 'unavailable' }
-          if (request === latestRequest.current) setAuth(next)
-        } catch {
-          if (request === latestRequest.current) setAuth({ available: false, state: 'unavailable' })
-        } finally {
-          if (request === latestRequest.current) setRefreshing(false)
-        }
-      }, [desktop])
-      React.useEffect(() => {
-        void refresh()
-        window.addEventListener('agent-pi-codex-model-changed', refresh)
-        return () => {
-          latestRequest.current += 1
-          window.removeEventListener('agent-pi-codex-model-changed', refresh)
-        }
-      }, [refresh])
-      return { auth, setAuth, refresh, refreshing }
-    }
-
-    function ComposerCodexModelSelector({ composer }) {
-      const { auth, refresh, refreshing } = useCodexStatus()
-      const zh = useApLang() === 'zh'
-      const controller = codexTurnController(composer, false)
-      const selectedModel = controller && controller.selectedModel || ''
-      const selectedEffort = controller && controller.selectedReasoningEffort || ''
-      const models = auth.models || []
-      const model = auth.model
-      const turnModel = codexTurnModel(auth, selectedModel)
-      const efforts = turnModel && turnModel.supportedReasoningEfforts || []
-      const inheritedEffort = codexSupportsEffort(turnModel, auth.selectedReasoningEffort)
-        ? auth.selectedReasoningEffort : turnModel && turnModel.defaultReasoningEffort
-      const inheritedLabel = auth.selectedReasoningEffort && !codexSupportsEffort(turnModel, auth.selectedReasoningEffort)
-        ? (zh ? '使用本模型默认' : 'Use this model’s default') : (zh ? '跟随设置' : 'Use saved setting')
-      const defaultLabel = model && (model.displayName || model.id) || auth.defaultModel
-      const locked = codexTurnPhase(composer) !== 'armed'
-      return h('span', { className: 'ap-codex-model-control' },
-        h('select', {
-          className: 'ap-codex-model-select',
-          'aria-label': zh ? '本次 Codex 模型' : 'Codex model for this message',
-          title: zh ? '仅用于下一条 Codex 执行消息' : 'Applies only to the next Codex message',
-          value: selectedModel,
-          disabled: locked || refreshing || auth.state !== 'logged-in' || !models.length,
-          onChange: (event) => setCodexTurnModel(composer, event.target.value, auth),
-        },
-        h('option', { value: '' }, refreshing
-          ? (zh ? '正在读取模型…' : 'Loading models…')
-          : (zh ? '默认模型' : 'Default model') + (defaultLabel ? ' · ' + defaultLabel : '')),
-        selectedModel && !models.some((entry) => entry.id === selectedModel)
-          && h('option', { value: selectedModel, disabled: true }, selectedModel + (zh ? '（不可用）' : ' (unavailable)')),
-        models.map((entry) => h('option', { key: entry.id, value: entry.id }, entry.displayName || entry.id))),
-        h('select', {
-          className: 'ap-codex-model-select',
-          'aria-label': zh ? '本次 Codex 思考等级' : 'Codex reasoning effort for this message',
-          title: zh ? '仅用于下一条 Codex 执行消息；未选择时使用与本次模型兼容的默认等级' : 'Applies to the next Codex message; otherwise use a compatible default effort',
-          value: selectedEffort,
-          disabled: locked || refreshing || auth.state !== 'logged-in' || !efforts.length,
-          onChange: (event) => setCodexTurnReasoningEffort(composer, event.target.value),
-        },
-        h('option', { value: '' }, inheritedLabel + (inheritedEffort ? ' · ' + inheritedEffort : '')),
-        selectedEffort && !codexSupportsEffort(turnModel, selectedEffort)
-          && h('option', { value: selectedEffort, disabled: true }, selectedEffort + (zh ? '（不可用）' : ' (unavailable)')),
-        efforts.map((entry) => h('option', { key: entry.reasoningEffort, value: entry.reasoningEffort, title: entry.description }, entry.reasoningEffort))),
-        !refreshing && (!models.length || auth.modelError) && h('button', {
-          type: 'button', className: 'ap-toolbtn', disabled: locked,
-          title: auth.modelError || (zh ? '登录后刷新 Codex 模型' : 'Sign in, then refresh Codex models'),
-          onClick: () => { void refresh() },
-        }, zh ? '刷新模型' : 'Refresh models'),
-      )
-    }
-
     function SearchSettingsSection() {
       const locale = useApLang()
       const operations = React.useMemo(() => createSearchSettingsOperations(runtime.remote, api), [runtime.remote])
       return h(SearchSettings, { operations, locale })
     }
 
-    function CodexSettingsSection() {
+    function DshRuntimeSettingsSection() {
       const desktop = window.agentPiDesktop
       const lang = useApLang()
       const zh = lang === 'zh'
-      const { auth, setAuth, refresh, refreshing } = useCodexStatus()
-      const [busy, setBusy] = React.useState(false)
-      const [modelBusy, setModelBusy] = React.useState(false)
-      const [modelMessage, setModelMessage] = React.useState('')
       const compactionBridgeAvailable = !!desktop
         && typeof desktop.compactionFallbackStatus === 'function'
         && typeof desktop.setCompactionFallback === 'function'
@@ -7825,12 +7610,6 @@ const SearchSettings = createSearchSettings(React)
       const lastConfirmedCompaction = React.useRef(true)
       const [compactionBusy, setCompactionBusy] = React.useState(compactionBridgeAvailable)
       const [compactionMessage, setCompactionMessage] = React.useState('')
-
-      React.useEffect(() => {
-        if (auth.state !== 'pending') return undefined
-        const timer = setInterval(() => { void refresh() }, 2000)
-        return () => clearInterval(timer)
-      }, [auth.state, refresh])
 
       const loadCompaction = React.useCallback(async () => {
         if (!compactionBridgeAvailable) {
@@ -7854,52 +7633,6 @@ const SearchSettings = createSearchSettings(React)
 
       React.useEffect(() => { void loadCompaction() }, [loadCompaction])
 
-      const invoke = async (method) => {
-        setBusy(true)
-        try {
-          setAuth(await desktop[method]())
-          window.dispatchEvent(new Event('agent-pi-codex-model-changed'))
-        } catch {
-          setAuth({ available: true, state: 'error' })
-        } finally {
-          setBusy(false)
-        }
-      }
-
-      const saveModel = async (modelId) => {
-        if (modelBusy || !desktop || typeof desktop.codexSetDefaultModel !== 'function') return
-        setModelBusy(true)
-        setModelMessage('')
-        try {
-          const next = await desktop.codexSetDefaultModel(modelId || null)
-          if (!next || next.state !== 'logged-in') throw new Error('Invalid Codex model preference')
-          setAuth(next)
-          setModelMessage(zh ? '默认模型已保存，下次 Codex 调用生效。' : 'Default model saved for the next Codex call.')
-          window.dispatchEvent(new Event('agent-pi-codex-model-changed'))
-        } catch {
-          setModelMessage(zh ? '模型保存失败，请刷新列表后重试。' : 'Could not save the model. Refresh the list and retry.')
-        } finally {
-          setModelBusy(false)
-        }
-      }
-
-      const saveReasoningEffort = async (effort) => {
-        if (modelBusy || !desktop || typeof desktop.codexSetDefaultReasoningEffort !== 'function') return
-        setModelBusy(true)
-        setModelMessage('')
-        try {
-          const next = await desktop.codexSetDefaultReasoningEffort(effort || null)
-          if (!next || next.state !== 'logged-in') throw new Error('Invalid Codex reasoning preference')
-          setAuth(next)
-          setModelMessage(zh ? '默认思考等级已保存，下次 Codex 调用生效。' : 'Default reasoning effort saved for the next Codex call.')
-          window.dispatchEvent(new Event('agent-pi-codex-model-changed'))
-        } catch {
-          setModelMessage(zh ? '思考等级保存失败，请刷新列表后重试。' : 'Could not save the reasoning effort. Refresh the list and retry.')
-        } finally {
-          setModelBusy(false)
-        }
-      }
-
       const saveCompaction = async () => {
         if (!compactionBridgeAvailable || compactionBusy) return
         const nextEnabled = !compactionEnabled
@@ -7922,132 +7655,8 @@ const SearchSettings = createSearchSettings(React)
         }
       }
 
-      const labels = zh
-        ? {
-            checking: '正在检查',
-            'logged-in': '已通过 ChatGPT 登录',
-            pending: '等待浏览器授权',
-            'logged-out': '未登录',
-            error: '登录未完成',
-            unavailable: 'Codex 运行时不可用',
-          }
-        : {
-            checking: 'Checking',
-            'logged-in': 'Signed in with ChatGPT',
-            pending: 'Waiting for browser authorization',
-            'logged-out': 'Not signed in',
-            error: 'Sign-in did not complete',
-            unavailable: 'Codex runtime unavailable',
-          }
-      const loggedIn = auth.state === 'logged-in'
-      const pending = auth.state === 'pending'
-      const statusClass = loggedIn ? 'ap-chip ok' : pending ? 'ap-chip live' : 'ap-chip warn'
-      const model = loggedIn && auth.model
-      const formatCapacity = (value) => Number(value).toLocaleString()
-      const capacitySource = zh
-        ? {
-            provider: '供应商返回',
-            official: '官方参数',
-            estimated: '估算参数',
-          }
-        : {
-            provider: 'Provider metadata',
-            official: 'Verified catalog',
-            estimated: 'Conservative estimate',
-          }
-
       return h('section', { className: 'ap-codex-settings' },
-        h('h1', null, zh ? 'Codex 智能体' : 'Codex Agent'),
-        h('p', { className: 'ap-codex-lead' }, zh
-          ? '在主对话选择 DSH 或 Codex 执行当前任务。Codex 直接与你交流，并复用同一套专业模块、任务依据和成果。'
-          : 'Choose DSH or Codex as the task executor in the main conversation. Codex communicates directly with you and shares the professional modules, task basis, and deliverables.'),
-        h('div', { className: 'ap-codex-card' },
-          h('div', { className: 'ap-codex-status' },
-            h('strong', null, 'ChatGPT / Codex'),
-            h('span', { className: statusClass }, labels[auth.state] || auth.state),
-          ),
-          h('p', { className: 'ap-sub' }, zh
-            ? '使用 ChatGPT 账号在系统浏览器中授权，无需 API Key。凭据仅保存在本机 Agent Pi 专属 Codex 目录。'
-            : 'Authorize with your ChatGPT account in the system browser. No API key is required; credentials stay in Agent Pi’s private local Codex directory.'),
-          loggedIn && h('div', { className: 'ap-codex-model-setting' },
-            h('label', { htmlFor: 'ap-codex-default-model' }, zh ? '默认 Codex 模型' : 'Default Codex model'),
-            h('select', {
-              id: 'ap-codex-default-model',
-              className: 'ap-codex-model-select',
-              value: auth.selectedModel || '',
-              disabled: modelBusy || refreshing || !(auth.models || []).length || typeof desktop.codexSetDefaultModel !== 'function',
-              onChange: (event) => { void saveModel(event.target.value) },
-            },
-            h('option', { value: '' }, zh ? '跟随 Codex 推荐模型' : 'Use the Codex recommended model'),
-            auth.selectedModel && !(auth.models || []).some((entry) => entry.id === auth.selectedModel)
-              && h('option', { value: auth.selectedModel, disabled: true }, auth.selectedModel + (zh ? '（不可用）' : ' (unavailable)')),
-            (auth.models || []).map((entry) => h('option', { key: entry.id, value: entry.id }, entry.displayName || entry.id))),
-            h('label', { htmlFor: 'ap-codex-default-reasoning' }, zh ? '默认 Codex 思考等级' : 'Default Codex reasoning effort'),
-            h('select', {
-              id: 'ap-codex-default-reasoning',
-              className: 'ap-codex-model-select',
-              value: auth.selectedReasoningEffort || '',
-              disabled: modelBusy || refreshing || !model || typeof desktop.codexSetDefaultReasoningEffort !== 'function',
-              onChange: (event) => { void saveReasoningEffort(event.target.value) },
-            },
-            h('option', { value: '' }, (zh ? '跟随模型默认' : 'Use the model default') + (model && model.defaultReasoningEffort ? ' · ' + model.defaultReasoningEffort : '')),
-            auth.selectedReasoningEffort && !codexSupportsEffort(model, auth.selectedReasoningEffort)
-              && h('option', { value: auth.selectedReasoningEffort, disabled: true }, auth.selectedReasoningEffort + (zh ? '（不可用）' : ' (unavailable)')),
-            (model && model.supportedReasoningEfforts || []).map((entry) => h('option', {
-              key: entry.reasoningEffort, value: entry.reasoningEffort, title: entry.description,
-            }, entry.reasoningEffort))),
-            h('p', { className: 'ap-sub' }, zh
-              ? '用于 Codex 主执行和辅助子智能体；主对话选择 Codex 后可指定模型和思考等级，并连续多轮执行。切换默认模型会清除不兼容的已保存等级。'
-              : 'Used by Codex main execution and auxiliary subagents. Select Codex in the main conversation to choose a model and reasoning effort for continued tasks. Changing the default model clears an incompatible saved effort.'),
-            (auth.modelError || auth.reasoningEffortError || modelMessage) && h('p', { className: 'ap-sub', role: 'status' }, auth.modelError || auth.reasoningEffortError || modelMessage),
-          ),
-          loggedIn && h('p', { className: 'ap-sub' }, model
-            ? [
-                h('strong', { key: 'id' }, model.id),
-                h('br', { key: 'break' }),
-                zh ? '上下文窗口：' : 'Context window: ',
-                formatCapacity(model.contextWindow),
-                ' · ',
-                capacitySource[model.contextWindowSource],
-                h('br', { key: 'output-break' }),
-                zh ? '最大输出：' : 'Maximum output: ',
-                formatCapacity(model.maxTokens),
-                ' · ',
-                capacitySource[model.maxTokensSource],
-              ]
-            : (zh ? '模型信息暂不可用' : 'Model information is temporarily unavailable')),
-          h('div', { className: 'ap-row', style: { marginTop: 14 } },
-            !loggedIn && h('button', {
-              type: 'button',
-              className: 'ap-btn primary',
-              disabled: busy || pending || !auth.available,
-              onClick: () => { void invoke('codexAuthLogin') },
-            }, pending ? (zh ? '等待授权…' : 'Waiting…') : (zh ? '使用 ChatGPT 登录' : 'Sign in with ChatGPT')),
-            h('button', {
-              type: 'button',
-              className: 'ap-btn',
-              disabled: busy || refreshing || modelBusy,
-              onClick: () => { void refresh() },
-            }, zh ? '刷新状态' : 'Refresh'),
-            loggedIn && h('button', {
-              type: 'button',
-              className: 'ap-btn warn',
-              disabled: busy,
-              onClick: () => {
-                if (window.confirm(zh ? '确认退出 Agent Pi 的 Codex 登录？' : 'Sign out of Codex in Agent Pi?')) {
-                  void invoke('codexAuthLogout')
-                }
-              },
-            }, zh ? '退出登录' : 'Sign out'),
-          ),
-          h('p', { className: 'ap-codex-note' },
-            zh ? '登录后，DSH 智能体可按需调用 ' : 'After sign-in, DSH agents can invoke ',
-            h('code', null, 'subagent_codex'),
-            zh
-              ? '。Codex 不会自动继承父对话或知识库，父智能体会把所需文件路径、知识和交付目标整理成独立任务。'
-              : '. Codex does not inherit parent conversation or knowledge automatically, so the parent provides a self-contained brief.',
-          ),
-        ),
+        h('h1', null, zh ? 'DSH 运行设置' : 'DSH runtime settings'),
         h('div', { className: 'ap-codex-card', style: { marginTop: 14 } },
           h('div', { className: 'ap-codex-status' },
             h('strong', null, zh ? '对话自动压缩' : 'Automatic conversation compaction'),
@@ -8188,7 +7797,7 @@ const SearchSettings = createSearchSettings(React)
           || runtime.uiConversation
       })
       ctx.slots.inject('conversation.view', () => ctx.slots.register(
-        { name: 'conversation.view', id: 'agent-pi-codex-main', order: 30, label: 'Codex' },
+        { name: 'conversation.view', id: 'agent-pi-codex-main', order: 30, label: () => langState.lang === 'zh' ? 'Codex 历史' : 'Codex history' },
         nativeCodex.View,
       ))
       ctx.slots.inject('conversation.view', () => ctx.slots.register(
@@ -8198,11 +7807,11 @@ const SearchSettings = createSearchSettings(React)
       ctx.slots.inject('settings.section', () => ctx.slots.register(
         {
           name: 'settings.section',
-          id: 'agent-pi-codex',
+          id: 'agent-pi-runtime',
           order: 15,
-          label: () => tAp('codex.title'),
+          label: () => langState.lang === 'zh' ? 'DSH 运行设置' : 'DSH runtime settings',
         },
-        CodexSettingsSection,
+        DshRuntimeSettingsSection,
       ))
       ctx.slots.inject('shell.overlay', () => ctx.slots.register(
         { name: 'shell.overlay', id: 'tender-workbench', order: 5, label: () => tAp('workbench.title') },

@@ -119,7 +119,7 @@ function makeLinkWithRetry(target, dest) {
   const kind = process.platform === 'win32' ? 'junction' : 'dir'
   for (let attempt = 1; ; attempt += 1) {
     try {
-      symlinkSync(target, dest, kind)
+      symlinkSync(process.platform === 'win32' ? target : relative(dirname(dest), target), dest, kind)
       return
     } catch (error) {
       const transient = error && (error.code === 'EBUSY' || error.code === 'EPERM' || error.code === 'EACCES' || error.code === 'EEXIST')

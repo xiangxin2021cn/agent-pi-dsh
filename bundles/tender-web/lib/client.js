@@ -9069,8 +9069,9 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 		//#endregion
 		//#region src/client/professional-task-summary.js
 		const professionalTaskSummaryCss = taskInteractionCss + `
-.ap-task-summary{border:1px solid var(--border,#d5dae1);border-radius:10px;margin:12px 16px;padding:12px 14px;background:var(--bg-primary,#fff);font-size:13px;color:var(--text-primary,#273240);min-width:0;max-height:min(36vh,320px);overflow:auto;flex-shrink:0}.ap-task-summary-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.ap-task-summary h3{font-size:14px;margin:0 0 6px}.ap-task-summary p{margin:5px 0;line-height:1.55;overflow-wrap:anywhere}.ap-task-summary button,.ap-task-finding button{font:inherit;padding:5px 9px;border:1px solid var(--border,#d5dae1);border-radius:6px;background:var(--bg-secondary,#f4f6f8);color:inherit;cursor:pointer}.ap-task-summary-muted{color:var(--text-secondary,#687280);font-size:12px}.ap-task-summary-facts{display:flex;gap:8px 14px;flex-wrap:wrap}.ap-task-finding{border:1px solid var(--border,#d5dae1);border-radius:8px;margin:10px 0;padding:12px}.ap-task-finding[data-importance=critical]{border-left:3px solid var(--accent,#285c7b)}.ap-task-finding h4{font-size:14px;margin:0 0 7px}.ap-task-finding p{margin:5px 0;line-height:1.55;overflow-wrap:anywhere}.ap-task-finding-sources,.ap-task-finding-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.ap-task-finding a{color:var(--accent,#285c7b)}.ap-task-finding-resolved{opacity:.8}.ap-task-summary pre{white-space:pre-wrap;overflow-wrap:anywhere}.ap-task-summary .ap-task-finding{margin-bottom:0}.ap-task-summary-empty{margin:0;color:var(--text-secondary,#687280)}.ap-task-stage-controls{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.ap-task-stage-review{width:100%;padding:10px;border:1px solid var(--border,#d5dae1);border-radius:8px}.ap-task-stage-review button{margin-right:8px}.ap-task-stage-controls button:disabled{opacity:.5;cursor:default}
-@media(max-width:600px){.ap-task-summary{margin:8px;padding:10px}.ap-task-summary-head{flex-wrap:wrap}}
+.ap-task-summary.ap-task-summary-error{padding:12px 14px}
+.ap-task-summary{border:1px solid var(--border,#d5dae1);border-radius:10px;margin:8px 16px;padding:0;background:var(--bg-primary,#fff);font-size:13px;color:var(--text-primary,#273240);min-width:0;flex-shrink:0}.ap-task-summary-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.ap-task-summary h3{font-size:14px;margin:0 0 6px}.ap-task-summary p{margin:5px 0;line-height:1.55;overflow-wrap:anywhere}.ap-task-summary button,.ap-task-finding button{font:inherit;padding:5px 9px;border:1px solid var(--border,#d5dae1);border-radius:6px;background:var(--bg-secondary,#f4f6f8);color:inherit;cursor:pointer}.ap-task-summary button.ap-task-summary-toggle{display:flex;align-items:center;gap:8px;width:100%;min-width:0;min-height:40px;padding:8px 12px;text-align:left;border:0;border-radius:10px;background:transparent}.ap-task-summary-toggle:focus-visible{outline:2px solid var(--accent,#285c7b);outline-offset:2px}.ap-task-summary-toggle strong,.ap-task-summary-toggle-label{flex-shrink:0}.ap-task-summary-objective{min-width:0;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.ap-task-summary-status{max-width:42%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--text-secondary,#687280);font-size:12px}.ap-task-summary-body{padding:0 14px 12px;max-height:min(36vh,320px);overflow:auto;border-top:1px solid var(--border,#d5dae1)}.ap-task-summary-body[hidden]{display:none}.ap-task-summary-body .ap-task-summary-head{padding-top:12px}.ap-task-summary-muted{color:var(--text-secondary,#687280);font-size:12px}.ap-task-summary-facts{display:flex;gap:8px 14px;flex-wrap:wrap}.ap-task-finding{border:1px solid var(--border,#d5dae1);border-radius:8px;margin:10px 0;padding:12px}.ap-task-finding[data-importance=critical]{border-left:3px solid var(--accent,#285c7b)}.ap-task-finding h4{font-size:14px;margin:0 0 7px}.ap-task-finding p{margin:5px 0;line-height:1.55;overflow-wrap:anywhere}.ap-task-finding-sources,.ap-task-finding-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.ap-task-finding a{color:var(--accent,#285c7b)}.ap-task-finding-resolved{opacity:.8}.ap-task-summary pre{white-space:pre-wrap;overflow-wrap:anywhere}.ap-task-summary .ap-task-finding{margin-bottom:0}.ap-task-summary-empty{margin:0;color:var(--text-secondary,#687280)}.ap-task-stage-controls{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.ap-task-stage-review{width:100%;padding:10px;border:1px solid var(--border,#d5dae1);border-radius:8px}.ap-task-stage-review button{margin-right:8px}.ap-task-stage-controls button:disabled{opacity:.5;cursor:default}
+@media(max-width:600px){.ap-task-summary{margin:8px}.ap-task-summary-head{flex-wrap:wrap}.ap-task-summary button.ap-task-summary-toggle{flex-wrap:wrap;gap:5px 8px}.ap-task-summary-objective{flex-basis:calc(100% - 100px)}.ap-task-summary-status{max-width:none;flex:1;margin-left:20px}.ap-task-summary-toggle-label{margin-left:auto}}
 `;
 		function visibleTaskFindings(task, includeResolved = false) {
 			const latest = /* @__PURE__ */ new Map();
@@ -9292,10 +9293,13 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 			return function ProfessionalTaskSummary({ sessionId, taskResult, binding, onOpenTask: openTask, visible = true }) {
 				const [result, setResult] = React.useState(null);
 				const [error, setError] = React.useState(""), [retry, setRetry] = React.useState(0);
+				const [expandedSession, setExpandedSession] = React.useState(null);
+				const detailsId = React.useId();
 				const revision = React.useRef(-1);
 				React.useEffect(() => {
 					setResult(null);
 					setError("");
+					setExpandedSession(null);
 					revision.current = -1;
 				}, [sessionId]);
 				React.useEffect(() => {
@@ -9344,7 +9348,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				const current = result?.task.revision > (taskResult?.task.revision ?? -1) ? result : taskResult || result;
 				const task = current?.task;
 				if (!visible) return null;
-				if (!task) return error ? h("section", { className: "ap-task-summary" }, h("p", { role: "alert" }, error), h("button", {
+				if (!task) return error ? h("section", { className: "ap-task-summary ap-task-summary-error" }, h("p", { role: "alert" }, error), h("button", {
 					type: "button",
 					onClick: () => setRetry((value) => value + 1)
 				}, String(language?.()).startsWith("zh") ? "重试读取本次任务" : "Retry reading the current task")) : null;
@@ -9365,10 +9369,36 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					}
 				};
 				const openChat = onOpenChat ? () => onOpenChat(sessionId) : void 0;
+				const expanded = expandedSession === sessionId;
+				const state = current?.interactionState || {};
+				const status = [
+					state.paused ?? task.control?.paused ?? false ? state.running ? zh ? "接续已暂停，执行未停止" : "Continuation paused; execution still active" : zh ? "已暂停" : "Paused" : state.running ? zh ? "执行中" : "Running" : state.pending ? zh ? "待执行" : "Pending" : "",
+					(error || ["blocked", "needs_review"].includes(model.currentStep?.status) || ["blocked", "requires_executor"].includes(task.control?.lastAction?.dispatch) || project?.approvalGate && project.waitingHuman !== false) && (zh ? "需要处理" : "Needs attention"),
+					model.questions.length > 0 && `${model.questions.length}${zh ? " 个问题待明确" : " questions to clarify"}`,
+					model.delivery.total > 0 && `${zh ? "成果 " : "Deliverables "}${model.delivery.total}`,
+					model.findings.length > 0 && `${zh ? "发现 " : "Findings "}${model.findings.length}`
+				].filter(Boolean).join(" · ");
 				return h("section", {
 					className: "ap-task-summary",
 					"aria-label": zh ? "共同任务理解" : "Shared task understanding",
 					"data-task-revision": task.revision
+				}, h("button", {
+					type: "button",
+					className: "ap-task-summary-toggle",
+					"aria-label": expanded ? zh ? "收起本次任务" : "Collapse current task" : zh ? "展开本次任务" : "Expand current task",
+					"aria-expanded": expanded,
+					"aria-controls": detailsId,
+					onClick: () => setExpandedSession(expanded ? null : sessionId)
+				}, h("span", { "aria-hidden": true }, expanded ? "▾" : "▸"), h("strong", null, zh ? "本次任务" : "Current task"), h("span", {
+					className: "ap-task-summary-objective",
+					title: model.objective
+				}, model.objective || (zh ? "正在整理目标" : "Understanding the goal")), status && h("span", {
+					className: "ap-task-summary-status",
+					title: status
+				}, status), h("span", { className: "ap-task-summary-toggle-label" }, expanded ? zh ? "收起" : "Collapse" : zh ? "展开" : "Expand")), h("div", {
+					id: detailsId,
+					className: "ap-task-summary-body",
+					hidden: !expanded
 				}, h("div", { className: "ap-task-summary-head" }, h("div", null, h("h3", null, zh ? "本次目标" : "Current goal"), h("p", null, model.objective || (zh ? "正在结合你的表达和资料整理目标。" : "Understanding your goal from the conversation and materials.")), goalStatus && h("span", { className: "ap-task-summary-muted" }, goalStatus === "provisional" || goalStatus === "conflict" ? zh ? "暂定理解，可在对话中纠正" : "Provisional; correct this in the conversation" : zh ? "来自当前任务要求" : "From the current task requirements")), open && h("button", {
 					type: "button",
 					onClick: () => open(sessionId)
@@ -9401,7 +9431,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 						onChanged: changed,
 						onOpenChat: openChat
 					})
-				}), model.findings.length > 3 && h("p", { className: "ap-task-summary-muted" }, `${zh ? "另有 " : "Plus "}${model.findings.length - 3}${zh ? " 项发现，可在本次任务中查看。" : " findings in Current task."}`), model.changes[0]?.summary && h("p", { className: "ap-task-summary-muted" }, `${zh ? "最近调整：" : "Latest adjustment: "}${model.changes[0].summary}`));
+				}), model.findings.length > 3 && h("p", { className: "ap-task-summary-muted" }, `${zh ? "另有 " : "Plus "}${model.findings.length - 3}${zh ? " 项发现，可在本次任务中查看。" : " findings in Current task."}`), model.changes[0]?.summary && h("p", { className: "ap-task-summary-muted" }, `${zh ? "最近调整：" : "Latest adjustment: "}${model.changes[0].summary}`)));
 			};
 		}
 		//#endregion
@@ -10082,6 +10112,53 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				conflicts
 			};
 		}
+		function renderTaskExecution(h, execution, locale) {
+			if (!execution) return null;
+			const zh = String(locale || "zh").startsWith("zh");
+			const phases = zh ? {
+				inactive: "尚未启用自动接续",
+				ready: "等待宿主派发",
+				waiting: "执行或回执处理中",
+				paused: "自动接续已暂停",
+				needs_review: "需要核对",
+				blocked: "续派已阻止",
+				done: "当前阶段执行结束"
+			} : {
+				inactive: "Automatic continuation not active",
+				ready: "Awaiting host dispatch",
+				waiting: "Execution or receipts in progress",
+				paused: "Automatic continuation paused",
+				needs_review: "Reconciliation required",
+				blocked: "Continuation blocked",
+				done: "Current stage execution ended"
+			};
+			const attempts = zh ? {
+				prepared: "已准备",
+				dispatching: "正在确认派发",
+				dispatched: "已派发，待结算",
+				settled: "已结算",
+				stale: "输入已变更"
+			} : {
+				prepared: "Prepared",
+				dispatching: "Confirming dispatch",
+				dispatched: "Dispatched; settlement pending",
+				settled: "Settled",
+				stale: "Inputs changed"
+			};
+			const known = (value) => Number.isFinite(value) && value >= 0;
+			const count = (value) => known(value) ? value : zh ? "待核对" : "Unconfirmed";
+			const budget = (label, key, minutes = false) => {
+				const used = execution.usage?.[key === "maxRounds" ? "rounds" : key === "maxTokens" ? "tokens" : "elapsedMs"];
+				const limit = execution.limits?.[key];
+				const format = (value) => minutes && known(value) ? Math.round(value / 600) / 100 : count(value);
+				const uncertain = key === "maxTokens" && execution.usage?.unknownTokens;
+				return h("p", { key }, label + (zh ? "：" : ": ") + (uncertain ? (zh ? "待核对（已知 " : "Unconfirmed (known ") + count(used) + (zh ? "）" : ")") : format(used)) + " / " + format(limit), !uncertain && known(used) && known(limit) ? (zh ? "，剩余 " : "; remaining ") + format(Math.max(0, limit - used)) : "");
+			};
+			return h("article", { "data-task-execution": execution.phase }, h("h3", null, zh ? "长任务接力" : "Long-task continuation"), h("p", { role: "status" }, phases[execution.phase] || execution.phase), execution.reason && h("p", null, execution.reason), execution.rootSessionId && h("p", null, zh ? "原主会话：" : "Original main session: ", h("code", null, execution.rootSessionId)), execution.stageId && h("p", null, (zh ? "当前阶段：" : "Current stage: ") + execution.stageId), execution.attempt && h("p", null, zh ? "当前尝试：" : "Current attempt: ", h("code", null, execution.attempt.id), " · ", attempts[execution.attempt.status] || execution.attempt.status), execution.context && h("p", {
+				className: "ap-guide-muted",
+				title: execution.context.fingerprint
+			}, (zh ? "本轮依据：知识库 " : "Basis for this attempt: knowledge bases ") + count(execution.context.knowledgeCount) + (zh ? " · 主范本 " : " · primary templates ") + count(execution.context.templateCount) + (zh ? " · 技能 " : " · skills ") + count(execution.context.skillCount)), execution.usage && h("div", null, h("p", { className: "ap-guide-muted" }, zh ? "以下轮次、token、累计执行时间及剩余额度仅为 DSH 已知用量，不代表包含外部 CLI 的完整总量。" : "Rounds, tokens, execution time and remaining allowances below cover only usage known to DSH, not a complete total including external CLIs."), budget(zh ? "DSH 已知父子模型轮次" : "DSH known parent and child model rounds", "maxRounds"), budget(zh ? "DSH 已知父子 token" : "DSH known parent and child tokens", "maxTokens"), budget(zh ? "DSH 已知累计执行分钟" : "DSH known cumulative execution minutes", "maxElapsedMs", true), h("p", null, (zh ? "连续无实际进展：" : "Consecutive attempts without actual progress: ") + count(execution.noProgress) + " / " + count(execution.limits?.maxNoProgress))), execution.external && h("div", { "data-task-external": "unreported" }, h("p", null, (zh ? "外部 CLI：待结算 " : "External CLI: unsettled ") + count(execution.external.pendingCount) + (zh ? " · 待复核 " : " · needs review ") + count(execution.external.needsReviewCount) + (zh ? " · 失败 " : " · failed ") + count(execution.external.failedCount)), h("p", { className: "ap-guide-muted" }, zh ? "外部 CLI token 未报告；其执行结果仍须核对，不据此判断任务已完成。" : "External CLI tokens are unreported. Its results still require review and do not establish task completion.")), execution.pendingToolCount > 0 && h("p", null, (zh ? "待核对工具回执：" : "Tool receipts to reconcile: ") + execution.pendingToolCount), execution.unsettledChildCount > 0 && h("p", null, (zh ? "未结算子任务：" : "Unsettled child tasks: ") + execution.unsettledChildCount), execution.phase === "paused" && h("p", { className: "ap-guide-muted" }, zh ? "自动接续保持暂停；当前执行是否已停止，以主对话的实际执行状态为准。" : "Automatic continuation remains paused. Use the actual execution state in the main conversation to confirm whether the current turn has stopped."), h("p", { className: "ap-guide-muted" }, zh ? "执行结束或收到成果不代表阶段批准或客户验收；仍以实际成果检查为准。" : "Execution ending or a received artifact does not establish stage approval or customer acceptance. Actual artifact checks remain authoritative."));
+		}
 		function createTaskGuide({ React, api, cwd, language, subscribe, onOpenSource, onOpenWorkbench, onTask, onUserAction }) {
 			const h = React.createElement;
 			const EngineeringPanel = createEngineeringPanel({
@@ -10452,7 +10529,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 						sessionId,
 						cwd: cwd(),
 						hideEmpty: true
-					}), article("progress", zh ? "实际工作进展" : "Actual work progress", h(React.Fragment, null, model.currentStep && h("p", null, (zh ? "当前重点：" : "Current focus: ") + model.currentStep.title), h("div", { className: "ap-guide-progress" }, h("span", null, (zh ? "资料抽取：" : "Source extraction: ") + model.coverage.parsed + "/" + model.coverage.total), h("span", null, (zh ? "专业复核：" : "Professional review: ") + model.coverage.reviewed + "/" + model.coverage.total), h("span", null, (zh ? "缺失 / 不可读：" : "Missing / unreadable: ") + model.coverage.missing + " / " + model.coverage.unreadable), h("span", null, (zh ? "客户验收：" : "Customer acceptance: ") + model.delivery.accepted + "/" + model.delivery.total)), model.coverage.total === 0 && h("p", { className: "ap-guide-muted" }, zh ? "尚未登记资料检查对象，不推算完成率。" : "No source inspection objects have been registered yet."), h("button", { onClick: () => setTab("plan") }, text.plan), h("button", { onClick: () => setTab("delivery") }, text.delivery))), model.changes.length > 0 && article("changes", zh ? "调整记录" : "Adjustment history", h(React.Fragment, null, ...model.changes.slice(0, 8).map((row) => h("div", { key: row.sequence }, h("p", null, row.summary), row.affectedRefs?.length > 0 && h("p", { className: "ap-guide-muted" }, (zh ? "受影响：" : "Affected: ") + row.affectedRefs.join("、")))))));
+					}), article("progress", zh ? "实际工作进展" : "Actual work progress", h(React.Fragment, null, model.currentStep && h("p", null, (zh ? "当前重点：" : "Current focus: ") + model.currentStep.title), h("div", { className: "ap-guide-progress" }, h("span", null, (zh ? "资料抽取：" : "Source extraction: ") + model.coverage.parsed + "/" + model.coverage.total), h("span", null, (zh ? "专业复核：" : "Professional review: ") + model.coverage.reviewed + "/" + model.coverage.total), h("span", null, (zh ? "缺失 / 不可读：" : "Missing / unreadable: ") + model.coverage.missing + " / " + model.coverage.unreadable), h("span", null, (zh ? "客户验收：" : "Customer acceptance: ") + model.delivery.accepted + "/" + model.delivery.total)), model.coverage.total === 0 && h("p", { className: "ap-guide-muted" }, zh ? "尚未登记资料检查对象，不推算完成率。" : "No source inspection objects have been registered yet."), h("button", { onClick: () => setTab("plan") }, text.plan), h("button", { onClick: () => setTab("delivery") }, text.delivery))), renderTaskExecution(h, result?.execution, language()), model.changes.length > 0 && article("changes", zh ? "调整记录" : "Adjustment history", h(React.Fragment, null, ...model.changes.slice(0, 8).map((row) => h("div", { key: row.sequence }, h("p", null, row.summary), row.affectedRefs?.length > 0 && h("p", { className: "ap-guide-muted" }, (zh ? "受影响：" : "Affected: ") + row.affectedRefs.join("、")))))));
 					if (tab === "responses") body = renderTenderResponseCoverage(h, result?.responseCoverage, {
 						locale: language(),
 						onOpenFile: (path, locator) => window.dispatchEvent(new CustomEvent("agent-pi-open-file", { detail: {
@@ -10508,7 +10585,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 						const workbenchPlan = (draft.plan || []).filter((row) => row.id?.startsWith("workbench:") && !row.id.includes(":execution:"));
 						const executionPlan = (draft.plan || []).filter((row) => !row.id?.startsWith("workbench:") || row.id.includes(":execution:"));
 						const planRows = (rows) => rows.map((row) => article(row.id, row.title, h(React.Fragment, null, h("p", null, displayState(row.status)), h("p", { className: "ap-guide-muted" }, (row.dependsOn || []).join(" → ")), (row.gaps || []).map((gap, index) => h("p", { key: "g" + index }, text.missing + ": " + gap)), (row.supplements || []).map((supplement, index) => h("p", { key: "s" + index }, supplement)))));
-						body = h(React.Fragment, null, h("p", null, draft.assessment || text.waiting), workbenchPlan.length > 0 && h("section", { "aria-label": zh ? "工作台阶段与实际门禁" : "Workbench stages and actual gates" }, h("h3", null, zh ? "工作台阶段与实际门禁" : "Workbench stages and actual gates"), ...planRows(workbenchPlan)), executionPlan.length > 0 && h("section", { "aria-label": workbenchPlan.length ? zh ? "执行者登记的工作进度" : "Agent-registered work progress" : text.plan }, workbenchPlan.length > 0 && h("h3", null, zh ? "执行者登记的工作进度" : "Agent-registered work progress"), workbenchPlan.length > 0 && h("p", { className: "ap-guide-muted" }, zh ? "这些记录反映执行者登记的工作进度；完成不等于阶段审批或成果验收，不合计为项目完成率。" : "These records reflect work registered by the agent. Completion does not establish stage approval or deliverable acceptance, and is not added to project completion."), ...planRows(executionPlan)), h("h3", null, text.source), (draft.coverage || []).map((row) => article(row.id, row.title, h("p", null, displayState(row.status) + " · " + (row.review || "") + " · " + row.locator))));
+						body = h(React.Fragment, null, renderTaskExecution(h, result?.execution, language()), h("p", null, draft.assessment || text.waiting), workbenchPlan.length > 0 && h("section", { "aria-label": zh ? "工作台阶段与实际门禁" : "Workbench stages and actual gates" }, h("h3", null, zh ? "工作台阶段与实际门禁" : "Workbench stages and actual gates"), ...planRows(workbenchPlan)), executionPlan.length > 0 && h("section", { "aria-label": workbenchPlan.length ? zh ? "执行者登记的工作进度" : "Agent-registered work progress" : text.plan }, workbenchPlan.length > 0 && h("h3", null, zh ? "执行者登记的工作进度" : "Agent-registered work progress"), workbenchPlan.length > 0 && h("p", { className: "ap-guide-muted" }, zh ? "这些记录反映执行者登记的工作进度；完成不等于阶段审批或成果验收，不合计为项目完成率。" : "These records reflect work registered by the agent. Completion does not establish stage approval or deliverable acceptance, and is not added to project completion."), ...planRows(executionPlan)), h("h3", null, text.source), (draft.coverage || []).map((row) => article(row.id, row.title, h("p", null, displayState(row.status) + " · " + (row.review || "") + " · " + row.locator))));
 					}
 					if (tab === "capabilities") body = result?.capabilities?.toSorted((a, b) => [
 						"available",
@@ -10808,7 +10885,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					if (!native) return;
 					const Dock = (props) => {
 						const view = props.useStore((state) => state.view);
-						const visible = view === null || view === "chat" || view === "agent-pi-codex-main";
+						const visible = view === null || view === "chat";
 						return React.createElement(Summary, {
 							...props,
 							visible
@@ -11319,37 +11396,34 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 			if (!message || /^(?:Error|Unknown(?: error)?|undefined|null|\[object Object\])[.!]?$/i.test(message)) return fallback;
 			return message.length > 500 ? message.slice(0, 500) + "…" : message;
 		}
-		function createNativeCodexExecution({ React, desktop, language, useLanguage = language, notify = () => {}, renderMessage = (text) => text, openFile }) {
+		function createNativeCodexHistory({ React, desktop, language, useLanguage = language, renderMessage = (text) => text, openFile }) {
 			const h = React.createElement;
 			const states = /* @__PURE__ */ new Map();
 			const listeners = /* @__PURE__ */ new Map();
-			const engines = /* @__PURE__ */ new Map();
-			let unsubscribe = null;
 			const current = (id) => states.get(id) || {
 				sessionId: id,
-				phase: "idle",
-				messages: [],
-				requests: []
+				messages: []
 			};
 			const update = (state) => {
 				if (!state?.sessionId) return;
-				states.set(state.sessionId, state);
+				states.set(state.sessionId, {
+					sessionId: state.sessionId,
+					cwd: state.cwd,
+					messages: state.messages || [],
+					error: state.error,
+					errorCode: state.errorCode
+				});
 				for (const listener of listeners.get(state.sessionId) || []) listener();
-				notify();
-			};
-			const connect = () => {
-				unsubscribe ??= desktop?.onCodexExecution?.(update) || null;
 			};
 			const load = async (id) => {
-				if (!id || !desktop?.codexExecutionStatus) return;
-				connect();
+				const read = desktop?.codexHistoryStatus || desktop?.codexExecutionStatus;
+				if (!id || !read) return;
 				update({
-					...await desktop.codexExecutionStatus(id),
+					...await read.call(desktop, id),
 					sessionId: id
 				});
 			};
 			const subscribe = (id, listener) => {
-				connect();
 				const set = listeners.get(id) || /* @__PURE__ */ new Set();
 				listeners.set(id, set);
 				set.add(listener);
@@ -11358,111 +11432,6 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					if (!set.size) listeners.delete(id);
 				};
 			};
-			const busy = (id) => [
-				"starting",
-				"running",
-				"waiting"
-			].includes(current(id).phase);
-			const enabled = (id) => {
-				if (!engines.has(id)) {
-					let value = false;
-					try {
-						value = localStorage.getItem(`agent-pi:main-engine:${id}`) === "codex";
-					} catch {}
-					engines.set(id, value);
-				}
-				return engines.get(id) === true;
-			};
-			const setEnabled = (id, value) => {
-				if (busy(id)) throw new Error(tCodexExecution("switchBlocked", language()));
-				engines.set(id, value === true);
-				try {
-					localStorage.setItem(`agent-pi:main-engine:${id}`, value ? "codex" : "dsh");
-				} catch {}
-				notify();
-			};
-			async function submit(input) {
-				if (!desktop?.codexExecutionSubmit) throw new Error(tCodexExecution("desktopRequired", language()));
-				connect();
-				return update(await desktop.codexExecutionSubmit(input));
-			}
-			async function taskAction(input) {
-				if (!desktop?.codexTaskAction) throw new Error(tCodexExecution("desktopRequired", language()));
-				connect();
-				const result = await desktop.codexTaskAction(input);
-				if (result.state) update({
-					...result.state,
-					sessionId: input.sessionId
-				});
-				return result.result;
-			}
-			function Question({ request, identity }) {
-				const lang = useLanguage();
-				const [answers, setAnswers] = React.useState({});
-				const [error, setError] = React.useState("");
-				const t = (key) => tCodexExecution(key, lang);
-				const send = async (answer) => {
-					try {
-						update(await desktop.codexExecutionReply(identity, request.id, answer));
-					} catch {
-						setError(t("replyFailed"));
-					}
-				};
-				const questions = request.params.questions || [];
-				return h("section", { style: {
-					border: "1px solid #ccd4df",
-					borderRadius: 10,
-					padding: 16,
-					margin: "12px 0"
-				} }, h("strong", null, t(questions.length ? "answerNeeded" : "approvalNeeded")), questions.length ? questions.map((question) => h("label", {
-					key: question.id,
-					style: {
-						display: "block",
-						marginTop: 10
-					}
-				}, h("div", null, question.question), question.options?.length ? h("select", {
-					value: answers[question.id] || "",
-					onChange: (event) => setAnswers({
-						...answers,
-						[question.id]: event.target.value
-					})
-				}, h("option", { value: "" }, t("choose")), ...question.options.map((option) => h("option", {
-					key: option.label,
-					value: option.label
-				}, option.label + (option.description ? " — " + option.description : ""))), question.isOther && h("option", { value: "__other__" }, t("other"))) : null, (!question.options?.length || answers[question.id] === "__other__") && h("input", {
-					type: question.isSecret ? "password" : "text",
-					value: answers[question.id + ":other"] || "",
-					onChange: (event) => setAnswers({
-						...answers,
-						[question.id + ":other"]: event.target.value
-					}),
-					style: {
-						width: "100%",
-						marginTop: 6
-					}
-				}))) : h("pre", { style: {
-					whiteSpace: "pre-wrap",
-					wordBreak: "break-word"
-				} }, JSON.stringify({
-					reason: request.params.reason,
-					command: request.params.command,
-					changes: request.params.changes,
-					permissions: request.params.permissions,
-					additionalPermissions: request.params.additionalPermissions,
-					networkApprovalContext: request.params.networkApprovalContext,
-					grantRoot: request.params.grantRoot,
-					cwd: request.params.cwd
-				}, null, 2)), error && h("p", { role: "alert" }, error), questions.length ? h("button", {
-					type: "button",
-					onClick: () => send(Object.fromEntries(questions.map((question) => [question.id, !question.options?.length || answers[question.id] === "__other__" ? answers[question.id + ":other"] : answers[question.id]])))
-				}, t("reply")) : h("div", null, h("button", {
-					type: "button",
-					onClick: () => send("accept")
-				}, t("approve")), " ", h("button", {
-					type: "button",
-					onClick: () => send("decline")
-				}, t("decline"))));
-			}
 			function View(props) {
 				const lang = useLanguage();
 				const id = props.sessionId || "";
@@ -11480,10 +11449,6 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 				const t = (key) => tCodexExecution(key, lang);
 				const errorSummary = t(state.errorCode || "requestFailed");
 				const errorDetail = codexExecutionErrorMessage(state.error, lang);
-				const identity = {
-					sessionId: id,
-					cwd: state.cwd
-				};
 				const message = (row) => {
 					if (row.role === "tool") return h("details", null, h("summary", null, row.text.split("\n")[0]), h("pre", { style: { whiteSpace: "pre-wrap" } }, row.text));
 					const links = /\[([^\]]+)\]\((<?(?:[A-Za-z]:[\\/]|\/)[^)\n]+)\)/g;
@@ -11503,7 +11468,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					return parts;
 				};
 				return h("div", {
-					"data-agent-pi-codex-main": id,
+					"data-agent-pi-codex-history": id,
 					style: {
 						height: "100%",
 						overflow: "auto",
@@ -11513,17 +11478,7 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					maxWidth: 900,
 					margin: "0 auto",
 					padding: 24
-				} }, h("strong", null, t("main")), h("span", { style: {
-					marginLeft: 12,
-					color: "#697586"
-				} }, t(state.phase === "idle" ? "ready" : state.phase)), busy(id) && h("button", {
-					type: "button",
-					style: { marginLeft: 12 },
-					onClick: () => desktop.codexExecutionInterrupt(identity).then(update).catch((error) => update({
-						...state,
-						error: error.message
-					}))
-				}, t("stop")), !state.messages.length && h("p", null, t("intro")), ...state.messages.map((row) => h("article", {
+				} }, h("strong", null, lang === "zh" ? "Codex 历史（只读）" : "Codex history (read-only)"), h("p", { style: { color: "#697586" } }, lang === "zh" ? "保留原对话和成果；请回到对话页面，由 DSH 接续当前任务。" : "Original messages and deliverables are preserved. Return to Chat to continue the task with DSH."), !state.messages.length && h("p", null, lang === "zh" ? "此会话没有 Codex 历史记录。" : "No Codex history for this conversation."), ...state.messages.map((row) => h("article", {
 					key: row.id,
 					style: {
 						marginTop: 20,
@@ -11544,25 +11499,14 @@ button[class*="toggle"]:has(> svg[viewBox="0 0 23.16 17.04"])::before{content:""
 					display: "block",
 					whiteSpace: "pre-wrap",
 					overflowWrap: "anywhere"
-				} }, errorDetail) : null), ...state.requests.map((request) => h(Question, {
-					key: request.id,
-					request,
-					identity
-				}))));
+				} }, errorDetail) : null)));
 			}
 			return {
 				View,
 				current,
 				subscribe,
 				load,
-				enabled,
-				setEnabled,
-				busy,
-				submit,
-				taskAction,
 				dispose() {
-					unsubscribe?.();
-					unsubscribe = null;
 					listeners.clear();
 				}
 			};
@@ -11716,25 +11660,6 @@ html:has([data-sidebar-right-open]) .ap-files-dock{display:none}
 html.ap-files-rail:has([data-sidebar-right-open]) [data-phase]{margin-right:0}
 html.ap-files-rail:has([data-sidebar-right-open]) .ap-wb-page{right:0}
 `;
-		//#endregion
-		//#region src/codex-turn.ts
-		function codexTurnModel(status, selectedModel) {
-			return status.models?.find((model) => model.id === (selectedModel || status.defaultModel)) ?? (!selectedModel ? status.model ?? null : null);
-		}
-		function codexSupportsEffort(model, effort) {
-			return !!effort && model?.supportedReasoningEfforts?.some((item) => item.reasoningEffort === effort) === true;
-		}
-		function resolveCodexTurnSelection(status, selectedModel, selectedEffort) {
-			const model = codexTurnModel(status, selectedModel);
-			if (!selectedModel && status.modelError) throw new Error("无法确认默认 Codex 模型，请刷新模型列表或选择可用模型后重试。");
-			if (selectedModel && !model) throw new Error("所选 Codex 模型当前不可用，请刷新模型列表并重新选择。");
-			if (selectedEffort && !codexSupportsEffort(model, selectedEffort)) throw new Error("所选 Codex 思考等级当前不可用，请刷新模型列表并重新选择。");
-			const inherited = codexSupportsEffort(model, status.selectedReasoningEffort) ? status.selectedReasoningEffort : codexSupportsEffort(model, model?.defaultReasoningEffort) ? model?.defaultReasoningEffort : null;
-			return {
-				model: selectedModel || status.defaultModel || null,
-				reasoningEffort: selectedEffort || inherited || null
-			};
-		}
 		//#endregion
 		//#region src/file-icons.ts
 		function extOf(file) {
@@ -11918,24 +11843,6 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		/** Parent is in an open turn. Queue-only is not running. */
 		function snapshotIsRunning(snap) {
 			return !!(snap && snap.running);
-		}
-		/** Still-pending composer/host queue rows. */
-		function queuedMessages(snap) {
-			const queue = snap && Array.isArray(snap.queue) ? snap.queue : [];
-			const out = [];
-			for (const item of queue) {
-				if (!item || !item.id) continue;
-				if (item.placement && item.placement !== "queued") continue;
-				out.push({
-					id: item.id,
-					placement: item.placement || "queued"
-				});
-			}
-			return out;
-		}
-		/** Busy for crash-resume / UI: running or a waiting queue. */
-		function snapshotIsBusy(snap) {
-			return snapshotIsRunning(snap) || queuedMessages(snap).length > 0;
 		}
 		/** Root main-session routing target for a workbench action opened from any descendant. */
 		function parentSessionTarget(activeId, snap, list) {
@@ -12517,12 +12424,11 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		}
 		const codexTurnControllers = window.__apCodexTurnControllers || (window.__apCodexTurnControllers = /* @__PURE__ */ new Map());
 		const codexTurnListeners = window.__apCodexTurnListeners || (window.__apCodexTurnListeners = /* @__PURE__ */ new Set());
-		const nativeCodex = createNativeCodexExecution({
+		const nativeCodex = createNativeCodexHistory({
 			React: react,
 			desktop: window.agentPiDesktop,
 			language: () => langState.lang,
 			useLanguage: useApLang,
-			notify: notifyCodexTurn,
 			renderMessage: (text, cwd) => h("div", { dangerouslySetInnerHTML: { __html: mdToHtml(text, { cwd }) } }),
 			openFile: (cwd, path) => window.dispatchEvent(new CustomEvent("agent-pi-open-file", { detail: {
 				cwd,
@@ -12540,96 +12446,18 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				} catch {}
 			});
 		}
-		function createCodexTurnController(latestProps) {
-			return {
-				phase: "idle",
-				selectedModel: "",
-				selectedReasoningEffort: "",
-				capturedModel: null,
-				capturedReasoningEffort: null,
-				capturedNativeAttachmentIds: [],
-				latestProps: latestProps || null,
-				attemptToken: null,
-				originalDraft: "",
-				framedDraft: "",
-				capturedAttachmentIds: [],
-				capturedAttachments: [],
-				preSubmitUserNodeWatermark: -1,
-				preSubmitPromptErrorRef: null,
-				preSubmitPromptErrorToken: "null",
-				promptErrorBaselineCleared: false,
-				lastInputPhase: null,
-				lastInputDraftRev: null,
-				sawSubmitting: false,
-				acceptedDraft: null,
-				acceptedDraftRev: null,
-				cwd: "",
-				inputStore: null,
-				unsubscribeSession: null,
-				unsubscribeInput: null
-			};
-		}
-		function codexTurnController(props, create) {
-			const key = codexTurnKey(props);
-			let controller = codexTurnControllers.get(key);
-			if (!controller && create) {
-				controller = createCodexTurnController(props);
-				codexTurnControllers.set(key, controller);
-			}
-			return controller || null;
-		}
 		function trackCodexTurnProps(props) {
 			const controller = codexTurnControllers.get(codexTurnKey(props));
 			if (controller && controller.phase !== "disposed") controller.latestProps = props;
 		}
 		function codexTurnPhase(props) {
-			if (nativeCodex.enabled(codexTurnKey(props))) return "armed";
-			const controller = codexTurnController(props, false);
-			return controller ? controller.phase : "idle";
+			return "idle";
 		}
 		function codexTurnArmed(props) {
-			return nativeCodex.enabled(codexTurnKey(props));
-		}
-		function setCodexTurnModel(props, model, status) {
-			const controller = codexTurnController(props, true);
-			if (controller.phase !== "idle" && controller.phase !== "armed") return;
-			controller.selectedModel = String(model || "");
-			if (!codexSupportsEffort(codexTurnModel(status || {}, controller.selectedModel), controller.selectedReasoningEffort)) controller.selectedReasoningEffort = "";
-			notifyCodexTurn();
-		}
-		function setCodexTurnReasoningEffort(props, effort) {
-			const controller = codexTurnController(props, true);
-			if (controller.phase !== "idle" && controller.phase !== "armed") return;
-			controller.selectedReasoningEffort = String(effort || "");
-			notifyCodexTurn();
+			return false;
 		}
 		function setCodexTurnArmed(props, armed) {
-			const key = codexTurnKey(props);
-			if (!isLiveSessionId(key)) {
-				showToast(tCodexExecution("openConversation", langState.lang));
-				return;
-			}
-			if (armed && attachmentTurnControllers.has(key)) {
-				showToast(workbenchText("当前会话已有附件发送事务，请等待完成后再切换 Codex 执行"));
-				return;
-			}
-			const controller = codexTurnController(props, armed);
-			if (!controller) return;
-			controller.latestProps = props;
-			try {
-				nativeCodex.setEnabled(key, armed);
-			} catch (error) {
-				showToast(error.message);
-				return;
-			}
-			controller.phase = armed ? "armed" : "idle";
-			if (armed) openNativeCodexView();
-			notifyCodexTurn();
-		}
-		function openNativeCodexView() {
-			requestAnimationFrame(() => {
-				[...document.querySelectorAll("[data-conversation-tabs] [role=\"tab\"]")].find((item) => item.textContent.trim() === "Codex")?.click();
-			});
+			return false;
 		}
 		function disposeCodexTurnInputSubscription(controller) {
 			const unsubscribeInput = controller.unsubscribeInput;
@@ -14962,92 +14790,6 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		function foldAndSubmit(props) {
 			submitAttachmentTurn(props);
 		}
-		async function submitCodexTurn(props) {
-			const key = codexTurnKey(props);
-			const controller = codexTurnController(props, true);
-			if (controller.nativePreparing || attachmentTurnControllers.has(key)) return;
-			let authority;
-			try {
-				authority = codexTurnAuthorities(key);
-			} catch {
-				showToast(tCodexExecution("sessionBusy", langState.lang));
-				return;
-			}
-			const snapshot = authority && sessionSnapshotWithChat(key, authority.session);
-			if (!snapshot || snapshot.removed || snapshotIsBusy(snapshot)) {
-				showToast(tCodexExecution("sessionBusy", langState.lang));
-				return;
-			}
-			const original = authority.inputStore.getSnapshot().draft || "";
-			const attachments = codexAttachItems(key).slice();
-			const ids = nativeCodexAttachmentIds(authority.inputStore.getSnapshot());
-			const kbSlugs = kbTaskOf(key).slugs.slice();
-			const kbTemplateKey = kbTemplateSelectionKey(key);
-			const selectedModel = controller.selectedModel;
-			const selectedReasoningEffort = controller.selectedReasoningEffort;
-			const unchanged = () => {
-				const live = codexTurnAuthorities(key);
-				const state = live && sessionSnapshotWithChat(key, live.session);
-				if (!state || state.removed || snapshotIsBusy(state) || live.session !== authority.session || live.inputStore.getSnapshot().draft !== original || !sameCodexAttachmentIds(codexAttachmentIds(codexAttachItems(key)), codexAttachmentIds(attachments)) || !sameCodexAttachmentIds(nativeCodexAttachmentIds(live.inputStore.getSnapshot()), ids) || !sameCodexAttachmentIds(kbTaskOf(key).slugs, kbSlugs) || kbTemplateSelectionKey(key) !== kbTemplateKey) throw new Error(tCodexExecution("sessionBusy", langState.lang));
-			};
-			controller.nativePreparing = true;
-			try {
-				await flushKbTaskSelection(key);
-				const auth = await window.agentPiDesktop?.codexAuthStatus?.();
-				if (auth?.state !== "logged-in") throw new Error(tCodexExecution("loginRequired", langState.lang));
-				unchanged();
-				const selection = resolveCodexTurnSelection(auth, selectedModel, selectedReasoningEffort);
-				const cwd = workspaceCwd(props);
-				const native = runtime.conversation?.resolveDraftAttachments?.(ids) || [];
-				if (native.length !== ids.length) throw new Error(tCodexExecution("attachmentsNotReady", langState.lang));
-				const rows = attachments.map((item) => ({
-					...item,
-					path: item.path || joinPath(cwd, item.relativePath || item.name)
-				}));
-				for (const item of native) {
-					const path = window.agentPiDesktop.pathForFile(item.file);
-					if (path) rows.push({
-						path,
-						name: item.file.name,
-						kind: item.kind
-					});
-					else if (item.kind === "image") {
-						const dataUrl = await new Promise((resolve, reject) => {
-							const reader = new FileReader();
-							reader.onload = () => resolve(reader.result);
-							reader.onerror = reject;
-							reader.readAsDataURL(item.file);
-						});
-						rows.push({
-							name: item.file.name,
-							kind: "image",
-							dataUrl
-						});
-					} else throw new Error(tCodexExecution("attachmentPathUnavailable", langState.lang));
-				}
-				unchanged();
-				const text = stripMentionArtifacts(original) || (rows.length ? tCodexExecution("attachmentTask", langState.lang) : "");
-				await nativeCodex.submit({
-					sessionId: key,
-					cwd,
-					text,
-					attachments: rows,
-					model: selection.model,
-					reasoningEffort: selection.reasoningEffort
-				});
-				if (authority.inputStore.getSnapshot().draft === original) setComposerDraft(props, "");
-				const consumed = new Set(attachments.map(codexAttachmentToken));
-				setAttachItemsFor(key, codexAttachItems(key).filter((item) => !consumed.has(codexAttachmentToken(item))));
-				for (const id of ids) props.inputActions?.removeAttachment?.(id);
-				runtime.conversation?.releaseDraftAttachments?.(native);
-				openNativeCodexView();
-			} catch (error) {
-				showToast(codexExecutionErrorMessage(error, langState.lang));
-			} finally {
-				controller.nativePreparing = false;
-				notifyCodexTurn();
-			}
-		}
 		function wrapComposerSubmit(props) {
 			const actions = props && props.inputActions;
 			if (!actions || typeof actions.submit !== "function") return;
@@ -15065,10 +14807,6 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				if (depthDraft !== before) {
 					fillComposer(live, depthDraft);
 					requestAnimationFrame(() => actions.submit());
-					return;
-				}
-				if (codexTurnArmed(live)) {
-					submitCodexTurn(live);
 					return;
 				}
 				const attachmentKey = attachmentTurnKey(live);
@@ -16487,7 +16225,6 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				row?.project?.projectId,
 				monitorParent
 			]);
-			const nativeBudgetExecutor = nativeCodex.busy(monitorParent) || nativeCodex.enabled(monitorParent);
 			const runtimeBudgetRun = row?.project && monitorState.projectId === row.project.projectId && monitorState.module === row.project.module && sameFilePath(monitorState.cwd, cwd) && monitorState.parentSessionId === monitorParent ? monitorState.runtime?.run : null;
 			const runtimeLimitEdits = runtimeLimitDraft.binding === runtimeBudgetBinding ? runtimeLimitDraft.edits : {};
 			const runtimeLimits = {
@@ -16592,7 +16329,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			};
 			const runStage = (project, stageId, action, submit, closeWorkbench) => {
 				const parentId = pinParentSessionId(props);
-				const editedLimits = submit && !nativeBudgetExecutor && Object.keys(runtimeLimitEdits).length ? { ...runtimeLimitEdits } : void 0;
+				const editedLimits = submit && Object.keys(runtimeLimitEdits).length ? { ...runtimeLimitEdits } : void 0;
 				setBusy(action + ":" + (stageId || ""));
 				setError("");
 				setNotice("");
@@ -16629,16 +16366,12 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 						else {
 							if (["queued", "steered"].includes(started.interaction?.dispatch)) clearSubmittedLimits();
 							setNotice(started.interaction?.reason || "执行器已接收当前阶段任务。");
-							if (nativeCodex.enabled(parentId)) {
-								if (closeWorkbench !== false) props.openView?.("agent-pi-codex-main", "");
-							} else {
-								monitorEngine.restore({
-									cwd,
-									module: project.module,
-									projectId: project.projectId
-								}, parentId);
-								if (closeWorkbench !== false) focusMainConversation(props);
-							}
+							monitorEngine.restore({
+								cwd,
+								module: project.module,
+								projectId: project.projectId
+							}, parentId);
+							if (closeWorkbench !== false) focusMainConversation(props);
 						}
 						return refresh();
 					}).catch((error) => {
@@ -16985,29 +16718,28 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					["maxRounds", "父子模型轮次"],
 					["maxTokens", "父子 token"],
 					["maxElapsedMs", "累计执行分钟"],
-					["maxNoProgress", "连续无进展次数"],
-					["maxCostUsd", "金额上限 USD（可选）"]
+					["maxNoProgress", "连续无进展次数"]
 				].map(([key, label]) => h("label", {
 					key,
 					className: "ap-mm-field"
 				}, label, h("input", {
 					type: "number",
-					min: key === "maxCostUsd" ? 1e-4 : 1,
-					step: key === "maxCostUsd" ? "any" : 1,
-					disabled: !!busy || !monitorParent || nativeBudgetExecutor,
+					min: 1,
+					step: 1,
+					disabled: !!busy || !monitorParent,
 					value: key === "maxElapsedMs" ? runtimeLimits[key] / 6e4 : runtimeLimits[key] ?? "",
 					onChange: (e) => {
 						const value = e.target.value;
 						setRuntimeLimitDraft((previous) => {
 							const edits = { ...previous.binding === runtimeBudgetBinding ? previous.edits : {} };
-							edits[key] = value === "" && key === "maxCostUsd" ? null : Number(value) * (key === "maxElapsedMs" ? 6e4 : 1);
+							edits[key] = Number(value) * (key === "maxElapsedMs" ? 6e4 : 1);
 							return {
 								binding: runtimeBudgetBinding,
 								edits
 							};
 						});
 					}
-				})))), h("p", { className: "ap-sub" }, nativeBudgetExecutor ? "当前主执行器为原生 Codex；此处仅设置 DSH 自动阶段预算，控件已禁用。" : "未编辑时保留已登记预算；仅将本次明确修改的值在下一次继续推进时提交。清空金额上限表示明确移除；费用未知时需核对后才能续派。")), h("div", { className: "ap-dual-state" }, h("article", { className: "ap-state-card" }, h("div", { className: "ap-state-card-hd" }, h("div", null, h("strong", null, workbenchText("执行态（主智能体回写）")), h("span", { className: "ap-sub" }, workbenchText("主对话负责理解、计划、派活与阻塞说明"))), h("span", { className: "ap-chip" + (execution && execution.status === "blocked" ? " warn" : execution ? " ok" : "") }, executionStatusLabel)), execution ? h("div", { className: "ap-state-body" }, h("p", null, h("b", null, workbenchText("目标：")), execution.objective || workbenchText("未登记")), h("p", null, h("b", null, workbenchText("当前批次：")), execution.currentBatch || workbenchText("未登记")), h("p", null, h("b", null, workbenchText("下一动作：")), execution.nextAction || workbenchText("未登记")), execution.plan && execution.plan.length ? h("div", { className: "ap-mini-list" }, execution.plan.slice(0, 5).map((plan) => h("div", { key: plan.id }, h("i", { className: "ap-mini-status " + plan.status }), h("span", null, plan.title)))) : h("p", { className: "ap-sub" }, workbenchText("尚未登记结构化计划。")), execution.assignments && execution.assignments.length ? h("p", { className: "ap-sub" }, workbenchText("子任务：") + execution.assignments.map((assignment) => assignment.title + " [" + assignment.status + "]").join(" · ")) : null, execution.blocker && execution.blocker.type !== "none" ? h("p", { className: "ap-state-alert" }, workbenchText("阻塞：") + (execution.blocker.reason || execution.blocker.needed || execution.blocker.type)) : null, h("p", { className: "ap-sub" }, "revision " + execution.revision + workbenchText(" · 心跳 ") + formatClock(execution.heartbeatAt))) : h("div", { className: "ap-state-empty" }, workbenchText("主智能体尚未回写执行计划。点「继续推进」后，主对话应先读取 status，再登记目标、批次、计划和下一动作。"))), h("article", { className: "ap-state-card" }, h("div", { className: "ap-state-card-hd" }, h("div", null, h("strong", null, workbenchText("事实态（系统核验）")), h("span", { className: "ap-sub" }, workbenchText("只核验磁盘成果、BOQ、证据、引用与人工门禁"))), h("span", { className: "ap-chip" + (activeControl && activeControl.alignment !== "aligned" ? " warn" : currentReality ? " ok" : "") }, alignmentLabel)), h("div", { className: "ap-state-body" }, h("p", null, h("b", null, workbenchText("当前阶段：")), currentReality ? stageLabel(stages.find((stage) => stage.id === currentReality.stageId), langState.lang) || currentReality.stageLabel : item.currentStageId || workbenchText("未开始")), currentReality ? h("p", null, workbenchText("任务 ") + currentReality.tasks.done + "/" + currentReality.tasks.total, currentReality.summary ? currentReality.summary.exists ? workbenchText(" · 总报告已就位") : workbenchText(" · 缺《") + currentReality.summary.fileName + (langState.lang === "zh" ? "》" : "”") : "", currentReality.boqInventory ? currentReality.boqInventory.ok ? workbenchText(" · BOQ 已核验") : workbenchText(" · BOQ 有缺口") : "", currentReality.citations && currentReality.citations.total ? workbenchText(" · 孤儿引用 ") + currentReality.citations.orphans : "") : h("p", { className: "ap-sub" }, workbenchText("尚未执行本轮事实核验；阶段状态为 ") + (currentSlice && currentSlice.status || "idle") + "。"), activeControl && activeControl.realityDigest ? h("p", { className: "ap-sub" }, workbenchText("事实版本 ") + activeControl.realityDigest) : null))), activeControl && activeControl.differences && activeControl.differences.length ? h("div", { className: "ap-alignment-alert" }, h("strong", null, workbenchText("认知差异")), h("ul", null, activeControl.differences.map((difference, index) => h("li", { key: index }, difference)))) : null, reality && reality.stages ? h("div", { className: "ap-check" }, h("div", { className: "ap-check-hd" }, workbenchText("系统事实明细"), h("span", { className: "ap-sub" }, formatClock(reality.generatedAt) + (reality.stages[0] && reality.stages[0].quietMinutes != null ? workbenchText(" · 最近产出 ") + reality.stages[0].quietMinutes + workbenchText(" 分钟前") : "")), h("button", {
+				})))), h("p", { className: "ap-sub" }, "未编辑时保留已登记限制；仅将本次明确修改的轮次、token、执行时间及无进展限制在下一次继续推进时提交。本版不设 API 金额上限。")), h("div", { className: "ap-dual-state" }, h("article", { className: "ap-state-card" }, h("div", { className: "ap-state-card-hd" }, h("div", null, h("strong", null, workbenchText("执行态（主智能体回写）")), h("span", { className: "ap-sub" }, workbenchText("主对话负责理解、计划、派活与阻塞说明"))), h("span", { className: "ap-chip" + (execution && execution.status === "blocked" ? " warn" : execution ? " ok" : "") }, executionStatusLabel)), execution ? h("div", { className: "ap-state-body" }, h("p", null, h("b", null, workbenchText("目标：")), execution.objective || workbenchText("未登记")), h("p", null, h("b", null, workbenchText("当前批次：")), execution.currentBatch || workbenchText("未登记")), h("p", null, h("b", null, workbenchText("下一动作：")), execution.nextAction || workbenchText("未登记")), execution.plan && execution.plan.length ? h("div", { className: "ap-mini-list" }, execution.plan.slice(0, 5).map((plan) => h("div", { key: plan.id }, h("i", { className: "ap-mini-status " + plan.status }), h("span", null, plan.title)))) : h("p", { className: "ap-sub" }, workbenchText("尚未登记结构化计划。")), execution.assignments && execution.assignments.length ? h("p", { className: "ap-sub" }, workbenchText("子任务：") + execution.assignments.map((assignment) => assignment.title + " [" + assignment.status + "]").join(" · ")) : null, execution.blocker && execution.blocker.type !== "none" ? h("p", { className: "ap-state-alert" }, workbenchText("阻塞：") + (execution.blocker.reason || execution.blocker.needed || execution.blocker.type)) : null, h("p", { className: "ap-sub" }, "revision " + execution.revision + workbenchText(" · 心跳 ") + formatClock(execution.heartbeatAt))) : h("div", { className: "ap-state-empty" }, workbenchText("主智能体尚未回写执行计划。点「继续推进」后，主对话应先读取 status，再登记目标、批次、计划和下一动作。"))), h("article", { className: "ap-state-card" }, h("div", { className: "ap-state-card-hd" }, h("div", null, h("strong", null, workbenchText("事实态（系统核验）")), h("span", { className: "ap-sub" }, workbenchText("只核验磁盘成果、BOQ、证据、引用与人工门禁"))), h("span", { className: "ap-chip" + (activeControl && activeControl.alignment !== "aligned" ? " warn" : currentReality ? " ok" : "") }, alignmentLabel)), h("div", { className: "ap-state-body" }, h("p", null, h("b", null, workbenchText("当前阶段：")), currentReality ? stageLabel(stages.find((stage) => stage.id === currentReality.stageId), langState.lang) || currentReality.stageLabel : item.currentStageId || workbenchText("未开始")), currentReality ? h("p", null, workbenchText("任务 ") + currentReality.tasks.done + "/" + currentReality.tasks.total, currentReality.summary ? currentReality.summary.exists ? workbenchText(" · 总报告已就位") : workbenchText(" · 缺《") + currentReality.summary.fileName + (langState.lang === "zh" ? "》" : "”") : "", currentReality.boqInventory ? currentReality.boqInventory.ok ? workbenchText(" · BOQ 已核验") : workbenchText(" · BOQ 有缺口") : "", currentReality.citations && currentReality.citations.total ? workbenchText(" · 孤儿引用 ") + currentReality.citations.orphans : "") : h("p", { className: "ap-sub" }, workbenchText("尚未执行本轮事实核验；阶段状态为 ") + (currentSlice && currentSlice.status || "idle") + "。"), activeControl && activeControl.realityDigest ? h("p", { className: "ap-sub" }, workbenchText("事实版本 ") + activeControl.realityDigest) : null))), activeControl && activeControl.differences && activeControl.differences.length ? h("div", { className: "ap-alignment-alert" }, h("strong", null, workbenchText("认知差异")), h("ul", null, activeControl.differences.map((difference, index) => h("li", { key: index }, difference)))) : null, reality && reality.stages ? h("div", { className: "ap-check" }, h("div", { className: "ap-check-hd" }, workbenchText("系统事实明细"), h("span", { className: "ap-sub" }, formatClock(reality.generatedAt) + (reality.stages[0] && reality.stages[0].quietMinutes != null ? workbenchText(" · 最近产出 ") + reality.stages[0].quietMinutes + workbenchText(" 分钟前") : "")), h("button", {
 					type: "button",
 					className: "ap-btn ghost",
 					onClick: () => setReality(null)
@@ -17657,7 +17389,6 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		const openTaskView = (id, view) => taskViews.get(id)?.at(-1)?.(view, "");
 		const taskSubscriptions = (id, listener) => {
 			const dsh = subscribeSessionWithChat(id, codexTurnAuthorities(id)?.session, listener);
-			const codex = nativeCodex.subscribe(id, listener);
 			const changed = (event) => {
 				if (event.detail?.sessionId === id) listener();
 			};
@@ -17665,7 +17396,6 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			window.addEventListener("agent-pi-project-state-changed", listener);
 			return () => {
 				dsh?.();
-				codex?.();
 				window.removeEventListener("agent-pi-task-snapshot", changed);
 				window.removeEventListener("agent-pi-project-state-changed", listener);
 			};
@@ -17706,31 +17436,18 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		const performTaskUserAction = async (payload) => {
 			const id = payload.sessionId;
 			const session = sessionSnapshotWithChat(id, codexTurnAuthorities(id)?.session);
-			const cwd = professionalTasks.get(id)?.binding?.cwd || nativeCodex.current(id).cwd || session?.cwd || session?.header?.cwd || workspaceCwd({ sessionId: id });
-			const executor = nativeCodex.busy(id) || nativeCodex.enabled(id) ? "codex" : "dsh";
-			if (executor === "codex" && !window.agentPiDesktop?.codexTaskAction) throw new Error("原生任务操作需要更新后的桌面应用，请在桌面端打开此对话。");
-			let result = await api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(id)}`, cwd, {
+			const cwd = professionalTasks.get(id)?.binding?.cwd || session?.cwd || session?.header?.cwd || workspaceCwd({ sessionId: id });
+			const result = await api(`/api/agent-pi/professional-task?sessionId=${encodeURIComponent(id)}`, cwd, {
 				method: "POST",
 				body: JSON.stringify({
 					...payload,
 					action: "user_action",
 					command: {
 						...payload.command,
-						executor
+						executor: "dsh"
 					}
 				})
 			});
-			if (result.interaction?.dispatch === "requires_executor") {
-				const controller = codexTurnController({ sessionId: id }, false);
-				result = await nativeCodex.taskAction({
-					sessionId: id,
-					cwd,
-					operationId: payload.operationId,
-					kind: payload.command.kind,
-					model: controller?.selectedModel || void 0,
-					reasoningEffort: controller?.selectedReasoningEffort || void 0
-				});
-			}
 			if (result?.task) rememberProfessionalTask(id, result.task, result.binding);
 			window.dispatchEvent(new CustomEvent("agent-pi-task-snapshot", { detail: { sessionId: id } }));
 			return result;
@@ -17743,7 +17460,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			subscribe: taskSubscriptions,
 			onOpenSource: openTaskSource,
 			onUserAction: performTaskUserAction,
-			onOpenChat: (id) => openTaskView(id, nativeCodex.enabled(id) ? "agent-pi-codex-main" : "chat"),
+			onOpenChat: (id) => openTaskView(id, "chat"),
 			onOpenTask: (id) => openTaskView(id, "agent-pi-task-guide"),
 			onOpenWorkbench: openTaskWorkbench,
 			onTask: rememberProfessionalTask
@@ -17762,7 +17479,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 		const TaskProcess = createTaskProcess({
 			React: react,
 			language: () => document.documentElement.lang?.startsWith("en") ? "en" : "zh",
-			snapshot: (id) => nativeCodex.enabled(id) ? nativeCodex.current(id) : sessionSnapshotWithChat(id, codexTurnAuthorities(id)?.session),
+			snapshot: (id) => sessionSnapshotWithChat(id, codexTurnAuthorities(id)?.session),
 			subscribe: taskSubscriptions,
 			professionalTask: (id) => professionalTasks.get(id)?.task
 		});
@@ -17786,7 +17503,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			react.useEffect(() => rememberTaskView(props.sessionId || "", props.openView), [props.sessionId, props.openView]);
 			return capabilities.taskGuide ? h(TaskGuide, {
 				sessionId: props.sessionId || "",
-				onClose: () => props.openView(nativeCodex.enabled(props.sessionId) ? "agent-pi-codex-main" : "chat", "")
+				onClose: () => props.openView("chat", "")
 			}) : h("p", null, langState.lang === "zh" ? "任务引导插件未启用。" : "Task guide plugin is not enabled.");
 		}
 		const ProfessionalDepth = createProfessionalDepth({
@@ -17832,7 +17549,6 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					codexTurnListeners.delete(sync);
 				};
 			}, []);
-			const armed = codexTurnArmed(live);
 			react.useEffect(() => {
 				const onFill = (event) => {
 					const text = event && event.detail && event.detail.text;
@@ -17859,29 +17575,21 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					return !/停止|Stop|stop/i.test(label);
 				};
 				const onClick = (event) => {
-					if (!codexTurnArmed(propsRef.current) && !codexAttachItems(attachmentTurnKey(propsRef.current)).length) return;
+					if (!codexAttachItems(attachmentTurnKey(propsRef.current)).length) return;
 					if (!isSendButton(event.target.closest("button"))) return;
 					event.preventDefault();
 					event.stopPropagation();
-					if (codexTurnArmed(propsRef.current)) {
-						submitCodexTurn(propsRef.current);
-						return;
-					}
 					foldAndSubmit(propsRef.current);
 				};
 				const onKeyDown = (event) => {
 					if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
 					if (Date.now() - compositionEndedAt < 10) return;
 					if (event.altKey || event.repeat || event.keyCode === 229 || event.ctrlKey && event.metaKey || event.getModifierState?.("AltGraph")) return;
-					if (!codexTurnArmed(propsRef.current) && !codexAttachItems(attachmentTurnKey(propsRef.current)).length) return;
+					if (!codexAttachItems(attachmentTurnKey(propsRef.current)).length) return;
 					const input = event.target && typeof event.target.closest === "function" ? event.target.closest("textarea, [data-composer-input]") : null;
 					if (!input || !input.closest("[data-composer-card]")) return;
 					event.preventDefault();
 					event.stopPropagation();
-					if (codexTurnArmed(propsRef.current)) {
-						submitCodexTurn(propsRef.current);
-						return;
-					}
 					foldAndSubmit(propsRef.current);
 				};
 				document.addEventListener("click", onClick, true);
@@ -17924,14 +17632,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				disabled: busy || !draft.trim(),
 				onMouseDown: (e) => e.preventDefault(),
 				onClick: polish
-			}, Icon("sparkles", 15, busy ? "ap-spin" : "")), h("button", {
-				type: "button",
-				className: "ap-codex-turn" + (armed ? " on" : ""),
-				"aria-pressed": armed ? "true" : "false",
-				title: armed ? tCodexExecution("engineCodexTitle", langState.lang) : tCodexExecution("engineDshTitle", langState.lang),
-				onMouseDown: (event) => event.preventDefault(),
-				onClick: () => setCodexTurnArmed(propsRef.current, !armed)
-			}, Icon("sparkles", 14), armed ? "Codex" : "DSH / Codex"), armed && h(ComposerCodexModelSelector, { composer: live }), h(ProfessionalDepth, {
+			}, Icon("sparkles", 15, busy ? "ap-spin" : "")), h(ProfessionalDepth, {
 				key: live.sessionId || "draft",
 				composer: live
 			}), h("button", {
@@ -19153,98 +18854,6 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			hideArchivedWorkspaceGroups();
 			injectWorkspaceArchiveMenu(document);
 		}
-		function useCodexStatus() {
-			const desktop = window.agentPiDesktop;
-			const [auth, setAuth] = react.useState({
-				available: true,
-				state: "checking"
-			});
-			const [refreshing, setRefreshing] = react.useState(false);
-			const latestRequest = react.useRef(0);
-			const refresh = react.useCallback(async () => {
-				const request = ++latestRequest.current;
-				setRefreshing(true);
-				try {
-					const next = desktop && typeof desktop.codexAuthStatus === "function" ? await desktop.codexAuthStatus() : {
-						available: false,
-						state: "unavailable"
-					};
-					if (request === latestRequest.current) setAuth(next);
-				} catch {
-					if (request === latestRequest.current) setAuth({
-						available: false,
-						state: "unavailable"
-					});
-				} finally {
-					if (request === latestRequest.current) setRefreshing(false);
-				}
-			}, [desktop]);
-			react.useEffect(() => {
-				refresh();
-				window.addEventListener("agent-pi-codex-model-changed", refresh);
-				return () => {
-					latestRequest.current += 1;
-					window.removeEventListener("agent-pi-codex-model-changed", refresh);
-				};
-			}, [refresh]);
-			return {
-				auth,
-				setAuth,
-				refresh,
-				refreshing
-			};
-		}
-		function ComposerCodexModelSelector({ composer }) {
-			const { auth, refresh, refreshing } = useCodexStatus();
-			const zh = useApLang() === "zh";
-			const controller = codexTurnController(composer, false);
-			const selectedModel = controller && controller.selectedModel || "";
-			const selectedEffort = controller && controller.selectedReasoningEffort || "";
-			const models = auth.models || [];
-			const model = auth.model;
-			const turnModel = codexTurnModel(auth, selectedModel);
-			const efforts = turnModel && turnModel.supportedReasoningEfforts || [];
-			const inheritedEffort = codexSupportsEffort(turnModel, auth.selectedReasoningEffort) ? auth.selectedReasoningEffort : turnModel && turnModel.defaultReasoningEffort;
-			const inheritedLabel = auth.selectedReasoningEffort && !codexSupportsEffort(turnModel, auth.selectedReasoningEffort) ? zh ? "使用本模型默认" : "Use this model’s default" : zh ? "跟随设置" : "Use saved setting";
-			const defaultLabel = model && (model.displayName || model.id) || auth.defaultModel;
-			const locked = codexTurnPhase(composer) !== "armed";
-			return h("span", { className: "ap-codex-model-control" }, h("select", {
-				className: "ap-codex-model-select",
-				"aria-label": zh ? "本次 Codex 模型" : "Codex model for this message",
-				title: zh ? "仅用于下一条 Codex 执行消息" : "Applies only to the next Codex message",
-				value: selectedModel,
-				disabled: locked || refreshing || auth.state !== "logged-in" || !models.length,
-				onChange: (event) => setCodexTurnModel(composer, event.target.value, auth)
-			}, h("option", { value: "" }, refreshing ? zh ? "正在读取模型…" : "Loading models…" : (zh ? "默认模型" : "Default model") + (defaultLabel ? " · " + defaultLabel : "")), selectedModel && !models.some((entry) => entry.id === selectedModel) && h("option", {
-				value: selectedModel,
-				disabled: true
-			}, selectedModel + (zh ? "（不可用）" : " (unavailable)")), models.map((entry) => h("option", {
-				key: entry.id,
-				value: entry.id
-			}, entry.displayName || entry.id))), h("select", {
-				className: "ap-codex-model-select",
-				"aria-label": zh ? "本次 Codex 思考等级" : "Codex reasoning effort for this message",
-				title: zh ? "仅用于下一条 Codex 执行消息；未选择时使用与本次模型兼容的默认等级" : "Applies to the next Codex message; otherwise use a compatible default effort",
-				value: selectedEffort,
-				disabled: locked || refreshing || auth.state !== "logged-in" || !efforts.length,
-				onChange: (event) => setCodexTurnReasoningEffort(composer, event.target.value)
-			}, h("option", { value: "" }, inheritedLabel + (inheritedEffort ? " · " + inheritedEffort : "")), selectedEffort && !codexSupportsEffort(turnModel, selectedEffort) && h("option", {
-				value: selectedEffort,
-				disabled: true
-			}, selectedEffort + (zh ? "（不可用）" : " (unavailable)")), efforts.map((entry) => h("option", {
-				key: entry.reasoningEffort,
-				value: entry.reasoningEffort,
-				title: entry.description
-			}, entry.reasoningEffort))), !refreshing && (!models.length || auth.modelError) && h("button", {
-				type: "button",
-				className: "ap-toolbtn",
-				disabled: locked,
-				title: auth.modelError || (zh ? "登录后刷新 Codex 模型" : "Sign in, then refresh Codex models"),
-				onClick: () => {
-					refresh();
-				}
-			}, zh ? "刷新模型" : "Refresh models"));
-		}
 		function SearchSettingsSection() {
 			const locale = useApLang();
 			return h(SearchSettings, {
@@ -19252,25 +18861,14 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				locale
 			});
 		}
-		function CodexSettingsSection() {
+		function DshRuntimeSettingsSection() {
 			const desktop = window.agentPiDesktop;
 			const zh = useApLang() === "zh";
-			const { auth, setAuth, refresh, refreshing } = useCodexStatus();
-			const [busy, setBusy] = react.useState(false);
-			const [modelBusy, setModelBusy] = react.useState(false);
-			const [modelMessage, setModelMessage] = react.useState("");
 			const compactionBridgeAvailable = !!desktop && typeof desktop.compactionFallbackStatus === "function" && typeof desktop.setCompactionFallback === "function";
 			const [compactionEnabled, setCompactionEnabled] = react.useState(true);
 			const lastConfirmedCompaction = react.useRef(true);
 			const [compactionBusy, setCompactionBusy] = react.useState(compactionBridgeAvailable);
 			const [compactionMessage, setCompactionMessage] = react.useState("");
-			react.useEffect(() => {
-				if (auth.state !== "pending") return void 0;
-				const timer = setInterval(() => {
-					refresh();
-				}, 2e3);
-				return () => clearInterval(timer);
-			}, [auth.state, refresh]);
 			const loadCompaction = react.useCallback(async () => {
 				if (!compactionBridgeAvailable) {
 					setCompactionBusy(false);
@@ -19297,52 +18895,6 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			react.useEffect(() => {
 				loadCompaction();
 			}, [loadCompaction]);
-			const invoke = async (method) => {
-				setBusy(true);
-				try {
-					setAuth(await desktop[method]());
-					window.dispatchEvent(new Event("agent-pi-codex-model-changed"));
-				} catch {
-					setAuth({
-						available: true,
-						state: "error"
-					});
-				} finally {
-					setBusy(false);
-				}
-			};
-			const saveModel = async (modelId) => {
-				if (modelBusy || !desktop || typeof desktop.codexSetDefaultModel !== "function") return;
-				setModelBusy(true);
-				setModelMessage("");
-				try {
-					const next = await desktop.codexSetDefaultModel(modelId || null);
-					if (!next || next.state !== "logged-in") throw new Error("Invalid Codex model preference");
-					setAuth(next);
-					setModelMessage(zh ? "默认模型已保存，下次 Codex 调用生效。" : "Default model saved for the next Codex call.");
-					window.dispatchEvent(new Event("agent-pi-codex-model-changed"));
-				} catch {
-					setModelMessage(zh ? "模型保存失败，请刷新列表后重试。" : "Could not save the model. Refresh the list and retry.");
-				} finally {
-					setModelBusy(false);
-				}
-			};
-			const saveReasoningEffort = async (effort) => {
-				if (modelBusy || !desktop || typeof desktop.codexSetDefaultReasoningEffort !== "function") return;
-				setModelBusy(true);
-				setModelMessage("");
-				try {
-					const next = await desktop.codexSetDefaultReasoningEffort(effort || null);
-					if (!next || next.state !== "logged-in") throw new Error("Invalid Codex reasoning preference");
-					setAuth(next);
-					setModelMessage(zh ? "默认思考等级已保存，下次 Codex 调用生效。" : "Default reasoning effort saved for the next Codex call.");
-					window.dispatchEvent(new Event("agent-pi-codex-model-changed"));
-				} catch {
-					setModelMessage(zh ? "思考等级保存失败，请刷新列表后重试。" : "Could not save the reasoning effort. Refresh the list and retry.");
-				} finally {
-					setModelBusy(false);
-				}
-			};
 			const saveCompaction = async () => {
 				if (!compactionBridgeAvailable || compactionBusy) return;
 				const nextEnabled = !compactionEnabled;
@@ -19362,104 +18914,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					setCompactionBusy(false);
 				}
 			};
-			const labels = zh ? {
-				checking: "正在检查",
-				"logged-in": "已通过 ChatGPT 登录",
-				pending: "等待浏览器授权",
-				"logged-out": "未登录",
-				error: "登录未完成",
-				unavailable: "Codex 运行时不可用"
-			} : {
-				checking: "Checking",
-				"logged-in": "Signed in with ChatGPT",
-				pending: "Waiting for browser authorization",
-				"logged-out": "Not signed in",
-				error: "Sign-in did not complete",
-				unavailable: "Codex runtime unavailable"
-			};
-			const loggedIn = auth.state === "logged-in";
-			const pending = auth.state === "pending";
-			const statusClass = loggedIn ? "ap-chip ok" : pending ? "ap-chip live" : "ap-chip warn";
-			const model = loggedIn && auth.model;
-			const formatCapacity = (value) => Number(value).toLocaleString();
-			const capacitySource = zh ? {
-				provider: "供应商返回",
-				official: "官方参数",
-				estimated: "估算参数"
-			} : {
-				provider: "Provider metadata",
-				official: "Verified catalog",
-				estimated: "Conservative estimate"
-			};
-			return h("section", { className: "ap-codex-settings" }, h("h1", null, zh ? "Codex 智能体" : "Codex Agent"), h("p", { className: "ap-codex-lead" }, zh ? "在主对话选择 DSH 或 Codex 执行当前任务。Codex 直接与你交流，并复用同一套专业模块、任务依据和成果。" : "Choose DSH or Codex as the task executor in the main conversation. Codex communicates directly with you and shares the professional modules, task basis, and deliverables."), h("div", { className: "ap-codex-card" }, h("div", { className: "ap-codex-status" }, h("strong", null, "ChatGPT / Codex"), h("span", { className: statusClass }, labels[auth.state] || auth.state)), h("p", { className: "ap-sub" }, zh ? "使用 ChatGPT 账号在系统浏览器中授权，无需 API Key。凭据仅保存在本机 Agent Pi 专属 Codex 目录。" : "Authorize with your ChatGPT account in the system browser. No API key is required; credentials stay in Agent Pi’s private local Codex directory."), loggedIn && h("div", { className: "ap-codex-model-setting" }, h("label", { htmlFor: "ap-codex-default-model" }, zh ? "默认 Codex 模型" : "Default Codex model"), h("select", {
-				id: "ap-codex-default-model",
-				className: "ap-codex-model-select",
-				value: auth.selectedModel || "",
-				disabled: modelBusy || refreshing || !(auth.models || []).length || typeof desktop.codexSetDefaultModel !== "function",
-				onChange: (event) => {
-					saveModel(event.target.value);
-				}
-			}, h("option", { value: "" }, zh ? "跟随 Codex 推荐模型" : "Use the Codex recommended model"), auth.selectedModel && !(auth.models || []).some((entry) => entry.id === auth.selectedModel) && h("option", {
-				value: auth.selectedModel,
-				disabled: true
-			}, auth.selectedModel + (zh ? "（不可用）" : " (unavailable)")), (auth.models || []).map((entry) => h("option", {
-				key: entry.id,
-				value: entry.id
-			}, entry.displayName || entry.id))), h("label", { htmlFor: "ap-codex-default-reasoning" }, zh ? "默认 Codex 思考等级" : "Default Codex reasoning effort"), h("select", {
-				id: "ap-codex-default-reasoning",
-				className: "ap-codex-model-select",
-				value: auth.selectedReasoningEffort || "",
-				disabled: modelBusy || refreshing || !model || typeof desktop.codexSetDefaultReasoningEffort !== "function",
-				onChange: (event) => {
-					saveReasoningEffort(event.target.value);
-				}
-			}, h("option", { value: "" }, (zh ? "跟随模型默认" : "Use the model default") + (model && model.defaultReasoningEffort ? " · " + model.defaultReasoningEffort : "")), auth.selectedReasoningEffort && !codexSupportsEffort(model, auth.selectedReasoningEffort) && h("option", {
-				value: auth.selectedReasoningEffort,
-				disabled: true
-			}, auth.selectedReasoningEffort + (zh ? "（不可用）" : " (unavailable)")), (model && model.supportedReasoningEfforts || []).map((entry) => h("option", {
-				key: entry.reasoningEffort,
-				value: entry.reasoningEffort,
-				title: entry.description
-			}, entry.reasoningEffort))), h("p", { className: "ap-sub" }, zh ? "用于 Codex 主执行和辅助子智能体；主对话选择 Codex 后可指定模型和思考等级，并连续多轮执行。切换默认模型会清除不兼容的已保存等级。" : "Used by Codex main execution and auxiliary subagents. Select Codex in the main conversation to choose a model and reasoning effort for continued tasks. Changing the default model clears an incompatible saved effort."), (auth.modelError || auth.reasoningEffortError || modelMessage) && h("p", {
-				className: "ap-sub",
-				role: "status"
-			}, auth.modelError || auth.reasoningEffortError || modelMessage)), loggedIn && h("p", { className: "ap-sub" }, model ? [
-				h("strong", { key: "id" }, model.id),
-				h("br", { key: "break" }),
-				zh ? "上下文窗口：" : "Context window: ",
-				formatCapacity(model.contextWindow),
-				" · ",
-				capacitySource[model.contextWindowSource],
-				h("br", { key: "output-break" }),
-				zh ? "最大输出：" : "Maximum output: ",
-				formatCapacity(model.maxTokens),
-				" · ",
-				capacitySource[model.maxTokensSource]
-			] : zh ? "模型信息暂不可用" : "Model information is temporarily unavailable"), h("div", {
-				className: "ap-row",
-				style: { marginTop: 14 }
-			}, !loggedIn && h("button", {
-				type: "button",
-				className: "ap-btn primary",
-				disabled: busy || pending || !auth.available,
-				onClick: () => {
-					invoke("codexAuthLogin");
-				}
-			}, pending ? zh ? "等待授权…" : "Waiting…" : zh ? "使用 ChatGPT 登录" : "Sign in with ChatGPT"), h("button", {
-				type: "button",
-				className: "ap-btn",
-				disabled: busy || refreshing || modelBusy,
-				onClick: () => {
-					refresh();
-				}
-			}, zh ? "刷新状态" : "Refresh"), loggedIn && h("button", {
-				type: "button",
-				className: "ap-btn warn",
-				disabled: busy,
-				onClick: () => {
-					if (window.confirm(zh ? "确认退出 Agent Pi 的 Codex 登录？" : "Sign out of Codex in Agent Pi?")) invoke("codexAuthLogout");
-				}
-			}, zh ? "退出登录" : "Sign out")), h("p", { className: "ap-codex-note" }, zh ? "登录后，DSH 智能体可按需调用 " : "After sign-in, DSH agents can invoke ", h("code", null, "subagent_codex"), zh ? "。Codex 不会自动继承父对话或知识库，父智能体会把所需文件路径、知识和交付目标整理成独立任务。" : ". Codex does not inherit parent conversation or knowledge automatically, so the parent provides a self-contained brief.")), h("div", {
+			return h("section", { className: "ap-codex-settings" }, h("h1", null, zh ? "DSH 运行设置" : "DSH runtime settings"), h("div", {
 				className: "ap-codex-card",
 				style: { marginTop: 14 }
 			}, h("div", { className: "ap-codex-status" }, h("strong", null, zh ? "对话自动压缩" : "Automatic conversation compaction"), h("button", {
@@ -19613,7 +19068,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 				name: "conversation.view",
 				id: "agent-pi-codex-main",
 				order: 30,
-				label: "Codex"
+				label: () => langState.lang === "zh" ? "Codex 历史" : "Codex history"
 			}, nativeCodex.View));
 			ctx.slots.inject("conversation.view", () => ctx.slots.register({
 				name: "conversation.view",
@@ -19623,10 +19078,10 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			}, Workbench));
 			ctx.slots.inject("settings.section", () => ctx.slots.register({
 				name: "settings.section",
-				id: "agent-pi-codex",
+				id: "agent-pi-runtime",
 				order: 15,
-				label: () => tAp("codex.title")
-			}, CodexSettingsSection));
+				label: () => langState.lang === "zh" ? "DSH 运行设置" : "DSH runtime settings"
+			}, DshRuntimeSettingsSection));
 			ctx.slots.inject("shell.overlay", () => ctx.slots.register({
 				name: "shell.overlay",
 				id: "tender-workbench",

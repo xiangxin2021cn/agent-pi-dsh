@@ -7,6 +7,7 @@ import { registerLongTaskHost } from '../../tender-host/src/long-task-host.ts'
 import { importDsh } from '../../tender-host/src/dsh.ts'
 
 const { createUserMessage } = await importDsh<any>('packages/llm/llm/lib/index.js')
+const { carrierKeyOf } = await importDsh<any>('packages/core/scope/lib/index.js')
 
 export const name = 'agent-pi-workbench'
 export const inject = ['tools', 'systemPrompt']
@@ -17,7 +18,7 @@ export function apply(ctx: any): void {
   registerWorkbenchTools(ctx, registry, 'workbench')
   registerWorkbenchPrompt(ctx, registry)
   registerBusinessActivation(ctx)
-  const longTasks = registerLongTaskHost(ctx, createUserMessage)
+  const longTasks = registerLongTaskHost(ctx, createUserMessage, carrierKeyOf)
   ctx.inject(['webServer'], (inner: any) => {
     attachHttp({ webServer: inner.webServer, effect: (fn: any) => inner.effect(fn), run: (fn: any) => registry.run(fn),
       syncWorkbenchProject: (cwd, projectId, module) => ctx.get('taskGuide')?.syncWorkbenchProject?.(cwd, projectId, module),

@@ -13,7 +13,7 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { test } from 'node:test'
 import { createRequire } from 'node:module'
 import { applyEntryPatches, entryListSchema } from '../vendor/deepseek-harness/vendor/include/lib/index.js'
@@ -34,6 +34,7 @@ const univerPeerNames = [
 ]
 const scriptNames = [
   'init-tender-profile.mjs',
+  'backup-schedule-v1.mjs',
   'macos-intel-capabilities.mjs',
   'workbench-plugin-defaults.mjs',
   'migrate-settings-017.mjs',
@@ -115,7 +116,8 @@ function createFixture(t) {
   for (const name of ['agent-team-profile', 'agent-team', 'tool-agent-team', 'client-ui-agent-team']) {
     writePackage(dsh, `packages/experimental/${name}`, `@deepseek-ai/dsh-experimental-${name}`, { lib: true })
   }
-  writePackage(dsh, 'packages/subagent/subagent-codex', '@deepseek-ai/dsh-subagent-codex')
+  writePackage(dsh, 'packages/experimental/subagent-oar', '@deepseek-ai/dsh-experimental-subagent-oar', { bundle: false, lib: true })
+  writePackage(dsh, 'packages/experimental/tool-subagent-oar', '@deepseek-ai/dsh-experimental-tool-subagent-oar', { bundle: false, lib: true })
   writePackage(dsh, 'packages/experimental/tool-session-query', '@deepseek-ai/dsh-tool-session-query', { lib: true })
   writePackage(dsh, 'packages/web/web-fetch-http', '@deepseek-ai/dsh-web-fetch-http', { lib: true })
   writePackage(dsh, 'packages/compaction/compaction-basic', '@deepseek-ai/dsh-compaction-basic', { bundle: false, lib: true })
@@ -134,7 +136,6 @@ function createFixture(t) {
   ]) {
     writePackage(dsh, join('node_modules', ...name.split('/')), name, { bundle: false })
   }
-  mkdirSync(join(dsh, 'node_modules/.pnpm/@openai+codex@0.0.0-test'), { recursive: true })
 
   const preset = `- id: compaction
   name: cordis:group
@@ -220,11 +221,9 @@ function composeWrappers(fixture) {
   const warn = message => warnings.push(message)
   let entries = applyEntryPatches([], parse(readFileSync(join(sourceRoot,
     'vendor/deepseek-harness/packages/bundle/base/cordis.patch.yml'), 'utf8')), warn)
-  entries = applyEntryPatches(entries, parse(readFileSync(join(sourceRoot,
-    'vendor/deepseek-harness/packages/subagent/subagent-codex/cordis.patch.yml'), 'utf8')), warn)
   entries = applyEntryPatches(entries, parse(readFileSync(join(sourceRoot, 'bundles/tender-host/cordis.patch.yml'), 'utf8')), warn)
   const defaults = parse(readFileSync(fixture.patchPath, 'utf8')).filter(patch =>
-    patch.id === 'subagent-codex' || patch.insert?.some(row => row.id === 'agent-pi-subagent-codex'))
+    patch.insert?.some(row => row.id === 'agent-pi-oar-codex'))
   entries = applyEntryPatches(entries, defaults, warn)
   entries = applyEntryPatches(entries, parse(readFileSync(fixture.userPatchPath, 'utf8')), warn)
   return { entries, warnings }
@@ -232,7 +231,6 @@ function composeWrappers(fixture) {
 
 const wrapperIds = [
   ['goal-round-driver', 'agent-pi-goal-round-driver', '@deepseek-ai/dsh-goal-round-driver', 'dsh-tender-host/goal-round-driver'],
-  ['subagent-codex', 'agent-pi-subagent-codex', '@deepseek-ai/dsh-subagent-codex', 'dsh-tender-host/codex-provider'],
 ]
 
 test('incompatible AnySearch retains installation but managed defaults select official search', t => {
@@ -302,7 +300,7 @@ test('missing preference enables one complete fallback while the session model s
   }
 })
 
-test('Agent Pi system preset copies receive the Codex product overlay without mutating DSH', (t) => {
+test('Agent Pi copies retire legacy Codex rows without mutating DSH presets', (t) => {
   const fixture = createFixture(t)
 
   runInitializer(fixture)
@@ -320,9 +318,104 @@ test('Agent Pi system preset copies receive the Codex product overlay without mu
       'agent.cordis.yml',
     ), 'utf8')
     assert.match(official, /tool-subagent-codex[\s\S]*?disabled: true/)
-    assert.doesNotMatch(product, /tool-subagent-codex[\s\S]*?disabled: true/)
+    assert.doesNotMatch(product, /tool-subagent-codex|dsh-tender-host\/codex-/)
     assert.match(product, /name: ['"]?dsh-agent-pi-compaction['"]?/)
   }
+})
+
+test('official OAR is the single external delegation tool with explicit safe native permissions', async t => {
+  const fixture = createFixture(t)
+  runInitializer(fixture)
+  const manifest = JSON.parse(readFileSync(join(fixture.home, 'profiles/tender/package.json'), 'utf8'))
+  for (const suffix of ['subagent-oar', 'tool-subagent-oar']) {
+    assert.ok(manifest.dependencies[`@deepseek-ai/dsh-experimental-${suffix}`])
+  }
+  assert.ok(!manifest.dsh.profile.bundles.includes('@deepseek-ai/dsh-subagent-codex'))
+  const { entries, warnings } = composeWrappers(fixture)
+  assert.deepEqual(warnings, [])
+  const codex = entries.find(row => row.id === 'agent-pi-oar-codex')
+  const claude = entries.find(row => row.id === 'agent-pi-oar-claude')
+  const tool = entries.find(row => row.id === 'agent-pi-tool-subagent-oar')
+  assert.equal(codex.name, '@deepseek-ai/dsh-experimental-subagent-oar')
+  assert.deepEqual(codex.config, { runtime: 'codex', providerName: 'oar-codex', timeoutMs: 600000,
+    launchArgs: ['-c', 'sandbox_mode="workspace-write"'] })
+  assert.deepEqual(claude.config, { runtime: 'claude', providerName: 'oar-claude', timeoutMs: 600000,
+    launchArgs: ['--permission-mode', 'dontAsk', '--permission-prompts', 'none'] })
+  assert.deepEqual(tool.config, { providers: { codex: 'oar-codex', claude: 'oar-claude' } })
+  assert.equal(entries.filter(row => row.name === '@deepseek-ai/dsh-experimental-tool-subagent-oar').length, 1)
+  const requireTools = createRequire(new URL('../vendor/deepseek-harness/packages/core/tools/package.json', import.meta.url))
+  const { Context } = await import(pathToFileURL(requireTools.resolve('@deepseek-ai/cordis')).href)
+  const { createScope } = await import('../vendor/deepseek-harness/packages/core/scope/lib/index.js')
+  const { default: Tools } = await import('../vendor/deepseek-harness/packages/core/tools/lib/index.js')
+  const { default: SystemPrompt } = await import('../vendor/deepseek-harness/packages/core/system-prompt/lib/index.js')
+  const externalTool = await import('../vendor/deepseek-harness/packages/experimental/tool-subagent-oar/lib/index.js')
+  const ctx = new Context()
+  t.after(() => ctx.fiber.dispose())
+  await ctx.plugin(SystemPrompt, {})
+  await ctx.plugin(Tools)
+  const mainAgent = { id: 'session-offline-oar-main' }
+  let scope
+  await ctx.plugin(Object.assign(inner => { scope = createScope(inner, mainAgent) }, { inject: ['tools', 'systemPrompt'] }))
+  const starts = []
+  externalTool.apply({ tools: ctx.tools, subagents: {
+    getProvider: () => ({ inheritsParentContext: false }),
+    startActivation: async request => { starts.push(request); return { childId: 'session-offline-oar-child' } },
+  } }, tool.config)
+  const schema = ctx.tools.schemas(mainAgent).find(row => row.name === 'subagent_oar')
+  assert.deepEqual(schema.parameters.properties.runtime.enum, ['codex', 'claude'])
+  assert.deepEqual(schema.parameters.required, ['runtime', 'description', 'prompt'])
+  assert.equal(ctx.tools.schemas(mainAgent).filter(row => row.name === 'subagent_oar').length, 1)
+  // This simulates model-emitted arguments; no model, CLI or authentication runs.
+  const selection = { runtime: 'codex', description: 'Review fixture', prompt: 'Inspect only neutral fixture data.' }
+  const signal = new AbortController().signal
+  const result = await scope.ctx.tools.get('subagent_oar', mainAgent).execute(selection, { agent: mainAgent, signal })
+  assert.deepEqual(result, { kind: 'activation', subagentId: 'session-offline-oar-child' })
+  assert.equal(starts[0].provider, 'oar-codex')
+  assert.equal(starts[0].request.parent, mainAgent)
+  assert.deepEqual(starts[0].request.prompt, [{ type: 'text', text: selection.prompt }])
+  assert.equal(starts[0].delivery, 'parent')
+})
+
+test('saved product Codex overrides retire while unrelated user preferences and installed dependencies remain', t => {
+  const fixture = createFixture(t)
+  const legacySource = `- id: tool-subagent-codex
+  name: dsh-tender-host/codex-tool
+- id: user-read
+  name: user-read-plugin
+`
+  const legacyPresetPath = join(fixture.home, '.agent-presets/legacy-offline/agent.cordis.yml')
+  writeFixtureFile(legacyPresetPath, legacySource)
+  writeFixtureFile(fixture.userPatchPath, `# retained user preferences
+- id: subagent-codex
+  config:
+    permissionMode: approve-for-me
+- insert:
+    - id: agent-pi-subagent-codex
+      name: dsh-tender-host/codex-provider
+      config:
+        model: retired-model
+- id: custom-plugin
+  config:
+    keep: exactly
+`)
+  const profile = join(fixture.home, 'profiles/tender')
+  writePackage(profile, 'node_modules/@deepseek-ai/dsh-subagent-codex', '@deepseek-ai/dsh-subagent-codex')
+  writeFixtureFile(join(profile, 'package.json'), JSON.stringify({ dependencies: {
+    '@deepseek-ai/dsh-subagent-codex': '0.2.2-alpha.2',
+  }, dsh: { profile: { bundles: ['@deepseek-ai/dsh-subagent-codex'] } } }))
+  runInitializer(fixture)
+  const first = readFileSync(fixture.userPatchPath, 'utf8')
+  assert.doesNotMatch(first, /subagent-codex|retired-model/)
+  assert.deepEqual(loadYaml(first), [{ id: 'custom-plugin', config: { keep: 'exactly' } }])
+  const manifest = JSON.parse(readFileSync(join(profile, 'package.json'), 'utf8'))
+  assert.equal(manifest.dependencies['@deepseek-ai/dsh-subagent-codex'], '0.2.2-alpha.2')
+  assert.ok(!manifest.dsh.profile.bundles.includes('@deepseek-ai/dsh-subagent-codex'))
+  assert.equal(readFileSync(legacyPresetPath, 'utf8'), legacySource)
+  const compiled = readFileSync(join(fixture.home, '.agent-pi-presets/cordis.patch.yml'), 'utf8')
+  assert.doesNotMatch(compiled, /dsh-tender-host\/codex-|tool-subagent-codex/)
+  assert.match(compiled, /user-read-plugin/)
+  runInitializer(fixture)
+  assert.equal(readFileSync(fixture.userPatchPath, 'utf8'), first)
 })
 
 test('alpha.1 managed overlay reuses the built-in web fetch provider id', (t) => {
@@ -598,7 +691,7 @@ test('unknown wrapper assertion names remain untouched and cannot reactivate nat
   runInitializer(fixture)
   assert.equal(readFileSync(fixture.userPatchPath, 'utf8'), overlay)
   const { entries, warnings } = composeWrappers(fixture)
-  assert.equal(warnings.length, 2)
+  assert.equal(warnings.length, wrapperIds.length)
   assert.ok(warnings.every(message => message.includes('name mismatch')))
   for (const [oldId, newId] of wrapperIds) {
     assert.equal(entries.find(entry => entry.id === oldId).disabled, true)

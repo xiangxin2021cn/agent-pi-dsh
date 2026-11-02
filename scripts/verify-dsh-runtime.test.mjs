@@ -18,6 +18,7 @@ function fixture() {
   mkdirSync(join(dsh, 'packages', 'bundle', 'base'), { recursive: true })
   mkdirSync(join(dsh, 'packages', 'bundle', 'sdk-minimal'), { recursive: true })
   mkdirSync(product, { recursive: true })
+  writeFileSync(join(product, 'package.json'), '{"agentPiProduct":{"edition":"tender"}}\n')
   writeFileSync(join(dsh, 'package.json'), '{"version":"0.2.2-alpha.2"}\n')
   const roots = [
     join(dsh, 'apps/cli'),

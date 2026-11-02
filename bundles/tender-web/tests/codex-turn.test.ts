@@ -93,7 +93,7 @@ function loadShippedComposer(options = {}) {
     )
     .replace(
       /(\s*return module\.exports;)/,
-      "\n    window.__apCodexTurnTest = { ComposerTools, codexTurnControllers, codexTurnArmed, setCodexTurnArmed, setCodexTurnModel, setCodexTurnReasoningEffort, setAttachItems: (items, props) => setAttachItemsFor(attachSessionId(props), items), attachItemsOf, attachState, mergeImportedItems, attachmentTurnControllers: typeof attachmentTurnControllers === 'undefined' ? null : attachmentTurnControllers };\n$1",
+      "\n    window.__apCodexTurnTest = { ComposerTools, codexTurnControllers, codexTurnArmed, setCodexTurnArmed, setAttachItems: (items, props) => setAttachItemsFor(attachSessionId(props), items), attachItemsOf, attachState, mergeImportedItems, attachmentTurnControllers: typeof attachmentTurnControllers === 'undefined' ? null : attachmentTurnControllers };\n$1",
     )
   vm.runInNewContext(source, {
     window,
@@ -261,11 +261,6 @@ async function flush() {
   await new Promise((resolve) => setImmediate(resolve))
 }
 
-const modelStatus = () => Promise.resolve({
-  available: true, state: 'logged-in', defaultModel: 'codex-default',
-  models: [{ id: 'codex-default' }, { id: 'codex-override' }],
-})
-
 const effortStatus = {
   available: true, state: 'logged-in', defaultModel: 'codex-default', selectedReasoningEffort: 'ultra',
   models: [
@@ -339,17 +334,6 @@ test('reasoning inheritance follows the selected model without leaking an incomp
   assert.throws(() => resolveCodexTurnSelection(effortStatus, 'codex-override', 'ultra'), /思考等级当前不可用/)
   assert.throws(() => resolveCodexTurnSelection({ ...effortStatus, modelError: 'stale catalog' }), /无法确认默认/)
   assert.equal(resolveCodexTurnSelection({ ...effortStatus, selectedReasoningEffort: null }).reasoningEffort, 'medium')
-})
-
-test('switching the one-turn model clears incompatible reasoning and keeps compatible selections', () => {
-  const composer = publicComposer('effort-switch', 'model switch')
-  const { api } = loadShippedComposer({ runtime: publicRuntime(composer) })
-  api.setCodexTurnArmed(composer.props(), true)
-  api.setCodexTurnReasoningEffort(composer.props(), 'ultra')
-  api.setCodexTurnModel(composer.props(), 'codex-default', effortStatus)
-  assert.equal(api.codexTurnControllers.get(composer.sessionId).selectedReasoningEffort, 'ultra')
-  api.setCodexTurnModel(composer.props(), 'codex-override', effortStatus)
-  assert.equal(api.codexTurnControllers.get(composer.sessionId).selectedReasoningEffort, '')
 })
 
 test('normal attachment turn waits for host delivery after its matching durable user node', async () => {
@@ -689,7 +673,7 @@ test('normal attachment transaction admits only one in-flight turn per session',
   assert.equal(attachmentControllerPhase(api, composer.sessionId), 'submitting')
 })
 
-test('normal and Codex attachment transactions are mutually exclusive within one session', async () => {
+test('retired Codex arm requests cannot interrupt an in-flight DSH attachment transaction', async () => {
   const calls = []
   const composer = publicComposer('attachment-normal-codex-exclusive', '同一会话只允许一个附件事务。')
   const { api } = loadShippedComposer({
@@ -980,8 +964,8 @@ test('builds a foreground one-shot delegation without changing the task', () => 
   assert.match(prompt, /等待 Codex 完成/)
   assert.match(prompt, /核验实际结果/)
   assert.ok(prompt.endsWith(task))
-  // Explicit subagent delegation remains available separately from the native main composer.
-  assert.match(client, /codexExecutionSubmit/)
+  // The legacy prompt formatter is retained without a manual execution entry.
+  assert.doesNotMatch(client, /codexExecutionSubmit/)
 })
 
 test('requires an available logged-in runtime', () => {
@@ -990,150 +974,51 @@ test('requires an available logged-in runtime', () => {
   assert.equal(codexCanRun({ available: false, state: 'unavailable' }), false)
 })
 
-test('main composer submits directly to native Codex and keeps the selected engine for follow-up turns', async () => {
-  const composer = publicComposer('native-main', 'Review the BOQ')
-  const received = []
-  const { api } = loadShippedComposer({ runtime: publicRuntime(composer), codexAuthStatus: modelStatus, nativeSubmit: async (input) => { received.push(input); return { ...input, phase: 'idle', messages: [], requests: [] } } })
+test('retired arm requests cannot change DSH main execution or trigger Codex auth and model calls', async () => {
+  const composer = publicComposer('dsh-main', 'Review the BOQ')
+  const retired = []
+  const { api } = loadShippedComposer({ runtime: publicRuntime(composer), codexAuthStatus: async () => { retired.push('auth'); throw new Error('Retired') }, nativeSubmit: async () => { retired.push('submit'); throw new Error('Retired') } })
   api.ComposerTools(composer.props())
-  api.setCodexTurnArmed(composer.props(), true)
-  api.setAttachItems([{ id: 'boq-original', name: 'BOQ.xlsx', path: 'C:/originals/BOQ.xlsx', kind: 'file' }], composer.props())
+  assert.equal(api.setCodexTurnArmed(composer.props(), true), false)
+  assert.equal(api.codexTurnArmed(composer.props()), false)
   composer.actions.submit()
   await flush()
-  assert.equal(received.length, 1)
-  assert.equal(composer.sent.length, 0)
-  assert.equal(received[0].sessionId, composer.sessionId)
-  assert.equal(received[0].cwd, 'C:/workspace')
-  assert.equal(received[0].text, 'Review the BOQ')
-  assert.equal(received[0].attachments[0].path, 'C:/originals/BOQ.xlsx')
-  assert.equal(received[0].model, 'codex-default')
-  assert.equal(composer.input.getSnapshot().draft, '')
-  assert.equal(api.codexTurnArmed(composer.props()), true)
-  composer.actions.setDraft('Continue the plan')
-  composer.actions.submit()
-  await flush()
-  assert.equal(received[1].text, 'Continue the plan')
-  assert.equal(composer.sent.length, 0)
+  assert.deepEqual(composer.sent, ['Review the BOQ'])
+  assert.deepEqual(retired, [])
 })
 
-test('native preparation waits for KB persistence and retains the draft and original attachments on failure', async () => {
-  const composer = publicComposer('native-kb', 'Keep my original task')
-  const received = [], saving = deferred()
-  let retry = false
-  const { api } = loadShippedComposer({ runtime: publicRuntime(composer), flushKbSelection: () => retry ? Promise.resolve() : saving.promise, nativeSubmit: async (input) => { received.push(input); return { ...input, phase: 'idle', messages: [], requests: [] } } })
-  api.ComposerTools(composer.props())
-  api.setCodexTurnArmed(composer.props(), true)
-  api.setAttachItems([{ id: 'source', name: 'plan.pdf', path: 'C:/source/plan.pdf', kind: 'file' }], composer.props())
-  composer.actions.submit()
-  await flush()
-  assert.equal(received.length, 0)
-  saving.reject(new Error('KB failed'))
-  await flush()
-  assert.equal(composer.input.getSnapshot().draft, 'Keep my original task')
-  assert.equal(api.attachItemsOf(composer.sessionId).length, 1)
-  retry = true
-  composer.actions.submit()
-  await flush()
-  assert.equal(received.length, 1)
-  assert.equal(composer.sent.length, 0)
-})
-
-test('native model discovery does not send tasks whose draft, KB, attachments or session changed', async (t) => {
-  for (const change of ['draft', 'KB', 'attachment', 'session']) await t.test(change, async () => {
-    const composer = publicComposer('native-drift-' + change, 'Original requirement')
-    const runtime = publicRuntime(composer), discovered = deferred(), received = []
-    const { api, window } = loadShippedComposer({ runtime, codexAuthStatus: () => discovered.promise, nativeSubmit: async (input) => { received.push(input); return input } })
-    api.ComposerTools(composer.props())
-    api.setCodexTurnArmed(composer.props(), true)
-    composer.actions.submit()
-    await flush()
-    if (change === 'draft') composer.actions.setDraft('New requirement')
-    if (change === 'KB') window.__apKbTask = { bySession: { [composer.sessionId]: { slugs: ['changed'], entries: [] } } }
-    if (change === 'attachment') api.setAttachItems([{ id: 'new-original', name: 'other.pdf', path: 'C:/other.pdf', kind: 'file' }], composer.props())
-    if (change === 'session') runtime.remove(composer.sessionId)
-    discovered.resolve(await modelStatus())
-    await flush()
-    assert.equal(received.length, 0)
-    assert.equal(composer.sent.length, 0)
-    assert.equal(composer.input.getSnapshot().draft, change === 'draft' ? 'New requirement' : 'Original requirement')
-  })
-})
-
-test('native submit failure preserves retry state and an accepted turn preserves concurrent edits', async () => {
-  const composer = publicComposer('native-retry', 'Original task')
-  let reject = true, waiting = null
-  const received = []
-  const { api } = loadShippedComposer({ runtime: publicRuntime(composer), nativeSubmit: async (input) => { received.push(input); if (reject) throw new Error('Native failed'); if (waiting) await waiting.promise; return { ...input, phase: 'idle', messages: [], requests: [] } } })
-  api.ComposerTools(composer.props())
-  api.setCodexTurnArmed(composer.props(), true)
-  api.setAttachItems([{ id: 'one', name: 'source.pdf', path: 'C:/source.pdf', kind: 'file' }], composer.props())
-  composer.actions.submit()
-  await flush()
-  assert.equal(composer.input.getSnapshot().draft, 'Original task')
-  assert.equal(api.attachItemsOf(composer.sessionId)[0].id, 'one')
-  reject = false
-  waiting = deferred()
-  composer.actions.submit()
-  await flush()
-  composer.actions.setDraft('Later task')
-  api.setAttachItems([{ id: 'two', name: 'source.pdf', path: 'C:/source.pdf', kind: 'file' }], composer.props())
-  waiting.resolve()
-  await flush()
-  assert.equal(composer.input.getSnapshot().draft, 'Later task')
-  assert.equal(api.attachItemsOf(composer.sessionId)[0].id, 'two')
-  assert.equal(composer.sent.length, 0)
-})
-
-test('actual composer Enter and primary button gestures route plain text directly to native Codex', async (t) => {
+test('main composer leaves plain Enter and primary button handling to native DSH', async (t) => {
   for (const gesture of ['keydown', 'click']) await t.test(gesture, async () => {
-    const composer = publicComposer('native-dom-' + gesture, 'Plain text customer task')
+    const composer = publicComposer('dsh-dom-' + gesture, 'Plain text customer task')
     const received = []
-    const { api, dispatchDom } = loadShippedComposer({ runtime: publicRuntime(composer), nativeSubmit: async (input) => { received.push(input); return { ...input, phase: 'idle', messages: [], requests: [] } } })
+    const { api, dispatchDom } = loadShippedComposer({ runtime: publicRuntime(composer), nativeSubmit: async input => { received.push(input); return input } })
     api.ComposerTools(composer.props())
     api.setCodexTurnArmed(composer.props(), true)
     const card = {}
-    const button = { className: 'InputBar_primary', disabled: false, closest: (selector) => selector === '[data-composer-card]' ? card : null, getAttribute: () => 'Send', querySelector: () => null }
-    const input = { closest: (selector) => selector === '[data-composer-card]' ? card : null }
-    let prevented = 0, stopped = 0
-    const event = { key: 'Enter', shiftKey: false, isComposing: false, target: { closest: (selector) => selector === 'button' ? button : input }, preventDefault() { prevented++ }, stopPropagation() { stopped++ } }
+    const button = { className: 'InputBar_primary', disabled: false, closest: selector => selector === '[data-composer-card]' ? card : null, getAttribute: () => 'Send', querySelector: () => null }
+    const input = { closest: selector => selector === '[data-composer-card]' ? card : null }
+    const event = { key: 'Enter', shiftKey: false, isComposing: false, target: { closest: selector => selector === 'button' ? button : input }, preventDefault() { assert.fail('native DSH gesture intercepted') }, stopPropagation() { assert.fail('native DSH gesture stopped') } }
     dispatchDom(gesture, event)
+    composer.actions.submit()
     await flush()
-    assert.equal(received.length, 1)
-    assert.equal(received[0].text, 'Plain text customer task')
-    assert.equal(composer.sent.length, 0)
-    assert.equal(prevented, 1)
-    assert.equal(stopped, 1)
-    assert.equal(composer.input.getSnapshot().draft, '')
+    assert.deepEqual(received, [])
+    assert.deepEqual(composer.sent, ['Plain text customer task'])
   })
 })
 
-test('native Enter capture preserves newline, IME, repeated and alternate shortcut gestures', async () => {
-  const composer = publicComposer('native-dom-editor', 'Preserve editor action')
-  const received = []
-  const { api, dispatchDom } = loadShippedComposer({ runtime: publicRuntime(composer), nativeSubmit: async (input) => { received.push(input); return input } })
+test('DSH attachment capture preserves newline, IME, alternate gestures and composition-end guard', async () => {
+  const composer = publicComposer('dsh-dom-composition', '中文任务')
+  const { api, dispatchDom } = loadShippedComposer({ runtime: publicRuntime(composer) })
   api.ComposerTools(composer.props())
-  api.setCodexTurnArmed(composer.props(), true)
-  const input = { closest: () => ({}) }
-  for (const extra of [{ shiftKey: true }, { isComposing: true }, { keyCode: 229 }, { repeat: true }, { altKey: true }]) dispatchDom('keydown', { key: 'Enter', ...extra, target: { closest: () => input }, preventDefault() { assert.fail('editor action intercepted') }, stopPropagation() {} })
-  await flush()
-  assert.equal(received.length, 0)
-  assert.equal(composer.input.getSnapshot().draft, 'Preserve editor action')
-})
-
-test('native capture preserves the official short composition-end guard for Chinese candidate confirmation', async () => {
-  const composer = publicComposer('native-dom-composition', '中文任务')
-  const received = []
-  const { api, dispatchDom } = loadShippedComposer({ runtime: publicRuntime(composer), nativeSubmit: async (input) => { received.push(input); return { ...input, phase: 'idle', messages: [], requests: [] } } })
-  api.ComposerTools(composer.props())
-  api.setCodexTurnArmed(composer.props(), true)
-  const input = { closest: () => ({}) }
-  const target = { closest: () => input }
+  api.setAttachItems([{ id: 'source', name: 'source.pdf', kind: 'file', path: 'C:/workspace/source.pdf', relativePath: 'source.pdf' }], composer.props())
+  const input = { closest: () => ({}) }, target = { closest: () => input }
+  for (const extra of [{ shiftKey: true }, { isComposing: true }, { keyCode: 229 }, { repeat: true }, { altKey: true }]) dispatchDom('keydown', { key: 'Enter', ...extra, target, preventDefault() { assert.fail('editor action intercepted') }, stopPropagation() {} })
   dispatchDom('compositionend', { target })
   dispatchDom('keydown', { key: 'Enter', target, preventDefault() { assert.fail('candidate-confirming Enter submitted') }, stopPropagation() {} })
-  assert.equal(received.length, 0)
-  await new Promise((done) => setTimeout(done, 15))
+  assert.equal(composer.sent.length, 0)
+  await new Promise(done => setTimeout(done, 15))
   dispatchDom('keydown', { key: 'Enter', target, preventDefault() {}, stopPropagation() {} })
   await flush()
-  assert.equal(received.length, 1)
-  assert.equal(received[0].text, '中文任务')
-  assert.equal(composer.sent.length, 0)
+  assert.equal(composer.sent.length, 1)
+  assert.match(composer.sent[0], /中文任务/)
 })

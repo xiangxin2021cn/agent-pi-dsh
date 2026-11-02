@@ -9,7 +9,6 @@ import { registerReportSkillRouting } from './report-skill.ts'
 import { convertDwgToDxf } from './cad-convert.ts'
 import { sessionCwd, textResult } from './cwd.ts'
 import { registerAnySearchSettings } from './anysearch-settings.ts'
-import { attachCodexToolBridge } from './codex-tool-bridge.ts'
 import { registerOfficePdfToolSafety } from './office-pdf-tool-safety.ts'
 import { registerScheduleToolSafety } from './schedule-tool-safety.ts'
 
@@ -66,7 +65,6 @@ export async function apply(ctx: {
   registerOfficePdfToolSafety(ctx)
   registerScheduleToolSafety(ctx)
   registerAnySearchSettings(ctx)
-  await attachCodexToolBridge(ctx)
   ctx.tools.register(defineTool({
     name: 'cad_prepare',
     description: 'Convert a workspace DWG to a verified ASCII DXF using the bundled MLightCAD/LibreDWG viewer libraries. Returns the DXF path and source SHA-256; read the DXF for layers, geometry, dimensions, text and blocks, and check the original drawing visually.',

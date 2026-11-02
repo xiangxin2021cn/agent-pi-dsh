@@ -21,6 +21,7 @@ import { dshBuildReceiptName, verifyDshBuildReceipt } from './dsh-build-receipt.
 import { verifyDshRuntime } from './verify-dsh-runtime.mjs'
 import { verifyProjectPlanRuntime } from './verify-project-plan-runtime.mjs'
 import { assertUniverPublicReleaseTree } from './univer-public-release.mjs'
+import { isSelectedMainline, verifyDistributionRuntime } from './dsh-distribution-policy.mjs'
 
 export function stageNodeRuntime(nodeArchiveDir, pnpmPackageDir, nodeDir, packageManager) {
   const nodeName = process.platform === 'win32' ? 'node.exe' : 'node'
@@ -101,6 +102,7 @@ verifyDshBuildReceipt({
   productRoot: product,
   receiptPath: join(dsh, dshBuildReceiptName),
 })
+if (isSelectedMainline(product)) verifyDistributionRuntime(dsh, product)
 
 mkdirSync(runtime, { recursive: true })
 
@@ -125,6 +127,7 @@ verifyDshBuildReceipt({
   receiptPath: join(runtime, 'deepseek-harness', dshBuildReceiptName),
 })
 verifyDshRuntime(join(runtime, 'deepseek-harness'), join(runtime, 'product'))
+if (isSelectedMainline(product)) verifyDistributionRuntime(join(runtime, 'deepseek-harness'), join(runtime, 'product'))
 
 // Smoke-check the staged tree the same way the packaged app will.
 const staged = join(runtime, 'deepseek-harness')

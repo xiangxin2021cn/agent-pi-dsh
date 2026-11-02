@@ -40,6 +40,48 @@ export function mergeTaskBriefEdits(task, edits, allowConflicts = false) {
   return {brief:conflicts.length && !allowConflicts ? null : brief,conflicts}
 }
 
+function renderTaskExecution(h, execution, locale) {
+  if (!execution) return null
+  const zh = String(locale || 'zh').startsWith('zh')
+  const phases = zh
+    ? {inactive:'尚未启用自动接续',ready:'等待宿主派发',waiting:'执行或回执处理中',paused:'自动接续已暂停',needs_review:'需要核对',blocked:'续派已阻止',done:'当前阶段执行结束'}
+    : {inactive:'Automatic continuation not active',ready:'Awaiting host dispatch',waiting:'Execution or receipts in progress',paused:'Automatic continuation paused',needs_review:'Reconciliation required',blocked:'Continuation blocked',done:'Current stage execution ended'}
+  const attempts = zh
+    ? {prepared:'已准备',dispatching:'正在确认派发',dispatched:'已派发，待结算',settled:'已结算',stale:'输入已变更'}
+    : {prepared:'Prepared',dispatching:'Confirming dispatch',dispatched:'Dispatched; settlement pending',settled:'Settled',stale:'Inputs changed'}
+  const known = value => Number.isFinite(value) && value >= 0
+  const count = value => known(value) ? value : (zh ? '待核对' : 'Unconfirmed')
+  const budget = (label, key, minutes = false) => {
+    const used = execution.usage?.[key === 'maxRounds' ? 'rounds' : key === 'maxTokens' ? 'tokens' : 'elapsedMs']
+    const limit = execution.limits?.[key]
+    const format = value => minutes && known(value) ? Math.round(value / 600) / 100 : count(value)
+    const uncertain = key === 'maxTokens' && execution.usage?.unknownTokens
+    return h('p',{key},label+(zh ? '：' : ': ')+(uncertain ? (zh ? '待核对（已知 ' : 'Unconfirmed (known ')+count(used)+(zh ? '）' : ')') : format(used))+' / '+format(limit),
+      !uncertain && known(used) && known(limit) ? (zh ? '，剩余 ' : '; remaining ')+format(Math.max(0,limit-used)) : '')
+  }
+  return h('article',{'data-task-execution':execution.phase},h('h3',null,zh ? '长任务接力' : 'Long-task continuation'),
+    h('p',{role:'status'},phases[execution.phase] || execution.phase),
+    execution.reason && h('p',null,execution.reason),
+    execution.rootSessionId && h('p',null,(zh ? '原主会话：' : 'Original main session: '),h('code',null,execution.rootSessionId)),
+    execution.stageId && h('p',null,(zh ? '当前阶段：' : 'Current stage: ')+execution.stageId),
+    execution.attempt && h('p',null,(zh ? '当前尝试：' : 'Current attempt: '),h('code',null,execution.attempt.id),' · ',attempts[execution.attempt.status] || execution.attempt.status),
+    execution.context && h('p',{className:'ap-guide-muted',title:execution.context.fingerprint},(zh ? '本轮依据：知识库 ' : 'Basis for this attempt: knowledge bases ')+count(execution.context.knowledgeCount)+(zh ? ' · 主范本 ' : ' · primary templates ')+count(execution.context.templateCount)+(zh ? ' · 技能 ' : ' · skills ')+count(execution.context.skillCount)),
+    execution.usage && h('div',null,
+      h('p',{className:'ap-guide-muted'},zh ? '以下轮次、token、累计执行时间及剩余额度仅为 DSH 已知用量，不代表包含外部 CLI 的完整总量。' : 'Rounds, tokens, execution time and remaining allowances below cover only usage known to DSH, not a complete total including external CLIs.'),
+      budget(zh ? 'DSH 已知父子模型轮次' : 'DSH known parent and child model rounds','maxRounds'),
+      budget(zh ? 'DSH 已知父子 token' : 'DSH known parent and child tokens','maxTokens'),
+      budget(zh ? 'DSH 已知累计执行分钟' : 'DSH known cumulative execution minutes','maxElapsedMs',true),
+      h('p',null,(zh ? '连续无实际进展：' : 'Consecutive attempts without actual progress: ')+count(execution.noProgress)+' / '+count(execution.limits?.maxNoProgress))),
+    execution.external && h('div',{'data-task-external':'unreported'},
+      h('p',null,(zh ? '外部 CLI：待结算 ' : 'External CLI: unsettled ')+count(execution.external.pendingCount)+(zh ? ' · 待复核 ' : ' · needs review ')+count(execution.external.needsReviewCount)+(zh ? ' · 失败 ' : ' · failed ')+count(execution.external.failedCount)),
+      h('p',{className:'ap-guide-muted'},zh ? '外部 CLI token 未报告；其执行结果仍须核对，不据此判断任务已完成。' : 'External CLI tokens are unreported. Its results still require review and do not establish task completion.')),
+    execution.pendingToolCount > 0 && h('p',null,(zh ? '待核对工具回执：' : 'Tool receipts to reconcile: ')+execution.pendingToolCount),
+    execution.unsettledChildCount > 0 && h('p',null,(zh ? '未结算子任务：' : 'Unsettled child tasks: ')+execution.unsettledChildCount),
+    execution.phase === 'paused' && h('p',{className:'ap-guide-muted'},zh ? '自动接续保持暂停；当前执行是否已停止，以主对话的实际执行状态为准。' : 'Automatic continuation remains paused. Use the actual execution state in the main conversation to confirm whether the current turn has stopped.'),
+    h('p',{className:'ap-guide-muted'},zh ? '执行结束或收到成果不代表阶段批准或客户验收；仍以实际成果检查为准。' : 'Execution ending or a received artifact does not establish stage approval or customer acceptance. Actual artifact checks remain authoritative.'),
+  )
+}
+
 export function createTaskGuide({ React, api, cwd, language, subscribe, onOpenSource, onOpenWorkbench, onTask, onUserAction }) {
   const h = React.createElement
   const EngineeringPanel = createEngineeringPanel({ React, api, language,
@@ -176,6 +218,7 @@ export function createTaskGuide({ React, api, cwd, language, subscribe, onOpenSo
             h('span',null,(zh?'客户验收：':'Customer acceptance: ')+model.delivery.accepted+'/'+model.delivery.total)),
           model.coverage.total===0&&h('p',{className:'ap-guide-muted'},zh?'尚未登记资料检查对象，不推算完成率。':'No source inspection objects have been registered yet.'),
           h('button',{onClick:()=>setTab('plan')},text.plan),h('button',{onClick:()=>setTab('delivery')},text.delivery))),
+        renderTaskExecution(h,result?.execution,language()),
         model.changes.length>0&&article('changes',zh?'调整记录':'Adjustment history',h(React.Fragment,null,...model.changes.slice(0,8).map(row=>h('div',{key:row.sequence},h('p',null,row.summary),row.affectedRefs?.length>0&&h('p',{className:'ap-guide-muted'},(zh?'受影响：':'Affected: ')+row.affectedRefs.join('、')))))),
       )
       if (tab==='responses') body = renderTenderResponseCoverage(h,result?.responseCoverage,{locale:language(),onOpenFile:(path,locator)=>window.dispatchEvent(new CustomEvent('agent-pi-open-file',{detail:{cwd:cwd(),path,locator}}))}) || h('p',{className:'ap-guide-muted'},zh?'当前项目尚未建立投标响应记录，可在主对话中继续。':'This project has no tender response record yet. Continue in the conversation.')
@@ -188,7 +231,7 @@ export function createTaskGuide({ React, api, cwd, language, subscribe, onOpenSo
         const workbenchPlan=(draft.plan || []).filter(row=>row.id?.startsWith('workbench:')&&!row.id.includes(':execution:'))
         const executionPlan=(draft.plan || []).filter(row=>!row.id?.startsWith('workbench:')||row.id.includes(':execution:'))
         const planRows=rows=>rows.map(row=>article(row.id,row.title,h(React.Fragment,null,h('p',null,displayState(row.status)),h('p',{className:'ap-guide-muted'},(row.dependsOn || []).join(' → ')),(row.gaps || []).map((gap,index)=>h('p',{key:'g'+index},text.missing+': '+gap)),(row.supplements || []).map((supplement,index)=>h('p',{key:'s'+index},supplement)))))
-        body=h(React.Fragment,null,h('p',null,draft.assessment||text.waiting),
+        body=h(React.Fragment,null,renderTaskExecution(h,result?.execution,language()),h('p',null,draft.assessment||text.waiting),
           workbenchPlan.length>0&&h('section',{'aria-label':zh?'工作台阶段与实际门禁':'Workbench stages and actual gates'},h('h3',null,zh?'工作台阶段与实际门禁':'Workbench stages and actual gates'),...planRows(workbenchPlan)),
           executionPlan.length>0&&h('section',{'aria-label':workbenchPlan.length?(zh?'执行者登记的工作进度':'Agent-registered work progress'):text.plan},
             workbenchPlan.length>0&&h('h3',null,zh?'执行者登记的工作进度':'Agent-registered work progress'),

@@ -1,0 +1,15 @@
+{
+  "schema": "agent-pi-dsh/selected-production-policy/v1",
+  "id": "mainline-local-oar-v1",
+  "sourceCommit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+  "excludedWorkspaces": {
+    "packages/subagent/subagent-codex": "@deepseek-ai/dsh-subagent-codex",
+    "packages/subagent/subagent-claude-code": "@deepseek-ai/dsh-subagent-claude-code"
+  },
+  "requiredWorkspaces": [
+    "packages/experimental/subagent-oar",
+    "packages/experimental/tool-subagent-oar"
+  ],
+  "excludedPackages": ["@openai/codex", "@anthropic-ai/claude-agent-sdk"],
+  "externalExecutables": ["codex", "claude"]
+}

@@ -1252,7 +1252,8 @@ for (const [executor, exhausted] of [['dsh', false], ['codex', false], ['dsh', t
   if (exhausted) f.services.set('goals', { get: () => ({ id: 'bound-goal', revision: 4, phase: 'paused', roundsStarted: 4, maxGoalRounds: 4 }), resume: () => assert.fail('exhausted goal cannot be resumed') })
   const nativeCalls: any[] = []
   if (executor === 'codex') f.services.set('nativeTaskExecutor', { status: () => ({ active: false }), dispatch: async (input: any) => { nativeCalls.push(input); return { dispatch: 'requires_executor', reason: 'Waiting for Codex stage execution' } } })
-  const limits = { maxRounds: 4, maxTokens: 90, maxElapsedMs: 1000, maxNoProgress: 2, maxCostUsd: 0.5 }
+  const activeLimits = { maxRounds: 4, maxTokens: 90, maxElapsedMs: 1000, maxNoProgress: 2 }
+  const limits = { ...activeLimits, maxCostUsd: 0.5 }
   const actual = await f.http('POST', { action: 'user_action', operationId: 'reuse-stage-offer', revision: current.revision, command: { kind: 'continue', executor, ...(executor === 'dsh' ? { limits } : {}) } })
   if (exhausted) {
     assert.equal(actual.value.interaction.dispatch, 'blocked')
@@ -1273,7 +1274,7 @@ for (const [executor, exhausted] of [['dsh', false], ['codex', false], ['dsh', t
   assert.equal(inbox.nextTurn[0].id, 'real-stage-native-message')
   assert.equal(inbox.nextTurn[0].content[0].text, first.draft)
   assert.equal(inbox.nextTurn.length, 1, 'shared continue does not add a second generic writer')
-  assert.deepEqual((await host.status(f.cwd, project, 'main')).run!.limits, limits, 'all five explicit workbench limits reach the actual DSH host')
+  assert.deepEqual((await host.status(f.cwd, project, 'main')).run!.limits, activeLimits, 'all four execution limits reach the host; a legacy amount field does not impose a currency ceiling')
   await assert.rejects(() => host.prepared(f.cwd, project, 'main', first.dispatch!), /等待|尚未|结算/)
 })
 
@@ -1372,8 +1373,8 @@ test('shared continuation changes only explicit run ceilings, preserves usage on
   host.offer(f.cwd, project, 'main', first as any)
   const action = (operationId: string, limits?: any) => ({ action: 'user_action', operationId, revision: f.store.read('main').revision, command: { kind: 'continue', executor: 'dsh', ...(limits === undefined ? {} : { limits }) } })
   await f.call('status')
-  const initialLimits = { maxRounds: 1, maxTokens: 15, maxElapsedMs: 10, maxNoProgress: 1, maxCostUsd: 0.2 }
-  const started = await f.http('POST', action('budget-first', initialLimits))
+  const initialLimits = { maxRounds: 1, maxTokens: 15, maxElapsedMs: 10, maxNoProgress: 1 }
+  const started = await f.http('POST', action('budget-first', { ...initialLimits, maxCostUsd: 0.2 }))
   assert.equal(started.status, 200, JSON.stringify(started.value))
   assert.equal(started.value.interaction.dispatch, 'queued', started.value.interaction.reason)
   assert.deepEqual(longTaskStatus(f.cwd, project, 'main').run!.limits, initialLimits)
@@ -1392,7 +1393,7 @@ test('shared continuation changes only explicit run ceilings, preserves usage on
   let after = longTaskStatus(f.cwd, project, 'main').run!
   assert.deepEqual(after.usage, before.usage); assert.deepEqual(after.usageReceipts, before.usageReceipts)
   assert.equal(after.noProgress, before.noProgress)
-  assert.equal(after.limits.maxCostUsd, undefined, 'explicit null removes only the optional money ceiling')
+  assert.equal(after.limits.maxCostUsd, undefined, 'legacy null stays compatible without restoring a currency ceiling')
   assert.equal(after.attempts.length, 2); assert.equal(inbox.nextTurn.length, 1)
   host.setLimits(f.cwd, project, 'main', { maxTokens: 100 })
   await f.http('POST', input)

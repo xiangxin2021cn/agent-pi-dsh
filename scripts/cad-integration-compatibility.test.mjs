@@ -677,7 +677,7 @@ test('3.8.7 mainline hotfix accepts its exact metadata and preview pair, refusin
   commit(value.root)
   const historical = assertCadIntegrationUnchanged(value)
   assert.equal(historical.hostExtension.review, '3.8.7-mainline-scoped-cad-preview')
-  const changed = ['package.json', 'bundles/tender-web/src/client/file-preview-overlay.js']
+  const changed = ['package.json', 'bundles/tender-web/src/client/file-preview-overlay.js', 'bundles/tender-web/src/client/index.js']
   // The immutable source of v3.8.7-hotfix.1, also available without that local tag.
   for (const path of changed) {
     const previous = execFileSync('git', ['show', `d170a7b3318ca59b490565f5b0aba5d10dbd67f4:${path}`], {
@@ -689,14 +689,26 @@ test('3.8.7 mainline hotfix accepts its exact metadata and preview pair, refusin
   const previousHotfix = assertCadIntegrationUnchanged(value)
   assert.equal(previousHotfix.hostExtension.review, '3.8.7-mainline-hotfix.1-cad-preview-recovery')
   for (const path of changed) {
+    const previous = execFileSync('git', ['show', `0fd27e66bda542cafc7cc3ce1b5f4d889486d066:${path}`], {
+      cwd: repository, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    write(join(value.root, path), previous)
+  }
+  commit(value.root)
+  assert.equal(assertCadIntegrationUnchanged(value).hostExtension.review, '3.8.7-mainline-hotfix.2-runtime-baseline')
+  changed.push('bundles/tender-host/package.json', 'bundles/tender-host/package-lock.json')
+  for (const path of changed) {
     const current = readFileSync(join(repository, path), 'utf8').replaceAll('\r\n', '\n')
     value.reviewed.set(path, current)
     write(join(value.root, path), current)
   }
   commit(value.root)
   const proof = assertCadIntegrationUnchanged(value)
-  assert.equal(proof.hostExtension.review, '3.8.7-mainline-hotfix.2-runtime-baseline')
-  assert.deepEqual(proof.hostExtension.additionalFileHashes, historical.hostExtension.additionalFileHashes)
+  assert.equal(proof.hostExtension.review, '3.8.7-mainline-hotfix.3-continuation-baseline')
+  const indexPath = changed[2]
+  assert.equal(proof.hostExtension.additionalFileHashes[indexPath], '673ae2fed66e098fd3fea783ee58b5439d6c4344988ddb3dd5da4e893fdf95d7')
+  const manifestChanges = [indexPath, changed[3], changed[4]]
+  assert.deepEqual(Object.fromEntries(Object.entries(proof.hostExtension.additionalFileHashes).filter(([path]) => !manifestChanges.includes(path))), Object.fromEntries(Object.entries(historical.hostExtension.additionalFileHashes).filter(([path]) => !manifestChanges.includes(path))))
   assert.deepEqual(proof.hostExtension.sharedFileHashes[changed[1]], previousHotfix.hostExtension.sharedFileHashes[changed[1]])
   for (const path of [...changed, 'bundles/tender-host/lib/cad-decoder/libredwg-web.wasm']) {
     const original = value.reviewed.get(path)
@@ -706,4 +718,7 @@ test('3.8.7 mainline hotfix accepts its exact metadata and preview pair, refusin
     write(join(value.root, path), original)
     commit(value.root)
   }
+  write(join(value.root, 'bundles/tender-host/lib/cad-decoder/unreviewed-extra.mjs'), 'unreviewed runtime bytes\n')
+  commit(value.root)
+  assert.throws(() => assertCadIntegrationUnchanged(value), /reviewed CAD host extension differs.*unreviewed-extra/)
 })

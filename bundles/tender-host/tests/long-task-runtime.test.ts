@@ -7,10 +7,11 @@ import { test } from 'node:test'
 import { createBusinessProject, updateBusinessProjectInputs } from '../../../packages/business-projects/index.ts'
 import { bindProjectSession, dispatchFingerprint, loadBoard, saveBoard } from '../src/orchestration.ts'
 import { officialStageDir } from '../src/outputs.ts'
+import { projectDir } from '../src/fsutil.ts'
 import {
   listLongTasks, longTaskInputFingerprint, longTaskStatus, markLongTaskDispatched, markLongTaskDispatchIntent, markLongTaskExternalEffect,
   pauseLongTask, reconcileLongTask, recordLongTaskUsage, registerLongTaskChild, settleLongTaskAttempt,
-  settleLongTaskChild, startLongTask, submitLongTaskChild,
+  settleLongTaskChild, startLongTask, submitLongTaskChild, updateLongTaskLimits,
 } from '../src/long-task-runtime.ts'
 
 function fixture(t: { after(fn: () => void): unknown }, approval = false) {
@@ -176,19 +177,59 @@ test('parent and children share actual usage limits; duplicate events do not spe
   assert.throws(() => recordLongTaskUsage(f.cwd, f.project, { ...parent, sourceSessionId: 'foreign', eventId: '2' }), /父子/)
 })
 
-test('missing actual usage, unknown cost, total round and elapsed budgets block dispatch', t => {
+test('missing actual usage, total round and elapsed budgets still block dispatch', t => {
   const unknown = fixture(t); unknown.start()
   recordLongTaskUsage(unknown.cwd, unknown.project, { sessionId: 'main', sourceSessionId: 'main', eventId: 'unknown' })
   assert.match(longTaskStatus(unknown.cwd, unknown.project, 'main').reason, /未确定/)
-  const cost = fixture(t); cost.start({ maxCostUsd: 1 })
-  recordLongTaskUsage(cost.cwd, cost.project, { sessionId: 'main', sourceSessionId: 'main', eventId: 'cost', usage: { inputTokens: 1, outputTokens: 1 } })
-  assert.match(longTaskStatus(cost.cwd, cost.project, 'main').reason, /费用未知/)
   const rounds = fixture(t); rounds.start({ maxRounds: 1 })
   recordLongTaskUsage(rounds.cwd, rounds.project, { sessionId: 'main', sourceSessionId: 'main', eventId: 'round', usage: { inputTokens: 1, outputTokens: 1 }, costUsd: 0 })
   assert.match(longTaskStatus(rounds.cwd, rounds.project, 'main').reason, /轮次/)
   const time = fixture(t); time.start({ maxElapsedMs: 100 })
   recordLongTaskUsage(time.cwd, time.project, { sessionId: 'main', sourceSessionId: 'main', eventId: 'time', usage: { inputTokens: 1, outputTokens: 1 }, elapsedMs: 101 })
   assert.match(longTaskStatus(time.cwd, time.project, 'main').reason, /时间/)
+})
+
+test('legacy amount inputs never gate unknown or higher actual API costs', t => {
+  const unknown = fixture(t); unknown.start({ maxCostUsd: 1 })
+  recordLongTaskUsage(unknown.cwd, unknown.project, { sessionId: 'main', sourceSessionId: 'main', eventId: 'unknown-cost', usage: { inputTokens: 1, outputTokens: 1 } })
+  const status = longTaskStatus(unknown.cwd, unknown.project, 'main')
+  assert.equal(status.phase, 'ready'); assert.equal(status.cost, 'unknown')
+  assert.equal(status.run!.limits.maxCostUsd, undefined)
+  unknown.dispatch()
+  assert.equal(longTaskStatus(unknown.cwd, unknown.project, 'main').phase, 'waiting')
+
+  const higher = fixture(t); higher.start({ maxCostUsd: 0.01 })
+  recordLongTaskUsage(higher.cwd, higher.project, { sessionId: 'main', sourceSessionId: 'main', eventId: 'higher-cost', usage: { inputTokens: 1, outputTokens: 1 }, costUsd: 10 })
+  const actual = longTaskStatus(higher.cwd, higher.project, 'main')
+  assert.equal(actual.phase, 'ready'); assert.equal(actual.cost, 10)
+  assert.equal(actual.run!.limits.maxCostUsd, undefined)
+  higher.dispatch()
+  assert.equal(longTaskStatus(higher.cwd, higher.project, 'main').phase, 'waiting')
+})
+
+for (const unknownCost of [false, true]) test(`a restored legacy currency ceiling cannot block dispatch or reset accumulated usage (unknown cost: ${unknownCost})`, t => {
+  const f = fixture(t), first = f.start({ maxRounds: 5, maxTokens: 40, maxElapsedMs: 1000, maxNoProgress: 2 })
+  recordLongTaskUsage(f.cwd, f.project, { sessionId: 'main', sourceSessionId: 'main', eventId: 'original-usage', usage: { inputTokens: 7, outputTokens: 3 }, costUsd: 2, elapsedMs: 150 })
+  const path = join(projectDir(f.cwd, f.project.module, f.project.projectId), 'orchestration', 'long-task-runtime.json')
+  const ledger = JSON.parse(readFileSync(path, 'utf8'))
+  ledger.runs.main.limits.maxCostUsd = 1
+  ledger.runs.main.usage.unknownCost = unknownCost
+  writeFileSync(path, JSON.stringify(ledger))
+
+  const restored = longTaskStatus(f.cwd, f.project, 'main')
+  assert.equal(restored.phase, 'ready'); assert.equal(restored.cost, unknownCost ? 'unknown' : 2)
+  markLongTaskDispatchIntent(f.cwd, f.project, { sessionId: 'main', attemptId: first.attempt!.id, key: first.attempt!.key, messageId: 'restored-message' })
+  markLongTaskDispatched(f.cwd, f.project, { sessionId: 'main', attemptId: first.attempt!.id, key: first.attempt!.key, messageId: 'restored-message' })
+  const before = longTaskStatus(f.cwd, f.project, 'main').run!
+  const updated = updateLongTaskLimits(f.cwd, f.project, 'main', { maxTokens: 100, maxCostUsd: 0.001 })
+  assert.equal(updated.phase, 'waiting'); assert.equal(updated.run!.limits.maxCostUsd, undefined)
+  assert.deepEqual(updated.run!.limits, { maxRounds: 5, maxTokens: 100, maxElapsedMs: 1000, maxNoProgress: 2 })
+  assert.deepEqual(updated.run!.usage, before.usage); assert.deepEqual(updated.run!.usageReceipts, before.usageReceipts)
+  assert.equal(updated.run!.currentAttemptId, before.currentAttemptId)
+  assert.equal(updated.run!.attempts.length, 1)
+  assert.equal(updated.cost, unknownCost ? 'unknown' : 2)
+  assert.throws(() => updateLongTaskLimits(f.cwd, f.project, 'main', { maxCostUsd: 0 }), /无效/)
+  assert.deepEqual(longTaskStatus(f.cwd, f.project, 'main').run!.usage, before.usage)
 })
 
 test('no-progress counts real settled attempts once, not polling or telemetry', t => {

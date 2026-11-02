@@ -330,6 +330,23 @@ const reviewed387Hotfix2HostExtension = {
   },
 }
 
+// The continuation/OAR revision removes custom Codex execution and its dependency;
+// every CAD dependency, decoder, worker and corresponding-source pin is retained.
+const reviewed387Hotfix3HostExtension = {
+  ...reviewed387Hotfix2HostExtension,
+  review: '3.8.7-mainline-hotfix.3-continuation-baseline',
+  shared: {
+    ...reviewed387Hotfix2HostExtension.shared,
+    'package.json': [reviewed387Hotfix2HostExtension.shared['package.json'][0], '463ee32553a7b4706e16a460ddcb6586f2b8ce93c7bd77b7620dfb1a35b88f44'],
+  },
+  files: {
+    ...reviewed387Hotfix2HostExtension.files,
+    'bundles/tender-web/src/client/index.js': '673ae2fed66e098fd3fea783ee58b5439d6c4344988ddb3dd5da4e893fdf95d7',
+    'bundles/tender-host/package.json': '15f37b6f4d56da34b9ec427fda12821b45bf1c8a91edc084e2f53087c99f920c',
+    'bundles/tender-host/package-lock.json': '10362a2c296eb032ea256e9c4f0d4d41bcc4de969d653f2d761e436ed40318b4',
+  },
+}
+
 const diskIndexPaths = ['bundles/engineering-cad/src/dxf-disk-source.ts', 'bundles/engineering-cad/src/cad-disk-index.ts']
 const patchedDecoderPaths = ['bundles/tender-host/src/cad-dwg-model-quality.mjs', 'bundles/engineering-cad/src/cad-embedded.ts', 'bundles/tender-host/lib/cad-decoder', 'scripts/cad-host-clean-release.mjs', 'scripts/build-cad-host-clean.sh', 'scripts/cad-host-bit-position-overflow.patch', 'scripts/cad-host-bit-position.test.c', 'scripts/cad-host-clean-pins.json']
 const hostExtensionPaths = [...new Set([
@@ -353,7 +370,7 @@ function reviewedHostExtensionForTarget(root, target) {
   if (git(root, ['ls-tree', target, '--', 'scripts/cad-browser-decoder-release.mjs', 'scripts/cad-browser-decoder-release.json']).trim()) {
     const path = 'bundles/tender-host/package.json'
     const hostHash = reviewedHash(path, git(root, ['show', `${target}:${path}`], null))
-    const upgraded = [...reviewed385HostExtensions, ...reviewed387HostExtensions, reviewed387HotfixHostExtension, reviewed387Hotfix2HostExtension].find(extension => hostHash === extension.files[path]
+    const upgraded = [...reviewed385HostExtensions, ...reviewed387HostExtensions, reviewed387HotfixHostExtension, reviewed387Hotfix2HostExtension, reviewed387Hotfix3HostExtension].find(extension => hostHash === extension.files[path]
       && reviewedHash('package.json', git(root, ['show', `${target}:package.json`], null)) === extension.shared['package.json'][1]
       && reviewedHash('bundles/tender-host/src/http.ts', git(root, ['show', `${target}:bundles/tender-host/src/http.ts`], null)) === extension.shared['bundles/tender-host/src/http.ts'][1])
     if (upgraded) return upgraded
@@ -374,7 +391,7 @@ function reviewedHostExtensionForTarget(root, target) {
 
 function verifyReviewedHostExtension(root, sourceCommit, target) {
   const extension = reviewedHostExtensionForTarget(root, target)
-  if ([reviewed382PatchedHostExtension, reviewed382ReleaseHostExtension, reviewed382BrowserHostExtension, reviewed383HostExtension, ...reviewed385HostExtensions, ...reviewed387HostExtensions, reviewed387HotfixHostExtension, reviewed387Hotfix2HostExtension].includes(extension)) {
+  if ([reviewed382PatchedHostExtension, reviewed382ReleaseHostExtension, reviewed382BrowserHostExtension, reviewed383HostExtension, ...reviewed385HostExtensions, ...reviewed387HostExtensions, reviewed387HotfixHostExtension, reviewed387Hotfix2HostExtension, reviewed387Hotfix3HostExtension].includes(extension)) {
     const runtime = git(root, ['ls-tree', '-r', '--name-only', target, '--', 'bundles/tender-host/lib/cad-decoder']).trim().split('\n')
     for (const path of runtime) if (!extension.files[path]) fail(`reviewed CAD host extension differs: ${path}`)
   }

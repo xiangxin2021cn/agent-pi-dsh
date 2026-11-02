@@ -2,8 +2,9 @@ import { renderTenderResponseCoverage } from './tender-response-panel.js'
 import { createTaskInteraction, taskInteractionCss } from './task-interaction.js'
 
 export const professionalTaskSummaryCss = taskInteractionCss + `
-.ap-task-summary{border:1px solid var(--border,#d5dae1);border-radius:10px;margin:12px 16px;padding:12px 14px;background:var(--bg-primary,#fff);font-size:13px;color:var(--text-primary,#273240);min-width:0;max-height:min(36vh,320px);overflow:auto;flex-shrink:0}.ap-task-summary-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.ap-task-summary h3{font-size:14px;margin:0 0 6px}.ap-task-summary p{margin:5px 0;line-height:1.55;overflow-wrap:anywhere}.ap-task-summary button,.ap-task-finding button{font:inherit;padding:5px 9px;border:1px solid var(--border,#d5dae1);border-radius:6px;background:var(--bg-secondary,#f4f6f8);color:inherit;cursor:pointer}.ap-task-summary-muted{color:var(--text-secondary,#687280);font-size:12px}.ap-task-summary-facts{display:flex;gap:8px 14px;flex-wrap:wrap}.ap-task-finding{border:1px solid var(--border,#d5dae1);border-radius:8px;margin:10px 0;padding:12px}.ap-task-finding[data-importance=critical]{border-left:3px solid var(--accent,#285c7b)}.ap-task-finding h4{font-size:14px;margin:0 0 7px}.ap-task-finding p{margin:5px 0;line-height:1.55;overflow-wrap:anywhere}.ap-task-finding-sources,.ap-task-finding-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.ap-task-finding a{color:var(--accent,#285c7b)}.ap-task-finding-resolved{opacity:.8}.ap-task-summary pre{white-space:pre-wrap;overflow-wrap:anywhere}.ap-task-summary .ap-task-finding{margin-bottom:0}.ap-task-summary-empty{margin:0;color:var(--text-secondary,#687280)}.ap-task-stage-controls{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.ap-task-stage-review{width:100%;padding:10px;border:1px solid var(--border,#d5dae1);border-radius:8px}.ap-task-stage-review button{margin-right:8px}.ap-task-stage-controls button:disabled{opacity:.5;cursor:default}
-@media(max-width:600px){.ap-task-summary{margin:8px;padding:10px}.ap-task-summary-head{flex-wrap:wrap}}
+.ap-task-summary.ap-task-summary-error{padding:12px 14px}
+.ap-task-summary{border:1px solid var(--border,#d5dae1);border-radius:10px;margin:8px 16px;padding:0;background:var(--bg-primary,#fff);font-size:13px;color:var(--text-primary,#273240);min-width:0;flex-shrink:0}.ap-task-summary-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.ap-task-summary h3{font-size:14px;margin:0 0 6px}.ap-task-summary p{margin:5px 0;line-height:1.55;overflow-wrap:anywhere}.ap-task-summary button,.ap-task-finding button{font:inherit;padding:5px 9px;border:1px solid var(--border,#d5dae1);border-radius:6px;background:var(--bg-secondary,#f4f6f8);color:inherit;cursor:pointer}.ap-task-summary button.ap-task-summary-toggle{display:flex;align-items:center;gap:8px;width:100%;min-width:0;min-height:40px;padding:8px 12px;text-align:left;border:0;border-radius:10px;background:transparent}.ap-task-summary-toggle:focus-visible{outline:2px solid var(--accent,#285c7b);outline-offset:2px}.ap-task-summary-toggle strong,.ap-task-summary-toggle-label{flex-shrink:0}.ap-task-summary-objective{min-width:0;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.ap-task-summary-status{max-width:42%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--text-secondary,#687280);font-size:12px}.ap-task-summary-body{padding:0 14px 12px;max-height:min(36vh,320px);overflow:auto;border-top:1px solid var(--border,#d5dae1)}.ap-task-summary-body[hidden]{display:none}.ap-task-summary-body .ap-task-summary-head{padding-top:12px}.ap-task-summary-muted{color:var(--text-secondary,#687280);font-size:12px}.ap-task-summary-facts{display:flex;gap:8px 14px;flex-wrap:wrap}.ap-task-finding{border:1px solid var(--border,#d5dae1);border-radius:8px;margin:10px 0;padding:12px}.ap-task-finding[data-importance=critical]{border-left:3px solid var(--accent,#285c7b)}.ap-task-finding h4{font-size:14px;margin:0 0 7px}.ap-task-finding p{margin:5px 0;line-height:1.55;overflow-wrap:anywhere}.ap-task-finding-sources,.ap-task-finding-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.ap-task-finding a{color:var(--accent,#285c7b)}.ap-task-finding-resolved{opacity:.8}.ap-task-summary pre{white-space:pre-wrap;overflow-wrap:anywhere}.ap-task-summary .ap-task-finding{margin-bottom:0}.ap-task-summary-empty{margin:0;color:var(--text-secondary,#687280)}.ap-task-stage-controls{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.ap-task-stage-review{width:100%;padding:10px;border:1px solid var(--border,#d5dae1);border-radius:8px}.ap-task-stage-review button{margin-right:8px}.ap-task-stage-controls button:disabled{opacity:.5;cursor:default}
+@media(max-width:600px){.ap-task-summary{margin:8px}.ap-task-summary-head{flex-wrap:wrap}.ap-task-summary button.ap-task-summary-toggle{flex-wrap:wrap;gap:5px 8px}.ap-task-summary-objective{flex-basis:calc(100% - 100px)}.ap-task-summary-status{max-width:none;flex:1;margin-left:20px}.ap-task-summary-toggle-label{margin-left:auto}}
 `
 
 export function visibleTaskFindings(task, includeResolved = false) {
@@ -121,8 +122,10 @@ export function createProfessionalTaskSummary({ React, api, cwd, language, subsc
   return function ProfessionalTaskSummary({ sessionId, taskResult, binding, onOpenTask: openTask, visible = true }) {
     const [result,setResult] = React.useState(null)
     const [error,setError] = React.useState(''), [retry,setRetry] = React.useState(0)
+    const [expandedSession,setExpandedSession] = React.useState(null)
+    const detailsId = React.useId()
     const revision = React.useRef(-1)
-    React.useEffect(() => {setResult(null);setError('');revision.current=-1},[sessionId])
+    React.useEffect(() => {setResult(null);setError('');setExpandedSession(null);revision.current=-1},[sessionId])
     React.useEffect(() => {
       if (taskResult&&taskResult.task.revision>=revision.current) {revision.current=taskResult.task.revision;onTask?.(sessionId,taskResult.task,taskResult.binding)}
       if (!sessionId || taskResult) return
@@ -145,7 +148,7 @@ export function createProfessionalTaskSummary({ React, api, cwd, language, subsc
     const current = result?.task.revision > (taskResult?.task.revision ?? -1) ? result : taskResult || result
     const task = current?.task
     if (!visible) return null
-    if (!task) return error?h('section',{className:'ap-task-summary'},h('p',{role:'alert'},error),h('button',{type:'button',onClick:()=>setRetry(value=>value+1)},String(language?.()).startsWith('zh')?'重试读取本次任务':'Retry reading the current task')):null
+    if (!task) return error?h('section',{className:'ap-task-summary ap-task-summary-error'},h('p',{role:'alert'},error),h('button',{type:'button',onClick:()=>setRetry(value=>value+1)},String(language?.()).startsWith('zh')?'重试读取本次任务':'Retry reading the current task')):null
     const model = taskOverviewModel(task)
     const responseCoverage = current?.responseCoverage
     if (!model.objective && !model.questions.length && !model.findings.length && !task.latestRequest && !model.depthEnabled && !responseCoverage) return null
@@ -156,7 +159,22 @@ export function createProfessionalTaskSummary({ React, api, cwd, language, subsc
     const open = openTask || onOpenTask
     const changed = next => {if(next?.task&&next.task.revision>=revision.current){revision.current=next.task.revision;setResult(next);setError('');onTask?.(sessionId,next.task,next.binding)}}
     const openChat = onOpenChat ? ()=>onOpenChat(sessionId) : undefined
+    const expanded = expandedSession === sessionId
+    const state = current?.interactionState || {}, paused = state.paused ?? task.control?.paused ?? false
+    const status = [
+      paused ? (state.running ? (zh ? '接续已暂停，执行未停止' : 'Continuation paused; execution still active') : (zh ? '已暂停' : 'Paused')) : state.running ? (zh ? '执行中' : 'Running') : state.pending ? (zh ? '待执行' : 'Pending') : '',
+      (error || ['blocked','needs_review'].includes(model.currentStep?.status) || ['blocked','requires_executor'].includes(task.control?.lastAction?.dispatch) || project?.approvalGate && project.waitingHuman !== false) && (zh ? '需要处理' : 'Needs attention'),
+      model.questions.length > 0 && `${model.questions.length}${zh ? ' 个问题待明确' : ' questions to clarify'}`,
+      model.delivery.total > 0 && `${zh ? '成果 ' : 'Deliverables '}${model.delivery.total}`,
+      model.findings.length > 0 && `${zh ? '发现 ' : 'Findings '}${model.findings.length}`,
+    ].filter(Boolean).join(' · ')
     return h('section', { className:'ap-task-summary', 'aria-label':zh ? '共同任务理解' : 'Shared task understanding', 'data-task-revision':task.revision },
+      h('button', { type:'button', className:'ap-task-summary-toggle', 'aria-label':expanded ? (zh ? '收起本次任务' : 'Collapse current task') : (zh ? '展开本次任务' : 'Expand current task'), 'aria-expanded':expanded, 'aria-controls':detailsId, onClick:()=>setExpandedSession(expanded ? null : sessionId) },
+        h('span', { 'aria-hidden':true }, expanded ? '▾' : '▸'), h('strong', null, zh ? '本次任务' : 'Current task'),
+        h('span', { className:'ap-task-summary-objective', title:model.objective }, model.objective || (zh ? '正在整理目标' : 'Understanding the goal')),
+        status && h('span', { className:'ap-task-summary-status', title:status }, status),
+        h('span', { className:'ap-task-summary-toggle-label' }, expanded ? (zh ? '收起' : 'Collapse') : (zh ? '展开' : 'Expand'))),
+      h('div', { id:detailsId, className:'ap-task-summary-body', hidden:!expanded },
       h('div', { className:'ap-task-summary-head' }, h('div', null, h('h3', null, zh ? '本次目标' : 'Current goal'), h('p', null, model.objective || (zh ? '正在结合你的表达和资料整理目标。' : 'Understanding your goal from the conversation and materials.')), goalStatus && h('span', { className:'ap-task-summary-muted' }, goalStatus === 'provisional' || goalStatus === 'conflict' ? (zh ? '暂定理解，可在对话中纠正' : 'Provisional; correct this in the conversation') : (zh ? '来自当前任务要求' : 'From the current task requirements'))), open && h('button', { type:'button', onClick:() => open(sessionId) }, zh ? '查看本次任务' : 'View current task')),
       project && h('p', { className:'ap-task-summary-muted' }, project.projectGoal ? `${zh ? '项目总目标：' : 'Project goal: '}${project.projectGoal} · ` : '', project.stageLabel || project.stageId || ''),
       error&&h('p',{role:'alert'},error),
@@ -174,6 +192,7 @@ export function createProfessionalTaskSummary({ React, api, cwd, language, subsc
       ...renderTaskFindings(h,task,locale,openSource,{limit:3,onOpenChat:openChat,renderActions:finding=>h(Interaction,{sessionId,result:current,finding,onChanged:changed,onOpenChat:openChat})}),
       model.findings.length > 3 && h('p', { className:'ap-task-summary-muted' }, `${zh ? '另有 ' : 'Plus '}${model.findings.length - 3}${zh ? ' 项发现，可在本次任务中查看。' : ' findings in Current task.'}`),
       model.changes[0]?.summary && h('p', { className:'ap-task-summary-muted' }, `${zh ? '最近调整：' : 'Latest adjustment: '}${model.changes[0].summary}`),
+      ),
     )
   }
 }

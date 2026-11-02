@@ -17,9 +17,7 @@ foreach ($name in @("agent.cordis.yml", "preset.yml", "router-bootstrap.mjs", "r
   if (-not (Test-Path $path)) { throw "router-standard preset missing $path" }
 }
 $presetText = Get-Content -Raw (Join-Path $preset "agent.cordis.yml")
-$codexTool = [regex]::Match($presetText, '(?ms)- id: tool-subagent-codex.*?(?=\n\s*- id:|\z)').Value
-if (-not $codexTool) { throw "router-standard preset missing tool-subagent-codex" }
-if ($codexTool -match 'disabled:\s*true') { throw "router-standard Codex tool is still disabled" }
+if ($presetText -match 'dsh-tender-host/codex-(provider|tool)') { throw "router-standard preset retains a retired product Codex bridge" }
 
 $injector = Join-Path $Root "vendor\dsh-super-injector\lib\index.js"
 if (-not (Test-Path $injector)) { throw "vendored injector missing $injector" }
@@ -33,9 +31,15 @@ $needles = @(
   "dsh-tender-host",
   "dsh-tender-web",
   "@deepseek-ai/dsh-web-app",
-  "@deepseek-ai/dsh-subagent-codex",
+  "@deepseek-ai/dsh-experimental-subagent-oar",
+  "@deepseek-ai/dsh-experimental-tool-subagent-oar",
   "@dsh-external/dsh-super-injector",
-  "permissionMode: approve-for-me",
+  "providerName: oar-codex",
+  "providerName: oar-claude",
+  'sandbox_mode="workspace-write"',
+  "dontAsk",
+  "--permission-prompts",
+  "timeoutMs: 600000",
   "id: dsh-super-injector",
   "id: tool-goal"
 )
@@ -44,5 +48,8 @@ foreach ($needle in $needles) {
     throw "dump-config missing $needle (wrote $Dump)"
   }
 }
+if ($text -match 'dsh-tender-host/codex-(provider|tool)') { throw "dump-config retains a retired product Codex bridge" }
+& node (Join-Path $Root "scripts\dsh-distribution-policy.mjs") profile $Dsh $Root $Dump
+if ($LASTEXITCODE -ne 0) { throw "Selected production profile activates an excluded provider" }
 Write-Host "profile dump ok -> $Dump"
 Write-Host "router-standard preset ok -> $preset"

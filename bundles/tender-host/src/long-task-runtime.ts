@@ -8,6 +8,8 @@ import { buildRecoveryDraft, dispatchFingerprint, inspectBoard, loadBoard, markD
 import { officialStageDir } from './outputs.ts'
 import { assertTaskSyncComplete, listUserRequirements } from './user-requirements.ts'
 import { workspacePaths } from './workspace.ts'
+import type { TaskMandateSnapshot } from './task-mandate.ts'
+import { foldLongTaskExternal, recoverLongTaskExternal, longTaskExternalFence, type LongTaskExternalChildren } from './long-task-external.ts'
 
 export interface LongTaskLimits { maxRounds: number; maxTokens: number; maxElapsedMs: number; maxNoProgress: number; maxCostUsd?: number }
 export type LongTaskLimitPatch = Partial<Omit<LongTaskLimits, 'maxCostUsd'>> & { maxCostUsd?: number | null }
@@ -17,6 +19,8 @@ export interface LongTaskAttempt {
   status: 'prepared' | 'dispatching' | 'dispatched' | 'settled' | 'stale'; messageId?: string; createdAt: string; settledAt?: string
   externalEffectsUnknown?: boolean
   pendingToolCalls?: string[]
+  context?: TaskMandateSnapshot
+  externalChildren?: LongTaskExternalChildren
   children: Record<string, { expectedPaths: string[]; settledAt?: string; fromSeq?: number }>
 }
 export interface LongTaskSubmission {
@@ -25,17 +29,67 @@ export interface LongTaskSubmission {
 }
 export interface LongTaskRun {
   sessionId: string; stageId: string; paused: boolean; createdAt: string; limits: LongTaskLimits; usage: LongTaskUsage
+  pauseReason?: string
   fromSeq?: number
   noProgress: number; currentAttemptId: string; attempts: LongTaskAttempt[]; submissions: LongTaskSubmission[]; usageReceipts: string[]
 }
 interface LongTaskLedger { schemaVersion: 1; projectId: string; module: string; runs: Record<string, LongTaskRun> }
 export type LongTaskPhase = 'ready' | 'waiting' | 'paused' | 'needs_review' | 'blocked' | 'done' | 'inactive'
-export interface LongTaskStatus { phase: LongTaskPhase; reason: string; run?: LongTaskRun; attempt?: LongTaskAttempt; draft?: string; cost: number | 'unknown' }
+export interface LongTaskStatus { phase: LongTaskPhase; reason: string; run?: LongTaskRun; attempt?: LongTaskAttempt; draft?: string; cost: number | 'unknown'; external?: ReturnType<typeof externalState> }
 
+function assertExternalChildren(run: LongTaskRun, attempt: LongTaskAttempt, children: LongTaskExternalChildren) {
+  const record = (value: unknown) => !!value && typeof value === 'object' && !Array.isArray(value)
+  const identifier = (value: unknown) => typeof value === 'string' && value.length > 0 && value.length <= 240 && !/[\u0000-\u001f\u007f]/.test(value)
+  const timestamp = (value: unknown) => Number.isSafeInteger(value) && (value as number) >= 0
+  const invalid = () => { throw new Error('长期任务账本格式或项目归属无效：外部子任务收据不能核验；未重新派发。') }
+  if (!record(children)) invalid()
+  for (const [childId, child] of Object.entries(children)) {
+    if (!record(child) || !identifier(childId) || child.id !== childId || childId === run.sessionId || run.attempts.some(row => Object.hasOwn(row.children, childId)) || !identifier(child.parentSessionId) || child.parentSessionId !== run.sessionId && !Object.hasOwn(attempt.children, child.parentSessionId) || child.tokens !== 'unreported') invalid()
+    if (child.runId !== undefined && !identifier(child.runId) || child.provider !== undefined && !identifier(child.provider) || child.receiptMessageId !== undefined && !identifier(child.receiptMessageId)) invalid()
+    if ((child.runId === undefined) !== (child.provider === undefined) || child.stopReason !== undefined && !['completed', 'aborted', 'error', 'max-tokens', 'refusal'].includes(child.stopReason)) invalid()
+    if (child.startedAt !== undefined && !timestamp(child.startedAt) || child.settledAt !== undefined && !timestamp(child.settledAt) || child.startedAt !== undefined && child.settledAt !== undefined && child.settledAt < child.startedAt) invalid()
+    if (child.settledAt === undefined && (child.settlement !== undefined || child.stopReason !== undefined || child.receiptMessageId !== undefined) || child.settledAt !== undefined && !['lifecycle', 'native-notice'].includes(child.settlement!)) invalid()
+    if (child.settlement === 'lifecycle' && (!identifier(child.runId) || !identifier(child.provider) || !['completed', 'aborted', 'error', 'max-tokens', 'refusal'].includes(child.stopReason!)) || child.settlement === 'native-notice' && !identifier(child.receiptMessageId)) invalid()
+  }
+}
 const DEFAULT_LIMITS: LongTaskLimits = { maxRounds: 64, maxTokens: 500_000, maxElapsedMs: 7_200_000, maxNoProgress: 3 }
 const hash = (value: unknown) => createHash('sha256').update(typeof value === 'string' ? value : JSON.stringify(value)).digest('hex')
 const pathOf = (cwd: string, project: BusinessProjectRecord) => join(projectDir(cwd, project.module, project.projectId), 'orchestration', 'long-task-runtime.json')
-const load = (cwd: string, project: BusinessProjectRecord): LongTaskLedger => readJson(pathOf(cwd, project), { schemaVersion: 1, projectId: project.projectId, module: project.module, runs: {} })
+function load(cwd: string, project: BusinessProjectRecord): LongTaskLedger {
+  const path = pathOf(cwd, project), stored = existsSync(path)
+  const ledger = readJson<LongTaskLedger>(path, { schemaVersion: 1, projectId: project.projectId, module: project.module, runs: {} })
+  const record = (value: unknown) => !!value && typeof value === 'object' && !Array.isArray(value)
+  const counter = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value >= 0
+  const invalid = () => { throw new Error('长期任务账本格式或项目归属无效，请核对原记录；未重新派发。') }
+  if (!record(ledger) || ledger.schemaVersion !== 1 || ledger.projectId !== project.projectId || ledger.module !== project.module || !record(ledger.runs)) invalid()
+  if (stored && !Object.keys(ledger.runs).length) invalid()
+  for (const [id, run] of Object.entries(ledger.runs)) {
+    if (!record(run) || run.sessionId !== id || typeof run.stageId !== 'string' || !run.stageId || !Number.isFinite(Date.parse(run.createdAt)) || typeof run.paused !== 'boolean' || !record(run.limits) || !record(run.usage) || !Array.isArray(run.attempts) || !run.attempts.length || !Array.isArray(run.submissions) || !Array.isArray(run.usageReceipts)) invalid()
+    if (run.fromSeq !== undefined && (!Number.isSafeInteger(run.fromSeq) || run.fromSeq < 0)) invalid()
+    for (const key of ['maxRounds', 'maxTokens', 'maxElapsedMs', 'maxNoProgress'] as const) if (!Number.isInteger(run.limits[key]) || run.limits[key] <= 0) invalid()
+    if (![run.usage.rounds, run.usage.tokens, run.usage.elapsedMs, run.usage.knownCostUsd, run.noProgress].every(counter) || typeof run.usage.unknownTokens !== 'boolean' || typeof run.usage.unknownCost !== 'boolean' || run.usageReceipts.some(row => typeof row !== 'string')) invalid()
+    if (![run.usage.rounds, run.usage.tokens, run.noProgress].every(Number.isSafeInteger)) invalid()
+    const ids = new Set<string>()
+    const externalIds = new Set<string>()
+    for (const attempt of run.attempts) {
+      if (!record(attempt) || !attempt.id || ids.has(attempt.id) || attempt.sessionId !== id || typeof attempt.stageId !== 'string' || !attempt.stageId || typeof attempt.key !== 'string' || !attempt.key || !Number.isFinite(Date.parse(attempt.createdAt)) || !['prepared', 'dispatching', 'dispatched', 'settled', 'stale'].includes(attempt.status) || typeof attempt.draft !== 'string' || !/^[a-f0-9]{64}$/.test(attempt.inputFingerprint) || !/^[a-f0-9]{64}$/.test(attempt.realityDigest) || !record(attempt.children)) invalid()
+      if (['dispatching', 'dispatched', 'settled'].includes(attempt.status) && !attempt.messageId || attempt.status === 'settled' && !attempt.settledAt) invalid()
+      if (attempt.context && (attempt.context.schemaVersion !== 1 || attempt.context.rootSessionId !== id || !/^[a-f0-9]{64}$/.test(attempt.context.fingerprint) || !Array.isArray(attempt.context.skills) || !Array.isArray(attempt.context.knowledge) || !Array.isArray(attempt.context.templates))) invalid()
+      if (attempt.pendingToolCalls !== undefined && (!Array.isArray(attempt.pendingToolCalls) || attempt.pendingToolCalls.some(row => typeof row !== 'string'))) invalid()
+      for (const child of Object.values(attempt.children)) if (!record(child) || !Array.isArray(child.expectedPaths) || child.expectedPaths.some(path => typeof path !== 'string') || child.fromSeq !== undefined && (!Number.isSafeInteger(child.fromSeq) || child.fromSeq < 0)) invalid()
+      if (attempt.externalChildren !== undefined) {
+        assertExternalChildren(run, attempt, attempt.externalChildren)
+        for (const childId of Object.keys(attempt.externalChildren)) {
+          if (externalIds.has(childId)) invalid()
+          externalIds.add(childId)
+        }
+      }
+      ids.add(attempt.id)
+    }
+    if (!ids.has(run.currentAttemptId)) invalid()
+  }
+  return ledger
+}
 function save(cwd: string, project: BusinessProjectRecord, ledger: LongTaskLedger) {
   const path = pathOf(cwd, project)
   ensureDir(join(path, '..'))
@@ -63,7 +117,7 @@ function artifactPaths(cwd: string, project: BusinessProjectRecord, stageId: str
   return [...new Set(paths.map(path => resolve(cwd, path)))].sort()
 }
 /** Inputs are separate from outcomes: writing a report does not make an old child result current. */
-export function longTaskInputFingerprint(cwd: string, project: BusinessProjectRecord, stageId: string) {
+export function longTaskInputFingerprint(cwd: string, project: BusinessProjectRecord, stageId: string, context?: TaskMandateSnapshot) {
   const workflow = workflowFor(project)
   const prior = workflow.stages.slice(0, workflow.stages.findIndex(row => row.id === stageId))
   const inputs = project.inputPaths.map(path => resolve(cwd, path))
@@ -72,7 +126,7 @@ export function longTaskInputFingerprint(cwd: string, project: BusinessProjectRe
   }
   const paths = [...inputs, ...prior.flatMap(stage => artifactPaths(cwd, project, stage.id))]
   const requirements = listUserRequirements(cwd, project).map(row => ({ id: row.id, stageId: row.stageId, text: row.text, status: row.status === 'dismissed' ? 'dismissed' : 'required' }))
-  return hash({ stageId, goal: project.projectGoal, outputs: project.terminalDeliverables, workflow: project.workflowSnapshot, requirements, files: [...new Set(paths)].sort().map(path => [path, fileHash(path)]) })
+  return hash({ stageId, goal: project.projectGoal, outputs: project.terminalDeliverables, workflow: project.workflowSnapshot, requirements, files: [...new Set(paths)].sort().map(path => [path, fileHash(path)]), ...(context ? { contextFingerprint: context.fingerprint } : {}) })
 }
 function realityDigest(cwd: string, project: BusinessProjectRecord, stageId: string) {
   return hash(artifactPaths(cwd, project, stageId).map(path => {
@@ -86,29 +140,40 @@ function realityDigest(cwd: string, project: BusinessProjectRecord, stageId: str
   }))
 }
 function current(run: LongTaskRun) { return run.attempts.find(row => row.id === run.currentAttemptId)! }
+function externalState(run: LongTaskRun, now = Date.now()) {
+  const children = Object.fromEntries(run.attempts.flatMap(attempt => Object.entries(attempt.externalChildren || {}))) as LongTaskExternalChildren
+  return { ...longTaskExternalFence(children, now), needsReview: Object.values(children).filter(child => child.settledAt !== undefined && child.settlement !== 'lifecycle').map(child => child.id), failed: Object.values(children).filter(child => child.settlement === 'lifecycle' && child.stopReason !== 'completed').map(child => child.id) }
+}
+function externalUnsettled(attempt: LongTaskAttempt) {
+  return Object.values(attempt.externalChildren || {}).some(child => child.settledAt === undefined || child.settlement !== 'lifecycle')
+}
+function unsettled(attempt: LongTaskAttempt) {
+  return !!(attempt.messageId && !attempt.settledAt || attempt.status === 'dispatching' || attempt.status === 'dispatched' || attempt.externalEffectsUnknown || attempt.pendingToolCalls?.length || Object.values(attempt.children).some(child => !child.settledAt) || externalUnsettled(attempt))
+}
 function budgetReason(run: LongTaskRun): string | undefined {
   const { usage, limits } = run
   if (usage.rounds >= limits.maxRounds) return '父子任务总轮次预算已用尽。'
   if (usage.tokens >= limits.maxTokens || usage.unknownTokens) return usage.unknownTokens ? '存在未确定的实际 token 用量，需核对后才能继续派工。' : '父子任务总 token 预算已用尽。'
   if (usage.elapsedMs >= limits.maxElapsedMs) return '父子任务累计执行时间预算已用尽。'
-  if (limits.maxCostUsd !== undefined && (usage.unknownCost || usage.knownCostUsd >= limits.maxCostUsd)) return usage.unknownCost ? '费用未知，无法确认金额预算仍有余额。' : '父子任务总费用预算已用尽。'
   if (run.noProgress >= limits.maxNoProgress) return '连续执行未增加实际成果；停止续派，请调整策略或处理阻塞。'
 }
 function result(run: LongTaskRun | undefined, phase: LongTaskPhase, reason: string): LongTaskStatus {
-  return { run, attempt: run && current(run), phase, reason, cost: !run || run.usage.unknownCost ? 'unknown' : run.usage.knownCostUsd }
+  const external = run && externalState(run)
+  return { run, attempt: run && current(run), phase, reason, cost: !run || run.usage.unknownCost ? 'unknown' : run.usage.knownCostUsd, ...(external?.unreportedTokens ? { external } : {}) }
 }
 export function listLongTasks(cwd: string, project: BusinessProjectRecord): LongTaskRun[] { return Object.values(load(cwd, project).runs) }
 export function longTaskStatus(cwd: string, project: BusinessProjectRecord, sessionId: string): LongTaskStatus {
   const run = load(cwd, project).runs[sessionId]
   if (!run) return result(undefined, 'inactive', '本会话没有显式派发的长期执行尝试。')
-  if (run.paused) return result(run, 'paused', '用户暂停保持有效。')
+  if (run.paused) return result(run, 'paused', run.pauseReason || '用户暂停保持有效。')
   const reason = budgetReason(run)
   if (reason) return result(run, 'blocked', reason)
   return result(run, current(run).status === 'prepared' ? 'ready' : 'waiting', '等待宿主核对当前尝试与磁盘成果。')
 }
-function makeAttempt(cwd: string, project: BusinessProjectRecord, run: LongTaskRun, key: string, draft: string): LongTaskAttempt {
-  const inputFingerprint = longTaskInputFingerprint(cwd, project, run.stageId)
-  return { id: `attempt-${hash([run.sessionId, run.stageId, inputFingerprint, key, run.attempts.length]).slice(0, 24)}`, sessionId: run.sessionId, stageId: run.stageId, key, inputFingerprint, realityDigest: realityDigest(cwd, project, run.stageId), draft, status: 'prepared', createdAt: new Date().toISOString(), children: {} }
+function makeAttempt(cwd: string, project: BusinessProjectRecord, run: LongTaskRun, key: string, draft: string, context?: TaskMandateSnapshot): LongTaskAttempt {
+  if (context && context.rootSessionId !== run.sessionId) throw new Error('接力快照不属于原主会话。')
+  const inputFingerprint = longTaskInputFingerprint(cwd, project, run.stageId, context)
+  return { id: `attempt-${hash([run.sessionId, run.stageId, inputFingerprint, key, run.attempts.length]).slice(0, 24)}`, sessionId: run.sessionId, stageId: run.stageId, key, inputFingerprint, realityDigest: realityDigest(cwd, project, run.stageId), draft, status: 'prepared', createdAt: new Date().toISOString(), children: {}, ...(context ? { context } : {}) }
 }
 export function validateLongTaskLimits(limits: unknown): asserts limits is LongTaskLimitPatch {
   if (!limits || typeof limits !== 'object' || Array.isArray(limits)) throw new Error('无效执行预算。')
@@ -118,9 +183,9 @@ export function validateLongTaskLimits(limits: unknown): asserts limits is LongT
   }
 }
 function applyLimits(limits: LongTaskLimits, patch: LongTaskLimitPatch): LongTaskLimits {
-  const { maxCostUsd, ...other } = patch, result = { ...limits, ...other }
-  if (maxCostUsd === null) delete result.maxCostUsd
-  else if (maxCostUsd !== undefined) result.maxCostUsd = maxCostUsd
+  // Keep accepting legacy clients without carrying their optional currency ceiling forward.
+  const { maxCostUsd: _legacyCost, ...other } = patch, result = { ...limits, ...other }
+  delete result.maxCostUsd
   return result
 }
 /** Explicit user limits replace ceilings only; actual usage and attempt receipts remain intact. */
@@ -131,7 +196,7 @@ export function updateLongTaskLimits(cwd: string, project: BusinessProjectRecord
   return longTaskStatus(cwd, project, sessionId)
 }
 /** Host calls this only for an explicit user stage dispatch. It does not authorize a later stage. */
-export function startLongTask(cwd: string, project: BusinessProjectRecord, input: { sessionId: string; stageId: string; key: string; draft: string; limits?: LongTaskLimitPatch; fromSeq?: number }): LongTaskStatus {
+export function startLongTask(cwd: string, project: BusinessProjectRecord, input: { sessionId: string; stageId: string; key: string; draft: string; limits?: LongTaskLimitPatch; fromSeq?: number; context?: TaskMandateSnapshot }): LongTaskStatus {
   assertBound(cwd, project, input.sessionId)
   assertTaskSyncComplete(cwd, project)
   const board = loadBoard(cwd, project.projectId, project.module)
@@ -140,7 +205,8 @@ export function startLongTask(cwd: string, project: BusinessProjectRecord, input
   const ledger = load(cwd, project)
   let run = ledger.runs[input.sessionId]
   const existing = run && run.stageId === input.stageId ? current(run) : undefined
-  const sameAttempt = existing && existing.key === input.key && existing.inputFingerprint === longTaskInputFingerprint(cwd, project, input.stageId) && existing.realityDigest === realityDigest(cwd, project, input.stageId)
+  if (run?.attempts.some(externalUnsettled)) throw new Error('外部子任务仍在执行或终态尚待核对，不能重复派发。')
+  const sameAttempt = existing && existing.key === input.key && existing.inputFingerprint === longTaskInputFingerprint(cwd, project, input.stageId, input.context) && existing.realityDigest === realityDigest(cwd, project, input.stageId)
   if (!sameAttempt && slice.dispatch?.key !== input.key && dispatchFingerprint(slice) !== input.key) throw new Error('派发指纹已变化，请重新查看当前阶段。')
   const availability = stageAvailability(cwd, project, board)[input.stageId]
   if (!availability?.canPrepare || availability.waitingHuman) throw new Error(availability?.reason || '本阶段等待用户决定，不能自动派发。')
@@ -150,10 +216,18 @@ export function startLongTask(cwd: string, project: BusinessProjectRecord, input
   }
   if (run && run.stageId === input.stageId) {
     const previous = current(run)
-    if (previous.key === input.key && previous.inputFingerprint === longTaskInputFingerprint(cwd, project, input.stageId) && previous.status !== 'settled' && previous.status !== 'stale') return longTaskStatus(cwd, project, input.sessionId)
-    if (previous.status === 'dispatching' || previous.status === 'dispatched' || previous.externalEffectsUnknown || previous.pendingToolCalls?.length || Object.values(previous.children).some(child => !child.settledAt)) throw new Error('上一尝试尚未核对结算，不得重复执行可能已有副作用的动作。')
+    if (!previous.context && input.context && !previous.messageId && ['prepared', 'stale'].includes(previous.status) && !previous.externalEffectsUnknown && !previous.pendingToolCalls?.length && !Object.keys(previous.children).length && previous.key === input.key && previous.inputFingerprint === longTaskInputFingerprint(cwd, project, input.stageId) && previous.realityDigest === realityDigest(cwd, project, input.stageId)) {
+      // Only an explicit fresh stage dispatch upgrades an unsubmitted legacy preview.
+      previous.context = input.context
+      previous.inputFingerprint = longTaskInputFingerprint(cwd, project, input.stageId, input.context)
+      previous.status = 'prepared'
+      save(cwd, project, ledger)
+      return longTaskStatus(cwd, project, input.sessionId)
+    }
+    if (previous.key === input.key && previous.inputFingerprint === longTaskInputFingerprint(cwd, project, input.stageId, input.context) && previous.status !== 'settled' && previous.status !== 'stale') return longTaskStatus(cwd, project, input.sessionId)
+    if (unsettled(previous)) throw new Error('上一尝试尚未核对结算，不得重复执行可能已有副作用的动作。')
   } else if (run) {
-    if (current(run).status === 'dispatching' || current(run).status === 'dispatched' || current(run).externalEffectsUnknown || current(run).pendingToolCalls?.length || Object.values(current(run).children).some(child => !child.settledAt)) throw new Error('上一阶段执行结果尚未核对，不能开始另一长期尝试。')
+    if (unsettled(current(run))) throw new Error('上一阶段执行结果尚未核对，不能开始另一长期尝试。')
     run.stageId = input.stageId; run.noProgress = 0
   } else {
     run = { sessionId: input.sessionId, stageId: input.stageId, paused: false, createdAt: new Date().toISOString(), ...(input.fromSeq === undefined ? {} : { fromSeq: input.fromSeq }), limits: { ...DEFAULT_LIMITS }, usage: { rounds: 0, tokens: 0, elapsedMs: 0, knownCostUsd: 0, unknownTokens: false, unknownCost: false }, noProgress: 0, currentAttemptId: '', attempts: [], submissions: [], usageReceipts: [] }
@@ -164,16 +238,19 @@ export function startLongTask(cwd: string, project: BusinessProjectRecord, input
   }
   const reason = budgetReason(run)
   if (reason) return result(run, 'blocked', reason)
-  const attempt = makeAttempt(cwd, project, run, input.key, input.draft)
+  const attempt = makeAttempt(cwd, project, run, input.key, input.draft, input.context)
   run.attempts.push(attempt); run.currentAttemptId = attempt.id
   save(cwd, project, ledger)
   return { ...result(run, run.paused ? 'paused' : 'ready', '当前阶段的尝试已持久化。'), ...(run.paused ? {} : { draft: attempt.draft }) }
 }
-export function pauseLongTask(cwd: string, project: BusinessProjectRecord, sessionId: string, paused = true): LongTaskStatus {
+export function pauseLongTask(cwd: string, project: BusinessProjectRecord, sessionId: string, paused = true, reason?: string): LongTaskStatus {
   assertBound(cwd, project, sessionId)
   const ledger = load(cwd, project), run = ledger.runs[sessionId]
   if (!run) return result(undefined, 'inactive', '本会话没有长期执行尝试。')
-  run.paused = paused; save(cwd, project, ledger)
+  run.paused = paused
+  if (!paused) delete run.pauseReason
+  else if (reason) run.pauseReason = reason
+  save(cwd, project, ledger)
   return longTaskStatus(cwd, project, sessionId)
 }
 function findAttempt(ledger: LongTaskLedger, sessionId: string, attemptId: string) {
@@ -181,10 +258,48 @@ function findAttempt(ledger: LongTaskLedger, sessionId: string, attemptId: strin
   if (!run || !attempt || run.currentAttemptId !== attemptId) throw new Error('尝试已过期或不属于当前主会话。')
   return { run, attempt }
 }
-export function markLongTaskDispatched(cwd: string, project: BusinessProjectRecord, input: { sessionId: string; attemptId: string; key: string; messageId: string }) {
+function externalAttempt(ledger: LongTaskLedger, sessionId: string, attemptId: string, parentSessionId: string) {
+  const run = ledger.runs[sessionId], attempt = run?.attempts.find(row => row.id === attemptId)
+  if (!run || !attempt || parentSessionId !== sessionId && !Object.hasOwn(attempt.children, parentSessionId)) throw new Error('外部子任务不属于本次已登记的父会话或原生子会话。')
+  return { run, attempt }
+}
+function persistExternal(cwd: string, project: BusinessProjectRecord, ledger: LongTaskLedger, run: LongTaskRun, attempt: LongTaskAttempt, children: LongTaskExternalChildren) {
+  assertExternalChildren(run, attempt, children)
+  const old = attempt.externalChildren || {}
+  for (const childId of Object.keys(children)) {
+    if (childId === run.sessionId || run.attempts.some(row => Object.hasOwn(row.children, childId) || row.id !== attempt.id && Object.hasOwn(row.externalChildren || {}, childId))) throw new Error('外部子任务标识已属于其他会话或尝试。')
+  }
+  const lateStart = attempt.id !== run.currentAttemptId && Object.keys(children).some(id => !Object.hasOwn(old, id))
+  const failed = Object.values(children).find(child => child.settlement === 'lifecycle' && child.stopReason !== 'completed' && old[child.id]?.settlement !== 'lifecycle')
+  attempt.externalChildren = children
+  if (lateStart || failed) {
+    run.paused = true
+    run.pauseReason = lateStart ? '原尝试出现晚到外部子任务，已暂停接续，请核对原任务结果。' : '外部子任务已异常结束，自动接续已暂停；请核对已产生的修改后明确继续。'
+  }
+  save(cwd, project, ledger)
+  return longTaskStatus(cwd, project, run.sessionId)
+}
+/** Called only with the native lifecycle event's exact scoped parent. */
+export function recordLongTaskExternal(cwd: string, project: BusinessProjectRecord, input: { sessionId: string; attemptId: string; parentSessionId: string; event: Parameters<typeof foldLongTaskExternal>[2] }): LongTaskStatus {
+  assertBound(cwd, project, input.sessionId)
+  const ledger = load(cwd, project), { run, attempt } = externalAttempt(ledger, input.sessionId, input.attemptId, input.parentSessionId)
+  const children = foldLongTaskExternal(attempt.externalChildren, input.parentSessionId, input.event)
+  return persistExternal(cwd, project, ledger, run, attempt, children)
+}
+/** Replay proves original parent ownership, not native success or artifact acceptance. */
+export function recoverLongTaskExternalAttempt(cwd: string, project: BusinessProjectRecord, input: { sessionId: string; attemptId: string; parentSessionId: string; snapshot: Parameters<typeof recoverLongTaskExternal>[2]; fromSeq?: number }): LongTaskStatus {
+  assertBound(cwd, project, input.sessionId)
+  if (input.fromSeq !== undefined && (!Number.isSafeInteger(input.fromSeq) || input.fromSeq < 0)) throw new Error('外部子任务恢复起点无效。')
+  const ledger = load(cwd, project), { run, attempt } = externalAttempt(ledger, input.sessionId, input.attemptId, input.parentSessionId)
+  const fromSeq = input.parentSessionId === run.sessionId ? run.fromSeq || 0 : attempt.children[input.parentSessionId]!.fromSeq || 0
+  const snapshot = { ...input.snapshot, events: input.snapshot.events.filter(event => event.time >= Date.parse(attempt.createdAt)) }
+  const children = recoverLongTaskExternal(attempt.externalChildren, input.parentSessionId, snapshot, Math.max(fromSeq, input.fromSeq || 0))
+  return persistExternal(cwd, project, ledger, run, attempt, children)
+}
+export function markLongTaskDispatched(cwd: string, project: BusinessProjectRecord, input: { sessionId: string; attemptId: string; key: string; messageId: string; context?: TaskMandateSnapshot }) {
   assertBound(cwd, project, input.sessionId)
   const ledger = load(cwd, project), { run, attempt } = findAttempt(ledger, input.sessionId, input.attemptId)
-  if (input.key !== attempt.key || !input.messageId || attempt.inputFingerprint !== longTaskInputFingerprint(cwd, project, attempt.stageId)) throw new Error('派发收据的阶段、会话或输入版本不匹配。')
+  if (input.key !== attempt.key || !input.messageId || attempt.inputFingerprint !== longTaskInputFingerprint(cwd, project, attempt.stageId, input.context)) throw new Error('派发收据的阶段、会话或输入版本不匹配。')
   if (attempt.messageId && attempt.messageId !== input.messageId) throw new Error('同一尝试已经写入另一消息，拒绝重复派发。')
   if (attempt.status === 'settled') return attempt
   if (attempt.status !== 'prepared' && attempt.status !== 'dispatching' && attempt.status !== 'dispatched') throw new Error('过期尝试不能派发。')
@@ -193,11 +308,11 @@ export function markLongTaskDispatched(cwd: string, project: BusinessProjectReco
   markDispatched(cwd, project, attempt.stageId, attempt.key)
   return attempt
 }
-export function markLongTaskDispatchIntent(cwd: string, project: BusinessProjectRecord, input: { sessionId: string; attemptId: string; key: string; messageId: string }) {
+export function markLongTaskDispatchIntent(cwd: string, project: BusinessProjectRecord, input: { sessionId: string; attemptId: string; key: string; messageId: string; context?: TaskMandateSnapshot }) {
   assertBound(cwd, project, input.sessionId)
   const ledger = load(cwd, project), { run, attempt } = findAttempt(ledger, input.sessionId, input.attemptId)
   if (run.paused || budgetReason(run)) throw new Error('执行已暂停或预算门禁阻止派发。')
-  if (input.key !== attempt.key || !input.messageId || attempt.inputFingerprint !== longTaskInputFingerprint(cwd, project, attempt.stageId)) throw new Error('派发意图的会话、阶段或输入版本不匹配。')
+  if (input.key !== attempt.key || !input.messageId || attempt.inputFingerprint !== longTaskInputFingerprint(cwd, project, attempt.stageId, input.context)) throw new Error('派发意图的会话、阶段或输入版本不匹配。')
   if (attempt.status !== 'prepared') throw new Error('同一尝试已记录派发意图，必须先核对原消息。')
   attempt.messageId = input.messageId; attempt.status = 'dispatching'; save(cwd, project, ledger)
   return attempt
@@ -254,7 +369,7 @@ export function settleLongTaskChild(cwd: string, project: BusinessProjectRecord,
   return child
 }
 /** A durable receipt means received for parent review, never final professional/user acceptance. */
-export function submitLongTaskChild(cwd: string, project: BusinessProjectRecord, input: { sessionId: string; attemptId: string; childSessionId: string; submissionId: string; inputFingerprint: string; artifacts: Array<{ path: string; sha256: string }> }): LongTaskSubmission {
+export function submitLongTaskChild(cwd: string, project: BusinessProjectRecord, input: { sessionId: string; attemptId: string; childSessionId: string; submissionId: string; inputFingerprint: string; artifacts: Array<{ path: string; sha256: string }>; context?: TaskMandateSnapshot }): LongTaskSubmission {
   const ledger = load(cwd, project), run = ledger.runs[input.sessionId]
   if (!run || !input.submissionId) throw new Error('子提交缺少已登记父尝试或收据标识。')
   const duplicate = run.submissions.find(row => row.id === input.submissionId)
@@ -265,7 +380,7 @@ export function submitLongTaskChild(cwd: string, project: BusinessProjectRecord,
   const attempt = run.attempts.find(row => row.id === input.attemptId)
   const artifacts = input.artifacts.map(row => ({ path: resolve(cwd, row.path), sha256: row.sha256 }))
   const child = attempt?.children[input.childSessionId]
-  const stale = !attempt || attempt.id !== run.currentAttemptId || input.inputFingerprint !== attempt.inputFingerprint || attempt.inputFingerprint !== longTaskInputFingerprint(cwd, project, attempt.stageId)
+  const stale = !attempt || attempt.id !== run.currentAttemptId || input.inputFingerprint !== attempt.inputFingerprint || attempt.inputFingerprint !== longTaskInputFingerprint(cwd, project, attempt.stageId, input.context)
   const invalid = !child?.expectedPaths.length || artifacts.length !== child.expectedPaths.length || child.expectedPaths.some(path => !artifacts.some(row => row.path === path && row.sha256 === fileHash(path)))
   const row: LongTaskSubmission = { id: input.submissionId, attemptId: input.attemptId, childSessionId: input.childSessionId, artifacts, status: stale ? 'stale' : invalid ? 'rejected' : 'received', receivedAt: new Date().toISOString(), ...(stale ? { reason: '旧尝试或旧输入版本，不能推进当前任务。' } : invalid ? { reason: '实际文件、哈希或已登记提交范围不匹配。' } : {}) }
   run.submissions.push(row); save(cwd, project, ledger)
@@ -293,7 +408,7 @@ export function recordLongTaskUsage(cwd: string, project: BusinessProjectRecord,
   return run.usage
 }
 /** Host observations settle attempts. Idle alone does not prove a previously dispatched turn completed. */
-export function reconcileLongTask(cwd: string, project: BusinessProjectRecord, input: { sessionId: string; parentState: 'running' | 'idle' | 'unknown'; completedAttemptId?: string; foundMessageId?: string; childrenState?: Record<string, 'running' | 'idle' | 'unknown'> }): LongTaskStatus {
+export function reconcileLongTask(cwd: string, project: BusinessProjectRecord, input: { sessionId: string; parentState: 'running' | 'idle' | 'unknown'; completedAttemptId?: string; foundMessageId?: string; childrenState?: Record<string, 'running' | 'idle' | 'unknown'>; context?: TaskMandateSnapshot }): LongTaskStatus {
   assertBound(cwd, project, input.sessionId)
   const ledger = load(cwd, project), run = ledger.runs[input.sessionId]
   if (!run) return result(undefined, 'inactive', '本会话没有显式长期尝试。')
@@ -301,9 +416,9 @@ export function reconcileLongTask(cwd: string, project: BusinessProjectRecord, i
   const attempt = current(run)
   const board = inspectBoard(cwd, project), slice = board.stages[run.stageId]
   const availability = stageAvailability(cwd, project, board)[run.stageId]
-  if (attempt.inputFingerprint !== longTaskInputFingerprint(cwd, project, run.stageId)) {
+  if (attempt.inputFingerprint !== longTaskInputFingerprint(cwd, project, run.stageId, input.context)) {
     attempt.status = 'stale'; save(cwd, project, ledger)
-    return result(run, 'needs_review', '输入、前序依据或用户要求已变化，需要按新版本明确恢复。')
+    return result(run, 'needs_review', !attempt.context && input.context ? '已恢复旧版本任务记录；请核对当前知识库、范本与技能后继续，原会话和成果已保留。' : '输入、知识库、范本、技能、权限或用户要求已变化，需要按新版本明确恢复。')
   }
   if (board.currentStageId !== run.stageId) return result(run, 'done', '显式派发的阶段已切换；宿主不会跨阶段续派。')
   if (attempt.externalEffectsUnknown || attempt.pendingToolCalls?.length) return result(run, 'needs_review', '外部或工具操作结果未知；只核对已有成果，不重复执行。')
@@ -317,10 +432,13 @@ export function reconcileLongTask(cwd: string, project: BusinessProjectRecord, i
     run.noProgress = realityDigest(cwd, project, run.stageId) === attempt.realityDigest ? run.noProgress + 1 : 0
     save(cwd, project, ledger)
   }
+  const external = externalState(run)
+  if (external.needsReview.length) return result(run, 'needs_review', '外部子任务仅有通知，尚无可核对的实际终态；请核对已有修改，不重复派发。')
+  if (external.pending.length) return result(run, 'waiting', '外部子任务仍在执行或尚未收到真实结算收据；主会话空闲不代表它已完成。')
   if (availability?.waitingHuman || slice?.approval?.decision === 'rejected') return result(run, 'blocked', slice?.blockedReason || '当前成果等待用户明确决定；宿主不替代审批。')
   if (slice?.status === 'done') return result(run, 'done', '当前阶段已核对完成；不自动开启下一阶段。')
   if (!availability?.canPrepare) return result(run, 'blocked', availability?.reason || '当前阶段门禁阻止继续。')
-  if (input.parentState === 'running') return result(run, 'waiting', '实际父会话仍在执行，不重复派发。')
+  if (input.parentState === 'running') return result(run, 'waiting', '等待实际父会话执行完成，不重复派发。')
   const unsettledChildren = Object.entries(attempt.children).filter(([, row]) => !row.settledAt)
   if (unsettledChildren.some(([id]) => input.childrenState?.[id] === 'running')) return result(run, 'waiting', '已登记子会话仍在执行，不重复派工。')
   if (unsettledChildren.length) return result(run, 'needs_review', '子会话结算尚未核对；空闲或通知本身不代表已经完成。')
@@ -331,7 +449,7 @@ export function reconcileLongTask(cwd: string, project: BusinessProjectRecord, i
   if (attempt.status === 'prepared') return { ...result(run, 'ready', '尚未写入主会话的持久尝试可以派发一次。'), draft: attempt.draft }
   const stage = workflowFor(project).stages.find(row => row.id === run.stageId)!
   const draft = buildRecoveryDraft(project, stage, slice, `${availability.reason || ''}\n宿主只授权本阶段的剩余工作。实际成果齐备后调用 tender_stage complete_stage 核对；不得越过人工决定或自行启动后序阶段。`)
-  const next = makeAttempt(cwd, project, run, dispatchFingerprint(slice, `host-attempt:${run.attempts.length}`), draft)
+  const next = makeAttempt(cwd, project, run, dispatchFingerprint(slice, `host-attempt:${run.attempts.length}`), draft, input.context)
   run.attempts.push(next); run.currentAttemptId = next.id; save(cwd, project, ledger)
   return { ...result(run, 'ready', '已核对当前阶段，只续派最小未完成项。'), draft: next.draft }
 }

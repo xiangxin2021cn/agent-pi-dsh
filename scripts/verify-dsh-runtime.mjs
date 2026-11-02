@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { isSelectedMainline, verifyDistributionRuntime } from './dsh-distribution-policy.mjs'
 
 export const expectedDshCommit = 'ce7073d51254c26cd63b22a60835b8f948deb447'
 export const expectedDshVersion = '0.2.2-alpha.2'
@@ -106,7 +107,10 @@ export async function main(args = process.argv.slice(2)) {
     }
     require('koffi')
     verifyOfficeRuntime(verified.dsh)
-    if (verified.product) verifyCodexRuntime(verified.product)
+    if (isSelectedMainline(verified.product)) {
+      const selected = verifyDistributionRuntime(verified.dsh, verified.product)
+      process.stdout.write(`Selected production runtime verified: ${selected.policy} (${selected.packages} packages); Codex/Claude executables are supplied by the local machine\n`)
+    } else if (verified.product) verifyCodexRuntime(verified.product)
   }
   process.stdout.write(`DSH ${expectedDshVersion} runtime verified: ${verified.dsh}\n`)
 }

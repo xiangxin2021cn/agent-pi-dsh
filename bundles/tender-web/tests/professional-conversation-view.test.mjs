@@ -78,7 +78,7 @@ test('shared dock uses native store and navigation without replacing chat or red
   } finally {stop();await f.close()}
 })
 
-test('one shared dock appears only in default chat and native Codex conversation views',async()=>{
+test('one shared dock appears only in default chat, keeping Codex history read-only',async()=>{
   const f=await domFixture(),s=slotsFixture(),store=storeFixture()
   s.ctx.slots.register({name:'conversation.session',store,inject:(_id,actions)=>({openView:actions.openView})},()=>null)
   const stop=installProfessionalConversationView(s.ctx,f.React,props=>props.visible?f.React.createElement('section',{'data-shared-summary':''},'Shared goal'):null)
@@ -87,7 +87,7 @@ test('one shared dock appears only in default chat and native Codex conversation
     await f.act(async()=>f.root.render(f.React.createElement(dock.component,renderedProps(f,dock,store))))
     for(const view of [null,'chat','agent-pi-codex-main','trajectory','workbench','agent-pi-task-guide']){
       await f.act(async()=>store.actions.openView(view,''))
-      assert.equal(f.document.querySelectorAll('[data-shared-summary]').length,[null,'chat','agent-pi-codex-main'].includes(view)?1:0,String(view))
+      assert.equal(f.document.querySelectorAll('[data-shared-summary]').length,[null,'chat'].includes(view)?1:0,String(view))
     }
   } finally {stop();await f.close()}
 })

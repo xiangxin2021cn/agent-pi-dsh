@@ -2,6 +2,7 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, symlinkSy
 import { createRequire } from 'node:module'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { distributionPolicy, distributionReceipt } from './dsh-distribution-policy.mjs'
 
 function resolvedPackage(consumer, name) {
   const require = createRequire(join(consumer, 'package.json'))
@@ -57,6 +58,9 @@ export function repairDshRuntimePeers(dshRoot, lock) {
     }
   }
   visit('apps/cli')
+  if (existsSync(join(root, distributionReceipt))) {
+    for (const directory of distributionPolicy.requiredWorkspaces) visit(directory)
+  }
   const links = []
   for (const [name, target] of providers) {
     const link = join(root, 'node_modules', name)

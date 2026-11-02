@@ -191,7 +191,15 @@ jobs:
           # --ignore-scripts: the repo postinstall imports a devDependency
           # (lefthook) that --prod does not install. Native modules that need
           # a local build are rebuilt explicitly below.
-          pnpm install --prod --frozen-lockfile --ignore-scripts
+          # The policy parser and product runtime use the same exact host lock.
+          (cd ../product/bundles/tender-host && npm ci --omit=dev --ignore-scripts --no-fund --no-audit)
+          edition=$(node -p "require('../product/package.json').agentPiProduct?.edition || 'mainline'")
+          if [ "$edition" = mainline ]; then
+            node ../product/scripts/dsh-distribution-policy.mjs install . ../product "$RUNNER_TEMP/agent-pi-selected-dsh"
+            node ../product/scripts/repair-dsh-runtime-peers.mjs .
+          else
+            pnpm install --prod --frozen-lockfile --ignore-scripts
+          fi
 
       - name: Rebuild DSH native modules for the packaged Node ABI
         working-directory: payload/deepseek-harness
@@ -202,8 +210,7 @@ jobs:
 
       - name: Install bundle dependencies
         run: |
-          (cd payload/product/packages/business-core && npm ci --omit=dev --no-fund --no-audit)
-          (cd payload/product/bundles/tender-host && npm ci --omit=dev --no-fund --no-audit)
+          (cd payload/product/packages/business-core && npm ci --omit=dev --ignore-scripts --no-fund --no-audit)
           rm payload/product/bundles/tender-host/node_modules/@mlightcad/libredwg-web/wasm/libredwg-web.wasm
           rm payload/product/bundles/tender-host/node_modules/@mlightcad/libredwg-converter/dist/libredwg-web.wasm
           node payload/product/scripts/install-univer-runtime-deps.mjs payload/product/vendor/dsh-univer-office
@@ -253,6 +260,10 @@ jobs:
 
       - name: Verify DSH session native modules with packaged Node
         run: |
+          edition=$(node -p "require('./payload/product/package.json').agentPiProduct?.edition || 'mainline'")
+          if [ "$edition" = mainline ]; then
+            node-runtime/bin/node payload/product/scripts/dsh-distribution-policy.mjs seal payload/deepseek-harness payload/product
+          fi
           node-runtime/bin/node payload/product/scripts/verify-dsh-runtime.mjs \
             payload/deepseek-harness payload/product --native
 

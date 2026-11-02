@@ -2,6 +2,7 @@ import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { isAbsolute, join, relative, sep } from 'node:path'
 import { TEAM_PACKAGES } from './agent-teams-profile.mjs'
+import { distributionPolicy, isSelectedMainline } from './dsh-distribution-policy.mjs'
 
 // Adapt the official Desktop dependency-graph check to our existing HTTP shell
 // and pnpm workspace layout. Inspect manifests rather than require.resolve(name):
@@ -21,11 +22,13 @@ export function verifyDependencyClosure(roots, runtimeRoots = roots) {
     const manifest = JSON.parse(readFileSync(join(canonical, 'package.json'), 'utf8'))
     const require = createRequire(join(canonical, 'package.json'))
     const optional = manifest.optionalDependencies ?? {}
-    for (const name of Object.keys({ ...manifest.dependencies, ...optional })) {
+    const workspacePeers = Object.fromEntries(Object.entries(manifest.peerDependencies ?? {}).filter(([, range]) => range.startsWith('workspace:')))
+    for (const name of Object.keys({ ...manifest.dependencies, ...optional, ...workspacePeers })) {
       const path = (require.resolve.paths(name) ?? []).map(base => join(base, name))
         .find(candidate => existsSync(join(candidate, 'package.json')))
       if (!path) {
-        if (!(name in optional)) failures.push(`${chain} -> ${name}`)
+        const optionalPeerOnly = !(name in (manifest.dependencies ?? {})) && manifest.peerDependenciesMeta?.[name]?.optional
+        if (!(name in optional) && !optionalPeerOnly) failures.push(`${chain} -> ${name}`)
         continue
       }
       visit(path, `${chain} -> ${name}`)
@@ -38,6 +41,7 @@ export function verifyDependencyClosure(roots, runtimeRoots = roots) {
 
 export function verifyProductDependencyClosure(dsh, product) {
   const roots = [join(dsh, 'apps/cli'), ...TEAM_PACKAGES.map(name => join(dsh, 'packages/experimental', name))]
+  if (isSelectedMainline(product)) roots.push(...distributionPolicy.requiredWorkspaces.map(path => join(dsh, path)))
   if (product) roots.push(...['bundles/tender-host', 'packages/business-core', 'vendor/dsh-univer-office'].map(path => join(product, path)))
   return verifyDependencyClosure(roots, [dsh, ...(product ? [product] : [])])
 }

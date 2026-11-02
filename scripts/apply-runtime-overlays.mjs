@@ -16,7 +16,7 @@ export function main(args = process.argv.slice(2), run = spawnSync) {
   const files = runtimePresetFiles(resolve(args[0]), resolve(args[1]))
   for (const script of [
     'enable-desktop-web-fetch.mjs',
-    'enable-desktop-codex.mjs',
+    'enable-desktop-codex.mjs', // Migration only: retire former product Codex rows.
     'enable-desktop-compaction.mjs',
   ]) {
     const result = run(process.execPath, [join(scriptsDir, script), ...files], {

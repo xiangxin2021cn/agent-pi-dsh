@@ -4,11 +4,10 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 import vm from 'node:vm'
-import { clientSource } from './client-source.ts'
 
 const client = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../lib/client.js'), 'utf8')
 
-function renderedCodexSettings(locale, source) {
+function renderedRuntimeSettings(locale, source) {
   let definition
   const document = {
     addEventListener() {},
@@ -30,22 +29,11 @@ function renderedCodexSettings(locale, source) {
     dispatchEvent() {},
     confirm() { return false },
   }
-  const auth = {
-    available: true,
-    state: 'logged-in',
-    model: {
-      id: 'gpt-test',
-      contextWindow: 1000,
-      contextWindowSource: source,
-      maxTokens: 100,
-      maxTokensSource: source,
-    },
-  }
   const React = {
     createElement(type, props, ...children) { return { type, props, children } },
     useState(value) {
       const initial = typeof value === 'function' ? value() : value
-      return [initial && initial.state === 'checking' ? auth : initial, () => {}]
+      return [initial, () => {}]
     },
     useEffect() {},
     useRef(value) { return { current: value } },
@@ -53,7 +41,7 @@ function renderedCodexSettings(locale, source) {
   }
   const sourceCode = client.replace(
     /(\s*return module\.exports;)/,
-    "\n    window.__apCodexSettingsTest = { CodexSettingsSection, setApLang };\n$1",
+    "\n    window.__apCodexSettingsTest = { DshRuntimeSettingsSection, setApLang };\n$1",
   )
   vm.runInNewContext(sourceCode, {
     window,
@@ -71,7 +59,7 @@ function renderedCodexSettings(locale, source) {
   })
   definition.factory((name) => name === 'react' ? React : {})
   window.__apCodexSettingsTest.setApLang(locale)
-  return window.__apCodexSettingsTest.CodexSettingsSection()
+  return window.__apCodexSettingsTest.DshRuntimeSettingsSection()
 }
 
 function renderedText(node) {
@@ -81,47 +69,22 @@ function renderedText(node) {
   return String(node)
 }
 
-test('desktop settings expose ChatGPT login without treating Codex as a model provider', () => {
-  assert.match(clientSource, /function CodexSettingsSection/)
-  assert.match(clientSource, /codexAuthStatus/)
-  assert.match(clientSource, /codexAuthLogin/)
-  assert.match(clientSource, /codexAuthLogout/)
-  assert.match(clientSource, /id: 'agent-pi-codex'/)
-  assert.match(clientSource, /subagent_codex/)
-  assert.match(clientSource, /模型信息暂不可用/)
-  assert.match(clientSource, /供应商返回/)
-  assert.match(clientSource, /官方参数/)
-  assert.match(clientSource, /估算参数/)
-  assert.match(clientSource, /Codex 执行/)
-  assert.match(clientSource, /run_in_background=false/)
-  assert.match(clientSource, /codexAuthStatus\(\)/)
-  assert.match(clientSource, /setCodexTurnArmed/)
-  assert.match(clientSource, /clearCodexTurnAfterSubmit/)
-  assert.doesNotMatch(clientSource, /if \(typeof window\.agentPiDesktop\?\.codexAuthStatus === 'function'\)/)
-  assert.doesNotMatch(clientSource, /id: 'codex'/)
-  assert.doesNotMatch(clientSource, /OPENAI_API_KEY/)
+test('mainline settings expose DSH runtime preferences without custom Codex login or model controls', () => {
+  const source = readFileSync(new URL('../src/client/index.js', import.meta.url), 'utf8')
+  assert.match(source, /function DshRuntimeSettingsSection/)
+  assert.match(source, /id: 'agent-pi-runtime'/)
+  assert.match(source, /h\(AgentTeamsSettings, \{ desktop, zh \}\)/)
+  assert.doesNotMatch(source, /CodexSettingsSection|ComposerCodexModelSelector|codexAuthLogin|codexAuthLogout|codexSetDefaultModel|codexSetDefaultReasoningEffort|DSH \/ Codex/)
+  assert.doesNotMatch(source, /nativeCodex\.(?:submit|taskAction|enabled|busy)/)
 })
 
-test('capacity provenance labels render in the active locale', () => {
-  const labels = {
-    zh: {
-      provider: '供应商返回',
-      official: '官方参数',
-      estimated: '估算参数',
-    },
-    en: {
-      provider: 'Provider metadata',
-      official: 'Verified catalog',
-      estimated: 'Conservative estimate',
-    },
-  }
-  for (const [locale, expected] of Object.entries(labels)) {
-    for (const [source, label] of Object.entries(expected)) {
-      const text = renderedText(renderedCodexSettings(locale, source))
-      assert.ok(text.includes(label), locale + ' ' + source + ' label')
-      if (locale === 'en') {
-        assert.equal(/供应商返回|官方参数|估算参数/.test(text), false)
-      }
-    }
+test('runtime settings retain localized compaction and team preferences', () => {
+  for (const [locale, title, compaction] of [['zh', 'DSH 运行设置', '对话自动压缩'], ['en', 'DSH runtime settings', 'Automatic conversation compaction']]) {
+    const tree = renderedRuntimeSettings(locale)
+    const text = renderedText(tree)
+    assert.ok(text.includes(title))
+    assert.ok(text.includes(compaction))
+    assert.doesNotMatch(text, /ChatGPT|默认 Codex|Default Codex/)
+    if (locale === 'en') assert.doesNotMatch(text, /[\u4e00-\u9fff]/)
   }
 })

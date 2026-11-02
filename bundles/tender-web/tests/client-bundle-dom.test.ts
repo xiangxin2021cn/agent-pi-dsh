@@ -17,7 +17,7 @@ function requirePnpmPackage(name: string, entry = '') {
   return createRequire(import.meta.url)(packagePath)
 }
 
-test('generated client boots, ChatGPT login works, and the session file rail renders in a real React DOM', async () => {
+test('generated client keeps DSH as main executor, preserves read-only Codex history, and renders the session file rail in a real React DOM', async () => {
   const { JSDOM } = requirePnpmPackage('jsdom')
   const React = requirePnpmPackage('react')
   const { act } = React
@@ -36,6 +36,7 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     questions:[],plan:[{id:'old-plan',title:'已有计划',status:'done',dependsOn:[]}],coverage:[],evidence:[],findings:[],deliverables:[{id:'old-report',path:'outputs/分析报告.md',status:'reviewed'}],
   }
   const taskBinding={cwd:'C:/workspace',projectId:'bound-project',moduleId:'report',stageId:'review',approvalGate:true,canApprove:false,waitingHuman:false,approvalReason:'请先完成阶段资料。'}
+  const taskExecution={phase:'needs_review',reason:'范本版本待核对，保留原主会话。',rootSessionId:'review-session',stageId:'review',attempt:{id:'actual-host-attempt',status:'dispatched'},context:{fingerprint:'e'.repeat(64),knowledgeCount:1,templateCount:1,skillCount:2,policyState:'captured'},usage:{rounds:4,tokens:12000,elapsedMs:90000,unknownTokens:false},limits:{maxRounds:64,maxTokens:500000,maxElapsedMs:7200000,maxNoProgress:3},noProgress:1,pendingToolCount:1,unsettledChildCount:0}
   let taskGuideEnabled=false
   const workbenchSnapshot = {
     cwd: 'C:\\workspace',
@@ -60,7 +61,7 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
   }
 
   const promptTexts: string[] = []
-  const fetchCalls: Array<{ url: string; action?: string; text?: string; transactionId?: string; files?: unknown[]; sessionId?: string; module?: string; projectId?: string; stageId?: string; key?: string }> = []
+  const fetchCalls: Array<{ url: string; action?: string; text?: string; transactionId?: string; files?: unknown[]; sessionId?: string; module?: string; projectId?: string; stageId?: string; key?: string; limits?: Record<string, number> }> = []
   const sessionSnapshot = {
     sessionId: 'session-1', blank: true, running: false, queue: [],
     pendingSubmissions: [] as Array<{ requestId: string; time: number; text: string; images: unknown[] }>,
@@ -127,12 +128,13 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     fetch: async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input)
       const request = init && typeof init.body === 'string'
-        ? JSON.parse(init.body) as { action?: string; text?: string; sessionId?: string; transactionId?: string; files?: unknown[]; module?: string; projectId?: string; stageId?: string; key?: string }
+        ? JSON.parse(init.body) as { action?: string; text?: string; sessionId?: string; transactionId?: string; files?: unknown[]; module?: string; projectId?: string; stageId?: string; key?: string; limits?: Record<string, number> }
         : {}
       fetchCalls.push({ url, ...request })
       let body: unknown = { files: [], outputFiles: [] }
       if (url.includes('/api/agent-pi/capabilities')) body = { workbench: true, knowledge: true, taskGuide:taskGuideEnabled }
-      else if (url.includes('/api/agent-pi/professional-task')) body = {task:structuredClone(professionalTask),binding:taskBinding,capabilities:[],audit:{}}
+      else if (url.includes('/api/agent-pi/engineering')) body = {runs:[],providers:[],project:{id:'isolated-engineering',objects:[],sources:[],ruleAdoptions:[],quantities:[],coverage:[]}}
+      else if (url.includes('/api/agent-pi/professional-task')) body = {task:structuredClone(professionalTask),binding:taskBinding,execution:structuredClone(taskExecution),capabilities:[],audit:{}}
       else if (url.includes('/api/agent-pi/workbench')) body = {
         ...workbenchSnapshot,
         projects: workbenchSnapshot.projects.map((item) => ({
@@ -203,53 +205,17 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     ;(dom.window as typeof dom.window & { __ModuleLoader__: unknown }).__ModuleLoader__ = {
       load(definition: { factory: typeof factory }) { factory = definition.factory },
     }
-    let loginCalls = 0
-    let codexLoggedIn = false
-    let selectedModel: string | null = null
-    let selectedReasoningEffort: string | null = null
-    let rejectModelSave = false
-    let rejectEffortSave = false
-    const modelSaveCalls: Array<string | null> = []
-    const effortSaveCalls: Array<string | null> = []
-    const codexModels = [
-      { id: 'gpt-5.4', displayName: 'GPT-5.4', defaultReasoningEffort: 'low', supportedReasoningEfforts: [{ reasoningEffort: 'low' }, { reasoningEffort: 'high' }] },
-      { id: 'gpt-5.3-codex', displayName: 'GPT-5.3-Codex', defaultReasoningEffort: 'medium', supportedReasoningEfforts: [{ reasoningEffort: 'medium' }, { reasoningEffort: 'ultra' }, { reasoningEffort: 'future-effort' }] },
-    ]
-    const codexAuthSnapshot = () => ({
-      available: true,
-      state: codexLoggedIn ? 'logged-in' : 'logged-out',
-      ...(codexLoggedIn ? {
-        models: codexModels, selectedModel, selectedReasoningEffort, defaultModel: selectedModel || 'gpt-5.4',
-        model: {
-          ...codexModels.find((model) => model.id === (selectedModel || 'gpt-5.4')),
-          contextWindow: 128_000, maxTokens: 32_000,
-          contextWindowSource: 'provider', maxTokensSource: 'provider',
-        },
-      } : {}),
-    })
+    const retiredCalls: string[] = []
+    const retired = (name: string) => async () => { retiredCalls.push(name); throw new Error('Retired Codex execution UI invoked') }
     ;(dom.window as typeof dom.window & { agentPiDesktop: unknown }).agentPiDesktop = {
-      codexAuthStatus: async () => codexAuthSnapshot(),
-      codexAuthLogin: async () => {
-        loginCalls += 1
-        codexLoggedIn = true
-        return codexAuthSnapshot()
-      },
-      codexAuthLogout: async () => {
-        codexLoggedIn = false
-        return codexAuthSnapshot()
-      },
-      codexSetDefaultModel: async (modelId: string | null) => {
-        modelSaveCalls.push(modelId)
-        if (rejectModelSave) throw new Error('preference write failed')
-        selectedModel = modelId
-        return codexAuthSnapshot()
-      },
-      codexSetDefaultReasoningEffort: async (effort: string | null) => {
-        effortSaveCalls.push(effort)
-        if (rejectEffortSave) throw new Error('preference write failed')
-        selectedReasoningEffort = effort
-        return codexAuthSnapshot()
-      },
+      codexAuthStatus: retired('authStatus'), codexAuthLogin: retired('login'), codexAuthLogout: retired('logout'),
+      codexSetDefaultModel: retired('model'), codexSetDefaultReasoningEffort: retired('effort'),
+      codexExecutionSubmit: retired('submit'), codexExecutionReply: retired('reply'), codexExecutionInterrupt: retired('interrupt'),
+      onCodexExecution: () => { retiredCalls.push('execution subscription'); return () => {} },
+      codexHistoryStatus: async (sessionId: string) => ({ sessionId, cwd: 'C:/workspace', phase: 'running',
+        messages: [{ id: 'old-codex-message', role: 'assistant', text: 'Preserved Codex result' }],
+        requests: [{ id: 1, params: { questions: [{ id: 'old-approval', question: 'Do not approve from history' }] } }],
+      }),
       compactionFallbackStatus: async () => ({ enabled: true }),
       setCompactionFallback: async (enabled: boolean) => ({ enabled, restartRequired: false }),
     }
@@ -265,11 +231,12 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
 
     const registered = new Map<string, unknown>()
     client.apply({
+      on() { return () => {} },
       effect(install: () => (() => void)) { disposers.push(install()) },
       inject(deps: unknown, callback: (scope: object) => void) {
         const names = Array.isArray(deps) ? deps : [deps]
         if (names.some(name => !['sessions', 'conversation', 'uiWorkspace'].includes(String(name)))) return
-        const scope: Record<string, unknown> = { slots: this.slots, on() {}, uiWorkspace: { openSession: (id) => openedSessionIds.push(id) } }
+        const scope: Record<string, unknown> = { slots: this.slots, on: this.on.bind(this), uiWorkspace: { openSession: (id) => openedSessionIds.push(id) } }
         if (names.includes('sessions')) scope.sessions = sessionService
         if (names.includes('conversation')) {
           scope.conversation = { input: { for: () => ({ state: attachmentInputStore }) } }
@@ -277,7 +244,7 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
         callback(scope)
       },
       slots: {
-        inject(_name: string, callback: () => void) { callback() },
+        inject(_name: string, callback: () => unknown) { const dispose = callback(); if (typeof dispose === 'function') disposers.push(dispose as () => void) },
         entries(name: string) { return name==='conversation.session' ? [{options:{},store:{},inject:()=>({openView(){}})}] : [] },
         subscribe() { return () => {} },
         register(definition: { id?: string; name: string }, component: unknown) {
@@ -301,8 +268,9 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
       },
     })
 
-    const CodexSettings = registered.get('agent-pi-codex')
-    assert.equal(typeof CodexSettings, 'function')
+    const RuntimeSettings = registered.get('agent-pi-runtime')
+    assert.equal(registered.has('agent-pi-codex'), false)
+    assert.equal(typeof RuntimeSettings, 'function')
     const mount = dom.window.document.getElementById('root')!
     rootView = createRoot(mount)
     const sidebar = dom.window.document.createElement('div')
@@ -321,111 +289,50 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     sidebar.remove()
     rootView = createRoot(mount)
     await act(async () => {
-      rootView!.render(React.createElement(CodexSettings))
+      rootView!.render(React.createElement(RuntimeSettings))
       await new Promise((resolveTick) => setTimeout(resolveTick, 0))
     })
 
-    assert.match(mount.textContent || '', /ChatGPT \/ Codex/)
-    assert.equal(mount.querySelector('input[type="password"]'), null)
-    assert.equal(mount.querySelector('[role="dialog"]'), null)
-    const login = Array.from(mount.querySelectorAll('button')).find((button) => button.textContent === '使用 ChatGPT 登录')
-    assert.ok(login, 'ChatGPT login button did not render')
+    assert.match(mount.textContent || '', /DSH 运行设置/)
+    assert.match(mount.textContent || '', /对话自动压缩/)
+    assert.equal(mount.querySelector('#ap-codex-default-model'), null)
+    assert.equal(mount.querySelector('#ap-codex-default-reasoning'), null)
+    assert.doesNotMatch(mount.textContent || '', /使用 ChatGPT 登录/)
+    const compactionSwitch = mount.querySelector('[role="switch"][aria-label="DeepSeek 摘要兜底"]')!
+    assert.ok(compactionSwitch)
     await act(async () => {
-      login.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }))
-      await new Promise((resolveTick) => setTimeout(resolveTick, 0))
+      compactionSwitch.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }))
+      await new Promise(resolveTick => setTimeout(resolveTick, 0))
     })
-    assert.equal(loginCalls, 1)
-    assert.match(mount.textContent || '', /已通过 ChatGPT 登录/)
-    const defaultModelSelect = () => mount.querySelector<HTMLSelectElement>('#ap-codex-default-model')!
-    assert.deepEqual(Array.from(defaultModelSelect().options, (option) => option.value), ['', 'gpt-5.4', 'gpt-5.3-codex'])
-    assert.equal(defaultModelSelect().value, '')
-    await act(async () => {
-      defaultModelSelect().value = 'gpt-5.3-codex'
-      defaultModelSelect().dispatchEvent(new dom.window.Event('change', { bubbles: true }))
-      await new Promise((resolveTick) => setTimeout(resolveTick, 0))
-    })
-    assert.equal(selectedModel, 'gpt-5.3-codex')
-    assert.equal(defaultModelSelect().value, 'gpt-5.3-codex')
-    assert.match(mount.textContent || '', /默认模型已保存/)
-    const defaultEffortSelect = () => mount.querySelector<HTMLSelectElement>('#ap-codex-default-reasoning')!
-    assert.deepEqual(Array.from(defaultEffortSelect().options, (option) => option.value), ['', 'medium', 'ultra', 'future-effort'])
-    assert.match(defaultEffortSelect().options[0].textContent || '', /跟随模型默认 · medium/)
-    await act(async () => {
-      defaultEffortSelect().value = 'ultra'
-      defaultEffortSelect().dispatchEvent(new dom.window.Event('change', { bubbles: true }))
-      await new Promise((resolveTick) => setTimeout(resolveTick, 0))
-    })
-    assert.equal(selectedReasoningEffort, 'ultra')
-    assert.match(mount.textContent || '', /默认思考等级已保存/)
-
+    assert.equal(compactionSwitch.getAttribute('aria-checked'), 'false')
     await act(async () => rootView!.unmount())
     rootView = createRoot(mount)
+    const DshComposerTools = registered.get('agent-pi-composer-tools')
+    dom.window.localStorage.setItem('agent-pi:main-engine:effort-ui', 'codex')
     await act(async () => {
-      rootView!.render(React.createElement(CodexSettings))
-      await new Promise((resolveTick) => setTimeout(resolveTick, 0))
+      rootView!.render(React.createElement(DshComposerTools, { sessionId: 'effort-ui', input: { draft: 'DSH task' }, inputActions: { submit() {} } }))
+      await new Promise(resolveTick => setTimeout(resolveTick, 0))
     })
-    assert.equal(defaultModelSelect().value, 'gpt-5.3-codex', 'reopening settings must restore the saved model')
-    assert.equal(defaultEffortSelect().value, 'ultra', 'reopening settings must restore the saved effort')
-    rejectEffortSave = true
-    await act(async () => {
-      defaultEffortSelect().value = 'future-effort'
-      defaultEffortSelect().dispatchEvent(new dom.window.Event('change', { bubbles: true }))
-      await new Promise((resolveTick) => setTimeout(resolveTick, 0))
-    })
-    assert.equal(defaultEffortSelect().value, 'ultra')
-    assert.match(mount.textContent || '', /思考等级保存失败/)
-    rejectEffortSave = false
-    await act(async () => {
-      defaultEffortSelect().value = ''
-      defaultEffortSelect().dispatchEvent(new dom.window.Event('change', { bubbles: true }))
-      await new Promise((resolveTick) => setTimeout(resolveTick, 0))
-    })
-    assert.equal(defaultEffortSelect().value, '')
-    assert.deepEqual(effortSaveCalls, ['ultra', 'future-effort', null])
-    rejectModelSave = true
-    await act(async () => {
-      defaultModelSelect().value = 'gpt-5.4'
-      defaultModelSelect().dispatchEvent(new dom.window.Event('change', { bubbles: true }))
-      await new Promise((resolveTick) => setTimeout(resolveTick, 0))
-    })
-    assert.deepEqual(modelSaveCalls, ['gpt-5.3-codex', 'gpt-5.4'])
-    assert.equal(selectedModel, 'gpt-5.3-codex')
-    assert.equal(defaultModelSelect().value, 'gpt-5.3-codex', 'a failed save must leave the confirmed model selected')
-    assert.equal(defaultModelSelect().disabled, false)
-    assert.match(mount.textContent || '', /模型保存失败/)
-
-    selectedReasoningEffort = 'ultra'
+    assert.equal(mount.querySelector('[aria-label="选择 Codex 主执行"]'), null)
+    const composerButtons = Array.from(mount.querySelectorAll('button'))
+    assert.equal(composerButtons.some(button => button.textContent?.trim() === 'DSH / Codex'), false, 'the retired DSH / Codex button must not render')
+    assert.equal(composerButtons.some(button => /Codex/i.test([button.textContent, button.getAttribute('aria-label'), button.getAttribute('title')].join(' '))), false, 'the composer exposes no Codex execution switch or model control')
+    assert.ok(mount.querySelector('[aria-label="专业深度"]'), 'retiring the executor keeps the professional-depth control')
+    assert.equal(mount.querySelector('[aria-label="本次 Codex 模型"]'), null)
+    assert.equal(dom.window.localStorage.getItem('agent-pi:main-engine:effort-ui'), 'codex')
     await act(async () => rootView!.unmount())
     rootView = createRoot(mount)
-    const ReasoningComposerTools = registered.get('agent-pi-composer-tools')
+    const CodexHistory = registered.get('agent-pi-codex-main')
+    assert.equal(typeof CodexHistory, 'function')
     await act(async () => {
-      rootView!.render(React.createElement(ReasoningComposerTools, { sessionId: 'effort-ui', input: { draft: 'reasoning UI task' }, inputActions: { submit() {} } }))
-      await new Promise((resolveTick) => setTimeout(resolveTick, 0))
+      rootView!.render(React.createElement(CodexHistory, { sessionId: 'old-codex-session' }))
+      await new Promise(resolveTick => setTimeout(resolveTick, 0))
     })
-    const codexToggle = mount.querySelector<HTMLButtonElement>('.ap-codex-turn')!
-    assert.ok(codexToggle)
-    await act(async () => {
-      codexToggle.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }))
-      await new Promise((resolveTick) => setTimeout(resolveTick, 0))
-    })
-    const turnModel = () => mount.querySelector<HTMLSelectElement>('[aria-label="本次 Codex 模型"]')!
-    const turnEffort = () => mount.querySelector<HTMLSelectElement>('[aria-label="本次 Codex 思考等级"]')!
-    assert.deepEqual(Array.from(turnEffort().options, (option) => option.value), ['', 'medium', 'ultra', 'future-effort'])
-    assert.match(turnEffort().options[0].textContent || '', /跟随设置 · ultra/)
-    await act(async () => {
-      turnEffort().value = 'future-effort'
-      turnEffort().dispatchEvent(new dom.window.Event('change', { bubbles: true }))
-    })
-    assert.equal(turnEffort().value, 'future-effort')
-    await act(async () => {
-      turnModel().value = 'gpt-5.4'
-      turnModel().dispatchEvent(new dom.window.Event('change', { bubbles: true }))
-    })
-    assert.equal(turnEffort().value, '', 'model changes must clear an incompatible one-turn effort')
-    assert.deepEqual(Array.from(turnEffort().options, (option) => option.value), ['', 'low', 'high'])
-    assert.match(turnEffort().options[0].textContent || '', /使用本模型默认 · low/)
-    assert.equal(selectedReasoningEffort, 'ultra', 'one-turn choices must not modify the saved preference')
-
+    assert.match(mount.textContent || '', /Codex 历史（只读）/)
+    assert.match(mount.textContent || '', /Preserved Codex result/)
+    assert.doesNotMatch(mount.textContent || '', /Do not approve from history/)
+    assert.equal(mount.querySelector('button, input, select'), null)
+    assert.deepEqual(retiredCalls, [])
     await act(async () => rootView!.unmount())
     rootView = createRoot(mount)
     const AttachmentDock = registered.get('agent-pi-attachments')
@@ -694,6 +601,16 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     assert.equal(fetchCalls.filter((call) => call.action === 'satisfy_requirement').length, 1)
     assert.equal(fetchCalls.filter((call) => call.action === 'accept_requirement').length, 1)
     assert.match(mount.textContent || '', /已采用为验收口径/)
+    const runtimeBudget=Array.from(mount.querySelectorAll('details')).find(row=>row.querySelector('summary')?.textContent==='DSH 自动阶段执行预算')
+    assert.ok(runtimeBudget,'the workbench retains its execution limits')
+    assert.equal(runtimeBudget.querySelectorAll('input[type=number]').length,4,'only rounds, tokens, elapsed time and no-progress limits remain')
+    assert.doesNotMatch(runtimeBudget.textContent || '',/金额上限 USD/)
+    const roundsInput = runtimeBudget.querySelector<HTMLInputElement>('input[type=number]')!
+    assert.equal(roundsInput.disabled, false)
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value')!.set!.call(roundsInput, '128')
+      roundsInput.dispatchEvent(new dom.window.Event('input', { bubbles: true }))
+    })
     const continueProject = Array.from(mount.querySelectorAll('button')).find((button) => button.textContent?.includes('继续推进'))
     assert.ok(continueProject, 'workbench continue action did not render')
     await act(async () => {
@@ -704,6 +621,7 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     const hostDispatches = fetchCalls.filter((call) => call.action === 'runtime_dispatch')
     assert.equal(hostDispatches.length, 1)
     assert.deepEqual({ sessionId: hostDispatches[0].sessionId, module: hostDispatches[0].module, projectId: hostDispatches[0].projectId, stageId: hostDispatches[0].stageId, key: hostDispatches[0].key }, { sessionId: 'session-1', module: 'tender', projectId: 'p1', stageId: 'project-setup', key: 'project-setup|running|||' })
+    assert.deepEqual(hostDispatches[0].limits, { maxRounds: 128 }, 'DSH continuation submits only the explicitly edited ceiling without any retired executor branch or monetary cap')
     assert.match(hostDispatches[0].url, /\/api\/agent-pi\/stage\?cwd=C%3A%5Cworkspace/)
     assert.equal(fetchCalls.filter((call) => call.action === 'mark_dispatched').length, 0, 'dispatch receipts are recorded by the host')
     assert.equal(fetchCalls.filter((call) => call.url.startsWith('open-view:chat:')).length, 1)
@@ -726,6 +644,12 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
       await new Promise(resolveTick=>setTimeout(resolveTick,30))
     })
     assert.match(mount.textContent || '',/按实际资料核验当前阶段/)
+    const executionPanel=mount.querySelector('[data-task-execution="needs_review"]')
+    assert.ok(executionPanel,'generated Current task displays the actual host execution projection')
+    assert.match(executionPanel.textContent || '',/原主会话：review-session|当前尝试：actual-host-attempt/)
+    assert.match(executionPanel.textContent || '',/本轮依据：知识库 1 · 主范本 1 · 技能 2/)
+    assert.match(executionPanel.textContent || '',/父子模型轮次：4 \/ 64，剩余 60/)
+    assert.match(executionPanel.textContent || '',/范本版本待核对，保留原主会话。/)
     for(const label of ['执行计划','项目依据','交付检查','任务概览']){
       const tab=Array.from(mount.querySelectorAll('button')).find(row=>row.textContent===label)!
       await act(async()=>tab.dispatchEvent(new dom.window.MouseEvent('click',{bubbles:true})))
@@ -744,6 +668,11 @@ test('generated client boots, ChatGPT login works, and the session file rail ren
     assert.ok(openAfterReturn,'the shared summary returns with the original dock owner')
     await act(async()=>openAfterReturn.dispatchEvent(new dom.window.MouseEvent('click',{bubbles:true})))
     assert.deepEqual(navigation,['guide:workbench','dock:workbench'],'unmounting Current task does not remove the still-mounted dock navigation owner')
+    taskGuideEnabled=false
+    await act(async()=>{
+      dom.window.dispatchEvent(new dom.window.Event('focus'))
+      await new Promise(resolveTick=>setTimeout(resolveTick,20))
+    })
 
     await act(async () => rootView!.unmount())
     rootView = createRoot(mount)

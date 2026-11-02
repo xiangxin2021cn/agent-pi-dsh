@@ -139,15 +139,25 @@ jobs:
         run: |
           node scripts/prepare-macos-intel-optionals.mjs payload/deepseek-harness payload/product
           cp scripts/init-tender-profile.mjs payload/product/scripts/init-tender-profile.mjs
+          cp scripts/enable-desktop-codex.mjs payload/product/scripts/enable-desktop-codex.mjs
           cp scripts/macos-intel-capabilities.mjs payload/product/scripts/macos-intel-capabilities.mjs
           cp vendor/dshmarket/compatibility.js payload/product/vendor/dshmarket/compatibility.js
           cp apps/desktop/main.mjs payload/desktop/main.mjs
-          cp apps/desktop/codex-execution.mjs payload/desktop/codex-execution.mjs
+          cp apps/desktop/codex-history.mjs payload/desktop/codex-history.mjs
+          cp apps/desktop/preload.cjs payload/desktop/preload.cjs
           node --input-type=module <<'NODE'
-          import { readFileSync, writeFileSync } from 'node:fs'
-          import { stripTypeScriptTypes } from 'node:module'
-          writeFileSync('payload/product/bundles/tender-host/lib/codex-model-bridge.js',
-            stripTypeScriptTypes(readFileSync('bundles/tender-host/src/codex-model-bridge.ts', 'utf8')))
+          import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+          for (const entry of ['subagent-oar', 'tool-subagent-oar']) {
+            if (!existsSync(`payload/deepseek-harness/packages/experimental/${entry}/lib/index.js`)) {
+              throw new Error('This compatibility overlay requires official OAR support in the selected release; no mixed runtime will be produced.')
+            }
+          }
+          const path = 'payload/desktop/package.json'
+          const manifest = JSON.parse(readFileSync(path, 'utf8'))
+          const retired = new Set(['codex-auth.mjs', 'codex-models.mjs', 'codex-execution.mjs'])
+          manifest.build.files = manifest.build.files.filter(file => !retired.has(file))
+          for (const file of ['codex-history.mjs', 'preload.cjs']) if (!manifest.build.files.includes(file)) manifest.build.files.push(file)
+          writeFileSync(path, JSON.stringify(manifest, null, 2) + '\n')
           NODE
 
       - name: Download and verify Intel Node runtime
@@ -265,8 +275,8 @@ jobs:
             rebuiltCoreLoader: JSON.parse(readFileSync('payload/product/MACOS-BUILTIN-BUILD.json', 'utf8')),
             runtimeWorkspacePeers: JSON.parse(readFileSync('payload/product/MACOS-PEER-BUILD.json', 'utf8')),
             rebuiltOfficeDatabase: JSON.parse(readFileSync('payload/product/vendor/dsh-univer-office/node_modules/@libsql/darwin-x64/LIBSQL-MONTEREY-BUILD.json', 'utf8')),
-            compatibilityOverrides: ['apps/desktop/main.mjs', 'apps/desktop/codex-execution.mjs', 'scripts/init-tender-profile.mjs',
-              'scripts/macos-intel-capabilities.mjs', 'vendor/dshmarket/compatibility.js', 'bundles/tender-host/src/codex-model-bridge.ts'],
+            compatibilityOverrides: ['apps/desktop/main.mjs', 'apps/desktop/codex-history.mjs', 'apps/desktop/preload.cjs', 'scripts/init-tender-profile.mjs',
+              'scripts/enable-desktop-codex.mjs', 'scripts/macos-intel-capabilities.mjs', 'vendor/dshmarket/compatibility.js'],
             montereyRealHardwareTested: false, appleSigned: false, appleNotarized: false,
             workflowRun: `https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
             builtAt: new Date().toISOString(),

@@ -10,8 +10,7 @@ import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { delimiter, dirname, isAbsolute, join, normalize, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { createCodexAuthController, resolveCodexWrapper } from './codex-auth.mjs'
-import { createCodexExecutionController } from './codex-execution.mjs'
+import { readCodexHistory } from './codex-history.mjs'
 import {
   applyCompactionFallbackEnv,
   createCompactionFallbackPreferenceUpdate,
@@ -174,7 +173,6 @@ function runtimeEnv() {
     AGENT_PI_DESKTOP: '1',
     AGENT_PI_PLUGIN_RECOVERY: pluginRecovery ? '1' : '0',
     AGENT_PI_AGENT_TEAMS: normalizeAgentTeamsPreference(readPrefs()).enabled ? '1' : '0',
-    CODEX_HOME: codexHome,
   }, readPrefs())
   // Packaged runtimes are fully materialized and receipt-verified before the
   // installer is produced. Do not rehash or mutate that closure on every launch.
@@ -187,12 +185,6 @@ function runtimeEnv() {
   // change the default DeepSeek key later.
   delete env.DEEPSEEK_API_KEY
   delete env.DEEPSEEK_BASE_URL
-  // Keep the Codex child on this app's ChatGPT login. A machine-wide API key
-  // must not silently override the isolated CODEX_HOME selected in Settings.
-  delete env.OPENAI_API_KEY
-  delete env.OPENAI_ACCESS_TOKEN
-  delete env.CODEX_API_KEY
-  delete env.CODEX_ACCESS_TOKEN
   if (sysRoot && !env.SystemRoot) env.SystemRoot = sysRoot
   const pathParts = []
   if (nodeDir && existsSync(nodeDir)) pathParts.push(nodeDir)
@@ -218,49 +210,9 @@ function resolveNode() {
   return process.execPath.includes('electron') ? 'node' : process.execPath
 }
 
-let codexAuthController = null
-let codexExecutionController = null
-
 function trustedExecutionSender(event) {
   if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== event.sender.mainFrame
-    || new URL(event.senderFrame.url).origin !== new URL(appUrl).origin) throw new Error('Codex 执行请求不属于当前应用对话。')
-}
-
-function getCodexExecutionController() {
-  if (codexExecutionController) return codexExecutionController
-  const wrapperPath = resolveCodexWrapper(productRoot)
-  if (!wrapperPath) throw new Error('Codex 运行时不可用。')
-  codexExecutionController = createCodexExecutionController({
-    nodePath: resolveNode(), wrapperPath, codexHome, baseEnv: runtimeEnv(),
-    macosIntelCompatibility, appVersion: app.getVersion(),
-    authorizeTask: async () => (await getCodexAuthController()?.status())?.state === 'logged-in',
-    stateFile: join(codexHome, 'agent-pi-main-threads.json'),
-    onEvent: (state) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('codex-execution-event', state) },
-    async bridge(action, body) {
-      if (!isAuthenticatedDshWebUrl(appUrl, dshPort)) throw new Error('专业运行时尚未就绪。')
-      const base = new URL(appUrl)
-      const url = new URL(`/api/agent-pi/codex/${action}`, base)
-      url.searchParams.set('token', base.searchParams.get('token'))
-      const response = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
-      const result = await response.json()
-      if (!response.ok) throw new Error(result.error || '专业工具请求失败。')
-      return result
-    },
-  })
-  return codexExecutionController
-}
-
-function getCodexAuthController() {
-  if (codexAuthController) return codexAuthController
-  const wrapperPath = resolveCodexWrapper(productRoot)
-  if (!wrapperPath) return null
-  codexAuthController = createCodexAuthController({
-    nodePath: resolveNode(),
-    wrapperPath,
-    codexHome,
-    baseEnv: runtimeEnv(),
-  })
-  return codexAuthController
+    || new URL(event.senderFrame.url).origin !== new URL(appUrl).origin) throw new Error('历史记录请求不属于当前应用对话。')
 }
 
 function dshProfileArgs(extra = []) {
@@ -1032,38 +984,9 @@ ipcMain.handle('set-compaction-fallback', (_event, enabled) => {
   writePrefs(update)
   return { enabled: update.compactionFallbackEnabled, restartRequired: true }
 })
-ipcMain.handle('codex-auth-status', () => (
-  getCodexAuthController()?.status() ?? { available: false, state: 'unavailable' }
-))
-ipcMain.handle('codex-auth-login', () => (
-  getCodexAuthController()?.login() ?? { available: false, state: 'unavailable' }
-))
-ipcMain.handle('codex-auth-logout', () => (
-  (codexExecutionController?.dispose(), codexExecutionController = null,
-    getCodexAuthController()?.logout() ?? { available: false, state: 'unavailable' })
-))
-ipcMain.handle('codex-execution-status', (event, sessionId) => { trustedExecutionSender(event); return getCodexExecutionController().status(sessionId) })
-ipcMain.handle('codex-execution-submit', async (event, input) => {
+ipcMain.handle('codex-history-status', (event, sessionId) => {
   trustedExecutionSender(event)
-  const auth = await getCodexAuthController()?.status()
-  if (auth?.state !== 'logged-in') throw new Error('请先在设置中登录 Codex。')
-  return getCodexExecutionController().submit(input)
-})
-ipcMain.handle('codex-task-action', async (event, input) => {
-  trustedExecutionSender(event)
-  return getCodexExecutionController().taskAction(input)
-})
-ipcMain.handle('codex-execution-interrupt', (event, identity) => { trustedExecutionSender(event); return getCodexExecutionController().interrupt(identity) })
-ipcMain.handle('codex-execution-reply', (event, identity, id, answer) => { trustedExecutionSender(event); return getCodexExecutionController().reply(identity, id, answer) })
-ipcMain.handle('codex-set-default-model', (_event, model) => {
-  const controller = getCodexAuthController()
-  if (!controller) throw new Error('Codex 运行时不可用。')
-  return controller.setDefaultModel(model)
-})
-ipcMain.handle('codex-set-default-reasoning-effort', (_event, effort) => {
-  const controller = getCodexAuthController()
-  if (!controller) throw new Error('Codex 运行时不可用。')
-  return controller.setDefaultReasoningEffort(effort)
+  return readCodexHistory(join(codexHome, 'agent-pi-main-threads.json'), sessionId)
 })
 ipcMain.handle('update-check', async () => {
   const info = await checkForUpdate().catch((error) => ({ error: String(error?.message ?? error) }))
@@ -1426,8 +1349,6 @@ if (!gotLock) {
 
 app.on('before-quit', () => {
   app.isQuitting = true
-  codexAuthController?.dispose()
-  codexExecutionController?.dispose()
   stopDshTree()
   try { tray?.destroy() } catch {
     // tray may already be gone during shutdown

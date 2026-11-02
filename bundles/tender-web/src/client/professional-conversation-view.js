@@ -14,7 +14,7 @@ export function installProfessionalConversationView(ctx, React, Summary) {
       if (!native) return
       const Dock = props => {
         const view = props.useStore(state => state.view)
-        const visible = view === null || view === 'chat' || view === 'agent-pi-codex-main'
+        const visible = view === null || view === 'chat'
         return React.createElement(Summary, {...props,visible})
       }
       installed = { native, dispose: ctx.slots.register({

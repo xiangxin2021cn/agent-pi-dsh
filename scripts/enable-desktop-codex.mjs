@@ -1,47 +1,59 @@
-/** Enable the optional Codex product-subagent tool in selected agent presets. */
+/** Retire the former product Codex provider/tool without changing DSH sources. */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const DISABLED_CODEX_TOOL = /(^[ \t]*- id:\s*tool-subagent-codex\s*\r?\n^[ \t]+name:\s*['"]?@deepseek-ai\/dsh-tool-subagent['"]?\s*\r?\n)^[ \t]+disabled:\s*true\s*\r?\n/gm
-
-export function enableCodexInText(text) {
-  return text.replace(DISABLED_CODEX_TOOL, '$1').replace(
-    /(^[ \t]*- id:\s*tool-subagent-codex\s*\r?\n^[ \t]+name:\s*)['"]?@deepseek-ai\/dsh-tool-subagent['"]?/gm,
-    '$1dsh-tender-host/codex-tool',
-  )
+function profileYaml() {
+  const dsh = process.env.DSH_CHECKOUT || join(root, 'vendor/deepseek-harness')
+  return createRequire(join(dsh, 'packages/settings/settings/package.json'))('yaml')
+}
+export function retireCodexInText(text, yaml = profileYaml()) {
+  if (!text.includes('subagent-codex') && !text.includes('dsh-tender-host/codex-')) return text
+  const document = yaml.parseDocument(text, {
+    customTags: [{ tag: 'tag:yaml.org,2002:js', resolve: value => value }],
+  })
+  if (document.errors.length) throw new Error('Cannot migrate invalid Codex profile/preset overlay')
+  let changed = false
+  const visit = (node) => {
+    if (!node || !Array.isArray(node.items)) return
+    for (let index = node.items.length - 1; index >= 0; index--) {
+      const row = node.items[index]
+      const id = row?.get?.('id')
+      const name = row?.get?.('name')
+      const product = name === 'dsh-tender-host/codex-provider' || name === 'dsh-tender-host/codex-tool'
+      const provider = (id === 'subagent-codex' || id === 'agent-pi-subagent-codex')
+        && (name === undefined || name === '@deepseek-ai/dsh-subagent-codex' || name === 'dsh-tender-host/codex-provider')
+      const tool = id === 'tool-subagent-codex'
+        && (name === undefined || name === '@deepseek-ai/dsh-tool-subagent')
+      if (product || provider || tool) { node.items.splice(index, 1); changed = true; continue }
+      if (row?.value) visit(row.value)
+      else visit(row)
+      if (row?.get?.('insert')?.items?.length === 0) { node.items.splice(index, 1); changed = true }
+    }
+  }
+  visit(document.contents)
+  return changed ? document.toString() : text
 }
 
-export function enableCodexInFile(file) {
+export function retireCodexInFile(file) {
   if (!existsSync(file)) return false
   const text = readFileSync(file, 'utf8')
-  const next = enableCodexInText(text)
+  const next = retireCodexInText(text)
   if (next === text) return false
   writeFileSync(file, next)
   return true
 }
 
-function presetFiles(dshRoot) {
-  return ['standard', 'ptc', 'cordis'].map((id) => (
-    join(dshRoot, 'packages/preset/agent-presets/presets', id, 'agent.cordis.yml')
-  ))
-}
-
 export function main(args = process.argv.slice(2)) {
-  const files = args.length > 0
-    ? args
-    : [
-        ...presetFiles(process.env.DSH_CHECKOUT || join(root, 'vendor/deepseek-harness')),
-        join(root, 'vendor/dsh-router-standard/preset/agent.cordis.yml'),
-      ]
+  if (args.length === 0) throw new Error('Usage: enable-desktop-codex.mjs <product-preset-file> [...]')
   let changed = 0
-  for (const file of files) {
-    if (!enableCodexInFile(file)) continue
+  for (const file of args) {
+    if (!retireCodexInFile(file)) continue
     changed += 1
-    process.stdout.write(`enabled Codex subagent in ${file}\n`)
   }
-  process.stdout.write(`desktop Codex overlay: ${changed} file(s) updated\n`)
+  process.stdout.write(`legacy Codex migration: ${changed} file(s) updated; DSH delegates through official OAR\n`)
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main()

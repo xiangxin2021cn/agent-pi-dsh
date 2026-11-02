@@ -137,8 +137,8 @@ test('Windows packaging preserves and validates the explicit clean CAD runtime',
   assert.doesNotMatch(packSource, /Invoke-NpmBuild \$CadPoc/)
   assert.match(packSource, /Install-CadCleanRuntime \$runtimeCadViewer/)
   assert.match(packSource, /Install-CadCleanRuntime \$unpackedCadViewer/)
-  assert.match(packSource, /@mlightcad\\libredwg-web\\wasm\\libredwg-web\.wasm/)
-  assert.match(packSource, /@mlightcad\\libredwg-converter\\dist\\libredwg-web\.wasm/)
+  assert.match(prepareRuntimeSource, /@mlightcad\\libredwg-web\\wasm\\libredwg-web\.wasm/)
+  assert.match(prepareRuntimeSource, /@mlightcad\\libredwg-converter\\dist\\libredwg-web\.wasm/)
   assert.match(packSource, /Test-CadViewerAssets/)
   for (const marker of [
     'libredwg-parser-worker.js',
@@ -221,8 +221,11 @@ test('portable runtime requires the Agent Pi preset compaction plugin', () => {
 test('portable runtime installs the locked tender-host document dependencies', () => {
   assert.match(packSource, /\$TenderHost = Join-Path \$Root "bundles\\tender-host"/)
   assert.match(packSource, /node_modules\\pdf-lib/)
-  assert.match(packSource, /Invoke-NpmCi \$TenderHost "tender-host"/)
+  assert.doesNotMatch(packSource, /Invoke-NpmCi \$TenderHost/)
   assert.match(prepareRuntimeSource, /function Stage-ProjectNodeModules/)
+  assert.match(prepareRuntimeSource, /--prefix \$stageProject ci --omit=dev --ignore-scripts/)
+  assert.match(prepareRuntimeSource, /Refusing to merge stale product dependencies/)
+  assert.match(prepareRuntimeSource, /Frozen product lock changed/)
   assert.match(prepareRuntimeSource, /Stage-ProjectNodeModules "bundles\\tender-host" "pdf-lib"/)
   assert.match(prepareRuntimeSource, /Stage-ProjectNodeModules "packages\\business-core" "zod"/)
   assert.match(packSource, /product\\bundles\\tender-host\\node_modules\\pdf-lib\\package\.json/)

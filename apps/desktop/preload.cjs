@@ -15,21 +15,7 @@ contextBridge.exposeInMainWorld('agentPiDesktop', {
   setAgentTeams: (enabled) => ipcRenderer.invoke('set-agent-teams', enabled),
   compactionFallbackStatus: () => ipcRenderer.invoke('compaction-fallback-status'),
   setCompactionFallback: (enabled) => ipcRenderer.invoke('set-compaction-fallback', enabled),
-  codexAuthStatus: () => ipcRenderer.invoke('codex-auth-status'),
-  codexAuthLogin: () => ipcRenderer.invoke('codex-auth-login'),
-  codexAuthLogout: () => ipcRenderer.invoke('codex-auth-logout'),
-  codexSetDefaultModel: (model) => ipcRenderer.invoke('codex-set-default-model', model),
-  codexSetDefaultReasoningEffort: (effort) => ipcRenderer.invoke('codex-set-default-reasoning-effort', effort),
-  codexExecutionStatus: (sessionId) => ipcRenderer.invoke('codex-execution-status', sessionId),
-  codexExecutionSubmit: (input) => ipcRenderer.invoke('codex-execution-submit', input),
-  codexTaskAction: (input) => ipcRenderer.invoke('codex-task-action', input),
-  codexExecutionInterrupt: (identity) => ipcRenderer.invoke('codex-execution-interrupt', identity),
-  codexExecutionReply: (identity, id, answer) => ipcRenderer.invoke('codex-execution-reply', identity, id, answer),
-  onCodexExecution: (callback) => {
-    const listener = (_event, state) => callback(state)
-    ipcRenderer.on('codex-execution-event', listener)
-    return () => ipcRenderer.removeListener('codex-execution-event', listener)
-  },
+  codexHistoryStatus: (sessionId) => ipcRenderer.invoke('codex-history-status', sessionId),
   checkUpdate: () => ipcRenderer.invoke('update-check'),
   downloadUpdate: () => ipcRenderer.invoke('update-download'),
   installUpdate: () => ipcRenderer.invoke('update-install'),
