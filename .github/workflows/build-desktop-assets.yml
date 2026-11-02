@@ -73,7 +73,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
-          ref: ${{ inputs.tag == 'v3.8.7' && inputs.tag || github.sha }}
+          ref: ${{ (inputs.tag == 'v3.8.7' || inputs.tag == 'v3.8.8') && inputs.tag || github.sha }}
 
       - name: Verify immutable release ref
         shell: bash
@@ -89,6 +89,9 @@ jobs:
             if [ "$RELEASE_TAG" = v3.8.7 ]; then
               git merge-base --is-ancestor "$RELEASE_COMMIT" "$GITHUB_SHA"
               git diff --name-status --no-renames -z "$RELEASE_COMMIT" "$GITHUB_SHA" -- > maintenance-changes-387.paths
+            elif [ "$RELEASE_TAG" = v3.8.8 ]; then
+              git merge-base --is-ancestor "$RELEASE_COMMIT" "$GITHUB_SHA"
+              git diff --name-status --no-renames -z "$RELEASE_COMMIT" "$GITHUB_SHA" -- > maintenance-changes-388.paths
             else
               git merge-base --is-ancestor "$RELEASE_COMMIT" HEAD
             fi
@@ -111,6 +114,23 @@ jobs:
               assert.equal(process.env.GITHUB_REF_NAME, 'main')
               assert.deepEqual(readFileSync('maintenance-changes-387.paths', 'utf8').split('\0').filter(Boolean),
                 ['M', '.github/workflows/build-desktop-assets.yml'], '3.8.7 maintenance may only modify the existing workflow')
+            }
+            process.exit(0)
+          }
+          if (tag === 'v3.8.8') {
+            const source = '28888149e1249661945e17c29d9baf8a725712e1'
+            assert.equal(process.env.RELEASE_COMMIT, source, '3.8.8 application tag is immutable')
+            assert.equal(process.env.CHECKOUT_COMMIT, source, 'build scripts must come from the exact application tag')
+            assert.equal(process.env.NODE_RUNTIME_VERSION, '24.22.2')
+            if (process.env.GITHUB_REF_TYPE === 'tag') {
+              assert.equal(process.env.GITHUB_REF_NAME, tag)
+              assert.equal(process.env.GITHUB_SHA, source)
+            } else {
+              assert.equal(process.env.GITHUB_REF_TYPE, 'branch')
+              assert.equal(process.env.GITHUB_REF_NAME, 'main')
+              assert.deepEqual(readFileSync('maintenance-changes-388.paths', 'utf8').split('\0').filter(Boolean),
+                ['M', '.github/workflows/build-desktop-assets.yml', 'M', 'scripts/platform-release-388.test.mjs'],
+                '3.8.8 maintenance may only modify the existing workflow and its regression test')
             }
             process.exit(0)
           }
@@ -218,7 +238,7 @@ jobs:
           (cd ../product/bundles/tender-host && npm ci --omit=dev --ignore-scripts --no-fund --no-audit)
           edition=$(node -p "require('../product/package.json').agentPiProduct?.edition || 'mainline'")
           if [ "$edition" = mainline ]; then
-            node ../product/scripts/dsh-distribution-policy.mjs install . ../product "$RUNNER_TEMP/agent-pi-selected-dsh"
+            node ../product/scripts/dsh-distribution-policy.mjs install "$PWD" "$PWD/../product" "$RUNNER_TEMP/agent-pi-selected-dsh"
             node ../product/scripts/repair-dsh-runtime-peers.mjs .
           else
             pnpm install --prod --frozen-lockfile --ignore-scripts
@@ -285,7 +305,7 @@ jobs:
         run: |
           edition=$(node -p "require('./payload/product/package.json').agentPiProduct?.edition || 'mainline'")
           if [ "$edition" = mainline ]; then
-            node-runtime/bin/node payload/product/scripts/dsh-distribution-policy.mjs seal payload/deepseek-harness payload/product
+            node-runtime/bin/node payload/product/scripts/dsh-distribution-policy.mjs seal "$PWD/payload/deepseek-harness" "$PWD/payload/product"
           fi
           node-runtime/bin/node payload/product/scripts/verify-dsh-runtime.mjs \
             payload/deepseek-harness payload/product --native
