@@ -233,6 +233,7 @@ test('portable runtime installs the locked tender-host document dependencies', (
   assert.match(prepareRuntimeSource, /Stage-ProjectNodeModules "packages\\business-core" "zod"/)
   assert.match(packSource, /product\\bundles\\tender-host\\node_modules\\pdf-lib\\package\.json/)
   assert.match(packSource, /product\\packages\\business-core\\node_modules\\zod\\package\.json/)
+  assert.match(packSource, /if \(\$ReuseUnpacked -and \(Test-Path \$unpackedProduct\)\)/)
 })
 
 test('installer branding is generated from the desktop app logo and passed to NSIS', () => {

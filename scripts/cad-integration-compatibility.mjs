@@ -358,6 +358,17 @@ const reviewed387Hotfix4HostExtension = {
   },
 }
 
+// Fresh output transport removes stale SDK files; native CAD inputs are the
+// same exact reviewed continuation build beside the application revision.
+const reviewed387Hotfix5HostExtension = {
+  ...reviewed387Hotfix4HostExtension,
+  review: '3.8.7-mainline-hotfix.5-fresh-runtime-baseline',
+  shared: {
+    ...reviewed387Hotfix4HostExtension.shared,
+    'package.json': [reviewed387Hotfix4HostExtension.shared['package.json'][0], '03aa503170d92f89ab9d3ce9116416ea0254ae49bc4315e63d5e6e247a07b72c'],
+  },
+}
+
 const diskIndexPaths = ['bundles/engineering-cad/src/dxf-disk-source.ts', 'bundles/engineering-cad/src/cad-disk-index.ts']
 const patchedDecoderPaths = ['bundles/tender-host/src/cad-dwg-model-quality.mjs', 'bundles/engineering-cad/src/cad-embedded.ts', 'bundles/tender-host/lib/cad-decoder', 'scripts/cad-host-clean-release.mjs', 'scripts/build-cad-host-clean.sh', 'scripts/cad-host-bit-position-overflow.patch', 'scripts/cad-host-bit-position.test.c', 'scripts/cad-host-clean-pins.json']
 const hostExtensionPaths = [...new Set([
@@ -381,7 +392,7 @@ function reviewedHostExtensionForTarget(root, target) {
   if (git(root, ['ls-tree', target, '--', 'scripts/cad-browser-decoder-release.mjs', 'scripts/cad-browser-decoder-release.json']).trim()) {
     const path = 'bundles/tender-host/package.json'
     const hostHash = reviewedHash(path, git(root, ['show', `${target}:${path}`], null))
-    const upgraded = [...reviewed385HostExtensions, ...reviewed387HostExtensions, reviewed387HotfixHostExtension, reviewed387Hotfix2HostExtension, reviewed387Hotfix3HostExtension, reviewed387Hotfix4HostExtension].find(extension => hostHash === extension.files[path]
+    const upgraded = [...reviewed385HostExtensions, ...reviewed387HostExtensions, reviewed387HotfixHostExtension, reviewed387Hotfix2HostExtension, reviewed387Hotfix3HostExtension, reviewed387Hotfix4HostExtension, reviewed387Hotfix5HostExtension].find(extension => hostHash === extension.files[path]
       && reviewedHash('package.json', git(root, ['show', `${target}:package.json`], null)) === extension.shared['package.json'][1]
       && reviewedHash('bundles/tender-host/src/http.ts', git(root, ['show', `${target}:bundles/tender-host/src/http.ts`], null)) === extension.shared['bundles/tender-host/src/http.ts'][1])
     if (upgraded) return upgraded
@@ -402,7 +413,7 @@ function reviewedHostExtensionForTarget(root, target) {
 
 function verifyReviewedHostExtension(root, sourceCommit, target) {
   const extension = reviewedHostExtensionForTarget(root, target)
-  if ([reviewed382PatchedHostExtension, reviewed382ReleaseHostExtension, reviewed382BrowserHostExtension, reviewed383HostExtension, ...reviewed385HostExtensions, ...reviewed387HostExtensions, reviewed387HotfixHostExtension, reviewed387Hotfix2HostExtension, reviewed387Hotfix3HostExtension, reviewed387Hotfix4HostExtension].includes(extension)) {
+  if ([reviewed382PatchedHostExtension, reviewed382ReleaseHostExtension, reviewed382BrowserHostExtension, reviewed383HostExtension, ...reviewed385HostExtensions, ...reviewed387HostExtensions, reviewed387HotfixHostExtension, reviewed387Hotfix2HostExtension, reviewed387Hotfix3HostExtension, reviewed387Hotfix4HostExtension, reviewed387Hotfix5HostExtension].includes(extension)) {
     const runtime = git(root, ['ls-tree', '-r', '--name-only', target, '--', 'bundles/tender-host/lib/cad-decoder']).trim().split('\n')
     for (const path of runtime) if (!extension.files[path]) fail(`reviewed CAD host extension differs: ${path}`)
   }

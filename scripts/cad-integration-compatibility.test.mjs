@@ -705,13 +705,20 @@ test('3.8.7 mainline hotfix accepts its exact metadata and preview pair, refusin
   commit(value.root)
   assert.equal(assertCadIntegrationUnchanged(value).hostExtension.review, '3.8.7-mainline-hotfix.3-continuation-baseline')
   for (const path of changed) {
+    write(join(value.root, path), execFileSync('git', ['show', `df043c7c4aeb0ce0552f16fc5b8806610cb175d1:${path}`], {
+      cwd: repository, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
+    }))
+  }
+  commit(value.root)
+  assert.equal(assertCadIntegrationUnchanged(value).hostExtension.review, '3.8.7-mainline-hotfix.4-oar-policy-baseline')
+  for (const path of changed) {
     const current = readFileSync(join(repository, path), 'utf8').replaceAll('\r\n', '\n')
     value.reviewed.set(path, current)
     write(join(value.root, path), current)
   }
   commit(value.root)
   const proof = assertCadIntegrationUnchanged(value)
-  assert.equal(proof.hostExtension.review, '3.8.7-mainline-hotfix.4-oar-policy-baseline')
+  assert.equal(proof.hostExtension.review, '3.8.7-mainline-hotfix.5-fresh-runtime-baseline')
   const indexPath = changed[2]
   assert.equal(proof.hostExtension.additionalFileHashes[indexPath], '673ae2fed66e098fd3fea783ee58b5439d6c4344988ddb3dd5da4e893fdf95d7')
   const manifestChanges = [indexPath, changed[3], changed[4]]

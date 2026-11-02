@@ -444,7 +444,7 @@ foreach ($dest in $repairDests) {
 # ReuseUnpacked does not restage runtime. Copy the product tree that this
 # build actually changed, then flip shipped presets to web_fetch.
 $unpackedProduct = Join-Path $unpacked "resources\runtime\product"
-if (Test-Path $unpackedProduct) {
+if ($ReuseUnpacked -and (Test-Path $unpackedProduct)) {
   foreach ($item in @(
     "scripts",
     "bundles",

@@ -1,5 +1,5 @@
 const { spawnSync } = require('node:child_process')
-const { copyFileSync, existsSync } = require('node:fs')
+const { copyFileSync, existsSync, lstatSync, realpathSync, rmSync } = require('node:fs')
 const { isAbsolute, join, relative, resolve, sep } = require('node:path')
 
 const isWindows = process.platform === 'win32'
@@ -39,10 +39,36 @@ function syncRuntimePosix(src, dest) {
   }
 }
 
-function syncRuntime(src, dest) {
-  if (!existsSync(src)) throw new Error(`runtime source missing: ${src}`)
-  if (isWindows) syncRuntimeWindows(src, dest)
-  else syncRuntimePosix(src, dest)
+function contains(parent, path) {
+  const child = relative(parent, path)
+  return child === '' || (!isAbsolute(child) && child !== '..' && !child.startsWith(`..${sep}`))
+}
+
+function samePath(left, right) {
+  return isWindows ? left.toLowerCase() === right.toLowerCase() : left === right
+}
+
+function syncRuntime(src, dest, appOutDir) {
+  if (typeof appOutDir !== 'string' || !appOutDir) throw new Error('runtime sync requires its managed appOutDir')
+  const source = resolve(src), target = resolve(dest), output = resolve(appOutDir)
+  for (const path of [source, output]) {
+    const entry = lstatSync(path)
+    if (!entry.isDirectory() || entry.isSymbolicLink() || !samePath(realpathSync(path), path)) throw new Error('runtime source/output root must be a real directory without aliases')
+  }
+  const child = relative(output, target).split(sep).join('/')
+  if (child !== 'resources/runtime' && !/^[^/]+\.app\/Contents\/Resources\/runtime$/.test(child)) throw new Error('runtime destination must be the managed appOutDir resources/runtime')
+  if (contains(source, target) || contains(target, source)) throw new Error('runtime source and destination must not overlap')
+  let ancestor = output
+  for (const part of child.split('/')) {
+    ancestor = join(ancestor, part)
+    const entry = lstatSync(ancestor, { throwIfNoEntry: false })
+    if (entry && (!entry.isDirectory() || entry.isSymbolicLink() || !samePath(realpathSync(ancestor), ancestor))) throw new Error('runtime destination ancestor/root must not be a link or alias')
+  }
+  // The resolved target is the fixed candidate runtime, outside the source.
+  // rm unlinks nested junctions/symlinks without traversing their targets.
+  if (existsSync(target)) rmSync(target, { recursive: true, maxRetries: 3 })
+  if (isWindows) syncRuntimeWindows(source, target)
+  else syncRuntimePosix(source, target)
 }
 
 function repairPackedLinks(dest) {
@@ -105,7 +131,7 @@ module.exports = async function afterPack(context) {
     ? join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`, 'Contents', 'Resources', 'runtime')
     : join(context.appOutDir, 'resources', 'runtime')
   console.log(`afterPack: syncing runtime -> ${dest}`)
-  syncRuntime(src, dest)
+  syncRuntime(src, dest, context.appOutDir)
   if (isWindows) {
     console.log('afterPack: repairing dsh junctions inside packed runtime')
     repairPackedLinks(dest)

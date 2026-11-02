@@ -26,7 +26,7 @@
   },
   "agentPiProduct": {
     "edition": "mainline",
-    "buildRevision": "hotfix.4",
+    "buildRevision": "hotfix.5",
     "artifactStem": "Agent-Pi-DSH",
     "releaseTagPrefix": "v"
   }
