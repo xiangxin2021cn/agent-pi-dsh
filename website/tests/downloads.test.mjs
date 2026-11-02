@@ -300,7 +300,7 @@ test('all release-facing HTML uses the current script cache keys and verified st
     const source = readFileSync(join(website, file), 'utf8')
     const scripts = [...source.matchAll(/assets\/js\/(?:main|release-metadata)\.js\?v=([^"\s]+)/g)]
     assert.ok(scripts.length > 0, file)
-    for (const script of scripts) assert.equal(script[1], '388-sync1', file)
+    for (const script of scripts) assert.equal(script[1], '388-sync2', file)
     for (const version of source.matchAll(/data-release-version>([^<]+)</g)) assert.equal(version[1], '3.8.8', file)
     for (const sha of source.matchAll(/data-release-sha\s[^>]*>([^<]+)</g)) assert.equal(sha[1], windowsSha, file)
   }
