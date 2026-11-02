@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -32,15 +32,56 @@ export function excludedRuntimePackage(name) {
 
 export function verifySelectedProfile(entries) {
   if (!Array.isArray(entries)) throw new Error('Selected profile entries must be an array')
-  for (const row of entries) {
+  let oar = false, host = false
+  const visit = rows => { for (const row of rows) {
     if (!row || typeof row !== 'object' || row.disabled === true) continue
     const name = String(row.name || '')
     if (Object.values(distributionPolicy.excludedWorkspaces).includes(name) ||
       /(?:^|\/)codex-(?:provider|tool)$/.test(name)) throw new Error(`Selected profile activates an excluded provider: ${name}`)
-    if (Array.isArray(row.config)) verifySelectedProfile(row.config)
-    if (Array.isArray(row.config?.plugins)) verifySelectedProfile(row.config.plugins)
-  }
+    if (name === 'dsh-tender-host') host = true
+    if (['@deepseek-ai/dsh-experimental-subagent-oar', '@deepseek-ai/dsh-experimental-tool-subagent-oar'].includes(name)) oar = true
+    if (Array.isArray(row.config)) visit(row.config)
+    if (Array.isArray(row.config?.plugins)) visit(row.config.plugins)
+  } }
+  visit(entries)
+  if (oar && !host) throw new Error('Selected OAR delegation requires the active product host permission guard')
   return { policy: distributionPolicy.id }
+}
+
+/** Copy only omitted workspace manifests from the exact clean source, never runtime code or dependencies. */
+export function stageDistributionManifests(dshRoot, product, sourceRoot) {
+  const dsh = realpathSync(dshRoot), source = realpathSync(sourceRoot)
+  if (dsh === source || inside(dsh, source) || inside(source, dsh)) throw new Error('Runtime metadata must be staged outside the original DSH source')
+  const git = (args, input) => {
+    const result = spawnSync('git', ['-C', source, ...args], { input, encoding: 'utf8', windowsHide: true })
+    if (result.status !== 0) throw new Error('Original DSH source metadata could not be verified')
+    return result.stdout.trim()
+  }
+  if (git(['rev-parse', 'HEAD']) !== distributionPolicy.sourceCommit || readFileSync(join(product, 'DSH_PIN'), 'utf8').trim() !== distributionPolicy.sourceCommit) throw new Error('Workspace metadata requires the fixed DSH source pin')
+  if (realpathSync(git(['rev-parse', '--show-toplevel'])).toLowerCase() !== source.toLowerCase() || git(['status', '--porcelain=v1', '--untracked-files=all'])) throw new Error('Workspace metadata requires the exact clean DSH source checkout')
+  for (const name of ['pnpm-lock.yaml', 'pnpm-workspace.yaml']) if (!readFileSync(join(dsh, name)).equals(readFileSync(join(source, name)))) throw new Error(`Runtime metadata input differs from original DSH: ${name}`)
+  const lock = yamlParser(product).load(readFileSync(join(source, 'pnpm-lock.yaml'), 'utf8'))
+  const missing = [], checked = []
+  for (const importer of Object.keys(lock.importers)) {
+    const path = join(importer, 'package.json'), original = resolve(source, path), target = resolve(dsh, path)
+    if (!inside(source, original) || !inside(dsh, target) || !lstatSync(original).isFile()) throw new Error('Workspace manifest escaped its source/runtime')
+    let directory = dsh
+    for (const part of relative(dsh, dirname(target)).split(sep).filter(Boolean)) {
+      directory = join(directory, part)
+      if (existsSync(directory) && (lstatSync(directory).isSymbolicLink() || !inside(dsh, realpathSync(directory)))) throw new Error('Workspace manifest ancestor is linked outside the managed runtime')
+    }
+    const bytes = readFileSync(original)
+    if (existsSync(target)) {
+      if (!lstatSync(target).isFile() || !readFileSync(target).equals(bytes)) throw new Error(`Existing runtime workspace manifest differs: ${path}`)
+    } else {
+      const gitPath = slash(path)
+      if (git(['hash-object', '--path=' + gitPath, '--stdin'], bytes) !== git(['rev-parse', 'HEAD:' + gitPath])) throw new Error('Omitted workspace manifest differs from its pinned Git source')
+      missing.push({ path, target, bytes })
+    }
+    checked.push(slash(path))
+  }
+  for (const { target, bytes } of missing) { mkdirSync(dirname(target), { recursive: true }); writeFileSync(target, bytes, { flag: 'wx' }) }
+  return { sourceCommit: distributionPolicy.sourceCommit, checked: checked.length, added: missing.map(({ path, bytes }) => ({ path: slash(path), sha256: sha(bytes) })) }
 }
 
 function yamlParser(product) {
@@ -208,5 +249,6 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   else if (mode === 'project' && product) console.log(JSON.stringify(projectDistributionModules(dsh, product)))
   else if (['seal', 'verify'].includes(mode) && product) console.log(JSON.stringify(verifyDistributionRuntime(dsh, product, { seal: mode === 'seal' })))
   else if (mode === 'profile' && destination) console.log(JSON.stringify(await verifySelectedProfileFile(dsh, product, destination)))
-  else throw new Error('Usage: dsh-distribution-policy.mjs prepare|install <dsh> <product> <new-install-dir> | project <install-dir> <dsh> | seal|verify <dsh> <product> | profile <dsh> <product> <dump-yaml>')
+  else if (mode === 'metadata' && destination) console.log(JSON.stringify(stageDistributionManifests(dsh, product, destination)))
+  else throw new Error('Usage: dsh-distribution-policy.mjs prepare|install <dsh> <product> <new-install-dir> | project <install-dir> <dsh> | seal|verify <dsh> <product> | profile <dsh> <product> <dump-yaml> | metadata <runtime-dsh> <product> <clean-source-dsh>')
 }

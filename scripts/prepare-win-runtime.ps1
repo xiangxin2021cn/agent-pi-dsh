@@ -276,7 +276,11 @@ if ($FullCopy) {
   $selectedDistribution = (Get-Content (Join-Path $Product "package.json") -Raw | ConvertFrom-Json).agentPiProduct.edition -eq "mainline"
   $installTarget = $dshTarget
   if ($selectedDistribution) {
-    $installTarget = Join-Path $productionState ("selected-install-" + [guid]::NewGuid().ToString("N"))
+    & $nodeDest (Join-Path $Root "scripts\dsh-distribution-policy.mjs") metadata $dshTarget $Product $Dsh
+    if ($LASTEXITCODE -ne 0) { throw "DSH workspace manifest metadata staging failed" }
+    # pnpm applies the reviewed node-pty patch using process.chdir, which still
+    # requires a short Windows path even when file copying supports long paths.
+    $installTarget = Join-Path $Root (".codex-temp\si-" + [guid]::NewGuid().ToString("N").Substring(0, 12))
     & $nodeDest (Join-Path $Root "scripts\dsh-distribution-policy.mjs") prepare $dshTarget $Product $installTarget
     if ($LASTEXITCODE -ne 0) { throw "DSH selected production workspace preparation failed" }
   }

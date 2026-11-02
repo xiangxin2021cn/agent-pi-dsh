@@ -40,6 +40,7 @@ import {
   assertUniverPublicReleaseTree,
 } from './univer-public-release.mjs'
 import { materializeDshUniverOffice } from './materialize-dsh-univer-office.mjs'
+import { isSelectedMainline, stageDistributionManifests } from './dsh-distribution-policy.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const desktop = join(root, 'apps', 'desktop')
@@ -217,6 +218,7 @@ robocopy(dshSrc, dshDest, [
   '/XF', ...dshRuntimeFilePolicy.excludedFileNames, ...dshRuntimeFilePolicy.excludedFileGlobs,
 ])
 cpSync(dshBuildReceipt, join(dshDest, dshBuildReceiptName))
+if (isSelectedMainline(productDest)) stageDistributionManifests(dshDest, productDest, dshSrc)
 for (const marker of ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'apps/web/dist/index.html', 'apps/cli/lib/bin.js']) {
   if (!existsSync(join(dshDest, marker))) throw new Error(`payload dsh tree missing ${marker}`)
 }

@@ -698,13 +698,20 @@ test('3.8.7 mainline hotfix accepts its exact metadata and preview pair, refusin
   assert.equal(assertCadIntegrationUnchanged(value).hostExtension.review, '3.8.7-mainline-hotfix.2-runtime-baseline')
   changed.push('bundles/tender-host/package.json', 'bundles/tender-host/package-lock.json')
   for (const path of changed) {
+    write(join(value.root, path), execFileSync('git', ['show', `d2dc18ced4cef7bdc06e8986853ca9631b917a8e:${path}`], {
+      cwd: repository, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
+    }))
+  }
+  commit(value.root)
+  assert.equal(assertCadIntegrationUnchanged(value).hostExtension.review, '3.8.7-mainline-hotfix.3-continuation-baseline')
+  for (const path of changed) {
     const current = readFileSync(join(repository, path), 'utf8').replaceAll('\r\n', '\n')
     value.reviewed.set(path, current)
     write(join(value.root, path), current)
   }
   commit(value.root)
   const proof = assertCadIntegrationUnchanged(value)
-  assert.equal(proof.hostExtension.review, '3.8.7-mainline-hotfix.3-continuation-baseline')
+  assert.equal(proof.hostExtension.review, '3.8.7-mainline-hotfix.4-oar-policy-baseline')
   const indexPath = changed[2]
   assert.equal(proof.hostExtension.additionalFileHashes[indexPath], '673ae2fed66e098fd3fea783ee58b5439d6c4344988ddb3dd5da4e893fdf95d7')
   const manifestChanges = [indexPath, changed[3], changed[4]]

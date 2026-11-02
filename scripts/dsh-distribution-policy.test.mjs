@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { deriveDistributionInputs, distributionPolicy, distributionReceipt, installedPackageInventory, prepareDistributionWorkspace, projectDistributionModules, verifyDistributionRuntime, verifySelectedProfile, verifySelectedProfileFile } from './dsh-distribution-policy.mjs'
+import { deriveDistributionInputs, distributionPolicy, distributionReceipt, installedPackageInventory, prepareDistributionWorkspace, projectDistributionModules, stageDistributionManifests, verifyDistributionRuntime, verifySelectedProfile, verifySelectedProfileFile } from './dsh-distribution-policy.mjs'
 import { verifyDependencyClosure } from './verify-runtime-dependencies.mjs'
 
 const sourceRequire = createRequire(new URL('../bundles/tender-host/package.json', import.meta.url))
@@ -116,7 +116,8 @@ test('generic OpenAI/Anthropic client libraries remain permitted; active legacy 
   const { dsh } = fixture(t)
   for (const name of ['openai', '@anthropic-ai/sdk']) json(join(dsh, 'node_modules', name, 'package.json'), { name, version: '1' })
   assert.equal(installedPackageInventory(dsh).length, 2)
-  assert.doesNotThrow(() => verifySelectedProfile([{ name: '@deepseek-ai/dsh-experimental-subagent-oar', config: { runtime: 'codex' } }]))
+  assert.doesNotThrow(() => verifySelectedProfile([{ name: 'dsh-tender-host' }, { name: '@deepseek-ai/dsh-experimental-subagent-oar', config: { runtime: 'codex' } }]))
+  assert.throws(() => verifySelectedProfile([{ name: 'dsh-tender-host', disabled: true }, { name: '@deepseek-ai/dsh-experimental-tool-subagent-oar' }]), /active product host permission guard/)
   assert.throws(() => verifySelectedProfile([{ name: 'group', config: [{ name: '@deepseek-ai/dsh-subagent-codex' }] }]), /activates an excluded provider/)
   assert.throws(() => verifySelectedProfile([{ name: 'preset', config: { plugins: [{ name: 'codex-provider' }] } }]), /activates an excluded provider/)
 })
@@ -145,4 +146,37 @@ test('final official profile dumps reject excluded active providers while treati
   await assert.doesNotReject(verifySelectedProfileFile(dsh, product, file))
   write(file, 'invalid: [ fixture-secret-do-not-echo')
   await assert.rejects(verifySelectedProfileFile(dsh, product, file), error => !String(error).includes('fixture-secret'))
+})
+
+test('curated runtime restores only omitted lock-importer manifests from the actual pinned source', async t => {
+  const source = fileURLToPath(new URL('../vendor/deepseek-harness', import.meta.url))
+  const lock = yaml.load(readFileSync(join(source, 'pnpm-lock.yaml'), 'utf8'))
+  for (const mutation of ['valid', 'changed-lock', 'changed-existing', 'linked-parent']) await t.test(mutation, t => {
+    const { dsh, product, home } = fixture(t)
+    for (const name of ['pnpm-workspace.yaml', 'pnpm-lock.yaml']) write(join(dsh, name), readFileSync(join(source, name)))
+    for (const importer of Object.keys(lock.importers)) {
+      if (importer === 'website') continue
+      const path = join(importer, 'package.json')
+      write(join(dsh, path), readFileSync(join(source, path)))
+    }
+    const receiptHash = hash(join(dsh, 'DSH-BUILD-RECEIPT.json'))
+    if (mutation === 'changed-lock') write(join(dsh, 'pnpm-lock.yaml'), readFileSync(join(dsh, 'pnpm-lock.yaml'), 'utf8') + '\n')
+    if (mutation === 'changed-existing') write(join(dsh, 'apps/cli/package.json'), '{}')
+    if (mutation === 'linked-parent') { mkdirSync(join(home, 'outside')); link(join(home, 'outside'), join(dsh, 'website')) }
+    if (mutation !== 'valid') {
+      assert.throws(() => stageDistributionManifests(dsh, product, source), /differs|linked outside/)
+      assert.equal(existsSync(join(home, 'outside/package.json')), false)
+      assert.equal(hash(join(dsh, 'DSH-BUILD-RECEIPT.json')), receiptHash)
+      return
+    }
+    const result = stageDistributionManifests(dsh, product, source)
+    assert.equal(result.checked, 396)
+    assert.deepEqual(result.added.map(row => row.path), ['website/package.json'])
+    assert.equal(hash(join(dsh, 'website/package.json')), hash(join(source, 'website/package.json')))
+    assert.equal(hash(join(dsh, 'pnpm-lock.yaml')), hash(join(source, 'pnpm-lock.yaml')))
+    assert.equal(hash(join(dsh, 'DSH-BUILD-RECEIPT.json')), receiptHash)
+    assert.deepEqual(stageDistributionManifests(dsh, product, source).added, [])
+    const derived = deriveDistributionInputs(dsh, product)
+    assert.equal(Object.keys(yaml.load(derived.lock).importers).length, 394)
+  })
 })

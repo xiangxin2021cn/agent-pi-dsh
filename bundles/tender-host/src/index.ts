@@ -11,6 +11,7 @@ import { sessionCwd, textResult } from './cwd.ts'
 import { registerAnySearchSettings } from './anysearch-settings.ts'
 import { registerOfficePdfToolSafety } from './office-pdf-tool-safety.ts'
 import { registerScheduleToolSafety } from './schedule-tool-safety.ts'
+import { registerOarPolicyGuard } from './oar-policy.ts'
 
 /**
  * Packaged Electron often hands the host a PATH that has System32 but not
@@ -46,10 +47,11 @@ const { createUserMessage } = await importDsh<{
 }>('packages/llm/llm/lib/index.js')
 
 export async function apply(ctx: {
-  tools: { register: (definition: unknown) => unknown; schemas: () => Array<{ name: string }> }
+  tools: { register: (definition: unknown) => unknown; schemas: () => Array<{ name: string }>; guard: Parameters<typeof registerOarPolicyGuard>[0]['tools']['guard'] }
   on: (event: string, listener: (...args: any[]) => unknown) => unknown
   systemPrompt?: Parameters<typeof registerPrompt>[0]['systemPrompt']
   get?: (name: string) => unknown
+  provide: (name: string, service: unknown) => unknown
   inject: (deps: string[], callback: (inner: {
     effect: (install: () => (() => void)) => unknown
     webServer?: { register: (route: unknown) => unknown }
@@ -64,6 +66,7 @@ export async function apply(ctx: {
   registerReportSkillRouting(ctx)
   registerOfficePdfToolSafety(ctx)
   registerScheduleToolSafety(ctx)
+  registerOarPolicyGuard(ctx)
   registerAnySearchSettings(ctx)
   ctx.tools.register(defineTool({
     name: 'cad_prepare',
