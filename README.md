@@ -8,9 +8,9 @@
 
 <h1 align="center">Agent Pi DSH</h1>
 
-当前开发版 3.8.8 整合主线长程任务、官方 OAR 外派与精简运行时，修复左右侧栏恢复、插件市场维护和实验插件介绍文档。沿用经审核的官方 DSH master 快照 `ce7073d5`、Electron 45.2.0 与 Node.js 24.22.2，升级完整 Univer Office 0.4.0、插件市场 1.73.9，保留原项目、知识库、模板 DNA、技能及工程组件；新增界面维护文案覆盖十种语言。改动和使用边界见 [3.8.8 说明](release/github-notes-3.8.8.md)。3.8.8 目前为本地测试候选，公开最新版以 [GitHub v3.8.7](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/tag/v3.8.7) 的实际资产为准，投标专版保持独立。
+当前公开主线版 3.8.8 整合主线长程任务、官方 OAR 外派与精简运行时，修复左右侧栏恢复、插件市场维护和实验插件介绍文档。沿用经审核的官方 DSH master 快照 `ce7073d5`、Electron 45.2.0 与 Node.js 24.22.2，升级完整 Univer Office 0.4.0、插件市场 1.73.9，保留原项目、知识库、模板 DNA、技能及工程组件；新增界面维护文案覆盖十种语言。改动和使用边界见 [3.8.8 说明](release/github-notes-3.8.8.md)。公开下载以 [GitHub v3.8.8 Release](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/tag/v3.8.8) 的实际资产为准，投标专版保持独立。
 
-当前公开主线版 3.8.7 升级到经审核的官方 DSH master 快照 `ce7073d51254c26cd63b22a60835b8f948deb447`（上游包版本仍为 `0.2.2-alpha.2`）、完整 Univer Office 0.3.9、Electron 45.2.0 与 Node.js 24.22.2。修复跨项目 DWG 预览的来源目录和会话关联，以及新版 DSH 历史消息渲染适配；保留工作区边界、模板 DNA、知识库、技能与后台执行，新增定时任务 v1 升级前备份。下载见 [GitHub v3.8.7 Release](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/tag/v3.8.7)，改动及边界见 [3.8.7 说明](release/github-notes-3.8.7.md)与[组件记录](release/3.8.7-core-components.json)。本次公开发行仅包含主线版，投标专版保持独立。
+历史主线版 3.8.7 升级到经审核的官方 DSH master 快照 `ce7073d51254c26cd63b22a60835b8f948deb447`（上游包版本仍为 `0.2.2-alpha.2`）、完整 Univer Office 0.3.9、Electron 45.2.0 与 Node.js 24.22.2。修复跨项目 DWG 预览的来源目录和会话关联，以及新版 DSH 历史消息渲染适配；保留工作区边界、模板 DNA、知识库、技能与后台执行，新增定时任务 v1 升级前备份。下载见 [GitHub v3.8.7 Release](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/tag/v3.8.7)，改动及边界见 [3.8.7 说明](release/github-notes-3.8.7.md)与[组件记录](release/3.8.7-core-components.json)。该次公开发行仅包含主线版，投标专版保持独立。
 
 自 3.8.5 起，主线与投标专版拆为独立产品分支，共享升级后的官方 DSH 内核。主线保留专业工作台、知识库、技能和完整 Univer；投标专版提供项目、章节、正文及评分证据操作界面。安装标识、用户数据目录及更新通道相互独立，分支与迁移方式见 [3.8.5 双版本说明](release/3.8.5-product-editions.md)。公开下载以实际已发布 Release 为准。
 
@@ -18,7 +18,7 @@
 
 历史版本 3.8.2 整合官方 DSH 0.2.1-alpha.2、大 DWG 磁盘读取、块名修复、内嵌图像及工程缺口与任务联动，并更新核心插件。安装包和分发材料见 [GitHub v3.8.2 Release](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/tag/v3.8.2)，具体改动及用法见 [3.8.2 升级说明](release/github-notes-3.8.2.md)和[使用指南](docs/3.8.2-user-guide.md)。
 
-保留 3.8.0 的九个工程插件，覆盖 CAD/PDF 图纸、钢筋与平法、道路市政及土建算量、IFC/BIM、中国招投标与计算书。Windows x64 内置官方 CPython 3.13.7 与经核验的 conda-forge IfcOpenShell 0.8.5，保留 CGAL/OCCT；macOS、Linux 仍需外接兼容 IFC 引擎。3.8.7 使用官方 DSH master 快照（上游包版本 `0.2.2-alpha.2`，固定 `ce7073d51254c26cd63b22a60835b8f948deb447`）、AnySearch 0.1.8 与完整 Univer Office 0.3.9，来源见[核心组件记录](release/3.8.7-core-components.json)。能力范围与分发材料详见[3.8.0 说明](release/github-notes-3.8.0.md)。OfficeCLI 与 Univer Office 载体的评估见[专项评估](docs/office-carrier-evaluation-3.7.7.md)。
+保留 3.8.0 的九个工程插件，覆盖 CAD/PDF 图纸、钢筋与平法、道路市政及土建算量、IFC/BIM、中国招投标与计算书。Windows x64 内置官方 CPython 3.13.7 与经核验的 conda-forge IfcOpenShell 0.8.5，保留 CGAL/OCCT；macOS、Linux 仍需外接兼容 IFC 引擎。历史 3.8.7 使用官方 DSH master 快照（上游包版本 `0.2.2-alpha.2`，固定 `ce7073d51254c26cd63b22a60835b8f948deb447`）、AnySearch 0.1.8 与完整 Univer Office 0.3.9，来源见[核心组件记录](release/3.8.7-core-components.json)。能力范围与分发材料详见[3.8.0 说明](release/github-notes-3.8.0.md)。OfficeCLI 与 Univer Office 载体的评估见[专项评估](docs/office-carrier-evaluation-3.7.7.md)。
 
 新增功能怎么用：参见 [3.8.0 使用指南](docs/3.8.0-user-guide.md)，包含 BIM 对话示例、九插件入口、专业工作台联动、能力边界和问题排查。
 
@@ -43,26 +43,26 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.7/Agent-Pi-DSH-3.8.7-x64.exe"><b>Windows x64</b></a>
+  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.8/Agent-Pi-DSH-3.8.8-x64.exe"><b>Windows x64</b></a>
   ·
-  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.7/Agent-Pi-DSH-3.8.7-mac-arm64.dmg"><b>macOS Apple Silicon</b></a>
+  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.8/Agent-Pi-DSH-3.8.8-mac-arm64.dmg"><b>macOS Apple Silicon</b></a>
   ·
-  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.7/Agent-Pi-DSH-3.8.7-mac-x64.dmg"><b>macOS Intel</b></a>
+  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.8/Agent-Pi-DSH-3.8.8-mac-x64.dmg"><b>macOS Intel</b></a>
   ·
-  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.7/Agent-Pi-DSH-3.8.7-linux-x86_64.AppImage"><b>Linux AppImage</b></a>
+  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.8/Agent-Pi-DSH-3.8.8-linux-x86_64.AppImage"><b>Linux AppImage</b></a>
   ·
-  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.7/Agent-Pi-DSH-3.8.7-linux-amd64.deb"><b>Linux DEB</b></a>
+  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.8/Agent-Pi-DSH-3.8.8-linux-amd64.deb"><b>Linux DEB</b></a>
   ·
   <a href="https://www.agent-pi.app">官网</a>
   ·
   <a href="https://www.agent-pi.app/docs.html">文档</a>
 </p>
 
-3.8.7 的 macOS 系统要求：Apple Silicon 与 Intel 均为 macOS 15 及以上；本版不提供 Monterey 兼容包。
+3.8.8 的 macOS 系统要求：Apple Silicon 与 Intel 均为 macOS 15 及以上；本版不提供 Monterey 兼容包。
 
-3.8.7 应用源码固定在公开标签 `v3.8.7`（`63815f174216f3d41a26b1c31516bc554400c5e1`）；全平台使用该不可变标签及经核验的发行载荷。后续发布 CI 与官网维护提交不改变应用来源，安装包及 SHA256 以 Release 的实际发布资产为准。
+历史 3.8.7 应用源码固定在公开标签 `v3.8.7`（`63815f174216f3d41a26b1c31516bc554400c5e1`）；全平台使用该不可变标签及经核验的发行载荷。后续发布 CI 与官网维护提交不改变应用来源，安装包及 SHA256 以 Release 的实际发布资产为准。
 
-3.8.8 发布准备沿用同一流程：最终验收提交创建新的 `v3.8.8` 标签，Windows、macOS Apple Silicon / Intel 和 Linux 使用同一来源及新生成的运行时载荷。全平台资源及校验文件齐全后才公开为 Latest，再按实际资产更新官网离线下载信息；发布完成前保留上方已验证的 3.8.7 下载，不预填新安装包的大小或 SHA256。
+3.8.8 应用源码固定在公开标签 `v3.8.8`（`28888149e1249661945e17c29d9baf8a725712e1`）；Windows、macOS Apple Silicon / Intel 和 Linux 使用同一不可变来源及经核验的运行时载荷。23 项全平台发行资源及校验文件已公开，下载以实际 Release 资产为准；发布日期为 2026-11-03（Africa/Windhoek）。后续 README、发行说明与官网维护提交不移动应用标签，也不改变已发布安装包字节及 SHA256。
 
 历史 3.8.6 应用源码固定在公开标签 `v3.8.6`（`ba909b19d63bba4276569928f84cf209e23bb777`）；全平台使用该标签与经核验的发行载荷，安装包及 SHA256 以 Release 的实际发布资产为准。
 
@@ -171,15 +171,15 @@ flowchart LR
 
 | 平台 | 文件 |
 | --- | --- |
-| Windows x64 | [Agent-Pi-DSH-3.8.7-x64.exe](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.7/Agent-Pi-DSH-3.8.7-x64.exe) |
-| macOS Apple Silicon | [Agent-Pi-DSH-3.8.7-mac-arm64.dmg](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.7/Agent-Pi-DSH-3.8.7-mac-arm64.dmg) · [zip](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.7/Agent-Pi-DSH-3.8.7-mac-arm64.zip) |
-| macOS Intel | [Agent-Pi-DSH-3.8.7-mac-x64.dmg](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.7/Agent-Pi-DSH-3.8.7-mac-x64.dmg) · [zip](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.7/Agent-Pi-DSH-3.8.7-mac-x64.zip) |
-| Linux x64 | [AppImage](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.7/Agent-Pi-DSH-3.8.7-linux-x86_64.AppImage) · [deb](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.7/Agent-Pi-DSH-3.8.7-linux-amd64.deb) |
+| Windows x64 | [Agent-Pi-DSH-3.8.8-x64.exe](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.8/Agent-Pi-DSH-3.8.8-x64.exe) |
+| macOS Apple Silicon | [Agent-Pi-DSH-3.8.8-mac-arm64.dmg](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.8/Agent-Pi-DSH-3.8.8-mac-arm64.dmg) · [zip](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.8/Agent-Pi-DSH-3.8.8-mac-arm64.zip) |
+| macOS Intel | [Agent-Pi-DSH-3.8.8-mac-x64.dmg](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.8/Agent-Pi-DSH-3.8.8-mac-x64.dmg) · [zip](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.8/Agent-Pi-DSH-3.8.8-mac-x64.zip) |
+| Linux x64 | [AppImage](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.8/Agent-Pi-DSH-3.8.8-linux-x86_64.AppImage) · [deb](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.8/Agent-Pi-DSH-3.8.8-linux-amd64.deb) |
 | 2.6.5 经典版 | [可与 3.x 并存](https://github.com/xiangxin2021cn/agent-pi/releases/tag/v2.6.5) |
 
-国内加速（Windows）：[gh-proxy.org](https://gh-proxy.org/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.7/Agent-Pi-DSH-3.8.7-x64.exe)。由第三方提供；不可用时请使用 GitHub 原站。
+国内加速（Windows）：[gh-proxy.org](https://gh-proxy.org/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.8/Agent-Pi-DSH-3.8.8-x64.exe)。由第三方提供；不可用时请使用 GitHub 原站。
 
-Windows 安装包的正式 SHA256 以同一 Release 中的 `.sha256` 资产为准；发布脚本会在上线前重新计算并核对本地文件与 GitHub 资产。
+Windows 安装包的正式 SHA256 以同一 Release 中的 `.sha256` 资产为准；发布脚本会在上线前重新计算并核对本地文件与 GitHub 资产。 3.8.8 Windows x64：688208876 字节；SHA256：`B661D52AC275DB598C68F7AC291F47D80C440E498A0D9C40DFDB1898C485E8AF`；[校验文件](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.8/Agent-Pi-DSH-3.8.8-x64.exe.sha256)。
 
 1. 下载对应平台安装包
 2. 未签名：SmartScreen / Gatekeeper 选「仍要运行」
@@ -196,7 +196,7 @@ Windows 安装包的正式 SHA256 以同一 Release 中的 `.sha256` 资产为�
 
 | 版本 | 一句话 |
 | --- | --- |
-| [3.8.8 候选](./release/github-notes-3.8.8.md) | 官方 OAR 外派、精简运行时、完整 Office 0.4.0；侧栏恢复、市场独立自检、历史结果标识与受控插件布局迁移 |
+| [3.8.8](./release/github-notes-3.8.8.md) | 官方 OAR 外派、精简运行时、完整 Office 0.4.0；侧栏恢复、市场独立自检、历史结果标识与受控插件布局迁移 |
 | [3.8.7](./release/github-notes-3.8.7.md) | 官方 DSH 0.2.2-alpha.2 master 快照、完整 Univer Office 0.3.9；跨项目 DWG 来源修复与历史消息兼容，保留模板 DNA、知识库、技能与后台执行 |
 | [3.8.6](./release/github-notes-3.8.6.md) | 官方 DSH 0.2.2-alpha.2、完整 Univer Office 0.3.8；用户模板 DNA 六层约束、会话任务绑定与实际文稿格式核验 |
 | [3.8.5](./release/github-notes-3.8.5.md) | 主线与投标专版独立；官方 DSH rc.3 快照、Electron 45，保留原会话与完整专业工作台 |

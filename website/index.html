@@ -78,8 +78,8 @@
     <img class="hero-logo reveal" src="assets/img/hero-logo.png?v=24" alt="Agent Pi DSH logo" />
     <div class="hero-eyebrow reveal">
       <span class="dot"></span>
-      <span data-lang="zh"><span data-rel-version>v3.8.7</span> · 内核 DeepSeek Harness <span data-kernel-version>0.2.2-alpha.2 (master snapshot)</span></span>
-      <span data-lang="en"><span data-rel-version>v3.8.7</span> · DeepSeek Harness <span data-kernel-version>0.2.2-alpha.2 (master snapshot)</span> kernel</span>
+      <span data-lang="zh"><span data-rel-version>v3.8.8</span> · 内核 DeepSeek Harness <span data-kernel-version>0.2.2-alpha.2 (master snapshot)</span></span>
+      <span data-lang="en"><span data-rel-version>v3.8.8</span> · DeepSeek Harness <span data-kernel-version>0.2.2-alpha.2 (master snapshot)</span> kernel</span>
     </div>
     <h1 class="reveal">
       <span data-lang="zh">工程企业的垂直智能体<br /><span class="grad-text">长程任务，一次跑完</span></span>
@@ -314,10 +314,10 @@
       <div class="card reveal">
         <span class="tag">3.3.5</span>
         <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 1 7 7v3a7 7 0 0 1-14 0V9a7 7 0 0 1 7-7z"/><path d="M8 22h8M12 19v3"/></svg></div>
-        <h3 data-lang="zh">ChatGPT 登录 · Codex 子智能体</h3>
-        <h3 data-lang="en">ChatGPT sign-in · Codex subagent</h3>
-        <p data-lang="zh">无需 API Key。DeepSeek DSH 继续掌控投标流程，在设置页登录 ChatGPT 后按需调用 <code>subagent_codex</code>；凭据不进入网页层。</p>
-        <p data-lang="en">No API key required. DeepSeek DSH keeps control of tender execution and delegates to <code>subagent_codex</code> after ChatGPT sign-in; credentials never enter the web layer.</p>
+        <h3 data-lang="zh">DSH · 官方本地智能体外派</h3>
+        <h3 data-lang="en">DSH · official local agent delegation</h3>
+        <p data-lang="zh">DSH 继续主导任务。本机 Codex 或 Claude CLI 完成原生安装与登录后，可通过官方 <code>subagent_oar</code> 按需外派独立任务；以实际可用性和当前权限为准。</p>
+        <p data-lang="en">DSH remains the coordinator. After native installation and sign-in of a local Codex or Claude CLI, official <code>subagent_oar</code> can delegate independent tasks when the runtime and current permissions allow it.</p>
       </div>
       <div class="card reveal">
         <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg></div>
@@ -858,56 +858,56 @@
       <span class="kicker" data-lang="en">Get started</span>
       <h2 data-lang="zh">打开项目，直接下任务</h2>
       <h2 data-lang="en">Open a project. Give it the job.</h2>
-      <p data-lang="zh" style="color:var(--text-dim);max-width:680px;margin:0 auto 30px">从 GitHub 获取 <span data-release-version>3.8.7</span> 的 Windows、macOS 或 Linux 安装包；选择工作区并配置 DeepSeek，也可在设置中用 ChatGPT 登录 Codex。</p>
-      <p data-lang="en" style="color:var(--text-dim);max-width:680px;margin:0 auto 30px">Download <span data-release-version>3.8.7</span> for Windows, macOS or Linux from GitHub; then pick a workspace and connect DeepSeek, or sign in to Codex with ChatGPT.</p>
+      <p data-lang="zh" style="color:var(--text-dim);max-width:680px;margin:0 auto 30px">从 GitHub 获取 <span data-release-version>3.8.8</span> 的 Windows、macOS 或 Linux 安装包；选择工作区并配置 DeepSeek，也可由 DSH 按需外派给已完成原生安装和登录的本机 Codex 或 Claude CLI。</p>
+      <p data-lang="en" style="color:var(--text-dim);max-width:680px;margin:0 auto 30px">Download <span data-release-version>3.8.8</span> for Windows, macOS or Linux from GitHub; then pick a workspace and connect DeepSeek, or let DSH delegate to a locally installed Codex or Claude CLI with its native sign-in complete.</p>
       <div id="release-panel" class="rl-panel" data-release-state="fallback">
         <div class="rl-head">
-          <span class="rl-pill" data-rel-version>v3.8.7</span>
+          <span class="rl-pill" data-rel-version>v3.8.8</span>
           <span class="rl-kind"><span data-lang="zh">GitHub 最新正式版</span><span data-lang="en">GitHub latest release</span></span>
-          <span class="rl-date"><span data-lang="zh">发布于 <span data-release-date>2026-10-31</span></span><span data-lang="en">Released <span data-release-date>2026-10-31</span></span></span>
+          <span class="rl-date"><span data-lang="zh">发布于 <span data-release-date>2026-11-03</span></span><span data-lang="en">Released <span data-release-date>2026-11-03</span></span></span>
         </div>
         <div class="rl-row" data-release-platform="windows">
           <span class="rl-kind">Windows x64</span>
-          <span class="rl-name" data-release-name="windows-exe">Agent-Pi-DSH-3.8.7-x64.exe</span>
-          <span class="rl-size" data-release-size="windows-exe">1181.4 MB</span>
+          <span class="rl-name" data-release-name="windows-exe">Agent-Pi-DSH-3.8.8-x64.exe</span>
+          <span class="rl-size" data-release-size="windows-exe">656.3 MB</span>
           <span class="rl-btns">
-            <a class="primary" data-release-asset="windows-exe" href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.7/Agent-Pi-DSH-3.8.7-x64.exe" target="_blank" rel="noopener"><span data-lang="zh">下载 EXE</span><span data-lang="en">Download EXE</span></a>
-            <a data-release-asset="windows-exe" data-release-proxy href="https://gh-proxy.org/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.7/Agent-Pi-DSH-3.8.7-x64.exe" target="_blank" rel="noopener noreferrer"><span data-lang="zh">加速下载</span><span data-lang="en">Accelerated download</span></a>
-            <a data-release-asset="windows-sha" href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.7/Agent-Pi-DSH-3.8.7-x64.exe.sha256" target="_blank" rel="noopener">SHA256</a>
+            <a class="primary" data-release-asset="windows-exe" href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.8/Agent-Pi-DSH-3.8.8-x64.exe" target="_blank" rel="noopener"><span data-lang="zh">下载 EXE</span><span data-lang="en">Download EXE</span></a>
+            <a data-release-asset="windows-exe" data-release-proxy href="https://gh-proxy.org/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.8/Agent-Pi-DSH-3.8.8-x64.exe" target="_blank" rel="noopener noreferrer"><span data-lang="zh">加速下载</span><span data-lang="en">Accelerated download</span></a>
+            <a data-release-asset="windows-sha" href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.8/Agent-Pi-DSH-3.8.8-x64.exe.sha256" target="_blank" rel="noopener">SHA256</a>
           </span>
         </div>
         <div class="rl-row" data-release-platform="macos">
           <span class="rl-kind" data-release-system="mac-arm64">Apple Silicon · macOS 15+</span>
-          <span class="rl-name" data-release-name="mac-dmg">Agent-Pi-DSH-3.8.7-mac-arm64.dmg</span>
-          <span class="rl-size" data-release-size="mac-dmg">971.5 MB</span>
+          <span class="rl-name" data-release-name="mac-dmg">Agent-Pi-DSH-3.8.8-mac-arm64.dmg</span>
+          <span class="rl-size" data-release-size="mac-dmg">637.8 MB</span>
           <span class="rl-btns">
-            <a class="primary" data-release-asset="mac-dmg" href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.7/Agent-Pi-DSH-3.8.7-mac-arm64.dmg" target="_blank" rel="noopener"><span data-lang="zh">下载 DMG</span><span data-lang="en">Download DMG</span></a>
-            <a data-release-asset="mac-dmg" data-release-proxy href="https://gh-proxy.org/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.7/Agent-Pi-DSH-3.8.7-mac-arm64.dmg" target="_blank" rel="noopener noreferrer"><span data-lang="zh">加速下载</span><span data-lang="en">Accelerated download</span></a>
-            <a data-release-asset="mac-zip" href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.7/Agent-Pi-DSH-3.8.7-mac-arm64.zip" target="_blank" rel="noopener">ZIP</a>
+            <a class="primary" data-release-asset="mac-dmg" href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.8/Agent-Pi-DSH-3.8.8-mac-arm64.dmg" target="_blank" rel="noopener"><span data-lang="zh">下载 DMG</span><span data-lang="en">Download DMG</span></a>
+            <a data-release-asset="mac-dmg" data-release-proxy href="https://gh-proxy.org/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.8/Agent-Pi-DSH-3.8.8-mac-arm64.dmg" target="_blank" rel="noopener noreferrer"><span data-lang="zh">加速下载</span><span data-lang="en">Accelerated download</span></a>
+            <a data-release-asset="mac-zip" href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.8/Agent-Pi-DSH-3.8.8-mac-arm64.zip" target="_blank" rel="noopener">ZIP</a>
           </span>
         </div>
         <div data-require-release-asset="mac-intel-dmg mac-intel-zip mac-intel-sha">
           <div class="rl-row" data-release-platform="macos-intel">
             <span class="rl-kind" data-release-system="mac-x64">Intel x64 · macOS 15+</span>
-            <span class="rl-name" data-release-name="mac-intel-dmg">Agent-Pi-DSH-3.8.7-mac-x64.dmg</span>
-            <span class="rl-size" data-release-size="mac-intel-dmg">1011.0 MB</span>
+            <span class="rl-name" data-release-name="mac-intel-dmg">Agent-Pi-DSH-3.8.8-mac-x64.dmg</span>
+            <span class="rl-size" data-release-size="mac-intel-dmg">652.4 MB</span>
             <span class="rl-btns">
-              <a class="primary" data-release-asset="mac-intel-dmg" href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.7/Agent-Pi-DSH-3.8.7-mac-x64.dmg" target="_blank" rel="noopener"><span data-lang="zh">下载 DMG</span><span data-lang="en">Download DMG</span></a>
-              <a data-release-asset="mac-intel-dmg" data-release-proxy href="https://gh-proxy.org/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.7/Agent-Pi-DSH-3.8.7-mac-x64.dmg" target="_blank" rel="noopener noreferrer"><span data-lang="zh">加速下载</span><span data-lang="en">Accelerated download</span></a>
-              <a data-release-asset="mac-intel-zip" href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.7/Agent-Pi-DSH-3.8.7-mac-x64.zip" target="_blank" rel="noopener">ZIP</a>
-              <a data-release-asset="mac-intel-sha" href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.7/Agent-Pi-DSH-3.8.7-mac-x64.dmg.sha256" target="_blank" rel="noopener">DMG SHA256</a>
+              <a class="primary" data-release-asset="mac-intel-dmg" href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.8/Agent-Pi-DSH-3.8.8-mac-x64.dmg" target="_blank" rel="noopener"><span data-lang="zh">下载 DMG</span><span data-lang="en">Download DMG</span></a>
+              <a data-release-asset="mac-intel-dmg" data-release-proxy href="https://gh-proxy.org/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.8/Agent-Pi-DSH-3.8.8-mac-x64.dmg" target="_blank" rel="noopener noreferrer"><span data-lang="zh">加速下载</span><span data-lang="en">Accelerated download</span></a>
+              <a data-release-asset="mac-intel-zip" href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.8/Agent-Pi-DSH-3.8.8-mac-x64.zip" target="_blank" rel="noopener">ZIP</a>
+              <a data-release-asset="mac-intel-sha" href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.8/Agent-Pi-DSH-3.8.8-mac-x64.dmg.sha256" target="_blank" rel="noopener">DMG SHA256</a>
             </span>
           </div>
         </div>
         <p class="rl-note" data-missing-release-asset="mac-intel-dmg mac-intel-zip mac-intel-sha" hidden><span data-lang="zh">Intel 安装包须全部发布后才显示；如未显示，请查看发行页：</span><span data-lang="en">Intel packages appear after all files are published. If absent, check the release page:</span> <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases" target="_blank" rel="noopener">GitHub Releases</a></p>
         <div class="rl-row" data-release-platform="linux">
           <span class="rl-kind">Linux x64</span>
-          <span class="rl-name" data-release-name="linux-appimage">Agent-Pi-DSH-3.8.7-linux-x86_64.AppImage</span>
-          <span class="rl-size" data-release-size="linux-appimage">1027.4 MB</span>
+          <span class="rl-name" data-release-name="linux-appimage">Agent-Pi-DSH-3.8.8-linux-x86_64.AppImage</span>
+          <span class="rl-size" data-release-size="linux-appimage">636.7 MB</span>
           <span class="rl-btns">
-            <a class="primary" data-release-asset="linux-appimage" href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.7/Agent-Pi-DSH-3.8.7-linux-x86_64.AppImage" target="_blank" rel="noopener"><span data-lang="zh">下载 AppImage</span><span data-lang="en">Download AppImage</span></a>
-            <a data-release-asset="linux-appimage" data-release-proxy href="https://gh-proxy.org/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.7/Agent-Pi-DSH-3.8.7-linux-x86_64.AppImage" target="_blank" rel="noopener noreferrer"><span data-lang="zh">加速下载</span><span data-lang="en">Accelerated download</span></a>
-            <a data-release-asset="linux-deb" href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.7/Agent-Pi-DSH-3.8.7-linux-amd64.deb" target="_blank" rel="noopener">DEB</a>
+            <a class="primary" data-release-asset="linux-appimage" href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.8/Agent-Pi-DSH-3.8.8-linux-x86_64.AppImage" target="_blank" rel="noopener"><span data-lang="zh">下载 AppImage</span><span data-lang="en">Download AppImage</span></a>
+            <a data-release-asset="linux-appimage" data-release-proxy href="https://gh-proxy.org/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.8/Agent-Pi-DSH-3.8.8-linux-x86_64.AppImage" target="_blank" rel="noopener noreferrer"><span data-lang="zh">加速下载</span><span data-lang="en">Accelerated download</span></a>
+            <a data-release-asset="linux-deb" href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.8/Agent-Pi-DSH-3.8.8-linux-amd64.deb" target="_blank" rel="noopener">DEB</a>
           </span>
         </div>
         <p class="rl-note">
@@ -915,11 +915,11 @@
           <span data-lang="en">The page syncs a complete GitHub Latest Release when opened; if the API is temporarily unavailable, it uses the verified fallback links embedded in the page.</span>
         </p>
         <p class="rl-note"><span data-lang="zh">加速下载由第三方 gh-proxy.org 提供；如不可用，请使用 GitHub 原站。下载后请核对 SHA256。</span><span data-lang="en">Accelerated downloads use the third-party service gh-proxy.org. Use GitHub if unavailable, and verify SHA256 after downloading.</span></p>
-        <p class="rl-note" data-release-system-fallback><span data-lang="zh">3.8.7 使用 Electron 45；Apple Silicon 和 Intel 均要求 macOS 15 或更新系统，请按对应架构下载。</span><span data-lang="en">3.8.7 uses Electron 45 and requires macOS 15 or later on both Apple Silicon and Intel. Download the package for your architecture.</span></p>
+        <p class="rl-note" data-release-system-fallback><span data-lang="zh">3.8.8 使用 Electron 45；Apple Silicon 和 Intel 均要求 macOS 15 或更新系统，请按对应架构下载。</span><span data-lang="en">3.8.8 uses Electron 45 and requires macOS 15 or later on both Apple Silicon and Intel. Download the package for your architecture.</span></p>
         <p class="rl-note" data-release-system-note hidden></p>
         <p class="hero-meta">
-          <span data-lang="zh">Windows SHA256：<code data-release-sha data-release-sha-source="github-release">246C211A2F2A2E8DFF4E548299D7A19A888217A628481CFE5E2172F2567F2553</code></span>
-          <span data-lang="en">Windows SHA256: <code data-release-sha data-release-sha-source="github-release">246C211A2F2A2E8DFF4E548299D7A19A888217A628481CFE5E2172F2567F2553</code></span>
+          <span data-lang="zh">Windows SHA256：<code data-release-sha data-release-sha-source="github-release">B661D52AC275DB598C68F7AC291F47D80C440E498A0D9C40DFDB1898C485E8AF</code></span>
+          <span data-lang="en">Windows SHA256: <code data-release-sha data-release-sha-source="github-release">B661D52AC275DB598C68F7AC291F47D80C440E498A0D9C40DFDB1898C485E8AF</code></span>
         </p>
       </div>
       <p class="hero-meta" data-lang="zh">当前构件未签名或公证 · Windows SmartScreen 选「仍要运行」 · 覆盖安装前请完全退出（不要只关到托盘） · Windows 安装前核对 SHA256</p>
@@ -956,7 +956,7 @@
       </div>
       <div>
         <h4 data-lang="zh">版本</h4><h4 data-lang="en">Versions</h4>
-        <span data-rel-version>v3.8.7</span>
+        <span data-rel-version>v3.8.8</span>
       </div>
     </div>
     <div class="footer-bottom">
