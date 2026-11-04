@@ -6,17 +6,20 @@ import { WORKBENCH_PLUGIN_DEFAULTS, workbenchPluginDefaults } from './workbench-
 
 const root = join(import.meta.dirname, '..')
 const json = path => JSON.parse(readFileSync(join(root, path), 'utf8'))
-test('3.8.3 manifests and separately removable engineering plugins are included in the desktop profile', () => {
-  const paths = ['package.json', 'apps/desktop/package.json', 'apps/desktop/package-lock.json', 'bundles/task-guide/package.json', 'bundles/agent-pi-compaction/package.json']
+test('desktop release manifests agree and engineering plugins remain separately removable', () => {
+  const version = json('package.json').version
+  for (const path of ['apps/desktop/package.json', 'apps/desktop/package-lock.json', 'bundles/agent-pi-compaction/package.json']) {
+    assert.equal(json(path).version, version, path)
+  }
+  assert.equal(json('apps/desktop/package-lock.json').packages[''].version, version)
+  assert.equal(json('bundles/task-guide/package.json').version, '3.8.3')
   for (const folder of ['engineering', 'engineering-rebar', 'china-tender', 'engineering-cad', 'engineering-pdf', 'engineering-road', 'engineering-bim', 'engineering-civil', 'engineering-delivery']) {
     const path = `bundles/${folder}/package.json`
-    paths.push(path)
+    assert.equal(json(path).version, '3.8.3', path)
     const name = json(path).name
     assert.ok(WORKBENCH_PLUGIN_DEFAULTS.some(([id, directory]) => id === name && directory === folder))
     assert.equal(workbenchPluginDefaults({}, [name]).some(([id]) => id === name), false, 'uninstalled plugins are not silently re-enabled')
     assert.equal(json(path).dsh.bundle.patch, './cordis.patch.yml')
   }
-  for (const path of paths) assert.equal(json(path).version, '3.8.3', path)
-  assert.equal(json('apps/desktop/package-lock.json').packages[''].version, '3.8.3')
   assert.equal(json('apps/desktop/package.json').build.win.artifactName, 'Agent-Pi-DSH-${version}-x64.${ext}')
 })

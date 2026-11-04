@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { isUpdatablePlugin } from '../vendor/dshmarket/lib/updates.js'
-import { bundlesDroppedFromProfile, readProfileManifestSnapshot } from '../vendor/dshmarket/lib/profile.js'
+import { bundlesDroppedFromProfile, hasLoadableEntry, readProfileManifestSnapshot } from '../vendor/dshmarket/lib/profile.js'
 import { sourceFallbackFor } from '../vendor/dshmarket/lib/sources.js'
 import { classifyPnpmFailure } from '../vendor/dshmarket/lib/pnpm-compat.js'
 import { restartReachableFrom, trustedRestartRequest } from '../vendor/dshmarket/lib/restart.js'
@@ -29,6 +29,24 @@ test('market updates exclude a plain CLI while retaining manifest, bundle and pa
   assert.equal(isUpdatablePlugin(f.root, 'plain-cli', new Set(['plain-cli'])), true)
   f.write('cordis.patch.yml', '- insert:\n    - id: plain\n      name: plain-cli\n')
   assert.equal(isUpdatablePlugin(f.root, 'plain-cli', new Set()), true)
+})
+
+test('a patch-only carrier can mount its own file but cannot use a file outside the package', t => {
+  const f = fixture(t)
+  const carrier = 'node_modules/patch-carrier'
+  f.write(carrier + '/package.json', { name: 'patch-carrier', dsh: { bundle: { patch: './cordis.patch.yml' } } })
+  f.write(carrier + '/ui/view.js', 'export {}')
+  f.write('node_modules/outside.js', 'export {}')
+  f.write('external/view.js', 'export {}')
+  symlinkSync(join(f.root, 'external'), join(f.root, carrier, 'external'), 'junction')
+
+  for (const [target, expected] of [
+    ['./ui/view.js', true], ['patch-carrier/ui/view.js', true],
+    ['./../outside.js', false], ['./..\\outside.js', false], ['./external/view.js', false],
+  ]) {
+    f.write(carrier + '/cordis.patch.yml', `- insert:\n    - id: carrier-ui\n      name: '${target}'\n`)
+    assert.equal(hasLoadableEntry(f.root, 'patch-carrier', null), expected, target)
+  }
 })
 
 test('lost bundle rows are reported without changing user disablement or reporting uninstall', t => {

@@ -109,7 +109,7 @@ function packageFileList(packageRoot) {
   return files.sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0)
 }
 
-function runtimeReceipt(pluginDir, dependencies, lock, lockPath, target) {
+export function buildUniverRuntimeReceipt(pluginDir, dependencies, lock, lockPath = defaultUniverRuntimeLockPath, target = currentRuntimeTarget()) {
   return {
     schemaVersion: 1,
     target: {
@@ -135,7 +135,7 @@ export function writeUniverRuntimeReceipt(
   lockPath = defaultUniverRuntimeLockPath,
   target = currentRuntimeTarget(),
 ) {
-  const receipt = runtimeReceipt(pluginDir, dependencies, lock, lockPath, target)
+  const receipt = buildUniverRuntimeReceipt(pluginDir, dependencies, lock, lockPath, target)
   writeFileSync(join(pluginDir, univerRuntimeReceiptName), `${JSON.stringify(receipt, null, 2)}\n`)
   return receipt
 }
@@ -155,7 +155,7 @@ export function verifyUniverRuntimeReceipt(
   } catch (error) {
     throw new Error(`dsh-univer-office runtime receipt is invalid: ${error?.message || error}`, { cause: error })
   }
-  const actual = runtimeReceipt(pluginDir, dependencies, lock, lockPath, target)
+  const actual = buildUniverRuntimeReceipt(pluginDir, dependencies, lock, lockPath, target)
   if (JSON.stringify(receipt) !== JSON.stringify(actual)) {
     throw new Error('dsh-univer-office runtime receipt file tree mismatch')
   }

@@ -40,6 +40,33 @@ export declare function resolveGistTokenSource(bodyToken: unknown): Promise<{
 export declare function resolveGistToken(bodyToken: unknown): Promise<string>;
 /** Test hook: drop the gh token cache between tests. */
 export declare function resetGhTokenCache(): void;
+/**
+ * Run `gh auth token` in a child the parent does not wait on, and give up
+ * after 8 s no matter what. The parent never waits on the child (unref), so even if gh.exe
+ * wedges under WSL interop the host event loop stays free and the request
+ * returns a definite answer. 8 s because a Windows gh.exe cold start through
+ * WSL interop is routinely slower than a native binary.
+ */
+/**
+ * Spawn options for `gh auth token`, kept in one place because the Windows
+ * answer is not the obvious one (#1094).
+ *
+ * `detached: true` becomes DETACHED_PROCESS on Windows, which strips the
+ * parent's console and gives the child a NEW visible one — `windowsHide`'s
+ * CREATE_NO_WINDOW loses to it. With a console-less host (DSH Desktop, a
+ * wscript/task-scheduler launch) every 验证 / 导出 / 导入 on the backup page
+ * flashed a terminal window titled `gh.exe`. Measured on Windows 11, two
+ * variants, three runs each: detached visible 3/3, non-detached 0/3.
+ *
+ * What detached was here for — the parent never waiting on the child — is
+ * already the `unref()` and the 8 s watchdog below, so POSIX keeps it and
+ * Windows drops it.
+ */
+export declare function ghAuthSpawnOptions(platform?: NodeJS.Platform): {
+    stdio: ['ignore', 'pipe', 'ignore'];
+    detached: boolean;
+    windowsHide: boolean;
+};
 /** Create a new private Gist carrying one backup file. */
 export declare function createGist(token: string, content: string, signal?: AbortSignal): Promise<GistRef>;
 /** Overwrite the backup file inside an existing Gist (other files kept). */

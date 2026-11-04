@@ -190,5 +190,13 @@
     "dshVersion": "0.2.2-alpha.2",
     "sourceChannel": "official master snapshot",
     "reason": "Promote the mainline continuation/OAR and lean runtime work; upgrade Office 0.4.0 and market 1.73.9, repair multilingual sidebar recovery, plugin maintenance and experimental documentation without mixing the tender edition"
+  },
+  {
+    "version": "3.8.9",
+    "dshPin": "05b1cae8db6e674c5685101494d4eec24652424a",
+    "releaseTag": "v3.8.9",
+    "dshVersion": "dsh-v0.2.2-alpha.3",
+    "sourceChannel": "official release tag",
+    "reason": "Upgrade to the immutable alpha.3 release, including historical session fixes and goal continuation after agent disposal"
   }
 ]

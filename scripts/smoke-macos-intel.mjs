@@ -10,16 +10,17 @@ import { sanitizeStartupLog } from '../apps/desktop/startup-diagnostics.mjs'
 import { inspectMacOSOarProviders } from './macos-intel-capabilities.mjs'
 
 assert.equal(process.platform, 'darwin', 'Application startup check requires macOS')
-assert.equal(process.arch, 'x64', 'Application startup check requires an Intel runner')
-assert.ok(process.argv[2], 'Usage: smoke-macos-intel.mjs <packaged-app-directory>')
-const app = resolve(process.argv[2])
+const [appPath, expectedArch = 'x64', expectedNode = '22.20.0', expectedElectron = '43.7.11'] = process.argv.slice(2)
+assert.ok(appPath, 'Usage: smoke-macos-intel.mjs <packaged-app-directory> [arch node-version electron-version]')
+assert.equal(process.arch, expectedArch, 'Application startup check requires the matching architecture')
+const app = resolve(appPath)
 const plist = spawnSync('plutil', ['-convert', 'json', '-o', '-', join(app, 'Contents/Info.plist')], { encoding: 'utf8' })
 assert.equal(plist.status, 0, plist.stderr)
 const executable = join(app, 'Contents/MacOS', JSON.parse(plist.stdout).CFBundleExecutable)
 const runtimeNode = join(app, 'Contents/Resources/runtime/node/node')
 const node = spawnSync(runtimeNode, ['-p', 'JSON.stringify({arch:process.arch,version:process.version})'], { encoding: 'utf8', timeout: 20000 })
 assert.equal(node.status, 0, node.stderr)
-assert.deepEqual(JSON.parse(node.stdout), { arch: 'x64', version: 'v22.20.0' })
+assert.deepEqual(JSON.parse(node.stdout), { arch: expectedArch, version: `v${expectedNode}` })
 const runtime = join(app, 'Contents/Resources/runtime')
 const mainline = JSON.parse(readFileSync(join(runtime, 'product/package.json'), 'utf8')).agentPiProduct?.edition === 'mainline'
 let oar
@@ -63,13 +64,14 @@ const electron = spawnSync(executable, ['-p', 'JSON.stringify({arch:process.arch
   env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, encoding: 'utf8', timeout: 20000,
 })
 assert.equal(electron.status, 0, electron.stderr)
-assert.deepEqual(JSON.parse(electron.stdout), { arch: 'x64', electron: '43.7.11' })
+assert.deepEqual(JSON.parse(electron.stdout), { arch: expectedArch, electron: expectedElectron })
 
 const portServer = createServer()
 await new Promise(resolve => portServer.listen(0, '127.0.0.1', resolve))
 const debugPort = portServer.address().port
 await new Promise(resolve => portServer.close(resolve))
-const child = spawn(executable, ['--disable-gpu', `--remote-debugging-port=${debugPort}`], {
+const userData = mkdtempSync(join(tmpdir(), 'agent-pi-macos-smoke-'))
+const child = spawn(executable, ['--disable-gpu', `--user-data-dir=${userData}`, `--remote-debugging-port=${debugPort}`], {
   env: { ...process.env, AGENT_PI_DSH_FORCE_COLD_START: '1' }, stdio: ['ignore', 'pipe', 'pipe'],
 })
 let output = ''
@@ -115,9 +117,9 @@ try {
     await delay(500)
   }
   assert.ok(rendered, `Packaged DSH page did not become ready: ${lastError?.message || ''}\n${output}`)
-  console.log(JSON.stringify({ passed: true, electron: '43.7.11', node: '22.20.0', architecture: 'x64', renderer: rendered,
+  console.log(JSON.stringify({ passed: true, electron: expectedElectron, node: expectedNode, architecture: expectedArch, renderer: rendered,
     ...(mainline ? { oar, nativeCliTaskExecution: 'not-tested' } : { codexInitialization: true }),
-    limitation: 'Startup was tested on the CI runner, not on macOS Monterey hardware.' }))
+    platform: 'macOS CI runner' }))
 } finally {
   if (child.exitCode === null && child.pid) {
     child.kill('SIGTERM')
@@ -127,4 +129,5 @@ try {
       child.kill('SIGKILL')
     }
   }
+  rmSync(userData, { recursive: true, force: true })
 }

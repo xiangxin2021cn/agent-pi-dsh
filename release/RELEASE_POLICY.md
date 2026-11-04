@@ -8,6 +8,16 @@ Agent Pi DSH 的公开版本与资源默认不可变；经用户明确授权的�
 4. Release 先保持 draft；Windows、macOS、Linux 和运行时资源全部成功后才发布为 Latest。
 5. 上传命令不得使用 `--clobber`。资源有误时提升版本重新发布，不覆盖同版本。
 
+## 3.8.9 macOS 公开安装包
+
+Apple Silicon 和 Intel 的公开构建要求 Developer ID Application 签名及 Apple 公证。请在 GitHub 仓库 Actions Secrets 配置 `MACOS_CSC_LINK`（含私钥的 `.p12` 文件的 Base64）、`MACOS_CSC_KEY_PASSWORD`、`MACOS_APPLE_ID`、`MACOS_APPLE_APP_SPECIFIC_PASSWORD` 和 `MACOS_APPLE_TEAM_ID`。这些凭据由发行维护者在 GitHub 仓库设置中录入。
+
+DMG 使用 APFS 文件系统并保留 UDZO 压缩。先签名并公证 `.app`，再签名、公证并给 DMG 装订票据。发布工作流在 macOS 15 的 ARM64 和 Intel 环境分别对最终 DMG 执行 `hdiutil verify`、只读挂载、架构和签名校验，并对 ZIP 解包后的应用校验版本、Developer ID、公证票据、Gatekeeper 和原生运行时。随后在隔离用户目录冷启动并复核包签名。
+
+经校验的两种架构成品及 SHA256 暂存在该次 Actions 运行的产物中。Apple Silicon DMG 在 `xcode-27` runner 上用相同字节复核签名、公证、Gatekeeper 和实际挂载，记录实际 macOS 版本和构建号。全部通过后才将两种架构成品和校验文件一并上传到草稿。等待 Apple 凭据期间可用 `linux_only` 先完成本版 Linux 构建和草稿上传，之后用 `macos_only` 补齐 Mac。
+
+内层签名会改变 Office 的 Mach-O 绑定字节。签名钩子先核验原运行时回执，随后仅接受声明的已签名原生绑定变化，在签名封存外层应用前刷新并核验回执。最终成包复验包含解包后的 Office 运行时回执和原生模块加载。
+
 `kernel-version-policy` CI 比较 PR base 与 head；Windows 和跨平台打包还会核验 `release/kernel-version-history.json`。
 
 ## 2026-10-29：3.8.6 主线公开发布

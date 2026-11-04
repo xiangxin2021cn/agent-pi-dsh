@@ -28,6 +28,12 @@ on:
         default: false
         type: boolean
 
+      linux_only:
+        description: Build only Linux assets for the v3.8.9 draft
+        required: false
+        default: false
+        type: boolean
+
 permissions:
   contents: write
 
@@ -47,14 +53,19 @@ jobs:
         id: matrix
         env:
           MACOS_ONLY: ${{ inputs.macos_only }}
+          LINUX_ONLY: ${{ inputs.linux_only }}
         run: |
           node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict'
           import { appendFileSync } from 'node:fs'
+          const macOnly = process.env.MACOS_ONLY === 'true'
+          const linuxOnly = process.env.LINUX_ONLY === 'true'
+          assert.ok(!linuxOnly || (!macOnly && process.env.RELEASE_TAG === 'v3.8.9'), 'Linux-only mode requires v3.8.9 without macos_only')
           const include = [
             { os: 'ubuntu-latest', name: 'linux-x64', platform: 'linux', arch: 'x64', node_dist: 'linux-x64', node_ext: 'tar.xz' },
             { os: 'macos-15', name: 'mac-arm64', platform: 'mac', arch: 'arm64', minimum_macos: '15.0.0', node_dist: 'darwin-arm64', node_ext: 'tar.gz' },
             { os: 'macos-15-intel', name: 'mac-x64', platform: 'mac', arch: 'x64', minimum_macos: '15.0.0', node_dist: 'darwin-x64', node_ext: 'tar.gz' },
-          ].filter(job => process.env.MACOS_ONLY !== 'true' || job.platform === 'mac')
+          ].filter(job => (!macOnly || job.platform === 'mac') && (!linuxOnly || job.platform === 'linux'))
           appendFileSync(process.env.GITHUB_OUTPUT, `matrix=${JSON.stringify({ include })}\n`)
           NODE
 
@@ -68,7 +79,7 @@ jobs:
       matrix: ${{ fromJSON(needs.platform-matrix.outputs.matrix) }}
     env:
       GH_TOKEN: ${{ github.token }}
-      NODE_RUNTIME_VERSION: ${{ (inputs.tag == 'v3.8.7' || inputs.tag == 'v3.8.8') && '24.22.2' || '24.22.1' }}
+      NODE_RUNTIME_VERSION: ${{ (inputs.tag == 'v3.8.7' || inputs.tag == 'v3.8.8' || inputs.tag == 'v3.8.9') && '24.22.2' || '24.22.1' }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -348,6 +359,7 @@ jobs:
           test -d node_modules/electron/dist
 
       - name: Build desktop package
+        if: matrix.platform != 'mac' || inputs.tag != 'v3.8.9'
         working-directory: payload/desktop
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
@@ -361,6 +373,30 @@ jobs:
               --config.appImage.artifactName='Agent-Pi-DSH-${version}-linux-x86_64.${ext}' \
               --config.deb.artifactName='Agent-Pi-DSH-${version}-linux-amd64.${ext}'
           fi
+
+      - name: Build Developer ID signed macOS packages
+        if: matrix.platform == 'mac' && inputs.tag == 'v3.8.9'
+        working-directory: payload/desktop
+        env:
+          CSC_LINK: ${{ secrets.MACOS_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MACOS_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.MACOS_APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.MACOS_APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.MACOS_APPLE_TEAM_ID }}
+          MACOS_ARCH: ${{ matrix.arch }}
+          MINIMUM_MACOS: ${{ matrix.minimum_macos }}
+        run: |
+          for name in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing macOS release secret for $name. See release/RELEASE_POLICY.md."
+              exit 1
+            fi
+          done
+          npx --no-install electron-builder --mac dmg zip "--$MACOS_ARCH" --publish never \
+            --config.mac.minimumSystemVersion="$MINIMUM_MACOS" --config.forceCodeSigning=true \
+            --config.mac.hardenedRuntime=true --config.mac.notarize=true \
+            --config.mac.sign="$GITHUB_WORKSPACE/scripts/sign-macos-release.mjs" \
+            --config.dmg.filesystem=APFS --config.dmg.sign=true --config.dmg.writeUpdateInfo=false
 
       - name: Verify macOS packaged deployment targets
         if: matrix.platform == 'mac'
@@ -387,7 +423,76 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: Notarize and staple the signed disk image
+        if: matrix.platform == 'mac' && inputs.tag == 'v3.8.9'
+        env:
+          APPLE_ID: ${{ secrets.MACOS_APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.MACOS_APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.MACOS_APPLE_TEAM_ID }}
+          MACOS_ARCH: ${{ matrix.arch }}
+        run: |
+          dmg="payload/desktop/dist-unpacked/Agent-Pi-DSH-${RELEASE_TAG#v}-mac-${MACOS_ARCH}.dmg"
+          codesign --verify --strict --verbose=2 \
+            -R='anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists' "$dmg"
+          xcrun notarytool submit "$dmg" --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait --timeout 20m \
+            --output-format json > "$RUNNER_TEMP/dmg-notarization.json"
+          node -e 'const r = require(process.argv[1]); console.log(r.id, r.status); if (r.status !== "Accepted") process.exit(1)' "$RUNNER_TEMP/dmg-notarization.json"
+          xcrun stapler staple "$dmg"
+
+      - name: Verify distributable macOS DMG and ZIP
+        if: matrix.platform == 'mac' && inputs.tag == 'v3.8.9'
+        env:
+          MACOS_ARCH: ${{ matrix.arch }}
+        run: |
+          prefix="payload/desktop/dist-unpacked/Agent-Pi-DSH-${RELEASE_TAG#v}-mac-${MACOS_ARCH}"
+          arch="$MACOS_ARCH"
+          if [ "$arch" = x64 ]; then arch=x86_64; fi
+          bash scripts/verify-macos-release-dmg.sh "$prefix.dmg" "${RELEASE_TAG#v}" "$arch"
+          audit_dir=$(mktemp -d "$RUNNER_TEMP/agent-pi-mac-release.XXXXXX")
+          ditto -x -k "$prefix.zip" "$audit_dir/zip"
+          app="$audit_dir/zip/Agent Pi DSH.app"
+          test "$(plutil -extract CFBundleShortVersionString raw -o - "$app/Contents/Info.plist")" = "${RELEASE_TAG#v}"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          codesign --verify --strict --verbose=2 \
+            -R='anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists' "$app"
+          xcrun stapler validate "$app"
+          syspolicy_check distribution "$app"
+          runtime="$app/Contents/Resources/runtime"
+          "$runtime/node/node" "$runtime/product/scripts/verify-dsh-runtime.mjs" \
+            "$runtime/deepseek-harness" "$runtime/product" --native
+          "$runtime/node/node" "$runtime/product/scripts/install-univer-runtime-deps.mjs" \
+            "$runtime/product/vendor/dsh-univer-office" --verify-only
+          electron=$(node -p "require('./payload/desktop/package.json').devDependencies.electron")
+          node scripts/smoke-macos-intel.mjs "$app" "$MACOS_ARCH" "$NODE_RUNTIME_VERSION" "$electron"
+          codesign --verify --deep --strict --verbose=2 "$app"
+
+      - name: Record checked macOS checksums
+        if: matrix.platform == 'mac' && inputs.tag == 'v3.8.9'
+        working-directory: payload/desktop/dist-unpacked
+        env:
+          MACOS_ARCH: ${{ matrix.arch }}
+        run: |
+          prefix="Agent-Pi-DSH-${RELEASE_TAG#v}-mac-${MACOS_ARCH}"
+          shasum -a 256 "$prefix.dmg" > "$prefix.dmg.sha256"
+          shasum -a 256 "$prefix.zip" > "$prefix.zip.sha256"
+
+      - name: Stage checked macOS assets for final validation
+        if: matrix.platform == 'mac' && inputs.tag == 'v3.8.9'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-mac-${{ matrix.arch }}
+          path: |
+            payload/desktop/dist-unpacked/Agent-Pi-DSH-3.8.9-mac-${{ matrix.arch }}.dmg
+            payload/desktop/dist-unpacked/Agent-Pi-DSH-3.8.9-mac-${{ matrix.arch }}.dmg.sha256
+            payload/desktop/dist-unpacked/Agent-Pi-DSH-3.8.9-mac-${{ matrix.arch }}.zip
+            payload/desktop/dist-unpacked/Agent-Pi-DSH-3.8.9-mac-${{ matrix.arch }}.zip.sha256
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
       - name: Upload release assets
+        if: matrix.platform != 'mac' || inputs.tag != 'v3.8.9'
         run: |
           shopt -s nullglob
           assets=(
@@ -408,6 +513,61 @@ jobs:
           done
           gh release upload "${{ inputs.tag }}" "${assets[@]}" "${checksum_assets[@]}" \
             --repo "${{ github.repository }}"
+
+  verify-macos-27:
+    if: inputs.tag == 'v3.8.9' && !inputs.assemble_windows && !inputs.linux_only
+    needs: build
+    runs-on: xcode-27
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          sparse-checkout: scripts/verify-macos-release-dmg.sh
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-mac-arm64
+          path: checked-mac-arm64
+      - name: Verify the exact signed Apple Silicon DMG on macOS 27
+        run: |
+          version=$(sw_vers -productVersion)
+          [[ "$version" == 27.* ]]
+          prefix="Agent-Pi-DSH-${RELEASE_TAG#v}-mac-arm64"
+          (cd checked-mac-arm64 && shasum -a 256 -c "$prefix.dmg.sha256")
+          bash scripts/verify-macos-release-dmg.sh "checked-mac-arm64/$prefix.dmg" "${RELEASE_TAG#v}" arm64
+          {
+            sw_vers
+            cat "checked-mac-arm64/$prefix.dmg.sha256"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  upload-macos:
+    if: inputs.tag == 'v3.8.9' && !inputs.assemble_windows && !inputs.linux_only
+    needs: verify-macos-27
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: release-mac-*
+          path: checked-mac
+          merge-multiple: true
+      - name: Upload both validated macOS packages to the draft
+        working-directory: checked-mac
+        run: |
+          test "$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = true
+          assets=()
+          for arch in arm64 x64; do
+            prefix="Agent-Pi-DSH-${RELEASE_TAG#v}-mac-$arch"
+            for ext in dmg zip; do
+              asset="$prefix.$ext"
+              sha256sum -c "$asset.sha256"
+              assets+=("$asset" "$asset.sha256")
+            done
+          done
+          gh release upload "$RELEASE_TAG" "${assets[@]}" --repo "$GITHUB_REPOSITORY"
 
   assemble-windows:
     if: ${{ inputs.assemble_windows }}

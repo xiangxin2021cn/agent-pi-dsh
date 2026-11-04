@@ -528,4 +528,24 @@ export declare function dropUnparseableBuildKeys(profile: string, explicitDir?: 
  *   needed no repair or could not be repaired, in which case it is left
  *   byte-for-byte as it was.
  */
+/**
+ * Remove one package's `minimumReleaseAgeExclude` rows (#1093).
+ *
+ * pnpm writes this key itself when it installs a version still inside the
+ * fresh-release wait, and it writes one row for the package plus one per
+ * platform subpackage. Uninstalling took the dependency out of the manifest
+ * and the lockfile but left those rows behind, pinned to versions of a package
+ * the profile no longer has. They are not only noise: they read as live policy
+ * to anyone diagnosing a release-age refusal months later.
+ *
+ * Only rows naming this package are dropped. A platform subpackage
+ * (`@typescript/typescript-darwin-arm64`) is a DIFFERENT package name, and
+ * nothing in the file says which main package it belongs to — guessing would
+ * delete policy that may still be in effect for something installed.
+ *
+ * @returns the entries removed, for the caller to log; empty when there is no
+ *   such block, no such row, or the file cannot be read exactly (in which case
+ *   it is left byte-for-byte as it was).
+ */
+export declare function dropReleaseAgeExcludes(profile: string, name: string, explicitDir?: string): string[];
 export declare function mergeDuplicateReleaseAgeExcludes(profile: string, explicitDir?: string): string[];

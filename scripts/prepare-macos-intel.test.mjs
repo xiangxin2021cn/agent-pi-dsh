@@ -8,7 +8,7 @@ test('compatibility packaging changes only the macOS architecture and Electron i
   const updated = macIntelManifest(original)
   assert.equal(updated.version, original.version)
   assert.equal(updated.devDependencies.electron, '43.7.11')
-  assert.equal(original.devDependencies.electron, '45.2.0')
+  assert.equal(original.devDependencies.electron, '45.2.2')
   assert.equal(updated.build.mac.minimumSystemVersion, '12.0')
   assert.deepEqual(updated.build.mac.target, [{ target: 'dmg', arch: ['x64'] }, { target: 'zip', arch: ['x64'] }])
   assert.equal(updated.build.mac.artifactName, 'Agent-Pi-DSH-${version}-mac-${arch}-monterey.${ext}')

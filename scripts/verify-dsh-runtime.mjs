@@ -6,8 +6,8 @@ import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { isSelectedMainline, verifyDistributionRuntime } from './dsh-distribution-policy.mjs'
 
-export const expectedDshCommit = 'ce7073d51254c26cd63b22a60835b8f948deb447'
-export const expectedDshVersion = '0.2.2-alpha.2'
+export const expectedDshCommit = '05b1cae8db6e674c5685101494d4eec24652424a'
+export const expectedDshVersion = '0.2.2-alpha.3'
 
 function readJson(path) {
   return JSON.parse(readFileSync(path, 'utf8'))

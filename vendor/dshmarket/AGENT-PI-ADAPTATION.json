@@ -1,21 +1,21 @@
 {
   "schema": "agent-pi-dsh/market-adaptation/v1",
-  "checkedAt": "2026-11-03",
+  "checkedAt": "2026-11-04",
   "source": {
     "name": "dshmarket",
-    "version": "1.73.9",
-    "integrity": "sha512-uXjKoRSf6MIZGC5nDa9SzZzCg45kYMxWSD5jxQIWoO3Zw6DhCnbZEg8slrviVeXjToPSJvLQ6qo1CuuZmabfVQ==",
-    "shasum": "27df32e73654bef018478205f1535846f939b6cd",
-    "archiveBytes": 854558,
-    "sourceCommit": "c57e77ac22fe33dc91134346c2ca8882da488152",
-    "publishedAt": "2026-11-02T18:57:34.594Z",
+    "version": "1.73.10",
+    "integrity": "sha512-L+p0RMx0AJflJmFuFfXwq/qYJvfXt6ZXL+TYV4KDhZ/VPijYajT87nEnYpHDsfH8yGDokzIrIzCkak85HhBpnA==",
+    "shasum": "22847e8cc2bfef10b404e0f7461c83d3f1c3f546",
+    "archiveBytes": 861428,
+    "sourceCommit": "5e80c1cc0b6a29de3b87f410445f12a1bb478219",
+    "publishedAt": "2026-11-03T20:50:51.138Z",
     "adaptation": "vendor/dshmarket/AGENT-PI-ADAPTATION.json",
-    "tarball": "https://registry.npmjs.org/dshmarket/-/dshmarket-1.73.9.tgz"
+    "tarball": "https://registry.npmjs.org/dshmarket/-/dshmarket-1.73.10.tgz"
   },
   "sourceArchive": {
-    "url": "https://codeload.github.com/dsh-market/dsh-market/tar.gz/c57e77ac22fe33dc91134346c2ca8882da488152",
-    "sha256": "774e146052db58af4584adacac02b58b465faad94e277a94b47d9f3ac6326136",
-    "note": "Official npm 1.73.9 omits src; retain exact fixed-commit sources for product adaptations and reproducible build."
+    "url": "https://codeload.github.com/dsh-market/dsh-market/tar.gz/5e80c1cc0b6a29de3b87f410445f12a1bb478219",
+    "sha256": "eaeef334091fa2134311c9a3a017161d452f5a0311aa5170d7c308a580dfa5da",
+    "note": "Official npm 1.73.10 omits src; retain exact fixed-commit sources for product adaptations and reproducible build."
   },
   "adaptations": [
     "Preserve Agent Pi host peer compatibility and managed Team/compaction boundaries, including the new drain entrypoint",
@@ -34,13 +34,15 @@
     "Explicit market self-check scopes the existing update reader to installed market identities and never waits for the unrelated catalog; one full listing shares one fresh catalog read",
     "Unknown update results remain visibly unconfirmed in ten languages; scoped self results retain other plugin status and survive a later failed full listing",
     "Recovered update/uninstall queues require fresh successful inventory snapshots on each mount; failed or malformed update reads never grant execution readiness or clear the durable queue",
-    "Distinguish retained historical pnpm-store failures from a fresh present installed-package inventory without rewriting failure evidence"
+    "Distinguish retained historical pnpm-store failures from a fresh present installed-package inventory without rewriting failure evidence",
+    "Merge the complete 1.73.10 upstream runtime delta and keep the explicit market check available on the Plugins tab after the market scroll changes",
+    "Keep new patch-carrier self-target validation inside the resolved package directory across Windows separators and filesystem links"
   ],
   "modifiedFiles": [
     {
       "file": "client/client.js",
-      "upstreamSha256": "d31b9e942ee6bf4ccfa967f467c38e1dc39f65f679a9ea2f96410f4b77754adf",
-      "adaptedSha256": "ebebdfdf990f6f994fc3bb807e23f5ea0866789fca817ce92dff9f673bc6c850"
+      "upstreamSha256": "c7464afbab83bab99ca4fe38a31f25fbf37bd5a7005e16dae78315e036fff968",
+      "adaptedSha256": "29c52494eb6841e2c6c9042c7c194c89915ec51829f2978eb7ad3bb3fbd608db"
     },
     {
       "file": "lib/accelerate.js",
@@ -64,8 +66,8 @@
     },
     {
       "file": "lib/check.js",
-      "upstreamSha256": "8fca069888846bfcee135075df8cd4cd5d844419f3d59478be7cdaac260ab9f7",
-      "adaptedSha256": "2dae37336ee3d67e3acbff225e56e3544eb989baeccc28fc2704ccf67ed74bce"
+      "upstreamSha256": "91b8e5897b08b935738808490c2d89826126feac10baaa2a67a12a211eedb58b",
+      "adaptedSha256": "0e7c29acfba1de3e0e80413da6196b10c28154f738cc9ac937351363c7d9b414"
     },
     {
       "file": "lib/compatibility.js",
@@ -94,8 +96,8 @@
     },
     {
       "file": "lib/gist.js",
-      "upstreamSha256": "fb70ed0f6de0a87576cb9bde9284c94752f12e0e519f038ca5c0972da93683bf",
-      "adaptedSha256": "8a63c0ac3ed939a97de1dad24e3d49e4e67dd08e998c037ebeb2a2dc99d1a510"
+      "upstreamSha256": "9630b58c8f8d8210815906f271e73339b8a205a330bb3a8443c2f54e3e25dcfd",
+      "adaptedSha256": "ecdc76356722125d79624f3ae384ce4aae28be3f11230c06b558b0c4c4d150d3"
     },
     {
       "file": "lib/host-recovery.js",
@@ -159,8 +161,8 @@
     },
     {
       "file": "lib/profile.js",
-      "upstreamSha256": "7d6e4e1a5abacee565bc2658cbdcca7c83aab6da0a4f8a2ad3c9f8987ff550b8",
-      "adaptedSha256": "6571c0018f5474a0df4f19ebadbfa214dd4439a1e30aa516950b59924ae5bf3b"
+      "upstreamSha256": "0e4eff87bc51eb2fb5720c62039b91d4bf87030bc65568dd9ac8030a5fd7947f",
+      "adaptedSha256": "98ba87d3a0eef8427915622fac459e6eec439aff8b9bb124db8ca7cb68205af5"
     },
     {
       "file": "lib/recovery.js",
@@ -184,8 +186,8 @@
     },
     {
       "file": "lib/routes.js",
-      "upstreamSha256": "3b6e46989d8fc66e35bb58d70339a567a28d6a93acb9fa76c8070bdf5671dce7",
-      "adaptedSha256": "7e1a00d008dcd4edec5f1f8b3a2711fad8f0fae46b4f5c017fbfc2e26d0eb730"
+      "upstreamSha256": "86e0823265273fd250369bb30623b728e2c8ed27e7184a5a2124168ec50ecdbb",
+      "adaptedSha256": "cd1f4863db83c3fd05c416ef224fd8b00d3af201ea7c47adec7087eb5f74ed41"
     },
     {
       "file": "lib/settings.js",
@@ -214,8 +216,8 @@
     },
     {
       "file": "lib/themes.js",
-      "upstreamSha256": "6428361175738f7c9301e35e1ab34a8d419e9dc2572e9659cc93080c1b8dc3ae",
-      "adaptedSha256": "f3bc5759e99a62c8fa4bfb2b8f31e6e36e81e26a9796a17b2a35cdcdcb130b40"
+      "upstreamSha256": "edbad450f7413a3c860a0c6f58c7f4a16df316674390eb4a7de43fb71715a38a",
+      "adaptedSha256": "43e5a2c1f1f3cc1a3b2432a3e0f920c790196ba0aa95088926aa5953e2c4cd22"
     },
     {
       "file": "lib/trial.js",
@@ -244,8 +246,8 @@
     },
     {
       "file": "src/client/locales.ts",
-      "upstreamSha256": "7b4b6632d20574a09d8e76c979e8387e9ed211025052019829e681095d3db893",
-      "adaptedSha256": "efc73718c7b955b96371cd311b5258b25a798aff6fe5eedf333c7839e4702f2e"
+      "upstreamSha256": "3d304d1948e59888bc62dc2094d758232ad0ae9ae5b4a2cdbbddb3503eba1d70",
+      "adaptedSha256": "1039bc7ee7ca9851be055431c57888615eab67941aa5db6d4feaaae742f1f678"
     },
     {
       "file": "src/client/market-data.ts",
@@ -254,8 +256,8 @@
     },
     {
       "file": "src/client/MarketSection.tsx",
-      "upstreamSha256": "77bd693837c9696ed0542e881beea37f35bdc599e9edb45f0f6072ebf6b5b847",
-      "adaptedSha256": "34b9dde8d0e3f641d98ed6ee83a2b67f1414571b3577899559501abb0a21e438"
+      "upstreamSha256": "dd872b41d0765b7b16eef93ef09dc06657bb5856d37b28b59d6d5c2a6acc1aa1",
+      "adaptedSha256": "8410983c6f502b1a8fe544de19dbd8088c0db68379e4063c7463f05a1a11f81e"
     },
     {
       "file": "src/client/operations.ts",
@@ -294,8 +296,8 @@
     },
     {
       "file": "src/routes.ts",
-      "upstreamSha256": "2849a3c45fb10e2d514082c51fc63f139ece12d08a9ab6aa03e7f976d15eee1b",
-      "adaptedSha256": "fd413f6ecaa84b543fed564acb874351f37e9ed26ab08e245b16bdbfbdb2e81f"
+      "upstreamSha256": "607dacc31f603a117a480d83373ea3c38a00ddcdcae23ac508e5ba49ec80c8ee",
+      "adaptedSha256": "e1c53c8eefca24fb2ec422182f584eb030e75f59e13dbbf39b9d28e12b18046a"
     },
     {
       "file": "src/settings.ts",
@@ -321,6 +323,11 @@
       "file": "src/verify.ts",
       "upstreamSha256": "9a85edf24d92d9e657ab167d665fe0b78a4fef25a1f29e074cbad4900936a6e8",
       "adaptedSha256": "9bd0e53bb97a0366d510067a4eb1b33e35b1413fe7d5c713bf0770bf2531e8a3"
+    },
+    {
+      "file": "src/profile.ts",
+      "upstreamSha256": "f523f8cab36da433ee4233263372625c10d44aeae4171744d34ddcce7f350b23",
+      "adaptedSha256": "a3c8af4fe791379459598844b1cd4961999dc2b4dd5cf0ae3ca7c92ad0366c80"
     }
   ],
   "productFiles": [

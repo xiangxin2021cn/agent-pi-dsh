@@ -61,6 +61,18 @@ test('platform jobs retain runtime, native terminal, Office, CAD and plan verifi
   assert.doesNotMatch(workflow, /--clobber/)
 })
 
+test('Linux-only dispatch is limited to 3.8.9 and conflicts with Mac-only dispatch', t => {
+  const { root, run } = runChecksumGate(t, 'Select platform jobs', '', {})
+  const output = join(root, 'linux-only-matrix')
+  const environment = { RELEASE_TAG: 'v3.8.9', MACOS_ONLY: 'false', LINUX_ONLY: 'true', GITHUB_OUTPUT: output }
+  const result = run(environment)
+  assert.equal(result.status, 0, result.stderr)
+  const matrix = JSON.parse(readFileSync(output, 'utf8').trim().replace(/^matrix=/, ''))
+  assert.deepEqual(matrix.include.map(job => job.name), ['linux-x64'])
+  assert.notEqual(run({ ...environment, MACOS_ONLY: 'true' }).status, 0)
+  assert.notEqual(run({ ...environment, RELEASE_TAG: 'v3.8.8' }).status, 0)
+})
+
 function runChecksumGate(t, step, argument, files) {
   const root = mkdtempSync(join(tmpdir(), 'agent-pi-platform-checksum-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))

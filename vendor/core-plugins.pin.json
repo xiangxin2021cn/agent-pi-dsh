@@ -1,20 +1,20 @@
 {
-  "checkedAt": "2026-11-02",
+  "checkedAt": "2026-11-04",
   "packages": [
     {
       "name": "dshmarket",
-      "version": "1.73.9",
-      "integrity": "sha512-uXjKoRSf6MIZGC5nDa9SzZzCg45kYMxWSD5jxQIWoO3Zw6DhCnbZEg8slrviVeXjToPSJvLQ6qo1CuuZmabfVQ==",
-      "shasum": "27df32e73654bef018478205f1535846f939b6cd",
-      "archiveBytes": 854558,
-      "sourceCommit": "c57e77ac22fe33dc91134346c2ca8882da488152",
-      "publishedAt": "2026-11-02T18:57:34.594Z",
+      "version": "1.73.10",
+      "integrity": "sha512-L+p0RMx0AJflJmFuFfXwq/qYJvfXt6ZXL+TYV4KDhZ/VPijYajT87nEnYpHDsfH8yGDokzIrIzCkak85HhBpnA==",
+      "shasum": "22847e8cc2bfef10b404e0f7461c83d3f1c3f546",
+      "archiveBytes": 861428,
+      "sourceCommit": "5e80c1cc0b6a29de3b87f410445f12a1bb478219",
+      "publishedAt": "2026-11-03T20:50:51.138Z",
       "adaptation": "vendor/dshmarket/AGENT-PI-ADAPTATION.json",
-      "tarball": "https://registry.npmjs.org/dshmarket/-/dshmarket-1.73.9.tgz",
+      "tarball": "https://registry.npmjs.org/dshmarket/-/dshmarket-1.73.10.tgz",
       "sourceArchive": {
-        "url": "https://codeload.github.com/dsh-market/dsh-market/tar.gz/c57e77ac22fe33dc91134346c2ca8882da488152",
-        "sha256": "774e146052db58af4584adacac02b58b465faad94e277a94b47d9f3ac6326136",
-        "note": "Official npm 1.73.9 omits src; retain exact fixed-commit sources for product adaptations and reproducible build."
+        "url": "https://codeload.github.com/dsh-market/dsh-market/tar.gz/5e80c1cc0b6a29de3b87f410445f12a1bb478219",
+        "sha256": "eaeef334091fa2134311c9a3a017161d452f5a0311aa5170d7c308a580dfa5da",
+        "note": "Official npm 1.73.10 omits src; retain exact fixed-commit sources for product adaptations and reproducible build."
       }
     },
     {

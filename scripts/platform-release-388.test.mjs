@@ -11,12 +11,69 @@ import { deriveDistributionInputs, distributionPolicy } from './dsh-distribution
 
 const workflow = readFileSync(new URL('../.github/workflows/build-desktop-assets.yml', import.meta.url), 'utf8')
 
-test('3.8.8 and 3.8.7 select the audited Node without changing older releases', () => {
+test('3.8.7 through 3.8.9 select the audited Node without changing older releases', () => {
   const expression = workflow.match(/      NODE_RUNTIME_VERSION: \$\{\{ ([^\n]+) \}\}/)?.[1]
   assert.ok(expression)
-  for (const [tag, expected] of [['v3.8.8', '24.22.2'], ['v3.8.7', '24.22.2'], ['v3.8.6', '24.22.1'], ['v3.8.5', '24.22.1']]) {
+  for (const [tag, expected] of [['v3.8.9', '24.22.2'], ['v3.8.8', '24.22.2'], ['v3.8.7', '24.22.2'], ['v3.8.6', '24.22.1'], ['v3.8.5', '24.22.1']]) {
     assert.equal(vm.runInNewContext(expression, { inputs: { tag } }), expected)
   }
+})
+
+test('3.8.9 macOS uploads require signed and notarized final DMG and ZIP', () => {
+  const require = createRequire(new URL('../bundles/tender-host/package.json', import.meta.url))
+  const { jobs } = require('js-yaml').load(workflow)
+  const steps = jobs.build.steps
+  const unsigned = steps.find(step => step.name === 'Build desktop package')
+  const sign = steps.find(step => step.name === 'Build Developer ID signed macOS packages')
+  const notarize = steps.find(step => step.name === 'Notarize and staple the signed disk image')
+  const verify = steps.find(step => step.name === 'Verify distributable macOS DMG and ZIP')
+  const checksums = steps.find(step => step.name === 'Record checked macOS checksums')
+  const stage = steps.find(step => step.name === 'Stage checked macOS assets for final validation')
+  const upload = steps.find(step => step.name === 'Upload release assets')
+  const mountScript = readFileSync(new URL('./verify-macos-release-dmg.sh', import.meta.url), 'utf8')
+  const mac = JSON.parse(readFileSync(new URL('../apps/desktop/package.json', import.meta.url))).build.mac
+  assert.notEqual(mac.identity, null, 'explicitly null identity bypasses Electron signing')
+  assert.equal(unsigned.if, "matrix.platform != 'mac' || inputs.tag != 'v3.8.9'")
+  for (const step of [sign, notarize, verify, checksums, stage]) {
+    assert.equal(step.if, "matrix.platform == 'mac' && inputs.tag == 'v3.8.9'")
+    assert.equal(step['continue-on-error'], undefined)
+  }
+  assert.ok(steps.indexOf(sign) < steps.indexOf(notarize))
+  assert.ok(steps.indexOf(notarize) < steps.indexOf(verify))
+  assert.ok(steps.indexOf(verify) < steps.indexOf(checksums))
+  assert.ok(steps.indexOf(checksums) < steps.indexOf(stage))
+  assert.equal(upload.if, unsigned.if, '3.8.9 macOS upload must occur after the separate compatibility job')
+  assert.match(sign.run, /--config\.forceCodeSigning=true/)
+  assert.match(sign.run, /--config\.mac\.notarize=true/)
+  assert.match(sign.run, /--config\.mac\.sign=.*scripts\/sign-macos-release\.mjs/)
+  assert.match(sign.run, /--config\.dmg\.filesystem=APFS/)
+  assert.match(sign.run, /--config\.dmg\.sign=true/)
+  assert.match(notarize.run, /notarytool submit .*\b[\s\S]+--wait[\s\S]+stapler staple/)
+  assert.match(notarize.run, /r.status !== "Accepted"/)
+  for (const command of ['verify-macos-release-dmg.sh', 'ditto -x -k', 'codesign --verify --deep --strict', 'syspolicy_check distribution', 'verify-dsh-runtime.mjs', 'smoke-macos-intel.mjs']) {
+    assert.ok(verify.run.includes(command), `final container check missing ${command}`)
+  }
+  for (const command of ['stapler validate', 'spctl --assess', 'hdiutil verify', 'hdiutil attach -readonly', 'plutil -extract FilesystemType', 'lipo -archs', 'codesign --verify --deep --strict', 'syspolicy_check distribution', 'hdiutil detach']) {
+    assert.ok(mountScript.includes(command), `native DMG check missing ${command}`)
+  }
+  assert.match(verify.run, /install-univer-runtime-deps\.mjs[\s\S]+dsh-univer-office" --verify-only/)
+
+  const mac27 = jobs['verify-macos-27']
+  const macUpload = jobs['upload-macos']
+  const compatibility = mac27.steps.at(-1).run
+  const release = macUpload.steps.at(-1).run
+  assert.equal(mac27['runs-on'], 'xcode-27')
+  assert.equal(mac27.needs, 'build')
+  assert.equal(macUpload.needs, 'verify-macos-27')
+  assert.equal(mac27.if, "inputs.tag == 'v3.8.9' && !inputs.assemble_windows && !inputs.linux_only")
+  assert.equal(macUpload.if, mac27.if)
+  assert.equal(mac27.steps[1].with.name, 'release-mac-arm64')
+  assert.match(compatibility, /sw_vers -productVersion/)
+  assert.match(compatibility, /shasum -a 256 -c/)
+  assert.match(compatibility, /verify-macos-release-dmg\.sh/)
+  assert.match(release, /gh release view [\s\S]+\.isDraft\)" = true/)
+  assert.match(release, /for arch in arm64 x64/)
+  assert.match(release, /sha256sum -c [\s\S]+gh release upload/)
 })
 
 test('3.8.8 maintenance workflows check out application scripts from the immutable tag', () => {
@@ -47,6 +104,15 @@ test('3.8.8 accepts its exact application tag and refuses changed source or runt
   assert.equal(run({}).status, 0)
   for (const change of [{ RELEASE_COMMIT: 'a'.repeat(40) }, { CHECKOUT_COMMIT: 'b'.repeat(40) }, { GITHUB_SHA: 'b'.repeat(40) }, { GITHUB_REF_NAME: 'v3.8.7' }, { NODE_RUNTIME_VERSION: '24.22.1' }]) {
     assert.notEqual(run(change).status, 0)
+  }
+})
+
+test('3.8.9 release workflow accepts only its matching immutable tag', t => {
+  const { run } = gate(t)
+  const release = { RELEASE_TAG: 'v3.8.9', GITHUB_REF_NAME: 'v3.8.9' }
+  assert.equal(run(release).status, 0)
+  for (const change of [{ CHECKOUT_COMMIT: 'a'.repeat(40) }, { RELEASE_COMMIT: 'a'.repeat(40) }, { GITHUB_REF_TYPE: 'branch', GITHUB_REF_NAME: 'main' }]) {
+    assert.notEqual(run({ ...release, ...change }).status, 0)
   }
 })
 

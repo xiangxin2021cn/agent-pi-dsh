@@ -224,7 +224,7 @@ function composeWrappers(fixture) {
     'vendor/deepseek-harness/packages/bundle/base/cordis.patch.yml'), 'utf8')), warn)
   entries = applyEntryPatches(entries, parse(readFileSync(join(sourceRoot, 'bundles/tender-host/cordis.patch.yml'), 'utf8')), warn)
   const defaults = parse(readFileSync(fixture.patchPath, 'utf8')).filter(patch =>
-    patch.insert?.some(row => row.id === 'agent-pi-oar-codex'))
+    patch.id === 'fs-observation-policy' || patch.insert?.some(row => row.id === 'agent-pi-oar-codex'))
   entries = applyEntryPatches(entries, defaults, warn)
   entries = applyEntryPatches(entries, parse(readFileSync(fixture.userPatchPath, 'utf8')), warn)
   return { entries, warnings }
@@ -278,6 +278,32 @@ test('Teams opt-in is reversible and recovery keeps external plugin dependencies
   runInitializer(fixture, undefined, { AGENT_PI_AGENT_TEAMS: '0', AGENT_PI_PLUGIN_RECOVERY: '0' })
   assert.ok(manifest().dsh.profile.bundles.includes('external-broken-test'))
   assert.ok(teamBundles.every(name => !manifest().dsh.profile.bundles.includes(name)))
+})
+
+test('alpha.3 retains file observation and stops activating the retired standalone worktree bundle', t => {
+  const fixture = createFixture(t)
+  const profile = join(fixture.home, 'profiles/tender')
+  const retired = '@deepseek-ai/dsh-experimental-tool-worktree'
+  const manifestPath = join(profile, 'package.json')
+  writePackage(profile, join('node_modules', retired), retired)
+  writeFixtureFile(manifestPath, JSON.stringify({
+    dependencies: { [retired]: '0.2.2-alpha.2' },
+    dsh: { profile: { bundles: [retired] } },
+  }))
+
+  runInitializer(fixture)
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+  assert.equal(manifest.dependencies[retired], '0.2.2-alpha.2')
+  assert.ok(!manifest.dsh.profile.bundles.includes(retired))
+  const { entries, warnings } = composeWrappers(fixture)
+  assert.deepEqual(warnings, [])
+  assert.equal(entries.find(entry => entry.id === 'fs-observation-policy').disabled, false)
+
+  const userPatch = '- id: fs-observation-policy\n  disabled: true\n'
+  writeFixtureFile(fixture.userPatchPath, userPatch)
+  runInitializer(fixture)
+  assert.equal(readFileSync(fixture.userPatchPath, 'utf8'), userPatch)
+  assert.equal(composeWrappers(fixture).entries.find(entry => entry.id === 'fs-observation-policy').disabled, true)
 })
 
 test('missing preference enables one complete fallback while the session model stays primary', (t) => {

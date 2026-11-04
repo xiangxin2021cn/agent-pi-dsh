@@ -77,21 +77,24 @@ function Invoke-NpmCommand([string]$dir, [string]$label, [string[]]$npmArgs) {
   if ($npmExit -ne 0) { throw "$label npm $($npmArgs -join ' ') failed: $npmExit" }
 }
 
-function Invoke-NpmInstall([string]$dir, [string]$label) {
-  Invoke-NpmCommand $dir $label @("install", "--no-fund", "--no-audit")
-}
-
 function Invoke-DesktopToolchain {
-  if (-not (Test-Path (Join-Path $Desktop "node_modules\electron-builder"))) {
-    Write-Host "Installing desktop pack dependencies..."
-    Invoke-NpmInstall $Desktop "desktop"
+  $expectedElectron = $DesktopConfig.devDependencies.electron
+  $expectedBuilder = $DesktopConfig.devDependencies.'electron-builder'
+  $electronManifest = Join-Path $Desktop "node_modules\electron\package.json"
+  $builderManifest = Join-Path $Desktop "node_modules\electron-builder\package.json"
+  if (-not (Test-Path -LiteralPath $electronManifest) -or -not (Test-Path -LiteralPath $builderManifest) -or
+      (Get-Content -LiteralPath $electronManifest -Raw | ConvertFrom-Json).version -cne $expectedElectron -or
+      (Get-Content -LiteralPath $builderManifest -Raw | ConvertFrom-Json).version -cne $expectedBuilder) {
+    Write-Host "Installing locked desktop pack dependencies..."
+    Invoke-NpmCommand $Desktop "desktop" @("ci", "--no-fund", "--no-audit")
   }
 
   $electronVer = Join-Path $Desktop "node_modules\electron\dist\version"
-  if (-not (Test-Path $electronVer)) {
+  if (-not (Test-Path -LiteralPath $electronVer) -or
+      (Get-Content -LiteralPath $electronVer -Raw).Trim().TrimStart('v') -cne $expectedElectron) {
     $installElectron = Join-Path $Desktop "node_modules\.bin\install-electron.cmd"
     if (-not (Test-Path $installElectron)) { throw "local install-electron.cmd missing: $installElectron" }
-    Write-Host "electron binary missing; running local install-electron.cmd --no"
+    Write-Host "Installing pinned Electron $expectedElectron..."
     $electronExit = 1
     Push-Location $Desktop
     try {
@@ -101,9 +104,11 @@ function Invoke-DesktopToolchain {
       Pop-Location
     }
     if ($electronExit -ne 0) { throw "local install-electron.cmd --no failed: $electronExit" }
-  } else {
-    Write-Host "electron binary $((Get-Content $electronVer -Raw).Trim())"
   }
+  if ((Get-Content -LiteralPath $electronVer -Raw).Trim().TrimStart('v') -cne $expectedElectron) {
+    throw "Installed Electron binary does not match desktop pin $expectedElectron"
+  }
+  Write-Host "Electron binary $expectedElectron"
 }
 
 function Invoke-DesktopElectronBuilder {

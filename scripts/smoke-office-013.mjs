@@ -269,7 +269,8 @@ const { _electron: electron } = await import(pathToFileURL(playwrightEntry()).hr
 const scratch = mkdtempSync(join(tmpdir(), 'agent-pi-office-013-'))
 const userDataDir = join(scratch, 'electron-user-data')
 const dshHome = join(scratch, 'dsh-home')
-const workspace = join(scratch, 'workspace')
+const documentsDirectory = join(scratch, 'documents')
+const workspace = join(documentsDirectory, 'deepseek-harness', 'default-workspace')
 const artifactDir = join(root, 'output', 'playwright', 'office-013')
 const fixturePaths = {
   xlsx: join(workspace, 'office-smoke.xlsx'),
@@ -305,16 +306,11 @@ assert.ok(profile.dsh?.profile?.bundles?.includes('dsh-univer-office'), 'Office 
 
 const profilePatchPath = join(dshHome, 'profiles', 'tender', 'cordis.patch.yml')
 const profilePatch = readFileSync(profilePatchPath, 'utf8').replace('# agent-pi:managed-defaults', '# agent-pi:office-013-picker')
-writeFileSync(profilePatchPath, profilePatch + [
+writeFileSync(profilePatchPath, (profilePatch.trim() === '[]' ? '' : profilePatch) + [
   '',
-  '# The smoke runner cannot drive an OS directory dialog; use the official browser picker.',
-  '- id: directory-picker',
-  '  disabled: true',
-  '- insert:',
-  '    - id: directory-picker-browse',
-  "      name: '@deepseek-ai/dsh-host-directory-picker-browse'",
-  '    - id: ui-directory-picker-browse',
-  "      name: '@deepseek-ai/dsh-client-ui-directory-picker-browse'",
+  '- id: workspace-controller',
+  '  config:',
+  `    documentsDirectory: ${JSON.stringify(documentsDirectory)}`,
   '',
 ].join('\n'), 'utf8')
 
@@ -344,22 +340,21 @@ async function clickOptional(pattern, timeout = 5_000) {
   if (visible) await button.click()
 }
 
-async function openOffice(kind, path) {
+async function openOffice(kind, path, gatewayOrigin) {
   const name = basename(path)
   const marker = fixtureMarkers[kind]
   const requestedAt = Date.now()
-  const responsePromise = page.waitForResponse((response) => {
+  const button = page.locator('.ap-files-dock .ap-tree-btn').filter({ hasText: name }).first()
+  await button.waitFor({ state: 'visible', timeout: remaining() })
+  const [response] = await Promise.all([page.waitForResponse((response) => {
     try {
       const url = new URL(response.url())
-      return url.pathname === '/api/agent-pi/files/content' && url.searchParams.get('path') === path
+      const file = url.searchParams.get('path')
+      return url.pathname === '/api/agent-pi/files/content' && file !== null && resolve(workspace, file) === path
     } catch {
       return false
     }
-  }, { timeout: remaining() })
-  const button = page.locator('.ap-files-dock .ap-tree-btn').filter({ hasText: name }).first()
-  await button.waitFor({ state: 'visible', timeout: remaining() })
-  await button.click()
-  const response = await responsePromise
+  }, { timeout: remaining() }), button.click()])
   const body = await response.json()
   const importedAt = Date.now()
   assert.equal(response.status(), 200, `${name} content endpoint failed`)
@@ -367,7 +362,6 @@ async function openOffice(kind, path) {
   assert.ok(body.viewerUrl, `${name} did not return a Viewer URL`)
   assert.ok(body.univerFile, `${name} did not return its imported sidecar path`)
 
-  const gatewayOrigin = new URL(body.viewerUrl).origin
   const fileKey = Buffer.from(body.univerFile, 'utf8').toString('base64url')
   const worktreesResponse = await fetch(`${gatewayOrigin}/uf/${fileKey}/worktrees`)
   assert.equal(worktreesResponse.status, 200, `${name} worktree listing failed`)
@@ -425,7 +419,7 @@ async function openOffice(kind, path) {
     name,
     contentRequestMs: importedAt - requestedAt,
     viewerReadyMs: renderedAt - requestedAt,
-    viewerUrl: safeUrl(body.viewerUrl),
+    viewerUrl: safeUrl(new URL(body.viewerUrl, page.url()).href),
     sidecarCreated: typeof body.univerFile === 'string' && existsSync(body.univerFile),
     importedUnits: units.map((unit) => ({
       type: unit.type,
@@ -511,17 +505,9 @@ try {
   await page.locator('style[data-plugin="dsh-univer-office"]').first().waitFor({ state: 'attached', timeout: remaining() })
   await clickOptional(/继续|Continue/i)
   await clickOptional(/稍后配置|Configure later/i)
-
-  const chooser = page.getByRole('textbox', { name: /选择工作区|Choose workspace/i }).first()
-  await chooser.waitFor({ state: 'visible', timeout: remaining() })
-  await chooser.click()
-  const picker = page.getByRole('dialog', { name: /选择工作区目录|Select Workspace Directory/i })
-  await picker.waitFor({ state: 'visible', timeout: remaining() })
-  await picker.getByRole('button', { name: /编辑路径|Edit path/i }).click()
-  const pathInput = picker.getByRole('textbox', { name: /编辑路径|Edit path/i })
-  await pathInput.fill(workspace)
-  await pathInput.press('Enter')
-  await picker.getByRole('button', { name: /打开|Open/i, exact: true }).click()
+  const signIn = page.getByRole('dialog', { name: /开始使用|Get started/i })
+  const dismiss = signIn.getByRole('button', { name: /关闭|Close/i })
+  if (await dismiss.isVisible()) await dismiss.click()
   await page.locator('[data-composer-input][contenteditable="true"]').waitFor({ state: 'visible', timeout: remaining() })
   await page.locator('.ap-files-dock').waitFor({ state: 'visible', timeout: remaining() })
 
@@ -545,9 +531,13 @@ try {
   })
   assert.equal(runningStatus.body?.gateway?.phase, 'running', 'Gateway did not remain running')
 
-  await openOffice('xlsx', fixturePaths.xlsx)
-  await openOffice('docx', fixturePaths.docx)
-  await openOffice('pptx', fixturePaths.pptx)
+  const files = page.locator('.ap-files-dock .ap-tree-btn')
+  if (!(await files.filter({ hasText: 'office-smoke.xlsx' }).first().isVisible())) {
+    await files.filter({ hasText: 'default-workspace' }).first().locator(':scope > span').first().click()
+  }
+  await openOffice('xlsx', fixturePaths.xlsx, startResult.body.gateway)
+  await openOffice('docx', fixturePaths.docx, startResult.body.gateway)
+  await openOffice('pptx', fixturePaths.pptx, startResult.body.gateway)
 
   assert.deepEqual(pageErrors, [], `page errors: ${JSON.stringify(pageErrors)}`)
   assert.deepEqual(requestFailures, [], `request failures: ${JSON.stringify(requestFailures)}`)
@@ -562,7 +552,7 @@ try {
       'office-profile-active',
       'office-client-style-active',
       'no-plugin-failure-overlay',
-      'workspace-selected-through-official-picker',
+      'isolated-default-workspace-selected',
       'gateway-started-and-remained-running',
       'xlsx-official-preview',
       'docx-official-preview',

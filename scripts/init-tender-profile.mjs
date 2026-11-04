@@ -273,7 +273,13 @@ function isRuntimeIncompatibleBundle(name) {
 }
 
 function composeBundles(deps) {
-  const hidden = new Set([WEB_FETCH_HTTP, '@deepseek-ai/dsh-experimental-agent-team-web-profile', '@deepseek-ai/dsh-subagent-codex'])
+  const hidden = new Set([
+    WEB_FETCH_HTTP,
+    '@deepseek-ai/dsh-experimental-agent-team-web-profile',
+    '@deepseek-ai/dsh-subagent-codex',
+    // Alpha.3 folds the old standalone worktree entry into the Forge bundle.
+    '@deepseek-ai/dsh-experimental-tool-worktree',
+  ])
   const extras = []
   const add = (name) => {
     if (pluginRecovery) return
@@ -349,6 +355,10 @@ function buildManagedPatch(deps) {
 
 # Model catalog and default selection come directly from the official dsh-base.
 # Do not shadow upstream multimodal capabilities with a product catalog.
+
+# Keep the existing read-before-edit and concurrent change checks.
+- id: fs-observation-policy
+  disabled: false
 
 # Native history retrieval uses a disposable local index. Exact events remain
 # in the native session store; only authorized same-workspace reads are exposed.

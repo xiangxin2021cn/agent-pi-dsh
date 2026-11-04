@@ -9,6 +9,6 @@ for (const directory of ['packages/engineering-bim/tests', 'bundles/engineering-
 tests.push('scripts/version-3.8.3.test.mjs')
 tests.push('scripts/engineering-panel.test.mjs')
 tests.push('bundles/tender-web/tests/engineering-panel.test.ts')
-const result = spawnSync(process.execPath, ['--experimental-strip-types', '--test', ...tests], { cwd: root, stdio: 'inherit', windowsHide: true })
+const result = spawnSync(process.execPath, ['--experimental-transform-types', '--test', ...tests], { cwd: root, stdio: 'inherit', windowsHide: true })
 if (result.error) throw result.error
 process.exitCode = result.status ?? 1
