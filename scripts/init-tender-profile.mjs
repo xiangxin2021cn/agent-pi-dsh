@@ -45,8 +45,11 @@ const stageMacRuntime = process.argv[2] === '--stage-macos-bundle'
 if (process.argv.length !== (stageMacRuntime ? 3 : 2)) throw new Error('Unsupported profile initializer arguments')
 if (stageMacRuntime && process.platform !== 'darwin') throw new Error('macOS profile staging requires a macOS host')
 const packagedLayout = basename(root) === 'product' && resolve(dsh) === join(dirname(root), 'deepseek-harness')
-const macLinkModule = process.platform === 'darwin' && (stageMacRuntime || (packagedLayout && process.env.AGENT_PI_SKIP_UNIVER_INSTALL === '1'))
-  ? await import('./mac-bundled-profile-links.mjs') : null
+// The sealed Mac release workflow copies this helper alongside the initializer.
+const macLinksUrl = new URL('./mac-bundled-profile-links.mjs', import.meta.url)
+const sealedMacLayout = packagedLayout && process.env.AGENT_PI_SKIP_UNIVER_INSTALL === '1' && existsSync(macLinksUrl)
+const macLinkModule = process.platform === 'darwin' && (stageMacRuntime || sealedMacLayout)
+  ? await import(macLinksUrl.href) : null
 const macRuntimeLinks = macLinkModule?.macBundledProfileLinks({ productRoot: root, dshRoot: dsh, home, stage: stageMacRuntime })
 if (stageMacRuntime) {
   macLinkModule.sealMacDshLinks(dsh)
