@@ -453,16 +453,19 @@ jobs:
 
       - name: Build ad-hoc Mac preview for native checks
         if: matrix.platform == 'mac' && inputs.macos_preview
+        timeout-minutes: 25
         working-directory: payload/desktop
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
           AGENT_PI_MACOS_ADHOC_PREVIEW: '1'
+          DEBUG: 'electron-osx-sign*'
+          GH_TOKEN: ''
           MACOS_ARCH: ${{ matrix.arch }}
           MINIMUM_MACOS: ${{ matrix.minimum_macos }}
         run: |
           npx --no-install electron-builder --mac dmg "--$MACOS_ARCH" --publish never \
             --config.mac.minimumSystemVersion="$MINIMUM_MACOS" --config.mac.identity=- \
-            --config.mac.hardenedRuntime=false --config.mac.notarize=false \
+            --config.mac.hardenedRuntime=false --config.mac.notarize=false --config.mac.timestamp=none \
             --config.mac.sign="$GITHUB_WORKSPACE/scripts/sign-macos-release.mjs" \
             --config.dmg.filesystem=APFS --config.dmg.sign=false --config.dmg.writeUpdateInfo=false
 
