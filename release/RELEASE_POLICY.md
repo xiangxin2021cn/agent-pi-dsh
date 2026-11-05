@@ -14,6 +14,11 @@ Agent Pi DSH 的公开版本与资源默认不可变；经用户明确授权的�
 
 ## 3.8.9 macOS 公开安装包
 
+Mac 的构建维护从 `main` 执行，仅接受 `v3.8.9` 应用标签 `c71c4f90bb51a4e7ac4892e464affc9dd6420417` 和已核对 SHA-256 的同版载荷。维护步骤只在 Mac 暂存树中预置并核验插件链接，使应用启动时可以保持签名资源只读。工作流校验维护提交涉及的精确路径。Windows 和 Linux 成品继续按应用标签核验。
+
+开发者资格审核期间可使用 `macos_preview` 在两种原生架构上验证临时签名的 APFS 镜像。验收从只读挂载的 DMG 复制应用到隔离目录，检查冷启动前后的应用签名。预验收流程只保留诊断，正式资产仍须经过 Developer ID 签名、公证和双架构挂载冷启动。上传草稿后重新下载 DMG 并核对已验收文件的 SHA-256。
+
+
 Apple Silicon 和 Intel 的公开构建要求 Developer ID Application 签名及 Apple 公证。请在 GitHub 仓库 Actions Secrets 配置 `MACOS_CSC_LINK`（含私钥的 `.p12` 文件的 Base64）、`MACOS_CSC_KEY_PASSWORD`、`MACOS_APPLE_ID`、`MACOS_APPLE_APP_SPECIFIC_PASSWORD` 和 `MACOS_APPLE_TEAM_ID`。这些凭据由发行维护者在 GitHub 仓库设置中录入。
 
 DMG 使用 APFS 文件系统并保留 UDZO 压缩。先签名并公证 `.app`，再签名、公证并给 DMG 装订票据。发布工作流在 macOS 15 的 ARM64 和 Intel 环境分别对最终 DMG 执行 `hdiutil verify`、只读挂载、架构和签名校验，并对 ZIP 解包后的应用校验版本、Developer ID、公证票据、Gatekeeper 和原生运行时。随后在隔离用户目录冷启动并复核包签名。

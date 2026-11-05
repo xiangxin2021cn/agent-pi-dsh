@@ -158,3 +158,53 @@ test('pnpm archive verification uses the DSH lock and rejects changed or missing
   writeFileSync(join(root, 'payload/deepseek-harness/pnpm-lock.yaml'), 'packages: {}\n')
   assert.notEqual(run().status, 0)
 })
+
+test('3.8.9 Mac maintenance accepts only the verified source and exact bootstrap overlay', t => {
+  const source = 'c71c4f90bb51a4e7ac4892e464affc9dd6420417'
+  const maintenance = 'a'.repeat(40)
+  const changes = [
+    'M', '.github/workflows/build-desktop-assets.yml',
+    'M', 'release/RELEASE_POLICY.md',
+    'M', 'scripts/init-tender-profile.mjs',
+    'A', 'scripts/mac-bundled-profile-links.mjs',
+    'A', 'scripts/mac-bundled-profile-links.test.mjs',
+    'M', 'scripts/platform-release-385.test.mjs',
+    'M', 'scripts/verify-macos-release-dmg.sh',
+  ].join('\0') + '\0'
+  const { root, run } = runChecksumGate(t, 'Verify immutable release ref', '', {
+    'maintenance-changes-389.paths': changes,
+  })
+  const environment = {
+    RELEASE_TAG: 'v3.8.9', RELEASE_COMMIT: source, CHECKOUT_COMMIT: maintenance,
+    GITHUB_SHA: maintenance, GITHUB_REF_TYPE: 'branch', GITHUB_REF_NAME: 'main',
+    MACOS_ONLY: 'true', NODE_RUNTIME_VERSION: '24.22.2',
+  }
+  assert.equal(run(environment).status, 0)
+  for (const change of [
+    { RELEASE_COMMIT: 'b'.repeat(40) }, { CHECKOUT_COMMIT: source },
+    { GITHUB_REF_NAME: 'other' }, { MACOS_ONLY: 'false' }, { NODE_RUNTIME_VERSION: '24.22.1' },
+  ]) assert.notEqual(run({ ...environment, ...change }).status, 0)
+  writeFileSync(join(root, 'maintenance-changes-389.paths'), changes + 'M\0apps/desktop/main.mjs\0')
+  assert.notEqual(run(environment).status, 0)
+})
+
+test('ad-hoc Mac validation requires the Mac-only 3.8.9 maintenance path and cannot upload binaries', t => {
+  const { root, run } = runChecksumGate(t, 'Select platform jobs', '', {})
+  const output = join(root, 'preview-matrix')
+  const environment = { RELEASE_TAG: 'v3.8.9', MACOS_ONLY: 'true', MACOS_PREVIEW: 'true',
+    LINUX_ONLY: 'false', ASSEMBLE_WINDOWS: 'false', REF_TYPE: 'branch', GITHUB_OUTPUT: output }
+  assert.equal(run(environment).status, 0)
+  assert.deepEqual(JSON.parse(readFileSync(output, 'utf8').trim().replace(/^matrix=/, '')).include.map(job => job.name),
+    ['mac-arm64', 'mac-x64'])
+  for (const change of [
+    { RELEASE_TAG: 'v3.8.8' }, { REF_TYPE: 'tag' }, { MACOS_ONLY: 'false' },
+    { LINUX_ONLY: 'true' }, { ASSEMBLE_WINDOWS: 'true' },
+  ]) assert.notEqual(run({ ...environment, ...change }).status, 0)
+  for (const step of [
+    'Build Developer ID signed macOS packages', 'Notarize and staple the signed disk image',
+    'Verify distributable macOS DMG and ZIP', 'Record checked macOS checksums',
+    'Stage checked macOS assets for final validation',
+  ]) assert.ok(workflow.slice(workflow.indexOf('- name: ' + step)).split('\n')[1].includes('!inputs.macos_preview'), step)
+  assert.match(workflow, /upload-macos:\s+if:[^\r\n]+!inputs\.macos_preview/)
+  assert.ok(workflow.includes('Re-download both draft DMGs and verify the checked bytes'))
+})

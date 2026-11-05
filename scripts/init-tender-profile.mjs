@@ -6,12 +6,13 @@ import {
   lstatSync,
   mkdirSync,
   readFileSync,
+  readlinkSync,
   realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
@@ -35,14 +36,34 @@ import { migrateProfilePnpm } from './migrate-profile-pnpm.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const dsh = process.env.DSH_CHECKOUT || join(root, 'vendor/deepseek-harness')
+const home = process.env.DSH_HOME || join(root, '.dsh-home')
+const injectorDir = join(root, 'vendor/dsh-super-injector')
+const agentPiCompactionDir = join(root, 'bundles/agent-pi-compaction')
+const bundledUniver = join(root, 'vendor/dsh-univer-office')
+const bundledAnysearch = join(root, 'vendor/anysearch-dsh')
+const stageMacRuntime = process.argv[2] === '--stage-macos-bundle'
+if (process.argv.length !== (stageMacRuntime ? 3 : 2)) throw new Error('Unsupported profile initializer arguments')
+if (stageMacRuntime && process.platform !== 'darwin') throw new Error('macOS profile staging requires a macOS host')
+const packagedLayout = basename(root) === 'product' && resolve(dsh) === join(dirname(root), 'deepseek-harness')
+const macLinkModule = process.platform === 'darwin' && (stageMacRuntime || (packagedLayout && process.env.AGENT_PI_SKIP_UNIVER_INSTALL === '1'))
+  ? await import('./mac-bundled-profile-links.mjs') : null
+const macRuntimeLinks = macLinkModule?.macBundledProfileLinks({ productRoot: root, dshRoot: dsh, home, stage: stageMacRuntime })
+if (stageMacRuntime) {
+  macLinkModule.sealMacDshLinks(dsh)
+  embedInjectorInDshCli()
+  wireAgentPiCompactionRuntimeDeps(agentPiCompactionDir)
+  wireUniverPeerDependencies(bundledUniver)
+  if (existsSync(join(bundledUniver, 'package.json'))) patchUniverForDshAlpha1({ pluginRoot: bundledUniver })
+  wireAnysearchPeers(bundledAnysearch)
+  wireBundledMarket()
+  process.exit(0)
+}
 const { evaluatePluginCompatibility, readProfileVersionExemptions } = await import(
   pathToFileURL(join(dsh, 'packages/boot/app-boot/lib/index.js')).href
 )
-const home = process.env.DSH_HOME || join(root, '.dsh-home')
 backupScheduleV1(home)
 const profileDir = join(home, 'profiles/tender')
 const manifestPath = join(profileDir, 'package.json')
-const injectorDir = join(root, 'vendor/dsh-super-injector')
 const routerPresetSrc = join(root, 'vendor/dsh-router-standard/preset')
 const routerPresetDest = join(home, '.agent-presets/router-standard')
 const systemPresetRoot = join(home, '.agent-pi-presets')
@@ -150,9 +171,19 @@ function embedInjectorInDshCli() {
   if (!existsSync(join(injectorDir, 'lib/index.js'))) {
     throw new Error(`injector missing at ${injectorDir}`)
   }
-  const dest = join(dsh, 'apps/cli/node_modules/@dsh-external/dsh-super-injector')
+  const bundledPath = join(dsh, 'apps/cli/node_modules/@dsh-external/dsh-super-injector')
+  const checked = macRuntimeLinks?.destination(bundledPath)
+  const dest = checked?.path ?? bundledPath
+  if (checked && !checked.bundled) throw new Error('Embedded injector escaped the macOS runtime')
+  if (checked && !stageMacRuntime) {
+    if (!lstatSync(dest, { throwIfNoEntry: false })?.isDirectory() || !existsSync(join(dest, 'lib/index.js'))) {
+      throw new Error('Missing sealed macOS embedded injector')
+    }
+    wireInjectorRuntimeDeps(dest)
+    return dest
+  }
   mkdirSync(dirname(dest), { recursive: true })
-  if (existsSync(dest)) rmSync(dest, { recursive: true, force: true })
+  if (lstatSync(dest, { throwIfNoEntry: false })) rmSync(dest, { recursive: true, force: true })
   cpSync(injectorDir, dest, {
     recursive: true,
     dereference: true,
@@ -166,7 +197,6 @@ function embedInjectorInDshCli() {
 }
 
 const embeddedInjector = embedInjectorInDshCli()
-const agentPiCompactionDir = join(root, 'bundles/agent-pi-compaction')
 wireAgentPiCompactionRuntimeDeps(agentPiCompactionDir)
 
 const localPlugins = [
@@ -184,9 +214,8 @@ const localPlugins = [
   { name: 'dshmarket', dir: join(root, 'vendor/dshmarket'), updatable: true },
   // Vendored AnySearch: already-built lib/. Official docs say --profile web;
   // this product must use tender. Do not run prepare (it is tsc).
-  { name: ANYSEARCH_NAME, dir: join(root, 'vendor/anysearch-dsh'), updatable: true },
+  { name: ANYSEARCH_NAME, dir: bundledAnysearch, updatable: true },
 ]
-const bundledUniver = join(root, 'vendor/dsh-univer-office')
 if (existsSync(join(bundledUniver, 'package.json'))) {
   localPlugins.push({ name: UNIVER_NAME, dir: bundledUniver, updatable: true })
 }
@@ -260,11 +289,18 @@ function isRuntimeIncompatibleBundle(name) {
     return status.status === 'incompatible'
   }
   if (name === DSH_IM_NAME) {
+    if (macRuntimeLinks?.destination(join(moduleDest(name), 'package.json')).bundled) return true
     return prepareKnownPluginCompatibility(profileDir, name).status !== 'compatible'
   }
   if (name !== UNIVER_NAME) return false
   try {
-    patchUniverForDshAlpha1({ pluginRoot: moduleDest(name) })
+    const pluginRoot = moduleDest(name)
+    const checked = macRuntimeLinks?.destination(join(pluginRoot, 'package.json'))
+    if (checked?.bundled) {
+      if (!samePath(pluginRoot, bundledUniver)) throw new Error('Univer link does not resolve to the signed plugin')
+    } else {
+      patchUniverForDshAlpha1({ pluginRoot })
+    }
     return false
   } catch (error) {
     process.stderr.write(`dsh-univer-office kept installed but inactive: ${error}\n`)
@@ -559,28 +595,32 @@ function samePath(a, b) {
 }
 
 function ensureJunction(sourceDir, dest) {
+  const planned = macRuntimeLinks?.plan(sourceDir, dest)
+  if (planned === null) return
+  const target = planned?.target ?? sourceDir
+  dest = planned?.destination ?? dest
   mkdirSync(dirname(dest), { recursive: true })
   try {
     const stat = lstatSync(dest)
-    if ((stat.isSymbolicLink() || stat.isDirectory()) && samePath(sourceDir, dest)) return
+    if ((stat.isSymbolicLink() || stat.isDirectory()) && samePath(sourceDir, dest)
+      && (!stageMacRuntime || (stat.isSymbolicLink() && readlinkSync(dest) === target))) return
     rmSync(dest, { recursive: !stat.isSymbolicLink(), force: true })
   } catch {
     // dest does not exist
   }
   try {
-    symlinkSync(sourceDir, dest, process.platform === 'win32' ? 'junction' : 'dir')
+    symlinkSync(target, dest, process.platform === 'win32' ? 'junction' : 'dir')
   } catch (error) {
     if (error && error.code === 'EEXIST') {
       try { rmSync(dest, { recursive: true, force: true }) } catch {}
-      symlinkSync(sourceDir, dest, process.platform === 'win32' ? 'junction' : 'dir')
+      symlinkSync(target, dest, process.platform === 'win32' ? 'junction' : 'dir')
       return
     }
     throw error
   }
 }
 
-function wireUniverPeerDependencies() {
-  const pluginDir = moduleDest(UNIVER_NAME)
+function wireUniverPeerDependencies(pluginDir = moduleDest(UNIVER_NAME)) {
   if (!existsSync(join(pluginDir, 'package.json'))) return
   const manifest = JSON.parse(readFileSync(join(pluginDir, 'package.json'), 'utf8'))
   for (const name of Object.keys(manifest.peerDependencies ?? {})) {
@@ -682,13 +722,13 @@ function wireDesktopWebFetch() {
 }
 wireDesktopWebFetch()
 
-function wireAnysearchPeers() {
-  const vendoredDir = join(root, 'vendor/anysearch-dsh')
-  let pluginDir = vendoredDir
-  try {
-    pluginDir = realpathSync(moduleDest(ANYSEARCH_NAME))
-  } catch {
-    // Profile not linked yet.
+function wireAnysearchPeers(pluginDir) {
+  if (!pluginDir) {
+    try {
+      pluginDir = realpathSync(moduleDest(ANYSEARCH_NAME))
+    } catch {
+      pluginDir = bundledAnysearch
+    }
   }
   if (!existsSync(join(pluginDir, 'package.json'))) return
   const peers = [
@@ -714,20 +754,23 @@ wireAnysearchPeers()
 
 // The bundled market uses the same lock-installed runtime dependencies as
 // tender-host. User-managed registry installations retain their own closure.
-const bundledMarket = join(root, 'vendor/dshmarket')
-const marketPeers = JSON.parse(readFileSync(join(bundledMarket, 'package.json'), 'utf8')).peerDependencies || {}
-if (marketPeers['@deepseek-ai/schemastery']) {
-  const source = findDshPackage(['@deepseek-ai/schemastery'])
-  if (!source) throw new Error('market cannot resolve @deepseek-ai/schemastery')
-  ensureJunction(source, join(bundledMarket, 'node_modules/@deepseek-ai/schemastery'))
-}
-for (const name of ['js-yaml', 'undici']) {
-  if (JSON.parse(readFileSync(join(bundledMarket, 'package.json'), 'utf8')).dependencies?.[name]) {
-    const source = join(root, 'bundles/tender-host/node_modules', name)
-    if (!existsSync(join(source, 'package.json'))) throw new Error(`market runtime dependency missing: ${name}`)
-    ensureJunction(source, join(bundledMarket, 'node_modules', name))
+function wireBundledMarket() {
+  const bundledMarket = join(root, 'vendor/dshmarket')
+  const manifest = JSON.parse(readFileSync(join(bundledMarket, 'package.json'), 'utf8'))
+  if (manifest.peerDependencies?.['@deepseek-ai/schemastery']) {
+    const source = findDshPackage(['@deepseek-ai/schemastery'])
+    if (!source) throw new Error('market cannot resolve @deepseek-ai/schemastery')
+    ensureJunction(source, join(bundledMarket, 'node_modules/@deepseek-ai/schemastery'))
+  }
+  for (const name of ['js-yaml', 'undici']) {
+    if (manifest.dependencies?.[name]) {
+      const source = join(root, 'bundles/tender-host/node_modules', name)
+      if (!existsSync(join(source, 'package.json'))) throw new Error(`market runtime dependency missing: ${name}`)
+      ensureJunction(source, join(bundledMarket, 'node_modules', name))
+    }
   }
 }
+wireBundledMarket()
 
 writeManifest(dependencies)
 writeManagedPatch(dependencies)
@@ -804,18 +847,16 @@ function installRouterPreset() {
 }
 
 function removeRetiredJSpace() {
-  const dirs = [
-    join(root, 'skills', 'j-space'),
-    join(home, 'skills', 'j-space'),
-  ]
-  if (process.env.AGENT_PI_SKILLS_ROOT) {
-    dirs.push(join(process.env.AGENT_PI_SKILLS_ROOT, 'j-space'))
-  }
-  if (process.env.DSH_BUNDLED_SKILL_DIR) {
-    dirs.push(join(process.env.DSH_BUNDLED_SKILL_DIR, 'j-space'))
+  const dirs = [join(home, 'skills', 'j-space')]
+  if (!macRuntimeLinks) {
+    dirs.push(join(root, 'skills', 'j-space'))
+    if (process.env.AGENT_PI_SKILLS_ROOT) dirs.push(join(process.env.AGENT_PI_SKILLS_ROOT, 'j-space'))
+    if (process.env.DSH_BUNDLED_SKILL_DIR) dirs.push(join(process.env.DSH_BUNDLED_SKILL_DIR, 'j-space'))
   }
   for (const dir of dirs) {
-    if (existsSync(dir)) rmSync(dir, { recursive: true, force: true })
+    if (!existsSync(dir)) continue
+    const checked = macRuntimeLinks?.destination(dir)
+    if (!checked?.bundled) rmSync(checked?.path ?? dir, { recursive: true, force: true })
   }
   for (const name of Object.keys(dependencies)) {
     if (!isRetiredJSpaceName(name)) continue
