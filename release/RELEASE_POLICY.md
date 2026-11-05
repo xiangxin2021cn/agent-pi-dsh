@@ -8,6 +8,10 @@ Agent Pi DSH 的公开版本与资源默认不可变；经用户明确授权的�
 4. Release 先保持 draft；Windows、macOS、Linux 和运行时资源全部成功后才发布为 Latest。
 5. 上传命令不得使用 `--clobber`。资源有误时提升版本重新发布，不覆盖同版本。
 
+## 3.8.9 主线草稿定版
+
+按用户要求，未公开的 3.8.9 草稿可从官方 DSH alpha.3 固定提交 `05b1cae8db6e674c5685101494d4eec24652424a` 升级到官方 rc.1 固定提交 `66491b05e3f05ad35bcdd4f6cd7ed26041d9e3db`，应用版本仍为 3.8.9。保留上下文超限续跑和图片卸载修复，从同一最终主线提交重建全部构件。确认 GitHub 发行仍是草稿后，才允许将 3.8.9 标签和草稿资源切换到验收过的构建。此前的本地测试包和回执独立归档。公开版本的标签和资源继续执行不可变策略。
+
 ## 3.8.9 macOS 公开安装包
 
 Apple Silicon 和 Intel 的公开构建要求 Developer ID Application 签名及 Apple 公证。请在 GitHub 仓库 Actions Secrets 配置 `MACOS_CSC_LINK`（含私钥的 `.p12` 文件的 Base64）、`MACOS_CSC_KEY_PASSWORD`、`MACOS_APPLE_ID`、`MACOS_APPLE_APP_SPECIFIC_PASSWORD` 和 `MACOS_APPLE_TEAM_ID`。这些凭据由发行维护者在 GitHub 仓库设置中录入。

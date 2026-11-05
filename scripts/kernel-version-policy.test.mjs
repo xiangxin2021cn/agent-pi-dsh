@@ -30,7 +30,7 @@ test('a changed DSH pin requires a higher application version', () => {
   }))
 })
 
-test('only the authorized 3.8.3 alpha.4 to alpha.5 rebuild may keep its product version', () => {
+test('the authorized 3.8.3 alpha.4 to alpha.5 rebuild may keep its product version', () => {
   const allowed = {
     basePin: 'f2235d6c023a81d86b202db5e472167ad2307ddb',
     baseVersion: '3.8.3',
@@ -47,6 +47,20 @@ test('only the authorized 3.8.3 alpha.4 to alpha.5 rebuild may keep its product 
     { ...allowed, baseVersion: '3.8.4' },
     { ...allowed, currentVersion: '3.8.2' },
   ]) assert.throws(() => assertKernelVersionBump(rejected), /did not increase/)
+})
+
+test('the unpublished 3.8.9 draft may move only from alpha.3 to the reviewed rc.1 pin', () => {
+  const allowed = {
+    basePin: '05b1cae8db6e674c5685101494d4eec24652424a',
+    baseVersion: '3.8.9',
+    currentPin: '66491b05e3f05ad35bcdd4f6cd7ed26041d9e3db',
+    currentVersion: '3.8.9',
+  }
+  assert.doesNotThrow(() => assertKernelVersionBump(allowed))
+  assert.throws(() => assertKernelVersionBump({ ...allowed, currentPin: 'unreviewed' }), /did not increase/)
+  assert.throws(() => assertKernelVersionBump({
+    ...allowed, basePin: allowed.currentPin, currentPin: allowed.basePin,
+  }), /did not increase/)
 })
 
 test('release history is increasing, unique, and matches the current identity', () => {

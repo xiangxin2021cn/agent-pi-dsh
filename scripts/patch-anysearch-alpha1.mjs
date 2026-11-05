@@ -4,6 +4,9 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const dshRange = '*'
+const dshVersion = '0.2.2-rc.1'
+const cordisVersion = '4.1.0'
+const schemasteryVersion = '3.19.0'
 const dshPeers = ['credentials', 'system-prompt', 'tool-web', 'tools', 'web'].map(name => '@deepseek-ai/dsh-' + name)
 // Git may materialize LF sources as CRLF on Windows; hash normalized source text.
 const text = value => value.toString().replaceAll('\r\n', '\n')
@@ -24,8 +27,8 @@ export function patchAnySearchManifest(source) {
   for (const [owner, name, original] of vendor) {
     if (owner?.[name] !== original) throw new Error('Unexpected AnySearch vendor range: ' + name)
   }
-  if (manifest.engines.dsh !== undefined && !['0.2.1-alpha.4', '0.2.1-alpha.5', '0.2.1-rc.3', '0.2.2-alpha.2', '0.2.2-alpha.3'].includes(manifest.engines.dsh)) throw new Error('Unexpected AnySearch DSH engine')
-  manifest.engines.dsh = '0.2.2-alpha.3'
+  if (manifest.engines.dsh !== undefined && !['0.2.1-alpha.4', '0.2.1-alpha.5', '0.2.1-rc.3', '0.2.2-alpha.2', '0.2.2-alpha.3', dshVersion].includes(manifest.engines.dsh)) throw new Error('Unexpected AnySearch DSH engine')
+  manifest.engines.dsh = dshVersion
   return JSON.stringify(manifest, null, 2) + '\n'
 }
 
@@ -112,14 +115,14 @@ const adaptedHashes = {
   'lib/tools/batch.d.ts': '64f3171e2a311c00dbe0a6c34f314f55823d81a4a287920b113923683a538139',
 }
 const sourceManifestSha256 = '08f8475f10ce3f854c351793395975ebfe6bea4ed7ab3a3cc64a56c0e8f09d2f'
-const adaptedManifestSha256 = '11d0e5614ac02d2ea31c5ddd2e8ace041e02ac77f522bb3048c40bf670e6c699'
+const adaptedManifestSha256 = '8f79e190eec569dda084a015db085a38781dff73f4d7689cfeb8f417d7cc4485'
 
 export function verifyAnySearchDirectory(directory) {
   const source = text(readFileSync(join(directory, 'package.json'), 'utf8'))
   if (patchAnySearchManifest(source) !== source || sha(source) !== adaptedManifestSha256) throw new Error('AnySearch manifest compatibility adaptation missing or changed')
   const receipt = JSON.parse(readFileSync(join(directory, 'AGENT-PI-ADAPTATION.json'), 'utf8'))
   if (receipt.sourceManifestSha256 !== sourceManifestSha256 || receipt.adaptedManifestSha256 !== adaptedManifestSha256
-    || receipt.version !== '0.1.8' || receipt.dsh !== '0.2.2-alpha.3' || receipt.cordis !== '4.0.6-alpha.2' || receipt.schemastery !== '3.18.6-alpha.2'
+    || receipt.version !== '0.1.8' || receipt.dsh !== dshVersion || receipt.cordis !== cordisVersion || receipt.schemastery !== schemasteryVersion
     || receipt.license !== 'MIT' || receipt.upstream !== 'https://github.com/anysearch-team/anysearch-dsh'
     || Object.keys(receipt.files || {}).length !== Object.keys(patches).length) throw new Error('AnySearch adaptation receipt invalid')
   for (const [path, [originalSha256]] of Object.entries(patches)) {
@@ -148,7 +151,7 @@ export function patchAnySearchDirectory(directory) {
     files[path] = { originalSha256, adaptedSha256: sha(after) }
   }
   for (const [path, value] of writes) writeFileSync(path, value)
-  writeFileSync(receiptPath, JSON.stringify({ upstream: 'https://github.com/anysearch-team/anysearch-dsh', version: '0.1.8', license: 'MIT', dsh: '0.2.2-alpha.3', cordis: '4.0.6-alpha.2', schemastery: '3.18.6-alpha.2', sourceManifestSha256, adaptedManifestSha256: sha(manifest), changes: ['exact reviewed DSH alpha.3 engine and stable vendor compatibility', 'search count 1..10 and content format', 'safe upstream diagnostics without credential-bearing messages', 'per-request credential resolution retained', 'product probe reuses the registered client and credential reference'], files }, null, 2) + '\n')
+  writeFileSync(receiptPath, JSON.stringify({ upstream: 'https://github.com/anysearch-team/anysearch-dsh', version: '0.1.8', license: 'MIT', dsh: dshVersion, cordis: cordisVersion, schemastery: schemasteryVersion, sourceManifestSha256, adaptedManifestSha256: sha(manifest), changes: [`exact reviewed DSH ${dshVersion} engine and stable vendor compatibility`, 'search count 1..10 and content format', 'safe upstream diagnostics without credential-bearing messages', 'per-request credential resolution retained', 'product probe reuses the registered client and credential reference'], files }, null, 2) + '\n')
   verifyAnySearchDirectory(directory)
   return files
 }
@@ -158,5 +161,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   const directory = process.argv.slice(2).find(value => value !== '--verify') || join(dirname(fileURLToPath(import.meta.url)), '../vendor/anysearch-dsh')
   if (verify) verifyAnySearchDirectory(directory)
   else patchAnySearchDirectory(directory)
-  console.log('AnySearch 0.1.8 reviewed DSH 0.2.2-alpha.3 adaptation verified')
+  console.log(`AnySearch 0.1.8 reviewed DSH ${dshVersion} adaptation verified`)
 }

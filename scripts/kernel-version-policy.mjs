@@ -26,6 +26,10 @@ export function assertKernelVersionBump({ basePin, baseVersion, currentPin, curr
   if (baseVersion === '3.8.3' && currentVersion === '3.8.3'
     && basePin === 'f2235d6c023a81d86b202db5e472167ad2307ddb'
     && currentPin === '1517a4dbca0a2789ff1d41ba439600f8547d23fa') return
+  // The user explicitly requested this pin transition before 3.8.9 went public.
+  if (baseVersion === '3.8.9' && currentVersion === '3.8.9'
+    && basePin === '05b1cae8db6e674c5685101494d4eec24652424a'
+    && currentPin === '66491b05e3f05ad35bcdd4f6cd7ed26041d9e3db') return
   if (basePin !== currentPin && compareVersions(currentVersion, baseVersion) <= 0) {
     throw new Error(`DSH_PIN changed but application version did not increase: ${baseVersion} -> ${currentVersion}`)
   }

@@ -119,7 +119,6 @@
     }
   },
   "agentPiProduct": {
-    "edition": "mainline",
-    "buildRevision": "hotfix.1"
+    "edition": "mainline"
   }
 }

@@ -193,10 +193,11 @@
   },
   {
     "version": "3.8.9",
-    "dshPin": "05b1cae8db6e674c5685101494d4eec24652424a",
+    "dshPin": "66491b05e3f05ad35bcdd4f6cd7ed26041d9e3db",
     "releaseTag": "v3.8.9",
-    "dshVersion": "dsh-v0.2.2-alpha.3",
+    "dshVersion": "dsh-v0.2.2-rc.1",
     "sourceChannel": "official release tag",
-    "reason": "Upgrade to the immutable alpha.3 release, including historical session fixes and goal continuation after agent disposal"
+    "reason": "Finalize the unpublished 3.8.9 draft on the official rc.1 tag and include the tested context-overflow and image-offload fixes",
+    "supersededDraftPin": "05b1cae8db6e674c5685101494d4eec24652424a"
   }
 ]
