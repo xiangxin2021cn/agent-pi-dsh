@@ -176,6 +176,7 @@ jobs:
               'A', 'scripts/mac-bundled-profile-links.mjs',
               'A', 'scripts/mac-bundled-profile-links.test.mjs',
               'M', 'scripts/platform-release-385.test.mjs',
+              'M', 'scripts/sign-macos-release.mjs',
               'M', 'scripts/verify-macos-release-dmg.sh',
             ]
             assert.deepEqual(readFileSync('maintenance-changes-389.paths', 'utf8').split('\0').filter(Boolean),
@@ -455,6 +456,7 @@ jobs:
         working-directory: payload/desktop
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          AGENT_PI_MACOS_ADHOC_PREVIEW: '1'
           MACOS_ARCH: ${{ matrix.arch }}
           MINIMUM_MACOS: ${{ matrix.minimum_macos }}
         run: |

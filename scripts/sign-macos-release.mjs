@@ -29,6 +29,9 @@ function isMachO(path) {
 
 export default async function sign(options, packager) {
   assert.equal(process.platform, 'darwin')
+  const preview = process.env.AGENT_PI_MACOS_ADHOC_PREVIEW === '1'
+  assert.equal(options.identity === '-', preview, 'Ad-hoc signing is limited to the Mac preview job')
+  const developerId = '-R=anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists'
   const { signAsync } = createRequire(join(packager.projectDir, 'package.json'))('@electron/osx-sign')
   const runtime = join(options.app, 'Contents/Resources/runtime')
   const runtimeReal = realpathSync(runtime)
@@ -61,8 +64,9 @@ export default async function sign(options, packager) {
             if (file.sha256 === prior.sha256) continue
             const binary = join(plugin, pkg.lockPath, file.path)
             assert.ok(pkg.native && /\.(?:node|dylib)$/.test(file.path) && isMachO(binary), `Unexpected change while signing Univer: ${file.path}`)
-            execFileSync('/usr/bin/codesign', ['--verify', '--strict',
-              '-R=anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists', binary], { stdio: 'inherit' })
+            execFileSync('/usr/bin/codesign', [
+              '--verify', '--strict', ...(preview ? [] : [developerId]), binary,
+            ], { stdio: 'inherit' })
             original.files[fileIndex] = file
           }
         }
