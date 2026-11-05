@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -70,7 +70,9 @@ const portServer = createServer()
 await new Promise(resolve => portServer.listen(0, '127.0.0.1', resolve))
 const debugPort = portServer.address().port
 await new Promise(resolve => portServer.close(resolve))
-const userData = mkdtempSync(join(tmpdir(), 'agent-pi-macos-smoke-'))
+// The migration guard requires real directories. macOS temporary paths can
+// use /var even though the real path is under /private/var.
+const userData = realpathSync(mkdtempSync(join(tmpdir(), 'agent-pi-macos-smoke-')))
 const child = spawn(executable, ['--disable-gpu', `--user-data-dir=${userData}`, `--remote-debugging-port=${debugPort}`], {
   env: { ...process.env, AGENT_PI_DSH_FORCE_COLD_START: '1' }, stdio: ['ignore', 'pipe', 'pipe'],
 })

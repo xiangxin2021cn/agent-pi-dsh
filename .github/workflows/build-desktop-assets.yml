@@ -450,7 +450,7 @@ jobs:
             --config.mac.minimumSystemVersion="$MINIMUM_MACOS" --config.forceCodeSigning=true \
             --config.mac.hardenedRuntime=true --config.mac.notarize=true \
             --config.mac.sign="$GITHUB_WORKSPACE/scripts/sign-macos-release.mjs" \
-            --config.dmg.filesystem=APFS --config.dmg.sign=true --config.dmg.writeUpdateInfo=false
+            --config.dmg.filesystem=APFS --config.dmg.shrink=false --config.dmg.sign=true --config.dmg.writeUpdateInfo=false
 
       - name: Build ad-hoc Mac preview for native checks
         if: matrix.platform == 'mac' && inputs.macos_preview
@@ -468,7 +468,7 @@ jobs:
             --config.mac.minimumSystemVersion="$MINIMUM_MACOS" --config.mac.identity=- \
             --config.mac.hardenedRuntime=false --config.mac.notarize=false --config.mac.timestamp=none \
             --config.mac.sign="$GITHUB_WORKSPACE/scripts/sign-macos-release.mjs" \
-            --config.dmg.filesystem=APFS --config.dmg.sign=false --config.dmg.writeUpdateInfo=false
+            --config.dmg.filesystem=APFS --config.dmg.shrink=false --config.dmg.sign=false --config.dmg.writeUpdateInfo=false
 
       - name: Verify macOS packaged deployment targets
         if: matrix.platform == 'mac'
