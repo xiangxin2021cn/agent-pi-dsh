@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
+import { collectMacSigningPaths } from './sign-macos-release.mjs'
 
 const workflow = readFileSync(new URL('../.github/workflows/build-desktop-assets.yml', import.meta.url), 'utf8')
 const components = JSON.parse(readFileSync(new URL('../release/3.8.5-core-components.json', import.meta.url), 'utf8'))
@@ -208,4 +209,29 @@ test('ad-hoc Mac validation requires the Mac-only 3.8.9 maintenance path and can
   ]) assert.ok(workflow.slice(workflow.indexOf('- name: ' + step)).split('\n')[1].includes('!inputs.macos_preview'), step)
   assert.match(workflow, /upload-macos:\s+if:[^\r\n]+!inputs\.macos_preview/)
   assert.ok(workflow.includes('Re-download both draft DMGs and verify the checked bytes'))
+})
+
+test('macOS signing skips the pnpm directory graph and scans each physical file once', async t => {
+  const root = mkdtempSync(join(tmpdir(), 'agent-pi-signing-walk-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const runtime = join(root, 'Resources', 'runtime')
+  const framework = join(root, 'Frameworks', 'Electron.framework')
+  const nested = join(framework, 'Versions', 'A')
+  mkdirSync(join(runtime, 'modules'), { recursive: true })
+  mkdirSync(nested, { recursive: true })
+  const machO = join(runtime, 'modules', 'engine.node')
+  const electron = join(nested, 'Electron')
+  writeFileSync(machO, Buffer.from('cffaedfe00000000', 'hex'))
+  writeFileSync(join(runtime, 'modules', 'data.json'), '{}')
+  writeFileSync(electron, 'outside runtime binary probe fixture')
+  symlinkSync('..', join(runtime, 'modules', 'cycle'), 'dir')
+  symlinkSync('A', join(framework, 'Versions', 'Current'), 'dir')
+  const probed = []
+  const paths = await collectMacSigningPaths(root, runtime, async path => {
+    probed.push(path)
+    return true
+  })
+  assert.deepEqual(probed, [electron])
+  assert.deepEqual(new Set(paths), new Set([machO, electron, framework]))
+  assert.ok(paths.indexOf(electron) < paths.indexOf(framework))
 })

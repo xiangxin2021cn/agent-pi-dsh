@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { closeSync, lstatSync, openSync, readFileSync, readSync, realpathSync } from 'node:fs'
+import { closeSync, lstatSync, openSync, readFileSync, readdirSync, readSync, realpathSync, unlinkSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { join, relative, sep } from 'node:path'
+import { extname, join, relative, sep } from 'node:path'
 import {
   buildUniverRuntimeReceipt, defaultUniverRuntimeLockPath, productionRuntimeManifest, validateUniverRuntimeLock,
   verifyUniverRuntimeReceipt, writeUniverRuntimeReceipt,
@@ -27,12 +27,37 @@ function isMachO(path) {
   return architectures > 0 && architectures < 20
 }
 
+export async function collectMacSigningPaths(contents, runtime, isBinaryFile) {
+  const paths = []
+  async function walk(directory) {
+    for (const name of readdirSync(directory)) {
+      const path = join(directory, name)
+      const stat = lstatSync(path)
+      if (stat.isSymbolicLink()) continue
+      if (stat.isDirectory()) {
+        await walk(path)
+        if (['.app', '.framework'].includes(extname(name))) paths.push(path)
+      } else if (stat.isFile()) {
+        if (extname(name) === '.cstemp') unlinkSync(path)
+        else if (path.startsWith(`${runtime}${sep}`) ? isMachO(path) : await isBinaryFile(path)) paths.push(path)
+      }
+    }
+  }
+  await walk(contents)
+  return paths
+}
+
 export default async function sign(options, packager) {
   assert.equal(process.platform, 'darwin')
   const preview = process.env.AGENT_PI_MACOS_ADHOC_PREVIEW === '1'
   assert.equal(options.identity === '-', preview, 'Ad-hoc signing is limited to the Mac preview job')
   const developerId = '-R=anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists'
-  const { signAsync } = createRequire(join(packager.projectDir, 'package.json'))('@electron/osx-sign')
+  const require = createRequire(join(packager.projectDir, 'package.json'))
+  const signerRequire = createRequire(require.resolve('@electron/osx-sign'))
+  assert.equal(signerRequire('../../package.json').version, '1.3.3', 'Review the macOS signing walk before updating osx-sign')
+  const { signAsync } = require('@electron/osx-sign')
+  const walkApi = signerRequire('./util.js')
+  const { isBinaryFile } = signerRequire('isbinaryfile')
   const runtime = join(options.app, 'Contents/Resources/runtime')
   const runtimeReal = realpathSync(runtime)
   const plugin = join(runtime, 'product/vendor/dsh-univer-office')
@@ -42,7 +67,7 @@ export default async function sign(options, packager) {
   const before = verifyUniverRuntimeReceipt(plugin, dependencies, lock)
   const previousIgnore = options.ignore ?? []
 
-  await signAsync({
+  const signOptions = {
     ...options,
     ignore: [].concat(previousIgnore, path => {
       if (!path.startsWith(`${runtime}${sep}`)) return false
@@ -76,5 +101,19 @@ export default async function sign(options, packager) {
       }
       return options.optionsForFile?.(path)
     },
-  })
+  }
+
+  // osx-sign 1.3.3 walks with stat and recursive Promise.all before applying
+  // ignore rules. Following the pnpm links exhausts handles and heap.
+  const originalWalk = walkApi.walkAsync
+  assert.equal(typeof originalWalk, 'function')
+  try {
+    walkApi.walkAsync = contents => {
+      assert.equal(contents, join(options.app, 'Contents'))
+      return collectMacSigningPaths(contents, runtime, isBinaryFile)
+    }
+    await signAsync(signOptions)
+  } finally {
+    walkApi.walkAsync = originalWalk
+  }
 }
