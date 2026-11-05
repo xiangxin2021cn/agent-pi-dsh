@@ -101,6 +101,8 @@ function inspectPage(url) {
 
 let rendered = null
 let lastError = null
+let cdpResponses = 0
+let targetOrigins = []
 try {
   const deadline = Date.now() + 120000
   while (Date.now() < deadline) {
@@ -108,18 +110,33 @@ try {
     try {
       const response = await fetch(`http://127.0.0.1:${debugPort}/json/list`, { signal: AbortSignal.timeout(3000) })
       const targets = await response.json()
-      const target = targets.find(target => target.type === 'page' && /^http:\/\/127\.0\.0\.1:\d+\//.test(target.url))
+      cdpResponses += 1
+      lastError = null
+      targetOrigins = targets.map(({ type, url }) => {
+        try { return `${type}: ${new URL(url).origin}` } catch { return type }
+      })
+      const target = targets.find(target => target.type === 'page' && /^http:\/\/(127\.0\.0\.1|localhost):\d+\//.test(target.url))
       if (target) {
         const state = await inspectPage(target.webSocketDebuggerUrl)
-        if (state.ready === 'complete' && state.host === '127.0.0.1' && state.textLength > 100) { rendered = state; break }
+        if (state.ready === 'complete' && ['127.0.0.1', 'localhost'].includes(state.host) && state.textLength > 100) { rendered = state; break }
       }
     } catch (error) { lastError = error }
     await delay(500)
   }
-  assert.ok(rendered, `Packaged DSH page did not become ready: ${lastError?.message || ''}\n${output}`)
+  assert.ok(rendered, 'Packaged DSH page did not become ready')
   console.log(JSON.stringify({ passed: true, electron: expectedElectron, node: expectedNode, architecture: expectedArch, renderer: rendered,
     ...(mainline ? { oar, nativeCliTaskExecution: 'not-tested' } : { codexInitialization: true }),
     platform: 'macOS CI runner' }))
+} catch (error) {
+  let launchLog = ''
+  try {
+    launchLog = sanitizeStartupLog(readFileSync(join(userData, 'dsh-launch.log'), 'utf8')).slice(-20000)
+  } catch (readError) {
+    launchLog = `Isolated DSH startup log unavailable (${readError.code ?? 'unknown'})`
+  }
+  const cdpError = lastError && `${lastError.message} ${lastError.cause?.code ?? ''}`
+  console.error(`Mac startup diagnostics ${JSON.stringify({ debugPort, cdpResponses, targetOrigins, cdpError })}\n${launchLog}\n${output}`)
+  throw error
 } finally {
   if (child.exitCode === null && child.pid) {
     child.kill('SIGTERM')

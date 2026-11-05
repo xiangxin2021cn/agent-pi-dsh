@@ -171,6 +171,7 @@ test('3.8.9 Mac maintenance accepts only the verified source and exact bootstrap
     'A', 'scripts/mac-bundled-profile-links.test.mjs',
     'M', 'scripts/platform-release-385.test.mjs',
     'M', 'scripts/sign-macos-release.mjs',
+    'M', 'scripts/smoke-macos-intel.mjs',
     'M', 'scripts/verify-macos-release-dmg.sh',
   ].join('\0') + '\0'
   const { root, run } = runChecksumGate(t, 'Verify immutable release ref', '', {

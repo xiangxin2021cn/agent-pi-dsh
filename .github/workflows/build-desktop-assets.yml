@@ -177,6 +177,7 @@ jobs:
               'A', 'scripts/mac-bundled-profile-links.test.mjs',
               'M', 'scripts/platform-release-385.test.mjs',
               'M', 'scripts/sign-macos-release.mjs',
+              'M', 'scripts/smoke-macos-intel.mjs',
               'M', 'scripts/verify-macos-release-dmg.sh',
             ]
             assert.deepEqual(readFileSync('maintenance-changes-389.paths', 'utf8').split('\0').filter(Boolean),
