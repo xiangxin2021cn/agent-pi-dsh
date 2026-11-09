@@ -8,7 +8,6 @@ on:
 permissions:
   contents: read
 env:
-  GH_TOKEN: ${{ github.token }}
   RELEASE_TAG: v3.8.9
   NODE_RUNTIME_VERSION: 24.22.2
   V389_PAYLOAD_SHA256: 3b05dedbe9871993067cf5f2a98af5fece9d7c2c8d1db662fffb837e19a83659
@@ -16,6 +15,8 @@ jobs:
   intel-app:
     name: Native Intel build for local signing
     runs-on: macos-15-intel
+    permissions:
+      contents: write
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -24,6 +25,8 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Verify immutable application source and draft
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
@@ -73,6 +76,8 @@ jobs:
           mkdir -p payload
           tar -xzf release-inputs/runtime-payload-*.tar.gz -C payload
           ls payload
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Verify clean CAD runtime against corresponding source
         run: |
           version="v3.8.9"
@@ -230,7 +235,7 @@ jobs:
           set -euo pipefail
           test "$(node -p "require('./package.json').version")" = 3.8.9
           test "$(node -p "require('./package.json').devDependencies.electron")" = 45.2.2
-          npx --no-install electron-builder --mac dir --x64 --publish never \
+          npx --no-install electron-builder --mac --dir --x64 --publish never \
             --config.mac.minimumSystemVersion=15.0.0 --config.mac.identity=- \
             --config.mac.hardenedRuntime=false --config.mac.notarize=false --config.mac.timestamp=none \
             --config.mac.sign="$GITHUB_WORKSPACE/scripts/sign-macos-release.mjs"
