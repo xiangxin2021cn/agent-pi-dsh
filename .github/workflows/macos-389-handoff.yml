@@ -1,0 +1,264 @@
+name: 3.8.9 Intel app signing handoff
+on:
+  push:
+    branches:
+      - codex/release-389-intel-handoff
+    paths:
+      - .github/workflows/macos-389-handoff.yml
+permissions:
+  contents: read
+env:
+  GH_TOKEN: ${{ github.token }}
+  RELEASE_TAG: v3.8.9
+  NODE_RUNTIME_VERSION: 24.22.2
+  V389_PAYLOAD_SHA256: 3b05dedbe9871993067cf5f2a98af5fece9d7c2c8d1db662fffb837e19a83659
+jobs:
+  intel-app:
+    name: Native Intel build for local signing
+    runs-on: macos-15-intel
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: fb4ca21ce50d9a06c5f41a1311bedef0f62113f8
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify immutable application source and draft
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "xiangxin2021cn/agent-pi-dsh"
+          test "$GITHUB_REF" = "refs/heads/codex/release-389-intel-handoff"
+          test "$(uname -m)" = "x86_64"
+          test "$(git rev-parse HEAD)" = "fb4ca21ce50d9a06c5f41a1311bedef0f62113f8"
+          test "$(git rev-parse refs/tags/v3.8.9^{commit})" = "c71c4f90bb51a4e7ac4892e464affc9dd6420417"
+          git merge-base --is-ancestor "c71c4f90bb51a4e7ac4892e464affc9dd6420417" HEAD
+          gh api "repos/$GITHUB_REPOSITORY/releases/433638305" > draft.json
+          jq -e --arg source "c71c4f90bb51a4e7ac4892e464affc9dd6420417" '(.id == 433638305) and (.draft == true) and (.prerelease == false) and (.tag_name == "v3.8.9") and (.target_commitish == $source)' draft.json > /dev/null
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.22.2
+      - name: Download and verify release inputs
+        run: |
+          mkdir -p release-inputs
+          gh release download "v3.8.9" \
+            --repo "xiangxin2021cn/agent-pi-dsh" \
+            --pattern "runtime-payload-*.tar.gz" \
+            --pattern "runtime-payload-*.tar.gz.sha256" \
+            --pattern "Agent-Pi-DSH-*-CAD-corresponding-source.tar.gz" \
+            --pattern "Agent-Pi-DSH-*-CAD-corresponding-source.tar.gz.sha256" \
+            --dir release-inputs
+          version="v3.8.9"
+          version="${version#v}"
+          test -f "release-inputs/runtime-payload-${version}.tar.gz"
+          test -f "release-inputs/runtime-payload-${version}.tar.gz.sha256"
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict'
+          import { createHash } from 'node:crypto'
+          import { readFileSync, readdirSync } from 'node:fs'
+          import { join } from 'node:path'
+          for (const checksum of readdirSync('release-inputs').filter(name => name.endsWith('.sha256'))) {
+            const match = readFileSync(join('release-inputs', checksum), 'utf8').trim().match(/^([a-f0-9]{64})  ([^\\/]+)$/)
+            assert.ok(match, `malformed ${checksum}`)
+            const actual = createHash('sha256').update(readFileSync(join('release-inputs', match[2]))).digest('hex')
+            assert.equal(actual, match[1], `SHA256 mismatch for ${match[2]}`)
+            if (match[2] === 'runtime-payload-3.8.5.tar.gz') {
+              assert.equal(actual, process.env.V385_PAYLOAD_SHA256, 'v3.8.5 payload differs from its fixed release input')
+            }
+            if (match[2] === 'runtime-payload-3.8.9.tar.gz') {
+              assert.equal(actual, process.env.V389_PAYLOAD_SHA256, 'v3.8.9 payload differs from its fixed release input')
+            }
+          }
+          NODE
+          mkdir -p payload
+          tar -xzf release-inputs/runtime-payload-*.tar.gz -C payload
+          ls payload
+      - name: Verify clean CAD runtime against corresponding source
+        run: |
+          version="v3.8.9"
+          version="${version#v}"
+          cad_source=$(node -p "require('./payload/product/scripts/cad-clean-pins.json').sourceArchive")
+          node payload/product/scripts/cad-clean-release.mjs verify \
+            --archive "release-inputs/${cad_source}" \
+            --checksum "release-inputs/${cad_source}.sha256" \
+            --runtime-dir payload/product/bundles/tender-web/lib/cad-viewer
+      - name: Enable pnpm via corepack
+        run: |
+          corepack enable
+          manager=$(node -p "require('./payload/deepseek-harness/package.json').packageManager")
+          corepack prepare "$manager" --activate
+          test "pnpm@$(pnpm --version)" = "$manager"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Prepare local project plan engine for this platform
+        run: |
+          node payload/product/scripts/verify-project-plan-runtime.mjs payload/product --portable
+          node payload/product/scripts/build-project-plan.mjs --runtime-only
+          node payload/product/scripts/verify-project-plan-runtime.mjs payload/product
+          node --test payload/product/scripts/project-plan.test.mjs
+      - name: Install DSH production dependencies
+        working-directory: payload/deepseek-harness
+        run: |
+          # --ignore-scripts: the repo postinstall imports a devDependency
+          # (lefthook) that --prod does not install. Native modules that need
+          # a local build are rebuilt explicitly below.
+          # The policy parser and product runtime use the same exact host lock.
+          (cd ../product/bundles/tender-host && npm ci --omit=dev --ignore-scripts --no-fund --no-audit)
+          edition=$(node -p "require('../product/package.json').agentPiProduct?.edition || 'mainline'")
+          if [ "$edition" = mainline ]; then
+            node ../product/scripts/dsh-distribution-policy.mjs install "$PWD" "$PWD/../product" "$RUNNER_TEMP/agent-pi-selected-dsh"
+            node ../product/scripts/repair-dsh-runtime-peers.mjs .
+          else
+            pnpm install --prod --frozen-lockfile --ignore-scripts
+          fi
+      - name: Rebuild DSH native modules for the packaged Node ABI
+        working-directory: payload/deepseek-harness
+        run: |
+          pnpm --recursive rebuild node-pty koffi
+          node --experimental-strip-types native/system/scripts/build.ts --host-addon-only
+          node packages/subprocess/subprocess-local/scripts/ensure-spawn-helper.mjs
+      - name: Install bundle dependencies
+        run: |
+          (cd payload/product/packages/business-core && npm ci --omit=dev --ignore-scripts --no-fund --no-audit)
+          rm payload/product/bundles/tender-host/node_modules/@mlightcad/libredwg-web/wasm/libredwg-web.wasm
+          rm payload/product/bundles/tender-host/node_modules/@mlightcad/libredwg-converter/dist/libredwg-web.wasm
+          node payload/product/scripts/install-univer-runtime-deps.mjs payload/product/vendor/dsh-univer-office
+          node payload/product/scripts/univer-public-release.mjs assert-tree payload/product
+      - name: Download Node runtime binary
+        run: |
+          archive="node-v${NODE_RUNTIME_VERSION}-darwin-x64.tar.gz"
+          curl -fsSL "https://nodejs.org/dist/v${NODE_RUNTIME_VERSION}/${archive}" -o node-runtime.archive
+          curl -fsSL "https://nodejs.org/dist/v${NODE_RUNTIME_VERSION}/SHASUMS256.txt" -o node-runtime.SHASUMS256.txt
+          node --input-type=module - "$archive" <<'NODE'
+          import assert from 'node:assert/strict'
+          import { createHash } from 'node:crypto'
+          import { readFileSync } from 'node:fs'
+          const matches = readFileSync('node-runtime.SHASUMS256.txt', 'utf8').split(/\r?\n/)
+            .map(line => line.match(/^([a-f0-9]{64})\s+(.+)$/)).filter(match => match?.[2] === process.argv[2])
+          assert.equal(matches.length, 1, 'official Node archive checksum must be unique')
+          assert.equal(createHash('sha256').update(readFileSync('node-runtime.archive')).digest('hex'), matches[0][1])
+          NODE
+          mkdir -p node-runtime
+          tar -xf node-runtime.archive -C node-runtime --strip-components=1
+          node-runtime/bin/node --version
+          node-runtime/bin/node payload/product/scripts/install-univer-runtime-deps.mjs payload/product/vendor/dsh-univer-office --verify-only
+      - name: Prepare pinned pnpm for the installed app
+        run: |
+          version=$(node -p "require('./payload/deepseek-harness/package.json').packageManager.replace(/^pnpm@/, '')")
+          mkdir -p verified-pnpm
+          npm pack "pnpm@${version}" --ignore-scripts --pack-destination verified-pnpm --json > verified-pnpm/pack.json
+          node --input-type=module - "$version" <<'NODE'
+          import assert from 'node:assert/strict'
+          import { createHash } from 'node:crypto'
+          import { readFileSync } from 'node:fs'
+          const version = process.argv[2]
+          assert.match(version, /^\d+\.\d+\.\d+$/)
+          const key = `  pnpm@${version}:`
+          const lines = readFileSync('payload/deepseek-harness/pnpm-lock.yaml', 'utf8').split(/\r?\n/)
+          const entries = lines.map((line, index) => ({ line, index })).filter(({ line }) => line === key)
+          assert.equal(entries.length, 1, 'expected one exact pnpm package resolution in the official DSH lock')
+          const integrity = lines[entries[0].index + 1].match(/^    resolution: \{integrity: (sha512-[A-Za-z0-9+/=]+)\}$/)?.[1]
+          assert.ok(integrity, 'official DSH lock must pin pnpm integrity')
+          const [packed] = JSON.parse(readFileSync('verified-pnpm/pack.json', 'utf8'))
+          assert.equal(packed.filename, `pnpm-${version}.tgz`)
+          assert.equal(`sha512-${createHash('sha512').update(readFileSync(`verified-pnpm/${packed.filename}`)).digest('base64')}`, integrity)
+          NODE
+          tar -xzf "verified-pnpm/pnpm-${version}.tgz" -C verified-pnpm
+      - name: Verify DSH session native modules with packaged Node
+        run: |
+          edition=$(node -p "require('./payload/product/package.json').agentPiProduct?.edition || 'mainline'")
+          if [ "$edition" = mainline ]; then
+            node-runtime/bin/node payload/product/scripts/dsh-distribution-policy.mjs seal "$PWD/payload/deepseek-harness" "$PWD/payload/product"
+          fi
+          node-runtime/bin/node payload/product/scripts/verify-dsh-runtime.mjs \
+            payload/deepseek-harness payload/product --native
+      - name: Verify terminal native module with packaged Node
+        run: |
+          node-runtime/bin/node --input-type=module <<'NODE'
+          import { createRequire } from 'node:module'
+          const require = createRequire(`${process.cwd()}/payload/deepseek-harness/packages/subprocess/subprocess-local/package.json`)
+          const terminal = require('node-pty').spawn('/bin/sh', ['-c', 'printf agent-pi-native-ok'])
+          let output = ''
+          terminal.onData((data) => { output += data })
+          const timeout = setTimeout(() => { terminal.kill(); process.exit(1) }, 10000)
+          terminal.onExit(({ exitCode }) => {
+            clearTimeout(timeout)
+            if (exitCode !== 0 || !output.includes('agent-pi-native-ok')) process.exit(1)
+            console.log('terminal native module verified')
+          })
+          NODE
+      - name: Stage runtime
+        run: |
+          node payload/product/scripts/prepare-runtime.mjs \
+            --dsh payload/deepseek-harness \
+            --product payload/product \
+            --node-dir node-runtime \
+            --pnpm-dir verified-pnpm/package \
+            --out payload/desktop/runtime
+          payload/desktop/runtime/node/node payload/desktop/runtime/product/scripts/verify-dsh-runtime.mjs \
+            payload/desktop/runtime/deepseek-harness payload/desktop/runtime/product --native
+      - name: Prepare sealed 3.8.9 Mac runtime before signing
+        run: |
+          runtime="$PWD/payload/desktop/runtime"
+          cp scripts/init-tender-profile.mjs scripts/mac-bundled-profile-links.mjs "$runtime/product/scripts/"
+          DSH_CHECKOUT="$runtime/deepseek-harness" "$runtime/node/node" \
+            "$runtime/product/scripts/init-tender-profile.mjs" --stage-macos-bundle
+          test ! -e "$runtime/deepseek-harness/.agent-pi-links.json"
+          "$runtime/node/node" "$runtime/product/scripts/dsh-distribution-policy.mjs" seal \
+            "$runtime/deepseek-harness" "$runtime/product"
+          "$runtime/node/node" "$runtime/product/scripts/verify-dsh-runtime.mjs" \
+            "$runtime/deepseek-harness" "$runtime/product" --native
+      - name: Install desktop shell dependencies
+        working-directory: payload/desktop
+        run: |
+          npm ci --no-fund --no-audit
+          # package.json pins electronDist to node_modules/electron/dist.
+          # npm install on CI often skips the Electron zip (run 32699235307
+          # added 284 packages in 7s and left dist/ missing). Force it.
+          node node_modules/electron/install.js
+          test -d node_modules/electron/dist
+      - name: Build the full Intel app for local signing
+        working-directory: payload/desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          AGENT_PI_MACOS_ADHOC_PREVIEW: "1"
+          GH_TOKEN: ""
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(node -p "require('./package.json').version")" = 3.8.9
+          test "$(node -p "require('./package.json').devDependencies.electron")" = 45.2.2
+          npx --no-install electron-builder --mac dir --x64 --publish never \
+            --config.mac.minimumSystemVersion=15.0.0 --config.mac.identity=- \
+            --config.mac.hardenedRuntime=false --config.mac.notarize=false --config.mac.timestamp=none \
+            --config.mac.sign="$GITHUB_WORKSPACE/scripts/sign-macos-release.mjs"
+      - name: Verify and archive the complete Intel app
+        shell: bash
+        run: |
+          set -euo pipefail
+          app="payload/desktop/dist-unpacked/mac/Agent Pi DSH.app"
+          test "$(plutil -extract CFBundleShortVersionString raw -o - "$app/Contents/Info.plist")" = 3.8.9
+          test "$(lipo -archs "$app/Contents/MacOS/Agent Pi DSH")" = x86_64
+          python3 scripts/verify-macos-intel.py "$app" --arch x86_64 --maximum-macos 15.0.0 --report intel-deployment-targets.json
+          codesign --verify --deep --strict "$app"
+          node scripts/smoke-macos-intel.mjs "$app" x64 24.22.2 45.2.2
+          codesign --verify --deep --strict "$app"
+          mkdir -p handoff
+          ditto -c -k --sequesterRsrc --keepParent "$app" "handoff/Agent-Pi-DSH-3.8.9-mac-x64-unsigned.app.zip"
+          cp intel-deployment-targets.json handoff/
+          (cd handoff && shasum -a 256 "Agent-Pi-DSH-3.8.9-mac-x64-unsigned.app.zip" > "Agent-Pi-DSH-3.8.9-mac-x64-unsigned.app.zip.sha256")
+          digest=$(cut -d " " -f 1 "handoff/Agent-Pi-DSH-3.8.9-mac-x64-unsigned.app.zip.sha256")
+          jq -n --arg repo "$GITHUB_REPOSITORY" --arg workflow "$GITHUB_SHA" --arg digest "$digest" \
+            --argjson runId "$GITHUB_RUN_ID" --argjson runAttempt "$GITHUB_RUN_ATTEMPT" \
+            '{schemaVersion:1,repository:$repo,tag:"v3.8.9",releaseCommit:"c71c4f90bb51a4e7ac4892e464affc9dd6420417",workflowCommit:$workflow,runId:$runId,runAttempt:$runAttempt,architecture:"x86_64",payloadSha256:"3b05dedbe9871993067cf5f2a98af5fece9d7c2c8d1db662fffb837e19a83659",archive:"Agent-Pi-DSH-3.8.9-mac-x64-unsigned.app.zip",archiveSha256:$digest,nodeVersion:"24.22.2",electronVersion:"45.2.2",minimumMacOS:"15.0.0",signing:"ad-hoc; must be re-signed and notarized for distribution"}' \
+            > handoff/build-receipt.json
+          cat "handoff/Agent-Pi-DSH-3.8.9-mac-x64-unsigned.app.zip.sha256" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: agent-pi-dsh-389-intel-app-for-signing
+          path: handoff
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
