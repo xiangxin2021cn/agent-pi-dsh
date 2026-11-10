@@ -1,4 +1,4 @@
-name: 3.8.9 Apple Silicon native acceptance
+name: 3.8.9 Intel native acceptance
 on:
   push:
     branches:
@@ -12,9 +12,9 @@ env:
   NODE_RUNTIME_VERSION: 24.22.2
   V389_PAYLOAD_SHA256: 3b05dedbe9871993067cf5f2a98af5fece9d7c2c8d1db662fffb837e19a83659
 jobs:
-  verify-apple-silicon:
-    name: Verify signed arm64 distributables
-    runs-on: xcode-27
+  verify-intel-macos15:
+    name: Verify signed Intel distributables on macOS 15
+    runs-on: macos-15-intel
     permissions:
       contents: write
     timeout-minutes: 45
@@ -32,121 +32,7 @@ jobs:
           set -euo pipefail
           test "$GITHUB_REPOSITORY" = "xiangxin2021cn/agent-pi-dsh"
           test "$GITHUB_REF" = "refs/heads/codex/release-389-intel-handoff"
-          test "$(uname -m)" = "arm64"
-          test "$(git rev-parse HEAD)" = "fb4ca21ce50d9a06c5f41a1311bedef0f62113f8"
-          test "$(git rev-parse refs/tags/v3.8.9^{commit})" = "c71c4f90bb51a4e7ac4892e464affc9dd6420417"
-          git merge-base --is-ancestor "c71c4f90bb51a4e7ac4892e464affc9dd6420417" HEAD
-          gh api "repos/$GITHUB_REPOSITORY/releases/433638305" > draft.json
-          jq -e --arg source "c71c4f90bb51a4e7ac4892e464affc9dd6420417" '(.id == 433638305) and (.draft == true) and (.prerelease == false) and (.tag_name == "v3.8.9") and (.target_commitish == $source)' draft.json > /dev/null
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        with:
-          node-version: 24.22.2
-      - name: Download and match the exact staged signed files
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(sw_vers -productVersion | cut -d . -f 1)" = 27
-          gh api "repos/$GITHUB_REPOSITORY/releases/439745663" > "qa.json"
-          jq -e '(.id == 439745663) and (.draft == true) and (.prerelease == false) and (.tag_name == "qa-macos-389-local-signing") and (.target_commitish == "c71c4f90bb51a4e7ac4892e464affc9dd6420417")' qa.json > /dev/null
-          mkdir -p verified
-          cd verified
-          jq -e '[.assets[] | select(.id == 729308306 and .name == "Agent-Pi-DSH-3.8.9-mac-arm64.dmg" and .size == 687563195 and .state == "uploaded" and .digest == "sha256:8e05061bfc016b3bb580579f48f5413e580b39fd010bc5cbb3e07e723e727b1e")] | length == 1' ../qa.json > /dev/null
-          gh api -H "Accept: application/octet-stream" "repos/$GITHUB_REPOSITORY/releases/assets/729308306" > "Agent-Pi-DSH-3.8.9-mac-arm64.dmg"
-          printf "%s  %s\n" "8e05061bfc016b3bb580579f48f5413e580b39fd010bc5cbb3e07e723e727b1e" "Agent-Pi-DSH-3.8.9-mac-arm64.dmg" | shasum -a 256 -c -
-          jq -e '[.assets[] | select(.id == 729365015 and .name == "Agent-Pi-DSH-3.8.9-mac-arm64.dmg.sha256" and .size == 99 and .state == "uploaded" and .digest == "sha256:a426539075c30f43a49ede770b1fdcbe4f2b21d80616d28a5ef85a45dd5316ff")] | length == 1' ../qa.json > /dev/null
-          gh api -H "Accept: application/octet-stream" "repos/$GITHUB_REPOSITORY/releases/assets/729365015" > "Agent-Pi-DSH-3.8.9-mac-arm64.dmg.sha256"
-          printf "%s  %s\n" "a426539075c30f43a49ede770b1fdcbe4f2b21d80616d28a5ef85a45dd5316ff" "Agent-Pi-DSH-3.8.9-mac-arm64.dmg.sha256" | shasum -a 256 -c -
-          jq -e '[.assets[] | select(.id == 729394556 and .name == "Agent-Pi-DSH-3.8.9-mac-arm64.zip" and .size == 701294351 and .state == "uploaded" and .digest == "sha256:6542810139d5dc6e0e1638af36fba67999d760f9504fb89752dfdd66f22469cb")] | length == 1' ../qa.json > /dev/null
-          gh api -H "Accept: application/octet-stream" "repos/$GITHUB_REPOSITORY/releases/assets/729394556" > "Agent-Pi-DSH-3.8.9-mac-arm64.zip"
-          printf "%s  %s\n" "6542810139d5dc6e0e1638af36fba67999d760f9504fb89752dfdd66f22469cb" "Agent-Pi-DSH-3.8.9-mac-arm64.zip" | shasum -a 256 -c -
-          jq -e '[.assets[] | select(.id == 729435702 and .name == "Agent-Pi-DSH-3.8.9-mac-arm64.zip.sha256" and .size == 99 and .state == "uploaded" and .digest == "sha256:a1f391fcca7cf8cdc33443eaa67d39ff92207853fc0ff21b354c47b5ee4f47ee")] | length == 1' ../qa.json > /dev/null
-          gh api -H "Accept: application/octet-stream" "repos/$GITHUB_REPOSITORY/releases/assets/729435702" > "Agent-Pi-DSH-3.8.9-mac-arm64.zip.sha256"
-          printf "%s  %s\n" "a1f391fcca7cf8cdc33443eaa67d39ff92207853fc0ff21b354c47b5ee4f47ee" "Agent-Pi-DSH-3.8.9-mac-arm64.zip.sha256" | shasum -a 256 -c -
-          test "$(cat "Agent-Pi-DSH-3.8.9-mac-arm64.dmg.sha256")" = "8e05061bfc016b3bb580579f48f5413e580b39fd010bc5cbb3e07e723e727b1e  Agent-Pi-DSH-3.8.9-mac-arm64.dmg"
-          test "$(cat "Agent-Pi-DSH-3.8.9-mac-arm64.zip.sha256")" = "6542810139d5dc6e0e1638af36fba67999d760f9504fb89752dfdd66f22469cb  Agent-Pi-DSH-3.8.9-mac-arm64.zip"
-      - name: Verify Developer ID, notarization, native runtime and cold start
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p verified/unpacked
-          ditto -x -k "verified/Agent-Pi-DSH-3.8.9-mac-arm64.zip" verified/unpacked
-          app="$PWD/verified/unpacked/Agent Pi DSH.app"
-          test "$(plutil -extract CFBundleShortVersionString raw -o - "$app/Contents/Info.plist")" = 3.8.9
-          test "$(lipo -archs "$app/Contents/MacOS/Agent Pi DSH")" = "arm64"
-          codesign --verify --deep --strict --verbose=2 "$app"
-          codesign --verify --strict --verbose=2 -R='anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists' "$app"
-          xcrun stapler validate "$app"
-          syspolicy_check distribution "$app"
-          python3 scripts/verify-macos-intel.py "$app" --arch "arm64" --maximum-macos 15.0.0 --report verified/deployment-targets.json
-          node scripts/smoke-macos-intel.mjs "$app" "arm64" 24.22.2 45.2.2
-          codesign --verify --deep --strict "$app"
-          codesign --verify --strict --verbose=2 -R='anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists' "verified/Agent-Pi-DSH-3.8.9-mac-arm64.dmg"
-          bash scripts/verify-macos-release-dmg.sh "verified/Agent-Pi-DSH-3.8.9-mac-arm64.dmg" 3.8.9 "arm64" 24.22.2 45.2.2 signed "$app"
-          { sw_vers; uname -m; cat "verified/Agent-Pi-DSH-3.8.9-mac-arm64.dmg.sha256" "verified/Agent-Pi-DSH-3.8.9-mac-arm64.zip.sha256"; } | tee -a "$GITHUB_STEP_SUMMARY"
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-      - name: Smoke test the bundled SQLite JDBC runtime
-        shell: bash
-        run: |
-          set -euo pipefail
-          product="$PWD/verified/unpacked/Agent Pi DSH.app/Contents/Resources/runtime/product"
-          node "$product/scripts/verify-project-plan-runtime.mjs" "$product"
-          plan="$product/bundles/project-plan/runtime"
-          scratch=$(mktemp -d "$RUNNER_TEMP/agent-pi-sqlite.XXXXXX")
-          unzip -p "$plan/lib/sqlite-jdbc-3.51.2.0.jar" "org/sqlite/native/Mac/aarch64/libsqlitejdbc.dylib" > "$scratch/libsqlitejdbc.dylib"
-          test "$(lipo -archs "$scratch/libsqlitejdbc.dylib")" = "arm64"
-          codesign --verify --strict -R='anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists' "$scratch/libsqlitejdbc.dylib"
-          cat > "$scratch/SqliteProbe.java" <<'JAVA'
-          import java.sql.DriverManager;
-          public class SqliteProbe {
-            public static void main(String[] args) throws Exception {
-              try (var connection = DriverManager.getConnection("jdbc:sqlite::memory:");
-                   var statement = connection.createStatement()) {
-                statement.executeUpdate("CREATE TABLE probe (value INTEGER)");
-                statement.executeUpdate("INSERT INTO probe VALUES (389)");
-                try (var result = statement.executeQuery("SELECT value FROM probe")) {
-                  if (!result.next() || result.getInt(1) != 389) throw new IllegalStateException("SQLite round trip failed");
-                }
-              }
-              System.out.println("Bundled SQLite JDBC write/read verified");
-            }
-          }
-          JAVA
-          javac --release 17 -d "$scratch" "$scratch/SqliteProbe.java"
-          "$plan/jre/bin/java" -Djava.io.tmpdir="$scratch" -cp "$scratch:$plan/lib/*" SqliteProbe
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: signed-macos-389-arm64-macos27-acceptance
-          path: |-
-            verified/*.sha256
-            verified/deployment-targets.json
-          if-no-files-found: error
-          retention-days: 14
-  verify-apple-silicon-macos15:
-    name: Verify signed arm64 distributables on macOS 15
-    runs-on: macos-15
-    permissions:
-      contents: write
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with:
-          ref: fb4ca21ce50d9a06c5f41a1311bedef0f62113f8
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Verify immutable application source and draft
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$GITHUB_REPOSITORY" = "xiangxin2021cn/agent-pi-dsh"
-          test "$GITHUB_REF" = "refs/heads/codex/release-389-intel-handoff"
-          test "$(uname -m)" = "arm64"
+          test "$(uname -m)" = "x86_64"
           test "$(git rev-parse HEAD)" = "fb4ca21ce50d9a06c5f41a1311bedef0f62113f8"
           test "$(git rev-parse refs/tags/v3.8.9^{commit})" = "c71c4f90bb51a4e7ac4892e464affc9dd6420417"
           git merge-base --is-ancestor "c71c4f90bb51a4e7ac4892e464affc9dd6420417" HEAD
@@ -166,39 +52,39 @@ jobs:
           jq -e '(.id == 439745663) and (.draft == true) and (.prerelease == false) and (.tag_name == "qa-macos-389-local-signing") and (.target_commitish == "c71c4f90bb51a4e7ac4892e464affc9dd6420417")' qa.json > /dev/null
           mkdir -p verified
           cd verified
-          jq -e '[.assets[] | select(.id == 729308306 and .name == "Agent-Pi-DSH-3.8.9-mac-arm64.dmg" and .size == 687563195 and .state == "uploaded" and .digest == "sha256:8e05061bfc016b3bb580579f48f5413e580b39fd010bc5cbb3e07e723e727b1e")] | length == 1' ../qa.json > /dev/null
-          gh api -H "Accept: application/octet-stream" "repos/$GITHUB_REPOSITORY/releases/assets/729308306" > "Agent-Pi-DSH-3.8.9-mac-arm64.dmg"
-          printf "%s  %s\n" "8e05061bfc016b3bb580579f48f5413e580b39fd010bc5cbb3e07e723e727b1e" "Agent-Pi-DSH-3.8.9-mac-arm64.dmg" | shasum -a 256 -c -
-          jq -e '[.assets[] | select(.id == 729365015 and .name == "Agent-Pi-DSH-3.8.9-mac-arm64.dmg.sha256" and .size == 99 and .state == "uploaded" and .digest == "sha256:a426539075c30f43a49ede770b1fdcbe4f2b21d80616d28a5ef85a45dd5316ff")] | length == 1' ../qa.json > /dev/null
-          gh api -H "Accept: application/octet-stream" "repos/$GITHUB_REPOSITORY/releases/assets/729365015" > "Agent-Pi-DSH-3.8.9-mac-arm64.dmg.sha256"
-          printf "%s  %s\n" "a426539075c30f43a49ede770b1fdcbe4f2b21d80616d28a5ef85a45dd5316ff" "Agent-Pi-DSH-3.8.9-mac-arm64.dmg.sha256" | shasum -a 256 -c -
-          jq -e '[.assets[] | select(.id == 729394556 and .name == "Agent-Pi-DSH-3.8.9-mac-arm64.zip" and .size == 701294351 and .state == "uploaded" and .digest == "sha256:6542810139d5dc6e0e1638af36fba67999d760f9504fb89752dfdd66f22469cb")] | length == 1' ../qa.json > /dev/null
-          gh api -H "Accept: application/octet-stream" "repos/$GITHUB_REPOSITORY/releases/assets/729394556" > "Agent-Pi-DSH-3.8.9-mac-arm64.zip"
-          printf "%s  %s\n" "6542810139d5dc6e0e1638af36fba67999d760f9504fb89752dfdd66f22469cb" "Agent-Pi-DSH-3.8.9-mac-arm64.zip" | shasum -a 256 -c -
-          jq -e '[.assets[] | select(.id == 729435702 and .name == "Agent-Pi-DSH-3.8.9-mac-arm64.zip.sha256" and .size == 99 and .state == "uploaded" and .digest == "sha256:a1f391fcca7cf8cdc33443eaa67d39ff92207853fc0ff21b354c47b5ee4f47ee")] | length == 1' ../qa.json > /dev/null
-          gh api -H "Accept: application/octet-stream" "repos/$GITHUB_REPOSITORY/releases/assets/729435702" > "Agent-Pi-DSH-3.8.9-mac-arm64.zip.sha256"
-          printf "%s  %s\n" "a1f391fcca7cf8cdc33443eaa67d39ff92207853fc0ff21b354c47b5ee4f47ee" "Agent-Pi-DSH-3.8.9-mac-arm64.zip.sha256" | shasum -a 256 -c -
-          test "$(cat "Agent-Pi-DSH-3.8.9-mac-arm64.dmg.sha256")" = "8e05061bfc016b3bb580579f48f5413e580b39fd010bc5cbb3e07e723e727b1e  Agent-Pi-DSH-3.8.9-mac-arm64.dmg"
-          test "$(cat "Agent-Pi-DSH-3.8.9-mac-arm64.zip.sha256")" = "6542810139d5dc6e0e1638af36fba67999d760f9504fb89752dfdd66f22469cb  Agent-Pi-DSH-3.8.9-mac-arm64.zip"
+          jq -e '[.assets[] | select(.id == 729631227 and .name == "Agent-Pi-DSH-3.8.9-mac-x64.dmg" and .size == 710545918 and .state == "uploaded" and .digest == "sha256:b364950f45cb13b9776f92544929b6c2cb8e7906d38f7fcc278349187017f521")] | length == 1' ../qa.json > /dev/null
+          gh api -H "Accept: application/octet-stream" "repos/$GITHUB_REPOSITORY/releases/assets/729631227" > "Agent-Pi-DSH-3.8.9-mac-x64.dmg"
+          printf "%s  %s\n" "b364950f45cb13b9776f92544929b6c2cb8e7906d38f7fcc278349187017f521" "Agent-Pi-DSH-3.8.9-mac-x64.dmg" | shasum -a 256 -c -
+          jq -e '[.assets[] | select(.id == 729651764 and .name == "Agent-Pi-DSH-3.8.9-mac-x64.dmg.sha256" and .size == 97 and .state == "uploaded" and .digest == "sha256:32f56eb451950993824b0d99db43948af9d7d1d563b1ba5ee4baf6af0d58414f")] | length == 1' ../qa.json > /dev/null
+          gh api -H "Accept: application/octet-stream" "repos/$GITHUB_REPOSITORY/releases/assets/729651764" > "Agent-Pi-DSH-3.8.9-mac-x64.dmg.sha256"
+          printf "%s  %s\n" "32f56eb451950993824b0d99db43948af9d7d1d563b1ba5ee4baf6af0d58414f" "Agent-Pi-DSH-3.8.9-mac-x64.dmg.sha256" | shasum -a 256 -c -
+          jq -e '[.assets[] | select(.id == 729586997 and .name == "Agent-Pi-DSH-3.8.9-mac-x64.zip" and .size == 803659712 and .state == "uploaded" and .digest == "sha256:d6ffba221e1e2f617dfc4c6d3590ef26e68ca5c2e7a4bc7ce21dddb91fc3accb")] | length == 1' ../qa.json > /dev/null
+          gh api -H "Accept: application/octet-stream" "repos/$GITHUB_REPOSITORY/releases/assets/729586997" > "Agent-Pi-DSH-3.8.9-mac-x64.zip"
+          printf "%s  %s\n" "d6ffba221e1e2f617dfc4c6d3590ef26e68ca5c2e7a4bc7ce21dddb91fc3accb" "Agent-Pi-DSH-3.8.9-mac-x64.zip" | shasum -a 256 -c -
+          jq -e '[.assets[] | select(.id == 729617181 and .name == "Agent-Pi-DSH-3.8.9-mac-x64.zip.sha256" and .size == 97 and .state == "uploaded" and .digest == "sha256:53d92c118b5c617fd21ed048c6a60e3dee6d6729d41569e68a328d35eb1ea490")] | length == 1' ../qa.json > /dev/null
+          gh api -H "Accept: application/octet-stream" "repos/$GITHUB_REPOSITORY/releases/assets/729617181" > "Agent-Pi-DSH-3.8.9-mac-x64.zip.sha256"
+          printf "%s  %s\n" "53d92c118b5c617fd21ed048c6a60e3dee6d6729d41569e68a328d35eb1ea490" "Agent-Pi-DSH-3.8.9-mac-x64.zip.sha256" | shasum -a 256 -c -
+          test "$(cat "Agent-Pi-DSH-3.8.9-mac-x64.dmg.sha256")" = "b364950f45cb13b9776f92544929b6c2cb8e7906d38f7fcc278349187017f521  Agent-Pi-DSH-3.8.9-mac-x64.dmg"
+          test "$(cat "Agent-Pi-DSH-3.8.9-mac-x64.zip.sha256")" = "d6ffba221e1e2f617dfc4c6d3590ef26e68ca5c2e7a4bc7ce21dddb91fc3accb  Agent-Pi-DSH-3.8.9-mac-x64.zip"
       - name: Verify Developer ID, notarization, native runtime and cold start
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p verified/unpacked
-          ditto -x -k "verified/Agent-Pi-DSH-3.8.9-mac-arm64.zip" verified/unpacked
+          ditto -x -k "verified/Agent-Pi-DSH-3.8.9-mac-x64.zip" verified/unpacked
           app="$PWD/verified/unpacked/Agent Pi DSH.app"
           test "$(plutil -extract CFBundleShortVersionString raw -o - "$app/Contents/Info.plist")" = 3.8.9
-          test "$(lipo -archs "$app/Contents/MacOS/Agent Pi DSH")" = "arm64"
+          test "$(lipo -archs "$app/Contents/MacOS/Agent Pi DSH")" = "x86_64"
           codesign --verify --deep --strict --verbose=2 "$app"
           codesign --verify --strict --verbose=2 -R='anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists' "$app"
           xcrun stapler validate "$app"
           syspolicy_check distribution "$app"
-          python3 scripts/verify-macos-intel.py "$app" --arch "arm64" --maximum-macos 15.0.0 --report verified/deployment-targets.json
-          node scripts/smoke-macos-intel.mjs "$app" "arm64" 24.22.2 45.2.2
+          python3 scripts/verify-macos-intel.py "$app" --arch "x86_64" --maximum-macos 15.0.0 --report verified/deployment-targets.json
+          node scripts/smoke-macos-intel.mjs "$app" "x64" 24.22.2 45.2.2
           codesign --verify --deep --strict "$app"
-          codesign --verify --strict --verbose=2 -R='anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists' "verified/Agent-Pi-DSH-3.8.9-mac-arm64.dmg"
-          bash scripts/verify-macos-release-dmg.sh "verified/Agent-Pi-DSH-3.8.9-mac-arm64.dmg" 3.8.9 "arm64" 24.22.2 45.2.2 signed "$app"
-          { sw_vers; uname -m; cat "verified/Agent-Pi-DSH-3.8.9-mac-arm64.dmg.sha256" "verified/Agent-Pi-DSH-3.8.9-mac-arm64.zip.sha256"; } | tee -a "$GITHUB_STEP_SUMMARY"
+          codesign --verify --strict --verbose=2 -R='anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists' "verified/Agent-Pi-DSH-3.8.9-mac-x64.dmg"
+          bash scripts/verify-macos-release-dmg.sh "verified/Agent-Pi-DSH-3.8.9-mac-x64.dmg" 3.8.9 "x86_64" 24.22.2 45.2.2 signed "$app"
+          { sw_vers; uname -m; cat "verified/Agent-Pi-DSH-3.8.9-mac-x64.dmg.sha256" "verified/Agent-Pi-DSH-3.8.9-mac-x64.zip.sha256"; } | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -211,8 +97,8 @@ jobs:
           node "$product/scripts/verify-project-plan-runtime.mjs" "$product"
           plan="$product/bundles/project-plan/runtime"
           scratch=$(mktemp -d "$RUNNER_TEMP/agent-pi-sqlite.XXXXXX")
-          unzip -p "$plan/lib/sqlite-jdbc-3.51.2.0.jar" "org/sqlite/native/Mac/aarch64/libsqlitejdbc.dylib" > "$scratch/libsqlitejdbc.dylib"
-          test "$(lipo -archs "$scratch/libsqlitejdbc.dylib")" = "arm64"
+          unzip -p "$plan/lib/sqlite-jdbc-3.51.2.0.jar" "org/sqlite/native/Mac/x86_64/libsqlitejdbc.dylib" > "$scratch/libsqlitejdbc.dylib"
+          test "$(lipo -archs "$scratch/libsqlitejdbc.dylib")" = "x86_64"
           codesign --verify --strict -R='anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists' "$scratch/libsqlitejdbc.dylib"
           cat > "$scratch/SqliteProbe.java" <<'JAVA'
           import java.sql.DriverManager;
@@ -234,9 +120,159 @@ jobs:
           "$plan/jre/bin/java" -Djava.io.tmpdir="$scratch" -cp "$scratch:$plan/lib/*" SqliteProbe
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: signed-macos-389-arm64-macos15-acceptance
+          name: signed-macos-389-x64-macos15-acceptance
           path: |-
             verified/*.sha256
             verified/deployment-targets.json
           if-no-files-found: error
           retention-days: 14
+  promote-official-draft:
+    name: Stage accepted Mac files in the 3.8.9 draft
+    needs: verify-intel-macos15
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    concurrency:
+      group: stage-official-v3.8.9-draft
+      cancel-in-progress: false
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Verify native acceptance and copy the eight Mac assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$GITHUB_REPOSITORY" = "xiangxin2021cn/agent-pi-dsh"
+          test "$GITHUB_REF" = "refs/heads/codex/release-389-intel-handoff"
+          source_commit=c71c4f90bb51a4e7ac4892e464affc9dd6420417
+          test "$(gh api "repos/$GITHUB_REPOSITORY/commits/v3.8.9" --jq .sha)" = "$source_commit"
+          work=$(mktemp -d "$RUNNER_TEMP/agent-pi-389-promote.XXXXXX")
+          trap 'rm -rf "$work"' EXIT
+          cd "$work"
+          
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/42725363542" > arm-run.json
+          jq -e '
+            .id == 42725363542 and .head_sha == "21b9b8151452e47ea1963a64470f476bfea6da30"
+            and .head_branch == "codex/release-389-intel-handoff"
+            and .path == ".github/workflows/macos-389-handoff.yml" and .event == "push"
+            and .status == "completed" and .conclusion == "success"
+          ' arm-run.json > /dev/null
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/42725363542/jobs" > arm-jobs.json
+          jq -e '
+            (.jobs | map({id, name, status, conclusion}) | sort_by(.id)) == [
+              {id: 129529488385, name: "Verify signed arm64 distributables on macOS 15", status: "completed", conclusion: "success"},
+              {id: 129529488797, name: "Verify signed arm64 distributables", status: "completed", conclusion: "success"}
+            ]
+          ' arm-jobs.json > /dev/null
+          
+          cat > original-assets.json <<'JSON'
+          [
+            {"id":714587563,"name":"Agent-Pi-DSH-3.6.2-CAD-corresponding-source.tar.gz","size":39081319,"digest":"sha256:fbc7044499a8e8f87f34cad3a0501b353a9202164fe5dda1990cb43b5d5344af","state":"uploaded"},
+            {"id":714595916,"name":"Agent-Pi-DSH-3.6.2-CAD-corresponding-source.tar.gz.sha256","size":117,"digest":"sha256:375c51c4567a8f5977b30e0187aaca08ec78a0f1fbd1ab360de0e85100a04ddc","state":"uploaded"},
+            {"id":715095216,"name":"Agent-Pi-DSH-3.8.0-BIM-corresponding-source.tar.gz","size":920568526,"digest":"sha256:b57fbcab1b7d3ab663e7347a6b896b071f1bd8830c890dbf57866a3ada10e9db","state":"uploaded"},
+            {"id":715175842,"name":"Agent-Pi-DSH-3.8.0-BIM-corresponding-source.tar.gz.sha256","size":117,"digest":"sha256:c4cf38e5f65d45d4604a7c43e0292b0a6b0a4b89032006f2915e17a37dadedf7","state":"uploaded"},
+            {"id":715087601,"name":"Agent-Pi-DSH-3.8.2-CAD-host-corresponding-source.tar.gz","size":25450749,"digest":"sha256:c13fb769abb0a61832c86d620e2a0bb849bc69ef43fd634edd900810abb74806","state":"uploaded"},
+            {"id":715093052,"name":"Agent-Pi-DSH-3.8.2-CAD-host-corresponding-source.tar.gz.sha256","size":122,"digest":"sha256:c8b8e25ad7ed88827d5694129e08eaf2b38659c1050fd779320c5a548770b7b4","state":"uploaded"},
+            {"id":714675045,"name":"Agent-Pi-DSH-3.8.9-linux-amd64.deb","size":531369072,"digest":"sha256:eb8de2fcf1b74622603a4b8edb615236e5d52494ec014a5ae8bebdd4f679ec18","state":"uploaded"},
+            {"id":714675047,"name":"Agent-Pi-DSH-3.8.9-linux-amd64.deb.sha256","size":101,"digest":"sha256:979eea9e7a27bf9345840d72bd3f04ccf7e2598d924a95d93a3ed9747126ef97","state":"uploaded"},
+            {"id":714675043,"name":"Agent-Pi-DSH-3.8.9-linux-x86_64.AppImage","size":668588665,"digest":"sha256:2043bf35640971dcc6cdf772467cf068b5b3e35b9061ee3fdb5d7a35ce16042a","state":"uploaded"},
+            {"id":714675046,"name":"Agent-Pi-DSH-3.8.9-linux-x86_64.AppImage.sha256","size":107,"digest":"sha256:3d865aac2a76d4f4380947bdb6758f7a78282c508dcdbd55f0b9bfbda93c3aec","state":"uploaded"},
+            {"id":714579184,"name":"Agent-Pi-DSH-3.8.9-x64.exe","size":688939405,"digest":"sha256:5a2196f60f782cce7b2c3a3b59b050bfbedd01b5e26591808854c8af8699c895","state":"uploaded"},
+            {"id":714745883,"name":"Agent-Pi-DSH-3.8.9-x64.exe.build.json","size":1151,"digest":"sha256:3cdbc901a8283f5a1de02dfd5ab3459dc84b4d0eb01d6d26943780f5bd60f064","state":"uploaded"},
+            {"id":714743761,"name":"Agent-Pi-DSH-3.8.9-x64.exe.sha256","size":93,"digest":"sha256:9c19c267c1fd26db4dbd9f7d277b7b8503c348f0e1043f9c9f93a47ca1c9cd4c","state":"uploaded"},
+            {"id":714597323,"name":"runtime-payload-3.8.9.tar.gz","size":209650683,"digest":"sha256:3b05dedbe9871993067cf5f2a98af5fece9d7c2c8d1db662fffb837e19a83659","state":"uploaded"},
+            {"id":714656568,"name":"runtime-payload-3.8.9.tar.gz.sha256","size":95,"digest":"sha256:47be7a6c923c18f5b45ea399545190b622ffe0f65bfdcd9c8c283ff6816eaf1d","state":"uploaded"}
+          ]
+          JSON
+          cat > mac-assets.json <<'JSON'
+          [
+            {"id":729308306,"name":"Agent-Pi-DSH-3.8.9-mac-arm64.dmg","size":687563195,"digest":"sha256:8e05061bfc016b3bb580579f48f5413e580b39fd010bc5cbb3e07e723e727b1e","state":"uploaded"},
+            {"id":729365015,"name":"Agent-Pi-DSH-3.8.9-mac-arm64.dmg.sha256","size":99,"digest":"sha256:a426539075c30f43a49ede770b1fdcbe4f2b21d80616d28a5ef85a45dd5316ff","state":"uploaded"},
+            {"id":729394556,"name":"Agent-Pi-DSH-3.8.9-mac-arm64.zip","size":701294351,"digest":"sha256:6542810139d5dc6e0e1638af36fba67999d760f9504fb89752dfdd66f22469cb","state":"uploaded"},
+            {"id":729435702,"name":"Agent-Pi-DSH-3.8.9-mac-arm64.zip.sha256","size":99,"digest":"sha256:a1f391fcca7cf8cdc33443eaa67d39ff92207853fc0ff21b354c47b5ee4f47ee","state":"uploaded"},
+            {"id":729631227,"name":"Agent-Pi-DSH-3.8.9-mac-x64.dmg","size":710545918,"digest":"sha256:b364950f45cb13b9776f92544929b6c2cb8e7906d38f7fcc278349187017f521","state":"uploaded"},
+            {"id":729651764,"name":"Agent-Pi-DSH-3.8.9-mac-x64.dmg.sha256","size":97,"digest":"sha256:32f56eb451950993824b0d99db43948af9d7d1d563b1ba5ee4baf6af0d58414f","state":"uploaded"},
+            {"id":729586997,"name":"Agent-Pi-DSH-3.8.9-mac-x64.zip","size":803659712,"digest":"sha256:d6ffba221e1e2f617dfc4c6d3590ef26e68ca5c2e7a4bc7ce21dddb91fc3accb","state":"uploaded"},
+            {"id":729617181,"name":"Agent-Pi-DSH-3.8.9-mac-x64.zip.sha256","size":97,"digest":"sha256:53d92c118b5c617fd21ed048c6a60e3dee6d6729d41569e68a328d35eb1ea490","state":"uploaded"}
+          ]
+          JSON
+          
+          read_draft() {
+            local id="$1" tag="$2" output="$3"
+            gh api "repos/$GITHUB_REPOSITORY/releases/$id" > "$output"
+            jq -e --argjson id "$id" --arg tag "$tag" --arg source "$source_commit" '
+              .id == $id and .tag_name == $tag and .target_commitish == $source
+              and .draft == true and .prerelease == false and .published_at == null
+            ' "$output" > /dev/null
+          }
+          
+          check_official_assets() {
+            jq -e --slurpfile originals original-assets.json --slurpfile mac mac-assets.json '
+              def bytes: {name, size, digest, state};
+              (.assets | map({id, name, size, digest, state})) as $actual |
+              all($originals[0][]; . as $original | any($actual[]; . == $original)) and
+              all($actual[]; . as $found |
+                any($originals[0][]; . == $found) or
+                any($mac[0][]; bytes == ($found | bytes))) and
+              ($actual | map(.name) | length == (unique | length))
+            ' official.json > /dev/null
+          }
+          
+          read_draft 439745663 qa-macos-389-local-signing qa.json
+          jq -e --slurpfile mac mac-assets.json '
+            (.assets | map({id, name, size, digest, state}) | sort_by(.id)) ==
+            ($mac[0] | sort_by(.id))
+          ' qa.json > /dev/null
+          read_draft 433638305 v3.8.9 official.json
+          check_official_assets
+          
+          jq -r '.[] | [.id, .name, .size, (.digest | ltrimstr("sha256:"))] | @tsv' mac-assets.json > transfer.tsv
+          while IFS=$'\t' read -r id name size hash; do
+            gh api -H 'Accept: application/octet-stream' \
+              "repos/$GITHUB_REPOSITORY/releases/assets/$id" > "$name"
+            test "$(stat -c %s "$name")" = "$size"
+            printf '%s  %s\n' "$hash" "$name" | sha256sum --check --status
+          done < transfer.tsv
+          while IFS=$'\t' read -r id name size hash; do
+            if [[ "$name" != *.sha256 ]]; then
+              printf '%s  %s\n' "$hash" "$name" | cmp - "$name.sha256"
+            fi
+          done < transfer.tsv
+          
+          while IFS=$'\t' read -r id name size hash; do
+            read_draft 433638305 v3.8.9 official.json
+            check_official_assets
+            if jq -e --arg name "$name" 'any(.assets[]; .name == $name)' official.json > /dev/null; then
+              printf 'Already staged with the expected digest: %s\n' "$name"
+              continue
+            fi
+            curl --fail --silent --show-error --max-time 1200 \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H 'Accept: application/vnd.github+json' \
+              -H 'Content-Type: application/octet-stream' \
+              --data-binary "@$name" \
+              "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/433638305/assets?name=$name" \
+              > uploaded.json
+            jq -e --arg name "$name" --argjson size "$size" --arg digest "sha256:$hash" '
+              .name == $name and .size == $size and .digest == $digest and .state == "uploaded"
+            ' uploaded.json > /dev/null
+            printf 'Staged: %s\n' "$name"
+          done < transfer.tsv
+          
+          read_draft 433638305 v3.8.9 official.json
+          check_official_assets
+          jq -e '.assets | length == 23' official.json > /dev/null
+          while IFS=$'\t' read -r id name size hash; do
+            uploaded_id=$(jq -er --arg name "$name" '.assets[] | select(.name == $name) | .id' official.json)
+            actual=$(gh api -H 'Accept: application/octet-stream' \
+              "repos/$GITHUB_REPOSITORY/releases/assets/$uploaded_id" | sha256sum)
+            test "${actual%% *}" = "$hash"
+          done < transfer.tsv
+          test "$(gh api "repos/$GITHUB_REPOSITORY/commits/v3.8.9" --jq .sha)" = "$source_commit"
+          read_draft 433638305 v3.8.9 official.json
+          check_official_assets
+          jq -e '.assets | length == 23' official.json > /dev/null
+          printf 'Draft 433638305 has 23 matching assets. All eight Mac files passed download readback.\n' | tee -a "$GITHUB_STEP_SUMMARY"
