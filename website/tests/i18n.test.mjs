@@ -55,17 +55,17 @@ test('homepage loads translations before the language controller', () => {
 
 test('public fallback downloads and kernel identity stay aligned with the existing latest release', () => {
   const expectedAssets = [
-    'Agent-Pi-DSH-3.8.8-x64.exe',
-    'Agent-Pi-DSH-3.8.8-x64.exe.sha256',
-    'Agent-Pi-DSH-3.8.8-mac-arm64.dmg',
-    'Agent-Pi-DSH-3.8.8-mac-arm64.zip',
-    'Agent-Pi-DSH-3.8.8-mac-x64.dmg',
-    'Agent-Pi-DSH-3.8.8-mac-x64.zip',
-    'Agent-Pi-DSH-3.8.8-linux-x86_64.AppImage',
-    'Agent-Pi-DSH-3.8.8-linux-amd64.deb',
+    'Agent-Pi-DSH-3.8.9-x64.exe',
+    'Agent-Pi-DSH-3.8.9-x64.exe.sha256',
+    'Agent-Pi-DSH-3.8.9-mac-arm64.dmg',
+    'Agent-Pi-DSH-3.8.9-mac-arm64.zip',
+    'Agent-Pi-DSH-3.8.9-mac-x64.dmg',
+    'Agent-Pi-DSH-3.8.9-mac-x64.zip',
+    'Agent-Pi-DSH-3.8.9-linux-x86_64.AppImage',
+    'Agent-Pi-DSH-3.8.9-linux-amd64.deb',
   ]
   for (const asset of expectedAssets) assert.ok(html.includes(asset), asset)
   assert.doesNotMatch(html, /releases\/download\/v3\.5\.2/)
-  assert.match(html, /data-rel-version>v3\.8\.8</)
-  assert.match(html, /data-kernel-version>0\.2\.2-alpha\.2 \(master snapshot\)</)
+  assert.match(html, /data-rel-version>v3\.8\.9</)
+  assert.match(html, /data-kernel-version>dsh-v0\.2\.2-rc\.1</)
 })

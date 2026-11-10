@@ -50,9 +50,9 @@
   <div data-lang="zh">
     <p>本页说明 Agent Pi DSH 安装包的签名与完整性校验政策。</p>
     <ul>
-      <li><span data-release-version>3.8.8</span> 当前公开构件未签名或公证，Windows SmartScreen 或其他平台安全机制可能提示风险。</li>
+      <li><span data-release-version>3.8.9</span> 的两种 macOS DMG 均已通过 Developer ID 签名、Apple 公证和实际挂载检查。Windows 安装包未签名，可能触发 SmartScreen。</li>
       <li>GitHub Release 会提供构件摘要或校验文件（如有）；Windows 用户应在安装前核对官网显示的 SHA256。</li>
-      <li>后续正式签名构件只通过受控发布流水线生成，签名密钥由签名服务托管，项目维护者不直接接触私钥。</li>
+      <li>macOS 发行包由发布者在 Mac 上使用 Developer ID 签名，完成 Apple 公证后，由 GitHub Actions 在对应架构上验收并核对成品 SHA-256。</li>
       <li>签名状态与摘要以 GitHub Release 中对应构件的信息为准。</li>
     </ul>
     <p>签名相关问题请通过 <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/issues">项目问题反馈</a> 联系 Always π AI studio。</p>
@@ -60,9 +60,9 @@
   <div data-lang="en">
     <p>This page states the installer signing and integrity policy of Agent Pi DSH.</p>
     <ul>
-      <li>The current <span data-release-version>3.8.8</span> public artifacts are unsigned or unnotarized, so Windows SmartScreen or another platform's security checks may display a warning.</li>
+      <li>The current <span data-release-version>3.8.9</span> macOS DMGs carry Developer ID signatures and Apple notarization, and passed mount checks on both architectures. The Windows installer is unsigned and may trigger SmartScreen.</li>
       <li>GitHub Release provides an artifact digest or checksum file when available; Windows users should verify the SHA256 shown on the website before installation.</li>
-      <li>Future signed artifacts will be produced only through a controlled release pipeline; signing keys remain with the signing service and are not directly accessible to maintainers.</li>
+      <li>The publisher signs the macOS packages on a Mac using Developer ID. After Apple notarization, GitHub Actions validates the packages on each native architecture and checks their SHA-256 digests.</li>
       <li>The corresponding GitHub Release asset information is authoritative for signing status and digests.</li>
     </ul>
     <p>For signing questions, contact Always π AI studio through <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/issues">project issues</a>.</p>
@@ -78,8 +78,8 @@
   </div>
 </footer>
 
-<script src="assets/js/release-metadata.js?v=388-sync2"></script>
-<script src="assets/js/main.js?v=388-sync2"></script>
+<script src="assets/js/release-metadata.js?v=389-sync-final"></script>
+<script src="assets/js/main.js?v=389-sync-final"></script>
 </body>
 </html>
 
