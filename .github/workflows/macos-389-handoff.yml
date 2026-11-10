@@ -1,4 +1,4 @@
-name: Audit 3.8.9 public website bytes
+name: Audit 3.8.9 Pages response retries
 on:
   push:
     branches: [codex/release-389-intel-handoff]
@@ -7,14 +7,14 @@ permissions:
   contents: read
 jobs:
   public-www:
-    name: Read back the public custom domain over verified TLS
+    name: Read back remaining Pages URLs over verified TLS
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '24.22.2'
-      - name: Compare 35 production responses with the accepted site manifest
+      - name: Compare 23 production responses with the accepted site manifest
         shell: bash
         env:
           NODE_TLS_REJECT_UNAUTHORIZED: '1'
@@ -33,7 +33,8 @@ jobs:
               'referrer-policy': 'strict-origin-when-cross-origin',
             }
             async function check(item) {
-              let url = new URL(item.path, spec.origin)
+              const origin = item.origin ?? spec.origin
+              let url = new URL(item.path, origin)
               if (item.cacheKey) url.searchParams.set('v', item.cacheKey)
               const signal = AbortSignal.timeout(35000)
               for (let attempt = 0; attempt < 4; attempt++) {
@@ -46,7 +47,7 @@ jobs:
                   const location = response.headers.get('location')
                   assert.ok(location, 'Redirect has no Location')
                   const target = new URL(location, url)
-                  assert.equal(target.origin, spec.origin, 'Redirect left the production origin')
+                  assert.equal(target.origin, origin, 'Redirect left the production origin')
                   assert.ok(!target.username && !target.password, 'Redirect contained credentials')
                   url = target
                   continue
@@ -89,7 +90,7 @@ jobs:
               while (next < spec.checks.length) {
                 const index = next++
                 const item = spec.checks[index]
-                const row = { path: item.path, cacheKey: item.cacheKey ?? null }
+                const row = { origin: item.origin ?? spec.origin, path: item.path, cacheKey: item.cacheKey ?? null }
                 try {
                   rows[index] = { ...row, ...await check(item), accepted: true }
                 } catch (error) {
@@ -104,15 +105,15 @@ jobs:
               ...identity, status, requested: rows.length, accepted, verifiedAt: new Date().toISOString(),
               runId: process.env.GITHUB_RUN_ID, workflowCommit: process.env.GITHUB_SHA, rows,
             }
-            writeFileSync('public-www-readback.json', JSON.stringify(report, null, 2) + '\n', { flag: 'wx' })
+            writeFileSync(spec.reportFile, JSON.stringify(report, null, 2) + '\n', { flag: 'wx' })
             console.log(JSON.stringify({ status, siteCommit: spec.siteCommit, deploymentId: spec.deploymentId, accepted, requested: rows.length }))
             if (status !== 'passed') process.exitCode = 1
-          })({"origin":"https://www.agent-pi.app","siteCommit":"b57a82be2edf0e52ce41f3f3d6df70f413749d24","deploymentId":"c9c89e78-5bb0-4549-95b8-da802b4fa49f","manifestSha256":"1ed8eb70e5d90c6bb9b9df19658269448fb79626d4c0d2ad2b87f2f53ef7e7c9","checks":[{"path":"/assets/css/main.css","cacheKey":"389-sync-final","bytes":29454,"sha256":"9e8674b5f8f4be9d072a4b081330e7f0529e7746e41be1cf70682a3b8fe6c03f"},{"path":"/assets/img/A_premium_dark_abstract_hero_b_2026-08-23T16-59-49.png","cacheKey":"389-sync-final","bytes":1267483,"sha256":"6bebaf065c40253ac873f0d447613677c464be0e1375794aa5736b3a8b0d635d"},{"path":"/assets/img/A_premium_light_abstract_hero__2026-08-23T16-59-49.png","cacheKey":"389-sync-final","bytes":1262498,"sha256":"e373493b11949ee510216a25d4043ba31454ee4cd29b7f63e254bb580a09533b"},{"path":"/assets/img/PROMPTS.md","cacheKey":"389-sync-final","bytes":10474,"sha256":"8780627753d5602dadd67698fe1402d6519acbe5a426114c8eb899290867599f"},{"path":"/assets/img/hero-dark-v2.jpg","cacheKey":"389-sync-final","bytes":80198,"sha256":"cd3333eff46346b750b02f6877847e651c660d5f53addae792616ab692d5a001"},{"path":"/assets/img/hero-dark.jpg","cacheKey":"389-sync-final","bytes":49906,"sha256":"b1e22e17743c1eca6175cfaed285f9f47e382aafd6196fc2bbacda53643f787a"},{"path":"/assets/img/hero-light-v2.jpg","cacheKey":"389-sync-final","bytes":84624,"sha256":"17e62b785be0394c21d8f48d512562565f3927aa33adb77107935d2ee6181ef8"},{"path":"/assets/img/hero-light.jpg","cacheKey":"389-sync-final","bytes":60329,"sha256":"50a8bbdc5165938288acc2e99763950e8136bcbe4c2627b6c63fb9934a24e726"},{"path":"/assets/img/hero-logo.png","cacheKey":"389-sync-final","bytes":244530,"sha256":"e2a2ae18e61e1ea5baae3c9693de35a96413d7e36890704d7ba8071f7d832dd2"},{"path":"/assets/img/logo.png","cacheKey":"389-sync-final","bytes":55372,"sha256":"8e56bf2b2f8e274a8388bd600bb03c52056848764ea817a278b2012479c0878a"},{"path":"/assets/img/prompts.js","cacheKey":"389-sync-final","bytes":4788,"sha256":"db2b753aff2fc92bbf3cfcbde0b93bd707dab141e0d830e2d9fe2a7ffb05b457"},{"path":"/assets/img/screenshot-market.png","cacheKey":"389-sync-final","bytes":140137,"sha256":"a9fc243ec5e1b95266a14a7ae21e8f62bc25e349648cfb865a7247cbc2dbaa7d"},{"path":"/assets/img/showcase/kb-workbench.png","cacheKey":"389-sync-final","bytes":144821,"sha256":"d1ec8eba504d2c8ebdcb705567fc2e06d0346a2316755c207efd9348eb082aa7"},{"path":"/assets/img/showcase/report-equity.png","cacheKey":"389-sync-final","bytes":299482,"sha256":"3a97dabc25f72a6cc3d9711d9d8c1f05960f602a042bbd2aff178148b15d8c67"},{"path":"/assets/img/showcase/report-map.png","cacheKey":"389-sync-final","bytes":330021,"sha256":"6d03038870f44a8530c8ddcbdd0e66699c32ac2e759fce060ecb39cd3f70bdd6"},{"path":"/assets/img/showcase/report-stages.png","cacheKey":"389-sync-final","bytes":276058,"sha256":"abf84657bb9ad038a94bd5613b56937a0d66c855102c0d4dacd3ede24d0a3579"},{"path":"/assets/img/studio-logo.png","cacheKey":"389-sync-final","bytes":134677,"sha256":"425c9cd19b6cb2a74ac3e0d7d10ca9fb7baac075b922a7d000d09d0a9c740f8e"},{"path":"/assets/js/flow.js","cacheKey":"389-sync-final","bytes":5691,"sha256":"ca15abaa11dc68552c64558df1da42d924c39c6cc1235fba2faff46613f63857"},{"path":"/assets/js/i18n.js","cacheKey":"389-sync-final","bytes":71088,"sha256":"d7c3e5ccba8cb03eb5cd13980a21abc17c535b55da591a138c9045a9f6da5322"},{"path":"/assets/js/main.js","cacheKey":"389-sync-final","bytes":13220,"sha256":"b542e8cad04b0ca949ee3dcdd2de7a0f5e0532577ca415be02df218540317c36"},{"path":"/assets/js/release-metadata.js","cacheKey":"389-sync-final","bytes":2469,"sha256":"86ff9c883e8aac9cbe599066d32f3a6efc17c2b0b3a4c7741ed70d72a5288d0b"},{"path":"/assets/js/site3d.js","cacheKey":"389-sync-final","bytes":8451,"sha256":"4c1c25c3263a6b0330ecf3a68e28e195fa3d4d0419a40c24025844b4caebb81a"},{"path":"/assets/video/flow-banner-light-v2.mp4","cacheKey":"389-sync-final","bytes":6383203,"sha256":"3660ce367653a7bf105eaca7feb246ebca51e51e724ac8174ecdb4fb0e524dea"},{"path":"/assets/video/flow-banner-light.mp4","cacheKey":"389-sync-final","bytes":7553309,"sha256":"420a276c053e300f772a67d9554fb486ad3e5f8d5e0d399f7da7611caf675d45"},{"path":"/assets/video/flow-banner.mp4","cacheKey":"389-sync-final","bytes":8417241,"sha256":"aefabe6e853f21bb3386b269010fddab7f60ee41ce44dec706597fb3be28362b"},{"path":"/code-signing-policy.html","cacheKey":"389-sync-final","bytes":5816,"sha256":"b230634bf583e337ca094ecae4595e1ed9c5c3f033e3b16f7a2b4d07cb92c5d5"},{"path":"/docs.html","cacheKey":"389-sync-final","bytes":52991,"sha256":"ff8e431f8f1097dea62560e6b009384f5758f0c4f726b162d9f5e7d7c364165c"},{"path":"/","cacheKey":"389-sync-final","bytes":82461,"sha256":"86e7c36d8df331f25416bf600919b1eb8abce680e03aad229e356008afc93d97"},{"path":"/privacy-policy.html","cacheKey":"389-sync-final","bytes":7984,"sha256":"49da672be90f2b2e255868e40337b037e4d963c6dae9bd55975be9d1341e0a70"},{"path":"/showcase/arch-lift-sim.html","cacheKey":"389-sync-final","bytes":176449,"sha256":"ac1f55918760a9f047fff6f296649397db08a56035df2e5133377a9cc3f2e53c"},{"path":"/showcase/vendor/addons/controls/OrbitControls.js","cacheKey":"389-sync-final","bytes":29868,"sha256":"5a44a9e86a2a0fb11933eed69bc2cd33c76a496854c1aed6ed776efa87d7b064"},{"path":"/showcase/vendor/three.module.js","cacheKey":"389-sync-final","bytes":1272972,"sha256":"76dea8151bc9352aef3528b4262e249b2604f62543828328db978d060d61a495"},{"path":"/showcase/vendor/three.module.min.js","cacheKey":"389-sync-final","bytes":670681,"sha256":"3e690ac7d180b0aadf0891bea39eec643e29e2d3e75c99b18689518665f69ba6"},{"path":"/","bytes":82461,"sha256":"86e7c36d8df331f25416bf600919b1eb8abce680e03aad229e356008afc93d97"},{"path":"/docs","bytes":52991,"sha256":"ff8e431f8f1097dea62560e6b009384f5758f0c4f726b162d9f5e7d7c364165c"}]})
+          })({"origin":null,"reportFile":"pages-supplemental-readback.json","siteCommit":"b57a82be2edf0e52ce41f3f3d6df70f413749d24","deploymentId":"c9c89e78-5bb0-4549-95b8-da802b4fa49f","manifestSha256":"1ed8eb70e5d90c6bb9b9df19658269448fb79626d4c0d2ad2b87f2f53ef7e7c9","checks":[{"path":"/assets/img/A_premium_dark_abstract_hero_b_2026-08-23T16-59-49.png","origin":"https://c9c89e78.agent-pi.pages.dev","cacheKey":"389-sync-final","bytes":1267483,"sha256":"6bebaf065c40253ac873f0d447613677c464be0e1375794aa5736b3a8b0d635d"},{"path":"/assets/img/PROMPTS.md","origin":"https://c9c89e78.agent-pi.pages.dev","cacheKey":"389-sync-final","bytes":10474,"sha256":"8780627753d5602dadd67698fe1402d6519acbe5a426114c8eb899290867599f"},{"path":"/assets/img/A_premium_light_abstract_hero__2026-08-23T16-59-49.png","origin":"https://c9c89e78.agent-pi.pages.dev","cacheKey":"389-sync-final","bytes":1262498,"sha256":"e373493b11949ee510216a25d4043ba31454ee4cd29b7f63e254bb580a09533b"},{"path":"/assets/img/hero-dark-v2.jpg","origin":"https://c9c89e78.agent-pi.pages.dev","cacheKey":"389-sync-final","bytes":80198,"sha256":"cd3333eff46346b750b02f6877847e651c660d5f53addae792616ab692d5a001"},{"path":"/assets/img/hero-logo.png","origin":"https://c9c89e78.agent-pi.pages.dev","cacheKey":"389-sync-final","bytes":244530,"sha256":"e2a2ae18e61e1ea5baae3c9693de35a96413d7e36890704d7ba8071f7d832dd2"},{"path":"/assets/img/logo.png","origin":"https://c9c89e78.agent-pi.pages.dev","cacheKey":"389-sync-final","bytes":55372,"sha256":"8e56bf2b2f8e274a8388bd600bb03c52056848764ea817a278b2012479c0878a"},{"path":"/assets/img/screenshot-market.png","origin":"https://c9c89e78.agent-pi.pages.dev","cacheKey":"389-sync-final","bytes":140137,"sha256":"a9fc243ec5e1b95266a14a7ae21e8f62bc25e349648cfb865a7247cbc2dbaa7d"},{"path":"/assets/img/showcase/report-map.png","origin":"https://c9c89e78.agent-pi.pages.dev","cacheKey":"389-sync-final","bytes":330021,"sha256":"6d03038870f44a8530c8ddcbdd0e66699c32ac2e759fce060ecb39cd3f70bdd6"},{"path":"/assets/img/showcase/kb-workbench.png","origin":"https://c9c89e78.agent-pi.pages.dev","cacheKey":"389-sync-final","bytes":144821,"sha256":"d1ec8eba504d2c8ebdcb705567fc2e06d0346a2316755c207efd9348eb082aa7"},{"path":"/assets/img/studio-logo.png","origin":"https://c9c89e78.agent-pi.pages.dev","cacheKey":"389-sync-final","bytes":134677,"sha256":"425c9cd19b6cb2a74ac3e0d7d10ca9fb7baac075b922a7d000d09d0a9c740f8e"},{"path":"/assets/js/flow.js","origin":"https://c9c89e78.agent-pi.pages.dev","cacheKey":"389-sync-final","bytes":5691,"sha256":"ca15abaa11dc68552c64558df1da42d924c39c6cc1235fba2faff46613f63857"},{"path":"/assets/js/main.js","origin":"https://c9c89e78.agent-pi.pages.dev","cacheKey":"389-sync-final","bytes":13220,"sha256":"b542e8cad04b0ca949ee3dcdd2de7a0f5e0532577ca415be02df218540317c36"},{"path":"/assets/js/release-metadata.js","origin":"https://c9c89e78.agent-pi.pages.dev","cacheKey":"389-sync-final","bytes":2469,"sha256":"86ff9c883e8aac9cbe599066d32f3a6efc17c2b0b3a4c7741ed70d72a5288d0b"},{"path":"/assets/js/site3d.js","origin":"https://c9c89e78.agent-pi.pages.dev","cacheKey":"389-sync-final","bytes":8451,"sha256":"4c1c25c3263a6b0330ecf3a68e28e195fa3d4d0419a40c24025844b4caebb81a"},{"path":"/assets/video/flow-banner-light-v2.mp4","origin":"https://c9c89e78.agent-pi.pages.dev","cacheKey":"389-sync-final","bytes":6383203,"sha256":"3660ce367653a7bf105eaca7feb246ebca51e51e724ac8174ecdb4fb0e524dea"},{"path":"/assets/video/flow-banner.mp4","origin":"https://c9c89e78.agent-pi.pages.dev","cacheKey":"389-sync-final","bytes":8417241,"sha256":"aefabe6e853f21bb3386b269010fddab7f60ee41ce44dec706597fb3be28362b"},{"path":"/code-signing-policy.html","origin":"https://c9c89e78.agent-pi.pages.dev","cacheKey":"389-sync-final","bytes":5816,"sha256":"b230634bf583e337ca094ecae4595e1ed9c5c3f033e3b16f7a2b4d07cb92c5d5"},{"path":"/docs.html","origin":"https://c9c89e78.agent-pi.pages.dev","cacheKey":"389-sync-final","bytes":52991,"sha256":"ff8e431f8f1097dea62560e6b009384f5758f0c4f726b162d9f5e7d7c364165c"},{"path":"/","origin":"https://c9c89e78.agent-pi.pages.dev","cacheKey":"389-sync-final","bytes":82461,"sha256":"86e7c36d8df331f25416bf600919b1eb8abce680e03aad229e356008afc93d97"},{"path":"/privacy-policy.html","origin":"https://c9c89e78.agent-pi.pages.dev","cacheKey":"389-sync-final","bytes":7984,"sha256":"49da672be90f2b2e255868e40337b037e4d963c6dae9bd55975be9d1341e0a70"},{"path":"/showcase/arch-lift-sim.html","origin":"https://c9c89e78.agent-pi.pages.dev","cacheKey":"389-sync-final","bytes":176449,"sha256":"ac1f55918760a9f047fff6f296649397db08a56035df2e5133377a9cc3f2e53c"},{"path":"/showcase/vendor/addons/controls/OrbitControls.js","origin":"https://c9c89e78.agent-pi.pages.dev","cacheKey":"389-sync-final","bytes":29868,"sha256":"5a44a9e86a2a0fb11933eed69bc2cd33c76a496854c1aed6ed776efa87d7b064"},{"path":"/assets/video/flow-banner.mp4","origin":"https://agent-pi.pages.dev","cacheKey":"389-sync-final","bytes":8417241,"sha256":"aefabe6e853f21bb3386b269010fddab7f60ee41ce44dec706597fb3be28362b"}]})
           NODE
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: agent-pi-389-public-www-audit
-          path: public-www-readback.json
+          name: agent-pi-389-pages-supplemental-audit
+          path: pages-supplemental-readback.json
           if-no-files-found: error
           retention-days: 14
