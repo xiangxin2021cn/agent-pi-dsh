@@ -70,6 +70,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          retry_cloudkit_transport() {
+            local attempt rc log
+            log=$(mktemp "$RUNNER_TEMP/agent-pi-cloudkit.XXXXXX")
+            for attempt in 1 2 3; do
+              if "$@" > "$log" 2>&1; then
+                cat "$log"
+                return 0
+              else
+                rc=$?
+              fi
+              cat "$log"
+              if [[ "$rc" != 68 || "$attempt" == 3 ]] || ! grep -Fq 'NSURLErrorDomain Code=-1005' "$log"; then
+                return "$rc"
+              fi
+              printf 'Retrying after a transient Apple CloudKit network disconnect (attempt %s of 3).\n' "$attempt"
+              sleep "$((10 * attempt))"
+            done
+          }
           mkdir -p verified/unpacked
           ditto -x -k "verified/Agent-Pi-DSH-3.8.9-mac-x64.zip" verified/unpacked
           app="$PWD/verified/unpacked/Agent Pi DSH.app"
@@ -77,13 +95,13 @@ jobs:
           test "$(lipo -archs "$app/Contents/MacOS/Agent Pi DSH")" = "x86_64"
           codesign --verify --deep --strict --verbose=2 "$app"
           codesign --verify --strict --verbose=2 -R='anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists' "$app"
-          xcrun stapler validate "$app"
+          retry_cloudkit_transport xcrun stapler validate "$app"
           syspolicy_check distribution "$app"
           python3 scripts/verify-macos-intel.py "$app" --arch "x86_64" --maximum-macos 15.0.0 --report verified/deployment-targets.json
           node scripts/smoke-macos-intel.mjs "$app" "x64" 24.22.2 45.2.2
           codesign --verify --deep --strict "$app"
           codesign --verify --strict --verbose=2 -R='anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists' "verified/Agent-Pi-DSH-3.8.9-mac-x64.dmg"
-          bash scripts/verify-macos-release-dmg.sh "verified/Agent-Pi-DSH-3.8.9-mac-x64.dmg" 3.8.9 "x86_64" 24.22.2 45.2.2 signed "$app"
+          retry_cloudkit_transport bash scripts/verify-macos-release-dmg.sh "verified/Agent-Pi-DSH-3.8.9-mac-x64.dmg" 3.8.9 "x86_64" 24.22.2 45.2.2 signed "$app"
           { sw_vers; uname -m; cat "verified/Agent-Pi-DSH-3.8.9-mac-x64.dmg.sha256" "verified/Agent-Pi-DSH-3.8.9-mac-x64.zip.sha256"; } | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/setup-java@v4
         with:
