@@ -403,6 +403,30 @@ export declare function isStaleUpdate(check: {
  */
 export declare function parsePrepareNotAllowed(stdout: string, stderr: string): string | null;
 /**
+ * Undo the line wrapping of pnpm 12's boxed error text (#1156).
+ *
+ * pnpm 12 prints a failure as
+ *
+ *     Error: ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED
+ *
+ *       × adding a new package
+ *       ╰─▶ The git-hosted package "x@1.0.0" needs to execute build
+ *           scripts but is not in the "allowBuilds" allowlist.
+ *       help: …
+ *
+ * and wraps it at about 80 columns — through the middle of a sentence, and
+ * through the middle of a package key at a `/` or `-`. Every sentence this
+ * file matches then has a line break where its single space was, so the
+ * refusal was classified correctly and still yielded no package name, no
+ * key, and therefore no approve-and-retry button. Continuation lines are
+ * indented deeper than the line they continue; join them back, without a
+ * space when the break fell inside a token.
+ *
+ * Output that never wraps this way (pnpm 10/11, ndjson) has no such lines
+ * and comes back unchanged.
+ */
+export declare function unwrapPnpmErrors(text: string): string;
+/**
  * The allowBuilds key pnpm itself printed for a prepare refusal, when it
  * printed one (#698).
  *

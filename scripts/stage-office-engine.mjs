@@ -7,7 +7,7 @@ import { writeManifest } from './repair-dsh-links.mjs'
 /** Keep the original Windows engine bytes, below LibreOffice's path limit. */
 export function stageOfficeEngine(dshRoot) {
   const root = realpathSync(dshRoot)
-  const consumer = createRequire(join(root, 'packages/skill/skill-office/package.json'))
+  const consumer = createRequire(join(root, 'packages/document/office-kit/package.json'))
   const kit = createRequire(consumer.resolve('@deepseek-ai/libreoffice-kit/package.json'))
   const source = realpathSync(dirname(kit.resolve('@deepseek-ai/libreoffice-kit-win32-x64/package.json')))
   const target = join(root, 'node_modules/.office')

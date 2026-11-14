@@ -13,6 +13,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { logEvent } from "./log.js";
 import { createProgressTracker } from "./ndjson.js";
 import { pluginArgsFor } from "./pnpm-compat.js";
+import { createOutputBuffer } from "./proc-text.js";
 import { isDshProfileName, profileDir } from "./profile.js";
 import { activeRegion, DEFAULT_NPM_REGISTRY, routesFor } from "./regions.js";
 import { NPM_NAME_RE } from "./sources.js";
@@ -478,7 +479,11 @@ export function dshArgv() {
         // The official bundled CLI inherits the launcher's cwd. Its entry can
         // live inside app.asar: Electron can read it, but the OS cannot chdir there.
         // Do not probe that directory through Electron's virtual filesystem.
-        return { file: nodeExecutable(), args: [...process.execArgv, abs], cwd: desktopCli ? undefined : dirname(abs), viaShell: false };
+        // An entry inside an .asar archive carries the same hazard as the desktop
+        // CLI above: Electron's fs shim resolves the directory, the OS cannot chdir
+        // there, and CreateProcess fails with ENOENT naming an unrelated executable.
+        const entryInAsar = /[\\/][^\\/]+\.asar[\\/]/i.test(abs);
+        return { file: nodeExecutable(), args: [...process.execArgv, abs], cwd: desktopCli || entryInAsar ? undefined : dirname(abs), viaShell: false };
     }
     // Bare `dsh` is a .cmd shim on Windows that only a shell can start (#13).
     return { file: 'dsh', args: [], cwd: undefined, viaShell: winCmdShim };
@@ -710,8 +715,8 @@ function probeHostPackageManager() {
         const child = spawnShim(invocation.command, [...invocation.args, '--version'], {
             stdio: ['ignore', 'pipe', 'pipe'], viaShell: winCmdShim, env: spawnEnv(),
         });
-        let output = '';
-        const collect = (chunk) => { output = (output + chunk.toString()).slice(-2000); };
+        const output = createOutputBuffer(2000);
+        const collect = (chunk) => { output.push(chunk); };
         child.stdout?.on('data', collect);
         child.stderr?.on('data', collect);
         child.on('error', (error) => {
@@ -720,7 +725,7 @@ function probeHostPackageManager() {
         });
         child.on('close', (code) => {
             hostPnpmReady = code === 0;
-            hostProbeFailure = hostPnpmReady ? null : { command: invocation.command, output: output.trim() };
+            hostProbeFailure = hostPnpmReady ? null : { command: invocation.command, output: output.text().trim() };
             resolvePromise(hostPnpmReady);
         });
     });
@@ -753,8 +758,8 @@ function probePnpmOnPath() {
         // IS the explanation, and throwing it away is what left #228 with a
         // failure nobody could act on.
         const child = spawnShim('pnpm', ['--version'], { stdio: ['ignore', 'pipe', 'pipe'], viaShell: winCmdShim, env: spawnEnv() });
-        let output = '';
-        const collect = (chunk) => { output = (output + chunk.toString()).slice(-2000); };
+        const output = createOutputBuffer(2000);
+        const collect = (chunk) => { output.push(chunk); };
         child.stdout?.on('data', collect);
         child.stderr?.on('data', collect);
         child.on('error', (error) => {
@@ -763,7 +768,7 @@ function probePnpmOnPath() {
         });
         child.on('close', (code) => {
             pnpmReady = code === 0;
-            pnpmProbeFailure = pnpmReady ? null : { kind: 'failed', output: output.trim() };
+            pnpmProbeFailure = pnpmReady ? null : { kind: 'failed', output: output.text().trim() };
             resolvePromise(pnpmReady);
         });
     });
@@ -775,13 +780,13 @@ function runQuiet(file, args, timeoutMs) {
             stdio: ['ignore', 'pipe', 'pipe'],
             viaShell: winCmdShim,
         });
-        let output = '';
+        const output = createOutputBuffer(8 * 1024);
         const timer = setTimeout(() => killChild(child), timeoutMs);
-        const collect = (chunk) => { output = (output + chunk.toString()).slice(-8 * 1024); };
+        const collect = (chunk) => { output.push(chunk); };
         child.stdout?.on('data', collect);
         child.stderr?.on('data', collect);
         child.on('error', (error) => { clearTimeout(timer); resolvePromise({ code: 127, output: error.message }); });
-        child.on('close', (code) => { clearTimeout(timer); resolvePromise({ code, output }); });
+        child.on('close', (code) => { clearTimeout(timer); resolvePromise({ code, output: output.text() }); });
     });
 }
 /**
@@ -1055,23 +1060,21 @@ export function runHostPnpm(invocation, cwd, args) {
         });
         activeChild = child;
         cancelRequested = false;
-        let stdout = '';
-        let stderr = '';
+        const stdoutBytes = createOutputBuffer(256 * 1024);
+        const stderrBytes = createOutputBuffer(64 * 1024);
         let timedOut = false;
         const timer = setTimeout(() => {
             timedOut = true;
             killTree(child);
         }, INSTALL_TIMEOUT_MS);
         child.stdout?.on('data', (chunk) => {
-            const text = chunk.toString();
-            stdout = (stdout + text).slice(-256 * 1024);
-            feed(text);
+            stdoutBytes.push(chunk);
+            feed(chunk.toString());
             syncProgress(tracker);
         });
         child.stderr?.on('data', (chunk) => {
-            const text = chunk.toString();
-            stderr = (stderr + text).slice(-64 * 1024);
-            feed(text);
+            stderrBytes.push(chunk);
+            feed(chunk.toString());
             syncProgress(tracker);
         });
         child.on('error', (error) => {
@@ -1080,7 +1083,7 @@ export function runHostPnpm(invocation, cwd, args) {
             progress.cancelling = false;
             if (activeChild === child)
                 activeChild = null;
-            resolvePromise({ exitCode: 127, timedOut: false, stdout, stderr: `${stderr}\n${error.message}`.trim(), cancelled: false });
+            resolvePromise({ exitCode: 127, timedOut: false, stdout: stdoutBytes.text(), stderr: `${stderrBytes.text()}\n${error.message}`.trim(), cancelled: false });
         });
         child.on('close', (code) => {
             clearTimeout(timer);
@@ -1091,8 +1094,8 @@ export function runHostPnpm(invocation, cwd, args) {
             resolvePromise({
                 exitCode: code,
                 timedOut,
-                stdout,
-                stderr,
+                stdout: stdoutBytes.text(),
+                stderr: stderrBytes.text(),
                 cancelled: cancelRequested,
             });
         });
@@ -1129,23 +1132,21 @@ export function runDshPlugin(profile, pluginArgs) {
         });
         activeChild = child;
         cancelRequested = false;
-        let stdout = '';
-        let stderr = '';
+        const stdoutBytes = createOutputBuffer(256 * 1024);
+        const stderrBytes = createOutputBuffer(64 * 1024);
         let timedOut = false;
         const timer = setTimeout(() => {
             timedOut = true;
             killTree(child);
         }, INSTALL_TIMEOUT_MS);
         child.stdout?.on('data', (chunk) => {
-            const text = chunk.toString();
-            stdout = (stdout + text).slice(-256 * 1024);
-            feed(text);
+            stdoutBytes.push(chunk);
+            feed(chunk.toString());
             syncProgress(tracker);
         });
         child.stderr?.on('data', (chunk) => {
-            const text = chunk.toString();
-            stderr = (stderr + text).slice(-64 * 1024);
-            feed(text);
+            stderrBytes.push(chunk);
+            feed(chunk.toString());
             syncProgress(tracker);
         });
         child.on('error', (error) => {
@@ -1154,7 +1155,7 @@ export function runDshPlugin(profile, pluginArgs) {
             progress.cancelling = false;
             if (activeChild === child)
                 activeChild = null;
-            resolvePromise({ exitCode: 127, timedOut: false, stdout, stderr: `${stderr}\n${error.message}`, cancelled: false });
+            resolvePromise({ exitCode: 127, timedOut: false, stdout: stdoutBytes.text(), stderr: `${stderrBytes.text()}\n${error.message}`, cancelled: false });
         });
         child.on('close', (code) => {
             clearTimeout(timer);
@@ -1174,8 +1175,8 @@ export function runDshPlugin(profile, pluginArgs) {
             resolvePromise({
                 exitCode: code,
                 timedOut,
-                stdout,
-                stderr,
+                stdout: stdoutBytes.text(),
+                stderr: stderrBytes.text(),
                 cancelled: cancelRequested,
                 ...(pnpmError !== null ? { pnpmError } : {}),
                 ...(pnpmErrorCode !== null ? { pnpmErrorCode } : {}),
@@ -1254,19 +1255,17 @@ export function createDesktopPluginRuntime(service, activeProfileDir, invokingDi
         }
         const tracker = beginProgress(prepared.target);
         const feed = makeProgressFeeder(tracker);
-        let stdout = '';
-        let stderr = '';
+        const stdoutBytes = createOutputBuffer(256 * 1024);
+        const stderrBytes = createOutputBuffer(64 * 1024);
         let timedOut = false;
         const collectStdout = (chunk) => {
-            const text = chunk.toString();
-            stdout = (stdout + text).slice(-256 * 1024);
-            feed(text);
+            stdoutBytes.push(typeof chunk === 'string' ? Buffer.from(chunk, 'utf8') : chunk);
+            feed(chunk.toString());
             syncProgress(tracker);
         };
         const collectStderr = (chunk) => {
-            const text = chunk.toString();
-            stderr = (stderr + text).slice(-64 * 1024);
-            feed(text);
+            stderrBytes.push(typeof chunk === 'string' ? Buffer.from(chunk, 'utf8') : chunk);
+            feed(chunk.toString());
             syncProgress(tracker);
         };
         handle.stdout.on('data', collectStdout);
@@ -1284,8 +1283,8 @@ export function createDesktopPluginRuntime(service, activeProfileDir, invokingDi
                 return {
                     exitCode: outcome.exitCode,
                     timedOut,
-                    stdout,
-                    stderr,
+                    stdout: stdoutBytes.text(),
+                    stderr: stderrBytes.text(),
                     cancelled: active.userCancelled,
                     ...(ignoredBuilds.length > 0 ? { ignoredBuilds } : {}),
                     ...(pnpmError !== null ? { pnpmError } : {}),
@@ -1296,11 +1295,12 @@ export function createDesktopPluginRuntime(service, activeProfileDir, invokingDi
             catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
                 progress.error = tracker.snapshot.error;
-                const detail = `${stderr}${stderr === '' ? '' : '\n'}${message}`;
+                const stderrText = stderrBytes.text();
+                const detail = `${stderrText}${stderrText === '' ? '' : '\n'}${message}`;
                 return {
                     exitCode: 127,
                     timedOut,
-                    stdout,
+                    stdout: stdoutBytes.text(),
                     stderr: boundaryRefusesTarget ? `${detail}\n${NPM_ONLY_HOST_NOTE}` : detail,
                     cancelled: active.userCancelled,
                     ...(resolvedNpmVersion !== undefined ? { resolvedNpmVersion } : {}),

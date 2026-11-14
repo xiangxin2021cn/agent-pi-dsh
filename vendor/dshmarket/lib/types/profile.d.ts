@@ -543,9 +543,12 @@ export declare function dropUnparseableBuildKeys(profile: string, explicitDir?: 
  * nothing in the file says which main package it belongs to — guessing would
  * delete policy that may still be in effect for something installed.
  *
+ * With `keepVersion` (the update path) the rows that name that version are
+ * kept and only the older ones go.
+ *
  * @returns the entries removed, for the caller to log; empty when there is no
  *   such block, no such row, or the file cannot be read exactly (in which case
  *   it is left byte-for-byte as it was).
  */
-export declare function dropReleaseAgeExcludes(profile: string, name: string, explicitDir?: string): string[];
+export declare function dropReleaseAgeExcludes(profile: string, name: string, explicitDir?: string, keepVersion?: string): string[];
 export declare function mergeDuplicateReleaseAgeExcludes(profile: string, explicitDir?: string): string[];

@@ -37,6 +37,13 @@ export interface OfficialDesktopRuntime extends DesktopPluginRuntime {
      * Returns after every record settled or was found unrepairable; never throws.
      */
     repairPendingUpdates(): Promise<RepairReport>;
+    /**
+     * Whether the manager is already running an operation of its own — the
+     * state that makes `runPlugin` answer `busy: true` (see
+     * `PluginCommandRuntime.busy`). `/dsh-market/status` reports it so the
+     * client's queue waits instead of retrying into a refusal every 2s (#1140).
+     */
+    busy(): boolean;
 }
 /**
  * Never fall back to `dsh plugin --profile desktop`.

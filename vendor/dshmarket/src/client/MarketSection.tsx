@@ -78,6 +78,9 @@ function isHostDependencyFinding(value: unknown): value is SharedHostPackageDepe
 const HOST_DEPENDENCY_PREVIEW_LIMIT = 5
 /** After this long without a structured phase, the install line adds a note that waiting is normal (#1011). */
 const SLOW_INSTALL_SECONDS = 90
+/** How long the page keeps asking for a market DSH unloaded, and how long one ask may take (#1151). */
+const RECONNECT_BUDGET_MS = 90_000
+const RECONNECT_REQUEST_MS = 4000
 const IGNORED_UPDATES_SESSION_KEY = 'dshm-updates-ignored'
 const UNAVAILABLE_HOST_COMPATIBILITY: HostCompatibility = {
   status: 'unknown',
@@ -707,9 +710,25 @@ function thumbUrl(src: string, height: number, options: { webp?: boolean } = {})
   let url = `https://images.weserv.nl/?url=${encoded}&h=${String(height)}&fit=inside&we=1`
   // Theme covers ask for webp on still photos: a 520px PNG of a UI
   // screenshot still weighed 0.4–0.6 MB (#1060). Only png/jpeg/webp URLs
-  // opt in — GIFs and extension-less GitHub attachments stay resized-only
-  // so an animated cover is not flattened to its first frame.
+  // opt in; extension-less GitHub attachments stay resized-only.
   if (options.webp === true && /\.(?:png|jpe?g|webp)(?:$|[?#])/iu.test(src)) url += '&output=webp'
+  // An animated GIF would otherwise come back as a single still frame: the
+  // resize drops every frame past the first, so a curated animated cover sat
+  // frozen on the card and in the strip. `n=-1` asks for every frame and
+  // `output=webp` re-encodes the animation far smaller than the original
+  // (a 7s 600×420 demo: 283KB → 31KB at h=200), so it keeps moving without
+  // costing more than a still would.
+  //
+  // `n=-1` decodes every frame, which is what the resizer's input limits
+  // measure: past 71 000 000 decoded pixels or 400 frames it answers 404 and
+  // the card would show a broken image where it used to show a frozen one.
+  // That is 15 of the catalog's 71 GIF covers. `errorredirect` sends the
+  // browser to the same resize WITHOUT `n=-1` in exactly that case, so the
+  // fallback is today's behaviour — a still, the right size, and visible.
+  else if (/\.gif(?:$|[?#])/iu.test(src)) {
+    const still = `${url}&output=webp`
+    url = `${url}&n=-1&output=webp&errorredirect=${encodeURIComponent(still)}`
+  }
   return url
 }
 
@@ -2236,7 +2255,64 @@ function listScroller(
  * Only preceding siblings on the path from this panel up to the scroller —
  * the host chrome sits above us. Walking the whole scroller would crawl the
  * catalog on every frame.
+ *
+ * dsh 0.2.2 keeps the plugin-page header's layout box at its resting height
+ * and paints only the compact slice: an absolutely positioned ::before of
+ * `--plugin-header-paint-height`, with the title clipped away. The border box
+ * still reports the resting height, so sticking under `rect.bottom` parks
+ * the market's own rows in that clipped gap and the catalog scrolls through
+ * them. The cover is that ::before only when it is the opaque bar: shorter
+ * than the box, flush to the top and both sides, and filled. A marker or a
+ * strip hung from the bottom keeps the border box. Hosts without one keep
+ * the border box.
  */
+/**
+ * Bottom of a stuck bar's opaque ::before, in the same coordinate space as
+ * `rect`, or null when that pseudo-element is not the cover.
+ *
+ * The 0.2.2 page bar's cover is `inset: 0 0 auto` with the page background,
+ * so it starts at the padding edge (no border, no padding-top on that bar)
+ * and is shorter than the resting box. A marker, a hairline, or a strip
+ * anchored with `bottom` does not qualify — those keep the border box.
+ */
+function paintedCoverBottom(node: Element, rect: DOMRect): number | null {
+  const before = getComputedStyle(node, '::before')
+  // `none` / `normal` means there is no cover. `content: ''` (the host's
+  // opaque bar) computes to a quoted empty string.
+  if (before.content === 'none' || before.content === 'normal') return null
+  if (before.position !== 'absolute' && before.position !== 'fixed') return null
+  const height = Number.parseFloat(before.height)
+  if (!Number.isFinite(height) || height <= 0 || height >= rect.height - 1) return null
+  const top = Number.parseFloat(before.top)
+  const left = Number.parseFloat(before.left)
+  const right = Number.parseFloat(before.right)
+  // `top: auto` (a strip hung from the bottom) and a corner mark are not it.
+  if (!Number.isFinite(top) || Math.abs(top) > 1) return null
+  if (!Number.isFinite(left) || !Number.isFinite(right) || Math.abs(left) > 1 || Math.abs(right) > 1) return null
+  if (before.backgroundColor === 'transparent' || before.backgroundColor === 'rgba(0, 0, 0, 0)') return null
+  const borderTop = Number.parseFloat(getComputedStyle(node).borderTopWidth)
+  const border = Number.isFinite(borderTop) ? borderTop : 0
+  return rect.top + border + top + height
+}
+
+/**
+ * Painted height of a stuck bar that keeps its layout box and clips the rest.
+ *
+ * dsh 0.2.2's plugin page writes the drawn height onto the bar every frame as
+ * an inline `--plugin-header-paint-height` and clips the box with it, so the
+ * border box keeps reporting the resting height the bar no longer occupies.
+ * Sticking under that number left a bare strip above the market's tab row
+ * with cards scrolling through it (#1125). Read the drawn number when the
+ * host publishes one; null means the border box is the honest one.
+ */
+function paintedBarHeight(node: Element, rect: DOMRect): number | null {
+  const inline = (node as HTMLElement).style?.getPropertyValue('--plugin-header-paint-height')
+  if (inline === undefined || inline.trim() === '') return null
+  const value = Number.parseFloat(inline)
+  if (!Number.isFinite(value)) return null
+  return Math.max(0, Math.min(rect.height, value))
+}
+
 function hostStickyOffset(scroller: HTMLElement, market: HTMLElement): number {
   const scrollerTop = scroller.getBoundingClientRect().top
   let bottom = scrollerTop
@@ -2244,9 +2320,13 @@ function hostStickyOffset(scroller: HTMLElement, market: HTMLElement): number {
     const position = getComputedStyle(node).position
     if (position !== 'sticky' && position !== 'fixed') return
     const rect = node.getBoundingClientRect()
-    if (rect.height > 0 && rect.top <= scrollerTop + 4 && rect.bottom > scrollerTop) {
-      bottom = Math.max(bottom, rect.bottom)
+    if (rect.height <= 0 || rect.top > scrollerTop + 4 || rect.bottom <= scrollerTop) return
+    const painted = paintedBarHeight(node, rect)
+    if (painted !== null) {
+      bottom = Math.max(bottom, rect.top + painted)
+      return
     }
+    bottom = Math.max(bottom, paintedCoverBottom(node, rect) ?? rect.bottom)
   }
   const walkPreceding = (node: Element): void => {
     consider(node)
@@ -2357,6 +2437,10 @@ export function MarketSection(props: MarketSectionProps) {
    * exactly why it owes the user this sentence instead of a spinner.
    */
   const [marketGone, setMarketGone] = useState(false)
+  // Whether the page is still trying to reach the market again, and how many
+  // times the user asked it to start over (#1151).
+  const [reconnecting, setReconnecting] = useState(true)
+  const [reconnectRound, setReconnectRound] = useState(0)
   const [installed, setInstalledState] = useState<InstalledMap>(cachedInstalled ?? {})
   const [operationInstalled, setOperationInstalled] = useState<InstalledMap | undefined>(undefined)
   const setInstalled = useCallback((value: InstalledMap) => { cachedInstalled = value; setInstalledState(value) }, [])
@@ -2765,8 +2849,20 @@ export function MarketSection(props: MarketSectionProps) {
    * gives (install anyway) is a decision about breaking the host, and most
    * users reaching this dialog have no way to weigh it.
    */
+  // The found version carries its maturity too: a release can declare this
+  // host and still be inside the release-age wait, and promising an update
+  // that the server will refuse turns the dialog's one way out into a dead
+  // end.
   const [findingCompat, setFindingCompat] = useState<
-    { status: 'idle' | 'loading' | 'not-found' | 'error' } | { status: 'found'; version: string }
+    | { status: 'idle' | 'loading' | 'not-found' | 'error' }
+    | {
+        status: 'found'
+        version: string
+        /** true = installable now, false = held, null = the host could not say. */
+        installable: boolean | null
+        releaseAgeMs: number | null
+        nextMaturityAt: string | null
+      }
   >({ status: 'idle' })
   const [compatRetry, setCompatRetry] = useState(0)
   // Ask the moment the dialog opens: "which version still works" is the one
@@ -2787,17 +2883,48 @@ export function MarketSection(props: MarketSectionProps) {
     })
       .then(async response => {
         if (!response.ok) throw new Error(`HTTP ${response.status}`)
-        return await response.json() as { compatibleVersion?: string | null }
+        return await response.json() as {
+          compatibleVersion?: string | null
+          maturity?: { installable?: unknown; releaseAgeMs?: unknown; nextMaturityAt?: unknown } | null
+        }
       })
       .then(data => {
         if (controller.signal.aborted) return
-        setFindingCompat(typeof data.compatibleVersion === 'string' && data.compatibleVersion !== ''
-          ? { status: 'found', version: data.compatibleVersion }
-          : { status: 'not-found' })
+        if (!(typeof data.compatibleVersion === 'string' && data.compatibleVersion !== '')) {
+          setFindingCompat({ status: 'not-found' })
+          return
+        }
+        const maturity = data.maturity !== null && typeof data.maturity === 'object' ? data.maturity : null
+        setFindingCompat({
+          status: 'found',
+          version: data.compatibleVersion,
+          installable: typeof maturity?.installable === 'boolean' ? maturity.installable : null,
+          releaseAgeMs: typeof maturity?.releaseAgeMs === 'number' ? maturity.releaseAgeMs : null,
+          nextMaturityAt: typeof maturity?.nextMaturityAt === 'string' ? maturity.nextMaturityAt : null,
+        })
       })
       .catch(() => { if (!controller.signal.aborted) setFindingCompat({ status: 'error' }) })
     return () => controller.abort()
   }, [hostIncompatible, compatRetry])
+  // Older hosts answer find-compatible without a maturity object; the update
+  // list already knows the same fact as heldUpdate, so fall back to it rather
+  // than promising a version this host would refuse.
+  const hostCompatHeldUpdate = hostIncompatible === null ? undefined : updates[hostIncompatible.npmName ?? '']
+  const hostCompatHeld = findingCompat.status === 'found' && (
+    findingCompat.installable === false ||
+    (findingCompat.installable === null && hostCompatHeldUpdate?.heldUpdate !== undefined &&
+      hostCompatHeldUpdate.heldUpdate.latest === findingCompat.version &&
+      Date.parse(hostCompatHeldUpdate.heldUpdate.until) > Date.now())
+  )
+  const hostCompatNextMaturityAt = findingCompat.status === 'found' && findingCompat.installable === null
+    ? hostCompatHeldUpdate?.heldUpdate?.until ?? null
+    : findingCompat.status === 'found' ? findingCompat.nextMaturityAt : null
+  const hostCompatHeldHours = hostCompatHeld && hostCompatNextMaturityAt !== null
+    ? Math.max(1, Math.ceil((Date.parse(hostCompatNextMaturityAt) - Date.now()) / 3_600_000))
+    : null
+  const hostCompatWindowHours = findingCompat.status === 'found' && findingCompat.releaseAgeMs !== null
+    ? Math.max(1, Math.round(findingCompat.releaseAgeMs / 3_600_000))
+    : 24
 
   const [restoreBlocked, setRestoreBlocked] = useState<{ name: string; reason: 'no-catalog' | 'repo-mismatch' } | null>(null)
   // Snapshot the source switch the user agreed to review; later renders must not change it under the dialog.
@@ -3520,6 +3647,55 @@ export function MarketSection(props: MarketSectionProps) {
       .catch((error: unknown) => { setLoadError(error instanceof Error ? error.message : String(error)) })
   }, [noteMarketGone, t])
 
+  /**
+   * Come back when the routes do (#1151).
+   *
+   * A 404 is how the page learns DSH unloaded the market, but DSH usually
+   * mounts it again within seconds: it reloads plugins around an install or
+   * an update, and the market is one of them. The page used to stay on "stopped"
+   * for good, so the user restarted DSH — which also killed whatever the host
+   * was still doing. Read-only on purpose: only `status` is asked, never a
+   * request that changes anything, and nothing that was in flight is replayed.
+   */
+  useEffect(() => {
+    if (!marketGone) return
+    setReconnecting(true)
+    const startedAt = Date.now()
+    let wait = 1000
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let inFlight: AbortController | undefined
+    let stopped = false
+    const attempt = async (): Promise<void> => {
+      inFlight = new AbortController()
+      const cutoff = setTimeout(() => inFlight?.abort(), RECONNECT_REQUEST_MS)
+      try {
+        const res = await fetch(api('/dsh-market/status'), { cache: 'no-store', signal: inFlight.signal })
+        const status = res.ok ? await res.json() as Partial<MarketStatus> | null : null
+        if (!stopped && status !== null && typeof status === 'object' && typeof status.boot === 'string') {
+          setMarketGone(false)
+          void loadCatalog()
+          refreshInstalled()
+          return
+        }
+      } catch { /* still gone, or the request was cut off */ } finally {
+        clearTimeout(cutoff)
+      }
+      if (stopped) return
+      if (Date.now() - startedAt >= RECONNECT_BUDGET_MS) {
+        setReconnecting(false)
+        return
+      }
+      timer = setTimeout(() => { void attempt() }, wait)
+      wait = Math.min(wait * 2, 5000)
+    }
+    timer = setTimeout(() => { void attempt() }, wait)
+    return () => {
+      stopped = true
+      clearTimeout(timer)
+      inFlight?.abort()
+    }
+  }, [marketGone, reconnectRound, loadCatalog, refreshInstalled])
+
   const loadHostCompatibility = useCallback(async (names: readonly string[]): Promise<void> => {
     const unique = [...new Set(names)].filter(name => {
       if (name === '' || hostCompatibilitySettled(name) || hostCompatibilityInFlight.has(name)) return false
@@ -3713,7 +3889,11 @@ export function MarketSection(props: MarketSectionProps) {
   }, [data])
 
   useEffect(() => {
-    if (busyUrl === null && updatingName === null) {
+    // An uninstall in flight is polled like an install or an update: without it
+    // nothing asked the host how the operation was going, so a market the host
+    // unloaded mid-uninstall never reached the 404 that says so, and the row
+    // read "uninstalling" until a restart (#1056).
+    if (busyUrl === null && updatingName === null && removingName === null) {
       // `hostBusy` is sampled by the progress poll. A normal update response
       // can settle the local operation before the next poll observes the
       // route lock released, leaving the restart button disabled until this
@@ -3871,7 +4051,7 @@ export function MarketSection(props: MarketSectionProps) {
         .catch(() => {})
     }, 2000)
     return () => clearInterval(timer)
-  }, [applyDrainStatus, busyUrl, updatingName, data, installed, repoIdentities, repoHints, refreshInstalled, lang, restoreDrainMarkers, t])
+  }, [applyDrainStatus, busyUrl, updatingName, removingName, data, installed, repoIdentities, repoHints, refreshInstalled, lang, restoreDrainMarkers, t])
 
   const scrollToTop = () => {
     const el = listScroller(surface, rootRef.current, bodyRef.current, themesFullscreen)
@@ -4052,44 +4232,79 @@ export function MarketSection(props: MarketSectionProps) {
     }
   }, [surface, themesFullscreen])
 
-  // The list, plus how many entries the host filter took out of it (#872).
-  // Both come from one pass over the same query, so the count is exactly
-  // "what this filter is hiding from what you were looking at" and the chip
-  // can say it without a second trip through the catalog.
-  const { plugins: pluginsAll, hostHiddenCount } = useMemo(() => {
-    if (data === null) return { plugins: [] as RegistryPlugin[], hostHiddenCount: 0 }
+  // Rows for the current query, before the plugins the user banned are taken
+  // out, and before the host filter (#872).
+  //
+  // The host filter is deliberately NOT part of this pass. `hostCompatibility`
+  // arrives in batches while the page loads, and folding it into the query
+  // rebuilt this list on every arrival — which re-ran the whole-catalog block
+  // scan below. Measured against a 9.7k-entry catalog: 433 ms of main thread
+  // per arrival, 227–433 ms per scroll step (#1097). Screening by host is a
+  // map lookup per row, so it runs after that scan instead of feeding it.
+  const pluginsAll = useMemo(() => {
+    if (data === null) return [] as RegistryPlugin[]
     const query = {
       category: cat, query: q, lang, categories: data.categories,
       sort: `${sortField}-${sortDir}` as `${typeof sortField}-${typeof sortDir}`,
       sinceDays: timeRange === 'all' ? undefined : TIME_RANGE_DAYS[timeRange],
-      hostCompatibility,
     }
-    const unfiltered = visiblePlugins(data.plugins, { ...query, compatibleWithHost: false })
-    if (!compatibleWithHost) return { plugins: unfiltered, hostHiddenCount: 0 }
-    const filtered = visiblePlugins(data.plugins, { ...query, compatibleWithHost: true })
-    return { plugins: filtered, hostHiddenCount: unfiltered.length - filtered.length }
+    return visiblePlugins(data.plugins, { ...query, compatibleWithHost: false })
   },
-    [data, q, cat, lang, sortField, sortDir, timeRange, hostCompatibility, compatibleWithHost])
+    [data, q, cat, lang, sortField, sortDir, timeRange])
   // One plugin can be stored under the installed name or the catalog name.
   // Both have to hide the card and skip Update all (#657).
+  // With nothing blocked — the default — the answer is false for every entry,
+  // and it is decided before the matching below could change it: the matching
+  // is an ARGUMENT, so without this it ran for the whole catalog first and only
+  // then was asked of an empty set (#1097, ~730 ms at 9.9k entries).
   const pluginBlocked = (plugin: RegistryPlugin): boolean =>
-    blockAliases(plugin, matchInstalledName(plugin, installed, repoIdentities, data?.plugins, repoHints))
+    blockedNameSet.size > 0
+    && blockAliases(plugin, matchInstalledName(plugin, installed, repoIdentities, data?.plugins, repoHints))
       .some(name => blockedNameSet.has(name))
-  const installedBlocked = (name: string): boolean => {
-    if (blockedNameSet.has(name)) return true
-    if (data === null) return false
-    const spec = installed[name]
-    if (spec === undefined) return false
-    const entry = catalogEntryForInstalled(data.plugins, name, String(spec), repoIdentities[name], repoHints[name])
-    return entry !== undefined && blockAliases(entry, name).some(alias => blockedNameSet.has(alias))
-  }
+  // Memoized because one call walks the WHOLE catalog
+  // (`catalogEntryForInstalled` → `entryForDep` → `sameSourceConflict` per
+  // entry), and the update reminders below ask about one installed package at
+  // a time, in three filtered lists, on every render. That was 227–433 ms of
+  // main thread per scroll step at 9.7k catalog entries × 28 installed
+  // packages (#1097). The answers only change with the inputs below.
+  const installedBlocked = useMemo(() => {
+    const compute = (name: string): boolean => {
+      if (blockedNameSet.has(name)) return true
+      if (data === null) return false
+      const spec = installed[name]
+      if (spec === undefined) return false
+      const entry = catalogEntryForInstalled(data.plugins, name, String(spec), repoIdentities[name], repoHints[name])
+      return entry !== undefined && blockAliases(entry, name).some(alias => blockedNameSet.has(alias))
+    }
+    const cache = new Map<string, boolean>()
+    return (name: string): boolean => {
+      const hit = cache.get(name)
+      if (hit !== undefined) return hit
+      const value = compute(name)
+      cache.set(name, value)
+      return value
+    }
+  }, [data, blockedNameSet, installed, repoIdentities, repoHints])
   const blockToggleName = (aliases: readonly string[]): string =>
     aliases.find(name => blockedNameSet.has(name)) ?? aliases[0]!
-  const plugins = useMemo(
+  const pluginsUnblocked = useMemo(
     () => pluginsAll.filter(plugin => !pluginBlocked(plugin)),
     // pluginBlocked closes over the installed map and the catalog match.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [pluginsAll, blockedNameSet, installed, repoIdentities, data, repoHints])
+  // Host filter, applied to the already-blocked list: the same rows
+  // `visiblePlugins` dropped, and the same count the chip reports, at a cost
+  // that does not grow with the catalog.
+  const { plugins, hostHiddenCount } = useMemo(() => {
+    if (!compatibleWithHost) return { plugins: pluginsUnblocked, hostHiddenCount: 0 }
+    const compatible = (plugin: RegistryPlugin): boolean => {
+      const key = hostCompatibilityKey(plugin)
+      return key === null || hostCompatibility[key]?.status !== 'incompatible'
+    }
+    let hidden = 0
+    for (const plugin of pluginsAll) if (!compatible(plugin)) hidden += 1
+    return { plugins: pluginsUnblocked.filter(compatible), hostHiddenCount: hidden }
+  }, [pluginsAll, pluginsUnblocked, compatibleWithHost, hostCompatibility])
   // A sort the user chose is a request to see the list in THAT order, and
   // this block ignores the sort by design (it is "what was added in the last
   // seven days", ordered by downloads). Left in place it sits between the
@@ -4954,6 +5169,12 @@ export function MarketSection(props: MarketSectionProps) {
             // durable queue keeps, so this is what lets the row outlive the
             // restart that ends the operation holding the lock.
             setRecords(list => patchRecord(list, updateRecordId, { state: 'queued' }))
+            // `busy: true` means another operation is running — the official
+            // Desktop manager's own install or repair can hold that state for
+            // minutes. The queue's job then is to wait quietly: repeating the
+            // banner on every 2s retry made the panel unusable and the log
+            // grow while the market was doing exactly the right thing (#1140).
+            if (body.busy === true) return
             setInstallError(t('queuedRunBusy'))
             setOperationsOpen(true)
             return
@@ -6044,7 +6265,7 @@ export function MarketSection(props: MarketSectionProps) {
     next()
   }, [reminderBatchUpdatableNames, doUpdate, refreshInstalled, updates])
 
-  const finishRestore = useCallback((body: { errors?: unknown; unportable?: unknown; bootErrors?: unknown }) => {
+  const finishRestore = useCallback((body: { errors?: unknown; unportable?: unknown; pinned?: unknown; bootErrors?: unknown }) => {
     const errors = Array.isArray(body.errors) ? body.errors as { name?: unknown; error?: unknown }[] : []
     // Machine-specific dependency paths (#205): a `link:/Users/…` spec from
     // the machine that wrote the backup names a directory that does not
@@ -6052,6 +6273,12 @@ export function MarketSection(props: MarketSectionProps) {
     // problems rather than in a banner of its own — from the operator's
     // side it is one question ("what went wrong with my restore?").
     const unportable = Array.isArray(body.unportable) ? body.unportable as { name?: unknown; spec?: unknown }[] : []
+    // The market is the package running the restore, so it keeps its own
+    // version instead of having its files swapped out mid-operation. Said
+    // here rather than in a banner of its own: from the operator's side it is
+    // the same question ("what did not come back?"), and the answer has a
+    // next step (update the market separately).
+    const pinned = Array.isArray(body.pinned) ? body.pinned as { name?: unknown; from?: unknown; to?: unknown }[] : []
     // Partial failures surface inline in the Backup tab (previously a
     // window.alert); the restore itself still completes.
     // What the profile analysis says about the composition that just landed
@@ -6062,6 +6289,7 @@ export function MarketSection(props: MarketSectionProps) {
     setRestoreErrors([
       ...errors.map(item => `${String(item.name)}: ${String(item.error)}`),
       ...unportable.map(item => `${String(item.name)}: ${t('restoreUnportable')} (${String(item.spec)})`),
+      ...pinned.map(item => `${String(item.name)}: ${t('restoreSelfPinned')} (${String(item.from)} → ${String(item.to)})`),
       ...bootErrors.map(line => `${t('restoreBootError')} ${line}`),
     ])
     setBackupRestored(true)
@@ -7700,6 +7928,15 @@ export function MarketSection(props: MarketSectionProps) {
               <div className={css.empty} role="alert">
                 <div><b>{t('marketGoneTitle')}</b></div>
                 <div className={css.spec}>{t('marketGoneBody')}</div>
+                {reconnecting
+                  ? <div className={css.spec}>{t('marketGoneReconnecting')}</div>
+                  : (
+                      <div>
+                        <Button variant="outline" size="sm" onClick={() => setReconnectRound(round => round + 1)}>
+                          {t('marketGoneReconnect')}
+                        </Button>
+                      </div>
+                    )}
               </div>
             )
           : tab === 'backup'
@@ -7962,7 +8199,7 @@ export function MarketSection(props: MarketSectionProps) {
                         </section>
                     )}
                     {plugins.length === 0
-                      ? <EmptyResults blocked={pluginsAll.length > 0} t={t}
+                      ? <EmptyResults blocked={pluginsAll.length > hostHiddenCount} t={t}
                           onClear={data.plugins.length > 0 && (q !== '' || cat !== 'all' || timeRange !== 'all' || compatibleWithHost) ? () => {
                             setQ(''); resetDiscoverSearch(value => value + 1)
                             setCat('all'); setTimeRange('all'); setCompatibleWithHost(false)
@@ -8220,6 +8457,18 @@ export function MarketSection(props: MarketSectionProps) {
                   {installedView === 'groups'
                       ? (
                           <>
+                            {groupOrder.length > 0 && (
+                              <div className={css.groupBulkActions}>
+                                <Button variant="ghost" size="sm"
+                                  disabled={groupQuery !== '' || groupOrder.every(gid => collapsedGroups.has(gid))}
+                                  onClick={() => setCollapsedGroups(new Set(groupOrder))}
+                                >{t('groupCollapseAll')}</Button>
+                                <Button variant="ghost" size="sm"
+                                  disabled={groupQuery !== '' || !groupOrder.some(gid => collapsedGroups.has(gid))}
+                                  onClick={() => setCollapsedGroups(new Set())}
+                                >{t('groupExpandAll')}</Button>
+                              </div>
+                            )}
                             {groupQuery === '' && groupOrder.length === 0
                               ? <div className={css.empty}>{t('noGroups')}</div>
                               : visibleGroupIds.map(gid => {
@@ -9318,8 +9567,18 @@ export function MarketSection(props: MarketSectionProps) {
               : findingCompat.status === 'loading'
                 ? t('hostIncompatibleSearching')
                 : findingCompat.status === 'found'
-                  ? t(hostIncompatible.kind === 'install' ? 'hostIncompatibleFoundInstall' : 'hostIncompatibleFoundUpdate')
-                      .replace('{version}', findingCompat.version)
+                  // A compatible release that is still inside the release-age
+                  // wait is not an available answer. Say so here, with the
+                  // wait attached, instead of letting the button fail later.
+                  ? hostCompatHeld
+                    ? (hostCompatHeldHours === null
+                        ? t('hostIncompatibleHeldTargetUnknown').replace('{version}', findingCompat.version)
+                        : t('hostIncompatibleHeldTarget')
+                            .replace('{version}', findingCompat.version)
+                            .replace('{window}', String(hostCompatWindowHours))
+                            .replace('{hours}', String(hostCompatHeldHours)))
+                    : t(hostIncompatible.kind === 'install' ? 'hostIncompatibleFoundInstall' : 'hostIncompatibleFoundUpdate')
+                        .replace('{version}', findingCompat.version)
                   : findingCompat.status === 'not-found'
                     ? t('hostIncompatibleNoCompat')
                     : findingCompat.status === 'error'
@@ -9338,13 +9597,13 @@ export function MarketSection(props: MarketSectionProps) {
                   that asks the user to accept a broken host, and it must not
                   look like the recommended one. */}
               <Button
-                variant={findingCompat.status === 'found' ? 'outline' : 'primary'}
+                variant={findingCompat.status === 'found' && !hostCompatHeld ? 'outline' : 'primary'}
                 onClick={() => setHostIncompatible(null)}
               >{t(hostIncompatible.kind === 'install' ? 'hostIncompatibleCancel' : 'hostIncompatibleKeep')}</Button>
               {findingCompat.status === 'found' && (
                 <Button
                   variant="primary"
-                  disabled={hostIncompatible.kind === 'install' ? busyUrl !== null : updatingName !== null}
+                  disabled={hostCompatHeld || (hostIncompatible.kind === 'install' ? busyUrl !== null : updatingName !== null)}
                   onClick={() => {
                     const kind = hostIncompatible.kind
                     const target = hostIncompatible.name
@@ -9357,8 +9616,12 @@ export function MarketSection(props: MarketSectionProps) {
                       doUpdate(target, false, false, version)
                     }
                   }}
-                >{t(hostIncompatible.kind === 'install' ? 'hostIncompatibleInstallCompat' : 'hostIncompatibleUpdateCompat')
-                  .replace('{version}', findingCompat.version)}</Button>
+                >{hostCompatHeld
+                  ? (hostCompatHeldHours === null
+                      ? t('hostIncompatibleHeldButtonUnknown')
+                      : t('hostIncompatibleHeldButton').replace('{hours}', String(hostCompatHeldHours)))
+                  : t(hostIncompatible.kind === 'install' ? 'hostIncompatibleInstallCompat' : 'hostIncompatibleUpdateCompat')
+                      .replace('{version}', findingCompat.version)}</Button>
               )}
               {findingCompat.status === 'error' && hostIncompatible.npmName !== null && (
                 <Button variant="outline" onClick={() => setCompatRetry(n => n + 1)}>{t('hostIncompatibleRetry')}</Button>

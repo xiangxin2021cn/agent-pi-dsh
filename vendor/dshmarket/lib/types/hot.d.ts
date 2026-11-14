@@ -70,6 +70,35 @@ export declare function resolveProfileEntry(profileDir: string, name: string): s
  */
 export declare function parseSimplePatch(patchText: string): HotRow[] | null;
 /**
+ * Which shape stopped `parseSimplePatch` — the CAUSE, not just "not plain".
+ *
+ * `parseSimplePatch` collapses five different inputs into one `null`: a
+ * `config` block, a `disabled`/`enabled` switch row, any other key (`inject`,
+ * a nested mapping), a row whose `name` never arrives, and a patch with no
+ * insert rows at all. Every caller that had to explain the refusal threw all
+ * five into one sentence written for the first, and told users their patch
+ * "contains config/expression rows" when it merely switched a row off
+ * (#1102). Naming the shape is the difference between a sentence the reader
+ * can act on and one they cannot (#813, AGENTS.md: 说不出来就别用一句话把
+ * 空缺填上).
+ */
+export type PatchBlocker = 'config' | 'disabled' | 'incomplete' | 'empty' | 'other';
+export interface PatchScan {
+    /** Insert rows read before the scan stopped; empty when it did not. */
+    rows: HotRow[];
+    /** null when the patch IS a plain insert list (`rows` is then non-empty). */
+    blocker: PatchBlocker | null;
+    /** The key that stopped the scan, when there is one to name. */
+    key?: string;
+}
+export declare function scanPatch(patchText: string): PatchScan;
+/**
+ * One sentence for a refusal that is only about the patch's shape, naming the
+ * cause and what happens next. Shared by the hot mount and the activation
+ * verdict so the two cannot drift apart on the same fact again.
+ */
+export declare function patchBlockerReason(blocker: PatchBlocker, key?: string): string;
+/**
  * Wipe leftover hot-mount inputs; call once when the market host starts.
  * `state.json` (disable choices + groups) deliberately survives.
  */
@@ -356,7 +385,25 @@ export declare function hotMount(ctx: HotContext, profileDir: string, packageNam
  * in every boot — this is what makes them behave like normal plugins.
  * @returns names that were mounted.
  */
-export declare function mountClientOnlyDeps(ctx: HotContext, profileDir: string): Promise<string[]>;
+export declare function mountClientOnlyDeps(ctx: HotContext, profileDir: string,
+/** The host's install directory; `undefined` finds it, `null` means "do not look". */
+hostDirectory?: string | null): Promise<string[]>;
+/**
+ * Package names the profile's OWN bundle layer already mounts.
+ *
+ * The shim predicate reads the profile manifest, so it can only see a package
+ * as a dependency; it cannot see that an in-box bundle mounts the same package
+ * under a row id of its own — `@deepseek-ai/dsh-web-app` ships
+ * `- id: connection` / `name: '@deepseek-ai/dsh-client-connection'` (#1137).
+ * Those packages also declare `dsh.client` and no `dsh.bundle`, so every
+ * existing predicate says "shim it". Only the row NAMES link the two, and a
+ * clean profile's bundles are the only place they are written down.
+ *
+ * A bundle whose declaration cannot be read contributes nothing, which keeps
+ * today's behaviour (shim, possibly duplicated) rather than silently dropping
+ * a client bundle that the bundle layer never mounts.
+ */
+export declare function bundleLayerTargets(profileDir: string, bundles: Iterable<string>, hostDirectory?: string | null): Set<string>;
 /**
  * Row ids and package names the user's own patch layer (cordis.patch.yml)
  * already contains. Line-wise scan on purpose: the file may hold structures

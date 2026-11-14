@@ -1,3 +1,4 @@
+import type { HostRequestPeer } from './http.ts';
 /**
  * HTTP routes bridging the browser market UI to the host. This layer only
  * parses requests, calls the service modules, and serializes responses —
@@ -19,7 +20,8 @@ export interface WebServerService {
     register(route: {
         kind: 'exact' | 'prefix';
         path: string;
-        handler: (request: IncomingMessage, response: ServerResponse) => void | Promise<void>;
+        auth?: 'required';
+        handler: (request: IncomingMessage, response: ServerResponse, peer?: HostRequestPeer) => void | Promise<void>;
     }): () => void;
 }
 export interface MarketHost {

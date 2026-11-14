@@ -131,13 +131,101 @@ function nextPatchContentLine(lines, from) {
  * rejects, but a plain `- id: X` + `disabled: true|false` pair is enough
  * to know what the user patch layer says.
  */
+/**
+ * The value of a top-level key in a patch entry that starts after `start`.
+ *
+ * An entry runs until the next `- ` at column 0, and its keys sit at exactly
+ * two spaces; anything deeper belongs to `config:` and says nothing about the
+ * row itself. Reading only the line AFTER `- id:` missed `disabled: true`
+ * whenever `name`, `inject` or a config block came first — the row then read
+ * as enabled, so a plugin the user had switched off was reported "restart to
+ * apply" forever, every boot (#1099).
+ *
+ * @returns the scalar as written (comments stripped), or null when the entry
+ *   does not carry the key at all.
+ */
+function entryKeyValue(lines, start, key) {
+    const pattern = new RegExp(`^ {2}${key}:[ \\t]*(.*?)[ \\t]*$`, 'u');
+    for (let index = start; index < lines.length; index += 1) {
+        const line = lines[index] ?? '';
+        if (/^- /u.test(line))
+            return null;
+        const match = pattern.exec(line);
+        // A `#` starts a comment only after whitespace; `#` inside a bare scalar
+        // is data, and YAML would keep it.
+        if (match !== null)
+            return (match[1] ?? '').replace(/[ \t]+#.*$/u, '').trim();
+    }
+    return null;
+}
+/**
+ * Whether a patch entry speaks for the row it names.
+ *
+ * The host skips an entry whose `name` is not the name that row's id composes
+ * to — `applyPatches` in dsh-app-boot, `if (name && name !== target.name)`,
+ * the same line in every published version. A row left behind by a package
+ * rename therefore never takes effect, while anything that counts the flag
+ * alone reports the plugin as off (#1113). Only a row that CARRIES a name is
+ * compared, and only when the composed name is known: an id that is not in
+ * the loader has nothing to compare against, and its flag stands.
+ *
+ * @param name - the `name` the entry carries, if any.
+ * @param expected - the composed entry's own name, or null when unknown.
+ */
+function rowApplies(name, expected) {
+    if (typeof name !== 'string' || name === '')
+        return true;
+    return expected === null || name === expected;
+}
+/**
+ * The name the loader composed for a row, or null when the id is not there.
+ *
+ * This is the comparison the host makes, against the composed entry's own
+ * `name` — NOT `nameMatchesPackage()`, which judges package ownership and
+ * treats a subpath name and a foreign package name the same way (#1113).
+ */
+export function composedRowName(host, rowId) {
+    for (const entry of host.loader.entries()) {
+        if (loaderEntryId(entry) !== rowId)
+            continue;
+        const name = entry.options?.name;
+        return typeof name === 'string' && name !== '' ? name : null;
+    }
+    return null;
+}
+/**
+ * Whether the user layer's flag for this row is a decision the host applies.
+ *
+ * @param state - the user patch state.
+ * @param rowId - the row being asked about.
+ * @param expected - the composed entry's name, or null when the id is not in
+ *   the loader.
+ */
+export function rowFlagApplies(state, rowId, expected) {
+    const carried = state.names?.[rowId];
+    return carried === undefined || rowApplies(carried, expected);
+}
+/** The state with one row's flags dropped when its `name` does not apply. */
+function withoutMismatchedRow(state, rowId, expected) {
+    if (rowFlagApplies(state, rowId, expected))
+        return state;
+    return {
+        disables: state.disables.filter(id => id !== rowId),
+        forced: state.forced.filter(id => id !== rowId),
+        inserts: state.inserts,
+        ...(state.names !== undefined ? { names: state.names } : {}),
+    };
+}
 export function readUserPatchState(patchPath) {
-    const disables = [];
-    const forced = [];
+    // The host composes the file in order, later entries override earlier ones,
+    // so a row has one final flag: listing it as both disabled and forced showed
+    // a plugin as off while the file had it on (#1099).
+    const flags = new Map();
+    const names = new Map();
     const inserts = [];
     let text = '';
     try {
-        text = readFileSync(patchPath, 'utf8');
+        text = readPatchText(patchPath);
     }
     catch { /* no patch file — empty state */ }
     const lines = text.split(/\r?\n/u);
@@ -160,13 +248,27 @@ export function readUserPatchState(patchPath) {
         if (disableRow === null)
             continue;
         const id = (disableRow[1] ?? disableRow[2] ?? disableRow[3]);
-        const next = lines[nextPatchContentLine(lines, index + 1)] ?? '';
-        if (/^ {2}disabled: true\s*$/u.test(next))
-            disables.push(id);
-        else if (/^ {2}disabled: false\s*$/u.test(next))
-            forced.push(id);
+        const value = entryKeyValue(lines, index + 1, 'disabled');
+        if (value !== 'true' && value !== 'false')
+            continue;
+        flags.set(id, value);
+        // A row that names a module is only applied by the host when that name is
+        // the one the row's id composes to; the flag stays here so the caller can
+        // make that comparison (#1113).
+        const named = entryKeyValue(lines, index + 1, 'name');
+        const unwrapped = named === null ? null : named.replace(/^(['"])(.*)\1$/u, '$2');
+        if (unwrapped !== null && unwrapped !== '')
+            names.set(id, unwrapped);
+        else
+            names.delete(id);
     }
-    return { disables, forced, inserts };
+    const withFlag = (flag) => [...flags.keys()].filter(id => flags.get(id) === flag);
+    return {
+        disables: withFlag('true'),
+        forced: withFlag('false'),
+        inserts,
+        ...(names.size > 0 ? { names: Object.fromEntries(names) } : {}),
+    };
 }
 /**
  * User-authored insert rows that still load `packageName` (or one of its
@@ -473,9 +575,19 @@ export function packagePatchFlags(host, profileDirectory, names, state) {
         // user's decisions ABOVE the bundle's own default count.
         const optOut = new Set(bundleOptOutRowIds(join(profileDirectory, 'node_modules', name)));
         const decidedByUser = (id) => !optOut.has(id);
-        if (rows.some(id => decidedByUser(id) && state.disables.includes(id)))
+        // A row that names a module other than this id's does nothing in the
+        // host, so it is not a decision about this package (#1113): the shape a
+        // package rename leaves behind.
+        const applies = (id) => rowFlagApplies(state, id, composedRowName(host, id));
+        // A package counts as off only when nothing of it is left running: a
+        // multi-component plugin with some components switched off is still on
+        // (#1150). One disabled row used to flip the whole package, which kept
+        // it out of 「全部更新」.
+        // Rows that name another module do not count either way (#1113).
+        const decidedRows = rows.filter(id => decidedByUser(id) && applies(id));
+        if (decidedRows.length > 0 && decidedRows.every(id => state.disables.includes(id)))
             disabled.push(name);
-        if (rows.some(id => decidedByUser(id) && state.forced.includes(id)))
+        if (rows.some(id => decidedByUser(id) && applies(id) && state.forced.includes(id)))
             forced.push(name);
     }
     return { disabled, forced };
@@ -499,7 +611,7 @@ function rowBlock(rowId, disabled) {
  * after the flag too: an indented config/name/key makes this a longer entry,
  * whose first lines must never be removed (#821). Trailing comments stay put.
  */
-function rewriteRowBlocks(text, rowId, disabled, replace) {
+function rewriteRowBlocks(text, rowId, disabled, replace, expected = null) {
     const id = escapeRegExp(rowId);
     const idLine = new RegExp(`^- id: (?:${id}|'${id}'|"${id}")[ \t]*$`, 'u');
     const lines = text.match(/[^\n]*(?:\n|$)/gu)?.filter(Boolean) ?? [];
@@ -509,6 +621,11 @@ function rewriteRowBlocks(text, rowId, disabled, replace) {
     let result = '', copied = 0;
     for (let index = 0; index < lines.length; index += 1) {
         if (!idLine.test(lines[index].replace(/\r?\n$/u, '')))
+            continue;
+        // A row that names another module is skipped by the host, so rewriting it
+        // would report a change that never happens (#1113).
+        const named = entryKeyValue(lines, index + 1, 'name');
+        if (!rowApplies(named === null ? null : named.replace(/^(['"])(.*)\1$/u, '$2'), expected))
             continue;
         const flagIndex = nextPatchContentLine(lines, index + 1);
         const flag = /^ {2}disabled: (true|false)[ \t]*(?:\r?\n)?$/u.exec(lines[flagIndex] ?? '');
@@ -529,7 +646,49 @@ function rewriteRowBlocks(text, rowId, disabled, replace) {
  * `- id: X` entry that carries one, rows with more keys included. Later
  * entries override earlier ones.
  */
-function lastRowFlag(text, rowId) {
+/**
+ * The row's own flag as the HOST will compose it, from a real YAML parse.
+ *
+ * The line scanner is deliberately conservative, so it is blind to spellings
+ * it was not written for — flow style `- { id: x, disabled: true }`, `disabled`
+ * above `id`, `True`, a comment on the id line (#1112). The host parses the
+ * file and applies entries in order, the last one winning, so this is both the
+ * reading the user means and the one that decides.
+ *
+ * @returns 'true'/'false' from the last entry naming the row, or null when the
+ *   text cannot be read as DSH's patch dialect — the caller then keeps the line
+ *   scanner's answer rather than guessing.
+ */
+function composedRowFlag(text, rowId, expected = null) {
+    let rows;
+    try {
+        rows = parsePatchText(text);
+    }
+    catch {
+        return null;
+    }
+    if (rows === null)
+        return null;
+    let flag = null;
+    for (const row of rows) {
+        if (row === null || typeof row !== 'object' || Array.isArray(row))
+            continue;
+        const entry = row;
+        if (entry.id !== rowId)
+            continue;
+        // A row naming another module never reaches this id's entry (#1113).
+        if (!rowApplies(entry.name, expected))
+            continue;
+        // An `!!js` expression arrives as a function (or a tag object): it decides
+        // by itself, and flattening it here would freeze one host's answer.
+        if (entry.disabled === true)
+            flag = 'true';
+        else if (entry.disabled === false)
+            flag = 'false';
+    }
+    return flag;
+}
+function lastRowFlag(text, rowId, expected = null) {
     const id = escapeRegExp(rowId);
     const idLine = new RegExp(`^- id: (?:${id}|'${id}'|"${id}")\\s*$`, 'u');
     const lines = text.split(/\r?\n/u);
@@ -537,9 +696,13 @@ function lastRowFlag(text, rowId) {
     for (let index = 0; index < lines.length; index += 1) {
         if (!idLine.test(lines[index] ?? ''))
             continue;
-        const value = /^ {2}disabled: (true|false)\s*$/u.exec(lines[nextPatchContentLine(lines, index + 1)] ?? '');
-        if (value !== null)
-            flag = value[1];
+        const named = entryKeyValue(lines, index + 1, 'name');
+        const name = named === null ? null : named.replace(/^(['"])(.*)\1$/u, '$2');
+        if (!rowApplies(name, expected))
+            continue;
+        const value = entryKeyValue(lines, index + 1, 'disabled');
+        if (value === 'true' || value === 'false')
+            flag = value;
     }
     return flag;
 }
@@ -555,6 +718,20 @@ function lastRowFlag(text, rowId) {
  * `EACCES: permission denied, open '…'` reaching the UI tells a user nothing
  * they can act on, while the plugin's actual state has already changed.
  */
+/**
+ * The user patch as text, without a leading UTF-8 BOM.
+ *
+ * Windows Notepad saves UTF-8 with one, and `readFileSync` keeps it. js-yaml
+ * and the host strip it, so the host saw the first row while every
+ * `^`-anchored scan here missed it: a first `- id:` read as absent, and a
+ * first `[]` was not recognised as the placeholder, so a toggle appended
+ * after it and wrote a second top-level node. The market's own writes drop
+ * the BOM from then on. Throws like `readFileSync` when the file is missing.
+ */
+function readPatchText(patchPath) {
+    const text = readFileSync(patchPath, 'utf8');
+    return text.startsWith('﻿') ? text.slice(1) : text;
+}
 function writePatchFile(patchPath, contents) {
     try {
         writeFileSync(patchPath, contents);
@@ -576,7 +753,7 @@ function writePatchFile(patchPath, contents) {
 function appendPatchEntry(patchPath, block) {
     let text = '';
     try {
-        text = readFileSync(patchPath, 'utf8');
+        text = readPatchText(patchPath);
     }
     catch { /* created below */ }
     const core = text.trim();
@@ -632,14 +809,14 @@ function appendPatchEntry(patchPath, block) {
  * a later reinstall off. Duplicates an older version left are folded into
  * the one block at the same time.
  */
-export function disableRow(patchPath, rowId) {
+export function disableRow(patchPath, rowId, options = {}) {
     return queuedWrite(async () => {
         if (!ROW_ID_RE.test(rowId)) {
             return { ok: false, reason: `行 id 含特殊字符,不支持写入补丁层 / row id ${rowId} cannot be written to the patch layer` };
         }
         const text = (() => {
             try {
-                return readFileSync(patchPath, 'utf8');
+                return readPatchText(patchPath);
             }
             catch {
                 return '';
@@ -651,13 +828,13 @@ export function disableRow(patchPath, rowId) {
                 return '';
             kept = true;
             return block.replace(/^ {2}disabled: false(?=[ \t]*(?:\r?\n|$))/mu, '  disabled: true');
-        });
+        }, options.expectedName ?? null);
         if (next !== text) {
             const flipped = writePatchFile(patchPath, next);
             if (!flipped.ok)
                 return flipped;
             // A longer entry for the row further down still has the last word.
-            if (lastRowFlag(next, rowId) !== 'true') {
+            if (lastRowFlag(next, rowId, options.expectedName ?? null) !== 'true') {
                 const result = appendPatchEntry(patchPath, rowBlock(rowId, true));
                 if (!result.ok)
                     return result;
@@ -665,7 +842,10 @@ export function disableRow(patchPath, rowId) {
             logEvent('info', 'patch', `disabled row ${rowId} in ${patchPath}`);
             return { ok: true, reason: null };
         }
-        const state = readUserPatchState(patchPath);
+        // A row whose `name` is not this entry's owns nothing here: counting it
+        // as already-disabled would answer "off" and change nothing, leaving the
+        // plugin running (#1113).
+        const state = withoutMismatchedRow(readUserPatchState(patchPath), rowId, options.expectedName ?? null);
         if (state.disables.includes(rowId))
             return { ok: true, reason: null };
         const result = appendPatchEntry(patchPath, rowBlock(rowId, true));
@@ -675,29 +855,52 @@ export function disableRow(patchPath, rowId) {
     });
 }
 /** Enable one row: remove its `disabled: true` blocks; force-enable with
- * `disabled: false` when a lower layer (bundle/home patch) holds it down. */
-export function enableRow(patchPath, rowId) {
+ * `disabled: false` when a lower layer (bundle/home patch) holds it down, or
+ * when a longer entry of the row still says `disabled: true` (#1099): that
+ * entry is never cut up (#821), so it can only be overridden from below.
+ *
+ * `cleanOnly` is that cleanup and nothing else: remove a block the market
+ * itself left on a row, never write a new one (#1110). An opt-in row of a
+ * bundle and a row whose `disabled` is an expression are off by design, and
+ * appending `disabled: false` above them force-opens a row that should stay
+ * closed — the host composes later entries last, so the append wins. */
+export function enableRow(patchPath, rowId, options = {}) {
+    const cleanOnly = options.cleanOnly === true;
+    const expected = options.expectedName ?? null;
     return queuedWrite(async () => {
         if (!ROW_ID_RE.test(rowId)) {
             return { ok: false, reason: `行 id 含特殊字符,不支持写入补丁层 / row id ${rowId} cannot be written to the patch layer` };
         }
-        const state = readUserPatchState(patchPath);
+        const state = withoutMismatchedRow(readUserPatchState(patchPath), rowId, expected);
         const text = (() => {
             try {
-                return readFileSync(patchPath, 'utf8');
+                return readPatchText(patchPath);
             }
             catch {
                 return '';
             }
         })();
-        const next = rewriteRowBlocks(text, rowId, 'true', () => '');
+        const next = rewriteRowBlocks(text, rowId, 'true', () => '', expected);
         if (next !== text) {
             const written = writePatchFile(patchPath, withPlaceholderRestored(next));
             if (!written.ok)
                 return written;
-            logEvent('info', 'patch', `enabled row ${rowId} in ${patchPath}`);
+            // A longer entry for the row may still have the last word — and so may a
+            // spelling the line scanner cannot see (#1112). Ask the parser the host
+            // uses; when the file is not readable as its dialect, fall back to the
+            // scanner.
+            const stillOff = composedRowFlag(next, rowId, expected) ?? lastRowFlag(next, rowId, expected);
+            if (!cleanOnly && stillOff === 'true') {
+                const result = appendPatchEntry(patchPath, rowBlock(rowId, false));
+                if (!result.ok)
+                    return result;
+            }
+            logEvent('info', 'patch', `${cleanOnly ? 'cleared the block on' : 'enabled'} row ${rowId} in ${patchPath}`);
             return { ok: true, reason: null };
         }
+        // Nothing of the market's own to clean: the row's default stands.
+        if (cleanOnly)
+            return { ok: true, reason: null };
         if (state.forced.includes(rowId))
             return { ok: true, reason: null };
         const result = appendPatchEntry(patchPath, rowBlock(rowId, false));
@@ -729,7 +932,7 @@ function withPlaceholderRestored(text) {
 export function removeRowBlocks(patchPath, rowIds) {
     let text = '';
     try {
-        text = readFileSync(patchPath, 'utf8');
+        text = readPatchText(patchPath);
     }
     catch {
         return { ok: true, reason: null };

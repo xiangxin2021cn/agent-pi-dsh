@@ -43,7 +43,7 @@ function fixture() {
   writeFileSync(join(host, 'package.json'), '{"dependencies":{"@openai/codex":"0.153.4"}}\n')
   writeFileSync(join(codex, 'package.json'), '{"name":"@openai/codex","version":"0.153.4"}\n')
   writeFileSync(join(codex, 'bin', 'codex.js'), "console.log('codex-cli 0.153.4')\n")
-  const office = join(dsh, 'packages/skill/skill-office/node_modules/@deepseek-ai/libreoffice-kit')
+  const office = join(dsh, 'packages/document/office-kit/node_modules/@deepseek-ai/libreoffice-kit')
   mkdirSync(office, { recursive: true })
   writeFileSync(join(office, 'package.json'), '{"exports":{"./cli":"./cli.js"}}\n')
   writeFileSync(join(office, 'cli.js'), 'console.log(JSON.stringify({backend:"native"}))\n')
@@ -54,7 +54,7 @@ test('Office gate rejects a missing optional platform engine despite a successfu
   const { root, dsh } = fixture()
   t.after(() => rmSync(root, { recursive: true, force: true }))
   assert.equal(verifyOfficeRuntime(dsh).backend, 'native')
-  writeFileSync(join(dsh, 'packages/skill/skill-office/node_modules/@deepseek-ai/libreoffice-kit/cli.js'),
+  writeFileSync(join(dsh, 'packages/document/office-kit/node_modules/@deepseek-ai/libreoffice-kit/cli.js'),
     'console.error("Installed LibreOfficeKit package is incomplete"); process.exit(1)\n')
   assert.throws(() => verifyOfficeRuntime(dsh), /official Office engine is unavailable.*incomplete/)
 })

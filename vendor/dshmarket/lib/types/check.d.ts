@@ -235,6 +235,34 @@ export declare function parsePatchText(text: string): unknown[] | null;
 export declare function parsePatchFile(path: string): unknown[] | null;
 /** DSH host core packages: what the dsh installation ships under @deepseek-ai. */
 export declare function corePackageNames(dshInstallDir: string | null): Set<string>;
+/**
+ * Rewrite a comparator whose target is a PARTIAL version into the full
+ * comparators node-semver desugars it to. Anything else comes back as is.
+ *
+ * The `@deepseek-ai/dsh-*` peers of a whole family of connector plugins are
+ * written this way (`>=0.1.5 <0.3`, `>=0.1.7-rc <2`, `>=0.2.0-rc.0 <0.3`).
+ * Read as unknown, they left the activation gate standing aside: measured
+ * against the host's own evaluator over 699 live catalog manifests, those
+ * were the last 7 of 2796 (package, runtime) pairs where the host refuses a
+ * plugin and the market still promised a restart would apply it.
+ *
+ * Zero-filling the target is right for `>=` and wrong for the rest. A partial
+ * names a whole release line, so node-semver (`replaceXRange`, `replaceTilde`,
+ * `replaceCaret`) moves the bound to the edge of that line:
+ *
+ *   `<0.3`  → `<0.3.0-0`            `<=0.3` → `<0.4.0-0`
+ *   `>0.3`  → `>=0.4.0`             `>1`    → `>=2.0.0`
+ *   `~1`    → `>=1.0.0 <2.0.0-0`    `^0`    → `>=0.0.0 <1.0.0-0`
+ *   `^0.0`  → `>=0.0.0 <0.1.0-0`
+ *
+ * Comparing against the raw partial string instead ordered `9.1.0` above
+ * `10` and `0.10.0` below `0.3`, character by character.
+ *
+ * A BARE partial (`1.2`) has no operator and is an x-range in semver
+ * (`>=1.2.0 <1.3.0`), so it stays as is and parses as unknown below rather
+ * than being mistaken for the exact version `1.2.0`.
+ */
+export declare function expandPartialComparator(part: string, includePrerelease: boolean): string[];
 /** Compare two semver strings: negative | zero | positive (prerelease < release of same base). */
 /** Whether a string is a well-formed semver `compareSemver` can order. */
 export declare function isSemver(value: string): boolean;

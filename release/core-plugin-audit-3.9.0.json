@@ -1,0 +1,68 @@
+{
+  "schema": "agent-pi-dsh/core-plugin-audit/v1",
+  "checkedAt": "2026-11-14",
+  "edition": "mainline",
+  "appVersion": "3.9.0",
+  "dsh": {
+    "version": "0.2.2-rc.3",
+    "commit": "39163dd30f703a79079e2d2446545cff3c453738",
+    "decision": "upgraded-official-source"
+  },
+  "plugins": [
+    {
+      "name": "dshmarket",
+      "from": "1.73.10",
+      "version": "1.73.19",
+      "sourceCommit": "da774820fd49f4915461ff2031eedbef9b48dfe7",
+      "decision": "upgraded",
+      "receipt": "vendor/dshmarket/AGENT-PI-ADAPTATION.json"
+    },
+    {
+      "name": "dsh-univer-office",
+      "version": "0.4.0",
+      "decision": "latest-published-kept-with-rc3-peer-adapter",
+      "sourceCommit": "b16565732104b17f1b27e31f0c11e222b6398a6c"
+    },
+    {
+      "name": "@anysearch/anysearch-dsh",
+      "version": "0.1.8",
+      "decision": "latest-published-kept-with-rc3-engine-gate",
+      "sourceCommit": "d20ab97727b36b4341977e53d7c9b7d2e93d3d03"
+    },
+    {
+      "name": "@dsh-external/dsh-super-injector",
+      "version": "0.3.5",
+      "latestPublished": "0.3.5",
+      "unreleasedHeadVersion": "0.3.6",
+      "unreleasedHead": "e2fca6e2dc5d926bb33fbd1376780bb5e93f4974",
+      "decision": "keep-latest-published-reviewed-build"
+    },
+    {
+      "name": "dsh-router-standard",
+      "version": "0.1.0-product-compatibility-snapshot",
+      "latestPublished": "0.3.0",
+      "reviewedHead": "b39112dce54b90e67b50b166c2773861d7945d1f",
+      "decision": "keep-compatible-runtime",
+      "reason": "The new optional preset reads removed Session.events, changes the native tool/prompt workflow, and provides a private Git Bash executor without a sandboxMode. Preserve the existing snapshotEvents adapter and official DSH default until that separate runtime is adapted and tested.",
+      "evidence": [
+        "preset/router-standard/router-bootstrap-v34.mjs",
+        "preset/router-standard/gitbash-executor.mjs"
+      ]
+    }
+  ],
+  "templateSkill": {
+    "name": "writing-dna-skill",
+    "commit": "ee3d97ee27268004b5187d97711161f44fc4aae4",
+    "license": "MIT",
+    "latestHead": "1335568bfd1141fc8447caaa812e6119e2d2fbbf",
+    "latestLicense": "PolyForm Noncommercial License 1.0.0",
+    "decision": "keep-reviewed-MIT-source",
+    "reason": "Do not introduce a noncommercial-use restriction into customer-facing document workflows."
+  },
+  "officeEngine": {
+    "name": "@deepseek-ai/libreoffice-kit",
+    "version": "0.2.3",
+    "consumer": "packages/document/office-kit",
+    "decision": "updated-staging-and-native-gate"
+  }
+}

@@ -67,7 +67,7 @@ export function verifyCodexRuntime(productRoot) {
 }
 
 export function verifyOfficeRuntime(dshRoot) {
-  const consumer = join(resolve(dshRoot), 'packages/skill/skill-office/package.json')
+  const consumer = join(resolve(dshRoot), 'packages/document/office-kit/package.json')
   const require = createRequire(consumer)
   const cli = require.resolve('@deepseek-ai/libreoffice-kit/cli')
   // The platform engine is optional to npm, but mandatory for our desktop.

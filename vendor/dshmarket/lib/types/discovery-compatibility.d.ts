@@ -11,8 +11,8 @@
 export type HostCompatibilityStatus = 'compatible' | 'incompatible' | 'unknown';
 export type HostCompatibilityBasis = 'manifest' | 'undeclared' | 'unavailable';
 export interface HostRequirementDeclaration {
-    kind: 'engine' | 'peer';
-    /** Present only for a peer-derived declaration. */
+    kind: 'engine' | 'peer' | 'dependency';
+    /** Present only for a peer- or dependency-derived declaration. */
     package?: string;
     range: string;
 }
@@ -27,6 +27,12 @@ export interface NpmManifestFacts {
     version: string | null;
     enginesDsh: string | null;
     peerDependencies: Record<string, string>;
+    /**
+     * Ordinary dependencies that name a host package. Optional only because a
+     * durable cache entry or a catalog release manifest written before this
+     * field existed carries no value; a missing field declares nothing.
+     */
+    dependencies?: Record<string, string>;
 }
 type FetchLike = (url: string, init?: {
     signal?: AbortSignal;
@@ -138,8 +144,12 @@ export declare class DiscoveryManifestIndex {
  * installed one, which is what an update needs: suggesting a downgrade is not
  * an update.
  *
+ * `stableOnly` drops prereleases. The official Desktop refuses to move a
+ * stable install onto a prerelease by itself (#991), so offering one there is
+ * an enabled button that can only answer 409 (#1161).
+ *
  * @returns the version, or null when the packument cannot be read or nothing
  *   in the history declares itself compatible.
  */
-export declare function findCompatibleVersion(npmName: string, hostVersion: string, hostPackages: ReadonlySet<string>, registry: string, fetcher?: FetchLike, minimumVersionExclusive?: string | null): Promise<string | null>;
+export declare function findCompatibleVersion(npmName: string, hostVersion: string, hostPackages: ReadonlySet<string>, registry: string, fetcher?: FetchLike, minimumVersionExclusive?: string | null, stableOnly?: boolean): Promise<string | null>;
 export {};

@@ -16,7 +16,7 @@
  * Everything else stays informational: `*`, prerelease-vs-`*` artifacts,
  * unparseable ranges, and optional peers never produce a risk here.
  */
-import { analyzeProfile, compareSemver } from "./check.js";
+import { analyzeProfile, compareSemver, expandPartialComparator } from "./check.js";
 import { profileDir, readInstalledManifest } from "./profile.js";
 const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 function parseComparator(part) {
@@ -29,6 +29,26 @@ function parseComparator(part) {
         return null;
     const raw = m[1] ?? '';
     return { op: raw === '' || raw === '=' ? 'exact' : raw, target };
+}
+/**
+ * One written comparator as full-version comparators. A partial target
+ * (`<0.3`, `^0.1`, `~1`) goes through the same node-semver expansion the gate
+ * uses in `satisfiesRange`, so both sides agree on where the line ends.
+ * A bare partial (`1.2`) stays unparseable, as it does there.
+ */
+function parseWritten(part) {
+    const full = parseComparator(part);
+    if (full !== null)
+        return [full];
+    const expanded = expandPartialComparator(part, false);
+    if (expanded.length === 1 && expanded[0] === part)
+        return null;
+    const parsed = expanded.map(parseComparator);
+    return parsed.every(p => p !== null) ? parsed : null;
+}
+/** A `^` / `~` comparator, whose ceiling the author implied rather than wrote. */
+function isImplicitCeiling(part) {
+    return /^[\^~]/.test(part.trim());
 }
 /** Next breaking bump for `^` / `~`, using `-0` so prereleases compare consistently. */
 function nextBound(target, kind) {
@@ -51,39 +71,41 @@ function boundsFor(range) {
     const alternatives = [];
     for (const rawAlternative of range.split('||')) {
         const parts = rawAlternative.trim().split(/\s+/).filter(Boolean);
-        const parsed = parts.map(parseComparator);
-        if (parsed.some(part => part === null))
+        const written = parts.map(part => ({ implicit: isImplicitCeiling(part), parsed: parseWritten(part) }));
+        if (written.some(part => part.parsed === null))
             return null;
         let lower = null;
         let upper = null;
         let explicitUpper = false;
         let exact = null;
-        for (const part of parsed) {
-            const p = part;
-            if (p.op === 'exact') {
-                exact = p.target;
-                continue;
+        for (const { implicit, parsed } of written)
+            for (const p of parsed) {
+                if (p.op === 'exact') {
+                    exact = p.target;
+                    continue;
+                }
+                if (p.op === '^' || p.op === '~') {
+                    const bound = nextBound(p.target, p.op);
+                    if (bound === null)
+                        return null;
+                    if (lower === null || compareSemver(p.target, lower.target) > 0)
+                        lower = p;
+                    if (upper === null || compareSemver(bound, upper.target) < 0)
+                        upper = { op: '<=', target: bound };
+                    continue;
+                }
+                if (p.op === '>=' || p.op === '>') {
+                    if (lower === null || compareSemver(p.target, lower.target) > 0)
+                        lower = p;
+                }
+                else {
+                    if (upper === null || compareSemver(p.target, upper.target) < 0)
+                        upper = p;
+                    // A partial `^0.1` arrives here as `<0.2.0-0`; its ceiling is still implied.
+                    if (!implicit)
+                        explicitUpper = true;
+                }
             }
-            if (p.op === '^' || p.op === '~') {
-                const bound = nextBound(p.target, p.op);
-                if (bound === null)
-                    return null;
-                if (lower === null || compareSemver(p.target, lower.target) > 0)
-                    lower = p;
-                if (upper === null || compareSemver(bound, upper.target) < 0)
-                    upper = { op: '<=', target: bound };
-                continue;
-            }
-            if (p.op === '>=' || p.op === '>') {
-                if (lower === null || compareSemver(p.target, lower.target) > 0)
-                    lower = p;
-            }
-            else {
-                if (upper === null || compareSemver(p.target, upper.target) < 0)
-                    upper = p;
-                explicitUpper = true;
-            }
-        }
         alternatives.push({ lower, upper, explicitUpper, exact });
     }
     return alternatives;
@@ -116,12 +138,12 @@ function declaredLines(range) {
     const lines = [];
     for (const rawAlternative of range.split('||')) {
         for (const raw of rawAlternative.trim().split(/\s+/).filter(Boolean)) {
-            const parsed = parseComparator(raw);
-            if (parsed === null)
+            if (parseWritten(raw) === null)
                 return null;
-            if (parsed.op !== '^' && parsed.op !== '~')
+            if (!isImplicitCeiling(raw))
                 continue;
-            const m = /^(\d+)\.(\d+)\./.exec(parsed.target);
+            // `^0.1` names the 0.1 line like `^0.1.0`; `^1` names no minor line.
+            const m = /^[\^~](\d+)\.(\d+)(?:\.|$)/.exec(raw.trim());
             if (m !== null)
                 lines.push(`${m[1]}.${m[2]}`);
         }

@@ -29,7 +29,11 @@ export declare function setRequestGateSource(source: () => HostRequestGate | und
  * Answer the request with the host's rejection, if it has one.
  * @returns true when the request was refused and answered here.
  */
-export declare function refuseUnadmitted(request: IncomingMessage, response: ServerResponse): boolean;
+export interface HostRequestPeer {
+    readonly principal: { readonly kind: string };
+    readonly signal: AbortSignal;
+}
+export declare function refuseUnadmitted(request: IncomingMessage, response: ServerResponse, peer?: HostRequestPeer): boolean;
 /** Point the fence at the host's declared authorities. Returns the previous source. */
 export declare function setTrustedHostsSource(source: () => readonly string[]): () => readonly string[];
 /**

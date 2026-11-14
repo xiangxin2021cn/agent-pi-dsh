@@ -12,7 +12,7 @@ import { logEvent } from "./log.js";
 import { loaderEntryId } from "./patch.js";
 import { LifecyclePendingError, LifecycleWaitError, waitForLifecycle } from "./lifecycle.js";
 import { nameMatchesPackage } from "./entry-identity.js";
-import { bundlePatchInsertedIds, profileDir, readInstalled } from "./profile.js";
+import { bundleExpressionRowIds, bundlePatchInsertedIds, profileDir, readInstalled } from "./profile.js";
 import { parseSourceUrl, repoOfTarget } from "./sources.js";
 /**
  * Whether an installed package declares itself a skin.
@@ -215,7 +215,24 @@ export function createThemeManager(host, profile, disabledThemes, explicitDir) {
             // looking for a naming bug (#619's shape) in a profile where the match
             // was fine and the runtime was simply still busy.
             let matched = false;
+            // Rows the package decides itself, by expression (`disabled: !!js …`),
+            // are not the market's to overrule (#1043). The durable layer already
+            // leaves them alone — `switchPluginLayers` filters them out through
+            // `bundleExpressionRowIds` — and the live layer has to agree: clearing a
+            // guard the host evaluated to `true` mounts the row anyway, which for a
+            // carrier means a second copy of a module the host already holds
+            // (`storage form 'domain' is already mounted`), and dsh answers a
+            // duplicate mount by exiting (#1175: dsh-tui on a web profile).
+            //
+            // Disabling still writes through: "off" cannot resurrect anything, and a
+            // guarded row the user wants off should stay off whichever way the
+            // condition falls.
+            const expressionIds = disabledFlag
+                ? null
+                : new Set(bundleExpressionRowIds(join(activeProfileDir, 'node_modules', name)));
             for (const entry of matchingEntries(name)) {
+                if (expressionIds !== null && expressionIds.has(entry.options.id ?? ''))
+                    continue;
                 matched = true;
                 if (!disabledFlag && uncertainEntries.has(entry)) {
                     throw new LifecycleWaitError('loader entry: runtime state is uncertain; retry disabling before enabling');

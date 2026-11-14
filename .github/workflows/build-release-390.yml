@@ -310,3 +310,29 @@ jobs:
           test "$(gh release view v3.9.0 --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = true
           gh release upload v3.9.0 Agent-Pi-DSH-3.9.0-linux-* --repo "$GITHUB_REPOSITORY"
     timeout-minutes: 75
+
+  corresponding-source:
+    name: Verify and copy published BIM source
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: v3.9.0
+          persist-credentials: false
+      - name: Copy exact previously published corresponding source to draft
+        run: |
+          set -euo pipefail
+          test "$RELEASE_TAG" = v3.9.0
+          [[ "$SOURCE_COMMIT" =~ ^[a-f0-9]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+          test "$(gh release view v3.9.0 --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = true
+          mkdir -p corresponding-source
+          archive=Agent-Pi-DSH-3.8.0-BIM-corresponding-source.tar.gz
+          gh release download v3.8.9 --repo "$GITHUB_REPOSITORY" --pattern "$archive" --pattern "$archive.sha256" --dir corresponding-source
+          cd corresponding-source
+          test "$(stat -c %s "$archive")" = 920568526
+          test "$(sha256sum "$archive" | cut -d ' ' -f 1)" = b57fbcab1b7d3ab663e7347a6b896b071f1bd8830c890dbf57866a3ada10e9db
+          sha256sum --check "$archive.sha256"
+          gh release upload v3.9.0 "$archive" "$archive.sha256" --repo "$GITHUB_REPOSITORY"

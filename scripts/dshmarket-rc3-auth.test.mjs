@@ -16,3 +16,14 @@ test('market rc.3 admission retains owner-only access and fails closed on revoke
     }
   } finally {restore()}
 })
+
+test('market routes reuse the carrier authenticated live owner Peer without repeating legacy admission', () => {
+  const restore = useTrustedHosts({get: () => ({admit() {throw new Error('must not readmit the raw Node request')}})})
+  try {
+    for (const [kind,aborted,status] of [['owner',false,undefined],['owner',true,401],['external',false,403]]) {
+      const response={writeHead(value){this.status=value},end(){}}
+      assert.equal(refuseUnadmitted({headers:{}},response,{principal:{kind},signal:{aborted}}),status!==undefined)
+      assert.equal(response.status,status)
+    }
+  } finally {restore()}
+})

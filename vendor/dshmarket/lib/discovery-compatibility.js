@@ -13,6 +13,8 @@ import { dirname } from 'node:path';
 import { compareSemver, isSemver, satisfiesRange } from "./check.js";
 import { classifyPeer, crossesImplicitCeiling } from "./compatibility.js";
 import { marketFetch } from "./net.js";
+import { isStableReleaseVersion } from "./release-candidates.js";
+import { activeRegion, githubRoutesFor, rememberGithubRoute, throughProxy } from "./regions.js";
 import { parseSourceUrl } from "./sources.js";
 const CACHE_SCHEMA = 'dsh-market/discovery-compatibility-cache/v1';
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
@@ -20,7 +22,9 @@ const FAILURE_COOLDOWN_MS = 5 * 60 * 1000;
 const OUTAGE_COOLDOWN_MS = 30 * 1000;
 const FETCH_TIMEOUT_MS = 8_000;
 const DEFAULT_CONCURRENCY = 8;
-const MAX_CACHE_ENTRIES = 5_000;
+// Larger than the catalog (10k+ and growing). A cap below the catalog size
+// made a full scan evict its own first half, so no scan ever stayed cached (#1170).
+const MAX_CACHE_ENTRIES = 20_000;
 const MAX_RANGE_LENGTH = 256;
 /** Reuse catalog facts only for this repository's exact pinned install asset. */
 export function catalogReleaseManifest(source) {
@@ -30,7 +34,12 @@ export function catalogReleaseManifest(source) {
     if (facts === null || !repository || !release || release[1].toLowerCase() !== repository.toLowerCase()
         || facts.tarball !== source.tarball || !validFacts(facts))
         return null;
-    return { version: facts.version, enginesDsh: facts.enginesDsh, peerDependencies: facts.peerDependencies };
+    return {
+        version: facts.version,
+        enginesDsh: facts.enginesDsh,
+        peerDependencies: facts.peerDependencies,
+        dependencies: facts.dependencies ?? {},
+    };
 }
 /** Read the linked package at its selected release, never the repository root by accident. */
 async function githubManifest(source, fetcher) {
@@ -65,10 +74,38 @@ async function githubManifest(source, fetcher) {
         throw new Error('invalid GitHub reference');
     }
     const file = parsed.subpath === null ? 'package.json' : `${parsed.subpath}/package.json`;
-    const manifest = await json(`https://raw.githubusercontent.com/${parsed.repo}/${encodeURIComponent(ref)}/${file}`);
+    const manifest = await rawJson(`https://raw.githubusercontent.com/${parsed.repo}/${encodeURIComponent(ref)}/${file}`);
     if (record(manifest) === null)
         throw new Error('package manifest unavailable');
     return manifest;
+    /**
+     * Read a raw file through the region's configured routes, in order.
+     *
+     * `raw.githubusercontent.com` is blockable on its own — the report (#1148)
+     * measured an `ECONNRESET` with no proxy and a 200 through one — while the
+     * catalog and the registry answered fine, so "the market page loads" said
+     * nothing about this read. This path used to compose the host directly and
+     * give up on the first error, and the card then said the host's requirement
+     * was unknown even though the release declares one. The routes are the same
+     * list the update path walks; one retry per route covers the transient
+     * resets that made a single miss look permanent.
+     */
+    async function rawJson(url) {
+        let last;
+        for (const route of githubRoutesFor('raw', activeRegion())) {
+            for (let attempt = 0; attempt < 2; attempt += 1) {
+                try {
+                    const value = await json(throughProxy(route, url));
+                    rememberGithubRoute('raw', route);
+                    return value;
+                }
+                catch (error) {
+                    last = error;
+                }
+            }
+        }
+        throw last instanceof Error ? last : new Error('GitHub raw content unavailable');
+    }
 }
 function range(value) {
     if (typeof value !== 'string')
@@ -100,20 +137,35 @@ export function manifestFacts(value) {
         if (declared !== null)
             peerDependencies[name] = declared;
     }
+    const dependencies = record(manifest.dependencies);
+    const hostDependencies = {};
+    for (const [name, raw] of Object.entries(dependencies ?? {})) {
+        if (!name.startsWith('@deepseek-ai/'))
+            continue;
+        const declared = range(raw);
+        if (declared !== null)
+            hostDependencies[name] = declared;
+    }
     return {
         version: range(manifest.version),
         enginesDsh: range(engines?.dsh) ?? range(dshEngines?.dsh),
         peerDependencies,
+        dependencies: hostDependencies,
     };
 }
 function validFacts(value) {
     const facts = record(value);
     const peers = record(facts?.peerDependencies);
+    // A missing `dependencies` is a pre-upgrade cache entry or catalog manifest,
+    // not a malformed one: the durable cache must survive the upgrade rather than
+    // be discarded and refetched a thousand packages at once.
+    const dependencies = record(facts?.dependencies);
     return facts !== null
         && (facts.version === null || range(facts.version) === facts.version)
         && (facts.enginesDsh === null || range(facts.enginesDsh) === facts.enginesDsh)
         && peers !== null
-        && Object.entries(peers).every(([name, item]) => name.startsWith('@deepseek-ai/') && range(item) === item);
+        && Object.entries(peers).every(([name, item]) => name.startsWith('@deepseek-ai/') && range(item) === item)
+        && (dependencies === null || Object.entries(dependencies).every(([name, item]) => name.startsWith('@deepseek-ai/') && range(item) === item));
 }
 function displayRequirement(declarations) {
     const unique = [...new Set(declarations.map(item => item.range))];
@@ -138,7 +190,12 @@ function rangeResult(hostVersion, declared) {
  */
 function declarationResult(declaration, hostVersion) {
     const satisfied = rangeResult(hostVersion, declaration.range);
-    if (declaration.kind === 'engine' || satisfied !== false)
+    // Only a PEER may be stretched: it is a statement of intent about the host
+    // line, and the ecosystem is full of sloppy caret ceilings. An engine is a
+    // plain bound, and a DEPENDENCY is an install instruction — pnpm resolves
+    // the declared range and hoists the result, so a range that excludes the
+    // running version means a second copy shadows the host's.
+    if (declaration.kind !== 'peer' || satisfied !== false)
         return satisfied;
     if (crossesImplicitCeiling(hostVersion, declaration.range))
         return false;
@@ -172,6 +229,22 @@ export function deriveHostCompatibility(facts, hostVersion, hostPackages) {
         if (!hostPackages.has(name) || !/^@deepseek-ai\/dsh(?:-|$)/.test(name))
             continue;
         declarations.push({ kind: 'peer', package: name, range: declared });
+    }
+    for (const [name, declared] of Object.entries(facts.dependencies ?? {})) {
+        // The peer filter above restricts itself to DSH's lockstep line because a
+        // peer range on cordis or schemastery says nothing about the DSH version.
+        // A dependency is different: it names a package the host itself provides,
+        // and pnpm will install the declared copy and hoist it over the host's.
+        // That is the dsh-qqbot failure — @deepseek-ai/dsh-settings and
+        // dsh-credentials as ordinary dependencies at `^0.1.0-rc.5` over a
+        // 0.2.2-rc.1 runtime — which the peer-only check could not see.
+        // Still only the lockstep line: the range is judged against the DSH
+        // version, and cordis (4.x) / schemastery (3.x) are not on it — a plugin
+        // that depends on `@deepseek-ai/cordis@^4` would otherwise read as
+        // incompatible with every host.
+        if (!hostPackages.has(name) || !/^@deepseek-ai\/dsh(?:-|$)/.test(name))
+            continue;
+        declarations.push({ kind: 'dependency', package: name, range: declared });
     }
     const requirement = displayRequirement(declarations);
     if (declarations.length === 0) {
@@ -228,7 +301,11 @@ export class DiscoveryManifestIndex {
                 const entry = record(raw);
                 if (entry === null || typeof entry.checkedAt !== 'number' || !validFacts(entry.facts))
                     continue;
-                this.entries.set(name, { checkedAt: entry.checkedAt, facts: entry.facts });
+                // Normalize the pre-upgrade shape so every consumer sees an object.
+                const facts = entry.facts.dependencies === undefined
+                    ? { ...entry.facts, dependencies: {} }
+                    : entry.facts;
+                this.entries.set(name, { checkedAt: entry.checkedAt, facts });
             }
         }
         catch { /* first run or a truncated cache — fetch fresh */ }
@@ -417,10 +494,14 @@ export class DiscoveryManifestIndex {
  * installed one, which is what an update needs: suggesting a downgrade is not
  * an update.
  *
+ * `stableOnly` drops prereleases. The official Desktop refuses to move a
+ * stable install onto a prerelease by itself (#991), so offering one there is
+ * an enabled button that can only answer 409 (#1161).
+ *
  * @returns the version, or null when the packument cannot be read or nothing
  *   in the history declares itself compatible.
  */
-export async function findCompatibleVersion(npmName, hostVersion, hostPackages, registry, fetcher = marketFetch, minimumVersionExclusive = null) {
+export async function findCompatibleVersion(npmName, hostVersion, hostPackages, registry, fetcher = marketFetch, minimumVersionExclusive = null, stableOnly = false) {
     let doc;
     try {
         const res = await fetcher(`${registry}/${encodeURIComponent(npmName)}`, { signal: AbortSignal.timeout(15_000), headers: { accept: 'application/json', 'user-agent': 'dsh-market' } });
@@ -436,6 +517,7 @@ export async function findCompatibleVersion(npmName, hostVersion, hostPackages, 
         return null;
     const candidates = Object.keys(versions)
         .filter(version => isSemver(version)
+        && (!stableOnly || isStableReleaseVersion(version))
         && (minimumVersionExclusive === null || compareSemver(version, minimumVersionExclusive) > 0))
         .sort((left, right) => compareSemver(right, left));
     for (const version of candidates) {

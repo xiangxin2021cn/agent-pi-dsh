@@ -52,6 +52,15 @@ function record(value) {
 function text(value) {
     return typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
 }
+/** True when the executor reported a completed change. */
+function landed(result) {
+    const payload = record(result.payload);
+    return result.status >= 200 && result.status < 300 && payload?.ok !== false && payload?.cancelled !== true;
+}
+/** Mark a finished result as having outlived its market instance. */
+function markReloaded(result) {
+    return { ...result, payload: { ...(record(result.payload) ?? {}), marketReloaded: true } };
+}
 /** User-facing failure text, stripped of control characters and home paths. */
 function safeMessage(value) {
     const raw = text(value);
@@ -95,6 +104,8 @@ export class DrainCoordinator {
     abortMutation;
     operations = new Map();
     holds = new Map();
+    /** New Agents still inside their factory's maintenance, claimed when it ends. */
+    inFactory = new Map();
     subscriptions = [];
     activityWaiters = new Set();
     subscribed;
@@ -119,6 +130,9 @@ export class DrainCoordinator {
         if (disposed !== null)
             this.subscriptions.push(disposed);
         this.subscribed = created !== null && disposed !== null;
+        const status = this.host.onStatus?.((agent, next) => this.onAgentStatus(agent, next)) ?? null;
+        if (status !== null)
+            this.subscriptions.push(status);
     }
     /** Whether one deferred or running operation owns the lane. */
     hasActive() {
@@ -150,8 +164,13 @@ export class DrainCoordinator {
             return { ok: false, reason: 'agents-service-unavailable', ids: [] };
         const unheld = [];
         for (const agent of live) {
-            if (!this.holds.has(agent.id) && !this.claim(agent))
-                unheld.push(agent.id);
+            if (this.holds.has(agent.id) || this.claim(agent))
+                continue;
+            // Still in its factory's maintenance: no turn can start there, and
+            // `claimAfterFactory` either holds it or stops the command when that ends.
+            if (this.inFactory.has(agent.id) && agent.status !== 'running')
+                continue;
+            unheld.push(agent.id);
         }
         if (unheld.length > 0)
             return { ok: false, reason: 'agent-active', ids: unheld };
@@ -229,8 +248,15 @@ export class DrainCoordinator {
                 this.abandon(operation);
                 return { mode: 'unsupported', reason: 'agents-service-unavailable', incompatibleIds: [] };
             }
-            for (const agent of live)
-                this.claim(agent);
+            // #1095: claim only when the whole inventory is at a safe boundary. A
+            // hold FREEZES an Agent, so claiming the idle ones while another is
+            // mid-turn made every other session wait for that turn behind a barrier
+            // that was itself waiting — 45 minutes in the report. With anyone still
+            // running, `drainAgents` waits first and claims them all together.
+            const busyNow = live.some(agent => agent.status === 'running');
+            if (!busyNow)
+                for (const agent of live)
+                    this.claim(agent);
             const afterClaims = this.liveAgents();
             if (afterClaims === null) {
                 this.abandon(operation);
@@ -414,7 +440,13 @@ export class DrainCoordinator {
             if (this.disposeRequested)
                 this.detach();
         }
-        if (this.disposeRequested) {
+        if (this.disposeRequested && !operation.cancelRequested && !this.barrierBroken && landed(result)) {
+            // The executor returned success: the package is on disk. The market being
+            // unloaded afterwards does not make that a cancellation (#1151).
+            result = markReloaded(result);
+            this.finishFromResult(operation, result);
+        }
+        else if (this.disposeRequested) {
             result = {
                 status: 503,
                 payload: {
@@ -438,12 +470,12 @@ export class DrainCoordinator {
                 payload: {
                     ok: false,
                     failureCode: 'AGENT_BARRIER_LOST',
-                    error: 'an Agent could not be held at the maintenance boundary; verify the installed files before retrying',
+                    error: '有会话在操作进行中恢复了活动，文件可能已经改动。先在「已安装」里看看结果，等会话空闲后再试。 / A session became active while the operation ran, so files may have changed. Check Installed for the result, then retry once sessions are idle.',
                 },
             };
             this.finish(operation, 'failed', {
                 code: 'AGENT_BARRIER_LOST',
-                message: 'an Agent could not be held at the maintenance boundary; verify the installed files before retrying',
+                message: '有会话在操作进行中恢复了活动，文件可能已经改动。先在「已安装」里看看结果，等会话空闲后再试。 / A session became active while the operation ran, so files may have changed. Check Installed for the result, then retry once sessions are idle.',
             }, null);
         }
         else {
@@ -462,7 +494,7 @@ export class DrainCoordinator {
                 if (this.barrierBroken) {
                     this.finish(operation, 'failed', {
                         code: 'AGENT_BARRIER_LOST',
-                        message: 'an Agent could not be held at the maintenance boundary; the plugin operation was not started',
+                        message: '有会话恢复了活动，这次没有改任何文件。等会话空闲后再试。 / A session became active; nothing was changed. Retry once sessions are idle.',
                     }, null);
                     return;
                 }
@@ -474,7 +506,7 @@ export class DrainCoordinator {
                     else if (this.barrierBroken) {
                         this.finish(operation, 'failed', {
                             code: 'AGENT_BARRIER_LOST',
-                            message: 'an Agent could not be held at the maintenance boundary; the plugin operation was not started',
+                            message: '有会话恢复了活动，这次没有改任何文件。等会话空闲后再试。 / A session became active; nothing was changed. Retry once sessions are idle.',
                         }, null);
                     }
                     else {
@@ -485,10 +517,11 @@ export class DrainCoordinator {
                     }
                     return;
                 }
-                // Final synchronous re-enumeration. The creation subscription claims a
-                // new Agent before its first turn; if one still slipped in, go back to
-                // waiting instead of mutating under it. An unreadable inventory is a
-                // failure, not an empty list.
+                // Final synchronous re-enumeration. The creation subscription can claim
+                // a new Agent only if the host announces it outside its factory's
+                // maintenance; if one is still unheld, go back to waiting instead of
+                // mutating under it. An unreadable inventory is a failure, not an empty
+                // list.
                 const live = this.liveAgents();
                 if (live === null) {
                     this.finish(operation, 'failed', {
@@ -526,9 +559,13 @@ export class DrainCoordinator {
             operation.startedAt = this.now();
             this.notify(operation);
             const result = await operation.execute(operation.intent, operation.onPhase);
-            // The executor can return success after a cancel or unload landed too
-            // late for its last gate. The Host's state wins: the user asked to stop
-            // or the market is gone, so this is not reported as a completed change.
+            // A cancel wins over a late success: the user asked to stop. An unload
+            // does not: a success result means the package command finished and the
+            // files are on disk, so it is recorded as done (#1151).
+            if (this.disposeRequested && !operation.cancelRequested && !this.barrierBroken && landed(result)) {
+                this.finishFromResult(operation, markReloaded(result));
+                return;
+            }
             if (this.disposeRequested) {
                 this.finish(operation, 'cancelled', {
                     code: 'MARKET_UNLOADED',
@@ -543,7 +580,7 @@ export class DrainCoordinator {
             if (this.barrierBroken) {
                 this.finish(operation, 'failed', {
                     code: 'AGENT_BARRIER_LOST',
-                    message: 'an Agent started work while the package operation was running; verify the installed files before retrying',
+                    message: '有会话在操作进行中恢复了活动，文件可能已经改动。先在「已安装」里看看结果，等会话空闲后再试。 / A session became active while the operation ran, so files may have changed. Check Installed for the result, then retry once sessions are idle.',
                 }, null);
                 return;
             }
@@ -581,6 +618,7 @@ export class DrainCoordinator {
      */
     async drainAgents(operation) {
         operation.state = 'draining';
+        let stall = 0;
         while (!operation.cancelRequested && !this.disposeRequested && !this.barrierBroken) {
             const live = this.liveAgents();
             if (live === null)
@@ -589,37 +627,71 @@ export class DrainCoordinator {
             this.setWait(operation, unheld);
             if (unheld.length === 0)
                 return true;
-            let claimed = 0;
-            for (const agent of unheld) {
-                if (operation.cancelRequested || this.disposeRequested)
-                    break;
-                if (this.claim(agent))
-                    claimed += 1;
+            // #1095: a hold FREEZES the Agent — its queued messages wait for the
+            // barrier, and the barrier waits for whoever is still in a turn. The
+            // reported case held every idle session for 45 minutes behind one long
+            // turn, while the UI still called them idle. Claim only once nothing is
+            // running, so waiting for one session costs the others nothing.
+            const busy = unheld.some(agent => agent.status === 'running');
+            let waiting = unheld;
+            if (!busy) {
+                for (const agent of unheld) {
+                    if (operation.cancelRequested || this.disposeRequested)
+                        break;
+                    this.claim(agent);
+                }
+                const current = this.liveAgents();
+                if (current === null)
+                    return false;
+                waiting = current.filter(agent => !this.holds.has(agent.id));
+                this.setWait(operation, waiting);
+                if (waiting.length === 0)
+                    return true;
             }
-            const current = this.liveAgents();
-            if (current === null)
-                return false;
-            const remaining = current.filter(agent => !this.holds.has(agent.id));
-            this.setWait(operation, remaining);
-            if (remaining.length === 0)
-                return true;
-            const waitingForTurn = remaining.some(agent => agent.status === 'running');
+            const heldBefore = this.holds.size;
+            const signature = waiting.map(agent => `${agent.id}:${String(agent.status)}`).join('\u0000');
             const activity = this.waitForActivity();
             try {
                 await Promise.race([
-                    Promise.all(remaining.map(agent => agent.whenIdle().catch(() => undefined))),
+                    Promise.all(waiting.map(agent => agent.whenIdle().catch(() => undefined))),
                     activity.promise,
                 ]);
             }
             finally {
                 activity.dispose();
             }
-            // A claim can fail without the Agent being busy (another maintenance
-            // task owns it). `whenIdle` then stays pending, so this yield only
-            // matters for a host that reports idle while refusing the claim. A
-            // turn that just ended retries immediately.
-            if (claimed === 0 && !waitingForTurn)
-                await new Promise(resolve => setTimeout(resolve, 25));
+            // A pass can come back with nothing changed — no hold gained and every
+            // waited-for Agent in the same state — and then re-entering the loop
+            // immediately is a busy loop. Two host shapes do that: a claim refused
+            // while the Agent reports idle (another maintenance task owns it, so
+            // `whenIdle()` resolves at once), and an Agent whose status still says
+            // `running` after its turn is over (sessions left behind by an earlier
+            // run), where `whenIdle()` also resolves at once. A profile with 81 such
+            // sessions pinned one core at 100% and grew RSS until DSH was restarted
+            // (#1134). Pause only when nothing moved: a turn that just ended changes
+            // the signature and is retried at once, which is what makes the wait end
+            // the moment the Agent is free.
+            const moved = this.holds.size !== heldBefore
+                || waiting.map(agent => `${agent.id}:${String(agent.status)}`).join('\u0000') !== signature;
+            stall = moved ? 0 : stall + 1;
+            // One pass without progress is ordinary: `whenIdle()` resolving is what
+            // the next pass claims on, and it costs nothing to retry at once. A
+            // SECOND consecutive pass with nothing changed means the wake-up came
+            // from something that will keep answering instantly — an Agent whose
+            // status still says `running` after its turn ended (sessions left behind
+            // by an earlier run), or a claim another maintenance task keeps
+            // refusing. Looping on that pinned one core at 100% and grew RSS until
+            // DSH was restarted (#1134). Pause instead; a status change or any host
+            // activity cuts the pause short, so a real turn end is claimed at once.
+            if (stall >= 2) {
+                const wake = this.waitForActivity();
+                try {
+                    await Promise.race([new Promise(resolve => setTimeout(resolve, 25)), wake.promise]);
+                }
+                finally {
+                    wake.dispose();
+                }
+            }
         }
         return false;
     }
@@ -650,7 +722,14 @@ export class DrainCoordinator {
             const running = agent.runMaintenance(signal => {
                 const onAbort = () => {
                     hold.release();
-                    this.onHoldLost(hold);
+                    // #1111: the host tears a closing session down by cancelling its
+                    // maintenance FIRST and announcing `agent/disposed` after it has
+                    // gone idle. Abort therefore arrives before the disposal event, and
+                    // treating every abort as a lost hold aborted the package command
+                    // because an unrelated session was closed. `reason.kind` is the
+                    // host's own word for it; a disposed Agent is one fewer session, not
+                    // a session that started working.
+                    this.onHoldLost(hold, signal.reason);
                 };
                 if (signal.aborted)
                     onAbort();
@@ -675,9 +754,16 @@ export class DrainCoordinator {
         }
         return true;
     }
-    onHoldLost(hold) {
+    onHoldLost(hold, reason) {
         if (this.holds.get(hold.id) === hold)
             this.holds.delete(hold.id);
+        // A session being closed is not a session starting work (#1111). Its hold
+        // ends here; the disposal event that follows finds nothing left to release.
+        if (reason !== null && typeof reason === 'object'
+            && reason.kind === 'disposed') {
+            this.notifyActivity();
+            return;
+        }
         const active = this.active;
         if (active === null || active.settled) {
             this.notifyActivity();
@@ -696,6 +782,7 @@ export class DrainCoordinator {
         for (const hold of this.holds.values())
             hold.release();
         this.holds.clear();
+        this.inFactory.clear();
     }
     onAgentCreated(agent) {
         const drainable = drainableAgent(agent);
@@ -716,15 +803,67 @@ export class DrainCoordinator {
         if (active !== null && !active.settled) {
             const claimed = this.claim(drainable);
             if (!claimed && (active.state === 'running' || active.state === 'verifying')) {
-                this.barrierBroken = true;
-                this.abortMutation?.();
+                if (drainable.status === 'running') {
+                    this.barrierBroken = true;
+                    this.abortMutation?.();
+                }
+                else {
+                    this.claimAfterFactory(drainable);
+                }
             }
         }
         this.notifyActivity();
     }
+    /**
+     * The host announces `agent/created` from inside the factory's own
+     * maintenance, so a claim made by the listener is refused with no turn in
+     * sight. Nothing can start a turn until that maintenance ends, so take the
+     * hold at that point; only a refusal then is a broken barrier.
+     *
+     * The package command does not wait for this, and neither may the listener:
+     * the host's serial dispatch awaits its listeners, and the factory awaits the
+     * dispatch. `releaseAll` empties the map when the operation settles, so a
+     * factory that outlives the operation leaves nothing behind but a no-op.
+     */
+    claimAfterFactory(agent) {
+        this.inFactory.set(agent.id, agent);
+        // Directly on `whenIdle`: this has to run before `create()` returns to its
+        // caller, whose first message would otherwise start a turn ahead of the hold.
+        const retry = () => {
+            if (this.inFactory.get(agent.id) !== agent)
+                return;
+            this.inFactory.delete(agent.id);
+            if (!this.claim(agent))
+                this.loseNewAgent('a new Agent could not be held once it was created');
+        };
+        void agent.whenIdle().then(retry, retry);
+    }
+    /**
+     * A message latched during the factory starts its turn the moment the factory
+     * ends, and `whenIdle` then resolves only after that turn. The retry would
+     * succeed and hide it, so the transition itself has to stop the command.
+     */
+    onAgentStatus(agent, status) {
+        // Any status transition is news to whoever is waiting: a turn ending is
+        // exactly the event the drain loop is waiting for, and it also cuts short
+        // the no-progress pause (#1134).
+        this.notifyActivity();
+        if (status !== 'running')
+            return;
+        const id = agentId(agent);
+        if (id === null || !this.inFactory.delete(id))
+            return;
+        this.loseNewAgent('a new Agent started a turn before it could be held');
+    }
+    loseNewAgent(why) {
+        this.barrierBroken = true;
+        this.abortMutation?.();
+        this.log('error', 'drain', `${why}; aborting the package operation`);
+    }
     onAgentDisposed(agent) {
         const id = agentId(agent);
         if (id !== null) {
+            this.inFactory.delete(id);
             const hold = this.holds.get(id);
             if (hold !== undefined) {
                 this.holds.delete(id);
@@ -857,7 +996,13 @@ export class DrainCoordinator {
         }
     }
     setWait(operation, unheld) {
-        const ids = unheld.map(agent => agent.id).sort();
+        // #1095: nothing is claimed while anyone is mid-turn, so the idle Agents are
+        // unheld too, yet they already sit at a safe boundary. Name only the turns
+        // being waited for. With none running, list whoever is unheld: `drainAgents`
+        // claims them in the same tick, so what stays visible is those that refused
+        // (another maintenance task owns them).
+        const running = unheld.filter(agent => agent.status === 'running');
+        const ids = (running.length > 0 ? running : unheld).map(agent => agent.id).sort();
         const previous = operation.wait;
         if (previous !== null
             && previous.activeCount === ids.length

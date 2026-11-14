@@ -23,9 +23,13 @@ export type DrainTerminalState = 'succeeded' | 'failed' | 'cancelled';
 /** Why the operation is queued. Only `agents` exists in v1. */
 export interface DrainWait {
     reason: 'agents';
-    /** Agents that are live and not yet maintenance-held. */
+    /**
+     * Agents the operation is waiting on: those in a turn or, when none is, every
+     * live Agent not yet maintenance-held. Refreshed when the drain loop wakes,
+     * so it can lag behind a turn that just ended or started.
+     */
     activeCount: number;
-    /** Their local session ids, the same ids the 409 response names. */
+    /** Their local session ids. With a turn running, the same ids as a 409's `runningAgents`. */
     activeAgentIds: string[];
     since: number;
 }
@@ -109,6 +113,8 @@ export interface DrainHost {
     list(): unknown[] | null;
     onCreated(listener: (agent: unknown) => void): (() => void) | null;
     onDisposed(listener: (agent: unknown) => void): (() => void) | null;
+    /** Status transitions; how a turn starting behind a new Agent's factory is seen. */
+    onStatus?(listener: (agent: unknown, status: unknown) => void): (() => void) | null;
 }
 export interface DrainBeginRequest {
     kind: DrainKind;
@@ -186,6 +192,8 @@ export declare class DrainCoordinator {
     private readonly abortMutation;
     private readonly operations;
     private readonly holds;
+    /** New Agents still inside their factory's maintenance, claimed when it ends. */
+    private readonly inFactory;
     private readonly subscriptions;
     private readonly activityWaiters;
     private readonly subscribed;
@@ -259,6 +267,25 @@ export declare class DrainCoordinator {
     private onHoldLost;
     private releaseAll;
     private onAgentCreated;
+    /**
+     * The host announces `agent/created` from inside the factory's own
+     * maintenance, so a claim made by the listener is refused with no turn in
+     * sight. Nothing can start a turn until that maintenance ends, so take the
+     * hold at that point; only a refusal then is a broken barrier.
+     *
+     * The package command does not wait for this, and neither may the listener:
+     * the host's serial dispatch awaits its listeners, and the factory awaits the
+     * dispatch. `releaseAll` empties the map when the operation settles, so a
+     * factory that outlives the operation leaves nothing behind but a no-op.
+     */
+    private claimAfterFactory;
+    /**
+     * A message latched during the factory starts its turn the moment the factory
+     * ends, and `whenIdle` then resolves only after that turn. The retry would
+     * succeed and hide it, so the transition itself has to stop the command.
+     */
+    private onAgentStatus;
+    private loseNewAgent;
     private onAgentDisposed;
     private createOperation;
     private abandon;

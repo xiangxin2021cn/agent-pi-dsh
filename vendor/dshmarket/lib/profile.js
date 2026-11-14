@@ -10,7 +10,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { JSON_SCHEMA, load } from 'js-yaml';
 import { findDshInstallDir } from "./dsh-install.js";
 import { resolveDshHome } from "./home-paths.js";
-import { githubRemoteIdentities, githubRepoIdentities, hostedRepoKey, isGenerationLink, isGitHostedSpec, repoOfTarget } from "./sources.js";
+import { catalogRepoKey, githubRemoteIdentities, githubRepoIdentities, hostedRepoKey, isGenerationLink, isGitHostedSpec, lookupRepoFromUrl, repoOfTarget } from "./sources.js";
 /**
  * Whether a profile name follows DSH's own directory-name contract.
  *
@@ -669,9 +669,20 @@ export function readInstalledRepoEvidence(profile, name, spec, explicitDir) {
     // The URL still must not be resolved through the package's OWN manifest:
     // a fork installed as `github:myfork/plugin` carries upstream's repository
     // field, and trusting it made upstream's card read as installed (#580).
+    //
+    // A Release asset URL names its source just as plainly, but it is not an
+    // install TARGET this build will fetch from later, so it stays out of
+    // repoOfTarget (that one answers "where will this come from"). Reading it
+    // here keeps the display-only promise lookupRepoFromUrl makes: the identity
+    // links an installed package to its catalog entry, and nothing in install,
+    // rollback, duplicate detection, or build-script approval reads it.
     if (!local && (isGitHostedSpec(spec) || /^https?:/i.test(spec.trim()))) {
         const repo = repoOfTarget(spec);
-        return repo === null ? { identities: [], hints: [] } : { identities: [repo], hints: [] };
+        if (repo !== null)
+            return { identities: [repo], hints: [] };
+        const release = lookupRepoFromUrl(spec.trim());
+        const key = release === null ? null : catalogRepoKey(release);
+        return key === null ? { identities: [], hints: [] } : { identities: [key], hints: [] };
     }
     const root = profileDir(profile, explicitDir);
     const sourceDir = local ? localSpecDirectory(root, spec) : null;
@@ -1882,11 +1893,14 @@ function readReleaseAgeBlock(file) {
  * nothing in the file says which main package it belongs to — guessing would
  * delete policy that may still be in effect for something installed.
  *
+ * With `keepVersion` (the update path) the rows that name that version are
+ * kept and only the older ones go.
+ *
  * @returns the entries removed, for the caller to log; empty when there is no
  *   such block, no such row, or the file cannot be read exactly (in which case
  *   it is left byte-for-byte as it was).
  */
-export function dropReleaseAgeExcludes(profile, name, explicitDir) {
+export function dropReleaseAgeExcludes(profile, name, explicitDir, keepVersion) {
     const block = readReleaseAgeBlock(join(profileDir(profile, explicitDir), 'pnpm-workspace.yaml'));
     if (block === null)
         return [];
@@ -1897,6 +1911,19 @@ export function dropReleaseAgeExcludes(profile, name, explicitDir) {
             return [item.line];
         if (item.rule.name !== name)
             return [item.original];
+        // After an update (#1093) only rows that do not name the installed version
+        // are stale. A row that names it stays whole — it may be the one pnpm just
+        // wrote for this very update, which the next install's age check needs. A
+        // union that also lists older versions stays too: it is kept or dropped as
+        // written, never rewritten, so nothing here can loosen the gate. A bare
+        // name already covers every version; that is a policy someone chose, not a
+        // leftover.
+        if (keepVersion !== undefined) {
+            if (item.rule.selector === null)
+                return [item.original];
+            if (item.rule.selector.split('||').some(version => version.trim() === keepVersion))
+                return [item.original];
+        }
         dropped.push(item.rule.selector === null ? item.rule.name : `${item.rule.name}@${item.rule.selector}`);
         return [];
     });

@@ -80,12 +80,13 @@ export type HostRecoveryRestoreResult = {
  *
  * 1. a profile snapshot, so the restore is undoable the same way every other
  *    write on this page is (issue #98);
- * 2. the live patch is RENAMED, never deleted — it is what the app is running
+ * 2. the backup's bytes are written to a temp file first, so a write that
+ *    fails leaves the live patch where it was, and an interrupted one cannot
+ *    leave a half patch behind, which is the one outcome that would not boot;
+ * 3. the live patch is RENAMED, never deleted — it is what the app is running
  *    with right now, and a user who restores the wrong backup must still find
- *    it there;
- * 3. the backup's bytes are written to a temp file and renamed into place, so
- *    an interrupted write cannot leave a half patch behind, which is the one
- *    outcome that would not boot at all.
+ *    it there — and the temp file is renamed into its place. If that last
+ *    rename fails, the live patch is moved back.
  *
  * The backup file itself is left where it is: it is the other copy of the
  * user's configuration, and this function has no business being the last

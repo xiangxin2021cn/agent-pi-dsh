@@ -12,9 +12,10 @@ import { DIST_TAG } from "./channels.js";
 import { resolveHeadCommit } from "./accelerate.js";
 import { inProbe } from "./probe-context.js";
 import { marketFetch } from "./net.js";
+import { publishedReleaseUpdate } from "./release-updates.js";
 import { activeRegion, githubRoutesFor, rememberGithubRoute, throughProxy } from "./regions.js";
 import { isNumericReleaseAgeWindow, readMinimumReleaseAgeMs } from "./install.js";
-import { isStableReleaseVersion, selectMatureUpdate } from "./release-candidates.js";
+import { isStableReleaseVersion, selectMatureUpdate, versionMaturity } from "./release-candidates.js";
 import { hasDshManifest, profileDir, readGitResolutionCommit, readInstalled, readInstalledVersion, readLockCommits, readProfileBundles } from "./profile.js";
 import { userPatchPackageReferences } from "./patch.js";
 import { catalogRepoKey, gitCommitOfTarget, gitRefOfTarget, gitUploadPackUrl, hasSemverSelector, hostedRepoKey, githubCommitOfTarget, githubRefOfTarget, isGenerationLink, isGitHostedSpec, lookupRepoFromUrl, parseGitHubRemote, repoOfTarget } from "./sources.js";
@@ -371,6 +372,42 @@ export async function resolveDesktopMatureUpdate(name, installed, profile, activ
                 until: new Date(until !== null && until > now ? until : now + UNKNOWN_PUBLISH_HOLD_MS).toISOString(),
                 ...(until === null || until <= now ? { estimated: true } : {}),
             } }),
+    };
+}
+export async function readVersionMaturity(name, version, profile, activeProfileDir, now = Date.now()) {
+    const unknown = (reason) => ({
+        version, installable: null, held: false, exempt: false, publishedAt: null, nextMaturityAt: null, releaseAgeMs: null, reason,
+    });
+    const windowMs = readMinimumReleaseAgeMs(profile, activeProfileDir);
+    const policy = readReleaseAgeExclusions(activeProfileDir, name);
+    if (windowMs === null || policy.kind === 'unknown')
+        return unknown('policy-unknown');
+    // Same two-attempt, cache-busting read as resolveDesktopMatureUpdate: a stale
+    // mirror must not be able to make a held version look installable.
+    let packument = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+            const suffix = attempt === 0 ? '' : `?t=${String(Date.now())}`;
+            packument = (await fetchJson(npmUrl(`${encodeURIComponent(name)}${suffix}`)));
+            break;
+        }
+        catch { /* Retry once against a potentially stale mirror. */ }
+    }
+    if (packument === null)
+        return unknown('registry-unavailable');
+    const versions = packument.versions;
+    if (typeof versions !== 'object' || versions === null || !Object.hasOwn(versions, version))
+        return unknown('unknown-version');
+    const maturity = versionMaturity(packument, version, now, { minimumReleaseAgeMs: windowMs, ...policy.exclusions });
+    return {
+        version,
+        installable: maturity.mature,
+        held: !maturity.mature,
+        exempt: maturity.exempt,
+        publishedAt: maturity.publishedAt === null ? null : new Date(maturity.publishedAt).toISOString(),
+        nextMaturityAt: maturity.matureAt === null ? null : new Date(maturity.matureAt).toISOString(),
+        releaseAgeMs: windowMs,
+        reason: maturity.mature ? 'eligible' : maturity.publishedAt === null ? 'unknown-age' : 'held',
     };
 }
 async function fetchJson(url) {
@@ -736,7 +773,7 @@ options = {}) {
     // answer immediately, and a cache keyed on the profile alone would serve
     // the stable verdict for the rest of the TTL — reading as "the setting did
     // nothing".
-    const cacheKey = `${activeProfileDir}\u0000${options.holdYoungReleases === true ? 'hold' : 'any'}\u0000${[...channelFor].map(([n, c]) => `${n}:${c}`).sort().join(',')}\u0000${[...onlineSourceFor].map(([n, s]) => `${n}:${s}`).sort().join(',')}\u0000${[...catalogNpmByRepo].map(([n, s]) => `${n}:${s}`).sort().join(',')}\u0000${options.holdYoungReleases === true ? profilePolicyFingerprint(activeProfileDir) : ''}\u0000${options.packageNames === undefined ? '*' : [...options.packageNames].sort().join(',')}`;
+    const cacheKey = `${activeProfileDir}\u0000${options.holdYoungReleases === true ? 'hold' : 'any'}\u0000${[...channelFor].map(([n, c]) => `${n}:${c}`).sort().join(',')}\u0000${[...onlineSourceFor].map(([n, s]) => `${n}:${s}`).sort().join(',')}\u0000${[...catalogNpmByRepo].map(([n, s]) => `${n}:${s}`).sort().join(',')}\u0000${options.holdYoungReleases === true ? profilePolicyFingerprint(activeProfileDir) : ''}\u0000${options.packageNames === undefined ? '*' : [...options.packageNames].sort().join(',')}` + JSON.stringify([...(options.releaseSources ?? [])]);
     if (!force && updatesCache?.key === cacheKey && Date.now() < updatesCache.recheckAt) {
         return updatesCache.data;
     }
@@ -866,6 +903,12 @@ options = {}) {
                 // when a catalog entry owns both the repo the archive came from and
                 // this name; otherwise report no update rather than a false one.
                 if (/^https?:/i.test(spec)) {
+                    const source = options.releaseSources?.get(name);
+                    if (source !== undefined) {
+                        const release = await publishedReleaseUpdate(source, name);
+                        result[name] = { kind: 'npm', version, current: version, latest: release?.version ?? null, updateAvailable: isUpgrade(version, release?.version ?? null) };
+                        return;
+                    }
                     const repo = lookupRepoFromUrl(spec);
                     const repoKey = repo === null ? null : catalogRepoKey(repo);
                     if (repoKey === null || catalogNpmByRepo.get(repoKey) !== name) {

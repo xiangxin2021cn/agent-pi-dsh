@@ -39,11 +39,15 @@ export function setRequestGateSource(source) {
     requestGateSource = source;
     return previous;
 }
-/**
- * Answer the request with the host's rejection, if it has one.
- * @returns true when the request was refused and answered here.
- */
-export function refuseUnadmitted(request, response) {
+export function refuseUnadmitted(request, response, peer) {
+    // rc.3 authenticates the carrier before calling the handler. Reuse that Peer;
+    // IncomingMessage is not the normalized ConnectionTrustRequest expected by admit.
+    if (peer !== undefined) {
+        if (peer.principal.kind === 'owner' && !peer.signal.aborted)
+            return false;
+        sendJson(response, peer.signal.aborted ? 401 : 403, { error: 'Live owner authentication required' });
+        return true;
+    }
     const gate = requestGateSource();
     if (gate === undefined)
         return false;

@@ -19,6 +19,21 @@
  * its own host in that field.
  */
 /**
+ * `dist.tarball` as an absolute URL.
+ *
+ * A registry behind a path prefix — Nexus, Verdaccio, a reverse proxy — may
+ * answer that field as a relative path (`/dsh-plugin-catalog/-/…`). pnpm
+ * resolves it against the registry; passing it straight to `fetch` threw
+ * "Failed to parse URL" instead, the npm source dropped out of the list, and
+ * the market read the catalog from somewhere else without saying so (#1117).
+ *
+ * Relative resolution follows the URL rules: a value starting with `/` is
+ * root-relative and a bare path is relative to the registry's own directory,
+ * which is where the registry serves it from. Nothing is rewritten when the
+ * field is already absolute.
+ */
+export declare function absoluteTarballUrl(tarball: string, registry: string): string;
+/**
  * One file's bytes from a gzipped tar, or null when it is not in there.
  *
  * @param gz - the gzipped tarball.

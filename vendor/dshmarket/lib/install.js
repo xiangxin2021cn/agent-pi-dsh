@@ -157,7 +157,8 @@ export async function withHoistRecovery(run, profile, pluginArgs, profileDirecto
         }
     }
     if (!ok(result) && !result.cancelled && !repairedDuringRun) {
-        const failure = classifyPnpmFailure(`${result.stderr}\n${result.stdout}`, result.exitCode);
+        // The profile is the only place the recorded pnpm major lives (#1100).
+        const failure = classifyPnpmFailure(`${result.stderr}\n${result.stdout}`, result.exitCode, { profileDirectory });
         if (failure?.code === 'unparseable-build-key' && repairProfilePolicy) {
             // The profile's own allowBuilds block is what fails, so no retry of the
             // same command can pass until it is repaired (#698). Drop only the
@@ -284,7 +285,7 @@ export async function withHoistRecovery(run, profile, pluginArgs, profileDirecto
         // gone (the name carries it), so a live download is never touched.
         await cleanOrphanedStore(run, profile);
         const diagnostics = diagnosticsTail(result);
-        const failure = classifyPnpmFailure(`${result.stderr}\n${result.stdout}`, result.exitCode);
+        const failure = classifyPnpmFailure(`${result.stderr}\n${result.stdout}`, result.exitCode, { profileDirectory });
         if (failure !== null) {
             result = {
                 ...result,
@@ -1047,7 +1048,7 @@ export function parsePrepareNotAllowed(stdout, stderr) {
     //   … git-hosted package \"pkg@1.0.0\" needs to execute build scripts …
     // Unescape before matching, or the ndjson path — the ONLY path in
     // production — silently returns null and the approve banner never shows.
-    const text = `${stdout}\n${stderr}`.replace(/\\"/g, '"');
+    const text = unwrapPnpmErrors(`${stdout}\n${stderr}`.replace(/\\"/g, '"'));
     const m = /git-hosted package "([^"]+)" needs to execute build scripts/.exec(text);
     if (m === null)
         return null;
@@ -1055,6 +1056,42 @@ export function parsePrepareNotAllowed(stdout, stderr) {
     const raw = m[1].trim();
     const at = raw.lastIndexOf('@');
     return at > 0 ? raw.slice(0, at) : raw;
+}
+/**
+ * Undo the line wrapping of pnpm 12's boxed error text (#1156).
+ *
+ * pnpm 12 prints a failure as
+ *
+ *     Error: ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED
+ *
+ *       × adding a new package
+ *       ╰─▶ The git-hosted package "x@1.0.0" needs to execute build
+ *           scripts but is not in the "allowBuilds" allowlist.
+ *       help: …
+ *
+ * and wraps it at about 80 columns — through the middle of a sentence, and
+ * through the middle of a package key at a `/` or `-`. Every sentence this
+ * file matches then has a line break where its single space was, so the
+ * refusal was classified correctly and still yielded no package name, no
+ * key, and therefore no approve-and-retry button. Continuation lines are
+ * indented deeper than the line they continue; join them back, without a
+ * space when the break fell inside a token.
+ *
+ * Output that never wraps this way (pnpm 10/11, ndjson) has no such lines
+ * and comes back unchanged.
+ */
+export function unwrapPnpmErrors(text) {
+    const out = [];
+    for (const line of text.replace(/\r\n/g, '\n').split('\n')) {
+        const previous = out[out.length - 1];
+        if (previous !== undefined && /^ {2,}\S/.test(previous) && /^ {4,}\S/.test(line)) {
+            out[out.length - 1] = previous + (/[^\s][/-]$/.test(previous) ? '' : ' ') + line.trim();
+        }
+        else {
+            out.push(line);
+        }
+    }
+    return out.join('\n');
 }
 /**
  * The allowBuilds key pnpm itself printed for a prepare refusal, when it
@@ -1076,8 +1113,8 @@ export function parsePrepareNotAllowed(stdout, stderr) {
  */
 export function parsePrepareKey(stdout, stderr) {
     // ndjson carries this inside a JSON string: quotes and newlines escaped.
-    const text = `${stdout}\n${stderr}`.replace(/\\"/g, '"').replace(/\\n/g, '\n');
-    const m = /For example:\s*\n\s*allowBuilds:\s*\n[ \t]+("?)([^\s"]+)\1:\s*true/.exec(text);
+    const text = unwrapPnpmErrors(`${stdout}\n${stderr}`.replace(/\\"/g, '"').replace(/\\n/g, '\n'));
+    const m = /For example:\s*allowBuilds:\s*("?)([^\s"]+)\1:\s*true/.exec(text);
     return m === null ? null : m[2];
 }
 /**
@@ -1117,7 +1154,7 @@ export function allowBuildKeyFromIgnoredBuild(depPath) {
  * path can contain, so the surrounding JSON is not swallowed.
  */
 export function parseIgnoredBuildEntries(stdout, stderr) {
-    const m = /Ignored build scripts:?\s*([^\n]+)/i.exec(`${stdout}\n${stderr}`);
+    const m = /Ignored build scripts:?\s*([^\n]+)/i.exec(unwrapPnpmErrors(`${stdout}\n${stderr}`));
     if (m === null)
         return [];
     const found = [];

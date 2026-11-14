@@ -90,4 +90,13 @@ export declare function isFetchTimeoutFailure(output: string): boolean;
  *   is recognized from what pnpm said.
  * @returns the classified failure, or null when unrecognized (raw output is then shown as-is).
  */
-export declare function classifyPnpmFailure(output: string, exitCode?: number | null): PnpmFailure | null;
+/**
+ * What the caller knows about the profile a command ran against.
+ *
+ * Only the diagnose-the-store branch uses it today: the recorded pnpm version
+ * and store live in that profile's own `node_modules/.modules.yaml` (#1100).
+ */
+export interface PnpmFailureContext {
+    profileDirectory?: string;
+}
+export declare function classifyPnpmFailure(output: string, exitCode?: number | null, context?: PnpmFailureContext): PnpmFailure | null;

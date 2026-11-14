@@ -3,10 +3,27 @@
  * composes the webServer and shell services.
  */
 import type { Context } from '@deepseek-ai/cordis';
+import z from '@deepseek-ai/schemastery';
 import { type MarketConfig } from './routes.ts';
 export declare const name = "dsh-market";
 /** Optional cordis.yml configuration; profile defaults to `web`. */
 export type Config = Partial<Pick<MarketConfig, 'profile' | 'allowRestart' | 'maxSnapshots' | 'buildEnv'>>;
+/** dsh 0.1.7+ builds its form from `plugin.Config` and writes `simplify(config)` back, so every field the market reads is named here or the first form save deletes it. Each is loose: an older composition still boots, a mistyped value is dropped, and neither editable field takes a default, so "unconfigured" stays distinguishable (#1144, #229). */
+export declare const Config: z<Schemastery.ObjectS<{
+    profile: z<string, string>;
+    channel: z<string, string>;
+    region: z<string, string>;
+    allowRestart: z<boolean, boolean>;
+    maxSnapshots: z<number, number>;
+    buildEnv: z<import("@deepseek-ai/cosmokit").Dict<any, string>, import("@deepseek-ai/cosmokit").Dict<any, string>>;
+}>, Schemastery.ObjectT<{
+    profile: z<string, string>;
+    channel: z<string, string>;
+    region: z<string, string>;
+    allowRestart: z<boolean, boolean>;
+    maxSnapshots: z<number, number>;
+    buildEnv: z<import("@deepseek-ai/cosmokit").Dict<any, string>, import("@deepseek-ai/cosmokit").Dict<any, string>>;
+}>>;
 /**
  * The launcher's `profileContext` in one line, for the exported log (#744).
  *
@@ -18,12 +35,13 @@ export declare function describeProfileContext(value: unknown): string;
 /**
  * The deployment's declared authorities, read from the host (#729).
  *
- * DSH's own /api fence accepts loopback OR an authority the operator declared
- * (`dsh web --trusted-host <name>`, plus the LAN literals the CLI derives when
- * bound to 0.0.0.0). The market's routes are `exact` registrations on the bare
- * webServer, and exact matches win over that fence's prefix, so they never
- * pass through it — and a loopback-only rule of its own made every mutating
- * route 403 on any deployment reached by a name.
+ * DSH's own /api fence accepts loopback, the listener's bind IP literal, or an
+ * authority the operator declared (`dsh web --trusted-host <name>`). The
+ * market's routes are `exact` registrations on the bare webServer, and exact
+ * matches win over that fence's prefix, so they never pass through it — and a
+ * loopback-only rule of its own made every mutating route 403 on any deployment
+ * reached by a name. The source below therefore mirrors the host's fence: the
+ * declared `trustedHosts` plus the listener's own bind host from `webServer`.
  *
  * The `connection` service is optional: a host without it leaves the fence
  * exactly as it was, which is the behaviour every release so far has had.

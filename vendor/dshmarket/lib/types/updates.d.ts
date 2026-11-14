@@ -4,6 +4,7 @@
  * dist-tag for registry installs — with a TTL cache.
  */
 import { type Channel } from './channels.ts';
+import { type CatalogReleaseSource } from './release-updates.ts';
 import type { GitToNpmMigration, NpmRenameMigration } from './source-migration.ts';
 export interface UpdateStatus {
     /**
@@ -60,7 +61,6 @@ export interface UpdateStatus {
     newerPrerelease?: string;
     /** Taking this update replaces a local package source with its matched online release. */
     restoreRequired?: boolean;
-    productBundled?: boolean;
     /**
      * Independent, explicit source switch offered for an installed profile: a
      * verified legacy Git install (#461), or an npm install whose package was
@@ -175,6 +175,25 @@ export interface DesktopMatureResult {
 /** Shared fresh registry/policy verification for listing and locked execution. */
 export declare function resolveDesktopMatureUpdate(name: string, installed: string | null, profile: string, activeProfileDir: string, endpointLatest: string | null, maxVersion?: string): Promise<DesktopMatureResult>;
 /**
+ * The maturity of ONE precisely named version, for the compatibility dialog.
+ * "You can update to 1.7.11" is only advice; this answers whether that exact
+ * version may be installed right now, and if not, when. Never throws: an
+ * unreadable policy or an unreachable registry is reported as unknown so the
+ * UI can stay quiet instead of promising something the install would refuse.
+ */
+export interface RequestedVersionMaturity {
+    version: string;
+    /** true = installable now, false = held, null = not verifiable here. */
+    installable: boolean | null;
+    held: boolean;
+    exempt: boolean;
+    publishedAt: string | null;
+    nextMaturityAt: string | null;
+    releaseAgeMs: number | null;
+    reason: 'eligible' | 'held' | 'unknown-age' | 'policy-unknown' | 'registry-unavailable' | 'unknown-version';
+}
+export declare function readVersionMaturity(name: string, version: string, profile: string, activeProfileDir: string, now?: number): Promise<RequestedVersionMaturity>;
+/**
  * Evidence check behind the "wait a day" stale diagnosis (#45): whether the
  * package's CURRENT latest release was published recently enough to sit
  * inside pnpm's default fresh-release window. pnpm's silent hold leaves no
@@ -250,5 +269,5 @@ catalogNpmByRepo?: ReadonlyMap<string, string>,
  */
 options?: {
     holdYoungReleases?: boolean;
-    packageNames?: readonly string[];
+    releaseSources?: ReadonlyMap<string, CatalogReleaseSource>;
 }): Promise<Record<string, UpdateStatus>>;

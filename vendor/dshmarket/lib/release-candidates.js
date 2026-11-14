@@ -99,3 +99,17 @@ export function selectMatureUpdate(packument, installed, now, policy) {
         latestMaturityAt: latestPublished === null || latestExempt ? null : latestPublished + ageMs,
     };
 }
+export function versionMaturity(packument, version, now, policy) {
+    const ageMs = policy.minimumReleaseAgeMs;
+    const policyKnown = Number.isSafeInteger(ageMs) && ageMs >= 0 && Number.isFinite(now);
+    const times = typeof packument?.time === 'object' && packument.time !== null ? packument.time : {};
+    const published = strictPublishTime(times[version]);
+    const exempt = policy.exemptPackage === true || policy.exemptVersions?.has(version) === true;
+    if (published === null)
+        return { publishedAt: null, matureAt: null, exempt, mature: false, policyKnown };
+    if (!policyKnown)
+        return { publishedAt: published, matureAt: null, exempt, mature: false, policyKnown };
+    const matureAt = exempt ? published : published + ageMs;
+    const mature = published <= now && (exempt || published <= now - ageMs);
+    return { publishedAt: published, matureAt: Number.isFinite(matureAt) ? matureAt : null, exempt, mature, policyKnown };
+}
