@@ -1,7 +1,7 @@
 {
   "schema": "agent-pi-dsh/selected-production-policy/v1",
   "id": "mainline-local-oar-v1",
-  "sourceCommit": "66491b05e3f05ad35bcdd4f6cd7ed26041d9e3db",
+  "sourceCommit": "39163dd30f703a79079e2d2446545cff3c453738",
   "excludedWorkspaces": {
     "packages/subagent/subagent-codex": "@deepseek-ai/dsh-subagent-codex",
     "packages/subagent/subagent-claude-code": "@deepseek-ai/dsh-subagent-claude-code"

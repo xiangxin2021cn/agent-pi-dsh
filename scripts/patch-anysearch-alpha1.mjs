@@ -4,7 +4,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const dshRange = '*'
-const dshVersion = '0.2.2-rc.1'
+const dshVersion = '0.2.2-rc.3'
 const cordisVersion = '4.1.0'
 const schemasteryVersion = '3.19.0'
 const dshPeers = ['credentials', 'system-prompt', 'tool-web', 'tools', 'web'].map(name => '@deepseek-ai/dsh-' + name)
@@ -27,7 +27,7 @@ export function patchAnySearchManifest(source) {
   for (const [owner, name, original] of vendor) {
     if (owner?.[name] !== original) throw new Error('Unexpected AnySearch vendor range: ' + name)
   }
-  if (manifest.engines.dsh !== undefined && !['0.2.1-alpha.4', '0.2.1-alpha.5', '0.2.1-rc.3', '0.2.2-alpha.2', '0.2.2-alpha.3', dshVersion].includes(manifest.engines.dsh)) throw new Error('Unexpected AnySearch DSH engine')
+  if (manifest.engines.dsh !== undefined && !['0.2.1-alpha.4', '0.2.1-alpha.5', '0.2.1-rc.3', '0.2.2-alpha.2', '0.2.2-alpha.3', '0.2.2-rc.1', dshVersion].includes(manifest.engines.dsh)) throw new Error('Unexpected AnySearch DSH engine')
   manifest.engines.dsh = dshVersion
   return JSON.stringify(manifest, null, 2) + '\n'
 }
@@ -115,7 +115,7 @@ const adaptedHashes = {
   'lib/tools/batch.d.ts': '64f3171e2a311c00dbe0a6c34f314f55823d81a4a287920b113923683a538139',
 }
 const sourceManifestSha256 = '08f8475f10ce3f854c351793395975ebfe6bea4ed7ab3a3cc64a56c0e8f09d2f'
-const adaptedManifestSha256 = '8f79e190eec569dda084a015db085a38781dff73f4d7689cfeb8f417d7cc4485'
+const adaptedManifestSha256 = '6a07e98970b42bf3721b3cd3b7c9a75d7896102ac40dd1f16e5c3427fbe77c9e'
 
 export function verifyAnySearchDirectory(directory) {
   const source = text(readFileSync(join(directory, 'package.json'), 'utf8'))

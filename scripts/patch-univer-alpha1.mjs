@@ -271,6 +271,36 @@ export function patchUniverViewerProxy(source) {
   return source
 }
 
+/** rc.3 passes the authenticated Peer to protected HTTP and WebSocket handlers. */
+export function patchUniverRc3Host(source) {
+  const marker = "function univerPeerRejection(peer) {"
+  if (source.includes(marker)) {
+    if (source.includes("connection.requestRejection(")) throw new Error("Univer rc.3 authentication adaptation is partial")
+    return source
+  }
+  const replacements = [
+    ["function createUniverRouter(service, sessions, connection) {\n  return async (request, response) => {","function createUniverRouter(service, sessions) {\n  return async (request, response, peer) => {"],
+    ["connection.requestRejection(request)","univerPeerRejection(peer)"],
+    ["const { gatewayOrigin, sessions, connection } = options;","const { gatewayOrigin, sessions } = options;"],
+    ["const httpHandler = async (req, res) => {","const httpHandler = async (req, res, peer) => {"],
+    ["const upgradeHandler = (req, socket, head) => {","const upgradeHandler = (req, socket, head, peer) => {"],
+    ["connection.requestRejection(req)","univerPeerRejection(peer)"],
+    ["var inject3 = [\"univer\", \"webServer\", \"sessions\", \"connection\"];","var inject3 = [\"univer\", \"webServer\", \"sessions\"];"],
+    ["  const connection = Reflect.get(ctx, \"connection\");\n",""],
+    ["handler: createUniverRouter(ctx.univer, ctx.sessions, connection)","auth: \"required\",\n      handler: createUniverRouter(ctx.univer, ctx.sessions)"],
+    ["      sessions: ctx.sessions,\n      connection\n","      sessions: ctx.sessions\n"],
+    ["handler: proxy.httpHandler","        auth: \"required\",\n        handler: proxy.httpHandler"],
+    ["ctx.webServer.registerUpgrade({ path: \"/univer-viewer/ws\", handler: proxy.upgradeHandler })","ctx.webServer.registerUpgrade({ path: \"/univer-viewer/ws\", auth: \"required\", handler: proxy.upgradeHandler })"],
+  ]
+  for (const [before, after] of replacements) {
+    const count = source.split(before).length - 1
+    const expected = before === "connection.requestRejection(req)" || before === "handler: proxy.httpHandler" ? 2 : 1
+    if (count !== expected) throw new Error("Univer rc.3 host layout changed: " + before)
+    source = source.replaceAll(before, after)
+  }
+  return "function univerPeerRejection(peer) {\n  if (peer === undefined || peer.signal.aborted) return 401;\n  return peer.principal.kind === \"owner\" ? undefined : 403;\n}\n" + source
+}
+
 export function patchUniverForDshAlpha1({ pluginRoot }) {
   const manifestPath = join(pluginRoot, 'package.json')
   const clientPath = join(pluginRoot, 'lib/client.js')
@@ -300,6 +330,12 @@ export function patchUniverForDshAlpha1({ pluginRoot }) {
       return '017-adapted'
     }
     assertUniverClientCompatibility({ version: manifest.version, source })
+    if (manifest.version === '0.4.0') {
+      const hostPath = join(pluginRoot, 'lib/index.js')
+      const original = readFileSync(hostPath, 'utf8')
+      const patched = patchUniverRc3Host(original)
+      if (patched !== original) writeFileSync(hostPath, patched, 'utf8')
+    }
     if (manifest.version === '0.3.0') {
       const hostPath = join(pluginRoot, 'lib/index.js')
       const original = readFileSync(hostPath, 'utf8')

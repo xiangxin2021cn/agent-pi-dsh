@@ -78,7 +78,7 @@ const GENUI_NAME = '@omdsh-dev/dsh-genui'
 const ANYSEARCH_NAME = '@anysearch/anysearch-dsh'
 const UNIVER_NAME = UNIVER_OFFICE_NAME
 const WEB_FETCH_HTTP = '@deepseek-ai/dsh-web-fetch-http'
-import { TEAM_PACKAGES, TEAM_BUNDLES, configureTeamPreset } from './agent-teams-profile.mjs'
+import { TEAM_BUNDLES, retireLegacyTeamLinks } from './agent-teams-profile.mjs'
 const pluginRecovery = process.env.AGENT_PI_PLUGIN_RECOVERY === '1'
 const teamsEnabled = !pluginRecovery && process.env.AGENT_PI_AGENT_TEAMS === '1'
 const OAR_SUBAGENT = '@deepseek-ai/dsh-experimental-subagent-oar'
@@ -93,7 +93,6 @@ const bundles = [
   '@deepseek-ai/dsh-base',
   '@deepseek-ai/dsh-web-app',
   PRODUCT_PRESETS,
-  ...(teamsEnabled ? TEAM_BUNDLES : []),
   INJECTOR_NAME,
   'dsh-tender-host',
   ...workbenchDefaults.map(([name]) => name),
@@ -204,7 +203,6 @@ wireAgentPiCompactionRuntimeDeps(agentPiCompactionDir)
 
 const localPlugins = [
   ...workbenchDefaults.map(([name, dir]) => ({ name, dir: join(root, 'bundles', dir) })),
-  ...TEAM_PACKAGES.map(name => ({ name: `@deepseek-ai/dsh-experimental-${name}`, dir: join(dsh, 'packages/experimental', name) })),
   { name: 'dsh-tender-host', dir: join(root, 'bundles/tender-host') },
   { name: '@deepseek-ai/dsh-tool-session-query', dir: join(dsh, 'packages/experimental/tool-session-query') },
   { name: 'dsh-tender-web', dir: join(root, 'bundles/tender-web') },
@@ -224,6 +222,7 @@ if (existsSync(join(bundledUniver, 'package.json'))) {
 }
 
 mkdirSync(profileDir, { recursive: true })
+retireLegacyTeamLinks(profileDir)
 const pnpmMigration = await migrateProfilePnpm({ profileDir, dshRoot: dsh })
 if (pnpmMigration.status === 'recovery-required') throw new Error(`profile dependency migration requires recovery (${pnpmMigration.error ?? 'verification failed'}); ${pnpmMigration.backup ? `retained backup: ${pnpmMigration.backup}` : 'profile was not modified'}`)
 if (pnpmMigration.status !== 'not-needed') {
@@ -313,6 +312,7 @@ function isRuntimeIncompatibleBundle(name) {
 
 function composeBundles(deps) {
   const hidden = new Set([
+    ...TEAM_BUNDLES,
     WEB_FETCH_HTTP,
     '@deepseek-ai/dsh-experimental-agent-team-web-profile',
     '@deepseek-ai/dsh-subagent-codex',
@@ -322,7 +322,6 @@ function composeBundles(deps) {
   const extras = []
   const add = (name) => {
     if (pluginRecovery) return
-    if (TEAM_BUNDLES.includes(name) && !teamsEnabled) return
     if (!name || hidden.has(name) || isRetiredPluginName(name) || isRuntimeIncompatibleBundle(name) || bundles.includes(name) || extras.includes(name)) return
     extras.push(name)
   }
@@ -394,6 +393,11 @@ function buildManagedPatch(deps) {
 
 # Model catalog and default selection come directly from the official dsh-base.
 # Do not shadow upstream multimodal capabilities with a product catalog.
+
+# Teams are supplied by DSH; the saved preference sets only new root sessions.
+- id: agent-team
+  config:
+    defaultEnabled: ${teamsEnabled}
 
 # Keep the existing read-before-edit and concurrent change checks.
 - id: fs-observation-policy
@@ -896,9 +900,6 @@ syncSystemPresets()
 enableDesktopCompaction()
 enableDesktopWebFetch()
 retireDesktopCodex(desktopPresetFiles())
-if (teamsEnabled) {
-  for (const file of desktopPresetFiles()) writeFileSync(file, configureTeamPreset(readFileSync(file, 'utf8')))
-}
 writePresetBundle({ systemRoot: systemPresetRoot, userRoot: join(home, '.agent-presets'), ids: systemPresetIds,
   parseYaml: presetYaml.parse, yaml: presetYaml })
 // User preset sources remain intact; retire product bridges in their generated

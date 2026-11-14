@@ -227,9 +227,8 @@ export async function verifySelectedProfileFile(dsh, product, file) {
   let entries
   try {
     const include = join(dsh, 'vendor/include')
-    const yaml = createRequire(join(include, 'package.json'))('js-yaml')
-    const { entryListSchema } = await import(pathToFileURL(join(include, 'lib/index.js')).href)
-    entries = yaml.load(readFileSync(file, 'utf8'), { schema: entryListSchema })
+    const { parseEntryYaml } = await import(pathToFileURL(join(include, 'lib/index.js')).href)
+    entries = parseEntryYaml(readFileSync(file, 'utf8'))
   } catch { throw new Error('Selected production profile dump could not be parsed safely') }
   return verifySelectedProfile(entries)
 }

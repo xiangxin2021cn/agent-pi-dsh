@@ -7165,7 +7165,7 @@ const SearchSettings = createSearchSettings(React)
       const slot = document.querySelector('[data-slot="sidebar"]')
       const root = slot && slot.firstElementChild
       if (!root) return null
-      let logoRow = null
+      let logoRow = root.querySelector(':scope > [class*="logoRow"]')
       let newSession = null
       let region = null
       let foot = null
@@ -7174,7 +7174,7 @@ const SearchSettings = createSearchSettings(React)
         if (el.getAttribute && el.getAttribute('data-ap-mount')) continue
         if (el.querySelector && el.querySelector('[data-slot="sidebar.workspaces"]')) { region = el; continue }
         if (el.querySelector && el.querySelector('[data-slot="sidebar.settings"]')) { foot = el; continue }
-        if (el.tagName === 'BUTTON') { newSession = el; continue }
+        if (el.tagName === 'BUTTON' || el.matches('[class*="newSessionRow"]')) { newSession = el; continue }
         if (!logoRow) logoRow = el
       }
       return { root, logoRow, newSession, region, foot }

@@ -14,7 +14,7 @@ export function prepareMacOSIntelOptionals(dshDirectory, productDirectory) {
   const cuaPackage = join(dsh, 'packages/experimental/cua-macos')
   const cuaBin = join(cuaPackage, 'native/bin')
   if (existsSync(cuaBin)) {
-    if (JSON.parse(readFileSync(join(cuaPackage, 'package.json'), 'utf8')).name !== '@deepseek-ai/dsh-experimental-cua-macos') throw new Error('Unexpected macOS CUA package identity')
+    if (JSON.parse(readFileSync(join(cuaPackage, 'package.json'), 'utf8')).name !== '@deepseek-ai/dsh-cua-macos') throw new Error('Unexpected macOS CUA package identity')
     if (lstatSync(cuaBin).isSymbolicLink()) throw new Error('macOS CUA native resource must be a real directory')
     const actual = realpathSync(cuaBin)
     const child = relative(dsh, actual)

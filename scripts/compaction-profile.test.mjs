@@ -16,7 +16,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { test } from 'node:test'
 import { createRequire } from 'node:module'
-import { applyEntryPatches, entryListSchema } from '../vendor/deepseek-harness/vendor/include/lib/index.js'
+import { applyEntryPatches, parseEntryYaml } from '../vendor/deepseek-harness/vendor/include/lib/index.js'
 const yamlRequire = createRequire(new URL('../vendor/deepseek-harness/packages/settings/settings/package.json', import.meta.url))
 const { load: loadYaml } = createRequire(new URL('../vendor/deepseek-harness/vendor/include/package.json', import.meta.url))('js-yaml')
 
@@ -217,7 +217,7 @@ function presetTexts(fixture) {
 }
 
 function composeWrappers(fixture) {
-  const parse = text => loadYaml(text, { schema: entryListSchema })
+  const parse = parseEntryYaml
   const warnings = []
   const warn = message => warnings.push(message)
   let entries = applyEntryPatches([], parse(readFileSync(join(sourceRoot,
@@ -256,7 +256,7 @@ test('incompatible AnySearch retains installation but managed defaults select of
   assert.match(readFileSync(join(fixture.home, '.agent-pi-presets/product-defaults.patch.yml'), 'utf8'), /searchProvider: anysearch/)
 })
 
-test('Teams opt-in is reversible and recovery keeps external plugin dependencies without loading them', t => {
+test('Teams uses official bundles with reversible new-session defaults and recovery preserves external dependencies', t => {
   const fixture = createFixture(t)
   const manifestPath = join(fixture.home, 'profiles/tender/package.json')
   const manifest = () => JSON.parse(readFileSync(manifestPath, 'utf8'))
@@ -264,7 +264,8 @@ test('Teams opt-in is reversible and recovery keeps external plugin dependencies
   runInitializer(fixture, undefined, { AGENT_PI_AGENT_TEAMS: '0', AGENT_PI_PLUGIN_RECOVERY: '0' })
   assert.ok(teamBundles.every(name => !manifest().dsh.profile.bundles.includes(name)))
   runInitializer(fixture, undefined, { AGENT_PI_AGENT_TEAMS: '1', AGENT_PI_PLUGIN_RECOVERY: '0' })
-  assert.ok(teamBundles.every(name => manifest().dsh.profile.bundles.includes(name)))
+  assert.ok(teamBundles.every(name => !manifest().dsh.profile.bundles.includes(name)))
+  assert.match(readFileSync(join(fixture.home, '.agent-pi-presets/product-defaults.patch.yml'), 'utf8'), /defaultEnabled: true/)
   const profile = join(fixture.home, 'profiles/tender')
   writePackage(profile, 'node_modules/external-broken-test', 'external-broken-test', { lib: true })
   const changed = manifest()
@@ -386,7 +387,7 @@ test('official OAR is the single external delegation tool with explicit safe nat
   const starts = []
   externalTool.apply({ tools: ctx.tools, subagents: {
     getProvider: () => ({ inheritsParentContext: false }),
-    startActivation: async request => { starts.push(request); return { childId: 'session-offline-oar-child' } },
+    startActivation: async request => { starts.push(request); return { name: 'offline-oar-child' } },
   } }, tool.config)
   const schema = ctx.tools.schemas(mainAgent).find(row => row.name === 'subagent_oar')
   assert.deepEqual(schema.parameters.properties.runtime.enum, ['codex', 'claude'])
@@ -396,10 +397,10 @@ test('official OAR is the single external delegation tool with explicit safe nat
   const selection = { runtime: 'codex', description: 'Review fixture', prompt: 'Inspect only neutral fixture data.' }
   const signal = new AbortController().signal
   const result = await scope.ctx.tools.get('subagent_oar', mainAgent).execute(selection, { agent: mainAgent, signal })
-  assert.deepEqual(result, { kind: 'activation', subagentId: 'session-offline-oar-child' })
+  assert.deepEqual(result, { kind: 'activation', name: 'offline-oar-child' })
   assert.equal(starts[0].provider, 'oar-codex')
-  assert.equal(starts[0].request.parent, mainAgent)
-  assert.deepEqual(starts[0].request.prompt, [{ type: 'text', text: selection.prompt }])
+  assert.equal(starts[0].parent, mainAgent)
+  assert.deepEqual(starts[0].prompt, [{ type: 'text', text: selection.prompt }])
   assert.equal(starts[0].delivery, 'parent')
 })
 

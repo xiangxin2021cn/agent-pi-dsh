@@ -5,7 +5,7 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-const nativeCua = ['@deepseek-ai/dsh-experimental-computer-use-cua-driver-native', '@deepseek-ai/dsh-experimental-cua-macos']
+const nativeCua = ['@deepseek-ai/dsh-experimental-computer-use-cua-driver-native', '@deepseek-ai/dsh-cua-macos', '@deepseek-ai/dsh-experimental-cua-macos']
 const nativeClaude = '@deepseek-ai/dsh-subagent-claude-code'
 const voiceIds = ['speech-to-text', 'speech-to-text-sensevoice', 'api-speech-to-text', 'ui-voice-input']
 
@@ -68,8 +68,8 @@ export async function writeMacOSIntelCapabilities({ productRoot, dshRoot, home }
   try {
     const includeRoot = join(dshRoot, 'vendor/include')
     yaml = createRequire(join(includeRoot, 'package.json'))('js-yaml')
-    const { entryListSchema } = await import(pathToFileURL(join(includeRoot, 'lib/index.js')).href)
-    rows = yaml.load(result.stdout, { schema: entryListSchema })
+    const { parseEntryYaml } = await import(pathToFileURL(join(includeRoot, 'lib/index.js')).href)
+    rows = parseEntryYaml(result.stdout)
     if (!Array.isArray(rows)) throw new Error()
   } catch {
     throw new Error('Intel compatibility configuration inspection returned an invalid tree')

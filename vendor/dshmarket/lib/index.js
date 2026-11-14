@@ -166,6 +166,13 @@ export function useTrustedHosts(ctx) {
     // same reason as the authorities above.
     const previousGate = setRequestGateSource(() => {
         const connection = ctx.get('connection');
+        if (typeof connection?.admit === 'function') {
+            return request => {
+                const admission = connection.admit(request);
+                if ('rejection' in admission) return admission.rejection ?? 403;
+                return admission.peer?.principal.kind === 'owner' && !admission.peer.signal.aborted ? undefined : 403;
+            };
+        }
         const gate = connection?.requestRejection;
         return typeof gate === 'function'
             ? (request => gate.call(connection, request))

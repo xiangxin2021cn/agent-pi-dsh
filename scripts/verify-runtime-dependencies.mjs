@@ -1,7 +1,6 @@
 import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { isAbsolute, join, relative, sep } from 'node:path'
-import { TEAM_PACKAGES } from './agent-teams-profile.mjs'
 import { distributionPolicy, isSelectedMainline } from './dsh-distribution-policy.mjs'
 
 // Adapt the official Desktop dependency-graph check to our existing HTTP shell
@@ -40,7 +39,7 @@ export function verifyDependencyClosure(roots, runtimeRoots = roots) {
 }
 
 export function verifyProductDependencyClosure(dsh, product) {
-  const roots = [join(dsh, 'apps/cli'), ...TEAM_PACKAGES.map(name => join(dsh, 'packages/experimental', name))]
+  const roots = [join(dsh, 'apps/cli')]
   if (isSelectedMainline(product)) roots.push(...distributionPolicy.requiredWorkspaces.map(path => join(dsh, path)))
   if (product) roots.push(...['bundles/tender-host', 'packages/business-core', 'vendor/dsh-univer-office'].map(path => join(product, path)))
   return verifyDependencyClosure(roots, [dsh, ...(product ? [product] : [])])

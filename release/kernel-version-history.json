@@ -199,5 +199,14 @@
     "sourceChannel": "official release tag",
     "reason": "Finalize the unpublished 3.8.9 draft on the official rc.1 tag and include the tested context-overflow and image-offload fixes",
     "supersededDraftPin": "05b1cae8db6e674c5685101494d4eec24652424a"
+  },
+  {
+    "version": "3.9.0",
+    "edition": "mainline",
+    "releaseTag": "v3.9.0",
+    "dshVersion": "0.2.2-rc.3",
+    "dshPin": "39163dd30f703a79079e2d2446545cff3c453738",
+    "reason": "Upgrade to the official rc.3 master sync while preserving the mainline product workflows",
+    "upstream": "https://github.com/deepseek-ai/deepseek-harness/commit/39163dd30f703a79079e2d2446545cff3c453738"
   }
 ]

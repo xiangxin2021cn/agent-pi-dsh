@@ -18437,7 +18437,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 			const slot = document.querySelector("[data-slot=\"sidebar\"]");
 			const root = slot && slot.firstElementChild;
 			if (!root) return null;
-			let logoRow = null;
+			let logoRow = root.querySelector(":scope > [class*=\"logoRow\"]");
 			let newSession = null;
 			let region = null;
 			let foot = null;
@@ -18452,7 +18452,7 @@ ${selected.length > 8e3 ? `${selected.slice(0, 8e3)}\n…(选区已截断)` : se
 					foot = el;
 					continue;
 				}
-				if (el.tagName === "BUTTON") {
+				if (el.tagName === "BUTTON" || el.matches("[class*=\"newSessionRow\"]")) {
 					newSession = el;
 					continue;
 				}

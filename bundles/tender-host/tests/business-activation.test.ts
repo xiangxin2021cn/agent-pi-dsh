@@ -3,8 +3,7 @@ import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { createRequire } from 'node:module'
-import { applyEntryPatches, entryListSchema } from '../../../vendor/deepseek-harness/vendor/include/lib/index.js'
+import { applyEntryPatches, parseEntryYaml } from '../../../vendor/deepseek-harness/vendor/include/lib/index.js'
 import { createBusinessProject } from '../../../packages/business-projects/index.ts'
 import { bindProjectSession, projectForBoundSession } from '../src/orchestration.ts'
 import { businessProjectForAgent, registerBusinessActivation, withBusinessGoalBoundary } from '../src/business-activation.ts'
@@ -129,10 +128,9 @@ test('only explicit project create or bind activates the caller; listing and unk
 
 test('product profile preserves native preset tools and routes only the goal driver through the business boundary', () => {
   const patch = readFileSync(new URL('../cordis.patch.yml', import.meta.url), 'utf8')
-  const { load } = createRequire(new URL('../../../vendor/deepseek-harness/vendor/include/package.json', import.meta.url))('js-yaml')
   const warnings: string[] = []
   const warn = (message: string) => warnings.push(message)
-  const parse = (text: string) => load(text, { schema: entryListSchema })
+  const parse = parseEntryYaml
   const base = applyEntryPatches([], parse(readFileSync(new URL('../../../vendor/deepseek-harness/packages/bundle/base/cordis.patch.yml', import.meta.url), 'utf8')), warn)
   const composed = applyEntryPatches(base, parse(patch), warn)
   assert.deepEqual(warnings, [])

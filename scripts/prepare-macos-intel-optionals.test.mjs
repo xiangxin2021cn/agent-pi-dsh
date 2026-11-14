@@ -32,7 +32,7 @@ test('compatibility preparation excludes newer-system optionals and retains both
   const host = join(product, 'bundles/tender-host/node_modules/@openai/codex-darwin-x64')
   codex(upstream, '0.153.4-darwin-x64'); codex(host, '0.162.0-darwin-x64')
   const cua = join(dsh, 'packages/experimental/cua-macos')
-  write(join(cua, 'package.json'), '{"name":"@deepseek-ai/dsh-experimental-cua-macos"}')
+  write(join(cua, 'package.json'), '{"name":"@deepseek-ai/dsh-cua-macos"}')
   write(join(cua, 'native/bin/dsh-cua-native'), 'requires macOS 14')
   write(join(cua, 'native/Package.swift'), 'platforms: [.macOS(.v14)]')
   const result = prepareMacOSIntelOptionals(dsh, product)
@@ -56,7 +56,7 @@ test('compatibility preparation excludes newer-system optionals and retains both
 test('macOS 14 CUA binary isolation rejects a linked resource instead of deleting another directory', t => {
   const { root, dsh, product } = fixture(t)
   const cua = join(dsh, 'packages/experimental/cua-macos')
-  write(join(cua, 'package.json'), '{"name":"@deepseek-ai/dsh-experimental-cua-macos"}')
+  write(join(cua, 'package.json'), '{"name":"@deepseek-ai/dsh-cua-macos"}')
   const outside = join(root, 'external-cua')
   write(join(outside, 'important'), 'preserved')
   mkdirSync(join(cua, 'native'), { recursive: true })

@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { readFileSync } from 'node:fs'
-import { configureTeamPreset } from './agent-teams-profile.mjs'
+import { readFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { retireLegacyTeamLinks, TEAM_BUNDLES } from './agent-teams-profile.mjs'
 import { normalizeAgentTeamsPreference, createAgentTeamsPreferenceUpdate } from '../apps/desktop/agent-team-preferences.mjs'
 import { startupFailureDetail, sanitizeStartupLog } from '../apps/desktop/startup-diagnostics.mjs'
 
@@ -12,16 +14,26 @@ test('team preference is opt-in and accepts only booleans', () => {
   assert.throws(() => createAgentTeamsPreferenceUpdate('true'))
 })
 
-test('team preset disables scoped legacy controls and preserves independent Codex execution', () => {
-  const source = readFileSync(new URL('../vendor/dsh-router-standard/preset/agent.cordis.yml', import.meta.url), 'utf8').replaceAll('\r\n', '\n')
-  const next = configureTeamPreset(source)
-  for (const id of ['tool-subagent-control', 'tool-subagent-list-agents', 'tool-subagent', 'tool-subagent-fork']) {
-    const row = next.replaceAll('\r\n', '\n').split(`- id: ${id}\n`)[1]?.split(/\n\s*- id:/)[0]
-    assert.match(row || '', /disabled: true/)
-  }
-  assert.equal((next.match(/backgroundMode: continuable/g) || []).length, (source.match(/backgroundMode: continuable/g) || []).length)
-  assert.equal(next.slice(next.indexOf('    - id: tool-subagent-codex')), source.slice(source.indexOf('    - id: tool-subagent-codex')))
-  assert.equal(configureTeamPreset(next), next)
+test('rc.3 retires only product-owned legacy Team links and preserves a byte-exact backup', t => {
+  const profile = mkdtempSync(join(tmpdir(), 'ap-teams-390-'))
+  t.after(() => rmSync(profile, { recursive: true, force: true }))
+  const path = join(profile, 'package.json')
+  const original = JSON.stringify({ dependencies: {
+    [TEAM_BUNDLES[0]]: 'link:C:/old/runtime/deepseek-harness/packages/experimental/agent-team-profile',
+    [TEAM_BUNDLES[1]]: '0.2.2-rc.1',
+    [TEAM_BUNDLES[2]]: 'link:C:/user/tool-agent-team',
+    'user-plugin': '^1.0.0',
+  }, dsh: { profile: { bundles: [...TEAM_BUNDLES, 'user-plugin'] } } }, null, 4) + '\n'
+  writeFileSync(path, original)
+  assert.equal(retireLegacyTeamLinks(profile), true)
+  assert.equal(readFileSync(path + '.pre-3.9.0-teams.bak', 'utf8'), original)
+  const next = JSON.parse(readFileSync(path, 'utf8'))
+  assert.equal(next.dependencies[TEAM_BUNDLES[0]], undefined)
+  assert.equal(next.dependencies[TEAM_BUNDLES[1]], '0.2.2-rc.1')
+  assert.equal(next.dependencies[TEAM_BUNDLES[2]], 'link:C:/user/tool-agent-team')
+  assert.deepEqual(next.dsh.profile.bundles, ['user-plugin'])
+  assert.equal(retireLegacyTeamLinks(profile), false)
+  assert.equal(readFileSync(path + '.pre-3.9.0-teams.bak', 'utf8'), original)
 })
 
 test('startup diagnostic retains the concrete dependency error without tokens or secrets', () => {

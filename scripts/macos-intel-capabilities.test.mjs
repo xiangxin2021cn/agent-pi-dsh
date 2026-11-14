@@ -12,7 +12,7 @@ import { inspectKnownPluginCompatibility, reconcileKnownPluginCompatibility, VOI
 
 const product = fileURLToPath(new URL('..', import.meta.url))
 const dshRoot = process.env.AGENT_PI_TEST_DSH_ROOT || join(product, 'vendor/deepseek-harness')
-const { entryListSchema, applyEntryPatches } = await import(pathToFileURL(join(dshRoot, 'vendor/include/lib/index.js')).href)
+const { parseEntryYaml, applyEntryPatches } = await import(pathToFileURL(join(dshRoot, 'vendor/include/lib/index.js')).href)
 const yaml = createRequire(join(dshRoot, 'vendor/include/package.json'))('js-yaml')
 const native = '@deepseek-ai/dsh-experimental-computer-use-cua-driver-native'
 const claude = '@deepseek-ai/dsh-subagent-claude-code'
@@ -148,7 +148,7 @@ test('real official dump preserves profile/home files, !!js and core providers u
     cwd: dshRoot, env: { ...process.env, DSH_HOME: options.home }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 60000,
   })
   assert.equal(result.status, 0, 'Official composition with compatibility overlay must succeed')
-  const rows = yaml.load(result.stdout, { schema: entryListSchema })
+  const rows = parseEntryYaml(result.stdout)
   for (const id of [...voice, nativeId, swiftCuaId, claudeId]) assert.equal(rows.find(row => row.id === id).disabled, true)
   for (const id of ['agent-loop', 'agent-pi-subagent-codex', 'univer']) {
     const row = rows.find(row => row.id === id)

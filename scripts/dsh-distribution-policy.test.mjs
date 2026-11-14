@@ -170,13 +170,13 @@ test('curated runtime restores only omitted lock-importer manifests from the act
       return
     }
     const result = stageDistributionManifests(dsh, product, source)
-    assert.equal(result.checked, 396)
+    assert.equal(result.checked, 407)
     assert.deepEqual(result.added.map(row => row.path), ['website/package.json'])
     assert.equal(hash(join(dsh, 'website/package.json')), hash(join(source, 'website/package.json')))
     assert.equal(hash(join(dsh, 'pnpm-lock.yaml')), hash(join(source, 'pnpm-lock.yaml')))
     assert.equal(hash(join(dsh, 'DSH-BUILD-RECEIPT.json')), receiptHash)
     assert.deepEqual(stageDistributionManifests(dsh, product, source).added, [])
     const derived = deriveDistributionInputs(dsh, product)
-    assert.equal(Object.keys(yaml.load(derived.lock).importers).length, 394)
+    assert.equal(Object.keys(yaml.load(derived.lock).importers).length, 405)
   })
 })

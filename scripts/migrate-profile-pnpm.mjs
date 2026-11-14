@@ -33,7 +33,7 @@ function localDirectory(directory) {
 
 /** The fixed DSH runtime calls this public seam only on its weaker fallback. */
 export function requireManagedMigrationRange(runtime) {
-  if (readFileSync(new URL('../DSH_PIN', import.meta.url), 'utf8').trim() !== '66491b05e3f05ad35bcdd4f6cd7ed26041d9e3db') throw new Error('unreviewed-migration-runtime')
+  if (readFileSync(new URL('../DSH_PIN', import.meta.url), 'utf8').trim() !== '39163dd30f703a79079e2d2446545cff3c453738') throw new Error('unreviewed-migration-runtime')
   if (!runtime.internals || typeof runtime.internals !== 'object') throw new Error('managed-range-admission-unavailable')
   runtime.internals = { ...runtime.internals, spawn() { throw new Error('weaker-migration-containment-refused') } }
 }

@@ -44,7 +44,7 @@ test('Windows payload filtering retains package docs and artwork but excludes ro
   const scratch = mkdtempSync(join(tmpdir(), 'ap-detail-copy-'))
   const source = join(scratch, 'source')
   const staged = join(scratch, 'staged')
-  const packagePath = 'packages/experimental/agent-team-profile'
+  const packagePath = 'packages/experimental/forge-bundle'
   try {
     mkdirSync(join(source, packagePath), { recursive: true })
     for (const relative of ['package.json', 'locale', 'docs']) {

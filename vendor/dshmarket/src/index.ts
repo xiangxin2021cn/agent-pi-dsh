@@ -208,7 +208,14 @@ export function useTrustedHosts(ctx: Context): () => void {
   // its browser login, the check its own API runs. Read per request for the
   // same reason as the authorities above.
   const previousGate = setRequestGateSource(() => {
-    const connection = ctx.get('connection') as { requestRejection?: unknown } | undefined
+    const connection = ctx.get('connection') as { requestRejection?: unknown; admit?: (request: unknown) => { rejection?: number; peer?: { principal: { kind: string }; signal: AbortSignal } } } | undefined
+    if (typeof connection?.admit === 'function') {
+      return request => {
+        const admission = connection.admit!(request)
+        if ('rejection' in admission) return admission.rejection ?? 403
+        return admission.peer?.principal.kind === 'owner' && !admission.peer.signal.aborted ? undefined : 403
+      }
+    }
     const gate = connection?.requestRejection
     return typeof gate === 'function'
       ? (request => (gate as (request: unknown) => number | undefined).call(connection, request))
