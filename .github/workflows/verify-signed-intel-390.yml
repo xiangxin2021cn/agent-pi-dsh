@@ -1,0 +1,75 @@
+name: Verify final signed 3.9.0 Intel packages
+on:
+  workflow_dispatch:
+    inputs:
+      dmg_sha256:
+        description: SHA256 of the final stapled Intel DMG
+        required: true
+        type: string
+      zip_sha256:
+        description: SHA256 of the final Apple ditto Intel ZIP
+        required: true
+        type: string
+      developer_team_id:
+        description: Expected Developer ID TeamIdentifier (not a private key)
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  verify:
+    name: Native Intel signed ${{ matrix.format }} first launch
+    runs-on: macos-15-intel
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        format: [dmg, zip]
+    env:
+      GH_TOKEN: ${{ github.token }}
+      INTEL_DMG_SHA256: ${{ inputs.dmg_sha256 }}
+      INTEL_ZIP_SHA256: ${{ inputs.zip_sha256 }}
+      DEVELOPER_TEAM_ID: ${{ inputs.developer_team_id }}
+      SIGNED_INTEL_REPORT_DIR: ${{ runner.temp }}/agent-pi-390-signed-intel-report
+    steps:
+      - name: Check out verification tooling
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          path: release-ops
+          persist-credentials: false
+      - name: Check out immutable application candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: v3.9.0
+          path: candidate
+          persist-credentials: false
+          sparse-checkout: |
+            scripts
+            apps/desktop
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.22.2
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          architecture: x64
+      - name: Test archive corruption and release guards
+        run: |
+          node --test release-ops/scripts/verify-signed-intel-390.test.mjs
+          python3 -B release-ops/scripts/verify-mac-zip-links.test.py
+      - name: Verify final signed files on native Intel hardware
+        env:
+          FORMAT: ${{ matrix.format }}
+        run: node release-ops/scripts/verify-signed-intel-390.mjs "$GITHUB_WORKSPACE/candidate" "$FORMAT"
+      - name: Preserve verification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: agent-pi-dsh-390-signed-intel-${{ matrix.format }}-verification
+          path: |
+            ${{ env.SIGNED_INTEL_REPORT_DIR }}/*.json
+            ${{ env.SIGNED_INTEL_REPORT_DIR }}/*.log
+          if-no-files-found: warn
+          retention-days: 30
