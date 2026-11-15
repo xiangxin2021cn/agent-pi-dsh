@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { acceptSignedIntelRelease, acceptScopedIntelInputs } from './verify-signed-intel-390.mjs'
+import { acceptSignedIntelRelease, acceptScopedIntelInputs, normalDownloadPrompt } from './verify-signed-intel-390.mjs'
 
 const dmg = 'a'.repeat(64)
 const zip = 'b'.repeat(64)
@@ -50,4 +50,13 @@ test('file-scoped inputs reject broader access, foreign hosts, missing files, an
     const value = input(); change(value)
     assert.throws(() => acceptScopedIntelInputs(value, assets, now))
   }
+})
+
+test('only the known app normal download confirmation can be accepted', () => {
+  const text = '“Agent Pi DSH” is an app downloaded from the Internet. Are you sure you want to open it? Apple checked it for malicious software and none was detected.'
+  assert.equal(normalDownloadPrompt(text, ['Cancel', 'Open']), true)
+  for (const unsafe of [text.replace('Agent Pi DSH', 'Another App'), text.replace('none was detected', 'malware was detected'), text + ' This will damage your computer.', 'The developer cannot be verified.']) {
+    assert.equal(normalDownloadPrompt(unsafe, ['Cancel', 'Open']), false)
+  }
+  assert.equal(normalDownloadPrompt(text, ['Cancel', 'Open Anyway']), false)
 })

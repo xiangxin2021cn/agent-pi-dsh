@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
 import { createReadStream, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { writeFile as writeDownloadedFile } from 'node:fs/promises'
@@ -49,6 +49,15 @@ export function acceptScopedIntelInputs(input, assets, now = Date.now()) {
     assert.ok(url.searchParams.get('sp') === 'r' && url.searchParams.get('sr') === 'b' &&
       Date.parse(url.searchParams.get('se')) >= expires, 'Only expiring single-blob read access is accepted')
   }
+}
+
+export function normalDownloadPrompt(text, buttons) {
+  const body = text.replace(/\s+/g, ' ')
+  return /["“]Agent Pi DSH["”] is an app downloaded from the Internet\./.test(body) &&
+    body.includes('Are you sure you want to open it?') &&
+    body.includes('Apple checked it for malicious software and none was detected.') &&
+    !/will damage|cannot be opened|can't be opened|malware was detected/i.test(body) &&
+    buttons.includes('Open') && buttons.includes('Cancel')
 }
 
 async function main() {
@@ -236,6 +245,41 @@ async function launchServices(app, audit, env, run) {
   const started = Date.now()
   let renderer
   let owned
+  const promptScript = 'const allowed = ' + normalDownloadPrompt.toString() + ';\n' + String.raw`
+function run() {
+  ObjC.import('Foundation');
+  const system = Application('System Events');
+  let last = '';
+  function collect(element, depth, result) {
+    if (depth > 8) return;
+    const role = element.role();
+    if (role === 'AXStaticText') result.text.push(String(element.value()));
+    if (role === 'AXButton' && element.enabled()) result.buttons.push(element);
+    for (const child of element.uiElements()) collect(child, depth + 1, result);
+  }
+  for (let attempt = 0; attempt < 180; attempt++) {
+    const agent = system.processes.byName('CoreServicesUIAgent');
+    const matches = [];
+    if (agent.exists()) for (const window of agent.windows()) {
+      const result = { text: [], buttons: [] };
+      collect(window, 0, result);
+      const text = result.text.join(' ');
+      if (text.includes('Agent Pi DSH')) last = text;
+      if (allowed(text, result.buttons.map(button => button.name()))) matches.push({ text, buttons: result.buttons });
+    }
+    if (matches.length === 1) {
+      matches[0].buttons.find(button => button.name() === 'Open').click();
+      return JSON.stringify({ handled: true, text: matches[0].text, action: 'Open', uiAgent: 'CoreServicesUIAgent' });
+    }
+    $.NSThread.sleepForTimeInterval(0.5);
+  }
+  return JSON.stringify({ handled: false, observedAppDialog: last });
+}`
+  let promptOutput = '', promptError = ''
+  const prompt = spawn('/usr/bin/osascript', ['-l', 'JavaScript', '-e', promptScript], { env, stdio: ['ignore', 'pipe', 'pipe'] })
+  prompt.stdout.on('data', chunk => { promptOutput += chunk.toString() })
+  prompt.stderr.on('data', chunk => { promptError += chunk.toString() })
+  prompt.on('error', error => { promptError += error.code ?? error.name })
   try {
     run('launch-services-open', '/usr/bin/open', ['-n', '--env', 'AGENT_PI_DSH_FORCE_COLD_START=1', '-a', app,
       '--args', '--disable-gpu', marker, '--remote-debugging-port=' + port], 120000, env)
@@ -250,6 +294,7 @@ async function launchServices(app, audit, env, run) {
             assert.ok(owned, 'Cannot establish ownership of launched application')
             const proof = { passed: true, elapsedMs: Date.now() - started, renderer,
               appTranslocation: owned.command.includes('/AppTranslocation/'), process: owned.command }
+            try { proof.normalDownloadConfirmation = JSON.parse(promptOutput) } catch { proof.normalDownloadConfirmation = { handled: false } }
             writeFileSync(join(audit, 'launch-services-first.json'), JSON.stringify(proof, null, 2))
             return proof
           }
@@ -262,10 +307,13 @@ async function launchServices(app, audit, env, run) {
     spawnSync('/usr/sbin/screencapture', ['-x', join(audit, 'launch-failure-desktop.png')], { env, timeout: 5000 })
     throw error
   } finally {
+    if (prompt.exitCode === null) prompt.kill('SIGTERM')
     const launchLog = join(userData, 'dsh-launch.log')
     if (existsSync(launchLog)) writeFileSync(join(audit, 'launch-services-dsh.log'), sanitizeStartupLog(readFileSync(launchLog, 'utf8')).slice(-20000))
     for (const row of processes()) { try { process.kill(row.pid, 'SIGTERM') } catch {} }
     await delay(3000)
+    writeFileSync(join(audit, 'normal-download-prompt.stdout.log'), promptOutput)
+    writeFileSync(join(audit, 'normal-download-prompt.stderr.log'), promptError)
     for (const row of processes()) { try { process.kill(row.pid, 'SIGKILL') } catch {} }
   }
 }
