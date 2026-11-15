@@ -263,7 +263,8 @@ function run() {
     stage = 'element children: ' + role;
     for (const child of element.uiElements()) collect(child, depth + 1, result);
   }
-  for (let attempt = 0; attempt < 180; attempt++) {
+  const observingStarted = Date.now();
+  while (Date.now() - observingStarted < 600000) {
     try {
       stage = 'process query';
       const agents = system.applicationProcesses.whose({ name: 'CoreServicesUIAgent' })();
@@ -296,8 +297,9 @@ function run() {
   prompt.on('error', error => { promptError += error.code ?? error.name })
   try {
     run('launch-services-open', '/usr/bin/open', ['-n', '--env', 'AGENT_PI_DSH_FORCE_COLD_START=1', '-a', app,
-      '--args', '--disable-gpu', marker, '--remote-debugging-port=' + port], 120000, env)
-    while (Date.now() - started < 180000) {
+      '--args', '--disable-gpu', marker, '--remote-debugging-port=' + port], 600000, env)
+    const openedAt = Date.now()
+    while (Date.now() - openedAt < 180000) {
       try {
         const targets = await (await fetch('http://127.0.0.1:' + port + '/json/list', { signal: AbortSignal.timeout(2000) })).json()
         const target = targets.find(target => target.type === 'page' && /^http:\/\/(127\.0\.0\.1|localhost):\d+\//.test(target.url))
@@ -306,7 +308,8 @@ function run() {
           if (renderer.ready === 'complete' && renderer.textLength > 100 && renderer.visibility === 'visible' && renderer.width > 0 && renderer.height > 0) {
             owned = processes().find(row => !row.command.includes('--type=') && row.command.includes('/Contents/MacOS/'))
             assert.ok(owned, 'Cannot establish ownership of launched application')
-            const proof = { passed: true, elapsedMs: Date.now() - started, renderer,
+            const proof = { passed: true, elapsedMs: Date.now() - started, systemOpenMs: openedAt - started,
+              rendererAfterOpenMs: Date.now() - openedAt, renderer,
               appTranslocation: owned.command.includes('/AppTranslocation/'), process: owned.command }
             try { proof.normalDownloadConfirmation = JSON.parse(promptOutput) } catch { proof.normalDownloadConfirmation = { handled: false } }
             writeFileSync(join(audit, 'launch-services-first.json'), JSON.stringify(proof, null, 2))

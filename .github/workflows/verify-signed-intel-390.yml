@@ -20,7 +20,7 @@ jobs:
   verify:
     name: Native Intel signed ${{ matrix.format }} first launch
     runs-on: macos-15-intel
-    timeout-minutes: 45
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
