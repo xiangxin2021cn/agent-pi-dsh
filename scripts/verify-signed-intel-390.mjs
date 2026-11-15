@@ -95,6 +95,8 @@ async function main() {
     assert.equal(run('candidate', 'git', ['-C', candidate, 'rev-parse', 'HEAD']).trim(), sourceCommit)
     assert.equal(run('candidate-clean', 'git', ['-C', candidate, 'status', '--porcelain']).trim(), '')
     assert.equal(readFileSync(join(candidate, 'DSH_PIN'), 'utf8').trim(), kernelPin)
+    run('ui-query-preflight', '/usr/bin/osascript', ['-l', 'JavaScript', '-e',
+      "JSON.stringify({finderProcesses:Application('System Events').applicationProcesses.whose({name:'Finder'})().length})"], 15000, appEnv)
     let scoped
     try { scoped = JSON.parse(inputSecret) } catch { throw new Error('Missing or invalid scoped input manifest') }
     for (const url of Object.values(scoped.downloads ?? {})) if (typeof url === 'string') console.log('::add-mask::' + url)
@@ -250,30 +252,42 @@ function run() {
   ObjC.import('Foundation');
   const system = Application('System Events');
   let last = '';
+  let stage = '', rereads = 0;
   function collect(element, depth, result) {
     if (depth > 8) return;
+    stage = 'element role';
     const role = element.role();
+    stage = 'element value: ' + role;
     if (role === 'AXStaticText') result.text.push(String(element.value()));
     if (role === 'AXButton' && element.enabled()) result.buttons.push(element);
+    stage = 'element children: ' + role;
     for (const child of element.uiElements()) collect(child, depth + 1, result);
   }
   for (let attempt = 0; attempt < 180; attempt++) {
-    const agent = system.processes.byName('CoreServicesUIAgent');
-    const matches = [];
-    if (agent.exists()) for (const window of agent.windows()) {
-      const result = { text: [], buttons: [] };
-      collect(window, 0, result);
-      const text = result.text.join(' ');
-      if (text.includes('Agent Pi DSH')) last = text;
-      if (allowed(text, result.buttons.map(button => button.name()))) matches.push({ text, buttons: result.buttons });
-    }
-    if (matches.length === 1) {
-      matches[0].buttons.find(button => button.name() === 'Open').click();
-      return JSON.stringify({ handled: true, text: matches[0].text, action: 'Open', uiAgent: 'CoreServicesUIAgent' });
+    try {
+      stage = 'process query';
+      const agents = system.applicationProcesses.whose({ name: 'CoreServicesUIAgent' })();
+      const matches = [];
+      stage = 'window query';
+      if (agents.length === 1) for (const window of agents[0].windows()) {
+        const result = { text: [], buttons: [] };
+        collect(window, 0, result);
+        const text = result.text.join(' ');
+        if (text.includes('Agent Pi DSH')) last = text;
+        if (allowed(text, result.buttons.map(button => button.name()))) matches.push({ text, buttons: result.buttons });
+      }
+      if (matches.length === 1) {
+        stage = 'normal Open';
+        matches[0].buttons.find(button => button.name() === 'Open').click();
+        return JSON.stringify({ handled: true, text: matches[0].text, action: 'Open', uiAgent: 'CoreServicesUIAgent', axRereads: rereads });
+      }
+    } catch (error) {
+      if (Number(error.errorNumber ?? error.number) !== -1719 && !/Invalid index/i.test(String(error))) throw error;
+      if (++rereads <= 3) console.log('Requerying stale accessibility index at ' + stage);
     }
     $.NSThread.sleepForTimeInterval(0.5);
   }
-  return JSON.stringify({ handled: false, observedAppDialog: last });
+  return JSON.stringify({ handled: false, observedAppDialog: last, axRereads: rereads, lastQueryStage: stage });
 }`
   let promptOutput = '', promptError = ''
   const prompt = spawn('/usr/bin/osascript', ['-l', 'JavaScript', '-e', promptScript], { env, stdio: ['ignore', 'pipe', 'pipe'] })
