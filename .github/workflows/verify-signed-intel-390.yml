@@ -30,7 +30,6 @@ jobs:
       INTEL_DMG_SHA256: ${{ inputs.dmg_sha256 }}
       INTEL_ZIP_SHA256: ${{ inputs.zip_sha256 }}
       DEVELOPER_TEAM_ID: ${{ inputs.developer_team_id }}
-      SIGNED_INTEL_REPORT_DIR: ${{ runner.temp }}/agent-pi-390-signed-intel-report
     steps:
       - name: Check out verification tooling
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -62,6 +61,7 @@ jobs:
       - name: Verify final signed files on native Intel hardware
         env:
           FORMAT: ${{ matrix.format }}
+          SIGNED_INTEL_REPORT_DIR: ${{ runner.temp }}/agent-pi-390-signed-intel-report
         run: node release-ops/scripts/verify-signed-intel-390.mjs "$GITHUB_WORKSPACE/candidate" "$FORMAT"
       - name: Preserve verification evidence
         if: always()
@@ -69,7 +69,7 @@ jobs:
         with:
           name: agent-pi-dsh-390-signed-intel-${{ matrix.format }}-verification
           path: |
-            ${{ env.SIGNED_INTEL_REPORT_DIR }}/*.json
-            ${{ env.SIGNED_INTEL_REPORT_DIR }}/*.log
+            ${{ runner.temp }}/agent-pi-390-signed-intel-report/*.json
+            ${{ runner.temp }}/agent-pi-390-signed-intel-report/*.log
           if-no-files-found: warn
           retention-days: 30
