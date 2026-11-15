@@ -71,5 +71,6 @@ jobs:
           path: |
             ${{ runner.temp }}/agent-pi-390-signed-intel-report/*.json
             ${{ runner.temp }}/agent-pi-390-signed-intel-report/*.log
+            ${{ runner.temp }}/agent-pi-390-signed-intel-report/*.png
           if-no-files-found: warn
           retention-days: 30

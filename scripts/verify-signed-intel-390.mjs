@@ -237,8 +237,8 @@ async function launchServices(app, audit, env, run) {
   let renderer
   let owned
   try {
-    run('launch-services-open', '/usr/bin/open', ['-n', app, '--args', '--disable-gpu', marker, '--remote-debugging-port=' + port], 15000,
-      { ...env, AGENT_PI_DSH_FORCE_COLD_START: '1' })
+    run('launch-services-open', '/usr/bin/open', ['-n', '--env', 'AGENT_PI_DSH_FORCE_COLD_START=1', '-a', app,
+      '--args', '--disable-gpu', marker, '--remote-debugging-port=' + port], 120000, env)
     while (Date.now() - started < 180000) {
       try {
         const targets = await (await fetch('http://127.0.0.1:' + port + '/json/list', { signal: AbortSignal.timeout(2000) })).json()
@@ -258,6 +258,9 @@ async function launchServices(app, audit, env, run) {
       await delay(500)
     }
     throw new Error('First LaunchServices renderer did not become ready; no retry or protection bypass was attempted')
+  } catch (error) {
+    spawnSync('/usr/sbin/screencapture', ['-x', join(audit, 'launch-failure-desktop.png')], { env, timeout: 5000 })
+    throw error
   } finally {
     const launchLog = join(userData, 'dsh-launch.log')
     if (existsSync(launchLog)) writeFileSync(join(audit, 'launch-services-dsh.log'), sanitizeStartupLog(readFileSync(launchLog, 'utf8')).slice(-20000))
