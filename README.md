@@ -8,7 +8,7 @@
 
 <h1 align="center">Agent Pi DSH</h1>
 
-当前公开主线版 3.8.9 采用官方 DSH dsh-v0.2.2-rc.1（66491b05），升级 Electron 45.2.2、插件市场 1.73.10、PDF.js 6.5.438 和 Marked 18.1.3，保留完整 Univer Office 0.4.0、知识库与工程组件。保留上下文超限续跑和图片卸载修复。Apple Silicon 与 Intel DMG 均通过签名、公证及实际挂载检查。详见 [3.8.9 说明](release/github-notes-3.8.9.md) 与 [GitHub v3.8.9 Release](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/tag/v3.8.9)。投标专版保持独立。
+当前公开主线版 3.9.0 采用官方 DSH dsh-v0.2.2-rc.3（39163dd3），升级兼容的核心插件及插件市场 1.73.19，保留完整 Univer Office 0.4.0、知识库、技能和工程组件，以及上下文超限续跑和图片卸载保护。Apple Silicon 和 Intel 成品均通过 Developer ID 签名、Apple 公证、系统解包和首次启动验收。详见 [3.9.0 说明](release/github-notes-3.9.0.md) 与 [GitHub v3.9.0 Release](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/tag/v3.9.0)。投标专版保持独立。
 
 历史主线版 3.8.7 升级到经审核的官方 DSH master 快照 `ce7073d51254c26cd63b22a60835b8f948deb447`（上游包版本仍为 `0.2.2-alpha.2`）、完整 Univer Office 0.3.9、Electron 45.2.0 与 Node.js 24.22.2。修复跨项目 DWG 预览的来源目录和会话关联，以及新版 DSH 历史消息渲染适配；保留工作区边界、模板 DNA、知识库、技能与后台执行，新增定时任务 v1 升级前备份。下载见 [GitHub v3.8.7 Release](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/tag/v3.8.7)，改动及边界见 [3.8.7 说明](release/github-notes-3.8.7.md)与[组件记录](release/3.8.7-core-components.json)。该次公开发行仅包含主线版，投标专版保持独立。
 
@@ -43,26 +43,28 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.9/Agent-Pi-DSH-3.8.9-x64.exe"><b>Windows x64</b></a>
+  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.9.0/Agent-Pi-DSH-3.9.0-x64.exe"><b>Windows x64</b></a>
   ·
-  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.9/Agent-Pi-DSH-3.8.9-mac-arm64.dmg"><b>macOS Apple Silicon</b></a>
+  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.9.0/Agent-Pi-DSH-3.9.0-mac-arm64.dmg"><b>macOS Apple Silicon</b></a>
   ·
-  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.9/Agent-Pi-DSH-3.8.9-mac-x64.dmg"><b>macOS Intel</b></a>
+  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.9.0/Agent-Pi-DSH-3.9.0-mac-x64.dmg"><b>macOS Intel</b></a>
   ·
-  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.9/Agent-Pi-DSH-3.8.9-linux-x86_64.AppImage"><b>Linux AppImage</b></a>
+  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.9.0/Agent-Pi-DSH-3.9.0-linux-x86_64.AppImage"><b>Linux AppImage</b></a>
   ·
-  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.9/Agent-Pi-DSH-3.8.9-linux-amd64.deb"><b>Linux DEB</b></a>
+  <a href="https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.9.0/Agent-Pi-DSH-3.9.0-linux-amd64.deb"><b>Linux DEB</b></a>
   ·
   <a href="https://www.agent-pi.app">官网</a>
   ·
   <a href="https://www.agent-pi.app/docs.html">文档</a>
 </p>
 
-3.8.9 的 macOS 系统要求：Apple Silicon 与 Intel 均为 macOS 15 及以上；本版不提供 Monterey 兼容包。
+3.9.0 的 macOS 系统要求：Apple Silicon 与 Intel 均为 macOS 15 及以上；本版不提供 Monterey 兼容包。
 
 历史 3.8.7 应用源码固定在公开标签 `v3.8.7`（`63815f174216f3d41a26b1c31516bc554400c5e1`）；全平台使用该不可变标签及经核验的发行载荷。后续发布 CI 与官网维护提交不改变应用来源，安装包及 SHA256 以 Release 的实际发布资产为准。
 
-3.8.9 应用源码固定在公开标签 `v3.8.9`（`c71c4f90bb51a4e7ac4892e464affc9dd6420417`）。各平台使用同一不可变来源和已核验的运行时载荷，发布日期为 2026-11-10（Africa/Windhoek）。
+3.9.0 应用源码固定在公开标签 `v3.9.0`（`13869160f0863b26de66aa7fc02a53617408f498`）。各平台使用同一不可变应用候选和已核验的运行时载荷，发布日期为 2026-11-15（Africa/Windhoek）。
+
+历史 3.8.9 应用源码固定在公开标签 `v3.8.9`（`c71c4f90bb51a4e7ac4892e464affc9dd6420417`）。各平台使用同一不可变来源和已核验的运行时载荷，发布日期为 2026-11-10（Africa/Windhoek）。
 
 历史 3.8.8 应用源码固定在公开标签 `v3.8.8`（`28888149e1249661945e17c29d9baf8a725712e1`）；Windows、macOS Apple Silicon / Intel 和 Linux 使用同一不可变来源及经核验的运行时载荷。23 项全平台发行资源及校验文件已公开，下载以实际 Release 资产为准；发布日期为 2026-11-03（Africa/Windhoek）。后续 README、发行说明与官网维护提交不移动应用标签，也不改变已发布安装包字节及 SHA256。
 
@@ -173,15 +175,15 @@ flowchart LR
 
 | 平台 | 文件 |
 | --- | --- |
-| Windows x64 | [Agent-Pi-DSH-3.8.9-x64.exe](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.9/Agent-Pi-DSH-3.8.9-x64.exe) |
-| macOS Apple Silicon | [Agent-Pi-DSH-3.8.9-mac-arm64.dmg](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.9/Agent-Pi-DSH-3.8.9-mac-arm64.dmg) · [zip](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.9/Agent-Pi-DSH-3.8.9-mac-arm64.zip) |
-| macOS Intel | [Agent-Pi-DSH-3.8.9-mac-x64.dmg](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.9/Agent-Pi-DSH-3.8.9-mac-x64.dmg) · [zip](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.9/Agent-Pi-DSH-3.8.9-mac-x64.zip) |
-| Linux x64 | [AppImage](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.9/Agent-Pi-DSH-3.8.9-linux-x86_64.AppImage) · [deb](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.9/Agent-Pi-DSH-3.8.9-linux-amd64.deb) |
+| Windows x64 | [Agent-Pi-DSH-3.9.0-x64.exe](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.9.0/Agent-Pi-DSH-3.9.0-x64.exe) |
+| macOS Apple Silicon | [Agent-Pi-DSH-3.9.0-mac-arm64.dmg](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.9.0/Agent-Pi-DSH-3.9.0-mac-arm64.dmg) · [zip](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.9.0/Agent-Pi-DSH-3.9.0-mac-arm64.zip) |
+| macOS Intel | [Agent-Pi-DSH-3.9.0-mac-x64.dmg](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.9.0/Agent-Pi-DSH-3.9.0-mac-x64.dmg) · [zip](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.9.0/Agent-Pi-DSH-3.9.0-mac-x64.zip) |
+| Linux x64 | [AppImage](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.9.0/Agent-Pi-DSH-3.9.0-linux-x86_64.AppImage) · [deb](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.9.0/Agent-Pi-DSH-3.9.0-linux-amd64.deb) |
 | 2.6.5 经典版 | [可与 3.x 并存](https://github.com/xiangxin2021cn/agent-pi/releases/tag/v2.6.5) |
 
-国内加速（Windows）：[gh-proxy.org](https://gh-proxy.org/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.9/Agent-Pi-DSH-3.8.9-x64.exe)。由第三方提供；不可用时请使用 GitHub 原站。
+国内加速（Windows）：[gh-proxy.org](https://gh-proxy.org/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.9.0/Agent-Pi-DSH-3.9.0-x64.exe)。由第三方提供；不可用时请使用 GitHub 原站。
 
-Windows 安装包的正式 SHA256 以同一 Release 中的 `.sha256` 资产为准；发布脚本会在上线前重新计算并核对本地文件与 GitHub 资产。 3.8.9 Windows x64：688939405 字节；SHA256：`5A2196F60F782CCE7B2C3A3B59B050BFBEDD01B5E26591808854C8AF8699C895`；[校验文件](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.8.9/Agent-Pi-DSH-3.8.9-x64.exe.sha256)。
+Windows 安装包的正式 SHA256 以同一 Release 中的 `.sha256` 资产为准；发布脚本会在上线前重新计算并核对本地文件与 GitHub 资产。 3.9.0 Windows x64：736439453 字节；SHA256：`549F6F6CD56AA325AA6C002132F2CCB78CB6DA215657BCF0C07E028210BDF28C`；[校验文件](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.9.0/Agent-Pi-DSH-3.9.0-x64.exe.sha256)。
 
 1. 下载对应平台安装包
 2. 核对对应安装包的 SHA256。Windows 安装包未签名，SmartScreen 可能提示风险。
@@ -198,6 +200,7 @@ Windows 安装包的正式 SHA256 以同一 Release 中的 `.sha256` 资产为�
 
 | 版本 | 一句话 |
 | --- | --- |
+| [3.9.0](./release/github-notes-3.9.0.md) | DSH rc.3、插件市场升级，保留上下文保护；Mac ZIP 符号链接修复及双格式首次启动验收 |
 | [3.8.9](./release/github-notes-3.8.9.md) | DSH rc.1、核心组件升级，macOS DMG 改为 APFS 并加入签名、公证及挂载门禁 |
 | [3.8.8](./release/github-notes-3.8.8.md) | 官方 OAR 外派、精简运行时、完整 Office 0.4.0；侧栏恢复、市场独立自检、历史结果标识与受控插件布局迁移 |
 | [3.8.7](./release/github-notes-3.8.7.md) | 官方 DSH 0.2.2-alpha.2 master 快照、完整 Univer Office 0.3.9；跨项目 DWG 来源修复与历史消息兼容，保留模板 DNA、知识库、技能与后台执行 |

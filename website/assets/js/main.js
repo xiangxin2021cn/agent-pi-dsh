@@ -176,15 +176,17 @@
     if (!assets["windows-exe"] || !assets["mac-dmg"] || !assets["linux-appimage"]) return;
     if (version === "3.8.9" && (identity.kernelVersion !== "dsh-v0.2.2-rc.1" || identity.kernelPin !== "66491b05e3f05ad35bcdd4f6cd7ed26041d9e3db" ||
       !Object.keys(assetSuffixes).every(function (key) { return assets[key]; }))) return;
+    if (version === "3.9.0" && (identity.kernelVersion !== "dsh-v0.2.2-rc.3" || identity.kernelPin !== "39163dd30f703a79079e2d2446545cff3c453738" ||
+      !Object.keys(assetSuffixes).every(function (key) { return assets[key]; }))) return;
     var digest = assets["windows-exe"].digest || "";
     var digestMatch = digest.match(/^sha256:([a-f0-9]{64})$/i);
     if (!digestMatch) return;
 
     {
-      var currentRequirements = version === "3.8.5" || version === "3.8.6" || version === "3.8.7" || version === "3.8.8" || version === "3.8.9";
+      var currentRequirements = version === "3.8.5" || version === "3.8.6" || version === "3.8.7" || version === "3.8.8" || version === "3.8.9" || version === "3.9.0";
       var legacyRequirements = version === "3.8.2";
       document.querySelectorAll("[data-release-electron-version]").forEach(function (node) {
-        node.textContent = version === "3.8.9" ? "45.2.2" : version === "3.8.7" || version === "3.8.8" ? "45.2.0" : currentRequirements ? "45.0.0" : legacyRequirements ? "44.7.0" : "See Release";
+        node.textContent = version === "3.8.9" || version === "3.9.0" ? "45.2.2" : version === "3.8.7" || version === "3.8.8" ? "45.2.0" : currentRequirements ? "45.0.0" : legacyRequirements ? "44.7.0" : "See Release";
       });
       document.querySelectorAll('[data-release-system="mac-arm64"]').forEach(function (node) {
         node.textContent = currentRequirements ? "Apple Silicon · macOS 15+" : legacyRequirements ? "Apple Silicon · macOS 13+" : "Apple Silicon · See Release";
