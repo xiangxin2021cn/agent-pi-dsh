@@ -26,7 +26,6 @@ jobs:
       matrix:
         format: [dmg, zip]
     env:
-      GH_TOKEN: ${{ github.token }}
       INTEL_DMG_SHA256: ${{ inputs.dmg_sha256 }}
       INTEL_ZIP_SHA256: ${{ inputs.zip_sha256 }}
       DEVELOPER_TEAM_ID: ${{ inputs.developer_team_id }}
@@ -62,6 +61,7 @@ jobs:
         env:
           FORMAT: ${{ matrix.format }}
           SIGNED_INTEL_REPORT_DIR: ${{ runner.temp }}/agent-pi-390-signed-intel-report
+          SIGNED_INTEL_INPUT_SECRET: ${{ secrets.SIGNED_INTEL_390_INPUTS }}
         run: node release-ops/scripts/verify-signed-intel-390.mjs "$GITHUB_WORKSPACE/candidate" "$FORMAT"
       - name: Preserve verification evidence
         if: always()

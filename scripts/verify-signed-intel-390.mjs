@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
 import { createReadStream, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { writeFile as writeDownloadedFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -36,6 +37,20 @@ export function acceptSignedIntelRelease(release, dmgSha, zipSha, team) {
   })
 }
 
+export function acceptScopedIntelInputs(input, assets, now = Date.now()) {
+  const expires = Date.parse(input.expiresAt)
+  assert.ok(expires > now + 60000 && expires <= now + 2 * 3600000, 'Scoped inputs must expire within two hours')
+  assert.deepEqual(Object.keys(input.downloads).sort(), assets.map(asset => asset.name).sort())
+  for (const asset of assets) {
+    let url
+    try { url = new URL(input.downloads[asset.name]) } catch { throw new Error('Invalid scoped asset URL') }
+    assert.ok(url.protocol === 'https:' && url.hostname === 'release-assets.githubusercontent.com' &&
+      !url.username && !url.password && !url.hash && url.pathname.startsWith('/github-production-release-asset/'), 'Unexpected scoped asset origin')
+    assert.ok(url.searchParams.get('sp') === 'r' && url.searchParams.get('sr') === 'b' &&
+      Date.parse(url.searchParams.get('se')) >= expires, 'Only expiring single-blob read access is accepted')
+  }
+}
+
 async function main() {
   assert.equal(process.platform, 'darwin')
   assert.equal(process.arch, 'x64', 'Native Intel runner required')
@@ -47,6 +62,9 @@ async function main() {
   assert.ok(audit.startsWith(runnerTemp + '/'), 'Audit must remain inside runner temporary storage')
   mkdirSync(audit, { recursive: true })
   const env = { ...process.env, GH_DEBUG: '' }
+  const inputSecret = env.SIGNED_INTEL_INPUT_SECRET
+  delete env.SIGNED_INTEL_INPUT_SECRET
+  delete process.env.SIGNED_INTEL_INPUT_SECRET
   const appEnv = Object.fromEntries(Object.entries(env).filter(([key]) =>
     !/token|secret|password|credential|cookie|api.?key|authorization|^DSH_|^AGENT_PI_|^ELECTRON_RUN_AS_NODE$|^NODE_OPTIONS$|^NODE_PATH$/i.test(key)))
   const run = (label, command, args, timeout = 300000, childEnv = env) => {
@@ -68,13 +86,31 @@ async function main() {
     assert.equal(run('candidate', 'git', ['-C', candidate, 'rev-parse', 'HEAD']).trim(), sourceCommit)
     assert.equal(run('candidate-clean', 'git', ['-C', candidate, 'status', '--porcelain']).trim(), '')
     assert.equal(readFileSync(join(candidate, 'DSH_PIN'), 'utf8').trim(), kernelPin)
-    const release = JSON.parse(run('draft', 'gh', ['api', 'repos/xiangxin2021cn/agent-pi-dsh/releases/445163826']))
+    let scoped
+    try { scoped = JSON.parse(inputSecret) } catch { throw new Error('Missing or invalid scoped input manifest') }
+    for (const url of Object.values(scoped.downloads ?? {})) if (typeof url === 'string') console.log('::add-mask::' + url)
+    const release = scoped.release
     const assets = acceptSignedIntelRelease(release, env.INTEL_DMG_SHA256, env.INTEL_ZIP_SHA256, env.DEVELOPER_TEAM_ID)
+    acceptScopedIntelInputs(scoped, assets)
     const inputs = join(audit, 'inputs')
     mkdirSync(inputs)
-    const downloadArgs = ['release', 'download', 'v3.9.0', '--repo', 'xiangxin2021cn/agent-pi-dsh', '--dir', inputs]
-    for (const asset of assets) downloadArgs.push('--pattern', asset.name)
-    run('download', 'gh', downloadArgs, 900000)
+    await Promise.all(assets.map(async asset => {
+      try {
+        const response = await fetch(scoped.downloads[asset.name], { redirect: 'error', signal: AbortSignal.timeout(900000) })
+        assert.equal(response.status, 200)
+        let bytes = 0
+        async function* chunks() {
+          for await (const chunk of response.body) {
+            bytes += chunk.byteLength
+            assert.ok(bytes <= asset.size)
+            yield chunk
+          }
+        }
+        await writeDownloadedFile(join(inputs, asset.name), chunks(), { flag: 'wx' })
+        assert.equal(bytes, asset.size)
+      } catch { throw new Error('Scoped download failed: ' + asset.name) }
+    }))
+    jsonWrite('download-authorization.json', { kind: 'expiring-single-blob-read', expiresAt: scoped.expiresAt, files: assets.map(asset => asset.name) })
     for (const asset of assets) {
       const hash = createHash('sha256')
       let bytes = 0

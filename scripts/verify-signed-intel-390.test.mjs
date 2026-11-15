@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { acceptSignedIntelRelease } from './verify-signed-intel-390.mjs'
+import { acceptSignedIntelRelease, acceptScopedIntelInputs } from './verify-signed-intel-390.mjs'
 
 const dmg = 'a'.repeat(64)
 const zip = 'b'.repeat(64)
@@ -33,4 +33,21 @@ test('formal release cannot precede this validation and malformed inputs are ref
   assert.throws(() => acceptSignedIntelRelease(publicRelease, dmg, zip, team))
   assert.throws(() => acceptSignedIntelRelease(release(), 'not-a-hash', zip, team))
   assert.throws(() => acceptSignedIntelRelease(release(), dmg, zip, 'unknown'))
+})
+
+test('file-scoped inputs reject broader access, foreign hosts, missing files, and stale links', () => {
+  const assets = acceptSignedIntelRelease(release(), dmg, zip, team)
+  const now = Date.now(), expiresAt = new Date(now + 3600000).toISOString()
+  const input = () => ({ expiresAt, downloads: Object.fromEntries(assets.map(asset => [asset.name,
+    'https://release-assets.githubusercontent.com/github-production-release-asset/1/fixture?sp=r&sr=b&se=' + encodeURIComponent(expiresAt)])) })
+  acceptScopedIntelInputs(input(), assets, now)
+  for (const change of [
+    value => { value.expiresAt = new Date(now - 1000).toISOString() },
+    value => { delete value.downloads[assets[0].name] },
+    value => { value.downloads[assets[0].name] = value.downloads[assets[0].name].replace('sp=r', 'sp=rw') },
+    value => { value.downloads[assets[0].name] = value.downloads[assets[0].name].replace('release-assets.githubusercontent.com', 'another.example') },
+  ]) {
+    const value = input(); change(value)
+    assert.throws(() => acceptScopedIntelInputs(value, assets, now))
+  }
 })
