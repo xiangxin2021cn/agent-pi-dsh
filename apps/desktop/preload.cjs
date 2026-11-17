@@ -1,5 +1,10 @@
 const { contextBridge, ipcRenderer, webUtils } = require('electron')
 
+// DSH's native workspace flow uses this bridge instead of the Host chooser.
+contextBridge.exposeInMainWorld('__DSH_DIRECTORY_PICKER__', {
+  pick: () => ipcRenderer.invoke('pick-folder'),
+})
+
 contextBridge.exposeInMainWorld('agentPiDesktop', {
   relaunch: () => ipcRenderer.invoke('app-relaunch'),
   pickFolder: () => ipcRenderer.invoke('pick-folder'),

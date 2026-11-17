@@ -391,6 +391,13 @@ function buildManagedPatch(deps) {
 # Generated product defaults. User changes belong in the higher-precedence
 # profile cordis.patch.yml and are preserved across application starts.
 
+# Keep the core Workspace wire contract registered across Loader-entry changes.
+# This pins strict metadata only; Gateway still requires a live authorized service.
+- id: typert-loader
+  config:
+    packages:
+      - "@deepseek-ai/dsh-api-workspace-controller"
+
 # Model catalog and default selection come directly from the official dsh-base.
 # Do not shadow upstream multimodal capabilities with a product catalog.
 
