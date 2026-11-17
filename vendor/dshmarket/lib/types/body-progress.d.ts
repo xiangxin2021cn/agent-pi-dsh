@@ -70,8 +70,9 @@ export declare const MAX_BODY_BYTES: number;
  * @param res - the response whose body to read.
  * @param stallMs - silence that ends the read, in milliseconds.
  * @param what - the download, for the rejection message ("the catalog").
+ * @param maxBytes - maximum decoded response size.
  */
-export declare function readBodyWhileProgressing(res: Response, stallMs: number, what?: string): Promise<Uint8Array>;
+export declare function readBodyWhileProgressing(res: Response, stallMs: number, what?: string, maxBytes?: number): Promise<Uint8Array>;
 /**
  * Fetch with a headers-only deadline, then hand the body to the watchdog.
  *

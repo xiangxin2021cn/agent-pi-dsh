@@ -113,6 +113,13 @@ export interface UpdateNotes {
     /** Present for `source`: the repository page to read changes on, or null. */
     sourceUrl?: string | null;
     /**
+     * Present for `release` when the notes describe a version NEWER than the
+     * one the Update button installs (#1193): the snapshot is the repository's
+     * latest release, while the target may be an older, already installable
+     * one. Carries that target so the dialog can say whose notes these are.
+     */
+    beyondTarget?: string;
+    /**
      * Present for `source`: `missing` when the notes loaded without this
      * plugin, `unavailable` when they could not be loaded at all — a passing
      * failure, not a fact about the plugin — and `unreadable` when the source is
@@ -127,5 +134,7 @@ export interface UpdateNotes {
  * same contract the issue promised — a dialog that cannot load its data shows
  * a neutral statement, not an error.
  */
-export declare function updateNotesFor(profile: string, explicitDir: string | undefined, name: string): Promise<UpdateNotes>;
+export declare function updateNotesFor(profile: string, explicitDir: string | undefined, name: string, 
+/** The version the Update button installs, when it is not simply "latest". */
+target?: string): Promise<UpdateNotes>;
 export {};

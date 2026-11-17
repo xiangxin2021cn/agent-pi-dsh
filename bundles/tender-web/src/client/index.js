@@ -27,8 +27,6 @@ import { createSkillLifecycle, skillLifecycleCss } from './skill-lifecycle.js'
 import { createProfessionalTaskSummary, professionalTaskSummaryCss } from './professional-task-summary.js'
 import { renderTenderResponseCoverage, tenderResponseCss } from './tender-response-panel.js'
 import { installProfessionalConversationView } from './professional-conversation-view.js'
-import { createNativeCodexHistory } from './codex-execution.js'
-import { tCodexExecution } from './locales/codex-execution.js'
 import { installNativeWorkFilePreviews, nativeWorkFilePreviewCss } from './native-work-file-preview.js'
 import { buildCodexTurnDelegation, resolveCodexTurnSelection } from '../codex-turn.ts'
 import { fileIconClass, fileIconMeta, fileIconName } from '../file-icons.ts'
@@ -387,10 +385,6 @@ const SearchSettings = createSearchSettings(React)
 
     const codexTurnControllers = window.__apCodexTurnControllers || (window.__apCodexTurnControllers = new Map())
     const codexTurnListeners = window.__apCodexTurnListeners || (window.__apCodexTurnListeners = new Set())
-    const nativeCodex = createNativeCodexHistory({ React, desktop: window.agentPiDesktop, language: () => langState.lang, useLanguage: useApLang,
-      renderMessage: (text, cwd) => h('div', { dangerouslySetInnerHTML: { __html: mdToHtml(text, { cwd }) } }),
-      openFile: (cwd, path) => window.dispatchEvent(new CustomEvent('agent-pi-open-file', { detail: { cwd, path } })),
-    })
     const attachmentTurnControllers = window.__apAttachmentTurnControllers || (window.__apAttachmentTurnControllers = new Map())
     function codexTurnKey(props) {
       return sessionHint(props) || runtime.sessionId || 'active'
@@ -7741,7 +7735,6 @@ const SearchSettings = createSearchSettings(React)
 
     export function apply(ctx) {
       ctx.effect(() => productCapabilities.install())
-      ctx.effect(() => () => nativeCodex.dispose())
       installAttachmentMessageView(ctx, React)
       installProfessionalConversationView(ctx, React, ProfessionalSummary)
       installArchiveSessionView(ctx, { React, useLanguage: useApLang })
@@ -7796,10 +7789,6 @@ const SearchSettings = createSearchSettings(React)
           || (typeof scope.get === 'function' ? scope.get('uiConversation') : null)
           || runtime.uiConversation
       })
-      ctx.slots.inject('conversation.view', () => ctx.slots.register(
-        { name: 'conversation.view', id: 'agent-pi-codex-main', order: 30, label: () => langState.lang === 'zh' ? 'Codex 历史' : 'Codex history' },
-        nativeCodex.View,
-      ))
       ctx.slots.inject('conversation.view', () => ctx.slots.register(
         { name: 'conversation.view', id: 'workbench', order: 50, label: () => tAp('workbench.title') },
         Workbench,

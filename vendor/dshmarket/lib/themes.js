@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadRegistry, pluginCategories } from "./registry.js";
-import { hotMount, hotUnmount, listHotMounts, writeDisabled } from "./hot.js";
+import { hotMount, hotMountFailure, hotUnmount, listHotMounts, writeDisabled } from "./hot.js";
 import { logEvent } from "./log.js";
 import { loaderEntryId } from "./patch.js";
 import { LifecyclePendingError, LifecycleWaitError, waitForLifecycle } from "./lifecycle.js";
@@ -329,6 +329,7 @@ export function createThemeManager(host, profile, disabledThemes, explicitDir) {
      * set is what lets the next attempt try it again.
      */
     async function activateTheme(name) {
+        const stopFailedMount = async (theme) => !listHotMounts().includes(theme) || await hotUnmount(theme);
         const themes = await installedThemeNames();
         const stopped = [];
         for (const other of themes) {
@@ -346,22 +347,37 @@ export function createThemeManager(host, profile, disabledThemes, explicitDir) {
         }
         disabledThemes.delete(name);
         writeDisabled(activeProfileDir, disabledThemes);
-        const live = listHotMounts().includes(name)
-            || await setEntryDisabled(name, false)
-            || (await hotMount(host, activeProfileDir, name)).ok;
-        if (live)
-            return true;
+        let reason;
+        if (listHotMounts().includes(name)) {
+            reason = hotMountFailure(name, activeProfileDir);
+            if (reason === null)
+                return { ok: true };
+        }
+        else {
+            if (await setEntryDisabled(name, false))
+                return { ok: true };
+            const mount = await hotMount(host, activeProfileDir, name);
+            if (mount.ok)
+                return { ok: true };
+            reason = mount.retained === true ? mount.reason : null;
+        }
+        const failure = reason === null ? { ok: false } : { ok: false, reason };
+        if (!await stopFailedMount(name))
+            return failure;
         for (const previous of stopped) {
             const back = previous.kind === 'hot'
                 ? (await hotMount(host, activeProfileDir, previous.name)).ok
                 : await setEntryDisabled(previous.name, false);
             if (back)
                 disabledThemes.delete(previous.name);
-            else
+            else {
                 logEvent('warn', 'theme', `${previous.name}: could not be restored after ${name} failed to start`);
+                if (previous.kind === 'hot' && !await stopFailedMount(previous.name))
+                    break;
+            }
         }
         writeDisabled(activeProfileDir, disabledThemes);
-        return false;
+        return failure;
     }
     return { installedThemeNames, setEntryDisabled, activateTheme };
 }

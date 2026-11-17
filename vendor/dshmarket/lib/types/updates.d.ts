@@ -23,6 +23,10 @@ export interface UpdateStatus {
      * as "there is an upgrade" and labels a button accordingly.
      */
     updateAvailable: boolean;
+    /** Source lookup failed; notification surfaces may retain a previous confirmed result. */
+    checkError?: 'unavailable';
+    /** The upstream check failed, so this row does not establish that the plugin is current. */
+    checkFailed?: true;
     /** Exact mature npm stable target for Desktop; `latest` remains the registry tag. */
     eligibleVersion?: string;
     /**
@@ -237,7 +241,7 @@ export declare function fetchNpmLatest(name: string): Promise<string | null>;
  * without the market volunteering anyone's prerelease as an update.
  */
 export declare function newerPrereleaseFor(name: string, installed: string | null): Promise<string | null>;
-/** Per-plugin update checks; a failed check reports no update rather than failing the listing. */
+/** Check each plugin independently so a failed lookup leaves the other results usable. */
 export declare function checkUpdates(profile: string, force?: boolean, explicitDir?: string, 
 /**
  * Packages that follow a release channel instead of plain `latest`. Only

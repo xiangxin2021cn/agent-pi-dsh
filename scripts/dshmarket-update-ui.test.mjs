@@ -50,7 +50,8 @@ ${[...primitiveNames].map(name => `export const ${name}=components.${name}||(({c
       const url = new URL(String(input), dom.window.location.href)
       assert.equal(url.origin, 'http://127.0.0.1', 'Fixture must not contact external HTTP')
       const call = { path: url.pathname + url.search, method: init.method || 'GET', init, body: init.body ? JSON.parse(init.body) : undefined }; calls.push(call)
-      if (url.pathname === '/dsh-market/updates' && init.signal) {
+      if (url.pathname === '/dsh-market/updates' && url.searchParams.get('scope') === 'market') {
+        assert.ok(init.signal, 'The explicit market check must remain bounded')
         assert.equal(url.search, '?force=1&scope=market'); assert.equal(init.cache, 'no-store')
         return await new Promise((resolveReply, reject) => {
           pendingCheck = { resolve: resolveReply, reject }

@@ -30,6 +30,7 @@ import { fileURLToPath } from 'node:url';
 import { logEvent } from "./log.js";
 import { parsePatchFile, parsePatchText } from "./check.js";
 import { bundleOptOutRowIds, bundlePatchInsertedIds, declaredBundlePatchFiles, parsePatchRows } from "./profile.js";
+import { NPM_NAME_RE } from "./sources.js";
 /**
  * Host infrastructure rows: disabling any of these breaks the very chain
  * the patch layer runs on (e.g. timer → HMR, webserver → the page itself),
@@ -145,10 +146,29 @@ function nextPatchContentLine(lines, from) {
  *   does not carry the key at all.
  */
 function entryKeyValue(lines, start, key) {
-    const pattern = new RegExp(`^ {2}${key}:[ \\t]*(.*?)[ \\t]*$`, 'u');
+    return fieldValue(lines, start, 0, key);
+}
+/**
+ * The value of one field inside a row that starts before `start`.
+ *
+ * The field sits two spaces deeper than the `- id:` marker that opens the row.
+ * A top-level row is therefore written at two spaces and an inserted row — one
+ * nested under `- insert:` — at six, because the row itself sits at four. The
+ * block ends at the next line indented no deeper than the id; a comment at
+ * that depth is not structural and does not end it.
+ *
+ * @param indent - the column of the row's own `- id:` marker.
+ * @returns the scalar as written (comments stripped), or null when absent.
+ */
+function fieldValue(lines, start, indent, key) {
+    const fieldIndent = indent + 2;
+    const pattern = new RegExp(`^ {${String(fieldIndent)}}${key}:[ \\t]*(.*?)[ \\t]*$`, 'u');
     for (let index = start; index < lines.length; index += 1) {
         const line = lines[index] ?? '';
-        if (/^- /u.test(line))
+        const body = line.trimStart();
+        if (body === '')
+            continue;
+        if (line.length - body.length < fieldIndent && !body.startsWith('#'))
             return null;
         const match = pattern.exec(line);
         // A `#` starts a comment only after whitespace; `#` inside a bare scalar
@@ -185,13 +205,18 @@ function rowApplies(name, expected) {
  * treats a subpath name and a foreign package name the same way (#1113).
  */
 export function composedRowName(host, rowId) {
+    const prefix = includePrefix(host);
+    const profileId = prefix === '' ? rowId : prefix + rowId;
+    let directName = null;
     for (const entry of host.loader.entries()) {
-        if (loaderEntryId(entry) !== rowId)
-            continue;
-        const name = entry.options?.name;
-        return typeof name === 'string' && name !== '' ? name : null;
+        const id = loaderEntryId(entry);
+        const candidate = entry.options?.name;
+        if (id === profileId && candidate)
+            return candidate;
+        if (id === rowId && candidate)
+            directName = candidate;
     }
-    return null;
+    return directName;
 }
 /**
  * Whether the user layer's flag for this row is a decision the host applies.
@@ -205,18 +230,7 @@ export function rowFlagApplies(state, rowId, expected) {
     const carried = state.names?.[rowId];
     return carried === undefined || rowApplies(carried, expected);
 }
-/** The state with one row's flags dropped when its `name` does not apply. */
-function withoutMismatchedRow(state, rowId, expected) {
-    if (rowFlagApplies(state, rowId, expected))
-        return state;
-    return {
-        disables: state.disables.filter(id => id !== rowId),
-        forced: state.forced.filter(id => id !== rowId),
-        inserts: state.inserts,
-        ...(state.names !== undefined ? { names: state.names } : {}),
-    };
-}
-export function readUserPatchState(patchPath) {
+export function readUserPatchState(patchPath, expectedNameFor) {
     // The host composes the file in order, later entries override earlier ones,
     // so a row has one final flag: listing it as both disabled and forced showed
     // a plugin as off while the file had it on (#1099).
@@ -240,8 +254,24 @@ export function readUserPatchState(patchPath) {
             inInsert = false;
         if (inInsert) {
             const insertRow = /^ {4}- id: ([A-Za-z0-9_.-]+)/u.exec(line);
-            if (insertRow !== null)
-                inserts.push(insertRow[1]);
+            if (insertRow !== null) {
+                const inserted = insertRow[1];
+                inserts.push(inserted);
+                // An inserted row's own fields sit at six spaces, and the include
+                // composition applies `disabled` from either indent. Stopping at the id
+                // left every inserted row out of the flag map, so the market showed a
+                // plugin as on — with a toggle that could not be answered — while the
+                // loader had the row off.
+                const insertFlag = fieldValue(lines, index + 1, 4, 'disabled');
+                if (insertFlag === 'true' || insertFlag === 'false')
+                    flags.set(inserted, insertFlag);
+                const insertNamed = fieldValue(lines, index + 1, 4, 'name');
+                const insertName = insertNamed === null ? null : insertNamed.replace(/^(['"])(.*)\1$/u, '$2');
+                if (insertName !== null && insertName !== '')
+                    names.set(inserted, insertName);
+                else
+                    names.delete(inserted);
+            }
             continue;
         }
         const disableRow = /^- id: (?:([A-Za-z0-9_.-]+)|'([A-Za-z0-9_.-]+)'|"([A-Za-z0-9_.-]+)")[ \t]*$/u.exec(line);
@@ -251,12 +281,14 @@ export function readUserPatchState(patchPath) {
         const value = entryKeyValue(lines, index + 1, 'disabled');
         if (value !== 'true' && value !== 'false')
             continue;
-        flags.set(id, value);
         // A row that names a module is only applied by the host when that name is
         // the one the row's id composes to; the flag stays here so the caller can
         // make that comparison (#1113).
         const named = entryKeyValue(lines, index + 1, 'name');
         const unwrapped = named === null ? null : named.replace(/^(['"])(.*)\1$/u, '$2');
+        if (expectedNameFor !== undefined && !rowApplies(unwrapped, expectedNameFor(id)))
+            continue;
+        flags.set(id, value);
         if (unwrapped !== null && unwrapped !== '')
             names.set(id, unwrapped);
         else
@@ -602,16 +634,20 @@ function queuedWrite(fn) {
 function escapeRegExp(value) {
     return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
 }
-function rowBlock(rowId, disabled) {
-    return `- id: ${rowId}\n  disabled: ${disabled ? 'true' : 'false'}\n`;
+const MARKET_ROW_MARKER = '# dsh-market';
+function moduleNameLine(name) {
+    return `  name: '${name}' ${MARKET_ROW_MARKER}`;
+}
+function rowBlock(rowId, disabled, name = null) {
+    const block = `- id: ${rowId}\n  disabled: ${disabled ? 'true' : 'false'}\n`;
+    return name === null ? block : block + moduleNameLine(name) + '\n';
 }
 /**
  * Rewrite standalone id/flag rows while preserving the surrounding file.
- * Comments and blank lines may separate the fields (#930). Look beyond them
- * after the flag too: an indented config/name/key makes this a longer entry,
- * whose first lines must never be removed (#821). Trailing comments stay put.
+ * Also accept the module name market adds to its own rows (#1196). Any
+ * other key makes the entry a user configuration to preserve (#821).
  */
-function rewriteRowBlocks(text, rowId, disabled, replace, expected = null) {
+function rewriteRowBlocks(text, rowId, disabled, replace, expected = null, owner = expected) {
     const id = escapeRegExp(rowId);
     const idLine = new RegExp(`^- id: (?:${id}|'${id}'|"${id}")[ \t]*$`, 'u');
     const lines = text.match(/[^\n]*(?:\n|$)/gu)?.filter(Boolean) ?? [];
@@ -622,22 +658,27 @@ function rewriteRowBlocks(text, rowId, disabled, replace, expected = null) {
     for (let index = 0; index < lines.length; index += 1) {
         if (!idLine.test(lines[index].replace(/\r?\n$/u, '')))
             continue;
-        // A row that names another module is skipped by the host, so rewriting it
-        // would report a change that never happens (#1113).
-        const named = entryKeyValue(lines, index + 1, 'name');
-        if (!rowApplies(named === null ? null : named.replace(/^(['"])(.*)\1$/u, '$2'), expected))
-            continue;
         const flagIndex = nextPatchContentLine(lines, index + 1);
         const flag = /^ {2}disabled: (true|false)[ \t]*(?:\r?\n)?$/u.exec(lines[flagIndex] ?? '');
         if (flag === null || (disabled !== 'any' && flag[1] !== disabled))
             continue;
-        const following = nextPatchContentLine(lines, flagIndex + 1);
+        let lastKey = flagIndex;
+        let name = null;
+        let following = nextPatchContentLine(lines, lastKey + 1);
+        const marker = /^ {2}name: (['"])([^'"]+)\1[ \t]+# dsh-market[ \t]*(?:\r?\n)?$/u.exec(lines[following] ?? '');
+        if (marker !== null) {
+            name = marker[2];
+            if (!NPM_NAME_RE.test(name) || !rowApplies(name, expected) || !rowApplies(name, owner))
+                continue;
+            lastKey = following;
+            following = nextPatchContentLine(lines, lastKey + 1);
+        }
         if (/^[ \t]/u.test(lines[following] ?? ''))
             continue;
-        const start = offsets[index], end = offsets[flagIndex + 1];
-        result += text.slice(copied, start) + replace(text.slice(start, end));
+        const start = offsets[index], end = offsets[lastKey + 1];
+        result += text.slice(copied, start) + replace(text.slice(start, end), name);
         copied = end;
-        index = flagIndex;
+        index = lastKey;
     }
     return result + text.slice(copied);
 }
@@ -750,12 +791,7 @@ function writePatchFile(patchPath, contents) {
         };
     }
 }
-function appendPatchEntry(patchPath, block) {
-    let text = '';
-    try {
-        text = readPatchText(patchPath);
-    }
-    catch { /* created below */ }
+function appendPatchEntry(patchPath, block, text) {
     const core = text.trim();
     if (core === '') {
         return writePatchFile(patchPath, block);
@@ -791,7 +827,7 @@ function appendPatchEntry(patchPath, block) {
     }
     // The dsh entry-list dialect decides: anything that does not parse as a
     // top-level array is left untouched (appending would deepen the break).
-    if (parsePatchFile(patchPath) === null) {
+    if (parsePatchText(text) === null) {
         return {
             ok: false,
             reason: '补丁层不是合法的条目数组,已拒绝追加以免破坏;请先修正 YAML / the patch layer is not a valid entry list; refused to append — fix the YAML first',
@@ -810,6 +846,8 @@ function appendPatchEntry(patchPath, block) {
  * the one block at the same time.
  */
 export function disableRow(patchPath, rowId, options = {}) {
+    const expected = options.expectedName ?? null;
+    const name = options.recordModuleName === true && expected !== null && NPM_NAME_RE.test(expected) ? expected : null;
     return queuedWrite(async () => {
         if (!ROW_ID_RE.test(rowId)) {
             return { ok: false, reason: `行 id 含特殊字符,不支持写入补丁层 / row id ${rowId} cannot be written to the patch layer` };
@@ -823,32 +861,33 @@ export function disableRow(patchPath, rowId, options = {}) {
             }
         })();
         let kept = false;
-        const next = rewriteRowBlocks(text, rowId, 'any', block => {
+        const next = rewriteRowBlocks(text, rowId, 'any', (block, recordedName) => {
             if (kept)
                 return '';
             kept = true;
-            return block.replace(/^ {2}disabled: false(?=[ \t]*(?:\r?\n|$))/mu, '  disabled: true');
-        }, options.expectedName ?? null);
-        if (next !== text) {
-            const flipped = writePatchFile(patchPath, next);
-            if (!flipped.ok)
+            const flipped = block.replace(/^ {2}disabled: false(?=[ \t]*(?:\r?\n|$))/mu, '  disabled: true');
+            if (recordedName !== null || name === null)
                 return flipped;
+            const eol = block.includes('\r\n') ? '\r\n' : '\n';
+            return (flipped.endsWith('\n') ? flipped : flipped + eol) + moduleNameLine(name) + eol;
+        }, expected, options.packageName ?? expected);
+        if (next !== text) {
             // A longer entry for the row further down still has the last word.
-            if (lastRowFlag(next, rowId, options.expectedName ?? null) !== 'true') {
-                const result = appendPatchEntry(patchPath, rowBlock(rowId, true));
-                if (!result.ok)
-                    return result;
-            }
+            const result = lastRowFlag(next, rowId, expected) === 'true'
+                ? writePatchFile(patchPath, next)
+                : appendPatchEntry(patchPath, rowBlock(rowId, true, name), next);
+            if (!result.ok)
+                return result;
             logEvent('info', 'patch', `disabled row ${rowId} in ${patchPath}`);
             return { ok: true, reason: null };
         }
         // A row whose `name` is not this entry's owns nothing here: counting it
         // as already-disabled would answer "off" and change nothing, leaving the
         // plugin running (#1113).
-        const state = withoutMismatchedRow(readUserPatchState(patchPath), rowId, options.expectedName ?? null);
+        const state = readUserPatchState(patchPath, id => id === rowId ? expected ?? options.packageName ?? null : null);
         if (state.disables.includes(rowId))
             return { ok: true, reason: null };
-        const result = appendPatchEntry(patchPath, rowBlock(rowId, true));
+        const result = appendPatchEntry(patchPath, rowBlock(rowId, true, name), text);
         if (result.ok)
             logEvent('info', 'patch', `disabled row ${rowId} in ${patchPath}`);
         return result;
@@ -871,7 +910,7 @@ export function enableRow(patchPath, rowId, options = {}) {
         if (!ROW_ID_RE.test(rowId)) {
             return { ok: false, reason: `行 id 含特殊字符,不支持写入补丁层 / row id ${rowId} cannot be written to the patch layer` };
         }
-        const state = withoutMismatchedRow(readUserPatchState(patchPath), rowId, expected);
+        const state = readUserPatchState(patchPath, id => id === rowId ? expected ?? options.packageName ?? null : null);
         const text = (() => {
             try {
                 return readPatchText(patchPath);
@@ -880,30 +919,35 @@ export function enableRow(patchPath, rowId, options = {}) {
                 return '';
             }
         })();
-        const next = rewriteRowBlocks(text, rowId, 'true', () => '', expected);
+        let removedMarketName;
+        const next = rewriteRowBlocks(text, rowId, 'true', (_block, name) => {
+            if (name !== null)
+                removedMarketName = name;
+            return '';
+        }, expected, options.packageName ?? expected);
         if (next !== text) {
-            const written = writePatchFile(patchPath, withPlaceholderRestored(next));
-            if (!written.ok)
-                return written;
             // A longer entry for the row may still have the last word — and so may a
             // spelling the line scanner cannot see (#1112). Ask the parser the host
             // uses; when the file is not readable as its dialect, fall back to the
             // scanner.
-            const stillOff = composedRowFlag(next, rowId, expected) ?? lastRowFlag(next, rowId, expected);
-            if (!cleanOnly && stillOff === 'true') {
-                const result = appendPatchEntry(patchPath, rowBlock(rowId, false));
-                if (!result.ok)
-                    return result;
-            }
+            const target = expected ?? removedMarketName ?? options.packageName ?? null;
+            const stillOff = composedRowFlag(next, rowId, target) ?? lastRowFlag(next, rowId, target);
+            const written = !cleanOnly && stillOff === 'true'
+                ? appendPatchEntry(patchPath, rowBlock(rowId, false, removedMarketName ?? null), next)
+                : writePatchFile(patchPath, withPlaceholderRestored(next));
+            if (!written.ok)
+                return written;
             logEvent('info', 'patch', `${cleanOnly ? 'cleared the block on' : 'enabled'} row ${rowId} in ${patchPath}`);
-            return { ok: true, reason: null };
+            return removedMarketName === undefined
+                ? { ok: true, reason: null }
+                : { ok: true, reason: null, removedMarketName };
         }
         // Nothing of the market's own to clean: the row's default stands.
         if (cleanOnly)
             return { ok: true, reason: null };
         if (state.forced.includes(rowId))
             return { ok: true, reason: null };
-        const result = appendPatchEntry(patchPath, rowBlock(rowId, false));
+        const result = appendPatchEntry(patchPath, rowBlock(rowId, false), text);
         if (result.ok)
             logEvent('info', 'patch', `force-enabled row ${rowId} in ${patchPath}`);
         return result;
@@ -929,7 +973,7 @@ function withPlaceholderRestored(text) {
 }
 /** Remove every disable/force block the market (or the user) wrote for a
  * row — the uninstall cleanup, so a removed plugin leaves no orphan rows. */
-export function removeRowBlocks(patchPath, rowIds) {
+export function removeRowBlocks(patchPath, rowIds, packageName = null) {
     let text = '';
     try {
         text = readPatchText(patchPath);
@@ -939,7 +983,7 @@ export function removeRowBlocks(patchPath, rowIds) {
     } // no file, nothing to remove
     let next = text;
     for (const rowId of rowIds)
-        next = rewriteRowBlocks(next, rowId, 'any', () => '');
+        next = rewriteRowBlocks(next, rowId, 'any', () => '', packageName);
     if (next === text)
         return { ok: true, reason: null };
     const written = writePatchFile(patchPath, withPlaceholderRestored(next));

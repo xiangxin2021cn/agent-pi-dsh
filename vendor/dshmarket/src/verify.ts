@@ -32,7 +32,7 @@ import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import { createRequire, isBuiltin } from 'node:module'
 import { Script } from 'node:vm'
 import { join } from 'node:path'
-import { listHotMounts, patchBlockerReason, scanPatch } from './hot.ts'
+import { hotMountFailure, listLiveHotMounts, patchBlockerReason, scanPatch } from './hot.ts'
 import { userPatchPackageReferences } from './patch.ts'
 import { nameMatchesPackage } from './entry-identity.ts'
 import { bundlePatchInsertedIds, declaredBundlePatchFiles, hasDshManifest, hasLoadableEntry, pluginSubdirs, profileDir, readInstalled } from './profile.ts'
@@ -490,7 +490,7 @@ export function defaultHostRuntimeFacts(activeProfileDir: string): HostRuntimeFa
 export function verifyActivation(
   profile: string,
   name: string,
-  live: ReadonlySet<string> = new Set(listHotMounts()),
+  live: ReadonlySet<string> = new Set(listLiveHotMounts()),
   explicitDir?: string,
   isDisabled = false,
   hostFacts?: HostRuntimeFacts,
@@ -527,6 +527,9 @@ export function verifyActivation(
       hot: false,
     }
   }
+
+  const mountFailure = hotMountFailure(name, activeProfileDir)
+  if (mountFailure !== null) return { state: 'failed', reasons: [mountFailure], bundle: inBundles, hot: false }
 
   const dir = join(activeProfileDir, 'node_modules', name)
   if (isTeamComponent(name)) {

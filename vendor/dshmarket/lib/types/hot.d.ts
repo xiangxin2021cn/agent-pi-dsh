@@ -15,6 +15,7 @@
  * tree changes back to the file it read (see dsh's agent-presets PresetTree
  * for the in-tree precedent).
  */
+import { type UpdateCheckIntervalHours } from './update-notification-settings.ts';
 import { type Channel } from './channels.ts';
 import { type Region } from './regions.ts';
 interface HotRow {
@@ -25,15 +26,40 @@ interface PluginHandle {
     await(): Promise<unknown>;
     dispose(): Promise<unknown> | void;
 }
+/** One structured record delivered to a host logger exporter (cordis `Message`). */
+interface HostLogMessage {
+    name?: unknown;
+    type?: unknown;
+    args?: unknown;
+}
+/**
+ * Sink shape accepted by cordis' `LoggerService.exporter`.
+ *
+ * `levels` is not optional decoration: the service skips a record before it
+ * ever reaches `export` when
+ * `(levels[name] ?? levels.default ?? logger.level ?? 1) < record.level`.
+ * The default threshold is `1`, and `warn` is level `2` — a sink that leaves
+ * `levels` out never sees a single warning.
+ */
+interface HostLogSink {
+    levels?: Record<string, number>;
+    export(message: HostLogMessage): void;
+}
 interface HotContext {
     plugin(plugin: unknown, config: unknown): PluginHandle;
     logger?: {
         info?(message: string): void;
         warn(message: string): void;
+        /**
+         * Optional structured sink: cordis' `LoggerService.exporter` hands over
+         * every record the process logs and returns a disposer. Absent on hosts
+         * whose logger is a bare object, and on test doubles.
+         */
+        exporter?(sink: HostLogSink): unknown;
     };
 }
 /**
- * Profile-scoped resolution for hot-mount rows: turn a bare package name into
+ * Profile-scoped resolution for hot-mount imports: turn a bare package name into
  * the absolute `file://` entry URL of the package just installed into
  * `profileDir`.
  *
@@ -47,7 +73,7 @@ interface HotContext {
  * back to "restart required", blaming the plugin for what is a resolution
  * anchor problem.
  *
- * Resolving the row name HERE, against the profile the package was actually
+ * Resolving the module at import time, against the profile it was actually
  * installed into, is anchor-independent: `require.resolve` walks
  * `profileDir/node_modules` natively, so the tree hands the loader a
  * `file://` URL needing no further resolution. Non-bare specifiers (relative
@@ -59,8 +85,8 @@ interface HotContext {
  * whose entry cannot be located via `require.resolve` (no `main`/exports —
  * the market's own `entryArtifactExists` heuristic covers those shapes before
  * an install is accepted) is not something this resolver should guess about.
- * Client-only shims never reach this function (their rows are replaced by a
- * no-op host module before the file is written).
+ * Client-only shims never reach this function: their import returns a no-op
+ * host module before attempting package resolution.
  */
 export declare function resolveProfileEntry(profileDir: string, name: string): string;
 /**
@@ -192,6 +218,10 @@ export interface MarketState {
      * An empty array is how the last name is removed.
      */
     updateExempt?: string[];
+    /** Background update checks run only after an explicit opt-in. */
+    backgroundUpdateChecks?: boolean;
+    /** Polling cadence; absent or invalid legacy values use the six-hour default. */
+    backgroundUpdateIntervalHours?: UpdateCheckIntervalHours;
     /** User-supplied HTTPS prefix used when the built-in GitHub routes fail. */
     githubProxy?: string;
     /**
@@ -257,6 +287,30 @@ export interface MarketState {
      * src/dsh-cli.ts spawnEnv for the precedence once it reaches a child.
      */
     buildEnv?: Record<string, string>;
+    /**
+     * When this market installed or last updated each package (#1142/#1121).
+     *
+     * A row in the installed list has no time of its own. `node_modules/<pkg>`
+     * mtime is not one (pnpm rewrites it on every install, so a batch all
+     * shares one instant) and `.plugin-manager/logs/operation-*` is a log with
+     * a retention policy, not a field. So the market writes its own stamps at
+     * the two moments it knows: an install it ran, and an update that landed.
+     *
+     * Two consequences worth stating in the shape itself:
+     * - A package installed anywhere else (the CLI, the host's plugins page) has
+     *   no entry, and displaying a guessed one would be worse than displaying
+     *   nothing: "按安装时间排" would then be an ordering of guesses.
+     * - Keys carry no profile: the file is per profile already, and a copied
+     *   profile inheriting another's timestamps would be inventing history.
+     */
+    installTimes?: Record<string, InstallTimes>;
+}
+/** One package's market-recorded timestamps, both ISO 8601. */
+export interface InstallTimes {
+    /** When this market installed the package. Absent when it did not. */
+    installedAt?: string;
+    /** When an update of it last landed. Absent when it never updated here. */
+    updatedAt?: string;
 }
 /** Why a package is no longer declared, and what to put back. */
 export interface BrokenPlugin {
@@ -281,6 +335,13 @@ export declare const MAX_BLOCKED = 500;
 export declare const MAX_UPDATE_EXEMPT = 500;
 /** npm package names are at most 214 characters. Longer values are not names. */
 export declare const MAX_BLOCKED_NAME = 214;
+/**
+ * Upper bound on the install-time map (#1142). One entry per package the
+ * market itself installed, and a profile with 500 of those is already an
+ * outlier; the cap keeps state.json from growing with every plugin the user
+ * ever tried and removed.
+ */
+export declare const MAX_INSTALL_TIMES = 500;
 /**
  * Sanitize an untrusted build-env map (state.json, or the card route's body)
  * into the shape spawnEnv can merge.
@@ -345,13 +406,34 @@ export declare function writeDisabled(profileDir: string, disabled: Set<string>)
 export declare function readDisabledThemes(profileDir: string): Set<string>;
 /** @deprecated theme-specific alias — kept for pre-#60 callers. */
 export declare function writeDisabledThemes(profileDir: string, disabled: Set<string>): void;
-/** Package names currently live through a market hot mount (patch or shim). */
+/**
+ * The market installed these packages just now (#1142): both stamps are this
+ * moment, because the first install is also the last change so far.
+ */
+export declare function recordInstalled(profileDir: string, names: readonly string[], at?: Date): void;
+/**
+ * An update of these packages landed: only the update stamp moves.
+ *
+ * A package with no entry keeps `installedAt` absent — the market never saw
+ * it installed, and "when I first noticed it" is a different fact. Writing it
+ * here would make the sort report a guessed install order as history.
+ */
+export declare function recordUpdated(profileDir: string, names: readonly string[], at?: Date): void;
+/** The package is gone: its stamps must not outlive it. */
+export declare function forgetInstalled(profileDir: string, name: string): void;
+/** Package names whose hot-mount trees are still attached and can be removed. */
 export declare function listHotMounts(): string[];
+/** Report a failed child only when it belongs to this package's hot-mount tree. */
+export declare function hotMountFailure(packageName: string, profileDir?: string): string | null;
+/** Hot mounts the market can report as live. */
+export declare function listLiveHotMounts(): string[];
 /** Outcome of one hot-mount attempt; `reason` explains non-`ok` results. */
 export interface HotMountResult {
     ok: boolean;
     /** Bilingual reason shown to the user instead of a bare restart banner. */
     reason: string | null;
+    /** The tree is still attached so its running components can continue. */
+    retained?: true;
     /**
      * Set when nothing was attempted because this package can only come up on a
      * start — its patch holds more than plain inserts. That is a verdict about
@@ -385,7 +467,7 @@ export declare function hotMount(ctx: HotContext, profileDir: string, packageNam
  * in every boot — this is what makes them behave like normal plugins.
  * @returns names that were mounted.
  */
-export declare function mountClientOnlyDeps(ctx: HotContext, profileDir: string,
+export declare function mountClientOnlyDeps(ctx: HotContext, profileDir: string, 
 /** The host's install directory; `undefined` finds it, `null` means "do not look". */
 hostDirectory?: string | null): Promise<string[]>;
 /**

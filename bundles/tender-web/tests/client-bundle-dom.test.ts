@@ -17,7 +17,7 @@ function requirePnpmPackage(name: string, entry = '') {
   return createRequire(import.meta.url)(packagePath)
 }
 
-test('generated client keeps DSH as main executor, preserves read-only Codex history, and renders the session file rail in a real React DOM', async () => {
+test('generated client keeps DSH as main executor, retires Codex history, and renders the session file rail in a real React DOM', async () => {
   const { JSDOM } = requirePnpmPackage('jsdom')
   const React = requirePnpmPackage('react')
   const { act } = React
@@ -212,15 +212,13 @@ test('generated client keeps DSH as main executor, preserves read-only Codex his
       codexSetDefaultModel: retired('model'), codexSetDefaultReasoningEffort: retired('effort'),
       codexExecutionSubmit: retired('submit'), codexExecutionReply: retired('reply'), codexExecutionInterrupt: retired('interrupt'),
       onCodexExecution: () => { retiredCalls.push('execution subscription'); return () => {} },
-      codexHistoryStatus: async (sessionId: string) => ({ sessionId, cwd: 'C:/workspace', phase: 'running',
-        messages: [{ id: 'old-codex-message', role: 'assistant', text: 'Preserved Codex result' }],
-        requests: [{ id: 1, params: { questions: [{ id: 'old-approval', question: 'Do not approve from history' }] } }],
-      }),
+      codexHistoryStatus: retired('history'),
       compactionFallbackStatus: async () => ({ enabled: true }),
       setCompactionFallback: async (enabled: boolean) => ({ enabled, restartRequired: false }),
     }
 
     const builtClient = readFileSync(join(root, 'bundles', 'tender-web', 'lib', 'client.js'), 'utf8')
+    assert.doesNotMatch(builtClient, /data-agent-pi-codex-history|Codex 历史|Codex history|codexHistoryStatus/)
     Function(builtClient)()
     assert.equal(typeof factory, 'function', 'DSH module loader did not receive the client factory')
     const client = factory!((id) => {
@@ -322,19 +320,8 @@ test('generated client keeps DSH as main executor, preserves read-only Codex his
     assert.equal(dom.window.localStorage.getItem('agent-pi:main-engine:effort-ui'), 'codex')
     await act(async () => rootView!.unmount())
     rootView = createRoot(mount)
-    const CodexHistory = registered.get('agent-pi-codex-main')
-    assert.equal(typeof CodexHistory, 'function')
-    await act(async () => {
-      rootView!.render(React.createElement(CodexHistory, { sessionId: 'old-codex-session' }))
-      await new Promise(resolveTick => setTimeout(resolveTick, 0))
-    })
-    assert.match(mount.textContent || '', /Codex 历史（只读）/)
-    assert.match(mount.textContent || '', /Preserved Codex result/)
-    assert.doesNotMatch(mount.textContent || '', /Do not approve from history/)
-    assert.equal(mount.querySelector('button, input, select'), null)
+    assert.equal(registered.has('agent-pi-codex-main'), false)
     assert.deepEqual(retiredCalls, [])
-    await act(async () => rootView!.unmount())
-    rootView = createRoot(mount)
     const AttachmentDock = registered.get('agent-pi-attachments')
     const CreateOverlay = registered.get('tender-create')
     assert.equal(typeof AttachmentDock, 'function')

@@ -77,7 +77,7 @@ export declare function composedRowName(host: PatchHost, rowId: string): string 
  *   the loader.
  */
 export declare function rowFlagApplies(state: PatchState, rowId: string, expected: string | null): boolean;
-export declare function readUserPatchState(patchPath: string): PatchState;
+export declare function readUserPatchState(patchPath: string, expectedNameFor?: (id: string) => string | null): PatchState;
 /**
  * User-authored insert rows that still load `packageName` (or one of its
  * exported subpaths). This evidence deliberately stays separate from the
@@ -189,6 +189,8 @@ export declare function packagePatchFlags(host: PatchHost, profileDirectory: str
  */
 export declare function disableRow(patchPath: string, rowId: string, options?: {
     expectedName?: string | null;
+    recordModuleName?: boolean;
+    packageName?: string;
 }): Promise<{
     ok: boolean;
     reason: string | null;
@@ -206,13 +208,15 @@ export declare function disableRow(patchPath: string, rowId: string, options?: {
 export declare function enableRow(patchPath: string, rowId: string, options?: {
     cleanOnly?: boolean;
     expectedName?: string | null;
+    packageName?: string;
 }): Promise<{
     ok: boolean;
     reason: string | null;
+    removedMarketName?: string;
 }>;
 /** Remove every disable/force block the market (or the user) wrote for a
  * row — the uninstall cleanup, so a removed plugin leaves no orphan rows. */
-export declare function removeRowBlocks(patchPath: string, rowIds: readonly string[]): {
+export declare function removeRowBlocks(patchPath: string, rowIds: readonly string[], packageName?: string | null): {
     ok: boolean;
     reason: string | null;
 };

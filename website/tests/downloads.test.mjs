@@ -72,6 +72,10 @@ async function render(data, { offline = false } = {}) {
   const electron = element()
   electron.textContent = fallbackText('data-release-electron-version')
   const date = element()
+  const windowsVersion = element()
+  windowsVersion.textContent = fallbackText('data-windows-release-version')
+  const otherVersion = element()
+  otherVersion.textContent = fallbackText('data-other-release-version')
   const group = element({ 'data-require-release-asset': intel })
   const missing = element({ 'data-missing-release-asset': intel })
   missing.hidden = true
@@ -101,6 +105,8 @@ async function render(data, { offline = false } = {}) {
         if (selector === '[data-require-release-asset], [data-missing-release-asset]') return [group, missing]
         if (selector === '[data-release-electron-version]') return [electron]
         if (selector === '[data-release-date]') return [date]
+        if (selector === '[data-windows-release-version]') return [windowsVersion]
+        if (selector === '[data-other-release-version]') return [otherVersion]
         if (selector === '[data-release-system-fallback]') return [systemFallback]
         if (selector === '[data-release-system-note]') return [systemNote]
         const system = selector.match(/^\[data-release-system="([^"]+)"\]$/)
@@ -115,7 +121,7 @@ async function render(data, { offline = false } = {}) {
   vm.runInNewContext(metadata, context)
   vm.runInNewContext(main.slice(main.indexOf('/* ---- Latest complete')), context)
   await new Promise(setImmediate)
-  return { version, panel, electron, date, group, missing, links, sizes, systems, systemFallback, systemNote }
+  return { version, panel, electron, date, group, missing, links, sizes, systems, systemFallback, systemNote, windowsVersion, otherVersion }
 }
 
 test('complete legacy Intel assets update together and retain accelerator prefixes', async () => {
@@ -305,7 +311,7 @@ test('all release-facing HTML uses the current script cache keys and verified st
     const source = readFileSync(join(website, file), 'utf8')
     const scripts = [...source.matchAll(/assets\/js\/(?:main|release-metadata)\.js\?v=([^"\s]+)/g)]
     assert.ok(scripts.length > 0, file)
-    for (const script of scripts) assert.equal(script[1], '390-sync-final', file)
+    for (const script of scripts) assert.equal(script[1], '391-windows', file)
     for (const version of source.matchAll(/data-release-version>([^<]+)</g)) assert.equal(version[1], '3.9.0', file)
     for (const sha of source.matchAll(/data-release-sha\s[^>]*>([^<]+)</g)) assert.equal(sha[1], windowsSha, file)
   }
@@ -392,5 +398,47 @@ test('3.9.0 requires the pinned kernel and every final Mac download group', asyn
     const ui = await render(invalid)
     assert.equal(ui.panel.getAttribute('data-release-state'), 'fallback')
     assert.equal(ui.version.textContent, 'v3.9.0')
+  }
+})
+
+function windows391() {
+  const data = release(true, '3.9.1', '-mac-x64')
+  data.assets = data.assets.filter(asset => /-x64\.exe/.test(asset.name))
+  data.assets.push({ ...data.assets[0], name: 'Agent-Pi-DSH-3.9.1-x64.exe.build.json', browser_download_url: 'https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.9.1/Agent-Pi-DSH-3.9.1-x64.exe.build.json' })
+  data.body = '<!-- agent-pi-release-meta: ' + JSON.stringify({ schema: 1, appVersion: '3.9.1', platforms: ['windows'], kernel: { releaseTag: 'dsh-v0.2.2-rc.3', commit: '39163dd30f703a79079e2d2446545cff3c453738' } }) + ' -->'
+  return data
+}
+
+test('an explicitly scoped Windows 3.9.1 release keeps Mac/Linux on their verified 3.9.0 downloads', async () => {
+  const ui = await render(windows391())
+  assert.equal(ui.panel.getAttribute('data-release-state'), 'synced')
+  assert.equal(ui.version.textContent, 'v3.9.1')
+  assert.equal(ui.windowsVersion.textContent, '3.9.1')
+  assert.equal(ui.otherVersion.textContent, '3.9.0')
+  assert.ok(ui.links['windows-exe'][0].href.includes('/v3.9.1/Agent-Pi-DSH-3.9.1-x64.exe'))
+  for (const [key, suffix] of Object.entries(suffixes).filter(([key]) => !key.startsWith('windows-'))) {
+    assert.equal(ui.links[key][0].href, releaseBase + 'Agent-Pi-DSH-3.9.0' + suffix)
+    assert.equal(ui.links[key][0].hidden, false)
+  }
+  assert.equal(ui.group.hidden, false)
+  assert.equal(ui.systems['mac-arm64'].textContent, 'Apple Silicon · macOS 15+')
+  assert.equal(ui.systemFallback.hidden, false)
+})
+
+test('Windows-only updates require explicit scope, all three final assets, and the pinned kernel', async () => {
+  for (const alter of [
+    d => { d.body = d.body.replace(',"platforms":["windows"]', '') },
+    d => { d.body = d.body.replace('["windows"]', '["windows","macos"]') },
+    d => { d.body = d.body.replace('39163dd30f703a79079e2d2446545cff3c453738', 'a'.repeat(40)) },
+    d => { d.assets.pop() },
+    d => { d.assets = d.assets.filter(a => !a.name.endsWith('.sha256')) },
+    d => { d.assets[0].digest = 'sha256:invalid' },
+    d => { d.assets[0].browser_download_url = 'https://invalid.example/download.exe' },
+    d => { d.draft = true },
+  ]) {
+    const data = windows391(); alter(data)
+    const ui = await render(data)
+    assert.equal(ui.panel.getAttribute('data-release-state'), 'fallback')
+    assert.equal(ui.links['mac-dmg'][0].href, releaseBase + 'Agent-Pi-DSH-3.9.0-mac-arm64.dmg')
   }
 })

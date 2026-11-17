@@ -135,7 +135,7 @@ foreach ($item in $productItems) {
     # /XJ: node_modules junctions (injector / AnySearch peers) point
     # into this machine's DSH checkout; init-tender-profile rebuilds them on
     # the install machine, and following them here explodes the pnpm chain.
-    robocopy $src $dest /E /XJ /NFL /NDL /NJH /NJS /NP /XD (Join-Path $Root "bundles\project-plan\target") (Join-Path $Root "bundles\tender-host\node_modules") (Join-Path $Root "packages\business-core\node_modules") | Out-Null
+    robocopy $src $dest /E /XJ /NFL /NDL /NJH /NJS /NP /XD (Join-Path $Root "bundles\project-plan\target") (Join-Path $Root "bundles\tender-host\node_modules") (Join-Path $Root "packages\business-core\node_modules") /XF (Join-Path $Root "vendor\dshmarket\assets\demo-en.png") (Join-Path $Root "vendor\dshmarket\assets\demo-zh.png") | Out-Null
     if ($LASTEXITCODE -ge 8) { throw "robocopy $item failed: $LASTEXITCODE" }
   } else {
     Copy-Item -Force $src $dest
@@ -320,6 +320,8 @@ if ($FullCopy) {
   if ($LASTEXITCODE -ne 0) { throw "repair dsh links failed" }
   Copy-Item -LiteralPath $DshBuildReceipt -Destination (Join-Path $dshTarget $DshReceiptName) -Force
   if ($selectedDistribution) {
+    & $nodeDest (Join-Path $Root "scripts\prune-runtime-debug-maps.mjs") --apply $Runtime
+    if ($LASTEXITCODE -ne 0) { throw "Staged dependency debug-map cleanup failed" }
     & $nodeDest (Join-Path $Root "scripts\dsh-distribution-policy.mjs") seal $dshTarget $Product
     if ($LASTEXITCODE -ne 0) { throw "DSH selected production inventory sealing failed" }
   }

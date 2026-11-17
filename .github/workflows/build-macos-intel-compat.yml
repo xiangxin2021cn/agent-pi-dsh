@@ -143,7 +143,6 @@ jobs:
           cp scripts/macos-intel-capabilities.mjs payload/product/scripts/macos-intel-capabilities.mjs
           cp vendor/dshmarket/compatibility.js payload/product/vendor/dshmarket/compatibility.js
           cp apps/desktop/main.mjs payload/desktop/main.mjs
-          cp apps/desktop/codex-history.mjs payload/desktop/codex-history.mjs
           cp apps/desktop/preload.cjs payload/desktop/preload.cjs
           node --input-type=module <<'NODE'
           import { existsSync, readFileSync, writeFileSync } from 'node:fs'
@@ -154,9 +153,9 @@ jobs:
           }
           const path = 'payload/desktop/package.json'
           const manifest = JSON.parse(readFileSync(path, 'utf8'))
-          const retired = new Set(['codex-auth.mjs', 'codex-models.mjs', 'codex-execution.mjs'])
+          const retired = new Set(['codex-auth.mjs', 'codex-models.mjs', 'codex-execution.mjs', 'codex-history.mjs'])
           manifest.build.files = manifest.build.files.filter(file => !retired.has(file))
-          for (const file of ['codex-history.mjs', 'preload.cjs']) if (!manifest.build.files.includes(file)) manifest.build.files.push(file)
+          for (const file of ['preload.cjs']) if (!manifest.build.files.includes(file)) manifest.build.files.push(file)
           writeFileSync(path, JSON.stringify(manifest, null, 2) + '\n')
           NODE
 
@@ -275,7 +274,7 @@ jobs:
             rebuiltCoreLoader: JSON.parse(readFileSync('payload/product/MACOS-BUILTIN-BUILD.json', 'utf8')),
             runtimeWorkspacePeers: JSON.parse(readFileSync('payload/product/MACOS-PEER-BUILD.json', 'utf8')),
             rebuiltOfficeDatabase: JSON.parse(readFileSync('payload/product/vendor/dsh-univer-office/node_modules/@libsql/darwin-x64/LIBSQL-MONTEREY-BUILD.json', 'utf8')),
-            compatibilityOverrides: ['apps/desktop/main.mjs', 'apps/desktop/codex-history.mjs', 'apps/desktop/preload.cjs', 'scripts/init-tender-profile.mjs',
+            compatibilityOverrides: ['apps/desktop/main.mjs', 'apps/desktop/preload.cjs', 'scripts/init-tender-profile.mjs',
               'scripts/enable-desktop-codex.mjs', 'scripts/macos-intel-capabilities.mjs', 'vendor/dshmarket/compatibility.js'],
             montereyRealHardwareTested: false, appleSigned: false, appleNotarized: false,
             workflowRun: `https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,

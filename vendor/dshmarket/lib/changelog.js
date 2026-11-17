@@ -344,7 +344,9 @@ function catalogEntryForGitSource(plugins, spec) {
  * same contract the issue promised — a dialog that cannot load its data shows
  * a neutral statement, not an error.
  */
-export async function updateNotesFor(profile, explicitDir, name) {
+export async function updateNotesFor(profile, explicitDir, name,
+/** The version the Update button installs, when it is not simply "latest". */
+target) {
     const activeProfileDir = profileDir(profile, explicitDir);
     const spec = readInstalled(profile, activeProfileDir)[name];
     if (spec === undefined || spec.startsWith('link:') || spec.startsWith('file:')) {
@@ -438,7 +440,18 @@ export async function updateNotesFor(profile, explicitDir, name) {
                 && (compareVersions(released, installed) ?? 0) <= 0;
             const hasCommits = (entry.commits?.length ?? 0) > 0;
             if (!(behind && (hasCommits || (specKey === null && npmName !== null)))) {
-                return { kind: 'release', release: entry.release };
+                const beyond = target !== undefined && released !== null
+                    && (compareVersions(released, target) ?? 0) > 0;
+                // Attach the commit slice so the dialog can list what changed between
+                // the installed commit and the update target, not just the release (#1193).
+                // Only when the installed commit is found in the list: otherwise the
+                // slice is just "recent commits" unrelated to this update, and next to
+                // release notes it would be noise (npm installs never match a sha).
+                const sliced = hasCommits ? sliceCommitsAt(entry.commits, current) : undefined;
+                const withCommits = sliced !== undefined && sliced.found && sliced.items.length > 0 ? { commits: sliced } : {};
+                return beyond
+                    ? { kind: 'release', release: entry.release, beyondTarget: target, ...withCommits }
+                    : { kind: 'release', release: entry.release, ...withCommits };
             }
         }
         if (entry?.commits !== undefined && entry.commits.length > 0) {

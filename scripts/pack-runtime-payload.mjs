@@ -159,7 +159,7 @@ for (const sourcePath of [cadSourceArchive, cadSourceChecksum]) {
 // 1. desktop shell (whitelist: only what electron-builder needs)
 const desktopDest = join(stage, 'desktop')
 mkdirSync(join(desktopDest, 'build'), { recursive: true })
-for (const file of ['main.mjs', 'dsh-web-url.mjs', 'codex-history.mjs', 'compaction-preferences.mjs', 'agent-team-preferences.mjs', 'startup-diagnostics.mjs', 'product-identity.mjs', 'edition-data-import.mjs', 'preload.cjs', 'boot.html', 'after-pack.cjs', 'package.json', 'package-lock.json']) {
+for (const file of ['main.mjs', 'dsh-web-url.mjs', 'compaction-preferences.mjs', 'agent-team-preferences.mjs', 'startup-diagnostics.mjs', 'product-identity.mjs', 'edition-data-import.mjs', 'preload.cjs', 'boot.html', 'after-pack.cjs', 'package.json', 'package-lock.json']) {
   cpSync(join(desktop, file), join(desktopDest, file))
 }
 cpSync(join(desktop, 'brand'), join(desktopDest, 'brand'), { recursive: true })
@@ -188,7 +188,8 @@ for (const item of productItems) {
     // node_modules stay out; CI installs per-platform dependencies.
     robocopy(src, dest, ['/XD', 'node_modules', '.git',
       join(root, 'bundles/project-plan/target'), join(root, 'bundles/project-plan/runtime/jre'),
-      '/XF', '.git', 'AGENT-PI-UNIVER-RUNTIME-RECEIPT.json'])
+      '/XF', '.git', 'AGENT-PI-UNIVER-RUNTIME-RECEIPT.json',
+      join(root, 'vendor/dshmarket/assets/demo-en.png'), join(root, 'vendor/dshmarket/assets/demo-zh.png')])
   } else {
     mkdirSync(join(dest, '..'), { recursive: true })
     cpSync(src, dest)

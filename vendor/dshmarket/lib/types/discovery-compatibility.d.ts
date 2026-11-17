@@ -41,8 +41,11 @@ type FetchLike = (url: string, init?: {
 export interface GitHubManifestSource {
     url: string;
     tarball?: string | null;
+    version?: string | null;
     releaseManifest?: unknown;
 }
+/** Only the selected artifact and its declarations determine a discovery verdict. */
+export declare function githubCompatibilityRevision(source: GitHubManifestSource): string;
 /** Reuse catalog facts only for this repository's exact pinned install asset. */
 export declare function catalogReleaseManifest(source: GitHubManifestSource): NpmManifestFacts | null;
 /** Keep only the small public subset of an npm manifest needed by discovery. */
@@ -56,24 +59,22 @@ export declare function manifestFacts(value: unknown): NpmManifestFacts;
  */
 export declare function deriveHostCompatibility(facts: NpmManifestFacts | null, hostVersion: string | null, hostPackages: ReadonlySet<string>): HostCompatibility;
 /**
- * Durable, bounded lookup of npm `latest` and catalog GitHub manifests.
+ * Durable, bounded lookup of npm releases and catalog GitHub manifests.
  *
  * Failed requests are intentionally memory-only and short-lived: a mirror
  * outage must not become a day-long false "undeclared" result on disk.
  */
 export declare class DiscoveryManifestIndex {
-    private readonly cacheFile;
-    private readonly entries;
+    private readonly cache;
     private readonly failures;
     private readonly inflight;
     private readonly fetcher;
     private readonly now;
     private readonly ttlMs;
     private readonly concurrency;
-    private loaded;
     private consecutiveFailures;
     private unavailableUntil;
-    private dirty;
+    private disposed;
     private activeFetches;
     private readonly fetchWaiters;
     constructor(cacheFile: string, options?: {
@@ -82,11 +83,15 @@ export declare class DiscoveryManifestIndex {
         ttlMs?: number;
         concurrency?: number;
     });
-    private load;
-    private persist;
+    /** Unmount this index, retaining any writes already queued for this profile. */
+    dispose(): Promise<void>;
     /** One semaphore for the whole index, including overlapping HTTP batches. */
     private withFetchPermit;
+    private retryDelay;
+    npmRetryAfterMs(name: string, registry: string, version: string | undefined): number;
+    githubRetryAfterMs(source: GitHubManifestSource): number;
     private fetchOne;
+    private readNpmManifest;
     /**
      * Facts for ONE named release, rather than for `latest`.
      *
@@ -98,11 +103,9 @@ export declare class DiscoveryManifestIndex {
      * release declares a range this host misses), and it would equally pass a
      * pinned release that is itself incompatible.
      *
-     * Deliberately outside the cache. The index is keyed by package name, and a
-     * version-keyed one would grow with every release anyone ever pinned to
-     * answer a question asked once per install. Nothing is recorded either: a
-     * pre-flight verdict must not decide what the diagnostics panel sees next
-     * (#619).
+     * Deliberately outside the cache. An install can target any old release,
+     * whereas a discovery query is for the version shown in the catalog. A
+     * pre-flight verdict must not decide what the diagnostics panel sees next (#619).
      *
      * A release whose manifest cannot be read is `null`, like every other
      * unreadable manifest: absence of a claim is not a verdict.
@@ -119,6 +122,7 @@ export declare class DiscoveryManifestIndex {
      */
     lookup(names: readonly string[], registry: string, options?: {
         record?: boolean;
+        versions?: ReadonlyMap<string, string>;
     }): Promise<Record<string, NpmManifestFacts | null>>;
     /** Catalog-approved GitHub sources, cached by both package path and selected archive. */
     lookupGitHub(sources: readonly GitHubManifestSource[]): Promise<Record<string, NpmManifestFacts | null>>;

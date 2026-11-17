@@ -10,7 +10,6 @@ import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { delimiter, dirname, isAbsolute, join, normalize, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { readCodexHistory } from './codex-history.mjs'
 import {
   applyCompactionFallbackEnv,
   createCompactionFallbackPreferenceUpdate,
@@ -208,11 +207,6 @@ function runtimeEnv() {
 function resolveNode() {
   if (bundledNode && existsSync(bundledNode)) return bundledNode
   return process.execPath.includes('electron') ? 'node' : process.execPath
-}
-
-function trustedExecutionSender(event) {
-  if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== event.sender.mainFrame
-    || new URL(event.senderFrame.url).origin !== new URL(appUrl).origin) throw new Error('历史记录请求不属于当前应用对话。')
 }
 
 function dshProfileArgs(extra = []) {
@@ -983,10 +977,6 @@ ipcMain.handle('set-compaction-fallback', (_event, enabled) => {
   const update = createCompactionFallbackPreferenceUpdate(enabled)
   writePrefs(update)
   return { enabled: update.compactionFallbackEnabled, restartRequired: true }
-})
-ipcMain.handle('codex-history-status', (event, sessionId) => {
-  trustedExecutionSender(event)
-  return readCodexHistory(join(codexHome, 'agent-pi-main-threads.json'), sessionId)
 })
 ipcMain.handle('update-check', async () => {
   const info = await checkForUpdate().catch((error) => ({ error: String(error?.message ?? error) }))

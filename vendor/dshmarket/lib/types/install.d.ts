@@ -366,6 +366,25 @@ export declare function normalizedLinkTarget(target: string): string;
  */
 export declare function removeDanglingHostBridge(name: string, profileDirectory: string, hostDirectory: string | null): boolean;
 /**
+ * Remove the link a confirmed uninstall left at `node_modules/<name>` (#1191).
+ *
+ * A plugin installed from a local checkout (`link:`) is a junction or
+ * directory symlink into that checkout. The uninstall has removed the
+ * dependency from package.json and the lockfile, but on Windows the link was
+ * reported still there, and the next install of the same name (the online
+ * release) makes pnpm rename `<name>_tmp_*` over it, which Windows refuses
+ * with EPERM.
+ *
+ * Only a link is ever touched, and only when the manifest no longer lists
+ * `name` — a link the profile still owns must survive. `rmSync` without
+ * `recursive` unlinks the link itself and never reaches the checkout it points
+ * at (the same measurement the host-bridge cleanup above relies on).
+ *
+ * @returns the checkout path the removed link pointed at, or null when there
+ * was nothing to remove. Never throws: the uninstall already succeeded.
+ */
+export declare function removeLeftoverProfileLink(profile: string, name: string, profileDirectory: string): string | null;
+/**
  * Group flat `{id, owner}` conflict hits by the installed plugin that owns
  * them. What the user has to decide is which PLUGINS to uninstall, not which
  * ids to resolve, so one row per owner is the unit the market renders and

@@ -45,7 +45,7 @@ test('the DSH bridge preserves all existing desktop APIs', () => {
   assert.deepEqual(Object.keys(exposed.agentPiDesktop).sort(), [
     'relaunch', 'pickFolder', 'pickFiles', 'pathForFile', 'printToPdf', 'openPath',
     'revealPath', 'appVersion', 'agentTeamsStatus', 'setAgentTeams',
-    'compactionFallbackStatus', 'setCompactionFallback', 'codexHistoryStatus',
+    'compactionFallbackStatus', 'setCompactionFallback',
     'checkUpdate', 'downloadUpdate', 'installUpdate', 'onUpdateProgress',
   ].sort())
 })

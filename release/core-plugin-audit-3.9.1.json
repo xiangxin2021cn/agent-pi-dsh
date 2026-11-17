@@ -1,0 +1,260 @@
+{
+  "schema": "agent-pi-dsh/core-plugin-audit/v1",
+  "checkedAt": "2026-11-17T11:01:35.150Z",
+  "edition": "mainline",
+  "appVersion": "3.9.1",
+  "dsh": {
+    "version": "0.2.2-rc.3",
+    "commit": "39163dd30f703a79079e2d2446545cff3c453738",
+    "decision": "already-latest-official-release-kept",
+    "latestCommitAt": "2026-11-13T07:37:50Z",
+    "source": "https://github.com/deepseek-ai/deepseek-harness/commit/39163dd30f703a79079e2d2446545cff3c453738",
+    "latestTags": [
+      {
+        "name": "dsh-v0.2.2-rc.3",
+        "sha": "38a6a5c965aa99ab525161efb7cc5cf1fe62fced"
+      },
+      {
+        "name": "dsh-v0.2.2-rc.2",
+        "sha": "ddac96760b6edf8fa0fe17cbdcf0b512f4c12b2c"
+      },
+      {
+        "name": "dsh-v0.2.2-rc.1",
+        "sha": "66491b05e3f05ad35bcdd4f6cd7ed26041d9e3db"
+      },
+      {
+        "name": "dsh-v0.2.2-alpha.3",
+        "sha": "05b1cae8db6e674c5685101494d4eec24652424a"
+      }
+    ]
+  },
+  "plugins": [
+    {
+      "name": "dshmarket",
+      "from": "1.73.19",
+      "version": "1.73.20",
+      "sourceCommit": "88de9575946485c1dac5e1a5fbe57fa1f3c3988c",
+      "decision": "upgraded-with-reviewed-product-adaptations",
+      "receipt": "vendor/dshmarket/AGENT-PI-ADAPTATION.json",
+      "publishedAt": "2026-11-15T20:45:23.139Z",
+      "source": "https://registry.npmjs.org/dshmarket",
+      "peerDependencies": {
+        "@deepseek-ai/cordis": "^4.0.1",
+        "@deepseek-ai/schemastery": "^3.18.1",
+        "@deepseek-ai/dsh-settings": "^0.1.0-rc.7 || ^0.1.1-rc.2 || ^0.1.2-alpha.2 || ^0.2.0-rc.1 || ^0.2.1-alpha.3 || ^0.2.1-rc.1"
+      },
+      "compatibility": "Official runtime peer declarations are unchanged; retained exact rc.3 product adapters and owner admission gates remain in place.",
+      "changes": [
+        "Shared background update notification state and explicit manual checks",
+        "Cached plugin discovery results with bounded recovery",
+        "Hot activation and Windows pnpm recovery improvements",
+        "Retained per-mount fresh snapshots for queued operations, independent market self-check, ten-language unknown states and source-switch confirmation"
+      ]
+    },
+    {
+      "name": "dsh-univer-office",
+      "version": "0.4.0",
+      "decision": "latest-published-kept-with-rc3-peer-adapter",
+      "sourceCommit": "b16565732104b17f1b27e31f0c11e222b6398a6c",
+      "observedUpstream": {
+        "checkedAt": "2026-11-17T10:47:55.581Z",
+        "registry": {
+          "url": "https://registry.npmjs.org/dsh-univer-office",
+          "httpStatus": 200,
+          "latest": "0.4.0",
+          "publishedAt": "2026-11-02T11:33:31.274Z",
+          "gitHead": "b16565732104b17f1b27e31f0c11e222b6398a6c",
+          "peerDependencies": {
+            "@deepseek-ai/cordis": "^4.0.2",
+            "@deepseek-ai/dsh-llm": "^0.1.5-rc.3 || ^0.1.7-rc.1 || ^0.2.0-rc.1 || ^0.2.1-rc.3",
+            "@deepseek-ai/dsh-skill": "^0.1.5-rc.3 || ^0.1.7-rc.1 || ^0.2.0-rc.1 || ^0.2.1-rc.3",
+            "@deepseek-ai/dsh-tools": "^0.1.5-rc.3 || ^0.1.7-rc.1 || ^0.2.0-rc.1 || ^0.2.1-rc.3",
+            "@deepseek-ai/dsh-session": "^0.1.5-rc.3 || ^0.1.7-rc.1 || ^0.2.0-rc.1 || ^0.2.1-rc.3",
+            "@deepseek-ai/schemastery": "^3.18.1",
+            "@deepseek-ai/dsh-settings": "^0.1.5-rc.3 || ^0.1.7-rc.1 || ^0.2.0-rc.1 || ^0.2.1-rc.3",
+            "@deepseek-ai/dsh-attachment": "^0.1.5-rc.3 || ^0.1.7-rc.1 || ^0.2.0-rc.1 || ^0.2.1-rc.3",
+            "@deepseek-ai/dsh-host-webserver": "^0.1.5-rc.3 || ^0.1.7-rc.1 || ^0.2.0-rc.1 || ^0.2.1-rc.3"
+          }
+        },
+        "head": {
+          "commit": "b7dea7cb03e4bfeeba2b1a6723e30eaa6b264ba2",
+          "date": "2026-11-03T09:06:40Z",
+          "title": "chore(deps): upgrade Univer SDK to 1.3.1 and license the server SDKs (#148)",
+          "url": "https://github.com/dream-num/dsh-univer-office/commit/b7dea7cb03e4bfeeba2b1a6723e30eaa6b264ba2"
+        },
+        "latestGithubRelease": {
+          "tag": "v0.3.9",
+          "publishedAt": "2026-10-30T07:33:13Z",
+          "prerelease": false,
+          "draft": false,
+          "url": "https://github.com/dream-num/dsh-univer-office/releases/tag/v0.3.9",
+          "assets": []
+        }
+      }
+    },
+    {
+      "name": "@anysearch/anysearch-dsh",
+      "version": "0.1.8",
+      "decision": "latest-published-kept-with-rc3-engine-gate",
+      "sourceCommit": "d20ab97727b36b4341977e53d7c9b7d2e93d3d03",
+      "observedUpstream": {
+        "checkedAt": "2026-11-17T10:47:55.581Z",
+        "registry": {
+          "url": "https://registry.npmjs.org/%40anysearch%2Fanysearch-dsh",
+          "httpStatus": 200,
+          "latest": "0.1.8",
+          "publishedAt": "2026-10-10T08:56:08.514Z",
+          "gitHead": "d20ab97727b36b4341977e53d7c9b7d2e93d3d03",
+          "peerDependencies": {
+            "@deepseek-ai/cordis": ">=4.0.1-rc.1 <5 || 4.0.5-alpha.1",
+            "@deepseek-ai/dsh-web": "*",
+            "@deepseek-ai/dsh-tools": "*",
+            "@deepseek-ai/dsh-tool-web": "*",
+            "@deepseek-ai/dsh-credentials": "*",
+            "@deepseek-ai/dsh-system-prompt": "*"
+          }
+        },
+        "head": {
+          "commit": "d20ab97727b36b4341977e53d7c9b7d2e93d3d03",
+          "date": "2026-10-10T08:53:24Z",
+          "title": "Merge pull request #31 from anysearch-team/relax_dsh_peer_versions",
+          "url": "https://github.com/anysearch-team/anysearch-dsh/commit/d20ab97727b36b4341977e53d7c9b7d2e93d3d03"
+        },
+        "latestGithubRelease": {
+          "tag": "v0.1.8",
+          "publishedAt": "2026-10-10T08:54:48Z",
+          "prerelease": false,
+          "draft": false,
+          "url": "https://github.com/anysearch-team/anysearch-dsh/releases/tag/v0.1.8",
+          "assets": []
+        }
+      }
+    },
+    {
+      "name": "@dsh-external/dsh-super-injector",
+      "version": "0.3.5",
+      "latestPublished": "0.3.5",
+      "unreleasedHeadVersion": "0.3.6",
+      "unreleasedHead": "e2fca6e2dc5d926bb33fbd1376780bb5e93f4974",
+      "decision": "keep-latest-published-reviewed-build",
+      "observedUpstream": {
+        "checkedAt": "2026-11-17T10:47:55.581Z",
+        "registry": {
+          "url": "https://registry.npmjs.org/%40dsh-external%2Fdsh-super-injector",
+          "httpStatus": 404
+        },
+        "head": {
+          "commit": "e2fca6e2dc5d926bb33fbd1376780bb5e93f4974",
+          "date": "2026-10-16T21:29:26Z",
+          "title": "fix(热重载): 整棵依赖树按代次加戳 —— 根治「入口新、依赖旧」的混合代",
+          "url": "https://github.com/yjh051108/dsh-super-injector/commit/e2fca6e2dc5d926bb33fbd1376780bb5e93f4974"
+        },
+        "latestGithubRelease": {
+          "tag": "v0.3.5",
+          "publishedAt": "2026-09-18T23:14:33Z",
+          "prerelease": false,
+          "draft": false,
+          "url": "https://github.com/yjh051108/dsh-super-injector/releases/tag/v0.3.5",
+          "assets": [
+            {
+              "name": "dsh-external-dsh-super-injector-0.3.5.tgz",
+              "bytes": 366817,
+              "digest": "sha256:49dc9c868704da0e73658976b37b55050bfefa8c22be5606dc290cdb77906f41"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "dsh-router-standard",
+      "version": "0.1.0-product-compatibility-snapshot",
+      "latestPublished": "0.3.0",
+      "reviewedHead": "b39112dce54b90e67b50b166c2773861d7945d1f",
+      "decision": "keep-compatible-runtime",
+      "reason": "The new optional preset reads removed Session.events, changes the native tool/prompt workflow, and provides a private Git Bash executor without a sandboxMode. Preserve the existing snapshotEvents adapter and official DSH default until that separate runtime is adapted and tested.",
+      "evidence": [
+        "preset/router-standard/router-bootstrap-v34.mjs",
+        "preset/router-standard/gitbash-executor.mjs"
+      ],
+      "observedUpstream": {
+        "checkedAt": "2026-11-17T10:47:55.581Z",
+        "registry": {
+          "url": "https://registry.npmjs.org/dsh-router-standard",
+          "httpStatus": 404
+        },
+        "head": {
+          "commit": "b39112dce54b90e67b50b166c2773861d7945d1f",
+          "date": "2026-08-24T18:20:01Z",
+          "title": "feat(router-standard): 注意力工程主线 v1.20-1.28",
+          "url": "https://github.com/yjh051108/dsh-router-standard/commit/b39112dce54b90e67b50b166c2773861d7945d1f"
+        },
+        "latestGithubRelease": {
+          "tag": "v0.3.0",
+          "publishedAt": "2026-08-21T05:51:31Z",
+          "prerelease": false,
+          "draft": false,
+          "url": "https://github.com/yjh051108/dsh-router-standard/releases/tag/v0.3.0",
+          "assets": [
+            {
+              "name": "dsh-router-standard-0.3.0.tgz",
+              "bytes": 62363,
+              "digest": "sha256:52d98f65bcb86b2945a14ede1ea6ad62d5910998745d581397ffe3dd3b9160af"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "templateSkill": {
+    "name": "writing-dna-skill",
+    "commit": "ee3d97ee27268004b5187d97711161f44fc4aae4",
+    "license": "MIT",
+    "latestHead": "1335568bfd1141fc8447caaa812e6119e2d2fbbf",
+    "latestLicense": "PolyForm Noncommercial License 1.0.0",
+    "decision": "keep-reviewed-MIT-source",
+    "reason": "Do not introduce a noncommercial-use restriction into customer-facing document workflows.",
+    "verifiedMITSource": "https://github.com/larashero3-dotcom/writing-dna-skill/blob/ee3d97ee27268004b5187d97711161f44fc4aae4/LICENSE",
+    "verifiedMITBlob": "14fac913ccf80234b1848540089a3bbcb6e5283d",
+    "latestLicenseSource": "https://github.com/larashero3-dotcom/writing-dna-skill/blob/main/LICENSE",
+    "latestLicenseBlob": "5ecc88cfc4b1cff608ed640efe913c9dd97935c3"
+  },
+  "officeEngine": {
+    "name": "@deepseek-ai/libreoffice-kit",
+    "version": "0.2.3",
+    "consumer": "packages/document/office-kit",
+    "decision": "updated-staging-and-native-gate",
+    "observedUpstream": {
+      "checkedAt": "2026-11-17T10:47:55.581Z",
+      "registry": {
+        "url": "https://registry.npmjs.org/%40deepseek-ai%2Flibreoffice-kit",
+        "httpStatus": 200,
+        "latest": "0.2.3",
+        "publishedAt": "2026-10-27T16:21:02.632Z"
+      }
+    }
+  },
+  "validation": {
+    "marketBuild": "passed",
+    "productMarket": {
+      "passed": 28,
+      "skipped": 3,
+      "skipReason": "Opt-in real bundled-link/source-switch fixtures require an explicitly staged package; no real user profile is used."
+    },
+    "retainedCore": {
+      "passed": 44,
+      "skipped": 0
+    },
+    "officialMarketUnits": {
+      "suites": 9,
+      "passed": 403,
+      "skipped": 0
+    },
+    "liveEvidenceCapturedAt": "2026-11-17T10:47:55.581Z",
+    "originalUserProfilesModified": false,
+    "productVersionFilesModified": false,
+    "kernelSourceModified": false,
+    "limitations": [
+      "This component audit does not replace final packaged Windows/Mac/Linux acceptance."
+    ]
+  }
+}

@@ -173,5 +173,5 @@ test('desktop launcher places the compatibility overlay before app flags on both
   assert.match(source, /const args = dshProfileArgs\(extra\)/)
   assert.match(source, /spawn\(pnpm, \['dsh', \.\.\.dshProfileArgs\(extra\)\]/)
   assert.doesNotMatch(source, /createCodexExecutionController|createCodexAuthController/)
-  assert.match(source, /readCodexHistory/)
+  assert.doesNotMatch(source, /readCodexHistory|codex-history-status/)
 })

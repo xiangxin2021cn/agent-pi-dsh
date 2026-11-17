@@ -22,6 +22,8 @@ export interface MatureUpdateSelection {
 }
 /** Accept stable SemVer, including build metadata, at both API boundaries. */
 export declare function isStableReleaseVersion(value: unknown): value is string;
+/** Accept a bounded exact npm release version, including prereleases. */
+export declare function isExactReleaseVersion(value: unknown): value is string;
 export declare function strictPublishTime(value: unknown): number | null;
 export declare function selectMatureUpdate(packument: NpmPackument, installed: string | null, now: number, policy: MatureUpdatePolicy): MatureUpdateSelection;
 /**

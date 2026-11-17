@@ -31,7 +31,7 @@ import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { createRequire, isBuiltin } from 'node:module';
 import { Script } from 'node:vm';
 import { join } from 'node:path';
-import { listHotMounts, patchBlockerReason, scanPatch } from "./hot.js";
+import { hotMountFailure, listLiveHotMounts, patchBlockerReason, scanPatch } from "./hot.js";
 import { userPatchPackageReferences } from "./patch.js";
 import { nameMatchesPackage } from "./entry-identity.js";
 import { bundlePatchInsertedIds, declaredBundlePatchFiles, hasDshManifest, hasLoadableEntry, pluginSubdirs, profileDir, readInstalled } from "./profile.js";
@@ -415,7 +415,7 @@ export function defaultHostRuntimeFacts(activeProfileDir) {
     catch { /* no exemption file — nothing may bypass the gate */ }
     return { runtimeVersion: discoverRuntimeVersion(), exemptions };
 }
-export function verifyActivation(profile, name, live = new Set(listHotMounts()), explicitDir, isDisabled = false, hostFacts, loaderObserved = false,
+export function verifyActivation(profile, name, live = new Set(listLiveHotMounts()), explicitDir, isDisabled = false, hostFacts, loaderObserved = false,
 /**
  * The host's OWN row for this package exists and has no fiber (#1023).
  * The loader creates an entry before it imports the module, so an entry
@@ -445,6 +445,9 @@ loaderNeverStarted = false) {
             hot: false,
         };
     }
+    const mountFailure = hotMountFailure(name, activeProfileDir);
+    if (mountFailure !== null)
+        return { state: 'failed', reasons: [mountFailure], bundle: inBundles, hot: false };
     const dir = join(activeProfileDir, 'node_modules', name);
     if (isTeamComponent(name)) {
         const prefix = '@deepseek-ai/dsh-experimental-';

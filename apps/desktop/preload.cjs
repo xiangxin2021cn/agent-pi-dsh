@@ -20,7 +20,6 @@ contextBridge.exposeInMainWorld('agentPiDesktop', {
   setAgentTeams: (enabled) => ipcRenderer.invoke('set-agent-teams', enabled),
   compactionFallbackStatus: () => ipcRenderer.invoke('compaction-fallback-status'),
   setCompactionFallback: (enabled) => ipcRenderer.invoke('set-compaction-fallback', enabled),
-  codexHistoryStatus: (sessionId) => ipcRenderer.invoke('codex-history-status', sessionId),
   checkUpdate: () => ipcRenderer.invoke('update-check'),
   downloadUpdate: () => ipcRenderer.invoke('update-download'),
   installUpdate: () => ipcRenderer.invoke('update-install'),

@@ -40,8 +40,8 @@ async function domFixture() {
   const React=vendorPackage('react'),{createRoot}=vendorPackage('react-dom','client.js'),root=createRoot(dom.window.document.getElementById('root'))
   return {React,root,act:React.act,document:dom.window.document,window:dom.window,async close(){await React.act(async()=>root.unmount());dom.window.close();for(const[key,value]of Object.entries(previous)){if(value)Object.defineProperty(globalThis,key,value);else delete globalThis[key]}}}
 }
-function storeFixture() {
-  let state={view:null},listeners=new Set()
+function storeFixture(initial={}) {
+  let state={view:null,...initial},listeners=new Set()
   return {getSnapshot:()=>state,subscribe:listener=>{listeners.add(listener);return()=>listeners.delete(listener)},actions:{openView(view,focus){state={...state,view,viewRequest:{view,focus}};for(const listener of listeners)listener()}}}
 }
 function renderedProps(f,entry,store,id='one') {
@@ -78,7 +78,7 @@ test('shared dock uses native store and navigation without replacing chat or red
   } finally {stop();await f.close()}
 })
 
-test('one shared dock appears only in default chat, keeping Codex history read-only',async()=>{
+test('one shared dock appears in chat and restores a retired Codex history preference to chat',async()=>{
   const f=await domFixture(),s=slotsFixture(),store=storeFixture()
   s.ctx.slots.register({name:'conversation.session',store,inject:(_id,actions)=>({openView:actions.openView})},()=>null)
   const stop=installProfessionalConversationView(s.ctx,f.React,props=>props.visible?f.React.createElement('section',{'data-shared-summary':''},'Shared goal'):null)
@@ -87,8 +87,24 @@ test('one shared dock appears only in default chat, keeping Codex history read-o
     await f.act(async()=>f.root.render(f.React.createElement(dock.component,renderedProps(f,dock,store))))
     for(const view of [null,'chat','agent-pi-codex-main','trajectory','workbench','agent-pi-task-guide']){
       await f.act(async()=>store.actions.openView(view,''))
-      assert.equal(f.document.querySelectorAll('[data-shared-summary]').length,[null,'chat'].includes(view)?1:0,String(view))
+      assert.equal(f.document.querySelectorAll('[data-shared-summary]').length,[null,'chat','agent-pi-codex-main'].includes(view)?1:0,String(view))
+      if(view==='agent-pi-codex-main')assert.equal(store.getSnapshot().view,'chat')
     }
+  } finally {stop();await f.close()}
+})
+
+test('restoring a saved history tab preserves the session draft and registered native views',async()=>{
+  const f=await domFixture(),s=slotsFixture(),draft={text:'User draft remains intact',references:[]},store=storeFixture({view:'agent-pi-codex-main',draft})
+  s.ctx.slots.register({name:'conversation.view',id:'chat'},()=>null)
+  s.ctx.slots.register({name:'conversation.session',store,inject:(_id,actions)=>({openView:actions.openView})},()=>null)
+  const stop=installProfessionalConversationView(s.ctx,f.React,props=>props.visible?f.React.createElement('section',{'data-shared-summary':''},'Shared goal'):null)
+  try {
+    const dock=s.ctx.slots.entries('conversation.input.dock')[0]
+    await f.act(async()=>f.root.render(f.React.createElement(dock.component,renderedProps(f,dock,store))))
+    assert.equal(store.getSnapshot().view,'chat')
+    assert.equal(store.getSnapshot().draft,draft)
+    assert.deepEqual(s.ctx.slots.entries('conversation.view').map(row=>row.options.id),['chat'])
+    assert.equal(f.document.querySelectorAll('[data-shared-summary]').length,1)
   } finally {stop();await f.close()}
 })
 

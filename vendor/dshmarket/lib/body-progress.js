@@ -70,8 +70,9 @@ export const MAX_BODY_BYTES = 256 * 1024 * 1024;
  * @param res - the response whose body to read.
  * @param stallMs - silence that ends the read, in milliseconds.
  * @param what - the download, for the rejection message ("the catalog").
+ * @param maxBytes - maximum decoded response size.
  */
-export function readBodyWhileProgressing(res, stallMs, what = 'the catalog') {
+export function readBodyWhileProgressing(res, stallMs, what = 'the catalog', maxBytes = MAX_BODY_BYTES) {
     // The stand-in closes at once, so an absent body reads as "no body"
     // below instead of parking this reader on a stream that never ends.
     const reader = (res.body ?? new ReadableStream({ start(controller) { controller.close(); } })).getReader();
@@ -118,8 +119,8 @@ export function readBodyWhileProgressing(res, stallMs, what = 'the catalog') {
                 }
                 chunks.push(r.value);
                 received += r.value.byteLength;
-                if (received > MAX_BODY_BYTES) {
-                    finish(new Error(`${what} response grew past ${String(MAX_BODY_BYTES / 1024 / 1024)} MB without ending (received ${String(received)} bytes)`));
+                if (received > maxBytes) {
+                    finish(new Error(`${what} response grew past ${String(maxBytes / 1024 / 1024)} MB without ending (received ${String(received)} bytes)`));
                     return;
                 }
                 arm();

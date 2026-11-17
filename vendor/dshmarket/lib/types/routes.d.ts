@@ -1,4 +1,3 @@
-import type { HostRequestPeer } from './http.ts';
 /**
  * HTTP routes bridging the browser market UI to the host. This layer only
  * parses requests, calls the service modules, and serializes responses —
@@ -20,8 +19,7 @@ export interface WebServerService {
     register(route: {
         kind: 'exact' | 'prefix';
         path: string;
-        auth?: 'required';
-        handler: (request: IncomingMessage, response: ServerResponse, peer?: HostRequestPeer) => void | Promise<void>;
+        handler: (request: IncomingMessage, response: ServerResponse) => void | Promise<void>;
     }): () => void;
 }
 export interface MarketHost {
@@ -127,6 +125,6 @@ export declare function marketVersion(): string;
  * Register the market's HTTP routes.
  * @param host - Acquired webServer + shell services.
  * @param config - Validated market configuration.
- * @returns Disposer removing every registered route.
+ * @returns Disposer removing every registered route and draining queued cache writes.
  */
-export declare function mountMarketRoutes(host: MarketHost, config: MarketConfig, commandRuntime?: PluginCommandRuntime, agentsLookup?: AgentsLookup, hostActivation?: HostPluginActivation): () => void;
+export declare function mountMarketRoutes(host: MarketHost, config: MarketConfig, commandRuntime?: PluginCommandRuntime, agentsLookup?: AgentsLookup, hostActivation?: HostPluginActivation): () => Promise<void>;

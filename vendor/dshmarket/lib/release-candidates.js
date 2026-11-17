@@ -14,6 +14,10 @@ export function isStableReleaseVersion(value) {
     const parsed = semver(value);
     return parsed !== null && parsed.prerelease.length === 0;
 }
+/** Accept a bounded exact npm release version, including prereleases. */
+export function isExactReleaseVersion(value) {
+    return typeof value === 'string' && value.length <= 256 && value === value.trim() && semver(value) !== null;
+}
 function compare(a, b) {
     for (let i = 0; i < 3; i++) {
         if (a.core[i] !== b.core[i])

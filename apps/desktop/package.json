@@ -1,6 +1,6 @@
 {
   "name": "agent-pi-dsh-desktop",
-  "version": "3.9.0",
+  "version": "3.9.1",
   "private": true,
   "license": "GPL-3.0-only",
   "author": "Always π AI studio",
@@ -33,7 +33,6 @@
     "files": [
       "main.mjs",
       "dsh-web-url.mjs",
-      "codex-history.mjs",
       "compaction-preferences.mjs",
       "agent-team-preferences.mjs",
       "startup-diagnostics.mjs",
@@ -119,7 +118,6 @@
     }
   },
   "agentPiProduct": {
-    "edition": "mainline",
-    "buildRevision": "hotfix.1"
+    "edition": "mainline"
   }
 }

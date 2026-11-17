@@ -208,5 +208,13 @@
     "dshPin": "39163dd30f703a79079e2d2446545cff3c453738",
     "reason": "Upgrade to the official rc.3 master sync while preserving the mainline product workflows",
     "upstream": "https://github.com/deepseek-ai/deepseek-harness/commit/39163dd30f703a79079e2d2446545cff3c453738"
+  },
+  {
+    "version": "3.9.1",
+    "edition": "mainline",
+    "releaseTag": "v3.9.1",
+    "dshVersion": "0.2.2-rc.3",
+    "dshPin": "39163dd30f703a79079e2d2446545cff3c453738",
+    "reason": "Windows workspace selection and strict contract lifetime repair, removal of retired Codex history UI, compatible plugin updates and production package cleanup"
   }
 ]
