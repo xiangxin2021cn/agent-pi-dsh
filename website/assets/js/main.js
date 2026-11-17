@@ -127,6 +127,24 @@
   };
   var intelKeys = ["mac-intel-dmg", "mac-intel-zip", "mac-intel-sha"];
 
+  /* The embedded Windows release is a minimum, even if /latest is stale. */
+  var floorNodes = document.querySelectorAll("[data-windows-release-version]");
+  if (!floorNodes.length) floorNodes = releaseNodes;
+  var windowsVersionFloors = [];
+  floorNodes.forEach(function (node) {
+    var value = node.textContent.trim().replace(/^v/, "");
+    if (/^\d+\.\d+\.\d+$/.test(value)) windowsVersionFloors.push(value.split(".").map(Number));
+  });
+  function belowWindowsVersionFloor(version) {
+    var parts = version.split(".").map(Number);
+    return windowsVersionFloors.some(function (floor) {
+      for (var i = 0; i < 3; i++) {
+        if (parts[i] !== floor[i]) return parts[i] < floor[i];
+      }
+      return false;
+    });
+  }
+
   function fmtSize(bytes) {
     return (bytes / 1048576).toFixed(1) + " MB";
   }
@@ -146,6 +164,7 @@
       window.AgentPiReleaseMetadata.releaseIdentity(release);
     if (!identity) return;
     var version = identity.appVersion;
+    if (belowWindowsVersionFloor(version)) return;
     var windowsOnly = version === "3.9.1" && identity.platforms && identity.platforms[0] === "windows";
     if ((version === "3.9.1" || identity.platforms) && !windowsOnly) return;
     var prefix = "Agent-Pi-DSH-" + version;
@@ -276,7 +295,7 @@
     if (panel) panel.setAttribute("data-release-state", "synced");
   }
 
-  var options = { credentials: "omit", referrerPolicy: "no-referrer", cache: "default" };
+  var options = { credentials: "omit", referrerPolicy: "no-referrer", cache: "no-store" };
   if ("AbortSignal" in window && AbortSignal.timeout) options.signal = AbortSignal.timeout(8000);
   fetch(API, options)
     .then(function (response) {

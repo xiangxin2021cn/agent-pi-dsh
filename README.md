@@ -183,7 +183,7 @@ flowchart LR
 
 国内加速（Windows）：[gh-proxy.org](https://gh-proxy.org/https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.9.1/Agent-Pi-DSH-3.9.1-x64.exe)。由第三方提供；不可用时请使用 GitHub 原站。
 
-Windows 3.9.1 安装包的正式大小与 SHA256 以同一 Release 的 `.sha256` 和 `.build.json` 资产为准；发布前会重新核对本地文件、构建收据及 GitHub 资产。旧 Windows 3.9.0 安装包因目录选择故障撤回，项目和用户数据无需删除。
+Windows 3.9.1 x64：715079719 字节；SHA256：`42A897014FF9604FA7421A640D5161AC6E3274446262716120FE2B8457E8D6EF`；[校验文件](https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.9.1/Agent-Pi-DSH-3.9.1-x64.exe.sha256)。旧 Windows 3.9.0 安装包因目录选择故障撤回，项目和用户数据无需删除。
 
 1. 下载对应平台安装包
 2. 核对对应安装包的 SHA256。Windows 安装包未签名，SmartScreen 可能提示风险。

@@ -55,8 +55,8 @@ test('homepage loads translations before the language controller', () => {
 
 test('public fallback downloads and kernel identity stay aligned with the existing latest release', () => {
   const expectedAssets = [
-    'Agent-Pi-DSH-3.9.0-x64.exe',
-    'Agent-Pi-DSH-3.9.0-x64.exe.sha256',
+    'Agent-Pi-DSH-3.9.1-x64.exe',
+    'Agent-Pi-DSH-3.9.1-x64.exe.sha256',
     'Agent-Pi-DSH-3.9.0-mac-arm64.dmg',
     'Agent-Pi-DSH-3.9.0-mac-arm64.zip',
     'Agent-Pi-DSH-3.9.0-mac-x64.dmg',
@@ -66,6 +66,6 @@ test('public fallback downloads and kernel identity stay aligned with the existi
   ]
   for (const asset of expectedAssets) assert.ok(html.includes(asset), asset)
   assert.doesNotMatch(html, /releases\/download\/v3\.5\.2/)
-  assert.match(html, /data-rel-version>v3\.9\.0</)
+  assert.match(html, /data-rel-version>v3\.9\.1</)
   assert.match(html, /data-kernel-version>dsh-v0\.2\.2-rc\.3</)
 })

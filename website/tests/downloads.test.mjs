@@ -22,7 +22,8 @@ const suffixes = {
 }
 const intel = 'mac-intel-dmg mac-intel-zip mac-intel-sha'
 const releaseBase = 'https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.9.0/'
-const windowsSha = '549F6F6CD56AA325AA6C002132F2CCB78CB6DA215657BCF0C07E028210BDF28C'
+const windowsSha = '42A897014FF9604FA7421A640D5161AC6E3274446262716120FE2B8457E8D6EF'
+const windowsReleaseBase = 'https://github.com/xiangxin2021cn/agent-pi-dsh/releases/download/v3.9.1/'
 
 function fallbackText(attribute) {
   const match = html.match(new RegExp(attribute + '(?:\\s[^>]*)?>([^<]*)<'))
@@ -65,15 +66,18 @@ function release(withIntel = true, version = '3.8.3', intelFamily = '-mac-x64-mo
   }
 }
 
-async function render(data, { offline = false } = {}) {
+// Historical metadata compatibility fixtures use an explicit neutral Windows floor.
+async function render(data, { offline = false, windowsFloor = '0.0.0' } = {}) {
   const version = element()
   version.textContent = fallbackText('data-rel-version')
   const panel = element({ 'data-release-state': 'fallback' })
   const electron = element()
   electron.textContent = fallbackText('data-release-electron-version')
+  const sha = element()
+  sha.textContent = fallbackText('data-release-sha')
   const date = element()
   const windowsVersion = element()
-  windowsVersion.textContent = fallbackText('data-windows-release-version')
+  windowsVersion.textContent = windowsFloor
   const otherVersion = element()
   otherVersion.textContent = fallbackText('data-other-release-version')
   const group = element({ 'data-require-release-asset': intel })
@@ -105,6 +109,7 @@ async function render(data, { offline = false } = {}) {
         if (selector === '[data-require-release-asset], [data-missing-release-asset]') return [group, missing]
         if (selector === '[data-release-electron-version]') return [electron]
         if (selector === '[data-release-date]') return [date]
+        if (selector === '[data-release-sha]') return [sha]
         if (selector === '[data-windows-release-version]') return [windowsVersion]
         if (selector === '[data-other-release-version]') return [otherVersion]
         if (selector === '[data-release-system-fallback]') return [systemFallback]
@@ -121,7 +126,7 @@ async function render(data, { offline = false } = {}) {
   vm.runInNewContext(metadata, context)
   vm.runInNewContext(main.slice(main.indexOf('/* ---- Latest complete')), context)
   await new Promise(setImmediate)
-  return { version, panel, electron, date, group, missing, links, sizes, systems, systemFallback, systemNote, windowsVersion, otherVersion }
+  return { version, panel, electron, date, group, missing, links, sizes, systems, systemFallback, systemNote, windowsVersion, otherVersion, sha }
 }
 
 test('complete legacy Intel assets update together and retain accelerator prefixes', async () => {
@@ -195,9 +200,9 @@ test('a tender release cannot replace the mainline site identity or download lin
     asset.browser_download_url = asset.browser_download_url.replace('/v3.9.0/', '/tender-v3.9.0/').replace('/Agent-Pi-DSH-', '/Agent-Pi-DSH-Tender-')
   }
   const ui = await render(data)
-  assert.equal(ui.version.textContent, 'v3.9.0')
+  assert.equal(ui.version.textContent, 'v3.9.1')
   assert.equal(ui.panel.getAttribute('data-release-state'), 'fallback')
-  assert.equal(ui.links['windows-exe'][0].href, releaseBase + 'Agent-Pi-DSH-3.9.0-x64.exe')
+  assert.equal(ui.links['windows-exe'][0].href, windowsReleaseBase + 'Agent-Pi-DSH-3.9.1-x64.exe')
   assert.doesNotMatch(html, /tender-v3\.9\.0|Agent-Pi-DSH-Tender-3\.9\.0/)
 })
 
@@ -254,7 +259,7 @@ test('an incomplete primary release or invalid metadata preserves the verified f
   invalid.body = 'no release identity'
   for (const data of [incomplete, invalid]) {
     const ui = await render(data)
-    assert.equal(ui.version.textContent, 'v3.9.0')
+    assert.equal(ui.version.textContent, 'v3.9.1')
     assert.equal(ui.panel.getAttribute('data-release-state'), 'fallback')
     assert.equal(ui.systems['mac-arm64'].textContent, 'Apple Silicon · macOS 15+')
     assert.equal(ui.systems['mac-x64'].textContent, 'Intel x64 · macOS 15+')
@@ -265,10 +270,10 @@ test('an incomplete primary release or invalid metadata preserves the verified f
 })
 
 test('the 3.9.0 fallback has matching binary names, sizes, checksums and both Mac requirements', () => {
-  for (const suffix of ['-x64.exe', '-mac-arm64.dmg', '-mac-arm64.zip', '-mac-x64.dmg', '-mac-x64.zip', '-linux-x86_64.AppImage', '-linux-amd64.deb']) {
+  for (const suffix of ['-mac-arm64.dmg', '-mac-arm64.zip', '-mac-x64.dmg', '-mac-x64.zip', '-linux-x86_64.AppImage', '-linux-amd64.deb']) {
     assert.ok(html.includes('href="' + releaseBase + 'Agent-Pi-DSH-3.9.0' + suffix + '"'), suffix)
   }
-  for (const [key, bytes] of Object.entries({ 'windows-exe': 736439453, 'mac-dmg': 744537508, 'mac-intel-dmg': 764303442, 'linux-appimage': 675426577 })) {
+  for (const [key, bytes] of Object.entries({ 'windows-exe': 715079719, 'mac-dmg': 744537508, 'mac-intel-dmg': 764303442, 'linux-appimage': 675426577 })) {
     assert.equal(fallbackText('data-release-size="' + key + '"'), (bytes / 1048576).toFixed(1) + ' MB')
   }
   for (const key of ['windows-exe', 'mac-dmg', 'mac-intel-dmg', 'linux-appimage']) {
@@ -277,10 +282,10 @@ test('the 3.9.0 fallback has matching binary names, sizes, checksums and both Ma
     const direct = opening.find(match => !match[0].includes('data-release-proxy'))[0].match(/href="([^"]+)"/)[1]
     assert.ok(opening.some(match => match[0].includes('href="https://gh-proxy.org/' + direct + '"')), key)
   }
-  assert.ok(html.includes(releaseBase + 'Agent-Pi-DSH-3.9.0-x64.exe.sha256'))
+  assert.ok(html.includes(windowsReleaseBase + 'Agent-Pi-DSH-3.9.1-x64.exe.sha256'))
   assert.ok(html.includes(releaseBase + 'Agent-Pi-DSH-3.9.0-mac-x64.dmg.sha256'))
   assert.equal(fallbackText('data-release-sha'), windowsSha)
-  assert.equal(fallbackText('data-release-date'), '2026-11-15')
+  assert.equal(fallbackText('data-release-date'), '2026-11-17')
   assert.equal(fallbackText('data-kernel-version'), 'dsh-v0.2.2-rc.3')
   assert.match(html, /data-release-system="mac-arm64">Apple Silicon · macOS 15\+/)
   assert.match(html, /data-release-system="mac-x64">Intel x64 · macOS 15\+/)
@@ -290,7 +295,7 @@ test('the 3.9.0 fallback has matching binary names, sizes, checksums and both Ma
 
 test('an offline GitHub API preserves the embedded 3.9.0 fallback links and requirements', async () => {
   const ui = await render(null, { offline: true })
-  assert.equal(ui.version.textContent, 'v3.9.0')
+  assert.equal(ui.version.textContent, 'v3.9.1')
   assert.equal(ui.electron.textContent, '45.2.2')
   assert.equal(ui.panel.getAttribute('data-release-state'), 'fallback')
   assert.equal(ui.systems['mac-arm64'].textContent, 'Apple Silicon · macOS 15+')
@@ -299,7 +304,7 @@ test('an offline GitHub API preserves the embedded 3.9.0 fallback links and requ
   assert.equal(ui.systemFallback.hidden, false)
   assert.equal(ui.systemNote.hidden, true)
   for (const [key, suffix] of Object.entries(suffixes)) {
-    const expected = releaseBase + 'Agent-Pi-DSH-3.9.0' + suffix
+    const expected = key.startsWith('windows-') ? windowsReleaseBase + 'Agent-Pi-DSH-3.9.1' + suffix : releaseBase + 'Agent-Pi-DSH-3.9.0' + suffix
     assert.equal(ui.links[key][0].href, expected)
     assert.equal(ui.links[key][0].hidden, false)
     if (ui.links[key][1]) assert.equal(ui.links[key][1].href, 'https://gh-proxy.org/' + expected)
@@ -311,8 +316,8 @@ test('all release-facing HTML uses the current script cache keys and verified st
     const source = readFileSync(join(website, file), 'utf8')
     const scripts = [...source.matchAll(/assets\/js\/(?:main|release-metadata)\.js\?v=([^"\s]+)/g)]
     assert.ok(scripts.length > 0, file)
-    for (const script of scripts) assert.equal(script[1], '391-windows', file)
-    for (const version of source.matchAll(/data-release-version>([^<]+)</g)) assert.equal(version[1], '3.9.0', file)
+    for (const script of scripts) assert.equal(script[1], '391-sync-final', file)
+    for (const version of source.matchAll(/data-release-version>([^<]+)</g)) assert.equal(version[1], '3.9.1', file)
     for (const sha of source.matchAll(/data-release-sha\s[^>]*>([^<]+)</g)) assert.equal(sha[1], windowsSha, file)
   }
   const docs = readFileSync(join(website, 'docs.html'), 'utf8')
@@ -358,9 +363,9 @@ test('a draft or incomplete 3.9.0 release preserves the verified 3.9.0 fallback'
     data.draft = draft
     if (!draft) data.assets = data.assets.filter(asset => !asset.name.endsWith('-mac-x64.dmg'))
     const ui = await render(data)
-    assert.equal(ui.version.textContent, 'v3.9.0')
+    assert.equal(ui.version.textContent, 'v3.9.1')
     assert.equal(ui.panel.getAttribute('data-release-state'), 'fallback')
-    assert.equal(ui.links['windows-exe'][0].href, releaseBase + 'Agent-Pi-DSH-3.9.0-x64.exe')
+    assert.equal(ui.links['windows-exe'][0].href, windowsReleaseBase + 'Agent-Pi-DSH-3.9.1-x64.exe')
   }
 })
 
@@ -397,7 +402,7 @@ test('3.9.0 requires the pinned kernel and every final Mac download group', asyn
   for (const invalid of [wrongKernel, wrongPin, ...missing]) {
     const ui = await render(invalid)
     assert.equal(ui.panel.getAttribute('data-release-state'), 'fallback')
-    assert.equal(ui.version.textContent, 'v3.9.0')
+    assert.equal(ui.version.textContent, 'v3.9.1')
   }
 })
 
@@ -441,4 +446,32 @@ test('Windows-only updates require explicit scope, all three final assets, and t
     assert.equal(ui.panel.getAttribute('data-release-state'), 'fallback')
     assert.equal(ui.links['mac-dmg'][0].href, releaseBase + 'Agent-Pi-DSH-3.9.0-mac-arm64.dmg')
   }
+})
+
+test('a stamped Windows release never downgrades from stale complete GitHub metadata', async () => {
+  const windowsFloor = fallbackText('data-windows-release-version')
+  assert.equal(windowsFloor, '3.9.1')
+  const stale = release(true, '3.9.0', '-mac-x64')
+  stale.published_at = '2026-12-01T10:00:00Z'
+  const ui = await render(stale, { windowsFloor })
+  assert.equal(ui.panel.getAttribute('data-release-state'), 'fallback')
+  assert.equal(ui.version.textContent, 'v3.9.1')
+  assert.equal(ui.windowsVersion.textContent, windowsFloor)
+  assert.equal(ui.sha.textContent, windowsSha)
+  assert.equal(ui.links['windows-exe'][0].href, windowsReleaseBase + 'Agent-Pi-DSH-3.9.1-x64.exe')
+  assert.equal(ui.links['windows-sha'][0].href, windowsReleaseBase + 'Agent-Pi-DSH-3.9.1-x64.exe.sha256')
+  assert.equal(ui.otherVersion.textContent, '3.9.0')
+  for (const [key, suffix] of Object.entries(suffixes).filter(([key]) => !key.startsWith('windows-'))) {
+    assert.equal(ui.links[key][0].href, releaseBase + 'Agent-Pi-DSH-3.9.0' + suffix)
+  }
+  const current = await render(windows391(), { windowsFloor })
+  assert.equal(current.panel.getAttribute('data-release-state'), 'synced')
+  assert.equal(current.windowsVersion.textContent, '3.9.1')
+  assert.equal(current.otherVersion.textContent, '3.9.0')
+  assert.equal(current.sha.textContent, 'B'.repeat(64))
+  const future = await render(release(true, '3.10.0', '-mac-x64'), { windowsFloor })
+  assert.equal(future.panel.getAttribute('data-release-state'), 'synced')
+  assert.equal(future.windowsVersion.textContent, '3.10.0')
+  assert.ok(future.links['windows-exe'][0].href.includes('/v3.10.0/Agent-Pi-DSH-3.10.0-x64.exe'))
+  assert.equal(future.sha.textContent, 'B'.repeat(64))
 })
