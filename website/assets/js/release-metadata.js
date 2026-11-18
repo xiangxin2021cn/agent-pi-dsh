@@ -41,16 +41,11 @@
     } else if (kernel.sourceKind !== undefined ||
       !/^dsh-v\d+\.\d+\.\d+(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?$/.test(kernel.releaseTag || "")) return null;
 
-    if (identity.platforms !== undefined && (!Array.isArray(identity.platforms) ||
-      identity.platforms.length !== 1 || identity.platforms[0] !== "windows")) return null;
-
-    var result = {
+    return {
       appVersion: appVersion,
       kernelVersion: kernelVersion,
       kernelPin: kernel.commit.toLowerCase()
     };
-    if (identity.platforms) result.platforms = identity.platforms;
-    return result;
   }
 
   scope.AgentPiReleaseMetadata = { releaseIdentity: releaseIdentity };

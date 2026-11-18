@@ -107,6 +107,7 @@
 
 /* ---- Latest complete GitHub release, with a verified static fallback ---- */
 (function () {
+  if (document.documentElement.hasAttribute("data-release-pinned")) return;
   var releaseNodes = document.querySelectorAll("[data-rel-version], [data-release-version]");
   var panel = document.getElementById("release-panel");
   if (!panel && !releaseNodes.length) return;
@@ -127,24 +128,6 @@
   };
   var intelKeys = ["mac-intel-dmg", "mac-intel-zip", "mac-intel-sha"];
 
-  /* The embedded Windows release is a minimum, even if /latest is stale. */
-  var floorNodes = document.querySelectorAll("[data-windows-release-version]");
-  if (!floorNodes.length) floorNodes = releaseNodes;
-  var windowsVersionFloors = [];
-  floorNodes.forEach(function (node) {
-    var value = node.textContent.trim().replace(/^v/, "");
-    if (/^\d+\.\d+\.\d+$/.test(value)) windowsVersionFloors.push(value.split(".").map(Number));
-  });
-  function belowWindowsVersionFloor(version) {
-    var parts = version.split(".").map(Number);
-    return windowsVersionFloors.some(function (floor) {
-      for (var i = 0; i < 3; i++) {
-        if (parts[i] !== floor[i]) return parts[i] < floor[i];
-      }
-      return false;
-    });
-  }
-
   function fmtSize(bytes) {
     return (bytes / 1048576).toFixed(1) + " MB";
   }
@@ -164,9 +147,6 @@
       window.AgentPiReleaseMetadata.releaseIdentity(release);
     if (!identity) return;
     var version = identity.appVersion;
-    if (belowWindowsVersionFloor(version)) return;
-    var windowsOnly = version === "3.9.1" && identity.platforms && identity.platforms[0] === "windows";
-    if ((version === "3.9.1" || identity.platforms) && !windowsOnly) return;
     var prefix = "Agent-Pi-DSH-" + version;
     var byName = {};
     (release.assets || []).forEach(function (asset) { byName[asset.name] = asset; });
@@ -192,30 +172,20 @@
       return true;
     });
 
-    if (windowsOnly) {
-      var buildName = prefix + "-x64.exe.build.json";
-      if (!assets["windows-exe"] || !assets["windows-sha"] ||
-        !validAsset(byName[buildName], buildName, tag) ||
-        identity.kernelVersion !== "dsh-v0.2.2-rc.3" ||
-        identity.kernelPin !== "39163dd30f703a79079e2d2446545cff3c453738") return;
-    }
-
     /* Never switch the page to a newly published release until all three
        primary desktop platforms have finished uploading. */
-    if (!windowsOnly && (!assets["windows-exe"] || !assets["mac-dmg"] || !assets["linux-appimage"])) return;
+    if (!assets["windows-exe"] || !assets["mac-dmg"] || !assets["linux-appimage"]) return;
     if (version === "3.8.9" && (identity.kernelVersion !== "dsh-v0.2.2-rc.1" || identity.kernelPin !== "66491b05e3f05ad35bcdd4f6cd7ed26041d9e3db" ||
-      !Object.keys(assetSuffixes).every(function (key) { return assets[key]; }))) return;
-    if (version === "3.9.0" && (identity.kernelVersion !== "dsh-v0.2.2-rc.3" || identity.kernelPin !== "39163dd30f703a79079e2d2446545cff3c453738" ||
       !Object.keys(assetSuffixes).every(function (key) { return assets[key]; }))) return;
     var digest = assets["windows-exe"].digest || "";
     var digestMatch = digest.match(/^sha256:([a-f0-9]{64})$/i);
     if (!digestMatch) return;
 
-    if (!windowsOnly) {
-      var currentRequirements = version === "3.8.5" || version === "3.8.6" || version === "3.8.7" || version === "3.8.8" || version === "3.8.9" || version === "3.9.0";
+    {
+      var currentRequirements = version === "3.8.5" || version === "3.8.6" || version === "3.8.7" || version === "3.8.8" || version === "3.8.9";
       var legacyRequirements = version === "3.8.2";
       document.querySelectorAll("[data-release-electron-version]").forEach(function (node) {
-        node.textContent = version === "3.8.9" || version === "3.9.0" ? "45.2.2" : version === "3.8.7" || version === "3.8.8" ? "45.2.0" : currentRequirements ? "45.0.0" : legacyRequirements ? "44.7.0" : "See Release";
+        node.textContent = version === "3.8.9" ? "45.2.2" : version === "3.8.7" || version === "3.8.8" ? "45.2.0" : currentRequirements ? "45.0.0" : legacyRequirements ? "44.7.0" : "See Release";
       });
       document.querySelectorAll('[data-release-system="mac-arm64"]').forEach(function (node) {
         node.textContent = currentRequirements ? "Apple Silicon · macOS 15+" : legacyRequirements ? "Apple Silicon · macOS 13+" : "Apple Silicon · See Release";
@@ -242,11 +212,6 @@
     document.querySelectorAll("[data-release-version]").forEach(function (node) {
       node.textContent = version;
     });
-    document.querySelectorAll("[data-windows-release-version]").forEach(function (node) { node.textContent = version; });
-    if (!windowsOnly) document.querySelectorAll("[data-other-release-version]").forEach(function (node) { node.textContent = version; });
-    if (windowsOnly) document.querySelectorAll("[data-release-scope-note]").forEach(function (node) {
-      node.innerHTML = '<span data-lang="zh">Windows 3.9.1 修复项目目录选择并清理旧 Codex 入口；macOS / Linux 保持已验证的 3.9.0。投标专版独立。</span><span data-lang="en">Windows 3.9.1 fixes project folder selection and removes the old Codex entry; macOS / Linux remain at the verified 3.9.0 release. The tender edition stays separate.</span>';
-    });
     var releaseDay = {};
     new Intl.DateTimeFormat("en", { timeZone: "Africa/Windhoek", year: "numeric", month: "2-digit", day: "2-digit" })
       .formatToParts(new Date(release.published_at)).forEach(function (part) { releaseDay[part.type] = part.value; });
@@ -267,7 +232,6 @@
     });
 
     Object.keys(assetSuffixes).forEach(function (key) {
-      if (windowsOnly && key.indexOf("windows-") !== 0) return;
       var asset = assets[key];
       document.querySelectorAll('[data-release-asset="' + key + '"]').forEach(function (link) {
         link.hidden = !asset;
@@ -285,7 +249,7 @@
       });
     });
 
-    if (!windowsOnly) document.querySelectorAll("[data-require-release-asset], [data-missing-release-asset]").forEach(function (node) {
+    document.querySelectorAll("[data-require-release-asset], [data-missing-release-asset]").forEach(function (node) {
       var required = node.getAttribute("data-require-release-asset");
       var keys = required || node.getAttribute("data-missing-release-asset");
       var available = keys.split(/\s+/).every(function (key) { return !!assets[key]; });
@@ -295,7 +259,7 @@
     if (panel) panel.setAttribute("data-release-state", "synced");
   }
 
-  var options = { credentials: "omit", referrerPolicy: "no-referrer", cache: "no-store" };
+  var options = { credentials: "omit", referrerPolicy: "no-referrer", cache: "default" };
   if ("AbortSignal" in window && AbortSignal.timeout) options.signal = AbortSignal.timeout(8000);
   fetch(API, options)
     .then(function (response) {
